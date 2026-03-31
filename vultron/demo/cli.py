@@ -46,6 +46,7 @@ import vultron.demo.status_updates_demo as status_updates_demo
 import vultron.demo.suggest_actor_demo as suggest_actor_demo
 import vultron.demo.transfer_ownership_demo as transfer_ownership_demo
 import vultron.demo.trigger_demo as trigger_demo
+import vultron.demo.two_actor_demo as two_actor_demo
 from vultron.demo.seed_config import SeedConfig
 from vultron.demo.utils import DataLayerClient, BASE_URL, seed_actor
 import vultron.bt.base.demo.pacman as pacman_demo
@@ -255,6 +256,80 @@ def seed(
         logger.info("Peer actor seeded: %s", peer_actor.id_)
 
     click.echo("✅ Seed complete.")
+
+
+# ---------------------------------------------------------------------------
+# Two-actor sub-command — multi-container Finder + Vendor demo (D5-1-G5)
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="two-actor")
+@click.option(
+    "--finder-url",
+    envvar="VULTRON_FINDER_BASE_URL",
+    default=two_actor_demo.FINDER_BASE_URL,
+    show_default=True,
+    help="Base URL of the Finder container API "
+    "(env: VULTRON_FINDER_BASE_URL).",
+)
+@click.option(
+    "--vendor-url",
+    envvar="VULTRON_VENDOR_BASE_URL",
+    default=two_actor_demo.VENDOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor container API "
+    "(env: VULTRON_VENDOR_BASE_URL).",
+)
+@click.option(
+    "--finder-id",
+    default=None,
+    help="Deterministic full URI for the Finder actor (optional).",
+)
+@click.option(
+    "--vendor-id",
+    default=None,
+    help="Deterministic full URI for the Vendor actor (optional).",
+)
+@click.option(
+    "--skip-health-check",
+    is_flag=True,
+    default=False,
+    help="Skip container availability checks.",
+)
+def two_actor(
+    finder_url: str,
+    vendor_url: str,
+    finder_id: str | None,
+    vendor_id: str | None,
+    skip_health_check: bool,
+) -> None:
+    """Run the two-actor (Finder + Vendor) multi-container CVD demo (D5-1-G5).
+
+    Orchestrates a complete CVD workflow across two separate API server
+    containers.  Requires both containers to be running and reachable at
+    the configured base URLs.
+
+    Use ``--finder-url`` / ``--vendor-url`` (or env vars
+    ``VULTRON_FINDER_BASE_URL`` / ``VULTRON_VENDOR_BASE_URL``) to point
+    the demo at running containers.
+
+    \b
+    Workflow:
+      1. Seed both containers (actor records + peer registration).
+      2. Finder submits a vulnerability report to Vendor's inbox.
+      3. Vendor validates the report (trigger: validate-report).
+      4. Vendor engages the case (trigger: engage-case).
+      5. Vendor invites Finder to the case (Finder's inbox).
+      6. Finder accepts the invitation (Vendor's inbox).
+      7. Verify final state on both containers.
+    """
+    two_actor_demo.main(
+        skip_health_check=skip_health_check,
+        finder_url=finder_url,
+        vendor_url=vendor_url,
+        finder_id=finder_id,
+        vendor_id=vendor_id,
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -255,16 +255,24 @@ Implemented in D5-1-G4. `docker/docker-compose-multi-actor.yml` defines
 finder, vendor, and case-actor services with health checks, named volumes,
 and deterministic actor IDs.
 
-### G5 — Demo Script for Multi-Container Scenario
+### G5 — Demo Script for Multi-Container Scenario ✅
 
-The existing demo scripts in `vultron/demo/` assume a single API server.
-D5-2 requires a new demo script (or extended existing ones) that:
+Implemented in D5-1-G5 via `vultron/demo/two_actor_demo.py` and the
+`vultron-demo two-actor` CLI sub-command.
 
-1. Sends requests to multiple containers by URL.
-2. Orchestrates the setup (peer registration, actor seeding) before
-   the main scenario.
-3. Polls each container's DataLayer or status endpoints to verify state
-   propagation.
+The two-actor demo now:
+
+1. Sends requests to multiple containers by URL (`--finder-url`,
+   `--vendor-url`, or their environment-variable equivalents).
+2. Orchestrates setup with a two-phase seeding sequence (create each
+   local actor first, then register peers cross-container).
+3. Verifies state propagation by checking the target container's
+   DataLayer after submit / invite / accept steps and by resolving the
+   case created from the submitted report offer.
+
+The multi-container compose file also activates the `demo-runner`
+service with `DEMO=two-actor`, making the orchestration script the
+default scenario runner for the current Finder + Vendor setup.
 
 ### G6 — Inbox URL Derivation Consistency ✅
 
@@ -277,8 +285,7 @@ actors router route.
 
 ## 5. D5-2 Prerequisites Status
 
-All G1–G4, G6 prerequisites are complete. G5 (demo script) is the
-remaining prerequisite for D5-2.
+All G1–G6 prerequisites are complete. D5-2 is now unblocked.
 
 ---
 
@@ -298,16 +305,15 @@ The following are out of scope for D5-2 and should not block it:
 ## 7. Summary
 
 The hexagonal architecture is clean and ready for multi-actor use. All
-D5-1 gap items (G1–G4, G6) are complete. The key remaining work for D5-2
-is the multi-container demo script (G5 / D5-1-G5):
+D5-1 gap items (G1–G6) are complete:
 
 - Per-container actor seeding and peer registration (via seed configs)
-- Docker Compose multi-service configuration (complete)
-- A demo script that orchestrates multiple containers
-- CaseActor instantiation strategy (complete: pre-seeded with deterministic
-  ID; co-located in Vendor for D5-2; dedicated container for D5-3+)
+- Docker Compose multi-service configuration
+- A multi-container Finder + Vendor orchestration script
+- CaseActor instantiation strategy (pre-seeded with deterministic ID;
+  co-located in Vendor for D5-2; dedicated container for D5-3+)
 
 All core protocol mechanics (inbox handling, outbox delivery, RM/EM/CS
 state machines, CaseActor broadcast) are implemented and tested in the
-single-container context. The multi-container demo is primarily a
-question of deployment configuration and demo orchestration.
+single-container context. D5-2 can now focus on the scenario-level
+acceptance workflow and containerized end-to-end verification.

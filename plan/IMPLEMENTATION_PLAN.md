@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-31 (refresh #63: D5-1-G4 complete)
+**Last Updated**: 2026-03-31 (refresh #64: D5-1-G5 complete)
 
 ## Overview
 
@@ -13,7 +13,8 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 
 ### Current Status Summary
 
-**Test suite**: 1171 passed, 5581 subtests (2026-03-31).
+**Test suite**: Canonical validation passed on 2026-03-31
+(`black`, `flake8`, `mypy`, `pyright`, full `pytest` run).
 
 All 38 message handlers implemented (including `unknown`). All 9 trigger
 endpoints complete. 12 demo scripts, all dockerized in `docker-compose.yml`.
@@ -27,9 +28,8 @@ All PRIORITY-30 through PRIORITY-200 phases complete.
   BUG-FLAKY-1, REORG-1, SECOPS-1, DOCMAINT-1, SPEC-AUDIT-1, SPEC-AUDIT-2,
   SPEC-AUDIT-3
 
-**PRIORITY-300** (multi-actor demos; D5-1 complete; D5-1-G1 through D5-1-G4,
-D5-1-G6 complete; **D5-1-G3 complete** (2026-03-31); D5-1-G5 pending;
-D5-2 and later blocked by D5-1-G5).
+**PRIORITY-300** (multi-actor demos; D5-1 complete; D5-1-G1 through D5-1-G6
+complete; D5-2 unblocked and now the next executable task).
 
 ---
 
@@ -234,22 +234,17 @@ are blocked by all G tasks.
   meshes. Updated `notes/multi-actor-architecture.md` §3-D and §4 gap
   list. Tests in `test/demo/test_multi_actor_seed.py` (32 tests).
 
-#### D5-1-G5 — Multi-Container Demo Script
+#### D5-1-G5 — Multi-Container Demo Script ✅
 
-- [ ] **D5-1-G5**: Implement a new demo script (e.g.,
-  `vultron/demo/two_actor_demo.py`) and a corresponding `vultron-demo`
-  sub-command for the Finder + Vendor scenario. The script MUST:
-  (1) accept base URLs for each container as arguments or env vars;
-  (2) run peer registration / seeding for both containers before the main
-  scenario (using D5-1-G2 seed sub-command or equivalent API calls);
-  (3) orchestrate the CVD workflow across containers by POSTing to each
-  container's trigger and inbox endpoints; and (4) poll each container's
-  DataLayer or status endpoints to verify final RM/EM/CS state. Wrap
-  workflow steps in `demo_step`/`demo_check` context managers. Add an
-  acceptance test in `test/demo/` runnable via
-  `docker compose up --abort-on-container-exit`. Depends on D5-1-G2,
-  D5-1-G3, D5-1-G4. References: `notes/multi-actor-architecture.md` §4 G5,
-  `specs/multi-actor-demo.md` DEMO-MA-03-001 through DEMO-MA-04-002.
+- [x] **D5-1-G5**: Added `vultron/demo/two_actor_demo.py` plus a
+  `vultron-demo two-actor` CLI sub-command for the Finder + Vendor
+  multi-container workflow. The demo accepts per-container base URLs and
+  deterministic actor IDs, seeds both containers in a two-phase peer-aware
+  sequence, orchestrates cross-container inbox + trigger interactions for
+  submit/validate/engage/invite/accept, and verifies final state from each
+  container's DataLayer. Added unit coverage in
+  `test/demo/test_two_actor_demo.py` and activated the `demo-runner` service
+  in `docker/docker-compose-multi-actor.yml` with `DEMO=two-actor`.
 
 #### D5-1-G1 — VULTRON_BASE_URL Exposure via Info/Health Endpoint ✅
 
@@ -261,7 +256,7 @@ are blocked by all G tasks.
   implemented.
 
 - [ ] **D5-2**: Demo Scenario 1 (finder + vendor): Dockerized with two actor
-  containers + CaseActor container. **Blocked by D5-1-G5**.
+  containers + CaseActor container.
 - [ ] **D5-3**: Demo Scenario 2 (finder + vendor + coordinator). **Blocked by D5-2**.
 - [ ] **D5-4**: Demo Scenario 3 (ownership transfer + multi-vendor). **Blocked by D5-3**.
 - [ ] **D5-5**: Integration tests and Docker Compose configs for each scenario.

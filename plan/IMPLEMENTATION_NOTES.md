@@ -115,3 +115,31 @@ in `app.dependency_overrides` — `_shared_dl` calls `get_datalayer()` directly
 (not via `Depends`), so overriding only `get_datalayer` is insufficient.
 
 D5-1-G3, D5-1-G4, and D5-1-G5 are the remaining prerequisites for D5-2.
+
+---
+
+## 2026-03-31 D5-1-G5 complete
+
+The new two-actor demo lives in `vultron/demo/two_actor_demo.py` and is
+exposed through `vultron-demo two-actor` in `vultron/demo/cli.py`.
+
+The implementation uses a two-phase seeding flow: each container first
+creates its own local actor, then registers the peer actor using the
+deterministic full URI returned from the opposite container. This keeps
+the setup idempotent and avoids race/order assumptions across
+containers.
+
+The demo intentionally simulates cross-container message delivery by
+posting activities directly to the target container's inbox with the
+target container's `DataLayerClient`. That matches
+`DEMO-MA-00-001` / the multi-actor architecture notes: coordination
+still happens over HTTP, but the orchestration script does not rely on
+background outbox delivery to advance the scenario deterministically.
+
+`find_case_for_offer()` must resolve the case indirectly via the report
+ID referenced by the stored submit-report offer. This matches current
+case creation behavior, where `VulnerabilityCase.vulnerability_reports`
+stores report references and the validate-report trigger creates the
+case from that report rather than from the offer object itself.
+
+D5-2 is now the next executable task.

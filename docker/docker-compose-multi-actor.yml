@@ -162,8 +162,10 @@ services:
       start_period: 5s
 
   # ── Demo orchestration container ──────────────────────────────────────────
-  # Placeholder for the D5-1-G5 / D5-2 demo script.  When a multi-actor demo
-  # script is available, update the CMD below and set DEMO or pass arguments.
+  # Runs the two-actor (Finder + Vendor) multi-container CVD workflow demo
+  # (D5-1-G5).  The script seeds both containers, then orchestrates the full
+  # CVD workflow: report submission, validation, case engagement, invitation,
+  # and acceptance.
   #
   # DEMO-MA-02-002: All actor services are listed as dependencies with
   # condition: service_healthy so this container only starts after all three
@@ -187,16 +189,14 @@ services:
       - VULTRON_FINDER_BASE_URL=http://finder:7999/api/v2
       - VULTRON_VENDOR_BASE_URL=http://vendor:7999/api/v2
       - VULTRON_CASE_ACTOR_BASE_URL=http://case-actor:7999/api/v2
-      # DEMO: set to a vultron-demo sub-command to run non-interactively.
-      # Leave unset (or set to "all") to drop into an interactive shell.
-      # - DEMO=two-actor
+      # Run the two-actor demo non-interactively (D5-1-G5).
+      # The demo script handles seeding of both containers internally.
+      - DEMO=two-actor
     volumes:
       - "../vultron:/app/vultron"
       - "/app/.venv"
     networks:
       - vultron-network
-    stdin_open: true
-    tty: true
 
 networks:
   vultron-network:
