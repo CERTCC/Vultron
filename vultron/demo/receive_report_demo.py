@@ -89,9 +89,9 @@ logger = logging.getLogger(__name__)
 def make_submit_offer(finder, vendor, report) -> RmSubmitReportActivity:
     """Build an ``RmSubmitReportActivity`` offer from the finder to the vendor."""
     offer = RmSubmitReportActivity(
-        actor=finder.as_id,
-        as_object=report,
-        to=[vendor.as_id],
+        actor=finder.id_,
+        object_=report,
+        to=[vendor.id_],
     )
     logger.info(f"Created SubmitReport activity: {logfmt(offer)}")
     return offer
@@ -126,7 +126,7 @@ def get_actor_by_id(
     actors_data = client.get("/actors/")
     for actor_data in actors_data:
         actor = as_Actor(**actor_data)
-        if actor.as_id == actor_id:
+        if actor.id_ == actor_id:
             return actor
     return None
 
@@ -136,8 +136,8 @@ def get_item_id(item):
     Extract ID from an ActivityStreams collection item.
 
     Per ActivityStreams spec, collection items can be:
-    - Full objects (with as_id attribute)
-    - Links (with as_id attribute)
+    - Full objects (with id_ attribute)
+    - Links (with id_ attribute)
     - String URIs (the string IS the ID)
     - None (for optional fields)
 
@@ -151,7 +151,7 @@ def get_item_id(item):
         return None
     if isinstance(item, str):
         return item  # String IS the ID
-    return getattr(item, "as_id", None)
+    return getattr(item, "id_", None)
 
 
 def verify_activity_in_inbox(
@@ -197,7 +197,7 @@ def verify_activity_in_inbox(
         if isinstance(item, str):
             logger.warning(f"  - {item_id} (type: string URI)")
         else:
-            item_type = getattr(item, "as_type", "unknown")
+            item_type = getattr(item, "type_", "unknown")
             logger.warning(f"  - {item_id} (type: {item_type})")
 
     return False
@@ -273,51 +273,49 @@ def demo_validate_report(
 
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
         report = VulnerabilityReport(
-            attributed_to=finder.as_id,
+            attributed_to=finder.id_,
             content="This is a legitimate vulnerability in the authentication module.",
             name="Authentication Bypass Vulnerability",
         )
         logger.info(f"Created report: {logfmt(report)}")
         report_offer = make_submit_offer(finder, vendor, report)
         submit_to_inbox(
-            client=client, vendor_id=vendor.as_id, activity=report_offer
+            client=client, vendor_id=vendor.id_, activity=report_offer
         )
         with demo_check("Report offer and report stored"):
-            verify_object_stored(client=client, obj_id=report_offer.as_id)
-            verify_object_stored(client=client, obj_id=report.as_id)
+            verify_object_stored(client=client, obj_id=report_offer.id_)
+            verify_object_stored(client=client, obj_id=report.id_)
 
     with demo_step("Step 2: Vendor validates report"):
-        offer = get_offer_from_datalayer(
-            client, vendor.as_id, report_offer.as_id
-        )
+        offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
         validate_activity = RmValidateReportActivity(
-            actor=vendor.as_id,
-            as_object=offer.as_id,
+            actor=vendor.id_,
+            object_=offer.id_,
             content="Validating the report as legitimate. Creating case.",
         )
-        post_to_inbox_and_wait(client, vendor.as_id, validate_activity)
+        post_to_inbox_and_wait(client, vendor.id_, validate_activity)
         with demo_check("ValidateReport activity stored"):
-            response = client.get(f"/datalayer/{validate_activity.as_id}")
+            response = client.get(f"/datalayer/{validate_activity.id_}")
             logger.info(
                 f"ValidateReport stored: {json.dumps(response, indent=2)}"
             )
 
     with demo_step("Step 3: Vendor creates case and notifies finder"):
         with demo_check("Case created for report"):
-            case_data = find_case_by_report(client, report.as_id)
+            case_data = find_case_by_report(client, report.id_)
             if not case_data:
                 logger.error("Could not find case related to this report.")
                 raise ValueError("Could not find case related to this report.")
         create_case_activity = CreateCaseActivity(
-            actor=vendor.as_id,
-            as_object=case_data.as_id,
-            to=[finder.as_id],
+            actor=vendor.id_,
+            object_=case_data.id_,
+            to=[finder.id_],
             content="Case created for your vulnerability report.",
         )
-        post_to_inbox_and_wait(client, finder.as_id, create_case_activity)
+        post_to_inbox_and_wait(client, finder.id_, create_case_activity)
         with demo_check("CreateCaseActivity activity in finder's inbox"):
             if not verify_activity_in_inbox(
-                client, finder.as_id, create_case_activity.as_id
+                client, finder.id_, create_case_activity.id_
             ):
                 logger.error(
                     "CreateCaseActivity activity not found in finder's inbox."
@@ -353,34 +351,32 @@ def demo_invalidate_report(
 
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
         report = VulnerabilityReport(
-            attributed_to=finder.as_id,
+            attributed_to=finder.id_,
             content="Possible vulnerability in payment processing, needs more investigation.",
             name="Potential Payment Processing Issue",
         )
         logger.info(f"Created report: {logfmt(report)}")
         report_offer = make_submit_offer(finder, vendor, report)
         submit_to_inbox(
-            client=client, vendor_id=vendor.as_id, activity=report_offer
+            client=client, vendor_id=vendor.id_, activity=report_offer
         )
         with demo_check("Report offer and report stored"):
-            verify_object_stored(client=client, obj_id=report_offer.as_id)
-            verify_object_stored(client=client, obj_id=report.as_id)
+            verify_object_stored(client=client, obj_id=report_offer.id_)
+            verify_object_stored(client=client, obj_id=report.id_)
 
     with demo_step(
         "Step 2: Vendor invalidates report (holds for reconsideration)"
     ):
-        offer = get_offer_from_datalayer(
-            client, vendor.as_id, report_offer.as_id
-        )
+        offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
         invalidate_activity = RmInvalidateReportActivity(
-            actor=vendor.as_id,
-            as_object=offer.as_id,
+            actor=vendor.id_,
+            object_=offer.id_,
             content="Invalidating the report - needs more investigation before accepting.",
         )
-        post_to_inbox_and_wait(client, vendor.as_id, invalidate_activity)
+        post_to_inbox_and_wait(client, vendor.id_, invalidate_activity)
         with demo_check("InvalidateReport activity stored"):
             invalidate_response = client.get(
-                f"/datalayer/{invalidate_activity.as_id}"
+                f"/datalayer/{invalidate_activity.id_}"
             )
             logger.info(
                 f"InvalidateReport stored: {json.dumps(invalidate_response, indent=2)}"
@@ -388,17 +384,17 @@ def demo_invalidate_report(
 
     with demo_step("Step 3: Vendor notifies finder of invalidation"):
         invalidate_response_to_finder = RmInvalidateReportActivity(
-            actor=vendor.as_id,
-            as_object=offer.as_id,
-            to=[finder.as_id],
+            actor=vendor.id_,
+            object_=offer.id_,
+            to=[finder.id_],
             content="We are holding this report for further investigation.",
         )
         post_to_inbox_and_wait(
-            client, finder.as_id, invalidate_response_to_finder
+            client, finder.id_, invalidate_response_to_finder
         )
         with demo_check("InvalidateReport response in finder's inbox"):
             if not verify_activity_in_inbox(
-                client, finder.as_id, invalidate_response_to_finder.as_id
+                client, finder.id_, invalidate_response_to_finder.id_
             ):
                 logger.error(
                     "TentativeReject activity not found in finder's inbox."
@@ -434,43 +430,41 @@ def demo_invalidate_and_close_report(
 
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
         report = VulnerabilityReport(
-            attributed_to=finder.as_id,
+            attributed_to=finder.id_,
             content="This is a false positive - not a real vulnerability.",
             name="False Positive Report",
         )
         logger.info(f"Created report: {logfmt(report)}")
         report_offer = make_submit_offer(finder, vendor, report)
         submit_to_inbox(
-            client=client, vendor_id=vendor.as_id, activity=report_offer
+            client=client, vendor_id=vendor.id_, activity=report_offer
         )
         with demo_check("Report offer and report stored"):
-            verify_object_stored(client=client, obj_id=report_offer.as_id)
-            verify_object_stored(client=client, obj_id=report.as_id)
+            verify_object_stored(client=client, obj_id=report_offer.id_)
+            verify_object_stored(client=client, obj_id=report.id_)
 
     with demo_step("Step 2: Vendor invalidates and closes report"):
-        offer = get_offer_from_datalayer(
-            client, vendor.as_id, report_offer.as_id
-        )
+        offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
         invalidate_activity = RmInvalidateReportActivity(
-            actor=vendor.as_id,
-            as_object=offer.as_id,
+            actor=vendor.id_,
+            object_=offer.id_,
             content="Invalidating the report - this is a false positive.",
         )
-        post_to_inbox_and_wait(client, vendor.as_id, invalidate_activity)
+        post_to_inbox_and_wait(client, vendor.id_, invalidate_activity)
         close_activity = RmCloseReportActivity(
-            actor=vendor.as_id,
-            as_object=offer.as_id,
+            actor=vendor.id_,
+            object_=offer.id_,
             content="Closing the report as invalid.",
         )
-        post_to_inbox_and_wait(client, vendor.as_id, close_activity)
+        post_to_inbox_and_wait(client, vendor.id_, close_activity)
         with demo_check("InvalidateReport and CloseReport activities stored"):
             invalidate_response = client.get(
-                f"/datalayer/{invalidate_activity.as_id}"
+                f"/datalayer/{invalidate_activity.id_}"
             )
             logger.info(
                 f"InvalidateReport stored: {json.dumps(invalidate_response, indent=2)}"
             )
-            close_response = client.get(f"/datalayer/{close_activity.as_id}")
+            close_response = client.get(f"/datalayer/{close_activity.id_}")
             logger.info(
                 f"CloseReport stored: {json.dumps(close_response, indent=2)}"
             )
@@ -479,26 +473,26 @@ def demo_invalidate_and_close_report(
         "Step 3: Vendor notifies finder of invalidation and closure"
     ):
         invalidate_response_to_finder = RmInvalidateReportActivity(
-            actor=vendor.as_id,
-            as_object=offer.as_id,
-            to=[finder.as_id],
+            actor=vendor.id_,
+            object_=offer.id_,
+            to=[finder.id_],
             content="This report has been invalidated as a false positive.",
         )
         post_to_inbox_and_wait(
             client,
-            finder.as_id,
+            finder.id_,
             invalidate_response_to_finder,
         )
         close_response_to_finder = RmCloseReportActivity(
-            actor=vendor.as_id,
-            as_object=offer.as_id,
-            to=[finder.as_id],
+            actor=vendor.id_,
+            object_=offer.id_,
+            to=[finder.id_],
             content="This report has been closed.",
         )
-        post_to_inbox_and_wait(client, finder.as_id, close_response_to_finder)
+        post_to_inbox_and_wait(client, finder.id_, close_response_to_finder)
         with demo_check("InvalidateReport response in finder's inbox"):
             if not verify_activity_in_inbox(
-                client, finder.as_id, invalidate_response_to_finder.as_id
+                client, finder.id_, invalidate_response_to_finder.id_
             ):
                 logger.error(
                     "TentativeReject activity not found in finder's inbox."
@@ -508,7 +502,7 @@ def demo_invalidate_and_close_report(
                 )
         with demo_check("CloseReport response in finder's inbox"):
             if not verify_activity_in_inbox(
-                client, finder.as_id, close_response_to_finder.as_id
+                client, finder.id_, close_response_to_finder.id_
             ):
                 logger.error("Reject activity not found in finder's inbox.")
                 raise ValueError(

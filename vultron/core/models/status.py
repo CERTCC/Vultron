@@ -34,10 +34,10 @@ class ObjectStatus(BaseModel):
     """Represents the status of an object being tracked in the Vultron Protocol."""
 
     object_type: str = Field(
-        description="The type of the object whose status is being represented. Taken from the as_type field of the object.",
+        description="The type of the object whose status is being represented. Taken from the type_ field of the object.",
     )
     object_id: str = Field(
-        description="The ID of the object whose status is being represented. Taken from the as_id field of the object."
+        description="The ID of the object whose status is being represented. Taken from the id_ field of the object."
     )
     actor_id: str | None = Field(
         default=None,

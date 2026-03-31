@@ -36,17 +36,17 @@ from vultron.wire.as2.vocab.objects.case_participant import VendorParticipant
 
 def create_case() -> CreateCaseActivity:
     _case = case()
-    _case.add_report(_REPORT.as_id)
+    _case.add_report(_REPORT.id_)
     participant = VendorParticipant(
-        attributed_to=_VENDOR.as_id, name=_VENDOR.name, context=_case.as_id
+        attributed_to=_VENDOR.id_, name=_VENDOR.name, context=_case.id_
     )
     _case.add_participant(participant)
 
     activity = CreateCaseActivity(
-        actor=_VENDOR.as_id,
-        as_object=_case,
+        actor=_VENDOR.id_,
+        object_=_case,
         content="We've created a case from this report.",
-        context=_REPORT.as_id,
+        context=_REPORT.id_,
     )
     return activity
 
@@ -57,9 +57,9 @@ def add_report_to_case() -> AddReportToCaseActivity:
     _case = case()
 
     activity = AddReportToCaseActivity(
-        actor=_vendor.as_id,
-        as_object=_report.as_id,
-        target=_case.as_id,
+        actor=_vendor.id_,
+        object_=_report.id_,
+        target=_case.id_,
         content="We're adding this report to this case.",
     )
     return activity
@@ -70,8 +70,8 @@ def engage_case() -> RmEngageCaseActivity:
     _case = case()
 
     activity = RmEngageCaseActivity(
-        actor=_vendor.as_id,
-        as_object=_case.as_id,
+        actor=_vendor.id_,
+        object_=_case.id_,
         content="We're engaging this case.",
     )
     return activity
@@ -82,8 +82,8 @@ def close_case() -> RmCloseCaseActivity:
     _case = case()
 
     activity = RmCloseCaseActivity(
-        actor=_vendor.as_id,
-        as_object=_case.as_id,
+        actor=_vendor.id_,
+        object_=_case.id_,
         content="We're closing this case.",
     )
     return activity
@@ -94,8 +94,8 @@ def defer_case() -> RmDeferCaseActivity:
     _case = case()
 
     activity = RmDeferCaseActivity(
-        actor=_vendor.as_id,
-        as_object=_case.as_id,
+        actor=_vendor.id_,
+        object_=_case.id_,
         content="We're deferring this case.",
     )
     return activity
@@ -107,10 +107,10 @@ def reengage_case() -> as_Undo:
     _deferral = defer_case()
 
     activity = as_Undo(
-        actor=_vendor.as_id,
-        as_object=_deferral,
+        actor=_vendor.id_,
+        object_=_deferral,
         content="We're reengaging this case.",
-        context=_case.as_id,
+        context=_case.id_,
     )
     return activity
 
@@ -120,9 +120,9 @@ def offer_case_ownership_transfer() -> OfferCaseOwnershipTransferActivity:
     _case = case()
     _coordinator = _COORDINATOR
     _activity = OfferCaseOwnershipTransferActivity(
-        actor=_vendor.as_id,
-        as_object=_case,
-        target=_coordinator.as_id,
+        actor=_vendor.id_,
+        object_=_case,
+        target=_coordinator.id_,
         content=f"We're offering to transfer ownership of case {_case.name} to you.",
     )
     return _activity
@@ -133,8 +133,8 @@ def accept_case_ownership_transfer() -> AcceptCaseOwnershipTransferActivity:
     _coordinator = _COORDINATOR
     _offer = offer_case_ownership_transfer()
     _activity = AcceptCaseOwnershipTransferActivity(
-        actor=_coordinator.as_id,
-        as_object=_offer,
+        actor=_coordinator.id_,
+        object_=_offer,
         content=f"We're accepting your offer to transfer ownership of case {_case.name} to us.",
     )
     return _activity
@@ -145,8 +145,8 @@ def reject_case_ownership_transfer() -> RejectCaseOwnershipTransferActivity:
     _coordinator = _COORDINATOR
     _offer = offer_case_ownership_transfer()
     _activity = RejectCaseOwnershipTransferActivity(
-        actor=_coordinator.as_id,
-        as_object=_offer,
+        actor=_coordinator.id_,
+        object_=_offer,
         content=f"We're declining your offer to transfer ownership of case {_case.name} to us.",
     )
     return _activity
@@ -157,8 +157,8 @@ def update_case() -> UpdateCaseActivity:
     _vendor = vendor()
 
     _activity = UpdateCaseActivity(
-        actor=_vendor.as_id,
-        as_object=_case.as_id,
+        actor=_vendor.id_,
+        object_=_case.id_,
         content="We're updating the case to reflect a transfer of ownership.",
     )
     return _activity

@@ -57,13 +57,13 @@ class SvcEngageCaseUseCase:
         dl = self._dl
 
         actor = resolve_actor(actor_id, dl)
-        actor_id = actor.as_id
+        actor_id = actor.id_
 
         case = resolve_case(case_id, dl)
 
         engage_activity = RmEngageCaseActivity(
             actor=actor_id,
-            as_object=case.as_id,
+            object_=case.id_,
         )
 
         try:
@@ -71,17 +71,17 @@ class SvcEngageCaseUseCase:
         except ValueError:
             logger.warning(
                 "EngageCase activity '%s' already exists",
-                engage_activity.as_id,
+                engage_activity.id_,
             )
 
-        update_participant_rm_state(case.as_id, actor_id, RM.ACCEPTED, dl)
+        update_participant_rm_state(case.id_, actor_id, RM.ACCEPTED, dl)
 
-        add_activity_to_outbox(actor_id, engage_activity.as_id, dl)
+        add_activity_to_outbox(actor_id, engage_activity.id_, dl)
 
         logger.info(
             "Actor '%s' engaged case '%s' (RM → ACCEPTED)",
             actor_id,
-            case.as_id,
+            case.id_,
         )
 
         activity = engage_activity.model_dump(by_alias=True, exclude_none=True)
@@ -104,13 +104,13 @@ class SvcDeferCaseUseCase:
         dl = self._dl
 
         actor = resolve_actor(actor_id, dl)
-        actor_id = actor.as_id
+        actor_id = actor.id_
 
         case = resolve_case(case_id, dl)
 
         defer_activity = RmDeferCaseActivity(
             actor=actor_id,
-            as_object=case.as_id,
+            object_=case.id_,
         )
 
         try:
@@ -118,17 +118,17 @@ class SvcDeferCaseUseCase:
         except ValueError:
             logger.warning(
                 "DeferCase activity '%s' already exists",
-                defer_activity.as_id,
+                defer_activity.id_,
             )
 
-        update_participant_rm_state(case.as_id, actor_id, RM.DEFERRED, dl)
+        update_participant_rm_state(case.id_, actor_id, RM.DEFERRED, dl)
 
-        add_activity_to_outbox(actor_id, defer_activity.as_id, dl)
+        add_activity_to_outbox(actor_id, defer_activity.id_, dl)
 
         logger.info(
             "Actor '%s' deferred case '%s' (RM → DEFERRED)",
             actor_id,
-            case.as_id,
+            case.id_,
         )
 
         activity = defer_activity.model_dump(by_alias=True, exclude_none=True)

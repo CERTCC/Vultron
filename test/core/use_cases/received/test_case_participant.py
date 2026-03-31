@@ -40,21 +40,21 @@ class TestCaseParticipantUseCases:
 
         dl = TinyDbDataLayer(db_path=None)
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/case2",
+            id_="https://example.org/cases/case2",
             name="TEST-REMOVE",
         )
         participant = CaseParticipant(
-            as_id="https://example.org/cases/case2/participants/coord",
+            id_="https://example.org/cases/case2/participants/coord",
             attributed_to="https://example.org/users/coordinator",
-            context=case.as_id,
+            context=case.id_,
         )
-        case.case_participants.append(participant.as_id)
+        case.case_participants.append(participant.id_)
         dl.create(case)
         dl.create(participant)
 
         remove_activity = as_Remove(
             actor="https://example.org/users/owner",
-            as_object=participant,
+            object_=participant,
             target=case,
         )
 
@@ -62,10 +62,10 @@ class TestCaseParticipantUseCases:
 
         RemoveCaseParticipantFromCaseReceivedUseCase(dl, event).execute()
 
-        case = cast(VulnerabilityCase, dl.read(case.as_id))
+        case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
-        assert participant.as_id not in [
-            getattr(p, "as_id", p) for p in case.case_participants
+        assert participant.id_ not in [
+            getattr(p, "id_", p) for p in case.case_participants
         ]
 
     def test_remove_case_participant_idempotent(
@@ -86,13 +86,13 @@ class TestCaseParticipantUseCases:
         dl = TinyDbDataLayer(db_path=None)
 
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/case3",
+            id_="https://example.org/cases/case3",
             name="TEST-REMOVE-IDEMPOTENT",
         )
         participant = CaseParticipant(
-            as_id="https://example.org/cases/case3/participants/coord",
+            id_="https://example.org/cases/case3/participants/coord",
             attributed_to="https://example.org/users/coordinator",
-            context=case.as_id,
+            context=case.id_,
         )
         # participant NOT added to case
         dl.create(case)
@@ -100,7 +100,7 @@ class TestCaseParticipantUseCases:
 
         remove_activity = as_Remove(
             actor="https://example.org/users/owner",
-            as_object=participant,
+            object_=participant,
             target=case,
         )
 
@@ -129,20 +129,20 @@ class TestCaseParticipantUseCases:
         dl = TinyDbDataLayer(db_path=None)
         actor_id = "https://example.org/users/coordinator"
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/caseAP1",
+            id_="https://example.org/cases/caseAP1",
             name="TEST-ADD-INDEX",
         )
         participant = CaseParticipant(
-            as_id="https://example.org/cases/caseAP1/participants/coord",
+            id_="https://example.org/cases/caseAP1/participants/coord",
             attributed_to=actor_id,
-            context=case.as_id,
+            context=case.id_,
         )
         dl.create(case)
         dl.create(participant)
 
         add_activity = as_Add(
             actor="https://example.org/users/owner",
-            as_object=participant,
+            object_=participant,
             target=case,
         )
 
@@ -150,10 +150,10 @@ class TestCaseParticipantUseCases:
 
         AddCaseParticipantToCaseReceivedUseCase(dl, event).execute()
 
-        case = cast(VulnerabilityCase, dl.read(case.as_id))
+        case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
         assert actor_id in case.actor_participant_index
-        assert case.actor_participant_index[actor_id] == participant.as_id
+        assert case.actor_participant_index[actor_id] == participant.id_
 
     def test_remove_case_participant_clears_index(
         self, monkeypatch, make_payload
@@ -173,13 +173,13 @@ class TestCaseParticipantUseCases:
         dl = TinyDbDataLayer(db_path=None)
         actor_id = "https://example.org/users/coordinator"
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/caseRM1",
+            id_="https://example.org/cases/caseRM1",
             name="TEST-REMOVE-INDEX",
         )
         participant = CaseParticipant(
-            as_id="https://example.org/cases/caseRM1/participants/coord",
+            id_="https://example.org/cases/caseRM1/participants/coord",
             attributed_to=actor_id,
-            context=case.as_id,
+            context=case.id_,
         )
         case.add_participant(participant)
         dl.create(case)
@@ -189,7 +189,7 @@ class TestCaseParticipantUseCases:
 
         remove_activity = as_Remove(
             actor="https://example.org/users/owner",
-            as_object=participant,
+            object_=participant,
             target=case,
         )
 
@@ -197,6 +197,6 @@ class TestCaseParticipantUseCases:
 
         RemoveCaseParticipantFromCaseReceivedUseCase(dl, event).execute()
 
-        case = cast(VulnerabilityCase, dl.read(case.as_id))
+        case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
         assert actor_id not in case.actor_participant_index

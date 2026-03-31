@@ -40,7 +40,7 @@ class TestCaseReference(unittest.TestCase):
         assert ref.tags is not None
         self.assertIn("vendor-advisory", ref.tags)
         self.assertIn("patch", ref.tags)
-        self.assertEqual(VO_type.CASE_REFERENCE, ref.as_type)
+        self.assertEqual(VO_type.CASE_REFERENCE, ref.type_)
 
     def test_case_reference_url_required(self):
         """Test that url field is required."""
@@ -162,9 +162,9 @@ class TestCaseReference(unittest.TestCase):
         self.assertIsNone(deserialized.tags)
 
     def test_case_reference_is_vultron_object_type(self):
-        """Test that CaseReference has correct as_type."""
+        """Test that CaseReference has correct type_."""
         ref = cr.CaseReference(url="https://example.org/")
-        self.assertEqual(ref.as_type, VO_type.CASE_REFERENCE)
+        self.assertEqual(ref.type_, VO_type.CASE_REFERENCE)
 
     def test_case_reference_separate_from_report(self):
         """Test that CaseReference is a distinct type."""
@@ -176,7 +176,7 @@ class TestCaseReference(unittest.TestCase):
         report = VulnerabilityReport(content="Test report")
 
         self.assertNotEqual(type(ref), type(report))
-        self.assertNotEqual(ref.as_type, report.as_type)
+        self.assertNotEqual(ref.type_, report.type_)
 
     def test_case_reference_separate_from_vulnerability_record(self):
         """Test that CaseReference is distinct from VulnerabilityRecord."""
@@ -188,7 +188,7 @@ class TestCaseReference(unittest.TestCase):
         record = VulnerabilityRecord(name="CVE-2024-1234")
 
         self.assertNotEqual(type(ref), type(record))
-        self.assertNotEqual(ref.as_type, record.as_type)
+        self.assertNotEqual(ref.type_, record.type_)
 
     def test_case_reference_multiple_tags_preserved(self):
         """Test that multiple tags are preserved in order."""

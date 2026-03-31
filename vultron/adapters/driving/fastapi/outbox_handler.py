@@ -57,8 +57,8 @@ def _extract_recipients(activity) -> list[str]:
         for item in items:
             if isinstance(item, str):
                 actor_id = item
-            elif hasattr(item, "as_id"):
-                actor_id = item.as_id
+            elif hasattr(item, "id_"):
+                actor_id = item.id_
             else:
                 continue
             if actor_id not in seen:

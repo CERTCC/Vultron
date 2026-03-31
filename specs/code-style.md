@@ -160,8 +160,9 @@ def extract_id_segment(url: str) -> str:
     pattern (PEP 8) for builtin/reserved-word field names. It keeps models
     readable and decoupled from AS2 naming conventions across all layers.
 - `CS-07-003` (MUST) Do not introduce new `as_`-prefixed field names anywhere.
-  The migration of existing `as_`-prefixed field names to the trailing-underscore
-  convention is tracked under NAMING-1 and is in progress.
+  The migration of existing `as_`-prefixed field names was completed in
+  NAMING-1 (2026-03-30). All wire-layer and core-layer field names now use
+  the trailing-underscore convention where needed. Class names retain `as_`.
 
 ## Optional Field Non-Emptiness
 

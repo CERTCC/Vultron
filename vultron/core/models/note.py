@@ -21,8 +21,8 @@ from vultron.core.models.base import NonEmptyString, VultronObject
 class VultronNote(VultronObject):
     """Domain representation of a Note.
 
-    ``as_type`` is ``"Note"`` to match the wire value.
+    ``type_`` is ``"Note"`` to match the wire value.
     """
 
-    as_type: str = "Note"
+    type_: str = "Note"
     content: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]

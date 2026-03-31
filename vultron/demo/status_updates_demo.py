@@ -113,65 +113,65 @@ def _setup_initialized_case(
     6. Vendor adds participant to case
     """
     report = VulnerabilityReport(
-        attributed_to=finder.as_id,
+        attributed_to=finder.id_,
         content="A heap buffer overflow in the image parsing library.",
         name="Heap Buffer Overflow in Image Parser",
     )
     report_offer = RmSubmitReportActivity(
-        actor=finder.as_id,
-        as_object=report,
-        to=[vendor.as_id],
+        actor=finder.id_,
+        object_=report,
+        to=[vendor.id_],
     )
-    post_to_inbox_and_wait(client, vendor.as_id, report_offer)
-    verify_object_stored(client, report.as_id)
+    post_to_inbox_and_wait(client, vendor.id_, report_offer)
+    verify_object_stored(client, report.id_)
 
-    offer = get_offer_from_datalayer(client, vendor.as_id, report_offer.as_id)
+    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
     validate_activity = RmValidateReportActivity(
-        actor=vendor.as_id,
-        as_object=offer.as_id,
+        actor=vendor.id_,
+        object_=offer.id_,
         content="Confirmed — heap buffer overflow via malformed image input.",
     )
-    post_to_inbox_and_wait(client, vendor.as_id, validate_activity)
+    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
     case = VulnerabilityCase(
-        attributed_to=vendor.as_id,
+        attributed_to=vendor.id_,
         name="Heap Overflow Case — Image Parser",
         content="Tracking the heap buffer overflow in the image parsing library.",
     )
     create_case_activity = CreateCaseActivity(
-        actor=vendor.as_id,
-        as_object=case,
+        actor=vendor.id_,
+        object_=case,
     )
-    post_to_inbox_and_wait(client, vendor.as_id, create_case_activity)
-    verify_object_stored(client, case.as_id)
+    post_to_inbox_and_wait(client, vendor.id_, create_case_activity)
+    verify_object_stored(client, case.id_)
 
     add_report_activity = AddReportToCaseActivity(
-        actor=vendor.as_id,
-        as_object=report.as_id,
-        target=case.as_id,
+        actor=vendor.id_,
+        object_=report.id_,
+        target=case.id_,
     )
-    post_to_inbox_and_wait(client, vendor.as_id, add_report_activity)
+    post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
 
     participant = FinderReporterParticipant(
-        attributed_to=finder.as_id,
-        context=case.as_id,
+        attributed_to=finder.id_,
+        context=case.id_,
     )
     create_participant_activity = as_Create(
-        actor=vendor.as_id,
-        as_object=participant,
-        context=case.as_id,
+        actor=vendor.id_,
+        object_=participant,
+        context=case.id_,
     )
-    post_to_inbox_and_wait(client, vendor.as_id, create_participant_activity)
-    verify_object_stored(client, participant.as_id)
+    post_to_inbox_and_wait(client, vendor.id_, create_participant_activity)
+    verify_object_stored(client, participant.id_)
 
     add_participant_activity = AddParticipantToCaseActivity(
-        actor=vendor.as_id,
-        as_object=participant.as_id,
-        target=case.as_id,
+        actor=vendor.id_,
+        object_=participant.id_,
+        target=case.id_,
     )
-    post_to_inbox_and_wait(client, vendor.as_id, add_participant_activity)
+    post_to_inbox_and_wait(client, vendor.id_, add_participant_activity)
 
-    log_case_state(client, case.as_id, "after setup")
+    log_case_state(client, case.id_, "after setup")
     logger.info("✓ Setup: Case initialized with one participant")
     return case, participant
 
@@ -203,51 +203,51 @@ def demo_notes_workflow(
                 "Reviewed the report. The heap buffer overflow is confirmed "
                 "and affects all versions prior to 3.2.1."
             ),
-            context=case.as_id,
-            attributed_to=vendor.as_id,
+            context=case.id_,
+            attributed_to=vendor.id_,
         )
         create_note_activity = as_Create(
-            actor=vendor.as_id,
-            as_object=note,
+            actor=vendor.id_,
+            object_=note,
         )
-        post_to_inbox_and_wait(client, vendor.as_id, create_note_activity)
+        post_to_inbox_and_wait(client, vendor.id_, create_note_activity)
         with demo_check("Note stored in data layer"):
-            verify_object_stored(client, note.as_id)
+            verify_object_stored(client, note.id_)
 
     with demo_step("Step 2: Vendor adds note to case"):
         add_note_activity = AddNoteToCaseActivity(
-            actor=vendor.as_id,
-            as_object=note,
-            target=case.as_id,
+            actor=vendor.id_,
+            object_=note,
+            target=case.id_,
         )
-        post_to_inbox_and_wait(client, vendor.as_id, add_note_activity)
+        post_to_inbox_and_wait(client, vendor.id_, add_note_activity)
         with demo_check("Note present in case"):
             updated_case = log_case_state(
-                client, case.as_id, "after AddNoteToCaseActivity"
+                client, case.id_, "after AddNoteToCaseActivity"
             )
             if updated_case:
                 note_ids = [(ref_id(n) or str(n)) for n in updated_case.notes]
-                if note.as_id not in note_ids:
+                if note.id_ not in note_ids:
                     raise ValueError(
-                        f"Note '{note.as_id}' not found in case after AddNoteToCaseActivity"
+                        f"Note '{note.id_}' not found in case after AddNoteToCaseActivity"
                     )
 
     with demo_step("Step 3: Vendor removes note from case"):
         remove_note_activity = as_Remove(
-            actor=vendor.as_id,
-            as_object=note,
-            target=case.as_id,
+            actor=vendor.id_,
+            object_=note,
+            target=case.id_,
         )
-        post_to_inbox_and_wait(client, vendor.as_id, remove_note_activity)
+        post_to_inbox_and_wait(client, vendor.id_, remove_note_activity)
         with demo_check("Note absent from case"):
             updated_case = log_case_state(
-                client, case.as_id, "after RemoveNoteFromCase"
+                client, case.id_, "after RemoveNoteFromCase"
             )
             if updated_case:
                 note_ids = [(ref_id(n) or str(n)) for n in updated_case.notes]
-                if note.as_id in note_ids:
+                if note.id_ in note_ids:
                     raise ValueError(
-                        f"Note '{note.as_id}' still in case after RemoveNoteFromCase"
+                        f"Note '{note.id_}' still in case after RemoveNoteFromCase"
                     )
 
     logger.info("✅ DEMO COMPLETE: Notes workflow finished.")
@@ -275,65 +275,65 @@ def demo_status_workflow(
 
     with demo_step("Step 1: Vendor creates CaseStatus"):
         case_status = CaseStatus(
-            context=case.as_id,
+            context=case.id_,
             em_state=EM.NO_EMBARGO,
             pxa_state=CS_pxa.pxa,
         )
         create_status_activity = CreateCaseStatusActivity(
-            actor=vendor.as_id,
-            as_object=case_status,
-            context=case.as_id,
+            actor=vendor.id_,
+            object_=case_status,
+            context=case.id_,
         )
-        post_to_inbox_and_wait(client, vendor.as_id, create_status_activity)
+        post_to_inbox_and_wait(client, vendor.id_, create_status_activity)
         with demo_check("CaseStatus stored in data layer"):
-            verify_object_stored(client, case_status.as_id)
+            verify_object_stored(client, case_status.id_)
 
     with demo_step("Step 2: Vendor adds CaseStatus to case"):
         add_status_activity = AddStatusToCaseActivity(
-            actor=vendor.as_id,
-            as_object=case_status,
-            target=case.as_id,
+            actor=vendor.id_,
+            object_=case_status,
+            target=case.id_,
         )
-        post_to_inbox_and_wait(client, vendor.as_id, add_status_activity)
+        post_to_inbox_and_wait(client, vendor.id_, add_status_activity)
         with demo_check("CaseStatus present in case"):
             updated_case = log_case_state(
-                client, case.as_id, "after AddStatusToCaseActivity"
+                client, case.id_, "after AddStatusToCaseActivity"
             )
             if updated_case:
                 status_ids = [
                     (ref_id(s) or str(s)) for s in updated_case.case_statuses
                 ]
-                if case_status.as_id not in status_ids:
+                if case_status.id_ not in status_ids:
                     raise ValueError(
-                        f"CaseStatus '{case_status.as_id}' not found in case "
+                        f"CaseStatus '{case_status.id_}' not found in case "
                         "after AddStatusToCaseActivity"
                     )
 
     with demo_step("Step 3: Vendor creates ParticipantStatus"):
         participant_status = ParticipantStatus(
-            context=participant.as_id,
+            context=participant.id_,
             rm_state=RM.RECEIVED,
             vfd_state=CS_vfd.vfd,
-            attributed_to=finder.as_id,
+            attributed_to=finder.id_,
             case_status=case_status,
         )
         create_pstatus_activity = CreateStatusForParticipantActivity(
-            actor=vendor.as_id,
-            as_object=participant_status,
+            actor=vendor.id_,
+            object_=participant_status,
         )
-        post_to_inbox_and_wait(client, vendor.as_id, create_pstatus_activity)
+        post_to_inbox_and_wait(client, vendor.id_, create_pstatus_activity)
         with demo_check("ParticipantStatus stored in data layer"):
-            verify_object_stored(client, participant_status.as_id)
+            verify_object_stored(client, participant_status.id_)
 
     with demo_step("Step 4: Vendor adds ParticipantStatus to participant"):
         add_pstatus_activity = AddStatusToParticipantActivity(
-            actor=vendor.as_id,
-            as_object=participant_status,
-            target=participant.as_id,
+            actor=vendor.id_,
+            object_=participant_status,
+            target=participant.id_,
         )
-        post_to_inbox_and_wait(client, vendor.as_id, add_pstatus_activity)
+        post_to_inbox_and_wait(client, vendor.id_, add_pstatus_activity)
         with demo_check("Final case state"):
-            log_case_state(client, case.as_id, "final state")
+            log_case_state(client, case.id_, "final state")
 
     logger.info("✅ DEMO COMPLETE: Status updates workflow finished.")
 

@@ -29,17 +29,17 @@ class as_Base(BaseModel):
         validate_by_alias=True,
     )
 
-    as_context: str = Field(
+    context_: str = Field(
         default=ACTIVITY_STREAMS_NS,
         validation_alias="@context",
         serialization_alias="@context",
     )
-    as_type: str | None = Field(
+    type_: str | None = Field(
         default=None,
         validation_alias="type",
         serialization_alias="type",
     )
-    as_id: str = Field(
+    id_: str = Field(
         default_factory=generate_new_id,
         validation_alias="id",
         serialization_alias="id",
@@ -50,8 +50,8 @@ class as_Base(BaseModel):
 
     @model_validator(mode="after")
     def set_type_from_class_name(self):
-        if self.as_type is None:
-            self.as_type = self.__class__.__name__.lstrip("as_")
+        if self.type_ is None:
+            self.type_ = self.__class__.__name__.lstrip("as_")
         return self
 
     def to_json(self, **kwargs):

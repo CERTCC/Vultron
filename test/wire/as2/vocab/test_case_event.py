@@ -184,7 +184,7 @@ class TestVulnerabilityCaseEventsField(unittest.TestCase):
             CaseEvent(object_id=OBJ_ID, event_type=EVENT_TYPE, received_at=ts)
         )
         dl.create(case)
-        stored = cast(VulnerabilityCase, dl.read(case.as_id))
+        stored = cast(VulnerabilityCase, dl.read(case.id_))
         self.assertIsNotNone(stored)
         self.assertIsInstance(stored, VulnerabilityCase)
         self.assertEqual(1, len(stored.events))

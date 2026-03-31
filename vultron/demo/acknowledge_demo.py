@@ -82,18 +82,18 @@ def get_actor_by_id(
     actors_data = client.get("/actors/")
     for actor_data in actors_data:
         actor = as_Actor(**actor_data)
-        if actor.as_id == actor_id:
+        if actor.id_ == actor_id:
             return actor
     return None
 
 
 def get_item_id(item):
-    """Extract the ``as_id`` string from an activity item or return the item as-is."""
+    """Extract the ``id_`` string from an activity item or return the item as-is."""
     if item is None:
         return None
     if isinstance(item, str):
         return item
-    return getattr(item, "as_id", None)
+    return getattr(item, "id_", None)
 
 
 def verify_activity_in_inbox(
@@ -142,47 +142,45 @@ def demo_acknowledge_only(
 
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
         report = VulnerabilityReport(
-            attributed_to=finder.as_id,
+            attributed_to=finder.id_,
             content="Possible integer overflow in the network parsing library.",
             name="Network Parser Integer Overflow",
         )
         logger.info(f"Created report: {logfmt(report)}")
         offer = RmSubmitReportActivity(
-            actor=finder.as_id,
-            as_object=report,
-            to=[vendor.as_id],
+            actor=finder.id_,
+            object_=report,
+            to=[vendor.id_],
         )
-        post_to_inbox_and_wait(client, vendor.as_id, offer)
+        post_to_inbox_and_wait(client, vendor.id_, offer)
         with demo_check("Report offer and report stored"):
-            verify_object_stored(client=client, obj_id=offer.as_id)
-            verify_object_stored(client=client, obj_id=report.as_id)
+            verify_object_stored(client=client, obj_id=offer.id_)
+            verify_object_stored(client=client, obj_id=report.id_)
 
     with demo_step(
         "Step 2: Vendor acknowledges report (RmReadReportActivity to own inbox)"
     ):
-        stored_offer = get_offer_from_datalayer(
-            client, vendor.as_id, offer.as_id
-        )
+        stored_offer = get_offer_from_datalayer(client, vendor.id_, offer.id_)
         ack = RmReadReportActivity(
-            actor=vendor.as_id,
-            as_object=stored_offer.as_id,
+            actor=vendor.id_,
+            object_=stored_offer.id_,
             content="We have received your report and will review it shortly.",
         )
-        post_to_inbox_and_wait(client, vendor.as_id, ack)
+        post_to_inbox_and_wait(client, vendor.id_, ack)
         with demo_check("RmReadReportActivity activity stored"):
-            verify_object_stored(client=client, obj_id=ack.as_id)
+            verify_object_stored(client=client, obj_id=ack.id_)
 
     with demo_step("Step 3: Vendor notifies finder of acknowledgement"):
         ack_to_finder = RmReadReportActivity(
-            actor=vendor.as_id,
-            as_object=stored_offer.as_id,
-            to=[finder.as_id],
+            actor=vendor.id_,
+            object_=stored_offer.id_,
+            to=[finder.id_],
             content="We have received your report and will review it shortly.",
         )
-        post_to_inbox_and_wait(client, finder.as_id, ack_to_finder)
+        post_to_inbox_and_wait(client, finder.id_, ack_to_finder)
         with demo_check("RmReadReportActivity notification in finder's inbox"):
             if not verify_activity_in_inbox(
-                client, finder.as_id, ack_to_finder.as_id
+                client, finder.id_, ack_to_finder.id_
             ):
                 raise ValueError(
                     "RmReadReportActivity notification not found in finder's inbox."
@@ -209,7 +207,7 @@ def demo_acknowledge_then_validate(
 
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
         report = VulnerabilityReport(
-            attributed_to=finder.as_id,
+            attributed_to=finder.id_,
             content=(
                 "SQL injection in the admin login form — confirmed via manual testing."
             ),
@@ -217,55 +215,53 @@ def demo_acknowledge_then_validate(
         )
         logger.info(f"Created report: {logfmt(report)}")
         offer = RmSubmitReportActivity(
-            actor=finder.as_id,
-            as_object=report,
-            to=[vendor.as_id],
+            actor=finder.id_,
+            object_=report,
+            to=[vendor.id_],
         )
-        post_to_inbox_and_wait(client, vendor.as_id, offer)
+        post_to_inbox_and_wait(client, vendor.id_, offer)
         with demo_check("Report offer and report stored"):
-            verify_object_stored(client=client, obj_id=offer.as_id)
-            verify_object_stored(client=client, obj_id=report.as_id)
+            verify_object_stored(client=client, obj_id=offer.id_)
+            verify_object_stored(client=client, obj_id=report.id_)
 
     with demo_step(
         "Step 2: Vendor acknowledges report (RmReadReportActivity)"
     ):
-        stored_offer = get_offer_from_datalayer(
-            client, vendor.as_id, offer.as_id
-        )
+        stored_offer = get_offer_from_datalayer(client, vendor.id_, offer.id_)
         ack = RmReadReportActivity(
-            actor=vendor.as_id,
-            as_object=stored_offer.as_id,
+            actor=vendor.id_,
+            object_=stored_offer.id_,
             content="Report received — under review.",
         )
-        post_to_inbox_and_wait(client, vendor.as_id, ack)
+        post_to_inbox_and_wait(client, vendor.id_, ack)
         with demo_check("RmReadReportActivity activity stored"):
-            verify_object_stored(client=client, obj_id=ack.as_id)
+            verify_object_stored(client=client, obj_id=ack.id_)
 
     with demo_step(
         "Step 3: Vendor validates report (RmValidateReportActivity)"
     ):
         validate = RmValidateReportActivity(
-            actor=vendor.as_id,
-            as_object=stored_offer.as_id,
+            actor=vendor.id_,
+            object_=stored_offer.id_,
             content="Confirmed SQL injection. Creating a case.",
         )
-        post_to_inbox_and_wait(client, vendor.as_id, validate)
+        post_to_inbox_and_wait(client, vendor.id_, validate)
         with demo_check("RmValidateReportActivity activity stored"):
-            verify_object_stored(client=client, obj_id=validate.as_id)
+            verify_object_stored(client=client, obj_id=validate.id_)
 
     with demo_step("Step 4: Vendor notifies finder of validation"):
         validate_to_finder = RmValidateReportActivity(
-            actor=vendor.as_id,
-            as_object=stored_offer.as_id,
-            to=[finder.as_id],
+            actor=vendor.id_,
+            object_=stored_offer.id_,
+            to=[finder.id_],
             content="Your report has been validated. A case has been created.",
         )
-        post_to_inbox_and_wait(client, finder.as_id, validate_to_finder)
+        post_to_inbox_and_wait(client, finder.id_, validate_to_finder)
         with demo_check(
             "RmValidateReportActivity notification in finder's inbox"
         ):
             if not verify_activity_in_inbox(
-                client, finder.as_id, validate_to_finder.as_id
+                client, finder.id_, validate_to_finder.id_
             ):
                 raise ValueError(
                     "RmValidateReportActivity notification not found in finder's inbox."
@@ -295,7 +291,7 @@ def demo_acknowledge_then_invalidate(
 
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
         report = VulnerabilityReport(
-            attributed_to=finder.as_id,
+            attributed_to=finder.id_,
             content=(
                 "Crash when submitting empty form — no security impact confirmed."
             ),
@@ -303,60 +299,58 @@ def demo_acknowledge_then_invalidate(
         )
         logger.info(f"Created report: {logfmt(report)}")
         offer = RmSubmitReportActivity(
-            actor=finder.as_id,
-            as_object=report,
-            to=[vendor.as_id],
+            actor=finder.id_,
+            object_=report,
+            to=[vendor.id_],
         )
-        post_to_inbox_and_wait(client, vendor.as_id, offer)
+        post_to_inbox_and_wait(client, vendor.id_, offer)
         with demo_check("Report offer and report stored"):
-            verify_object_stored(client=client, obj_id=offer.as_id)
-            verify_object_stored(client=client, obj_id=report.as_id)
+            verify_object_stored(client=client, obj_id=offer.id_)
+            verify_object_stored(client=client, obj_id=report.id_)
 
     with demo_step(
         "Step 2: Vendor acknowledges report (RmReadReportActivity)"
     ):
-        stored_offer = get_offer_from_datalayer(
-            client, vendor.as_id, offer.as_id
-        )
+        stored_offer = get_offer_from_datalayer(client, vendor.id_, offer.id_)
         ack = RmReadReportActivity(
-            actor=vendor.as_id,
-            as_object=stored_offer.as_id,
+            actor=vendor.id_,
+            object_=stored_offer.id_,
             content="Report received — under review.",
         )
-        post_to_inbox_and_wait(client, vendor.as_id, ack)
+        post_to_inbox_and_wait(client, vendor.id_, ack)
         with demo_check("RmReadReportActivity activity stored"):
-            verify_object_stored(client=client, obj_id=ack.as_id)
+            verify_object_stored(client=client, obj_id=ack.id_)
 
     with demo_step(
         "Step 3: Vendor invalidates report (RmInvalidateReportActivity)"
     ):
         invalidate = RmInvalidateReportActivity(
-            actor=vendor.as_id,
-            as_object=stored_offer.as_id,
+            actor=vendor.id_,
+            object_=stored_offer.id_,
             content=(
                 "This is a UX defect, not a security vulnerability. "
                 "Holding for further review."
             ),
         )
-        post_to_inbox_and_wait(client, vendor.as_id, invalidate)
+        post_to_inbox_and_wait(client, vendor.id_, invalidate)
         with demo_check("RmInvalidateReportActivity activity stored"):
-            verify_object_stored(client=client, obj_id=invalidate.as_id)
+            verify_object_stored(client=client, obj_id=invalidate.id_)
 
     with demo_step("Step 4: Vendor notifies finder of invalidation"):
         invalidate_to_finder = RmInvalidateReportActivity(
-            actor=vendor.as_id,
-            as_object=stored_offer.as_id,
-            to=[finder.as_id],
+            actor=vendor.id_,
+            object_=stored_offer.id_,
+            to=[finder.id_],
             content=(
                 "After review, this does not appear to be a security vulnerability."
             ),
         )
-        post_to_inbox_and_wait(client, finder.as_id, invalidate_to_finder)
+        post_to_inbox_and_wait(client, finder.id_, invalidate_to_finder)
         with demo_check(
             "RmInvalidateReportActivity notification in finder's inbox"
         ):
             if not verify_activity_in_inbox(
-                client, finder.as_id, invalidate_to_finder.as_id
+                client, finder.id_, invalidate_to_finder.id_
             ):
                 raise ValueError(
                     "RmInvalidateReportActivity notification not found in finder's inbox."

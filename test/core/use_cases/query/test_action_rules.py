@@ -48,7 +48,7 @@ def dl():
 
     # Case: VulnerabilityCase with actor_participant_index
     case = VulnerabilityCase(
-        as_id=CASE_ID,
+        id_=CASE_ID,
         name="Test Case",
         actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
         case_statuses=[CaseStatus(em_state=EM.ACTIVE, pxa_state=CS_pxa.Pxa)],
@@ -57,7 +57,7 @@ def dl():
 
     # Participant: CaseParticipant with VENDOR role and ACCEPTED RM state
     participant = CaseParticipant(
-        as_id=PARTICIPANT_ID,
+        id_=PARTICIPANT_ID,
         attributed_to=ACTOR_ID,
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[
@@ -153,14 +153,14 @@ class TestGetActionRulesUseCase:
         """When case has no CaseStatus entries, EM/PXA default to None/pxa."""
         layer = TinyDbDataLayer(db_path=None)
         case = VulnerabilityCase(
-            as_id=CASE_ID,
+            id_=CASE_ID,
             name="Empty Status Case",
             actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
             case_statuses=[],
         )
         layer.create(case)
         participant = CaseParticipant(
-            as_id=PARTICIPANT_ID,
+            id_=PARTICIPANT_ID,
             attributed_to=ACTOR_ID,
             case_roles=[CVDRole.REPORTER],
             participant_statuses=[
@@ -186,14 +186,14 @@ class TestGetActionRulesUseCase:
         """When participant has no ParticipantStatus entries, RM/VFD default."""
         layer = TinyDbDataLayer(db_path=None)
         case = VulnerabilityCase(
-            as_id=CASE_ID,
+            id_=CASE_ID,
             name="Default Participant Status Case",
             actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
             case_statuses=[CaseStatus(em_state=EM.NO_EMBARGO)],
         )
         layer.create(case)
         participant = CaseParticipant(
-            as_id=PARTICIPANT_ID,
+            id_=PARTICIPANT_ID,
             attributed_to=ACTOR_ID,
             context=CASE_ID,
             case_roles=[CVDRole.FINDER],
@@ -221,13 +221,13 @@ class TestGetActionRulesUseCase:
         ]:
             layer = TinyDbDataLayer(db_path=None)
             case = VulnerabilityCase(
-                as_id=CASE_ID,
+                id_=CASE_ID,
                 actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
                 case_statuses=[CaseStatus(em_state=em, pxa_state=CS_pxa.pxa)],
             )
             layer.create(case)
             participant = CaseParticipant(
-                as_id=PARTICIPANT_ID,
+                id_=PARTICIPANT_ID,
                 attributed_to=ACTOR_ID,
                 participant_statuses=[ParticipantStatus(context=CASE_ID)],
             )

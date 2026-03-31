@@ -27,11 +27,11 @@ class VultronParticipant(VultronObject):
 
     Mirrors the Vultron-specific fields of ``CaseParticipant`` and its
     subclasses (VendorParticipant, etc.).
-    ``as_type`` is ``"CaseParticipant"`` to match the wire value shared by all
+    ``type_`` is ``"CaseParticipant"`` to match the wire value shared by all
     ``CaseParticipant`` subclasses.
     """
 
-    as_type: str = "CaseParticipant"
+    type_: str = "CaseParticipant"
     attributed_to: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     case_roles: list[CVDRoles] = Field(default_factory=list)

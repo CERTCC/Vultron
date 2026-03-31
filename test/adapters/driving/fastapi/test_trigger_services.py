@@ -84,9 +84,9 @@ def report(dl):
 @pytest.fixture
 def offer(dl, report, actor):
     offer_obj = as_Offer(
-        actor=actor.as_id,
-        as_object=report.as_id,
-        target=actor.as_id,
+        actor=actor.id_,
+        object_=report.id_,
+        target=actor.id_,
     )
     dl.create(offer_obj)
     return offer_obj
@@ -105,11 +105,9 @@ def accepted_report(report):
 @pytest.fixture
 def closed_report(dl, report, actor):
     status = VultronParticipantStatus(
-        as_id=_report_phase_status_id(
-            actor.as_id, report.as_id, RM.CLOSED.value
-        ),
-        context=report.as_id,
-        attributed_to=actor.as_id,
+        id_=_report_phase_status_id(actor.id_, report.id_, RM.CLOSED.value),
+        context=report.id_,
+        attributed_to=actor.id_,
         rm_state=RM.CLOSED,
     )
     dl.create(status)
@@ -120,17 +118,17 @@ def closed_report(dl, report, actor):
 def case_with_participant(dl, actor):
     case_obj = VulnerabilityCase(name="TEST-CASE-001")
     participant = CaseParticipant(
-        attributed_to=actor.as_id,
-        context=case_obj.as_id,
+        attributed_to=actor.id_,
+        context=case_obj.id_,
     )
     # Pre-seed RM lifecycle so engage/defer (VALID→ACCEPTED/DEFERRED) are valid
     participant.append_rm_state(
-        RM.RECEIVED, actor=actor.as_id, context=case_obj.as_id
+        RM.RECEIVED, actor=actor.id_, context=case_obj.id_
     )
     participant.append_rm_state(
-        RM.VALID, actor=actor.as_id, context=case_obj.as_id
+        RM.VALID, actor=actor.id_, context=case_obj.id_
     )
-    case_obj.case_participants.append(participant.as_id)
+    case_obj.case_participants.append(participant.id_)
     dl.create(case_obj)
     dl.create(participant)
     return case_obj
@@ -146,9 +144,9 @@ def case_no_participant(dl):
 @pytest.fixture
 def case_with_embargo(dl, actor):
     case_obj = VulnerabilityCase(name="EMBARGO-CASE-001")
-    embargo = EmbargoEvent(context=case_obj.as_id)
+    embargo = EmbargoEvent(context=case_obj.id_)
     dl.create(embargo)
-    case_obj.set_embargo(embargo.as_id)
+    case_obj.set_embargo(embargo.id_)
     case_obj.current_status.em_state = EM.ACTIVE
     dl.create(case_obj)
     return case_obj, embargo
@@ -157,16 +155,16 @@ def case_with_embargo(dl, actor):
 @pytest.fixture
 def case_with_proposal(dl, actor):
     case_obj = VulnerabilityCase(name="PROPOSAL-CASE-001")
-    embargo = EmbargoEvent(context=case_obj.as_id)
+    embargo = EmbargoEvent(context=case_obj.id_)
     dl.create(embargo)
     proposal = EmProposeEmbargoActivity(
-        actor=actor.as_id,
-        as_object=embargo.as_id,
-        context=case_obj.as_id,
+        actor=actor.id_,
+        object_=embargo.id_,
+        context=case_obj.id_,
     )
     dl.create(proposal)
     case_obj.current_status.em_state = EM.PROPOSED
-    case_obj.proposed_embargoes.append(embargo.as_id)
+    case_obj.proposed_embargoes.append(embargo.id_)
     dl.create(case_obj)
     return case_obj, proposal, embargo
 
@@ -188,7 +186,7 @@ def test_validate_report_trigger_returns_activity_dict(
     dl, actor, offer, received_report
 ):
     """validate_report_trigger returns dict with 'activity' key."""
-    result = validate_report_trigger(actor.as_id, offer.as_id, None, dl)
+    result = validate_report_trigger(actor.id_, offer.id_, None, dl)
     assert isinstance(result, dict)
     assert "activity" in result
 
@@ -196,18 +194,14 @@ def test_validate_report_trigger_returns_activity_dict(
 def test_validate_report_trigger_unknown_actor_raises_404(dl, offer):
     """validate_report_trigger raises HTTPException 404 for unknown actor."""
     with pytest.raises(HTTPException) as exc_info:
-        validate_report_trigger(
-            "urn:uuid:no-such-actor", offer.as_id, None, dl
-        )
+        validate_report_trigger("urn:uuid:no-such-actor", offer.id_, None, dl)
     assert exc_info.value.status_code == 404
 
 
 def test_validate_report_trigger_unknown_offer_raises_404(dl, actor):
     """validate_report_trigger raises HTTPException 404 for unknown offer."""
     with pytest.raises(HTTPException) as exc_info:
-        validate_report_trigger(
-            actor.as_id, "urn:uuid:no-such-offer", None, dl
-        )
+        validate_report_trigger(actor.id_, "urn:uuid:no-such-offer", None, dl)
     assert exc_info.value.status_code == 404
 
 
@@ -215,14 +209,14 @@ def test_validate_report_trigger_adds_activity_to_outbox(
     dl, actor, offer, received_report
 ):
     """validate_report_trigger adds a new activity to the actor's outbox."""
-    actor_before = dl.read(actor.as_id)
+    actor_before = dl.read(actor.id_)
     before = {
         item for item in actor_before.outbox.items if isinstance(item, str)
     }
 
-    validate_report_trigger(actor.as_id, offer.as_id, None, dl)
+    validate_report_trigger(actor.id_, offer.id_, None, dl)
 
-    actor_after = dl.read(actor.as_id)
+    actor_after = dl.read(actor.id_)
     after = {
         item for item in actor_after.outbox.items if isinstance(item, str)
     }
@@ -234,7 +228,7 @@ def test_validate_report_trigger_non_report_offer_raises_422(
 ):
     """validate_report_trigger raises 422 when offer_id is not a report Offer."""
     with pytest.raises(HTTPException) as exc_info:
-        validate_report_trigger(actor.as_id, non_report_object.as_id, None, dl)
+        validate_report_trigger(actor.id_, non_report_object.id_, None, dl)
     assert exc_info.value.status_code == 422
 
 
@@ -247,7 +241,7 @@ def test_invalidate_report_trigger_returns_activity_dict(
     dl, actor, offer, received_report
 ):
     """invalidate_report_trigger returns dict with non-None 'activity'."""
-    result = invalidate_report_trigger(actor.as_id, offer.as_id, None, dl)
+    result = invalidate_report_trigger(actor.id_, offer.id_, None, dl)
     assert isinstance(result, dict)
     assert result["activity"] is not None
 
@@ -255,14 +249,14 @@ def test_invalidate_report_trigger_returns_activity_dict(
 def test_invalidate_report_trigger_unknown_actor_raises_404(dl, offer):
     """invalidate_report_trigger raises HTTPException 404 for unknown actor."""
     with pytest.raises(HTTPException) as exc_info:
-        invalidate_report_trigger("urn:uuid:no-such", offer.as_id, None, dl)
+        invalidate_report_trigger("urn:uuid:no-such", offer.id_, None, dl)
     assert exc_info.value.status_code == 404
 
 
 def test_invalidate_report_trigger_unknown_offer_raises_404(dl, actor):
     """invalidate_report_trigger raises HTTPException 404 for unknown offer."""
     with pytest.raises(HTTPException) as exc_info:
-        invalidate_report_trigger(actor.as_id, "urn:uuid:no-such", None, dl)
+        invalidate_report_trigger(actor.id_, "urn:uuid:no-such", None, dl)
     assert exc_info.value.status_code == 404
 
 
@@ -270,14 +264,14 @@ def test_invalidate_report_trigger_adds_activity_to_outbox(
     dl, actor, offer, received_report
 ):
     """invalidate_report_trigger adds a new activity to the actor's outbox."""
-    actor_before = dl.read(actor.as_id)
+    actor_before = dl.read(actor.id_)
     before = {
         item for item in actor_before.outbox.items if isinstance(item, str)
     }
 
-    invalidate_report_trigger(actor.as_id, offer.as_id, None, dl)
+    invalidate_report_trigger(actor.id_, offer.id_, None, dl)
 
-    actor_after = dl.read(actor.as_id)
+    actor_after = dl.read(actor.id_)
     after = {
         item for item in actor_after.outbox.items if isinstance(item, str)
     }
@@ -289,9 +283,7 @@ def test_invalidate_report_trigger_non_report_offer_raises_422(
 ):
     """invalidate_report_trigger raises 422 when offer_id is not a report Offer."""
     with pytest.raises(HTTPException) as exc_info:
-        invalidate_report_trigger(
-            actor.as_id, non_report_object.as_id, None, dl
-        )
+        invalidate_report_trigger(actor.id_, non_report_object.id_, None, dl)
     assert exc_info.value.status_code == 422
 
 
@@ -304,9 +296,7 @@ def test_reject_report_trigger_returns_activity_dict(
     dl, actor, offer, received_report
 ):
     """reject_report_trigger returns dict with non-None 'activity'."""
-    result = reject_report_trigger(
-        actor.as_id, offer.as_id, "Out of scope.", dl
-    )
+    result = reject_report_trigger(actor.id_, offer.id_, "Out of scope.", dl)
     assert isinstance(result, dict)
     assert result["activity"] is not None
 
@@ -314,14 +304,14 @@ def test_reject_report_trigger_returns_activity_dict(
 def test_reject_report_trigger_unknown_actor_raises_404(dl, offer):
     """reject_report_trigger raises HTTPException 404 for unknown actor."""
     with pytest.raises(HTTPException) as exc_info:
-        reject_report_trigger("urn:uuid:no-such", offer.as_id, "Reason.", dl)
+        reject_report_trigger("urn:uuid:no-such", offer.id_, "Reason.", dl)
     assert exc_info.value.status_code == 404
 
 
 def test_reject_report_trigger_unknown_offer_raises_404(dl, actor):
     """reject_report_trigger raises HTTPException 404 for unknown offer."""
     with pytest.raises(HTTPException) as exc_info:
-        reject_report_trigger(actor.as_id, "urn:uuid:no-such", "Reason.", dl)
+        reject_report_trigger(actor.id_, "urn:uuid:no-such", "Reason.", dl)
     assert exc_info.value.status_code == 404
 
 
@@ -329,14 +319,14 @@ def test_reject_report_trigger_adds_activity_to_outbox(
     dl, actor, offer, received_report
 ):
     """reject_report_trigger adds a new activity to the actor's outbox."""
-    actor_before = dl.read(actor.as_id)
+    actor_before = dl.read(actor.id_)
     before = {
         item for item in actor_before.outbox.items if isinstance(item, str)
     }
 
-    reject_report_trigger(actor.as_id, offer.as_id, "Reason.", dl)
+    reject_report_trigger(actor.id_, offer.id_, "Reason.", dl)
 
-    actor_after = dl.read(actor.as_id)
+    actor_after = dl.read(actor.id_)
     after = {
         item for item in actor_after.outbox.items if isinstance(item, str)
     }
@@ -348,9 +338,7 @@ def test_reject_report_trigger_non_report_offer_raises_422(
 ):
     """reject_report_trigger raises 422 when offer_id is not a report Offer."""
     with pytest.raises(HTTPException) as exc_info:
-        reject_report_trigger(
-            actor.as_id, non_report_object.as_id, "reason", dl
-        )
+        reject_report_trigger(actor.id_, non_report_object.id_, "reason", dl)
     assert exc_info.value.status_code == 422
 
 
@@ -363,7 +351,7 @@ def test_close_report_trigger_returns_activity_dict(
     dl, actor, offer, accepted_report
 ):
     """close_report_trigger returns dict with non-None 'activity'."""
-    result = close_report_trigger(actor.as_id, offer.as_id, None, dl)
+    result = close_report_trigger(actor.id_, offer.id_, None, dl)
     assert isinstance(result, dict)
     assert result["activity"] is not None
 
@@ -373,14 +361,14 @@ def test_close_report_trigger_already_closed_raises_409(
 ):
     """close_report_trigger raises HTTPException 409 when report is CLOSED."""
     with pytest.raises(HTTPException) as exc_info:
-        close_report_trigger(actor.as_id, offer.as_id, None, dl)
+        close_report_trigger(actor.id_, offer.id_, None, dl)
     assert exc_info.value.status_code == 409
 
 
 def test_close_report_trigger_unknown_actor_raises_404(dl, offer):
     """close_report_trigger raises HTTPException 404 for unknown actor."""
     with pytest.raises(HTTPException) as exc_info:
-        close_report_trigger("urn:uuid:no-such", offer.as_id, None, dl)
+        close_report_trigger("urn:uuid:no-such", offer.id_, None, dl)
     assert exc_info.value.status_code == 404
 
 
@@ -389,7 +377,7 @@ def test_close_report_trigger_non_report_offer_raises_422(
 ):
     """close_report_trigger raises 422 when offer_id is not a report Offer."""
     with pytest.raises(HTTPException) as exc_info:
-        close_report_trigger(actor.as_id, non_report_object.as_id, None, dl)
+        close_report_trigger(actor.id_, non_report_object.id_, None, dl)
     assert exc_info.value.status_code == 422
 
 
@@ -402,7 +390,7 @@ def test_engage_case_trigger_returns_activity_dict(
     dl, actor, case_with_participant
 ):
     """engage_case_trigger returns dict with non-None 'activity'."""
-    result = engage_case_trigger(actor.as_id, case_with_participant.as_id, dl)
+    result = engage_case_trigger(actor.id_, case_with_participant.id_, dl)
     assert isinstance(result, dict)
     assert result["activity"] is not None
 
@@ -412,23 +400,21 @@ def test_engage_case_trigger_unknown_actor_raises_404(
 ):
     """engage_case_trigger raises HTTPException 404 for unknown actor."""
     with pytest.raises(HTTPException) as exc_info:
-        engage_case_trigger(
-            "urn:uuid:no-such", case_with_participant.as_id, dl
-        )
+        engage_case_trigger("urn:uuid:no-such", case_with_participant.id_, dl)
     assert exc_info.value.status_code == 404
 
 
 def test_engage_case_trigger_unknown_case_raises_404(dl, actor):
     """engage_case_trigger raises HTTPException 404 for unknown case."""
     with pytest.raises(HTTPException) as exc_info:
-        engage_case_trigger(actor.as_id, "urn:uuid:no-such-case", dl)
+        engage_case_trigger(actor.id_, "urn:uuid:no-such-case", dl)
     assert exc_info.value.status_code == 404
 
 
 def test_engage_case_trigger_invalid_case_id_raises_422(dl, actor):
     """engage_case_trigger raises 422 for a non-URI case_id."""
     with pytest.raises(HTTPException) as exc_info:
-        engage_case_trigger(actor.as_id, "not-a-uri", dl)
+        engage_case_trigger(actor.id_, "not-a-uri", dl)
     assert exc_info.value.status_code == 422
 
 
@@ -436,11 +422,11 @@ def test_engage_case_trigger_updates_participant_rm_state(
     dl, actor, case_with_participant
 ):
     """engage_case_trigger transitions actor's CaseParticipant RM state to ACCEPTED."""
-    engage_case_trigger(actor.as_id, case_with_participant.as_id, dl)
+    engage_case_trigger(actor.id_, case_with_participant.id_, dl)
 
-    updated_case = dl.read(case_with_participant.as_id)
+    updated_case = dl.read(case_with_participant.id_)
     for p_ref in updated_case.case_participants:
-        p_id = p_ref if isinstance(p_ref, str) else p_ref.as_id
+        p_id = p_ref if isinstance(p_ref, str) else p_ref.id_
         p_obj = dl.read(p_id)
         if p_obj is None:
             continue
@@ -448,9 +434,9 @@ def test_engage_case_trigger_updates_participant_rm_state(
         p_actor_id = (
             actor_ref
             if isinstance(actor_ref, str)
-            else getattr(actor_ref, "as_id", str(actor_ref))
+            else getattr(actor_ref, "id_", str(actor_ref))
         )
-        if p_actor_id == actor.as_id and p_obj.participant_statuses:
+        if p_actor_id == actor.id_ and p_obj.participant_statuses:
             assert p_obj.participant_statuses[-1].rm_state == RM.ACCEPTED
             return
     pytest.fail("Participant RM state was not updated to ACCEPTED")
@@ -460,14 +446,14 @@ def test_engage_case_trigger_adds_activity_to_outbox(
     dl, actor, case_with_participant
 ):
     """engage_case_trigger adds a new activity to the actor's outbox."""
-    actor_before = dl.read(actor.as_id)
+    actor_before = dl.read(actor.id_)
     before = {
         item for item in actor_before.outbox.items if isinstance(item, str)
     }
 
-    engage_case_trigger(actor.as_id, case_with_participant.as_id, dl)
+    engage_case_trigger(actor.id_, case_with_participant.id_, dl)
 
-    actor_after = dl.read(actor.as_id)
+    actor_after = dl.read(actor.id_)
     after = {
         item for item in actor_after.outbox.items if isinstance(item, str)
     }
@@ -483,7 +469,7 @@ def test_defer_case_trigger_returns_activity_dict(
     dl, actor, case_with_participant
 ):
     """defer_case_trigger returns dict with non-None 'activity'."""
-    result = defer_case_trigger(actor.as_id, case_with_participant.as_id, dl)
+    result = defer_case_trigger(actor.id_, case_with_participant.id_, dl)
     assert isinstance(result, dict)
     assert result["activity"] is not None
 
@@ -493,14 +479,14 @@ def test_defer_case_trigger_unknown_actor_raises_404(
 ):
     """defer_case_trigger raises HTTPException 404 for unknown actor."""
     with pytest.raises(HTTPException) as exc_info:
-        defer_case_trigger("urn:uuid:no-such", case_with_participant.as_id, dl)
+        defer_case_trigger("urn:uuid:no-such", case_with_participant.id_, dl)
     assert exc_info.value.status_code == 404
 
 
 def test_defer_case_trigger_invalid_case_id_raises_422(dl, actor):
     """defer_case_trigger raises 422 for a non-URI case_id."""
     with pytest.raises(HTTPException) as exc_info:
-        defer_case_trigger(actor.as_id, "not-a-uri", dl)
+        defer_case_trigger(actor.id_, "not-a-uri", dl)
     assert exc_info.value.status_code == 422
 
 
@@ -508,11 +494,11 @@ def test_defer_case_trigger_updates_participant_rm_state(
     dl, actor, case_with_participant
 ):
     """defer_case_trigger transitions actor's CaseParticipant RM state to DEFERRED."""
-    defer_case_trigger(actor.as_id, case_with_participant.as_id, dl)
+    defer_case_trigger(actor.id_, case_with_participant.id_, dl)
 
-    updated_case = dl.read(case_with_participant.as_id)
+    updated_case = dl.read(case_with_participant.id_)
     for p_ref in updated_case.case_participants:
-        p_id = p_ref if isinstance(p_ref, str) else p_ref.as_id
+        p_id = p_ref if isinstance(p_ref, str) else p_ref.id_
         p_obj = dl.read(p_id)
         if p_obj is None:
             continue
@@ -520,9 +506,9 @@ def test_defer_case_trigger_updates_participant_rm_state(
         p_actor_id = (
             actor_ref
             if isinstance(actor_ref, str)
-            else getattr(actor_ref, "as_id", str(actor_ref))
+            else getattr(actor_ref, "id_", str(actor_ref))
         )
-        if p_actor_id == actor.as_id and p_obj.participant_statuses:
+        if p_actor_id == actor.id_ and p_obj.participant_statuses:
             assert p_obj.participant_statuses[-1].rm_state == RM.DEFERRED
             return
     pytest.fail("Participant RM state was not updated to DEFERRED")
@@ -538,7 +524,7 @@ def test_propose_embargo_trigger_returns_activity_dict(
 ):
     """propose_embargo_trigger returns dict with non-None 'activity'."""
     result = propose_embargo_trigger(
-        actor.as_id, case_no_participant.as_id, None, FUTURE_DATETIME, dl
+        actor.id_, case_no_participant.id_, None, FUTURE_DATETIME, dl
     )
     assert isinstance(result, dict)
     assert result["activity"] is not None
@@ -549,9 +535,9 @@ def test_propose_embargo_trigger_transitions_em_state_to_proposed(
 ):
     """propose_embargo_trigger transitions case EM state from N to P."""
     propose_embargo_trigger(
-        actor.as_id, case_no_participant.as_id, None, FUTURE_DATETIME, dl
+        actor.id_, case_no_participant.id_, None, FUTURE_DATETIME, dl
     )
-    updated = dl.read(case_no_participant.as_id)
+    updated = dl.read(case_no_participant.id_)
     assert updated.current_status.em_state == EM.PROPOSED
 
 
@@ -559,13 +545,13 @@ def test_propose_embargo_trigger_exited_raises_409(
     dl, actor, case_no_participant
 ):
     """propose_embargo_trigger raises 409 when EM state is EXITED."""
-    case_obj = dl.read(case_no_participant.as_id)
+    case_obj = dl.read(case_no_participant.id_)
     case_obj.current_status.em_state = EM.EXITED
-    dl.update(case_obj.as_id, object_to_record(case_obj))
+    dl.update(case_obj.id_, object_to_record(case_obj))
 
     with pytest.raises(HTTPException) as exc_info:
         propose_embargo_trigger(
-            actor.as_id, case_no_participant.as_id, None, FUTURE_DATETIME, dl
+            actor.id_, case_no_participant.id_, None, FUTURE_DATETIME, dl
         )
     assert exc_info.value.status_code == 409
 
@@ -577,7 +563,7 @@ def test_propose_embargo_trigger_unknown_actor_raises_404(
     with pytest.raises(HTTPException) as exc_info:
         propose_embargo_trigger(
             "urn:uuid:no-such",
-            case_no_participant.as_id,
+            case_no_participant.id_,
             None,
             FUTURE_DATETIME,
             dl,
@@ -592,7 +578,7 @@ def test_propose_embargo_trigger_naive_end_time_raises_422(
     naive_dt = datetime(2099, 12, 1)
     with pytest.raises(HTTPException) as exc_info:
         propose_embargo_trigger(
-            actor.as_id, case_no_participant.as_id, None, naive_dt, dl
+            actor.id_, case_no_participant.id_, None, naive_dt, dl
         )
     assert exc_info.value.status_code == 422
 
@@ -604,7 +590,7 @@ def test_propose_embargo_trigger_past_end_time_raises_422(
     past_dt = datetime(2020, 1, 1, tzinfo=timezone.utc)
     with pytest.raises(HTTPException) as exc_info:
         propose_embargo_trigger(
-            actor.as_id, case_no_participant.as_id, None, past_dt, dl
+            actor.id_, case_no_participant.id_, None, past_dt, dl
         )
     assert exc_info.value.status_code == 422
 
@@ -613,7 +599,7 @@ def test_propose_embargo_trigger_invalid_case_id_raises_422(dl, actor):
     """propose_embargo_trigger raises 422 for a non-URI case_id."""
     with pytest.raises(HTTPException) as exc_info:
         propose_embargo_trigger(
-            actor.as_id, "not-a-uri", None, FUTURE_DATETIME, dl
+            actor.id_, "not-a-uri", None, FUTURE_DATETIME, dl
         )
     assert exc_info.value.status_code == 422
 
@@ -629,7 +615,7 @@ def test_evaluate_embargo_trigger_returns_activity_dict(
     """evaluate_embargo_trigger returns dict with non-None 'activity'."""
     case_obj, proposal, _ = case_with_proposal
     result = evaluate_embargo_trigger(
-        actor.as_id, case_obj.as_id, proposal.as_id, dl
+        actor.id_, case_obj.id_, proposal.id_, dl
     )
     assert isinstance(result, dict)
     assert result["activity"] is not None
@@ -640,8 +626,8 @@ def test_evaluate_embargo_trigger_activates_embargo(
 ):
     """evaluate_embargo_trigger sets EM state to ACTIVE."""
     case_obj, proposal, _ = case_with_proposal
-    evaluate_embargo_trigger(actor.as_id, case_obj.as_id, proposal.as_id, dl)
-    updated = dl.read(case_obj.as_id)
+    evaluate_embargo_trigger(actor.id_, case_obj.id_, proposal.id_, dl)
+    updated = dl.read(case_obj.id_)
     assert updated.current_status.em_state == EM.ACTIVE
     assert updated.active_embargo is not None
 
@@ -651,9 +637,9 @@ def test_evaluate_embargo_trigger_without_proposal_id_finds_first(
 ):
     """evaluate_embargo_trigger finds the first proposal when proposal_id is None."""
     case_obj, _, _ = case_with_proposal
-    result = evaluate_embargo_trigger(actor.as_id, case_obj.as_id, None, dl)
+    result = evaluate_embargo_trigger(actor.id_, case_obj.id_, None, dl)
     assert isinstance(result, dict)
-    updated = dl.read(case_obj.as_id)
+    updated = dl.read(case_obj.id_)
     assert updated.current_status.em_state == EM.ACTIVE
 
 
@@ -662,9 +648,7 @@ def test_evaluate_embargo_trigger_no_proposal_raises_404(
 ):
     """evaluate_embargo_trigger raises 404 when no proposal is found."""
     with pytest.raises(HTTPException) as exc_info:
-        evaluate_embargo_trigger(
-            actor.as_id, case_no_participant.as_id, None, dl
-        )
+        evaluate_embargo_trigger(actor.id_, case_no_participant.id_, None, dl)
     assert exc_info.value.status_code == 404
 
 
@@ -674,8 +658,8 @@ def test_evaluate_embargo_trigger_unknown_proposal_raises_404(
     """evaluate_embargo_trigger raises 404 when explicit proposal_id is not found."""
     with pytest.raises(HTTPException) as exc_info:
         evaluate_embargo_trigger(
-            actor.as_id,
-            case_no_participant.as_id,
+            actor.id_,
+            case_no_participant.id_,
             "urn:uuid:no-such-proposal",
             dl,
         )
@@ -692,7 +676,7 @@ def test_terminate_embargo_trigger_returns_activity_dict(
 ):
     """terminate_embargo_trigger returns dict with non-None 'activity'."""
     case_obj, _ = case_with_embargo
-    result = terminate_embargo_trigger(actor.as_id, case_obj.as_id, dl)
+    result = terminate_embargo_trigger(actor.id_, case_obj.id_, dl)
     assert isinstance(result, dict)
     assert result["activity"] is not None
 
@@ -702,8 +686,8 @@ def test_terminate_embargo_trigger_sets_em_state_to_exited(
 ):
     """terminate_embargo_trigger transitions case EM state to EXITED."""
     case_obj, _ = case_with_embargo
-    terminate_embargo_trigger(actor.as_id, case_obj.as_id, dl)
-    updated = dl.read(case_obj.as_id)
+    terminate_embargo_trigger(actor.id_, case_obj.id_, dl)
+    updated = dl.read(case_obj.id_)
     assert updated.current_status.em_state == EM.EXITED
 
 
@@ -712,8 +696,8 @@ def test_terminate_embargo_trigger_clears_active_embargo(
 ):
     """terminate_embargo_trigger clears active_embargo on the case."""
     case_obj, _ = case_with_embargo
-    terminate_embargo_trigger(actor.as_id, case_obj.as_id, dl)
-    updated = dl.read(case_obj.as_id)
+    terminate_embargo_trigger(actor.id_, case_obj.id_, dl)
+    updated = dl.read(case_obj.id_)
     assert updated.active_embargo is None
 
 
@@ -722,7 +706,7 @@ def test_terminate_embargo_trigger_no_active_embargo_raises_409(
 ):
     """terminate_embargo_trigger raises 409 when no active embargo."""
     with pytest.raises(HTTPException) as exc_info:
-        terminate_embargo_trigger(actor.as_id, case_no_participant.as_id, dl)
+        terminate_embargo_trigger(actor.id_, case_no_participant.id_, dl)
     assert exc_info.value.status_code == 409
 
 
@@ -732,7 +716,7 @@ def test_terminate_embargo_trigger_unknown_actor_raises_404(
     """terminate_embargo_trigger raises 404 for unknown actor."""
     case_obj, _ = case_with_embargo
     with pytest.raises(HTTPException) as exc_info:
-        terminate_embargo_trigger("urn:uuid:no-such", case_obj.as_id, dl)
+        terminate_embargo_trigger("urn:uuid:no-such", case_obj.id_, dl)
     assert exc_info.value.status_code == 404
 
 
@@ -741,14 +725,14 @@ def test_terminate_embargo_trigger_adds_activity_to_outbox(
 ):
     """terminate_embargo_trigger adds a new activity to the actor's outbox."""
     case_obj, _ = case_with_embargo
-    actor_before = dl.read(actor.as_id)
+    actor_before = dl.read(actor.id_)
     before = {
         item for item in actor_before.outbox.items if isinstance(item, str)
     }
 
-    terminate_embargo_trigger(actor.as_id, case_obj.as_id, dl)
+    terminate_embargo_trigger(actor.id_, case_obj.id_, dl)
 
-    actor_after = dl.read(actor.as_id)
+    actor_after = dl.read(actor.id_)
     after = {
         item for item in actor_after.outbox.items if isinstance(item, str)
     }

@@ -47,9 +47,9 @@ class TestInviteActorUseCases:
         dl = TinyDbDataLayer(db_path=None)
 
         invite = RmInviteToCaseActivity(
-            as_id="https://example.org/cases/case1/invitations/1",
+            id_="https://example.org/cases/case1/invitations/1",
             actor="https://example.org/users/owner",
-            as_object="https://example.org/users/coordinator",
+            object_="https://example.org/users/coordinator",
             target="https://example.org/cases/case1",
         )
 
@@ -57,7 +57,7 @@ class TestInviteActorUseCases:
 
         InviteActorToCaseReceivedUseCase(dl, event).execute()
 
-        stored = dl.get(invite.as_type.value, invite.as_id)
+        stored = dl.get(invite.type_.value, invite.id_)
         assert stored is not None
 
     def test_invite_actor_to_case_idempotent(self, monkeypatch, make_payload):
@@ -70,9 +70,9 @@ class TestInviteActorUseCases:
         dl = TinyDbDataLayer(db_path=None)
 
         invite = RmInviteToCaseActivity(
-            as_id="https://example.org/cases/case1/invitations/2",
+            id_="https://example.org/cases/case1/invitations/2",
             actor="https://example.org/users/owner",
-            as_object="https://example.org/users/coordinator",
+            object_="https://example.org/users/coordinator",
             target="https://example.org/cases/case1",
         )
 
@@ -83,7 +83,7 @@ class TestInviteActorUseCases:
             dl, event
         ).execute()  # second call is no-op
 
-        stored = dl.get(invite.as_type.value, invite.as_id)
+        stored = dl.get(invite.type_.value, invite.id_)
         assert stored is not None
 
     def test_reject_invite_actor_to_case_logs_rejection(self, make_payload):
@@ -94,14 +94,14 @@ class TestInviteActorUseCases:
         )
 
         invite = RmInviteToCaseActivity(
-            as_id="https://example.org/cases/case1/invitations/3",
+            id_="https://example.org/cases/case1/invitations/3",
             actor="https://example.org/users/owner",
-            as_object="https://example.org/users/coordinator",
+            object_="https://example.org/users/coordinator",
             target="https://example.org/cases/case1",
         )
         reject = RmRejectInviteToCaseActivity(
             actor="https://example.org/users/coordinator",
-            as_object=invite,
+            object_=invite,
         )
 
         event = make_payload(reject)
@@ -127,15 +127,15 @@ class TestInviteActorUseCases:
 
         dl = TinyDbDataLayer(db_path=None)
         invitee_id = "https://example.org/users/coordinator"
-        invitee = as_Actor(as_id=invitee_id)
+        invitee = as_Actor(id_=invitee_id)
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/caseIA1",
+            id_="https://example.org/cases/caseIA1",
             name="TEST-ACCEPT-INVITE",
         )
         invite = RmInviteToCaseActivity(
-            as_id="https://example.org/cases/caseIA1/invitations/1",
+            id_="https://example.org/cases/caseIA1/invitations/1",
             actor="https://example.org/users/owner",
-            as_object=invitee,
+            object_=invitee,
             target=case,
         )
         dl.create(case)
@@ -143,14 +143,14 @@ class TestInviteActorUseCases:
 
         accept = RmAcceptInviteToCaseActivity(
             actor=invitee_id,
-            as_object=invite,
+            object_=invite,
         )
 
         event = make_payload(accept)
 
         AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
 
-        case = dl.read(case.as_id)
+        case = dl.read(case.id_)
         assert case is not None
         case = cast(VulnerabilityCase, case)
         assert invitee_id in case.actor_participant_index
@@ -172,20 +172,20 @@ class TestInviteActorUseCases:
 
         dl = TinyDbDataLayer(db_path=None)
         invitee_id = "https://example.org/users/coordinator"
-        invitee = as_Actor(as_id=invitee_id)
+        invitee = as_Actor(id_=invitee_id)
         embargo = EmbargoEvent(
-            as_id="https://example.org/cases/caseIA2/embargo_events/e1",
+            id_="https://example.org/cases/caseIA2/embargo_events/e1",
             content="Active embargo",
         )
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/caseIA2",
+            id_="https://example.org/cases/caseIA2",
             name="TEST-ACCEPT-INVITE-EMBARGO",
         )
-        case.active_embargo = embargo.as_id
+        case.active_embargo = embargo.id_
         invite = RmInviteToCaseActivity(
-            as_id="https://example.org/cases/caseIA2/invitations/1",
+            id_="https://example.org/cases/caseIA2/invitations/1",
             actor="https://example.org/users/owner",
-            as_object=invitee,
+            object_=invitee,
             target=case,
         )
         dl.create(case)
@@ -194,14 +194,14 @@ class TestInviteActorUseCases:
 
         accept = RmAcceptInviteToCaseActivity(
             actor=invitee_id,
-            as_object=invite,
+            object_=invite,
         )
 
         event = make_payload(accept)
 
         AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
 
-        case = dl.read(case.as_id)
+        case = dl.read(case.id_)
         assert case is not None
         case = cast(VulnerabilityCase, case)
         participant_id = case.actor_participant_index.get(invitee_id)
@@ -209,7 +209,7 @@ class TestInviteActorUseCases:
         participant_obj = dl.get(id_=participant_id)
         assert participant_obj is not None
         participant_obj = cast(Any, participant_obj)
-        assert embargo.as_id in participant_obj.accepted_embargo_ids
+        assert embargo.id_ in participant_obj.accepted_embargo_ids
 
     def test_accept_invite_actor_to_case_records_case_event(
         self, monkeypatch, make_payload
@@ -227,15 +227,15 @@ class TestInviteActorUseCases:
 
         dl = TinyDbDataLayer(db_path=None)
         invitee_id = "https://example.org/users/coordinator"
-        invitee = as_Actor(as_id=invitee_id)
+        invitee = as_Actor(id_=invitee_id)
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/caseIA3",
+            id_="https://example.org/cases/caseIA3",
             name="TEST-ACCEPT-INVITE-EVENT",
         )
         invite = RmInviteToCaseActivity(
-            as_id="https://example.org/cases/caseIA3/invitations/1",
+            id_="https://example.org/cases/caseIA3/invitations/1",
             actor="https://example.org/users/owner",
-            as_object=invitee,
+            object_=invitee,
             target=case,
         )
         dl.create(case)
@@ -243,7 +243,7 @@ class TestInviteActorUseCases:
 
         accept = RmAcceptInviteToCaseActivity(
             actor=invitee_id,
-            as_object=invite,
+            object_=invite,
         )
 
         event = make_payload(accept)
@@ -252,7 +252,7 @@ class TestInviteActorUseCases:
 
         AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
 
-        case = dl.read(case.as_id)
+        case = dl.read(case.id_)
         assert case is not None
         case = cast(VulnerabilityCase, case)
         assert len(case.events) >= 1
@@ -275,14 +275,14 @@ class TestSuggestActorUseCases:
 
         dl = TinyDbDataLayer(db_path=None)
 
-        coordinator = as_Actor(as_id="https://example.org/users/coordinator")
+        coordinator = as_Actor(id_="https://example.org/users/coordinator")
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/case_sa1",
+            id_="https://example.org/cases/case_sa1",
             name="SA Case 1",
         )
         activity = RecommendActorActivity(
             actor="https://example.org/users/finder",
-            as_object=coordinator,
+            object_=coordinator,
             target=case,
             to="https://example.org/users/vendor",
         )
@@ -291,7 +291,7 @@ class TestSuggestActorUseCases:
 
         SuggestActorToCaseReceivedUseCase(dl, event).execute()
 
-        stored = dl.get(activity.as_type.value, activity.as_id)
+        stored = dl.get(activity.type_.value, activity.id_)
         assert stored is not None
 
     def test_suggest_actor_to_case_idempotent(self, monkeypatch, make_payload):
@@ -304,14 +304,14 @@ class TestSuggestActorUseCases:
 
         dl = TinyDbDataLayer(db_path=None)
 
-        coordinator = as_Actor(as_id="https://example.org/users/coordinator")
+        coordinator = as_Actor(id_="https://example.org/users/coordinator")
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/case_sa2",
+            id_="https://example.org/cases/case_sa2",
             name="SA Case 2",
         )
         activity = RecommendActorActivity(
             actor="https://example.org/users/finder",
-            as_object=coordinator,
+            object_=coordinator,
             target=case,
         )
         event = make_payload(activity)
@@ -319,7 +319,7 @@ class TestSuggestActorUseCases:
         SuggestActorToCaseReceivedUseCase(dl, event).execute()
         SuggestActorToCaseReceivedUseCase(dl, event).execute()
 
-        stored = dl.get(activity.as_type.value, activity.as_id)
+        stored = dl.get(activity.type_.value, activity.id_)
         assert stored is not None
 
     def test_accept_suggest_actor_to_case_persists_acceptance(
@@ -335,26 +335,26 @@ class TestSuggestActorUseCases:
 
         dl = TinyDbDataLayer(db_path=None)
 
-        coordinator = as_Actor(as_id="https://example.org/users/coordinator")
+        coordinator = as_Actor(id_="https://example.org/users/coordinator")
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/case_sa3",
+            id_="https://example.org/cases/case_sa3",
             name="SA Case 3",
         )
         recommendation = RecommendActorActivity(
             actor="https://example.org/users/finder",
-            as_object=coordinator,
+            object_=coordinator,
             target=case,
         )
         activity = AcceptActorRecommendationActivity(
             actor="https://example.org/users/vendor",
-            as_object=recommendation,
+            object_=recommendation,
             target=case,
         )
         event = make_payload(activity)
 
         AcceptSuggestActorToCaseReceivedUseCase(dl, event).execute()
 
-        stored = dl.get(activity.as_type.value, activity.as_id)
+        stored = dl.get(activity.type_.value, activity.id_)
         assert stored is not None
 
     def test_reject_suggest_actor_to_case_logs_rejection(
@@ -367,19 +367,19 @@ class TestSuggestActorUseCases:
         )
         from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
-        coordinator = as_Actor(as_id="https://example.org/users/coordinator")
+        coordinator = as_Actor(id_="https://example.org/users/coordinator")
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/case_sa4",
+            id_="https://example.org/cases/case_sa4",
             name="SA Case 4",
         )
         recommendation = RecommendActorActivity(
             actor="https://example.org/users/finder",
-            as_object=coordinator,
+            object_=coordinator,
             target=case,
         )
         activity = RejectActorRecommendationActivity(
             actor="https://example.org/users/vendor",
-            as_object=recommendation,
+            object_=recommendation,
             target=case,
         )
         event = make_payload(activity)
@@ -407,19 +407,19 @@ class TestOwnershipTransferUseCases:
         dl = TinyDbDataLayer(db_path=None)
 
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/case_ot1",
+            id_="https://example.org/cases/case_ot1",
             name="OT Case 1",
         )
         activity = OfferCaseOwnershipTransferActivity(
             actor="https://example.org/users/vendor",
-            as_object=case,
+            object_=case,
             target="https://example.org/users/coordinator",
         )
         event = make_payload(activity)
 
         OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
 
-        stored = dl.get(activity.as_type.value, activity.as_id)
+        stored = dl.get(activity.type_.value, activity.id_)
         assert stored is not None
 
     def test_accept_case_ownership_transfer_updates_attributed_to(
@@ -434,29 +434,29 @@ class TestOwnershipTransferUseCases:
 
         dl = TinyDbDataLayer(db_path=None)
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/case_ot2",
+            id_="https://example.org/cases/case_ot2",
             name="OT Case 2",
             attributed_to="https://example.org/users/vendor",
         )
         dl.create(case)
 
         offer = OfferCaseOwnershipTransferActivity(
-            as_id="https://example.org/activities/offer_ot2",
+            id_="https://example.org/activities/offer_ot2",
             actor="https://example.org/users/vendor",
-            as_object=case,
+            object_=case,
             target="https://example.org/users/coordinator",
         )
         dl.create(offer)
 
         activity = AcceptCaseOwnershipTransferActivity(
             actor="https://example.org/users/coordinator",
-            as_object=offer,
+            object_=offer,
         )
         event = make_payload(activity)
 
         AcceptCaseOwnershipTransferReceivedUseCase(dl, event).execute()
 
-        updated_record = dl.get(case.as_type.value, case.as_id)
+        updated_record = dl.get(case.type_.value, case.id_)
         assert updated_record is not None
         data = cast(Any, updated_record).get("data_", updated_record)
         assert (
@@ -474,18 +474,18 @@ class TestOwnershipTransferUseCases:
         )
 
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/case_ot3",
+            id_="https://example.org/cases/case_ot3",
             name="OT Case 3",
         )
         offer = OfferCaseOwnershipTransferActivity(
-            as_id="https://example.org/activities/offer_ot3",
+            id_="https://example.org/activities/offer_ot3",
             actor="https://example.org/users/vendor",
-            as_object=case,
+            object_=case,
             target="https://example.org/users/coordinator",
         )
         activity = RejectCaseOwnershipTransferActivity(
             actor="https://example.org/users/coordinator",
-            as_object=offer,
+            object_=offer,
         )
         event = make_payload(activity)
 

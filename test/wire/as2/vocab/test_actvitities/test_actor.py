@@ -72,11 +72,9 @@ class MyTestCase(unittest.TestCase):
             _actor = actor_class(name=actor_class.__name__)
             _case = VulnerabilityCase(name=f"{actor_class.__name__} Case")
             _recommendation = actor.RecommendActorActivity(
-                actor=_actor, as_object=_actor, target=_case
+                actor=_actor, object_=_actor, target=_case
             )
-            _object = cls(
-                actor=_actor, as_object=_recommendation, target=_case
-            )
+            _object = cls(actor=_actor, object_=_recommendation, target=_case)
 
             # check activity is correct type
             self.assertIsInstance(_object, as_Activity)
@@ -84,7 +82,7 @@ class MyTestCase(unittest.TestCase):
             self.assertIsInstance(_object, cls)
             # check the _object of the activity is a RecommendActor
             self.assertIsInstance(
-                _object.as_object, actor.RecommendActorActivity
+                _object.object_, actor.RecommendActorActivity
             )
             # check the target of the activity is correct instance
             self.assertEqual(_object.target, _case)
@@ -106,14 +104,14 @@ class MyTestCase(unittest.TestCase):
         for actor_class in ACTOR_CLASSES:
             _actor = actor_class(name=actor_class.__name__)
             _case = VulnerabilityCase(name=f"{actor_class.__name__} Case")
-            _object = cls(actor=_actor, as_object=_actor, target=_case)
+            _object = cls(actor=_actor, object_=_actor, target=_case)
 
             # check activity is correct type
             self.assertIsInstance(_object, as_Activity)
             self.assertIsInstance(_object, expect_class)
             self.assertIsInstance(_object, cls)
             # check the _object of the activity is correct instance
-            self.assertEqual(_object.as_object, _actor)
+            self.assertEqual(_object.object_, _actor)
             # check the target of the activity is correct instance
             self.assertEqual(_object.target, _case)
             # check the actor of the activity is correct instance
@@ -129,23 +127,17 @@ class MyTestCase(unittest.TestCase):
             reloaded = cls.model_validate_json(_json)
 
             # the type should be Reject, not RejectActorRecommendation, etc.
-            self.assertEqual(reloaded.as_type, expect_type)
+            self.assertEqual(reloaded.type_, expect_type)
 
+            self.assertEqual(getattr(reloaded.object_, "id_"), _actor.id_)
+            self.assertIsNotNone(_actor.type_)
+            self.assertIn(getattr(reloaded.object_, "type_"), [_actor.type_])
             self.assertEqual(
-                getattr(reloaded.as_object, "as_id"), _actor.as_id
-            )
-            self.assertIsNotNone(_actor.as_type)
-            self.assertIn(
-                getattr(reloaded.as_object, "as_type"), [_actor.as_type]
-            )
-            self.assertEqual(
-                getattr(reloaded.as_object, "name"), actor_class.__name__
+                getattr(reloaded.object_, "name"), actor_class.__name__
             )
 
-            self.assertEqual(getattr(reloaded.target, "as_id"), _case.as_id)
-            self.assertEqual(
-                getattr(reloaded.target, "as_type"), _case.as_type
-            )
+            self.assertEqual(getattr(reloaded.target, "id_"), _case.id_)
+            self.assertEqual(getattr(reloaded.target, "type_"), _case.type_)
             self.assertEqual(getattr(reloaded.target, "name"), _case.name)
 
 

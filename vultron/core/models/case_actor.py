@@ -35,8 +35,8 @@ class VultronCaseActor(VultronObject):
     ``as_Service``).  The ``outbox`` field carries the actor's outgoing
     activity IDs and is required so that ``UpdateActorOutbox`` can append
     to it via ``datalayer.save``.
-    ``as_type`` is ``"Service"`` to match ``CaseActor``'s wire value.
+    ``type_`` is ``"Service"`` to match ``CaseActor``'s wire value.
     """
 
-    as_type: Literal["Service"] = "Service"
+    type_: Literal["Service"] = "Service"
     outbox: VultronOutbox = Field(default_factory=VultronOutbox)

@@ -113,140 +113,136 @@ def demo_initialize_case(
 
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
         report = VulnerabilityReport(
-            attributed_to=finder.as_id,
+            attributed_to=finder.id_,
             content="A remote code execution vulnerability in the web framework.",
             name="Remote Code Execution Vulnerability",
         )
         logger.info(f"Created report: {logfmt(report)}")
         report_offer = RmSubmitReportActivity(
-            actor=finder.as_id,
-            as_object=report,
-            to=[vendor.as_id],
+            actor=finder.id_,
+            object_=report,
+            to=[vendor.id_],
         )
-        post_to_inbox_and_wait(client, vendor.as_id, report_offer)
+        post_to_inbox_and_wait(client, vendor.id_, report_offer)
         with demo_check("Report stored in data layer"):
-            verify_object_stored(client, report.as_id)
+            verify_object_stored(client, report.id_)
 
     with demo_step("Step 2: Vendor validates report"):
-        offer = get_offer_from_datalayer(
-            client, vendor.as_id, report_offer.as_id
-        )
+        offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
         validate_activity = RmValidateReportActivity(
-            actor=vendor.as_id,
-            as_object=offer.as_id,
+            actor=vendor.id_,
+            object_=offer.id_,
             content="Confirmed — remote code execution via unsanitized input.",
         )
-        post_to_inbox_and_wait(client, vendor.as_id, validate_activity)
+        post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
     with demo_step("Step 3: Vendor creates vulnerability case"):
         case = VulnerabilityCase(
-            attributed_to=vendor.as_id,
+            attributed_to=vendor.id_,
             name="RCE Case — Web Framework",
             content="Tracking the RCE vulnerability in the web framework.",
         )
         logger.info(f"Created case object: {logfmt(case)}")
         create_case_activity = CreateCaseActivity(
-            actor=vendor.as_id,
-            as_object=case,
+            actor=vendor.id_,
+            object_=case,
         )
-        post_to_inbox_and_wait(client, vendor.as_id, create_case_activity)
+        post_to_inbox_and_wait(client, vendor.id_, create_case_activity)
         with demo_check("Case stored in data layer"):
-            verify_object_stored(client, case.as_id)
+            verify_object_stored(client, case.id_)
         with demo_check("Case state after CreateCaseActivity"):
-            log_case_state(client, case.as_id, "after CreateCaseActivity")
+            log_case_state(client, case.id_, "after CreateCaseActivity")
 
     with demo_step("Step 4: Vendor adds themselves as case participant"):
         vendor_participant = VendorParticipant(
-            attributed_to=vendor.as_id,
-            context=case.as_id,
+            attributed_to=vendor.id_,
+            context=case.id_,
         )
         logger.info(
             f"Created vendor participant: {logfmt(vendor_participant)}"
         )
         create_vendor_participant_activity = as_Create(
-            actor=vendor.as_id,
-            as_object=vendor_participant,
-            context=case.as_id,
+            actor=vendor.id_,
+            object_=vendor_participant,
+            context=case.id_,
         )
         post_to_inbox_and_wait(
-            client, vendor.as_id, create_vendor_participant_activity
+            client, vendor.id_, create_vendor_participant_activity
         )
         with demo_check("Vendor participant stored"):
-            verify_object_stored(client, vendor_participant.as_id)
+            verify_object_stored(client, vendor_participant.id_)
 
         add_vendor_participant_activity = AddParticipantToCaseActivity(
-            actor=vendor.as_id,
-            as_object=vendor_participant.as_id,
-            target=case.as_id,
+            actor=vendor.id_,
+            object_=vendor_participant.id_,
+            target=case.id_,
         )
         post_to_inbox_and_wait(
-            client, vendor.as_id, add_vendor_participant_activity
+            client, vendor.id_, add_vendor_participant_activity
         )
         with demo_check("Vendor added to case participant list"):
             vendor_case = log_case_state(
-                client, case.as_id, "after vendor AddParticipantToCaseActivity"
+                client, case.id_, "after vendor AddParticipantToCaseActivity"
             )
-            if vendor_case and vendor_participant.as_id not in [
+            if vendor_case and vendor_participant.id_ not in [
                 (ref_id(p) or str(p)) for p in vendor_case.case_participants
             ]:
                 raise ValueError(
-                    f"Vendor participant '{vendor_participant.as_id}' not found in"
+                    f"Vendor participant '{vendor_participant.id_}' not found in"
                     " case after AddParticipantToCaseActivity"
                 )
         logger.info("Vendor added as participant to case")
 
     with demo_step("Step 5: Vendor links report to case"):
         add_report_activity = AddReportToCaseActivity(
-            actor=vendor.as_id,
-            as_object=report.as_id,
-            target=case.as_id,
+            actor=vendor.id_,
+            object_=report.id_,
+            target=case.id_,
         )
-        post_to_inbox_and_wait(client, vendor.as_id, add_report_activity)
+        post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
         with demo_check("Report linked to case"):
             updated_case = log_case_state(
-                client, case.as_id, "after AddReportToCaseActivity"
+                client, case.id_, "after AddReportToCaseActivity"
             )
-            if updated_case and report.as_id not in [
+            if updated_case and report.id_ not in [
                 (ref_id(r) or str(r))
                 for r in updated_case.vulnerability_reports
             ]:
                 raise ValueError(
-                    f"Report '{report.as_id}' not found in case after AddReportToCaseActivity"
+                    f"Report '{report.id_}' not found in case after AddReportToCaseActivity"
                 )
 
     with demo_step("Step 6: Vendor creates finder participant"):
         participant = FinderReporterParticipant(
-            attributed_to=finder.as_id,
-            context=case.as_id,
+            attributed_to=finder.id_,
+            context=case.id_,
         )
         logger.info(f"Created participant: {logfmt(participant)}")
         create_participant_activity = as_Create(
-            actor=vendor.as_id,
-            as_object=participant,
-            context=case.as_id,
+            actor=vendor.id_,
+            object_=participant,
+            context=case.id_,
         )
-        post_to_inbox_and_wait(
-            client, vendor.as_id, create_participant_activity
-        )
+        post_to_inbox_and_wait(client, vendor.id_, create_participant_activity)
         with demo_check("Finder participant stored"):
-            verify_object_stored(client, participant.as_id)
+            verify_object_stored(client, participant.id_)
 
     with demo_step("Step 7: Vendor adds finder participant to case"):
         add_participant_activity = AddParticipantToCaseActivity(
-            actor=vendor.as_id,
-            as_object=participant.as_id,
-            target=case.as_id,
+            actor=vendor.id_,
+            object_=participant.id_,
+            target=case.id_,
         )
-        post_to_inbox_and_wait(client, vendor.as_id, add_participant_activity)
+        post_to_inbox_and_wait(client, vendor.id_, add_participant_activity)
         with demo_check("Finder participant in case participant list"):
             final_case = log_case_state(
-                client, case.as_id, "after AddParticipantToCaseActivity"
+                client, case.id_, "after AddParticipantToCaseActivity"
             )
-            if final_case and participant.as_id not in [
+            if final_case and participant.id_ not in [
                 (ref_id(p) or str(p)) for p in final_case.case_participants
             ]:
                 raise ValueError(
-                    f"Participant '{participant.as_id}' not found in case "
+                    f"Participant '{participant.id_}' not found in case "
                     "after AddParticipantToCaseActivity"
                 )
 

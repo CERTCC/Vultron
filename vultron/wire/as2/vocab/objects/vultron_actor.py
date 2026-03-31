@@ -67,7 +67,7 @@ class VultronPerson(VultronActorMixin, as_Person):
     """
     An ActivityStreams Person extended with Vultron profile fields.
 
-    Retains ``as_type == "Person"`` for ActivityPub interoperability.
+    Retains ``type_ == "Person"`` for ActivityPub interoperability.
     """
 
 
@@ -79,7 +79,7 @@ class VultronOrganization(VultronActorMixin, as_Organization):
     """
     An ActivityStreams Organization extended with Vultron profile fields.
 
-    Retains ``as_type == "Organization"`` for ActivityPub interoperability.
+    Retains ``type_ == "Organization"`` for ActivityPub interoperability.
     """
 
 
@@ -91,7 +91,7 @@ class VultronService(VultronActorMixin, as_Service):
     """
     An ActivityStreams Service extended with Vultron profile fields.
 
-    Retains ``as_type == "Service"`` for ActivityPub interoperability.
+    Retains ``type_ == "Service"`` for ActivityPub interoperability.
     """
 
 

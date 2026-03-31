@@ -58,7 +58,7 @@ class DeliveryQueueAdapter:
                 via ``dict()``.
             recipients: List of recipient actor ID strings (full URIs).
         """
-        activity_id = getattr(activity, "as_id", None) or getattr(
+        activity_id = getattr(activity, "id_", None) or getattr(
             activity, "id", None
         )
         if hasattr(activity, "model_dump"):

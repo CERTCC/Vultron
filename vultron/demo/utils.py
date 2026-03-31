@@ -59,7 +59,7 @@ def ref_id(value: object) -> str | None:
         return value
     if value is None:
         return None
-    return getattr(value, "as_id", None)
+    return getattr(value, "id_", None)
 
 
 @contextmanager

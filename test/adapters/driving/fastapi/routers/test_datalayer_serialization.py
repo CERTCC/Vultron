@@ -59,7 +59,7 @@ def test_get_vulnerability_case_includes_vulnerability_reports_field(client):
 
     # Create a case with the report
     case = VulnerabilityCase(
-        name=f"Case for Report {report.as_id}",
+        name=f"Case for Report {report.id_}",
         vulnerability_reports=[report],
         attributed_to="https://example.org/actor",
     )
@@ -70,7 +70,7 @@ def test_get_vulnerability_case_includes_vulnerability_reports_field(client):
     dl.create(case)
 
     # Retrieve via API
-    response = client.get(f"/api/v2/datalayer/{case.as_id}")
+    response = client.get(f"/api/v2/datalayer/{case.id_}")
 
     assert response.status_code == 200
     data = response.json()
@@ -83,7 +83,7 @@ def test_get_vulnerability_case_includes_vulnerability_reports_field(client):
     # Verify the field contains the report
     assert isinstance(data["vulnerabilityReports"], list)
     assert len(data["vulnerabilityReports"]) == 1
-    assert data["vulnerabilityReports"][0]["id"] == report.as_id
+    assert data["vulnerabilityReports"][0]["id"] == report.id_
 
 
 def test_get_vulnerability_case_includes_all_fields(client):
@@ -107,7 +107,7 @@ def test_get_vulnerability_case_includes_all_fields(client):
     dl.create(case)
 
     # Retrieve via API
-    response = client.get(f"/api/v2/datalayer/{case.as_id}")
+    response = client.get(f"/api/v2/datalayer/{case.id_}")
 
     assert response.status_code == 200
     data = response.json()
@@ -147,7 +147,7 @@ def test_get_vulnerability_report_includes_all_fields(client):
     dl.create(report)
 
     # Retrieve via API
-    response = client.get(f"/api/v2/datalayer/{report.as_id}")
+    response = client.get(f"/api/v2/datalayer/{report.id_}")
 
     assert response.status_code == 200
     data = response.json()

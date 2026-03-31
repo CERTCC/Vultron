@@ -83,29 +83,29 @@ def rehydrate(
         obj = resolved
 
     rehydrated_nested_object = None
-    if hasattr(obj, "as_object"):
+    if hasattr(obj, "object_"):
         obj_with_object = cast(Any, obj)
-        if obj_with_object.as_object is not None:
-            logger.debug("Rehydrating nested 'as_object' of %s.", obj.as_type)
+        if obj_with_object.object_ is not None:
+            logger.debug("Rehydrating nested 'object_' of %s.", obj.type_)
             rehydrated_nested_object = rehydrate(
-                obj_with_object.as_object, dl=dl, depth=depth + 1
+                obj_with_object.object_, dl=dl, depth=depth + 1
             )
-            obj_with_object.as_object = rehydrated_nested_object
+            obj_with_object.object_ = rehydrated_nested_object
         else:
-            logger.error("'as_object' field is None in %s.", obj.as_type)
-            raise ValueError(f"'as_object' field is None in {obj.as_type}")
+            logger.error("'object_' field is None in %s.", obj.type_)
+            raise ValueError(f"'object_' field is None in {obj.type_}")
 
-    if not hasattr(obj, "as_type"):
-        logger.error("Object %s has no 'as_type' attribute.", obj)
-        raise ValueError(f"Object {obj} has no 'as_type' attribute.")
+    if not hasattr(obj, "type_"):
+        logger.error("Object %s has no 'type_' attribute.", obj)
+        raise ValueError(f"Object {obj} has no 'type_' attribute.")
 
-    if obj.as_type is None:
-        raise ValueError(f"Object {obj} has no 'as_type' value.")
+    if obj.type_ is None:
+        raise ValueError(f"Object {obj} has no 'type_' value.")
 
-    cls = find_in_vocabulary(obj.as_type)
+    cls = find_in_vocabulary(obj.type_)
     if cls is None:
-        logger.error("Unknown object type: %s.", obj.as_type)
-        raise KeyError(f"Unknown object type: {obj.as_type}")
+        logger.error("Unknown object type: %s.", obj.type_)
+        raise KeyError(f"Unknown object type: {obj.type_}")
 
     if isinstance(obj, cls):
         logger.debug(
@@ -115,7 +115,7 @@ def rehydrate(
         return obj
 
     logger.debug(
-        "Rehydrating to class %s for type %s.", cls.__name__, obj.as_type
+        "Rehydrating to class %s for type %s.", cls.__name__, obj.type_
     )
     try:
         rehydrated = cls.model_validate(obj.model_dump())
@@ -125,14 +125,12 @@ def rehydrate(
 
     if not isinstance(rehydrated, as_Object):
         raise ValueError(
-            f"Rehydration of {obj.as_type} produced unsupported type "
+            f"Rehydration of {obj.type_} produced unsupported type "
             f"{type(rehydrated).__name__}"
         )
 
-    if rehydrated_nested_object is not None and hasattr(
-        rehydrated, "as_object"
-    ):
-        cast(Any, rehydrated).as_object = rehydrated_nested_object
+    if rehydrated_nested_object is not None and hasattr(rehydrated, "object_"):
+        cast(Any, rehydrated).object_ = rehydrated_nested_object
         logger.debug(
             "Preserved rehydrated nested object of type %s.",
             rehydrated_nested_object.__class__.__name__,

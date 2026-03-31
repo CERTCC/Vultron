@@ -46,7 +46,7 @@ class TestUseCaseExecution:
             name="TEST-002", content="Test vulnerability report"
         )
         create_activity = as_Create(
-            actor="https://example.org/users/tester", as_object=report
+            actor="https://example.org/users/tester", object_=report
         )
         event = make_payload(create_activity)
 
@@ -60,7 +60,7 @@ class TestUseCaseExecution:
             name="TEST-CASE-002", content="Test vulnerability case"
         )
         create_activity = as_Create(
-            actor="https://example.org/users/tester", as_object=case
+            actor="https://example.org/users/tester", object_=case
         )
         event = make_payload(create_activity)
 
@@ -75,7 +75,7 @@ class TestUseCaseExecution:
             name="TEST-003", content="Test report for shim delegation"
         )
         create_activity = as_Create(
-            actor="https://example.org/users/tester", as_object=report
+            actor="https://example.org/users/tester", object_=report
         )
         event = make_payload(create_activity)
         result = CreateReportReceivedUseCase(dl, event).execute()
@@ -87,10 +87,10 @@ class TestReportReceiptPersistsParticipantStatus:
 
     def test_create_report_persists_participant_status(self):
         """CreateReportReceivedUseCase persists a RM.RECEIVED ParticipantStatus."""
-        report = VultronReport(as_id="https://example.org/reports/r-persist-1")
+        report = VultronReport(id_="https://example.org/reports/r-persist-1")
         activity = VultronActivity(
-            as_id="https://example.org/activities/create-p1",
-            as_type="Create",
+            id_="https://example.org/activities/create-p1",
+            type_="Create",
             actor="https://example.org/users/finder",
         )
         event = CreateReportReceivedEvent(
@@ -121,10 +121,10 @@ class TestReportReceiptPersistsParticipantStatus:
 
     def test_submit_report_persists_participant_status(self):
         """SubmitReportReceivedUseCase persists a RM.RECEIVED ParticipantStatus."""
-        report = VultronReport(as_id="https://example.org/reports/r-persist-2")
+        report = VultronReport(id_="https://example.org/reports/r-persist-2")
         activity = VultronActivity(
-            as_id="https://example.org/activities/submit-p1",
-            as_type="Offer",
+            id_="https://example.org/activities/submit-p1",
+            type_="Offer",
             actor="https://example.org/users/finder",
         )
         event = SubmitReportReceivedEvent(
@@ -155,10 +155,10 @@ class TestReportReceiptPersistsParticipantStatus:
 
     def test_create_report_participant_status_is_idempotent(self):
         """Calling CreateReportReceivedUseCase twice creates only one ParticipantStatus."""
-        report = VultronReport(as_id="https://example.org/reports/r-idem-1")
+        report = VultronReport(id_="https://example.org/reports/r-idem-1")
         activity = VultronActivity(
-            as_id="https://example.org/activities/create-idem-1",
-            as_type="Create",
+            id_="https://example.org/activities/create-idem-1",
+            type_="Create",
             actor="https://example.org/users/finder",
         )
         event = CreateReportReceivedEvent(

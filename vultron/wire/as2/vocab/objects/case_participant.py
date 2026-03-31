@@ -65,7 +65,7 @@ class CaseParticipant(VultronObject):
         ```
     """
 
-    as_type: VO_type = Field(
+    type_: VO_type = Field(
         default=VO_type.CASE_PARTICIPANT,
         validation_alias="type",
         serialization_alias="type",
@@ -130,7 +130,7 @@ class CaseParticipant(VultronObject):
         # participant status is empty, so initialize it with a default status
         self.participant_statuses = [
             ParticipantStatus(
-                context=self.context or self.as_id,
+                context=self.context or self.id_,
                 attributed_to=self.attributed_to,
             ),
         ]
@@ -143,7 +143,7 @@ class CaseParticipant(VultronObject):
             return None
         return max(
             self.participant_statuses,
-            key=lambda ps: ps.updated or ps.published or ps.as_id,
+            key=lambda ps: ps.updated or ps.published or ps.id_,
         )
 
     def append_rm_state(self, rm_state: RM, actor: str, context: str) -> bool:
@@ -164,7 +164,7 @@ class CaseParticipant(VultronObject):
                 "Invalid RM transition %s → %s for participant %s; skipping",
                 current,
                 rm_state,
-                self.as_id,
+                self.id_,
             )
             return False
         self.participant_statuses.append(
@@ -211,7 +211,7 @@ class ReporterParticipant(CaseParticipant):
     def set_accepted_status(self):
         # by definition, to be a reporter, you must have accepted the report
         pstatus = ParticipantStatus(
-            context=self.context or self.as_id,
+            context=self.context or self.id_,
             attributed_to=self.attributed_to,
             rm_state=RM.ACCEPTED,
         )
@@ -240,7 +240,7 @@ class FinderReporterParticipant(CaseParticipant):
         to be a reporter, you must have accepted the report
         """
         pstatus = ParticipantStatus(
-            context=self.context or self.as_id,
+            context=self.context or self.id_,
             attributed_to=self.attributed_to,
             rm_state=RM.ACCEPTED,
         )
@@ -317,7 +317,7 @@ def main():
 
     actor = as_Actor(name="Actor Name")
     cp = CaseParticipant(attributed_to=actor, context="case_id_foo")
-    print(f"### {cp.as_type} ###")
+    print(f"### {cp.type_} ###")
     print()
     print(cp.to_json(indent=2))
     print()
@@ -334,7 +334,7 @@ def main():
         obj = role(
             attributed_to=actor, context="https://for.example/case/99999"
         )
-        print(f"### {obj.as_type} ###")
+        print(f"### {obj.type_} ###")
         print()
         print(obj.to_json(indent=2))
         print()

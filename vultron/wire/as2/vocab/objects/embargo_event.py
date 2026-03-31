@@ -42,7 +42,7 @@ class EmbargoEvent(as_Event):
     An EmbargoEvent is an Event that represents an embargo on a VulnerabilityCase.
     """
 
-    # note: embargo events don't need to be their own as_type, the value inherited from as_Event is sufficient
+    # note: embargo events don't need to be their own type_, the value inherited from as_Event is sufficient
 
     start_time: datetime = Field(
         default_factory=now_utc, json_schema_extra={"format": "date-time"}

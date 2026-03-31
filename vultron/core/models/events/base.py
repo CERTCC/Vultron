@@ -117,83 +117,73 @@ class VultronEvent(BaseModel):
     activity: VultronActivity | None = None
 
     @property
-    def as_id(self) -> str:
+    def id_(self) -> str:
         return self.activity_id
 
     # Derived ID/type properties — backward compatibility for use-case code.
 
     @property
     def object_id(self) -> str | None:
-        return self.object_.as_id if self.object_ is not None else None
+        return self.object_.id_ if self.object_ is not None else None
 
     @property
     def object_type(self) -> str | None:
-        return self.object_.as_type if self.object_ is not None else None
+        return self.object_.type_ if self.object_ is not None else None
 
     @property
     def target_id(self) -> str | None:
-        return self.target.as_id if self.target is not None else None
+        return self.target.id_ if self.target is not None else None
 
     @property
     def target_type(self) -> str | None:
-        return self.target.as_type if self.target is not None else None
+        return self.target.type_ if self.target is not None else None
 
     @property
     def context_id(self) -> str | None:
-        return self.context.as_id if self.context is not None else None
+        return self.context.id_ if self.context is not None else None
 
     @property
     def context_type(self) -> str | None:
-        return self.context.as_type if self.context is not None else None
+        return self.context.type_ if self.context is not None else None
 
     @property
     def origin_id(self) -> str | None:
-        return self.origin.as_id if self.origin is not None else None
+        return self.origin.id_ if self.origin is not None else None
 
     @property
     def origin_type(self) -> str | None:
-        return self.origin.as_type if self.origin is not None else None
+        return self.origin.type_ if self.origin is not None else None
 
     @property
     def inner_object_id(self) -> str | None:
-        return (
-            self.inner_object.as_id if self.inner_object is not None else None
-        )
+        return self.inner_object.id_ if self.inner_object is not None else None
 
     @property
     def inner_object_type(self) -> str | None:
         return (
-            self.inner_object.as_type
-            if self.inner_object is not None
-            else None
+            self.inner_object.type_ if self.inner_object is not None else None
         )
 
     @property
     def inner_target_id(self) -> str | None:
-        return (
-            self.inner_target.as_id if self.inner_target is not None else None
-        )
+        return self.inner_target.id_ if self.inner_target is not None else None
 
     @property
     def inner_target_type(self) -> str | None:
         return (
-            self.inner_target.as_type
-            if self.inner_target is not None
-            else None
+            self.inner_target.type_ if self.inner_target is not None else None
         )
 
     @property
     def inner_context_id(self) -> str | None:
         return (
-            self.inner_context.as_id
-            if self.inner_context is not None
-            else None
+            self.inner_context.id_ if self.inner_context is not None else None
         )
 
     @property
     def inner_context_type(self) -> str | None:
         return (
-            self.inner_context.as_type
+            self.inner_context.type_
             if self.inner_context is not None
             else None
         )

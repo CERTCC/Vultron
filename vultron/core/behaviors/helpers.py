@@ -290,7 +290,7 @@ class UpdateObject(DataLayerAction):
                 )
             else:
                 updated_data = {**current_dict, **self.updates}
-                record_type = updated_data.get("as_type", "Object")
+                record_type = updated_data.get("type_", "Object")
                 storable = StorableRecord(
                     id_=self.object_id,
                     type_=record_type,
@@ -331,7 +331,7 @@ class CreateObject(DataLayerAction):
 
         Args:
             table: DataLayer table name to create object in
-            object_data: Data dict for new object (must include 'as_id' field)
+            object_data: Data dict for new object (must include 'id_' field)
             name: Optional custom name (defaults to "CreateObject_{table}")
         """
         display_name = name or f"CreateObject_{table}"
@@ -351,17 +351,17 @@ class CreateObject(DataLayerAction):
             return Status.FAILURE
 
         try:
-            # Ensure object_data has required 'as_id' field
-            if "as_id" not in self.object_data:
+            # Ensure object_data has required 'id_' field
+            if "id_" not in self.object_data:
                 self.feedback_message = (
-                    "Object data missing required 'as_id' field"
+                    "Object data missing required 'id_' field"
                 )
                 self.logger.error(self.feedback_message)
                 return Status.FAILURE
 
             # Get type from data, default to table name
-            object_type = self.object_data.get("as_type", self.table)
-            object_id = self.object_data["as_id"]
+            object_type = self.object_data.get("type_", self.table)
+            object_id = self.object_data["id_"]
 
             # Build a typed StorableRecord and pass it to the DataLayer
             storable = StorableRecord(

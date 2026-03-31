@@ -46,9 +46,9 @@ def embargo_event(days: int = 90) -> EmbargoEvent:
     _case = case()
 
     event = EmbargoEvent(
-        as_id=f"{_case.as_id}/embargo_events/{end_at.isoformat()}",
+        id_=f"{_case.id_}/embargo_events/{end_at.isoformat()}",
         name=f"Embargo for {_case.name}",
-        context=_case.as_id,
+        context=_case.id_,
         start_time=start_at,
         end_time=end_at,
         content=f"We propose to embargo {_case.name} for {days} days.",
@@ -62,10 +62,10 @@ def propose_embargo() -> EmProposeEmbargoActivity:
     _vendor = vendor()
 
     activity = EmProposeEmbargoActivity(
-        as_id=f"{_case.as_id}/embargo_proposals/1",
-        actor=_vendor.as_id,
-        as_object=embargo,
-        context=_case.as_id,
+        id_=f"{_case.id_}/embargo_proposals/1",
+        actor=_vendor.id_,
+        object_=embargo,
+        context=_case.id_,
         summary="We propose to embargo case 1 for 90 days.",
     )
     return activity
@@ -81,12 +81,12 @@ def choose_preferred_embargo() -> ChoosePreferredEmbargoActivity:
 
     _case = case()
     activity = ChoosePreferredEmbargoActivity(
-        as_id="https://vultron.example/cases/1/polls/1",
-        actor=_coordinator.as_id,
+        id_="https://vultron.example/cases/1/polls/1",
+        actor=_coordinator.id_,
         one_of=embargo_list,
         summary="Please accept or reject each of the proposed embargoes.",
-        to=f"{_case.as_id}/participants",
-        context=_case.as_id,
+        to=f"{_case.id_}/participants",
+        context=_case.id_,
     )
     return activity
 
@@ -95,8 +95,8 @@ def accept_embargo() -> EmAcceptEmbargoActivity:
     proposal = propose_embargo()
     _vendor = vendor()
     activity = EmAcceptEmbargoActivity(
-        actor=_vendor.as_id,
-        as_object=proposal,
+        actor=_vendor.id_,
+        object_=proposal,
         context=proposal.context,
         to="https://vultron.example/cases/1/participants",
     )
@@ -107,8 +107,8 @@ def reject_embargo() -> EmRejectEmbargoActivity:
     proposal = propose_embargo()
     _vendor = vendor()
     activity = EmRejectEmbargoActivity(
-        actor=_vendor.as_id,
-        as_object=proposal,
+        actor=_vendor.id_,
+        object_=proposal,
         context=proposal.context,
         to="https://vultron.example/cases/1/participants",
     )
@@ -119,10 +119,10 @@ def add_embargo_to_case() -> AddEmbargoToCaseActivity:
     _case = case()
     _vendor = vendor()
     activity = AddEmbargoToCaseActivity(
-        actor=_vendor.as_id,
-        as_object=embargo_event(90),
-        target=_case.as_id,
-        to=f"{_case.as_id}/participants",
+        actor=_vendor.id_,
+        object_=embargo_event(90),
+        target=_case.id_,
+        to=f"{_case.id_}/participants",
     )
     return activity
 
@@ -131,11 +131,11 @@ def activate_embargo() -> ActivateEmbargoActivity:
     _case = case()
     _vendor = vendor()
     activity = ActivateEmbargoActivity(
-        actor=_vendor.as_id,
-        as_object=propose_embargo().as_object,
-        target=_case.as_id,
-        in_reply_to=propose_embargo().as_id,
-        to=f"{_case.as_id}/participants",
+        actor=_vendor.id_,
+        object_=propose_embargo().object_,
+        target=_case.id_,
+        in_reply_to=propose_embargo().id_,
+        to=f"{_case.id_}/participants",
     )
     return activity
 
@@ -145,10 +145,10 @@ def announce_embargo() -> AnnounceEmbargoActivity:
     _case = case()
 
     activity = AnnounceEmbargoActivity(
-        actor=_vendor.as_id,
-        as_object=embargo_event(90),
-        context=_case.as_id,
-        to=f"{_case.as_id}/participants",
+        actor=_vendor.id_,
+        object_=embargo_event(90),
+        context=_case.id_,
+        to=f"{_case.id_}/participants",
     )
     return activity
 
@@ -157,8 +157,8 @@ def remove_embargo() -> RemoveEmbargoFromCaseActivity:
     _vendor = vendor()
     _case = case()
     activity = RemoveEmbargoFromCaseActivity(
-        actor=_vendor.as_id,
-        as_object=embargo_event(90),
-        origin=_case.as_id,
+        actor=_vendor.id_,
+        object_=embargo_event(90),
+        origin=_case.id_,
     )
     return activity

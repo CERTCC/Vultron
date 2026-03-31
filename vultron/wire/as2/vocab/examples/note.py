@@ -26,9 +26,9 @@ def note() -> as_Note:
     _case = case()
     _note = as_Note(
         name="Note",
-        as_id=f"{base_url}/notes/1",
+        id_=f"{base_url}/notes/1",
         content="This is a note.",
-        context=_case.as_id,
+        context=_case.id_,
     )
     return _note
 
@@ -37,12 +37,12 @@ def add_note_to_case() -> AddNoteToCaseActivity:
     _finder = finder()
     _case = case()
     _note = note()
-    _note.context = _case.as_id
+    _note.context = _case.id_
 
     activity = AddNoteToCaseActivity(
-        actor=_finder.as_id,
-        as_object=_note,
-        target=_case.as_id,
+        actor=_finder.id_,
+        object_=_note,
+        target=_case.id_,
     )
 
     return activity
@@ -53,8 +53,8 @@ def create_note():
     _note = note()
     _vendor = vendor()
     activity = as_Create(
-        actor=_vendor.as_id,
-        as_object=_note,
-        target=_case.as_id,
+        actor=_vendor.id_,
+        object_=_note,
+        target=_case.id_,
     )
     return activity

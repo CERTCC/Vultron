@@ -40,16 +40,16 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     """
     logger.info("Parsing activity from body (type=%r)", body.get("type"))
 
-    as_type = body.get("type")
-    if as_type is None:
+    type_ = body.get("type")
+    if type_ is None:
         raise VultronParseMissingTypeError(
             "Missing 'type' field in activity body."
         )
 
-    cls = VOCABULARY.activities.get(as_type)
+    cls = VOCABULARY.activities.get(type_)
     if cls is None:
         raise VultronParseUnknownTypeError(
-            f"Unrecognized activity type: {as_type!r}."
+            f"Unrecognized activity type: {type_!r}."
         )
 
     try:

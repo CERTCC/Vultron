@@ -38,24 +38,22 @@ class VultronActivity(VultronObject):
     persists activity records in the DataLayer, while ``VultronEvent`` drives
     handler dispatch in the core.
 
-    ``as_type`` is required and must be set to the actual activity type
+    ``type_`` is required and must be set to the actual activity type
     (e.g. ``"Offer"``, ``"Accept"``, ``"Invite"``, ``"Leave"``, ``"Read"``).
 
     Field names match the wire-layer ``as_Activity`` internal names so that
     a stored ``VultronActivity`` can be round-tripped through
     ``record_to_object`` and deserialized as the appropriate AS2 activity
-    subclass.  ``as_object`` uses alias ``"object"`` to match the AS2 wire
-    field name; callers may pass either ``as_object=`` or ``object=`` thanks
+    subclass.  ``object_`` uses alias ``"object"`` to match the AS2 wire
+    field name; callers may pass either ``object_=`` or ``object=`` thanks
     to ``populate_by_name=True`` on ``VultronBase``.
     """
 
-    as_type: NonEmptyString = (
-        Field(  # pyright: ignore[reportGeneralTypeIssues]
-            validation_alias="type", serialization_alias="type"
-        )
+    type_: NonEmptyString = Field(  # pyright: ignore[reportGeneralTypeIssues]
+        validation_alias="type", serialization_alias="type"
     )
     actor: NonEmptyString  # non-optional because every activity must have an actor
-    as_object: Any | None = Field(
+    object_: Any | None = Field(
         default=None,
         validation_alias="object",
         serialization_alias="object",
@@ -70,27 +68,27 @@ class VultronOffer(VultronActivity):
     """Domain representation of an Offer activity.
 
     Mirrors the essential fields of ``as_Offer``.
-    ``as_type`` is ``"Offer"`` to match the wire value.
+    ``type_`` is ``"Offer"`` to match the wire value.
     """
 
-    as_type: Literal["Offer"] = "Offer"
+    type_: Literal["Offer"] = "Offer"
 
 
 class VultronAccept(VultronActivity):
     """Domain representation of an Accept activity.
 
     Mirrors the essential fields of ``as_Accept``.
-    ``as_type`` is ``"Accept"`` to match the wire value.
+    ``type_`` is ``"Accept"`` to match the wire value.
     """
 
-    as_type: Literal["Accept"] = "Accept"
+    type_: Literal["Accept"] = "Accept"
 
 
 class VultronCreateCaseActivity(VultronActivity):
     """Domain representation of a Create(Case) activity.
 
     Mirrors the essential fields of ``as_CreateCase``.
-    ``as_type`` is ``"Create"`` to match the wire value.
+    ``type_`` is ``"Create"`` to match the wire value.
     """
 
-    as_type: Literal["Create"] = "Create"
+    type_: Literal["Create"] = "Create"

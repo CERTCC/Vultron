@@ -37,19 +37,19 @@ class TestNoteUseCases:
         dl = TinyDbDataLayer(db_path=None)
 
         note = as_Note(
-            as_id="https://example.org/notes/note1",
+            id_="https://example.org/notes/note1",
             content="Test note content",
         )
         activity = as_Create(
             actor="https://example.org/users/finder",
-            as_object=note,
+            object_=note,
         )
 
         event = make_payload(activity)
 
         CreateNoteReceivedUseCase(dl, event).execute()
 
-        stored = dl.get(note.as_type.value, note.as_id)
+        stored = dl.get(note.type_.value, note.id_)
         assert stored is not None
 
     def test_create_note_idempotent(self, monkeypatch, make_payload):
@@ -57,30 +57,30 @@ class TestNoteUseCases:
         dl = TinyDbDataLayer(db_path=None)
 
         note = as_Note(
-            as_id="https://example.org/notes/note2",
+            id_="https://example.org/notes/note2",
             content="Duplicate note",
         )
         activity = as_Create(
             actor="https://example.org/users/finder",
-            as_object=note,
+            object_=note,
         )
         event = make_payload(activity)
 
         dl.create(note)
         CreateNoteReceivedUseCase(dl, event).execute()
 
-        stored = dl.get(note.as_type.value, note.as_id)
+        stored = dl.get(note.type_.value, note.id_)
         assert stored is not None
 
     def test_add_note_to_case_appends_note(self, monkeypatch, make_payload):
         """add_note_to_case appends note ID to case.notes and persists."""
         dl = TinyDbDataLayer(db_path=None)
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/case_n1",
+            id_="https://example.org/cases/case_n1",
             name="Note Case",
         )
         note = as_Note(
-            as_id="https://example.org/notes/note3",
+            id_="https://example.org/notes/note3",
             content="A note",
         )
         dl.create(case)
@@ -88,43 +88,43 @@ class TestNoteUseCases:
 
         activity = AddNoteToCaseActivity(
             actor="https://example.org/users/finder",
-            as_object=note,
+            object_=note,
             target=case,
         )
         event = make_payload(activity)
 
         AddNoteToCaseReceivedUseCase(dl, event).execute()
 
-        case = dl.read(case.as_id)
+        case = dl.read(case.id_)
         assert case is not None
         case = cast(VulnerabilityCase, case)
-        assert note.as_id in case.notes
+        assert note.id_ in case.notes
 
     def test_add_note_to_case_idempotent(self, monkeypatch, make_payload):
         """add_note_to_case skips adding a note already in the case."""
         dl = TinyDbDataLayer(db_path=None)
         note = as_Note(
-            as_id="https://example.org/notes/note4",
+            id_="https://example.org/notes/note4",
             content="A note",
         )
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/case_n2",
+            id_="https://example.org/cases/case_n2",
             name="Note Case Idempotent",
-            notes=[note.as_id],
+            notes=[note.id_],
         )
         dl.create(case)
         dl.create(note)
 
         activity = AddNoteToCaseActivity(
             actor="https://example.org/users/finder",
-            as_object=note,
+            object_=note,
             target=case,
         )
         event = make_payload(activity)
 
         AddNoteToCaseReceivedUseCase(dl, event).execute()
 
-        assert case.notes.count(note.as_id) == 1
+        assert case.notes.count(note.id_) == 1
 
     def test_remove_note_from_case_removes_note(
         self, monkeypatch, make_payload
@@ -132,40 +132,40 @@ class TestNoteUseCases:
         """remove_note_from_case removes note ID from case.notes and persists."""
         dl = TinyDbDataLayer(db_path=None)
         note = as_Note(
-            as_id="https://example.org/notes/note5",
+            id_="https://example.org/notes/note5",
             content="A note",
         )
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/case_n3",
+            id_="https://example.org/cases/case_n3",
             name="Remove Note Case",
-            notes=[note.as_id],
+            notes=[note.id_],
         )
         dl.create(case)
         dl.create(note)
 
         activity = as_Remove(
             actor="https://example.org/users/finder",
-            as_object=note,
+            object_=note,
             target=case,
         )
         event = make_payload(activity)
 
         RemoveNoteFromCaseReceivedUseCase(dl, event).execute()
 
-        case = dl.read(case.as_id)
+        case = dl.read(case.id_)
         assert case is not None
         case = cast(VulnerabilityCase, case)
-        assert note.as_id not in case.notes
+        assert note.id_ not in case.notes
 
     def test_remove_note_from_case_idempotent(self, monkeypatch, make_payload):
         """remove_note_from_case is idempotent when note not in case."""
         dl = TinyDbDataLayer(db_path=None)
         note = as_Note(
-            as_id="https://example.org/notes/note6",
+            id_="https://example.org/notes/note6",
             content="A note",
         )
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/case_n4",
+            id_="https://example.org/cases/case_n4",
             name="Remove Note Idempotent",
         )
         dl.create(case)
@@ -173,7 +173,7 @@ class TestNoteUseCases:
 
         activity = as_Remove(
             actor="https://example.org/users/finder",
-            as_object=note,
+            object_=note,
             target=case,
         )
         event = make_payload(activity)

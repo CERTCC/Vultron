@@ -79,8 +79,8 @@ def sample_record():
         id_="https://example.org/objects/test-123",
         type_="Object",
         data_={
-            "as_id": "https://example.org/objects/test-123",
-            "as_type": "Object",
+            "id_": "https://example.org/objects/test-123",
+            "type_": "Object",
             "name": "Test Object",
             "content": "Sample content",
         },
@@ -344,8 +344,8 @@ def test_update_object_custom_name(bridge, datalayer, sample_record):
 def test_create_object_success(bridge, datalayer):
     """Verify CreateObject persists new object to DataLayer."""
     new_object = {
-        "as_id": "https://example.org/objects/new-object",
-        "as_type": "Object",
+        "id_": "https://example.org/objects/new-object",
+        "type_": "Object",
         "name": "New Object",
     }
 
@@ -367,25 +367,25 @@ def test_create_object_success(bridge, datalayer):
 
 
 def test_create_object_missing_id_fails(bridge, datalayer):
-    """Verify CreateObject fails if object_data missing 'as_id' field."""
+    """Verify CreateObject fails if object_data missing 'id_' field."""
     invalid_object = {
-        "as_type": "Object",
+        "type_": "Object",
         "name": "Invalid Object",
-        # Missing 'as_id' field
+        # Missing 'id_' field
     }
 
     tree = CreateObject(table="Object", object_data=invalid_object)
     result = bridge.execute_with_setup(tree, actor_id="actor-1")
 
     assert result.status == Status.FAILURE
-    assert "missing required 'as_id' field" in result.feedback_message.lower()
+    assert "missing required 'id_' field" in result.feedback_message.lower()
 
 
 def test_create_object_custom_name(bridge, datalayer):
     """Verify CreateObject accepts custom node name."""
     new_object = {
-        "as_id": "https://example.org/objects/new-object",
-        "as_type": "Object",
+        "id_": "https://example.org/objects/new-object",
+        "type_": "Object",
         "name": "New Object",
     }
 
@@ -407,8 +407,8 @@ def test_full_crud_workflow(bridge, datalayer):
         id_="https://example.org/objects/workflow-test",
         type_="Object",
         data_={
-            "as_id": "https://example.org/objects/workflow-test",
-            "as_type": "Object",
+            "id_": "https://example.org/objects/workflow-test",
+            "type_": "Object",
             "name": "Initial Name",
             "status": "draft",
         },

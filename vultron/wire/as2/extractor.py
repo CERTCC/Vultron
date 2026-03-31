@@ -56,7 +56,7 @@ class ActivityPattern(BaseModel):
 
     def match(self, activity: as_Activity) -> bool:
         """Return True if the given activity matches this pattern."""
-        if self.activity_ != activity.as_type:
+        if self.activity_ != activity.type_:
             return False
 
         def _match_field(
@@ -75,12 +75,10 @@ class ActivityPattern(BaseModel):
             if activity_field is None:
                 return False
             return bool(
-                pattern_field == getattr(activity_field, "as_type", None)
+                pattern_field == getattr(activity_field, "type_", None)
             )
 
-        if not _match_field(
-            self.object_, getattr(activity, "as_object", None)
-        ):
+        if not _match_field(self.object_, getattr(activity, "object_", None)):
             return False
         if not _match_field(self.target_, getattr(activity, "target", None)):
             return False
@@ -374,26 +372,26 @@ def extract_intent(
             return None
         if isinstance(field, str):
             return field
-        return getattr(field, "as_id", str(field)) or None
+        return getattr(field, "id_", str(field)) or None
 
     def _get_type(field) -> str | None:
         if field is None or isinstance(field, str):
             return None
-        t = getattr(field, "as_type", None)
+        t = getattr(field, "type_", None)
         return str(t) if t is not None else None
 
     actor_id = _get_id(getattr(activity, "actor", None)) or ""
-    obj = getattr(activity, "as_object", None)
+    obj = getattr(activity, "object_", None)
     target = getattr(activity, "target", None)
     context = getattr(activity, "context", None)
     origin = getattr(activity, "origin", None)
 
-    # Nested fields from activity.as_object (for Accept/Reject wrapping another activity)
+    # Nested fields from activity.object_ (for Accept/Reject wrapping another activity)
     inner_obj = None
     inner_target = None
     inner_context = None
     if obj is not None and not isinstance(obj, str):
-        inner_obj = getattr(obj, "as_object", None)
+        inner_obj = getattr(obj, "object_", None)
         inner_target = getattr(obj, "target", None)
         inner_context = getattr(obj, "context", None)
 
@@ -402,16 +400,14 @@ def extract_intent(
     )
 
     def _build_domain_kwargs() -> dict[str, Any]:
-        # Use as_type string comparison because the wire parser returns
+        # Use type_ string comparison because the wire parser returns
         # as_Object (base class) for nested objects; isinstance checks against
         # Vultron subtypes (EmbargoEvent, CaseParticipant, etc.) would always
-        # fail. Match on as_type string, consistent with ActivityPattern._match_field.
-        _obj_type = str(getattr(obj, "as_type", "")) if obj is not None else ""
+        # fail. Match on type_ string, consistent with ActivityPattern._match_field.
+        _obj_type = str(getattr(obj, "type_", "")) if obj is not None else ""
 
         kw: dict[str, Any] = {}
-        activity_type = (
-            str(activity.as_type) if activity.as_type else "Activity"
-        )
+        activity_type = str(activity.type_) if activity.type_ else "Activity"
 
         _ACTIVITY_SEMANTICS = {
             MessageSemantics.CREATE_REPORT,
@@ -429,10 +425,10 @@ def extract_intent(
         }
         if semantics in _ACTIVITY_SEMANTICS:
             kw["activity"] = VultronActivity(
-                as_id=activity.as_id,
-                as_type=activity_type,
+                id_=activity.id_,
+                type_=activity_type,
                 actor=actor_id,
-                as_object=_get_id(obj),
+                object_=_get_id(obj),
                 target=_get_id(target),
                 origin=_get_id(origin),
                 context=_get_id(context),
@@ -444,7 +440,7 @@ def extract_intent(
             object_id = _get_id(obj)
             if isinstance(content, str) and content and object_id:
                 kw["object_"] = VultronReport(
-                    as_id=object_id,
+                    id_=object_id,
                     name=getattr(obj, "name", None),
                     summary=getattr(obj, "summary", None),
                     content=content,
@@ -459,7 +455,7 @@ def extract_intent(
             object_id = _get_id(obj)
             if object_id:
                 kw["object_"] = VultronCase(
-                    as_id=object_id,
+                    id_=object_id,
                     name=getattr(obj, "name", None),
                     summary=getattr(obj, "summary", None),
                     content=getattr(obj, "content", None),
@@ -482,7 +478,7 @@ def extract_intent(
                 and object_id
             ):
                 kw["object_"] = VultronEmbargoEvent(
-                    as_id=object_id,
+                    id_=object_id,
                     name=getattr(obj, "name", None),
                     start_time=getattr(obj, "start_time", None),
                     end_time=end_time,
@@ -496,7 +492,7 @@ def extract_intent(
             participant_context = _get_id(getattr(obj, "context", None))
             if object_id and attributed_to and participant_context:
                 kw["object_"] = VultronParticipant(
-                    as_id=object_id,
+                    id_=object_id,
                     name=getattr(obj, "name", None),
                     attributed_to=attributed_to,
                     context=participant_context,
@@ -510,7 +506,7 @@ def extract_intent(
             object_id = _get_id(obj)
             if isinstance(content, str) and content and object_id:
                 kw["object_"] = VultronNote(
-                    as_id=object_id,
+                    id_=object_id,
                     name=getattr(obj, "name", None),
                     summary=getattr(obj, "summary", None),
                     content=content,
@@ -523,7 +519,7 @@ def extract_intent(
             case_context = _get_id(getattr(obj, "context", None))
             if object_id and case_context:
                 kw["object_"] = VultronCaseStatus(
-                    as_id=object_id,
+                    id_=object_id,
                     name=getattr(obj, "name", None),
                     context=case_context,
                     attributed_to=_get_id(getattr(obj, "attributed_to", None)),
@@ -538,7 +534,7 @@ def extract_intent(
             wire_case_status = getattr(obj, "case_status", None)
             if object_id:
                 kw["object_"] = VultronParticipantStatus(
-                    as_id=object_id,
+                    id_=object_id,
                     name=getattr(obj, "name", None),
                     context=ctx,
                     attributed_to=_get_id(getattr(obj, "attributed_to", None)),
@@ -560,7 +556,7 @@ def extract_intent(
             obj_id = _get_id(obj)
             if obj_id:
                 obj_type = _get_type(obj)
-                kw["object_"] = VultronObject(as_id=obj_id, as_type=obj_type)
+                kw["object_"] = VultronObject(id_=obj_id, type_=obj_type)
         return kw
 
     def _to_domain_obj(as_obj: object) -> VultronObject | None:
@@ -571,13 +567,13 @@ def extract_intent(
         if not obj_id:
             return None
         obj_type = _get_type(as_obj)
-        return VultronObject(as_id=obj_id, as_type=obj_type)
+        return VultronObject(id_=obj_id, type_=obj_type)
 
     extra_kwargs = _build_domain_kwargs()
     return event_class(
         semantic_type=semantics,
-        activity_id=activity.as_id,
-        activity_type=str(activity.as_type) if activity.as_type else None,
+        activity_id=activity.id_,
+        activity_type=str(activity.type_) if activity.type_ else None,
         actor_id=actor_id,
         # object_ comes from extra_kwargs if a typed domain object was built;
         # otherwise fall back to a minimal VultronObject wrapper.

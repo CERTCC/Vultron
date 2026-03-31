@@ -28,12 +28,12 @@ class VultronParticipantStatus(VultronObject):
     """Domain representation of a participant RM-state status record.
 
     Mirrors the Vultron-specific fields of ``ParticipantStatus``.
-    ``as_type`` is ``"ParticipantStatus"`` to match the wire value.
+    ``type_`` is ``"ParticipantStatus"`` to match the wire value.
 
     ``context`` (case ID) is required, matching the wire type's constraint.
     """
 
-    as_type: Literal["ParticipantStatus"] = "ParticipantStatus"
+    type_: Literal["ParticipantStatus"] = "ParticipantStatus"
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     rm_state: RM = RM.START
     vfd_state: CS_vfd = CS_vfd.vfd

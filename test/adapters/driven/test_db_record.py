@@ -32,7 +32,7 @@ def sample_record():
 def base_object():
     from vultron.wire.as2.vocab.base.base import as_Base
 
-    return as_Base(as_id="test-id", as_type="BaseObject", name="Test Object")
+    return as_Base(id_="test-id", type_="BaseObject", name="Test Object")
 
 
 @pytest.fixture
@@ -53,8 +53,8 @@ def test_object_to_record_preserves_id_type_and_data_for_base_object(
     base_object,
 ):
     record = object_to_record(base_object)
-    assert record.id_ == base_object.as_id
-    assert record.type_ == base_object.as_type
+    assert record.id_ == base_object.id_
+    assert record.type_ == base_object.type_
     assert record.data_ == base_object.model_dump()
 
 
@@ -69,7 +69,7 @@ def test_record_to_object_reconstructs_note_and_preserves_id_type_and_data(
     record = object_to_record(note_object)
     reconstructed = cast(Any, record_to_object(record))
     # ensure type and class are preserved
-    assert reconstructed.as_id == note_object.as_id
-    assert reconstructed.as_type == note_object.as_type
+    assert reconstructed.id_ == note_object.id_
+    assert reconstructed.type_ == note_object.type_
     # ensure content/fields are preserved via model dump
     assert reconstructed.model_dump() == note_object.model_dump()
