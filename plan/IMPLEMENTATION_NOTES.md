@@ -91,3 +91,27 @@ convention (`id_`, `type_`, `object_`, `context_`). Class names retain
 the `as_` prefix. All 1080 tests pass. `specs/code-style.md` updated to
 MUST-level policy. PRIORITY-250 is now fully complete — D5-2 and later
 PRIORITY-300 demo tasks are unblocked.
+
+---
+
+## 2026-03-31 D5-1-G1 and D5-1-G6 complete
+
+### D5-1-G1 notes
+
+The `GET /info` endpoint lives at `/info` (i.e., `/api/v2/info` when mounted).
+It returns `VULTRON_BASE_URL` (from `vultron.adapters.utils.BASE_URL`) and a
+list of actor IDs from the shared DataLayer. The `/health/ready` DataLayer
+connectivity probe (OB-05-002) was already implemented — only the info
+endpoint was missing.
+
+### D5-1-G6 notes
+
+The inbox URL derivation in `DeliveryQueueAdapter` (`{actor_id}/inbox/`) is
+already consistent with the FastAPI route (`POST /actors/{uuid}/inbox/`).
+Tests in `test/adapters/driven/test_delivery_inbox_url.py` serve as a
+regression guard. Reminder: when writing router tests that use `_shared_dl`
+in `actors.py`, override both `get_datalayer` and `actors_router._shared_dl`
+in `app.dependency_overrides` — `_shared_dl` calls `get_datalayer()` directly
+(not via `Depends`), so overriding only `get_datalayer` is insufficient.
+
+D5-1-G3, D5-1-G4, and D5-1-G5 are the remaining prerequisites for D5-2.

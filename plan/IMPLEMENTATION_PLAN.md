@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-30 (refresh #61: SPEC-AUDIT-3 complete)
+**Last Updated**: 2026-03-31 (refresh #62: D5-1-G1 and D5-1-G6 complete)
 
 ## Overview
 
@@ -13,7 +13,7 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 
 ### Current Status Summary
 
-**Test suite**: 1080 passed, 5581 subtests (2026-03-30).
+**Test suite**: 1132 passed, 5581 subtests (2026-03-31).
 
 All 38 message handlers implemented (including `unknown`). All 9 trigger
 endpoints complete. 12 demo scripts, all dockerized in `docker-compose.yml`.
@@ -27,8 +27,9 @@ All PRIORITY-30 through PRIORITY-200 phases complete.
   BUG-FLAKY-1, REORG-1, SECOPS-1, DOCMAINT-1, SPEC-AUDIT-1, SPEC-AUDIT-2,
   SPEC-AUDIT-3
 
-**PRIORITY-300** (multi-actor demos; D5-1 complete; D5-1-G1 through D5-1-G6
-unblocked; D5-2 and later blocked by D5-1-G1 through D5-1-G6).
+**PRIORITY-300** (multi-actor demos; D5-1 complete; D5-1-G1, D5-1-G2, D5-1-G6
+complete; D5-1-G3, D5-1-G4, D5-1-G5 pending; D5-2 and later blocked by
+D5-1-G3 through D5-1-G5).
 
 ---
 
@@ -215,19 +216,14 @@ are blocked by all G tasks.
   `notes/multi-actor-architecture.md` §4 G4, `specs/multi-actor-demo.md`
   DEMO-MA-02-001 through DEMO-MA-02-003.
 
-#### D5-1-G6 — Inbox URL Derivation Integration Test
+#### D5-1-G6 — Inbox URL Derivation Integration Test ✅
 
-- [ ] **D5-1-G6**: Add an integration test (in `test/adapters/driven/` or
-  `test/integration/`) that exercises the full delivery path: create an
-  actor record with a known `id_` URI, call `DeliveryQueueAdapter` inbox
-  URL derivation, and assert the resulting URL matches the FastAPI route
-  registered in `vultron/adapters/driving/fastapi/routers/actors.py`.
-  Specifically verify that an actor stored as
-  `http://finder:7999/api/v2/actors/{uuid}` produces inbox URL
-  `http://finder:7999/api/v2/actors/{uuid}/inbox/`. If any mismatch is
-  found, fix the derivation logic in `vultron/adapters/driven/delivery_queue.py`
-  before D5-2. References: `notes/multi-actor-architecture.md` §4 G6,
-  `specs/multi-actor-demo.md` DEMO-MA-01-002.
+- [x] **D5-1-G6**: Added `test/adapters/driven/test_delivery_inbox_url.py`
+  with 6 tests verifying that `DeliveryQueueAdapter`'s inbox URL derivation
+  formula (`{actor_id}/inbox/`) produces URLs consistent with the FastAPI
+  actors router route (`POST /actors/{actor_id}/inbox/`). Tests confirm the
+  derivation normalises trailing slashes, preserves the actor UUID, and that
+  a POST to the derived path returns 202 (not 404).
 
 #### D5-1-G3 — CaseActor Instantiation Strategy
 
@@ -260,19 +256,14 @@ are blocked by all G tasks.
   D5-1-G3, D5-1-G4. References: `notes/multi-actor-architecture.md` §4 G5,
   `specs/multi-actor-demo.md` DEMO-MA-03-001 through DEMO-MA-04-002.
 
-#### D5-1-G1 — VULTRON_BASE_URL Exposure via Info/Health Endpoint
+#### D5-1-G1 — VULTRON_BASE_URL Exposure via Info/Health Endpoint ✅
 
-- [ ] **D5-1-G1**: Extend the `/health/ready` or add a `GET /api/v2/info`
-  endpoint (in `vultron/adapters/driving/fastapi/routers/health.py` or a
-  new `info.py` router) to return the configured `VULTRON_BASE_URL` and
-  actor identity in its response body. This allows demo scripts and
-  operators to confirm container identity at startup. Also remediate the
-  known gap in `/health/ready` (currently returns `{"status": "ok"}`
-  unconditionally; it MUST check DataLayer connectivity and return HTTP 503
-  on failure per `specs/observability.md` OB-05-002). Add tests for
-  both the identity response and the DataLayer connectivity check.
-  References: `notes/multi-actor-architecture.md` §4 G1,
-  `specs/multi-actor-demo.md` DEMO-MA-02-001 (depends-on OB-05-002).
+- [x] **D5-1-G1**: Added `vultron/adapters/driving/fastapi/routers/info.py`
+  with a `GET /info` endpoint returning `VULTRON_BASE_URL` and the list of
+  actor IDs registered in the shared DataLayer. Registered in `v2_router.py`.
+  Tests in `test/adapters/driving/fastapi/routers/test_info.py` (5 tests).
+  The `/health/ready` DataLayer connectivity check (OB-05-002) was already
+  implemented.
 
 - [ ] **D5-2**: Demo Scenario 1 (finder + vendor): Dockerized with two actor
   containers + CaseActor container. **Blocked by D5-1-G1 through D5-1-G6**.
