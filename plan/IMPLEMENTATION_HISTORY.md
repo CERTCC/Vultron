@@ -3727,7 +3727,7 @@ on its first line, and remove keyword suffixes from section headers.
 
 **Verification**:
 
-- `grep -rn "^\- \`[A-Z]" specs/*.md | grep -v "MUST\|SHOULD\|..." → 0 hits`
+- ``grep -rn "^\- `[A-Z]" specs/*.md | grep -v "MUST\|SHOULD\|..." → 0 hits``
 - `grep -rh "^## \|^### " specs/*.md | grep "(MUST)\|(SHOULD)\|(MAY)"` → 0 hits
 - `markdownlint-cli2`: 0 errors
 
