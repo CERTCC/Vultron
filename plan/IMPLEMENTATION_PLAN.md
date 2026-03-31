@@ -27,8 +27,8 @@ All PRIORITY-30 through PRIORITY-200 phases complete.
   BUG-FLAKY-1, REORG-1, SECOPS-1, DOCMAINT-1, SPEC-AUDIT-1, SPEC-AUDIT-2,
   SPEC-AUDIT-3
 
-**PRIORITY-300** (multi-actor demos; D5-1 unblocked, D5-2 and later blocked
-by PRIORITY-250).
+**PRIORITY-300** (multi-actor demos; D5-1 complete; D5-1-G1 through D5-1-G6
+unblocked; D5-2 and later blocked by D5-1-G1 through D5-1-G6).
 
 ---
 
@@ -175,18 +175,108 @@ PRIORITY-300 demo work. D5-1 (architecture review) MAY proceed in parallel.
   call.
 
 ---
- — Multi-Actor Demos (PRIORITY 300)
+
+### Phase PRIORITY-300 — Multi-Actor Demos (PRIORITY 300)
 
 **Reference**: `plan/PRIORITIES.md` PRIORITY 300, `notes/demo-future-ideas.md`
 
-**Note**: D5-1 (architecture review) is unblocked now that PRIORITY-200 is
-complete. D5-2 and later are blocked by PRIORITY-250 (pre-300 cleanup).
+**Note**: D5-1 is complete. D5-1-G1 through D5-1-G6 are the prerequisites
+for D5-2, identified during the D5-1 architecture review. D5-2 and later
+are blocked by all G tasks.
 
 - [x] **D5-1**: Architectural review complete; CA-2 follow-up confirmed;
   `notes/multi-actor-architecture.md` produced with actor/container
   assumptions and D5-2 prerequisites (G1–G6). Completed 2026-03-31.
+
+#### D5-1-G2 — Actor Seeding / Bootstrap CLI Command
+
+- [ ] **D5-1-G2**: Add a `seed` (or `bootstrap`) sub-command to `vultron-demo`
+  CLI (`vultron/demo/cli.py`) that creates and persists the local actor
+  record on container startup and registers known peer actors (with their
+  full inbox URLs) in the local DataLayer. Seed data (actor names, types,
+  peer URLs) MUST be configurable via environment variables or a JSON
+  config file. The sub-command must be idempotent (safe to re-run).
+  Update `docker/docker-compose.yml` container entrypoints to call this
+  seed command before any demo steps. Add unit tests confirming actor
+  creation and peer registration. References: `notes/multi-actor-architecture.md`
+  §4 G2, `specs/multi-actor-demo.md` DEMO-MA-01-003.
+
+#### D5-1-G4 — Multi-Container Docker Compose Configuration
+
+- [ ] **D5-1-G4**: Create `docker/docker-compose-multi-actor.yml` (or extend
+  the existing `docker/docker-compose.yml`) defining at minimum three
+  services — `finder`, `vendor`, and `case-actor` — each with: a unique
+  `VULTRON_BASE_URL` using the Docker service name as hostname (e.g.,
+  `http://finder:7999/api/v2/`), its own named volume for `mydb.json`, a
+  `healthcheck` probing `/health/ready`, and membership in a shared
+  `vultron-network` bridge. Dependent services MUST use
+  `condition: service_healthy`. Document port mappings, required env vars,
+  and network config in an accompanying `README.md` or inline comments.
+  Depends on D5-1-G2 (seeding strategy settled). References:
+  `notes/multi-actor-architecture.md` §4 G4, `specs/multi-actor-demo.md`
+  DEMO-MA-02-001 through DEMO-MA-02-003.
+
+#### D5-1-G6 — Inbox URL Derivation Integration Test
+
+- [ ] **D5-1-G6**: Add an integration test (in `test/adapters/driven/` or
+  `test/integration/`) that exercises the full delivery path: create an
+  actor record with a known `id_` URI, call `DeliveryQueueAdapter` inbox
+  URL derivation, and assert the resulting URL matches the FastAPI route
+  registered in `vultron/adapters/driving/fastapi/routers/actors.py`.
+  Specifically verify that an actor stored as
+  `http://finder:7999/api/v2/actors/{uuid}` produces inbox URL
+  `http://finder:7999/api/v2/actors/{uuid}/inbox/`. If any mismatch is
+  found, fix the derivation logic in `vultron/adapters/driven/delivery_queue.py`
+  before D5-2. References: `notes/multi-actor-architecture.md` §4 G6,
+  `specs/multi-actor-demo.md` DEMO-MA-01-002.
+
+#### D5-1-G3 — CaseActor Instantiation Strategy
+
+- [ ] **D5-1-G3**: Decide and implement the CaseActor instantiation strategy
+  for multi-container scenarios. Recommended approach (simplest first):
+  CaseActor is **pre-seeded** at container startup with a fixed identity
+  via the D5-1-G2 seed command. The `VultronCaseActor` record is created
+  by a startup script rather than lazily by the BT node
+  (`vultron/core/behaviors/case/nodes.py::CreateCaseActorNode`). For D5-2,
+  CaseActor MAY run in the Vendor container (Vendor plays both roles) or
+  as a dedicated third container. Document the chosen strategy in
+  `notes/multi-actor-architecture.md` §3-D and update the seed command
+  (D5-1-G2) accordingly. Add tests for the chosen startup path. References:
+  `notes/multi-actor-architecture.md` §4 G3, §3-D.
+
+#### D5-1-G5 — Multi-Container Demo Script
+
+- [ ] **D5-1-G5**: Implement a new demo script (e.g.,
+  `vultron/demo/two_actor_demo.py`) and a corresponding `vultron-demo`
+  sub-command for the Finder + Vendor scenario. The script MUST:
+  (1) accept base URLs for each container as arguments or env vars;
+  (2) run peer registration / seeding for both containers before the main
+  scenario (using D5-1-G2 seed sub-command or equivalent API calls);
+  (3) orchestrate the CVD workflow across containers by POSTing to each
+  container's trigger and inbox endpoints; and (4) poll each container's
+  DataLayer or status endpoints to verify final RM/EM/CS state. Wrap
+  workflow steps in `demo_step`/`demo_check` context managers. Add an
+  acceptance test in `test/demo/` runnable via
+  `docker compose up --abort-on-container-exit`. Depends on D5-1-G2,
+  D5-1-G3, D5-1-G4. References: `notes/multi-actor-architecture.md` §4 G5,
+  `specs/multi-actor-demo.md` DEMO-MA-03-001 through DEMO-MA-04-002.
+
+#### D5-1-G1 — VULTRON_BASE_URL Exposure via Info/Health Endpoint
+
+- [ ] **D5-1-G1**: Extend the `/health/ready` or add a `GET /api/v2/info`
+  endpoint (in `vultron/adapters/driving/fastapi/routers/health.py` or a
+  new `info.py` router) to return the configured `VULTRON_BASE_URL` and
+  actor identity in its response body. This allows demo scripts and
+  operators to confirm container identity at startup. Also remediate the
+  known gap in `/health/ready` (currently returns `{"status": "ok"}`
+  unconditionally; it MUST check DataLayer connectivity and return HTTP 503
+  on failure per `specs/observability.md` OB-05-002). Add tests for
+  both the identity response and the DataLayer connectivity check.
+  References: `notes/multi-actor-architecture.md` §4 G1,
+  `specs/multi-actor-demo.md` DEMO-MA-02-001 (depends-on OB-05-002).
+
 - [ ] **D5-2**: Demo Scenario 1 (finder + vendor): Dockerized with two actor
-  containers + CaseActor container. **Blocked by PRIORITY-250**.
+  containers + CaseActor container. **Blocked by D5-1-G1 through D5-1-G6**.
 - [ ] **D5-3**: Demo Scenario 2 (finder + vendor + coordinator). **Blocked by D5-2**.
 - [ ] **D5-4**: Demo Scenario 3 (ownership transfer + multi-vendor). **Blocked by D5-3**.
 - [ ] **D5-5**: Integration tests and Docker Compose configs for each scenario.
