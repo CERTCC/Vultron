@@ -26,24 +26,31 @@
 #   VULTRON_DB_PATH     Path to the TinyDB file inside the container.
 #                       Each service mounts a named volume at /app/data so
 #                       the database persists across container restarts.
-#   VULTRON_ACTOR_NAME  Display name used by `vultron-demo seed` to create
-#                       the local actor record on first startup.
-#   VULTRON_ACTOR_TYPE  ActivityStreams actor type (Person, Organization,
-#                       Service, Application, Group).
+#   VULTRON_ACTOR_ID    Deterministic full URI for the local actor (D5-1-G3).
+#                       Pre-configured so peer containers can register each
+#                       other without discovery.  The ID is stable across
+#                       container restarts because it is derived from the
+#                       service hostname (not a random UUID).
+#   VULTRON_SEED_CONFIG Path inside the container to a JSON seed config file
+#                       (docker/seed-configs/seed-<role>.json).  Used by
+#                       `vultron-demo seed` to register peer actors in the
+#                       local DataLayer.
 #
 # ─── Networks ─────────────────────────────────────────────────────────────
 #   vultron-network   Shared bridge network connecting all services.
 #
 # ─── Startup and seeding ──────────────────────────────────────────────────
 # The API server containers (finder, vendor, case-actor) do NOT auto-seed
-# actor records on startup.  Use a demo-runner container or run
-# `vultron-demo seed` against each service's API to create the local actor
-# and register peer actors before executing a demo scenario.
+# actor records on startup.  Run the demo-runner `seed` command against
+# each service after it is healthy to create the local actor and register
+# peers (D5-1-G3).  Each service's seed configuration is pre-built in
+# docker/seed-configs/ and mounted read-only at /app/docker/seed-configs/.
 #
 # Example (after `docker compose -f docker-compose-multi-actor.yml up -d`):
 #
-#   docker compose -f docker-compose-multi-actor.yml run --rm demo-runner \
-#       vultron-demo seed
+#   docker compose -f docker-compose-multi-actor.yml run --rm \
+#     -e VULTRON_API_BASE_URL=http://finder:7999/api/v2 demo-runner \
+#     vultron-demo seed
 #
 # See docker/README.md for full usage instructions.
 
@@ -63,9 +70,11 @@ services:
       - VULTRON_BASE_URL=http://finder:7999/api/v2/
       # DataLayer: persist the TinyDB file under the named volume.
       - VULTRON_DB_PATH=/app/data/mydb.json
-      # Actor seed config used by `vultron-demo seed`.
-      - VULTRON_ACTOR_NAME=Finder
-      - VULTRON_ACTOR_TYPE=Person
+      # Deterministic actor ID (D5-1-G3): fixed URI used by vultron-demo seed
+      # so peer containers can pre-register this actor without discovery.
+      - VULTRON_ACTOR_ID=http://finder:7999/api/v2/actors/finder
+      # Seed config: registers local actor + peers on first seed run.
+      - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-finder.json
       - LOG_LEVEL=INFO
     volumes:
       - finder-data:/app/data
@@ -95,8 +104,8 @@ services:
       - PYTHONPATH=/app
       - VULTRON_BASE_URL=http://vendor:7999/api/v2/
       - VULTRON_DB_PATH=/app/data/mydb.json
-      - VULTRON_ACTOR_NAME=Vendor
-      - VULTRON_ACTOR_TYPE=Organization
+      - VULTRON_ACTOR_ID=http://vendor:7999/api/v2/actors/vendor
+      - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-vendor.json
       - LOG_LEVEL=INFO
     volumes:
       - vendor-data:/app/data
@@ -117,6 +126,14 @@ services:
   # to all case participants.  For D5-2 (two-actor scenario), CaseActor MAY
   # run in the vendor container instead; this dedicated service is required
   # for D5-3 and later (three-actor scenarios).
+  #
+  # CaseActor instantiation strategy (D5-1-G3):
+  #   - Container identity: VultronService actor pre-seeded with a fixed
+  #     VULTRON_ACTOR_ID on first `vultron-demo seed` run.
+  #   - Per-case VultronCaseActor records are created by CreateCaseActorNode
+  #     (vultron/core/behaviors/case/nodes.py) at case creation time in the
+  #     DataLayer of whichever container hosts the case (Vendor for D5-2;
+  #     the dedicated case-actor container for D5-3+).
   case-actor:
     build:
       context: ..
@@ -127,8 +144,8 @@ services:
       - PYTHONPATH=/app
       - VULTRON_BASE_URL=http://case-actor:7999/api/v2/
       - VULTRON_DB_PATH=/app/data/mydb.json
-      - VULTRON_ACTOR_NAME=CaseActor
-      - VULTRON_ACTOR_TYPE=Service
+      - VULTRON_ACTOR_ID=http://case-actor:7999/api/v2/actors/case-actor
+      - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-case-actor.json
       - LOG_LEVEL=INFO
     volumes:
       - case-actor-data:/app/data

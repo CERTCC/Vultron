@@ -13,7 +13,7 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 
 ### Current Status Summary
 
-**Test suite**: 1139 passed, 5581 subtests (2026-03-31).
+**Test suite**: 1171 passed, 5581 subtests (2026-03-31).
 
 All 38 message handlers implemented (including `unknown`). All 9 trigger
 endpoints complete. 12 demo scripts, all dockerized in `docker-compose.yml`.
@@ -27,9 +27,9 @@ All PRIORITY-30 through PRIORITY-200 phases complete.
   BUG-FLAKY-1, REORG-1, SECOPS-1, DOCMAINT-1, SPEC-AUDIT-1, SPEC-AUDIT-2,
   SPEC-AUDIT-3
 
-**PRIORITY-300** (multi-actor demos; D5-1 complete; D5-1-G1, D5-1-G2, D5-1-G4,
-D5-1-G6 complete; D5-1-G3, D5-1-G5 pending; D5-2 and later blocked by
-D5-1-G3 and D5-1-G5).
+**PRIORITY-300** (multi-actor demos; D5-1 complete; D5-1-G1 through D5-1-G4,
+D5-1-G6 complete; **D5-1-G3 complete** (2026-03-31); D5-1-G5 pending;
+D5-2 and later blocked by D5-1-G5).
 
 ---
 
@@ -224,19 +224,15 @@ are blocked by all G tasks.
   derivation normalises trailing slashes, preserves the actor UUID, and that
   a POST to the derived path returns 202 (not 404).
 
-#### D5-1-G3 — CaseActor Instantiation Strategy
+#### D5-1-G3 — CaseActor Instantiation Strategy ✅
 
-- [ ] **D5-1-G3**: Decide and implement the CaseActor instantiation strategy
-  for multi-container scenarios. Recommended approach (simplest first):
-  CaseActor is **pre-seeded** at container startup with a fixed identity
-  via the D5-1-G2 seed command. The `VultronCaseActor` record is created
-  by a startup script rather than lazily by the BT node
-  (`vultron/core/behaviors/case/nodes.py::CreateCaseActorNode`). For D5-2,
-  CaseActor MAY run in the Vendor container (Vendor plays both roles) or
-  as a dedicated third container. Document the chosen strategy in
-  `notes/multi-actor-architecture.md` §3-D and update the seed command
-  (D5-1-G2) accordingly. Add tests for the chosen startup path. References:
-  `notes/multi-actor-architecture.md` §4 G3, §3-D.
+- [x] **D5-1-G3**: Chosen strategy: pre-seeded container identity with
+  lazy per-case `VultronCaseActor` records. For D5-2, CaseActor co-locates
+  in Vendor container. Added deterministic `VULTRON_ACTOR_ID` values to
+  `docker/docker-compose-multi-actor.yml`. Created
+  `docker/seed-configs/seed-{finder,vendor,case-actor}.json` with full peer
+  meshes. Updated `notes/multi-actor-architecture.md` §3-D and §4 gap
+  list. Tests in `test/demo/test_multi_actor_seed.py` (32 tests).
 
 #### D5-1-G5 — Multi-Container Demo Script
 
@@ -265,7 +261,7 @@ are blocked by all G tasks.
   implemented.
 
 - [ ] **D5-2**: Demo Scenario 1 (finder + vendor): Dockerized with two actor
-  containers + CaseActor container. **Blocked by D5-1-G1 through D5-1-G6**.
+  containers + CaseActor container. **Blocked by D5-1-G5**.
 - [ ] **D5-3**: Demo Scenario 2 (finder + vendor + coordinator). **Blocked by D5-2**.
 - [ ] **D5-4**: Demo Scenario 3 (ownership transfer + multi-vendor). **Blocked by D5-3**.
 - [ ] **D5-5**: Integration tests and Docker Compose configs for each scenario.

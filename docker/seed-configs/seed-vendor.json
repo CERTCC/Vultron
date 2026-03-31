@@ -1,0 +1,19 @@
+{
+  "local_actor": {
+    "name": "Vendor",
+    "actor_type": "Organization",
+    "id": "http://vendor:7999/api/v2/actors/vendor"
+  },
+  "peers": [
+    {
+      "name": "Finder",
+      "actor_type": "Person",
+      "id": "http://finder:7999/api/v2/actors/finder"
+    },
+    {
+      "name": "CaseActor",
+      "actor_type": "Service",
+      "id": "http://case-actor:7999/api/v2/actors/case-actor"
+    }
+  ]
+}

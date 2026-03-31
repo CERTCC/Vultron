@@ -155,18 +155,54 @@ Concretely: the demo script bootstraps each container by POSTing actor
 creation requests (or seeding the DataLayer) for all peers before the
 main scenario begins.
 
-### D. CaseActor is a Dedicated Container or Logical Actor in a Coordinator
+### D. CaseActor Instantiation Strategy (D5-1-G3)
 
-For D5-2 (Finder + Vendor only), CaseActor MAY be hosted within the
-Vendor container (Vendor plays both roles) or as a third container. For
-D5-3 onward, CaseActor SHOULD be a dedicated "case service" container:
+**Chosen strategy**: Pre-seeded container identity with lazy per-case
+`VultronCaseActor` records.
 
-- `VULTRON_BASE_URL=http://case-actor:7999/api/v2/`
-- Actor ID registered as `http://case-actor:7999/api/v2/actors/{uuid}`
-- Finder and Vendor pre-registered as participants in CaseActor's DataLayer
+#### Container identity (VultronService record)
 
-CaseActor instantiation (creation of the `VultronCaseActor` record) is
-triggered by a case-creation event or a startup seed script.
+Each actor container — including the dedicated `case-actor` container —
+is pre-seeded on first setup by running `vultron-demo seed` against the
+container's API. The seed command calls `POST /actors/` with the actor's
+pre-configured `VULTRON_ACTOR_ID`, creating a `VultronService` record in
+the container's DataLayer. This is the container's stable identity.
+
+All three actors use **deterministic, pre-known IDs** set via
+`VULTRON_ACTOR_ID` in `docker/docker-compose-multi-actor.yml`:
+
+| Service      | Deterministic actor ID                                |
+|:-------------|:------------------------------------------------------|
+| `finder`     | `http://finder:7999/api/v2/actors/finder`             |
+| `vendor`     | `http://vendor:7999/api/v2/actors/vendor`             |
+| `case-actor` | `http://case-actor:7999/api/v2/actors/case-actor`     |
+
+Peer registration is driven by seed config JSON files in
+`docker/seed-configs/` (one per container). Each file lists the local
+actor's deterministic ID and the full set of peer actors.
+`VULTRON_SEED_CONFIG` is set in the compose file and consumed by
+`vultron-demo seed` via `SeedConfig.load()`.
+
+#### Per-case VultronCaseActor record
+
+When a `VulnerabilityCase` is created (e.g., during the Vendor's
+case-engagement BT execution), the `CreateCaseActorNode`
+(`vultron/core/behaviors/case/nodes.py`) creates a `VultronCaseActor`
+object with `context=case_id` in the **Vendor container's DataLayer**.
+The `_broadcast_case_update` method in `UpdateCaseReceivedUseCase` then
+locates this record by `type_="Service"` and `context=case_id` to emit
+Announce activities.
+
+**For D5-2 (Finder + Vendor)**: CaseActor co-locates in the Vendor
+container. Vendor plays both Vendor and CaseActor roles. The dedicated
+`case-actor` container is not required for D5-2 and can be omitted from
+the scenario.
+
+**For D5-3+**: The dedicated `case-actor` container is required. The
+demo script (D5-1-G5) will register Finder and Vendor as participants
+in the case-actor container's DataLayer, and trigger case creation there
+so that the `VultronCaseActor` record is created in the case-actor
+DataLayer rather than the Vendor DataLayer.
 
 ### E. Inbox URL Routing via Docker Network
 
@@ -185,57 +221,39 @@ mounted as a Docker volume. DataLayer reset endpoints (`DELETE
 
 ## 4. Gaps to Address Before D5-2
 
-The following items are not yet implemented and must be resolved before
-D5-2 can be built.
+The following items were not implemented as of D5-1; completed items are
+noted with their implementation reference.
 
-### G1 — Base URL as First-Class Configuration
+### G1 — Base URL as First-Class Configuration ✅
 
-Currently `VULTRON_BASE_URL` is read from environment, but no startup
-health check or API response reflects the configured base URL. A `GET
-/api/v2/health/ready` or `GET /api/v2/info` endpoint should return the
-configured base URL so demo scripts can confirm the container identity.
+Implemented in D5-1-G1. `GET /api/v2/info` returns `VULTRON_BASE_URL`
+and the list of registered actor IDs. Tests in
+`test/adapters/driving/fastapi/routers/test_info.py`.
 
-### G2 — Actor Seeding / Bootstrap CLI Command
+### G2 — Actor Seeding / Bootstrap CLI Command ✅
 
-Demo scripts need a reliable way to:
+Implemented in D5-1-G2. `vultron-demo seed` CLI sub-command creates the
+local actor and registers peer actors. Reads configuration from
+`VULTRON_SEED_CONFIG` (JSON file) or env vars. Tests in
+`test/demo/test_seed.py` and `test/demo/test_seed_config.py`.
 
-1. Create and persist the local actor record on container startup.
-2. Register known peer actors (with their full inbox URLs) in the local
-   DataLayer.
+### G3 — CaseActor Instantiation Strategy ✅
 
-A `vultron-demo` sub-command (or a startup script called from the
-container entrypoint) should handle this seeding. The seed data
-(actor names, types, and peer URLs) can be passed as environment
-variables or a JSON configuration file.
+Implemented in D5-1-G3. See §3-D for the chosen strategy:
 
-### G3 — CaseActor Instantiation Trigger
+- Deterministic actor IDs via `VULTRON_ACTOR_ID` in
+  `docker/docker-compose-multi-actor.yml`.
+- Per-container seed config JSON files in `docker/seed-configs/`.
+- Per-case `VultronCaseActor` records still created by
+  `CreateCaseActorNode` at case creation time.
 
-Currently, CaseActor records are created by behavior tree nodes in
-`vultron/core/behaviors/case/nodes.py::CreateCaseActorNode`. This is
-invoked during case creation in the single-container demo. For the
-multi-container demo, CaseActor instantiation needs to be decoupled:
+Tests in `test/demo/test_multi_actor_seed.py`.
 
-- Either CaseActor is pre-seeded at container startup (fixed identity),
-- Or CaseActor is instantiated on demand via a trigger endpoint called
-  from the case-creation flow.
+### G4 — Multi-Container Docker Compose Configuration ✅
 
-This design choice should be made before implementing D5-2.
-
-### G4 — Multi-Container Docker Compose Configuration
-
-The existing `docker/docker-compose.yml` defines a single `api-dev`
-container. D5-2 requires at minimum three services:
-
-- `finder`: Finder actor API server
-- `vendor`: Vendor actor API server
-- `case-actor`: CaseActor API server (optional for D5-2; required for D5-3)
-
-Each service needs:
-
-- A unique `VULTRON_BASE_URL` env var
-- Its own volume for `mydb.json`
-- A healthcheck
-- Membership in the shared Docker network (`vultron-network`)
+Implemented in D5-1-G4. `docker/docker-compose-multi-actor.yml` defines
+finder, vendor, and case-actor services with health checks, named volumes,
+and deterministic actor IDs.
 
 ### G5 — Demo Script for Multi-Container Scenario
 
@@ -248,37 +266,19 @@ D5-2 requires a new demo script (or extended existing ones) that:
 3. Polls each container's DataLayer or status endpoints to verify state
    propagation.
 
-### G6 — Inbox URL Derivation Consistency
+### G6 — Inbox URL Derivation Consistency ✅
 
-`DeliveryQueueAdapter` derives inbox URLs as `{actor_id}/inbox/`. This
-must be consistent with the routing in `vultron/adapters/driving/fastapi/
-routers/actors.py`, which registers the inbox endpoint at
-`/{actor_id}/inbox/` under the `/api/v2/actors` prefix. The resulting
-inbox URL must therefore be the actor's `id_` with `/inbox/` appended.
-
-**Verify**: The actor's stored `id_` value must include the full path
-that matches the FastAPI route. For an actor registered as
-`http://finder:7999/api/v2/actors/finder-uuid`, the inbox URL must be
-`http://finder:7999/api/v2/actors/finder-uuid/inbox/`.
-
-This should be validated with an integration test before D5-2 is merged.
+Implemented in D5-1-G6. Integration tests in
+`test/adapters/driven/test_delivery_inbox_url.py` confirm that
+`DeliveryQueueAdapter` produces inbox URLs consistent with the FastAPI
+actors router route.
 
 ---
 
-## 5. Recommended D5-2 Prerequisites
+## 5. D5-2 Prerequisites Status
 
-Before implementing D5-2, resolve the following in priority order:
-
-1. **G2** — Implement an actor seeding/bootstrap mechanism (a `seed`
-   sub-command in the demo CLI or a startup script).
-2. **G4** — Add a multi-container Docker Compose configuration for the
-   Finder + Vendor scenario.
-3. **G6** — Add an integration test confirming that `DeliveryQueueAdapter`
-   produces inbox URLs that match the FastAPI routing.
-4. **G3** — Decide on CaseActor instantiation strategy and implement it.
-5. **G5** — Write the D5-2 demo script.
-6. **G1** — Add a `/info` or `/health/ready` response that returns
-   `VULTRON_BASE_URL` (informational; useful for debugging).
+All G1–G4, G6 prerequisites are complete. G5 (demo script) is the
+remaining prerequisite for D5-2.
 
 ---
 
@@ -297,15 +297,15 @@ The following are out of scope for D5-2 and should not block it:
 
 ## 7. Summary
 
-The hexagonal architecture is clean and ready for multi-actor use. The
-key remaining work for D5-2 is **operational** rather than
-architectural:
+The hexagonal architecture is clean and ready for multi-actor use. All
+D5-1 gap items (G1–G4, G6) are complete. The key remaining work for D5-2
+is the multi-container demo script (G5 / D5-1-G5):
 
-- Per-container actor seeding and peer registration
-- Docker Compose multi-service configuration
+- Per-container actor seeding and peer registration (via seed configs)
+- Docker Compose multi-service configuration (complete)
 - A demo script that orchestrates multiple containers
-- CaseActor instantiation strategy (simplest first: pre-seeded in a
-  dedicated container)
+- CaseActor instantiation strategy (complete: pre-seeded with deterministic
+  ID; co-located in Vendor for D5-2; dedicated container for D5-3+)
 
 All core protocol mechanics (inbox handling, outbox delivery, RM/EM/CS
 state machines, CaseActor broadcast) are implemented and tested in the
