@@ -157,7 +157,7 @@ expectation for invited participants.
 
 ---
 
-## BUG-2026040102 — Circular import causes `test_performance.py` to fail
+## BUG-2026040102 (FIXED 2026-04-01) — Circular import causes `test_performance.py` to fail
 
 `test/core/behaviors/test_performance.py` fails to collect (ImportError)
 when run in isolation, and fails as part of the full `uv run pytest` suite.

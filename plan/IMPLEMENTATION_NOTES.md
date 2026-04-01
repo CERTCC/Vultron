@@ -195,3 +195,23 @@ after invite acceptance plus `engage-case`. D5-3 verification therefore checks
 the stable behavior the system does provide today (authoritative case hosting,
 participant registration, and embargo acceptance) without trying to redefine
 that state-machine behavior inside the demo task.
+
+---
+
+## Circular Import Resolution Pattern (BUG-2026040102, 2026-04-01)
+
+When a module in `vultron/core/behaviors/` needs a helper also used by
+`vultron/core/use_cases/triggers/`, importing it from `triggers/_helpers`
+triggers the `triggers/__init__.py`, which eagerly imports all trigger
+use-case submodules.  If any of those submodules import back into the
+behaviors layer, a circular import results.
+
+**Fix pattern**: move shared helpers to `vultron/core/use_cases/_helpers.py`
+(the neutral, package-top-level helpers module), which is importable from any
+layer without loading the `triggers` sub-package.  `triggers/_helpers.py` may
+re-export for callers already inside the `triggers` package.
+
+**Corollary**: `VultronCase` (core) now implements `record_event()` so that
+`is_case_model()` returns `True` for core-created cases as well as
+wire-layer `VulnerabilityCase` instances.  The `CaseModel` Protocol guard
+must be satisfiable by both model families.
