@@ -48,7 +48,7 @@ from vultron.core.use_cases._helpers import (
     _idempotent_create,
     _report_phase_status_id,
 )
-from vultron.core.use_cases.triggers._helpers import (
+from vultron.core.use_cases._helpers import (
     update_participant_rm_state,
 )
 

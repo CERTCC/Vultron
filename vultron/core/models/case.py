@@ -70,3 +70,24 @@ class VultronCase(VultronObject):
                 )
             ]
         return self
+
+    def record_event(
+        self, object_id: str, event_type: str
+    ) -> VultronCaseEvent:
+        """Append a trusted-timestamp event to the case event log.
+
+        The ``received_at`` timestamp is set to the current UTC time at the
+        moment this method is called.  Callers MUST NOT supply a
+        ``received_at`` value sourced from an incoming activity payload.
+
+        Args:
+            object_id: Full URI of the object being acted upon.
+            event_type: Short descriptor of the event kind
+                (e.g. ``"embargo_accepted"``).
+
+        Returns:
+            The newly-created VultronCaseEvent.
+        """
+        event = VultronCaseEvent(object_id=object_id, event_type=event_type)
+        self.events.append(event)
+        return event

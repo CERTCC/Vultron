@@ -33,7 +33,6 @@ from vultron.core.behaviors.report.validate_tree import (
 )
 from vultron.core.models.vultron_types import (
     VultronAccept,
-    VultronCase,
     VultronCaseActor,
     VultronOffer,
     VultronReport,
@@ -46,6 +45,9 @@ logger = logging.getLogger(__name__)
 def mock_datalayer():
     """Mock DataLayer for performance testing."""
     dl = MagicMock()  # Don't spec=DataLayer since we need read() method too
+
+    # In-memory store so that create()/save() objects are visible to read().
+    storage: dict = {}
 
     # Mock get() to return objects needed by BT nodes
     def mock_get(table, id_):
@@ -72,8 +74,14 @@ def mock_datalayer():
             }
         return None
 
-    # Mock read() for nodes that use TinyDB-specific method
+    # Mock read() for nodes that use TinyDB-specific method.
+    # Returns objects from the in-memory store first, then falls back to
+    # pattern-based construction so that objects persisted via create()/save()
+    # are visible to subsequent reads (e.g. CreateInitialVendorParticipant
+    # reading back the case created by CreateCaseNode).
     def mock_read(id_, raise_on_missing=False):
+        if id_ in storage:
+            return storage[id_]
         if "report" in id_:
             return VultronReport(
                 id_=id_,
@@ -86,18 +94,27 @@ def mock_datalayer():
                 actor="https://example.org/finder",
                 object_="test-report-123",
             )
-        elif "case" in id_:
-            return VultronCase(id_=id_, name="Test Case")
         elif id_.startswith("https://example.org/"):
             return VultronCaseActor(id_=id_, name="Test Actor")
         if raise_on_missing:
             raise ValueError(f"Object not found: {id_}")
         return None
 
+    def mock_create(obj):
+        id_ = getattr(obj, "id_", None)
+        if id_:
+            storage[id_] = obj
+
+    def mock_save(obj):
+        id_ = getattr(obj, "id_", None)
+        if id_:
+            storage[id_] = obj
+
     dl.get.side_effect = mock_get
     dl.read.side_effect = mock_read
+    dl.create.side_effect = mock_create
+    dl.save.side_effect = mock_save
     dl.update.return_value = None
-    dl.create.return_value = None
 
     return dl
 
