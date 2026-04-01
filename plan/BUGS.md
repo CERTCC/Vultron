@@ -252,6 +252,15 @@ handles until the Python interpreter shuts down.
 
 ### Resolution Steps
 
+This is not the first time we've seen issues with test pollution from the
+file-backed datalayer. It would be ideal if we could ensure through the use
+of fixtures or context managers that any file-backed datalayer instances are
+both properly closed and removed after each test that uses them to prevent
+this kind of pollution and resource leakage. The exact implementation may
+vary from the suggested steps below, which were noted based on the most
+recent instance of the problem. If there is a more general solution that
+ensures that we won't see this again, we should do that instead.
+
 1. In `test/conftest.py`'s `cleanup_test_db_files` fixture, call
    `reset_datalayer()` before deleting `mydb.json` so all cached
    `TinyDbDataLayer` instances are closed before the file is removed.

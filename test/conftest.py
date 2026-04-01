@@ -21,6 +21,8 @@ from pathlib import Path
 
 import pytest
 
+from vultron.adapters.driven.datalayer_tinydb import reset_datalayer
+
 
 @pytest.fixture(scope="session", autouse=True)
 def cleanup_test_db_files():
@@ -29,17 +31,22 @@ def cleanup_test_db_files():
 
     This fixture runs once per test session and removes mydb.json
     both before and after the test run to prevent test pollution.
+    Calls reset_datalayer() before deletion so that all cached
+    TinyDbDataLayer instances close their file handles cleanly,
+    preventing ResourceWarning: unclosed file at session teardown.
     """
     # Get repository root
     repo_root = Path(__file__).parent.parent
     test_db_file = repo_root / "mydb.json"
 
     # Clean up before tests
+    reset_datalayer()
     if test_db_file.exists():
         test_db_file.unlink()
 
     yield
 
-    # Clean up after tests
+    # Clean up after tests — close handles before deleting the file
+    reset_datalayer()
     if test_db_file.exists():
         test_db_file.unlink()
