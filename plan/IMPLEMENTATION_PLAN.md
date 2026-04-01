@@ -28,9 +28,9 @@ All PRIORITY-30 through PRIORITY-200 phases complete.
   BUG-FLAKY-1, REORG-1, SECOPS-1, DOCMAINT-1, SPEC-AUDIT-1, SPEC-AUDIT-2,
   SPEC-AUDIT-3
 
-**PRIORITY-300** (multi-actor demos; D5-1 and D5-2/D5-3 complete; D5-4 is
-now the next scenario task, with D5-5 still open for scenario acceptance
-coverage and compose polish).
+**PRIORITY-300** (multi-actor demos; D5-1 through D5-4 complete; D5-5 is
+now the next task: integration tests and Docker Compose configs for each
+scenario).
 
 ---
 
@@ -266,9 +266,14 @@ are blocked by all G tasks.
   mesh, and verified the authoritative case/embargo workflow on the dedicated
   `case-actor` container with unit coverage in
   `test/demo/test_three_actor_demo.py`. Completed 2026-04-01.
-- [ ] **D5-4**: Demo Scenario 3 (ownership transfer + multi-vendor). **Blocked by D5-3**.
+- [x] **D5-4**: Demo Scenario 3 (ownership transfer + multi-vendor). Implemented
+  5-container demo (`multi_vendor_demo.py`) with Vendor-led case creation,
+  ownership transfer to Coordinator, and Vendor2 invited into the active embargo
+  group. Added seed-vendor2.json, updated all seed configs to 5-actor mesh,
+  updated docker-compose-multi-actor.yml, added CLI command, and 6 unit tests.
+  Also fixed `AcceptInviteToEmbargoOnCaseReceivedUseCase` idempotency bug that
+  prevented per-participant embargo acceptance tracking. Completed 2026-04-01.
 - [ ] **D5-5**: Integration tests and Docker Compose configs for each scenario.
-  **Blocked by D5-3**.
 
 ---
 

@@ -4196,3 +4196,58 @@ Finder→Vendor report / validate / engage / invite / accept workflow.
   and named volumes (`no space left on device`). The compose command and docs
   were updated for the intended run, but runtime verification remains
   environment-blocked rather than code-blocked.
+
+---
+
+## D5-4 — Multi-Vendor Demo with Ownership Transfer (Completed 2026-04-01)
+
+### Summary
+
+Implemented the multi-vendor, multi-container demo scenario (Scenario 3 from
+`specs/multi-actor-demo.md`). The demo exercises the full ownership-transfer
+protocol with a second vendor.
+
+### Changes
+
+- **`vultron/demo/multi_vendor_demo.py`** (new): 5-container scenario with
+  Finder, Vendor, Coordinator, CaseActor, and Vendor2 containers. Vendor
+  creates the authoritative case, proposes an embargo, then transfers case
+  ownership to Coordinator (who becomes the ongoing point of contact). After
+  the transfer, Coordinator invites Vendor2 into the active embargo group.
+- **`docker/seed-configs/seed-vendor2.json`** (new): seed config for Vendor2
+  container (deterministic ID `http://vendor2:7999/api/v2/actors/vendor2`).
+- **`docker/seed-configs/seed-{finder,vendor,coordinator,case-actor}.json`**:
+  updated to include Vendor2 as a peer (all configs now describe a 5-actor
+  full-mesh with 4 peers each).
+- **`docker/docker-compose-multi-actor.yml`**: added `vendor2` service
+  (port 7905), `vendor2-data` volume, `VULTRON_VENDOR2_BASE_URL` env var,
+  and `depends_on: vendor2` in `demo-runner`.
+- **`vultron/demo/cli.py`**: added `multi-vendor` click command following
+  the same pattern as `three-actor`.
+- **`test/demo/test_multi_vendor_demo.py`** (new): 6 unit tests covering
+  seed, case creation, ownership transfer assertion, and full workflow.
+- **`test/demo/test_multi_actor_seed.py`**: updated to reflect 5-actor mesh
+  (added `COORDINATOR_ID`, `VENDOR2_ID`; fixed peer-count assertions from
+  "2 peers" to "4 peers" and seed call count from 3 to 5). Resolved
+  pre-existing test failures from commit f3099bcb where coordinator was
+  added to seed configs without updating the test.
+
+### Bugs Fixed
+
+- **`AcceptInviteToEmbargoOnCaseReceivedUseCase`** idempotency bug: the early
+  return when an embargo was already active skipped participant acceptance
+  recording for every actor after the first. Now case-level state changes
+  (set_embargo, em_state) are skipped idempotently, but
+  `participant.accepted_embargo_ids` is always updated.
+
+### Lessons Learned
+
+- Single-TestClient test environments share one DataLayer across all "container"
+  clients. Activities posted to two different inboxes (e.g., case-actor and
+  coordinator) hit the same `dl.create()` and fail on duplicate IDs. Resolve
+  with the `if client_a.base_url != client_b.base_url:` guard pattern that
+  `coordinator_invites_actor` already uses.
+- Multi-participant embargo workflows require ALL accepting actors to update
+  their `CaseParticipant.accepted_embargo_ids`. Idempotency logic must
+  distinguish case-level state (which is truly idempotent once set) from
+  per-participant state (which must be updated once per participant).
