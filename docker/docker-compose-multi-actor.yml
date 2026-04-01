@@ -11,11 +11,15 @@
 #                 documented below and as inline comments.
 #
 # ─── Port mappings (host → container) ─────────────────────────────────────
-#   finder:      7901:7999
-#   vendor:      7902:7999
-#   coordinator: 7904:7999
-#   case-actor:  7903:7999
-#   vendor2:     7905:7999
+#   finder:      ${FINDER_HOST_PORT:-7901}:7999
+#   vendor:      ${VENDOR_HOST_PORT:-7902}:7999
+#   case-actor:  ${CASE_ACTOR_HOST_PORT:-7903}:7999
+#   coordinator: ${COORDINATOR_HOST_PORT:-7904}:7999
+#   vendor2:     ${VENDOR2_HOST_PORT:-7905}:7999
+#
+# Override host ports to avoid conflicts with a running development stack:
+#   FINDER_HOST_PORT=17901 VENDOR_HOST_PORT=17902 ... \
+#     ./integration_tests/demo/run_multi_actor_integration_test.sh
 #
 # ─── Required environment variables ───────────────────────────────────────
 #   PROJECT_NAME          Docker resource name prefix (default: vultron)
@@ -86,10 +90,11 @@ services:
     volumes:
       - finder-data:/app/data
     ports:
-      # Host port 7901 → container port 7999 (for debugging from host).
-      # On the vultron-network, other containers reach this service at
-      # http://finder:7999.
-      - "7901:7999"
+      # Host port → container port 7999 (for debugging from host only).
+      # Inter-container traffic uses http://finder:7999 on vultron-network.
+      # Override FINDER_HOST_PORT to avoid conflicts with a running stack,
+      # e.g. FINDER_HOST_PORT=17901 when the default 7901 is already bound.
+      - "${FINDER_HOST_PORT:-7901}:7999"
     networks:
       - vultron-network
     healthcheck:
@@ -117,8 +122,9 @@ services:
     volumes:
       - vendor-data:/app/data
     ports:
-      # Host port 7902 → container port 7999.
-      - "7902:7999"
+      # Host port → container port 7999 (for debugging from host only).
+      # Override VENDOR_HOST_PORT to avoid port conflicts.
+      - "${VENDOR_HOST_PORT:-7902}:7999"
     networks:
       - vultron-network
     healthcheck:
@@ -145,7 +151,9 @@ services:
     volumes:
       - coordinator-data:/app/data
     ports:
-      - "7904:7999"
+      # Host port → container port 7999 (for debugging from host only).
+      # Override COORDINATOR_HOST_PORT to avoid port conflicts.
+      - "${COORDINATOR_HOST_PORT:-7904}:7999"
     networks:
       - vultron-network
     healthcheck:
@@ -184,8 +192,9 @@ services:
     volumes:
       - case-actor-data:/app/data
     ports:
-      # Host port 7903 → container port 7999.
-      - "7903:7999"
+      # Host port → container port 7999 (for debugging from host only).
+      # Override CASE_ACTOR_HOST_PORT to avoid port conflicts.
+      - "${CASE_ACTOR_HOST_PORT:-7903}:7999"
     networks:
       - vultron-network
     healthcheck:
@@ -215,8 +224,9 @@ services:
     volumes:
       - vendor2-data:/app/data
     ports:
-      # Host port 7905 → container port 7999.
-      - "7905:7999"
+      # Host port → container port 7999 (for debugging from host only).
+      # Override VENDOR2_HOST_PORT to avoid port conflicts.
+      - "${VENDOR2_HOST_PORT:-7905}:7999"
     networks:
       - vultron-network
     healthcheck:

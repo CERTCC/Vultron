@@ -285,3 +285,63 @@ ensures that we won't see this again, we should do that instead.
 
 Validation: `uv run pytest --tb=short 2>&1 | grep -i ResourceWarning` → no
 output; 1201 passed, 5581 subtests; black/flake8/mypy/pyright clean.
+
+## BUG-2026040104 (FIXED 2026-04-01) — multi-actor-integration test fails at command line
+
+When running `integration_tests/demo/run_multi_actor_integration_test.sh` we
+encounter the following error:
+
+```text
+[multi-actor-integration] Starting multi-actor stack and running scenario 'two-actor'...
+[+] up 12/12
+ ✔ Network vultron-it_vultron-network Created                                                                                                                                                                                                                                      0.0s
+ ✔ Volume vultron-it_case-actor-data  Created                                                                                                                                                                                                                                      0.1s
+ ✔ Volume vultron-it_vendor2-data     Created                                                                                                                                                                                                                                      0.0s
+ ✔ Volume vultron-it_finder-data      Created                                                                                                                                                                                                                                      0.0s
+ ✔ Volume vultron-it_vendor-data      Created                                                                                                                                                                                                                                      0.0s
+ ✔ Volume vultron-it_coordinator-data Created                                                                                                                                                                                                                                      0.0s
+ ✔ Container vultron-it-case-actor-1  Created                                                                                                                                                                                                                                      1.9s
+ ✔ Container vultron-it-coordinator-1 Created                                                                                                                                                                                                                                      2.0s
+ ✔ Container vultron-it-vendor2-1     Created                                                                                                                                                                                                                                      1.4s
+ ✔ Container vultron-it-vendor-1      Created                                                                                                                                                                                                                                      2.1s
+ ✔ Container vultron-it-finder-1      Created                                                                                                                                                                                                                                      1.9s
+ ✔ Container vultron-it-demo-runner-1 Created                                                                                                                                                                                                                                      9.7s
+Attaching to case-actor-1, coordinator-1, demo-runner-1, finder-1, vendor-1, vendor2-1
+coordinator-1  |    Building vultron @ file:///app
+vendor2-1      |    Building vultron @ file:///app
+Error response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint vultron-it-finder-1 (cee77c63ab886761fb52df08dbb628441e61c4abd9be84ae4203600f9b7e613f): Bind for 0.0.0.0:7901 failed: port is already allocated
+[multi-actor-integration] FAIL: Scenario 'two-actor' exited with status 1.
+[multi-actor-integration] Removing containers and volumes...d Detach
+```
+
+### Root Cause
+
+`docker-compose-multi-actor.yml` used hardcoded host port numbers (7901–7905).
+When any of those ports was already bound on the host — by a running dev
+stack, a previous failed test run, or a parallel integration-test invocation —
+Docker refused to bind the port and failed with a confusing networking error
+rather than a clear conflict message. The `PROJECT_NAME` override already
+avoided Docker naming conflicts but did nothing for port conflicts.
+
+### Resolution
+
+1. Changed all five host port bindings in `docker/docker-compose-multi-actor.yml`
+   from hardcoded numbers to `${VAR:-default}` env-var syntax:
+   `"${FINDER_HOST_PORT:-7901}:7999"`, `"${VENDOR_HOST_PORT:-7902}:7999"`,
+   etc.  Defaults are unchanged, so existing `make integration-test-*` invocations
+   work without modification.
+2. Added a pre-flight port-availability check to
+   `integration_tests/demo/run_multi_actor_integration_test.sh`.  Before
+   starting the Docker stack the script tests each resolved host port with
+   `nc -z` and fails fast with a clear, actionable error message if any port
+   is already in use.  The error message includes the exact env-var overrides
+   needed to use different ports.
+3. Added regression test class `TestMultiActorComposeHostPorts` in
+   `test/demo/test_multi_actor_compose.py`.  The tests parse the compose YAML
+   and assert that every actor service's host port uses `${VAR:-default}`
+   syntax — they fail when ports are hardcoded and pass after the fix.
+4. Installed `types-pyyaml` dev dependency for mypy stub coverage.
+5. Updated `integration_tests/README.md` with port-override documentation.
+
+Validation: `uv run pytest --tb=short 2>&1 | tail -5` → 1207 passed, 5581
+subtests; black/flake8/mypy/pyright all clean.

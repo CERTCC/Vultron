@@ -128,4 +128,5 @@ dev = [
     "pyright>=1.1.408",
     "pytest>=8.4.2",
     "types-networkx>=3.5.0.20250918",
+    "types-pyyaml>=6.0.12.20250915",
 ]

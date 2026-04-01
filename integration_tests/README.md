@@ -107,6 +107,21 @@ PROJECT_NAME=vultron-it-two   DEMO=two-actor   ./integration_tests/demo/run_mult
 PROJECT_NAME=vultron-it-three DEMO=three-actor ./integration_tests/demo/run_multi_actor_integration_test.sh
 ```
 
+**Host port conflicts** — each actor service exposes a host port for
+debugging (defaults: finder→7901, vendor→7902, case-actor→7903,
+coordinator→7904, vendor2→7905). If any of these ports are already bound
+(e.g., by a running development stack or a previous test run), the script
+detects the conflict before Docker starts and prints a clear error with
+override instructions. Use the `*_HOST_PORT` env vars to choose different
+ports:
+
+```bash
+FINDER_HOST_PORT=17901 VENDOR_HOST_PORT=17902 \
+CASE_ACTOR_HOST_PORT=17903 COORDINATOR_HOST_PORT=17904 \
+VENDOR2_HOST_PORT=17905 \
+./integration_tests/demo/run_multi_actor_integration_test.sh
+```
+
 Named Docker volumes are removed on exit so each run starts from a clean
 baseline (DEMO-MA-01-003).
 

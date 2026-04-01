@@ -4444,3 +4444,46 @@ a structural reference confirming the pattern.
 - DEMO-MA-03-001: each scenario runnable via single command ✅
 - DEMO-MA-03-003: reproducible runs (volumes reset on each run) ✅
 - DEMO-MA-04-001: scenarios reuse the single `docker-compose-multi-actor.yml` ✅
+
+---
+
+## BUG-2026040104 — Multi-actor integration test port conflict (FIXED 2026-04-01)
+
+### Summary
+
+`integration_tests/demo/run_multi_actor_integration_test.sh` failed with an
+opaque Docker networking error (`Bind for 0.0.0.0:7901 failed: port is
+already allocated`) whenever any of the five hardcoded host ports (7901–7905)
+were already in use on the host.
+
+### Root Cause
+
+`docker/docker-compose-multi-actor.yml` used hardcoded host port numbers.
+The existing `PROJECT_NAME` env var avoided Docker resource naming conflicts
+but did nothing for port binding conflicts.  Any concurrent dev stack,
+parallel test run, or leftover container from a failed previous run could
+hold one of those ports, causing a confusing Docker error.
+
+### Resolution
+
+1. **Configurable host ports** — Changed all five port bindings in
+   `docker/docker-compose-multi-actor.yml` to `${VAR:-default}` env-var
+   syntax (e.g., `"${FINDER_HOST_PORT:-7901}:7999"`).  Defaults are
+   unchanged so existing `make` targets work without modification.
+2. **Pre-flight port check** — Added a port-availability check to the
+   integration test script.  Before starting the Docker stack the script
+   probes each resolved host port with `nc -z` and fails fast with a
+   human-readable error that lists conflicting ports and shows the override
+   env vars needed to use different ports.
+3. **Regression test** — Added `test/demo/test_multi_actor_compose.py` with
+   class `TestMultiActorComposeHostPorts`.  Tests parse the YAML and assert
+   that every actor service's host port uses `${VAR:-default}` syntax.
+   These tests fail when ports are hardcoded and pass after the fix.
+4. **Documentation** — Updated `integration_tests/README.md` with
+   port-override guidance and examples.
+5. **Dev dependency** — Added `types-pyyaml` for mypy stub coverage.
+
+### Validation
+
+`uv run pytest --tb=short 2>&1 | tail -5` → 1207 passed, 5581 subtests;
+black/flake8/mypy/pyright all clean.
