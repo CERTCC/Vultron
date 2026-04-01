@@ -4303,3 +4303,46 @@ from `validate_tree` — before `validate_tree` had finished loading.
 `uv run pytest test/core/behaviors/test_performance.py` — 2 passed (in isolation).
 Full suite: 1199 passed, 5581 subtests passed (up from 1026; the previously
 uncollectable test file now contributes 2 tests).
+
+---
+
+## BUG-2026040101 — Invited case participants do not reach `RM.ACCEPTED`
+
+**Date fixed:** 2026-04-01
+
+### Summary
+
+Participants added via `AcceptInviteActorToCaseReceivedUseCase` could never
+reach `RM.ACCEPTED` because they were created with an empty RM status history,
+which resolved to `RM.START` after the DataLayer round-trip. The `engage-case`
+trigger then attempted the invalid `START → ACCEPTED` transition, which the RM
+state machine blocked silently.
+
+### Root Cause
+
+Two related issues:
+
+1. `AcceptInviteActorToCaseReceivedUseCase` created `VultronParticipant` with
+   `participant_statuses=[]`. The wire-layer `CaseParticipant.init_participant_status_if_empty`
+   model validator (which fires on DataLayer read-back) seeded the participant
+   at `RM.START`. The RM state machine only allows `VALID → ACCEPTED` or
+   `DEFERRED → ACCEPTED`, so `START → ACCEPTED` was silently blocked.
+
+2. `VultronParticipant` lacked `append_rm_state`, making it structurally
+   incompatible with the `ParticipantModel` Protocol.
+
+### Resolution
+
+- Added `append_rm_state` to `VultronParticipant` in
+  `vultron/core/models/participant.py`, using `is_valid_rm_transition` to
+  guard transitions and appending `VultronParticipantStatus` entries.
+- In `AcceptInviteActorToCaseReceivedUseCase.execute()`, after constructing
+  the participant, call `append_rm_state(RM.RECEIVED, ...)` then
+  `append_rm_state(RM.VALID, ...)` before persisting. Semantically, accepting
+  an invitation is equivalent to having received and validated the case.
+- Added regression test
+  `TestInviteActorUseCases::test_accept_invite_participant_can_reach_rm_accepted`.
+
+### Validation
+
+1200 passed, 5581 subtests; black/flake8/mypy/pyright all clean.

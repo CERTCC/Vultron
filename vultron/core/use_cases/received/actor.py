@@ -16,6 +16,7 @@ from vultron.core.models.events.actor import (
 from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.models.protocols import is_case_model
+from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 
 logger = logging.getLogger(__name__)
@@ -215,6 +216,15 @@ class AcceptInviteActorToCaseReceivedUseCase:
             id_=f"{case_id}/participants/{invitee_id.split('/')[-1]}",
             attributed_to=invitee_id,
             context=case_id,
+        )
+        # An accepted invite implies the invitee has received and validated the
+        # case. Pre-seeding RECEIVED→VALID ensures the engage-case trigger
+        # (VALID→ACCEPTED) is a valid RM transition.
+        participant.append_rm_state(
+            RM.RECEIVED, actor=invitee_id, context=case_id
+        )
+        participant.append_rm_state(
+            RM.VALID, actor=invitee_id, context=case_id
         )
         if active_embargo_id:
             participant.accepted_embargo_ids.append(active_embargo_id)

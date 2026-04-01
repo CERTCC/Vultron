@@ -122,7 +122,7 @@ in isolation (29 passed) and full suite remains 1026 passed.
 
 ---
 
-## BUG-2026040101 — Invited case participants do not reach `RM.ACCEPTED`
+## BUG-2026040101 (FIXED 2026-04-01) — Invited case participants do not reach `RM.ACCEPTED`
 
 The D5-3 three-actor demo exposed a state-model mismatch for participants
 added through `AcceptInviteActorToCaseReceivedUseCase`.
@@ -142,18 +142,32 @@ Observed behavior: the participant is added to `case.case_participants` and
 
 ### Root Cause
 
-`AcceptInviteActorToCaseReceivedUseCase` creates a generic `VultronParticipant`
-with the default participant-status initialization. That leaves the new
-participant on a status history that does not align cleanly with the
-`engage-case` trigger's `update_participant_rm_state(..., RM.ACCEPTED, ...)`
-expectation for invited participants.
+`AcceptInviteActorToCaseReceivedUseCase` created a `VultronParticipant` with
+empty `participant_statuses`. When read back from the DataLayer as a wire-layer
+`CaseParticipant`, the `init_participant_status_if_empty` validator seeded the
+participant at `RM.START`. The `engage-case` trigger then attempted
+`START → ACCEPTED` which is an invalid RM transition (the state machine only
+allows `VALID → ACCEPTED` or `DEFERRED → ACCEPTED`).
 
-### Follow-up
+Additionally, `VultronParticipant` lacked an `append_rm_state` method, meaning
+it did not fully satisfy the `ParticipantModel` Protocol.
 
-- Decide the intended post-invite RM lifecycle for invited participants.
-- Either seed the participant with the correct initial RM state/role-specific
-  participant type, or adjust the engage/invite transition logic so an invited
-  participant can reach `RM.ACCEPTED` deterministically.
+### Resolution
+
+1. Added `append_rm_state` method to `VultronParticipant`
+   (`vultron/core/models/participant.py`) to mirror the wire-layer
+   `CaseParticipant.append_rm_state`, making the domain type structurally
+   compatible with the `ParticipantModel` Protocol.
+2. In `AcceptInviteActorToCaseReceivedUseCase.execute()`
+   (`vultron/core/use_cases/received/actor.py`), pre-seed the new participant
+   with `RM.RECEIVED` then `RM.VALID` states before persisting. Accepting an
+   invitation is semantically equivalent to having received and validated the
+   case, so these two states are correct precursors to `RM.ACCEPTED`.
+3. Added regression test
+   `TestInviteActorUseCases::test_accept_invite_participant_can_reach_rm_accepted`
+   in `test/core/use_cases/received/test_actor.py`.
+
+Validation: 1200 passed, 5581 subtests; black/flake8/mypy/pyright all clean.
 
 ---
 
@@ -206,3 +220,44 @@ partial-module import error surfaces.
    a local import is acceptable as a last resort if refactoring is impractical.
 3. Verify `test_performance.py` collects and passes both in isolation and as
    part of the full suite.
+
+---
+
+## BUG-2026040103 — `ResourceWarning: unclosed file` for `mydb.json` in test suite
+
+The full test run emits multiple `ResourceWarning: unclosed file <mydb.json>`
+messages after the pytest session summary. These are printed directly to stderr
+by the Python interpreter at shutdown (via "Exception ignored in:" machinery),
+not via `warnings.warn()`. The project's `filterwarnings = ["error"]` config
+catches `warnings.warn()` calls but does NOT catch these teardown-time
+`ResourceWarning` messages. Consequently the warnings appear in CI output but
+do not cause test failures—yet they indicate that TinyDB file handles are not
+being cleaned up.
+
+### Reproduction
+
+```bash
+uv run pytest --tb=short 2>&1 | grep ResourceWarning | head -5
+```
+
+### Root Cause
+
+`TestGetDatalayerFactory` (in `test/adapters/driven/test_datalayer_isolation.py`)
+calls `get_datalayer()` with no arguments, which creates a file-backed
+`TinyDbDataLayer` at `mydb.json`. The singleton caches these instances, but no
+test or fixture closes them before session teardown. The `cleanup_test_db_files`
+session fixture in `test/conftest.py` removes `mydb.json` from disk but does
+not call `reset_datalayer()` or `dl.close()` first, so TinyDB holds open file
+handles until the Python interpreter shuts down.
+
+### Resolution Steps
+
+1. In `test/conftest.py`'s `cleanup_test_db_files` fixture, call
+   `reset_datalayer()` before deleting `mydb.json` so all cached
+   `TinyDbDataLayer` instances are closed before the file is removed.
+2. Optionally, add a `scope="function"` autouse fixture to
+   `test/adapters/driven/conftest.py` that calls `reset_datalayer()` after
+   each test in `TestGetDatalayerFactory` so file-backed singletons are not
+   accumulated across the class.
+3. Verify that `uv run pytest --tb=short 2>&1 | grep ResourceWarning` produces
+   no output after the fix.

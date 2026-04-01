@@ -211,6 +211,71 @@ class TestInviteActorUseCases:
         participant_obj = cast(Any, participant_obj)
         assert embargo.id_ in participant_obj.accepted_embargo_ids
 
+    def test_accept_invite_participant_can_reach_rm_accepted(
+        self, make_payload
+    ):
+        """Invited participant can transition to RM.ACCEPTED after accepted invite (BUG-2026040101).
+
+        AcceptInviteActorToCaseReceivedUseCase must pre-seed the participant's RM
+        history with RECEIVED and VALID states so that the engage-case trigger
+        (VALID → ACCEPTED) is a valid RM transition. Without the fix the
+        participant starts at RM.START and START → ACCEPTED is invalid.
+        """
+        from typing import cast, Any
+
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import (
+            RmAcceptInviteToCaseActivity,
+            RmInviteToCaseActivity,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+        from vultron.core.use_cases._helpers import update_participant_rm_state
+        from vultron.core.states.rm import RM
+
+        dl = TinyDbDataLayer(db_path=None)
+        invitee_id = "https://example.org/users/coordinator_rm1"
+        invitee = as_Actor(id_=invitee_id)
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/caseRM001",
+            name="TEST-RM-LIFECYCLE",
+        )
+        invite = RmInviteToCaseActivity(
+            id_="https://example.org/cases/caseRM001/invitations/1",
+            actor="https://example.org/users/owner",
+            object_=invitee,
+            target=case,
+        )
+        dl.create(case)
+        dl.create(invite)
+
+        accept = RmAcceptInviteToCaseActivity(
+            actor=invitee_id,
+            object_=invite,
+        )
+        event = make_payload(accept)
+        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
+
+        # The engage-case trigger calls update_participant_rm_state(..., RM.ACCEPTED).
+        # Before the fix, participant starts at RM.START (invalid: START→ACCEPTED).
+        # After the fix, participant is at RM.VALID (valid: VALID→ACCEPTED).
+        result = update_participant_rm_state(
+            case.id_, invitee_id, RM.ACCEPTED, dl
+        )
+        assert result is True, (
+            "RM transition to ACCEPTED failed — participant must be pre-seeded "
+            "at RM.VALID so engage-case (VALID→ACCEPTED) is a valid transition"
+        )
+
+        updated_case = cast(Any, dl.read(case.id_))
+        participant_id = updated_case.actor_participant_index.get(invitee_id)
+        participant_obj = cast(Any, dl.get(id_=participant_id))
+        # The most recently appended status is RM.ACCEPTED
+        latest_status = participant_obj.participant_statuses[-1]
+        assert latest_status.rm_state == RM.ACCEPTED
+
     def test_accept_invite_actor_to_case_records_case_event(
         self, monkeypatch, make_payload
     ):

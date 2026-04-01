@@ -215,3 +215,27 @@ re-export for callers already inside the `triggers` package.
 `is_case_model()` returns `True` for core-created cases as well as
 wire-layer `VulnerabilityCase` instances.  The `CaseModel` Protocol guard
 must be satisfiable by both model families.
+
+---
+
+## Treat-warnings-as-errors policy in pytest
+
+`pyproject.toml` sets `filterwarnings = ["error"]` which causes any Python
+`warnings.warn()` call during the test session to be treated as a test error.
+**No warnings should be present before committing changes.** This is
+intentional and enforced by CI.
+
+**Scope caveat**: This policy applies to `warnings.warn()` calls captured
+by pytest's warning machinery. It does NOT catch "Exception ignored in:"
+messages printed by the Python interpreter at process teardown (e.g.,
+`ResourceWarning: unclosed file ...`). Those warnings arise from finalizers
+(`__del__`) running after pytest exits and are not visible to `filterwarnings`.
+They are still bugs (see BUG-2026040103) — they just require a different fix
+(explicitly closing resources in fixtures) rather than a `filterwarnings`
+adjustment.
+
+**Rule for agents**: Before committing, run `uv run pytest --tb=short 2>&1`
+and verify the summary line shows no failures and no "warnings" count. Also
+inspect the output for "ResourceWarning" or "Exception ignored in:" messages,
+which signal unclosed resources that should be filed as bugs if not already
+tracked.
