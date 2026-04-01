@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-04-01 (refresh #65: D5-3 complete)
+**Last Updated**: 2026-04-01 (refresh #66: D5-5 complete)
 
 ## Overview
 
@@ -28,9 +28,7 @@ All PRIORITY-30 through PRIORITY-200 phases complete.
   BUG-FLAKY-1, REORG-1, SECOPS-1, DOCMAINT-1, SPEC-AUDIT-1, SPEC-AUDIT-2,
   SPEC-AUDIT-3
 
-**PRIORITY-300** (multi-actor demos; D5-1 through D5-4 complete; D5-5 is
-now the next task: integration tests and Docker Compose configs for each
-scenario).
+**PRIORITY-300** (multi-actor demos; D5-1 through D5-5 complete).
 
 ---
 
@@ -273,7 +271,15 @@ are blocked by all G tasks.
   updated docker-compose-multi-actor.yml, added CLI command, and 6 unit tests.
   Also fixed `AcceptInviteToEmbargoOnCaseReceivedUseCase` idempotency bug that
   prevented per-participant embargo acceptance tracking. Completed 2026-04-01.
-- [ ] **D5-5**: Integration tests and Docker Compose configs for each scenario.
+- [x] **D5-5**: Integration test script `run_multi_actor_integration_test.sh`
+  created in `integration_tests/demo/`; accepts `two-actor`, `three-actor`, or
+  `multi-vendor` as a positional argument (or via `DEMO` env var); builds
+  images, runs the full multi-actor compose stack with
+  `--abort-on-container-exit --exit-code-from demo-runner`, and removes
+  volumes on exit. Added `make integration-test-multi-actor`,
+  `integration-test-three-actor`, and `integration-test-multi-vendor` Makefile
+  targets. Updated `integration_tests/README.md` and `docker/README.md` with
+  usage notes. Completed 2026-04-01.
 
 ---
 

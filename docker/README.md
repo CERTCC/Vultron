@@ -128,6 +128,39 @@ This starts Finder, Vendor, Coordinator, and CaseActor, resets their
 DataLayers, seeds all peers, and runs the deterministic three-actor scenario
 end to end.
 
+### Run the D5-4 multi-vendor acceptance scenario
+
+The multi-vendor (ownership-transfer) scenario uses all five actor services:
+
+```bash
+# From the docker/ directory:
+DEMO=multi-vendor docker compose -f docker-compose-multi-actor.yml \
+    up --abort-on-container-exit demo-runner
+```
+
+### Automated multi-actor integration tests (D5-5)
+
+Each scenario can also be run via the integration test script, which builds
+the images, runs the full stack, verifies the exit code, and removes all
+volumes on exit for a clean baseline:
+
+```bash
+# From the repository root:
+./integration_tests/demo/run_multi_actor_integration_test.sh two-actor
+./integration_tests/demo/run_multi_actor_integration_test.sh three-actor
+./integration_tests/demo/run_multi_actor_integration_test.sh multi-vendor
+```
+
+Or via the Makefile targets:
+
+```bash
+make integration-test-multi-actor    # two-actor
+make integration-test-three-actor    # three-actor
+make integration-test-multi-vendor   # multi-vendor
+```
+
+See `integration_tests/README.md` for full usage notes and isolation tips.
+
 ### Start the multi-actor services manually
 
 ```bash

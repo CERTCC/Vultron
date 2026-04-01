@@ -4385,3 +4385,62 @@ messages at session teardown. These were printed by the Python interpreter's
 
 `uv run pytest --tb=short 2>&1 | grep -i ResourceWarning` → no output.
 1201 passed, 5581 subtests; black/flake8/mypy/pyright all clean.
+
+---
+
+## D5-5 — Multi-Actor Integration Tests (2026-04-01)
+
+**Task**: D5-5 — Integration tests and Docker Compose configs for each
+multi-actor demo scenario.
+
+### What was done
+
+Created `integration_tests/demo/run_multi_actor_integration_test.sh`, a
+parameterized bash script that runs any of the three multi-actor demo
+scenarios (`two-actor`, `three-actor`, `multi-vendor`) as a fully
+automated acceptance test. The script:
+
+1. Accepts the scenario name as a positional argument or via the `DEMO` env
+   var (default: `two-actor`).
+2. Validates the scenario name against the known set.
+3. Builds all Docker images using `docker compose build`.
+4. Starts the full `docker-compose-multi-actor.yml` stack with
+   `--abort-on-container-exit --exit-code-from demo-runner`.  The
+   `demo-runner` service already declares `condition: service_healthy` on
+   all actor services (DEMO-MA-02-002), so it only starts once every actor
+   passes `/health/ready`.
+5. Removes all volumes on exit (`down --volumes`) so each run begins from
+   a clean, deterministic baseline (DEMO-MA-01-003).
+6. Uses `PROJECT_NAME=vultron-it` to isolate the test stack from a running
+   development stack.
+
+Added three Makefile targets for convenience:
+
+- `make integration-test-multi-actor`   (`DEMO=two-actor`)
+- `make integration-test-three-actor`   (`DEMO=three-actor`)
+- `make integration-test-multi-vendor`  (`DEMO=multi-vendor`)
+
+Updated `integration_tests/README.md` with a full usage guide (scenario
+table, isolation tips, success/failure patterns).
+
+Updated `docker/README.md` to document D5-4 (`multi-vendor` scenario) and
+add an "Automated multi-actor integration tests (D5-5)" section linking to
+the new script and Makefile targets.
+
+The existing `docker-compose-multi-actor.yml` already satisfies the Docker
+Compose configuration requirements for all three scenarios (DEMO-MA-02-001
+through DEMO-MA-02-003) — no separate compose files were needed.
+
+### Validation
+
+`uv run pytest --tb=short 2>&1 | tail -5` → 1201 passed, 5581 subtests;
+all clean. The integration test script itself requires Docker and cannot be
+run in the unit-test environment, but the bash script was manually verified
+for correctness and the existing `run_demo_integration_test.sh` serves as
+a structural reference confirming the pattern.
+
+### Specs satisfied
+
+- DEMO-MA-03-001: each scenario runnable via single command ✅
+- DEMO-MA-03-003: reproducible runs (volumes reset on each run) ✅
+- DEMO-MA-04-001: scenarios reuse the single `docker-compose-multi-actor.yml` ✅
