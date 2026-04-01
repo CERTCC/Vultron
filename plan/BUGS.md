@@ -223,7 +223,7 @@ partial-module import error surfaces.
 
 ---
 
-## BUG-2026040103 — `ResourceWarning: unclosed file` for `mydb.json` in test suite
+## BUG-2026040103 (FIXED 2026-04-01) — `ResourceWarning: unclosed file` for `mydb.json` in test suite
 
 The full test run emits multiple `ResourceWarning: unclosed file <mydb.json>`
 messages after the pytest session summary. These are printed directly to stderr
@@ -270,3 +270,18 @@ ensures that we won't see this again, we should do that instead.
    accumulated across the class.
 3. Verify that `uv run pytest --tb=short 2>&1 | grep ResourceWarning` produces
    no output after the fix.
+
+### Resolution
+
+1. Rewrote `test_datalayer_serialization.py` fixtures to use
+   `get_datalayer(db_path=None)` (in-memory), inject the instance into FastAPI
+   via `dependency_overrides`, and call `reset_datalayer()` in teardown. Test
+   bodies updated to use the `datalayer` fixture parameter.
+2. Updated `test/conftest.py` `cleanup_test_db_files` to call
+   `reset_datalayer()` before deleting `mydb.json` in both setup and teardown
+   phases.
+3. Added regression test `test_test_datalayer_uses_in_memory_storage` that
+   fails on file-backed storage and passes after the fix.
+
+Validation: `uv run pytest --tb=short 2>&1 | grep -i ResourceWarning` → no
+output; 1201 passed, 5581 subtests; black/flake8/mypy/pyright clean.
