@@ -34,7 +34,9 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 FINDER_ID = "http://finder:7999/api/v2/actors/finder"
 VENDOR_ID = "http://vendor:7999/api/v2/actors/vendor"
+COORDINATOR_ID = "http://coordinator:7999/api/v2/actors/coordinator"
 CASE_ACTOR_ID = "http://case-actor:7999/api/v2/actors/case-actor"
+VENDOR2_ID = "http://vendor2:7999/api/v2/actors/vendor2"
 
 # Path to the docker/seed-configs/ directory (relative to project root).
 _REPO_ROOT = Path(__file__).parents[2]
@@ -54,7 +56,7 @@ def _load_seed_config(filename: str) -> SeedConfig:
 
 def _all_expected_peer_ids(own_id: str) -> set[str]:
     """Return the set of peer IDs expected for a given actor."""
-    all_ids = {FINDER_ID, VENDOR_ID, CASE_ACTOR_ID}
+    all_ids = {FINDER_ID, VENDOR_ID, COORDINATOR_ID, CASE_ACTOR_ID, VENDOR2_ID}
     return all_ids - {own_id}
 
 
@@ -93,6 +95,8 @@ class TestSeedFinderConfig:
         peer_ids = {p.id_ for p in cfg.peers}
         assert VENDOR_ID in peer_ids
         assert CASE_ACTOR_ID in peer_ids
+        assert COORDINATOR_ID in peer_ids
+        assert VENDOR2_ID in peer_ids
 
 
 # ---------------------------------------------------------------------------
@@ -130,6 +134,8 @@ class TestSeedVendorConfig:
         peer_ids = {p.id_ for p in cfg.peers}
         assert FINDER_ID in peer_ids
         assert CASE_ACTOR_ID in peer_ids
+        assert COORDINATOR_ID in peer_ids
+        assert VENDOR2_ID in peer_ids
 
 
 # ---------------------------------------------------------------------------
@@ -167,6 +173,8 @@ class TestSeedCaseActorConfig:
         peer_ids = {p.id_ for p in cfg.peers}
         assert FINDER_ID in peer_ids
         assert VENDOR_ID in peer_ids
+        assert COORDINATOR_ID in peer_ids
+        assert VENDOR2_ID in peer_ids
 
 
 # ---------------------------------------------------------------------------
@@ -175,33 +183,39 @@ class TestSeedCaseActorConfig:
 
 
 class TestSeedConfigCrossConsistency:
-    """All three configs must describe a consistent peer mesh."""
+    """All five configs must describe a consistent peer mesh."""
 
     def test_all_configs_load_successfully(self):
         for filename in (
             "seed-finder.json",
             "seed-vendor.json",
+            "seed-coordinator.json",
             "seed-case-actor.json",
+            "seed-vendor2.json",
         ):
             cfg = _load_seed_config(filename)
             assert cfg is not None
 
-    def test_each_config_has_exactly_two_peers(self):
+    def test_each_config_has_exactly_four_peers(self):
         for filename in (
             "seed-finder.json",
             "seed-vendor.json",
+            "seed-coordinator.json",
             "seed-case-actor.json",
+            "seed-vendor2.json",
         ):
             cfg = _load_seed_config(filename)
             assert (
-                len(cfg.peers) == 2
-            ), f"{filename}: expected 2 peers, got {len(cfg.peers)}"
+                len(cfg.peers) == 4
+            ), f"{filename}: expected 4 peers, got {len(cfg.peers)}"
 
     def test_no_config_lists_itself_as_peer(self):
         for filename, own_id in [
             ("seed-finder.json", FINDER_ID),
             ("seed-vendor.json", VENDOR_ID),
+            ("seed-coordinator.json", COORDINATOR_ID),
             ("seed-case-actor.json", CASE_ACTOR_ID),
+            ("seed-vendor2.json", VENDOR2_ID),
         ]:
             cfg = _load_seed_config(filename)
             peer_ids = {p.id_ for p in cfg.peers}
@@ -214,7 +228,9 @@ class TestSeedConfigCrossConsistency:
         configs = {
             FINDER_ID: _load_seed_config("seed-finder.json"),
             VENDOR_ID: _load_seed_config("seed-vendor.json"),
+            COORDINATOR_ID: _load_seed_config("seed-coordinator.json"),
             CASE_ACTOR_ID: _load_seed_config("seed-case-actor.json"),
+            VENDOR2_ID: _load_seed_config("seed-vendor2.json"),
         }
         for own_id, cfg in configs.items():
             for other_id, other_cfg in configs.items():
@@ -227,14 +243,26 @@ class TestSeedConfigCrossConsistency:
                 )
 
     def test_all_deterministic_ids_are_full_http_uris(self):
-        all_ids = [FINDER_ID, VENDOR_ID, CASE_ACTOR_ID]
+        all_ids = [
+            FINDER_ID,
+            VENDOR_ID,
+            COORDINATOR_ID,
+            CASE_ACTOR_ID,
+            VENDOR2_ID,
+        ]
         for aid in all_ids:
             assert aid.startswith(
                 "http://"
             ), f"Deterministic ID {aid!r} must be a full HTTP URI"
 
     def test_all_deterministic_ids_include_actors_path(self):
-        all_ids = [FINDER_ID, VENDOR_ID, CASE_ACTOR_ID]
+        all_ids = [
+            FINDER_ID,
+            VENDOR_ID,
+            COORDINATOR_ID,
+            CASE_ACTOR_ID,
+            VENDOR2_ID,
+        ]
         for aid in all_ids:
             assert (
                 "/actors/" in aid
@@ -317,16 +345,18 @@ class TestSeedCLIWithDeterministicId:
         assert CASE_ACTOR_ID in seeded_ids
 
     def test_seed_call_count_equals_one_local_plus_peers(self):
-        """Each seed run should call seed_actor once per actor (1 local + 2 peers)."""
+        """Each seed run should call seed_actor once per actor (1 local + 4 peers)."""
         for filename in (
             "seed-finder.json",
             "seed-vendor.json",
+            "seed-coordinator.json",
             "seed-case-actor.json",
+            "seed-vendor2.json",
         ):
             config_path = _SEED_CONFIGS_DIR / filename
             calls, exit_code = self._run_seed_with_config(config_path)
             assert exit_code == 0, f"{filename}: exit code {exit_code}"
-            assert len(calls) == 3, (
-                f"{filename}: expected 3 seed_actor calls "
-                f"(1 local + 2 peers), got {len(calls)}"
+            assert len(calls) == 5, (
+                f"{filename}: expected 5 seed_actor calls "
+                f"(1 local + 4 peers), got {len(calls)}"
             )

@@ -19,6 +19,11 @@
       "name": "CaseActor",
       "actor_type": "Service",
       "id": "http://case-actor:7999/api/v2/actors/case-actor"
+    },
+    {
+      "name": "Vendor2",
+      "actor_type": "Organization",
+      "id": "http://vendor2:7999/api/v2/actors/vendor2"
     }
   ]
 }

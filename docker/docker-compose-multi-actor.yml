@@ -15,6 +15,7 @@
 #   vendor:      7902:7999
 #   coordinator: 7904:7999
 #   case-actor:  7903:7999
+#   vendor2:     7905:7999
 #
 # ─── Required environment variables ───────────────────────────────────────
 #   PROJECT_NAME          Docker resource name prefix (default: vultron)
@@ -194,6 +195,37 @@ services:
       retries: 15
       start_period: 5s
 
+  # ── Vendor2 actor ─────────────────────────────────────────────────────────
+  # Second vendor container used in Demo Scenario 3 (D5-4: multi-vendor with
+  # ownership transfer). Coordinator invites Vendor2 after taking over the
+  # case from the original Vendor.
+  vendor2:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: api-dev
+    image: ${PROJECT_NAME:-vultron}-api-dev:latest
+    environment:
+      - PYTHONPATH=/app
+      - VULTRON_BASE_URL=http://vendor2:7999/api/v2/
+      - VULTRON_DB_PATH=/app/data/mydb.json
+      - VULTRON_ACTOR_ID=http://vendor2:7999/api/v2/actors/vendor2
+      - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-vendor2.json
+      - LOG_LEVEL=INFO
+    volumes:
+      - vendor2-data:/app/data
+    ports:
+      # Host port 7905 → container port 7999.
+      - "7905:7999"
+    networks:
+      - vultron-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7999/api/v2/health/ready"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+      start_period: 5s
+
   # ── Demo orchestration container ──────────────────────────────────────────
   # Runs the configured multi-actor acceptance workflow. The script resets
   # the participating containers to a clean baseline, seeds the required
@@ -217,6 +249,8 @@ services:
         condition: service_healthy
       case-actor:
         condition: service_healthy
+      vendor2:
+        condition: service_healthy
     environment:
       - PYTHONPATH=/app
       # Base URLs for each actor service, accessible via Docker network.
@@ -224,6 +258,7 @@ services:
       - VULTRON_VENDOR_BASE_URL=http://vendor:7999/api/v2
       - VULTRON_COORDINATOR_BASE_URL=http://coordinator:7999/api/v2
       - VULTRON_CASE_ACTOR_BASE_URL=http://case-actor:7999/api/v2
+      - VULTRON_VENDOR2_BASE_URL=http://vendor2:7999/api/v2
       # Run the selected multi-actor demo non-interactively. Override DEMO
       # at runtime (for example, DEMO=three-actor) to switch scenarios.
       - DEMO=${DEMO:-two-actor}
@@ -248,3 +283,4 @@ volumes:
   vendor-data:
   coordinator-data:
   case-actor-data:
+  vendor2-data:

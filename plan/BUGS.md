@@ -154,3 +154,55 @@ expectation for invited participants.
 - Either seed the participant with the correct initial RM state/role-specific
   participant type, or adjust the engage/invite transition logic so an invited
   participant can reach `RM.ACCEPTED` deterministically.
+
+---
+
+## BUG-2026040102 — Circular import causes `test_performance.py` to fail
+
+`test/core/behaviors/test_performance.py` fails to collect (ImportError)
+when run in isolation, and fails as part of the full `uv run pytest` suite.
+
+### Reproduction
+
+```bash
+uv run pytest test/core/behaviors/test_performance.py --tb=short
+```
+
+Produces:
+
+```text
+ImportError: cannot import name 'create_validate_report_tree' from partially
+initialized module 'vultron.core.behaviors.report.validate_tree'
+(most likely due to a circular import)
+```
+
+### Root Cause
+
+Circular import chain:
+
+```text
+test_performance.py
+  → vultron.core.behaviors.report.validate_tree
+    → vultron.core.behaviors.report.nodes
+      → vultron.core.use_cases.triggers._helpers
+        → vultron.core.use_cases.triggers (via __init__)
+          → vultron.core.use_cases.triggers.report
+            → vultron.core.behaviors.report.validate_tree  ← CIRCULAR
+```
+
+`validate_tree` is not yet fully initialized when `triggers.report` tries
+to import `create_validate_report_tree` from it. The full test suite
+sometimes passes because other test modules pre-load `validate_tree` before
+`test_performance.py` is collected; in isolation or unlucky ordering the
+partial-module import error surfaces.
+
+### Resolution Steps
+
+1. Break the cycle by moving the `validate_tree` import in `triggers.report`
+   to a local (deferred) import, OR refactor so `triggers.report` does not
+   directly import from `validate_tree` (e.g., accept the tree as a
+   constructor argument or use a factory function in a neutral module).
+2. Follow the AGENTS.md guidance: prefer refactoring over lazy imports, but
+   a local import is acceptable as a last resort if refactoring is impractical.
+3. Verify `test_performance.py` collects and passes both in isolation and as
+   part of the full suite.

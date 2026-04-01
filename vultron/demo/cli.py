@@ -44,6 +44,7 @@ import vultron.demo.manage_participants_demo as manage_participants_demo
 import vultron.demo.receive_report_demo as receive_report_demo
 import vultron.demo.status_updates_demo as status_updates_demo
 import vultron.demo.suggest_actor_demo as suggest_actor_demo
+import vultron.demo.multi_vendor_demo as multi_vendor_demo
 import vultron.demo.three_actor_demo as three_actor_demo
 import vultron.demo.transfer_ownership_demo as transfer_ownership_demo
 import vultron.demo.trigger_demo as trigger_demo
@@ -429,6 +430,131 @@ def three_actor(
         vendor_id=vendor_id,
         coordinator_id=coordinator_id,
         case_actor_id=case_actor_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Multi-vendor sub-command — ownership transfer + second vendor demo (D5-4)
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="multi-vendor")
+@click.option(
+    "--finder-url",
+    envvar="VULTRON_FINDER_BASE_URL",
+    default=multi_vendor_demo.FINDER_BASE_URL,
+    show_default=True,
+    help="Base URL of the Finder container API "
+    "(env: VULTRON_FINDER_BASE_URL).",
+)
+@click.option(
+    "--vendor-url",
+    envvar="VULTRON_VENDOR_BASE_URL",
+    default=multi_vendor_demo.VENDOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor container API "
+    "(env: VULTRON_VENDOR_BASE_URL).",
+)
+@click.option(
+    "--coordinator-url",
+    envvar="VULTRON_COORDINATOR_BASE_URL",
+    default=multi_vendor_demo.COORDINATOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Coordinator container API "
+    "(env: VULTRON_COORDINATOR_BASE_URL).",
+)
+@click.option(
+    "--case-actor-url",
+    envvar="VULTRON_CASE_ACTOR_BASE_URL",
+    default=multi_vendor_demo.CASE_ACTOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the CaseActor container API "
+    "(env: VULTRON_CASE_ACTOR_BASE_URL).",
+)
+@click.option(
+    "--vendor2-url",
+    envvar="VULTRON_VENDOR2_BASE_URL",
+    default=multi_vendor_demo.VENDOR2_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor2 container API "
+    "(env: VULTRON_VENDOR2_BASE_URL).",
+)
+@click.option(
+    "--finder-id",
+    default=None,
+    help="Deterministic full URI for the Finder actor (optional).",
+)
+@click.option(
+    "--vendor-id",
+    default=None,
+    help="Deterministic full URI for the Vendor actor (optional).",
+)
+@click.option(
+    "--coordinator-id",
+    default=None,
+    help="Deterministic full URI for the Coordinator actor (optional).",
+)
+@click.option(
+    "--case-actor-id",
+    default=None,
+    help="Deterministic full URI for the CaseActor actor (optional).",
+)
+@click.option(
+    "--vendor2-id",
+    default=None,
+    help="Deterministic full URI for the Vendor2 actor (optional).",
+)
+@click.option(
+    "--skip-health-check",
+    is_flag=True,
+    default=False,
+    help="Skip container availability checks.",
+)
+def multi_vendor(
+    finder_url: str,
+    vendor_url: str,
+    coordinator_url: str,
+    case_actor_url: str,
+    vendor2_url: str,
+    finder_id: str | None,
+    vendor_id: str | None,
+    coordinator_id: str | None,
+    case_actor_id: str | None,
+    vendor2_id: str | None,
+    skip_health_check: bool,
+) -> None:
+    """Run the multi-vendor ownership-transfer demo (D5-4).
+
+    Demonstrates case ownership transfer from Vendor to Coordinator, followed
+    by Coordinator inviting a second Vendor (Vendor2) to join the case.
+
+    Requires five containers to be running and reachable at the configured
+    base URLs: finder, vendor, coordinator, case-actor, and vendor2.
+
+    \b
+    Workflow:
+      1. Seed all five containers (actor records + peer registration).
+      2. Finder submits a vulnerability report to Vendor's inbox.
+      3. Vendor validates the report.
+      4. Vendor creates the authoritative case on the CaseActor container.
+      5. Vendor invites Finder; both establish an embargo.
+      6. Vendor transfers case ownership to Coordinator.
+      7. Coordinator invites Vendor2; Vendor2 joins and accepts the embargo.
+      8. Verify final state: Coordinator owns the case, three participants,
+         and the embargo is ACTIVE.
+    """
+    multi_vendor_demo.main(
+        skip_health_check=skip_health_check,
+        finder_url=finder_url,
+        vendor_url=vendor_url,
+        coordinator_url=coordinator_url,
+        case_actor_url=case_actor_url,
+        vendor2_url=vendor2_url,
+        finder_id=finder_id,
+        vendor_id=vendor_id,
+        coordinator_id=coordinator_id,
+        case_actor_id=case_actor_id,
+        vendor2_id=vendor2_id,
     )
 
 

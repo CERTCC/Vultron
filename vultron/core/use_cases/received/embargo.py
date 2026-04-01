@@ -260,28 +260,31 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         case_id = case.id_
 
         current_embargo_id = _as_id(case.active_embargo)
-        if current_embargo_id == embargo_id:
+        case_already_active = current_embargo_id == embargo_id
+
+        if case_already_active:
             logger.info(
-                "Case '%s' already has embargo '%s' active — skipping (idempotent)",
+                "Case '%s' already has embargo '%s' active — "
+                "skipping case-level state update (idempotent); "
+                "still recording participant acceptance",
                 case_id,
                 embargo_id,
             )
-            return
-
-        current_em = case.current_status.em_state
-        if not is_valid_em_transition(current_em, EM.ACTIVE):
-            # Receive-side state-sync: the sender accepted an embargo invite;
-            # update local state to reflect the sender's assertion even when
-            # the transition is not on the standard machine path.
-            logger.warning(
-                "accept_invite_to_embargo_on_case: EM transition %s → ACTIVE"
-                " is not a standard machine transition for case '%s';"
-                " applying state-sync override",
-                current_em,
-                case_id,
-            )
-        case.set_embargo(embargo_id)
-        case.current_status.em_state = EM.ACTIVE
+        else:
+            current_em = case.current_status.em_state
+            if not is_valid_em_transition(current_em, EM.ACTIVE):
+                # Receive-side state-sync: the sender accepted an embargo invite;
+                # update local state to reflect the sender's assertion even when
+                # the transition is not on the standard machine path.
+                logger.warning(
+                    "accept_invite_to_embargo_on_case: EM transition %s → ACTIVE"
+                    " is not a standard machine transition for case '%s';"
+                    " applying state-sync override",
+                    current_em,
+                    case_id,
+                )
+            case.set_embargo(embargo_id)
+            case.current_status.em_state = EM.ACTIVE
 
         accepting_actor_id = request.actor_id
         participant_id = case.actor_participant_index.get(accepting_actor_id)
@@ -305,7 +308,8 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 case_id,
             )
 
-        case.record_event(embargo_id, "embargo_accepted")
+        if not case_already_active:
+            case.record_event(embargo_id, "embargo_accepted")
         self._dl.save(case)
         logger.info(
             "Accepted embargo proposal '%s'; activated embargo '%s' on case '%s'",
