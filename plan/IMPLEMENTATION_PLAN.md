@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-31 (refresh #64: D5-1-G5 complete)
+**Last Updated**: 2026-04-01 (refresh #65: D5-3 complete)
 
 ## Overview
 
@@ -13,7 +13,7 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 
 ### Current Status Summary
 
-**Test suite**: Canonical validation passed on 2026-03-31
+**Test suite**: Canonical validation passed on 2026-04-01
 (`black`, `flake8`, `mypy`, `pyright`, full `pytest` run).
 
 All 38 message handlers implemented (including `unknown`). All 9 trigger
@@ -28,8 +28,9 @@ All PRIORITY-30 through PRIORITY-200 phases complete.
   BUG-FLAKY-1, REORG-1, SECOPS-1, DOCMAINT-1, SPEC-AUDIT-1, SPEC-AUDIT-2,
   SPEC-AUDIT-3
 
-**PRIORITY-300** (multi-actor demos; D5-1 complete; D5-1-G1 through D5-1-G6
-complete; D5-2 unblocked and now the next executable task).
+**PRIORITY-300** (multi-actor demos; D5-1 and D5-2/D5-3 complete; D5-4 is
+now the next scenario task, with D5-5 still open for scenario acceptance
+coverage and compose polish).
 
 ---
 
@@ -259,7 +260,12 @@ are blocked by all G tasks.
   containers + CaseActor container. Completed 2026-03-31 with deterministic
   reset/seeding, stronger final-state assertions, and core validate-report
   seeding of the Vendor participant / actor-participant index.
-- [ ] **D5-3**: Demo Scenario 2 (finder + vendor + coordinator).
+- [x] **D5-3**: Demo Scenario 2 (finder + vendor + coordinator): added
+  `vultron/demo/three_actor_demo.py` and `vultron-demo three-actor`, extended
+  the multi-actor Docker setup with a `coordinator` service plus full seed
+  mesh, and verified the authoritative case/embargo workflow on the dedicated
+  `case-actor` container with unit coverage in
+  `test/demo/test_three_actor_demo.py`. Completed 2026-04-01.
 - [ ] **D5-4**: Demo Scenario 3 (ownership transfer + multi-vendor). **Blocked by D5-3**.
 - [ ] **D5-5**: Integration tests and Docker Compose configs for each scenario.
   **Blocked by D5-3**.

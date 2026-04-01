@@ -119,3 +119,38 @@ Additionally, `_object_from_storage` only caught `ValidationError`, allowing
 
 Validation: `test/adapters/driven/test_datalayer_isolation.py` now passes
 in isolation (29 passed) and full suite remains 1026 passed.
+
+---
+
+## BUG-2026040101 — Invited case participants do not reach `RM.ACCEPTED`
+
+The D5-3 three-actor demo exposed a state-model mismatch for participants
+added through `AcceptInviteActorToCaseReceivedUseCase`.
+
+### Reproduction
+
+1. Seed a case in the authoritative case container.
+2. Deliver `RmInviteToCaseActivity` to a remote actor and then deliver
+   `RmAcceptInviteToCaseActivity` back to the authoritative case container.
+3. Trigger `POST /actors/{actor_id}/trigger/engage-case` for that invited
+   participant on the same case.
+4. Inspect the resulting `CaseParticipant.participant_statuses`.
+
+Observed behavior: the participant is added to `case.case_participants` and
+`actor_participant_index`, but their current RM state does not end at
+`RM.ACCEPTED`.
+
+### Root Cause
+
+`AcceptInviteActorToCaseReceivedUseCase` creates a generic `VultronParticipant`
+with the default participant-status initialization. That leaves the new
+participant on a status history that does not align cleanly with the
+`engage-case` trigger's `update_participant_rm_state(..., RM.ACCEPTED, ...)`
+expectation for invited participants.
+
+### Follow-up
+
+- Decide the intended post-invite RM lifecycle for invited participants.
+- Either seed the participant with the correct initial RM state/role-specific
+  participant type, or adjust the engage/invite transition logic so an invited
+  participant can reach `RM.ACCEPTED` deterministically.

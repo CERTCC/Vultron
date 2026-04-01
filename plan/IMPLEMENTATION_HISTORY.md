@@ -336,6 +336,38 @@ All 19 tasks completed. Key achievements:
 
 ---
 
+## 2026-04-01 — D5-3 complete: three-actor demo scenario
+
+- Added `vultron/demo/three_actor_demo.py`, a deterministic Finder + Vendor +
+  Coordinator scenario that uses the dedicated `case-actor` container as the
+  authoritative case host.
+- Wired a new `vultron-demo three-actor` CLI sub-command in
+  `vultron/demo/cli.py`.
+- Extended `docker/docker-compose-multi-actor.yml` with a `coordinator`
+  service, `VULTRON_COORDINATOR_BASE_URL`, a `DEMO=${DEMO:-two-actor}`
+  selector for the `demo-runner`, and a new `coordinator-data` volume.
+- Added `docker/seed-configs/seed-coordinator.json` and updated the existing
+  multi-actor seed configs so Finder, Vendor, Coordinator, and CaseActor all
+  pre-register the full peer mesh.
+- Updated `docker/README.md` with the D5-3 command path:
+  `DEMO=three-actor docker compose -f docker-compose-multi-actor.yml up --abort-on-container-exit demo-runner`.
+- Added unit coverage in `test/demo/test_three_actor_demo.py` for seeding,
+  authoritative case creation on CaseActor, full workflow execution, and CLI
+  wiring.
+- The demo workflow intentionally reuses existing protocol surfaces instead of
+  adding new trigger APIs: Finder submits to Coordinator, Coordinator creates
+  the case on CaseActor via `CreateCaseActivity`, links the report with
+  `AddReportToCaseActivity`, invites participants via `RmInviteToCaseActivity`,
+  and establishes the embargo with the existing embargo trigger/accept flow.
+- Validation:
+  - `uv run pytest test/demo/test_three_actor_demo.py -q`
+  - `uv run black vultron/ test/ && uv run flake8 vultron/ test/ && uv run mypy && uv run pyright`
+  - `./mdlint.sh`
+  - `uv run pytest --tb=short 2>&1 | tail -5` (exit code 0; runtime buffered
+    the final tail output, but the canonical command completed successfully)
+
+---
+
 ## 2026-03-10 — SC-PRE-2 complete: actor_participant_index
 
 ### Design

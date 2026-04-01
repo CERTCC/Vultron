@@ -74,9 +74,9 @@ docker-compose run --rm demo
 
 ## Multi-Actor Demo Setup
 
-`docker-compose-multi-actor.yml` defines three isolated actor services
-(`finder`, `vendor`, `case-actor`) plus a `demo-runner` for multi-actor
-demo scenarios (D5-2 and later).
+`docker-compose-multi-actor.yml` defines four isolated actor services
+(`finder`, `vendor`, `coordinator`, `case-actor`) plus a `demo-runner` for
+multi-actor demo scenarios (D5-2 and later).
 
 ### Services and port mappings
 
@@ -84,6 +84,7 @@ demo scenarios (D5-2 and later).
 |:-------------|----------:|:-----------------------------------------|
 | `finder`     |      7901 | `http://finder:7999/api/v2/`             |
 | `vendor`     |      7902 | `http://vendor:7999/api/v2/`             |
+| `coordinator`|      7904 | `http://coordinator:7999/api/v2/`        |
 | `case-actor` |      7903 | `http://case-actor:7999/api/v2/`         |
 | `demo-runner`|         — | (no host port; uses vultron-network)     |
 
@@ -113,11 +114,26 @@ docker compose -f docker-compose-multi-actor.yml up --abort-on-container-exit de
 This is the canonical single-command acceptance run for the current
 two-actor scenario.
 
+### Run the D5-3 three-actor acceptance scenario
+
+The same compose file can also run the coordinator-based D5-3 flow:
+
+```bash
+# From the docker/ directory:
+DEMO=three-actor docker compose -f docker-compose-multi-actor.yml \
+    up --abort-on-container-exit demo-runner
+```
+
+This starts Finder, Vendor, Coordinator, and CaseActor, resets their
+DataLayers, seeds all peers, and runs the deterministic three-actor scenario
+end to end.
+
 ### Start the multi-actor services manually
 
 ```bash
 # From the docker/ directory:
-docker compose -f docker-compose-multi-actor.yml up -d finder vendor case-actor
+docker compose -f docker-compose-multi-actor.yml up -d \
+    finder vendor coordinator case-actor
 ```
 
 All three services expose `/api/v2/health/ready` and will be marked healthy
@@ -140,13 +156,17 @@ docker compose -f docker-compose-multi-actor.yml run --rm \
     vultron-demo seed
 
 docker compose -f docker-compose-multi-actor.yml run --rm \
+    -e VULTRON_API_BASE_URL=http://coordinator:7999/api/v2 demo-runner \
+    vultron-demo seed
+
+docker compose -f docker-compose-multi-actor.yml run --rm \
     -e VULTRON_API_BASE_URL=http://case-actor:7999/api/v2 demo-runner \
     vultron-demo seed
 ```
 
-The D5-2 two-actor demo resets state and handles Finder/Vendor peer
-registration automatically. Manual seeding remains useful for debugging
-or for future scenarios that do not use the `demo-runner` workflow.
+The D5-2 and D5-3 demos reset state and handle peer registration
+automatically. Manual seeding remains useful for debugging or for future
+scenarios that do not use the `demo-runner` workflow.
 
 ### Reset actor state between runs
 

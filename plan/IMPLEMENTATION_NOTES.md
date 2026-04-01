@@ -164,3 +164,34 @@ acceptance attempt was also made with a unique project name, but the shared
 local Docker daemon was out of space (`no space left on device` while creating
 BuildKit temp dirs / volumes), so the multi-container runtime check could not
 be completed in this environment.
+
+---
+
+## 2026-04-01 D5-3 complete
+
+The three-actor demo now lives in `vultron/demo/three_actor_demo.py` and is
+exposed through `vultron-demo three-actor`. It extends the D5-2 multi-actor
+infrastructure with a dedicated Coordinator container and uses the existing
+CaseActor container as the authoritative case host.
+
+The deterministic D5-3 workflow is intentionally centered on already-supported
+protocol surfaces: Finder submits the report to the Coordinator, the
+Coordinator creates the authoritative case on the CaseActor container via
+`CreateCaseActivity`, explicitly links the report with
+`AddReportToCaseActivity`, invites Finder and Vendor via case invites, and
+establishes the embargo using the existing `propose-embargo` /
+`EmAcceptEmbargoActivity` flow. This keeps the demo additive and avoids
+inventing a new remote create-case trigger.
+
+Unit tests use the existing single-`TestClient` demo pattern, so all logical
+"containers" share one base URL during pytest. The three-actor demo therefore
+avoids duplicate self-delivery when the authoritative CaseActor client and the
+recipient client are the same underlying test server; real multi-container
+runs still take the full record-locally-then-deliver-remotely path.
+
+The scenario also exposed an unrelated core-state issue now tracked in
+`plan/BUGS.md`: invited participants do not currently end in `RM.ACCEPTED`
+after invite acceptance plus `engage-case`. D5-3 verification therefore checks
+the stable behavior the system does provide today (authoritative case hosting,
+participant registration, and embargo acceptance) without trying to redefine
+that state-machine behavior inside the demo task.

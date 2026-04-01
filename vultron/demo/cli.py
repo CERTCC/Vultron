@@ -44,6 +44,7 @@ import vultron.demo.manage_participants_demo as manage_participants_demo
 import vultron.demo.receive_report_demo as receive_report_demo
 import vultron.demo.status_updates_demo as status_updates_demo
 import vultron.demo.suggest_actor_demo as suggest_actor_demo
+import vultron.demo.three_actor_demo as three_actor_demo
 import vultron.demo.transfer_ownership_demo as transfer_ownership_demo
 import vultron.demo.trigger_demo as trigger_demo
 import vultron.demo.two_actor_demo as two_actor_demo
@@ -339,6 +340,95 @@ def two_actor(
         case_actor_url=case_actor_url,
         finder_id=finder_id,
         vendor_id=vendor_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Three-actor sub-command — multi-container Finder + Vendor + Coordinator demo
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="three-actor")
+@click.option(
+    "--finder-url",
+    envvar="VULTRON_FINDER_BASE_URL",
+    default=three_actor_demo.FINDER_BASE_URL,
+    show_default=True,
+    help="Base URL of the Finder container API "
+    "(env: VULTRON_FINDER_BASE_URL).",
+)
+@click.option(
+    "--vendor-url",
+    envvar="VULTRON_VENDOR_BASE_URL",
+    default=three_actor_demo.VENDOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor container API "
+    "(env: VULTRON_VENDOR_BASE_URL).",
+)
+@click.option(
+    "--coordinator-url",
+    envvar="VULTRON_COORDINATOR_BASE_URL",
+    default=three_actor_demo.COORDINATOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Coordinator container API "
+    "(env: VULTRON_COORDINATOR_BASE_URL).",
+)
+@click.option(
+    "--case-actor-url",
+    envvar="VULTRON_CASE_ACTOR_BASE_URL",
+    default=three_actor_demo.CASE_ACTOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the CaseActor container API "
+    "(env: VULTRON_CASE_ACTOR_BASE_URL).",
+)
+@click.option(
+    "--finder-id",
+    default=None,
+    help="Deterministic full URI for the Finder actor (optional).",
+)
+@click.option(
+    "--vendor-id",
+    default=None,
+    help="Deterministic full URI for the Vendor actor (optional).",
+)
+@click.option(
+    "--coordinator-id",
+    default=None,
+    help="Deterministic full URI for the Coordinator actor (optional).",
+)
+@click.option(
+    "--case-actor-id",
+    default=None,
+    help="Deterministic full URI for the CaseActor actor (optional).",
+)
+@click.option(
+    "--skip-health-check",
+    is_flag=True,
+    default=False,
+    help="Skip container availability checks.",
+)
+def three_actor(
+    finder_url: str,
+    vendor_url: str,
+    coordinator_url: str,
+    case_actor_url: str,
+    finder_id: str | None,
+    vendor_id: str | None,
+    coordinator_id: str | None,
+    case_actor_id: str | None,
+    skip_health_check: bool,
+) -> None:
+    """Run the three-actor multi-container CVD demo (D5-3)."""
+    three_actor_demo.main(
+        skip_health_check=skip_health_check,
+        finder_url=finder_url,
+        vendor_url=vendor_url,
+        coordinator_url=coordinator_url,
+        case_actor_url=case_actor_url,
+        finder_id=finder_id,
+        vendor_id=vendor_id,
+        coordinator_id=coordinator_id,
+        case_actor_id=case_actor_id,
     )
 
 
