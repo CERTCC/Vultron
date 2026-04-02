@@ -217,7 +217,7 @@ def reset_containers(
     with demo_step("Resetting actor containers to a clean baseline"):
         for label, client in targets:
             result = reset_datalayer(client=client, init=False)
-            logger.info("%s reset result: %s", label, result)
+            logger.debug("%s reset result: %s", label, result)
 
     with demo_check("All actor containers start with no persisted cases"):
         for label, client in targets:
@@ -268,8 +268,9 @@ def finder_submits_report(
     )
     with demo_step("Finder submits vulnerability report to Vendor's inbox"):
         post_to_inbox_and_wait(vendor_client, vendor.id_, offer)
-    with demo_check("Report and offer stored in Vendor's DataLayer"):
+    with demo_check("Report stored in Vendor's DataLayer"):
         verify_object_stored(vendor_client, report.id_)
+    with demo_check("Offer stored in Vendor's DataLayer"):
         verify_object_stored(vendor_client, offer.id_)
     logger.info("Report submitted: %s", ref_id(report))
     return report, offer

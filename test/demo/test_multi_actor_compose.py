@@ -36,16 +36,19 @@ _COMPOSE_FILE = _REPO_ROOT / "docker" / "docker-compose-multi-actor.yml"
 
 # Expected default host ports per service — they must still appear as
 # the *default* value inside the ${VAR:-NNNN} expression.
+# Default is 0 (ephemeral) so concurrent test runs don't collide on the host;
+# callers that need a fixed port set the env var explicitly (e.g.
+# FINDER_HOST_PORT=17901).
 _EXPECTED_SERVICE_DEFAULTS: dict[str, int] = {
-    "finder": 7901,
-    "vendor": 7902,
-    "case-actor": 7903,
-    "coordinator": 7904,
-    "vendor2": 7905,
+    "finder": 0,
+    "vendor": 0,
+    "case-actor": 0,
+    "coordinator": 0,
+    "vendor2": 0,
 }
 
 # Pattern that matches Docker Compose env-var substitution with a default,
-# e.g. "${FINDER_HOST_PORT:-7901}" as the left side of "HOST:CONTAINER".
+# e.g. "${FINDER_HOST_PORT:-0}" as the left side of "HOST:CONTAINER".
 _ENV_VAR_PORT_RE = re.compile(r"^\$\{[A-Z0-9_]+:-\d+\}$")
 
 

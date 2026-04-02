@@ -136,9 +136,9 @@ class DataLayerClient(BaseModel):
             raise ValueError(f"Unsupported HTTP method: {method}")
 
         url = f"{self.base_url}{path}"
-        logger.info(f"Calling {method.upper()} {url}")
+        logger.debug(f"Calling {method.upper()} {url}")
         response = requests.request(method, url, **kwargs)
-        logger.info(f"Response status: {response.status_code}")
+        logger.debug(f"Response status: {response.status_code}")
 
         data = {}
         try:
@@ -180,7 +180,7 @@ def reset_datalayer(client: DataLayerClient, init: bool = True) -> dict:
         client: DataLayerClient instance.
         init: When ``True``, re-seed the DataLayer with default actors after reset.
     """
-    logger.info("Resetting data layer...")
+    logger.debug("Resetting data layer...")
     return client.delete("/datalayer/reset/", params={"init": init})
 
 
@@ -245,7 +245,7 @@ def post_to_inbox_and_wait(
         wait_seconds: Seconds to sleep after posting; defaults to ``DEFAULT_WAIT_SECONDS``.
     """
     actor_obj_id = parse_id(actor_id)["object_id"]
-    logger.info(
+    logger.debug(
         f"Posting activity to {actor_obj_id}'s inbox: {logfmt(activity)}"
     )
     client.post(f"/actors/{actor_obj_id}/inbox/", json=postfmt(activity))
