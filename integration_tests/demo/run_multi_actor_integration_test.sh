@@ -24,6 +24,12 @@
 #   CASE_ACTOR_HOST_PORT  Pin a specific host port for the case-actor service.
 #   COORDINATOR_HOST_PORT Pin a specific host port for the coordinator service.
 #   VENDOR2_HOST_PORT     Pin a specific host port for the vendor2 service.
+#   COMPOSE_SERVICE_COLORS
+#                         Path to a service-colors.env file that maps service
+#                         names to hex colors (default: docker/service-colors.env).
+#                         Colors are applied only when stdout is a TTY; output
+#                         redirected to a file or pipe passes through unmodified.
+#                         See docker/service-colors.env for format and defaults.
 #
 #   Host port variables are optional.  When unset (the default), Docker
 #   assigns an ephemeral host port for each service automatically, so no
@@ -46,6 +52,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 COMPOSE_FILE="${REPO_ROOT}/docker/docker-compose-multi-actor.yml"
+COLORIZER="${SCRIPT_DIR}/colorize_compose_logs.py"
 PROJECT_NAME="${PROJECT_NAME:-vultron-it}"
 DEMO="${1:-${DEMO:-two-actor}}"
 
@@ -80,13 +87,20 @@ docker compose -f "${COMPOSE_FILE}" -p "${PROJECT_NAME}" build
 # pass their /health/ready probe.  --abort-on-container-exit halts the stack
 # when demo-runner exits; --exit-code-from propagates its exit code so a
 # failed scenario is distinguishable from a failed service start.
+#
+# --ansi=never strips docker compose's own (non-deterministic) color codes so
+# the colorize_compose_logs.py filter can apply the configured per-service
+# colors consistently.  The filter is a no-op when stdout is not a TTY, so
+# captured/redirected output remains plain text.
 log "Starting multi-actor stack and running scenario '${DEMO}'..."
 DEMO="${DEMO}" docker compose \
     -f "${COMPOSE_FILE}" \
     -p "${PROJECT_NAME}" \
+    --ansi=never \
     up \
     --abort-on-container-exit \
     --exit-code-from demo-runner \
+    2>&1 | python3 "${COLORIZER}" \
     && DEMO_EXIT=0 || DEMO_EXIT=$?
 
 if [ "${DEMO_EXIT}" -ne 0 ]; then
