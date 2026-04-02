@@ -297,9 +297,21 @@ def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
     Raises:
         requests.HTTPError: If the object is not found.
     """
+
+    def _drop_nulls(value: object) -> object:
+        if isinstance(value, dict):
+            return {
+                k: _drop_nulls(v) for k, v in value.items() if v is not None
+            }
+        if isinstance(value, list):
+            return [_drop_nulls(item) for item in value]
+        return value
+
     obj = client.get(f"/datalayer/{obj_id}")
+    filtered = _drop_nulls(obj)
     logger.info(
-        "Verified object stored: %s", json.dumps(obj, indent=2, default=str)
+        "Verified object stored: %s",
+        json.dumps(filtered, indent=2, default=str),
     )
     return as_Object(**obj)
 

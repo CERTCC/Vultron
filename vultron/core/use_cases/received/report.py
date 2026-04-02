@@ -113,8 +113,11 @@ class SubmitReportReceivedUseCase:
                     request.activity_id,
                 )
             except ValueError as e:
-                logger.warning(
-                    "SubmitReport activity %s already exists: %s",
+                # The inbox endpoint pre-stores activities before dispatching,
+                # so a duplicate here is expected and not an error condition.
+                logger.debug(
+                    "SubmitReport activity %s already exists (pre-stored by "
+                    "inbox endpoint): %s",
                     request.activity_id,
                     e,
                 )

@@ -87,10 +87,23 @@ def rehydrate(
         obj_with_object = cast(Any, obj)
         if obj_with_object.object_ is not None:
             logger.debug("Rehydrating nested 'object_' of %s.", obj.type_)
-            rehydrated_nested_object = rehydrate(
-                obj_with_object.object_, dl=dl, depth=depth + 1
-            )
-            obj_with_object.object_ = rehydrated_nested_object
+            try:
+                rehydrated_nested_object = rehydrate(
+                    obj_with_object.object_, dl=dl, depth=depth + 1
+                )
+                obj_with_object.object_ = rehydrated_nested_object
+            except ValueError:
+                # Nested object not found in the local DataLayer — common in
+                # federated scenarios where objects live on remote containers.
+                # Keep the original ID string reference; pattern matching
+                # treats string values as "conservatively allowed" (see
+                # ActivityPattern._match_field), and use cases handle the
+                # missing object gracefully.
+                logger.debug(
+                    "Could not rehydrate nested 'object_' of %s; "
+                    "keeping original reference.",
+                    obj.type_,
+                )
         else:
             logger.error("'object_' field is None in %s.", obj.type_)
             raise ValueError(f"'object_' field is None in {obj.type_}")

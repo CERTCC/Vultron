@@ -151,9 +151,14 @@ async def inbox_handler(
         logger.debug("Rehydrated item from inbox: %s", item.type_)
         if hasattr(item, "object_"):
             item_with_object = cast(Any, item)
+            obj_field = item_with_object.object_
+            obj_type_label = (
+                obj_field
+                if isinstance(obj_field, str)
+                else getattr(obj_field, "type_", repr(obj_field))
+            )
             logger.debug(
-                "Item has transitive object of type: %s",
-                item_with_object.object_.type_,
+                "Item has transitive object of type: %s", obj_type_label
             )
 
         try:

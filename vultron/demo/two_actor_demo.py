@@ -350,8 +350,10 @@ def vendor_adds_finder_as_participant(
 
     The Finder already expressed intent to participate by submitting the report,
     so no invite/accept flow is needed.  The Vendor creates the participant
-    record and adds it to the case directly.  A notification is sent to the
-    Finder's inbox so the Finder learns they were added.
+    record and adds it to the case directly.  The Finder is notified via two
+    deliveries: a ``CreateParticipant`` with the full inline participant object
+    (so Finder can store it locally), followed by an ``AddParticipantToCase``
+    notification carrying the full object for the same reason.
 
     Args:
         vendor_client: Client connected to the Vendor container.
@@ -377,6 +379,14 @@ def vendor_adds_finder_as_participant(
         object_=finder_participant.id_,
         target=case.id_,
     )
+    # Notification to Finder: include the full participant object so the
+    # Finder's container can store it locally (the bare ID string would
+    # not be resolvable in Finder's DataLayer).
+    add_participant_notification = AddParticipantToCaseActivity(
+        actor=vendor.id_,
+        object_=finder_participant,
+        target=case.id_,
+    )
 
     with demo_step("Vendor creates Finder's participant record"):
         post_to_inbox_and_wait(vendor_client, vendor.id_, create_participant)
@@ -390,11 +400,20 @@ def vendor_adds_finder_as_participant(
         with demo_step(
             "Vendor notifies Finder that they were added to the case"
         ):
-            post_to_inbox_and_wait(finder_client, finder.id_, add_participant)
+            # Send CreateParticipant first so Finder stores the participant
+            # record locally, then send the AddParticipant notification with
+            # the full inline object (not just an ID) so rehydration succeeds
+            # even though the participant lives on the Vendor's DataLayer.
+            post_to_inbox_and_wait(
+                finder_client, finder.id_, create_participant
+            )
+            post_to_inbox_and_wait(
+                finder_client, finder.id_, add_participant_notification
+            )
         with demo_check(
-            "Add-participant notification stored in Finder's DataLayer"
+            "Finder participant record stored in Finder's DataLayer"
         ):
-            verify_object_stored(finder_client, add_participant.id_)
+            verify_object_stored(finder_client, finder_participant.id_)
 
     logger.info(
         "Finder added as case participant: %s", ref_id(finder_participant)
@@ -410,12 +429,15 @@ def finder_asks_question(
 ) -> as_Note:
     """Finder posts a question note to the case via the Vendor's inbox.
 
-    The note is addressed to the case (not directly to the Vendor actor).
-    The Vendor container processes it and adds it to the case.
+    In the two-actor scenario the Vendor acts as the case host, so the
+    Finder delivers notes to the Vendor's inbox (which is the case-actor
+    inbox).  Both the ``Create`` and ``AddNoteToCase`` activities carry an
+    explicit ``to`` field set to the Vendor actor ID to reflect that the
+    Vendor is the intended case-host recipient.
 
     Args:
         vendor_client: Client connected to the Vendor container.
-        vendor: Vendor ``as_Actor`` (the case host).
+        vendor: Vendor ``as_Actor`` (the case host / case actor).
         finder: Finder ``as_Actor`` (posting the question).
         case: The ``VulnerabilityCase`` the note belongs to.
 
@@ -431,14 +453,17 @@ def finder_asks_question(
         context=case.id_,
         attributed_to=finder.id_,
     )
+    # Address the Create activity to the Vendor acting as the case host.
     create_note = as_Create(
         actor=finder.id_,
         object_=question_note,
+        to=[vendor.id_],
     )
     add_note = AddNoteToCaseActivity(
         actor=finder.id_,
         object_=question_note,
         target=case.id_,
+        to=[vendor.id_],
     )
 
     with demo_step("Finder posts a question note to the case"):
@@ -487,14 +512,17 @@ def vendor_replies_to_question(
         attributed_to=vendor.id_,
         in_reply_to=question_note.id_,
     )
+    # Address the Create activity to the Vendor (self-post to own case host).
     create_reply = as_Create(
         actor=vendor.id_,
         object_=reply_note,
+        to=[vendor.id_],
     )
     add_reply = AddNoteToCaseActivity(
         actor=vendor.id_,
         object_=reply_note,
         target=case.id_,
+        to=[vendor.id_],
     )
 
     with demo_step("Vendor posts a reply note to the case"):
@@ -504,8 +532,17 @@ def vendor_replies_to_question(
         verify_object_stored(vendor_client, reply_note.id_)
 
     if vendor_client.base_url != finder_client.base_url:
+        # When the case host (Vendor) forwards the note to the Finder,
+        # address the delivery to the Finder rather than to the Vendor.
+        create_reply_forwarded = as_Create(
+            actor=vendor.id_,
+            object_=reply_note,
+            to=[finder.id_],
+        )
         with demo_step("Case forwards Vendor's reply note to Finder"):
-            post_to_inbox_and_wait(finder_client, finder.id_, create_reply)
+            post_to_inbox_and_wait(
+                finder_client, finder.id_, create_reply_forwarded
+            )
         with demo_check("Reply note stored in Finder's DataLayer"):
             verify_object_stored(finder_client, reply_note.id_)
 
@@ -813,8 +850,6 @@ def run_two_actor_demo(
     # ── Step 5: Notes exchange ────────────────────────────────────────────
     # Finder actor from the Finder container.
     finder_in_finder = get_actor_by_id(finder_client, finder.id_)
-    # Vendor as known by the Finder container.
-    vendor_in_finder = get_actor_by_id(finder_client, vendor.id_)
 
     question_note = finder_asks_question(
         vendor_client=vendor_client,
@@ -827,7 +862,7 @@ def run_two_actor_demo(
         vendor_client=vendor_client,
         finder_client=finder_client,
         vendor=vendor_in_vendor,
-        finder=vendor_in_finder,
+        finder=finder_in_finder,
         case=case,
         question_note=question_note,
     )
