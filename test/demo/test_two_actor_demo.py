@@ -333,17 +333,17 @@ class TestVendorEngagesCase:
         assert result is not None
 
 
-class TestVendorInvitesFinder:
-    """Test that vendor can invite finder to the case."""
+class TestVendorAddsFinder:
+    """Test that vendor can directly add finder as a case participant."""
 
-    def test_invite_delivered_to_finder_inbox(
+    def test_finder_participant_added_to_case(
         self, client: TestClient, base: str
     ):
         finder_client = _make_client(base)
         vendor_client = _make_client(base)
 
-        finder_id = f"{base}/actors/finder-inv-test"
-        vendor_id = f"{base}/actors/vendor-inv-test"
+        finder_id = f"{base}/actors/finder-addp-test"
+        vendor_id = f"{base}/actors/vendor-addp-test"
 
         finder, vendor = demo.seed_containers(
             finder_client=finder_client,
@@ -367,7 +367,18 @@ class TestVendorInvitesFinder:
         case = demo.find_case_for_offer(vendor_client, offer.id_)
         assert case is not None
 
-        invite = demo.vendor_invites_finder(
+        demo.vendor_engages_case(
+            vendor_client=vendor_client,
+            vendor=vendor_in_vendor,
+            case_id=case.id_,
+        )
+
+        import vultron.wire.as2.vocab.objects.vulnerability_case as vc_module
+
+        case_data = vendor_client.get(f"/datalayer/{case.id_}")
+        case = vc_module.VulnerabilityCase(**case_data)
+
+        finder_participant = demo.vendor_adds_finder_as_participant(
             vendor_client=vendor_client,
             finder_client=finder_client,
             vendor=vendor_in_vendor,
@@ -375,22 +386,32 @@ class TestVendorInvitesFinder:
             case=case,
         )
 
-        assert invite.id_ is not None
-        # Invite should be stored in the Finder container's DataLayer.
-        demo.verify_object_stored(finder_client, invite.id_)
+        assert finder_participant.id_ is not None
+        demo.verify_object_stored(vendor_client, finder_participant.id_)
+
+        # Case should now have two participants (vendor + finder).
+        demo.wait_for_case_participants(
+            vendor_client=vendor_client,
+            case_id=case.id_,
+            expected_count=2,
+        )
+
+        final_case_data = vendor_client.get(f"/datalayer/{case.id_}")
+        final_case = vc_module.VulnerabilityCase(**final_case_data)
+        assert len(final_case.case_participants) == 2
 
 
-class TestFinderAcceptsInvite:
-    """Test that finder can accept the case invitation."""
+class TestFinderAsksQuestion:
+    """Test that finder can post a question note to the case."""
 
-    def test_acceptance_delivered_to_vendor_inbox(
-        self, client: TestClient, base: str
+    def _setup_case_with_two_participants(
+        self, client: TestClient, base: str, suffix: str
     ):
+        """Shared setup: returns (finder_client, vendor_client, case, finder, vendor)."""
         finder_client = _make_client(base)
         vendor_client = _make_client(base)
-
-        finder_id = f"{base}/actors/finder-acc-test"
-        vendor_id = f"{base}/actors/vendor-acc-test"
+        finder_id = f"{base}/actors/finder-{suffix}"
+        vendor_id = f"{base}/actors/vendor-{suffix}"
 
         finder, vendor = demo.seed_containers(
             finder_client=finder_client,
@@ -413,27 +434,78 @@ class TestFinderAcceptsInvite:
         )
         case = demo.find_case_for_offer(vendor_client, offer.id_)
         assert case is not None
+        demo.vendor_engages_case(
+            vendor_client=vendor_client,
+            vendor=vendor_in_vendor,
+            case_id=case.id_,
+        )
 
-        invite = demo.vendor_invites_finder(
+        import vultron.wire.as2.vocab.objects.vulnerability_case as vc_module
+
+        case_data = vendor_client.get(f"/datalayer/{case.id_}")
+        case = vc_module.VulnerabilityCase(**case_data)
+
+        demo.vendor_adds_finder_as_participant(
             vendor_client=vendor_client,
             finder_client=finder_client,
             vendor=vendor_in_vendor,
             finder=finder_in_vendor,
             case=case,
         )
+        demo.wait_for_case_participants(
+            vendor_client=vendor_client,
+            case_id=case.id_,
+            expected_count=2,
+        )
+        case_data = vendor_client.get(f"/datalayer/{case.id_}")
+        case = vc_module.VulnerabilityCase(**case_data)
+        return finder_client, vendor_client, case, finder, vendor
 
+    def test_question_note_stored_in_vendor(
+        self, client: TestClient, base: str
+    ):
+        finder_client, vendor_client, case, finder, vendor = (
+            self._setup_case_with_two_participants(client, base, "qnote-test")
+        )
+        vendor_in_vendor = demo.get_actor_by_id(vendor_client, vendor.id_)
+        finder_in_finder = demo.get_actor_by_id(finder_client, finder.id_)
+
+        question_note = demo.finder_asks_question(
+            vendor_client=vendor_client,
+            vendor=vendor_in_vendor,
+            finder=finder_in_finder,
+            case=case,
+        )
+
+        assert question_note.id_ is not None
+        demo.verify_object_stored(vendor_client, question_note.id_)
+
+    def test_vendor_reply_note_stored(self, client: TestClient, base: str):
+        finder_client, vendor_client, case, finder, vendor = (
+            self._setup_case_with_two_participants(client, base, "rreply-test")
+        )
+        vendor_in_vendor = demo.get_actor_by_id(vendor_client, vendor.id_)
         finder_in_finder = demo.get_actor_by_id(finder_client, finder.id_)
         vendor_in_finder = demo.get_actor_by_id(finder_client, vendor.id_)
 
-        accept = demo.finder_accepts_invite(
+        question_note = demo.finder_asks_question(
             vendor_client=vendor_client,
+            vendor=vendor_in_vendor,
             finder=finder_in_finder,
-            vendor=vendor_in_finder,
-            invite=invite,
+            case=case,
         )
 
-        assert accept.id_ is not None
-        demo.verify_object_stored(vendor_client, accept.id_)
+        reply_note = demo.vendor_replies_to_question(
+            vendor_client=vendor_client,
+            finder_client=finder_client,
+            vendor=vendor_in_vendor,
+            finder=vendor_in_finder,
+            case=case,
+            question_note=question_note,
+        )
+
+        assert reply_note.id_ is not None
+        demo.verify_object_stored(vendor_client, reply_note.id_)
 
 
 # ---------------------------------------------------------------------------

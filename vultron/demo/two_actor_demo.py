@@ -38,12 +38,13 @@ Workflow
    trigger endpoint.
 5. **Engage**: Vendor engages the resulting case via the ``engage-case``
    trigger endpoint.
-6. **Invite**: Vendor invites Finder to join the case (delivered to
-   Finder's inbox).
-7. **Accept**: Finder accepts the invitation (delivered to Vendor's inbox).
-8. **Verify**: The Vendor container holds the authoritative case state,
-   the Finder invite is present, and the optional dedicated CaseActor
-   container remains unused for D5-2 (CaseActor co-locates in Vendor).
+6. **Add Participant**: Vendor directly adds the Finder as a case participant
+   (the Finder expressed intent to participate by submitting the report;
+   no invite/accept flow is required for initial participants).
+7. **Notes Exchange**: Finder posts a question note to the case; Vendor replies
+   and the case forwards the reply to the Finder.
+8. **Verify**: The Vendor container holds the authoritative case state with
+   two participants and two case notes.
 
 References: ``notes/multi-actor-architecture.md`` §4 G5,
 ``specs/multi-actor-demo.md`` DEMO-MA-03-001 through DEMO-MA-04-002.
@@ -60,14 +61,22 @@ from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.activities.case import (
-    RmAcceptInviteToCaseActivity,
-    RmInviteToCaseActivity,
+    AddNoteToCaseActivity,
+)
+from vultron.wire.as2.vocab.activities.case_participant import (
+    AddParticipantToCaseActivity,
+    CreateParticipantActivity,
 )
 from vultron.wire.as2.vocab.activities.report import (
     RmSubmitReportActivity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_participant import (
+    CaseParticipant,
+    FinderReporterParticipant,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
@@ -330,84 +339,178 @@ def vendor_engages_case(
     return result
 
 
-def vendor_invites_finder(
+def vendor_adds_finder_as_participant(
     vendor_client: DataLayerClient,
     finder_client: DataLayerClient,
     vendor: as_Actor,
     finder: as_Actor,
     case: VulnerabilityCase,
-) -> RmInviteToCaseActivity:
-    """Vendor invites the Finder to join the case.
+) -> FinderReporterParticipant:
+    """Vendor directly adds the Finder to the case as a FinderReporter participant.
 
-    The invite activity is delivered directly to the Finder container's inbox
-    endpoint (simulating cross-container delivery). The activity is also
-    POSTed to the Vendor container's own inbox so the Vendor can later
-    rehydrate the invite by ID when the Finder accepts it.
+    The Finder already expressed intent to participate by submitting the report,
+    so no invite/accept flow is needed.  The Vendor creates the participant
+    record and adds it to the case directly.  A notification is sent to the
+    Finder's inbox so the Finder learns they were added.
 
     Args:
         vendor_client: Client connected to the Vendor container.
         finder_client: Client connected to the Finder container.
-        vendor: Vendor ``as_Actor`` (the inviting actor).
-        finder: Finder ``as_Actor`` (the invited actor).
-        case: The ``VulnerabilityCase`` to invite the Finder into.
+        vendor: Vendor ``as_Actor`` (the case owner adding the participant).
+        finder: Finder ``as_Actor`` (the actor being added).
+        case: The ``VulnerabilityCase`` to add the Finder to.
 
     Returns:
-        The ``RmInviteToCaseActivity`` invite activity.
+        The ``FinderReporterParticipant`` record created for the Finder.
     """
-    invite = RmInviteToCaseActivity(
-        actor=vendor.id_,
-        object_=finder.id_,
-        target=case.id_,
-        to=[finder.id_],
+    finder_participant = FinderReporterParticipant(
+        attributed_to=finder.id_,
+        context=case.id_,
     )
+    create_participant = CreateParticipantActivity(
+        actor=vendor.id_,
+        object_=finder_participant,
+        context=case.id_,
+    )
+    add_participant = AddParticipantToCaseActivity(
+        actor=vendor.id_,
+        object_=finder_participant.id_,
+        target=case.id_,
+    )
+
+    with demo_step("Vendor creates Finder's participant record"):
+        post_to_inbox_and_wait(vendor_client, vendor.id_, create_participant)
+    with demo_check("Finder participant stored in Vendor's DataLayer"):
+        verify_object_stored(vendor_client, finder_participant.id_)
+
+    with demo_step("Vendor adds Finder as a case participant"):
+        post_to_inbox_and_wait(vendor_client, vendor.id_, add_participant)
+
     if vendor_client.base_url != finder_client.base_url:
         with demo_step(
-            "Vendor records the invite locally for later rehydration"
+            "Vendor notifies Finder that they were added to the case"
         ):
-            post_to_inbox_and_wait(vendor_client, vendor.id_, invite)
-        with demo_check("Invite stored in Vendor's DataLayer"):
-            verify_object_stored(vendor_client, invite.id_)
-    with demo_step("Vendor invites Finder to the case"):
-        post_to_inbox_and_wait(finder_client, finder.id_, invite)
-    with demo_check("Invite stored in Finder's DataLayer"):
-        verify_object_stored(finder_client, invite.id_)
-    logger.info("Invite sent: %s", invite.id_)
-    return invite
+            post_to_inbox_and_wait(finder_client, finder.id_, add_participant)
+        with demo_check(
+            "Add-participant notification stored in Finder's DataLayer"
+        ):
+            verify_object_stored(finder_client, add_participant.id_)
+
+    logger.info(
+        "Finder added as case participant: %s", ref_id(finder_participant)
+    )
+    return finder_participant
 
 
-def finder_accepts_invite(
+def finder_asks_question(
     vendor_client: DataLayerClient,
-    finder: as_Actor,
     vendor: as_Actor,
-    invite: RmInviteToCaseActivity,
-) -> RmAcceptInviteToCaseActivity:
-    """Finder accepts the invitation and notifies the Vendor.
+    finder: as_Actor,
+    case: VulnerabilityCase,
+) -> as_Note:
+    """Finder posts a question note to the case via the Vendor's inbox.
 
-    The acceptance activity is delivered directly to the Vendor container's
-    inbox endpoint (simulating cross-container delivery).
+    The note is addressed to the case (not directly to the Vendor actor).
+    The Vendor container processes it and adds it to the case.
 
     Args:
         vendor_client: Client connected to the Vendor container.
-        finder: Finder ``as_Actor`` (the accepting actor).
-        vendor: Vendor ``as_Actor`` (the inviting actor).
-        invite: The original ``RmInviteToCaseActivity`` being accepted.
+        vendor: Vendor ``as_Actor`` (the case host).
+        finder: Finder ``as_Actor`` (posting the question).
+        case: The ``VulnerabilityCase`` the note belongs to.
 
     Returns:
-        The ``RmAcceptInviteToCaseActivity`` acceptance activity.
+        The ``as_Note`` question note.
     """
-    # Per AGENTS.md: Accept.object must be the invite's ID string, not the
-    # inline object (avoids field loss during HTTP round-trip).
-    accept = RmAcceptInviteToCaseActivity(
-        actor=finder.id_,
-        object_=invite.id_,
-        to=[vendor.id_],
+    question_note = as_Note(
+        name="Question from Finder",
+        content=(
+            "Is there a workaround available while waiting for the patch? "
+            "Our security team needs to provide interim guidance to users."
+        ),
+        context=case.id_,
+        attributed_to=finder.id_,
     )
-    with demo_step("Finder accepts the case invitation"):
-        post_to_inbox_and_wait(vendor_client, vendor.id_, accept)
-    with demo_check("Accept activity stored in Vendor's DataLayer"):
-        verify_object_stored(vendor_client, accept.id_)
-    logger.info("Acceptance sent: %s", accept.id_)
-    return accept
+    create_note = as_Create(
+        actor=finder.id_,
+        object_=question_note,
+    )
+    add_note = AddNoteToCaseActivity(
+        actor=finder.id_,
+        object_=question_note,
+        target=case.id_,
+    )
+
+    with demo_step("Finder posts a question note to the case"):
+        post_to_inbox_and_wait(vendor_client, vendor.id_, create_note)
+        post_to_inbox_and_wait(vendor_client, vendor.id_, add_note)
+    with demo_check("Question note stored in Vendor's DataLayer"):
+        verify_object_stored(vendor_client, question_note.id_)
+
+    logger.info("Question note posted to case: %s", ref_id(question_note))
+    return question_note
+
+
+def vendor_replies_to_question(
+    vendor_client: DataLayerClient,
+    finder_client: DataLayerClient,
+    vendor: as_Actor,
+    finder: as_Actor,
+    case: VulnerabilityCase,
+    question_note: as_Note,
+) -> as_Note:
+    """Vendor posts a reply note to the case and the case forwards it to the Finder.
+
+    The Vendor adds the reply to the case, then (acting as the case host)
+    sends the reply to the Finder's inbox, simulating the case relaying the
+    note to all participants.
+
+    Args:
+        vendor_client: Client connected to the Vendor container.
+        finder_client: Client connected to the Finder container.
+        vendor: Vendor ``as_Actor``.
+        finder: Finder ``as_Actor`` (the reply recipient).
+        case: The ``VulnerabilityCase`` the note belongs to.
+        question_note: The original question note being replied to.
+
+    Returns:
+        The ``as_Note`` reply note.
+    """
+    reply_note = as_Note(
+        name="Vendor Response",
+        content=(
+            "Yes, disabling the affected network stack component is an effective "
+            "workaround. A patched version is expected within 30 days. "
+            "We will notify all case participants when it is available."
+        ),
+        context=case.id_,
+        attributed_to=vendor.id_,
+        in_reply_to=question_note.id_,
+    )
+    create_reply = as_Create(
+        actor=vendor.id_,
+        object_=reply_note,
+    )
+    add_reply = AddNoteToCaseActivity(
+        actor=vendor.id_,
+        object_=reply_note,
+        target=case.id_,
+    )
+
+    with demo_step("Vendor posts a reply note to the case"):
+        post_to_inbox_and_wait(vendor_client, vendor.id_, create_reply)
+        post_to_inbox_and_wait(vendor_client, vendor.id_, add_reply)
+    with demo_check("Reply note stored in Vendor's DataLayer"):
+        verify_object_stored(vendor_client, reply_note.id_)
+
+    if vendor_client.base_url != finder_client.base_url:
+        with demo_step("Case forwards Vendor's reply note to Finder"):
+            post_to_inbox_and_wait(finder_client, finder.id_, create_reply)
+        with demo_check("Reply note stored in Finder's DataLayer"):
+            verify_object_stored(finder_client, reply_note.id_)
+
+    logger.info("Reply note posted to case: %s", ref_id(reply_note))
+    return reply_note
 
 
 def find_case_for_offer(
@@ -469,6 +572,8 @@ def verify_vendor_case_state(
     report_id: str,
     vendor_actor_id: str,
     finder_actor_id: str,
+    question_note_id: str | None = None,
+    reply_note_id: str | None = None,
 ) -> VulnerabilityCase:
     """Assert the final authoritative case state stored on the Vendor container."""
     final_case_data = vendor_client.get(f"/datalayer/{case_id}")
@@ -517,9 +622,9 @@ def verify_vendor_case_state(
         )
 
     event_types = [event.event_type for event in final_case.events]
-    if "participant_joined" not in event_types:
+    if "participant_added" not in event_types:
         raise AssertionError(
-            "Expected participant_joined event after Finder accepted the invite"
+            "Expected participant_added event after Finder was added to the case"
         )
 
     current_status = final_case.current_status
@@ -531,6 +636,17 @@ def verify_vendor_case_state(
         raise AssertionError(
             f"Expected pxa final case state, found {current_status.pxa_state}"
         )
+
+    if question_note_id is not None or reply_note_id is not None:
+        note_ids = [ref_id(n) or str(n) for n in final_case.notes]
+        if question_note_id is not None and question_note_id not in note_ids:
+            raise AssertionError(
+                f"Question note {question_note_id!r} not found in case notes"
+            )
+        if reply_note_id is not None and reply_note_id not in note_ids:
+            raise AssertionError(
+                f"Reply note {reply_note_id!r} not found in case notes"
+            )
 
     return final_case
 
@@ -598,14 +714,18 @@ def run_two_actor_demo(
     2. Seed both actor containers.
     3. Finder submits report → Vendor's inbox.
     4. Vendor validates report and engages case.
-    5. Vendor invites Finder to the case → Finder's inbox.
-    6. Finder accepts invite → Vendor's inbox.
+    5. Vendor directly adds Finder as a case participant (no invite/accept).
+    6. Finder posts a question note to the case; Vendor replies and the
+       case forwards the reply to the Finder.
     7. Verify final state on the Vendor container and optional CaseActor
        isolation for the D5-2 topology.
 
     Args:
         finder_client: Client connected to the Finder container.
         vendor_client: Client connected to the Vendor container.
+        case_actor_client: Optional client connected to a dedicated CaseActor
+            container.  When provided, the demo verifies it remains unused
+            (per D5-2: CaseActor co-locates in Vendor).
         finder_id: Optional deterministic URI for the Finder actor.
         vendor_id: Optional deterministic URI for the Vendor actor.
     """
@@ -664,7 +784,7 @@ def run_two_actor_demo(
         case_id=case.id_,
     )
 
-    # ── Step 4: Vendor invites Finder ─────────────────────────────────────
+    # ── Step 4: Vendor directly adds Finder as a participant ──────────────
     # Refresh case to get up-to-date state.
     case_data = vendor_client.get(f"/datalayer/{case.id_}")
     case = VulnerabilityCase(**case_data)
@@ -672,7 +792,7 @@ def run_two_actor_demo(
     # Finder actor as known by the vendor container.
     finder_in_vendor = get_actor_by_id(vendor_client, finder.id_)
 
-    invite = vendor_invites_finder(
+    vendor_adds_finder_as_participant(
         vendor_client=vendor_client,
         finder_client=finder_client,
         vendor=vendor_in_vendor,
@@ -680,23 +800,36 @@ def run_two_actor_demo(
         case=case,
     )
 
-    # ── Step 5: Finder accepts ────────────────────────────────────────────
+    wait_for_case_participants(
+        vendor_client=vendor_client,
+        case_id=case.id_,
+        expected_count=2,
+    )
+
+    # Refresh case after participant addition.
+    case_data = vendor_client.get(f"/datalayer/{case.id_}")
+    case = VulnerabilityCase(**case_data)
+
+    # ── Step 5: Notes exchange ────────────────────────────────────────────
     # Finder actor from the Finder container.
     finder_in_finder = get_actor_by_id(finder_client, finder.id_)
     # Vendor as known by the Finder container.
     vendor_in_finder = get_actor_by_id(finder_client, vendor.id_)
 
-    accept = finder_accepts_invite(
+    question_note = finder_asks_question(
         vendor_client=vendor_client,
+        vendor=vendor_in_vendor,
         finder=finder_in_finder,
-        vendor=vendor_in_finder,
-        invite=invite,
+        case=case,
     )
 
-    wait_for_case_participants(
+    reply_note = vendor_replies_to_question(
         vendor_client=vendor_client,
-        case_id=case.id_,
-        expected_count=2,
+        finder_client=finder_client,
+        vendor=vendor_in_vendor,
+        finder=vendor_in_finder,
+        case=case,
+        question_note=question_note,
     )
 
     # ── Step 6: Verify final state ────────────────────────────────────────
@@ -709,14 +842,10 @@ def run_two_actor_demo(
             report_id=report.id_,
             vendor_actor_id=vendor.id_,
             finder_actor_id=finder.id_,
+            question_note_id=question_note.id_,
+            reply_note_id=reply_note.id_,
         )
         logger.info("Final case state (Vendor): %s", logfmt(final_case))
-
-    with demo_check("Finder container: invite is present"):
-        verify_object_stored(finder_client, invite.id_)
-
-    with demo_check("Vendor container: accept activity is present"):
-        verify_object_stored(vendor_client, accept.id_)
 
     with demo_check("Dedicated CaseActor container remains unused for D5-2"):
         verify_case_actor_unused(case_actor_client, case.id_)

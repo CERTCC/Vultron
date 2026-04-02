@@ -287,6 +287,10 @@ def post_to_trigger(
 def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
     """Fetch an object from the DataLayer by ID and verify it is present.
 
+    Logs the raw stored dict so all fields (including ``object``, ``actor``,
+    and other activity fields that are dropped when reconstructing as a plain
+    ``as_Object``) are visible in the output.
+
     Returns:
         The retrieved ``as_Object``.
 
@@ -294,9 +298,10 @@ def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
         requests.HTTPError: If the object is not found.
     """
     obj = client.get(f"/datalayer/{obj_id}")
-    reconstructed_obj = as_Object(**obj)
-    logger.info(f"Verified object stored: {logfmt(reconstructed_obj)}")
-    return reconstructed_obj
+    logger.info(
+        "Verified object stored: %s", json.dumps(obj, indent=2, default=str)
+    )
+    return as_Object(**obj)
 
 
 def get_offer_from_datalayer(

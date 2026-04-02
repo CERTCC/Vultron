@@ -74,6 +74,7 @@ class AddCaseParticipantToCaseReceivedUseCase:
             actor_id = _as_id(getattr(participant, "attributed_to", None))
             if actor_id is not None:
                 case.actor_participant_index[actor_id] = participant_id
+        case.record_event(participant_id, "participant_added")
         self._dl.save(case)
         logger.info(
             "Added participant '%s' to case '%s'", participant_id, case_id
