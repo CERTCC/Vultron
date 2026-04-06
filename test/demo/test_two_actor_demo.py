@@ -294,113 +294,6 @@ class TestVendorValidatesReport:
         assert case.id_ is not None
 
 
-class TestVendorEngagesCase:
-    """Test that vendor engages case via trigger endpoint."""
-
-    def test_engage_case_succeeds(self, client: TestClient, base: str):
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
-
-        finder_id = f"{base}/actors/finder-eng-test"
-        vendor_id = f"{base}/actors/vendor-eng-test"
-
-        finder, vendor = demo.seed_containers(
-            finder_client=finder_client,
-            vendor_client=vendor_client,
-            finder_actor_id=finder_id,
-            vendor_actor_id=vendor_id,
-        )
-        vendor_in_vendor = demo.get_actor_by_id(vendor_client, vendor.id_)
-
-        _, offer = demo.finder_submits_report(
-            vendor_client=vendor_client,
-            finder=finder,
-            vendor=vendor_in_vendor,
-        )
-        demo.vendor_validates_report(
-            vendor_client=vendor_client,
-            vendor=vendor_in_vendor,
-            offer_id=offer.id_,
-        )
-        case = demo.find_case_for_offer(vendor_client, offer.id_)
-        assert case is not None
-
-        result = demo.vendor_engages_case(
-            vendor_client=vendor_client,
-            vendor=vendor_in_vendor,
-            case_id=case.id_,
-        )
-        assert result is not None
-
-
-class TestVendorAddsFinder:
-    """Test that vendor can directly add finder as a case participant."""
-
-    def test_finder_participant_added_to_case(
-        self, client: TestClient, base: str
-    ):
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
-
-        finder_id = f"{base}/actors/finder-addp-test"
-        vendor_id = f"{base}/actors/vendor-addp-test"
-
-        finder, vendor = demo.seed_containers(
-            finder_client=finder_client,
-            vendor_client=vendor_client,
-            finder_actor_id=finder_id,
-            vendor_actor_id=vendor_id,
-        )
-        vendor_in_vendor = demo.get_actor_by_id(vendor_client, vendor.id_)
-        finder_in_vendor = demo.get_actor_by_id(vendor_client, finder.id_)
-
-        _, offer = demo.finder_submits_report(
-            vendor_client=vendor_client,
-            finder=finder,
-            vendor=vendor_in_vendor,
-        )
-        demo.vendor_validates_report(
-            vendor_client=vendor_client,
-            vendor=vendor_in_vendor,
-            offer_id=offer.id_,
-        )
-        case = demo.find_case_for_offer(vendor_client, offer.id_)
-        assert case is not None
-
-        demo.vendor_engages_case(
-            vendor_client=vendor_client,
-            vendor=vendor_in_vendor,
-            case_id=case.id_,
-        )
-
-        import vultron.wire.as2.vocab.objects.vulnerability_case as vc_module
-
-        case_data = vendor_client.get(f"/datalayer/{case.id_}")
-        case = vc_module.VulnerabilityCase(**case_data)
-
-        finder_participant = demo.vendor_adds_finder_as_participant(
-            vendor_client=vendor_client,
-            finder_client=finder_client,
-            vendor=vendor_in_vendor,
-            finder=finder_in_vendor,
-            case=case,
-        )
-
-        assert finder_participant.id_ is not None
-        demo.verify_object_stored(vendor_client, finder_participant.id_)
-
-        # Case should now have two participants (vendor + finder).
-        demo.wait_for_case_participants(
-            vendor_client=vendor_client,
-            case_id=case.id_,
-            expected_count=2,
-        )
-
-        final_case_data = vendor_client.get(f"/datalayer/{case.id_}")
-        final_case = vc_module.VulnerabilityCase(**final_case_data)
-        assert len(final_case.case_participants) == 2
-
-
 class TestFinderAsksQuestion:
     """Test that finder can post a question note to the case."""
 
@@ -420,7 +313,6 @@ class TestFinderAsksQuestion:
             vendor_actor_id=vendor_id,
         )
         vendor_in_vendor = demo.get_actor_by_id(vendor_client, vendor.id_)
-        finder_in_vendor = demo.get_actor_by_id(vendor_client, finder.id_)
 
         _, offer = demo.finder_submits_report(
             vendor_client=vendor_client,
@@ -434,29 +326,15 @@ class TestFinderAsksQuestion:
         )
         case = demo.find_case_for_offer(vendor_client, offer.id_)
         assert case is not None
-        demo.vendor_engages_case(
-            vendor_client=vendor_client,
-            vendor=vendor_in_vendor,
-            case_id=case.id_,
-        )
 
-        import vultron.wire.as2.vocab.objects.vulnerability_case as vc_module
-
-        case_data = vendor_client.get(f"/datalayer/{case.id_}")
-        case = vc_module.VulnerabilityCase(**case_data)
-
-        demo.vendor_adds_finder_as_participant(
-            vendor_client=vendor_client,
-            finder_client=finder_client,
-            vendor=vendor_in_vendor,
-            finder=finder_in_vendor,
-            case=case,
-        )
         demo.wait_for_case_participants(
             vendor_client=vendor_client,
             case_id=case.id_,
             expected_count=2,
         )
+
+        import vultron.wire.as2.vocab.objects.vulnerability_case as vc_module
+
         case_data = vendor_client.get(f"/datalayer/{case.id_}")
         case = vc_module.VulnerabilityCase(**case_data)
         return finder_client, vendor_client, case, finder, vendor

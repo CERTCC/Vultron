@@ -48,8 +48,14 @@ def datalayer():
 
 @pytest.fixture
 def actor_id():
-    """Test actor ID."""
+    """Test vendor actor ID."""
     return "https://example.org/actors/vendor"
+
+
+@pytest.fixture
+def finder_actor_id():
+    """Test finder actor ID — distinct from the vendor."""
+    return "https://example.org/actors/finder"
 
 
 @pytest.fixture
@@ -65,11 +71,13 @@ def report(datalayer, actor_id):
 
 
 @pytest.fixture
-def offer(datalayer, report, actor_id):
-    """Create test Offer activity."""
+def offer(datalayer, report, actor_id, finder_actor_id):
+    """Create test Offer activity.  The *finder* submits the offer to the
+    *vendor* inbox, so ``actor`` is the finder's ID.
+    """
     offer_obj = VultronOffer(
         id_="https://example.org/activities/offer-123",
-        actor=actor_id,
+        actor=finder_actor_id,
         object_=report.id_,
         target=actor_id,
     )
@@ -79,10 +87,21 @@ def offer(datalayer, report, actor_id):
 
 @pytest.fixture
 def actor(datalayer, actor_id):
-    """Create test actor."""
+    """Create test vendor actor in the DataLayer."""
     actor_obj = VultronCaseActor(
         id_=actor_id,
         name="Vendor Co",
+    )
+    datalayer.create(actor_obj)
+    return actor_obj
+
+
+@pytest.fixture
+def finder_actor(datalayer, finder_actor_id):
+    """Create test finder actor in the DataLayer."""
+    actor_obj = VultronCaseActor(
+        id_=finder_actor_id,
+        name="Finder Co",
     )
     datalayer.create(actor_obj)
     return actor_obj
@@ -146,7 +165,7 @@ def test_tree_structure_matches_spec(report, offer):
 
     actions = validation_flow.children[3]
     assert actions.name == "ValidationActions"
-    assert len(actions.children) == 5  # 5 action nodes
+    assert len(actions.children) == 7  # 7 action nodes
 
 
 # ============================================================================
@@ -155,7 +174,7 @@ def test_tree_structure_matches_spec(report, offer):
 
 
 def test_tree_execution_success_new_report(
-    bridge, datalayer, actor_id, report, offer, actor
+    bridge, datalayer, actor_id, report, offer, actor, finder_actor
 ):
     """Tree executes successfully for new report (RECEIVED state)."""
     tree = create_validate_report_tree(
@@ -180,9 +199,11 @@ def test_tree_execution_success_new_report(
 
 
 def test_tree_execution_creates_vendor_participant_and_index(
-    bridge, datalayer, actor_id, report, offer, actor
+    bridge, datalayer, actor_id, report, offer, actor, finder_actor
 ):
-    """Validate-report seeds the case owner's participant and index entry."""
+    """Validate-report seeds the case owner's participant and advances to
+    RM.ACCEPTED (creating the case is the act of engaging it).
+    """
     from vultron.core.states.roles import CVDRoles as CVDRole
 
     tree = create_validate_report_tree(
@@ -211,11 +232,12 @@ def test_tree_execution_creates_vendor_participant_and_index(
     assert participant is not None
     assert CVDRole.VENDOR in participant.case_roles
     assert participant.participant_statuses
-    assert participant.participant_statuses[-1].rm_state == RM.VALID
+    # Vendor RM should have advanced to ACCEPTED (case creation = engagement)
+    assert participant.participant_statuses[-1].rm_state == RM.ACCEPTED
 
 
 def test_tree_execution_early_exit_already_valid(
-    bridge, datalayer, actor_id, report, offer, actor
+    bridge, datalayer, actor_id, report, offer, actor, finder_actor
 ):
     """Tree short-circuits if report already in VALID state."""
     # Arrange: Set report to VALID state in DataLayer
@@ -248,7 +270,7 @@ def test_tree_execution_early_exit_already_valid(
 
 
 def test_tree_execution_invalid_state_transitions_to_valid(
-    bridge, datalayer, actor_id, report, offer, actor
+    bridge, datalayer, actor_id, report, offer, actor, finder_actor
 ):
     """Tree can validate report from INVALID state."""
     # Arrange: Set report to INVALID state in DataLayer (no VALID record present)
@@ -281,7 +303,7 @@ def test_tree_execution_invalid_state_transitions_to_valid(
 
 
 def test_tree_execution_no_prior_status_succeeds(
-    bridge, datalayer, actor_id, report, offer, actor
+    bridge, datalayer, actor_id, report, offer, actor, finder_actor
 ):
     """Tree succeeds even if report has no prior status (new report)."""
     # Arrange: No status set (report has no status tracking yet)
@@ -308,7 +330,7 @@ def test_tree_execution_no_prior_status_succeeds(
 
 
 def test_tree_execution_policy_stubs_always_accept(
-    bridge, datalayer, actor_id, report, offer, actor
+    bridge, datalayer, actor_id, report, offer, actor, finder_actor
 ):
     """Policy nodes (stubs) always return SUCCESS in Phase 1."""
     tree = create_validate_report_tree(
@@ -376,7 +398,7 @@ def test_tree_execution_missing_actor_id_fails(
 
 
 def test_tree_execution_missing_report_fails(
-    bridge, datalayer, actor_id, offer, actor
+    bridge, datalayer, actor_id, offer, actor, finder_actor
 ):
     """Tree fails if report object doesn't exist in DataLayer."""
     # Arrange: Use non-existent report ID
@@ -404,7 +426,7 @@ def test_tree_execution_missing_report_fails(
 
 
 def test_tree_execution_idempotency(
-    bridge, datalayer, actor_id, report, offer, actor
+    bridge, datalayer, actor_id, report, offer, actor, finder_actor
 ):
     """Multiple executions produce same result (idempotent)."""
     tree1 = create_validate_report_tree(
@@ -479,3 +501,129 @@ def test_tree_execution_actor_isolation(
     # Verify: actor_a should have VALID status in DataLayer
     valid_id_a = _report_phase_status_id(actor_a, report.id_, RM.VALID.value)
     assert datalayer.get("ParticipantStatus", valid_id_a) is not None
+
+
+def test_tree_execution_creates_finder_participant(
+    bridge,
+    datalayer,
+    actor_id,
+    report,
+    offer,
+    actor,
+    finder_actor,
+    finder_actor_id,
+):
+    """Validate-report creates a FinderReporter participant for the finder.
+
+    The finder's participant should have FINDER+REPORTER roles and RM.ACCEPTED
+    status, and be indexed in the case's actor_participant_index.
+    """
+    from vultron.core.states.roles import CVDRoles
+
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+    )
+    result = bridge.execute_with_setup(
+        tree=tree,
+        actor_id=actor_id,
+        datalayer=datalayer,
+    )
+    assert result.status == Status.SUCCESS
+
+    cases = datalayer.by_type("VulnerabilityCase")
+    assert cases, "Expected validate-report to create a case"
+    case_id = next(iter(cases))
+    case = datalayer.read(case_id)
+    assert case is not None
+
+    # Finder should be indexed in the case
+    finder_participant_id = case.actor_participant_index.get(finder_actor_id)
+    assert (
+        finder_participant_id is not None
+    ), "Finder actor should be indexed in case.actor_participant_index"
+
+    finder_participant = datalayer.read(finder_participant_id)
+    assert finder_participant is not None
+    assert CVDRoles.FINDER in finder_participant.case_roles
+    assert CVDRoles.REPORTER in finder_participant.case_roles
+    assert finder_participant.participant_statuses
+    assert finder_participant.participant_statuses[-1].rm_state == RM.ACCEPTED
+
+    # The case should have 2 participants: vendor + finder
+    assert len(case.case_participants) == 2
+
+
+def test_tree_execution_initializes_default_embargo(
+    bridge,
+    datalayer,
+    actor_id,
+    report,
+    offer,
+    actor,
+    finder_actor,
+):
+    """Validate-report creates a default embargo and attaches it to the case."""
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+    )
+    result = bridge.execute_with_setup(
+        tree=tree,
+        actor_id=actor_id,
+        datalayer=datalayer,
+    )
+    assert result.status == Status.SUCCESS
+
+    cases = datalayer.by_type("VulnerabilityCase")
+    assert cases, "Expected validate-report to create a case"
+    case_id = next(iter(cases))
+    case = datalayer.read(case_id)
+    assert case is not None
+
+    assert (
+        case.active_embargo is not None
+    ), "Expected case.active_embargo to be set after validate-report"
+
+    embargo = datalayer.read(case.active_embargo)
+    assert embargo is not None
+    assert hasattr(embargo, "end_time"), "Embargo should have an end_time"
+    assert embargo.context == case_id
+
+
+def test_tree_execution_vendor_rm_accepted(
+    bridge,
+    datalayer,
+    actor_id,
+    report,
+    offer,
+    actor,
+    finder_actor,
+):
+    """Validate-report advances vendor RM to ACCEPTED (case creation = engagement)."""
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+    )
+    result = bridge.execute_with_setup(
+        tree=tree,
+        actor_id=actor_id,
+        datalayer=datalayer,
+    )
+    assert result.status == Status.SUCCESS
+
+    cases = datalayer.by_type("VulnerabilityCase")
+    assert cases
+    case_id = next(iter(cases))
+    case = datalayer.read(case_id)
+
+    vendor_participant_id = case.actor_participant_index.get(actor_id)
+    assert vendor_participant_id is not None
+    vendor_participant = datalayer.read(vendor_participant_id)
+    assert vendor_participant is not None
+    assert vendor_participant.participant_statuses
+    # The most-recent status should be RM.ACCEPTED
+    assert vendor_participant.participant_statuses[-1].rm_state == RM.ACCEPTED
+    # And RM.VALID should appear earlier in the history
+    rm_states = [s.rm_state for s in vendor_participant.participant_statuses]
+    assert RM.VALID in rm_states, "RM.VALID should be in the status history"

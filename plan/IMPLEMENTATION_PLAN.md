@@ -32,7 +32,7 @@ All PRIORITY-30 through PRIORITY-200 phases complete.
 tasks tracked under PRIORITY-310 below).
 
 **PRIORITY-310** Address demo feedback — D5-6-LOG, D5-6-STATE, D5-6-STORE,
-D5-6-WORKFLOW (all open); D5-7 pending human sign-off.
+D5-6-WORKFLOW (all ✅); D5-7 pending human sign-off.
 
 ---
 
@@ -363,7 +363,7 @@ section MUST be completed before proceeding to PRIORITY-350 and beyond. D5-7
 
 #### D5-6-WORKFLOW — Automate complete case creation sequence from validate-report
 
-- [ ] **D5-6-WORKFLOW**: Refactor the validate-report BT to execute the
+- [x] **D5-6-WORKFLOW**: Refactor the validate-report BT to execute the
   complete case creation workflow as a single automated sequence (addresses
   D5-6h from `notes/two-actor-feedback.md`). No separate manual trigger
   steps should be required after validate-report. The automated sequence

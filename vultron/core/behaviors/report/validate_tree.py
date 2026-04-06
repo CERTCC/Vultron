@@ -21,20 +21,24 @@ integrating condition, action, and policy nodes from the nodes module.
 
 Per specs/behavior-tree-integration.md BT-06 requirements.
 
-Structure (Phase 1 - Minimal Match to Procedural Handler):
+Structure:
 
     ValidateReportBT (Selector)
-    ├─ CheckRMStateValid                 # Early exit if already valid
+    ├─ CheckRMStateValid                     # Early exit if already valid
     └─ ValidationFlow (Sequence)
-       ├─ CheckRMStateReceivedOrInvalid  # Precondition check
-       ├─ EvaluateReportCredibility      # Policy check (stub)
-       ├─ EvaluateReportValidity         # Policy check (stub)
+       ├─ CheckRMStateReceivedOrInvalid       # Precondition check
+       ├─ EvaluateReportCredibility           # Policy check (stub)
+       ├─ EvaluateReportValidity             # Policy check (stub)
        └─ ValidationActions (Sequence)
-          ├─ TransitionRMtoValid         # Update statuses
-          ├─ CreateCaseNode              # Create case object
-           ├─ CreateInitialVendorParticipant  # Add vendor participant
-           ├─ CreateCaseActivity          # Generate CreateCaseActivity activity
-           └─ UpdateActorOutbox           # Add to outbox
+          ├─ TransitionRMtoValid             # Vendor RM: → VALID
+          ├─ CreateCaseNode                  # Create case + initial case status
+          ├─ InitializeDefaultEmbargoNode   # Create default embargo + announce
+          ├─ CreateInitialVendorParticipant  # Vendor participant (VENDOR,
+          │                                   RM.VALID → ACCEPTED)
+          ├─ CreateFinderParticipantNode     # Finder participant (FINDER+REPORTER,
+          │                                   RM.ACCEPTED) + Add notification
+          ├─ CreateCaseActivity             # Create + queue case-created notice
+          └─ UpdateActorOutbox              # Add CreateCaseActivity to outbox
 
 Phase 1 simplifications:
 - No invalidation fallback (validation always succeeds)
@@ -46,14 +50,17 @@ Future enhancements (Phase 2+):
 - Add InvalidateReport fallback sequence
 - Implement real policy evaluation logic
 - Add information gathering workflow
-- Add message emission nodes
 """
 
 import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes import CreateInitialVendorParticipant
+from vultron.core.behaviors.case.nodes import (
+    CreateFinderParticipantNode,
+    CreateInitialVendorParticipant,
+    InitializeDefaultEmbargoNode,
+)
 from vultron.core.behaviors.report.nodes import (
     CheckRMStateReceivedOrInvalid,
     CheckRMStateValid,
@@ -111,7 +118,13 @@ def create_validate_report_tree(
         children=[
             TransitionRMtoValid(report_id=report_id, offer_id=offer_id),
             CreateCaseNode(report_id=report_id),
-            CreateInitialVendorParticipant(),
+            InitializeDefaultEmbargoNode(),
+            CreateInitialVendorParticipant(
+                report_id=report_id, advance_to_accepted=True
+            ),
+            CreateFinderParticipantNode(
+                report_id=report_id, offer_id=offer_id
+            ),
             CreateCaseActivity(report_id=report_id, offer_id=offer_id),
             UpdateActorOutbox(),
         ],

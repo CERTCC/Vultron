@@ -110,11 +110,25 @@ def mock_datalayer():
         if id_:
             storage[id_] = obj
 
+    def mock_by_type(type_name):
+        if type_name == "Offer":
+            return {
+                "test-offer-456": {
+                    "id_": "test-offer-456",
+                    "type_": "Offer",
+                    "actor": "https://example.org/finder",
+                    "object_": "test-report-123",
+                }
+            }
+        return {}
+
     dl.get.side_effect = mock_get
     dl.read.side_effect = mock_read
     dl.create.side_effect = mock_create
     dl.save.side_effect = mock_save
     dl.update.return_value = None
+    dl.by_type.side_effect = mock_by_type
+    dl.record_outbox_item.return_value = None
 
     return dl
 

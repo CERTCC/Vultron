@@ -434,10 +434,13 @@ class CreateCaseActivity(DataLayerAction):
                 )
                 return Status.FAILURE
 
-            # Read objects for addressee collection
+            # Read objects for addressee collection.
+            # VultronOffer (type_ = "Offer") is not in the AS2 vocabulary so
+            # dl.read() cannot reconstruct it; use by_type() for the raw dict.
             actor = self.datalayer.read(self.actor_id, raise_on_missing=True)
             report = self.datalayer.read(self.report_id, raise_on_missing=True)
-            offer = self.datalayer.read(self.offer_id, raise_on_missing=True)
+            offer_records = self.datalayer.by_type("Offer")
+            offer_data = offer_records.get(self.offer_id)
 
             # Collect addressees (same logic as handler)
             addressees = []
@@ -446,9 +449,7 @@ class CreateCaseActivity(DataLayerAction):
                 if report is not None
                 else None
             )
-            offer_to = (
-                getattr(offer, "to", None) if offer is not None else None
-            )
+            offer_to = offer_data.get("to") if offer_data is not None else None
             for x in [actor, report_attributed_to, offer_to]:
                 if x is None:
                     continue
