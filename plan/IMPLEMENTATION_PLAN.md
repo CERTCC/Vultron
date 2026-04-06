@@ -324,7 +324,7 @@ section MUST be completed before proceeding to PRIORITY-350 and beyond. D5-7
 
 #### D5-6-STATE — Clarify RM state log messages; initialize finder participant at RM.ACCEPTED
 
-- [ ] **D5-6-STATE**: Fix RM state transition log clarity and finder initial
+- [x] **D5-6-STATE**: Fix RM state transition log clarity and finder initial
   state initialization (addresses D5-6c from `notes/two-actor-feedback.md`):
   - Update RM state transition log messages to explicitly identify the actor
     whose state is being recorded (e.g., distinguish "Vendor RM: START →

@@ -119,8 +119,14 @@ class TestReportReceiptPersistsParticipantStatus:
         assert data["context"] == "https://example.org/reports/r-persist-1"
         assert data["attributed_to"] == "https://example.org/users/finder"
 
-    def test_submit_report_persists_participant_status(self):
-        """SubmitReportReceivedUseCase persists a RM.RECEIVED ParticipantStatus."""
+    def test_submit_report_persists_finder_participant_status_as_accepted(
+        self,
+    ):
+        """SubmitReportReceivedUseCase persists a RM.ACCEPTED ParticipantStatus for the finder.
+
+        A finder who submits a report is at RM.ACCEPTED from their perspective
+        (they created and chose to submit the report). Per D5-6-STATE.
+        """
         report = VultronReport(id_="https://example.org/reports/r-persist-2")
         activity = VultronActivity(
             id_="https://example.org/activities/submit-p1",
@@ -141,7 +147,7 @@ class TestReportReceiptPersistsParticipantStatus:
         expected_id = _report_phase_status_id(
             "https://example.org/users/finder",
             "https://example.org/reports/r-persist-2",
-            RM.RECEIVED.value,
+            RM.ACCEPTED.value,
         )
         stored = dl.get("ParticipantStatus", expected_id)
         assert (
@@ -149,9 +155,74 @@ class TestReportReceiptPersistsParticipantStatus:
         ), "Expected a ParticipantStatus record in DataLayer"
         stored_record = cast(dict[str, object], stored)
         data = cast(dict[str, object], stored_record["data_"])
-        assert data["rm_state"] == RM.RECEIVED.value
+        assert data["rm_state"] == RM.ACCEPTED.value
         assert data["context"] == "https://example.org/reports/r-persist-2"
         assert data["attributed_to"] == "https://example.org/users/finder"
+
+    def test_submit_report_does_not_store_received_status_for_finder(self):
+        """SubmitReportReceivedUseCase must NOT create a RM.RECEIVED record for the finder.
+
+        RM.RECEIVED is the vendor's state; RM.ACCEPTED is the finder's state.
+        Per D5-6-STATE.
+        """
+        report = VultronReport(id_="https://example.org/reports/r-no-recv-1")
+        activity = VultronActivity(
+            id_="https://example.org/activities/submit-no-recv-1",
+            type_="Offer",
+            actor="https://example.org/users/finder",
+        )
+        event = SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id="https://example.org/activities/submit-no-recv-1",
+            actor_id="https://example.org/users/finder",
+            object_=report,
+            activity=activity,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        SubmitReportReceivedUseCase(dl, event).execute()
+
+        received_id = _report_phase_status_id(
+            "https://example.org/users/finder",
+            "https://example.org/reports/r-no-recv-1",
+            RM.RECEIVED.value,
+        )
+        stored = dl.get("ParticipantStatus", received_id)
+        assert stored is None, (
+            "SubmitReportReceivedUseCase must not create a RM.RECEIVED record "
+            "for the finder; finder state is RM.ACCEPTED"
+        )
+
+    def test_submit_report_participant_status_is_idempotent(self):
+        """Calling SubmitReportReceivedUseCase twice creates only one ParticipantStatus."""
+        report = VultronReport(id_="https://example.org/reports/r-idem-submit")
+        activity = VultronActivity(
+            id_="https://example.org/activities/submit-idem-1",
+            type_="Offer",
+            actor="https://example.org/users/finder",
+        )
+        event = SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id="https://example.org/activities/submit-idem-1",
+            actor_id="https://example.org/users/finder",
+            object_=report,
+            activity=activity,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        SubmitReportReceivedUseCase(dl, event).execute()
+        SubmitReportReceivedUseCase(dl, event).execute()
+
+        all_statuses = dl.get_all("ParticipantStatus")
+        expected_id = _report_phase_status_id(
+            "https://example.org/users/finder",
+            "https://example.org/reports/r-idem-submit",
+            RM.ACCEPTED.value,
+        )
+        matching = [r for r in all_statuses if r.get("id_") == expected_id]
+        assert (
+            len(matching) == 1
+        ), "Expected exactly one ParticipantStatus after idempotent calls"
 
     def test_create_report_participant_status_is_idempotent(self):
         """Calling CreateReportReceivedUseCase twice creates only one ParticipantStatus."""
@@ -183,3 +254,47 @@ class TestReportReceiptPersistsParticipantStatus:
         assert (
             len(matching) == 1
         ), "Expected exactly one ParticipantStatus after idempotent calls"
+
+
+class TestSubmitReportLogMessages:
+    """Tests that SubmitReportReceivedUseCase emits clear, actor-identified log messages."""
+
+    def test_submit_report_log_identifies_finder_and_accepted_state(
+        self, caplog
+    ):
+        """SubmitReportReceivedUseCase logs 'Finder RM:' and 'ACCEPTED'.
+
+        The log message must unambiguously identify that the finder's state
+        is being recorded (not the local vendor's) and that the state is
+        RM.ACCEPTED. Per D5-6-STATE.
+        """
+        import logging
+
+        report = VultronReport(id_="https://example.org/reports/r-log-1")
+        activity = VultronActivity(
+            id_="https://example.org/activities/submit-log-1",
+            type_="Offer",
+            actor="https://example.org/users/finder",
+        )
+        event = SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id="https://example.org/activities/submit-log-1",
+            actor_id="https://example.org/users/finder",
+            object_=report,
+            activity=activity,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        with caplog.at_level(logging.INFO):
+            SubmitReportReceivedUseCase(dl, event).execute()
+
+        log_text = " ".join(r.message for r in caplog.records)
+        assert (
+            "Finder RM" in log_text
+        ), "Log must identify the actor whose state is changing as 'Finder RM'"
+        assert (
+            "ACCEPTED" in log_text
+        ), "Log must include 'ACCEPTED' to indicate the finder's RM state"
+        assert (
+            "https://example.org/users/finder" in log_text
+        ), "Log must include the finder's actor ID"

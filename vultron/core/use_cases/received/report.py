@@ -123,24 +123,28 @@ class SubmitReportReceivedUseCase:
                 )
 
         if request.report_id:
-            status = VultronParticipantStatus(
+            # A finder who submits a report is at RM.ACCEPTED from their own
+            # perspective (they created and chose to submit it). Initialising
+            # the finder's status here makes the finder's state visible from
+            # the very first log entry (D5-6-STATE).
+            finder_status = VultronParticipantStatus(
                 id_=_report_phase_status_id(
-                    request.actor_id, request.report_id, RM.RECEIVED.value
+                    request.actor_id, request.report_id, RM.ACCEPTED.value
                 ),
                 context=request.report_id,
                 attributed_to=request.actor_id,
-                rm_state=RM.RECEIVED,
+                rm_state=RM.ACCEPTED,
             )
             _idempotent_create(
                 self._dl,
                 "ParticipantStatus",
-                status.id_,
-                status,
-                "ParticipantStatus (report-phase RM.RECEIVED)",
+                finder_status.id_,
+                finder_status,
+                "ParticipantStatus (report-phase RM.ACCEPTED) for finder",
                 request.activity_id,
             )
             logger.info(
-                "RM START → RECEIVED for report '%s' (actor '%s')",
+                "Finder RM: START → ACCEPTED for report '%s' (finder: '%s')",
                 request.report_id,
                 request.actor_id,
             )
