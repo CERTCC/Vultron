@@ -280,6 +280,13 @@ are blocked by all G tasks.
   `integration-test-three-actor`, and `integration-test-multi-vendor` Makefile
   targets. Updated `integration_tests/README.md` and `docker/README.md` with
   usage notes. Completed 2026-04-01.
+- [ ] **D5-6**: Address all feedback received. This task should be augmented
+  or replaced by more specific follow-up tasks as needed to track and
+  address all identified feedback on the multi-actor demos and their
+  implementation.
+- [ ] **D5-7**: Project owner sign off. Agents are forbidden from updating
+  this task, a human must confirm that all feedback has been addressed prior
+  to completion.
 
 ---
 

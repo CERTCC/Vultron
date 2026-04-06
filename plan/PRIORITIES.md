@@ -77,7 +77,13 @@ via the Vultron Protocol, with CaseActor managing case state.
 
 See `notes/demo-future-ideas.md` for the full scenario descriptions.
 
-D5-1, D5-2, D5-3, D5-4, D5-5.
+Specific tasks include (but not limited to): D5-1, D5-2, D5-3, D5-4, D5-5.
+
+## Priority 310: Address feedback on demos
+
+This is a placeholder priority for addressing feedback on the multi-actor
+demo scenarios and their implementation. We should not proceed with
+priorities beyond this until we have completed all known feedback.
 
 ## Priority 350: Update python version and other maintenance tasks
 
