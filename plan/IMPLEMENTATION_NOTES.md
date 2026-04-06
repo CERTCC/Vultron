@@ -239,3 +239,52 @@ and verify the summary line shows no failures and no "warnings" count. Also
 inspect the output for "ResourceWarning" or "Exception ignored in:" messages,
 which signal unclosed resources that should be filed as bugs if not already
 tracked.
+
+---
+
+## 2026-04-06 Priority 310 feedback tasks
+
+Reviewer feedback from a live run of the two-actor multi-container demo is
+captured in `notes/two-actor-feedback.md` (items D5-6a through D5-6h). These
+have been converted into four plan tasks in the new PRIORITY-310 section of
+`plan/IMPLEMENTATION_PLAN.md`:
+
+- **D5-6-LOG**: Log quality and completeness across finder/vendor containers
+  (D5-6a, b, e, f, g).
+- **D5-6-STATE**: RM state log clarity + initialize finder `CaseParticipant`
+  at `RM.ACCEPTED` on report receipt (D5-6c).
+- **D5-6-STORE**: Verify/fix datalayer stores nested object ID references, not
+  full copies (D5-6d).
+- **D5-6-WORKFLOW**: Validate-report BT executes the complete case creation
+  sequence automatically — no separate engage-case or invite-finder steps
+  needed (D5-6h).
+
+### Open question: finder participant lifecycle (D5-6-STATE)
+
+When the vendor receives a finder's `OfferReport`, should a `CaseParticipant`
+record for the finder be created immediately (before a `VulnerabilityCase`
+exists), or deferred until case creation? Current behavior defers finder
+participant creation until `engage-case`. The D5-6-STATE task implies the
+finder's RM state (`RM.ACCEPTED`) should be tracked from the moment the
+report is received, even before a case exists. This may require a pre-case
+participant status record, or a revision to the `CaseParticipant` lifecycle
+so that it is always created at report receipt and retroactively attached to
+the case during case creation.
+
+### Open question: vendor default embargo for D5-6-WORKFLOW
+
+D5-6h requires the vendor default embargo to be initialized as part of case
+creation. The relevant docs and specs (`docs/topics/process_models/em/defaults.md`,
+`docs/topics/process_models/model_interactions/rm_em.md`, VP-13-*) exist, but
+the vendor-default-embargo initialization may not be fully implemented yet.
+The D5-6-WORKFLOW task should verify spec coverage and existing implementation
+before coding begins.
+
+### Risk: D5-6-STORE and nested Pydantic serialization
+
+The datalayer storage investigation should check whether the current `dl.save()`
+path for activities preserves or expands nested Pydantic objects at
+serialization time. The `AGENTS.md` pitfall note on `VulnerabilityCase.case_activity`
+shows that enum coverage failures cause fallback to raw `Document` objects;
+similar issues may affect activity serialization and should be checked as part
+of D5-6-STORE.

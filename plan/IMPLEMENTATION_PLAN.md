@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-04-01 (refresh #66: D5-5 complete)
+**Last Updated**: 2026-04-06 (refresh #67: Priority 310 feedback tasks added)
 
 ## Overview
 
@@ -28,7 +28,11 @@ All PRIORITY-30 through PRIORITY-200 phases complete.
   BUG-FLAKY-1, REORG-1, SECOPS-1, DOCMAINT-1, SPEC-AUDIT-1, SPEC-AUDIT-2,
   SPEC-AUDIT-3
 
-**PRIORITY-300** (multi-actor demos; D5-1 through D5-5 complete).
+**PRIORITY-300** (multi-actor demos; D5-1 through D5-5 complete; D5-6 feedback
+tasks tracked under PRIORITY-310 below).
+
+**PRIORITY-310** Address demo feedback — D5-6-LOG, D5-6-STATE, D5-6-STORE,
+D5-6-WORKFLOW (all open); D5-7 pending human sign-off.
 
 ---
 
@@ -280,13 +284,116 @@ are blocked by all G tasks.
   `integration-test-three-actor`, and `integration-test-multi-vendor` Makefile
   targets. Updated `integration_tests/README.md` and `docker/README.md` with
   usage notes. Completed 2026-04-01.
-- [ ] **D5-6**: Address all feedback received. This task should be augmented
-  or replaced by more specific follow-up tasks as needed to track and
-  address all identified feedback on the multi-actor demos and their
-  implementation.
+- [x] **D5-6**: Expanded into specific follow-up tasks D5-6-LOG, D5-6-STATE,
+  D5-6-STORE, and D5-6-WORKFLOW in Phase PRIORITY-310 below, derived from
+  reviewer feedback captured in `notes/two-actor-feedback.md`. See
+  PRIORITY-310 section.
+
+---
+
+### Phase PRIORITY-310 — Address Demo Feedback (PRIORITY 310)
+
+**Reference**: `plan/PRIORITIES.md` PRIORITY 310, `notes/two-actor-feedback.md`
+
+Reviewer feedback on the two-actor multi-container demo is captured in
+`notes/two-actor-feedback.md` (items D5-6a through D5-6h). All tasks in this
+section MUST be completed before proceeding to PRIORITY-350 and beyond. D5-7
+(project owner sign-off) is the final gate for this phase.
+
+#### D5-6-LOG — Improve process-flow logging across demo containers
+
+- [ ] **D5-6-LOG**: Improve INFO-level logging so that container logs tell a
+  coherent process-flow story (addresses D5-6a, D5-6b, D5-6e, D5-6f, D5-6g
+  from `notes/two-actor-feedback.md`):
+  - Add INFO log entries to the finder actor for outgoing activity creation
+    (creating a `VulnerabilityReport`, sending the `OfferReport` to vendor)
+    so finder actions are visible in the combined container log (D5-6a).
+  - Format "Parsing activity from request body" log entries as multiline
+    indented JSON rather than a single long line (D5-6b).
+  - Add INFO-level logs throughout vendor BT sequences: each RM state
+    transition (e.g., RECEIVED → VALID), each step of case creation (create
+    case record, create case status, initialize embargo), so the BT execution
+    sequence is visible in logs (D5-6e).
+  - Add INFO-level logs for each participant record action: participant
+    created, participant status record created (include role and status
+    values), and participant record attached to case (D5-6f).
+  - Verify that INFO-level logs across all demo containers, read in combined
+    order, allow an observer to follow the full process flow and confirm
+    expected behaviors (D5-6g general principle).
+  - Add/update tests to cover the new log entries using `caplog`.
+
+#### D5-6-STATE — Clarify RM state log messages; initialize finder participant at RM.ACCEPTED
+
+- [ ] **D5-6-STATE**: Fix RM state transition log clarity and finder initial
+  state initialization (addresses D5-6c from `notes/two-actor-feedback.md`):
+  - Update RM state transition log messages to explicitly identify the actor
+    whose state is being recorded (e.g., distinguish "Vendor RM: START →
+    RECEIVED" from "Finder RM: [state]") so the log is unambiguous about
+    which participant's state is changing.
+  - When vendor receives a submitted report, create a `CaseParticipant`
+    status record for the finder initialized to `RM.ACCEPTED` (since a
+    finder must be at `RM.ACCEPTED` to have submitted a report at all);
+    log this initialization so the finder's state is visible from the very
+    first entry.
+  - Update tests to verify finder participant state is initialized to
+    `RM.ACCEPTED` at report receipt and that log messages identify the
+    correct actor for each state transition.
+
+#### D5-6-STORE — Verify and fix datalayer reference storage for nested activity objects
+
+- [ ] **D5-6-STORE**: Investigate and ensure datalayer stores nested objects
+  by reference, not as full copies (addresses D5-6d from
+  `notes/two-actor-feedback.md`):
+  - Inspect how the TinyDB adapter serializes activities that contain nested
+    objects (e.g., `OfferReport` containing a `VulnerabilityReport`).
+    Determine whether the nested object is stored as a full copy or as an
+    ID reference.
+  - If stored as full copies: fix serialization so the outer activity stores
+    only the nested object's ID string, and the nested object is persisted
+    separately. Update relevant use-case code that constructs these
+    activities.
+  - If stored as references: update demo-runner log messages to clarify that
+    the displayed object is a rehydrated view for logging purposes, and that
+    the datalayer contains only a reference to the nested object.
+  - Add datalayer tests confirming that transitive activities are stored with
+    ID references (not inline objects) and that rehydrated versions can be
+    generated on demand without mutating the stored record.
+  - This fix generalizes to all demo-runner checks that verify transitive
+    activities in the datalayer.
+
+#### D5-6-WORKFLOW — Automate complete case creation sequence from validate-report
+
+- [ ] **D5-6-WORKFLOW**: Refactor the validate-report BT to execute the
+  complete case creation workflow as a single automated sequence (addresses
+  D5-6h from `notes/two-actor-feedback.md`). No separate manual trigger
+  steps should be required after validate-report. The automated sequence
+  MUST:
+  1. Create the case record.
+  2. Create and attach an initial case status record (log the state values).
+  3. Initialize an embargo from the vendor default policy (see
+     `docs/topics/process_models/em/defaults.md` and
+     `docs/topics/process_models/model_interactions/rm_em.md`; spec VP-13-*).
+  4. Create the vendor `CaseParticipant` with vendor + case-owner roles;
+     attach prior vendor RM status history; attach to case; log role and
+     status.
+  5. Create the finder `CaseParticipant` with reporter + finder roles;
+     attach prior finder RM status history; attach to case; log role and
+     status.
+  6. Update case status if any state changes occurred after initial creation.
+  7. Emit messages to finder: (a) case created notification, (b) finder
+     added as participant with reporter role and current status, (c) initial
+     embargo announced. (Finder's tacit embargo acceptance is implied by the
+     act of report submission per spec VP-13-*.)
+  - Add/update tests covering the complete automated workflow end-to-end.
+  - Verify that the two-actor demo log shows all the above steps occurring
+    as part of a single validate-report trigger call with no additional
+    manual steps.
+
+#### D5-7 — Project owner sign-off on demo feedback resolution
+
 - [ ] **D5-7**: Project owner sign off. Agents are forbidden from updating
-  this task, a human must confirm that all feedback has been addressed prior
-  to completion.
+  this task; a human must confirm that all D5-6-* feedback tasks have been
+  addressed and the demo meets quality standards prior to completion.
 
 ---
 
