@@ -74,17 +74,30 @@ class CheckCaseAlreadyExists(DataLayerCondition):
 
         try:
             existing = self.datalayer.read(self.case_id)
-            if existing is not None:
-                self.logger.info(
-                    f"{self.name}: Case {self.case_id} already exists"
-                    " — skipping creation (idempotent)"
+            if existing is None:
+                self.logger.debug(
+                    f"{self.name}: Case {self.case_id} not found, proceeding"
                 )
-                return Status.SUCCESS
+                return Status.FAILURE
 
-            self.logger.debug(
-                f"{self.name}: Case {self.case_id} not found, proceeding"
+            # A case record that exists but has no participants was
+            # pre-stored by the inbox endpoint as a dehydrated reference.
+            # It still needs full initialisation (participant creation,
+            # CaseActor setup, etc.), so return FAILURE to let the
+            # CreateCaseFlow run.
+            participants = getattr(existing, "case_participants", None) or []
+            if not participants:
+                self.logger.debug(
+                    f"{self.name}: Case {self.case_id} exists but has no"
+                    " participants — proceeding with initialisation"
+                )
+                return Status.FAILURE
+
+            self.logger.info(
+                f"{self.name}: Case {self.case_id} already exists"
+                " — skipping creation (idempotent)"
             )
-            return Status.FAILURE
+            return Status.SUCCESS
 
         except Exception as e:
             self.logger.error(

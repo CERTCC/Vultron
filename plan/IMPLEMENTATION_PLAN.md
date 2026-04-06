@@ -341,7 +341,7 @@ section MUST be completed before proceeding to PRIORITY-350 and beyond. D5-7
 
 #### D5-6-STORE — Verify and fix datalayer reference storage for nested activity objects
 
-- [ ] **D5-6-STORE**: Investigate and ensure datalayer stores nested objects
+- [x] **D5-6-STORE**: Investigate and ensure datalayer stores nested objects
   by reference, not as full copies (addresses D5-6d from
   `notes/two-actor-feedback.md`):
   - Inspect how the TinyDB adapter serializes activities that contain nested

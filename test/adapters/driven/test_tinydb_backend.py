@@ -254,3 +254,159 @@ def test_exists_returns_false_after_delete(dl, record_factory):
     dl.create(record)
     dl.delete(record.type_, record.id_)
     assert not dl.exists(record.type_, record.id_)
+
+
+# --- Nested-object dehydration integration tests ---
+
+
+def test_activity_with_nested_object_stores_id_reference_not_inline_copy(dl):
+    """Storing an activity with a nested object writes only the nested ID."""
+    from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        VulnerabilityReport,
+    )
+
+    report = VulnerabilityReport(
+        name="Test CVE",
+        content="A critical vulnerability",
+        attributed_to="https://example.org/finder",
+    )
+    offer = RmSubmitReportActivity(
+        actor="https://example.org/finder",
+        object_=report,
+    )
+
+    # Store both objects (as use-cases do: nested object first)
+    dl.create(report)
+    dl.create(offer)
+
+    # Read the raw stored record for the offer
+    raw = dl.get(offer.type_, offer.id_)
+    assert raw is not None
+    # raw is a dict because get() can't fully reconstruct transitive type
+    stored_object_field = raw["data_"]["object_"]
+
+    # Must be a string ID, not a full dict
+    assert isinstance(
+        stored_object_field, str
+    ), f"Expected object_ to be stored as ID string, got {type(stored_object_field)}"
+    assert stored_object_field == report.id_
+
+
+def test_activity_nested_object_retrievable_separately_after_dehydration(dl):
+    """The nested object is individually accessible from the datalayer."""
+    from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        VulnerabilityReport,
+    )
+
+    report = VulnerabilityReport(
+        name="Test CVE 2",
+        content="Another vulnerability",
+        attributed_to="https://example.org/finder",
+    )
+    offer = RmSubmitReportActivity(
+        actor="https://example.org/finder",
+        object_=report,
+    )
+
+    dl.create(report)
+    dl.create(offer)
+
+    # The nested report must be directly retrievable by its own ID
+    retrieved_report = dl.read(report.id_)
+    assert retrieved_report is not None
+    assert retrieved_report.id_ == report.id_  # type: ignore[union-attr]
+
+
+def test_reading_activity_back_yields_id_string_for_nested_object(dl):
+    """dl.read() returns the activity with object_ as an ID string."""
+    from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        VulnerabilityReport,
+    )
+
+    report = VulnerabilityReport(
+        name="Test CVE 3",
+        content="Yet another vulnerability",
+        attributed_to="https://example.org/finder",
+    )
+    offer = RmSubmitReportActivity(
+        actor="https://example.org/finder",
+        object_=report,
+    )
+
+    dl.create(report)
+    dl.create(offer)
+
+    # Read the offer back from the datalayer
+    retrieved_offer = dl.read(offer.id_)
+    assert retrieved_offer is not None
+    # object_ should be a string ID (not rehydrated inline)
+    assert retrieved_offer.object_ == report.id_  # type: ignore[union-attr]
+
+
+def test_rehydration_restores_nested_object_from_datalayer(dl):
+    """rehydrate() restores the full nested object for a dehydrated activity."""
+    from vultron.wire.as2.rehydration import rehydrate
+    from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        VulnerabilityReport,
+    )
+
+    report = VulnerabilityReport(
+        name="Test CVE 4",
+        content="One more vulnerability",
+        attributed_to="https://example.org/finder",
+    )
+    offer = RmSubmitReportActivity(
+        actor="https://example.org/finder",
+        object_=report,
+    )
+
+    dl.create(report)
+    dl.create(offer)
+
+    # Read the dehydrated offer
+    stored_offer = dl.read(offer.id_)
+    assert stored_offer is not None
+
+    # Rehydrate: object_ should be resolved to the full VulnerabilityReport
+    full_offer = rehydrate(stored_offer, dl=dl)
+    assert full_offer.object_ is not None  # type: ignore[union-attr]
+    assert full_offer.object_.id_ == report.id_  # type: ignore[union-attr]
+    assert full_offer.object_.type_ == "VulnerabilityReport"  # type: ignore[union-attr]
+
+
+def test_rehydration_does_not_mutate_stored_record(dl):
+    """Rehydrating an activity does not alter the stored record's nested ID."""
+    from vultron.wire.as2.rehydration import rehydrate
+    from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        VulnerabilityReport,
+    )
+
+    report = VulnerabilityReport(
+        name="Test CVE 5",
+        content="Final vulnerability",
+        attributed_to="https://example.org/finder",
+    )
+    offer = RmSubmitReportActivity(
+        actor="https://example.org/finder",
+        object_=report,
+    )
+
+    dl.create(report)
+    dl.create(offer)
+
+    # Rehydrate once
+    stored_offer = dl.read(offer.id_)
+    assert stored_offer is not None
+    rehydrate(stored_offer, dl=dl)
+
+    # Read the offer back again; the stored record must still show an ID string
+    raw = dl.get(offer.type_, offer.id_)
+    assert raw is not None
+    stored_object_field = raw["data_"]["object_"]
+    assert isinstance(stored_object_field, str)
+    assert stored_object_field == report.id_

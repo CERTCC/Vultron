@@ -414,6 +414,26 @@ def post_actor_inbox(
             )
             return None
 
+    # Store any inline nested object (e.g. VulnerabilityReport in an Offer)
+    # in the DataLayer BEFORE storing the activity itself.  The dehydration
+    # step in ``object_to_record`` replaces the inline object with its ID
+    # string; the separate record ensures the inbox handler can later resolve
+    # that reference via ``rehydrate()``.
+    nested_obj = getattr(activity, "object_", None)
+    if nested_obj is not None and not isinstance(nested_obj, str):
+        nested = nested_obj
+        if (
+            nested is not None
+            and hasattr(nested, "id_")
+            and hasattr(nested, "type_")
+            and nested.type_ is not None
+            and not nested.type_.startswith("as_")
+        ):
+            try:
+                dl.create(object_to_record(cast(PersistableModel, nested)))
+            except ValueError:
+                pass  # already exists — idempotent
+
     # Store activity in the SHARED DataLayer so cross-actor lookups work.
     # (Operational data must be accessible to all actors' use cases and
     # rehydration; actor-scoped DL is used only for queue management.)

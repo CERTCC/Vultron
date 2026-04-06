@@ -287,9 +287,11 @@ def post_to_trigger(
 def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
     """Fetch an object from the DataLayer by ID and verify it is present.
 
-    Logs the raw stored dict so all fields (including ``object``, ``actor``,
-    and other activity fields that are dropped when reconstructing as a plain
-    ``as_Object``) are visible in the output.
+    Logs the stored representation so all fields are visible. Nested objects
+    are stored as ID-string references (not inline copies); the log therefore
+    shows ID strings for nested fields such as ``object_``, ``target``, etc.
+    To inspect a nested object, call ``verify_object_stored`` again with the
+    nested object's own ID.
 
     Returns:
         The retrieved ``as_Object``.
@@ -310,7 +312,7 @@ def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
     obj = client.get(f"/datalayer/{obj_id}")
     filtered = _drop_nulls(obj)
     logger.info(
-        "Verified object stored: %s",
+        "Stored record (nested objects shown as ID references): %s",
         json.dumps(filtered, indent=2, default=str),
     )
     return as_Object(**obj)
