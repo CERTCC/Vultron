@@ -69,6 +69,18 @@ class CloseReportTriggerRequest(OfferTriggerRequest):
     pass
 
 
+class SubmitReportTriggerRequest(TriggerRequest):
+    """Trigger request for a finder to create and offer a vulnerability report.
+
+    Creates a ``VulnerabilityReport`` in the actor's DataLayer and queues an
+    ``RmSubmitReportActivity`` offer to the specified recipient.
+    """
+
+    report_name: NonEmptyString
+    report_content: NonEmptyString
+    recipient_id: UriString
+
+
 class EngageCaseTriggerRequest(CaseTriggerRequest):
     pass
 

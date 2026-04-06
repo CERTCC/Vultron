@@ -26,12 +26,14 @@ from vultron.adapters.driving.fastapi._trigger_adapter import (
     close_report_trigger,
     invalidate_report_trigger,
     reject_report_trigger,
+    submit_report_trigger,
     validate_report_trigger,
 )
 from vultron.adapters.driving.fastapi.trigger_models import (
     CloseReportRequest,
     InvalidateReportRequest,
     RejectReportRequest,
+    SubmitReportRequest,
     ValidateReportRequest,
 )
 from vultron.core.ports.datalayer import DataLayer
@@ -163,3 +165,30 @@ def trigger_close_report(
         TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
     return close_report_trigger(actor_id, body.offer_id, body.note, dl)
+
+
+@router.post(
+    "/{actor_id}/trigger/submit-report",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Create and offer a vulnerability report.",
+    description=(
+        "Creates a VulnerabilityReport in the actor's DataLayer and queues an "
+        "RmSubmitReportActivity (Offer) to the specified recipient. "
+        "Returns the serialised offer so the caller can deliver it to the "
+        "recipient's inbox."
+    ),
+    operation_id="actors_trigger_submit_report",
+)
+def trigger_submit_report(
+    actor_id: str,
+    body: SubmitReportRequest,
+    dl: DataLayer = Depends(_actor_dl),
+) -> dict:
+    """Create a VulnerabilityReport and offer it to a recipient."""
+    return submit_report_trigger(
+        actor_id,
+        body.report_name,
+        body.report_content,
+        body.recipient_id,
+        dl,
+    )

@@ -690,3 +690,105 @@ def test_trigger_close_report_non_report_offer_returns_422(
         json={"offer_id": non_report_object.id_},
     )
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+# ===========================================================================
+# Tests for trigger/submit-report
+# ===========================================================================
+
+
+def test_trigger_submit_report_returns_202(client_triggers, actor):
+    """TB-04-001: submit-report trigger returns 202 with offer payload."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/submit-report",
+        json={
+            "report_name": "Remote Code Execution in Widget",
+            "report_content": "A critical RCE vulnerability was found.",
+            "recipient_id": "https://example.org/actors/vendor",
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    body = resp.json()
+    assert "offer" in body
+    assert body["offer"]["type"] == "Offer"
+
+
+def test_trigger_submit_report_creates_report_in_datalayer(
+    client_triggers, actor, dl
+):
+    """submit-report trigger persists a VulnerabilityReport in the DataLayer."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/submit-report",
+        json={
+            "report_name": "Stored XSS in Dashboard",
+            "report_content": "An attacker can inject scripts via the search box.",
+            "recipient_id": "https://example.org/actors/vendor",
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    offer_id = resp.json()["offer"]["id"]
+
+    # The offer should be fetchable from the DataLayer.
+    stored_offer = dl.read(offer_id)
+    assert stored_offer is not None
+
+
+def test_trigger_submit_report_creates_offer_in_outbox(
+    client_triggers, actor, dl
+):
+    """TB-07-001: submit-report adds the offer to the actor's outbox."""
+    actor_before = dl.read(actor.id_)
+    outbox_before = set(
+        item for item in actor_before.outbox.items if isinstance(item, str)
+    )
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/submit-report",
+        json={
+            "report_name": "SQL Injection",
+            "report_content": "A SQL injection was found in the login form.",
+            "recipient_id": "https://example.org/actors/vendor",
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+    actor_after = dl.read(actor.id_)
+    outbox_after = set(
+        item for item in actor_after.outbox.items if isinstance(item, str)
+    )
+    assert len(outbox_after - outbox_before) >= 1
+
+
+def test_trigger_submit_report_missing_field_returns_422(
+    client_triggers, actor
+):
+    """submit-report rejects a body missing required fields."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/submit-report",
+        json={
+            "report_name": "Missing content",
+            # report_content and recipient_id are missing
+        },
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_submit_report_logs_report_and_offer(
+    client_triggers, actor, caplog
+):
+    """submit-report trigger emits INFO logs for report creation and offer."""
+    import logging
+
+    with caplog.at_level(logging.INFO, logger="vultron"):
+        client_triggers.post(
+            f"/actors/{actor.id_}/trigger/submit-report",
+            json={
+                "report_name": "Heap Buffer Overflow",
+                "report_content": "Heap buffer overflow in network parser.",
+                "recipient_id": "https://example.org/actors/vendor",
+            },
+        )
+
+    messages = [r.message for r in caplog.records]
+    assert any("Created VulnerabilityReport" in m for m in messages)
+    assert any("Offering report" in m for m in messages)

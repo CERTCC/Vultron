@@ -49,6 +49,7 @@ from vultron.core.use_cases.triggers.requests import (
     CloseReportTriggerRequest,
     InvalidateReportTriggerRequest,
     RejectReportTriggerRequest,
+    SubmitReportTriggerRequest,
     ValidateReportTriggerRequest,
 )
 from vultron.errors import (
@@ -59,6 +60,10 @@ from vultron.errors import (
 from vultron.wire.as2.vocab.activities.report import (
     RmCloseReportActivity,
     RmInvalidateReportActivity,
+    RmSubmitReportActivity,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
 )
 
 logger = logging.getLogger(__name__)
@@ -345,3 +350,66 @@ class SvcCloseReportUseCase:
 
         activity = close_activity.model_dump(by_alias=True, exclude_none=True)
         return {"activity": activity}
+
+
+class SvcSubmitReportUseCase:
+    """Create a VulnerabilityReport and offer it to a recipient.
+
+    Stores the report and an RmSubmitReportActivity in the actor's DataLayer,
+    queues the offer in the actor's outbox, and returns the serialised offer so
+    the caller can deliver it (e.g. POST to the recipient's inbox).
+    """
+
+    def __init__(
+        self, dl: DataLayer, request: SubmitReportTriggerRequest
+    ) -> None:
+        self._dl = dl
+        self._request = request
+
+    def execute(self) -> dict:
+        request = self._request
+        dl = self._dl
+
+        actor = resolve_actor(request.actor_id, dl)
+        actor_id = actor.id_
+
+        report = VulnerabilityReport(
+            name=request.report_name,
+            content=request.report_content,
+            attributed_to=actor_id,
+        )
+        try:
+            dl.create(report)
+        except ValueError:
+            logger.warning(
+                "VulnerabilityReport '%s' already exists", report.id_
+            )
+
+        logger.info(
+            "Created VulnerabilityReport '%s' (id: '%s')",
+            request.report_name,
+            report.id_,
+        )
+
+        offer = RmSubmitReportActivity(
+            actor=actor_id,
+            object_=report,
+            to=[request.recipient_id],
+        )
+        try:
+            dl.create(offer)
+        except ValueError:
+            logger.warning(
+                "RmSubmitReportActivity '%s' already exists", offer.id_
+            )
+
+        logger.info(
+            "Offering report '%s' to '%s' (offer: '%s')",
+            report.id_,
+            request.recipient_id,
+            offer.id_,
+        )
+
+        add_activity_to_outbox(actor_id, offer.id_, dl)
+
+        return {"offer": offer.model_dump(by_alias=True, exclude_none=True)}

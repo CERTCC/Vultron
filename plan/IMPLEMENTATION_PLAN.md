@@ -302,7 +302,7 @@ section MUST be completed before proceeding to PRIORITY-350 and beyond. D5-7
 
 #### D5-6-LOG — Improve process-flow logging across demo containers
 
-- [ ] **D5-6-LOG**: Improve INFO-level logging so that container logs tell a
+- [x] **D5-6-LOG**: Improve INFO-level logging so that container logs tell a
   coherent process-flow story (addresses D5-6a, D5-6b, D5-6e, D5-6f, D5-6g
   from `notes/two-actor-feedback.md`):
   - Add INFO log entries to the finder actor for outgoing activity creation

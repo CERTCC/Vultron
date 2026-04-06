@@ -218,7 +218,9 @@ class TransitionRMtoValid(DataLayerAction):
                 "ParticipantStatus (report-phase RM.VALID)",
             )
             self.logger.info(
-                f"{self.name}: Set report {self.report_id} to VALID (actor {self.actor_id})"
+                "RM → VALID for report '%s' (actor '%s')",
+                self.report_id,
+                self.actor_id,
             )
 
             return Status.SUCCESS
@@ -284,7 +286,9 @@ class TransitionRMtoInvalid(DataLayerAction):
                 "ParticipantStatus (report-phase RM.INVALID)",
             )
             self.logger.info(
-                f"{self.name}: Set report {self.report_id} to INVALID (actor {self.actor_id})"
+                "RM → INVALID for report '%s' (actor '%s')",
+                self.report_id,
+                self.actor_id,
             )
 
             return Status.SUCCESS

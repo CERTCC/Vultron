@@ -41,6 +41,7 @@ from vultron.core.use_cases.triggers.report import (
     SvcCloseReportUseCase,
     SvcInvalidateReportUseCase,
     SvcRejectReportUseCase,
+    SvcSubmitReportUseCase,
     SvcValidateReportUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
@@ -51,6 +52,7 @@ from vultron.core.use_cases.triggers.requests import (
     InvalidateReportTriggerRequest,
     ProposeEmbargoTriggerRequest,
     RejectReportTriggerRequest,
+    SubmitReportTriggerRequest,
     TerminateEmbargoTriggerRequest,
     ValidateReportTriggerRequest,
 )
@@ -145,3 +147,20 @@ def terminate_embargo_trigger(
             actor_id=actor_id, case_id=case_id
         )
         return SvcTerminateEmbargoUseCase(dl, request).execute()
+
+
+def submit_report_trigger(
+    actor_id: str,
+    report_name: str,
+    report_content: str,
+    recipient_id: str,
+    dl: DataLayer,
+) -> dict:
+    with domain_error_translation():
+        request = SubmitReportTriggerRequest(
+            actor_id=actor_id,
+            report_name=report_name,
+            report_content=report_content,
+            recipient_id=recipient_id,
+        )
+        return SvcSubmitReportUseCase(dl, request).execute()

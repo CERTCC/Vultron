@@ -368,10 +368,22 @@ class CreateInitialVendorParticipant(DataLayerAction):
             )
             if self.datalayer.read(participant.id_) is None:
                 self.datalayer.create(participant)
+                roles_str = ", ".join(
+                    str(r.value) if hasattr(r, "value") else str(r)
+                    for r in participant.case_roles
+                )
                 self.logger.info(
-                    f"{self.name}: Created VendorParticipant"
-                    f" {participant.id_} for actor {self.actor_id}"
-                    f" (rm_state=RM.VALID)"
+                    "Created CaseParticipant '%s' for actor '%s'"
+                    " (roles: [%s], rm_state: RM.VALID)",
+                    participant.id_,
+                    self.actor_id,
+                    roles_str,
+                )
+                self.logger.info(
+                    "CaseParticipant status record created"
+                    " (role: %s, rm_state: RM.VALID) for actor '%s'",
+                    roles_str,
+                    self.actor_id,
                 )
             else:
                 self.logger.debug(
@@ -401,8 +413,9 @@ class CreateInitialVendorParticipant(DataLayerAction):
                 )
             self.datalayer.save(stored_case)
             self.logger.info(
-                f"{self.name}: Ensured VendorParticipant {participant.id_}"
-                f" is linked to case {stored_case.id_}"
+                "CaseParticipant '%s' attached to case '%s'",
+                participant.id_,
+                stored_case.id_,
             )
 
             return Status.SUCCESS

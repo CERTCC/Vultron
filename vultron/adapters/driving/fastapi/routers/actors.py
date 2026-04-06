@@ -16,6 +16,7 @@ Vultron API Routers
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import json
 import logging
 from typing import Any, Literal, cast
 
@@ -335,7 +336,11 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
         HTTPException: 400 if the `type` field is missing; 422 for all other
             parse failures (unknown type, validation error).
     """
-    logger.info(f"Parsing activity from request body. {body}")
+    logger.info(
+        "Parsing activity from request body (type=%r):\n%s",
+        body.get("type"),
+        json.dumps(body, indent=2, default=str),
+    )
     try:
         return _parse_activity(body)
     except VultronParseMissingTypeError as exc:

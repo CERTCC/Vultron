@@ -246,37 +246,95 @@ def finder_submits_report(
     vendor_client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
+    finder_client: Optional[DataLayerClient] = None,
 ) -> Tuple[VulnerabilityReport, RmSubmitReportActivity]:
     """Finder creates a vulnerability report and submits it to the Vendor's inbox.
 
-    The activity is POSTed directly to the Vendor container's inbox endpoint
-    (simulating cross-container delivery; in production the Finder's outbox
-    handler would deliver this via HTTP to the Vendor's inbox URL).
+    When ``finder_client`` is provided (e.g. in a multi-container Docker demo),
+    the report and offer are created via the Finder container's
+    ``submit-report`` trigger endpoint so that Finder container logs tell the
+    full process-flow story (D5-6a).  The resulting offer is then delivered to
+    the Vendor container's inbox.
+
+    When ``finder_client`` is ``None`` (e.g. single-container integration
+    tests), the report and offer are constructed in memory and posted directly
+    to the Vendor container (backward-compatible path).
 
     Args:
         vendor_client: Client connected to the Vendor container.
         finder: Finder ``as_Actor``.
         vendor: Vendor ``as_Actor``.
+        finder_client: Optional client connected to the Finder container.
+            When provided, the submit-report trigger is called on the Finder
+            container; when absent the legacy in-memory path is used.
 
     Returns:
         Tuple of ``(report, offer)``.
     """
-    report = VulnerabilityReport(
-        attributed_to=finder.id_,
-        name="Remote Code Execution in Network Stack",
-        content=(
+    if finder_client is not None:
+        report_name = "Remote Code Execution in Network Stack"
+        report_content = (
             "A critical remote code execution vulnerability was discovered "
             "in the network stack component. An attacker can exploit this "
             "issue to execute arbitrary code with elevated privileges."
-        ),
-    )
-    offer = RmSubmitReportActivity(
-        actor=finder.id_,
-        object_=report,
-        to=[vendor.id_],
-    )
-    with demo_step("Finder submits vulnerability report to Vendor's inbox"):
-        post_to_inbox_and_wait(vendor_client, vendor.id_, offer)
+        )
+        with demo_step(
+            "Finder submits vulnerability report to Vendor's inbox"
+        ):
+            result = post_to_trigger(
+                client=finder_client,
+                actor_id=finder.id_,
+                behavior="submit-report",
+                body={
+                    "report_name": report_name,
+                    "report_content": report_content,
+                    "recipient_id": vendor.id_,
+                },
+            )
+        offer_dict = result.get("offer", {})
+        offer = RmSubmitReportActivity.model_validate(offer_dict)
+        report_raw = offer.object_
+        if isinstance(report_raw, str):
+            report = VulnerabilityReport(
+                id_=report_raw,
+                name=report_name,
+                content=report_content,
+            )
+        elif isinstance(report_raw, VulnerabilityReport):
+            report = report_raw
+        else:
+            # as_Link or None — fall back to a minimal VulnerabilityReport
+            # using the data we know (the trigger always embeds the full object).
+            report = VulnerabilityReport(
+                name=report_name,
+                content=report_content,
+            )
+        # Deliver the offer from the Finder to the Vendor's inbox.
+        # Skip delivery when both clients point to the same container (single-
+        # server integration tests): the trigger already stored the offer in
+        # the shared DataLayer, so a second delivery would conflict.
+        if finder_client.base_url != vendor_client.base_url:
+            with demo_step("Deliver Finder's offer to Vendor's inbox"):
+                post_to_inbox_and_wait(vendor_client, vendor.id_, offer)
+    else:
+        report = VulnerabilityReport(
+            attributed_to=finder.id_,
+            name="Remote Code Execution in Network Stack",
+            content=(
+                "A critical remote code execution vulnerability was discovered "
+                "in the network stack component. An attacker can exploit this "
+                "issue to execute arbitrary code with elevated privileges."
+            ),
+        )
+        offer = RmSubmitReportActivity(
+            actor=finder.id_,
+            object_=report,
+            to=[vendor.id_],
+        )
+        with demo_step(
+            "Finder submits vulnerability report to Vendor's inbox"
+        ):
+            post_to_inbox_and_wait(vendor_client, vendor.id_, offer)
     with demo_check("Report stored in Vendor's DataLayer"):
         verify_object_stored(vendor_client, report.id_)
     with demo_check("Offer stored in Vendor's DataLayer"):
@@ -798,6 +856,7 @@ def run_two_actor_demo(
         vendor_client=vendor_client,
         finder=finder,
         vendor=vendor_in_vendor,
+        finder_client=finder_client,
     )
 
     # ── Step 3: Vendor validates and engages ──────────────────────────────
