@@ -288,3 +288,117 @@ serialization time. The `AGENTS.md` pitfall note on `VulnerabilityCase.case_acti
 shows that enum coverage failures cause fallback to raw `Document` objects;
 similar issues may affect activity serialization and should be checked as part
 of D5-6-STORE.
+
+---
+
+## 2026-04-06 D5-6i–l feedback tasks (refresh #68)
+
+Continued reviewer feedback from `notes/two-actor-feedback.md` items D5-6i
+through D5-6l. Items D5-6a–h were addressed in the prior four tasks (D5-6-LOG,
+D5-6-STATE, D5-6-STORE, D5-6-WORKFLOW — all ✅). Items D5-6i–l introduce new
+work, particularly D5-6l which raises a fundamental concern about demo
+correctness.
+
+New plan tasks:
+
+- **D5-6-DUP**: Investigate/fix duplicate VulnerabilityReport warning (D5-6i).
+- **D5-6-LOGCTX**: Improve outbox activity log messages with human-readable
+  context (D5-6j).
+- **D5-6-TRIGDELIV**: Fix trigger endpoints to call `outbox_handler` after
+  use-case execution (D5-6k).
+- **D5-6-DEMOAUDIT**: Audit and refactor all demos for protocol compliance
+  (D5-6l).
+
+### Critical finding: trigger endpoints do not deliver outbox activities
+
+**Confirmed gap**: All three trigger routers (`trigger_report.py`,
+`trigger_case.py`, `trigger_embargo.py`) execute use-case logic (which may
+queue activities to the actor's outbox via `datalayer.record_outbox_item()`)
+but do NOT schedule `outbox_handler` as a FastAPI `BackgroundTask`.
+
+In contrast, the inbox endpoint (`actors.py` line 470) correctly calls
+`inbox_handler` as a `BackgroundTask`, and `inbox_handler` (line 184) calls
+`outbox_handler` after processing. The outbox POST endpoint (line 534) also
+schedules `outbox_handler`. Triggers bypass both paths.
+
+**Impact**: When the vendor validates a report via `POST /trigger/validate-report`,
+the BT generates `CreateCaseActivity`, `Add(CaseParticipant)`, and
+`AnnounceEmbargo` activities and queues them to the vendor's outbox. But those
+activities are never delivered to the finder because `outbox_handler` is never
+called. The finder only receives these messages if:
+
+1. A subsequent inbox activity arrives for the vendor (triggering
+   `inbox_handler` → `outbox_handler`), or
+2. Someone manually POSTs to the vendor's outbox endpoint.
+
+This violates `specs/outbox.md` OX-03-001 ("Activities in an actor's outbox
+MUST be delivered to recipient inboxes") and OX-03-002 ("Delivery MUST occur
+after the generating handler completes").
+
+**Fix**: Add `BackgroundTasks` dependency to all trigger endpoint functions
+and schedule `outbox_handler` after use-case execution. This is tracked as
+task D5-6-TRIGDELIV.
+
+### D5-6l: demo protocol compliance audit (significant)
+
+D5-6l raises the most consequential concern: the multi-actor demos may be
+demonstrating "puppeteered" workflows rather than genuine protocol-driven
+behavior. Key observations from the gap analysis:
+
+**Two-actor demo** (post D5-6-WORKFLOW): The validate-report BT now automates
+case creation, participant setup, embargo initialization, and notification
+activity generation. However, because trigger→outbox delivery is broken
+(D5-6-TRIGDELIV), the finder never actually receives those notifications in a
+multi-container run. The demo-runner also manually posts notes via
+`post_to_inbox_and_wait()` rather than using trigger endpoints.
+
+**Three-actor demo**: Uses `engage-case` and `propose-embargo` trigger
+shortcuts in the demo-runner where the protocol flow should be automatic
+(BT-driven after invitation acceptance). The demo-runner is doing intermediate
+steps that should be consequences of primary events.
+
+**Multi-vendor demo**: Same pattern as three-actor — multiple trigger shortcuts
+for `validate-report`, `engage-case`, and `propose-embargo` where the protocol
+expects automated behavior.
+
+**Single-actor demos**: Already protocol-compliant (direct activity posts).
+No changes needed.
+
+**Dependency chain**: D5-6-TRIGDELIV → D5-6-DEMOAUDIT. Without trigger→outbox
+delivery, the demo refactoring cannot verify end-to-end message flow.
+
+### Where the BT automation is sufficient vs insufficient
+
+**Sufficient** (no demo-runner shortcut needed):
+
+- validate-report → case creation → participant setup → embargo init →
+  notification queuing (7-node BT, fully automated)
+
+**Insufficient** (demo-runner must still trigger or inject):
+
+- submit-report: Finder must trigger this (correct — a primary event)
+- validate-report: Vendor must trigger this (correct — a primary event)
+- Note exchange: No BT automation for ad-hoc notes (acceptable — notes are
+  actor-initiated primary events)
+- Invitation acceptance: The `AcceptInviteActorToCaseReceivedUseCase` handles
+  the received message, but engagement (RM→ACCEPTED) requires a separate
+  `engage-case` trigger in the current implementation. The protocol docs
+  suggest that accepting an invitation should automatically advance RM state,
+  but the current BT does not do this.
+- Embargo proposal: After case creation, the vendor BT initializes a default
+  embargo, but in three-actor/multi-vendor scenarios the coordinator must
+  explicitly propose via trigger. This is correct for the coordinator-mediated
+  flow but may need a BT sequence for the case-creation-includes-embargo
+  pattern.
+
+### Open question: automatic engagement after invitation acceptance
+
+The protocol docs (`docs/topics/formal_protocol/worked_example.md`) describe
+acceptance of an invitation as implying engagement. The current implementation
+requires a separate `engage-case` trigger after accepting an invitation. Should
+`AcceptInviteActorToCaseReceivedUseCase` automatically advance RM to ACCEPTED
+(via the engage-case BT), or is the separate trigger step intentional?
+
+If engagement should be automatic, the use case needs to invoke
+`SvcEngageCaseUseCase` internally. If intentional, the demos should document
+why the extra trigger is needed.

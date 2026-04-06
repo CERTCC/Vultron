@@ -1,6 +1,7 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-04-06 (refresh #67: Priority 310 feedback tasks added)
+**Last Updated**: 2026-04-06 (refresh #68: D5-6i–l tasks added per
+`notes/two-actor-feedback.md`)
 
 ## Overview
 
@@ -32,7 +33,8 @@ All PRIORITY-30 through PRIORITY-200 phases complete.
 tasks tracked under PRIORITY-310 below).
 
 **PRIORITY-310** Address demo feedback — D5-6-LOG, D5-6-STATE, D5-6-STORE,
-D5-6-WORKFLOW (all ✅); D5-7 pending human sign-off.
+D5-6-WORKFLOW (all ✅); D5-6-DUP, D5-6-LOGCTX, D5-6-TRIGDELIV,
+D5-6-DEMOAUDIT pending; D5-7 pending human sign-off.
 
 ---
 
@@ -296,98 +298,147 @@ are blocked by all G tasks.
 **Reference**: `plan/PRIORITIES.md` PRIORITY 310, `notes/two-actor-feedback.md`
 
 Reviewer feedback on the two-actor multi-container demo is captured in
-`notes/two-actor-feedback.md` (items D5-6a through D5-6h). All tasks in this
+`notes/two-actor-feedback.md` (items D5-6a through D5-6l). All tasks in this
 section MUST be completed before proceeding to PRIORITY-350 and beyond. D5-7
 (project owner sign-off) is the final gate for this phase.
 
-#### D5-6-LOG — Improve process-flow logging across demo containers
+#### D5-6-LOG — Improve process-flow logging across demo containers ✅
 
-- [x] **D5-6-LOG**: Improve INFO-level logging so that container logs tell a
-  coherent process-flow story (addresses D5-6a, D5-6b, D5-6e, D5-6f, D5-6g
-  from `notes/two-actor-feedback.md`):
-  - Add INFO log entries to the finder actor for outgoing activity creation
-    (creating a `VulnerabilityReport`, sending the `OfferReport` to vendor)
-    so finder actions are visible in the combined container log (D5-6a).
-  - Format "Parsing activity from request body" log entries as multiline
-    indented JSON rather than a single long line (D5-6b).
-  - Add INFO-level logs throughout vendor BT sequences: each RM state
-    transition (e.g., RECEIVED → VALID), each step of case creation (create
-    case record, create case status, initialize embargo), so the BT execution
-    sequence is visible in logs (D5-6e).
-  - Add INFO-level logs for each participant record action: participant
-    created, participant status record created (include role and status
-    values), and participant record attached to case (D5-6f).
-  - Verify that INFO-level logs across all demo containers, read in combined
-    order, allow an observer to follow the full process flow and confirm
-    expected behaviors (D5-6g general principle).
-  - Add/update tests to cover the new log entries using `caplog`.
+- [x] **D5-6-LOG**: Improved INFO-level logging for coherent process-flow
+  across container logs (D5-6a, b, e, f, g). See IMPLEMENTATION_HISTORY.md.
 
-#### D5-6-STATE — Clarify RM state log messages; initialize finder participant at RM.ACCEPTED
+#### D5-6-STATE — Clarify RM state log messages; initialize finder participant at RM.ACCEPTED ✅
 
-- [x] **D5-6-STATE**: Fix RM state transition log clarity and finder initial
-  state initialization (addresses D5-6c from `notes/two-actor-feedback.md`):
-  - Update RM state transition log messages to explicitly identify the actor
-    whose state is being recorded (e.g., distinguish "Vendor RM: START →
-    RECEIVED" from "Finder RM: [state]") so the log is unambiguous about
-    which participant's state is changing.
-  - When vendor receives a submitted report, create a `CaseParticipant`
-    status record for the finder initialized to `RM.ACCEPTED` (since a
-    finder must be at `RM.ACCEPTED` to have submitted a report at all);
-    log this initialization so the finder's state is visible from the very
-    first entry.
-  - Update tests to verify finder participant state is initialized to
-    `RM.ACCEPTED` at report receipt and that log messages identify the
-    correct actor for each state transition.
+- [x] **D5-6-STATE**: Fixed RM state transition log clarity and finder
+  initial state initialization at RM.ACCEPTED (D5-6c). See
+  IMPLEMENTATION_HISTORY.md.
 
-#### D5-6-STORE — Verify and fix datalayer reference storage for nested activity objects
+#### D5-6-STORE — Verify and fix datalayer reference storage for nested activity objects ✅
 
-- [x] **D5-6-STORE**: Investigate and ensure datalayer stores nested objects
-  by reference, not as full copies (addresses D5-6d from
-  `notes/two-actor-feedback.md`):
-  - Inspect how the TinyDB adapter serializes activities that contain nested
-    objects (e.g., `OfferReport` containing a `VulnerabilityReport`).
-    Determine whether the nested object is stored as a full copy or as an
-    ID reference.
-  - If stored as full copies: fix serialization so the outer activity stores
-    only the nested object's ID string, and the nested object is persisted
-    separately. Update relevant use-case code that constructs these
-    activities.
-  - If stored as references: update demo-runner log messages to clarify that
-    the displayed object is a rehydrated view for logging purposes, and that
-    the datalayer contains only a reference to the nested object.
-  - Add datalayer tests confirming that transitive activities are stored with
-    ID references (not inline objects) and that rehydrated versions can be
-    generated on demand without mutating the stored record.
-  - This fix generalizes to all demo-runner checks that verify transitive
-    activities in the datalayer.
+- [x] **D5-6-STORE**: Datalayer stores nested objects by reference; logs
+  clarified for rehydrated display (D5-6d). See IMPLEMENTATION_HISTORY.md.
 
-#### D5-6-WORKFLOW — Automate complete case creation sequence from validate-report
+#### D5-6-WORKFLOW — Automate complete case creation sequence from validate-report ✅
 
-- [x] **D5-6-WORKFLOW**: Refactor the validate-report BT to execute the
-  complete case creation workflow as a single automated sequence (addresses
-  D5-6h from `notes/two-actor-feedback.md`). No separate manual trigger
-  steps should be required after validate-report. The automated sequence
-  MUST:
-  1. Create the case record.
-  2. Create and attach an initial case status record (log the state values).
-  3. Initialize an embargo from the vendor default policy (see
-     `docs/topics/process_models/em/defaults.md` and
-     `docs/topics/process_models/model_interactions/rm_em.md`; spec VP-13-*).
-  4. Create the vendor `CaseParticipant` with vendor + case-owner roles;
-     attach prior vendor RM status history; attach to case; log role and
-     status.
-  5. Create the finder `CaseParticipant` with reporter + finder roles;
-     attach prior finder RM status history; attach to case; log role and
-     status.
-  6. Update case status if any state changes occurred after initial creation.
-  7. Emit messages to finder: (a) case created notification, (b) finder
-     added as participant with reporter role and current status, (c) initial
-     embargo announced. (Finder's tacit embargo acceptance is implied by the
-     act of report submission per spec VP-13-*.)
-  - Add/update tests covering the complete automated workflow end-to-end.
-  - Verify that the two-actor demo log shows all the above steps occurring
-    as part of a single validate-report trigger call with no additional
-    manual steps.
+- [x] **D5-6-WORKFLOW**: Validate-report BT now executes full case creation
+  (7-node sequence: case, embargo, vendor/finder participants, notification)
+  as a single automated workflow (D5-6h). See IMPLEMENTATION_HISTORY.md.
+
+#### D5-6-DUP — Investigate and fix duplicate VulnerabilityReport warning
+
+- [ ] **D5-6-DUP**: Investigate the duplicate VulnerabilityReport warning that
+  appears when the vendor processes an incoming `Offer(VulnerabilityReport)`
+  (addresses D5-6i from `notes/two-actor-feedback.md`). The vendor logs
+  `WARNING: VulnerabilityReport ... already exists` during the first Offer
+  processing in a clean demo run, suggesting a double-insert in the
+  `SubmitReportReceivedUseCase` handler.
+  - Trace the `SubmitReportReceivedUseCase.execute()` path to determine where
+    the report object is first persisted and whether it is being saved twice
+    (once as part of Offer extraction and again as a separate save).
+  - If a double-insert exists: fix the handler to check for existence before
+    saving, or deduplicate the save path.
+  - If the warning is a false positive (e.g., idempotency guard triggering
+    on first run due to demo seeding): clarify the log level (demote to
+    DEBUG) and add a code comment explaining the expected behavior.
+  - Add a test confirming that processing a single Offer with an embedded
+    VulnerabilityReport produces zero duplicate warnings.
+
+#### D5-6-LOGCTX — Improve outbox activity log messages with human-readable context
+
+- [ ] **D5-6-LOGCTX**: Improve log messages for outbox activity queuing and
+  delivery so that activity URNs are accompanied by human-readable context
+  (addresses D5-6j from `notes/two-actor-feedback.md`). Current logs show
+  only `Queued Add activity 'urn:uuid:...'` with no description of what the
+  Add contains or why it was queued.
+  - Update outbox queuing log messages (in BT nodes and outbox_handler) to
+    include the activity type, a summary of the object (e.g., "Add
+    CaseParticipant(finder) to Case"), and the reason for queuing (e.g.,
+    "finder participant notification").
+  - Update `outbox_handler` delivery log messages to include activity type and
+    recipient summary when sending to remote inboxes.
+  - Apply the same pattern to all BT nodes that queue outbox activities
+    (`UpdateActorOutbox`, `CreateFinderParticipantNode`,
+    `InitializeDefaultEmbargoNode`).
+  - Add tests using `caplog` to verify improved log content.
+
+#### D5-6-TRIGDELIV — Fix trigger endpoints to deliver outbox activities
+
+- [ ] **D5-6-TRIGDELIV**: Ensure all trigger endpoints call `outbox_handler`
+  after use-case execution so that activities queued to the actor's outbox
+  are actually delivered to recipients (addresses D5-6k from
+  `notes/two-actor-feedback.md` and fulfills `specs/outbox.md` OX-03-001/002).
+  Currently, trigger endpoints (`trigger_report.py`, `trigger_case.py`,
+  `trigger_embargo.py`) execute the use case and return 202, but never
+  schedule `outbox_handler` as a BackgroundTask. As a result, activities
+  queued by the BT (e.g., `CreateCaseActivity` for finder notification)
+  remain in the delivery queue indefinitely unless a subsequent inbox
+  delivery happens to drain the queue.
+  - Add `BackgroundTasks` dependency to all trigger endpoint functions in
+    `trigger_report.py`, `trigger_case.py`, and `trigger_embargo.py`.
+  - After use-case execution, schedule `outbox_handler` via
+    `background_tasks.add_task(outbox_handler, actor_id, actor_dl, shared_dl)`
+    to drain queued activities.
+  - Add INFO-level log messages to `outbox_handler` and
+    `DeliveryQueueAdapter.emit()` for each delivery attempt so that outbox
+    delivery is visible in container logs (complements D5-6k: "logs
+    indicating that the outbox delivery is occurring").
+  - Add tests verifying that calling a trigger endpoint results in queued
+    activities being delivered (mock `outbox_handler` or check that
+    `BackgroundTasks.add_task` is called).
+  - This is a prerequisite for D5-6-DEMOAUDIT: without trigger→outbox
+    delivery, demos cannot rely on triggers to produce end-to-end message
+    flow.
+
+#### D5-6-DEMOAUDIT — Audit and refactor all demos for protocol compliance
+
+- [ ] **D5-6-DEMOAUDIT**: Audit all multi-actor demo scripts to ensure they
+  reflect the intended protocol flow and do not rely on demo-runner shortcuts
+  that would not occur in a real CVD case (addresses D5-6l from
+  `notes/two-actor-feedback.md`). This is the most significant remaining
+  feedback item: the demo-runner should only trigger primary events
+  (submit-report, validate-report, add-note) and then let actor behaviors
+  and message exchange play out automatically according to the protocol.
+  Depends on D5-6-TRIGDELIV.
+  - **Study protocol docs for intended flows**: Review
+    `docs/topics/formal_protocol/worked_example.md`,
+    `docs/topics/behavior_logic/msg_rm_bt.md`,
+    `docs/howto/activitypub/activities/report_vulnerability.md`,
+    `docs/howto/activitypub/activities/initialize_case.md`,
+    `docs/howto/activitypub/activities/manage_case.md`,
+    `docs/howto/activitypub/activities/status_updates.md` and compare
+    against demo implementations.
+  - **Two-actor demo** (`two_actor_demo.py`): After D5-6-TRIGDELIV, verify
+    that the finder actually receives the case notification via outbox
+    delivery (not manual injection). Add a verification step that polls the
+    finder's datalayer to confirm the case, participant records, and embargo
+    are present — proving the full message flow worked end-to-end. Review
+    note exchange steps: if possible, use trigger endpoints for adding notes
+    rather than manual inbox posts.
+  - **Three-actor demo** (`three_actor_demo.py`): Currently uses
+    `engage-case` and `propose-embargo` trigger shortcuts where the protocol
+    flow should be automatic. After invitation acceptance, the behavior tree
+    should handle engagement; after case creation, embargo initialization
+    should be automated. Replace trigger shortcuts with proper protocol-driven
+    behavior wherever the underlying BT automation supports it. Where the BT
+    does not yet automate a step, document the gap and leave the trigger as a
+    TODO with a comment explaining what should happen.
+  - **Multi-vendor demo** (`multi_vendor_demo.py`): Same analysis as
+    three-actor. Replace `validate-report`, `engage-case`, and
+    `propose-embargo` trigger shortcuts with protocol-driven flows where
+    possible.
+  - **Single-actor demos**: These are already protocol-compliant (direct
+    activity posts). Verify they remain consistent with the protocol docs and
+    do not need changes.
+  - **Cross-container verification**: In multi-actor demos, add verification
+    steps that confirm the receiving actor has processed the messages and has
+    the expected objects in its datalayer (case, participants, embargo). This
+    proves the protocol flow works end-to-end, not just that the sender
+    queued messages.
+  - **Document remaining gaps**: Where the current BT implementation does not
+    yet automate a step that the protocol docs describe, document the gap in
+    `notes/` or `plan/IMPLEMENTATION_NOTES.md` with a reference to the
+    relevant doc section.
+  - Add/update demo tests to verify the protocol-compliant flow.
 
 #### D5-7 — Project owner sign-off on demo feedback resolution
 

@@ -214,3 +214,100 @@ Note that the `default embargo` concept is elaborated in the docs:
 and EM models are described in
 `docs/topics/process_models/model_interactions/rm_em.md` and captured in
 specs section `VP-13-*`.
+
+## D5-6i vendor logs duplicate VulnerabilityReport on receipt handling
+
+vendor is logging a warning about duplicate VulnerabilityReport record
+already existing. This should not be the case in this demo, as the vendor's
+datalayer shouldn't have a report until the Offer it's processing at this
+stage of the log is processed. Perhaps there is a duplicative insert happening?
+
+```text
+vendor-1       | INFO:     Parsing activity from body (type='Offer')
+vendor-1       | INFO:     Processing inbox for actor http://vendor:7999/api/v2/actors/97b61b9b-3913-46c3-aee9-502518ea7cef
+vendor-1       | INFO:     Processing item 'http://finder:7999/api/v2/actors/f7beb229-5592-4401-beb0-f5faef54b4a3 Offer Remote Code Execution in Network Stack' for actor 'http://vendor:7999/api/v2/actors/97b61b9b-3913-46c3-aee9-502518ea7cef'
+vendor-1       | INFO:     Dispatching activity of type 'VulnerabilityReport' with semantics 'submit_report'
+vendor-1       | WARNING:  VulnerabilityReport urn:uuid:43158201-764b-41b3-9d7e-17de6769219a already exists: record with id_=urn:uuid:43158201-764b-41b3-9d7e-17de6769219a already exists in VulnerabilityReport
+```
+
+## D5-6j vendor logs are unclear
+
+Activity URNs are being logged without any context about what they refer to,
+which makes it hard to understand what's happening in the logs. For example,
+the log entry below indicates that an Add activity is being queued to the  
+vendor's outbox, but it doesn't provide any information about what that Add  
+activity is or why it's being queued. The log should be updated to include  
+more context about the activity being queued, such as its type, its object,  
+and the reason for queuing it (e.g. "finder participant notification"). This
+will make the logs more informative and easier to understand when reviewing
+them later.
+
+```text
+vendor-1       | INFO:     Queued Add activity 'urn:uuid:316644ea-8736-4381-8072-cbecb79e7547' to actor 'http://vendor:7999/api/v2/actors/97b61b9b-3913-46c3-aee9-502518ea7cef' outbox (finder participant notification)
+vendor-1       | INFO:     CreateCaseActivity: Notifying addressees: ['http://finder:7999/api/v2/actors/f7beb229-5592-4401-beb0-f5faef54b4a3', 'http://vendor:7999/api/v2/actors/97b61b9b-3913-46c3-aee9-502518ea7cef']
+vendor-1       | INFO:     CreateCaseActivity: Created CreateCaseActivity activity: urn:uuid:e70a9a3d-35d2-4837-84cb-1abaf7ff2e46
+vendor-1       | INFO:     UpdateActorOutbox: Added activity urn:uuid:e70a9a3d-35d2-4837-84cb-1abaf7ff2e46 to actor http://vendor:7999/api/v2/actors/97b61b9b-3913-46c3-aee9-502518ea7cef outbox
+vendor-1       | INFO:     UpdateActorOutbox: Updated actor http://vendor:7999/api/v2/actors/97b61b9b-3913-46c3-aee9-502518ea7cef in DataLayer
+```
+
+## D5-6k finder does not log receipt of activities from vendor
+
+Although logs indicate vendor is queueing messages to its outbox, there is
+no indication that these messages are delivered to the finder, or that the
+finder is successfully processing them if they are delivered. We should see
+logs indicating that the outbox delivery is occurring, and that the finder
+is receiving and processing the incoming messages from the vendor.
+
+```text
+vendor-1       | INFO:     Queued Add activity 'urn:uuid:316644ea-8736-4381-8072-cbecb79e7547' to actor 'http://vendor:7999/api/v2/actors/97b61b9b-3913-46c3-aee9-502518ea7cef' outbox (finder participant notification)
+vendor-1       | INFO:     CreateCaseActivity: Notifying addressees: ['http://finder:7999/api/v2/actors/f7beb229-5592-4401-beb0-f5faef54b4a3', 'http://vendor:7999/api/v2/actors/97b61b9b-3913-46c3-aee9-502518ea7cef']
+vendor-1       | INFO:     CreateCaseActivity: Created CreateCaseActivity activity: urn:uuid:e70a9a3d-35d2-4837-84cb-1abaf7ff2e46
+vendor-1       | INFO:     UpdateActorOutbox: Added activity urn:uuid:e70a9a3d-35d2-4837-84cb-1abaf7ff2e46 to actor http://vendor:7999/api/v2/actors/97b61b9b-3913-46c3-aee9-502518ea7cef outbox
+vendor-1       | INFO:     UpdateActorOutbox: Updated actor http://vendor:7999/api/v2/actors/97b61b9b-3913-46c3-aee9-502518ea7cef in DataLayer
+```
+
+## D5-6l Concern that implementation misunderstands the intended flow of events
+
+There have been a number of shortcuts taken in the implementation of the
+two-actor demo that make me concerned that all the demos may be missing key
+steps in their intended flows. The demo should be fairly minimal in its
+interaction with the actors. It should start by initiating the Finder
+creating and submitting a report to the Vendor. Once the vendor has received
+the report and processed it, the demo-runner can then cause the Vendor to
+validate the report, which triggers the vendor's case creation workflow. The
+results of vendor workflow should emit multiple messages to the finder, who
+should end up with their own copy of the case in their datalayer that they
+can inspect. The demo-runner would then trigger the Finder to add a note to
+the case and we should watch both that and the vendor's response flow
+through the system. The demo-runner seems to be doing too many direct
+manipulations by directly injecting messages etc. What we want to see is the
+demo runner kicking off events and then those events just play out according
+to the defined behaviors of the actors according to the protocol. I
+recommend studying `docs/topics/formal_protocol/worked_example.md`,
+`docs/topics/behavior_logic/msg_rm_bt.md`,
+`docs/howto/activitypub/activities/report_vulnerability.md`,
+`docs/howto/activitypub/activities/initialize_case.md`,
+`docs/howto/activitypub/activities/manage_case.md`,
+`docs/howto/activitypub/activities/status_updates.md` for considerably more
+detailed context. Your demo should be consistent with the process workflow
+and behavior logic described in those docs (with the understanding that the
+docs are older than the implementation, so there may be some discrepancies
+to be resolved, but the general flow should be consistent). Remember, in a
+real CVD case, there is no demo-runner to manipulate things behind the
+scenes. There are only actors exchanging AS2 messages and internal vultron
+behaviors inside each actor. The demo should reflect that reality as much as
+possible, and not rely on things that would not occur in a real case beyond
+triggering primary events like "submit report" and "validate report".
+
+This concern goes beyond just the two-actor demo. We have not yet reviewed
+the other demos in detail, but if the two-actor demo is missing key steps in the
+intended flow, then it's possible that the other demos are as well. We should
+review the other demos with the same level of scrutiny to ensure that they are
+also accurately reflecting the intended flows and behaviors as described in the
+docs (some other docs will be relevant to those demos). The demos are
+intended to convince observers that Vultron is automating the right things
+in the right way, and that the protocol is complete and consistent with real
+case workflows. If the demos are missing key steps or are relying on
+shortcuts that are "just for the demo", then they are not effectively  
+demonstrating the intended capabilities and may be giving a misleading  
+impression of how the system works in a real case.
