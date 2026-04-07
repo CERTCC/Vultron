@@ -4778,3 +4778,27 @@ automated sequence (D5-6h). The 7-node ValidationActions sequence:
 
 Removed manual engage-case and add-finder-participant steps from two-actor
 demo. Updated tests to verify full automated workflow.
+
+---
+
+## D5-6-DUP — Fix duplicate VulnerabilityReport WARNING (2026-04-07)
+
+**Root cause**: The inbox endpoint (`actors.py`) pre-stores any inline nested
+object (e.g. the `VulnerabilityReport` inside an `Offer`) before dispatching.
+When `SubmitReportReceivedUseCase` (or `CreateReportReceivedUseCase`) then
+calls `dl.create()` on the same report, a `ValueError` is raised and was
+previously logged at `WARNING`. This is a false-positive — the duplicate is an
+expected idempotency condition, not a real error.
+
+**Fix**: Changed the log level from `WARNING` to `DEBUG` in both
+`SubmitReportReceivedUseCase` and `CreateReportReceivedUseCase`, with
+explanatory comments. This matches the pattern already used for the activity
+duplicate handling in `SubmitReportReceivedUseCase` (lines 116-123 before this
+change). Added `TestDuplicateReportHandling` class with two tests confirming
+no WARNING is emitted when the report has been pre-stored by the inbox
+endpoint.
+
+**Files changed**:
+
+- `vultron/core/use_cases/received/report.py`
+- `test/core/use_cases/received/test_report.py`

@@ -327,22 +327,11 @@ section MUST be completed before proceeding to PRIORITY-350 and beyond. D5-7
 
 #### D5-6-DUP — Investigate and fix duplicate VulnerabilityReport warning
 
-- [ ] **D5-6-DUP**: Investigate the duplicate VulnerabilityReport warning that
-  appears when the vendor processes an incoming `Offer(VulnerabilityReport)`
-  (addresses D5-6i from `notes/two-actor-feedback.md`). The vendor logs
-  `WARNING: VulnerabilityReport ... already exists` during the first Offer
-  processing in a clean demo run, suggesting a double-insert in the
-  `SubmitReportReceivedUseCase` handler.
-  - Trace the `SubmitReportReceivedUseCase.execute()` path to determine where
-    the report object is first persisted and whether it is being saved twice
-    (once as part of Offer extraction and again as a separate save).
-  - If a double-insert exists: fix the handler to check for existence before
-    saving, or deduplicate the save path.
-  - If the warning is a false positive (e.g., idempotency guard triggering
-    on first run due to demo seeding): clarify the log level (demote to
-    DEBUG) and add a code comment explaining the expected behavior.
-  - Add a test confirming that processing a single Offer with an embedded
-    VulnerabilityReport produces zero duplicate warnings.
+- [x] **D5-6-DUP**: False-positive WARNING demoted to DEBUG in both
+  `SubmitReportReceivedUseCase` and `CreateReportReceivedUseCase`; the inbox
+  endpoint pre-stores nested objects before dispatch so duplicates are
+  expected. Added `TestDuplicateReportHandling` tests confirming no WARNING
+  on pre-stored report.
 
 #### D5-6-LOGCTX — Improve outbox activity log messages with human-readable context
 
