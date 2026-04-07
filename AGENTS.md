@@ -946,6 +946,32 @@ updating the sender's `CaseParticipant.participant_status[].rm_state`.
 See `specs/behavior-tree-integration.md` for BT integration requirements and
 `notes/bt-integration.md` for BT design decisions.
 
+### Protocol Event Cascades (Cascading Automation)
+
+**Symptom**: Demo-runner must manually trigger intermediate protocol steps
+that should be automated consequences of a primary event.
+
+**Cause**: Some use-case handlers and BT nodes perform only their immediate
+action without triggering the cascading effects required by the protocol.
+For example, accepting an invitation should automatically advance RM to
+ACCEPTED, but the handler only pre-seeds states and requires a separate
+`engage-case` trigger.
+
+**Principle**: The demo-runner (or a human, or an agentic client) should only
+trigger *primary events* (submit-report, validate-report, add-note,
+propose-embargo). Everything else should cascade automatically via BT
+execution or use-case chaining.
+
+**When implementing handlers**: Check whether the primary action implies
+downstream effects. If accepting an invitation implies engagement, the
+handler should invoke the engagement use case internally. If adding a note
+to a case implies broadcasting it, the handler should queue outbox
+deliveries. Activities emitted by BT nodes MUST include a `to` field
+populated from the case participant index.
+
+See `notes/protocol-event-cascades.md` for the full analysis and gap
+inventory.
+
 ### py_trees Blackboard Global State
 
 **Symptom**: Test state leaks between tests; blackboard key reads return values

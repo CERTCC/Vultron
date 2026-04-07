@@ -268,21 +268,25 @@ delivery, the demo refactoring cannot verify end-to-end message flow.
   flow but may need a BT sequence for the case-creation-includes-embargo
   pattern.
 
-### Open question: automatic engagement after invitation acceptance
+### ~~Open question: automatic engagement after invitation acceptance~~
 
-The protocol docs (`docs/topics/formal_protocol/worked_example.md`) describe
+> **Captured**: Design decision moved to `specs/case-management.md`
+> CM-11-001, CM-11-002 and `notes/protocol-event-cascades.md`.
+> Implementation task: D5-6-AUTOENG in `plan/IMPLEMENTATION_PLAN.md`.
+
+~~The protocol docs (`docs/topics/formal_protocol/worked_example.md`) describe
 acceptance of an invitation as implying engagement. The current implementation
 requires a separate `engage-case` trigger after accepting an invitation. Should
 `AcceptInviteActorToCaseReceivedUseCase` automatically advance RM to ACCEPTED
-(via the engage-case BT), or is the separate trigger step intentional?
+(via the engage-case BT), or is the separate trigger step intentional?~~
 
-If engagement should be automatic, the use case needs to invoke
+~~If engagement should be automatic, the use case needs to invoke
 `SvcEngageCaseUseCase` internally. If intentional, the demos should document
-why the extra trigger is needed.
+why the extra trigger is needed.~~
 
-#### Reflection
+#### ~~Reflection~~
 
-Yes, the acceptance of an invitation should advance the accepting actor's RM
+~~Yes, the acceptance of an invitation should advance the accepting actor's RM
 state to `ACCEPTED` because accepting an invitation is a clear signal of
 intent to engage with the case. So the
 `AcceptInviteActorToCaseReceivedUseCase` should indeed trigger the engagement
@@ -291,9 +295,9 @@ handle the state transition and any associated actions (e.g., notifications,
 participant setup). This would align the implementation more closely with the
 protocol's intended flow and reduce the need for manual triggers in the demos.
 The demos should be updated to reflect this change and document that engagement
-is now automatic upon invitation acceptance.
+is now automatic upon invitation acceptance.~~
 
-**Note** The previous reflection illustrates a broader concept that we want to
+~~**Note** The previous reflection illustrates a broader concept that we want to
 capture as well:
 Anywhere we can automate protocol flows via the BT, we should. When the
 logic of a case dictates a cascade of effects (e.g., accepting an invitation
@@ -303,12 +307,16 @@ automatically without needing to manually trigger intermediate steps. Many
 of the processes in the Vultron protocol are designed to be event driven and
 have clear causal relationships that are just consequences of primary events.
 This is by design and intended to reduce the need for manual intervention in
-moving cases through the lifecycle. So as we audit the demos, we should be  
+moving cases through the lifecycle. So as we audit the demos, we should be
 looking for places where the demo-runner is doing things manually that could
-be automated via the BT, and we should be updating the BT to capture those  
+be automated via the BT, and we should be updating the BT to capture those
 flows as needed. This will make the demos more authentic and will also help
 us identify any gaps in the BT logic that need to be filled in to support
-the full range of protocol-driven behavior.
+the full range of protocol-driven behavior.~~
+
+> **Captured**: Cascading automation design principle moved to
+> `notes/protocol-event-cascades.md` and `AGENTS.md` "Protocol Event
+> Cascades" section.
 
 ---
 
@@ -345,49 +353,56 @@ commits) but complete automation is deferred.
   `run_two_actor_demo()` that waits for the case to appear in the finder's
   DataLayer, proving end-to-end outbox delivery worked.
 
-### Remaining gaps (deferred)
+### ~~Remaining gaps (deferred)~~
 
-**InitializeDefaultEmbargoNode Announce activity has no recipients**:
+> **Captured**: All remaining gaps moved to
+> `notes/protocol-event-cascades.md` with corresponding spec
+> requirements in `specs/case-management.md` (CM-06-005, CM-11) and
+> `specs/behavior-tree-integration.md` (BT-10-005). Implementation
+> tasks D5-6-AUTOENG, D5-6-NOTECAST, D5-6-EMBARGORCP, D5-6-CASEPROP
+> added to `plan/IMPLEMENTATION_PLAN.md`.
 
-- The `Announce(embargo)` activity is queued to the outbox but has no `to`
+~~**InitializeDefaultEmbargoNode Announce activity has no recipients**~~:
+
+~~- The `Announce(embargo)` activity is queued to the outbox but has no `to`
   field. At the time this node runs in the validate-report BT, the case has
   no participants yet (they are added by subsequent nodes), so there are no
-  recipients to address.
-- The finder will learn about the embargo indirectly from the embedded
-  `VulnerabilityCase.active_embargo` field inside the `Create(Case)` activity.
-- Fix: Either reorder the BT so `InitializeDefaultEmbargoNode` runs after
+  recipients to address.~~
+~~- The finder will learn about the embargo indirectly from the embedded
+  `VulnerabilityCase.active_embargo` field inside the `Create(Case)` activity.~~
+~~- Fix: Either reorder the BT so `InitializeDefaultEmbargoNode` runs after
   participants are added, or remove the Announce and rely on the case
-  notification to carry embargo information. This requires BT restructuring.
+  notification to carry embargo information. This requires BT restructuring.~~
 
-**Note forwarding is still manual in two-actor demo**:
+~~**Note forwarding is still manual in two-actor demo**~~:
 
-- `AddNoteToCaseReceivedUseCase` stores the note in the case but does not
+~~- `AddNoteToCaseReceivedUseCase` stores the note in the case but does not
   broadcast it to other participants. The vendor's reply note is still
-  delivered manually via direct HTTP POST to the finder's inbox.
-- Fix: The case owner should broadcast new notes to all participants via
+  delivered manually via direct HTTP POST to the finder's inbox.~~
+~~- Fix: The case owner should broadcast new notes to all participants via
   the outbox after processing an `AddNoteToCase` activity. This requires a
-  new BT node and a `to` field derived from `case.actor_participant_index`.
+  new BT node and a `to` field derived from `case.actor_participant_index`.~~
 
-**Three-actor demo: engage-case trigger called on wrong container**:
+~~**Three-actor demo: engage-case trigger called on wrong container**~~:
 
-- `actor_engages_case()` calls the `engage-case` trigger on the case-actor
+~~- `actor_engages_case()` calls the `engage-case` trigger on the case-actor
   container using the actor's ID. Protocol-correct behaviour: the actor
   should call `engage-case` on their own container, which queues an
   `RmEngageCaseActivity` to their outbox, which is then delivered to the
-  case-actor's inbox.
-- This cannot be fixed without the actor having a copy of the case in their
+  case-actor's inbox.~~
+~~- This cannot be fixed without the actor having a copy of the case in their
   own DataLayer (which requires the case-actor to send a `Create(Case)` to
   the actor first, which in turn requires the case-actor's outbox delivery
-  to work correctly).
-- Fix: Implement the full invite/accept/engage-case BT flow for the
-  three-actor scenario, which is a larger task tracked separately.
+  to work correctly).~~
+~~- Fix: Implement the full invite/accept/engage-case BT flow for the
+  three-actor scenario, which is a larger task tracked separately.~~
 
-**EmitCreateCaseActivity (create_case BT) also missing recipients**:
+~~**EmitCreateCaseActivity (create_case BT) also missing recipients**~~:
 
-- In `vultron/core/behaviors/case/nodes.py`, `EmitCreateCaseActivity` is
+~~- In `vultron/core/behaviors/case/nodes.py`, `EmitCreateCaseActivity` is
   used when a receiving actor runs the `create_create_case_tree`. It creates
   a `VultronCreateCaseActivity(actor=..., object_=case_id)` with no `to`
-  field, so the receiving actor's outbox never re-broadcasts the case.
-- In the two-actor scenario this is acceptable (the finder just stores the
+  field, so the receiving actor's outbox never re-broadcasts the case.~~
+~~- In the two-actor scenario this is acceptable (the finder just stores the
   case locally), but for three-actor/multi-vendor flows this could prevent
-  further propagation. Deferred pending a broader case-propagation design.
+  further propagation. Deferred pending a broader case-propagation design.~~
