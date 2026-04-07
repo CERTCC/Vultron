@@ -35,7 +35,7 @@ tasks tracked under PRIORITY-310 below).
 
 **PRIORITY-310** Address demo feedback — D5-6-LOG, D5-6-STATE, D5-6-STORE,
 D5-6-WORKFLOW (all ✅); D5-6-DUP, D5-6-TRIGDELIV, D5-6-LOGCTX (all ✅);
-D5-6-DEMOAUDIT pending; D5-7 pending human sign-off.
+D5-6-DEMOAUDIT ✅; D5-7 pending human sign-off.
 
 ---
 
@@ -347,7 +347,7 @@ section MUST be completed before proceeding to PRIORITY-350 and beyond. D5-7
 
 #### D5-6-DEMOAUDIT — Audit and refactor all demos for protocol compliance
 
-- [ ] **D5-6-DEMOAUDIT**: Audit all multi-actor demo scripts to ensure they
+- [x] **D5-6-DEMOAUDIT**: Audit all multi-actor demo scripts to ensure they
   reflect the intended protocol flow and do not rely on demo-runner shortcuts
   that would not occur in a real CVD case (addresses D5-6l from
   `notes/two-actor-feedback.md`). This is the most significant remaining
