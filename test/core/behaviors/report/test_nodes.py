@@ -449,3 +449,64 @@ def test_full_validation_workflow(datalayer, actor, report, offer):
     check_valid_final = CheckRMStateValid(report_id=report.id_)
     setup_node_blackboard(check_valid_final, datalayer, actor.id_)
     assert check_valid_final.update() == Status.SUCCESS
+
+
+# ============================================================================
+# D5-6-LOGCTX: UpdateActorOutbox log content tests
+# ============================================================================
+
+
+def test_update_actor_outbox_logs_create_activity_type(
+    datalayer, actor, report, offer, caplog
+):
+    """UpdateActorOutbox MUST log 'Create' activity type (D5-6-LOGCTX)."""
+    case_node = CreateCaseNode(report_id=report.id_)
+    setup_node_blackboard(case_node, datalayer, actor.id_)
+    case_node.update()
+
+    activity_node = CreateCaseActivity(
+        report_id=report.id_, offer_id=offer.id_
+    )
+    activity_node.blackboard = case_node.blackboard
+    activity_node.initialise()
+    activity_node.update()
+
+    outbox_node = UpdateActorOutbox()
+    outbox_node.blackboard = activity_node.blackboard
+    outbox_node.initialise()
+
+    with caplog.at_level("INFO"):
+        outbox_node.update()
+
+    assert "Create" in caplog.text
+
+
+def test_update_actor_outbox_logs_case_id_in_message(
+    datalayer, actor, report, offer, caplog
+):
+    """UpdateActorOutbox MUST log the case ID in the outbox message (D5-6-LOGCTX)."""
+    case_node = CreateCaseNode(report_id=report.id_)
+    setup_node_blackboard(case_node, datalayer, actor.id_)
+    case_node.update()
+
+    # Capture case_id from blackboard
+    case_node.blackboard.register_key(
+        key="case_id", access=py_trees.common.Access.READ
+    )
+    case_id = case_node.blackboard.get("case_id")
+
+    activity_node = CreateCaseActivity(
+        report_id=report.id_, offer_id=offer.id_
+    )
+    activity_node.blackboard = case_node.blackboard
+    activity_node.initialise()
+    activity_node.update()
+
+    outbox_node = UpdateActorOutbox()
+    outbox_node.blackboard = activity_node.blackboard
+    outbox_node.initialise()
+
+    with caplog.at_level("INFO"):
+        outbox_node.update()
+
+    assert case_id in caplog.text

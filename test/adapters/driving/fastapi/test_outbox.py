@@ -320,3 +320,54 @@ def test_extract_recipients_returns_empty_for_no_fields():
     activity = SimpleNamespace(to=None, cc=None, bto=None, bcc=None)
     recipients = oh._extract_recipients(activity)
     assert recipients == []
+
+
+# ---------------------------------------------------------------------------
+# handle_outbox_item — improved delivery log content (D5-6-LOGCTX)
+# ---------------------------------------------------------------------------
+
+
+def test_handle_outbox_item_logs_activity_type_in_delivery(caplog):
+    """handle_outbox_item logs the activity type in the delivery message."""
+    recipient = "https://example.org/actors/alice"
+    activity = VultronActivity(
+        id_="urn:test:act-type-log",
+        type_="Announce",
+        actor="https://example.org/actors/bob",
+        to=[recipient],
+    )
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = activity
+    mock_emitter = AsyncMock()
+
+    with caplog.at_level("INFO"):
+        asyncio.run(
+            oh.handle_outbox_item(
+                "actor-bob", activity.id_, mock_dl, mock_emitter
+            )
+        )
+
+    assert "Announce" in caplog.text
+
+
+def test_handle_outbox_item_logs_recipient_in_delivery(caplog):
+    """handle_outbox_item logs the recipient URL in the delivery message."""
+    recipient = "https://example.org/actors/alice"
+    activity = VultronActivity(
+        id_="urn:test:act-recip-log",
+        type_="Create",
+        actor="https://example.org/actors/bob",
+        to=[recipient],
+    )
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = activity
+    mock_emitter = AsyncMock()
+
+    with caplog.at_level("INFO"):
+        asyncio.run(
+            oh.handle_outbox_item(
+                "actor-bob", activity.id_, mock_dl, mock_emitter
+            )
+        )
+
+    assert recipient in caplog.text

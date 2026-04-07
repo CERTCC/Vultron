@@ -627,3 +627,110 @@ def test_tree_execution_vendor_rm_accepted(
     # And RM.VALID should appear earlier in the history
     rm_states = [s.rm_state for s in vendor_participant.participant_statuses]
     assert RM.VALID in rm_states, "RM.VALID should be in the status history"
+
+
+# ============================================================================
+# D5-6-LOGCTX: outbox activity log content tests
+# ============================================================================
+
+
+def test_validate_report_tree_logs_announce_type_for_embargo(
+    bridge,
+    datalayer,
+    actor_id,
+    report,
+    offer,
+    actor,
+    finder_actor,
+    caplog,
+):
+    """InitializeDefaultEmbargoNode MUST log 'Announce' activity type (D5-6-LOGCTX)."""
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+    )
+    with caplog.at_level("INFO"):
+        bridge.execute_with_setup(
+            tree=tree,
+            actor_id=actor_id,
+            datalayer=datalayer,
+        )
+    assert "Announce" in caplog.text
+
+
+def test_validate_report_tree_logs_case_id_in_embargo_message(
+    bridge,
+    datalayer,
+    actor_id,
+    report,
+    offer,
+    actor,
+    finder_actor,
+    caplog,
+):
+    """InitializeDefaultEmbargoNode MUST log the case ID (D5-6-LOGCTX)."""
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+    )
+    with caplog.at_level("INFO"):
+        bridge.execute_with_setup(
+            tree=tree,
+            actor_id=actor_id,
+            datalayer=datalayer,
+        )
+
+    cases = datalayer.by_type("VulnerabilityCase")
+    assert cases
+    case_id = next(iter(cases))
+    assert case_id in caplog.text
+
+
+def test_validate_report_tree_logs_add_for_finder_participant(
+    bridge,
+    datalayer,
+    actor_id,
+    finder_actor_id,
+    report,
+    offer,
+    actor,
+    finder_actor,
+    caplog,
+):
+    """CreateFinderParticipantNode MUST log 'Add' activity type (D5-6-LOGCTX)."""
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+    )
+    with caplog.at_level("INFO"):
+        bridge.execute_with_setup(
+            tree=tree,
+            actor_id=actor_id,
+            datalayer=datalayer,
+        )
+    assert "Add" in caplog.text
+
+
+def test_validate_report_tree_logs_finder_actor_in_participant_message(
+    bridge,
+    datalayer,
+    actor_id,
+    finder_actor_id,
+    report,
+    offer,
+    actor,
+    finder_actor,
+    caplog,
+):
+    """CreateFinderParticipantNode MUST log finder actor ID (D5-6-LOGCTX)."""
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+    )
+    with caplog.at_level("INFO"):
+        bridge.execute_with_setup(
+            tree=tree,
+            actor_id=actor_id,
+            datalayer=datalayer,
+        )
+    assert finder_actor_id in caplog.text

@@ -115,10 +115,14 @@ async def handle_outbox_item(
         )
         return
 
+    activity_type = getattr(outbound_activity, "type_", "Activity")
+    activity_object = getattr(outbound_activity, "object_", None)
+
     recipients = _extract_recipients(outbound_activity)
     if not recipients:
         logger.debug(
-            "No recipients found for activity %s (actor %s).",
+            "No recipients found for %s activity '%s' (actor '%s').",
+            activity_type,
             activity_id,
             actor_id,
         )
@@ -126,9 +130,13 @@ async def handle_outbox_item(
 
     await emitter.emit(outbound_activity, recipients)
     logger.info(
-        "Emitted activity %s to %d recipient(s) for actor %s.",
+        "Delivered %s activity '%s' (object: %s) to %d recipient(s)"
+        " [%s] for actor '%s'.",
+        activity_type,
         activity_id,
+        activity_object,
         len(recipients),
+        ", ".join(recipients),
         actor_id,
     )
 

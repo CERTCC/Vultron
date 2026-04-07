@@ -680,7 +680,12 @@ class InitializeDefaultEmbargoNode(DataLayerAction):
                 self.datalayer.save(actor_obj)
             self.datalayer.record_outbox_item(self.actor_id, announce.id_)
             self.logger.info(
-                "Queued embargo Announce activity '%s' to actor '%s' outbox",
+                "Queued Announce(embargo '%s' for case '%s',"
+                " duration %d days) activity '%s' to actor '%s' outbox"
+                " (default embargo notification)",
+                embargo.id_,
+                case_id,
+                duration_days,
                 announce.id_,
                 self.actor_id,
             )
@@ -859,8 +864,12 @@ class CreateFinderParticipantNode(DataLayerAction):
                 self.actor_id, add_notification.id_
             )
             self.logger.info(
-                "Queued Add activity '%s' to actor '%s' outbox"
+                "Queued Add(CaseParticipant '%s' for actor '%s' to case '%s')"
+                " activity '%s' to actor '%s' outbox"
                 " (finder participant notification)",
+                participant.id_,
+                finder_actor_id,
+                case_id,
                 add_notification.id_,
                 self.actor_id,
             )
@@ -890,6 +899,9 @@ class UpdateActorOutbox(DataLayerAction):
         self.blackboard.register_key(
             key="activity_id", access=py_trees.common.Access.READ
         )
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
 
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
@@ -906,6 +918,8 @@ class UpdateActorOutbox(DataLayerAction):
                 )
                 return Status.FAILURE
 
+            case_id = self.blackboard.get("case_id")
+
             actor_obj = self.datalayer.read(
                 self.actor_id, raise_on_missing=True
             )
@@ -921,8 +935,11 @@ class UpdateActorOutbox(DataLayerAction):
             # Also queue for delivery via outbox_handler
             self.datalayer.record_outbox_item(self.actor_id, activity_id)
             self.logger.info(
-                f"{self.name}: Added activity {activity_id} to"
-                f" actor {self.actor_id} outbox"
+                "Queued Create(Case '%s') activity '%s' to actor '%s' outbox"
+                " (case creation notification)",
+                case_id,
+                activity_id,
+                self.actor_id,
             )
 
             return Status.SUCCESS

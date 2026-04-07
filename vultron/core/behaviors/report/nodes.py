@@ -527,6 +527,9 @@ class UpdateActorOutbox(DataLayerAction):
         self.blackboard.register_key(
             key="activity_id", access=py_trees.common.Access.READ
         )
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
 
     def update(self) -> Status:
         """
@@ -550,6 +553,8 @@ class UpdateActorOutbox(DataLayerAction):
                 )
                 return Status.FAILURE
 
+            case_id = self.blackboard.get("case_id")
+
             # Read actor
             actor_obj = self.datalayer.read(
                 self.actor_id, raise_on_missing=True
@@ -564,19 +569,19 @@ class UpdateActorOutbox(DataLayerAction):
 
             # Append activity to outbox (history for outbox_ids detection)
             actor_obj.outbox.items.append(activity_id)
-            self.logger.info(
-                f"{self.name}: Added activity {activity_id} to actor"
-                f" {self.actor_id} outbox"
-            )
 
             # Persist updated actor
             self.datalayer.save(actor_obj)
-            self.logger.info(
-                f"{self.name}: Updated actor {self.actor_id} in DataLayer"
-            )
 
             # Also queue for delivery via outbox_handler
             self.datalayer.record_outbox_item(self.actor_id, activity_id)
+            self.logger.info(
+                "Queued Create(Case '%s') activity '%s' to actor '%s' outbox"
+                " (case creation notification)",
+                case_id,
+                activity_id,
+                self.actor_id,
+            )
 
             return Status.SUCCESS
 
