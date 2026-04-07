@@ -1,7 +1,9 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-04-07 (refresh #69: gap analysis, IMPLEMENTATION_NOTES
-cleanup, codebase-structure patterns added)
+**Last Updated**: 2026-04-07 (refresh #70: duration spec promoted, embargo-policy
+updated to ISO 8601 durations, finder participant lifecycle captured, VOCAB-REG-1
+status confirmed, AGENTS.md warnings caveat added; EMBARGO-DUR-1 and
+FINDER-PART-1 tasks added)
 
 ## Overview
 
@@ -575,6 +577,39 @@ are needed before resuming feature development.
   The registry *structure* and registry *population* are separate concerns
   and may require separate solutions. See `specs/vocabulary-model.md`
   VM-01-005 and the cross-cutting observations in `notes/spec-review-0327.md`.
+  **Confirmed still open as of 2026-04-07.**
+
+### EMBARGO-DUR-1 — Update EmbargoPolicy model to ISO 8601 duration format
+
+- [ ] **EMBARGO-DUR-1**: Update the `EmbargoPolicy` Pydantic model in
+  `vultron/wire/as2/vocab/objects/embargo_policy.py` to replace the integer
+  duration fields (`preferred_duration_days`, `minimum_duration_days`,
+  `maximum_duration_days`) with ISO 8601 duration string fields
+  (`preferred_duration`, `minimum_duration`, `maximum_duration`) as
+  specified in `specs/embargo-policy.md` EP-01-002/003 and
+  `specs/duration.md` DUR-01-001.
+  - Use `datetime.timedelta` internally with an `isodate`-based
+    `field_validator`/`field_serializer` pair (see DUR-05-001, DUR-05-002).
+  - Update `InitializeDefaultEmbargoNode` in
+    `vultron/core/behaviors/case/nodes.py` to parse the ISO 8601 duration
+    from the actor's policy (replacing the `preferred_duration_days`
+    integer lookup).
+  - Add/update unit tests for round-trip serialization and validation.
+
+### FINDER-PART-1 — Create CaseParticipant at report receipt
+
+- [ ] **FINDER-PART-1**: Implement the report-as-proto-case participant
+  lifecycle: create a `CaseParticipant` record for the finder at report
+  receipt (not deferred to case creation) and retroactively re-link it to
+  the case when one is created.
+  - At report receipt, create a `CaseParticipant` for the reporter with
+    `context` pointing to the `VulnerabilityReport` ID and RM state
+    initialized to `RM.RECEIVED`.
+  - During case creation (validate-report BT), update the pre-existing
+    finder participant's `context` to point to the newly created
+    `VulnerabilityCase` ID.
+  - See `notes/case-state-model.md` "Report as Proto-Case: Finder Participant
+    Lifecycle" for full design rationale.
 
 ---
 

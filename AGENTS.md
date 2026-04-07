@@ -1326,6 +1326,27 @@ runtime constraints would be the alternative.
 
 ---
 
+### Pytest `filterwarnings = ["error"]` Does Not Catch All Warnings
+
+`pyproject.toml` sets `filterwarnings = ["error"]`, which converts Python
+`warnings.warn()` calls into test errors. This prevents silent accumulation
+of deprecation and misuse warnings.
+
+**Scope caveat**: This policy applies only to `warnings.warn()` calls
+captured by pytest's warning machinery. It does **not** catch
+`"Exception ignored in:"` messages printed by the Python interpreter at
+process teardown (e.g., `ResourceWarning: unclosed file ...`). Those arise
+from finalizers (`__del__`) running after pytest exits and are invisible to
+`filterwarnings`.
+
+**Rule for agents**: After running the test suite, also scan the output for
+`ResourceWarning` or `"Exception ignored in:"` messages. These signal
+unclosed resources and are still bugs even if they do not cause test
+failures. File them in `plan/BUGS.md` if not already tracked and fix them
+by explicitly closing resources in fixtures.
+
+---
+
 ### Pytest Helper Enums Must Not Use `Test*` Names
 
 **Symptom**: `PytestCollectionWarning` emitted for helper enum classes in test
