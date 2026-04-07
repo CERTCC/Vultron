@@ -226,6 +226,13 @@ the distinction between participant-specific and participant-agnostic state.
 - `CM-06-004` `PROD_ONLY` Participants MUST authenticate case update
   notifications before accepting them as authoritative
   - CM-06-004 is-constrained-by PROTO-01-001
+- `CM-06-005` When a note is added to a case, the CaseActor MUST
+  broadcast the note to all case participants (excluding the note
+  author)
+  - Recipients MUST be derived from
+    `VulnerabilityCase.actor_participant_index`
+  - CM-06-005 depends-on OX-03-001
+  - CM-06-005 depends-on CM-02-001
 
 ## CVD Action Rules API
 
@@ -398,6 +405,34 @@ the distinction between participant-specific and participant-agnostic state.
 - Integration test: Case update sent to a participant who has not accepted the
   current embargo triggers `Offer(Embargo)` first
 
+## CM-11 Invitation Acceptance Lifecycle
+
+When an actor accepts an invitation to join a case, the system MUST
+complete a set of cascading effects automatically, without requiring
+additional triggers from the demo-runner or external caller.
+
+- `CM-11-001` When an actor accepts a case invitation, the accepting
+  actor's RM state MUST advance to ACCEPTED
+  - This means `AcceptInviteActorToCaseReceivedUseCase` (or its BT
+    equivalent) MUST invoke `SvcEngageCaseUseCase` internally after
+    creating the participant record
+  - CM-11-001 implements VP-03-012
+  - CM-11-001 depends-on CM-03-001
+- `CM-11-002` After auto-engagement (CM-11-001), the accepting actor
+  SHOULD emit an `RmEngageCaseActivity` to notify the case owner
+  - This activity is queued to the accepting actor's outbox for
+    delivery to the case-actor inbox
+  - CM-11-002 depends-on OX-02-001
+
+### CM-11-001, CM-11-002 Verification
+
+- Unit test: Accepting an invitation triggers RM state advance to
+  ACCEPTED without a separate `engage-case` trigger
+- Unit test: `RmEngageCaseActivity` is emitted to the outbox after
+  auto-engagement
+- Integration test: Demo-runner triggers only `accept-invite`; system
+  automatically engages the actor and notifies the case owner
+
 ## Related
 
 - **Behavior Tree Integration**: `specs/behavior-tree-integration.md`
@@ -418,6 +453,9 @@ the distinction between participant-specific and participant-agnostic state.
 - **Agentic Readiness**: `specs/agentic-readiness.md` (AR-07-001, AR-07-002)
 - **Object IDs**: `specs/object-ids.md`
 - **Do Work Behaviors**: `notes/do-work-behaviors.md`
+- **Protocol Event Cascades**: `notes/protocol-event-cascades.md`
+  (cascading automation design principle, identified gaps in BT
+  automation and activity addressing)
 - **Encryption**: `specs/encryption.md`
 - **Implementation**: `vultron/wire/as2/vocab/objects/vulnerability_case.py`
 - **Implementation**: `vultron/wire/as2/vocab/objects/case_status.py`

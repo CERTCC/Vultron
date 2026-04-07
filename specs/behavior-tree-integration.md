@@ -126,6 +126,10 @@ SHOULD use BTs for clarity and maintainability.
 - `BT-10-002` Case creation MUST create corresponding CaseActor (Service)
 - `BT-10-003` CaseActor MUST manage case-related message processing
 - `BT-10-004` `PROD_ONLY` CaseActor MUST enforce case-level authorization
+- `BT-10-005` When an actor accepts a case invitation, the system
+  SHOULD automatically advance the accepting actor's RM state to
+  ACCEPTED via BT or use-case execution
+  - BT-10-005 implements CM-11-001
 
 ## VFD/PXA State Machine Usage
 
@@ -171,11 +175,13 @@ SHOULD use BTs for clarity and maintainability.
 - Unit test: BT execution occurs synchronously within handler
 - Unit test: BT exceptions propagate to handler error handling
 
-### BT-10-001, BT-10-002, BT-10-003 Verification
+### BT-10-001 through BT-10-005 Verification
 
 - Integration test: Validate report → creates VulnerabilityCase
 - Integration test: Case creation → creates CaseActor service
 - Unit test: CaseActor exists in DataLayer with correct case reference
+- Unit test: Invitation acceptance triggers RM→ACCEPTED without
+  separate engage-case trigger (BT-10-005)
 
 ### BT-11-001, BT-11-002 Verification
 
