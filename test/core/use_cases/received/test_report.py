@@ -256,6 +256,99 @@ class TestReportReceiptPersistsParticipantStatus:
         ), "Expected exactly one ParticipantStatus after idempotent calls"
 
 
+class TestDuplicateReportHandling:
+    """Tests that duplicate VulnerabilityReport warnings are not emitted.
+
+    The inbox endpoint pre-stores nested objects before dispatching to use
+    cases.  When the use case then tries to store the same report, the
+    duplicate must be silently demoted to DEBUG — not WARNING — because it
+    is an expected idempotency condition, not a real error (D5-6-DUP).
+    """
+
+    def _make_submit_event(self, report_id: str, activity_id: str):
+        report = VultronReport(id_=report_id)
+        activity = VultronActivity(
+            id_=activity_id,
+            type_="Offer",
+            actor="https://example.org/users/finder",
+        )
+        return (
+            report,
+            SubmitReportReceivedEvent(
+                semantic_type=MessageSemantics.SUBMIT_REPORT,
+                activity_id=activity_id,
+                actor_id="https://example.org/users/finder",
+                object_=report,
+                activity=activity,
+            ),
+        )
+
+    def test_submit_report_no_warning_on_duplicate_report(self, caplog):
+        """SubmitReportReceivedUseCase emits no WARNING when report already stored.
+
+        The inbox endpoint pre-stores the nested VulnerabilityReport before
+        dispatching; the use case must degrade to DEBUG, not WARNING.
+        Per D5-6-DUP.
+        """
+        import logging
+
+        report, event = self._make_submit_event(
+            "https://example.org/reports/r-dup-1",
+            "https://example.org/activities/offer-dup-1",
+        )
+        dl = TinyDbDataLayer(db_path=None)
+        # Simulate inbox pre-storage of the nested object.
+        dl.save(report)
+
+        with caplog.at_level(logging.WARNING):
+            SubmitReportReceivedUseCase(dl, event).execute()
+
+        warning_records = [
+            r for r in caplog.records if r.levelno >= logging.WARNING
+        ]
+        assert warning_records == [], (
+            "No WARNING should be emitted when VulnerabilityReport is "
+            f"pre-stored by inbox endpoint; got: {[r.message for r in warning_records]}"
+        )
+
+    def test_create_report_no_warning_on_duplicate_report(self, caplog):
+        """CreateReportReceivedUseCase emits no WARNING when report already stored.
+
+        Per D5-6-DUP.
+        """
+        import logging
+
+        report = VultronReport(
+            id_="https://example.org/reports/r-dup-create-1"
+        )
+        activity = VultronActivity(
+            id_="https://example.org/activities/create-dup-1",
+            type_="Create",
+            actor="https://example.org/users/finder",
+        )
+        event = CreateReportReceivedEvent(
+            semantic_type=MessageSemantics.CREATE_REPORT,
+            activity_id="https://example.org/activities/create-dup-1",
+            actor_id="https://example.org/users/finder",
+            object_=report,
+            activity=activity,
+        )
+        dl = TinyDbDataLayer(db_path=None)
+        # Simulate inbox pre-storage of the nested object.
+        dl.save(report)
+
+        with caplog.at_level(logging.WARNING):
+            CreateReportReceivedUseCase(dl, event).execute()
+
+        warning_records = [
+            r for r in caplog.records if r.levelno >= logging.WARNING
+        ]
+        assert warning_records == [], (
+            "No WARNING should be emitted when VulnerabilityReport is "
+            f"pre-stored by inbox endpoint; got: {[r.message for r in warning_records]}"
+        )
+
+
 class TestSubmitReportLogMessages:
     """Tests that SubmitReportReceivedUseCase emits clear, actor-identified log messages."""
 

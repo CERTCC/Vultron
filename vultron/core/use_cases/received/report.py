@@ -38,8 +38,12 @@ class CreateReportReceivedUseCase:
                     "Stored VulnerabilityReport with ID: %s", request.report_id
                 )
             except ValueError as e:
-                logger.warning(
-                    "VulnerabilityReport %s already exists: %s",
+                # The inbox endpoint pre-stores inline nested objects before
+                # dispatching (actors.py), so a duplicate here is expected
+                # and not an error condition.
+                logger.debug(
+                    "VulnerabilityReport %s already exists (pre-stored by "
+                    "inbox endpoint): %s",
                     request.report_id,
                     e,
                 )
@@ -99,8 +103,12 @@ class SubmitReportReceivedUseCase:
                     "Stored VulnerabilityReport with ID: %s", request.report_id
                 )
             except ValueError as e:
-                logger.warning(
-                    "VulnerabilityReport %s already exists: %s",
+                # The inbox endpoint pre-stores inline nested objects before
+                # dispatching (actors.py), so a duplicate here is expected
+                # and not an error condition.
+                logger.debug(
+                    "VulnerabilityReport %s already exists (pre-stored by "
+                    "inbox endpoint): %s",
                     request.report_id,
                     e,
                 )
