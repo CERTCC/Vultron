@@ -1,7 +1,7 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-04-06 (refresh #68: D5-6i–l tasks added per
-`notes/two-actor-feedback.md`)
+**Last Updated**: 2026-04-07 (refresh #69: gap analysis, IMPLEMENTATION_NOTES
+cleanup, codebase-structure patterns added)
 
 ## Overview
 
@@ -14,8 +14,9 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 
 ### Current Status Summary
 
-**Test suite**: Canonical validation passed on 2026-04-01
-(`black`, `flake8`, `mypy`, `pyright`, full `pytest` run).
+**Test suite**: Canonical validation last passed on 2026-04-06
+(1237 passed, 5581 subtests; `black`, `flake8`, `mypy`, `pyright`, full
+`pytest` run).
 
 All 38 message handlers implemented (including `unknown`). All 9 trigger
 endpoints complete. 12 demo scripts, all dockerized in `docker-compose.yml`.
