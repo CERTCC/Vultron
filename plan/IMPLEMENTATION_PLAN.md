@@ -35,7 +35,8 @@ tasks tracked under PRIORITY-310 below).
 
 **PRIORITY-310** Address demo feedback — D5-6-LOG, D5-6-STATE, D5-6-STORE,
 D5-6-WORKFLOW (all ✅); D5-6-DUP, D5-6-TRIGDELIV, D5-6-LOGCTX (all ✅);
-D5-6-DEMOAUDIT ✅; D5-7 pending human sign-off.
+D5-6-DEMOAUDIT ✅; D5-6-AUTOENG, D5-6-NOTECAST, D5-6-EMBARGORCP,
+D5-6-CASEPROP pending; D5-7 pending human sign-off.
 
 ---
 
@@ -395,6 +396,58 @@ section MUST be completed before proceeding to PRIORITY-350 and beyond. D5-7
     `notes/` or `plan/IMPLEMENTATION_NOTES.md` with a reference to the
     relevant doc section.
   - Add/update demo tests to verify the protocol-compliant flow.
+
+#### D5-6-AUTOENG — Auto-engage after invitation acceptance
+
+- [ ] **D5-6-AUTOENG**: When an actor accepts a case invitation, the
+  accepting actor's RM state MUST advance to ACCEPTED automatically
+  without a separate `engage-case` trigger.
+  - Modify `AcceptInviteActorToCaseReceivedUseCase` to invoke
+    `SvcEngageCaseUseCase` internally after creating the participant
+    record and pre-seeding RM states.
+  - Emit `RmEngageCaseActivity` to the outbox for delivery to the
+    case-actor's inbox (CM-11-002).
+  - Update three-actor and multi-vendor demo scripts to remove manual
+    `engage-case` calls that are now automated.
+  - **Spec**: CM-11-001, CM-11-002, BT-10-005.
+
+#### D5-6-NOTECAST — Broadcast notes to case participants
+
+- [ ] **D5-6-NOTECAST**: When a note is added to a case, the CaseActor
+  MUST broadcast the note to all case participants (excluding the note
+  author).
+  - Modify `AddNoteToCaseReceivedUseCase` to derive recipients from
+    `case.actor_participant_index` and queue a broadcast activity to
+    the outbox.
+  - Remove manual note-forwarding code from the two-actor demo
+    (`vultron/demo/two_actor_demo.py`).
+  - **Spec**: CM-06-005, OX-03-001.
+
+#### D5-6-EMBARGORCP — Fix embargo Announce activity addressing
+
+- [ ] **D5-6-EMBARGORCP**: The `InitializeDefaultEmbargoNode` creates
+  an `Announce(embargo)` with no `to` field and runs before participants
+  exist in the BT ordering.
+  - Recommended fix: Remove the standalone `Announce(embargo)` from the
+    validate-report BT and rely on the `Create(Case)` activity to carry
+    embargo information via `VulnerabilityCase.active_embargo`.
+  - Verify that the finder receives embargo info via the case object in
+    the `Create(Case)` notification.
+  - **Spec**: OX-03-001.
+
+#### D5-6-CASEPROP — Case propagation and activity addressing
+
+- [ ] **D5-6-CASEPROP**: Fix missing `to` fields on case-related
+  activities and correct demo container targeting.
+  - Add `to` field to `EmitCreateCaseActivity` in the create-case BT,
+    populated from the case's participant list.
+  - Fix the three-actor demo's `actor_engages_case()` to call
+    `engage-case` on the actor's own container rather than the
+    case-actor container.
+  - This requires the actor to have a local case copy (received via
+    `Create(Case)` delivery), so depends on D5-6-AUTOENG and the
+    addressing fix.
+  - **Spec**: OX-03-001, DEMO-MA-00-001.
 
 #### D5-7 — Project owner sign-off on demo feedback resolution
 
