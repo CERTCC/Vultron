@@ -792,3 +792,108 @@ def test_trigger_submit_report_logs_report_and_offer(
     messages = [r.message for r in caplog.records]
     assert any("Created VulnerabilityReport" in m for m in messages)
     assert any("Offering report" in m for m in messages)
+
+
+# ===========================================================================
+# Tests for outbox delivery scheduling (D5-6-TRIGDELIV)
+# ===========================================================================
+
+
+class TestTriggerReportOutboxScheduling:
+    """D5-6-TRIGDELIV: trigger endpoints must schedule outbox_handler."""
+
+    def _make_patches(self):
+        """Return context managers that mock outbox_handler and get_datalayer."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        mock_dl = MagicMock()
+        return (
+            patch(
+                "vultron.adapters.driving.fastapi.routers"
+                ".trigger_report.outbox_handler",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "vultron.adapters.driving.fastapi.routers"
+                ".trigger_report.get_datalayer",
+                return_value=mock_dl,
+            ),
+            mock_dl,
+        )
+
+    def test_validate_report_schedules_outbox_handler(
+        self, client_triggers, actor, offer
+    ):
+        """validate-report schedules outbox delivery after execution."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        mock_dl = MagicMock()
+        with patch(
+            "vultron.adapters.driving.fastapi.routers"
+            ".trigger_report.outbox_handler",
+            new_callable=AsyncMock,
+        ) as mock_outbox, patch(
+            "vultron.adapters.driving.fastapi.routers"
+            ".trigger_report.get_datalayer",
+            return_value=mock_dl,
+        ):
+            resp = client_triggers.post(
+                f"/actors/{actor.id_}/trigger/validate-report",
+                json={"offer_id": offer.id_},
+            )
+        assert resp.status_code == status.HTTP_202_ACCEPTED
+        mock_outbox.assert_called_once()
+        assert mock_outbox.call_args.args[0] == actor.id_
+        assert mock_outbox.call_args.args[1] is mock_dl
+
+    def test_invalidate_report_schedules_outbox_handler(
+        self, client_triggers, actor, offer
+    ):
+        """invalidate-report schedules outbox delivery after execution."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        mock_dl = MagicMock()
+        with patch(
+            "vultron.adapters.driving.fastapi.routers"
+            ".trigger_report.outbox_handler",
+            new_callable=AsyncMock,
+        ) as mock_outbox, patch(
+            "vultron.adapters.driving.fastapi.routers"
+            ".trigger_report.get_datalayer",
+            return_value=mock_dl,
+        ):
+            resp = client_triggers.post(
+                f"/actors/{actor.id_}/trigger/invalidate-report",
+                json={"offer_id": offer.id_},
+            )
+        assert resp.status_code == status.HTTP_202_ACCEPTED
+        mock_outbox.assert_called_once()
+        assert mock_outbox.call_args.args[0] == actor.id_
+
+    def test_submit_report_schedules_outbox_handler(
+        self, client_triggers, actor
+    ):
+        """submit-report schedules outbox delivery after execution."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        mock_dl = MagicMock()
+        with patch(
+            "vultron.adapters.driving.fastapi.routers"
+            ".trigger_report.outbox_handler",
+            new_callable=AsyncMock,
+        ) as mock_outbox, patch(
+            "vultron.adapters.driving.fastapi.routers"
+            ".trigger_report.get_datalayer",
+            return_value=mock_dl,
+        ):
+            resp = client_triggers.post(
+                f"/actors/{actor.id_}/trigger/submit-report",
+                json={
+                    "report_name": "Test Report",
+                    "report_content": "Content.",
+                    "recipient_id": "https://example.org/actors/vendor",
+                },
+            )
+        assert resp.status_code == status.HTTP_202_ACCEPTED
+        mock_outbox.assert_called_once()
+        assert mock_outbox.call_args.args[0] == actor.id_

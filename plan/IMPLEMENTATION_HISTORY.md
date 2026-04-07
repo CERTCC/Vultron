@@ -4802,3 +4802,36 @@ endpoint.
 
 - `vultron/core/use_cases/received/report.py`
 - `test/core/use_cases/received/test_report.py`
+
+---
+
+## D5-6-TRIGDELIV — Fix trigger endpoints to deliver outbox activities (2026-04-07)
+
+**Root cause**: All nine trigger endpoints (`trigger_report.py`,
+`trigger_case.py`, `trigger_embargo.py`) executed the use case and returned
+202, but never scheduled `outbox_handler` as a `BackgroundTask`. Activities
+queued by the use cases via `add_activity_to_outbox` → `record_outbox_item`
+remained in the delivery queue indefinitely.
+
+**Fix**: Added `BackgroundTasks` as a dependency to all nine trigger endpoint
+functions and scheduled `outbox_handler(actor_id, get_datalayer(actor_id), dl)`
+as a background task after each successful use-case execution. The actor-scoped
+DataLayer (`get_datalayer(actor_id)`) manages the outbox queue; the shared DL
+(`dl` from `Depends(_actor_dl)`) is passed as `shared_dl` for activity object
+lookup. This matches the pattern used by `post_actor_outbox` in `actors.py`.
+
+**Tests added**: `TestTriggerReportOutboxScheduling` (3 tests),
+`TestTriggerCaseOutboxScheduling` (2 tests),
+`TestTriggerEmbargoOutboxScheduling` (3 tests) — each patches `outbox_handler`
+with `AsyncMock` and `get_datalayer` with `MagicMock`, then verifies the mock
+was called with the correct `actor_id` and DataLayer after a successful trigger
+request.
+
+**Files changed**:
+
+- `vultron/adapters/driving/fastapi/routers/trigger_report.py`
+- `vultron/adapters/driving/fastapi/routers/trigger_case.py`
+- `vultron/adapters/driving/fastapi/routers/trigger_embargo.py`
+- `test/adapters/driving/fastapi/routers/test_trigger_report.py`
+- `test/adapters/driving/fastapi/routers/test_trigger_case.py`
+- `test/adapters/driving/fastapi/routers/test_trigger_embargo.py`

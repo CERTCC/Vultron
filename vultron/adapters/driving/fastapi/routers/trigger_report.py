@@ -20,7 +20,7 @@ Thin wrapper: validates request → calls adapter → returns response.
 All domain logic lives in vultron.core.use_cases.triggers.report.
 """
 
-from fastapi import APIRouter, Depends, Path, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Path, status
 
 from vultron.adapters.driving.fastapi._trigger_adapter import (
     close_report_trigger,
@@ -29,6 +29,7 @@ from vultron.adapters.driving.fastapi._trigger_adapter import (
     submit_report_trigger,
     validate_report_trigger,
 )
+from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.trigger_models import (
     CloseReportRequest,
     InvalidateReportRequest,
@@ -66,6 +67,7 @@ def _actor_dl(actor_id: str = Path(...)) -> DataLayer:  # noqa: ARG001
 def trigger_validate_report(
     actor_id: str,
     body: ValidateReportRequest,
+    background_tasks: BackgroundTasks,
     dl: DataLayer = Depends(_actor_dl),
 ) -> dict:
     """
@@ -75,7 +77,11 @@ def trigger_validate_report(
         TB-01-001, TB-01-002, TB-01-003, TB-03-001, TB-03-002, TB-03-003,
         TB-04-001, TB-05-001, TB-05-002, TB-06-001, TB-06-002, TB-07-001
     """
-    return validate_report_trigger(actor_id, body.offer_id, body.note, dl)
+    result = validate_report_trigger(actor_id, body.offer_id, body.note, dl)
+    background_tasks.add_task(
+        outbox_handler, actor_id, get_datalayer(actor_id), dl
+    )
+    return result
 
 
 @router.post(
@@ -94,6 +100,7 @@ def trigger_validate_report(
 def trigger_invalidate_report(
     actor_id: str,
     body: InvalidateReportRequest,
+    background_tasks: BackgroundTasks,
     dl: DataLayer = Depends(_actor_dl),
 ) -> dict:
     """
@@ -103,7 +110,11 @@ def trigger_invalidate_report(
         TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
         TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    return invalidate_report_trigger(actor_id, body.offer_id, body.note, dl)
+    result = invalidate_report_trigger(actor_id, body.offer_id, body.note, dl)
+    background_tasks.add_task(
+        outbox_handler, actor_id, get_datalayer(actor_id), dl
+    )
+    return result
 
 
 @router.post(
@@ -123,6 +134,7 @@ def trigger_invalidate_report(
 def trigger_reject_report(
     actor_id: str,
     body: RejectReportRequest,
+    background_tasks: BackgroundTasks,
     dl: DataLayer = Depends(_actor_dl),
 ) -> dict:
     """
@@ -132,7 +144,11 @@ def trigger_reject_report(
         TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
         TB-03-004, TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    return reject_report_trigger(actor_id, body.offer_id, body.note, dl)
+    result = reject_report_trigger(actor_id, body.offer_id, body.note, dl)
+    background_tasks.add_task(
+        outbox_handler, actor_id, get_datalayer(actor_id), dl
+    )
+    return result
 
 
 @router.post(
@@ -155,6 +171,7 @@ def trigger_reject_report(
 def trigger_close_report(
     actor_id: str,
     body: CloseReportRequest,
+    background_tasks: BackgroundTasks,
     dl: DataLayer = Depends(_actor_dl),
 ) -> dict:
     """
@@ -164,7 +181,11 @@ def trigger_close_report(
         TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
         TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    return close_report_trigger(actor_id, body.offer_id, body.note, dl)
+    result = close_report_trigger(actor_id, body.offer_id, body.note, dl)
+    background_tasks.add_task(
+        outbox_handler, actor_id, get_datalayer(actor_id), dl
+    )
+    return result
 
 
 @router.post(
@@ -182,13 +203,18 @@ def trigger_close_report(
 def trigger_submit_report(
     actor_id: str,
     body: SubmitReportRequest,
+    background_tasks: BackgroundTasks,
     dl: DataLayer = Depends(_actor_dl),
 ) -> dict:
     """Create a VulnerabilityReport and offer it to a recipient."""
-    return submit_report_trigger(
+    result = submit_report_trigger(
         actor_id,
         body.report_name,
         body.report_content,
         body.recipient_id,
         dl,
     )
+    background_tasks.add_task(
+        outbox_handler, actor_id, get_datalayer(actor_id), dl
+    )
+    return result

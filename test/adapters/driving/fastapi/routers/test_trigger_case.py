@@ -411,3 +411,61 @@ def test_trigger_defer_case_updates_participant_rm_state(
                 found_deferred = True
                 break
     assert found_deferred, "Participant RM state was not updated to DEFERRED"
+
+
+# ===========================================================================
+# Tests for outbox delivery scheduling (D5-6-TRIGDELIV)
+# ===========================================================================
+
+
+class TestTriggerCaseOutboxScheduling:
+    """D5-6-TRIGDELIV: case trigger endpoints must schedule outbox_handler."""
+
+    def test_engage_case_schedules_outbox_handler(
+        self, client_triggers, actor, case_with_participant
+    ):
+        """engage-case schedules outbox delivery after execution."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        mock_dl = MagicMock()
+        with patch(
+            "vultron.adapters.driving.fastapi.routers"
+            ".trigger_case.outbox_handler",
+            new_callable=AsyncMock,
+        ) as mock_outbox, patch(
+            "vultron.adapters.driving.fastapi.routers"
+            ".trigger_case.get_datalayer",
+            return_value=mock_dl,
+        ):
+            resp = client_triggers.post(
+                f"/actors/{actor.id_}/trigger/engage-case",
+                json={"case_id": case_with_participant.id_},
+            )
+        assert resp.status_code == status.HTTP_202_ACCEPTED
+        mock_outbox.assert_called_once()
+        assert mock_outbox.call_args.args[0] == actor.id_
+        assert mock_outbox.call_args.args[1] is mock_dl
+
+    def test_defer_case_schedules_outbox_handler(
+        self, client_triggers, actor, case_with_participant
+    ):
+        """defer-case schedules outbox delivery after execution."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        mock_dl = MagicMock()
+        with patch(
+            "vultron.adapters.driving.fastapi.routers"
+            ".trigger_case.outbox_handler",
+            new_callable=AsyncMock,
+        ) as mock_outbox, patch(
+            "vultron.adapters.driving.fastapi.routers"
+            ".trigger_case.get_datalayer",
+            return_value=mock_dl,
+        ):
+            resp = client_triggers.post(
+                f"/actors/{actor.id_}/trigger/defer-case",
+                json={"case_id": case_with_participant.id_},
+            )
+        assert resp.status_code == status.HTTP_202_ACCEPTED
+        mock_outbox.assert_called_once()
+        assert mock_outbox.call_args.args[0] == actor.id_

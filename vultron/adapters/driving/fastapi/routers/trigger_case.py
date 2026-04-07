@@ -20,12 +20,13 @@ Thin wrapper: validates request → calls adapter → returns response.
 All domain logic lives in vultron.core.use_cases.triggers.case.
 """
 
-from fastapi import APIRouter, Depends, Path, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Path, status
 
 from vultron.adapters.driving.fastapi._trigger_adapter import (
     defer_case_trigger,
     engage_case_trigger,
 )
+from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.trigger_models import CaseTriggerRequest
 from vultron.core.ports.datalayer import DataLayer
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
@@ -58,6 +59,7 @@ def _actor_dl(actor_id: str = Path(...)) -> DataLayer:  # noqa: ARG001
 def trigger_engage_case(
     actor_id: str,
     body: CaseTriggerRequest,
+    background_tasks: BackgroundTasks,
     dl: DataLayer = Depends(_actor_dl),
 ) -> dict:
     """
@@ -67,7 +69,11 @@ def trigger_engage_case(
         TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    return engage_case_trigger(actor_id, body.case_id, dl)
+    result = engage_case_trigger(actor_id, body.case_id, dl)
+    background_tasks.add_task(
+        outbox_handler, actor_id, get_datalayer(actor_id), dl
+    )
+    return result
 
 
 @router.post(
@@ -85,6 +91,7 @@ def trigger_engage_case(
 def trigger_defer_case(
     actor_id: str,
     body: CaseTriggerRequest,
+    background_tasks: BackgroundTasks,
     dl: DataLayer = Depends(_actor_dl),
 ) -> dict:
     """
@@ -94,4 +101,8 @@ def trigger_defer_case(
         TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    return defer_case_trigger(actor_id, body.case_id, dl)
+    result = defer_case_trigger(actor_id, body.case_id, dl)
+    background_tasks.add_task(
+        outbox_handler, actor_id, get_datalayer(actor_id), dl
+    )
+    return result

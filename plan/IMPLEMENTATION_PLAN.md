@@ -14,8 +14,8 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 
 ### Current Status Summary
 
-**Test suite**: Canonical validation last passed on 2026-04-06
-(1237 passed, 5581 subtests; `black`, `flake8`, `mypy`, `pyright`, full
+**Test suite**: Canonical validation last passed on 2026-04-07
+(1247 passed, 5581 subtests; `black`, `flake8`, `mypy`, `pyright`, full
 `pytest` run).
 
 All 38 message handlers implemented (including `unknown`). All 9 trigger
@@ -34,7 +34,7 @@ All PRIORITY-30 through PRIORITY-200 phases complete.
 tasks tracked under PRIORITY-310 below).
 
 **PRIORITY-310** Address demo feedback — D5-6-LOG, D5-6-STATE, D5-6-STORE,
-D5-6-WORKFLOW (all ✅); D5-6-DUP, D5-6-LOGCTX, D5-6-TRIGDELIV,
+D5-6-WORKFLOW (all ✅); D5-6-DUP, D5-6-TRIGDELIV (all ✅); D5-6-LOGCTX,
 D5-6-DEMOAUDIT pending; D5-7 pending human sign-off.
 
 ---
@@ -351,33 +351,12 @@ section MUST be completed before proceeding to PRIORITY-350 and beyond. D5-7
     `InitializeDefaultEmbargoNode`).
   - Add tests using `caplog` to verify improved log content.
 
-#### D5-6-TRIGDELIV — Fix trigger endpoints to deliver outbox activities
+#### D5-6-TRIGDELIV — Fix trigger endpoints to deliver outbox activities ✅
 
-- [ ] **D5-6-TRIGDELIV**: Ensure all trigger endpoints call `outbox_handler`
-  after use-case execution so that activities queued to the actor's outbox
-  are actually delivered to recipients (addresses D5-6k from
-  `notes/two-actor-feedback.md` and fulfills `specs/outbox.md` OX-03-001/002).
-  Currently, trigger endpoints (`trigger_report.py`, `trigger_case.py`,
-  `trigger_embargo.py`) execute the use case and return 202, but never
-  schedule `outbox_handler` as a BackgroundTask. As a result, activities
-  queued by the BT (e.g., `CreateCaseActivity` for finder notification)
-  remain in the delivery queue indefinitely unless a subsequent inbox
-  delivery happens to drain the queue.
-  - Add `BackgroundTasks` dependency to all trigger endpoint functions in
-    `trigger_report.py`, `trigger_case.py`, and `trigger_embargo.py`.
-  - After use-case execution, schedule `outbox_handler` via
-    `background_tasks.add_task(outbox_handler, actor_id, actor_dl, shared_dl)`
-    to drain queued activities.
-  - Add INFO-level log messages to `outbox_handler` and
-    `DeliveryQueueAdapter.emit()` for each delivery attempt so that outbox
-    delivery is visible in container logs (complements D5-6k: "logs
-    indicating that the outbox delivery is occurring").
-  - Add tests verifying that calling a trigger endpoint results in queued
-    activities being delivered (mock `outbox_handler` or check that
-    `BackgroundTasks.add_task` is called).
-  - This is a prerequisite for D5-6-DEMOAUDIT: without trigger→outbox
-    delivery, demos cannot rely on triggers to produce end-to-end message
-    flow.
+- [x] **D5-6-TRIGDELIV**: Added `BackgroundTasks` to all 9 trigger endpoints
+  and scheduled `outbox_handler(actor_id, actor_dl, shared_dl)` as a background
+  task after each use-case execution. Added 8 new tests verifying
+  `outbox_handler` is scheduled. Completed 2026-04-07.
 
 #### D5-6-DEMOAUDIT — Audit and refactor all demos for protocol compliance
 
