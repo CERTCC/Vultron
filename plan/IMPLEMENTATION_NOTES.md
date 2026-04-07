@@ -94,6 +94,26 @@ participant status record, or a revision to the `CaseParticipant` lifecycle
 so that it is always created at report receipt and retroactively attached to
 the case during case creation.
 
+#### Reflection
+
+`CaseParticipant` is perhaps misleading, as the actual lifecycle is that a
+work starts on a `report` and some reports turn into `cases`. (This is good
+caterpillar/butterfly metamorphosis analogy.) The reality is that a "report"
+needs to be treated as a sort of proto-case that has a reporter and a
+receiver, each of whom are participants in the work of processing the report,
+even if that report never fully emerges into a case. The RM, EM, and CS
+state machines all have meaning in both the pre-case (report) and post-case
+(case+report) stages, so it makes sense to have participant records created
+for reporter and receiver before case creation, and they can be
+retroactively linked to a case if one is created. However, we currently
+don't really have a concept of "report participant", and so there's no
+obvious linkage between a case participant object and the report object. It
+seems like it's probably pretty easy to do using the `context` field of the
+participant record, and then when moving the participant to a case you just
+update the `context` of the participant to point to the case rather than the
+report (the report is added to the case as part of the case creation, so
+this should be a straightforward task to complete at case creation.)
+
 ### Open question: vendor default embargo for D5-6-WORKFLOW
 
 D5-6h requires the vendor default embargo to be initialized as part of case
@@ -102,6 +122,40 @@ creation. The relevant docs and specs (`docs/topics/process_models/em/defaults.m
 the vendor-default-embargo initialization may not be fully implemented yet.
 The D5-6-WORKFLOW task should verify spec coverage and existing implementation
 before coding begins.
+
+#### Reflection
+
+Default embargo is not really a thing yet in the code, although it exists as
+a concept in the docs and specs. What we have in mind is that the Actor's
+profile will include a blob that defines the default embargo parameters for
+that actor, perhaps as simple as a duration (e.g., 90 days) expressed in a
+standard format. Thoughts on the format follow:
+Refined recommendation (what you should actually do)
+
+##### Wire format
+
+ISO 8601 duration strings, Example: "P90D"
+
+Constrain the grammar to avoid ambiguous durations (1M could be 28, 29, 30,
+or 31 days depending on context, 1Y could be 365 or 366 days depending on context).
+
+MUST use only fixed-length units (D, H, M, S)
+SHOULD use only day units for simplicity
+MAY use time units if needed for highly-granular embargos (but discouraged
+for typical use)
+MUST NOT allow Y, M (date part)
+
+##### Model structure
+
+Use:
+duration: "P90D"
+
+##### Pydantic strategy
+
+Internal: timedelta
+External: ISO 8601 string via serializer
+
+Semantics: Define explicitly: durations are absolute elapsed time, not calendar-relative
 
 ### Risk: D5-6-STORE and nested Pydantic serialization
 
@@ -225,3 +279,33 @@ requires a separate `engage-case` trigger after accepting an invitation. Should
 If engagement should be automatic, the use case needs to invoke
 `SvcEngageCaseUseCase` internally. If intentional, the demos should document
 why the extra trigger is needed.
+
+#### Reflection
+
+Yes, the acceptance of an invitation should advance the accepting actor's RM
+state to `ACCEPTED` because accepting an invitation is a clear signal of
+intent to engage with the case. So the
+`AcceptInviteActorToCaseReceivedUseCase` should indeed trigger the engagement
+logic internally, which would involve invoking the `SvcEngageCaseUseCase` to
+handle the state transition and any associated actions (e.g., notifications,
+participant setup). This would align the implementation more closely with the
+protocol's intended flow and reduce the need for manual triggers in the demos.
+The demos should be updated to reflect this change and document that engagement
+is now automatic upon invitation acceptance.
+
+**Note** The previous reflection illustrates a broader concept that we want to
+capture as well:
+Anywhere we can automate protocol flows via the BT, we should. When the
+logic of a case dictates a cascade of effects (e.g., accepting an invitation
+implies engagement, which implies state transitions, which implies
+notifications), we should encode that into a BT so that things happen
+automatically without needing to manually trigger intermediate steps. Many
+of the processes in the Vultron protocol are designed to be event driven and
+have clear causal relationships that are just consequences of primary events.
+This is by design and intended to reduce the need for manual intervention in
+moving cases through the lifecycle. So as we audit the demos, we should be  
+looking for places where the demo-runner is doing things manually that could
+be automated via the BT, and we should be updating the BT to capture those  
+flows as needed. This will make the demos more authentic and will also help
+us identify any gaps in the BT logic that need to be filled in to support
+the full range of protocol-driven behavior.
