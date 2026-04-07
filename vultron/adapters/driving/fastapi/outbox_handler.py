@@ -118,6 +118,24 @@ async def handle_outbox_item(
     activity_type = getattr(outbound_activity, "type_", "Activity")
     activity_object = getattr(outbound_activity, "object_", None)
 
+    # For Create activities, expand an ID-string object_ to the full domain
+    # object so the recipient inbox endpoint can store it separately before
+    # dispatching (mirrors the pattern used for inbound Offer(Report)).
+    # Without expansion the receiving side sees only a URI reference and
+    # CreateCaseReceivedUseCase cannot recreate the case.
+    if activity_type == "Create" and isinstance(activity_object, str):
+        full_obj = dl.read(activity_object)
+        if full_obj is not None:
+            outbound_activity.object_ = full_obj
+            activity_object = full_obj
+            logger.debug(
+                "Expanded object_ from '%s' to full %s for Create"
+                " activity '%s' delivery.",
+                getattr(full_obj, "id_", activity_object),
+                type(full_obj).__name__,
+                activity_id,
+            )
+
     recipients = _extract_recipients(outbound_activity)
     if not recipients:
         logger.debug(

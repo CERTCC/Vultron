@@ -842,12 +842,14 @@ class CreateFinderParticipantNode(DataLayerAction):
                 case_id,
             )
 
-            # Emit Add activity to notify participants.
+            # Emit Add activity to notify the finder that they have been
+            # added to the case as a participant.
             add_notification = VultronActivity(
                 type_="Add",
                 actor=self.actor_id,
                 object_=participant.id_,
                 target=case_id,
+                to=[finder_actor_id],
             )
             try:
                 self.datalayer.create(add_notification)

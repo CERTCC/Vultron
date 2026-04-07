@@ -450,7 +450,13 @@ class CreateCaseActivity(DataLayerAction):
                 else None
             )
             offer_to = offer_data.get("to") if offer_data is not None else None
-            for x in [actor, report_attributed_to, offer_to]:
+            # Also include the offer submitter (offer.actor) — the finder who
+            # created the report and submitted the offer needs to receive the
+            # case so they can participate as a case participant.
+            offer_actor = (
+                offer_data.get("actor") if offer_data is not None else None
+            )
+            for x in [actor, report_attributed_to, offer_to, offer_actor]:
                 if x is None:
                     continue
                 if isinstance(x, str):
@@ -464,15 +470,24 @@ class CreateCaseActivity(DataLayerAction):
                 elif hasattr(x, "id_"):
                     addressees.append(x.id_)
 
-            # Unique addressees
-            addressees = list(set(addressees))
+            # Unique addressees, excluding the sending actor itself so
+            # we don't deliver the notification back to our own inbox.
+            addressees = [a for a in set(addressees) if a != self.actor_id]
             self.logger.info(
                 f"{self.name}: Notifying addressees: {addressees}"
             )
 
-            # Create CreateCaseActivity activity domain object
+            # Read full case to embed in the activity so recipients can
+            # store the case object and process it without a separate fetch.
+            case_obj = self.datalayer.read(case_id)
+
+            # Create CreateCaseActivity activity domain object; embed the
+            # full case as object_ so the inbox endpoint on the receiving
+            # side stores the case before dispatching the activity.
             create_case_activity = VultronCreateCaseActivity(
-                actor=self.actor_id, object_=case_id
+                actor=self.actor_id,
+                object_=case_obj if case_obj is not None else case_id,
+                to=addressees if addressees else None,
             )
 
             # Store activity in DataLayer

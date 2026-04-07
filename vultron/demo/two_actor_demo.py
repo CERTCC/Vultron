@@ -677,6 +677,46 @@ def wait_for_case_participants(
     )
 
 
+def wait_for_finder_case(
+    finder_client: DataLayerClient,
+    case_id: str,
+    timeout_seconds: float = 10.0,
+    poll_interval: float = 0.5,
+) -> None:
+    """Poll finder's DataLayer until *case_id* appears.
+
+    This proves that the Vendor's outbox successfully delivered the
+    ``Create(VulnerabilityCase)`` notification to the Finder and that the
+    Finder's inbox handler processed it (D5-6-DEMOAUDIT requirement).
+
+    In single-server integration tests both actors share the same DataLayer,
+    so the case is visible immediately.  In a multi-server Docker demo the
+    case arrives after the outbox background task completes and the Finder
+    inbox handler processes the inbound activity.
+
+    Args:
+        finder_client: Client connected to the Finder container.
+        case_id: Full URI of the ``VulnerabilityCase`` to wait for.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Raises:
+        AssertionError: If *case_id* does not appear within *timeout_seconds*.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        raw = finder_client.get("/datalayer/VulnerabilityCases/")
+        # The endpoint returns a dict keyed by case ID (from by_type()).
+        if isinstance(raw, dict) and case_id in raw:
+            return
+        time.sleep(poll_interval)
+
+    raise AssertionError(
+        f"Timed out waiting for case {case_id!r} to appear in "
+        "finder's DataLayer — outbox delivery may not have completed"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Main workflow orchestration
 # ---------------------------------------------------------------------------
@@ -768,6 +808,22 @@ def run_two_actor_demo(
         case_id=case.id_,
         expected_count=2,
     )
+
+    # Verify the Finder's container received the case via outbox delivery.
+    # The validate-report trigger queues a Create(VulnerabilityCase) activity
+    # to the Vendor's outbox; the outbox BackgroundTask delivers it to the
+    # Finder's inbox, which then runs CreateCaseReceivedUseCase.
+    with demo_check(
+        "Finder's DataLayer received case via Vendor outbox delivery"
+    ):
+        wait_for_finder_case(
+            finder_client=finder_client,
+            case_id=case.id_,
+        )
+        logger.info(
+            "Case %s confirmed in Finder's DataLayer (outbox delivery verified)",
+            case.id_,
+        )
 
     # Refresh case after BT completes.
     case_data = vendor_client.get(f"/datalayer/{case.id_}")

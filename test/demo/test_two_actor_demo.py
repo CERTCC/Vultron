@@ -387,6 +387,72 @@ class TestFinderAsksQuestion:
 
 
 # ---------------------------------------------------------------------------
+# wait_for_finder_case tests
+# ---------------------------------------------------------------------------
+
+
+class TestWaitForFinderCase:
+    """Test wait_for_finder_case polling helper (D5-6-DEMOAUDIT)."""
+
+    def test_succeeds_when_case_already_present(
+        self, client: TestClient, base: str
+    ):
+        """Succeeds immediately when case ID is already in the DataLayer.
+
+        In single-server integration tests both actors share the same DataLayer,
+        so after validate-report the case is immediately visible to the finder.
+        """
+        finder_client = _make_client(base)
+        vendor_client = _make_client(base)
+        finder_id = f"{base}/actors/finder-wfc-present"
+        vendor_id = f"{base}/actors/vendor-wfc-present"
+
+        finder, vendor = demo.seed_containers(
+            finder_client=finder_client,
+            vendor_client=vendor_client,
+            finder_actor_id=finder_id,
+            vendor_actor_id=vendor_id,
+        )
+        vendor_in_vendor = demo.get_actor_by_id(vendor_client, vendor.id_)
+
+        _, offer = demo.finder_submits_report(
+            vendor_client=vendor_client,
+            finder=finder,
+            vendor=vendor_in_vendor,
+        )
+        demo.vendor_validates_report(
+            vendor_client=vendor_client,
+            vendor=vendor_in_vendor,
+            offer_id=offer.id_,
+        )
+
+        case = demo.find_case_for_offer(vendor_client, offer.id_)
+        assert case is not None
+
+        # In single-server mode the case is in the shared DataLayer, so the
+        # finder can see it immediately.  wait_for_finder_case should return
+        # without raising.
+        demo.wait_for_finder_case(
+            finder_client=finder_client,
+            case_id=case.id_,
+            timeout_seconds=2.0,
+        )
+
+    def test_raises_when_case_never_arrives(
+        self, client: TestClient, base: str
+    ):
+        """Raises AssertionError when the case does not appear within timeout."""
+        finder_client = _make_client(base)
+        with pytest.raises(AssertionError, match="Timed out"):
+            demo.wait_for_finder_case(
+                finder_client=finder_client,
+                case_id="https://example.org/non-existent-case-wfc",
+                timeout_seconds=0.1,
+                poll_interval=0.05,
+            )
+
+
+# ---------------------------------------------------------------------------
 # Full workflow integration test
 # ---------------------------------------------------------------------------
 

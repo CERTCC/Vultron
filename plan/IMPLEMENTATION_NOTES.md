@@ -309,3 +309,85 @@ be automated via the BT, and we should be updating the BT to capture those
 flows as needed. This will make the demos more authentic and will also help
 us identify any gaps in the BT logic that need to be filled in to support
 the full range of protocol-driven behavior.
+
+---
+
+## D5-6-DEMOAUDIT: Remaining Protocol Gaps (2026-04-08)
+
+The following gaps were identified during the D5-6-DEMOAUDIT implementation.
+They are documented here for future work; partial fixes were applied (see
+commits) but complete automation is deferred.
+
+### Fixed as part of D5-6-DEMOAUDIT
+
+**CreateCaseActivity missing recipients and inline case object** (fixed):
+
+- In `vultron/core/behaviors/report/nodes.py`, the `CreateCaseActivity` BT
+  node collected addressees but did not pass them as a `to` field on the
+  activity, so `outbox_handler._extract_recipients()` found no recipients and
+  skipped delivery.
+- Additionally, the node passed `object_=case_id` (a string) instead of the
+  full `VulnerabilityCase` object, so the receiving inbox endpoint could not
+  store the case before dispatching, causing `CreateCaseReceivedUseCase` to
+  silently skip processing because `request.case` was `None`.
+- Fixed: pass `object_=case_obj` (full case) and `to=addressees` (excluding
+  self) when creating the `VultronCreateCaseActivity`.
+
+**CreateFinderParticipantNode Add notification missing recipient** (fixed):
+
+- The `Add` activity queued in the outbox had no `to` field, so the
+  `outbox_handler` logged it but never delivered it.
+- Fixed: pass `to=[finder_actor_id]` to the `VultronActivity` constructor.
+
+**Two-actor demo missing outbox-delivery verification** (fixed):
+
+- Added `wait_for_finder_case()` polling helper and a `demo_check` block in
+  `run_two_actor_demo()` that waits for the case to appear in the finder's
+  DataLayer, proving end-to-end outbox delivery worked.
+
+### Remaining gaps (deferred)
+
+**InitializeDefaultEmbargoNode Announce activity has no recipients**:
+
+- The `Announce(embargo)` activity is queued to the outbox but has no `to`
+  field. At the time this node runs in the validate-report BT, the case has
+  no participants yet (they are added by subsequent nodes), so there are no
+  recipients to address.
+- The finder will learn about the embargo indirectly from the embedded
+  `VulnerabilityCase.active_embargo` field inside the `Create(Case)` activity.
+- Fix: Either reorder the BT so `InitializeDefaultEmbargoNode` runs after
+  participants are added, or remove the Announce and rely on the case
+  notification to carry embargo information. This requires BT restructuring.
+
+**Note forwarding is still manual in two-actor demo**:
+
+- `AddNoteToCaseReceivedUseCase` stores the note in the case but does not
+  broadcast it to other participants. The vendor's reply note is still
+  delivered manually via direct HTTP POST to the finder's inbox.
+- Fix: The case owner should broadcast new notes to all participants via
+  the outbox after processing an `AddNoteToCase` activity. This requires a
+  new BT node and a `to` field derived from `case.actor_participant_index`.
+
+**Three-actor demo: engage-case trigger called on wrong container**:
+
+- `actor_engages_case()` calls the `engage-case` trigger on the case-actor
+  container using the actor's ID. Protocol-correct behaviour: the actor
+  should call `engage-case` on their own container, which queues an
+  `RmEngageCaseActivity` to their outbox, which is then delivered to the
+  case-actor's inbox.
+- This cannot be fixed without the actor having a copy of the case in their
+  own DataLayer (which requires the case-actor to send a `Create(Case)` to
+  the actor first, which in turn requires the case-actor's outbox delivery
+  to work correctly).
+- Fix: Implement the full invite/accept/engage-case BT flow for the
+  three-actor scenario, which is a larger task tracked separately.
+
+**EmitCreateCaseActivity (create_case BT) also missing recipients**:
+
+- In `vultron/core/behaviors/case/nodes.py`, `EmitCreateCaseActivity` is
+  used when a receiving actor runs the `create_create_case_tree`. It creates
+  a `VultronCreateCaseActivity(actor=..., object_=case_id)` with no `to`
+  field, so the receiving actor's outbox never re-broadcasts the case.
+- In the two-actor scenario this is acceptable (the finder just stores the
+  case locally), but for three-actor/multi-vendor flows this could prevent
+  further propagation. Deferred pending a broader case-propagation design.

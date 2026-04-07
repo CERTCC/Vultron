@@ -734,3 +734,101 @@ def test_validate_report_tree_logs_finder_actor_in_participant_message(
             datalayer=datalayer,
         )
     assert finder_actor_id in caplog.text
+
+
+def test_validate_report_tree_finder_participant_add_has_to_field(
+    bridge,
+    datalayer,
+    actor_id,
+    finder_actor_id,
+    report,
+    offer,
+    actor,
+    finder_actor,
+):
+    """CreateFinderParticipantNode Add notification MUST include finder in to field.
+
+    The outbox_handler uses the ``to`` field to determine delivery recipients.
+    Without a ``to`` field the Add notification is queued but never delivered.
+    """
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+    )
+    bridge.execute_with_setup(
+        tree=tree,
+        actor_id=actor_id,
+        datalayer=datalayer,
+    )
+
+    # Find the Add activity in the datalayer.
+    # VultronActivity(type_="Add") cannot be deserialized via datalayer.read()
+    # because "Add" is not imported into the vocabulary in this test environment.
+    # Use by_type("Add") to access the raw stored data dict directly.
+    add_activities_raw = datalayer.by_type("Add") or {}
+    assert add_activities_raw, "Expected an Add activity in the DataLayer"
+    add_data = next(iter(add_activities_raw.values()))
+    assert add_data.get(
+        "to"
+    ), "Add notification for finder participant must have a 'to' field"
+    assert (
+        finder_actor_id in add_data["to"]
+    ), f"Finder actor ID {finder_actor_id!r} must be in Add notification 'to'"
+
+
+def test_validate_report_tree_create_case_activity_has_to_and_embedded_case(
+    bridge,
+    datalayer,
+    actor_id,
+    finder_actor_id,
+    report,
+    offer,
+    actor,
+    finder_actor,
+):
+    """CreateCaseActivity MUST have recipients in to and embed the full case.
+
+    The outbox_handler requires a non-empty ``to`` field to deliver the
+    activity.  Embedding the full case object (not just the ID) ensures the
+    receiving inbox endpoint can store the case before dispatching the use
+    case handler, so ``CreateCaseReceivedUseCase`` gets a non-None case.
+    """
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+    )
+    bridge.execute_with_setup(
+        tree=tree,
+        actor_id=actor_id,
+        datalayer=datalayer,
+    )
+
+    create_activities = datalayer.by_type("Create") or {}
+    assert create_activities, "Expected a Create activity in the DataLayer"
+    case_id = next(iter(datalayer.by_type("VulnerabilityCase") or {}), None)
+    assert case_id is not None
+
+    # Find the Create activity that references the case.
+    # Use the raw data dict (by_type) because VultronCreateCaseActivity with
+    # type_="Create" cannot be deserialized via datalayer.read() — the "Create"
+    # wire class is not imported in this test environment.
+    create_data = None
+    for _oid, data in create_activities.items():
+        if data.get("object_") == case_id:
+            create_data = data
+            break
+
+    assert (
+        create_data is not None
+    ), "Expected a Create(VulnerabilityCase) activity in the DataLayer"
+    assert create_data.get(
+        "to"
+    ), "Create(VulnerabilityCase) activity must have a non-empty 'to' field"
+    assert (
+        actor_id not in create_data["to"]
+    ), "Sending actor must not appear in its own 'to' recipients"
+    # object_ is stored as the dehydrated case ID string; re-expansion to the
+    # full case object happens in outbox_handler at delivery time.
+    assert isinstance(
+        create_data.get("object_"), str
+    ), "Create(VulnerabilityCase) object_ should be stored as the case ID string"

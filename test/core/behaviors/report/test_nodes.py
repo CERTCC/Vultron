@@ -285,7 +285,17 @@ def test_create_case_node_idempotency(datalayer, actor, report):
 
 
 def test_create_case_activity(datalayer, actor, report, offer):
-    """CreateCaseActivity creates activity and collects addressees."""
+    """CreateCaseActivity creates activity with recipients and embedded case."""
+    # Add a finder actor whose ID will be collected as an addressee.
+    from vultron.core.models.case_actor import VultronCaseActor
+
+    finder = VultronCaseActor(name="Finder Actor")
+    datalayer.create(finder)
+
+    # Set report.attributed_to so the finder appears in the addressees list.
+    report.attributed_to = finder.id_
+    datalayer.save(report)
+
     # First create case to populate case_id in blackboard
     case_node = CreateCaseNode(report_id=report.id_)
     setup_node_blackboard(case_node, datalayer, actor.id_)
@@ -307,9 +317,32 @@ def test_create_case_activity(datalayer, actor, report, offer):
     activity_id = activity_node.blackboard.get("activity_id")
     assert activity_id is not None
 
-    # Verify activity exists in DataLayer
-    activity_obj = datalayer.read(activity_id, raise_on_missing=True)
-    assert activity_obj.type_ == "Create"
+    # VultronCreateCaseActivity (type_="Create") cannot be round-tripped via
+    # datalayer.read() because the "Create" wire class is not imported in the
+    # test environment.  Use by_type("Create") to get the raw stored data dict.
+    create_activities = datalayer.by_type("Create")
+    assert (
+        activity_id in create_activities
+    ), f"Expected Create activity {activity_id!r} in DataLayer"
+    activity_data = create_activities[activity_id]
+    assert activity_data.get("type_") == "Create"
+
+    # Verify the activity carries recipients (to field) excluding the sender.
+    assert activity_data.get(
+        "to"
+    ), "CreateCaseActivity should have 'to' recipients"
+    assert (
+        actor.id_ not in activity_data["to"]
+    ), "Sender actor should be excluded from 'to' recipients"
+    assert (
+        finder.id_ in activity_data["to"]
+    ), "Finder (report.attributed_to) should be in 'to' recipients"
+
+    # object_ is dehydrated to the case ID string at storage time; re-expansion
+    # to the full case happens in outbox_handler at delivery time.
+    assert isinstance(
+        activity_data.get("object_"), str
+    ), "CreateCaseActivity object_ should be stored as the case ID string"
 
 
 def test_create_case_activity_missing_case_id(datalayer, actor, report, offer):
