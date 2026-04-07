@@ -454,6 +454,54 @@ transition rules.
 
 ---
 
+## Report as Proto-Case: Finder Participant Lifecycle
+
+The name `CaseParticipant` is somewhat misleading, because the actual
+lifecycle of CVD work begins with a *report* and only some reports evolve
+into *cases*. A useful analogy is the caterpillar/butterfly metamorphosis:
+the report is the caterpillar stage, the case is the butterfly. Work
+genuinely happens in both stages, and participants exist in both.
+
+### Design Insight
+
+A report should be treated as a **proto-case**: it has a reporter and a
+receiver, each of whom are participants in the work of processing the report,
+even if that report never fully emerges into a case. The RM, EM, and CS state
+machines all have meaning in both the pre-case (report) and post-case
+(case + report) stages.
+
+**Implication**: `CaseParticipant` records should be created at the moment
+a report is received, not deferred until case creation. The finder's RM
+state (`RM.ACCEPTED`) should be tracked from the moment the report is
+received, even before a case exists.
+
+### Proposed Lifecycle
+
+1. Reporter submits `Offer(Report)` → receiver creates a
+   `CaseParticipant` for the reporter immediately, with `context` pointing
+   to the `VulnerabilityReport` object.
+2. Receiver processes the report and decides to accept/engage.
+3. When case creation occurs, the pre-existing `CaseParticipant` records
+   are retroactively re-linked: their `context` field is updated from the
+   report ID to the newly created `VulnerabilityCase` ID.
+4. The report itself is added to the case as part of case creation, making
+   the linkage consistent.
+
+This approach requires no new model type ("report participant"). The
+`CaseParticipant.context` field provides the attachment point, and it can
+be updated during the case creation step as a normal migration.
+
+**Open Question: D5-6-STATE variant** (blocks FINDER-PART-1): Should the
+participant `context` migration happen atomically during the same BT node
+that creates the case, or as a separate post-creation step? The atomic
+approach is simpler but requires the BT node to query for pre-existing
+participants by report ID before case creation.
+
+**See also**: `plan/IMPLEMENTATION_PLAN.md` FINDER-PART-1;
+`notes/protocol-event-cascades.md` (D5-6-AUTOENG); `specs/case-management.md`
+
+---
+
 ## Pre-Case Event Backfill on Case Creation
 
 When a new case is created, several events have already occurred that should

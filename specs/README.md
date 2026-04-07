@@ -117,6 +117,9 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 ### Actor Profiles and Policies
 
 - **`embargo-policy.md`** - Actor embargo policy record format and API
+- **`duration.md`** - Canonical ISO 8601 duration format for embargo
+  policy fields: restricted grammar, validation rules, Pydantic mapping
+  (DUR-01 through DUR-07)
 
 ### Security
 
