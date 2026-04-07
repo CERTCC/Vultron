@@ -34,7 +34,7 @@ All PRIORITY-30 through PRIORITY-200 phases complete.
 tasks tracked under PRIORITY-310 below).
 
 **PRIORITY-310** Address demo feedback — D5-6-LOG, D5-6-STATE, D5-6-STORE,
-D5-6-WORKFLOW (all ✅); D5-6-DUP, D5-6-TRIGDELIV (all ✅); D5-6-LOGCTX,
+D5-6-WORKFLOW (all ✅); D5-6-DUP, D5-6-TRIGDELIV, D5-6-LOGCTX (all ✅);
 D5-6-DEMOAUDIT pending; D5-7 pending human sign-off.
 
 ---
@@ -333,23 +333,10 @@ section MUST be completed before proceeding to PRIORITY-350 and beyond. D5-7
   expected. Added `TestDuplicateReportHandling` tests confirming no WARNING
   on pre-stored report.
 
-#### D5-6-LOGCTX — Improve outbox activity log messages with human-readable context
+#### D5-6-LOGCTX — Improve outbox activity log messages with human-readable context ✅
 
-- [ ] **D5-6-LOGCTX**: Improve log messages for outbox activity queuing and
-  delivery so that activity URNs are accompanied by human-readable context
-  (addresses D5-6j from `notes/two-actor-feedback.md`). Current logs show
-  only `Queued Add activity 'urn:uuid:...'` with no description of what the
-  Add contains or why it was queued.
-  - Update outbox queuing log messages (in BT nodes and outbox_handler) to
-    include the activity type, a summary of the object (e.g., "Add
-    CaseParticipant(finder) to Case"), and the reason for queuing (e.g.,
-    "finder participant notification").
-  - Update `outbox_handler` delivery log messages to include activity type and
-    recipient summary when sending to remote inboxes.
-  - Apply the same pattern to all BT nodes that queue outbox activities
-    (`UpdateActorOutbox`, `CreateFinderParticipantNode`,
-    `InitializeDefaultEmbargoNode`).
-  - Add tests using `caplog` to verify improved log content.
+- [x] **D5-6-LOGCTX**: Improved log messages for outbox activity queuing and
+  delivery. Completed 2026-04-07.
 
 #### D5-6-TRIGDELIV — Fix trigger endpoints to deliver outbox activities ✅
 
