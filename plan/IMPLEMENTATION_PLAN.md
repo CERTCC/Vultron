@@ -554,30 +554,118 @@ are needed before resuming feature development.
     integer lookup).
   - Add/update unit tests for round-trip serialization and validation.
 
-### FINDER-PART-1 — Create CaseParticipant at report receipt
+### FINDER-PART-1 — Create CaseParticipant at report receipt ~~SUPERSEDED~~
 
-- [ ] **FINDER-PART-1**: Implement the report-as-proto-case participant
+> **Superseded by ADR-0015** (Create VulnerabilityCase at Report Receipt).
+> The case is now created at report receipt, so participant records are
+> created atomically as part of case creation. The retroactive re-linking
+> mechanism described below is no longer needed. See
+> `docs/adr/0015-create-case-at-report-receipt.md` and the IDEA-260408-01
+> tasks below.
+
+- ~~[ ] **FINDER-PART-1**: Implement the report-as-proto-case participant
   lifecycle: create a `CaseParticipant` record for the finder at report
   receipt (not deferred to case creation) and retroactively re-link it to
-  the case when one is created.
-  - Note: `SubmitReportReceivedUseCase` already creates a
-    `VultronParticipantStatus` for the finder (with `rm_state=RM.ACCEPTED`)
-    as a partial implementation. The full task requires creating a
-    `CaseParticipant` domain object with `context` pointing to the
-    `VulnerabilityReport` ID.
-  - Resolve the open design question in `notes/case-state-model.md`
-    ("Report as Proto-Case: Finder Participant Lifecycle") — specifically
-    whether finder status belongs in `SubmitReportReceived` (pre-case) or
-    `CreateReportReceived` (post-case) — before implementing the full
-    `CaseParticipant` creation.
-  - At report receipt, create a `CaseParticipant` for the reporter with
-    `context` pointing to the `VulnerabilityReport` ID and RM state
-    initialized to `RM.RECEIVED`.
-  - During case creation (validate-report BT), update the pre-existing
-    finder participant's `context` to point to the newly created
-    `VulnerabilityCase` ID.
-  - See `notes/case-state-model.md` "Report as Proto-Case: Finder Participant
-    Lifecycle" for full design rationale.
+  the case when one is created.~~
+
+---
+
+## IDEA-260408-01 — Case Creation at RM.RECEIVED
+
+Per ADR-0015, `VulnerabilityCase` creation moves from `ValidateReport` BT
+(RM.VALID) to `SubmitReportReceivedUseCase` (RM.RECEIVED). The tasks below
+implement this change. All tasks depend on the documentation work captured
+in ADR-0015, `specs/case-management.md` CM-12, and `specs/duration.md`
+DUR-07-002/DUR-07-004.
+
+### IDEA-260408-01-1 — Add DataLayer report→case lookup
+
+- [ ] **IDEA-260408-01-1**: Add a DataLayer method (port + TinyDB adapter)
+  to look up a `VulnerabilityCase` by its associated `VulnerabilityReport`
+  ID.
+  - The case links to reports via `VulnerabilityCase.vulnerability_reports:
+    list[str]`.
+  - Add a method `find_case_by_report_id(report_id: str) ->
+    VulnerabilityCase | None` (or similar) to the `DataLayer` Protocol in
+    `vultron/core/ports/datalayer.py` and implement in
+    `vultron/adapters/driven/datalayer_tinydb.py`.
+  - All report-centric use cases (Invalidate, Close, Validate) will use
+    this to dereference `report_id → case_id`.
+  - Add unit tests for the new DataLayer method.
+
+### IDEA-260408-01-2 — New BT: `receive_report_case_tree`
+
+- [ ] **IDEA-260408-01-2**: Create
+  `vultron/core/behaviors/case/receive_report_case_tree.py` with a BT that,
+  given a `VulnerabilityReport` ID and actor context, creates:
+  - A `VulnerabilityCase` linked to the report
+  - A `VultronParticipant` for the reporter with `rm_state=RM.ACCEPTED`
+  - A `VultronParticipant` for the receiver with `rm_state=RM.RECEIVED`
+  - A default embargo (conditional on no existing embargo)
+  - Queues a `Create(Case)` activity to the outbox
+  - Migrate the following nodes from `validate_tree.py` into this tree:
+    `CreateCaseNode`, `InitializeDefaultEmbargoNode`,
+    `CreateInitialVendorParticipant`, `CreateFinderParticipantNode`,
+    `CreateCaseActivity`, `UpdateActorOutbox`.
+  - Add `test/core/behaviors/case/test_receive_report_case_tree.py`.
+  - Depends on IDEA-260408-01-1.
+
+### IDEA-260408-01-3 — Refactor `SubmitReportReceivedUseCase`
+
+- [ ] **IDEA-260408-01-3**: Refactor `SubmitReportReceivedUseCase` in
+  `vultron/core/use_cases/received/report.py` to invoke
+  `receive_report_case_tree` via `BTBridge` (same pattern as
+  `ValidateReportReceivedUseCase`).
+  - Remove standalone `VultronParticipantStatus` record creation from this
+    use case; all RM history now lives in `VultronParticipant.
+    participant_statuses`.
+  - Update `test/core/use_cases/received/test_submit_report.py` to verify
+    case creation, participant creation, and `Create(Case)` queued to outbox.
+  - Depends on IDEA-260408-01-2.
+
+### IDEA-260408-01-4 — Slim `validate_report` BT
+
+- [ ] **IDEA-260408-01-4**: Remove case/participant/activity nodes from
+  `vultron/core/behaviors/report/validate_tree.py`:
+  - Remove: `CreateCaseNode`, `InitializeDefaultEmbargoNode`,
+    `CreateInitialVendorParticipant`, `CreateFinderParticipantNode`,
+    `CreateCaseActivity`, `UpdateActorOutbox`
+  - Add: `EnsureEmbargoExists` condition node (verifies embargo exists
+    before completing validation, per DUR-07-004)
+  - Update `test/core/behaviors/report/test_validate_tree.py` to verify
+    the slimmed tree does NOT create a case or participants.
+  - Depends on IDEA-260408-01-2.
+
+### IDEA-260408-01-5 — Dereference pattern for report use cases
+
+- [ ] **IDEA-260408-01-5**: Update `InvalidateReportReceivedUseCase`,
+  `CloseReportReceivedUseCase`, and `ValidateReportReceivedUseCase` to
+  dereference `report_id → case_id` using the DataLayer method from
+  IDEA-260408-01-1, then delegate to `InvalidateCaseUseCase` /
+  `CloseCaseUseCase` / `ValidateCaseUseCase` respectively.
+  - Ensures all report-centric protocol activities can locate and update
+    the case created at receipt (CM-12-005).
+  - Add/update tests verifying the dereference pattern works correctly.
+  - Depends on IDEA-260408-01-1.
+
+### IDEA-260408-01-6 — Remove standalone `VultronParticipantStatus` records
+
+- [ ] **IDEA-260408-01-6**: Audit and remove standalone
+  `VultronParticipantStatus` record creation in `CreateReport` and
+  `AckReport` use cases (if any), as all RM history now lives in
+  `VultronParticipant.participant_statuses`.
+  - Verify no code path relies on flat `ReportStatus` as the primary RM
+    carrier post-case-creation.
+  - Depends on IDEA-260408-01-3.
+
+### IDEA-260408-01-7 — Update tests
+
+- [ ] **IDEA-260408-01-7**: Update or remove existing tests that assert case
+  creation happens during `ValidateReport` BT execution. Add integration
+  test verifying the full flow: `Offer(Report)` receipt creates case →
+  `ValidateReport` validates without re-creating case → case is in
+  RM.VALID state with correct participants.
+  - Depends on IDEA-260408-01-4, IDEA-260408-01-5.
 
 ---
 

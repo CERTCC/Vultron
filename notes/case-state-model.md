@@ -456,75 +456,88 @@ transition rules.
 
 ## Report as Proto-Case: Finder Participant Lifecycle
 
-The name `CaseParticipant` is somewhat misleading, because the actual
-lifecycle of CVD work begins with a *report* and only some reports evolve
-into *cases*. A useful analogy is the caterpillar/butterfly metamorphosis:
-the report is the caterpillar stage, the case is the butterfly. Work
-genuinely happens in both stages, and participants exist in both.
+> **Status**: The FINDER-PART-1 approach described in the original version
+> of this section has been **superseded** by ADR-0015 (Create
+> VulnerabilityCase at Report Receipt). The new lifecycle is documented
+> below.
 
-### Design Insight
+The lifecycle of CVD work begins with a *report*, and the Vultron model
+reflects this by creating a `VulnerabilityCase` immediately when an
+`Offer(Report)` is received. A useful analogy is the caterpillar/butterfly
+metamorphosis:
 
-A report should be treated as a **proto-case**: it has a reporter and a
-receiver, each of whom are participants in the work of processing the report,
-even if that report never fully emerges into a case. The RM, EM, and CS state
-machines all have meaning in both the pre-case (report) and post-case
-(case + report) stages.
+- **Caterpillar stage** = case object in RM.RECEIVED or RM.INVALID
+  (the case exists but has not yet been validated; participants are
+  active but the vendor has not yet committed to the issue)
+- **Butterfly stage** = case object in RM.VALID, RM.ACCEPTED, or
+  RM.DEFERRED (the case is validated and actionable)
+- **Terminal** = RM.CLOSED (regardless of path)
 
-**Implication**: `CaseParticipant` records should be created at the moment
-a report is received, not deferred until case creation. The finder's RM
-state (`RM.ACCEPTED`) should be tracked from the moment the report is
-received, even before a case exists.
+Work genuinely happens in both stages, and participants exist in both.
 
-### Proposed Lifecycle
+### Redefined "Proto-Case"
 
-1. Reporter submits `Offer(Report)` → receiver creates a
-   `CaseParticipant` for the reporter immediately, with `context` pointing
-   to the `VulnerabilityReport` object.
-2. Receiver processes the report and decides to accept/engage.
-3. When case creation occurs, the pre-existing `CaseParticipant` records
-   are retroactively re-linked: their `context` field is updated from the
-   report ID to the newly created `VulnerabilityCase` ID.
-4. The report itself is added to the case as part of case creation, making
-   the linkage consistent.
+A **proto-case** is a `VulnerabilityCase` object that is in the caterpillar
+stage — the case object exists (and has been created at report receipt),
+but the receiver has not yet validated the report. RM states RM.RECEIVED
+and RM.INVALID are proto-case stages.
 
-This approach requires no new model type ("report participant"). The
-`CaseParticipant.context` field provides the attachment point, and it can
-be updated during the case creation step as a normal migration.
+This is a redefinition from the earlier concept where "proto-case" meant
+the state *before* a case object existed. Under ADR-0015, a case object
+always exists from the moment a report is received, so the pre-case-object
+era is eliminated.
 
-**Open Question: D5-6-STATE variant** (blocks FINDER-PART-1): Should the
-participant `context` migration happen atomically during the same BT node
-that creates the case, or as a separate post-creation step? The atomic
-approach is simpler but requires the BT node to query for pre-existing
-participants by report ID before case creation.
+### Implemented Lifecycle (per ADR-0015)
 
-**See also**: `plan/IMPLEMENTATION_PLAN.md` FINDER-PART-1;
-`notes/protocol-event-cascades.md` (D5-6-AUTOENG); `specs/case-management.md`
+1. Reporter submits `Offer(Report)` → `SubmitReportReceivedUseCase`
+   invokes the `receive_report_case_tree` BT, which:
+   - Creates a `VulnerabilityCase` with `vulnerability_reports` linking
+     to the `VulnerabilityReport` ID
+   - Creates a `VultronParticipant` for the reporter with
+     `rm_state=RM.ACCEPTED` (they created and submitted the report)
+   - Creates a `VultronParticipant` for the receiver with
+     `rm_state=RM.RECEIVED`
+   - Initializes a default embargo (SHOULD; MUST before RM.VALID)
+   - Queues a `Create(Case)` activity to notify the reporter
+2. Receiver runs the `ValidateReport` BT:
+   - Evaluates report credibility and validity
+   - Transitions RM to RM.VALID (or RM.INVALID if rejected)
+   - Verifies that an embargo exists (`EnsureEmbargoExists` guard)
+   - Does **not** create a case (the case already exists from step 1)
+3. All subsequent report-centric activities (invalidate, close, validate)
+   dereference the `report_id → case_id` and delegate to case-level use
+   cases.
+
+**No retroactive context migration is needed.** The `VultronParticipant`
+records are created with `context` pointing to the `VulnerabilityCase` ID
+from the start.
+
+**See also**: `docs/adr/0015-create-case-at-report-receipt.md`;
+`specs/case-management.md` CM-12; `notes/protocol-event-cascades.md`
 
 ---
 
 ## Pre-Case Event Backfill on Case Creation
 
-When a new case is created, several events have already occurred that should
-be recorded in the case log:
+> **Note**: Under ADR-0015, the case is created at report receipt, so
+> backfill is minimal. The `Offer(Report)` activity IS the case-creation
+> trigger; participant creation happens atomically in the same BT.
 
-- The initial `Offer(Report)` from the reporter
-- Any pre-case messages exchanged between recipient and reporter (if any)
-- Acknowledgment of the Offer (if any)
-- Acceptance of the Offer
+When a new case is created via `receive_report_case_tree`, the following
+events are recorded in the case log as part of that BT's execution:
+
 - Case creation itself
-- Initial participant creation and add events
+- Initial participant creation (reporter and receiver)
+- Default embargo initialization (if applied)
+- `Create(Case)` notification queued to outbox
 
-**Design decision**: Events like "add participant" can be captured at the
-add-participant step as part of normal case flow. Events that predate the
-case (Offer, pre-case messages, Accept) need to be backfilled at case
-creation time.
+Events that predate the case object cannot exist in the new model (the
+case is created at the first opportunity). If pre-case events were recorded
+via a separate mechanism (e.g., a flat `ReportStatus`), those MAY be
+backfilled into the case log at case creation time.
 
-**Open question**: The backfill mechanism could be an event-logger decorator
-that captures timestamps on activities as they occur. This would avoid
-duplicating backfill logic across case creation steps.
-
-**See**: `specs/case-management.md` for case creation requirements;
-`notes/activitystreams-semantics.md` for the case activity log constraints.
+**See**: `specs/case-management.md` CM-12; `notes/activitystreams-semantics.md`
+for the case activity log constraints.
 
 ---
 

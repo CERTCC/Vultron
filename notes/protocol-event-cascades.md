@@ -32,8 +32,9 @@ defined behaviors of the actors according to the protocol.
 
 **Cascading consequences** (should be automated):
 
-- validate-report → case creation → participant setup → embargo
-  initialization → notification to participants
+- submit-report → case creation → participant setup → embargo
+  initialization → notification to finder (`Create(Case)`)
+- validate-report → validation logic only (case already exists)
 - accept-invitation → engagement (RM→ACCEPTED)
 - add-note-to-case → broadcast note to all case participants
 - case state change → broadcast update to all participants (CM-06-001)
@@ -72,15 +73,29 @@ excluding the note's author.
 
 ### Embargo Announce activity addressing (D5-6-EMBARGORCP)
 
+> **Note**: Per ADR-0015, `InitializeDefaultEmbargoNode` moves to the
+> `receive_report_case_tree` BT (invoked by `SubmitReportReceivedUseCase`),
+> where it runs *after* participant nodes. Participants now exist at
+> embargo initialization time, so the `to` field CAN be populated.
+
 The `InitializeDefaultEmbargoNode` creates an `Announce(embargo)`
-activity that is queued to the outbox with no `to` field. This node
-runs before participant nodes in the validate-report BT, so there are
-no recipients to address even if the field were populated.
+activity that is queued to the outbox with no `to` field. In the current
+(pre-ADR-0015) validate-report BT, this node runs before participant nodes,
+so there are no recipients to address even if the field were populated.
+
+Under ADR-0015, this ordering problem is resolved: the case-from-report BT
+creates participants before initializing the embargo, so recipient
+addresses are available. However, if the separate `Announce(embargo)` is
+still redundant given that the finder learns about the embargo from the
+embedded case object in the `Create(Case)` activity, the standalone
+Announce MAY be removed in favour of the simpler `Create(Case)` information
+path (Option 2 below).
 
 Options:
 
-1. Reorder the BT so the embargo Announce runs after participants are
-   added.
+1. Populate the `to` field on `Announce(embargo)` from the participant
+   index now that participants exist at embargo creation time (enabled
+   by ADR-0015 reordering).
 2. Remove the standalone Announce and rely on the `Create(Case)` activity
    to carry embargo information via `VulnerabilityCase.active_embargo`.
 

@@ -65,10 +65,14 @@ SHOULD use BTs for clarity and maintainability.
 ## Workflow-Specific Trees
 
 - `BT-06-001` Complex workflows SHOULD have dedicated BT implementations
-  - Report validation, case creation, embargo management, case engagement/deferral
+  - Report validation, case-from-report setup, embargo management, case engagement/deferral
   - **Decision criteria**: Use BTs for multi-branch workflows, RM/EM/CS state
     transitions with preconditions, or policy injection; use procedural code
     for simple CRUD or linear 3–5 step workflows with no branching
+  - **New**: Per ADR-0015, case/participant creation and embargo initialization
+    run in a dedicated `receive_report_case_tree` BT invoked by
+    `SubmitReportReceivedUseCase`. The `validate_report` BT focuses on
+    validation logic only.
   - **Reference**: `notes/bt-integration.md` for handler-by-handler decision
     table
 - `BT-06-002` BTs SHOULD match structure of simulation trees where applicable

@@ -150,12 +150,22 @@ Durations may be combined with RFC 3339 timestamps to form intervals.
 - `DUR-07-001` Specific embargo end times on cases MUST be declared as
   event intervals with unambiguous start and end timestamps, not as
   durations alone
-- `DUR-07-002` At case creation, if no embargo end time is established, the
-  case creation process SHOULD apply the actor's default embargo duration
-  (from the actor profile) to the case creation timestamp to establish the
-  initial embargo end time
+- `DUR-07-002` At case creation (RM.RECEIVED), if no embargo end time is
+  established, the case creation process SHOULD apply the actor's default
+  embargo duration (from the actor profile) to the case creation timestamp
+  to establish the initial embargo end time
+  - Per ADR-0015, case creation occurs at `Offer(Report)` receipt
+    (RM.RECEIVED), not at validation (RM.VALID)
+  - DUR-07-002 is-refined-by CM-12-004
 - `DUR-07-003` When a default embargo duration is applied at case creation,
   this application MUST be logged at INFO level to ensure visibility in logs
+- `DUR-07-004` An embargo end time MUST be established before the case
+  transitions to RM.VALID
+  - If the default embargo was not initialized at receipt (DUR-07-002),
+    the validate-report process MUST ensure an embargo exists via an
+    `EnsureEmbargoExists` check before completing validation
+  - DUR-07-004 depends-on DUR-07-002
+  - DUR-07-004 is-implemented-by CM-12-004
 
 ---
 

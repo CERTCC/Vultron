@@ -116,3 +116,19 @@ earlier (on receipt / RM.RECEIVED) rather than later (on validation success
 / RM.VALID). The case lifecycle can then represent the full lifecycle of the
 report management process, including any rejections. Documentation will also
 need to be updated to reflect this change in thinking.
+
+**Captured**: 2026-04-28. Design decisions finalized via grilling session.
+Findings captured in:
+
+- **ADR**: `docs/adr/0015-create-case-at-report-receipt.md`
+- **Specs updated**: `specs/case-management.md` (CM-12), `specs/duration.md`
+  (DUR-07-002 revised, DUR-07-004 added), `specs/case-log-processing.md`
+  (CLP-03-003), `specs/behavior-tree-integration.md` (BT-06-001),
+  `specs/prototype-shortcuts.md` (PROTO-05 note updated)
+- **Notes updated**: `notes/case-state-model.md` (proto-case redefined,
+  FINDER-PART-1 superseded), `notes/protocol-event-cascades.md` (cascade
+  list updated), `notes/case-log-authority.md` (proto-case terminology),
+  `notes/bt-integration.md` (BT value table and RM state section updated)
+- **Implementation tasks**: `plan/IMPLEMENTATION_PLAN.md`
+  IDEA-260408-01-1 through IDEA-260408-01-7; FINDER-PART-1 marked
+  superseded

@@ -433,6 +433,61 @@ additional triggers from the demo-runner or external caller.
 - Integration test: Demo-runner triggers only `accept-invite`; system
   automatically engages the actor and notifies the case owner
 
+## CM-12 Case Creation Timing
+
+Cases MUST be created at report receipt so that case-level tracking begins
+immediately. The term "proto-case" is **redefined** in this context: a
+proto-case is a case object that exists but has not yet been validated
+(RM state is RM.RECEIVED or RM.INVALID). See ADR-0015 for rationale.
+
+- `CM-12-001` (MUST) A `VulnerabilityCase` MUST be created when an
+  `Offer(Report)` activity is received by the vendor actor
+  - This MUST occur in `SubmitReportReceivedUseCase`, at RM.RECEIVED
+  - Case creation MUST NOT be deferred to report validation (RM.VALID)
+  - CM-12-001 implements ADR-0015
+  - CM-12-001 supersedes any prior requirement to create cases at RM.VALID
+- `CM-12-002` (MUST) At case creation, the system MUST create two initial
+  `VultronParticipant` records:
+  - The reporter (finder): `rm_state=RM.ACCEPTED` (they created and
+    submitted the report)
+  - The receiver (vendor): `rm_state=RM.RECEIVED` (they have received the
+    report and not yet validated it)
+  - CM-12-002 depends-on CM-03-001
+  - CM-12-002 depends-on CM-02-008
+- `CM-12-003` (MUST) When a case is created from an `Offer(Report)`, the
+  case owner MUST queue a `Create(Case)` activity to notify the reporter
+  that a case has been opened
+  - This activity MUST be queued to the case owner's outbox at case
+    creation time
+  - CM-12-003 depends-on OX-02-001
+- `CM-12-004` (SHOULD) A default embargo SHOULD be initialized at case
+  creation (RM.RECEIVED)
+  - CM-12-004 refines DUR-07-002 (which now applies at case receipt)
+  - If no embargo is initialized at receipt, one MUST exist before the
+    case transitions to RM.VALID (see DUR-07-004)
+- `CM-12-005` (MUST) `InvalidateReportReceivedUseCase`,
+  `CloseReportReceivedUseCase`, and `ValidateReportReceivedUseCase` MUST
+  dereference the incoming report ID to the associated case ID before
+  delegating to the corresponding case-level use case
+  - This ensures report-centric protocol activities can locate and update
+    the case created at receipt
+  - CM-12-005 depends-on CM-12-001
+
+### CM-12 Verification
+
+- Unit test: `SubmitReportReceivedUseCase` creates a `VulnerabilityCase`
+  immediately upon receiving `Offer(Report)`
+- Unit test: Two `VultronParticipant` records are created at case creation
+  (reporter at RM.ACCEPTED, receiver at RM.RECEIVED)
+- Unit test: A `Create(Case)` activity is queued to the outbox at case
+  creation
+- Unit test: `ValidateReportReceivedUseCase` does NOT create a case
+  (case already exists from CM-12-001)
+- Unit test: `InvalidateReportReceivedUseCase` dereferences report→case
+  and delegates to `InvalidateCaseUseCase`
+- Unit test: A default embargo exists on the case before RM.VALID
+  transition
+
 ## Related
 
 - **Behavior Tree Integration**: `specs/behavior-tree-integration.md`

@@ -67,9 +67,12 @@ cannot be attached to a report or case remains out of scope here.
   messages that cannot be attached to a report or case MUST be handled outside
   the case audit log
 - `CLP-03-003` The assertion-recording model MUST support continuity from
-  report receipt through case creation so that proto-case history can become
-  part of later case history
-  - `CLP-03-003` depends-on `CM-05-002`
+  report receipt through the case lifecycle so that all history — including
+  the proto-case stage (RM.RECEIVED / RM.INVALID) — is captured in the
+  case audit log
+  - Per ADR-0015, a `VulnerabilityCase` is created at report receipt, so
+    "proto-case history" is native case history from the start
+  - `CLP-03-003` depends-on `CM-12-001`
 
 ## Recorded Projection and Replication
 

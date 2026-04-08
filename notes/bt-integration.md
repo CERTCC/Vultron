@@ -155,14 +155,14 @@ execution of the inbox queue is sufficient for prototype validation.
 
 | Handler                          | BT Value  | Rationale                                                                |
 |----------------------------------|-----------|--------------------------------------------------------------------------|
-| `validate_report`                | ✅ HIGH   | ✅ DONE — complex branching, policy injection, case creation subtree      |
+| `validate_report`                | ✅ HIGH   | ✅ DONE (slimmed per ADR-0015) — validation logic only; no case creation  |
+| `submit_report`                  | ✅ HIGH   | 🔄 PLANNED — case/participant creation moved here via `receive_report_case_tree` (ADR-0015) |
 | `engage_case`                    | ✅ HIGH   | ✅ DONE — participant RM state, policy evaluation, state transitions      |
 | `defer_case`                     | ✅ HIGH   | ✅ DONE — participant RM state, policy evaluation, state transitions      |
 | `create_case`                    | ✅ HIGH   | ✅ DONE — idempotency check, validate, persist, CaseActor creation        |
 | `close_report`                   | ⚠️ MEDIUM | Has procedural logic; multi-step with preconditions; BT adds clarity    |
 | `invalidate_report`              | ⚠️ MEDIUM | Has procedural logic; relatively short but state-machine-tied           |
 | `create_report`                  | ❌ LOW    | Simple CRUD; no branching; keep procedural                              |
-| `submit_report`                  | ❌ LOW    | Offer/status update; simple; keep procedural                            |
 | `ack_report`                     | ❌ LOW    | Single status transition; no branching; keep procedural                 |
 | `add_report_to_case`             | ❌ LOW    | Simple append with idempotency; keep procedural                         |
 | `close_case`                     | ❌ LOW    | Leave + activity emit; simple; keep procedural                          |
@@ -295,10 +295,18 @@ RM is a **participant-specific** state machine — each `CaseParticipant`
 carries its own RM state in `participant_status[].rm_state`, independently
 of other participants.
 
-`ReportStatus` in the flat status layer is a **separate mechanism** used
-only for reports not yet associated with a case (pre-case RM states:
-RECEIVED, INVALID). Once a case is created from a validated report, RM state
-is tracked in `CaseParticipant.participant_status[].rm_state`.
+Per ADR-0015, a `VulnerabilityCase` is created at report receipt
+(RM.RECEIVED). `VultronParticipant` records are created at that time:
+reporter at RM.ACCEPTED, receiver at RM.RECEIVED. RM state is tracked
+in `VultronParticipant.participant_status[].rm_state` from the moment
+of case creation.
+
+`ReportStatus` in the flat status layer is a **transient pre-case
+mechanism** that was previously used for reports not yet associated with
+a case (pre-case RM states: RECEIVED, INVALID). Under ADR-0015, the case
+is created at receipt, so `VultronParticipant` records carry RM state
+from the start. `ReportStatus` is retained for backwards compatibility but
+is no longer the primary RM state carrier.
 
 This distinction affects how `engage_case` / `defer_case` handlers work:
 they update participant-level RM state, not flat report status.

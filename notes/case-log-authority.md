@@ -48,9 +48,12 @@ adds noise without much extra meaning. The sender role and processing path
 already imply that these are participant assertions awaiting CaseActor
 recording.
 
-This is especially true once reports are treated as **proto-cases**. Logging
-begins at report receipt and continues through case creation, rather than
-starting only after a `VulnerabilityCase` object exists.
+This is especially true since reports are treated as **proto-cases** under
+ADR-0015. A case object (`VulnerabilityCase`) is created at report receipt,
+so logging begins immediately and continues through the full case lifecycle,
+rather than starting only after validation. A proto-case is a case in the
+RM.RECEIVED or RM.INVALID stage — the case object exists, but validation
+has not yet occurred.
 
 ---
 
@@ -108,7 +111,8 @@ Two related but distinct structures are useful:
 ### 1. Local Case Audit Log
 
 The local audit log is append-only and captures case-layer processing outcomes
-for assertions that can be tied to a report, proto-case, or case.
+for assertions that can be tied to a report, proto-case (RM.RECEIVED or
+    RM.INVALID stage case), or case.
 
 It may contain both:
 
@@ -142,8 +146,9 @@ of the canonical replicated history.
 
 Not every inbound failure belongs in the case audit log.
 
-- If a message cannot be tied to a report/proto-case/case, it belongs in
-  transport- or actor-level diagnostics, not the case log.
+- If a message cannot be tied to a report/case (including proto-cases in
+  RM.RECEIVED/INVALID stages), it belongs in transport- or actor-level
+  diagnostics, not the case log.
 - If the CaseActor can resolve the message to a case context but rejects it
   during case-layer validation, the rejection belongs in the local case audit
   log.
