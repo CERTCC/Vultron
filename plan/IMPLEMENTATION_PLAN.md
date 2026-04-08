@@ -1,9 +1,9 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-04-07 (refresh #70: duration spec promoted, embargo-policy
-updated to ISO 8601 durations, finder participant lifecycle captured, VOCAB-REG-1
-status confirmed, AGENTS.md warnings caveat added; EMBARGO-DUR-1 and
-FINDER-PART-1 tasks added)
+**Last Updated**: 2026-04-07 (refresh #71: code-verified gap analysis; test
+suite 1261 passing; D5-6-DEMOAUDIT details moved to history; D5-6-CASEPROP
+partial-fix noted; EMBARGO-DUR-1 isodate dep confirmed; FINDER-PART-1 partial
+implementation noted)
 
 ## Overview
 
@@ -17,7 +17,7 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 ### Current Status Summary
 
 **Test suite**: Canonical validation last passed on 2026-04-07
-(1247 passed, 5581 subtests; `black`, `flake8`, `mypy`, `pyright`, full
+(1261 passed, 5581 subtests; `black`, `flake8`, `mypy`, `pyright`, full
 `pytest` run).
 
 All 38 message handlers implemented (including `unknown`). All 9 trigger
@@ -348,56 +348,16 @@ section MUST be completed before proceeding to PRIORITY-350 and beyond. D5-7
   task after each use-case execution. Added 8 new tests verifying
   `outbox_handler` is scheduled. Completed 2026-04-07.
 
-#### D5-6-DEMOAUDIT — Audit and refactor all demos for protocol compliance
+#### D5-6-DEMOAUDIT — Audit and refactor all demos for protocol compliance ✅
 
-- [x] **D5-6-DEMOAUDIT**: Audit all multi-actor demo scripts to ensure they
-  reflect the intended protocol flow and do not rely on demo-runner shortcuts
-  that would not occur in a real CVD case (addresses D5-6l from
-  `notes/two-actor-feedback.md`). This is the most significant remaining
-  feedback item: the demo-runner should only trigger primary events
-  (submit-report, validate-report, add-note) and then let actor behaviors
-  and message exchange play out automatically according to the protocol.
-  Depends on D5-6-TRIGDELIV.
-  - **Study protocol docs for intended flows**: Review
-    `docs/topics/formal_protocol/worked_example.md`,
-    `docs/topics/behavior_logic/msg_rm_bt.md`,
-    `docs/howto/activitypub/activities/report_vulnerability.md`,
-    `docs/howto/activitypub/activities/initialize_case.md`,
-    `docs/howto/activitypub/activities/manage_case.md`,
-    `docs/howto/activitypub/activities/status_updates.md` and compare
-    against demo implementations.
-  - **Two-actor demo** (`two_actor_demo.py`): After D5-6-TRIGDELIV, verify
-    that the finder actually receives the case notification via outbox
-    delivery (not manual injection). Add a verification step that polls the
-    finder's datalayer to confirm the case, participant records, and embargo
-    are present — proving the full message flow worked end-to-end. Review
-    note exchange steps: if possible, use trigger endpoints for adding notes
-    rather than manual inbox posts.
-  - **Three-actor demo** (`three_actor_demo.py`): Currently uses
-    `engage-case` and `propose-embargo` trigger shortcuts where the protocol
-    flow should be automatic. After invitation acceptance, the behavior tree
-    should handle engagement; after case creation, embargo initialization
-    should be automated. Replace trigger shortcuts with proper protocol-driven
-    behavior wherever the underlying BT automation supports it. Where the BT
-    does not yet automate a step, document the gap and leave the trigger as a
-    TODO with a comment explaining what should happen.
-  - **Multi-vendor demo** (`multi_vendor_demo.py`): Same analysis as
-    three-actor. Replace `validate-report`, `engage-case`, and
-    `propose-embargo` trigger shortcuts with protocol-driven flows where
-    possible.
-  - **Single-actor demos**: These are already protocol-compliant (direct
-    activity posts). Verify they remain consistent with the protocol docs and
-    do not need changes.
-  - **Cross-container verification**: In multi-actor demos, add verification
-    steps that confirm the receiving actor has processed the messages and has
-    the expected objects in its datalayer (case, participants, embargo). This
-    proves the protocol flow works end-to-end, not just that the sender
-    queued messages.
-  - **Document remaining gaps**: Where the current BT implementation does not
-    yet automate a step that the protocol docs describe, document the gap in
-    `notes/` or `plan/IMPLEMENTATION_NOTES.md` with a reference to the
-    relevant doc section.
-  - Add/update demo tests to verify the protocol-compliant flow.
+- [x] **D5-6-DEMOAUDIT**: Audited multi-actor demo scripts against protocol
+  docs. Added `to=addressees` and full case embedding to
+  `CreateCaseActivity` node (validate-report BT); added `to=[finder_actor_id]`
+  to `CreateFinderParticipantNode` notification; fixed outbox_handler to expand
+  `Create` activity objects before delivery; added `wait_for_finder_case()`
+  polling helper + verification block to `run_two_actor_demo`. Documented
+  remaining gaps as D5-6-AUTOENG, D5-6-NOTECAST, D5-6-EMBARGORCP,
+  D5-6-CASEPROP. Completed 2026-04-07. See `plan/IMPLEMENTATION_HISTORY.md`.
 
 #### D5-6-AUTOENG — Auto-engage after invitation acceptance
 
@@ -439,16 +399,20 @@ section MUST be completed before proceeding to PRIORITY-350 and beyond. D5-7
 
 #### D5-6-CASEPROP — Case propagation and activity addressing
 
-- [ ] **D5-6-CASEPROP**: Fix missing `to` fields on case-related
-  activities and correct demo container targeting.
-  - Add `to` field to `EmitCreateCaseActivity` in the create-case BT,
-    populated from the case's participant list.
-  - Fix the three-actor demo's `actor_engages_case()` to call
-    `engage-case` on the actor's own container rather than the
-    case-actor container.
-  - This requires the actor to have a local case copy (received via
-    `Create(Case)` delivery), so depends on D5-6-AUTOENG and the
-    addressing fix.
+- [ ] **D5-6-CASEPROP**: Fix remaining case propagation gaps (partially
+  addressed in D5-6-DEMOAUDIT).
+  - **Partial fix done** (D5-6-DEMOAUDIT): `CreateCaseActivity` node in
+    `vultron/core/behaviors/report/nodes.py` (validate-report BT) now sets
+    `to=addressees` and embeds the full `VulnerabilityCase` as `object_`.
+    `CreateFinderParticipantNode` now sets `to=[finder_actor_id]`.
+  - **Still open**: `EmitCreateCaseActivity` in
+    `vultron/core/behaviors/case/nodes.py` (create-case BT) still lacks a
+    `to` field and does not embed the full case object. Align this node with
+    `report/nodes.py::CreateCaseActivity` or consolidate into one shared node.
+  - **Still open (depends on D5-6-AUTOENG)**: The three-actor demo's
+    `actor_engages_case()` calls `engage-case` on the case-actor container
+    instead of the actor's own container. Once D5-6-AUTOENG auto-engages the
+    actor on invite acceptance, this manual call is eliminated entirely.
   - **Spec**: OX-03-001, DEMO-MA-00-001.
 
 #### D5-7 — Project owner sign-off on demo feedback resolution
@@ -588,6 +552,8 @@ are needed before resuming feature development.
   (`preferred_duration`, `minimum_duration`, `maximum_duration`) as
   specified in `specs/embargo-policy.md` EP-01-002/003 and
   `specs/duration.md` DUR-01-001.
+  - Note: `isodate>=0.7.2` is already a declared dependency in
+    `pyproject.toml` — no new package required.
   - Use `datetime.timedelta` internally with an `isodate`-based
     `field_validator`/`field_serializer` pair (see DUR-05-001, DUR-05-002).
   - Update `InitializeDefaultEmbargoNode` in
@@ -602,6 +568,16 @@ are needed before resuming feature development.
   lifecycle: create a `CaseParticipant` record for the finder at report
   receipt (not deferred to case creation) and retroactively re-link it to
   the case when one is created.
+  - Note: `SubmitReportReceivedUseCase` already creates a
+    `VultronParticipantStatus` for the finder (with `rm_state=RM.ACCEPTED`)
+    as a partial implementation. The full task requires creating a
+    `CaseParticipant` domain object with `context` pointing to the
+    `VulnerabilityReport` ID.
+  - Resolve the open design question in `notes/case-state-model.md`
+    ("Report as Proto-Case: Finder Participant Lifecycle") — specifically
+    whether finder status belongs in `SubmitReportReceived` (pre-case) or
+    `CreateReportReceived` (post-case) — before implementing the full
+    `CaseParticipant` creation.
   - At report receipt, create a `CaseParticipant` for the reporter with
     `context` pointing to the `VulnerabilityReport` ID and RM state
     initialized to `RM.RECEIVED`.
