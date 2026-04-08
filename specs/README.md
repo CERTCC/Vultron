@@ -59,6 +59,10 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   object model relationships (Report/Case/CaseReference/VulnerabilityRecord), case update
   broadcast, CVD action rules API, redacted case view (CM-09), per-participant embargo
   acceptance tracking (CM-10)
+- **`case-log-processing.md`** - Participant assertions, CaseActor-authored
+  `CaseLogEntry` objects, case audit scope, recorded-history projection, and
+  replication rules for recorded vs rejected log outcomes (CLP-01 through
+  CLP-05)
 
 **State Machines**:
 
@@ -206,6 +210,7 @@ is reserved for `testability.md`).
 | `AR` | `agentic-readiness.md` |
 | `BT` | `behavior-tree-integration.md` |
 | `CI-SEC` | `ci-security.md` |
+| `CLP` | `case-log-processing.md` |
 | `CM` | `case-management.md` |
 | `CS` | `code-style.md` |
 | `DC` | `demo-cli.md` |

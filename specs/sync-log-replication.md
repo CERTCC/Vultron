@@ -2,13 +2,14 @@
 
 ## Overview
 
-Requirements for the append-only case event log, replication transport,
-conflict handling, per-peer state tracking, and retry semantics for
-distributed case state synchronization across Participant Actors.
+Requirements for the append-only canonical recorded case log, replication
+transport, conflict handling, per-peer state tracking, and retry semantics
+for distributed case state synchronization across Participant Actors.
 
 **Source**: `plan/IMPLEMENTATION_PLAN.md` PRIORITY-400 (SYNC-1 through
 SYNC-4), `plan/IMPLEMENTATION_NOTES.md` (2026-03-26 SYNC design notes)
-**Cross-references**: `specs/case-management.md`, `specs/outbox.md`,
+**Cross-references**: `specs/case-management.md`,
+`specs/case-log-processing.md`, `specs/outbox.md`,
 `specs/idempotency.md`
 **Note**: Before implementing SYNC-1, create
 `notes/sync-log-replication.md` capturing the RAFT-inspired design notes.
@@ -19,8 +20,10 @@ spec captures the normative requirements.
 
 ## Append-Only Log
 
-- `SYNC-01-001` The local case event log MUST be append-only; log entries
-  MUST be immutable once appended
+- `SYNC-01-001` The canonical recorded case log MUST be append-only; log
+  entries MUST be immutable once appended
+  - Broader local case audit history MAY exist outside the replicated chain;
+    see `specs/case-log-processing.md`
 - `SYNC-01-002` Each log entry MUST carry a monotonically increasing index
   scoped to its case
 - `SYNC-01-003` Each log entry MUST include a cryptographic hash of its own
@@ -31,14 +34,17 @@ spec captures the normative requirements.
   - `PROD_ONLY` The CaseActor MUST cryptographically sign each log entry,
     incorporating the previous entry's hash to create a verifiable chain
     of custody
-- `SYNC-01-004` Log entries MUST be written via `VulnerabilityCase.record_event()`
-  as the single authoritative write path
-  - SYNC-01-004 implements CM-02-009 (case-management.md)
+- `SYNC-01-004` Canonical recorded log entries MUST be written through the
+  CaseActor's single authoritative write path
+  - `SYNC-01-004` depends-on `CLP-02-001`
+  - `SYNC-01-004` implements `CM-02-009`
 
 ## Replication Transport
 
-- `SYNC-02-001` (MUST) Log replication between CaseActor and Participant Actors
-  MUST use ActivityStreams `Announce` activities as the transport envelope
+- `SYNC-02-001` Log replication between CaseActor and Participant Actors MUST
+  use ActivityStreams `Announce` activities as the transport envelope for
+  canonical recorded log content
+  - `SYNC-02-001` is-refined-by `CLP-04-004`
 - `SYNC-02-002` Each replication message MUST identify the sender, target
   recipient, the log entry hash, and the predecessor hash
 - `SYNC-02-003` Replication MUST originate from the replication leader
@@ -60,9 +66,9 @@ spec captures the normative requirements.
 
 ## Log State in Context
 
-- `SYNC-03-004` (SHOULD) When a Participant Actor sends any message to the CaseActor,
-  it SHOULD include the hash of its last accepted log entry as a parameter
-  in the activity's context field
+- `SYNC-03-004` When a Participant Actor sends any message to the CaseActor,
+  it SHOULD include the hash of its last accepted canonical recorded log entry
+  as a parameter in the activity's context field
   - This allows the CaseActor to proactively detect that a participant is
     behind and immediately replay missing entries without waiting for an
     explicit sync request
@@ -108,18 +114,21 @@ preserved under normal operation and partial failure:
 
 - `SYNC-08-001` Append-only integrity: log entries MUST be immutable once
   committed and MUST be uniquely identified by their content hash
-- `SYNC-08-002` (MUST) Deterministic projection: given an identical log prefix,
-  all compliant implementations MUST derive identical state
-- `SYNC-08-003` (MUST NOT) Idempotent replay: reprocessing any log prefix (including
-  duplicates) MUST NOT change the resulting state
+- `SYNC-08-002` Deterministic projection: given an identical canonical
+  recorded log prefix, all compliant implementations MUST derive identical
+  state
+- `SYNC-08-003` Idempotent replay: reprocessing any canonical recorded log
+  prefix (including duplicates) MUST NOT change the resulting state
 - `SYNC-08-004` Monotonic visibility: participants MUST NOT regress their
   acknowledged log position
 - `SYNC-08-005` (MUST) Reject-on-divergence: entries that do not extend the current
   hash chain MUST be rejected and MUST trigger resynchronization
 
 **Note**: All specs interacting with state, messaging, or storage MUST treat
-the log as the sole source of truth and MUST NOT introduce alternative state
-authorities or side-channel synchronization mechanisms. Failover and
-consensus semantics (e.g., Raft leader election) are out of scope for the
-current phase and MUST NOT be implicitly assumed by other specifications.
-See `notes/sync-log-replication.md` for the full architectural rationale.
+the canonical recorded log as the sole source of truth for replica state and
+MUST NOT introduce alternative state authorities or side-channel
+synchronization mechanisms. Failover and consensus semantics (e.g., Raft
+leader election) are out of scope for the current phase and MUST NOT be
+implicitly assumed by other specifications. See
+`notes/sync-log-replication.md` and `specs/case-log-processing.md` for the
+full architectural rationale.

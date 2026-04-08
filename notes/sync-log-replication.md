@@ -8,8 +8,9 @@ PRIORITY-400 (SYNC-1 through SYNC-4)
 ## Architecture Overview
 
 Vultron is a **log-centric architecture** in which the CaseActor is the
-authoritative single writer of an append-only, hash-chained log, and all
-externally visible system state is a deterministic projection of that log.
+authoritative single writer of an append-only, hash-chained **canonical
+recorded log**, and all externally visible replicated state is a deterministic
+projection of that recorded log.
 
 Key properties:
 
@@ -19,6 +20,9 @@ Key properties:
 - **Eventual consistency**: Participants synchronize by receiving replicated
   log entries; their local state converges to the CaseActor's state as
   entries are delivered.
+- **Audit vs replication split**: The CaseActor MAY keep a broader local case
+  audit trail including rejected assertion outcomes, but only the recorded
+  canonical projection participates in replication and hash chaining.
 - **Forward compatibility**: The single-writer design deliberately preserves
   forward compatibility with a Raft-like consensus model for leader election
   and failover; however, failover semantics are out of scope for the current
@@ -73,9 +77,10 @@ a slightly-behind participant.
 
 ### SYNC-1 Scope
 
-The `CaseEvent` model (`vultron/wire/as2/vocab/objects/case_event.py`)
-provides the foundation. SYNC-1 extends it to a true append-only log
-with hash-chain indexing.
+The current `CaseEvent` model (`vultron/wire/as2/vocab/objects/case_event.py`)
+provides the foundation. SYNC-1 extends it toward a true canonical recorded
+log with hash-chain indexing; the richer long-term content model is described
+in `notes/case-log-authority.md`.
 
 Core domain classes (transport-agnostic):
 
@@ -144,6 +149,8 @@ invariants under normal operation and partial failure:
 ## Related
 
 - `specs/sync-log-replication.md` — normative requirements
+- `specs/case-log-processing.md` — assertion recording and canonical
+  `CaseLogEntry` requirements
 - `plan/IMPLEMENTATION_PLAN.md` — SYNC-1 through SYNC-4 tasks
 - `docs/adr/` — architectural decisions for CaseActor, per-actor DataLayer
 - `notes/case-state-model.md` — CaseEvent model and trusted timestamps
