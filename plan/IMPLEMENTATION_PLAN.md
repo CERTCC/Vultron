@@ -604,17 +604,75 @@ are needed before resuming feature development.
 
 ### VOCAB-REG-1 — Vocabulary registry auto-registration
 
-- [ ] **VOCAB-REG-1**: Research and implement a more robust vocabulary
-  registration mechanism that does not rely on developers remembering to
-  update `__init__.py` or add class decorators manually. Candidate
-  approaches:
-  - Dynamic module discovery in the vocabulary subpackage `__init__.py`
-    (auto-import all sibling modules)
-  - Parent-class/mixin auto-registration on subclass creation
-  The registry *structure* and registry *population* are separate concerns
-  and may require separate solutions. See `specs/vocabulary-model.md`
-  VM-01-005 and the cross-cutting observations in `notes/spec-review-0327.md`.
-  **Confirmed still open as of 2026-04-07.**
+> **Design complete** as of 2026-04-08. See `notes/vocabulary-registry.md`
+> for full design rationale. Spec updated in `specs/vocabulary-model.md`
+> VM-01-001 through VM-01-006. Implementation split into two tasks below.
+
+#### VOCAB-REG-1.1 — Redesign vocabulary registry core mechanics
+
+- [ ] **VOCAB-REG-1.1**: Implement the new registry mechanics in the
+  `vultron/wire/as2/vocab/base/` package. Scope: infrastructure only;
+  existing decorators remain in place until VOCAB-REG-1.2.
+  - Create `vultron/wire/as2/vocab/base/enums.py` with `VocabNamespace`
+    enum (`AS`, `VULTRON`)
+  - Rewrite `vultron/wire/as2/vocab/base/registry.py`:
+    - Replace `Vocabulary(BaseModel)` with a plain
+      `VOCABULARY: dict[str, type]` module-level singleton
+    - Update `find_in_vocabulary(name: str)` to flat-dict lookup,
+      raise `KeyError` on miss; remove the `item_type` parameter
+    - Remove `activitystreams_object`, `activitystreams_activity`,
+      `activitystreams_link` decorator definitions (they will be
+      unused after VOCAB-REG-1.2)
+  - Update `vultron/wire/as2/vocab/base/base.py` (`as_Base`):
+    - Add `_vocab_ns: ClassVar[VocabNamespace] = VocabNamespace.AS`
+    - Add `__init_subclass__` that inspects the new class's `type_`
+      annotation; registers the class in `VOCABULARY` under the
+      `Literal` value if present, skips otherwise
+  - Update `vultron/wire/as2/vocab/objects/base.py` (`VultronObject`):
+    - Override `_vocab_ns = VocabNamespace.VULTRON`
+  - Add unit tests in `test/wire/as2/vocab/base/`:
+    - `__init_subclass__` registers a concrete class (Literal `type_`)
+    - `__init_subclass__` skips an abstract class (`str | None` `type_`)
+    - `find_in_vocabulary("KnownType")` returns the class
+    - `find_in_vocabulary("UnknownType")` raises `KeyError`
+    - `VultronObject` subclasses carry `_vocab_ns == VocabNamespace.VULTRON`
+  - **Done when**: new unit tests pass; no existing tests broken; the
+    old decorator functions are gone from registry.py but decorator
+    call sites in vocab class files are not yet touched (that is
+    VOCAB-REG-1.2)
+
+#### VOCAB-REG-1.2 — Migrate vocabulary classes and update callers
+
+- [ ] **VOCAB-REG-1.2**: Remove all `@activitystreams_*` decorator usages,
+  add startup-guarantee discovery, and update all `find_in_vocabulary()`
+  callers. Depends on VOCAB-REG-1.1.
+  - Remove `@activitystreams_object` / `@activitystreams_activity` /
+    `@activitystreams_link` decorators from all vocab class files
+    (≈25 call sites across `vocab/objects/`, `vocab/activities/`,
+    `vocab/base/objects/`, `vocab/base/links.py`)
+  - Add `pkgutil.iter_modules` + `importlib.import_module` dynamic
+    discovery to `vocab/objects/__init__.py` and
+    `vocab/activities/__init__.py`
+  - Update all five `find_in_vocabulary()` caller files to handle
+    `KeyError` instead of `None` returns:
+    - `vultron/wire/as2/rehydration.py` — already raises `KeyError`;
+      remove the `if cls is None` guard
+    - `vultron/adapters/driven/db_record.py` — remove `None` check,
+      let `KeyError` propagate
+    - `vultron/adapters/driven/datalayer_tinydb.py` — wrap calls in
+      `try/except KeyError` to preserve the silent-skip behavior for
+      unknown types during list/read
+    - `vultron/adapters/driving/fastapi/routers/actors.py` — wrap in
+      `try/except KeyError`, continue on miss
+    - `vultron/adapters/driving/fastapi/helpers.py` — catch `KeyError`,
+      raise `HTTPException(400, ...)`
+  - Add a registration completeness test: import both vocab subpackages
+    and assert every `.py` module in `vocab/objects/` and
+    `vocab/activities/` contributes at least one class to `VOCABULARY`
+  - Run the full test suite and confirm it passes
+  - **Done when**: no `@activitystreams_*` decorators remain in codebase,
+    dynamic discovery is active, all callers updated, completeness test
+    passes, full test suite green
 
 ### EMBARGO-DUR-1 — Update EmbargoPolicy model to ISO 8601 duration format
 

@@ -35,6 +35,7 @@ Explanation) and an implementation workflow for authoring technical docs.
 | `protocol-event-cascades.md` | Cascading automation design principle: primary events vs cascading consequences, identified gaps in BT automation and activity addressing (invitation acceptance, note broadcast, embargo announce, case propagation), relationship to demo correctness |
 | `triggerable-behaviors.md` | Design notes for PRIORITY 30 triggerable behaviors: trigger scope, endpoint schema, candidate behaviors (RM/EM), relationship to actor independence; resolved design decisions on `RedactedVulnerabilityCase`, per-participant embargo acceptance, and `reject-report` note requirement |
 | `use-case-behavior-trees.md` | Relationship between use cases, domain logic, and behavior trees; proposed module layout; conceptual layering (Driver → Dispatcher → Use Case → BT → Domain Model); protocol activity-to-use-case mapping; standardized `UseCase` protocol proposal; SEMANTICS_HANDLERS migration to core |
+| `vocabulary-registry.md` | Vocabulary registry design (VOCAB-REG-1): `__init_subclass__` auto-registration, flat dict structure, `VocabNamespace` enum as metadata, `Literal` type_ heuristic for concrete/abstract detection, dynamic discovery as startup guarantee, migration path (VOCAB-REG-1.1 / 1.2) |
 
 ## Conventions
 
