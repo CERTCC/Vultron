@@ -594,14 +594,18 @@ class InitializeDefaultEmbargoNode(DataLayerAction):
 
     Looks up the actor's EmbargoPolicy from the DataLayer to determine the
     preferred duration (defaulting to 90 days if no policy is found).
-    Creates a ``VultronEmbargoEvent``, attaches it to the case as
-    ``active_embargo``, and queues an Announce activity to the actor's
-    outbox so downstream actors are notified.
+    Creates a ``VultronEmbargoEvent`` and attaches it to the case as
+    ``active_embargo``.
+
+    Participants learn about the embargo from ``VulnerabilityCase.active_embargo``
+    embedded in the ``Create(Case)`` activity queued by ``CreateCaseActivity``
+    (the subsequent node in the validate-report BT sequence). A separate
+    ``Announce(embargo)`` is therefore redundant and is not emitted here.
 
     Must run after CreateCaseNode so case_id is available in the blackboard.
 
-    Per specs/case-management.md CM-02 and notes/two-actor-feedback.md
-    D5-6h requirements.
+    Per specs/case-management.md CM-02, OX-03-001, and
+    notes/protocol-event-cascades.md D5-6-EMBARGORCP.
     """
 
     def __init__(self, name: str | None = None) -> None:
@@ -678,35 +682,10 @@ class InitializeDefaultEmbargoNode(DataLayerAction):
                     case_id,
                 )
 
-            # Emit Announce activity so participants are notified.
-            announce = VultronActivity(
-                type_="Announce",
-                actor=self.actor_id,
-                object_=embargo.id_,
-                target=case_id,
-            )
-            try:
-                self.datalayer.create(announce)
-            except ValueError:
-                pass  # idempotent
-
-            actor_obj = self.datalayer.read(
-                self.actor_id, raise_on_missing=True
-            )
-            if has_outbox(actor_obj):
-                actor_obj.outbox.items.append(announce.id_)
-                self.datalayer.save(actor_obj)
-            self.datalayer.record_outbox_item(self.actor_id, announce.id_)
-            self.logger.info(
-                "Queued Announce(embargo '%s' for case '%s',"
-                " duration %d days) activity '%s' to actor '%s' outbox"
-                " (default embargo notification)",
-                embargo.id_,
-                case_id,
-                duration_days,
-                announce.id_,
-                self.actor_id,
-            )
+            # Participants learn about the embargo from VulnerabilityCase.active_embargo
+            # embedded in the Create(Case) activity queued by the subsequent
+            # CreateCaseActivity node. No separate Announce(embargo) is needed
+            # (D5-6-EMBARGORCP, OX-03-001).
 
             return Status.SUCCESS
 

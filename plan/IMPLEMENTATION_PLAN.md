@@ -37,7 +37,7 @@ tasks tracked under PRIORITY-310 below).
 **PRIORITY-310** Address demo feedback — D5-6-LOG, D5-6-STATE, D5-6-STORE,
 D5-6-WORKFLOW (all ✅); D5-6-DUP, D5-6-TRIGDELIV, D5-6-LOGCTX (all ✅);
 D5-6-DEMOAUDIT ✅; D5-6-AUTOENG ✅; D5-6-NOTECAST ✅; D5-6-CASEPROP ✅;
-D5-6-EMBARGORCP pending; D5-7 pending human sign-off.
+D5-6-EMBARGORCP ✅; D5-7 pending human sign-off.
 
 ---
 
@@ -381,22 +381,11 @@ section MUST be completed before proceeding to PRIORITY-350 and beyond. D5-7
 
 #### D5-6-EMBARGORCP — Fix embargo Announce activity addressing
 
-- [ ] **D5-6-EMBARGORCP**: The `InitializeDefaultEmbargoNode` creates
-  an `Announce(embargo)` with no `to` field.
-  - **Recommended fix** (Option 2, per `notes/protocol-event-cascades.md`):
-    Remove the standalone `Announce(embargo)` from the validate-report BT
-    and rely on the `Create(Case)` activity to carry embargo information via
-    `VulnerabilityCase.active_embargo`. The finder already learns about the
-    embargo from the embedded case object in the `Create(Case)` notification,
-    so the standalone `Announce` is redundant.
-  - **Dependency note**: Under ADR-0015, `InitializeDefaultEmbargoNode` will
-    eventually move from `validate_tree.py` to `receive_report_case_tree`
-    (IDEA-260408-01-2). This task can be addressed either independently (remove
-    the standalone `Announce` now) or deferred until IDEA-260408-01-4 removes
-    the node from `validate_tree.py` entirely. The independent path is simpler.
-  - Verify that the finder receives embargo info via the case object in
-    the `Create(Case)` notification.
-  - **Spec**: OX-03-001, CLP-04-004.
+- [x] **D5-6-EMBARGORCP**: Removed the standalone `Announce(embargo)` from
+  `InitializeDefaultEmbargoNode.update()`. Embargo info flows to the finder
+  via `VulnerabilityCase.active_embargo` embedded in the `Create(Case)`
+  activity. Tests updated; all linters and 1267 tests pass.
+  Completed 2026-04-11. See `plan/IMPLEMENTATION_HISTORY.md`.
 
 #### D5-6-CASEPROP — Case propagation and activity addressing
 

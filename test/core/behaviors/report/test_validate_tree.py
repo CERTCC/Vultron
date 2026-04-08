@@ -634,7 +634,7 @@ def test_tree_execution_vendor_rm_accepted(
 # ============================================================================
 
 
-def test_validate_report_tree_logs_announce_type_for_embargo(
+def test_validate_report_tree_case_has_active_embargo(
     bridge,
     datalayer,
     actor_id,
@@ -642,20 +642,145 @@ def test_validate_report_tree_logs_announce_type_for_embargo(
     offer,
     actor,
     finder_actor,
-    caplog,
 ):
-    """InitializeDefaultEmbargoNode MUST log 'Announce' activity type (D5-6-LOGCTX)."""
+    """After validate-report BT, case MUST have active_embargo set (D5-6-EMBARGORCP).
+
+    Participants learn about the embargo from the VulnerabilityCase.active_embargo
+    field embedded in the Create(Case) activity. This test verifies that the case
+    has active_embargo set before CreateCaseActivity runs, so it will be
+    included in the embedded case object.
+    """
+    from vultron.core.models.protocols import is_case_model
+
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
     )
-    with caplog.at_level("INFO"):
-        bridge.execute_with_setup(
-            tree=tree,
-            actor_id=actor_id,
-            datalayer=datalayer,
-        )
-    assert "Announce" in caplog.text
+    bridge.execute_with_setup(
+        tree=tree,
+        actor_id=actor_id,
+        datalayer=datalayer,
+    )
+
+    # The VulnerabilityCase in the DataLayer must have active_embargo set
+    cases = datalayer.by_type("VulnerabilityCase")
+    assert cases, "Expected at least one VulnerabilityCase in DataLayer"
+
+    case_ids = list(cases.keys())
+    case_obj = datalayer.read(case_ids[0])
+    assert is_case_model(case_obj), "Expected a valid CaseModel"
+    assert case_obj.active_embargo is not None, (
+        "VulnerabilityCase must have active_embargo set so participants "
+        "can learn about the embargo from the Create(Case) activity"
+    )
+
+
+def test_validate_report_tree_create_case_activity_embeds_embargo(
+    bridge,
+    datalayer,
+    actor_id,
+    report,
+    offer,
+    actor,
+    finder_actor,
+):
+    """Create(Case) activity's embedded case MUST carry active_embargo (D5-6-EMBARGORCP).
+
+    The Create(Case) activity embeds the full VulnerabilityCase object.
+    Since InitializeDefaultEmbargoNode sets active_embargo on the case before
+    CreateCaseActivity runs, the embedded case must also have active_embargo set.
+    """
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+    )
+    bridge.execute_with_setup(
+        tree=tree,
+        actor_id=actor_id,
+        datalayer=datalayer,
+    )
+
+    # Find Create activities in the DataLayer (raw dict records)
+    create_case_activities = datalayer.by_type("Create")
+    assert create_case_activities, "Expected at least one Create activity"
+
+    found_case_with_embargo = False
+    for _activity_id, activity_data in create_case_activities.items():
+        # TinyDB stores field names with underscores (not JSON aliases).
+        # _dehydrate_data collapses the object_ field to a string ID.
+        obj = activity_data.get("object_")
+        if obj is None:
+            continue
+        if isinstance(obj, str):
+            case = datalayer.read(obj)
+            if (
+                case is not None
+                and getattr(case, "active_embargo", None) is not None
+            ):
+                found_case_with_embargo = True
+                break
+        elif isinstance(obj, dict):
+            if (
+                obj.get("type_") == "VulnerabilityCase"
+                and obj.get("active_embargo") is not None
+            ):
+                found_case_with_embargo = True
+                break
+
+    assert found_case_with_embargo, (
+        "Create(Case) activity must embed a VulnerabilityCase with active_embargo set; "
+        "participants learn about the embargo from this embedded field"
+    )
+
+
+def test_validate_report_tree_no_standalone_announce_embargo_in_outbox(
+    bridge,
+    datalayer,
+    actor_id,
+    report,
+    offer,
+    actor,
+    finder_actor,
+):
+    """InitializeDefaultEmbargoNode MUST NOT queue a standalone Announce(embargo)
+    to the outbox (D5-6-EMBARGORCP Option 2).
+
+    The finder learns about the embargo from active_embargo embedded in the
+    Create(Case) activity, making the standalone Announce redundant.
+    """
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+    )
+    bridge.execute_with_setup(
+        tree=tree,
+        actor_id=actor_id,
+        datalayer=datalayer,
+    )
+
+    # The only activity in the outbox should be the Create(Case) activity,
+    # not an Announce(embargo) activity.
+    actor_obj = datalayer.read(actor_id)
+    outbox_items = getattr(getattr(actor_obj, "outbox", None), "items", [])
+
+    # Verify no Announce activity referencing an embargo is in the outbox
+    announce_embargo_items = []
+    for item_id in outbox_items:
+        activity = datalayer.read(item_id)
+        if activity is None:
+            # Check raw record
+            all_items = datalayer.by_type("Announce")
+            for _id, data in all_items.items():
+                if _id == item_id:
+                    announce_embargo_items.append(item_id)
+            continue
+        if getattr(activity, "type_", None) == "Announce":
+            announce_embargo_items.append(item_id)
+
+    assert not announce_embargo_items, (
+        f"Expected no Announce(embargo) activities in outbox, "
+        f"but found: {announce_embargo_items}"
+    )
 
 
 def test_validate_report_tree_logs_case_id_in_embargo_message(
