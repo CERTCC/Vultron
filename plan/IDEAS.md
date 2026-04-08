@@ -1,6 +1,6 @@
 # Project Ideas
 
-## Database file for TinyDB should be configurable
+## IDEA-260301-01 Database file for TinyDB should be configurable
 
 relevant on or after commit: 2ff533e26f994b8308f30b74d991dedbfcebfa1e
 
@@ -14,7 +14,7 @@ specifies not only which database adapter to use, but also the relevant
 configuration details for that adapter (which will include the db file path
 for TinyDB, but would include other details for other adapters).
 
-## Config files should be YAML and loaded into a structured config object
+## IDEA-260402-01 Config files should be YAML and loaded into a structured config object
 
 relevant on or after commit: 3fdbfa96155d87d716027c5d3a1fb929d0968b28
 
@@ -28,7 +28,7 @@ configuration. This can also allow us to have nested configuration sections
 for different components, and modularity in how we define and validate
 config for different adapters or features.
 
-## Does each participant need their own stub Case Actor clone to manage their copy of the case?
+## IDEA-260402-02 Does each participant need their own stub Case Actor clone to manage their copy of the case?
 
 relevant on or after commit: d2d2e3b5c285c9af66fad717697e9795707d2978
 
@@ -89,3 +89,30 @@ there's only one Case Actor per case operated by the case creator/owner.
 (Who is also an actor participant in the case as well, so they too have a
 local copy of the case object and are not directly writing to their own copy
 either but routing their updates through the Case Actor too).
+
+## IDEA-260408-01 Refining the report:case::caterpillar:butterfly concept
+
+relevant after commit: 46afe8deaf859518ba52330e280391cd36c6bffe
+
+We have realized that the concept of creating a case only for valid reports
+is a vestigial artifact of an older process in which it was cumbersome to
+create a case, so case creation was reserved for post-credibility and
+lightweight validation completion. However, in the Vultron model, case
+creation is just an automatic recordkeeping mechanism that is not onerous at
+all. And we're starting to notice that having a "report" being a
+second-class object but still requiring tracking like a "case" is going to
+be awkward. We should just have a report get wrapped in a case object on
+receipt, and allow cases to just use the full RM state machine to represent
+where they are in the process. Some cases might go from RECEIVED to INVALID
+to CLOSED, and never get to VALID, ACCEPTED, or DEFERRED. In other systems,
+that path wouldn't have ever created a case because it was not considered
+worth the effort to create a case object for something that would only be
+rejected. But it's easier in Vultron to just create the case for every
+"caterpillar" received, and some cases just never get to "butterfly" stage.
+This will have design and implementation implications but will overall
+simplify the model and make it more consistent. In this new model, the case
+remains a wrapper object around one or more reports, it just gets created
+earlier (on receipt / RM.RECEIVED) rather than later (on validation success
+/ RM.VALID). The case lifecycle can then represent the full lifecycle of the
+report management process, including any rejections. Documentation will also
+need to be updated to reflect this change in thinking.
