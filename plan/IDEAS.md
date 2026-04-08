@@ -2,6 +2,8 @@
 
 ## Database file for TinyDB should be configurable
 
+relevant on or after commit: 2ff533e26f994b8308f30b74d991dedbfcebfa1e
+
 The original implementation just had a fixed `mydb.json` file acting as the
 TinyDB database. This is fine for a simple demo, but for real-world use, it
 really needs to be configurable. Whatever solution we apply here should
@@ -14,6 +16,8 @@ for TinyDB, but would include other details for other adapters).
 
 ## Config files should be YAML and loaded into a structured config object
 
+relevant on or after commit: 3fdbfa96155d87d716027c5d3a1fb929d0968b28
+
 When we have a need for config files, we should use YAML for readability and
 ease of editing. We should also load the YAML config into a structured
 config object using Pydantic so that we can enforce types and have a clear
@@ -24,7 +28,9 @@ configuration. This can also allow us to have nested configuration sections
 for different components, and modularity in how we define and validate
 config for different adapters or features.
 
-## Does each participant need their own Case Actor clone to manage their copy of the case?
+## Does each participant need their own stub Case Actor clone to manage their copy of the case?
+
+relevant on or after commit: d2d2e3b5c285c9af66fad717697e9795707d2978
 
 One of the ideas of Vultron is that each participant in a case is able to
 maintain their own copy of the case object, and that the main objective of
