@@ -50,6 +50,13 @@ cannot be attached to a report or case remains out of scope here.
   `recorded` and `rejected`
 - `CLP-02-005` Rejected `CaseLogEntry` objects SHOULD include a
   machine-readable reason code and MAY include human-readable detail
+- `CLP-02-006` `CaseLogEntry` MUST include a `log_index` field corresponding
+  to SYNC-01-002; this field MUST be set by the CaseActor's single
+  authoritative write path and MUST NOT be assigned by external parties
+- `CLP-02-007` `CaseLogEntry` MAY include an optional `term` field reserved
+  for Raft cluster use; in single-node deployments this field SHOULD be
+  omitted or set to `null`; in multi-node CaseActor cluster deployments this
+  field MUST be populated with the current Raft term at time of append
 
 ## Audit Scope and Continuity
 

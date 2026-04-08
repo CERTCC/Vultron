@@ -26,6 +26,9 @@ spec captures the normative requirements.
     see `specs/case-log-processing.md`
 - `SYNC-01-002` Each log entry MUST carry a monotonically increasing index
   scoped to its case
+  - `CaseLogEntry` MUST include `log_index` as a named field so that all
+    downstream components and wire representations are index-aware from
+    SYNC-1 onwards
 - `SYNC-01-003` Each log entry MUST include a cryptographic hash of its own
   content and MUST reference the hash of its immediate predecessor, forming
   a forward-linked hash chain (Merkle chain style)
@@ -95,6 +98,40 @@ spec captures the normative requirements.
     leadership change alone does not imply an ownership transfer
 - `SYNC-06-002` (SHOULD) The conditions under which replication leadership changes
   SHOULD be documented in `notes/sync-log-replication.md`
+- `SYNC-06-003` The SYNC-1 through SYNC-4 phases implement a **single-node
+  CaseActor configuration** — a degenerate Raft cluster of one. A single-node
+  CaseActor is always the leader and always has write authority; no election
+  is needed.
+  - A single-node configuration MUST always be a supported deployment option,
+    even when multi-node CaseActor cluster support is available.
+- `SYNC-06-004` A future multi-node CaseActor cluster (Phase 3) provides
+  high-availability write authority via Raft consensus. This is a distinct
+  replication tier from participant replication:
+  - *CaseActor cluster replication*: N CaseActor instances synchronize among
+    themselves using Raft to elect a leader and replicate the log.
+  - *Participant replication*: The cluster leader fans out
+    `Announce(CaseLogEntry)` entries to Participant Actors for state
+    convergence.
+  - Both tiers share the same `Announce(CaseLogEntry)` wire envelope.
+
+## Commit Discipline
+
+- `SYNC-09-001` A log entry is **committed** when it has been durably
+  appended to the authoritative log and is safe to apply to the case state
+  machine
+  - In a single-node CaseActor: every append is an immediate commit
+  - In a multi-node CaseActor cluster (Phase 3): an entry is committed when
+    the leader has received acknowledgement from a majority of cluster peers
+- `SYNC-09-002` External Vultron messages (activities sent to Participant
+  Actors or other protocol participants) MUST only be emitted after the
+  associated `CaseLogEntry` is committed
+  - Participant replication fan-out (`Announce(CaseLogEntry)`) is therefore
+    always downstream of the commit index
+- `SYNC-09-003` The CaseActor's behavior tree execution MUST be gated on
+  holding leadership role; in single-node this is always satisfied; in
+  multi-node this MUST be checked against the Raft leader state
+  - See `notes/sync-log-replication.md` "Behavior Tree Leadership Guard" for
+    the design approach
 
 ## Testing
 
@@ -127,8 +164,9 @@ preserved under normal operation and partial failure:
 **Note**: All specs interacting with state, messaging, or storage MUST treat
 the canonical recorded log as the sole source of truth for replica state and
 MUST NOT introduce alternative state authorities or side-channel
-synchronization mechanisms. Failover and consensus semantics (e.g., Raft
-leader election) are out of scope for the current phase and MUST NOT be
-implicitly assumed by other specifications. See
-`notes/sync-log-replication.md` and `specs/case-log-processing.md` for the
-full architectural rationale.
+synchronization mechanisms. SYNC-1 through SYNC-4 implement a single-node
+CaseActor configuration (permanent leader, immediate commit, no election).
+Multi-node CaseActor cluster semantics (Raft leader election, majority-quorum
+commit) are deferred to a future phase and MUST NOT be implicitly assumed by
+implementations in the current scope. See `notes/sync-log-replication.md`
+and `specs/case-log-processing.md` for the full architectural rationale.

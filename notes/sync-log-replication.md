@@ -23,10 +23,25 @@ Key properties:
 - **Audit vs replication split**: The CaseActor MAY keep a broader local case
   audit trail including rejected assertion outcomes, but only the recorded
   canonical projection participates in replication and hash chaining.
-- **Forward compatibility**: The single-writer design deliberately preserves
-  forward compatibility with a Raft-like consensus model for leader election
-  and failover; however, failover semantics are out of scope for the current
-  phase and MUST NOT be implicitly assumed.
+- **Single-node Raft framing**: The SYNC-1 through SYNC-4 phases effectively
+  implement a single-node Raft cluster. The CaseActor is permanently the
+  leader (no election needed), and every append is an immediate commit. A
+  single-node configuration MUST always be supported as the degenerate case
+  of the general distributed model.
+- **Two-tier replication**: Vultron has two distinct replication tiers that
+  MUST NOT be conflated. (1) *CaseActor cluster replication* synchronizes
+  multiple CaseActor instances for high-availability write authority — this
+  is the scope of the Raft consensus protocol. (2) *Participant replication*
+  delivers the canonical recorded log from the CaseActor cluster leader to
+  Participant Actors for state convergence — this is the scope of SYNC-1–4.
+  Both tiers share the same `Announce(CaseLogEntry)` wire format, but serve
+  different purposes.
+- **Forward compatibility**: The single-writer, single-node design explicitly
+  preserves forward compatibility with a multi-node Raft cluster for
+  high-availability failover. A future Phase 3 adds N-node CaseActor cluster
+  support using standard Raft (static membership, log-completeness election,
+  no priority tiebreaker). Failover semantics are out of scope for SYNC-1–4
+  and MUST NOT be implicitly assumed by implementations in those phases.
 
 ---
 
@@ -73,7 +88,7 @@ a slightly-behind participant.
 | SYNC-1 | Local append-only log with hash-chain indexing            |
 | SYNC-2 | One-way replication from CaseActor to Participant Actors  |
 | SYNC-3 | Full sync loop with retry/backoff                         |
-| SYNC-4 | Multi-peer synchronization (enables future Raft consensus) |
+| SYNC-4 | Multi-peer synchronization (completes single-node CaseActor participant replication) |
 
 ### SYNC-1 Scope
 
@@ -86,6 +101,15 @@ Core domain classes (transport-agnostic):
 
 - `CaseEventLog` — append-only log; enforces immutability and hash-chain
 - `ReplicationState` — per-peer last-acknowledged hash
+
+`CaseLogEntry` fields for SYNC-1:
+
+- `log_index` — monotonically increasing integer scoped to the case (MUST;
+  see SYNC-01-002). Added in SYNC-1 so downstream code and wire format are
+  index-aware from the start.
+- `term` — Raft term number (OPTIONAL in SYNC-1; defaults to `null` or `0`
+  in single-node deployments; becomes required when multi-node CaseActor
+  cluster is introduced in Phase 3).
 
 Adapter responsibilities:
 
@@ -111,7 +135,28 @@ governs which node currently accepts writes to the log. These are distinct:
 
 ---
 
-## System Invariants
+## Commit Discipline
+
+A log entry is **committed** when it has been durably appended to the
+authoritative log and is safe to apply to the case state machine and emit
+externally.
+
+- In a **single-node** CaseActor (SYNC-1–4): every append is an immediate
+  commit. There is no replication quorum to wait for.
+- In a **multi-node CaseActor cluster** (Phase 3 Raft): an entry is committed
+  once the leader has received acknowledgement from a majority of cluster
+  peers. The leader only advances the commit index after majority ack.
+
+**Emit-after-commit invariant**: External Vultron messages (activities sent
+to Participant Actors or other protocol peers) MUST only be emitted after the
+associated `CaseLogEntry` is committed. Participant replication fan-out
+(`Announce(CaseLogEntry)`) is therefore always downstream of the commit index
+in both single-node and multi-node configurations.
+
+This discipline ensures that activities a node claims to have taken are
+durably recorded and cannot be rolled back by a leadership change.
+
+---
 
 All components interacting with state, messaging, or storage MUST treat
 the log as the sole source of truth and MUST preserve the following
@@ -130,11 +175,76 @@ invariants under normal operation and partial failure:
 
 ---
 
+## CaseActor Cluster (Phase 3)
+
+A future Phase 3 adds multi-node CaseActor cluster support for
+**high-availability write authority**. Key design decisions settled during
+planning:
+
+- **Architecture**: N CaseActor instances form a Raft cluster. The leader
+  holds exclusive write authority. Follower instances replicate the log but
+  do not emit case protocol actions.
+- **Single-node is a first-class case**: A single CaseActor instance is a
+  degenerate cluster of 1 and MUST always be a supported configuration. Phase
+  3 is a generalization, not a replacement.
+- **Standard Raft election**: Leader election uses log completeness only
+  (highest `(term, log_index)` wins). No priority tiebreaker. Pre-vote is
+  deferred as a future optimization.
+- **Static membership**: Cluster size is a deployment configuration parameter.
+  Dynamic membership changes are out of scope.
+- **Wire format**: Raft cluster messages (AppendEntries, heartbeat, vote
+  request/response) use the same ActivityPub inbox as CVD protocol messages,
+  mapped to distinct `MessageSemantics` values. `Announce(CaseLogEntry)` is
+  the unified replication envelope for both CaseActor cluster AppendEntries
+  and Participant Actor replication.
+- **AS2 activity mapping**:
+
+  | Raft function      | AS2 activity type                        |
+  |--------------------|------------------------------------------|
+  | AppendEntries      | `Announce(CaseLogEntry)`                 |
+  | Heartbeat          | `Announce(CaseActorHeartbeat)` (new obj) |
+  | Vote request       | `Question(OneOf)`                        |
+  | Vote granted       | `Accept(Question)`                       |
+  | Vote denied        | `Reject(Question)`                       |
+  | Leader declaration | `Announce(CaseActorLeadership)` (new obj)|
+
+  New Vultron-namespace objects (`CaseActorHeartbeat`,
+  `CaseActorLeadership`) use existing AS2 activity verbs; they do not
+  require new AS2 activity types.
+
+- **Leadership and Case Ownership**: Raft leadership is strictly a cluster
+  availability mechanism. It MUST NOT be confused with Case Ownership (which
+  governs protocol lifecycle permissions). A case ownership transfer implies
+  a leadership handover; a leadership failover does not imply an ownership
+  transfer.
+
+---
+
+## Behavior Tree Leadership Guard
+
+The case behavior tree (BT) MUST only execute on the current Raft cluster
+leader. This ensures that only the leader generates `CaseLogEntry` objects
+and emits external Vultron activities.
+
+Design approach:
+
+- Add a **leadership role-check port** to the BT bridge
+  (`vultron/core/behaviors/bridge.py`). The port is a simple callable or
+  Protocol that returns `True` if the calling node is the current leader.
+- In SYNC-1–4 (single-node): the port implementation always returns `True`.
+- In Phase 3 (multi-node): the port queries the Raft state machine.
+
+This port SHOULD be added during SYNC-1 so that the seam already exists in
+the BT bridge and Phase 3 only needs to provide a real implementation. The
+port being permanently `True` in single-node imposes zero runtime cost.
+
+---
+
 ## Open Questions
 
-- **Commit/ack semantics**: When is an entry considered "accepted" vs.
-  "durable"? What does durability mean in a single-writer regime before
-  SYNC-4 introduces quorum?
+- **Commit/ack semantics**: *Resolved* — see "Commit Discipline" above.
+  In single-node, an entry is committed on append. In multi-node (Phase 3),
+  an entry is committed on majority ack from the CaseActor cluster.
 - **Log compaction**: Will the log grow without bound? Is there a policy
   for archiving old entries while preserving the hash-chain anchor?
 - **Trust model / key management**: Each CaseActor and participating node
