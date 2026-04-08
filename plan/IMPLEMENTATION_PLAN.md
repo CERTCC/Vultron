@@ -36,8 +36,8 @@ tasks tracked under PRIORITY-310 below).
 
 **PRIORITY-310** Address demo feedback — D5-6-LOG, D5-6-STATE, D5-6-STORE,
 D5-6-WORKFLOW (all ✅); D5-6-DUP, D5-6-TRIGDELIV, D5-6-LOGCTX (all ✅);
-D5-6-DEMOAUDIT ✅; D5-6-AUTOENG ✅; D5-6-NOTECAST, D5-6-EMBARGORCP,
-D5-6-CASEPROP pending; D5-7 pending human sign-off.
+D5-6-DEMOAUDIT ✅; D5-6-AUTOENG ✅; D5-6-NOTECAST ✅; D5-6-CASEPROP ✅;
+D5-6-EMBARGORCP pending; D5-7 pending human sign-off.
 
 ---
 
@@ -367,15 +367,17 @@ section MUST be completed before proceeding to PRIORITY-350 and beyond. D5-7
 
 #### D5-6-NOTECAST — Broadcast notes to case participants
 
-- [ ] **D5-6-NOTECAST**: When a note is added to a case, the CaseActor
+- [x] **D5-6-NOTECAST**: When a note is added to a case, the CaseActor
   MUST broadcast the note to all case participants (excluding the note
   author).
-  - Modify `AddNoteToCaseReceivedUseCase` to derive recipients from
-    `case.actor_participant_index` and queue a broadcast activity to
-    the outbox.
-  - Remove manual note-forwarding code from the two-actor demo
+  - Modified `AddNoteToCaseReceivedUseCase` to derive recipients from
+    `case.actor_participant_index` and queue a broadcast `AddNoteToCaseActivity`
+    to the outbox via `record_outbox_item`.
+  - Removed manual note-forwarding code from the two-actor demo
     (`vultron/demo/two_actor_demo.py`).
+  - Added three broadcast tests to `test/core/use_cases/received/test_note.py`.
   - **Spec**: CM-06-005, OX-03-001.
+  - Completed 2026-04-10. See `plan/IMPLEMENTATION_HISTORY.md`.
 
 #### D5-6-EMBARGORCP — Fix embargo Announce activity addressing
 
@@ -398,21 +400,20 @@ section MUST be completed before proceeding to PRIORITY-350 and beyond. D5-7
 
 #### D5-6-CASEPROP — Case propagation and activity addressing
 
-- [ ] **D5-6-CASEPROP**: Fix remaining case propagation gaps (partially
+- [x] **D5-6-CASEPROP**: Fix remaining case propagation gaps (partially
   addressed in D5-6-DEMOAUDIT; D5-6-AUTOENG eliminated the manual
   `engage-case` demo step).
   - **Partial fix done** (D5-6-DEMOAUDIT): `CreateCaseActivity` node in
     `vultron/core/behaviors/report/nodes.py` (validate-report BT) now sets
     `to=addressees` and embeds the full `VulnerabilityCase` as `object_`.
     `CreateFinderParticipantNode` now sets `to=[finder_actor_id]`.
-  - **Still open**: `EmitCreateCaseActivity` in
-    `vultron/core/behaviors/case/nodes.py` (create-case BT) still creates
-    a `VultronCreateCaseActivity` with only `actor` and `object_=case_id`
-    (a string reference, not the full embedded case), and no `to` field.
-    Align this node with `report/nodes.py::CreateCaseActivity`: embed the
-    full `VulnerabilityCase` as `object_` and derive `to` from the case's
-    participant index.
+  - **Remaining gap closed** (D5-6-CASEPROP): `EmitCreateCaseActivity` in
+    `vultron/core/behaviors/case/nodes.py` (create-case BT) now reads the
+    full `VulnerabilityCase` via the DataLayer, embeds it as `object_`, and
+    derives `to` from `actor_participant_index` (excluding the actor itself),
+    matching the `report/nodes.py::CreateCaseActivity` pattern.
   - **Spec**: OX-03-001, DEMO-MA-00-001.
+  - Completed 2026-04-10. See `plan/IMPLEMENTATION_HISTORY.md`.
 
 #### D5-7 — Project owner sign-off on demo feedback resolution
 

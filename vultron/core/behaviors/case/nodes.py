@@ -278,9 +278,27 @@ class EmitCreateCaseActivity(DataLayerAction):
                 )
                 return Status.FAILURE
 
+            # Read full case to embed as object_ and derive addressees from
+            # actor_participant_index, mirroring CreateCaseActivity in
+            # report/nodes.py (D5-6-CASEPROP).
+            case_obj = self.datalayer.read(case_id)
+            if is_case_model(case_obj):
+                addressees = [
+                    actor_id
+                    for actor_id in case_obj.actor_participant_index.keys()
+                    if actor_id != self.actor_id
+                ]
+            else:
+                addressees = []
+            if addressees:
+                self.logger.info(
+                    f"{self.name}: Notifying addressees: {addressees}"
+                )
+
             activity = VultronCreateCaseActivity(
                 actor=self.actor_id,
-                object_=case_id,
+                object_=case_obj if case_obj is not None else case_id,
+                to=addressees if addressees else None,
             )
             try:
                 self.datalayer.create(activity)

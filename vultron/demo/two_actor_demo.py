@@ -428,11 +428,11 @@ def vendor_replies_to_question(
     case: VulnerabilityCase,
     question_note: as_Note,
 ) -> as_Note:
-    """Vendor posts a reply note to the case and the case forwards it to the Finder.
+    """Vendor posts a reply note to the case.
 
-    The Vendor adds the reply to the case, then (acting as the case host)
-    sends the reply to the Finder's inbox, simulating the case relaying the
-    note to all participants.
+    The Vendor adds the reply to the case. The case host (CaseActor) then
+    automatically broadcasts the note to all participants via the note
+    broadcast mechanism (CM-06-005).
 
     Args:
         vendor_client: Client connected to the Vendor container.
@@ -474,21 +474,6 @@ def vendor_replies_to_question(
         post_to_inbox_and_wait(vendor_client, vendor.id_, add_reply)
     with demo_check("Reply note stored in Vendor's DataLayer"):
         verify_object_stored(vendor_client, reply_note.id_)
-
-    if vendor_client.base_url != finder_client.base_url:
-        # When the case host (Vendor) forwards the note to the Finder,
-        # address the delivery to the Finder rather than to the Vendor.
-        create_reply_forwarded = as_Create(
-            actor=vendor.id_,
-            object_=reply_note,
-            to=[finder.id_],
-        )
-        with demo_step("Case forwards Vendor's reply note to Finder"):
-            post_to_inbox_and_wait(
-                finder_client, finder.id_, create_reply_forwarded
-            )
-        with demo_check("Reply note stored in Finder's DataLayer"):
-            verify_object_stored(finder_client, reply_note.id_)
 
     logger.info("Reply note posted to case: %s", ref_id(reply_note))
     return reply_note
