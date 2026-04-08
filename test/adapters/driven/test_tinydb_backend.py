@@ -410,3 +410,119 @@ def test_rehydration_does_not_mutate_stored_record(dl):
     stored_object_field = raw["data_"]["object_"]
     assert isinstance(stored_object_field, str)
     assert stored_object_field == report.id_
+
+
+# ---------------------------------------------------------------------------
+# find_case_by_report_id tests
+# ---------------------------------------------------------------------------
+
+
+def test_find_case_by_report_id_returns_case_when_report_stored_as_string(dl):
+    """find_case_by_report_id returns the case when the report is stored as a string ID."""
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        VulnerabilityCase,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        VulnerabilityReport,
+    )
+
+    report = VulnerabilityReport(
+        name="CVE-2025-001",
+        content="Test vulnerability",
+        attributed_to="https://example.org/finder",
+    )
+    case = VulnerabilityCase()
+    case.vulnerability_reports.append(report.id_)
+
+    dl.create(report)
+    dl.save(case)
+
+    result = dl.find_case_by_report_id(report.id_)
+    assert result is not None
+    assert isinstance(result, VulnerabilityCase)
+    assert result.id_ == case.id_
+
+
+def test_find_case_by_report_id_returns_case_when_report_stored_as_object(dl):
+    """find_case_by_report_id returns the case when the report is stored inline."""
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        VulnerabilityCase,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        VulnerabilityReport,
+    )
+
+    report = VulnerabilityReport(
+        name="CVE-2025-002",
+        content="Another vulnerability",
+        attributed_to="https://example.org/finder",
+    )
+    case = VulnerabilityCase()
+    case.vulnerability_reports.append(report)
+
+    dl.create(report)
+    dl.save(case)
+
+    result = dl.find_case_by_report_id(report.id_)
+    assert result is not None
+    assert isinstance(result, VulnerabilityCase)
+    assert result.id_ == case.id_
+
+
+def test_find_case_by_report_id_returns_none_when_not_found(dl):
+    """find_case_by_report_id returns None when no case references the given report ID."""
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        VulnerabilityCase,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        VulnerabilityReport,
+    )
+
+    report = VulnerabilityReport(
+        name="CVE-2025-003",
+        content="Unlinked vulnerability",
+        attributed_to="https://example.org/finder",
+    )
+    case = VulnerabilityCase()
+
+    dl.create(report)
+    dl.save(case)
+
+    result = dl.find_case_by_report_id(report.id_)
+    assert result is None
+
+
+def test_find_case_by_report_id_returns_none_when_no_cases(dl):
+    """find_case_by_report_id returns None when no VulnerabilityCase table exists."""
+    result = dl.find_case_by_report_id("urn:uuid:nonexistent-report")
+    assert result is None
+
+
+def test_find_case_by_report_id_returns_none_for_unknown_id(dl):
+    """find_case_by_report_id returns None for an ID not linked to any case."""
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        VulnerabilityCase,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        VulnerabilityReport,
+    )
+
+    report = VulnerabilityReport(
+        name="CVE-2025-004",
+        content="Linked vulnerability",
+        attributed_to="https://example.org/finder",
+    )
+    other_report = VulnerabilityReport(
+        name="CVE-2025-005",
+        content="Unlinked vulnerability",
+        attributed_to="https://example.org/finder",
+    )
+    case = VulnerabilityCase()
+    case.vulnerability_reports.append(report.id_)
+
+    dl.create(report)
+    dl.create(other_report)
+    dl.save(case)
+
+    result = dl.find_case_by_report_id(other_report.id_)
+    assert result is None

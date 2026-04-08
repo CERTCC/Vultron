@@ -426,6 +426,43 @@ class TinyDbDataLayer(DataLayer):
 
         return None
 
+    def find_case_by_report_id(
+        self, report_id: str
+    ) -> PersistableModel | None:
+        """Find a VulnerabilityCase whose ``vulnerability_reports`` references
+        the given report ID.
+
+        Each entry in ``vulnerability_reports`` may be stored as either a plain
+        string ID or as a serialised inline object dict (with an ``id_`` key).
+        Both forms are checked.
+
+        Args:
+            report_id: Full URI of the VulnerabilityReport to search for.
+
+        Returns:
+            The reconstituted VulnerabilityCase, or None if not found.
+        """
+        tbl = self._table("VulnerabilityCase")
+        if tbl.name not in self._db.tables():
+            return None
+
+        for rec in tbl.all():
+            try:
+                record = Record.model_validate(dict(rec))
+                reports = record.data_.get("vulnerability_reports", [])
+                for entry in reports:
+                    if entry == report_id:
+                        return cast(PersistableModel, record_to_object(record))
+                    if (
+                        isinstance(entry, dict)
+                        and entry.get("id_") == report_id
+                    ):
+                        return cast(PersistableModel, record_to_object(record))
+            except (ValidationError, ValueError):
+                continue
+
+        return None
+
     # ------------------------------------------------------------------
     # Inbox / Outbox queue helpers
     # ------------------------------------------------------------------

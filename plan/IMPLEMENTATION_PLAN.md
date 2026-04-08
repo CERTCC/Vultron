@@ -1,8 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-04-08 (D5-6-AUTOENG ✅; SYNC and CLP specs expanded;
-canonical validation 1262 passing; three-actor and multi-vendor demos no longer
-require manual `engage-case` triggers after invite acceptance)
+**Last Updated**: 2026-04-08 (IDEA-260408-01-1 ✅; `find_case_by_report_id` added to DataLayer port and TinyDB adapter; canonical validation 1272 passing)
 
 ## Overview
 
@@ -709,18 +707,10 @@ DUR-07-002/DUR-07-004.
 
 ### IDEA-260408-01-1 — Add DataLayer report→case lookup
 
-- [ ] **IDEA-260408-01-1**: Add a DataLayer method (port + TinyDB adapter)
-  to look up a `VulnerabilityCase` by its associated `VulnerabilityReport`
-  ID.
-  - The case links to reports via `VulnerabilityCase.vulnerability_reports:
-    list[str]`.
-  - Add a method `find_case_by_report_id(report_id: str) ->
-    VulnerabilityCase | None` (or similar) to the `DataLayer` Protocol in
-    `vultron/core/ports/datalayer.py` and implement in
-    `vultron/adapters/driven/datalayer_tinydb.py`.
-  - All report-centric use cases (Invalidate, Close, Validate) will use
-    this to dereference `report_id → case_id`.
-  - Add unit tests for the new DataLayer method.
+- [x] **IDEA-260408-01-1**: Added `find_case_by_report_id(report_id: str) ->
+  PersistableModel | None` to `DataLayer` Protocol and `TinyDbDataLayer`.
+  Five unit tests added to `test/adapters/driven/test_tinydb_backend.py`.
+  Completed 2026-04-08.
 
 ### IDEA-260408-01-2 — New BT: `receive_report_case_tree`
 

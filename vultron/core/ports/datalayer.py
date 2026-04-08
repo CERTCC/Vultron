@@ -112,3 +112,7 @@ class DataLayer(Protocol):
     def find_actor_by_short_id(
         self, short_id: str
     ) -> PersistableModel | None: ...
+
+    def find_case_by_report_id(
+        self, report_id: str
+    ) -> PersistableModel | None: ...

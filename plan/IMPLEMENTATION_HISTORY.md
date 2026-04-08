@@ -5041,3 +5041,41 @@ test with two new tests verifying the correct behavior:
 - `uv run mypy` → no issues
 - `uv run pyright` → 0 errors, 0 warnings
 - `uv run pytest --tb=short 2>&1 | tail -5` → `1267 passed, 5581 subtests passed in 32.59s`
+
+---
+
+## IDEA-260408-01-1 — Add DataLayer report→case lookup (2026-04-08)
+
+**Task**: Add `find_case_by_report_id(report_id: str)` to the `DataLayer`
+Protocol and `TinyDbDataLayer` adapter so that report-centric use cases can
+dereference a report ID to its associated `VulnerabilityCase`.
+
+### What was done
+
+- Added `find_case_by_report_id(report_id: str) -> PersistableModel | None`
+  to the `DataLayer` Protocol in `vultron/core/ports/datalayer.py`. Return
+  type is `PersistableModel | None` (not `VulnerabilityCase | None`) to
+  preserve hexagonal architecture — core ports cannot import wire-layer types.
+- Implemented `find_case_by_report_id` in `TinyDbDataLayer`
+  (`vultron/adapters/driven/datalayer_tinydb.py`). The method searches the
+  `VulnerabilityCase` table and checks each record's
+  `data_["vulnerability_reports"]` list for the given `report_id` — handling
+  both string ID entries and inline serialised object dicts (with `id_` key).
+- Added 5 unit tests to `test/adapters/driven/test_tinydb_backend.py`:
+  - report stored as string ID → case returned
+  - report stored as inline object → case returned
+  - report not linked to any case → None returned
+  - no VulnerabilityCase table exists → None returned
+  - report ID not linked (other cases exist) → None returned
+
+### Files changed
+
+- `vultron/core/ports/datalayer.py` — added `find_case_by_report_id` stub
+- `vultron/adapters/driven/datalayer_tinydb.py` — implemented method
+- `test/adapters/driven/test_tinydb_backend.py` — 5 new unit tests
+
+### Validation
+
+- `uv run black vultron/ test/ && uv run flake8 vultron/ test/` → clean
+- `uv run mypy` / `uv run pyright` → 0 errors
+- `uv run pytest --tb=short 2>&1 | tail -5` → `1272 passed, 5581 subtests passed in 31.35s`
