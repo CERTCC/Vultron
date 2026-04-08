@@ -68,6 +68,41 @@ synchronization state reporting because:
 
 ---
 
+## Canonical Serialization
+
+**Critical constraint**: Before cryptographic signatures are added to log
+entries (SYNC-1 "PROD_ONLY" requirement), a **canonical serialization form**
+MUST be established. Changing the serialization after entries are signed will
+invalidate existing hash chains.
+
+The canonical form must specify:
+
+- **Deterministic key ordering**: JSON object keys must be sorted in a
+  stable, well-defined order (e.g., lexicographic). Implementations MUST NOT
+  rely on insertion-order key iteration.
+- **Stable UTF-8 encoding**: All string values must use a single stable
+  Unicode normalization form; surrogate pairs and alternate encodings of the
+  same code point must be normalized.
+- **Explicit field inclusion/exclusion**: The set of fields included in the
+  hash computation must be precisely specified. Fields added later (e.g.,
+  signature itself, performance-cache fields) MUST be excluded from the
+  hashed content.
+- **No whitespace variation**: The canonical byte string must have no
+  optional whitespace; implementations using pretty-printing for storage
+  MUST produce a compact form for hashing.
+
+**Reference**: [RFC 8785 — JSON Canonicalization Scheme (JCS)](
+https://www.rfc-editor.org/rfc/rfc8785) is the recommended standard. JCS
+provides deterministic key ordering and Unicode normalization with
+wide library support.
+
+**Merkle Tree forward-compatibility**: The entries produced by this
+serialization scheme will serve as leaf nodes of a future Merkle Tree. The
+canonical form must be stable enough that leaf node hashes remain valid
+when the chain is reorganised into a tree structure. See `SYNC-01-005`.
+
+---
+
 ## Log Position in Activity Context
 
 When a Participant Actor sends **any** message to the CaseActor, it

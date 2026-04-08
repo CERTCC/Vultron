@@ -41,6 +41,15 @@ spec captures the normative requirements.
   CaseActor's single authoritative write path
   - `SYNC-01-004` depends-on `CLP-02-001`
   - `SYNC-01-004` implements `CM-02-009`
+- `SYNC-01-005` The hash-chain log entry format MUST be designed to be
+  forward-compatible with a future Merkle Tree implementation
+  - Log entries MUST be structured so they can serve as leaf nodes in a Merkle
+    Tree without requiring structural changes to the entry format itself
+  - Entry content committed to the hash computation MUST be stable and
+    canonical; introducing optional or variable fields after entries have been
+    signed will invalidate existing hash chains
+  - See `notes/sync-log-replication.md` "Canonical Serialization" for the
+    required serialization constraints
 
 ## Replication Transport
 

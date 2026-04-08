@@ -18,6 +18,10 @@ the distinction between participant-specific and participant-agnostic state.
 - `CM-01-001` Each actor MUST have an isolated protocol state domain
   - Actor A and Actor B MUST NOT share internal state (RM, EM, CS, BT blackboard)
   - Actors interact ONLY through ActivityStreams protocol messages via inboxes/outboxes
+  - This constraint applies regardless of physical deployment topology; actors that
+    are co-located on the same server MUST still interact via the wire protocol and
+    MUST NOT communicate via direct DataLayer access or in-process calls bypassing
+    the inbox/outbox API
 - `CM-01-002` Each actor's RM state MUST be maintained independently per case
   - RM state is participant-specific; each actor tracks their own RM lifecycle
 
@@ -31,9 +35,14 @@ the distinction between participant-specific and participant-agnostic state.
     canonical state
 - `CM-02-003` CaseActor MUST persist until the associated VulnerabilityCase is closed
 - `CM-02-004` CaseActor MUST know the case owner
-  - Case owner identity is stored in the VulnerabilityCase object
+  - Case owner identity is stored in the VulnerabilityCase object using the
+    `case_owner` field (wire vocabulary: `vultron:caseOwner`)
   - The case owner is an organizational Actor (vendor/coordinator), NOT the CaseActor
   - Initial case owner is typically the recipient of the VulnerabilityReport Offer
+  - `VulnerabilityCase.case_owner` MUST be set at case creation and updated
+    only via ownership-transfer activities (see `OFFER_CASE_OWNERSHIP_TRANSFER`)
+  - The `vultron:caseOwner` wire property MUST carry the full actor URI of
+    the current case owner; it MUST NOT be a local identifier
 - `CM-02-005` `PROD_ONLY` CaseActor MUST restrict certain activities to the case owner
   - Owner-only activities include: closing the case, transferring ownership
   - See `ontology/vultron_activitystreams.ttl` (`vultron_as:CaseOwnerActivity`)
@@ -67,6 +76,17 @@ the distinction between participant-specific and participant-agnostic state.
     disagree on event order, undermining auditability and the
     single-source-of-truth guarantee
   - CM-02-009 depends-on CM-02-002
+- `CM-02-010` The CaseActor and the case owner (named actor) MUST have distinct
+  actor identities — each with their own actor ID — even when co-located on the
+  same server
+  - A named actor MUST NOT serve as its own CaseActor; the two roles MUST remain
+    separate protocol identities
+  - **Rationale**: Enforcing distinct identities ensures that all case-state
+    transitions pass through the wire protocol regardless of deployment topology,
+    preserving audit integrity and enabling future separation onto independent
+    containers without protocol changes
+  - CM-02-010 refines CM-01-001
+  - CM-02-010 depends-on CM-02-001
 
 ## Case State Model
 
@@ -260,6 +280,8 @@ the distinction between participant-specific and participant-agnostic state.
 - Unit test: Actor A and Actor B maintain separate RM states for same case
 - Integration test: Actor interaction only occurs via inbox/outbox message exchange
 - Code review: No shared in-memory state across actor contexts
+- Code review: Named actors and case actors never share a DataLayer instance
+  or bypass the inbox endpoint to exchange state
 
 ### CM-02-001, CM-02-002, CM-02-003 Verification
 
@@ -271,6 +293,10 @@ the distinction between participant-specific and participant-agnostic state.
 ### CM-02-004, CM-02-005 Verification
 
 - Unit test: CaseActor has reference to case owner
+- Unit test: `VulnerabilityCase.case_owner` is set at case creation and holds the
+  full actor URI of the owning named actor
+- Code review: Case-owner field is serialized using `vultron:caseOwner` vocabulary
+  term in ActivityStreams wire format
 - `PROD_ONLY` Integration test: Non-owner attempt to close case → authorization error
 
 ### CM-02-009 Verification
@@ -281,6 +307,13 @@ the distinction between participant-specific and participant-agnostic state.
 - Unit test: Note-added event stored with CaseActor-applied timestamp
 - Code review: All case state mutation handlers apply CaseActor timestamp,
   not activity-supplied timestamp
+
+### CM-02-010 Verification
+
+- Unit test: CaseActor actor ID differs from the owning named actor's actor ID
+- Integration test: Two co-located actors exchange state only via inbox/outbox
+  messages, not via shared DataLayer access
+- Code review: No code path allows a named actor to act as its own CaseActor
 
 ### CM-03-001 through CM-03-005 Verification
 

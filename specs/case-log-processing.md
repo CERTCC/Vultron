@@ -94,6 +94,14 @@ cannot be attached to a report or case remains out of scope here.
   assertion, it SHOULD use the sender's last accepted canonical hash or
   position from the recorded projection
   - `CLP-04-005` refines `SYNC-03-004`
+- `CLP-04-006` The canonical recorded log is the authoritative source of truth
+  for case participant membership and case state
+  - Implementations MAY maintain cached projections (e.g., `actor_participant_index`)
+    for performance, but such caches MUST remain consistent with what log replay
+    would reconstruct
+  - Any discrepancy between a cached projection and log-replay output MUST be
+    treated as an error condition requiring cache reconciliation
+  - `CLP-04-006` refines `CLP-04-001`
 
 ## Rejection Handling
 
@@ -133,3 +141,7 @@ cannot be attached to a report or case remains out of scope here.
   content rather than a raw peer assertion
 - Integration test: rejection feedback is delivered to the asserting sender
   without broad participant fan-out
+- Unit test: rebuilding participant membership via log replay produces the
+  same result as reading the cached `actor_participant_index`
+- Code review: all code paths that mutate `actor_participant_index` are also
+  reflected by a corresponding `CaseLogEntry` in the recorded log
