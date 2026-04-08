@@ -85,9 +85,20 @@ This is a placeholder priority for addressing feedback on the multi-actor
 demo scenarios and their implementation. We should not proceed with
 priorities beyond this until we have completed all known feedback.
 
+All D5-6 tasks belong here.
+
+Task D5-7 is a human-only checkpoint for demo completeness.
+
+IDEA-260408-01-1 through IDEA-260408-01-7 are all related to addressing  
+feedback on the demos, so they also belong here.
+
+EMBARGO-DUR-1 — update EmbargoPolicy model to ISO‑8601 durations (pending)
+
 ## Priority 350: Update python version and other maintenance tasks
 
-TOOLS-1, DOCS-3, VOCAB-REG-1
+General housekeeping items before we move on.
+
+CONFIG-1, TOOLS-1, DOCS-3, VOCAB-REG-1.1, VOCAB-REG-1.2
 
 ## Priority 400: Initial SYNC implementation
 
