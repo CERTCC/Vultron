@@ -221,6 +221,15 @@ partial-module import error surfaces.
 3. Verify `test_performance.py` collects and passes both in isolation and as
    part of the full suite.
 
+### Resolution
+
+The circular import chain was broken as a side effect of the April 1
+multi-vendor demo work that reorganized the `triggers` package and
+`_helpers.py` import structure. `test/core/behaviors/test_performance.py`
+now passes both in isolation (`2 passed`) and in the full suite. No explicit
+lazy imports were required; the reorganization eliminated the triggering cycle.
+Confirmed 2026-04-08.
+
 ---
 
 ## BUG-2026040103 (FIXED 2026-04-01) — `ResourceWarning: unclosed file` for `mydb.json` in test suite

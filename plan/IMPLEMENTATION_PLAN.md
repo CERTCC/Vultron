@@ -1,8 +1,8 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-04-08 (D5-6-AUTOENG complete; canonical validation 1262
-passing; three-actor and multi-vendor demos no longer require manual
-`engage-case` triggers after invite acceptance)
+**Last Updated**: 2026-04-08 (D5-6-AUTOENG ✅; SYNC and CLP specs expanded;
+canonical validation 1262 passing; three-actor and multi-vendor demos no longer
+require manual `engage-case` triggers after invite acceptance)
 
 ## Overview
 
@@ -380,31 +380,38 @@ section MUST be completed before proceeding to PRIORITY-350 and beyond. D5-7
 #### D5-6-EMBARGORCP — Fix embargo Announce activity addressing
 
 - [ ] **D5-6-EMBARGORCP**: The `InitializeDefaultEmbargoNode` creates
-  an `Announce(embargo)` with no `to` field and runs before participants
-  exist in the BT ordering.
-  - Recommended fix: Remove the standalone `Announce(embargo)` from the
-    validate-report BT and rely on the `Create(Case)` activity to carry
-    embargo information via `VulnerabilityCase.active_embargo`.
+  an `Announce(embargo)` with no `to` field.
+  - **Recommended fix** (Option 2, per `notes/protocol-event-cascades.md`):
+    Remove the standalone `Announce(embargo)` from the validate-report BT
+    and rely on the `Create(Case)` activity to carry embargo information via
+    `VulnerabilityCase.active_embargo`. The finder already learns about the
+    embargo from the embedded case object in the `Create(Case)` notification,
+    so the standalone `Announce` is redundant.
+  - **Dependency note**: Under ADR-0015, `InitializeDefaultEmbargoNode` will
+    eventually move from `validate_tree.py` to `receive_report_case_tree`
+    (IDEA-260408-01-2). This task can be addressed either independently (remove
+    the standalone `Announce` now) or deferred until IDEA-260408-01-4 removes
+    the node from `validate_tree.py` entirely. The independent path is simpler.
   - Verify that the finder receives embargo info via the case object in
     the `Create(Case)` notification.
-  - **Spec**: OX-03-001.
+  - **Spec**: OX-03-001, CLP-04-004.
 
 #### D5-6-CASEPROP — Case propagation and activity addressing
 
 - [ ] **D5-6-CASEPROP**: Fix remaining case propagation gaps (partially
-  addressed in D5-6-DEMOAUDIT).
+  addressed in D5-6-DEMOAUDIT; D5-6-AUTOENG eliminated the manual
+  `engage-case` demo step).
   - **Partial fix done** (D5-6-DEMOAUDIT): `CreateCaseActivity` node in
     `vultron/core/behaviors/report/nodes.py` (validate-report BT) now sets
     `to=addressees` and embeds the full `VulnerabilityCase` as `object_`.
     `CreateFinderParticipantNode` now sets `to=[finder_actor_id]`.
   - **Still open**: `EmitCreateCaseActivity` in
-    `vultron/core/behaviors/case/nodes.py` (create-case BT) still lacks a
-    `to` field and does not embed the full case object. Align this node with
-    `report/nodes.py::CreateCaseActivity` or consolidate into one shared node.
-  - **Still open (depends on D5-6-AUTOENG)**: The three-actor demo's
-    `actor_engages_case()` calls `engage-case` on the case-actor container
-    instead of the actor's own container. Once D5-6-AUTOENG auto-engages the
-    actor on invite acceptance, this manual call is eliminated entirely.
+    `vultron/core/behaviors/case/nodes.py` (create-case BT) still creates
+    a `VultronCreateCaseActivity` with only `actor` and `object_=case_id`
+    (a string reference, not the full embedded case), and no `to` field.
+    Align this node with `report/nodes.py::CreateCaseActivity`: embed the
+    full `VulnerabilityCase` as `object_` and derive `to` from the case's
+    participant index.
   - **Spec**: OX-03-001, DEMO-MA-00-001.
 
 #### D5-7 — Project owner sign-off on demo feedback resolution
@@ -434,6 +441,22 @@ section MUST be completed before proceeding to PRIORITY-350 and beyond. D5-7
   stories lacking requirement coverage. Add a new section in
   `plan/IMPLEMENTATION_NOTES.md` listing stories with insufficient coverage.
 
+#### CONFIG-1 — YAML configuration files with Pydantic schema validation
+
+- [ ] **CONFIG-1**: Replace or supplement JSON/env-var actor configuration
+  with YAML config files loaded into validated Pydantic models (IDEA-260402-01).
+  - Load YAML into a dict (`yaml.safe_load()`), validate via a Pydantic
+    `ActorConfig` model with typed nested sections (actor identity, peer
+    mesh, DataLayer backend settings).
+  - Replace the current `VULTRON_SEED_CONFIG` JSON path with a YAML
+    equivalent; keep env-var overrides for backwards compatibility.
+  - Update `vultron/demo/cli.py` `seed` sub-command to accept YAML seed
+    configs in addition to JSON.
+  - Add unit tests for round-trip load/validate of example seed configs.
+  - `pyyaml` is already an indirect dependency (via `docker-compose` test
+    helper); add `pyyaml` and `types-pyyaml` to `pyproject.toml` if not
+    already present.
+
 ---
 
 ### Phase PRIORITY-400 — Replicated Log Synchronization (PRIORITY 400)
@@ -456,22 +479,80 @@ Participant Actors via log synchronization.
 
 #### SYNC-1 — Local append-only case event log with indexing
 
-- [ ] **SYNC-1**: Implement local append-only case event log with indexing.
+- [ ] **SYNC-1**: Implement local append-only case event log with indexing and
+  the assertion-recording model from `specs/case-log-processing.md` (CLP).
   The `CaseEvent` model (`vultron/wire/as2/vocab/objects/case_event.py`)
-  provides the foundation. Extend it to a true append-only log with
-  hash-chain indexing (each entry carries a content hash and references the
-  predecessor hash). Place replication logic in core domain (transport-agnostic
-  `CaseEventLog`, `ReplicationState` classes); implement AS2 Announce mappings
-  and persistence in adapters. See design notes in `notes/sync-log-replication.md`
-  (2026-03-26) for full architectural context.
+  provides the foundation. This task extends it to a true canonical log:
+
+  **CaseLogEntry model** (CLP-02-001 through CLP-02-007, SYNC-01-002):
+  - Add `log_index` (monotonically increasing integer, scoped to case)
+  - Add `disposition` field: `recorded` | `rejected`
+  - Add optional `term` field (Raft term; `null` for single-node deployments)
+  - Embed the asserted activity payload as a normalized snapshot (for
+    deterministic replay per CLP-02-003)
+  - For rejections: add `reason_code` (machine-readable) and optional
+    `reason_detail` (human-readable) per CLP-02-005
+
+  **Core domain classes** (transport-agnostic, in `vultron/core/`):
+  - `CaseEventLog` — enforces append-only, hash-chain, immutability
+  - `ReplicationState` — per-peer last-acknowledged hash
+
+  **Assertion intake** (CLP-01-001 through CLP-01-004):
+  - Ordinary inbound case-/proto-case-scoped activities are treated as
+    participant assertions (no separate mode marker needed)
+  - The CaseActor is the sole emitter of canonical log entries
+  - Participant replicas MUST NOT project shared case state from peer
+    assertions directly
+
+  **Local audit vs. replicated canonical chain** (CLP-03 through CLP-05):
+  - The broader local audit log includes both `recorded` and `rejected`
+    `CaseLogEntry` objects
+  - The replicated canonical history is a filtered projection of `recorded`
+    entries only (CLP-04-001, CLP-04-002)
+  - Hash-chain computation is over `recorded` entries only (CLP-04-003)
+  - Rejection feedback is sent only to the asserting sender, not broadcast
+    to all participants (CLP-05-001, CLP-05-002)
+
+  **Canonical serialization** (SYNC-01-005):
+  - Before signing, establish the canonical serialization form for hash
+    computation: deterministic key ordering (RFC 8785 JCS), stable UTF-8
+    encoding, explicit field inclusion/exclusion, no optional whitespace
+  - This is essential for Merkle Tree forward-compatibility
+  - See `notes/sync-log-replication.md` "Canonical Serialization" section
+
+  **Adapter responsibilities**:
+  - AS2 `Announce` activity mapping for replication transport
+  - File/database log storage
+
+  **Leadership guard port** (SYNC-09-003):
+  - Add a leadership role-check port to `vultron/core/behaviors/bridge.py`
+  - In single-node (SYNC-1–4): the port always returns `True`; imposes zero
+    runtime cost but establishes the seam for Phase 3 multi-node
+
+  See design notes in `notes/sync-log-replication.md` and
+  `notes/case-log-authority.md` for full architectural context.
+  **Specs**: `specs/sync-log-replication.md` SYNC-01, SYNC-08, SYNC-09;
+  `specs/case-log-processing.md` CLP-01 through CLP-05.
 
 #### SYNC-2 — One-way log replication to Participant Actors
 
 - [ ] **SYNC-2**: One-way log replication from CaseActor to Participant Actors
-  via AS2 Announce activities, with strict conflict handling (reject mismatched
-  `prev_log_index`, retry with decremented index). Reconcile "replication
-  leadership" with "Case Ownership" (distinct concepts; ownership transfer
-  implies leadership change, but not vice versa). Depends on SYNC-1.
+  via AS2 `Announce(CaseLogEntry)` activities. Requirements:
+  - Strict conflict handling: reject mismatched `prev_log_hash`; respond with
+    last-accepted hash (SYNC-03-001); sender retries from entry following the
+    reported last-accepted hash (SYNC-03-002)
+  - Idempotent delivery: duplicate replication messages MUST NOT create
+    duplicate log entries (SYNC-03-003)
+  - Log state in context: participants SHOULD include last-accepted log hash
+    in `context` field of outbound messages to CaseActor (SYNC-03-004)
+  - **Commit discipline** (SYNC-09-001, SYNC-09-002): External Vultron
+    messages (including participant replication fan-out) MUST only be emitted
+    after the associated `CaseLogEntry` is committed. In single-node this
+    means after the append is durably written.
+  - Reconcile "replication leadership" with "Case Ownership" (SYNC-06-001):
+    distinct concepts; ownership transfer implies leadership change, but not
+    vice versa.
+  - Depends on SYNC-1.
 
 #### SYNC-3 — Full sync loop with retry/backoff
 
@@ -687,3 +768,10 @@ DUR-07-002/DUR-07-004.
   foundation is stable
 - FUZZ-00 **Fuzzer node re-implementation** (Priority 500) — see
   `notes/bt-fuzzer-nodes.md`
+- IDEA-260402-02 **Per-participant case replica management** — Each Participant
+  Actor maintains their own copy of the case object, synchronised from the
+  CaseActor via `Announce(CaseLogEntry)` replication. SYNC-1 through SYNC-4
+  implement the CaseActor side; the participant-side case replica handler
+  (routing inbound `Announce` to the correct local case copy) is part of
+  SYNC-2 scope. See `plan/IDEAS.md` IDEA-260402-02 and
+  `notes/sync-log-replication.md` for the design.
