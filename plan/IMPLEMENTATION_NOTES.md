@@ -63,3 +63,22 @@ implementation proceeds.
 3. D5-6-NOTECAST (independent; broadcast notes to participants in AddNoteToCase)
 4. D5-6-CASEPROP (EmitCreateCaseActivity `to` field; demo cleanup after AUTOENG)
 5. D5-7 (human sign-off)
+
+### 2026-04-08 D5-6-AUTOENG completion
+
+**D5-6-AUTOENG completed**: `AcceptInviteActorToCaseReceivedUseCase` now
+creates the participant, pre-seeds RM history, and immediately invokes
+`SvcEngageCaseUseCase`, so invitation acceptance now advances the invitee to
+RM.ACCEPTED and emits a queued `RmEngageCaseActivity` without a separate
+trigger.
+
+**Demo cleanup completed**: `vultron/demo/three_actor_demo.py` and
+`vultron/demo/multi_vendor_demo.py` no longer issue manual `engage-case`
+trigger calls after invite acceptance. This removes the protocol shortcut
+identified in D5-6-DEMOAUDIT and leaves D5-6-CASEPROP focused only on
+`CreateCaseActivity` propagation/addressing gaps.
+
+**Testing note**: When tests need to persist actor records through
+`DataLayer.create`, use a concrete actor subtype such as `as_Organization`
+rather than the base `as_Actor`; the base type's optional `type_` conflicts
+with the `PersistableModel` protocol under pyright.

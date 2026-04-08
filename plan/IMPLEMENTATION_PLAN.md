@@ -1,9 +1,8 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-04-07 (refresh #71: code-verified gap analysis; test
-suite 1261 passing; D5-6-DEMOAUDIT details moved to history; D5-6-CASEPROP
-partial-fix noted; EMBARGO-DUR-1 isodate dep confirmed; FINDER-PART-1 partial
-implementation noted)
+**Last Updated**: 2026-04-08 (D5-6-AUTOENG complete; canonical validation 1262
+passing; three-actor and multi-vendor demos no longer require manual
+`engage-case` triggers after invite acceptance)
 
 ## Overview
 
@@ -16,8 +15,8 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 
 ### Current Status Summary
 
-**Test suite**: Canonical validation last passed on 2026-04-07
-(1261 passed, 5581 subtests; `black`, `flake8`, `mypy`, `pyright`, full
+**Test suite**: Canonical validation last passed on 2026-04-08
+(1262 passed, 5581 subtests; `black`, `flake8`, `mypy`, `pyright`, full
 `pytest` run).
 
 All 38 message handlers implemented (including `unknown`). All 9 trigger
@@ -37,7 +36,7 @@ tasks tracked under PRIORITY-310 below).
 
 **PRIORITY-310** Address demo feedback — D5-6-LOG, D5-6-STATE, D5-6-STORE,
 D5-6-WORKFLOW (all ✅); D5-6-DUP, D5-6-TRIGDELIV, D5-6-LOGCTX (all ✅);
-D5-6-DEMOAUDIT ✅; D5-6-AUTOENG, D5-6-NOTECAST, D5-6-EMBARGORCP,
+D5-6-DEMOAUDIT ✅; D5-6-AUTOENG ✅; D5-6-NOTECAST, D5-6-EMBARGORCP,
 D5-6-CASEPROP pending; D5-7 pending human sign-off.
 
 ---
@@ -361,17 +360,10 @@ section MUST be completed before proceeding to PRIORITY-350 and beyond. D5-7
 
 #### D5-6-AUTOENG — Auto-engage after invitation acceptance
 
-- [ ] **D5-6-AUTOENG**: When an actor accepts a case invitation, the
-  accepting actor's RM state MUST advance to ACCEPTED automatically
-  without a separate `engage-case` trigger.
-  - Modify `AcceptInviteActorToCaseReceivedUseCase` to invoke
-    `SvcEngageCaseUseCase` internally after creating the participant
-    record and pre-seeding RM states.
-  - Emit `RmEngageCaseActivity` to the outbox for delivery to the
-    case-actor's inbox (CM-11-002).
-  - Update three-actor and multi-vendor demo scripts to remove manual
-    `engage-case` calls that are now automated.
-  - **Spec**: CM-11-001, CM-11-002, BT-10-005.
+- [x] **D5-6-AUTOENG**: `AcceptInviteActorToCaseReceivedUseCase` now invokes
+  `SvcEngageCaseUseCase` after participant creation, queues an
+  `RmEngageCaseActivity`, and the three-actor / multi-vendor demos no longer
+  call `engage-case` manually. Completed 2026-04-08.
 
 #### D5-6-NOTECAST — Broadcast notes to case participants
 

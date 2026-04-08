@@ -14,10 +14,12 @@ from vultron.core.models.events.actor import (
     SuggestActorToCaseReceivedEvent,
 )
 from vultron.core.models.vultron_types import VultronParticipant
-from vultron.core.ports.datalayer import DataLayer
 from vultron.core.models.protocols import is_case_model
+from vultron.core.ports.datalayer import DataLayer
 from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
+from vultron.core.use_cases.triggers.case import SvcEngageCaseUseCase
+from vultron.core.use_cases.triggers.requests import EngageCaseTriggerRequest
 
 logger = logging.getLogger(__name__)
 
@@ -238,8 +240,13 @@ class AcceptInviteActorToCaseReceivedUseCase:
             case.record_event(active_embargo_id, "embargo_accepted")
         self._dl.save(case)
 
+        SvcEngageCaseUseCase(
+            self._dl,
+            EngageCaseTriggerRequest(actor_id=invitee_id, case_id=case_id),
+        ).execute()
+
         logger.info(
-            "Added participant '%s' to case '%s' via accepted invite",
+            "Added participant '%s' to case '%s' via accepted invite and auto-engaged",
             invitee_id,
             case_id,
         )

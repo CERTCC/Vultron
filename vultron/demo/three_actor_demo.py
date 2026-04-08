@@ -319,22 +319,6 @@ def actor_accepts_case_invite(
     return accept
 
 
-def actor_engages_case(
-    case_actor_client: DataLayerClient,
-    actor: as_Actor,
-    case: VulnerabilityCase,
-) -> dict:
-    """Move an invited participant to RM.ACCEPTED on the authoritative case."""
-    with demo_step(f"{actor.name} engages the case"):
-        result = post_to_trigger(
-            client=case_actor_client,
-            actor_id=actor.id_,
-            behavior="engage-case",
-            body={"case_id": case.id_},
-        )
-    return result
-
-
 def coordinator_proposes_embargo(
     case_actor_client: DataLayerClient,
     coordinator: as_Actor,
@@ -560,11 +544,6 @@ def run_three_actor_demo(
         actor=finder_in_finder,
         invite=finder_invite,
     )
-    actor_engages_case(
-        case_actor_client=case_actor_client,
-        actor=finder_in_case_actor,
-        case=case,
-    )
     wait_for_case_participants(
         vendor_client=case_actor_client,
         case_id=case.id_,
@@ -603,11 +582,6 @@ def run_three_actor_demo(
         case_actor=case_actor,
         actor=vendor_in_vendor,
         invite=vendor_invite,
-    )
-    actor_engages_case(
-        case_actor_client=case_actor_client,
-        actor=vendor_in_case_actor,
-        case=case,
     )
     wait_for_case_participants(
         vendor_client=case_actor_client,

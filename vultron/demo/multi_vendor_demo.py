@@ -26,11 +26,11 @@ Workflow (five containers: finder, vendor, coordinator, vendor2, case-actor):
 4.  Vendor creates the authoritative case on the CaseActor container
     (case.attributed_to = Vendor).
 5.  Vendor links the report to the case.
-6.  Vendor invites Finder to the case; Finder accepts and engages.
+6.  Vendor invites Finder to the case; Finder accepts.
 7.  Vendor proposes an embargo; Finder accepts; Vendor self-accepts.
 8.  Vendor offers case ownership to Coordinator; Coordinator accepts
     (case.attributed_to is updated to Coordinator on the CaseActor).
-9.  Coordinator invites Vendor2 to the case; Vendor2 accepts and engages.
+9.  Coordinator invites Vendor2 to the case; Vendor2 accepts.
 10. Coordinator delivers the embargo proposal to Vendor2; Vendor2 accepts.
 11. Verify final state: 3 participants (Finder, Vendor, Vendor2), Coordinator
     is the case owner, and the embargo is ACTIVE with all participants
@@ -67,7 +67,6 @@ from vultron.demo.two_actor_demo import (
 from vultron.demo.three_actor_demo import (
     actor_accepts_case_invite,
     actor_accepts_embargo,
-    actor_engages_case,
     coordinator_invites_actor,
     coordinator_proposes_embargo,
     deliver_embargo_proposal,
@@ -537,11 +536,6 @@ def run_multi_vendor_demo(
         actor=finder_in_finder,
         invite=finder_invite,
     )
-    actor_engages_case(
-        case_actor_client=case_actor_client,
-        actor=finder_in_case_actor,
-        case=case,
-    )
     wait_for_case_participants(
         vendor_client=case_actor_client,
         case_id=case.id_,
@@ -609,11 +603,6 @@ def run_multi_vendor_demo(
         case_actor=case_actor,
         actor=vendor2_in_vendor2,
         invite=vendor2_invite,
-    )
-    actor_engages_case(
-        case_actor_client=case_actor_client,
-        actor=vendor2_in_case_actor,
-        case=case,
     )
     wait_for_case_participants(
         vendor_client=case_actor_client,
