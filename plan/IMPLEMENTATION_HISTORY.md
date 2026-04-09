@@ -5282,3 +5282,38 @@ helpers not in `USE_CASE_MAP`:
 - `uv run black vultron/ test/ && uv run flake8 vultron/ test/` → clean
 - `uv run mypy` / `uv run pyright` → 0 errors
 - `uv run pytest --tb=short 2>&1 | tail -5` → `1299 passed, 5581 subtests passed in 42.49s`
+
+---
+
+## IDEA-260408-01-7 — Update tests for ADR-0015 case-creation move
+
+**Task**: Update or remove existing tests that assert case creation happens
+during `ValidateReport` BT execution. Add integration test verifying the
+full flow: `Offer(Report)` receipt creates case → `ValidateReport` validates
+without re-creating case → case is in RM.VALID state with correct
+participants.
+
+**Completed**: IDEA-260408-01-7
+
+### Changes
+
+- `test/core/use_cases/received/test_report.py`: Added `TestFullReportFlow`
+  class with 5 integration tests:
+  - `test_full_flow_case_created_at_received` — case exists after
+    SubmitReport, before ValidateReport
+  - `test_full_flow_validate_does_not_recreate_case` — only one case in DL
+    after full flow
+  - `test_full_flow_vendor_in_rm_valid_after_validate` — vendor's RM state
+    is VALID after ValidateReport
+  - `test_full_flow_finder_remains_rm_accepted` — finder's RM state stays
+    ACCEPTED (unchanged by ValidateReport)
+  - `test_full_flow_produces_correct_final_state` — combined assertion on
+    case count, vendor RM.VALID, finder RM.ACCEPTED
+- Confirmed `test/core/behaviors/report/test_validate_tree.py` already
+  correctly reflects ADR-0015 (no case creation in validate-report BT).
+
+### Validation
+
+- `uv run black vultron/ test/ && uv run flake8 vultron/ test/` → clean
+- `uv run mypy` / `uv run pyright` → 0 errors
+- `uv run pytest --tb=short 2>&1 | tail -5` → `1304 passed, 5581 subtests passed in 41.38s`

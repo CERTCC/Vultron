@@ -759,12 +759,11 @@ DUR-07-002/DUR-07-004.
 
 ### IDEA-260408-01-7 — Update tests
 
-- [ ] **IDEA-260408-01-7**: Update or remove existing tests that assert case
-  creation happens during `ValidateReport` BT execution. Add integration
-  test verifying the full flow: `Offer(Report)` receipt creates case →
-  `ValidateReport` validates without re-creating case → case is in
-  RM.VALID state with correct participants.
-  - Depends on IDEA-260408-01-4, IDEA-260408-01-5.
+- [x] **IDEA-260408-01-7**: Added `TestFullReportFlow` integration tests to
+  `test/core/use_cases/received/test_report.py` verifying: case created at
+  RM.RECEIVED (not re-created at RM.VALID), vendor transitions to RM.VALID,
+  finder stays RM.ACCEPTED, and full flow produces correct final state.
+  Confirmed `test_validate_tree.py` already reflects ADR-0015.
 
 ---
 

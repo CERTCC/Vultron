@@ -17,6 +17,7 @@ from unittest.mock import MagicMock
 
 from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.base import VultronObject
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import (
     AckReportReceivedEvent,
@@ -24,9 +25,11 @@ from vultron.core.models.events.report import (
     CreateReportReceivedEvent,
     InvalidateReportReceivedEvent,
     SubmitReportReceivedEvent,
+    ValidateReportReceivedEvent,
 )
 from vultron.core.models.report import VultronReport
 from vultron.core.states.rm import RM
+from vultron.core.use_cases._helpers import _report_phase_status_id
 from vultron.core.use_cases.received.case import (
     CloseCaseUseCase,
     CreateCaseReceivedUseCase,
@@ -38,6 +41,7 @@ from vultron.core.use_cases.received.report import (
     CreateReportReceivedUseCase,
     InvalidateReportReceivedUseCase,
     SubmitReportReceivedUseCase,
+    ValidateReportReceivedUseCase,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
@@ -784,3 +788,192 @@ class TestAckReportNoStandaloneStatus:
             "AckReportReceivedUseCase must not create standalone "
             "ParticipantStatus records (IDEA-260408-01-6)"
         )
+
+
+class TestFullReportFlow:
+    """Integration test: Offer(Report) receipt → ValidateReport full flow.
+
+    Per IDEA-260408-01-7 and ADR-0015:
+    1. SubmitReportReceivedUseCase creates a VulnerabilityCase at RM.RECEIVED.
+    2. ValidateReportReceivedUseCase validates without re-creating the case.
+    3. Final state: vendor participant at RM.VALID, finder at RM.ACCEPTED.
+
+    These tests verify the separation of concerns mandated by ADR-0015:
+    case creation belongs at RM.RECEIVED, not at RM.VALID.
+    """
+
+    VENDOR_ID = "https://example.org/actors/vendor-flow"
+    FINDER_ID = "https://example.org/users/finder-flow"
+    REPORT_ID = "https://example.org/reports/r-flow-1"
+    OFFER_ID = "https://example.org/activities/offer-flow-1"
+    ACCEPT_ID = "https://example.org/activities/accept-flow-1"
+
+    def _setup_dl(self):
+        """Create a DataLayer pre-seeded with the report, vendor, and offer."""
+        from vultron.core.models.activity import VultronOffer
+        from vultron.core.models.case_actor import VultronCaseActor
+
+        dl = TinyDbDataLayer(db_path=None)
+        report = VultronReport(id_=self.REPORT_ID)
+        vendor = VultronCaseActor(id_=self.VENDOR_ID)
+        offer = VultronOffer(
+            id_=self.OFFER_ID,
+            actor=self.FINDER_ID,
+            object_=self.REPORT_ID,
+            target=self.VENDOR_ID,
+        )
+        dl.save(report)
+        dl.save(vendor)
+        dl.save(offer)
+        return dl
+
+    def _make_submit_event(self):
+        """Build a SubmitReportReceivedEvent (Offer(Report) from finder to vendor)."""
+        activity = VultronActivity(
+            id_=self.OFFER_ID,
+            type_="Offer",
+            actor=self.FINDER_ID,
+            target=self.VENDOR_ID,
+        )
+        report = VultronReport(id_=self.REPORT_ID)
+        return SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id=self.OFFER_ID,
+            actor_id=self.FINDER_ID,
+            object_=report,
+            activity=activity,
+            target=VultronObject(id_=self.VENDOR_ID, type_="Actor"),
+        )
+
+    def _make_validate_event(self):
+        """Build a ValidateReportReceivedEvent (Accept(Offer(Report)) from vendor)."""
+        activity = VultronActivity(
+            id_=self.ACCEPT_ID,
+            type_="Accept",
+            actor=self.VENDOR_ID,
+        )
+        offer = VultronObject(id_=self.OFFER_ID, type_="Offer")
+        report = VultronReport(id_=self.REPORT_ID)
+        return ValidateReportReceivedEvent(
+            semantic_type=MessageSemantics.VALIDATE_REPORT,
+            activity_id=self.ACCEPT_ID,
+            actor_id=self.VENDOR_ID,
+            object_=offer,
+            inner_object=report,
+            activity=activity,
+        )
+
+    def test_full_flow_case_created_at_received(self):
+        """SubmitReportReceivedUseCase creates exactly one case at RM.RECEIVED.
+
+        Per ADR-0015: case creation happens at RM.RECEIVED, not RM.VALID.
+        """
+        dl = self._setup_dl()
+        SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
+
+        cases = dl.get_all("VulnerabilityCase")
+        assert len(cases) == 1, "Expected exactly one VulnerabilityCase"
+        case_report_ids = [
+            rid
+            for c in cases
+            for rid in (c.get("data_", {}) or {}).get(
+                "vulnerability_reports", []
+            )
+        ]
+        assert (
+            self.REPORT_ID in case_report_ids
+        ), f"VulnerabilityCase must reference report {self.REPORT_ID}"
+
+    def test_full_flow_validate_does_not_recreate_case(self):
+        """validate-report does NOT create a new case after Offer(Report) receipt.
+
+        Per ADR-0015: the case was already created at RM.RECEIVED, so
+        ValidateReportReceivedUseCase must not create an additional case.
+        """
+        dl = self._setup_dl()
+        SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
+        cases_after_submit = set(dl.by_type("VulnerabilityCase").keys())
+
+        ValidateReportReceivedUseCase(
+            dl, self._make_validate_event()
+        ).execute()
+        cases_after_validate = set(dl.by_type("VulnerabilityCase").keys())
+
+        assert cases_after_validate == cases_after_submit, (
+            "validate-report must not create a new case "
+            "(case was created at RM.RECEIVED per ADR-0015)"
+        )
+
+    def test_full_flow_vendor_in_rm_valid_after_validate(self):
+        """After validate-report, vendor participant is in RM.VALID state.
+
+        Per ADR-0015: validation transitions the vendor's RM state from
+        RECEIVED to VALID; this state change must be persisted.
+        """
+        dl = self._setup_dl()
+        SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
+        ValidateReportReceivedUseCase(
+            dl, self._make_validate_event()
+        ).execute()
+
+        valid_id = _report_phase_status_id(
+            self.VENDOR_ID, self.REPORT_ID, RM.VALID.value
+        )
+        assert (
+            dl.get("ParticipantStatus", valid_id) is not None
+        ), f"Vendor {self.VENDOR_ID} must be RM.VALID after validate-report"
+
+    def test_full_flow_finder_remains_rm_accepted(self):
+        """Finder participant is RM.ACCEPTED after submit and remains so after validate.
+
+        The finder submitted the report, so they enter RM.ACCEPTED at receipt.
+        The subsequent validate-report step must not change the finder's state.
+        """
+        dl = self._setup_dl()
+        SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
+
+        accepted_id = _report_phase_status_id(
+            self.FINDER_ID, self.REPORT_ID, RM.ACCEPTED.value
+        )
+        assert (
+            dl.get("ParticipantStatus", accepted_id) is not None
+        ), f"Finder {self.FINDER_ID} must be RM.ACCEPTED after Offer(Report) receipt"
+
+        ValidateReportReceivedUseCase(
+            dl, self._make_validate_event()
+        ).execute()
+
+        assert (
+            dl.get("ParticipantStatus", accepted_id) is not None
+        ), f"Finder {self.FINDER_ID} must remain RM.ACCEPTED after validate-report"
+
+    def test_full_flow_produces_correct_final_state(self):
+        """Full flow from Offer receipt to validation produces the expected state.
+
+        Verifies the combined invariants of ADR-0015:
+        - Exactly one VulnerabilityCase
+        - Vendor participant at RM.VALID
+        - Finder participant at RM.ACCEPTED
+        """
+        dl = self._setup_dl()
+        SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
+        ValidateReportReceivedUseCase(
+            dl, self._make_validate_event()
+        ).execute()
+
+        cases = dl.get_all("VulnerabilityCase")
+        assert len(cases) == 1, "Expected exactly one VulnerabilityCase"
+
+        valid_id = _report_phase_status_id(
+            self.VENDOR_ID, self.REPORT_ID, RM.VALID.value
+        )
+        assert (
+            dl.get("ParticipantStatus", valid_id) is not None
+        ), "Vendor must be RM.VALID after full Offer(Report) to Accept flow"
+
+        accepted_id = _report_phase_status_id(
+            self.FINDER_ID, self.REPORT_ID, RM.ACCEPTED.value
+        )
+        assert (
+            dl.get("ParticipantStatus", accepted_id) is not None
+        ), "Finder must be RM.ACCEPTED after full Offer(Report) to Accept flow"
