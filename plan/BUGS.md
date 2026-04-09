@@ -66,6 +66,8 @@ demo-runner-1 exited with code 1
 
 ## BUG-2026040902 Finder timeout (incomplete fix of BUG-2026040901)
 
+**Status**: Open — root cause identified; fix not yet implemented.
+
 After the claimed fix to BUG-2026040901, the same test still fails.
 
 `integration_tests/demo/run_multi_actor_integration_test.sh` fails with a
@@ -74,6 +76,84 @@ vendor engages the case and outbox delivery is triggered. Previous fix was
 attempted but did not in fact resolve the issue.
 BUG-2026040902 is not resolved until the shell script runs and exits with
 "SUCCESS: scenario 'two-actor' passed."
+
+### Root cause analysis (2026-04-09)
+
+The full delivery pipeline was traced across 3 investigation phases. The logs
+show that `validate-report` BT execution succeeds (case IS created in vendor
+DL, line 92), but the `Create(VulnerabilityCase)` activity is **never
+delivered to the finder**.
+
+Key observations from the log:
+
+- Line 91: `"Processing outbox for actor 54dacb37-..."` after validate-report
+  — **no outbox items processed** (empty outbox at that point)
+- Lines 99–100: `"Processing outbox for actor..."` + `"Processing outbox
+  item...: urn:uuid:b70325d2-..."` after engage-case — ONE item processed,
+  but this is `RmEngageCaseActivity` (has no `to=` recipients, so not
+  delivered)
+- No "Delivered Create..." log ever appears → the Create(Case) activity was
+  either never queued or drained before the finder check
+
+**Confirmed**: The `ReceiveReportCaseBT` (run during offer processing) writes
+the `Create(VulnerabilityCase)` activity and outbox entry to the **shared**
+DataLayer. However, `inbox_handler` (the background task for the offer)
+drains the vendor outbox **after** the BT runs — but the log shows **no
+outbox items** after validate-report. The validate-report trigger runs a
+*different* BT (`ValidateReportBT`), not `ReceiveReportCaseBT`.
+
+**Most likely root cause**: The `Create(VulnerabilityCase)` activity and
+outbox entry are written during **offer inbox processing** (not during
+validate-report). By the time the vendor's `wait_for_case_participants`
+check passes and `wait_for_finder_case` is called, the offer's
+`inbox_handler` background task may have already drained the outbox and
+delivered the Create(Case) — but the finder's inbox handler (also a
+background task) has not yet completed pre-storage or `CreateCaseReceivedUseCase`.
+
+Alternatively, `UpdateActorOutbox` in `ReceiveReportCaseBT` may be writing
+the outbox entry to the **actor-scoped** DataLayer (keyed by full URI) while
+`outbox_handler` in `inbox_handler` reads from a **different** actor-scoped
+DL instance. This race/mismatch scenario needs direct verification by adding
+log statements or a targeted test.
+
+**Secondary latent bugs** (do not block the fix but should be addressed):
+
+1. `VultronCreateCaseActivity.type_` (and `VultronOffer.type_`,
+   `VultronAccept.type_`) redefine `type_` **without**
+   `Field(serialization_alias="type")`, so `model_dump(by_alias=True)`
+   emits `"type_"` instead of `"type"`. These are currently bypassed because
+   the activity is read back from DL as `as_Create` before delivery, but the
+   bug would surface if the objects were serialized directly.
+   - Files: `vultron/core/models/activity.py` lines 74, 84, 94
+
+2. `VultronBase.id_` has no `serialization_alias="id"`, so
+   `model_dump(by_alias=True)` produces `"id_"` instead of `"id"`. Since
+   `as_Base` uses `validate_by_name=True`, round-tripping works, but the
+   emitted payload is non-standard.
+   - File: `vultron/core/models/activity.py` (VultronBase base class)
+
+### Plan to fix
+
+1. **Add targeted logging** (or a unit test) to confirm whether the outbox
+   entry for `Create(VulnerabilityCase)` is ever written during offer
+   processing, and whether it is successfully drained.
+
+2. **Most probable fix**: In `ReceiveReportCaseBT` →
+   `UpdateActorOutbox.update()`, confirm the DL used is the same instance that
+   `outbox_handler` reads from. If there is a scoping mismatch (actor-scoped
+   vs shared), align them.
+
+3. **Alternative**: If timing is the issue (finder background task not
+   finished before `wait_for_finder_case` times out), increase the poll
+   timeout in `wait_for_finder_case` or add a short sleep after the outbox
+   drain in `inbox_handler`.
+
+4. **Address latent serialization bugs** in `vultron/core/models/activity.py`
+   (items 1 and 2 above) as a follow-on cleanup.
+
+5. Fix must be verified by running
+   `integration_tests/demo/run_multi_actor_integration_test.sh` and
+   confirming "SUCCESS: scenario 'two-actor' passed."
 
 ```text
 demo-runner-1  | 2026-04-09 20:25:21,079 INFO     vultron.demo.utils: 🚥 Vendor validates the vulnerability report
