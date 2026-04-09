@@ -16,15 +16,46 @@ Provides an EmbargoPolicy object for the Vultron ActivityStreams Vocabulary.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import TypeAlias
+from datetime import timedelta
+from typing import Any, TypeAlias, cast
 
-from pydantic import Field
+import isodate  # type: ignore[import-untyped]
+from pydantic import Field, field_serializer, field_validator
 
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.registry import activitystreams_object
 from vultron.wire.as2.vocab.objects.base import VultronObject
+
+
+def _parse_duration(value: Any) -> timedelta | None:
+    """Parse an ISO 8601 duration string or timedelta; reject calendar units."""
+    if value is None:
+        return None
+    if isinstance(value, timedelta):
+        return value
+    if isinstance(value, str):
+        # Reject week designator (W) in date part per DUR-02-002, DUR-04-001.
+        # isodate silently converts P2W → timedelta(weeks=2) so we must check
+        # explicitly before parsing.
+        date_part = value.split("T")[0]
+        if "W" in date_part:
+            raise ValueError(
+                f"Duration must not include weeks (W unit is not allowed"
+                f" per DUR-02-002): {value!r}"
+            )
+        try:
+            parsed = isodate.parse_duration(value)
+        except Exception as exc:
+            raise ValueError(f"Invalid ISO 8601 duration: {value!r}") from exc
+        if not isinstance(parsed, timedelta):
+            raise ValueError(
+                f"Duration must not include years or months (calendar units"
+                f" are not allowed): {value!r}"
+            )
+        return cast(timedelta, parsed)
+    raise TypeError(f"Unsupported duration value: {value!r}")
 
 
 @activitystreams_object
@@ -39,15 +70,19 @@ class EmbargoPolicy(VultronObject):
     Fields:
         actor_id: Full URI of the Actor to which the policy applies (required).
         inbox: URL of the Actor's ActivityPub inbox (required).
-        preferred_duration_days: Preferred embargo duration in days (required).
-        minimum_duration_days: Minimum acceptable duration; actor SHOULD
-            reject embargoes shorter than this value (optional).
-        maximum_duration_days: Maximum acceptable duration; actor SHOULD
-            reject embargoes longer than this value (optional).
+        preferred_duration: Preferred embargo duration as ISO 8601 duration
+            string (e.g. ``"P90D"`` for ninety days) (required).
+        minimum_duration: Minimum acceptable duration as ISO 8601 duration
+            string; the Actor SHOULD reject embargoes shorter than this value
+            (optional).
+        maximum_duration: Maximum acceptable duration as ISO 8601 duration
+            string; the Actor SHOULD reject embargoes longer than this value
+            (optional).
         notes: Free-text description of the Actor's embargo preferences
             (optional).
 
-    Per specs/embargo-policy.md EP-01-001 through EP-01-004.
+    Per specs/embargo-policy.md EP-01-001 through EP-01-004 and
+    specs/duration.md DUR-01-001, DUR-05-001, DUR-05-002.
     """
 
     type_: VO_type = Field(
@@ -64,25 +99,51 @@ class EmbargoPolicy(VultronObject):
         ...,
         description="URL of the Actor's ActivityPub inbox",
     )
-    preferred_duration_days: int = Field(
+    preferred_duration: timedelta = Field(
         ...,
-        description="Preferred embargo duration in days",
-        ge=0,
+        description="Preferred embargo duration as ISO 8601 duration string",
     )
-    minimum_duration_days: int | None = Field(
+    minimum_duration: timedelta | None = Field(
         default=None,
-        description="Minimum acceptable embargo duration in days",
-        ge=0,
+        description="Minimum acceptable embargo duration as ISO 8601 duration",
     )
-    maximum_duration_days: int | None = Field(
+    maximum_duration: timedelta | None = Field(
         default=None,
-        description="Maximum acceptable embargo duration in days",
-        ge=0,
+        description="Maximum acceptable embargo duration as ISO 8601 duration",
     )
     notes: NonEmptyString | None = Field(
         default=None,
         description="Free-text description of the Actor's embargo preferences",
     )
+
+    @field_validator(
+        "preferred_duration",
+        "minimum_duration",
+        "maximum_duration",
+        mode="before",
+    )
+    @classmethod
+    def _parse_iso8601_duration(cls, value: Any) -> timedelta | None:
+        """Accept ISO 8601 duration strings or timedelta; reject calendar units.
+
+        Per specs/duration.md DUR-04-001, DUR-04-002, DUR-05-001.
+        """
+        return _parse_duration(value)
+
+    @field_serializer(
+        "preferred_duration",
+        "minimum_duration",
+        "maximum_duration",
+        when_used="json",
+    )
+    def _serialize_duration(self, value: timedelta | None) -> str | None:
+        """Serialize timedelta to ISO 8601 duration string.
+
+        Per specs/duration.md DUR-05-002.
+        """
+        if value is None:
+            return None
+        return cast(str, isodate.duration_isoformat(value))
 
 
 EmbargoPolicyRef: TypeAlias = ActivityStreamRef[EmbargoPolicy]
@@ -92,9 +153,9 @@ def main():
     obj = EmbargoPolicy(
         actor_id="https://example.org/actors/vendor",
         inbox="https://example.org/actors/vendor/inbox",
-        preferred_duration_days=90,
-        minimum_duration_days=45,
-        maximum_duration_days=180,
+        preferred_duration=timedelta(days=90),
+        minimum_duration=timedelta(days=45),
+        maximum_duration=timedelta(days=180),
         notes="Prefer 90 days but consider shorter for critical vulnerabilities.",
     )
     _json = obj.to_json(indent=2)

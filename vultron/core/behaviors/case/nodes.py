@@ -28,6 +28,8 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import isodate  # type: ignore[import-untyped]
+
 import py_trees
 from py_trees.common import Status
 
@@ -634,17 +636,36 @@ class InitializeDefaultEmbargoNode(DataLayerAction):
 
             # Determine embargo duration from stored policy (wire-layer object
             # accessed via raw dict to avoid importing the wire type).
-            duration_days = _DEFAULT_EMBARGO_DAYS
+            duration = timedelta(days=_DEFAULT_EMBARGO_DAYS)
             policies = self.datalayer.by_type(VultronObjectType.EMBARGO_POLICY)
             if policies:
                 first = next(iter(policies.values()))
-                duration_days = int(
-                    first.get("preferred_duration_days", _DEFAULT_EMBARGO_DAYS)
+                duration_str = first.get(
+                    "preferred_duration", f"P{_DEFAULT_EMBARGO_DAYS}D"
                 )
+                try:
+                    parsed = isodate.parse_duration(duration_str)
+                    if isinstance(parsed, timedelta):
+                        duration = parsed
+                    else:
+                        self.logger.warning(
+                            "%s: EmbargoPolicy preferred_duration %r uses"
+                            " calendar units (years/months); falling back to"
+                            " default %d days",
+                            self.name,
+                            duration_str,
+                            _DEFAULT_EMBARGO_DAYS,
+                        )
+                except Exception:
+                    self.logger.warning(
+                        "%s: Could not parse EmbargoPolicy preferred_duration"
+                        " %r; falling back to default %d days",
+                        self.name,
+                        duration_str,
+                        _DEFAULT_EMBARGO_DAYS,
+                    )
 
-            end_time = datetime.now(tz=timezone.utc) + timedelta(
-                days=duration_days
-            )
+            end_time = datetime.now(tz=timezone.utc) + duration
             embargo = VultronEmbargoEvent(end_time=end_time, context=case_id)
 
             try:
@@ -658,11 +679,11 @@ class InitializeDefaultEmbargoNode(DataLayerAction):
 
             self.logger.info(
                 "Initialized default embargo '%s' for case '%s'"
-                " (end_time: %s, duration: %d days)",
+                " (end_time: %s, duration: %s)",
                 embargo.id_,
                 case_id,
                 end_time.isoformat(),
-                duration_days,
+                isodate.duration_isoformat(duration),
             )
 
             # Attach embargo to the case.
