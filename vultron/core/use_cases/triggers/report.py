@@ -394,6 +394,7 @@ class SvcSubmitReportUseCase:
         offer = RmSubmitReportActivity(
             actor=actor_id,
             object_=report,
+            target=request.recipient_id,
             to=[request.recipient_id],
         )
         try:

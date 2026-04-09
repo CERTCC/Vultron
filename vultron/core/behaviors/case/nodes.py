@@ -864,10 +864,13 @@ class CreateFinderParticipantNode(DataLayerAction):
             if accepted_status is None or not isinstance(
                 accepted_status, VultronParticipantStatus
             ):
-                # Fallback: create a fresh RM.ACCEPTED status.
-                self.logger.warning(
-                    "%s: Report-phase RM.ACCEPTED status for finder '%s' not"
-                    " found — creating a fresh status record",
+                # Per ADR-0015: case creation now happens at RM.RECEIVED
+                # (receive_report_case_tree), so the finder's RM.ACCEPTED
+                # status may not yet exist.  This is the normal path —
+                # create a fresh RM.ACCEPTED status here.
+                self.logger.info(
+                    "%s: Creating fresh RM.ACCEPTED status for finder '%s'"
+                    " (report-phase status not pre-created)",
                     self.name,
                     finder_actor_id,
                 )

@@ -31,14 +31,12 @@ Structure:
        ├─ EvaluateReportValidity             # Policy check (stub)
        └─ ValidationActions (Sequence)
           ├─ TransitionRMtoValid             # Vendor RM: → VALID
-          ├─ CreateCaseNode                  # Create case + initial case status
-          ├─ InitializeDefaultEmbargoNode   # Create default embargo + announce
-          ├─ CreateInitialVendorParticipant  # Vendor participant (VENDOR,
-          │                                   RM.VALID → ACCEPTED)
-          ├─ CreateFinderParticipantNode     # Finder participant (FINDER+REPORTER,
-          │                                   RM.ACCEPTED) + Add notification
-          ├─ CreateCaseActivity             # Create + queue case-created notice
-          └─ UpdateActorOutbox              # Add CreateCaseActivity to outbox
+          └─ EnsureEmbargoExists            # Verify embargo present (DUR-07-004)
+
+Per ADR-0015, case and participant creation now occurs at RM.RECEIVED (in
+``SubmitReportReceivedUseCase`` via ``create_receive_report_case_tree``).
+``ValidationActions`` only transitions the report state and confirms the
+precondition (embargo) established at receipt.
 
 Phase 1 simplifications:
 - No invalidation fallback (validation always succeeds)
@@ -56,20 +54,13 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes import (
-    CreateFinderParticipantNode,
-    CreateInitialVendorParticipant,
-    InitializeDefaultEmbargoNode,
-)
 from vultron.core.behaviors.report.nodes import (
     CheckRMStateReceivedOrInvalid,
     CheckRMStateValid,
-    CreateCaseActivity,
-    CreateCaseNode,
+    EnsureEmbargoExists,
     EvaluateReportCredibility,
     EvaluateReportValidity,
     TransitionRMtoValid,
-    UpdateActorOutbox,
 )
 
 logger = logging.getLogger(__name__)
@@ -111,22 +102,13 @@ def create_validate_report_tree(
     # Phase 1: Match procedural handler logic
     # Future: Add InvalidateReport fallback per simulation BT
 
-    # Child sequence: All validation actions (status updates, case creation, outbox)
+    # Child sequence: All validation actions (status update + embargo check)
     validation_actions = py_trees.composites.Sequence(
         name="ValidationActions",
         memory=False,
         children=[
             TransitionRMtoValid(report_id=report_id, offer_id=offer_id),
-            CreateCaseNode(report_id=report_id),
-            InitializeDefaultEmbargoNode(),
-            CreateInitialVendorParticipant(
-                report_id=report_id, advance_to_accepted=True
-            ),
-            CreateFinderParticipantNode(
-                report_id=report_id, offer_id=offer_id
-            ),
-            CreateCaseActivity(report_id=report_id, offer_id=offer_id),
-            UpdateActorOutbox(),
+            EnsureEmbargoExists(report_id=report_id),
         ],
     )
 

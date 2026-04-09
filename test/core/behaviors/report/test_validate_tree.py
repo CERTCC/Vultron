@@ -113,6 +113,29 @@ def bridge(datalayer):
     return BTBridge(datalayer=datalayer)
 
 
+@pytest.fixture
+def case(bridge, datalayer, actor_id, report, offer, actor, finder_actor):
+    """Pre-create the VulnerabilityCase at RM.RECEIVED.
+
+    Mirrors what SubmitReportReceivedUseCase does via receive_report_case_tree
+    (per ADR-0015).  Tests that run the validate_report tree depend on this
+    fixture to satisfy the EnsureEmbargoExists precondition.
+    """
+    from vultron.core.behaviors.case.receive_report_case_tree import (
+        create_receive_report_case_tree,
+    )
+
+    tree = create_receive_report_case_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+    )
+    bridge.execute_with_setup(tree, actor_id=actor_id, datalayer=datalayer)
+    cases = datalayer.by_type("VulnerabilityCase")
+    assert cases, "Expected case fixture to create a VulnerabilityCase"
+    case_id = next(iter(cases))
+    return datalayer.read(case_id)
+
+
 # ============================================================================
 # Tree Creation Tests
 # ============================================================================
@@ -165,7 +188,11 @@ def test_tree_structure_matches_spec(report, offer):
 
     actions = validation_flow.children[3]
     assert actions.name == "ValidationActions"
-    assert len(actions.children) == 7  # 7 action nodes
+    # Per ADR-0015: case/participant creation moved to receive_report_case_tree.
+    # ValidationActions now only transitions RM state and checks embargo.
+    assert len(actions.children) == 2
+    assert actions.children[0].name == "TransitionRMtoValid"
+    assert actions.children[1].name == "EnsureEmbargoExists"
 
 
 # ============================================================================
@@ -174,9 +201,9 @@ def test_tree_structure_matches_spec(report, offer):
 
 
 def test_tree_execution_success_new_report(
-    bridge, datalayer, actor_id, report, offer, actor, finder_actor
+    bridge, datalayer, actor_id, report, offer, actor, finder_actor, case
 ):
-    """Tree executes successfully for new report (RECEIVED state)."""
+    """Tree executes successfully for report after case was created at receipt."""
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
@@ -198,14 +225,40 @@ def test_tree_execution_success_new_report(
     assert datalayer.get("ParticipantStatus", valid_id) is not None
 
 
-def test_tree_execution_creates_vendor_participant_and_index(
-    bridge, datalayer, actor_id, report, offer, actor, finder_actor
+def test_tree_execution_does_not_create_case(
+    bridge, datalayer, actor_id, report, offer, actor, finder_actor, case
 ):
-    """Validate-report seeds the case owner's participant and advances to
-    RM.ACCEPTED (creating the case is the act of engaging it).
-    """
-    from vultron.core.states.roles import CVDRoles as CVDRole
+    """validate-report BT does NOT create a case (case was created at receipt).
 
+    Per ADR-0015, case creation belongs in receive_report_case_tree triggered
+    by SubmitReportReceivedUseCase at RM.RECEIVED.  validate_report only
+    transitions RM state and verifies the embargo exists.
+    """
+    cases_before = set(datalayer.by_type("VulnerabilityCase").keys())
+
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+    )
+    result = bridge.execute_with_setup(
+        tree=tree,
+        actor_id=actor_id,
+        datalayer=datalayer,
+    )
+
+    assert result.status == Status.SUCCESS
+    cases_after = set(datalayer.by_type("VulnerabilityCase").keys())
+    # No new cases should have been created by validate_report
+    assert cases_after == cases_before, (
+        "validate_report BT must not create a new VulnerabilityCase "
+        "(case creation belongs at RM.RECEIVED per ADR-0015)"
+    )
+
+
+def test_tree_execution_transitions_vendor_to_valid(
+    bridge, datalayer, actor_id, report, offer, actor, finder_actor, case
+):
+    """validate-report advances vendor's report-phase status to RM.VALID."""
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
@@ -219,25 +272,13 @@ def test_tree_execution_creates_vendor_participant_and_index(
 
     assert result.status == Status.SUCCESS
 
-    cases = datalayer.by_type("VulnerabilityCase")
-    assert cases, "Expected validate-report to create a case"
-    case_id = next(iter(cases))
-    case = datalayer.read(case_id)
-    assert case is not None
-
-    participant_id = case.actor_participant_index.get(actor_id)
-    assert participant_id is not None
-
-    participant = datalayer.read(participant_id)
-    assert participant is not None
-    assert CVDRole.VENDOR in participant.case_roles
-    assert participant.participant_statuses
-    # Vendor RM should have advanced to ACCEPTED (case creation = engagement)
-    assert participant.participant_statuses[-1].rm_state == RM.ACCEPTED
+    # Vendor's report-phase status must be RM.VALID
+    valid_id = _report_phase_status_id(actor_id, report.id_, RM.VALID.value)
+    assert datalayer.get("ParticipantStatus", valid_id) is not None
 
 
 def test_tree_execution_early_exit_already_valid(
-    bridge, datalayer, actor_id, report, offer, actor, finder_actor
+    bridge, datalayer, actor_id, report, offer, actor, finder_actor, case
 ):
     """Tree short-circuits if report already in VALID state."""
     # Arrange: Set report to VALID state in DataLayer
@@ -264,13 +305,9 @@ def test_tree_execution_early_exit_already_valid(
     # Assert: Tree succeeds via early exit
     assert result.status == Status.SUCCESS
 
-    # Verify side effects: No new VulnerabilityCase created
-    # (difficult to verify since idempotency may create case anyway)
-    # Key point: Tree still returns SUCCESS without error
-
 
 def test_tree_execution_invalid_state_transitions_to_valid(
-    bridge, datalayer, actor_id, report, offer, actor, finder_actor
+    bridge, datalayer, actor_id, report, offer, actor, finder_actor, case
 ):
     """Tree can validate report from INVALID state."""
     # Arrange: Set report to INVALID state in DataLayer (no VALID record present)
@@ -303,11 +340,11 @@ def test_tree_execution_invalid_state_transitions_to_valid(
 
 
 def test_tree_execution_no_prior_status_succeeds(
-    bridge, datalayer, actor_id, report, offer, actor, finder_actor
+    bridge, datalayer, actor_id, report, offer, actor, finder_actor, case
 ):
     """Tree succeeds even if report has no prior status (new report)."""
     # Arrange: No status set (report has no status tracking yet)
-    # This simulates first-time validation
+    # This simulates first-time validation — case was created at receipt.
 
     tree = create_validate_report_tree(
         report_id=report.id_,
@@ -330,7 +367,7 @@ def test_tree_execution_no_prior_status_succeeds(
 
 
 def test_tree_execution_policy_stubs_always_accept(
-    bridge, datalayer, actor_id, report, offer, actor, finder_actor
+    bridge, datalayer, actor_id, report, offer, actor, finder_actor, case
 ):
     """Policy nodes (stubs) always return SUCCESS in Phase 1."""
     tree = create_validate_report_tree(
@@ -400,8 +437,8 @@ def test_tree_execution_missing_actor_id_fails(
 def test_tree_execution_missing_report_fails(
     bridge, datalayer, actor_id, offer, actor, finder_actor
 ):
-    """Tree fails if report object doesn't exist in DataLayer."""
-    # Arrange: Use non-existent report ID
+    """Tree fails if no case exists for the report (EnsureEmbargoExists fails)."""
+    # Arrange: Use non-existent report ID — no case will exist for it
     fake_report_id = "https://example.org/reports/non-existent"
 
     tree = create_validate_report_tree(
@@ -416,7 +453,7 @@ def test_tree_execution_missing_report_fails(
         datalayer=datalayer,
     )
 
-    # Assert: Tree fails (TransitionRMtoValid will fail to load report)
+    # Assert: Tree fails because EnsureEmbargoExists finds no case
     assert result.status == Status.FAILURE
 
 
@@ -426,7 +463,7 @@ def test_tree_execution_missing_report_fails(
 
 
 def test_tree_execution_idempotency(
-    bridge, datalayer, actor_id, report, offer, actor, finder_actor
+    bridge, datalayer, actor_id, report, offer, actor, finder_actor, case
 ):
     """Multiple executions produce same result (idempotent)."""
     tree1 = create_validate_report_tree(
@@ -461,7 +498,7 @@ def test_tree_execution_idempotency(
 
 
 def test_tree_execution_actor_isolation(
-    bridge, datalayer, report, offer, actor
+    bridge, datalayer, report, offer, actor, case
 ):
     """Different actors maintain isolated execution contexts."""
     actor_a = "https://example.org/actors/vendor-a"
@@ -503,23 +540,16 @@ def test_tree_execution_actor_isolation(
     assert datalayer.get("ParticipantStatus", valid_id_a) is not None
 
 
-def test_tree_execution_creates_finder_participant(
-    bridge,
-    datalayer,
-    actor_id,
-    report,
-    offer,
-    actor,
-    finder_actor,
-    finder_actor_id,
+def test_ensure_embargo_exists_fails_without_case(
+    bridge, datalayer, actor_id, report, offer, actor, finder_actor
 ):
-    """Validate-report creates a FinderReporter participant for the finder.
+    """validate-report BT fails if no case exists for the report.
 
-    The finder's participant should have FINDER+REPORTER roles and RM.ACCEPTED
-    status, and be indexed in the case's actor_participant_index.
+    EnsureEmbargoExists blocks validation when the case hasn't been
+    created yet (i.e., SubmitReportReceivedUseCase hasn't run first).
+    Per DUR-07-004.
     """
-    from vultron.core.states.roles import CVDRoles
-
+    # No case fixture — simulate report submitted but case not yet created.
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
@@ -529,126 +559,20 @@ def test_tree_execution_creates_finder_participant(
         actor_id=actor_id,
         datalayer=datalayer,
     )
-    assert result.status == Status.SUCCESS
-
-    cases = datalayer.by_type("VulnerabilityCase")
-    assert cases, "Expected validate-report to create a case"
-    case_id = next(iter(cases))
-    case = datalayer.read(case_id)
-    assert case is not None
-
-    # Finder should be indexed in the case
-    finder_participant_id = case.actor_participant_index.get(finder_actor_id)
-    assert (
-        finder_participant_id is not None
-    ), "Finder actor should be indexed in case.actor_participant_index"
-
-    finder_participant = datalayer.read(finder_participant_id)
-    assert finder_participant is not None
-    assert CVDRoles.FINDER in finder_participant.case_roles
-    assert CVDRoles.REPORTER in finder_participant.case_roles
-    assert finder_participant.participant_statuses
-    assert finder_participant.participant_statuses[-1].rm_state == RM.ACCEPTED
-
-    # The case should have 2 participants: vendor + finder
-    assert len(case.case_participants) == 2
-
-
-def test_tree_execution_initializes_default_embargo(
-    bridge,
-    datalayer,
-    actor_id,
-    report,
-    offer,
-    actor,
-    finder_actor,
-):
-    """Validate-report creates a default embargo and attaches it to the case."""
-    tree = create_validate_report_tree(
-        report_id=report.id_,
-        offer_id=offer.id_,
+    assert result.status == Status.FAILURE, (
+        "validate_report BT must FAIL when no case exists for the report "
+        "(EnsureEmbargoExists should block per DUR-07-004)"
     )
-    result = bridge.execute_with_setup(
-        tree=tree,
-        actor_id=actor_id,
-        datalayer=datalayer,
-    )
-    assert result.status == Status.SUCCESS
-
-    cases = datalayer.by_type("VulnerabilityCase")
-    assert cases, "Expected validate-report to create a case"
-    case_id = next(iter(cases))
-    case = datalayer.read(case_id)
-    assert case is not None
-
-    assert (
-        case.active_embargo is not None
-    ), "Expected case.active_embargo to be set after validate-report"
-
-    embargo = datalayer.read(case.active_embargo)
-    assert embargo is not None
-    assert hasattr(embargo, "end_time"), "Embargo should have an end_time"
-    assert embargo.context == case_id
-
-
-def test_tree_execution_vendor_rm_accepted(
-    bridge,
-    datalayer,
-    actor_id,
-    report,
-    offer,
-    actor,
-    finder_actor,
-):
-    """Validate-report advances vendor RM to ACCEPTED (case creation = engagement)."""
-    tree = create_validate_report_tree(
-        report_id=report.id_,
-        offer_id=offer.id_,
-    )
-    result = bridge.execute_with_setup(
-        tree=tree,
-        actor_id=actor_id,
-        datalayer=datalayer,
-    )
-    assert result.status == Status.SUCCESS
-
-    cases = datalayer.by_type("VulnerabilityCase")
-    assert cases
-    case_id = next(iter(cases))
-    case = datalayer.read(case_id)
-
-    vendor_participant_id = case.actor_participant_index.get(actor_id)
-    assert vendor_participant_id is not None
-    vendor_participant = datalayer.read(vendor_participant_id)
-    assert vendor_participant is not None
-    assert vendor_participant.participant_statuses
-    # The most-recent status should be RM.ACCEPTED
-    assert vendor_participant.participant_statuses[-1].rm_state == RM.ACCEPTED
-    # And RM.VALID should appear earlier in the history
-    rm_states = [s.rm_state for s in vendor_participant.participant_statuses]
-    assert RM.VALID in rm_states, "RM.VALID should be in the status history"
-
-
-# ============================================================================
-# D5-6-LOGCTX: outbox activity log content tests
-# ============================================================================
 
 
 def test_validate_report_tree_case_has_active_embargo(
-    bridge,
-    datalayer,
-    actor_id,
-    report,
-    offer,
-    actor,
-    finder_actor,
+    bridge, datalayer, actor_id, report, offer, actor, finder_actor, case
 ):
     """After validate-report BT, case MUST have active_embargo set (D5-6-EMBARGORCP).
 
-    Participants learn about the embargo from the VulnerabilityCase.active_embargo
-    field embedded in the Create(Case) activity. This test verifies that the case
-    has active_embargo set before CreateCaseActivity runs, so it will be
-    included in the embedded case object.
+    The case fixture pre-creates the case with an embargo (from
+    receive_report_case_tree).  validate_report verifies the embargo exists
+    via EnsureEmbargoExists and only succeeds when it does.
     """
     from vultron.core.models.protocols import is_case_model
 
@@ -673,287 +597,3 @@ def test_validate_report_tree_case_has_active_embargo(
         "VulnerabilityCase must have active_embargo set so participants "
         "can learn about the embargo from the Create(Case) activity"
     )
-
-
-def test_validate_report_tree_create_case_activity_embeds_embargo(
-    bridge,
-    datalayer,
-    actor_id,
-    report,
-    offer,
-    actor,
-    finder_actor,
-):
-    """Create(Case) activity's embedded case MUST carry active_embargo (D5-6-EMBARGORCP).
-
-    The Create(Case) activity embeds the full VulnerabilityCase object.
-    Since InitializeDefaultEmbargoNode sets active_embargo on the case before
-    CreateCaseActivity runs, the embedded case must also have active_embargo set.
-    """
-    tree = create_validate_report_tree(
-        report_id=report.id_,
-        offer_id=offer.id_,
-    )
-    bridge.execute_with_setup(
-        tree=tree,
-        actor_id=actor_id,
-        datalayer=datalayer,
-    )
-
-    # Find Create activities in the DataLayer (raw dict records)
-    create_case_activities = datalayer.by_type("Create")
-    assert create_case_activities, "Expected at least one Create activity"
-
-    found_case_with_embargo = False
-    for _activity_id, activity_data in create_case_activities.items():
-        # TinyDB stores field names with underscores (not JSON aliases).
-        # _dehydrate_data collapses the object_ field to a string ID.
-        obj = activity_data.get("object_")
-        if obj is None:
-            continue
-        if isinstance(obj, str):
-            case = datalayer.read(obj)
-            if (
-                case is not None
-                and getattr(case, "active_embargo", None) is not None
-            ):
-                found_case_with_embargo = True
-                break
-        elif isinstance(obj, dict):
-            if (
-                obj.get("type_") == "VulnerabilityCase"
-                and obj.get("active_embargo") is not None
-            ):
-                found_case_with_embargo = True
-                break
-
-    assert found_case_with_embargo, (
-        "Create(Case) activity must embed a VulnerabilityCase with active_embargo set; "
-        "participants learn about the embargo from this embedded field"
-    )
-
-
-def test_validate_report_tree_no_standalone_announce_embargo_in_outbox(
-    bridge,
-    datalayer,
-    actor_id,
-    report,
-    offer,
-    actor,
-    finder_actor,
-):
-    """InitializeDefaultEmbargoNode MUST NOT queue a standalone Announce(embargo)
-    to the outbox (D5-6-EMBARGORCP Option 2).
-
-    The finder learns about the embargo from active_embargo embedded in the
-    Create(Case) activity, making the standalone Announce redundant.
-    """
-    tree = create_validate_report_tree(
-        report_id=report.id_,
-        offer_id=offer.id_,
-    )
-    bridge.execute_with_setup(
-        tree=tree,
-        actor_id=actor_id,
-        datalayer=datalayer,
-    )
-
-    # The only activity in the outbox should be the Create(Case) activity,
-    # not an Announce(embargo) activity.
-    actor_obj = datalayer.read(actor_id)
-    outbox_items = getattr(getattr(actor_obj, "outbox", None), "items", [])
-
-    # Verify no Announce activity referencing an embargo is in the outbox
-    announce_embargo_items = []
-    for item_id in outbox_items:
-        activity = datalayer.read(item_id)
-        if activity is None:
-            # Check raw record
-            all_items = datalayer.by_type("Announce")
-            for _id, data in all_items.items():
-                if _id == item_id:
-                    announce_embargo_items.append(item_id)
-            continue
-        if getattr(activity, "type_", None) == "Announce":
-            announce_embargo_items.append(item_id)
-
-    assert not announce_embargo_items, (
-        f"Expected no Announce(embargo) activities in outbox, "
-        f"but found: {announce_embargo_items}"
-    )
-
-
-def test_validate_report_tree_logs_case_id_in_embargo_message(
-    bridge,
-    datalayer,
-    actor_id,
-    report,
-    offer,
-    actor,
-    finder_actor,
-    caplog,
-):
-    """InitializeDefaultEmbargoNode MUST log the case ID (D5-6-LOGCTX)."""
-    tree = create_validate_report_tree(
-        report_id=report.id_,
-        offer_id=offer.id_,
-    )
-    with caplog.at_level("INFO"):
-        bridge.execute_with_setup(
-            tree=tree,
-            actor_id=actor_id,
-            datalayer=datalayer,
-        )
-
-    cases = datalayer.by_type("VulnerabilityCase")
-    assert cases
-    case_id = next(iter(cases))
-    assert case_id in caplog.text
-
-
-def test_validate_report_tree_logs_add_for_finder_participant(
-    bridge,
-    datalayer,
-    actor_id,
-    finder_actor_id,
-    report,
-    offer,
-    actor,
-    finder_actor,
-    caplog,
-):
-    """CreateFinderParticipantNode MUST log 'Add' activity type (D5-6-LOGCTX)."""
-    tree = create_validate_report_tree(
-        report_id=report.id_,
-        offer_id=offer.id_,
-    )
-    with caplog.at_level("INFO"):
-        bridge.execute_with_setup(
-            tree=tree,
-            actor_id=actor_id,
-            datalayer=datalayer,
-        )
-    assert "Add" in caplog.text
-
-
-def test_validate_report_tree_logs_finder_actor_in_participant_message(
-    bridge,
-    datalayer,
-    actor_id,
-    finder_actor_id,
-    report,
-    offer,
-    actor,
-    finder_actor,
-    caplog,
-):
-    """CreateFinderParticipantNode MUST log finder actor ID (D5-6-LOGCTX)."""
-    tree = create_validate_report_tree(
-        report_id=report.id_,
-        offer_id=offer.id_,
-    )
-    with caplog.at_level("INFO"):
-        bridge.execute_with_setup(
-            tree=tree,
-            actor_id=actor_id,
-            datalayer=datalayer,
-        )
-    assert finder_actor_id in caplog.text
-
-
-def test_validate_report_tree_finder_participant_add_has_to_field(
-    bridge,
-    datalayer,
-    actor_id,
-    finder_actor_id,
-    report,
-    offer,
-    actor,
-    finder_actor,
-):
-    """CreateFinderParticipantNode Add notification MUST include finder in to field.
-
-    The outbox_handler uses the ``to`` field to determine delivery recipients.
-    Without a ``to`` field the Add notification is queued but never delivered.
-    """
-    tree = create_validate_report_tree(
-        report_id=report.id_,
-        offer_id=offer.id_,
-    )
-    bridge.execute_with_setup(
-        tree=tree,
-        actor_id=actor_id,
-        datalayer=datalayer,
-    )
-
-    # Find the Add activity in the datalayer.
-    # VultronActivity(type_="Add") cannot be deserialized via datalayer.read()
-    # because "Add" is not imported into the vocabulary in this test environment.
-    # Use by_type("Add") to access the raw stored data dict directly.
-    add_activities_raw = datalayer.by_type("Add") or {}
-    assert add_activities_raw, "Expected an Add activity in the DataLayer"
-    add_data = next(iter(add_activities_raw.values()))
-    assert add_data.get(
-        "to"
-    ), "Add notification for finder participant must have a 'to' field"
-    assert (
-        finder_actor_id in add_data["to"]
-    ), f"Finder actor ID {finder_actor_id!r} must be in Add notification 'to'"
-
-
-def test_validate_report_tree_create_case_activity_has_to_and_embedded_case(
-    bridge,
-    datalayer,
-    actor_id,
-    finder_actor_id,
-    report,
-    offer,
-    actor,
-    finder_actor,
-):
-    """CreateCaseActivity MUST have recipients in to and embed the full case.
-
-    The outbox_handler requires a non-empty ``to`` field to deliver the
-    activity.  Embedding the full case object (not just the ID) ensures the
-    receiving inbox endpoint can store the case before dispatching the use
-    case handler, so ``CreateCaseReceivedUseCase`` gets a non-None case.
-    """
-    tree = create_validate_report_tree(
-        report_id=report.id_,
-        offer_id=offer.id_,
-    )
-    bridge.execute_with_setup(
-        tree=tree,
-        actor_id=actor_id,
-        datalayer=datalayer,
-    )
-
-    create_activities = datalayer.by_type("Create") or {}
-    assert create_activities, "Expected a Create activity in the DataLayer"
-    case_id = next(iter(datalayer.by_type("VulnerabilityCase") or {}), None)
-    assert case_id is not None
-
-    # Find the Create activity that references the case.
-    # Use the raw data dict (by_type) because VultronCreateCaseActivity with
-    # type_="Create" cannot be deserialized via datalayer.read() — the "Create"
-    # wire class is not imported in this test environment.
-    create_data = None
-    for _oid, data in create_activities.items():
-        if data.get("object_") == case_id:
-            create_data = data
-            break
-
-    assert (
-        create_data is not None
-    ), "Expected a Create(VulnerabilityCase) activity in the DataLayer"
-    assert create_data.get(
-        "to"
-    ), "Create(VulnerabilityCase) activity must have a non-empty 'to' field"
-    assert (
-        actor_id not in create_data["to"]
-    ), "Sending actor must not appear in its own 'to' recipients"
-    # object_ is stored as the dehydrated case ID string; re-expansion to the
-    # full case object happens in outbox_handler at delivery time.
-    assert isinstance(
-        create_data.get("object_"), str
-    ), "Create(VulnerabilityCase) object_ should be stored as the case ID string"

@@ -437,7 +437,15 @@ def post_actor_inbox(
     # Store activity in the SHARED DataLayer so cross-actor lookups work.
     # (Operational data must be accessible to all actors' use cases and
     # rehydration; actor-scoped DL is used only for queue management.)
-    dl.create(object_to_record(activity))
+    # Use try/except for idempotency: triggers (and outbox re-deliveries) may
+    # have already stored the activity in the shared DL.
+    try:
+        dl.create(object_to_record(activity))
+    except ValueError:
+        logger.debug(
+            "Activity %s already exists in shared DL; skipping re-store.",
+            activity.id_,
+        )
 
     logger.debug(
         f"Posting activity to actor {canonical_actor_id} inbox: {activity}"

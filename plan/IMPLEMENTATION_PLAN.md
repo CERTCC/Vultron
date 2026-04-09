@@ -711,7 +711,7 @@ DUR-07-002/DUR-07-004.
 
 ### IDEA-260408-01-3 — Refactor `SubmitReportReceivedUseCase`
 
-- [ ] **IDEA-260408-01-3**: Refactor `SubmitReportReceivedUseCase` in
+- [x] **IDEA-260408-01-3**: Refactor `SubmitReportReceivedUseCase` in
   `vultron/core/use_cases/received/report.py` to invoke
   `receive_report_case_tree` via `BTBridge` (same pattern as
   `ValidateReportReceivedUseCase`).
@@ -724,7 +724,7 @@ DUR-07-002/DUR-07-004.
 
 ### IDEA-260408-01-4 — Slim `validate_report` BT
 
-- [ ] **IDEA-260408-01-4**: Remove case/participant/activity nodes from
+- [x] **IDEA-260408-01-4**: Remove case/participant/activity nodes from
   `vultron/core/behaviors/report/validate_tree.py`:
   - Remove: `CreateCaseNode`, `InitializeDefaultEmbargoNode`,
     `CreateInitialVendorParticipant`, `CreateFinderParticipantNode`,

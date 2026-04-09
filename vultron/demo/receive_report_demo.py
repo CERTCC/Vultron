@@ -91,6 +91,7 @@ def make_submit_offer(finder, vendor, report) -> RmSubmitReportActivity:
     offer = RmSubmitReportActivity(
         actor=finder.id_,
         object_=report,
+        target=vendor.id_,
         to=[vendor.id_],
     )
     logger.info(f"Created SubmitReport activity: {logfmt(offer)}")

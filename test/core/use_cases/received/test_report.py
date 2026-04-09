@@ -119,111 +119,6 @@ class TestReportReceiptPersistsParticipantStatus:
         assert data["context"] == "https://example.org/reports/r-persist-1"
         assert data["attributed_to"] == "https://example.org/users/finder"
 
-    def test_submit_report_persists_finder_participant_status_as_accepted(
-        self,
-    ):
-        """SubmitReportReceivedUseCase persists a RM.ACCEPTED ParticipantStatus for the finder.
-
-        A finder who submits a report is at RM.ACCEPTED from their perspective
-        (they created and chose to submit the report). Per D5-6-STATE.
-        """
-        report = VultronReport(id_="https://example.org/reports/r-persist-2")
-        activity = VultronActivity(
-            id_="https://example.org/activities/submit-p1",
-            type_="Offer",
-            actor="https://example.org/users/finder",
-        )
-        event = SubmitReportReceivedEvent(
-            semantic_type=MessageSemantics.SUBMIT_REPORT,
-            activity_id="https://example.org/activities/submit-p1",
-            actor_id="https://example.org/users/finder",
-            object_=report,
-            activity=activity,
-        )
-
-        dl = TinyDbDataLayer(db_path=None)
-        SubmitReportReceivedUseCase(dl, event).execute()
-
-        expected_id = _report_phase_status_id(
-            "https://example.org/users/finder",
-            "https://example.org/reports/r-persist-2",
-            RM.ACCEPTED.value,
-        )
-        stored = dl.get("ParticipantStatus", expected_id)
-        assert (
-            stored is not None
-        ), "Expected a ParticipantStatus record in DataLayer"
-        stored_record = cast(dict[str, object], stored)
-        data = cast(dict[str, object], stored_record["data_"])
-        assert data["rm_state"] == RM.ACCEPTED.value
-        assert data["context"] == "https://example.org/reports/r-persist-2"
-        assert data["attributed_to"] == "https://example.org/users/finder"
-
-    def test_submit_report_does_not_store_received_status_for_finder(self):
-        """SubmitReportReceivedUseCase must NOT create a RM.RECEIVED record for the finder.
-
-        RM.RECEIVED is the vendor's state; RM.ACCEPTED is the finder's state.
-        Per D5-6-STATE.
-        """
-        report = VultronReport(id_="https://example.org/reports/r-no-recv-1")
-        activity = VultronActivity(
-            id_="https://example.org/activities/submit-no-recv-1",
-            type_="Offer",
-            actor="https://example.org/users/finder",
-        )
-        event = SubmitReportReceivedEvent(
-            semantic_type=MessageSemantics.SUBMIT_REPORT,
-            activity_id="https://example.org/activities/submit-no-recv-1",
-            actor_id="https://example.org/users/finder",
-            object_=report,
-            activity=activity,
-        )
-
-        dl = TinyDbDataLayer(db_path=None)
-        SubmitReportReceivedUseCase(dl, event).execute()
-
-        received_id = _report_phase_status_id(
-            "https://example.org/users/finder",
-            "https://example.org/reports/r-no-recv-1",
-            RM.RECEIVED.value,
-        )
-        stored = dl.get("ParticipantStatus", received_id)
-        assert stored is None, (
-            "SubmitReportReceivedUseCase must not create a RM.RECEIVED record "
-            "for the finder; finder state is RM.ACCEPTED"
-        )
-
-    def test_submit_report_participant_status_is_idempotent(self):
-        """Calling SubmitReportReceivedUseCase twice creates only one ParticipantStatus."""
-        report = VultronReport(id_="https://example.org/reports/r-idem-submit")
-        activity = VultronActivity(
-            id_="https://example.org/activities/submit-idem-1",
-            type_="Offer",
-            actor="https://example.org/users/finder",
-        )
-        event = SubmitReportReceivedEvent(
-            semantic_type=MessageSemantics.SUBMIT_REPORT,
-            activity_id="https://example.org/activities/submit-idem-1",
-            actor_id="https://example.org/users/finder",
-            object_=report,
-            activity=activity,
-        )
-
-        dl = TinyDbDataLayer(db_path=None)
-        SubmitReportReceivedUseCase(dl, event).execute()
-        SubmitReportReceivedUseCase(dl, event).execute()
-
-        all_statuses = dl.get_all("ParticipantStatus")
-        expected_id = _report_phase_status_id(
-            "https://example.org/users/finder",
-            "https://example.org/reports/r-idem-submit",
-            RM.ACCEPTED.value,
-        )
-        matching = [r for r in all_statuses if r.get("id_") == expected_id]
-        assert (
-            len(matching) == 1
-        ), "Expected exactly one ParticipantStatus after idempotent calls"
-
     def test_create_report_participant_status_is_idempotent(self):
         """Calling CreateReportReceivedUseCase twice creates only one ParticipantStatus."""
         report = VultronReport(id_="https://example.org/reports/r-idem-1")
@@ -265,23 +160,30 @@ class TestDuplicateReportHandling:
     is an expected idempotency condition, not a real error (D5-6-DUP).
     """
 
-    def _make_submit_event(self, report_id: str, activity_id: str):
+    def _make_submit_event(
+        self,
+        report_id: str,
+        activity_id: str,
+        vendor_id: str = "https://example.org/actors/vendor",
+    ):
         report = VultronReport(id_=report_id)
         activity = VultronActivity(
             id_=activity_id,
             type_="Offer",
             actor="https://example.org/users/finder",
+            target=vendor_id,
         )
-        return (
-            report,
-            SubmitReportReceivedEvent(
-                semantic_type=MessageSemantics.SUBMIT_REPORT,
-                activity_id=activity_id,
-                actor_id="https://example.org/users/finder",
-                object_=report,
-                activity=activity,
-            ),
+        from vultron.core.models.base import VultronObject
+
+        event = SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id=activity_id,
+            actor_id="https://example.org/users/finder",
+            object_=report,
+            activity=activity,
+            target=VultronObject(id_=vendor_id, type_="Actor"),
         )
+        return (report, event)
 
     def test_submit_report_no_warning_on_duplicate_report(self, caplog):
         """SubmitReportReceivedUseCase emits no WARNING when report already stored.
@@ -292,13 +194,26 @@ class TestDuplicateReportHandling:
         """
         import logging
 
+        from vultron.core.models.activity import VultronOffer
+        from vultron.core.models.case_actor import VultronCaseActor
+
         report, event = self._make_submit_event(
             "https://example.org/reports/r-dup-1",
             "https://example.org/activities/offer-dup-1",
         )
         dl = TinyDbDataLayer(db_path=None)
-        # Simulate inbox pre-storage of the nested object.
+        # Simulate inbox pre-storage of the nested objects.
         dl.save(report)
+        # CreateFinderParticipantNode reads the vendor actor from DataLayer.
+        dl.save(VultronCaseActor(id_="https://example.org/actors/vendor"))
+        # Pre-store the Offer so CreateFinderParticipantNode can read it.
+        offer_obj = VultronOffer(
+            id_="https://example.org/activities/offer-dup-1",
+            actor="https://example.org/users/finder",
+            object_=report.id_,
+            target="https://example.org/actors/vendor",
+        )
+        dl.save(offer_obj)
 
         with caplog.at_level(logging.WARNING):
             SubmitReportReceivedUseCase(dl, event).execute()
@@ -350,24 +265,28 @@ class TestDuplicateReportHandling:
 
 
 class TestSubmitReportLogMessages:
-    """Tests that SubmitReportReceivedUseCase emits clear, actor-identified log messages."""
+    """Tests that SubmitReportReceivedUseCase emits clear log messages."""
 
-    def test_submit_report_log_identifies_finder_and_accepted_state(
-        self, caplog
-    ):
-        """SubmitReportReceivedUseCase logs 'Finder RM:' and 'ACCEPTED'.
+    def test_submit_report_log_identifies_vendor_and_report(self, caplog):
+        """SubmitReportReceivedUseCase logs vendor actor and report IDs.
 
-        The log message must unambiguously identify that the finder's state
-        is being recorded (not the local vendor's) and that the state is
-        RM.ACCEPTED. Per D5-6-STATE.
+        Per ADR-0015, SubmitReportReceivedUseCase now invokes the
+        receive_report_case_tree BT using the vendor's actor_id
+        (request.target_id).  The log must identify both the vendor and
+        the report being received.  Per D5-6-STATE.
         """
         import logging
+
+        from vultron.core.models.activity import VultronOffer
+        from vultron.core.models.base import VultronObject
+        from vultron.core.models.case_actor import VultronCaseActor
 
         report = VultronReport(id_="https://example.org/reports/r-log-1")
         activity = VultronActivity(
             id_="https://example.org/activities/submit-log-1",
             type_="Offer",
             actor="https://example.org/users/finder",
+            target="https://example.org/actors/vendor",
         )
         event = SubmitReportReceivedEvent(
             semantic_type=MessageSemantics.SUBMIT_REPORT,
@@ -375,19 +294,190 @@ class TestSubmitReportLogMessages:
             actor_id="https://example.org/users/finder",
             object_=report,
             activity=activity,
+            target=VultronObject(
+                id_="https://example.org/actors/vendor", type_="Actor"
+            ),
         )
 
         dl = TinyDbDataLayer(db_path=None)
+        # CreateFinderParticipantNode reads the vendor actor from DataLayer.
+        dl.save(VultronCaseActor(id_="https://example.org/actors/vendor"))
+        # Pre-store the offer so CreateFinderParticipantNode can look it up.
+        offer_obj = VultronOffer(
+            id_="https://example.org/activities/submit-log-1",
+            actor="https://example.org/users/finder",
+            object_=report.id_,
+            target="https://example.org/actors/vendor",
+        )
+        dl.save(offer_obj)
+
         with caplog.at_level(logging.INFO):
             SubmitReportReceivedUseCase(dl, event).execute()
 
         log_text = " ".join(r.message for r in caplog.records)
         assert (
-            "Finder RM" in log_text
-        ), "Log must identify the actor whose state is changing as 'Finder RM'"
+            "https://example.org/actors/vendor" in log_text
+        ), "Log must include the vendor (receiving) actor ID"
         assert (
-            "ACCEPTED" in log_text
-        ), "Log must include 'ACCEPTED' to indicate the finder's RM state"
+            "https://example.org/reports/r-log-1" in log_text
+        ), "Log must include the report ID"
+
+
+class TestSubmitReportCreatesCase:
+    """Tests that SubmitReportReceivedUseCase creates a case at RM.RECEIVED.
+
+    Per ADR-0015, case creation moved from validate_report (RM.VALID) to
+    SubmitReportReceivedUseCase (RM.RECEIVED) via receive_report_case_tree.
+    """
+
+    VENDOR_ID = "https://example.org/actors/vendor"
+    FINDER_ID = "https://example.org/users/finder"
+    REPORT_ID = "https://example.org/reports/r-case-1"
+    OFFER_ID = "https://example.org/activities/offer-case-1"
+
+    def _make_event_and_dl(
+        self,
+        report_id: str = REPORT_ID,
+        offer_id: str = OFFER_ID,
+        vendor_id: str = VENDOR_ID,
+        finder_id: str = FINDER_ID,
+    ):
+        from vultron.core.models.activity import VultronOffer
+        from vultron.core.models.base import VultronObject
+        from vultron.core.models.case_actor import VultronCaseActor
+
+        report = VultronReport(id_=report_id)
+        activity = VultronActivity(
+            id_=offer_id,
+            type_="Offer",
+            actor=finder_id,
+            target=vendor_id,
+        )
+        event = SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id=offer_id,
+            actor_id=finder_id,
+            object_=report,
+            activity=activity,
+            target=VultronObject(id_=vendor_id, type_="Actor"),
+        )
+        dl = TinyDbDataLayer(db_path=None)
+        # CreateCaseNode reads the report from DataLayer.
+        dl.save(report)
+        # CreateFinderParticipantNode reads the vendor actor from DataLayer.
+        vendor_actor = VultronCaseActor(id_=vendor_id)
+        dl.save(vendor_actor)
+        offer_obj = VultronOffer(
+            id_=offer_id,
+            actor=finder_id,
+            object_=report.id_,
+            target=vendor_id,
+        )
+        dl.save(offer_obj)
+        return event, dl
+
+    def test_submit_report_creates_case_at_received(self):
+        """SubmitReportReceivedUseCase creates a VulnerabilityCase in DataLayer.
+
+        Per ADR-0015, the case is created by receive_report_case_tree during
+        RM.RECEIVED processing.
+        """
+        event, dl = self._make_event_and_dl()
+        SubmitReportReceivedUseCase(dl, event).execute()
+
+        all_cases = dl.get_all("VulnerabilityCase")
+        assert len(all_cases) >= 1, "Expected at least one VulnerabilityCase"
+        # The case must reference our report ID.
+        report_ids = [
+            rid
+            for c in all_cases
+            for rid in (c.get("data_", {}) or {}).get(
+                "vulnerability_reports", []
+            )
+        ]
         assert (
-            "https://example.org/users/finder" in log_text
-        ), "Log must include the finder's actor ID"
+            self.REPORT_ID in report_ids
+        ), f"VulnerabilityCase should reference report {self.REPORT_ID}"
+
+    def test_submit_report_creates_vendor_participant_at_received(self):
+        """SubmitReportReceivedUseCase creates vendor CaseParticipant at RM.RECEIVED."""
+        event, dl = self._make_event_and_dl()
+        SubmitReportReceivedUseCase(dl, event).execute()
+
+        participants = dl.get_all("CaseParticipant")
+        vendor_participants = [
+            p
+            for p in participants
+            if (p.get("data_", {}) or {}).get("attributed_to")
+            == self.VENDOR_ID
+        ]
+        assert (
+            len(vendor_participants) >= 1
+        ), f"Expected a CaseParticipant for vendor {self.VENDOR_ID}"
+
+    def test_submit_report_creates_finder_participant_accepted(self):
+        """SubmitReportReceivedUseCase creates finder's RM.ACCEPTED status.
+
+        The finder submitted the report, so the BT records RM.ACCEPTED for
+        them via CreateFinderParticipantNode.
+        """
+        event, dl = self._make_event_and_dl()
+        SubmitReportReceivedUseCase(dl, event).execute()
+
+        all_statuses = dl.get_all("ParticipantStatus")
+        finder_accepted = [
+            s
+            for s in all_statuses
+            if (s.get("data_", {}) or {}).get("attributed_to")
+            == self.FINDER_ID
+            and (s.get("data_", {}) or {}).get("rm_state") == RM.ACCEPTED.value
+        ]
+        assert (
+            len(finder_accepted) >= 1
+        ), f"Expected a RM.ACCEPTED ParticipantStatus for finder {self.FINDER_ID}"
+
+    def test_submit_report_case_creation_is_idempotent(self):
+        """Calling SubmitReportReceivedUseCase twice creates only one case."""
+        event, dl = self._make_event_and_dl()
+        SubmitReportReceivedUseCase(dl, event).execute()
+        SubmitReportReceivedUseCase(dl, event).execute()
+
+        all_cases = dl.get_all("VulnerabilityCase")
+        report_cases = [
+            c
+            for c in all_cases
+            if self.REPORT_ID
+            in (c.get("data_", {}) or {}).get("vulnerability_reports", [])
+        ]
+        assert len(report_cases) == 1, (
+            f"Expected exactly one VulnerabilityCase for report {self.REPORT_ID} after"
+            " idempotent calls"
+        )
+
+    def test_submit_report_skips_case_creation_without_target(self):
+        """SubmitReportReceivedUseCase skips BT when vendor_actor_id is None.
+
+        If Offer.target is absent, the use case logs a WARNING and returns
+        without creating a case.
+        """
+        report = VultronReport(id_="https://example.org/reports/r-no-target-1")
+        activity = VultronActivity(
+            id_="https://example.org/activities/offer-no-target-1",
+            type_="Offer",
+            actor=self.FINDER_ID,
+        )
+        event = SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id="https://example.org/activities/offer-no-target-1",
+            actor_id=self.FINDER_ID,
+            object_=report,
+            activity=activity,
+        )
+        dl = TinyDbDataLayer(db_path=None)
+
+        SubmitReportReceivedUseCase(dl, event).execute()
+
+        all_cases = dl.get_all("VulnerabilityCase")
+        assert (
+            all_cases == []
+        ), "Expected no VulnerabilityCase when vendor_actor_id is None"

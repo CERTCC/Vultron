@@ -160,6 +160,68 @@ class CheckRMStateReceivedOrInvalid(DataLayerCondition):
         return Status.SUCCESS
 
 
+class EnsureEmbargoExists(DataLayerCondition):
+    """
+    Check that the case linked to this report has an active embargo.
+
+    Returns SUCCESS if the case exists and has a non-None ``active_embargo``.
+    Returns FAILURE if the case is not found or its ``active_embargo`` is None.
+
+    This node implements DUR-07-004: an embargo end time MUST be established
+    before the case reaches RM.VALID.  It runs after ``TransitionRMtoValid``
+    in ``ValidationActions`` to confirm that the default embargo seeded at
+    RM.RECEIVED (DUR-07-002, via ``InitializeDefaultEmbargoNode``) is
+    present before validation completes.
+    """
+
+    def __init__(self, report_id: str, name: str | None = None):
+        """
+        Initialize EnsureEmbargoExists node.
+
+        Args:
+            report_id: ID of VulnerabilityReport whose linked case to check
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+
+    def update(self) -> Status:
+        """
+        Verify the case linked to this report has an active embargo.
+
+        Returns:
+            SUCCESS if case has active_embargo, FAILURE otherwise
+        """
+        if self.datalayer is None:
+            self.logger.error(f"{self.name}: DataLayer not available")
+            return Status.FAILURE
+
+        case = self.datalayer.find_case_by_report_id(self.report_id)
+        if case is None:
+            self.logger.warning(
+                "%s: No case found for report %s",
+                self.name,
+                self.report_id,
+            )
+            return Status.FAILURE
+
+        if getattr(case, "active_embargo", None) is None:
+            self.logger.warning(
+                "%s: Case for report %s has no active embargo — "
+                "validation blocked (DUR-07-004)",
+                self.name,
+                self.report_id,
+            )
+            return Status.FAILURE
+
+        self.logger.debug(
+            "%s: Case for report %s has active embargo",
+            self.name,
+            self.report_id,
+        )
+        return Status.SUCCESS
+
+
 # ============================================================================
 # Action Nodes
 # ============================================================================
@@ -192,8 +254,13 @@ class TransitionRMtoValid(DataLayerAction):
         """
         Update report and offer statuses.
 
+        Creates a standalone VultronParticipantStatus record for RM.VALID and
+        also updates the CaseParticipant.participant_statuses list (via
+        ``update_participant_rm_state``) so that the engage-case trigger can
+        advance to RM.ACCEPTED from VALID rather than RECEIVED.
+
         Returns:
-            SUCCESS if both statuses updated, FAILURE on error
+            SUCCESS if status updated, FAILURE on error
         """
         if self.datalayer is None or self.actor_id is None:
             self.logger.error(
@@ -222,6 +289,14 @@ class TransitionRMtoValid(DataLayerAction):
                 self.report_id,
                 self.actor_id,
             )
+
+            # Also update CaseParticipant.participant_statuses so subsequent
+            # triggers (e.g. engage-case) can advance from VALID → ACCEPTED.
+            case = self.datalayer.find_case_by_report_id(self.report_id)
+            if is_case_model(case):
+                update_participant_rm_state(
+                    case.id_, self.actor_id, RM.VALID, self.datalayer
+                )
 
             return Status.SUCCESS
 

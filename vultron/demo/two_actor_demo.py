@@ -305,12 +305,12 @@ def finder_submits_report(
                 content=report_content,
             )
         # Deliver the offer from the Finder to the Vendor's inbox.
-        # Skip delivery when both clients point to the same container (single-
-        # server integration tests): the trigger already stored the offer in
-        # the shared DataLayer, so a second delivery would conflict.
-        if finder_client.base_url != vendor_client.base_url:
-            with demo_step("Deliver Finder's offer to Vendor's inbox"):
-                post_to_inbox_and_wait(vendor_client, vendor.id_, offer)
+        # Per ADR-0012 (per-actor DataLayer isolation) the trigger stores the
+        # offer only in the Finder's namespace; the Vendor must receive it
+        # explicitly via inbox delivery so SubmitReportReceivedUseCase runs and
+        # creates the case at RM.RECEIVED (ADR-0015).
+        with demo_step("Deliver Finder's offer to Vendor's inbox"):
+            post_to_inbox_and_wait(vendor_client, vendor.id_, offer)
     else:
         report = VulnerabilityReport(
             attributed_to=finder.id_,
@@ -324,6 +324,7 @@ def finder_submits_report(
         offer = RmSubmitReportActivity(
             actor=finder.id_,
             object_=report,
+            target=vendor.id_,
             to=[vendor.id_],
         )
         with demo_step(
@@ -772,14 +773,16 @@ def run_two_actor_demo(
     )
 
     # ── Step 3: Vendor validates report ──────────────────────────────────
-    # The BT automatically creates the case, initializes the default embargo,
-    # and registers both Vendor and Finder as case participants.
+    # Per ADR-0015, case creation and participant seeding now happen at
+    # RM.RECEIVED (finder_submits_report above).  validate-report only
+    # advances the vendor's RM state from RECEIVED to VALID.
     vendor_validates_report(
         vendor_client=vendor_client,
         vendor=vendor_in_vendor,
         offer_id=offer.id_,
     )
 
+    # ── Step 3b: Vendor engages case (RM.VALID → RM.ACCEPTED) ────────────
     with demo_check("VulnerabilityCase exists in Vendor's DataLayer"):
         case = find_case_for_offer(vendor_client, offer.id_)
         if case is None:
@@ -787,6 +790,14 @@ def run_two_actor_demo(
                 "Expected VulnerabilityCase to be created after validate-report"
             )
         logger.info("Case created: %s", case.id_)
+
+    with demo_step("Vendor engages case (RM.VALID → RM.ACCEPTED)"):
+        post_to_trigger(
+            client=vendor_client,
+            actor_id=vendor_in_vendor.id_,
+            behavior="engage-case",
+            body={"case_id": case.id_},
+        )
 
     wait_for_case_participants(
         vendor_client=vendor_client,

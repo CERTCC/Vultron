@@ -131,31 +131,59 @@ class SubmitReportReceivedUseCase:
                 )
 
         if request.report_id:
-            # A finder who submits a report is at RM.ACCEPTED from their own
-            # perspective (they created and chose to submit it). Initialising
-            # the finder's status here makes the finder's state visible from
-            # the very first log entry (D5-6-STATE).
-            finder_status = VultronParticipantStatus(
-                id_=_report_phase_status_id(
-                    request.actor_id, request.report_id, RM.ACCEPTED.value
-                ),
-                context=request.report_id,
-                attributed_to=request.actor_id,
-                rm_state=RM.ACCEPTED,
-            )
-            _idempotent_create(
-                self._dl,
-                "ParticipantStatus",
-                finder_status.id_,
-                finder_status,
-                "ParticipantStatus (report-phase RM.ACCEPTED) for finder",
-                request.activity_id,
-            )
+            vendor_actor_id = request.target_id
+            if vendor_actor_id is None:
+                logger.warning(
+                    "SubmitReportReceivedUseCase: vendor actor_id not "
+                    "available (Offer.target not set) for report '%s' — "
+                    "skipping case creation",
+                    request.report_id,
+                )
+                return
+
             logger.info(
-                "Finder RM: START → ACCEPTED for report '%s' (finder: '%s')",
+                "Actor '%s' receiving report '%s' — running case-creation BT",
+                vendor_actor_id,
                 request.report_id,
-                request.actor_id,
             )
+
+            from py_trees.common import Status
+
+            from vultron.core.behaviors.bridge import BTBridge
+            from vultron.core.behaviors.case.receive_report_case_tree import (
+                create_receive_report_case_tree,
+            )
+
+            bridge = BTBridge(datalayer=self._dl)
+            tree = create_receive_report_case_tree(
+                report_id=request.report_id,
+                offer_id=request.activity_id,
+            )
+            result = bridge.execute_with_setup(
+                tree, actor_id=vendor_actor_id, activity=request
+            )
+
+            if result.status == Status.SUCCESS:
+                logger.info(
+                    "✓ Case creation at RM.RECEIVED succeeded for report: %s",
+                    request.report_id,
+                )
+            elif result.status == Status.FAILURE:
+                logger.error(
+                    "✗ Case creation at RM.RECEIVED failed for report: "
+                    "%s — %s",
+                    request.report_id,
+                    result.feedback_message,
+                )
+                for err in result.errors or []:
+                    logger.error("  - %s", err)
+            else:
+                logger.warning(
+                    "⚠ Case creation at RM.RECEIVED incomplete for report: "
+                    "%s (status=%s)",
+                    request.report_id,
+                    result.status,
+                )
 
 
 class ValidateReportReceivedUseCase:

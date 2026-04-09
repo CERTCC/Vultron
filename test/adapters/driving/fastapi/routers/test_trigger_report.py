@@ -111,8 +111,23 @@ def offer(dl, report, actor):
 
 
 @pytest.fixture
-def received_report(report):
-    """Put the report into RM.RECEIVED state (default — no DataLayer record needed)."""
+def received_report(dl, actor, report, offer):
+    """Pre-create a VulnerabilityCase for the report at RM.RECEIVED.
+
+    Per ADR-0015, the case is created at report receipt.  The validate_report
+    BT's EnsureEmbargoExists node requires a case to exist.
+    """
+    from vultron.core.behaviors.bridge import BTBridge
+    from vultron.core.behaviors.case.receive_report_case_tree import (
+        create_receive_report_case_tree,
+    )
+
+    bridge = BTBridge(datalayer=dl)
+    tree = create_receive_report_case_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+    )
+    bridge.execute_with_setup(tree, actor_id=actor.id_)
     return report
 
 
@@ -273,27 +288,28 @@ def test_trigger_validate_report_uses_injected_datalayer(
     assert len(call_log) >= 1, "get_datalayer was not called"
 
 
-def test_trigger_validate_report_adds_activity_to_outbox(
+def test_trigger_validate_report_transitions_rm_to_valid(
     client_triggers, dl, actor, offer, received_report
 ):
-    """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
-    actor_before = dl.read(actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    """TB-07-001: Successful validate-report trigger transitions RM to VALID.
 
+    Per ADR-0015, case creation (and outbox notifications) now happen at
+    RM.RECEIVED via receive_report_case_tree.  The validate-report trigger
+    is responsible only for the RM.RECEIVED → RM.VALID transition.
+    """
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/validate-report",
         json={"offer_id": offer.id_},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
+    valid_status_id = _report_phase_status_id(
+        actor.id_, offer.object_, RM.VALID.value
     )
-    new_items = outbox_after - outbox_before
-    assert len(new_items) >= 1, "No new activity was added to the outbox"
+    valid_record = dl.get("ParticipantStatus", valid_status_id)
+    assert (
+        valid_record is not None
+    ), "Expected a RM.VALID ParticipantStatus after validate-report trigger"
 
 
 def test_trigger_validate_report_non_report_offer_returns_422(
