@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-04-08 (IDEA-260408-01-2 ✅; `receive_report_case_tree` BT created for case creation at RM.RECEIVED; 1296 tests passing)
+**Last Updated**: 2026-04-08 (IDEA-260408-01-5 ✅, IDEA-260408-01-6 ✅; dereference pattern + standalone status removal; 1299 tests passing)
 
 ## Overview
 
@@ -737,7 +737,7 @@ DUR-07-002/DUR-07-004.
 
 ### IDEA-260408-01-5 — Dereference pattern for report use cases
 
-- [ ] **IDEA-260408-01-5**: Update `InvalidateReportReceivedUseCase`,
+- [x] **IDEA-260408-01-5**: Update `InvalidateReportReceivedUseCase`,
   `CloseReportReceivedUseCase`, and `ValidateReportReceivedUseCase` to
   dereference `report_id → case_id` using the DataLayer method from
   IDEA-260408-01-1, then delegate to `InvalidateCaseUseCase` /
@@ -749,7 +749,7 @@ DUR-07-002/DUR-07-004.
 
 ### IDEA-260408-01-6 — Remove standalone `VultronParticipantStatus` records
 
-- [ ] **IDEA-260408-01-6**: Audit and remove standalone
+- [x] **IDEA-260408-01-6**: Audit and remove standalone
   `VultronParticipantStatus` record creation in `CreateReport` and
   `AckReport` use cases (if any), as all RM history now lives in
   `VultronParticipant.participant_statuses`.
