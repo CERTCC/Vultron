@@ -44,6 +44,24 @@ def _actor_dl(actor_id: str = Path(...)) -> DataLayer:  # noqa: ARG001
     return get_datalayer()
 
 
+def _canonical_actor_dl(
+    actor_id: str = Path(...),
+    dl: DataLayer = Depends(_actor_dl),
+) -> DataLayer:
+    """FastAPI dependency: actor-scoped DataLayer keyed by the canonical URI.
+
+    Resolves *actor_id* (which may be a short UUID from the URL path) to the
+    actor's full canonical URI via the shared DataLayer, then returns the
+    actor-scoped DataLayer instance keyed by that URI.  This ensures that
+    ``outbox_handler`` reads from the same ``{canonical_uri}_outbox`` table
+    that ``record_outbox_item`` wrote to during use-case execution
+    (BUG-2026040901).
+    """
+    actor = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
+    canonical_id = actor.id_ if actor and hasattr(actor, "id_") else actor_id
+    return get_datalayer(canonical_id)
+
+
 @router.post(
     "/{actor_id}/trigger/engage-case",
     status_code=status.HTTP_202_ACCEPTED,
@@ -61,6 +79,7 @@ def trigger_engage_case(
     body: CaseTriggerRequest,
     background_tasks: BackgroundTasks,
     dl: DataLayer = Depends(_actor_dl),
+    actor_dl: DataLayer = Depends(_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the engage-case behavior for the given actor.
@@ -70,9 +89,7 @@ def trigger_engage_case(
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
     result = engage_case_trigger(actor_id, body.case_id, dl)
-    background_tasks.add_task(
-        outbox_handler, actor_id, get_datalayer(actor_id), dl
-    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
 
 
@@ -93,6 +110,7 @@ def trigger_defer_case(
     body: CaseTriggerRequest,
     background_tasks: BackgroundTasks,
     dl: DataLayer = Depends(_actor_dl),
+    actor_dl: DataLayer = Depends(_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the defer-case behavior for the given actor.
@@ -102,7 +120,5 @@ def trigger_defer_case(
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
     result = defer_case_trigger(actor_id, body.case_id, dl)
-    background_tasks.add_task(
-        outbox_handler, actor_id, get_datalayer(actor_id), dl
-    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result

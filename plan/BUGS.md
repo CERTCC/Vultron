@@ -10,7 +10,9 @@ steps, root cause analysis, and resolution steps in the body.
 
 ---
 
-## BUG-2026040901 Two actor demo fails due to timeout
+## BUG-2026040901 Two actor demo fails due to timeout — **FIXED**
+
+**Status**: Fixed in commit (see IMPLEMENTATION_HISTORY.md for details).
 
 `integration_tests/demo/run_multi_actor_integration_test.sh` fails with a
 timeout waiting for a case to appear in the finder's DataLayer after the  

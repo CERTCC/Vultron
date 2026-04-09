@@ -5317,3 +5317,38 @@ participants.
 - `uv run black vultron/ test/ && uv run flake8 vultron/ test/` → clean
 - `uv run mypy` / `uv run pyright` → 0 errors
 - `uv run pytest --tb=short 2>&1 | tail -5` → `1304 passed, 5581 subtests passed in 41.38s`
+
+---
+
+## BUG-2026040901 — Outbox Delivery Silent Drop in Trigger Routes (FIXED)
+
+**Root Cause**: Trigger routes (`trigger_case.py`, `trigger_report.py`,
+`trigger_embargo.py`) received `actor_id` as a short UUID from the URL path.
+Use-case helpers called `resolve_actor()` to get the canonical full URI
+(`actor.id_`), then wrote outbox items via `record_outbox_item(full_uri, ...)`,
+creating a TinyDB table named `{full_uri}_outbox`. However, `outbox_handler`
+was scheduled with `get_datalayer(short_uuid)`, creating a DataLayer scoped
+to `{short_uuid}_outbox` — a completely different table. Items written to the
+full-URI table were never found, silently dropping all outbox delivery.
+
+**Fix**: Added a `_canonical_actor_dl` FastAPI dependency to each trigger router
+that resolves `actor_id` to the actor's canonical URI via the shared DataLayer
+(`dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)`), then returns
+`get_datalayer(canonical_id)`. Routes now accept `actor_dl: DataLayer =
+Depends(_canonical_actor_dl)` and pass it directly to `outbox_handler`,
+ensuring the handler reads from the same `{canonical_uri}_outbox` table that
+the use case wrote to.
+
+**Files changed**:
+
+- `vultron/adapters/driving/fastapi/routers/trigger_case.py`
+- `vultron/adapters/driving/fastapi/routers/trigger_report.py`
+- `vultron/adapters/driving/fastapi/routers/trigger_embargo.py`
+- `test/adapters/driving/fastapi/routers/test_trigger_case.py` (regression test)
+- `test/adapters/driven/test_datalayer_isolation.py` (updated contract tests)
+
+**Validation**:
+
+- `uv run black vultron/ test/ && uv run flake8 vultron/ test/` → clean
+- `uv run mypy` / `uv run pyright` → 0 errors
+- `uv run pytest --tb=short 2>&1 | tail -5` → `1307 passed, 5581 subtests passed in 43.97s`
