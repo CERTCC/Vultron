@@ -87,12 +87,13 @@ priorities beyond this until we have completed all known feedback.
 
 All D5-6 tasks belong here.
 
-Task D5-7 is a human-only checkpoint for demo completeness.
-
 IDEA-260408-01-1 through IDEA-260408-01-7 are all related to addressing  
 feedback on the demos, so they also belong here.
 
 EMBARGO-DUR-1 — update EmbargoPolicy model to ISO‑8601 durations (pending)
+
+Task D5-7 is a human-only checkpoint for demo completeness. D5-7 does not
+block any items in Priority 310, rather, it is the gate to exit Priority 310.
 
 ## Priority 350: Update python version and other maintenance tasks
 
