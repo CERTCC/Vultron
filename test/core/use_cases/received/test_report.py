@@ -19,15 +19,24 @@ from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import (
+    AckReportReceivedEvent,
+    CloseReportReceivedEvent,
     CreateReportReceivedEvent,
+    InvalidateReportReceivedEvent,
     SubmitReportReceivedEvent,
 )
 from vultron.core.models.report import VultronReport
 from vultron.core.states.rm import RM
-from vultron.core.use_cases._helpers import _report_phase_status_id
-from vultron.core.use_cases.received.case import CreateCaseReceivedUseCase
+from vultron.core.use_cases.received.case import (
+    CloseCaseUseCase,
+    CreateCaseReceivedUseCase,
+    InvalidateCaseUseCase,
+)
 from vultron.core.use_cases.received.report import (
+    AckReportReceivedUseCase,
+    CloseReportReceivedUseCase,
     CreateReportReceivedUseCase,
+    InvalidateReportReceivedUseCase,
     SubmitReportReceivedUseCase,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
@@ -35,6 +44,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
+from vultron.core.models.participant import VultronParticipant
 
 
 class TestUseCaseExecution:
@@ -82,11 +92,15 @@ class TestUseCaseExecution:
         assert result is None
 
 
-class TestReportReceiptPersistsParticipantStatus:
-    """Tests that report-receipt use cases persist a VultronParticipantStatus record."""
+class TestCreateReportNoStandaloneParticipantStatus:
+    """CreateReportReceivedUseCase must NOT create standalone ParticipantStatus.
 
-    def test_create_report_persists_participant_status(self):
-        """CreateReportReceivedUseCase persists a RM.RECEIVED ParticipantStatus."""
+    Per IDEA-260408-01-6: RM history lives in VultronParticipant.participant_statuses
+    within case objects, not in standalone ParticipantStatus records.
+    """
+
+    def test_create_report_does_not_persist_participant_status(self):
+        """CreateReportReceivedUseCase stores the report and activity only."""
         report = VultronReport(id_="https://example.org/reports/r-persist-1")
         activity = VultronActivity(
             id_="https://example.org/activities/create-p1",
@@ -104,32 +118,23 @@ class TestReportReceiptPersistsParticipantStatus:
         dl = TinyDbDataLayer(db_path=None)
         CreateReportReceivedUseCase(dl, event).execute()
 
-        expected_id = _report_phase_status_id(
-            "https://example.org/users/finder",
-            "https://example.org/reports/r-persist-1",
-            RM.RECEIVED.value,
+        all_statuses = dl.get_all("ParticipantStatus")
+        assert all_statuses == [], (
+            "CreateReportReceivedUseCase must not create standalone "
+            "ParticipantStatus records (IDEA-260408-01-6)"
         )
-        stored = dl.get("ParticipantStatus", expected_id)
-        assert (
-            stored is not None
-        ), "Expected a ParticipantStatus record in DataLayer"
-        stored_record = cast(dict[str, object], stored)
-        data = cast(dict[str, object], stored_record["data_"])
-        assert data["rm_state"] == RM.RECEIVED.value
-        assert data["context"] == "https://example.org/reports/r-persist-1"
-        assert data["attributed_to"] == "https://example.org/users/finder"
 
-    def test_create_report_participant_status_is_idempotent(self):
-        """Calling CreateReportReceivedUseCase twice creates only one ParticipantStatus."""
-        report = VultronReport(id_="https://example.org/reports/r-idem-1")
+    def test_create_report_still_stores_report_and_activity(self):
+        """CreateReportReceivedUseCase still stores the report and activity."""
+        report = VultronReport(id_="https://example.org/reports/r-store-1")
         activity = VultronActivity(
-            id_="https://example.org/activities/create-idem-1",
+            id_="https://example.org/activities/create-store-1",
             type_="Create",
             actor="https://example.org/users/finder",
         )
         event = CreateReportReceivedEvent(
             semantic_type=MessageSemantics.CREATE_REPORT,
-            activity_id="https://example.org/activities/create-idem-1",
+            activity_id="https://example.org/activities/create-store-1",
             actor_id="https://example.org/users/finder",
             object_=report,
             activity=activity,
@@ -137,18 +142,11 @@ class TestReportReceiptPersistsParticipantStatus:
 
         dl = TinyDbDataLayer(db_path=None)
         CreateReportReceivedUseCase(dl, event).execute()
-        CreateReportReceivedUseCase(dl, event).execute()
 
-        all_statuses = dl.get_all("ParticipantStatus")
-        expected_id = _report_phase_status_id(
-            "https://example.org/users/finder",
-            "https://example.org/reports/r-idem-1",
-            RM.RECEIVED.value,
-        )
-        matching = [r for r in all_statuses if r.get("id_") == expected_id]
+        stored_report = dl.read("https://example.org/reports/r-store-1")
         assert (
-            len(matching) == 1
-        ), "Expected exactly one ParticipantStatus after idempotent calls"
+            stored_report is not None
+        ), "VulnerabilityReport should be stored"
 
 
 class TestDuplicateReportHandling:
@@ -481,3 +479,308 @@ class TestSubmitReportCreatesCase:
         assert (
             all_cases == []
         ), "Expected no VulnerabilityCase when vendor_actor_id is None"
+
+
+class TestCaseLevelUseeCases:
+    """Unit tests for InvalidateCaseUseCase, CloseCaseUseCase, ValidateCaseUseCase.
+
+    Per CM-12-005: these are called by report use cases after dereferencing
+    report_id to case_id.
+    """
+
+    def _make_case_with_participant(
+        self, dl: TinyDbDataLayer, actor_id: str, initial_rm: RM
+    ):
+        """Helper: create a VulnerabilityCase with one participant."""
+        from vultron.core.models.participant_status import (
+            VultronParticipantStatus,
+        )
+
+        participant = VultronParticipant(
+            id_="https://example.org/participants/p1",
+            attributed_to=actor_id,
+            context="https://example.org/cases/c1",
+            participant_statuses=[
+                VultronParticipantStatus(
+                    rm_state=initial_rm,
+                    context="https://example.org/cases/c1",
+                    attributed_to=actor_id,
+                )
+            ],
+        )
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/c1",
+            name="Test Case",
+        )
+        case.case_participants.append(participant.id_)
+        case.actor_participant_index[actor_id] = participant.id_
+
+        dl.save(participant)
+        dl.save(case)
+        return case, participant
+
+    def test_invalidate_case_transitions_participant_to_invalid(self):
+        """InvalidateCaseUseCase sets participant RM state to INVALID."""
+        actor_id = "https://example.org/actors/vendor"
+        dl = TinyDbDataLayer(db_path=None)
+        case, _ = self._make_case_with_participant(dl, actor_id, RM.RECEIVED)
+
+        InvalidateCaseUseCase(dl, case.id_, actor_id).execute()
+
+        updated_case = cast(VulnerabilityCase, dl.read(case.id_))
+        participant_id = updated_case.actor_participant_index[actor_id]
+        participant = cast(VultronParticipant, dl.read(participant_id))
+        assert participant.participant_statuses[-1].rm_state == RM.INVALID
+
+    def test_close_case_transitions_participant_to_closed(self):
+        """CloseCaseUseCase sets participant RM state to CLOSED."""
+        actor_id = "https://example.org/actors/vendor"
+        dl = TinyDbDataLayer(db_path=None)
+        # CLOSED is only reachable from INVALID, ACCEPTED, or DEFERRED
+        case, _ = self._make_case_with_participant(dl, actor_id, RM.INVALID)
+
+        CloseCaseUseCase(dl, case.id_, actor_id).execute()
+
+        updated_case = cast(VulnerabilityCase, dl.read(case.id_))
+        participant_id = updated_case.actor_participant_index[actor_id]
+        participant = cast(VultronParticipant, dl.read(participant_id))
+        assert participant.participant_statuses[-1].rm_state == RM.CLOSED
+
+    def test_invalidate_case_noop_on_missing_case(self, caplog):
+        """InvalidateCaseUseCase warns when case_id is not found."""
+        import logging
+
+        dl = TinyDbDataLayer(db_path=None)
+        with caplog.at_level(logging.WARNING):
+            InvalidateCaseUseCase(
+                dl,
+                "https://example.org/cases/missing",
+                "https://example.org/actors/vendor",
+            ).execute()
+
+        assert any(
+            "Failed to set RM.INVALID" in r.message for r in caplog.records
+        )
+
+    def test_close_case_noop_on_missing_case(self, caplog):
+        """CloseCaseUseCase warns when case_id is not found."""
+        import logging
+
+        dl = TinyDbDataLayer(db_path=None)
+        with caplog.at_level(logging.WARNING):
+            CloseCaseUseCase(
+                dl,
+                "https://example.org/cases/missing",
+                "https://example.org/actors/vendor",
+            ).execute()
+
+        assert any(
+            "Failed to set RM.CLOSED" in r.message for r in caplog.records
+        )
+
+
+class TestDereferencePatternInReportUseCases:
+    """Tests that Invalidate/Close/ValidateReportReceivedUseCase dereference
+    report_id to case_id and delegate to case-level use cases (CM-12-005).
+    """
+
+    def _setup_case_for_report(
+        self,
+        dl: TinyDbDataLayer,
+        report_id: str,
+        actor_id: str,
+        initial_rm: RM = RM.RECEIVED,
+    ):
+        """Create a case linked to a report via find_case_by_report_id."""
+        from vultron.core.models.participant_status import (
+            VultronParticipantStatus,
+        )
+        from vultron.core.models.report import VultronReport as CoreReport
+
+        report = CoreReport(id_=report_id)
+        dl.save(report)
+
+        participant = VultronParticipant(
+            id_="https://example.org/participants/p-deref",
+            attributed_to=actor_id,
+            context="https://example.org/cases/c-deref",
+            participant_statuses=[
+                VultronParticipantStatus(
+                    rm_state=initial_rm,
+                    context="https://example.org/cases/c-deref",
+                    attributed_to=actor_id,
+                )
+            ],
+        )
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/c-deref",
+            name="Deref Test Case",
+        )
+        case.vulnerability_reports.append(report_id)
+        case.case_participants.append(participant.id_)
+        case.actor_participant_index[actor_id] = participant.id_
+
+        dl.save(participant)
+        dl.save(case)
+        return case, participant
+
+    def test_invalidate_report_delegates_to_case(self):
+        """InvalidateReportReceivedUseCase dereferences and sets RM.INVALID."""
+        report_id = "https://example.org/reports/r-invalidate-deref"
+        actor_id = "https://example.org/actors/vendor"
+        dl = TinyDbDataLayer(db_path=None)
+        case, _ = self._setup_case_for_report(dl, report_id, actor_id)
+
+        offer_activity = VultronActivity(
+            id_="https://example.org/activities/offer-inv",
+            type_="Offer",
+            actor="https://example.org/actors/finder",
+        )
+        event = InvalidateReportReceivedEvent(
+            semantic_type=MessageSemantics.INVALIDATE_REPORT,
+            activity_id="https://example.org/activities/offer-inv",
+            actor_id=actor_id,
+            object_=VultronReport(
+                id_="https://example.org/activities/offer-inv"
+            ),
+            inner_object=VultronReport(id_=report_id),
+            activity=offer_activity,
+        )
+
+        InvalidateReportReceivedUseCase(dl, event).execute()
+
+        updated_case = cast(VulnerabilityCase, dl.read(case.id_))
+        participant_id = updated_case.actor_participant_index[actor_id]
+        participant = cast(VultronParticipant, dl.read(participant_id))
+        assert participant.participant_statuses[-1].rm_state == RM.INVALID
+
+    def test_close_report_delegates_to_case(self):
+        """CloseReportReceivedUseCase dereferences and sets RM.CLOSED."""
+        report_id = "https://example.org/reports/r-close-deref"
+        actor_id = "https://example.org/actors/vendor"
+        dl = TinyDbDataLayer(db_path=None)
+        # CLOSED is only reachable from INVALID, ACCEPTED, or DEFERRED
+        case, _ = self._setup_case_for_report(
+            dl, report_id, actor_id, RM.INVALID
+        )
+
+        offer_activity = VultronActivity(
+            id_="https://example.org/activities/offer-close",
+            type_="Offer",
+            actor="https://example.org/actors/finder",
+        )
+        event = CloseReportReceivedEvent(
+            semantic_type=MessageSemantics.CLOSE_REPORT,
+            activity_id="https://example.org/activities/offer-close",
+            actor_id=actor_id,
+            object_=VultronReport(
+                id_="https://example.org/activities/offer-close"
+            ),
+            inner_object=VultronReport(id_=report_id),
+            activity=offer_activity,
+        )
+
+        CloseReportReceivedUseCase(dl, event).execute()
+
+        updated_case = cast(VulnerabilityCase, dl.read(case.id_))
+        participant_id = updated_case.actor_participant_index[actor_id]
+        participant = cast(VultronParticipant, dl.read(participant_id))
+        assert participant.participant_statuses[-1].rm_state == RM.CLOSED
+
+    def test_invalidate_report_warns_when_no_case(self, caplog):
+        """InvalidateReportReceivedUseCase warns when no case linked to report."""
+        import logging
+
+        report_id = "https://example.org/reports/r-no-case"
+        actor_id = "https://example.org/actors/vendor"
+        dl = TinyDbDataLayer(db_path=None)
+
+        offer_activity = VultronActivity(
+            id_="https://example.org/activities/offer-no-case",
+            type_="Offer",
+            actor="https://example.org/actors/finder",
+        )
+        event = InvalidateReportReceivedEvent(
+            semantic_type=MessageSemantics.INVALIDATE_REPORT,
+            activity_id="https://example.org/activities/offer-no-case",
+            actor_id=actor_id,
+            object_=VultronReport(
+                id_="https://example.org/activities/offer-no-case"
+            ),
+            inner_object=VultronReport(id_=report_id),
+            activity=offer_activity,
+        )
+
+        with caplog.at_level(logging.WARNING):
+            InvalidateReportReceivedUseCase(dl, event).execute()
+
+        assert any(
+            "no case found" in r.message.lower() for r in caplog.records
+        )
+
+    def test_close_report_warns_when_no_case(self, caplog):
+        """CloseReportReceivedUseCase warns when no case linked to report."""
+        import logging
+
+        report_id = "https://example.org/reports/r-close-no-case"
+        actor_id = "https://example.org/actors/vendor"
+        dl = TinyDbDataLayer(db_path=None)
+
+        offer_activity = VultronActivity(
+            id_="https://example.org/activities/offer-close-no-case",
+            type_="Offer",
+            actor="https://example.org/actors/finder",
+        )
+        event = CloseReportReceivedEvent(
+            semantic_type=MessageSemantics.CLOSE_REPORT,
+            activity_id="https://example.org/activities/offer-close-no-case",
+            actor_id=actor_id,
+            object_=VultronReport(
+                id_="https://example.org/activities/offer-close-no-case"
+            ),
+            inner_object=VultronReport(id_=report_id),
+            activity=offer_activity,
+        )
+
+        with caplog.at_level(logging.WARNING):
+            CloseReportReceivedUseCase(dl, event).execute()
+
+        assert any(
+            "no case found" in r.message.lower() for r in caplog.records
+        )
+
+
+class TestAckReportNoStandaloneStatus:
+    """AckReportReceivedUseCase must NOT create standalone ParticipantStatus.
+
+    Per IDEA-260408-01-6: RM history lives in VultronParticipant.participant_statuses.
+    """
+
+    def test_ack_report_does_not_persist_participant_status(self):
+        """AckReportReceivedUseCase stores the activity only, not a status."""
+        offer_activity = VultronActivity(
+            id_="https://example.org/activities/accept-ack-1",
+            type_="Accept",
+            actor="https://example.org/actors/vendor",
+        )
+        event = AckReportReceivedEvent(
+            semantic_type=MessageSemantics.ACK_REPORT,
+            activity_id="https://example.org/activities/accept-ack-1",
+            actor_id="https://example.org/actors/vendor",
+            object_=VultronReport(
+                id_="https://example.org/activities/offer-ack-1"
+            ),
+            inner_object=VultronReport(
+                id_="https://example.org/reports/r-ack-1"
+            ),
+            activity=offer_activity,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        AckReportReceivedUseCase(dl, event).execute()
+
+        all_statuses = dl.get_all("ParticipantStatus")
+        assert all_statuses == [], (
+            "AckReportReceivedUseCase must not create standalone "
+            "ParticipantStatus records (IDEA-260408-01-6)"
+        )
