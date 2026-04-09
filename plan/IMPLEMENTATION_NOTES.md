@@ -62,3 +62,23 @@ implemented any time after D5-7 sign-off.
 `plan/IDEAS.md`. Implementation is the participant-side receive path for
 `Announce(CaseLogEntry)` replication; this is SYNC-2 scope. Added to
 Deferred section of IMPLEMENTATION_PLAN.md for visibility.
+
+---
+
+### 2026-04-09 EMBARGO-DUR-1 completed
+
+`EmbargoPolicy` now uses `timedelta` internally and ISO 8601 duration strings
+at the wire layer. Key notes:
+
+- `isodate.parse_duration("P2W")` returns `timedelta(weeks=2)` — a
+  `timedelta` — so week rejection requires an explicit pre-check for `W` in
+  the date part of the duration string before calling `isodate`.
+- `isodate.parse_duration("P1Y")` returns `isodate.Duration` (not `timedelta`)
+  so year/month rejection is handled by checking `isinstance(parsed, timedelta)`.
+- `object_to_record()` serializes `timedelta` fields as ISO 8601 strings
+  (via `field_serializer(when_used="json")`). The DataLayer round-trip
+  works correctly because `TinyDbDataLayer` stores serialized JSON and
+  `model_validate` re-parses via the `field_validator`.
+- Test helpers that pass ISO 8601 strings to `EmbargoPolicy(...)` must use
+  `cast(Any, EmbargoPolicy)(...)` to satisfy mypy (field is typed `timedelta`
+  but Pydantic accepts strings at runtime via the `field_validator`).

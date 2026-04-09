@@ -664,22 +664,11 @@ are needed before resuming feature development.
 
 ### EMBARGO-DUR-1 — Update EmbargoPolicy model to ISO 8601 duration format
 
-- [ ] **EMBARGO-DUR-1**: Update the `EmbargoPolicy` Pydantic model in
-  `vultron/wire/as2/vocab/objects/embargo_policy.py` to replace the integer
-  duration fields (`preferred_duration_days`, `minimum_duration_days`,
-  `maximum_duration_days`) with ISO 8601 duration string fields
-  (`preferred_duration`, `minimum_duration`, `maximum_duration`) as
-  specified in `specs/embargo-policy.md` EP-01-002/003 and
-  `specs/duration.md` DUR-01-001.
-  - Note: `isodate>=0.7.2` is already a declared dependency in
-    `pyproject.toml` — no new package required.
-  - Use `datetime.timedelta` internally with an `isodate`-based
-    `field_validator`/`field_serializer` pair (see DUR-05-001, DUR-05-002).
-  - Update `InitializeDefaultEmbargoNode` in
-    `vultron/core/behaviors/case/nodes.py` to parse the ISO 8601 duration
-    from the actor's policy (replacing the `preferred_duration_days`
-    integer lookup).
-  - Add/update unit tests for round-trip serialization and validation.
+- [x] **EMBARGO-DUR-1**: Replaced integer `_days` fields with `timedelta`
+  fields serialized as ISO 8601 duration strings. `_parse_duration()` helper
+  rejects calendar units (Y, M-month, W). `InitializeDefaultEmbargoNode` reads
+  `preferred_duration` via isodate. 20 new tests added (DUR-04, DUR-05).
+  Completed 2026-04-09.
 
 ### FINDER-PART-1 — Create CaseParticipant at report receipt ~~SUPERSEDED~~
 
