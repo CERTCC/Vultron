@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-04-08 (IDEA-260408-01-1 ✅; `find_case_by_report_id` added to DataLayer port and TinyDB adapter; canonical validation 1272 passing)
+**Last Updated**: 2026-04-08 (IDEA-260408-01-2 ✅; `receive_report_case_tree` BT created for case creation at RM.RECEIVED; 1296 tests passing)
 
 ## Overview
 
@@ -701,22 +701,13 @@ DUR-07-002/DUR-07-004.
   Five unit tests added to `test/adapters/driven/test_tinydb_backend.py`.
   Completed 2026-04-08.
 
-### IDEA-260408-01-2 — New BT: `receive_report_case_tree`
+### IDEA-260408-01-2 — New BT: `receive_report_case_tree` ✅
 
-- [ ] **IDEA-260408-01-2**: Create
-  `vultron/core/behaviors/case/receive_report_case_tree.py` with a BT that,
-  given a `VulnerabilityReport` ID and actor context, creates:
-  - A `VulnerabilityCase` linked to the report
-  - A `VultronParticipant` for the reporter with `rm_state=RM.ACCEPTED`
-  - A `VultronParticipant` for the receiver with `rm_state=RM.RECEIVED`
-  - A default embargo (conditional on no existing embargo)
-  - Queues a `Create(Case)` activity to the outbox
-  - Migrate the following nodes from `validate_tree.py` into this tree:
-    `CreateCaseNode`, `InitializeDefaultEmbargoNode`,
-    `CreateInitialVendorParticipant`, `CreateFinderParticipantNode`,
-    `CreateCaseActivity`, `UpdateActorOutbox`.
-  - Add `test/core/behaviors/case/test_receive_report_case_tree.py`.
-  - Depends on IDEA-260408-01-1.
+- [x] **IDEA-260408-01-2**: Created
+  `vultron/core/behaviors/case/receive_report_case_tree.py` and
+  `test/core/behaviors/case/test_receive_report_case_tree.py`.
+  Added `CheckCaseExistsForReport` node and `initial_rm_state` parameter to
+  `CreateInitialVendorParticipant`. Completed 2026-04-08.
 
 ### IDEA-260408-01-3 — Refactor `SubmitReportReceivedUseCase`
 

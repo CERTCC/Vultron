@@ -116,6 +116,61 @@ class CheckCaseAlreadyExists(DataLayerCondition):
             return Status.FAILURE
 
 
+class CheckCaseExistsForReport(DataLayerCondition):
+    """
+    Check if a VulnerabilityCase already exists for the given report.
+
+    Uses ``find_case_by_report_id`` to check whether a case linked to the
+    report already exists with participants. Returns SUCCESS if so (idempotency
+    early exit), FAILURE otherwise.
+
+    Per specs/idempotency.md ID-04-004.
+    """
+
+    def __init__(self, report_id: str, name: str | None = None):
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.logger.error(f"{self.name}: DataLayer not available")
+            return Status.FAILURE
+
+        try:
+            existing = self.datalayer.find_case_by_report_id(self.report_id)
+            if existing is None:
+                self.logger.debug(
+                    f"{self.name}: No case found for report {self.report_id}"
+                )
+                return Status.FAILURE
+
+            # A case record that exists but has no participants was
+            # pre-stored by the inbox endpoint as a dehydrated reference.
+            # It still needs full initialisation, so return FAILURE.
+            participants = getattr(existing, "case_participants", None) or []
+            if not participants:
+                self.logger.debug(
+                    f"{self.name}: Case for report {self.report_id} exists"
+                    " but has no participants — proceeding with initialisation"
+                )
+                return Status.FAILURE
+
+            self.logger.info(
+                "%s: Case %s already exists for report %s"
+                " — skipping (idempotent)",
+                self.name,
+                existing.id_,
+                self.report_id,
+            )
+            return Status.SUCCESS
+
+        except Exception as e:
+            self.logger.error(
+                f"{self.name}: Error checking case existence: {e}"
+            )
+            return Status.FAILURE
+
+
 class ValidateCaseObject(DataLayerCondition):
     """
     Validate the incoming VulnerabilityCase object has required fields.
@@ -358,14 +413,21 @@ class SetCaseAttributedTo(DataLayerAction):
 class CreateInitialVendorParticipant(DataLayerAction):
     """
     Create and persist a VendorParticipant for the receiving actor, then
-    add it to the case's case_participants list and advance RM to ACCEPTED.
+    add it to the case's case_participants list.
 
-    Seeds the participant with the deterministic RM.VALID status created by
-    TransitionRMtoValid (reusing the same record rather than duplicating it),
-    then immediately appends an RM.ACCEPTED transition — creating the case
-    is the vendor's act of engaging it.
+    Seeds the participant with the deterministic status record for the given
+    ``initial_rm_state`` (defaulting to ``RM.VALID``). When ``report_id`` is
+    provided, the node first looks for an existing status record in the
+    DataLayer (created by an earlier use case) and reuses it to avoid
+    duplicating history. If no existing record is found, a fresh
+    ``VultronParticipantStatus`` is created.
 
-    Must run after PersistCase so the case already exists in the DataLayer.
+    Optionally advances the vendor RM to ACCEPTED (``advance_to_accepted=True``)
+    after the participant is created — use this in the validate-report BT where
+    case creation is the act of engaging the case.
+
+    Must run after the case exists in the DataLayer (``PersistCase`` or
+    ``CreateCaseNode``).
 
     Per specs/case-management.md CM-02-008 (SHOULD).
     """
@@ -375,12 +437,14 @@ class CreateInitialVendorParticipant(DataLayerAction):
         report_id: str | None = None,
         case_obj: VultronCase | None = None,
         advance_to_accepted: bool = False,
+        initial_rm_state: RM = RM.VALID,
         name: str | None = None,
     ):
         super().__init__(name=name or self.__class__.__name__)
         self.report_id = report_id
         self.case_obj = case_obj
         self.advance_to_accepted = advance_to_accepted
+        self.initial_rm_state = initial_rm_state
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
@@ -403,22 +467,29 @@ class CreateInitialVendorParticipant(DataLayerAction):
                 self.logger.error(f"{self.name}: case_id not available")
                 return Status.FAILURE
 
-            # Reuse the deterministic RM.VALID status from TransitionRMtoValid
+            # Reuse the deterministic status record for initial_rm_state
             # (if report_id is known), otherwise create a fresh one.
             initial_status: VultronParticipantStatus | None = None
             if self.report_id is not None:
-                valid_status_id = _report_phase_status_id(
-                    self.actor_id, self.report_id, RM.VALID.value
+                status_id = _report_phase_status_id(
+                    self.actor_id,
+                    self.report_id,
+                    self.initial_rm_state.value,
                 )
-                existing = self.datalayer.read(valid_status_id)
-                if existing is not None and isinstance(
-                    existing, VultronParticipantStatus
-                ):
-                    initial_status = existing
+                if self.datalayer.read(status_id) is not None:
+                    # A status record with this deterministic ID already
+                    # exists (e.g. created by CreateReportReceivedUseCase).
+                    # Reuse its ID so we don't create a duplicate.
+                    initial_status = VultronParticipantStatus(
+                        id_=status_id,
+                        context=case_id,
+                        rm_state=self.initial_rm_state,
+                        attributed_to=self.actor_id,
+                    )
             if initial_status is None:
                 initial_status = VultronParticipantStatus(
                     context=case_id,
-                    rm_state=RM.VALID,
+                    rm_state=self.initial_rm_state,
                     attributed_to=self.actor_id,
                 )
 
@@ -432,9 +503,10 @@ class CreateInitialVendorParticipant(DataLayerAction):
                 self.datalayer.create(participant)
                 self.logger.info(
                     "Created CaseParticipant '%s' for actor '%s'"
-                    " (roles: [VENDOR], rm_state: RM.VALID)",
+                    " (roles: [VENDOR], rm_state: %s)",
                     participant.id_,
                     self.actor_id,
+                    self.initial_rm_state.name,
                 )
             else:
                 self.logger.debug(

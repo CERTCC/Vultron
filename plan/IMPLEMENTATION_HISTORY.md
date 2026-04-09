@@ -5117,3 +5117,44 @@ internal representation, per `specs/embargo-policy.md` EP-01-002/003 and
 - `uv run black vultron/ test/ && uv run flake8 vultron/ test/` → clean
 - `uv run mypy` / `uv run pyright` → 0 errors
 - `uv run pytest --tb=short 2>&1 | tail -5` → `1282 passed, 5581 subtests passed in 30.94s`
+
+---
+
+## IDEA-260408-01-2 — New BT: `receive_report_case_tree` (COMPLETE 2026-04-08)
+
+### Summary
+
+Created `vultron/core/behaviors/case/receive_report_case_tree.py` — a new
+Behavior Tree that creates a `VulnerabilityCase` (and all its required initial
+state) at the RM.RECEIVED stage, per ADR-0015.
+
+### Changes
+
+- **`vultron/core/behaviors/case/nodes.py`**:
+  - Added `CheckCaseExistsForReport` condition node — uses
+    `find_case_by_report_id` to provide idempotency guard for the new tree.
+  - Modified `CreateInitialVendorParticipant.__init__` to accept
+    `initial_rm_state: RM = RM.VALID` (backward-compatible default).
+    `update()` now uses `self.initial_rm_state` for deterministic status-ID
+    lookup and fallback creation; if the datalayer already holds a record with
+    the deterministic ID it reuses that ID rather than creating a duplicate.
+
+- **`vultron/core/behaviors/case/receive_report_case_tree.py`** (NEW):
+  - `create_receive_report_case_tree(report_id, offer_id)` returns a
+    `Selector("ReceiveReportCaseBT")` with two children:
+    1. `CheckCaseExistsForReport` — succeeds (early exit) when the case
+       already exists, providing idempotency.
+    2. `Sequence("ReceiveReportCaseFlow")` — six-node flow:
+       `CreateCaseNode` → `CreateInitialVendorParticipant(RM.RECEIVED)` →
+       `CreateFinderParticipantNode` → `InitializeDefaultEmbargoNode` →
+       `CreateCaseActivity` → `UpdateActorOutbox`.
+
+- **`test/core/behaviors/case/test_receive_report_case_tree.py`** (NEW):
+  14 tests covering tree structure, full execution, vendor/finder participant
+  RM states, embargo creation, outbox queuing, idempotency, and status reuse.
+
+### Validation
+
+- `uv run black vultron/ test/ && uv run flake8 vultron/ test/` → clean
+- `uv run mypy` / `uv run pyright` → 0 errors
+- `uv run pytest --tb=short 2>&1 | tail -5` → `1296 passed, 5581 subtests passed in 31.43s`
