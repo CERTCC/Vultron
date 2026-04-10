@@ -125,3 +125,15 @@ not need to worry about backward compatibility at all. If you're making a
 change, make the change all the way. Do not hedge to preserve backward
 compatibility (but obviously do not break the code in a way that prevents
 you from testing your changes).
+
+## IDEA-26041001 Outbox posting must have `to:` field requirement
+
+The fact that D5-7-TRIGNOTIFY-1 even had to be a task is an indicator that
+we are missing a requirement: Only activities can be posted to an outbox.
+And activities must have a `to:` field. We are not supporting `bto:` or
+`cc:` or `bcc:`, and so far we are assuming that all Vultron exchanges are
+DMs. There
+are no public messages (which in ActivityPub would be an Activity lacking a
+`to:`). So we should make it a requirement (or two) that only activities
+with a `to:` field can be posted an outbox, and this should be on the outbox
+port itself as an acceptance criteria that raises an exception when violated.
