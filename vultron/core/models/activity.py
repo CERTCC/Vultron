@@ -71,7 +71,11 @@ class VultronOffer(VultronActivity):
     ``type_`` is ``"Offer"`` to match the wire value.
     """
 
-    type_: Literal["Offer"] = "Offer"
+    type_: Literal["Offer"] = Field(
+        default="Offer",
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 class VultronAccept(VultronActivity):
@@ -81,7 +85,11 @@ class VultronAccept(VultronActivity):
     ``type_`` is ``"Accept"`` to match the wire value.
     """
 
-    type_: Literal["Accept"] = "Accept"
+    type_: Literal["Accept"] = Field(
+        default="Accept",
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 class VultronCreateCaseActivity(VultronActivity):
@@ -91,4 +99,8 @@ class VultronCreateCaseActivity(VultronActivity):
     ``type_`` is ``"Create"`` to match the wire value.
     """
 
-    type_: Literal["Create"] = "Create"
+    type_: Literal["Create"] = Field(
+        default="Create",
+        validation_alias="type",
+        serialization_alias="type",
+    )

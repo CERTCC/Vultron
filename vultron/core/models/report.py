@@ -17,6 +17,8 @@
 
 from typing import Literal
 
+from pydantic import Field
+
 from vultron.core.models.base import VultronObject
 
 
@@ -29,4 +31,8 @@ class VultronReport(VultronObject):
     ``type_`` is ``"VulnerabilityReport"`` to match the wire value.
     """
 
-    type_: Literal["VulnerabilityReport"] = "VulnerabilityReport"
+    type_: Literal["VulnerabilityReport"] = Field(
+        default="VulnerabilityReport",
+        validation_alias="type",
+        serialization_alias="type",
+    )

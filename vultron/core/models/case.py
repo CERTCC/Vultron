@@ -44,7 +44,11 @@ class VultronCase(VultronObject):
     ``VulnerabilityCase``) never encounters an empty history list.
     """
 
-    type_: Literal["VulnerabilityCase"] = "VulnerabilityCase"
+    type_: Literal["VulnerabilityCase"] = Field(
+        default="VulnerabilityCase",
+        validation_alias="type",
+        serialization_alias="type",
+    )
     case_participants: list[str | VultronParticipant] = Field(
         default_factory=list
     )

@@ -36,7 +36,11 @@ class VultronParticipant(VultronObject):
     ``CaseParticipant`` subclasses.
     """
 
-    type_: str = "CaseParticipant"
+    type_: str = Field(
+        default="CaseParticipant",
+        validation_alias="type",
+        serialization_alias="type",
+    )
     attributed_to: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     case_roles: list[CVDRoles] = Field(default_factory=list)

@@ -17,7 +17,7 @@
 
 from typing import Literal
 
-from pydantic import field_serializer
+from pydantic import Field, field_serializer
 
 from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_vfd
@@ -33,7 +33,11 @@ class VultronParticipantStatus(VultronObject):
     ``context`` (case ID) is required, matching the wire type's constraint.
     """
 
-    type_: Literal["ParticipantStatus"] = "ParticipantStatus"
+    type_: Literal["ParticipantStatus"] = Field(
+        default="ParticipantStatus",
+        validation_alias="type",
+        serialization_alias="type",
+    )
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     rm_state: RM = RM.START
     vfd_state: CS_vfd = CS_vfd.vfd

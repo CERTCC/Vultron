@@ -5352,3 +5352,57 @@ the use case wrote to.
 - `uv run black vultron/ test/ && uv run flake8 vultron/ test/` → clean
 - `uv run mypy` / `uv run pyright` → 0 errors
 - `uv run pytest --tb=short 2>&1 | tail -5` → `1307 passed, 5581 subtests passed in 43.97s`
+
+## BUG-2026040902: Fix Pydantic serialization alias bugs in domain models
+
+**Bug**: Two-actor Docker integration test fails because the finder
+never receives the `Create(VulnerabilityCase)` activity from the
+vendor. Root cause: missing Pydantic v2 field aliases in domain models
+break HTTP outbox delivery serialization.
+
+**Root cause (two bugs)**:
+
+1. `VultronBase.id_` had `Field(default_factory=_new_urn)` with no
+   `validation_alias` or `serialization_alias`. This caused
+   `model_dump(by_alias=True)` to emit `"id_"` instead of `"id"`, and
+   `model_validate({"id": "..."})` to generate a new UUID instead of
+   preserving the original.
+
+2. Ten domain model subclasses overrode `type_` with bare
+   `Literal[...] = ...` annotations, losing the parent's
+   `Field(validation_alias="type", serialization_alias="type")`
+   metadata. Affected: `VultronOffer`, `VultronAccept`,
+   `VultronCreateCaseActivity`, `VultronCase`, `VultronReport`,
+   `VultronCaseActor`, `VultronParticipantStatus`,
+   `VultronParticipant`, `VultronCaseStatus`, `VultronEmbargoEvent`,
+   `VultronNote`.
+
+**Fix**: Added proper `validation_alias` and `serialization_alias` to
+`VultronBase.id_` and all `type_` overrides in domain model
+subclasses.
+
+**Tests**: 14 regression tests in
+`test/core/models/test_serialization_roundtrip.py` covering id_
+alias serialization/deserialization/round-trip, subclass type_ alias
+fidelity, and cross-model round-trip (simulating outbox delivery).
+
+**Files changed**:
+
+- `vultron/core/models/base.py`
+- `vultron/core/models/activity.py`
+- `vultron/core/models/case.py`
+- `vultron/core/models/report.py`
+- `vultron/core/models/case_actor.py`
+- `vultron/core/models/participant_status.py`
+- `vultron/core/models/participant.py`
+- `vultron/core/models/case_status.py`
+- `vultron/core/models/embargo_event.py`
+- `vultron/core/models/note.py`
+- `test/core/models/test_serialization_roundtrip.py` (new)
+- `plan/BUGS.md` (updated status)
+
+**Validation**:
+
+- `uv run black vultron/ test/ && uv run flake8 vultron/ test/` → clean
+- `uv run mypy` / `uv run pyright` → 0 errors
+- `uv run pytest --tb=short 2>&1 | tail -5` → `1321 passed, 5581 subtests passed in 45.34s`

@@ -66,7 +66,8 @@ demo-runner-1 exited with code 1
 
 ## BUG-2026040902 Finder timeout (incomplete fix of BUG-2026040901)
 
-**Status**: Open — root cause identified; fix not yet implemented.
+**Status**: Fixed — serialization alias bugs in Pydantic domain models
+corrected. Pending Docker integration verification.
 
 After the claimed fix to BUG-2026040901, the same test still fails.
 
@@ -213,3 +214,51 @@ demo-runner-1  | 2026-04-09 20:25:31,439 ERROR    vultron.demo.two_actor_demo: T
 demo-runner-1  | 2026-04-09 20:25:31,439 ERROR    vultron.demo.two_actor_demo: ================================================================================
 demo-runner-1 exited with code 1
 ```
+
+### Resolution
+
+**Root cause**: Two Pydantic v2 serialization alias bugs in domain
+models broke the HTTP outbox delivery pipeline between Docker
+containers:
+
+1. **`VultronBase.id_` missing aliases** — The `id_` field in
+   `vultron/core/models/base.py` had `Field(default_factory=...)` but
+   no `validation_alias="id"` or `serialization_alias="id"`.
+   This caused `model_dump(by_alias=True)` to emit `"id_"` instead of
+   `"id"`, and `model_validate({"id": "..."})` to generate a NEW UUID
+   instead of preserving the original.
+
+2. **Subclass `type_` overrides losing parent aliases** — Ten domain
+   model classes (`VultronOffer`, `VultronAccept`,
+   `VultronCreateCaseActivity`, `VultronCase`, `VultronReport`,
+   `VultronCaseActor`, `VultronParticipantStatus`,
+   `VultronParticipant`, `VultronCaseStatus`, `VultronEmbargoEvent`,
+   `VultronNote`) redefined `type_` with bare `Literal[...] = ...`
+   annotations, losing the parent's `Field(validation_alias="type",
+   serialization_alias="type")` metadata.
+
+**Impact**: When the vendor's outbox handler converted activities for
+HTTP delivery via `VultronActivity.model_validate(activity.model_dump(
+by_alias=True))`, the activity ID was silently replaced with a new
+UUID, and field keys emitted `"id_"`/`"type_"` instead of
+`"id"`/`"type"`. The finder's inbox endpoint could not recognize the
+incoming payload.
+
+**Fix**: Added proper `validation_alias` and `serialization_alias`
+to `VultronBase.id_` and all `type_` overrides in domain model
+subclasses. 14 regression tests added in
+`test/core/models/test_serialization_roundtrip.py`.
+
+**Files changed**: `vultron/core/models/base.py`,
+`vultron/core/models/activity.py`, `vultron/core/models/case.py`,
+`vultron/core/models/report.py`, `vultron/core/models/case_actor.py`,
+`vultron/core/models/participant_status.py`,
+`vultron/core/models/participant.py`,
+`vultron/core/models/case_status.py`,
+`vultron/core/models/embargo_event.py`,
+`vultron/core/models/note.py`.
+
+**Verification**: All 1321 tests pass (including 14 new). All four
+linters pass. Docker integration test
+(`integration_tests/demo/run_multi_actor_integration_test.sh`)
+should be re-run to confirm end-to-end fix.
