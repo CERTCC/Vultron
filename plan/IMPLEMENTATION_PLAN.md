@@ -598,69 +598,79 @@ are needed before resuming feature development.
 
 #### VOCAB-REG-1.1 — Redesign vocabulary registry core mechanics
 
-- [ ] **VOCAB-REG-1.1**: Implement the new registry mechanics in the
+- [x] **VOCAB-REG-1.1**: Implement the new registry mechanics in the
   `vultron/wire/as2/vocab/base/` package. Scope: infrastructure only;
   existing decorators remain in place until VOCAB-REG-1.2.
-  - Create `vultron/wire/as2/vocab/base/enums.py` with `VocabNamespace`
+  - Created `vultron/wire/as2/vocab/base/enums.py` with `VocabNamespace`
     enum (`AS`, `VULTRON`)
-  - Rewrite `vultron/wire/as2/vocab/base/registry.py`:
-    - Replace `Vocabulary(BaseModel)` with a plain
-      `VOCABULARY: dict[str, type]` module-level singleton
-    - Update `find_in_vocabulary(name: str)` to flat-dict lookup,
-      raise `KeyError` on miss; remove the `item_type` parameter
-    - Remove `activitystreams_object`, `activitystreams_activity`,
-      `activitystreams_link` decorator definitions (they will be
-      unused after VOCAB-REG-1.2)
-  - Update `vultron/wire/as2/vocab/base/base.py` (`as_Base`):
-    - Add `_vocab_ns: ClassVar[VocabNamespace] = VocabNamespace.AS`
-    - Add `__init_subclass__` that inspects the new class's `type_`
-      annotation; registers the class in `VOCABULARY` under the
-      `Literal` value if present, skips otherwise
-  - Update `vultron/wire/as2/vocab/objects/base.py` (`VultronObject`):
-    - Override `_vocab_ns = VocabNamespace.VULTRON`
-  - Add unit tests in `test/wire/as2/vocab/base/`:
-    - `__init_subclass__` registers a concrete class (Literal `type_`)
-    - `__init_subclass__` skips an abstract class (`str | None` `type_`)
-    - `find_in_vocabulary("KnownType")` returns the class
-    - `find_in_vocabulary("UnknownType")` raises `KeyError`
-    - `VultronObject` subclasses carry `_vocab_ns == VocabNamespace.VULTRON`
-  - **Done when**: new unit tests pass; no existing tests broken; the
-    old decorator functions are gone from registry.py but decorator
-    call sites in vocab class files are not yet touched (that is
-    VOCAB-REG-1.2)
+  - Rewrote `vultron/wire/as2/vocab/base/registry.py`:
+    - Replaced `Vocabulary(BaseModel)` with plain
+      `VOCABULARY: dict[str, type[BaseModel]]` module-level singleton
+    - Updated `find_in_vocabulary(name: str)` to flat-dict lookup,
+      raises `KeyError` on miss
+    - Removed `activitystreams_object`, `activitystreams_activity`,
+      `activitystreams_link` decorator definitions
+  - Updated `vultron/wire/as2/vocab/base/base.py` (`as_Base`):
+    - Added `_vocab_ns: ClassVar[VocabNamespace] = VocabNamespace.AS`
+    - Added `__init_subclass__` that inspects new class's `type_`
+      annotation and registers concrete types in `VOCABULARY`
+  - Updated `vultron/wire/as2/vocab/objects/base.py` (`VultronObject`):
+    - Overrides `_vocab_ns = VocabNamespace.VULTRON`
+  - Completed 2026-04-10.
 
 #### VOCAB-REG-1.2 — Migrate vocabulary classes and update callers
 
-- [ ] **VOCAB-REG-1.2**: Remove all `@activitystreams_*` decorator usages,
+- [x] **VOCAB-REG-1.2**: Remove all `@activitystreams_*` decorator usages,
   add startup-guarantee discovery, and update all `find_in_vocabulary()`
   callers. Depends on VOCAB-REG-1.1.
-  - Remove `@activitystreams_object` / `@activitystreams_activity` /
-    `@activitystreams_link` decorators from all vocab class files
-    (≈25 call sites across `vocab/objects/`, `vocab/activities/`,
+  - Removed `@activitystreams_object` / `@activitystreams_activity` /
+    `@activitystreams_link` decorators from all 16 vocab class files
+    (74 call sites across `vocab/objects/`, `vocab/activities/`,
     `vocab/base/objects/`, `vocab/base/links.py`)
-  - Add `pkgutil.iter_modules` + `importlib.import_module` dynamic
-    discovery to `vocab/objects/__init__.py` and
-    `vocab/activities/__init__.py`
-  - Update all five `find_in_vocabulary()` caller files to handle
-    `KeyError` instead of `None` returns:
-    - `vultron/wire/as2/rehydration.py` — already raises `KeyError`;
-      remove the `if cls is None` guard
-    - `vultron/adapters/driven/db_record.py` — remove `None` check,
-      let `KeyError` propagate
-    - `vultron/adapters/driven/datalayer_tinydb.py` — wrap calls in
-      `try/except KeyError` to preserve the silent-skip behavior for
-      unknown types during list/read
-    - `vultron/adapters/driving/fastapi/routers/actors.py` — wrap in
-      `try/except KeyError`, continue on miss
-    - `vultron/adapters/driving/fastapi/helpers.py` — catch `KeyError`,
-      raise `HTTPException(400, ...)`
-  - Add a registration completeness test: import both vocab subpackages
-    and assert every `.py` module in `vocab/objects/` and
-    `vocab/activities/` contributes at least one class to `VOCABULARY`
-  - Run the full test suite and confirm it passes
-  - **Done when**: no `@activitystreams_*` decorators remain in codebase,
-    dynamic discovery is active, all callers updated, completeness test
-    passes, full test suite green
+  - Added `pkgutil.iter_modules` + `importlib.import_module` dynamic
+    discovery to `vocab/objects/__init__.py`, `vocab/activities/__init__.py`,
+    `vocab/base/objects/__init__.py`, and
+    `vocab/base/objects/activities/__init__.py`
+  - Registered `as_Actor` explicitly (`VOCABULARY["Actor"] = as_Actor`) since
+    it has no concrete `type_` annotation but is stored as type `"Actor"`
+  - Updated all `find_in_vocabulary()` caller files to handle `KeyError`
+  - Added activity-type check in `parser.py` (`issubclass(cls, as_Activity)`)
+  - Added unit tests in `test/wire/as2/vocab/base/test_registry.py`
+  - Added completeness tests in `test/wire/as2/vocab/base/test_registry_completeness.py`
+  - Added BUG-26040902 regression test in
+    `test/core/behaviors/case/test_bug_26040902_regression.py`
+  - Completed 2026-04-10.
+
+#### OUTBOX-MON-1 — OutboxMonitor background loop
+
+- [ ] **OUTBOX-MON-1**: Implement a background outbox-drain loop that
+  periodically checks all actor outboxes and delivers pending activities to
+  their targets' inboxes. This is the transport mechanism that ensures
+  outbox→inbox delivery happens automatically without requiring an external
+  trigger.
+
+  **Motivation**: After VOCAB-REG-1.2 fixes the BT registry bug, vendors will
+  correctly generate `Create(VulnerabilityCase)` outbox entries. However, those
+  entries must be delivered to the finder's inbox. Currently delivery happens
+  only when triggered by inbox processing or explicit trigger calls.  A
+  background monitor ensures delivery is fully automatic.
+
+  **Design**:
+  - Add `OutboxMonitor` class (or async function) in
+    `vultron/adapters/driving/fastapi/outbox_monitor.py`
+  - Polls every 1–2 seconds via `asyncio.sleep` inside a `while True` loop
+  - Iterates over all registered actor DataLayer instances
+  - For each actor with a non-empty outbox, calls `outbox_handler(actor_id, ...)`
+  - Resolve target actor inbox URLs and POST activities
+  - Start/stop monitor in FastAPI lifespan (`app.py`)
+  - Add unit tests verifying drain, delivery, and error handling
+
+  **Acceptance criteria**:
+  - Docker integration test (`two-actor` scenario) passes end-to-end
+  - Finder receives `VulnerabilityCase` without manual trigger
+  - Monitor handles delivery failures gracefully (logs error, does not crash)
+
+  **Priority**: High (completes the fix for BUG-26040902 end-to-end delivery)
 
 ### EMBARGO-DUR-1 — Update EmbargoPolicy model to ISO 8601 duration format
 
