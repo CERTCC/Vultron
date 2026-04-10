@@ -243,57 +243,50 @@ delivered. The `Create(VulnerabilityCase)` activity is **never
 processed from the outbox at all** — the problem is upstream of
 serialization.
 
-### Updated root cause hypothesis
+### Updated root cause hypothesis (2026-04-10, confirmed)
 
-The `Create(VulnerabilityCase)` activity is either:
+**Hypothesis D — confirmed root cause**: `ReceiveReportCaseBT` fails silently
+because `TinyDbDataLayer.read(report_id)` returns `None` for `VulnerabilityReport`
+objects in production. The failure point is `CreateCaseNode.update()` →
+`dl.read(report_id, raise_on_missing=True)` → `_object_from_storage()` →
+`find_in_vocabulary("VulnerabilityReport")` → `None`. Because the vocabulary
+registry has no entry for `"VulnerabilityReport"`, `_object_from_storage`
+returns `None`, `read()` raises `KeyError`, the `except Exception` in
+`CreateCaseNode.update()` catches it and returns `Status.FAILURE`, and the
+entire tree short-circuits. No `Create(VulnerabilityCase)` activity is ever
+created, no outbox entry is written, and the finder never receives anything.
 
-**Hypothesis A** (most likely): Never queued into the outbox. The
-activity IS created by `ReceiveReportCaseBT` / `UpdateActorOutbox`,
-but the `record_outbox_item` call writes to a table keyed by the
-vendor actor's canonical URI. If the BT node resolves the actor URI
-differently than the outbox handler reads it, the entry is written to
-a different table than is drained. Specifically: the BT may write
-using the short UUID (e.g. `54dacb37-...`) while the outbox handler
-reads from `http://vendor:7999/api/v2/actors/54dacb37-..._outbox`.
+Hypotheses A, B, and C (table scoping, empty recipients, timing race) are all
+superseded by Hypothesis D. They may represent additional latent issues but
+are not the primary failure.
 
-**Hypothesis B**: The activity IS queued but has an empty `to=`
-recipients list. `UpdateActorOutbox` in `ReceiveReportCaseBT`
-collects recipients from `case.actor_participant_index` — if the
-finder is not yet registered there at the time the BT runs (offer
-inbox processing happens before `validate-report` seeds the
-participant index), the recipients list will be empty and delivery is
-skipped silently.
+**Why tests pass despite this bug**: `test/core/behaviors/case/conftest.py`
+imports `VulnerabilityCase` from `vultron.wire.as2.vocab.objects.vulnerability_case`
+as a side effect specifically to populate the vocabulary registry. This conftest
+comment reads: *"Without this import the registry may be empty when tests run
+in isolation, causing TinyDB's record_to_object() to fall back to returning a
+raw Document instead of a deserialized domain object."* In production (Docker),
+no equivalent import happens before the BT runs, so the vocabulary is empty
+for all domain types (`VulnerabilityReport`, `VulnerabilityCase`, `Service`).
 
-**Hypothesis C**: The outbox IS drained after offer processing, but
-the finder inbox handler (a background task) hasn't stored the case
-yet when `wait_for_finder_case` starts polling. This is a timing
-race, not a logic bug. Increasing the poll timeout or retry interval
-would work around it but not fix the root cause.
+**The fix**: Either (a) ensure the vocabulary is populated at application
+startup (e.g. import domain types in `__init__.py` or app startup), or (b)
+make `_object_from_storage` fall back to a domain-type registry that does not
+depend on AS2 wire vocabulary. Option (a) is simpler and lower risk.
 
 ### Next steps
 
-1. **Instrument `record_outbox_item`** — add a DEBUG log line showing
-   the exact table name written and the activity ID. Compare to the
-   table name the outbox handler reads from. This will confirm or
-   rule out Hypothesis A.
+1. **Fix vocabulary registration at startup** — import
+   `vultron.wire.as2.vocab.objects.vulnerability_case` (and peer domain
+   vocabulary modules) in the application startup path so that
+   `find_in_vocabulary` returns the correct class at runtime.
 
-2. **Inspect `UpdateActorOutbox.update()`** — check what `to=`
-   recipients are collected at BT runtime (offer inbox processing),
-   specifically whether the finder participant appears in
-   `case.actor_participant_index` at that point.
+2. **Add a regression test** that runs `ReceiveReportCaseBT` with a
+   `VultronReport` stored via `dl.create()` in an in-process DL instance
+   that has NOT gone through the test conftest import. The test should
+   assert that the tree returns `Status.SUCCESS` and that an outbox entry
+   is created. This guards against the vocabulary not being populated.
 
-3. **Check timing of participant seeding** — `SubmitReportReceivedUseCase`
-   processes the offer and runs `ReceiveReportCaseBT`. Does the finder
-   get seeded as a case participant before `UpdateActorOutbox` runs?
-   Look at `CreateInitialVendorParticipant` and peer participant nodes.
-
-4. **Add an integration-level smoke test** that directly calls the
-   offer inbox endpoint in-process and asserts that an outbox entry
-   with a non-empty `to=` list is created. This would catch
-   regressions without needing Docker.
-
-5. **If Hypothesis B is confirmed**: Fix `ReceiveReportCaseBT` to
-   ensure the finder/reporter is added as a case participant before
-   `UpdateActorOutbox` runs, OR move the `Create(VulnerabilityCase)`
-   outbox queuing to after participant seeding (e.g. end of
-   `validate-report` trigger instead of offer inbox processing).
+3. **Verify fix with Docker integration test**:
+   `integration_tests/demo/run_multi_actor_integration_test.sh` must exit
+   with "SUCCESS: scenario 'two-actor' passed."
