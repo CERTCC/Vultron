@@ -905,10 +905,12 @@ class TestFullReportFlow:
         )
 
     def test_full_flow_vendor_in_rm_valid_after_validate(self):
-        """After validate-report, vendor participant is in RM.VALID state.
+        """After validate-report, vendor participant has RM.VALID in history.
 
         Per ADR-0015: validation transitions the vendor's RM state from
-        RECEIVED to VALID; this state change must be persisted.
+        RECEIVED to VALID; this state change must be persisted.  The
+        subsequent auto-cascade advances to ACCEPTED, but the VALID record
+        is still present in the append-only history.
         """
         dl = self._setup_dl()
         SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
@@ -921,7 +923,40 @@ class TestFullReportFlow:
         )
         assert (
             dl.get("ParticipantStatus", valid_id) is not None
-        ), f"Vendor {self.VENDOR_ID} must be RM.VALID after validate-report"
+        ), f"Vendor {self.VENDOR_ID} must have RM.VALID in history after validate-report"
+
+    def test_full_flow_vendor_auto_engages_after_validate(self):
+        """validate-report auto-cascades to engage-case (RM.VALID → RM.ACCEPTED).
+
+        D5-7-AUTOENG-2: after validate-report succeeds, ValidateCaseUseCase
+        automatically invokes SvcEngageCaseUseCase so the vendor's
+        CaseParticipant ends at RM.ACCEPTED without a separate trigger call.
+        """
+        dl = self._setup_dl()
+        SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
+        ValidateReportReceivedUseCase(
+            dl, self._make_validate_event()
+        ).execute()
+
+        case_obj = cast(
+            VulnerabilityCase, dl.find_case_by_report_id(self.REPORT_ID)
+        )
+        assert (
+            case_obj is not None
+        ), f"VulnerabilityCase for report '{self.REPORT_ID}' must exist"
+        participant_id = case_obj.actor_participant_index.get(self.VENDOR_ID)
+        assert (
+            participant_id is not None
+        ), f"Vendor '{self.VENDOR_ID}' must be in actor_participant_index"
+        participant = cast(VultronParticipant, dl.read(participant_id))
+        assert (
+            participant is not None
+        ), f"CaseParticipant '{participant_id}' must exist in DataLayer"
+        latest_status = participant.participant_statuses[-1]
+        assert latest_status.rm_state == RM.ACCEPTED, (
+            f"Vendor must auto-engage to RM.ACCEPTED after validate-report "
+            f"(got {latest_status.rm_state})"
+        )
 
     def test_full_flow_finder_remains_rm_accepted(self):
         """Finder participant is RM.ACCEPTED after submit and remains so after validate.
@@ -950,9 +985,9 @@ class TestFullReportFlow:
     def test_full_flow_produces_correct_final_state(self):
         """Full flow from Offer receipt to validation produces the expected state.
 
-        Verifies the combined invariants of ADR-0015:
+        Verifies the combined invariants of ADR-0015 and D5-7-AUTOENG-2:
         - Exactly one VulnerabilityCase
-        - Vendor participant at RM.VALID
+        - Vendor participant ends at RM.ACCEPTED (auto-cascaded from VALID)
         - Finder participant at RM.ACCEPTED
         """
         dl = self._setup_dl()
@@ -969,7 +1004,7 @@ class TestFullReportFlow:
         )
         assert (
             dl.get("ParticipantStatus", valid_id) is not None
-        ), "Vendor must be RM.VALID after full Offer(Report) to Accept flow"
+        ), "Vendor must have RM.VALID in history after validate-report"
 
         accepted_id = _report_phase_status_id(
             self.FINDER_ID, self.REPORT_ID, RM.ACCEPTED.value

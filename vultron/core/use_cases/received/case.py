@@ -22,6 +22,8 @@ from vultron.core.models.protocols import (
 )
 from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import _as_id, update_participant_rm_state
+from vultron.core.use_cases.triggers.case import SvcEngageCaseUseCase
+from vultron.core.use_cases.triggers.requests import EngageCaseTriggerRequest
 
 logger = logging.getLogger(__name__)
 
@@ -450,6 +452,11 @@ class ValidateCaseUseCase:
 
     Called by ``ValidateReportReceivedUseCase`` after dereferencing
     report_id to case_id (CM-12-005).
+
+    After successful BT validation (RM → VALID), auto-cascades to engage the
+    case (RM → ACCEPTED) using the default policy of immediate engagement.
+    This eliminates the need for a separate manual ``engage-case`` trigger call
+    (D5-7-AUTOENG-2).
     """
 
     def __init__(
@@ -489,6 +496,7 @@ class ValidateCaseUseCase:
             logger.info(
                 "✓ BT validation succeeded for report: %s", self._report_id
             )
+            self._auto_engage()
         elif result.status == Status.FAILURE:
             logger.error(
                 "✗ BT validation failed for report: %s — %s",
@@ -503,3 +511,30 @@ class ValidateCaseUseCase:
                 self._report_id,
                 result.status,
             )
+
+    def _auto_engage(self) -> None:
+        """Auto-cascade to engage-case (RM.VALID → RM.ACCEPTED) after validation.
+
+        Default policy: engage immediately.  If no case_id is available the
+        cascade is skipped with a warning.
+        """
+        case_id = self._case_id
+        if case_id is None:
+            logger.warning(
+                "ValidateCaseUseCase: case_id not available — "
+                "skipping auto-engage cascade for actor '%s' / report '%s'",
+                self._actor_id,
+                self._report_id,
+            )
+            return
+
+        logger.info(
+            "Auto-cascading validate → engage for actor '%s' in case '%s' "
+            "(D5-7-AUTOENG-2 default policy: engage immediately)",
+            self._actor_id,
+            case_id,
+        )
+        SvcEngageCaseUseCase(
+            self._dl,
+            EngageCaseTriggerRequest(actor_id=self._actor_id, case_id=case_id),
+        ).execute()

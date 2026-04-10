@@ -13,8 +13,8 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 
 ### Current Status Summary
 
-**Test suite**: Canonical validation last passed on 2026-04-08
-(1262 passed, 5581 subtests; `black`, `flake8`, `mypy`, `pyright`, full
+**Test suite**: Canonical validation last passed on 2026-04-14
+(1413 passed, 10 skipped, 5581 subtests; `black`, `flake8`, `mypy`, `pyright`, full
 `pytest` run).
 
 All 38 message handlers implemented (including `unknown`). All 9 trigger
@@ -37,7 +37,7 @@ D5-6-WORKFLOW (all ✅); D5-6-DUP, D5-6-TRIGDELIV, D5-6-LOGCTX (all ✅);
 D5-6-DEMOAUDIT ✅; D5-6-AUTOENG ✅; D5-6-NOTECAST ✅; D5-6-CASEPROP ✅;
 D5-6-EMBARGORCP ✅
 **PRIORITY-320** Round-2 demo feedback (independent tasks) —
-D5-7-EMSTATE-1 ✅, D5-7-AUTOENG-2, D5-7-TRIGNOTIFY-1, D5-7-DEMONOTECLEAN-1
+D5-7-EMSTATE-1 ✅, D5-7-AUTOENG-2 ✅, D5-7-TRIGNOTIFY-1, D5-7-DEMONOTECLEAN-1
 (pending). D5-7-MSGORDER-1 ✅, D5-7-LOGCLEAN-1 ✅.
 D5-7-CASEREPL-1 and D5-7-ADDOBJ-1 superseded by SYNC-2 (see Priority 330).
 D5-7-DEMOREPLCHECK-1 and D5-7-HUMAN deferred until after SYNC-2.

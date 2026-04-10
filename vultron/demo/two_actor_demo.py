@@ -36,8 +36,9 @@ Workflow
 3. **Submit**: Finder submits a vulnerability report to the Vendor's inbox.
 4. **Validate**: Vendor validates the report via the ``validate-report``
    trigger endpoint.
-5. **Engage**: Vendor engages the resulting case via the ``engage-case``
-   trigger endpoint.
+5. **Engage**: Validation automatically cascades to engage the case
+   (RM.VALID → RM.ACCEPTED) without a separate trigger call
+   (D5-7-AUTOENG-2).
 6. **Add Participant**: Vendor directly adds the Finder as a case participant
    (the Finder expressed intent to participate by submitting the report;
    no invite/accept flow is required for initial participants).
@@ -775,15 +776,16 @@ def run_two_actor_demo(
 
     # ── Step 3: Vendor validates report ──────────────────────────────────
     # Per ADR-0015, case creation and participant seeding now happen at
-    # RM.RECEIVED (finder_submits_report above).  validate-report only
-    # advances the vendor's RM state from RECEIVED to VALID.
+    # RM.RECEIVED (finder_submits_report above).  validate-report advances
+    # the vendor's RM state from RECEIVED to VALID and then automatically
+    # cascades to engage-case (VALID → ACCEPTED) per D5-7-AUTOENG-2.
     vendor_validates_report(
         vendor_client=vendor_client,
         vendor=vendor_in_vendor,
         offer_id=offer.id_,
     )
 
-    # ── Step 3b: Vendor engages case (RM.VALID → RM.ACCEPTED) ────────────
+    # ── Step 3b: Confirm case exists (engage-case now auto-cascades) ──────
     with demo_check("VulnerabilityCase exists in Vendor's DataLayer"):
         case = find_case_for_offer(vendor_client, offer.id_)
         if case is None:
@@ -791,14 +793,6 @@ def run_two_actor_demo(
                 "Expected VulnerabilityCase to be created after validate-report"
             )
         logger.info("Case created: %s", case.id_)
-
-    with demo_step("Vendor engages case (RM.VALID → RM.ACCEPTED)"):
-        post_to_trigger(
-            client=vendor_client,
-            actor_id=vendor_in_vendor.id_,
-            behavior="engage-case",
-            body={"case_id": case.id_},
-        )
 
     wait_for_case_participants(
         vendor_client=vendor_client,
