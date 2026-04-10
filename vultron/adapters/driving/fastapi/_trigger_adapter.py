@@ -37,6 +37,7 @@ from vultron.core.use_cases.triggers.embargo import (
     SvcProposeEmbargoUseCase,
     SvcTerminateEmbargoUseCase,
 )
+from vultron.core.use_cases.triggers.note import SvcAddNoteToCaseUseCase
 from vultron.core.use_cases.triggers.report import (
     SvcCloseReportUseCase,
     SvcInvalidateReportUseCase,
@@ -45,6 +46,7 @@ from vultron.core.use_cases.triggers.report import (
     SvcValidateReportUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
+    AddNoteToCaseTriggerRequest,
     CloseReportTriggerRequest,
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
@@ -164,3 +166,22 @@ def submit_report_trigger(
             recipient_id=recipient_id,
         )
         return SvcSubmitReportUseCase(dl, request).execute()
+
+
+def add_note_to_case_trigger(
+    actor_id: str,
+    case_id: str,
+    note_name: str,
+    note_content: str,
+    in_reply_to: str | None,
+    dl: DataLayer,
+) -> dict:
+    with domain_error_translation():
+        request = AddNoteToCaseTriggerRequest(
+            actor_id=actor_id,
+            case_id=case_id,
+            note_name=note_name,
+            note_content=note_content,
+            in_reply_to=in_reply_to,
+        )
+        return SvcAddNoteToCaseUseCase(dl, request).execute()

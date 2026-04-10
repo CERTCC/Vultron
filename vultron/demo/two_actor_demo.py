@@ -61,13 +61,9 @@ from vultron.adapters.utils import parse_id
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.wire.as2.vocab.activities.case import (
-    AddNoteToCaseActivity,
-)
 from vultron.wire.as2.vocab.activities.report import (
     RmSubmitReportActivity,
 )
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import (
@@ -367,59 +363,104 @@ def vendor_validates_report(
     return result
 
 
+def wait_for_note_in_case(
+    client: DataLayerClient,
+    case_id: str,
+    note_id: str,
+    timeout_seconds: float = 10.0,
+    poll_interval: float = 0.5,
+) -> None:
+    """Poll until *note_id* appears in the ``notes`` list of the case.
+
+    Used to confirm that an outbox-delivered note has been processed by
+    the receiving actor's inbox handler.
+
+    Args:
+        client: DataLayerClient for the container to poll.
+        case_id: Full URI of the case.
+        note_id: Full URI of the note to wait for.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Raises:
+        AssertionError: If *note_id* does not appear within *timeout_seconds*.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            case_data = client.get(f"/datalayer/{case_id}")
+            case = VulnerabilityCase(**case_data)
+            note_ids = [
+                n if isinstance(n, str) else getattr(n, "id_", str(n))
+                for n in case.notes
+            ]
+            if note_id in note_ids:
+                return
+        except Exception:  # noqa: BLE001
+            pass
+        time.sleep(poll_interval)
+
+    raise AssertionError(
+        f"Timed out waiting for note {note_id!r} to appear in case "
+        f"{case_id!r}"
+    )
+
+
 def finder_asks_question(
     vendor_client: DataLayerClient,
+    finder_client: DataLayerClient,
     vendor: as_Actor,
     finder: as_Actor,
     case: VulnerabilityCase,
 ) -> as_Note:
-    """Finder posts a question note to the case via the Vendor's inbox.
+    """Finder posts a question note to the case via the trigger endpoint.
 
-    In the two-actor scenario the Vendor acts as the case host, so the
-    Finder delivers notes to the Vendor's inbox (which is the case-actor
-    inbox).  Both the ``Create`` and ``AddNoteToCase`` activities carry an
-    explicit ``to`` field set to the Vendor actor ID to reflect that the
-    Vendor is the intended case-host recipient.
+    Uses the finder's ``add-note-to-case`` trigger so the note flows through
+    the finder's outbox to the vendor's inbox — reflecting real deployment
+    behavior (D5-7-DEMONOTECLEAN-1).
 
     Args:
         vendor_client: Client connected to the Vendor container.
+        finder_client: Client connected to the Finder container.
         vendor: Vendor ``as_Actor`` (the case host / case actor).
         finder: Finder ``as_Actor`` (posting the question).
         case: The ``VulnerabilityCase`` the note belongs to.
 
     Returns:
-        The ``as_Note`` question note.
+        The ``as_Note`` question note fetched from the Vendor's DataLayer.
     """
-    question_note = as_Note(
-        name="Question from Finder",
-        content=(
-            "Is there a workaround available while waiting for the patch? "
-            "Our security team needs to provide interim guidance to users."
-        ),
-        context=case.id_,
-        attributed_to=finder.id_,
-    )
-    # Address the Create activity to the Vendor acting as the case host.
-    create_note = as_Create(
-        actor=finder.id_,
-        object_=question_note,
-        to=[vendor.id_],
-    )
-    add_note = AddNoteToCaseActivity(
-        actor=finder.id_,
-        object_=question_note,
-        target=case.id_,
-        to=[vendor.id_],
+    note_name = "Question from Finder"
+    note_content = (
+        "Is there a workaround available while waiting for the patch? "
+        "Our security team needs to provide interim guidance to users."
     )
 
     with demo_step("Finder posts a question note to the case"):
-        post_to_inbox_and_wait(vendor_client, vendor.id_, create_note)
-        post_to_inbox_and_wait(vendor_client, vendor.id_, add_note)
-    with demo_check("Question note stored in Vendor's DataLayer"):
-        verify_object_stored(vendor_client, question_note.id_)
+        result = post_to_trigger(
+            client=finder_client,
+            actor_id=finder.id_,
+            behavior="add-note-to-case",
+            body={
+                "case_id": case.id_,
+                "note_name": note_name,
+                "note_content": note_content,
+            },
+        )
 
-    logger.info("Question note posted to case: %s", ref_id(question_note))
-    return question_note
+    note_id = result.get("note", {}).get("id")
+    if note_id is None:
+        raise AssertionError(
+            "add-note-to-case trigger did not return a note ID"
+        )
+
+    with demo_check("Question note delivered to Vendor's DataLayer"):
+        wait_for_note_in_case(vendor_client, case.id_, note_id)
+        verify_object_stored(vendor_client, note_id)
+
+    logger.info("Question note posted to case: %s", note_id)
+
+    note_data = vendor_client.get(f"/datalayer/{note_id}")
+    return as_Note(**note_data)
 
 
 def vendor_replies_to_question(
@@ -430,11 +471,13 @@ def vendor_replies_to_question(
     case: VulnerabilityCase,
     question_note: as_Note,
 ) -> as_Note:
-    """Vendor posts a reply note to the case.
+    """Vendor posts a reply note to the case via the trigger endpoint.
 
-    The Vendor adds the reply to the case. The case host (CaseActor) then
-    automatically broadcasts the note to all participants via the note
-    broadcast mechanism (CM-06-005).
+    Uses the vendor's ``add-note-to-case`` trigger so the note flows through
+    the vendor's outbox — reflecting real deployment behavior
+    (D5-7-DEMONOTECLEAN-1).  The case host (CaseActor) then automatically
+    broadcasts the note to all participants via the note broadcast mechanism
+    (CM-06-005).
 
     Args:
         vendor_client: Client connected to the Vendor container.
@@ -445,40 +488,41 @@ def vendor_replies_to_question(
         question_note: The original question note being replied to.
 
     Returns:
-        The ``as_Note`` reply note.
+        The ``as_Note`` reply note fetched from the Vendor's DataLayer.
     """
-    reply_note = as_Note(
-        name="Vendor Response",
-        content=(
-            "Yes, disabling the affected network stack component is an effective "
-            "workaround. A patched version is expected within 30 days. "
-            "We will notify all case participants when it is available."
-        ),
-        context=case.id_,
-        attributed_to=vendor.id_,
-        in_reply_to=question_note.id_,
-    )
-    # Address the Create activity to the Vendor (self-post to own case host).
-    create_reply = as_Create(
-        actor=vendor.id_,
-        object_=reply_note,
-        to=[vendor.id_],
-    )
-    add_reply = AddNoteToCaseActivity(
-        actor=vendor.id_,
-        object_=reply_note,
-        target=case.id_,
-        to=[vendor.id_],
+    note_name = "Vendor Response"
+    note_content = (
+        "Yes, disabling the affected network stack component is an effective "
+        "workaround. A patched version is expected within 30 days. "
+        "We will notify all case participants when it is available."
     )
 
     with demo_step("Vendor posts a reply note to the case"):
-        post_to_inbox_and_wait(vendor_client, vendor.id_, create_reply)
-        post_to_inbox_and_wait(vendor_client, vendor.id_, add_reply)
-    with demo_check("Reply note stored in Vendor's DataLayer"):
-        verify_object_stored(vendor_client, reply_note.id_)
+        result = post_to_trigger(
+            client=vendor_client,
+            actor_id=vendor.id_,
+            behavior="add-note-to-case",
+            body={
+                "case_id": case.id_,
+                "note_name": note_name,
+                "note_content": note_content,
+                "in_reply_to": question_note.id_,
+            },
+        )
 
-    logger.info("Reply note posted to case: %s", ref_id(reply_note))
-    return reply_note
+    note_id = result.get("note", {}).get("id")
+    if note_id is None:
+        raise AssertionError(
+            "add-note-to-case trigger did not return a note ID"
+        )
+
+    with demo_check("Reply note stored in Vendor's DataLayer"):
+        verify_object_stored(vendor_client, note_id)
+
+    logger.info("Reply note posted to case: %s", note_id)
+
+    note_data = vendor_client.get(f"/datalayer/{note_id}")
+    return as_Note(**note_data)
 
 
 def find_case_for_offer(
@@ -826,6 +870,7 @@ def run_two_actor_demo(
 
     question_note = finder_asks_question(
         vendor_client=vendor_client,
+        finder_client=finder_client,
         vendor=vendor_in_vendor,
         finder=finder_in_finder,
         case=case,

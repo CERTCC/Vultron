@@ -179,3 +179,18 @@ class SubmitReportRequest(BaseModel):
     report_name: NonEmptyString
     report_content: NonEmptyString
     recipient_id: UriString
+
+
+class AddNoteToCaseRequest(BaseModel):
+    """Request body for the add-note-to-case trigger endpoint.
+
+    TB-03-001: Must include case_id to identify the target case.
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString
+    note_name: NonEmptyString
+    note_content: NonEmptyString
+    in_reply_to: NonEmptyString | None = None

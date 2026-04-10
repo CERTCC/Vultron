@@ -108,3 +108,11 @@ class EvaluateEmbargoTriggerRequest(CaseTriggerRequest):
 
 class TerminateEmbargoTriggerRequest(CaseTriggerRequest):
     pass
+
+
+class AddNoteToCaseTriggerRequest(CaseTriggerRequest):
+    """Trigger request for adding a note to a case."""
+
+    note_name: NonEmptyString
+    note_content: NonEmptyString
+    in_reply_to: NonEmptyString | None = None

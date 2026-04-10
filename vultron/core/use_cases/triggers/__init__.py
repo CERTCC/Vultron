@@ -31,6 +31,7 @@ from vultron.core.use_cases.triggers.embargo import (
     SvcProposeEmbargoUseCase,
     SvcTerminateEmbargoUseCase,
 )
+from vultron.core.use_cases.triggers.note import SvcAddNoteToCaseUseCase
 from vultron.core.use_cases.triggers.report import (
     SvcCloseReportUseCase,
     SvcInvalidateReportUseCase,
@@ -48,4 +49,5 @@ __all__ = [
     "SvcProposeEmbargoUseCase",
     "SvcEvaluateEmbargoUseCase",
     "SvcTerminateEmbargoUseCase",
+    "SvcAddNoteToCaseUseCase",
 ]

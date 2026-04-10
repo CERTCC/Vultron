@@ -23,11 +23,15 @@ All domain logic lives in vultron.core.use_cases.triggers.case.
 from fastapi import APIRouter, BackgroundTasks, Depends, Path, status
 
 from vultron.adapters.driving.fastapi._trigger_adapter import (
+    add_note_to_case_trigger,
     defer_case_trigger,
     engage_case_trigger,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
-from vultron.adapters.driving.fastapi.trigger_models import CaseTriggerRequest
+from vultron.adapters.driving.fastapi.trigger_models import (
+    AddNoteToCaseRequest,
+    CaseTriggerRequest,
+)
 from vultron.core.ports.datalayer import DataLayer
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 
@@ -120,5 +124,43 @@ def trigger_defer_case(
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
     result = defer_case_trigger(actor_id, body.case_id, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result
+
+
+@router.post(
+    "/{actor_id}/trigger/add-note-to-case",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Add a note to a case.",
+    description=(
+        "Triggers the add-note-to-case behavior for the given actor. "
+        "Creates a Note, adds it to the actor's local copy of the case, "
+        "and queues Create(Note) and AddNoteToCase(Note, Case) activities "
+        "in the actor's outbox for delivery to case participants."
+    ),
+    operation_id="actors_trigger_add_note_to_case",
+)
+def trigger_add_note_to_case(
+    actor_id: str,
+    body: AddNoteToCaseRequest,
+    background_tasks: BackgroundTasks,
+    dl: DataLayer = Depends(_actor_dl),
+    actor_dl: DataLayer = Depends(_canonical_actor_dl),
+) -> dict:
+    """
+    Trigger the add-note-to-case behavior for the given actor.
+
+    Implements:
+        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-04-001, TB-06-001, TB-06-002
+    """
+    result = add_note_to_case_trigger(
+        actor_id=actor_id,
+        case_id=body.case_id,
+        note_name=body.note_name,
+        note_content=body.note_content,
+        in_reply_to=body.in_reply_to,
+        dl=dl,
+    )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result

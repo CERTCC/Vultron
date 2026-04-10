@@ -5537,3 +5537,40 @@ position was never updated.
 - `uv run mypy` / `uv run pyright` → 0 errors
 - `uv run pytest --tb=short 2>&1 | tail -5` →
   `1413 passed, 10 skipped, 5581 subtests passed in 84.37s`
+
+## D5-7-DEMONOTECLEAN-1 — Use trigger API for notes in two-actor demo
+
+**Completed**: 2026-05-15
+
+**Summary**: Replaced the two-actor demo's direct inbox POSTs (`Create(Note)` +
+`AddNoteToCase`) with proper trigger API calls so that finder notes flow through
+the finder's outbox rather than being posted directly to the vendor's inbox.
+Vendor replies similarly use the vendor's trigger endpoint.
+
+**Changes**:
+
+- `vultron/core/use_cases/triggers/requests.py`: Added `AddNoteToCaseTriggerRequest`.
+- `vultron/core/use_cases/triggers/note.py`: New `SvcAddNoteToCaseUseCase` —
+  creates note in DataLayer, adds to local case.notes, queues `Create(Note)` and
+  `AddNoteToCase` in actor outbox with `to` populated from case participants.
+- `vultron/core/use_cases/triggers/__init__.py`: Exported `SvcAddNoteToCaseUseCase`.
+- `vultron/adapters/driving/fastapi/trigger_models.py`: Added `AddNoteToCaseRequest`.
+- `vultron/adapters/driving/fastapi/_trigger_adapter.py`: Added `add_note_to_case_trigger`.
+- `vultron/adapters/driving/fastapi/routers/trigger_case.py`: Added
+  `trigger_add_note_to_case` endpoint at `/{actor_id}/trigger/add-note-to-case`.
+- `vultron/demo/two_actor_demo.py`: Rewrote `finder_asks_question` and
+  `vendor_replies_to_question` to use trigger endpoints; added
+  `wait_for_note_in_case` helper; removed now-unused `AddNoteToCaseActivity`
+  and `as_Create` imports.
+- `test/core/use_cases/triggers/test_note_trigger.py`: 12 new tests covering note
+  creation, DataLayer persistence, outbox queuing, `to` field population, and
+  `in_reply_to` handling.
+- `test/demo/test_two_actor_demo.py`: Updated test calls to pass new
+  `finder_client` parameter to `finder_asks_question`.
+
+**Validation**:
+
+- `uv run black vultron/ test/ && uv run flake8 vultron/ test/` → clean
+- `uv run mypy` / `uv run pyright` → 0 errors
+- `uv run pytest --tb=short 2>&1 | tail -5` →
+  `1425 passed, 10 skipped, 5581 subtests passed in 83.31s`

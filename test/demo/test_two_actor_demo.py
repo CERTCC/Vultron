@@ -350,6 +350,7 @@ class TestFinderAsksQuestion:
 
         question_note = demo.finder_asks_question(
             vendor_client=vendor_client,
+            finder_client=finder_client,
             vendor=vendor_in_vendor,
             finder=finder_in_finder,
             case=case,
@@ -368,6 +369,7 @@ class TestFinderAsksQuestion:
 
         question_note = demo.finder_asks_question(
             vendor_client=vendor_client,
+            finder_client=finder_client,
             vendor=vendor_in_vendor,
             finder=finder_in_finder,
             case=case,

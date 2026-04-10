@@ -627,7 +627,7 @@ references.
 
 #### D5-7-DEMONOTECLEAN-1 — Use trigger API for notes in two-actor demo
 
-- [ ] **D5-7-DEMONOTECLEAN-1**: The two-actor demo directly POSTs
+- [x] **D5-7-DEMONOTECLEAN-1**: The two-actor demo directly POSTs
   `Create(Note)` and `Add(Note)` activities to the vendor's inbox on behalf of
   the finder (lines 648–695), bypassing the trigger API and the finder's outbox.
   This is a demo shortcut that does not reflect real deployment behavior.
