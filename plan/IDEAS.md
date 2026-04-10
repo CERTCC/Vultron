@@ -137,3 +137,17 @@ are no public messages (which in ActivityPub would be an Activity lacking a
 `to:`). So we should make it a requirement (or two) that only activities
 with a `to:` field can be posted an outbox, and this should be on the outbox
 port itself as an acceptance criteria that raises an exception when violated.
+
+## IDEA-26041002 Default embargo should result in `EM.ACTIVE` not `EM.PROPOSED`
+
+Contrary to what was implemented in `D5-7-EMSTATE-1`, when a default embargo
+is applied to a newly created case, the resulting embargo state should be
+`EM.ACTIVE`, not `EM.PROPOSED`. The rationale for this is that if the
+reporter did not request otherwise, then the submission of the report signals
+the reporter tacitly accepting the receiver's default embargo. So when a
+case is created and a default embargo is applied, the embargo can be
+considered to be active immediately. The reporter can always propose a
+revision later if desired, but we don't want to leave the case in a limbo
+state of `EM.PROPOSED`, which would imply that *no embargo exists* until the
+reporter explicitly accepts the default embargo. See  
+`docs/topics/process_models/em/defaults.md` for more discussion.
