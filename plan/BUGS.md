@@ -66,27 +66,29 @@ demo-runner-1 exited with code 1
 
 ## BUG-2026040902 Finder timeout (incomplete fix of BUG-2026040901)
 
-**Status**: Fixed (VOCAB-REG-1.1+1.2, committed 2026-04-10). Root cause was
-an empty vocabulary registry in Docker — `find_in_vocabulary("VulnerabilityReport")`
-returned `KeyError` because no vocab modules were imported at startup, causing
-`ReceiveReportCaseBT` to fail silently. Fixed by adding `__init_subclass__`
-auto-registration to `as_Base` and dynamic module discovery in the vocab
-`__init__.py` files. Regression test added in
-`test/core/behaviors/case/test_bug_26040902_regression.py`. Docker integration
-test verification is pending (requires Docker environment).
+**Status**: Fixed and verified (2026-04-10).
+
+Two fixes were required:
+
+1. **VOCAB-REG-1.1+1.2** — empty vocabulary registry in Docker caused
+   `ReceiveReportCaseBT` to fail silently. Fixed by adding `__init_subclass__`
+   auto-registration to `as_Base` and dynamic module discovery in the vocab
+   `__init__.py` files. Regression test:
+   `test/core/behaviors/case/test_bug_26040902_regression.py`.
+
+2. **Datetime serialization** — outbox delivery failed with
+   `Object of type datetime is not JSON serializable` when posting
+   `Create(VulnerabilityCase)` to the finder's inbox. Fixed by switching
+   `DeliveryQueueAdapter` from `model_dump()` + `json=` to
+   `model_dump_json()` + `content=` with `Content-Type: application/json`,
+   so Pydantic's encoder handles `datetime`, UUID, and enum values.
+
+`integration_tests/demo/run_multi_actor_integration_test.sh two-actor` now
+exits with "SUCCESS: scenario 'two-actor' passed." (verified 2026-04-10).
 
 Remaining follow-on: **OUTBOX-MON-1** — background outbox-drain loop to
-ensure outbox→inbox delivery is automatic in Docker (added to
-`plan/IMPLEMENTATION_PLAN.md`).
-
-After the claimed fix to BUG-2026040901, the same test still fails.
-
-`integration_tests/demo/run_multi_actor_integration_test.sh` fails with a
-timeout waiting for a case to appear in the finder's DataLayer after the  
-vendor engages the case and outbox delivery is triggered. Previous fix was
-attempted but did not in fact resolve the issue.
-BUG-2026040902 is not resolved until the shell script runs and exits with
-"SUCCESS: scenario 'two-actor' passed."
+ensure outbox→inbox delivery is automatic even without an explicit trigger
+(added to `plan/IMPLEMENTATION_PLAN.md`).
 
 ### Root cause analysis (2026-04-09)
 

@@ -19,6 +19,7 @@ Responsibilities:
 Port: ``vultron.core.ports.emitter.ActivityEmitter``
 """
 
+import json
 import logging
 
 import httpx
@@ -61,17 +62,26 @@ class DeliveryQueueAdapter:
         activity_id = getattr(activity, "id_", None) or getattr(
             activity, "id", None
         )
-        if hasattr(activity, "model_dump"):
-            payload = activity.model_dump(by_alias=True, exclude_none=True)
+        # Use model_dump_json() so Pydantic's encoder handles datetime, UUID,
+        # and enum values correctly.  Passing model_dump() output to httpx's
+        # json= parameter fails for any activity whose nested objects contain
+        # datetime fields (e.g. VulnerabilityCase.events[].received_at).
+        if hasattr(activity, "model_dump_json"):
+            json_body: str = activity.model_dump_json(
+                by_alias=True, exclude_none=True
+            )
         else:
-            payload = dict(activity)
+            json_body = json.dumps(dict(activity), default=str)
 
         async with httpx.AsyncClient() as client:
             for recipient_id in recipients:
                 inbox_url = recipient_id.rstrip("/") + "/inbox/"
                 try:
                     response = await client.post(
-                        inbox_url, json=payload, timeout=5.0
+                        inbox_url,
+                        content=json_body,
+                        headers={"Content-Type": "application/json"},
+                        timeout=5.0,
                     )
                     response.raise_for_status()
                     logger.info(
