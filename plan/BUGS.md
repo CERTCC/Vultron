@@ -66,8 +66,18 @@ demo-runner-1 exited with code 1
 
 ## BUG-2026040902 Finder timeout (incomplete fix of BUG-2026040901)
 
-**Status**: Open — alias fixes applied (2026-04-10) but Docker
-integration test still fails with the same timeout symptom.
+**Status**: Fixed (VOCAB-REG-1.1+1.2, committed 2026-04-10). Root cause was
+an empty vocabulary registry in Docker — `find_in_vocabulary("VulnerabilityReport")`
+returned `KeyError` because no vocab modules were imported at startup, causing
+`ReceiveReportCaseBT` to fail silently. Fixed by adding `__init_subclass__`
+auto-registration to `as_Base` and dynamic module discovery in the vocab
+`__init__.py` files. Regression test added in
+`test/core/behaviors/case/test_bug_26040902_regression.py`. Docker integration
+test verification is pending (requires Docker environment).
+
+Remaining follow-on: **OUTBOX-MON-1** — background outbox-drain loop to
+ensure outbox→inbox delivery is automatic in Docker (added to
+`plan/IMPLEMENTATION_PLAN.md`).
 
 After the claimed fix to BUG-2026040901, the same test still fails.
 
