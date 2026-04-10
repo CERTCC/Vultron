@@ -37,10 +37,12 @@ D5-6-WORKFLOW (all ✅); D5-6-DUP, D5-6-TRIGDELIV, D5-6-LOGCTX (all ✅);
 D5-6-DEMOAUDIT ✅; D5-6-AUTOENG ✅; D5-6-NOTECAST ✅; D5-6-CASEPROP ✅;
 D5-6-EMBARGORCP ✅
 **PRIORITY-320** Round-2 demo feedback (independent tasks) —
-D5-7-EMSTATE-1 ✅, D5-7-AUTOENG-2 ✅, D5-7-TRIGNOTIFY-1, D5-7-DEMONOTECLEAN-1
+D5-7-EMSTATE-1 ✅, D5-7-AUTOENG-2 (superseded by D5-7-BTFIX-1), D5-7-TRIGNOTIFY-1, D5-7-DEMONOTECLEAN-1
 (pending). D5-7-MSGORDER-1 ✅, D5-7-LOGCLEAN-1 ✅.
 D5-7-CASEREPL-1 and D5-7-ADDOBJ-1 superseded by SYNC-2 (see Priority 330).
 D5-7-DEMOREPLCHECK-1 and D5-7-HUMAN deferred until after SYNC-2.
+**D5-7-BTFIX-1** and **D5-7-BTFIX-2** (BT cascade violations) are new
+Priority 320 items blocking D5-7-HUMAN; see IDEA-26041004.
 
 **PRIORITY-330** SYNC + demo sign-off — OUTBOX-MON-1, SYNC-1, SYNC-2, SYNC-3
 (sequential); then D5-7-DEMOREPLCHECK-1, D5-7-HUMAN sign-off.
@@ -510,26 +512,80 @@ references.
 
   **Fixes**: NEW-6.
 
-#### D5-7-AUTOENG-2 — Auto-cascade from validate-report to engage-case or defer-case
+#### D5-7-AUTOENG-2 — Auto-cascade from validate-report to engage-case or defer-case ~~SUPERSEDED~~
 
-- [ ] **D5-7-AUTOENG-2**: After `validate-report` succeeds, the demo-runner
-  manually triggers `engage-case` (line 639). In a real deployment, the vendor
-  must decide automatically whether to engage or defer based on its own policy.
-  D5-6-AUTOENG automated cascade from invitation-acceptance → engage; this task
-  automates the validate → engage/defer cascade.
+> **Implementation approach updated by IDEA-26041004.** The original fix
+> description called for invoking `SvcEngageCaseUseCase` "inline" — a
+> procedural call. This violates BT-06-005/BT-06-006. The correct
+> implementation is D5-7-BTFIX-1 below.
+
+- [x] **D5-7-AUTOENG-2**: After `validate-report` succeeds, the demo-runner
+  manually triggers `engage-case`. The automated cascade is now tracked as
+  **D5-7-BTFIX-1** with the correct BT-subtree implementation approach.
+
+  **Superseded by**: D5-7-BTFIX-1.
+
+#### D5-7-BTFIX-1 — Refactor validate→engage/defer cascade to BT subtree
+
+- [ ] **D5-7-BTFIX-1**: `SvcValidateReportUseCase` (triggers/report.py:170)
+  and `ValidateCaseUseCase` (received/case.py:499) both call
+  `SvcEngageCaseUseCase().execute()` procedurally after the validate BT
+  completes (`_auto_engage()` pattern). This violates BT-06-005/BT-06-006:
+  the validate→engage/defer cascade is invisible at the BT level.
+
+  **Root cause**: The cascade was implemented as a procedural post-BT call
+  rather than as a BT child subtree. The canonical CVD BT has
+  `?_RMValidateBt → ?_RMPrioritizeBt` as a parent→child relationship;
+  the prototype must mirror that structure.
 
   **Fix**:
-  - Add a policy-check node to the `validate-report` BT (or invoke it at the end
-    of `ValidateReportReceivedUseCase`).
-  - Default policy: engage immediately (conservative default for demo).
-  - If policy returns engage → invoke `SvcEngageCaseUseCase` inline and cascade.
-  - If policy returns defer → invoke `SvcDeferCaseUseCase` inline and cascade.
-  - Remove the manual `engage-case` trigger step from `two_actor_demo.py`.
-  - Add tests verifying that after `validate-report`, the vendor participant's RM
-    state is `ACCEPTED` (engaged) without a separate trigger call.
+  - Replace `_auto_engage()` in both `SvcValidateReportUseCase` and
+    `ValidateCaseUseCase` with a `PrioritizeBt` child subtree inside the
+    validate BT.
+  - The `PrioritizeBt` subtree contains an `EvaluateCasePriorityNode`
+    (fuzzer stub defaulting to SUCCESS → engage). On SUCCESS: engage subtree;
+    on FAILURE: defer subtree.
+  - The default priority-check node returns SUCCESS (engage immediately),
+    preserving current demo behavior.
+  - `execute()` calls only `bridge.execute_with_setup()` — no post-BT logic.
+  - Remove the manual `engage-case` trigger from `two_actor_demo.py` after
+    the cascade is automated.
+  - Add tests verifying that after `validate-report` BT runs, the vendor
+    participant's RM state is `ACCEPTED` without any separate trigger call.
 
-  **Spec**: `specs/triggerable-behaviors.md`; `notes/protocol-event-cascades.md`.
-  **Fixes**: NEW-7.
+  **This is the SSVC evaluator connection point** per IDEA-26041004: the
+  `EvaluateCasePriorityNode` fuzzer stub is exactly where an SSVC decision
+  engine will plug in.
+
+  **Spec**: `specs/behavior-tree-integration.md` BT-06-005, BT-06-006;
+  `notes/canonical-bt-reference.md` (prioritize subtree detail);
+  `notes/protocol-event-cascades.md`.
+  **Fixes**: D5-7-AUTOENG-2, IDEA-26041004.
+
+#### D5-7-BTFIX-2 — Refactor AcceptInviteActorToCase to use BT
+
+- [ ] **D5-7-BTFIX-2**: `AcceptInviteActorToCaseReceivedUseCase`
+  (received/actor.py:243) calls `SvcEngageCaseUseCase().execute()` procedurally
+  with NO BT at all. The invitation-acceptance → engagement cascade should be
+  expressed as a BT subtree.
+
+  **Root cause**: D5-6-AUTOENG was implemented with a procedural shortcut
+  rather than as a proper BT subtree. The canonical BT shows
+  invitation-acceptance as a branch of `ReceiveMessagesBt` that leads to
+  `RMPrioritizeBt`.
+
+  **Fix**:
+  - Implement `AcceptInviteActorToCaseBt` with the engagement cascade as a
+    child subtree (same `PrioritizeBt` from D5-7-BTFIX-1 or a shared instance).
+  - Replace the procedural `SvcEngageCaseUseCase().execute()` call with the
+    BT execution pattern.
+  - `execute()` contains only infrastructure glue.
+  - Add tests verifying invite-acceptance triggers RM→ACCEPTED via BT, not
+    procedurally.
+
+  **Spec**: `specs/behavior-tree-integration.md` BT-06-001, BT-06-005, BT-06-006;
+  `notes/canonical-bt-reference.md`.
+  **Fixes**: IDEA-26041004 (partial).
 
 #### D5-7-ADDOBJ-1 — Always inline `object` field in outbound Add/Create activities ~~SUPERSEDED~~
 

@@ -607,5 +607,22 @@ When implementing trigger request models, check existing models first:
 - All request models SHOULD use `model_config = ConfigDict(extra="ignore")`
   for forward-compatibility (TRIG-03-002).
 
-**See also**: `specs/triggerable-behaviors.md`, `AGENTS.md`
-"When to Use Behavior Trees".
+**See also**: `specs/triggerable-behaviors.md`.
+
+---
+
+## BT Requirement for Trigger Use Cases
+
+Trigger use cases follow the same BT requirement as received use cases:
+all protocol-observable behaviors MUST be implemented as BT nodes or
+subtrees. A trigger endpoint's `execute()` method is permitted to contain
+infrastructure glue (build event, set up blackboard), but the domain logic
+MUST live in the BT.
+
+In particular, trigger use cases MUST NOT call `SvcXxxUseCase().execute()`
+or equivalent domain functions procedurally after `bridge.execute_with_setup()`
+returns. Cascades from the triggering action to downstream protocol behaviors
+must be expressed as BT child subtrees.
+
+See `specs/behavior-tree-integration.md` BT-06-005 and BT-06-006, and
+`notes/canonical-bt-reference.md` for the subtree composition model.

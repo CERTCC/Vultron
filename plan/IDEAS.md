@@ -165,7 +165,17 @@ demo-centric triggers or if there is a generalized version that would be
 worth implementing. If so, we should implement the generalized one, and
 have the demo just use that with its specific object types or needs.
 
-## IDEA-26041004 Use behavior trees for behaviors
+## IDEA-26041004 Use behavior trees for behaviors ✅ ADDRESSED
+
+> **Addressed by**: D5-7-BTFIX-1 and D5-7-BTFIX-2 (new Priority 320 items
+> in `plan/IMPLEMENTATION_PLAN.md`), plus documentation updates to
+> `specs/behavior-tree-integration.md` (BT-06-001 through BT-06-006),
+> `notes/canonical-bt-reference.md` (NEW), `notes/bt-integration.md`,
+> `notes/use-case-behavior-trees.md`, `notes/protocol-event-cascades.md`,
+> `notes/bt-fuzzer-nodes.md`, `notes/triggerable-behaviors.md`, and
+> `AGENTS.md`. The "When to Use BTs vs. Procedural" decision table has been
+> removed from all documents; the mandatory principle now reads: "All
+> protocol-significant behavior MUST be BT nodes or subtrees."
 
 The implementation of D5-7-AUTOENG-2 violates the intent that the autoengage
 process should be implemented as a behavior tree structure attached to the

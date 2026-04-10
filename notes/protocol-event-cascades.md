@@ -141,11 +141,64 @@ either:
 These gaps should be systematically identified and resolved before
 demo sign-off (D5-7).
 
+## Cascades MUST Be BT Subtrees (Not Post-BT Procedural Calls)
+
+When identifying and fixing cascade gaps, the correct fix is always to
+implement the cascade as a **BT subtree**, not as a procedural call after
+`bt.run()` returns.
+
+### Why This Matters
+
+Cascades that appear as parent→child relationships in the canonical CVD
+protocol BT (in `vultron-bt.txt`) MUST be expressed as BT subtrees in the
+corresponding use-case BT. If a cascade is implemented as a procedural call
+after the BT finishes, it:
+
+1. Is invisible at the BT level — cannot be audited from the tree structure
+2. Creates a gap between the canonical protocol model and the implementation
+3. Breaks explainability — an observer reading the BT does not see the full
+   causal chain
+4. Violates BT-06-005 and BT-06-006 in `specs/behavior-tree-integration.md`
+
+### Correct Approach for Each Gap
+
+**For each cascade gap listed above**:
+
+1. Identify where the parent→child relationship appears in the canonical BT
+   (`vultron-bt.txt` or `docs/topics/behavior_logic/`). See
+   `notes/canonical-bt-reference.md` for a subtree map.
+2. Implement the child behavior as a BT subtree.
+3. Add the child subtree as a child node of the parent BT.
+4. Do NOT implement the cascade as a procedural function called after
+   `bridge.execute_with_setup()` returns.
+
+### Anti-Pattern (the current D5-7-BTFIX violations)
+
+```python
+# ❌ ANTI-PATTERN — cascade outside the tree
+class ValidateCaseUseCase:
+    def _auto_engage(self, ...):
+        SvcEngageCaseUseCase(self._dl, event).execute()  # NOT in tree
+
+    def execute(self) -> None:
+        bridge.execute_with_setup(self._dl, bt, bb)
+        self._auto_engage(...)  # ← called AFTER BT, invisible in tree
+```
+
+The validate→engage cascade must instead be a child subtree of the validate
+BT, mirroring the canonical `?_RMValidateBt → ?_RMPrioritizeBt` structure.
+See `notes/canonical-bt-reference.md` for the correct subtree composition.
+
+---
+
 ## Related
 
+- `notes/canonical-bt-reference.md` (subtree map, trunk-removed branches
+  model, anti-pattern examples)
+- `specs/behavior-tree-integration.md` BT-06-001, BT-06-005, BT-06-006
+  (cascade-as-subtree requirement)
 - `specs/case-management.md` CM-06 (case update broadcast), CM-11
   (invitation acceptance lifecycle)
-- `specs/behavior-tree-integration.md` BT-06, BT-10
 - `specs/triggerable-behaviors.md` TRIG-07-001
 - `notes/activitystreams-semantics.md` (state-change notification model)
 - `notes/bt-integration.md` (BT design decisions)

@@ -1,13 +1,97 @@
 # Use Cases, Domain Logic, and Behavior Trees
 
 This note clarifies the relationship between **use cases**, **domain logic**,
-and **behavior trees**, and proposes a module layout for organizing them.
+and **behavior trees**, and documents the canonical reference model connecting
+use-case BTs to the full CVD protocol BT.
 
 The goal is to keep:
 
 * orchestration logic simple
-* domain rules centralized
-* behavior policies explicit and testable
+* domain rules centralized in the behavior tree
+* behavior policies explicit, inspectable, and auditable
+
+---
+
+## Core Principle: The Tree Is the Documentation
+
+The behavior tree IS the domain documentation. If a protocol-observable
+action — emitting an activity, transitioning RM/EM/CS state, creating a
+domain object, cascading to a downstream behavior — is not implemented as a
+BT node or subtree, it is **invisible to analysis, audit, and explainability
+tools**.
+
+This is not a style preference. It is the design invariant that makes
+Vultron's process inspectable without reading implementation code.
+
+### Procedural Glue vs. Domain Logic
+
+The `execute()` method of a use case MAY contain infrastructure glue only:
+
+* Instantiate the BT
+* Set up the blackboard from the event (load actor/case IDs, etc.)
+* Call `bridge.execute_with_setup()` (or `bt.run()`)
+* Check the BT status
+* Extract output from the blackboard
+
+**Nothing else domain-significant lives outside the tree.**
+
+### Anti-Pattern (MUST NOT)
+
+```python
+class SvcValidateReportUseCase:
+    def execute(self) -> None:
+        # ... setup ...
+        bridge.execute_with_setup(self._dl, bt, bb)   # BT runs
+
+        # ❌ ANTI-PATTERN: domain action outside the tree
+        if bt.status == Status.SUCCESS:
+            SvcEngageCaseUseCase(self._dl, engage_event).execute()
+```
+
+The call to `SvcEngageCaseUseCase` after the BT runs means the
+validate→engage cascade is invisible at the BT level. It cannot be audited
+from the tree structure alone.
+
+### Correct Pattern (BT Subtree Cascade)
+
+```python
+class SvcValidateReportUseCase:
+    def execute(self) -> None:
+        # ... setup ...
+        bt = ValidateReportBt(...)   # ← includes PrioritizeBt as a child
+        bridge.execute_with_setup(self._dl, bt, bb)   # ✅ cascade inside tree
+        # check status, extract output only
+```
+
+The validate→engage/defer cascade is a child subtree of `ValidateReportBt`,
+mirroring the canonical CVD protocol BT structure.
+
+---
+
+## Trunk-Removed Branches Model
+
+The per-use-case BT model is not a deviation from the canonical BT — it
+removes the top-level continuous-tick trunk and exposes individual
+subbranches as use cases triggered by external events (HTTP inbox, trigger
+API, CLI). The branch structure remains intact.
+
+See `notes/canonical-bt-reference.md` for:
+
+* The full trunk-removed branches model
+* A mapping table: canonical subtree path → current use case
+* Implementation guidance for locating where a new behavior belongs in the
+  canonical tree before implementing it
+* The prioritize subtree detail (validate → engage/defer)
+
+### Why This Matters
+
+The canonical BT defines the normative CVD process. Use-case BTs that
+deviate from it without justification create a gap between the documented
+process and the implemented one. That gap breaks explainability.
+
+**Rule**: Every use-case BT MUST correspond to an identifiable subtree of the
+canonical CVD protocol BT. Divergences MUST be documented (in a note or ADR)
+with justification.
 
 ---
 

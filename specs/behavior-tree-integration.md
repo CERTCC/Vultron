@@ -64,40 +64,70 @@ SHOULD use BTs for clarity and maintainability.
 
 ## Workflow-Specific Trees
 
-- `BT-06-001` Complex workflows SHOULD have dedicated BT implementations
-  - Report validation, case-from-report setup, embargo management, case engagement/deferral
-  - **Decision criteria**: Use BTs for multi-branch workflows, RM/EM/CS state
-    transitions with preconditions, or policy injection; use procedural code
-    for simple CRUD or linear 3–5 step workflows with no branching
-  - **New**: Per ADR-0015, case/participant creation and embargo initialization
+- `BT-06-001` All protocol-significant behavior MUST be implemented as BT
+  nodes or subtrees. There is no "simple enough to skip" threshold.
+  - **Rationale**: The BT is the domain documentation. If a behavior is not
+    in the tree, it is invisible to analysis, audit, and explainability
+    tools. The tree structure is the source of truth for what Vultron does —
+    not the code around it.
+  - **Procedural glue exception**: `execute()` MAY contain infrastructure
+    glue: instantiating the BT, setting up the blackboard from the event,
+    calling `bt.run()`, checking BT status, and extracting output from the
+    blackboard. Nothing domain-significant lives outside the tree.
+  - Per ADR-0015, case/participant creation and embargo initialization
     run in a dedicated `receive_report_case_tree` BT invoked by
     `SubmitReportReceivedUseCase`. The `validate_report` BT focuses on
     validation logic only.
-  - **Reference**: `notes/bt-integration.md` for handler-by-handler decision
-    table
-- `BT-06-002` BTs SHOULD match structure of simulation trees where applicable
-  - **Verification**: Compare BT node sequence against simulation tree node
-    sequence
-  - Exact 1:1 mapping NOT required; semantic equivalence is sufficient
+- `BT-06-002` Prototype use-case BTs MUST correspond to identifiable
+  subtrees of the canonical CVD protocol BT
+  - **Canonical reference**: `vultron-bt.txt` (full tree dump),
+    `docs/topics/behavior_logic/` (narrative docs), `vultron/bt/`
+    (simulation implementation — read only)
+  - The canonical BT is the normative definition of Vultron's domain
+    behavior. Use-case BTs implement subtrees of it; they do not invent
+    new structures.
+  - **Divergence rule**: If a prototype BT diverges from the canonical
+    tree structure, that divergence MUST be documented with justification
+    (in a note or ADR). Undocumented divergence is a bug.
+  - **Implementation guide**: `notes/canonical-bt-reference.md` — subtree
+    map, trunk-removed branches model, implementation guidance
 - `BT-06-003` BT nodes SHOULD be deterministic
   - **Definition**: Given same input state, node always returns same result
   - No random number generation, no time-dependent behavior (e.g., timeouts,
     retries with jitter)
   - Exception: Externally-driven nondeterminism (e.g., human-in-the-loop
     decisions) is acceptable
-- `BT-06-004` Individual BT nodes SHOULD be simple and focused on a single
+- `BT-06-004` Individual BT nodes MUST be simple and focused on a single
   concern (e.g., a single exception check or a single boolean condition)
   - Any node that contains complicated business logic is a candidate for
     refactoring into its own sub-tree
-  - **Rationale**: Surfacing business logic into the tree structure rather
-    than embedding it in node code makes the process auditable, loggable,
-    and visible for analysis; it ensures the process behaves as intended and
-    can be reasoned about from the tree alone
+  - **Rationale**: The tree structure IS the documentation of what Vultron
+    does. Surfacing business logic into the tree — rather than embedding it
+    in node code or in `execute()` outside the tree — makes the process
+    auditable and explainable without reading implementation code. If it is
+    not in the tree, it cannot be reasoned about from the tree alone.
+- `BT-06-005` (MUST) Cascades from a parent subtree to a child subtree in
+  the canonical BT MUST be expressed as BT subtrees within the use case's
+  BT — not as procedural calls in `execute()` after `bt.run()` returns.
+  - **Example**: In the canonical BT, `?_RMValidateBt` (validate) and
+    `?_RMPrioritizeBt` (engage/defer) are parent→child. Therefore, the
+    validate→engage/defer cascade MUST be a subtree within the validate BT,
+    not a call to `SvcEngageCaseUseCase()` after the BT completes.
+  - **Anti-pattern** (MUST NOT): calling `SvcXxxUseCase().execute()` or any
+    domain-significant function procedurally after `bridge.execute_with_setup()`
+    returns. See `notes/canonical-bt-reference.md` for the corrected pattern.
+- `BT-06-006` (MUST NOT) Protocol-observable actions and state transitions
+  MUST NOT be performed as procedural code outside the BT.
+  - Protocol-observable = emitting activities, transitioning RM/EM/CS state,
+    creating/updating domain objects, cascading to downstream behaviors.
+  - The only code permitted outside the BT is infrastructure glue: loading
+    actor/case IDs for blackboard setup, calling `bt.run()`, checking status,
+    extracting output.
 
 ## DataLayer Integration
 
 - `BT-07-001` BT nodes MUST interact with DataLayer via Protocol interface
-  - **Protocol**: `vultron.api.v2.datalayer.abc.DataLayer` (duck typing, not
+  - **Protocol**: `vultron.core.ports.datalayer.DataLayer` (duck typing, not
     inheritance)
   - Methods: `get(id_)`, `create(obj)`, `update(id_, record)`, `delete(id_)`,
     `search(query)`, `get_status_layer()`
@@ -179,6 +209,25 @@ SHOULD use BTs for clarity and maintainability.
 - Unit test: BT execution occurs synchronously within handler
 - Unit test: BT exceptions propagate to handler error handling
 
+### BT-06-001, BT-06-005, BT-06-006 Verification
+
+- Code review: `execute()` contains no domain-significant code after
+  `bridge.execute_with_setup()` returns — only status checks and output
+  extraction from blackboard
+- Code review: No use case calls `SvcXxxUseCase().execute()` or similar
+  procedurally after a BT run
+- Code review: Each cascade that is parent→child in the canonical BT is
+  implemented as a BT subtree, not a procedural function call
+- Unit test: validate-report BT includes prioritize (engage/defer) subtree
+  as a child; no `_auto_engage` or equivalent outside the tree
+
+### BT-06-002 Verification
+
+- Code review: Each use-case BT corresponds to a named subtree path in
+  `vultron-bt.txt` / `docs/topics/behavior_logic/`
+- Documentation check: Any divergence from canonical structure is documented
+  with justification in a note or ADR
+
 ### BT-10-001 through BT-10-005 Verification
 
 - Integration test: Validate report → creates VulnerabilityCase
@@ -200,13 +249,15 @@ SHOULD use BTs for clarity and maintainability.
 
 ## Related
 
+- **Canonical BT Reference**: `notes/canonical-bt-reference.md` (subtree
+  map, trunk-removed branches model, anti-pattern examples)
 - **Behavior Trees in CVD**: `docs/topics/behavior_logic/`
 - **Simulation Trees**: `vultron/bt/` (reference, not modified)
 - **Handler Protocol**: `specs/handler-protocol.md`
 - **Case Management**: `specs/case-management.md` (CaseActor, actor isolation)
 - **Data Layer**: `specs/testability.md` (DataLayer abstraction)
-- **Design Notes**: `notes/bt-integration.md` (durable design decisions,
-  handler decision table, directionality of EvaluateCasePriority)
+- **Design Notes**: `notes/bt-integration.md` (durable design decisions),
+  `notes/canonical-bt-reference.md` (canonical subtree map)
 - **ADRs**: ADR-0002 (BT rationale), ADR-0007 (dispatcher architecture)
 - **Implementation**: `vultron/core/behaviors/` (bridge layer, helpers,
   report trees)

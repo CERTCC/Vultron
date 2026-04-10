@@ -902,34 +902,27 @@ event = CreateReportReceivedEvent(semantic_type=MessageSemantics.CREATE_REPORT, 
 
 See `specs/testability.md` TB-05-004, TB-05-005 for requirements.
 
-### When to Use Behavior Trees
+### All Protocol-Significant Behavior MUST Be in the BT
 
-Not all handlers need BT execution. Use this guide when deciding:
+**There is no "simple enough to skip" threshold for BT usage.**
 
-**Use BTs** (complex orchestration):
+All protocol-observable actions and state transitions MUST be implemented as
+BT nodes or subtrees. This includes emitting activities, transitioning
+RM/EM/CS state, creating/updating domain objects, and cascading to downstream
+behaviors. See `specs/behavior-tree-integration.md` BT-06-001 and
+`notes/canonical-bt-reference.md` for the trunk-removed branches model and
+subtree composition guidance.
 
-- Multiple conditional branches in the workflow
-- State machine transitions (RM/EM/CS state changes with preconditions)
-- Policy injection needed (e.g., pluggable validation rules)
-- Workflow composition (reuse subtrees across handlers)
-- Reference implementations for CVD protocol documentation alignment
-
-**Use procedural code** (simple workflows):
-
-- Simple CRUD operations (ack_report, create_report, submit_report)
-- Linear workflows with 3–5 steps and no branching
-- Single database read/write operations
-- Logging-only or passthrough operations
-
-**Uncertain?** Start procedural; refactor to BT if branching complexity grows.
+The `execute()` method of a use case MAY contain infrastructure glue only:
+instantiate the BT, set up the blackboard from the event, call
+`bridge.execute_with_setup()`, check BT status, extract output from
+blackboard. Nothing domain-significant lives outside the tree.
 
 **Trigger behavior logic belongs outside the API router**: Triggerable
-behavior implementations (BT or procedural) MUST live in separate modules
-that can be called from both API endpoints and CLI commands. API routers
-handle only request parsing, validation, and response formatting — they
-delegate immediately to the behavior implementation. This supports the
-hexagonal architecture goal of keeping business logic independent of the
-transport layer. See `specs/architecture.md` ARCH-08-001.
+behavior implementations MUST live in separate modules that can be called
+from both API endpoints and CLI commands. API routers handle only request
+parsing, validation, and response formatting. See `specs/architecture.md`
+ARCH-08-001.
 
 **Reuse request/response models before creating new ones**: Before adding a
 new Pydantic request or response model to a router, check whether an existing
@@ -943,8 +936,9 @@ engage or defer a case. Receive-side trees (`EngageCaseBT`, `DeferCaseBT`)
 do **not** use it — they only record the **sender's already-made decision** by
 updating the sender's `CaseParticipant.participant_status[].rm_state`.
 
-See `specs/behavior-tree-integration.md` for BT integration requirements and
-`notes/bt-integration.md` for BT design decisions.
+See `specs/behavior-tree-integration.md` for formal BT requirements,
+`notes/bt-integration.md` for design decisions, and
+`notes/canonical-bt-reference.md` for the canonical subtree map.
 
 ### Protocol Event Cascades (Cascading Automation)
 
@@ -962,15 +956,46 @@ trigger *primary events* (submit-report, validate-report, add-note,
 propose-embargo). Everything else should cascade automatically via BT
 execution or use-case chaining.
 
-**When implementing handlers**: Check whether the primary action implies
-downstream effects. If accepting an invitation implies engagement, the
-handler should invoke the engagement use case internally. If adding a note
-to a case implies broadcasting it, the handler should queue outbox
-deliveries. Activities emitted by BT nodes MUST include a `to` field
-populated from the case participant index.
-
+**When implementing handlers**: When the primary action implies downstream
+cascading effects that appear as parent→child in the canonical CVD protocol
+BT, express those cascades as BT subtrees — not as post-BT procedural calls.
 See `notes/protocol-event-cascades.md` for the full analysis and gap
-inventory.
+inventory, and `notes/canonical-bt-reference.md` for the subtree model.
+
+### Post-BT Procedural Cascade Anti-Pattern
+
+**Symptom**: A use case's `execute()` calls a function or another use case
+after `bridge.execute_with_setup()` returns — the cascade is invisible in
+the behavior tree.
+
+**Cause**: Domain logic or cascades were implemented procedurally after the
+BT runs instead of as child subtrees. This breaks auditability: an observer
+reading the BT cannot see the full causal chain.
+
+**Example** (the `_auto_engage` violations tracked as D5-7-BTFIX-1/2):
+
+```python
+# ❌ ANTI-PATTERN — cascade outside the tree
+def execute(self) -> None:
+    bridge.execute_with_setup(self._dl, bt, bb)
+    self._auto_engage(...)            # ← domain logic AFTER BT
+```
+
+```python
+# ✅ CORRECT — cascade as child subtree
+class ValidateReportBt:
+    def setup(self):
+        prioritize_subtree = PrioritizeBt(...)  # engage OR defer
+        self.root.add_child(prioritize_subtree) # ← inside tree
+```
+
+**Rule**: `execute()` contains only infrastructure glue — BT instantiation,
+blackboard setup from event, `bt.run()`, status check, output extraction.
+Nothing else.
+
+**Formal requirements**: BT-06-001, BT-06-005, BT-06-006 in
+`specs/behavior-tree-integration.md`. Canonical subtree reference:
+`notes/canonical-bt-reference.md`.
 
 ### py_trees Blackboard Global State
 

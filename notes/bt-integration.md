@@ -2,10 +2,11 @@
 
 ## Architecture Overview
 
-Handler functions in `vultron/api/v2/backend/handlers` MAY orchestrate
-complex workflows using the `py_trees` behavior tree library via the bridge
-layer in `vultron/core/behaviors/`. Simple CRUD-style handlers use procedural
-code directly.
+Use-case functions in `vultron/core/use_cases/` orchestrate complex workflows
+using the `py_trees` behavior tree library via the bridge layer in
+`vultron/core/behaviors/`. All protocol-significant behaviors MUST be
+implemented as BT nodes or subtrees. See
+`specs/behavior-tree-integration.md` BT-06-001.
 
 **Key boundary**: `vultron/bt/` is the simulation BT engine (custom, do NOT
 modify or reuse for prototype handlers). `vultron/core/behaviors/` uses
@@ -134,47 +135,68 @@ execution of the inbox queue is sufficient for prototype validation.
 
 ---
 
-## When to Use BTs vs. Procedural Code
+## All Protocol-Significant Behavior MUST Be in the BT
 
-**Use BTs** (complex orchestration):
+**There is no "simple enough to skip" threshold for BT usage.**
 
-- Multiple conditional branches in the workflow
-- State machine transitions (RM/EM/CS) with preconditions
-- Policy injection needed (e.g., pluggable validation rules)
-- Workflow composition (reuse subtrees across handlers)
-- Reference implementations for CVD protocol documentation alignment
+All protocol-observable actions and state transitions MUST be implemented as
+BT nodes or subtrees. This includes:
 
-**Use procedural code** (simple workflows):
+- Emitting ActivityStreams activities
+- Transitioning RM/EM/CS state
+- Creating or updating domain objects that represent protocol state
+- Cascading to downstream behaviors (e.g., validate → engage/defer)
 
-- Simple CRUD operations (`ack_report`, `create_report`, `submit_report`)
-- Linear workflows with 3–5 steps and no branching
-- Single database read/write operations
-- Logging-only or passthrough operations
+The BT is the domain documentation. If a behavior is not in the tree, it is
+invisible to analysis, audit, and explainability tools. See BT-06-001,
+BT-06-005, BT-06-006 in `specs/behavior-tree-integration.md`.
 
-**Decision table for report, case, and embargo handlers**:
+### Post-BT Procedural Cascade Anti-Pattern
 
-| Handler                          | BT Value  | Rationale                                                                |
-|----------------------------------|-----------|--------------------------------------------------------------------------|
-| `validate_report`                | ✅ HIGH   | ✅ DONE (slimmed per ADR-0015) — validation logic only; no case creation  |
-| `submit_report`                  | ✅ HIGH   | 🔄 PLANNED — case/participant creation moved here via `receive_report_case_tree` (ADR-0015) |
-| `engage_case`                    | ✅ HIGH   | ✅ DONE — participant RM state, policy evaluation, state transitions      |
-| `defer_case`                     | ✅ HIGH   | ✅ DONE — participant RM state, policy evaluation, state transitions      |
-| `create_case`                    | ✅ HIGH   | ✅ DONE — idempotency check, validate, persist, CaseActor creation        |
-| `close_report`                   | ⚠️ MEDIUM | Has procedural logic; multi-step with preconditions; BT adds clarity    |
-| `invalidate_report`              | ⚠️ MEDIUM | Has procedural logic; relatively short but state-machine-tied           |
-| `create_report`                  | ❌ LOW    | Simple CRUD; no branching; keep procedural                              |
-| `ack_report`                     | ❌ LOW    | Single status transition; no branching; keep procedural                 |
-| `add_report_to_case`             | ❌ LOW    | Simple append with idempotency; keep procedural                         |
-| `close_case`                     | ❌ LOW    | Leave + activity emit; simple; keep procedural                          |
-| `create_case_participant`        | ❌ LOW    | Simple CRUD with idempotency; keep procedural                           |
-| `add_case_participant_to_case`   | ❌ LOW    | Simple append with idempotency; keep procedural                         |
-| `create_embargo_event`           | ❌ LOW    | ✅ DONE (procedural) — CRUD; store EmbargoEvent in DataLayer             |
-| `add_embargo_event_to_case`      | ❌ LOW    | ✅ DONE (procedural) — sets `active_embargo`, transitions EM → PROPOSED  |
-| `remove_embargo_event_from_case` | ❌ LOW    | ✅ DONE (procedural) — removes active embargo, transitions EM → NONE     |
-| `announce_embargo_event_to_case` | ❌ LOW    | ✅ DONE (procedural) — log only; cannot write to `case_activity` (type limitation) |
-| `invite_to_embargo_on_case`      | ❌ LOW    | ✅ DONE (procedural) — stores invite activity in DataLayer               |
-| `accept_invite_to_embargo_on_case` | ❌ LOW  | ✅ DONE (procedural) — sets `active_embargo`, transitions EM → ACTIVE    |
-| `reject_invite_to_embargo_on_case` | ❌ LOW  | ✅ DONE (procedural) — stores reject activity; no state change           |
+```python
+# ❌ WRONG — cascade hidden outside the tree
+def execute(self) -> None:
+    bridge.execute_with_setup(self._dl, bt, bb)
+    if bt.status == Status.SUCCESS:
+        SvcEngageCaseUseCase(self._dl, engage_event).execute()  # ← VIOLATION
+```
+
+The validate→engage cascade is invisible at the BT level. This pattern exists
+in three places and is tracked as D5-7-BTFIX-1 and D5-7-BTFIX-2.
+
+```python
+# ✅ CORRECT — cascade expressed as a child subtree
+class ValidateReportBt:
+    def __init__(...):
+        bt = py_trees.composites.Sequence(...)
+        validate_node = ValidateReportNode(...)
+        prioritize_subtree = PrioritizeBt(...)  # engage OR defer
+        bt.add_children([validate_node, prioritize_subtree])
+```
+
+The cascade from the canonical `?_RMValidateBt → ?_RMPrioritizeBt` is now
+visible in the BT structure and auditable from the tree alone.
+
+### Procedural Glue Exception
+
+The `execute()` method MAY contain infrastructure glue only:
+
+- Instantiate the BT
+- Set up the blackboard from the event (load actor/case IDs)
+- Call `bridge.execute_with_setup()`
+- Check BT status
+- Extract output from the blackboard
+
+Nothing domain-significant lives outside the tree.
+
+### Historical Decision Table (Retired)
+
+The "When to Use BTs vs. Procedural Code" table that previously appeared in
+this section has been removed. It created a false "simple enough to skip"
+threshold that led directly to the anti-pattern violations above.
+
+For the mapping of canonical BT subtrees to current use cases, see
+`notes/canonical-bt-reference.md`.
 
 ---
 
@@ -357,3 +379,16 @@ decided.
 acceptance, and similar steps require human judgment. The prototype uses
 configurable default policies (always-accept stubs with audit logging). Async
 workflow support with pause/resume is a future consideration.
+
+---
+
+## Related
+
+- `notes/canonical-bt-reference.md` — canonical subtree map, trunk-removed
+  branches model, anti-pattern examples
+- `specs/behavior-tree-integration.md` — formal BT requirements
+  (BT-06-001 through BT-06-006 especially)
+- `notes/bt-fuzzer-nodes.md` — fuzzer node catalog and replacement patterns
+- `notes/use-case-behavior-trees.md` — use-case/BT conceptual layering
+- `notes/protocol-event-cascades.md` — cascade gaps and BT subtree fixes
+- `vultron-bt.txt` — full canonical CVD protocol BT dump (read-only reference)
