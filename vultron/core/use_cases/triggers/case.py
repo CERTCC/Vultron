@@ -26,6 +26,7 @@ from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases._helpers import update_participant_rm_state
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,
+    case_addressees,
     resolve_actor,
     resolve_case,
 )
@@ -64,6 +65,7 @@ class SvcEngageCaseUseCase:
         engage_activity = RmEngageCaseActivity(
             actor=actor_id,
             object_=case.id_,
+            to=case_addressees(case, actor_id) or None,
         )
 
         try:
@@ -111,6 +113,7 @@ class SvcDeferCaseUseCase:
         defer_activity = RmDeferCaseActivity(
             actor=actor_id,
             object_=case.id_,
+            to=case_addressees(case, actor_id) or None,
         )
 
         try:

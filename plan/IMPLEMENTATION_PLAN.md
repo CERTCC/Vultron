@@ -548,7 +548,7 @@ references.
 > to reach the CaseActor and be included in replication fan-out. Complete
 > this task (in Priority 320) before starting SYNC-2.
 
-- [ ] **D5-7-TRIGNOTIFY-1**: Trigger use cases that emit outbound state-change
+- [x] **D5-7-TRIGNOTIFY-1**: Trigger use cases that emit outbound state-change
   activities (engage-case, defer-case, close-case, etc.) construct activities with
   no `to` field. The outbox handler silently drops them at DEBUG level ("No
   recipients found"), so case participants never receive these state notifications.

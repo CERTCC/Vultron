@@ -27,6 +27,7 @@ from vultron.core.states.em import EM, EMAdapter, create_em_machine
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,
+    case_addressees,
     find_embargo_proposal,
     resolve_actor,
     resolve_case,
@@ -110,6 +111,7 @@ class SvcProposeEmbargoUseCase:
             actor=actor_id,
             object_=embargo.id_,
             context=case.id_,
+            to=case_addressees(case, actor_id) or None,
         )
 
         try:
@@ -209,6 +211,7 @@ class SvcEvaluateEmbargoUseCase:
             actor=actor_id,
             object_=proposal.id_,
             context=case.id_,
+            to=case_addressees(case, actor_id) or None,
         )
 
         try:
@@ -326,6 +329,7 @@ class SvcTerminateEmbargoUseCase:
             actor=actor_id,
             object_=embargo_id,
             context=case.id_,
+            to=case_addressees(case, actor_id) or None,
         )
 
         try:

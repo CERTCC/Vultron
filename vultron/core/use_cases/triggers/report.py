@@ -40,8 +40,10 @@ from vultron.core.use_cases._helpers import (
     _idempotent_create,
     _report_phase_status_id,
 )
+from vultron.core.models.protocols import is_case_model
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,
+    case_addressees,
     outbox_ids,
     resolve_actor,
 )
@@ -95,6 +97,35 @@ def _resolve_offer_and_report(offer_id: str, dl: DataLayer):
         )
 
     return offer, report
+
+
+def _report_addressees(
+    report_id: str, actor_id: str, offer, dl: DataLayer
+) -> list[str] | None:
+    """Return the ``to`` recipient list for a report-phase outbound activity.
+
+    Looks up the case linked to *report_id* via ``find_case_by_report_id``.
+    If a case is found, returns all case participants except *actor_id*.
+    Falls back to the offer submitter when no case exists yet.
+
+    Returns ``None`` when no addressees can be determined.
+    """
+    case = dl.find_case_by_report_id(report_id)
+    if case is not None and is_case_model(case):
+        recipients = case_addressees(case, actor_id)
+        if recipients:
+            return recipients
+    offer_actor = getattr(offer, "actor", None)
+    if offer_actor is None:
+        return None
+    offer_actor_id = (
+        offer_actor
+        if isinstance(offer_actor, str)
+        else getattr(offer_actor, "id_", None)
+    )
+    if offer_actor_id and offer_actor_id != actor_id:
+        return [offer_actor_id]
+    return None
 
 
 class SvcValidateReportUseCase:
@@ -172,6 +203,7 @@ class SvcInvalidateReportUseCase:
         invalidate_activity = RmInvalidateReportActivity(
             actor=actor_id,
             object_=offer.id_,
+            to=_report_addressees(report.id_, actor_id, offer, dl),
         )
 
         try:
@@ -237,6 +269,7 @@ class SvcRejectReportUseCase:
         reject_activity = RmCloseReportActivity(
             actor=actor_id,
             object_=offer.id_,
+            to=_report_addressees(report.id_, actor_id, offer, dl),
         )
 
         try:
@@ -314,6 +347,7 @@ class SvcCloseReportUseCase:
         close_activity = RmCloseReportActivity(
             actor=actor_id,
             object_=offer.id_,
+            to=_report_addressees(report.id_, actor_id, offer, dl),
         )
 
         try:
