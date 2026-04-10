@@ -119,20 +119,24 @@ class TinyDbDataLayer(DataLayer):
 
         raw_type = stored_record.get("type")
         if isinstance(raw_type, str):
-            vocab_cls = find_in_vocabulary(raw_type)
-            if vocab_cls is not None:
+            try:
+                vocab_cls = find_in_vocabulary(raw_type)
                 return cast(
                     PersistableModel, vocab_cls.model_validate(stored_record)
                 )
+            except KeyError:
+                pass
 
         raw_type = stored_record.get("type_")
         raw_data = stored_record.get("data_")
         if isinstance(raw_type, str) and isinstance(raw_data, dict):
-            vocab_cls = find_in_vocabulary(raw_type)
-            if vocab_cls is not None:
+            try:
+                vocab_cls = find_in_vocabulary(raw_type)
                 return cast(
                     PersistableModel, vocab_cls.model_validate(raw_data)
                 )
+            except KeyError:
+                pass
 
         return None
 

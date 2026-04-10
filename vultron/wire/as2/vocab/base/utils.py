@@ -96,21 +96,18 @@ def print_object_examples() -> None:
     """Print out empty examples of the classes in the given module"""
     from vultron.wire.as2.vocab import VOCABULARY
 
-    object_types = VOCABULARY.objects
-    _print_examples(object_types)
+    _print_examples(VOCABULARY)
 
 
 def print_activity_examples():
     """Print out empty examples of the classes in the given module"""
     from vultron.wire.as2.vocab import VOCABULARY
 
-    activity_types = VOCABULARY.activities
-    _print_examples(activity_types)
+    _print_examples(VOCABULARY)
 
 
 def print_link_examples():
     """Print out empty examples of the classes in the given module"""
     from vultron.wire.as2.vocab import VOCABULARY
 
-    link_types = VOCABULARY.links
-    _print_examples(link_types)
+    _print_examples(VOCABULARY)

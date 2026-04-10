@@ -20,10 +20,8 @@ from pydantic import Field
 
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object, as_ObjectRef
-from vultron.wire.as2.vocab.base.registry import activitystreams_object
 
 
-@activitystreams_object
 class as_Collection(as_Object):
     """A collection is a list of objects. The items in the list MAY be ordered.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-collection>
@@ -57,7 +55,6 @@ class as_Collection(as_Object):
 as_CollectionRef: TypeAlias = ActivityStreamRef[as_Collection]
 
 
-@activitystreams_object
 class as_OrderedCollection(as_Collection):
     """A collection that has its items explicitly ordered. The items in the list are assumed to always be in the same order.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-orderedcollection>
@@ -67,7 +64,6 @@ class as_OrderedCollection(as_Collection):
 as_OrderedCollectionRef: TypeAlias = ActivityStreamRef[as_OrderedCollection]
 
 
-@activitystreams_object
 class as_CollectionPage(as_Collection):
     """A subset of items from a Collection.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-collectionpage>
@@ -81,7 +77,6 @@ class as_CollectionPage(as_Collection):
 as_CollectionPageRef: TypeAlias = ActivityStreamRef[as_CollectionPage]
 
 
-@activitystreams_object
 class as_OrderedCollectionPage(as_OrderedCollection, as_CollectionPage):
     """A subset of items from an OrderedCollection.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-orderedcollectionpage>

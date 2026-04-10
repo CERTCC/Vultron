@@ -10,7 +10,7 @@ import logging
 from typing import Any, cast
 
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.wire.as2.vocab import VOCABULARY
+from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 from vultron.wire.as2.errors import (
     VultronParseMissingTypeError,
     VultronParseUnknownTypeError,
@@ -46,10 +46,16 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
             "Missing 'type' field in activity body."
         )
 
-    cls = VOCABULARY.activities.get(type_)
-    if cls is None:
+    try:
+        cls = find_in_vocabulary(type_)
+    except KeyError:
         raise VultronParseUnknownTypeError(
             f"Unrecognized activity type: {type_!r}."
+        )
+
+    if not issubclass(cls, as_Activity):
+        raise VultronParseUnknownTypeError(
+            f"Type {type_!r} is not an activity type."
         )
 
     try:

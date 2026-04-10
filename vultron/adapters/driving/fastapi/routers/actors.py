@@ -109,8 +109,9 @@ def get_actors(
 
     objects: list[as_Actor] = []
     for rec in results:
-        cls = find_in_vocabulary(rec["type_"])
-        if cls is None:
+        try:
+            cls = find_in_vocabulary(rec["type_"])
+        except KeyError:
             continue
         obj = cls.model_validate(rec["data_"])
         if isinstance(obj, as_Actor):

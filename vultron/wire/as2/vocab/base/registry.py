@@ -16,97 +16,24 @@ Provides a registry for the Vultron ActivityStreams Vocabulary.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import TypeVar
+from pydantic import BaseModel
 
-from pydantic import BaseModel, Field
-
-ModelT = TypeVar("ModelT", bound=type[BaseModel])
+VOCABULARY: dict[str, type[BaseModel]] = {}
 
 
-class Vocabulary(BaseModel):
-    objects: dict[str, type[BaseModel]] = Field(default_factory=dict)
-    activities: dict[str, type[BaseModel]] = Field(default_factory=dict)
-    links: dict[str, type[BaseModel]] = Field(default_factory=dict)
-
-    def __contains__(self, item: str) -> bool:
-        return (
-            item in self.objects
-            or item in self.activities
-            or item in self.links
-        )
-
-
-VOCABULARY = Vocabulary()
-
-
-def find_in_vocabulary(
-    item_name: str, item_type: str | None = None
-) -> type[BaseModel] | None:
-    """Find a class in the vocabulary by type and name.
+def find_in_vocabulary(item_name: str) -> type[BaseModel]:
+    """Find a class in the vocabulary by type name.
 
     Args:
-        item_name: The name of the item to find.
-        item_type: (optional) The type of the item to find ('object', 'activity', or 'link').
+        item_name: The name of the type to find.
     Returns:
-        The class if found, otherwise None.
+        The class registered under that name.
+    Raises:
+        KeyError: If the type name is not registered in the vocabulary.
     """
-    match item_type:
-        case None:
-            return (
-                VOCABULARY.objects.get(item_name)
-                or VOCABULARY.activities.get(item_name)
-                or VOCABULARY.links.get(item_name)
-            )
-        case "object":
-            return VOCABULARY.objects.get(item_name)
-        case "activity":
-            return VOCABULARY.activities.get(item_name)
-        case "link":
-            return VOCABULARY.links.get(item_name)
-        case _:
-            return None
-
-
-def activitystreams_object(cls: ModelT) -> ModelT:
-    """Register an object for a given object type.
-
-    Args:
-        cls: The class to register.
-
-    Returns:
-        A decorator that registers the object class.
-    """
-    key = cls.__name__.lstrip("as_")
-    VOCABULARY.objects[key] = cls
-    return cls
-
-
-def activitystreams_activity(cls: ModelT) -> ModelT:
-    """Register an activity for a given activity type.
-
-    Args:
-        cls: The class to register.
-
-    Returns:
-        A decorator that registers the activity class.
-    """
-    key = cls.__name__.lstrip("as_")
-    VOCABULARY.activities[key] = cls
-    return cls
-
-
-def activitystreams_link(cls: ModelT) -> ModelT:
-    """Register a link for a given link type.
-
-    Args:
-        cls: The class to register.
-
-    Returns:
-        A decorator that registers the link class.
-    """
-    key = cls.__name__.lstrip("as_")
-    VOCABULARY.links[key] = cls
-    return cls
+    if item_name not in VOCABULARY:
+        raise KeyError(f"Unknown vocabulary type: {item_name!r}")
+    return VOCABULARY[item_name]
 
 
 def main():

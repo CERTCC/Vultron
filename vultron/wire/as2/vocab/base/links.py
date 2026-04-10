@@ -19,10 +19,8 @@ Provides classes representing ActivityStreams Vocabulary Link objects.
 from typing import TypeVar, TypeAlias
 
 from vultron.wire.as2.vocab.base.base import as_Base
-from vultron.wire.as2.vocab.base.registry import activitystreams_link
 
 
-@activitystreams_link
 class as_Link(as_Base):
     """A Link is an indirect, qualified reference to a resource identified by a URL.
     The fundamental model for links is established by [RFC5988].
@@ -40,7 +38,6 @@ class as_Link(as_Base):
     hreflang: str | None = None
 
 
-@activitystreams_link
 class as_Mention(as_Link):
     """A Link that represents an @mention."""
 

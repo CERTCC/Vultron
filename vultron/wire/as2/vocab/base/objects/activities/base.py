@@ -19,11 +19,9 @@ from pydantic import Field
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.actors import as_ActorRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object
-from vultron.wire.as2.vocab.base.registry import activitystreams_activity
 from vultron.wire.as2.enums import as_ObjectType as O_type
 
 
-@activitystreams_activity
 class as_Activity(as_Object):
     """https://www.w3.org/TR/activitystreams-vocabulary/#dfn-activity
     An Activity is a subtype of Object that describes some form of action that may happen, is

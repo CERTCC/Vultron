@@ -111,8 +111,9 @@ class Record(StorableRecord):
         Returns:
             BaseModel: The converted object.
         """
-        cls = find_in_vocabulary(self.type_)
-        if cls is None:
+        try:
+            cls = find_in_vocabulary(self.type_)
+        except KeyError:
             raise ValueError(
                 f"Type '{self.type_}' not found in vocabulary for Record conversion"
             )

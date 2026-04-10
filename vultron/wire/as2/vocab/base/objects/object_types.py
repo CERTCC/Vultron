@@ -22,10 +22,8 @@ from pydantic import Field
 from vultron.wire.as2.enums import as_ObjectType as O_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object, as_ObjectRef
-from vultron.wire.as2.vocab.base.registry import activitystreams_object
 
 
-@activitystreams_object
 class as_Document(as_Object):
     """Base class for all ActivityPub documents. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-document>"""
 
@@ -36,7 +34,6 @@ class as_Document(as_Object):
     )
 
 
-@activitystreams_object
 class as_Image(as_Document):
     """Base class for all ActivityPub images. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-image>"""
 
@@ -47,7 +44,6 @@ class as_Image(as_Document):
     )
 
 
-@activitystreams_object
 class as_Video(as_Document):
     """Base class for all ActivityPub videos. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-video>"""
 
@@ -58,7 +54,6 @@ class as_Video(as_Document):
     )
 
 
-@activitystreams_object
 class as_Audio(as_Document):
     """Base class for all ActivityPub audio. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-audio>"""
 
@@ -69,7 +64,6 @@ class as_Audio(as_Document):
     )
 
 
-@activitystreams_object
 class as_Page(as_Document):
     """Base class for all ActivityPub pages. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-page>"""
 
@@ -80,7 +74,6 @@ class as_Page(as_Document):
     )
 
 
-@activitystreams_object
 class as_Article(as_Document):
     """Base class for all ActivityPub articles. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-article>"""
 
@@ -95,7 +88,6 @@ class as_Article(as_Document):
 as_DocumentRef: TypeAlias = ActivityStreamRef[as_Document]
 
 
-@activitystreams_object
 class as_Note(as_Object):
     """Base class for all ActivityPub notes. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-note>"""
 
@@ -112,7 +104,6 @@ class as_Note(as_Object):
 as_NoteRef: TypeAlias = ActivityStreamRef[as_Note]
 
 
-@activitystreams_object
 class as_Event(as_Object):
     """Base class for all ActivityPub events. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-event>"""
 
@@ -126,7 +117,6 @@ class as_Event(as_Object):
 as_EventRef: TypeAlias = ActivityStreamRef[as_Event]
 
 
-@activitystreams_object
 class as_Profile(as_Object):
     """Base class for all ActivityPub profiles. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-profile>"""
 
@@ -142,7 +132,6 @@ class as_Profile(as_Object):
 as_ProfileRef: TypeAlias = ActivityStreamRef[as_Profile]
 
 
-@activitystreams_object
 class as_Tombstone(as_Object):
     """Base class for all ActivityPub tombstones. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-tombstone>"""
 
@@ -159,7 +148,6 @@ class as_Tombstone(as_Object):
 as_TombstoneRef: TypeAlias = ActivityStreamRef[as_Tombstone]
 
 
-@activitystreams_object
 class as_Relationship(as_Object):
     """Base class for all ActivityPub relationships. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-relationship>"""
 
@@ -178,7 +166,6 @@ class as_Relationship(as_Object):
 as_RelationshipRef: TypeAlias = ActivityStreamRef[as_Relationship]
 
 
-@activitystreams_object
 class as_Place(as_Object):
     """Base class for all ActivityPub places. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-place>"""
 

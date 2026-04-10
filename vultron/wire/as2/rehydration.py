@@ -115,17 +115,18 @@ def rehydrate(
     if obj.type_ is None:
         raise ValueError(f"Object {obj} has no 'type_' value.")
 
-    cls = find_in_vocabulary(obj.type_)
-    if cls is None:
+    try:
+        cls = find_in_vocabulary(obj.type_)
+    except KeyError:
         logger.error("Unknown object type: %s.", obj.type_)
-        raise KeyError(f"Unknown object type: {obj.type_}")
+        raise
 
     if isinstance(obj, cls):
         logger.debug(
             "Object already rehydrated as '%s', skipping.",
             obj.__class__.__name__,
         )
-        return obj
+        return cast(as_Object, obj)
 
     logger.debug(
         "Rehydrating to class %s for type %s.", cls.__name__, obj.type_

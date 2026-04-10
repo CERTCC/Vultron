@@ -27,7 +27,6 @@ from vultron.wire.as2.vocab.base.dt_utils import (
 )
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
-from vultron.wire.as2.vocab.base.registry import activitystreams_object
 from vultron.wire.as2.vocab.base.utils import name_of
 
 
@@ -36,7 +35,6 @@ def _45_days_hence():
     return now + timedelta(days=45)
 
 
-@activitystreams_object
 class EmbargoEvent(as_Event):
     """
     An EmbargoEvent is an Event that represents an embargo on a VulnerabilityCase.
