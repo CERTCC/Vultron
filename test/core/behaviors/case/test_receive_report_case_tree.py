@@ -364,6 +364,92 @@ def test_tree_creates_default_embargo(
     assert case.active_embargo is not None
 
 
+def test_tree_sets_em_state_proposed_after_embargo_init(
+    datalayer,
+    actor,
+    finder_actor,
+    report,
+    offer,
+    bridge,
+    finder_accepted_status,
+    vendor_received_status,
+):
+    """After embargo initialization, the case's current EM state MUST be
+    PROPOSED, not NONE (D5-7-EMSTATE-1, specs/case-management.md CM-12-004).
+    """
+    from vultron.core.states.em import EM
+
+    tree = create_receive_report_case_tree(
+        report_id=report.id_, offer_id=offer.id_
+    )
+    bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+
+    case = datalayer.find_case_by_report_id(report.id_)
+    assert case is not None
+    assert case.active_embargo is not None
+    assert (
+        case.current_status.em_state != EM.NONE
+    ), f"Expected em_state != NONE after embargo init, got {case.current_status.em_state}"
+    assert case.current_status.em_state == EM.PROPOSED, (
+        f"Expected em_state == PROPOSED after embargo init,"
+        f" got {case.current_status.em_state}"
+    )
+
+
+def test_tree_records_embargo_initialized_event(
+    datalayer,
+    actor,
+    finder_actor,
+    report,
+    offer,
+    bridge,
+    finder_accepted_status,
+    vendor_received_status,
+):
+    """After embargo initialization, an 'embargo_initialized' event MUST be
+    recorded in the case event log (D5-7-EMSTATE-1, CM-02-009).
+    """
+    tree = create_receive_report_case_tree(
+        report_id=report.id_, offer_id=offer.id_
+    )
+    bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+
+    case = datalayer.find_case_by_report_id(report.id_)
+    assert case is not None
+    event_types = [e.event_type for e in case.events]
+    assert (
+        "embargo_initialized" in event_types
+    ), f"Expected 'embargo_initialized' in case events, got {event_types}"
+
+
+def test_tree_embargo_initialized_event_references_embargo_id(
+    datalayer,
+    actor,
+    finder_actor,
+    report,
+    offer,
+    bridge,
+    finder_accepted_status,
+    vendor_received_status,
+):
+    """The 'embargo_initialized' event MUST reference the embargo's ID as
+    object_id (D5-7-EMSTATE-1, CM-02-009).
+    """
+    tree = create_receive_report_case_tree(
+        report_id=report.id_, offer_id=offer.id_
+    )
+    bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+
+    case = datalayer.find_case_by_report_id(report.id_)
+    assert case is not None
+    assert case.active_embargo is not None
+    embargo_events = [
+        e for e in case.events if e.event_type == "embargo_initialized"
+    ]
+    assert len(embargo_events) == 1
+    assert embargo_events[0].object_id == case.active_embargo
+
+
 def test_tree_queues_create_case_activity(
     datalayer,
     actor,

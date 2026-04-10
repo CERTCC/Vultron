@@ -595,9 +595,10 @@ def verify_vendor_case_state(
         )
 
     current_status = final_case.current_status
-    if current_status.em_state != EM.NO_EMBARGO:
+    if current_status.em_state != EM.PROPOSED:
         raise AssertionError(
-            f"Expected NO_EMBARGO final EM state, found {current_status.em_state}"
+            f"Expected PROPOSED final EM state (default embargo initialized but"
+            f" not yet negotiated), found {current_status.em_state}"
         )
     if current_status.pxa_state != CS_pxa.pxa:
         raise AssertionError(

@@ -44,6 +44,7 @@ from vultron.core.models.vultron_types import (
     VultronCreateCaseActivity,
     VultronParticipant,
 )
+from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.states.roles import CVDRoles
 from vultron.core.behaviors.helpers import (
@@ -768,11 +769,15 @@ class InitializeDefaultEmbargoNode(DataLayerAction):
 
             if stored_case.active_embargo is None:
                 stored_case.active_embargo = embargo.id_
+                stored_case.current_status.em_state = EM.PROPOSED
+                stored_case.record_event(embargo.id_, "embargo_initialized")
                 self.datalayer.save(stored_case)
                 self.logger.info(
-                    "Attached embargo '%s' to case '%s' as active_embargo",
+                    "Attached embargo '%s' to case '%s' as active_embargo"
+                    " (em_state: %s)",
                     embargo.id_,
                     case_id,
+                    EM.PROPOSED,
                 )
 
             # Participants learn about the embargo from VulnerabilityCase.active_embargo
