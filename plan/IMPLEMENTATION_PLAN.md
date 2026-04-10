@@ -36,10 +36,16 @@ tasks tracked under PRIORITY-310 below).
 D5-6-WORKFLOW (all ✅); D5-6-DUP, D5-6-TRIGDELIV, D5-6-LOGCTX (all ✅);
 D5-6-DEMOAUDIT ✅; D5-6-AUTOENG ✅; D5-6-NOTECAST ✅; D5-6-CASEPROP ✅;
 D5-6-EMBARGORCP ✅
-**PRIORITY-320** Round-2 demo feedback — D5-7-CASEREPL-1, D5-7-MSGORDER-1,
-D5-7-EMSTATE-1, D5-7-LOGCLEAN-1, D5-7-AUTOENG-2, D5-7-ADDOBJ-1,
-D5-7-TRIGNOTIFY-1, D5-7-DEMONOTECLEAN-1, D5-7-DEMOREPLCHECK-1 (all pending).
-D5-7-HUMAN pending human sign-off.
+**PRIORITY-320** Round-2 demo feedback (independent tasks) —
+D5-7-EMSTATE-1, D5-7-AUTOENG-2, D5-7-TRIGNOTIFY-1, D5-7-DEMONOTECLEAN-1
+(pending). D5-7-MSGORDER-1 ✅, D5-7-LOGCLEAN-1 ✅.
+D5-7-CASEREPL-1 and D5-7-ADDOBJ-1 superseded by SYNC-2 (see Priority 330).
+D5-7-DEMOREPLCHECK-1 and D5-7-HUMAN deferred until after SYNC-2.
+
+**PRIORITY-330** SYNC + demo sign-off — OUTBOX-MON-1, SYNC-1, SYNC-2, SYNC-3
+(sequential); then D5-7-DEMOREPLCHECK-1, D5-7-HUMAN sign-off.
+SYNC-2 subsumes D5-7-CASEREPL-1 and D5-7-ADDOBJ-1.
+Prereq for SYNC-2: D5-7-TRIGNOTIFY-1 (from Priority 320).
 
 ---
 
@@ -408,8 +414,13 @@ section MUST be completed before proceeding to other priorities.
 #### D5-7-HUMAN — Project owner sign-off on demo feedback resolution
 
 - [ ] **D5-7-HUMAN**: Project owner sign off. Agents are forbidden from updating
-  this task; a human must confirm that all D5-6-* feedback tasks have been
-  addressed and the demo meets quality standards prior to completion.
+  this task; a human must confirm that all of the following are complete before
+  signing off:
+  - All D5-7 independent tasks (EMSTATE-1, AUTOENG-2, TRIGNOTIFY-1,
+    DEMONOTECLEAN-1)
+  - SYNC-2 (log replication; subsumes CASEREPL-1 and ADDOBJ-1)
+  - D5-7-DEMOREPLCHECK-1 (post-SYNC-2 finder replica verification)
+  - Multi-actor demos pass end-to-end with log-sync in place
 
 ---
 
@@ -419,37 +430,30 @@ section MUST be completed before proceeding to other priorities.
 `plan/PRIORITIES.md` PRIORITY 320
 
 Second-pass review of the 2026-04-10 two-actor integration log identified
-several new concerns. All tasks here MUST be completed before D5-7-HUMAN
-sign-off.
+several concerns. The following tasks are **independent of SYNC** and should
+be completed before starting SYNC work.
+
+**Deferred to SYNC-2 scope** (Priority 330): D5-7-CASEREPL-1 and
+D5-7-ADDOBJ-1 are superseded by the `Announce(CaseLogEntry)` replication path.
+
+**Deferred until after SYNC-2**: D5-7-DEMOREPLCHECK-1 (log-state consistency
+check) and D5-7-HUMAN (final sign-off).
+
 See `notes/two-actor-feedback.md` for detailed observations and log line
 references.
-D5-7-HUMAN
-(project owner sign-off) is the final gate for this phase.
 
-#### D5-7-CASEREPL-1 — Replace create-case handler with replication use case
+#### D5-7-CASEREPL-1 — Replace create-case handler with replication use case ~~SUPERSEDED~~
 
-- [ ] **D5-7-CASEREPL-1**: Finder currently dispatches `Create(VulnerabilityCase)`
-  to the same creation BT used by the vendor. This is wrong in two ways: (1) the
-  BT is initialized with the *incoming activity's* actor (vendor) instead of the
-  finder's own actor ID, and (2) the creation BT generates new UUIDs for
-  participants instead of replicating the vendor's IDs, breaking case identity.
-  Additionally, the BT queues a `Create(Case)` notification back to the vendor,
-  creating a circular loop risk.
-
-  **Fix**:
-  - Implement `ReceiveCreateCaseUseCase` in
-    `vultron/core/use_cases/received/case.py`.
-  - This use case stores the incoming `VulnerabilityCase` as-is, preserving all
-    IDs including participant IDs and `actor_participant_index`.
-  - It does NOT run the creation BT, does NOT create new participants, does NOT
-    create a `CaseActor`, and does NOT queue any outbound notification.
-  - Register the new use case in `USE_CASE_MAP` for the `create_case` semantic.
-  - Add tests verifying that after receiving `Create(Case)`, the finder's
-    datalayer contains the case with identical IDs to the vendor's.
-
-  **Spec**: `specs/case-management.md` CM-12; `notes/case-log-authority.md`
-  (CaseActor single-writer authority model).
-  **Fixes**: NEW-1, NEW-12 in `notes/two-actor-feedback.md`.
+> **Superseded by SYNC-2.** The SYNC-2 log-replication design replaces the
+> direct `Create(VulnerabilityCase)` vendor→finder delivery path with
+> `Announce(CaseLogEntry)` replication via the CaseActor. Implementing a
+> stopgap `ReceiveCreateCaseUseCase` here would be deleted/replaced by
+> SYNC-2. The case identity and participant-ID correctness problems this
+> task addressed are resolved by having the CaseActor be the sole writer of
+> canonical log entries that participants replicate. See SYNC-2 for the
+> authoritative fix; see `notes/case-log-authority.md` for rationale.
+>
+> **Fixes**: NEW-1, NEW-12 — addressed by SYNC-2.
 
 #### D5-7-MSGORDER-1 — Create(Case) must precede Add(CaseParticipant) in outbox queue
 
@@ -527,37 +531,22 @@ D5-7-HUMAN
   **Spec**: `specs/triggerable-behaviors.md`; `notes/protocol-event-cascades.md`.
   **Fixes**: NEW-7.
 
-#### D5-7-ADDOBJ-1 — Always inline `object` field in outbound Add/Create activities
+#### D5-7-ADDOBJ-1 — Always inline `object` field in outbound Add/Create activities ~~SUPERSEDED~~
 
-- [ ] **D5-7-ADDOBJ-1**: `Add(CaseParticipant)` delivered to the finder has
-  `"object": "urn:uuid:…"` — a URI reference only (line 504). The semantic
-  extractor sees a string, cannot determine the object type, and falls back to
-  a wrong semantic (`add_report_to_case` instead of `add_participant_to_case`,
-  line 515).
-
-  **Confirmed rule**: The `object` field in outbound Add and Create activities
-  MUST be inlined (full object, not URI reference) when delivered to a recipient
-  who would not already have the object in their datalayer. The sender MUST NOT
-  rely on the recipient being able to rehydrate from their own datalayer.
-
-  **Simplification**: Always inline the `object` field in outbound Add and
-  Create activities to avoid requiring the sender to track recipient state.
-
-  **Fix**:
-  - Audit all BT nodes and use cases that queue Add/Create activities and ensure
-    the `object_` field is set to the full domain object (not just its ID).
-  - Specifically: `CreateFinderParticipantNode` queuing
-    `Add(CaseParticipant)` must include the full `CaseParticipant` object
-    inline.
-  - The outbox handler's existing Create-expansion logic
-    (`outbox_handler.py` lines 126–137) is a precedent; extend the pattern
-    to Add activities.
-  - Add tests verifying delivered Add activities include inline objects.
-
-  **Spec**: `specs/response-format.md`; `notes/activitystreams-semantics.md`.
-  **Fixes**: NEW-8, NEW-9.
+> **Superseded by SYNC-2.** The root cause (finder receiving `Add(CaseParticipant)`
+> with a URI-only `object` field from the vendor) is eliminated when SYNC-2
+> routes all case state updates through the CaseActor's `Announce(CaseLogEntry)`
+> replication path — participant actors no longer receive direct `Add/Create`
+> activities from peers. The inline-objects principle remains valid and will be
+> applied to `Announce(CaseLogEntry)` delivery in SYNC-2's implementation.
+>
+> **Fixes**: NEW-8, NEW-9 — addressed by SYNC-2.
 
 #### D5-7-TRIGNOTIFY-1 — Populate `to` field in all trigger-use-case outbound activities
+
+> **Prerequisite for SYNC-2.** Trigger activities need correct `to` addressing
+> to reach the CaseActor and be included in replication fan-out. Complete
+> this task (in Priority 320) before starting SYNC-2.
 
 - [ ] **D5-7-TRIGNOTIFY-1**: Trigger use cases that emit outbound state-change
   activities (engage-case, defer-case, close-case, etc.) construct activities with
@@ -599,23 +588,27 @@ D5-7-HUMAN
 
 #### D5-7-DEMOREPLCHECK-1 — Add finder replica verification to two-actor demo final state check
 
+> **Depends on SYNC-2.** Meaningful finder-replica verification requires
+> checking log-state consistency (same canonical log hash, matching
+> `CaseLogEntry` history), not just field equality. Implement after SYNC-2
+> is complete.
+
 - [ ] **D5-7-DEMOREPLCHECK-1**: The final state check (lines 805–853 of the
   2026-04-10 log) inspects only the vendor's datalayer. The finder's replica is
-  never verified. This means NEW-1 (wrong participant IDs) and other replication
-  failures pass all demo checks silently.
+  never verified. This means replication failures pass all demo checks silently.
 
-  **Fix**:
+  **Fix** (post SYNC-2):
   - Add a finder replica verification block in `two_actor_demo.py` after the
     existing vendor state check.
   - Verify at minimum:
     - The same case ID exists in finder's datalayer
     - `actor_participant_index` in finder's copy matches vendor's (same UUIDs)
     - The same `activeEmbargo` ID is present
-    - The same case participants list is present
-  - This block will auto-detect the NEW-1 participant ID mismatch once
-    D5-7-CASEREPL-1 is implemented.
+    - Log-state hash consistency (same last-replicated hash from CaseActor)
+  - The participant-ID correctness check will pass once SYNC-2 delivers
+    case state via `Announce(CaseLogEntry)` rather than `Create(VulnerabilityCase)`.
 
-  **Fixes**: NEW-11.
+  **Fixes**: NEW-11 (and implicitly NEW-1/NEW-12 via SYNC-2).
 
 ---
 
@@ -656,15 +649,27 @@ D5-7-HUMAN
 
 ---
 
-### Phase PRIORITY-400 — Replicated Log Synchronization (PRIORITY 400)
+### Phase PRIORITY-330 — Replicated Log Synchronization + Demo Sign-off (PRIORITY 330)
 
-**Reference**: `plan/PRIORITIES.md` PRIORITY 400,
+**Reference**: `plan/PRIORITIES.md` PRIORITY 330,
 `plan/IMPLEMENTATION_NOTES.md` (2026-03-26 SYNC design notes)
+
+> **Note on task/priority coupling**: Going forward, tasks in this section
+> use explicit `Depends on:` notation rather than priority-group section
+> headers, so that `plan/PRIORITIES.md` can be updated without requiring
+> corresponding edits here.
 
 These tasks implement distributed append-only case event log replication using
 AS2 Announce activities as the transport. The CaseActor (acting as de facto
 lead) maintains authoritative case event history and replicates it to
 Participant Actors via log synchronization.
+
+This block was formerly PRIORITY-400. It is elevated because D5-7-HUMAN
+sign-off depends on SYNC-2 completing the participant replication story.
+
+**Sequential dependency chain**: OUTBOX-MON-1 → SYNC-1 → SYNC-2 → SYNC-3
+→ D5-7-DEMOREPLCHECK-1 → D5-7-HUMAN.
+SYNC-2 also requires D5-7-TRIGNOTIFY-1 (from Priority 320) to be complete.
 
 > **Design note:** Case Ownership and replication leadership are distinct
 > concepts. A future ownership transfer likely implies leadership change,
@@ -674,7 +679,38 @@ Participant Actors via log synchronization.
 > design notes and system invariants. The corresponding entries in
 > `plan/IMPLEMENTATION_NOTES.md` have been struck through.
 
+#### OUTBOX-MON-1 — OutboxMonitor background loop
+
+> **Prerequisite for SYNC-1/SYNC-2.** Moved from Priority 350.
+
+- [ ] **OUTBOX-MON-1**: Implement a background outbox-drain loop that
+  periodically checks all actor outboxes and delivers pending activities to
+  their targets' inboxes. This is the transport mechanism that ensures
+  outbox→inbox delivery happens automatically without requiring an external
+  trigger.
+
+  **Motivation**: SYNC-2's replication requires the CaseActor to proactively
+  deliver `Announce(CaseLogEntry)` entries to participants. Without automated
+  outbox delivery this requires manual triggers for every replication event.
+
+  **Design**:
+  - Add `OutboxMonitor` class (or async function) in
+    `vultron/adapters/driving/fastapi/outbox_monitor.py`
+  - Polls every 1–2 seconds via `asyncio.sleep` inside a `while True` loop
+  - Iterates over all registered actor DataLayer instances
+  - For each actor with a non-empty outbox, calls `outbox_handler(actor_id, ...)`
+  - Resolve target actor inbox URLs and POST activities
+  - Start/stop monitor in FastAPI lifespan (`app.py`)
+  - Add unit tests verifying drain, delivery, and error handling
+
+  **Acceptance criteria**:
+  - Docker integration test (`two-actor` scenario) passes end-to-end
+  - Finder receives case updates without manual trigger
+  - Monitor handles delivery failures gracefully (logs error, does not crash)
+
 #### SYNC-1 — Local append-only case event log with indexing
+
+> **Depends on**: OUTBOX-MON-1.
 
 - [ ] **SYNC-1**: Implement local append-only case event log with indexing and
   the assertion-recording model from `specs/case-log-processing.md` (CLP).
@@ -733,6 +769,17 @@ Participant Actors via log synchronization.
 
 #### SYNC-2 — One-way log replication to Participant Actors
 
+> **Depends on**: SYNC-1, OUTBOX-MON-1, D5-7-TRIGNOTIFY-1.
+>
+> **Subsumes**:
+>
+> - **D5-7-CASEREPL-1** — `Announce(CaseLogEntry)` replication replaces the
+>   direct `Create(VulnerabilityCase)` path; no separate `ReceiveCreateCaseUseCase`
+>   stopgap should be implemented.
+> - **D5-7-ADDOBJ-1** — The inline-objects principle (embed full object, not
+>   URI stub) is incorporated into `Announce(CaseLogEntry)` delivery;
+>   the direct vendor→finder `Add`/`Create` path is retired.
+
 - [ ] **SYNC-2**: One-way log replication from CaseActor to Participant Actors
   via AS2 `Announce(CaseLogEntry)` activities. Requirements:
   - Strict conflict handling: reject mismatched `prev_log_hash`; respond with
@@ -749,7 +796,6 @@ Participant Actors via log synchronization.
   - Reconcile "replication leadership" with "Case Ownership" (SYNC-06-001):
     distinct concepts; ownership transfer implies leadership change, but not
     vice versa.
-  - Depends on SYNC-1.
 
 #### SYNC-3 — Full sync loop with retry/backoff
 
@@ -850,36 +896,10 @@ are needed before resuming feature development.
     `test/core/behaviors/case/test_bug_26040902_regression.py`
   - Completed 2026-04-10.
 
-#### OUTBOX-MON-1 — OutboxMonitor background loop
+#### OUTBOX-MON-1 → moved to Priority 330 (SYNC block)
 
-- [ ] **OUTBOX-MON-1**: Implement a background outbox-drain loop that
-  periodically checks all actor outboxes and delivers pending activities to
-  their targets' inboxes. This is the transport mechanism that ensures
-  outbox→inbox delivery happens automatically without requiring an external
-  trigger.
-
-  **Motivation**: After VOCAB-REG-1.2 fixes the BT registry bug, vendors will
-  correctly generate `Create(VulnerabilityCase)` outbox entries. However, those
-  entries must be delivered to the finder's inbox. Currently delivery happens
-  only when triggered by inbox processing or explicit trigger calls.  A
-  background monitor ensures delivery is fully automatic.
-
-  **Design**:
-  - Add `OutboxMonitor` class (or async function) in
-    `vultron/adapters/driving/fastapi/outbox_monitor.py`
-  - Polls every 1–2 seconds via `asyncio.sleep` inside a `while True` loop
-  - Iterates over all registered actor DataLayer instances
-  - For each actor with a non-empty outbox, calls `outbox_handler(actor_id, ...)`
-  - Resolve target actor inbox URLs and POST activities
-  - Start/stop monitor in FastAPI lifespan (`app.py`)
-  - Add unit tests verifying drain, delivery, and error handling
-
-  **Acceptance criteria**:
-  - Docker integration test (`two-actor` scenario) passes end-to-end
-  - Finder receives `VulnerabilityCase` without manual trigger
-  - Monitor handles delivery failures gracefully (logs error, does not crash)
-
-  **Priority**: High (completes the fix for BUG-26040902 end-to-end delivery)
+> **Moved**: OUTBOX-MON-1 is now the first task in Priority 330 (SYNC block)
+> as it is a hard prerequisite for SYNC-1/SYNC-2. See the P330 section above.
 
 ### EMBARGO-DUR-1 — Update EmbargoPolicy model to ISO 8601 duration format
 

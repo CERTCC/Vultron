@@ -94,30 +94,75 @@ EMBARGO-DUR-1 — update EmbargoPolicy model to ISO‑8601 durations (pending)
 
 ## Priority 320: additional demo feedback
 
-All D5-7 tasks belong here. These tasks arose after a close review of the
-D5-6 implementations.
+Tasks in this priority: D5-7-EMSTATE-1, D5-7-AUTOENG-2,
+D5-7-TRIGNOTIFY-1, D5-7-DEMONOTECLEAN-1.
 
-Task D5-7-HUMAN is a human-only checkpoint for demo completeness. D5-7-HUMAN
-does not
-block any items in Priority 310 or 320, rather, it is the gate to exit
-Priority 320.
+These are the remaining round-2 demo feedback tasks that are independent of
+the SYNC replication work.
+
+Two tasks originally in this group — D5-7-CASEREPL-1 and D5-7-ADDOBJ-1 —
+have been **superseded by SYNC-2** (Priority 330). The `Announce(CaseLogEntry)`
+replication path replaces the direct `Create(VulnerabilityCase)` and
+`Add(CaseParticipant)` delivery paths to participant actors. Implementing
+stopgap fixes would require rework immediately after SYNC-2.
+
+D5-7-DEMOREPLCHECK-1 is **deferred to after SYNC-2** (Priority 330) because
+meaningful finder-replica verification requires checking log-state consistency,
+not just field equality.
+
+**D5-7-HUMAN** (project-owner sign-off on demo completeness) is the gate to
+exit SYNC work. It moves to Priority 330 and fires only after SYNC-2 and
+D5-7-DEMOREPLCHECK-1 are complete.
+
+**D5-7-TRIGNOTIFY-1** (populate `to` field in trigger activities) is also a
+prerequisite for SYNC-2 fan-out to work correctly; complete it as part of
+Priority 320 before starting Priority 330.
+
+## Priority 330: SYNC implementation + demo sign-off
+
+This priority covers the log-centric replication work (formerly Priority 400)
+and the final demo quality gate. It is elevated above the old Priority 400
+because D5-7-HUMAN sign-off cannot happen until demos work correctly with
+log-sync in place.
+
+**OUTBOX-MON-1** (background outbox drain loop) is a hard prerequisite for
+SYNC: without it, SYNC-2 replication requires manual triggers. Complete it
+before SYNC-1.
+
+Sequential dependency chain:
+
+1. OUTBOX-MON-1 — automated outbox delivery (prereq for SYNC-1/SYNC-2)
+2. SYNC-1 — local append-only case event log (prereq: OUTBOX-MON-1)
+3. SYNC-2 — one-way log replication via `Announce(CaseLogEntry)` (prereqs:
+   SYNC-1, OUTBOX-MON-1, D5-7-TRIGNOTIFY-1 from Priority 320)
+   - **Subsumes D5-7-CASEREPL-1**: finder receives case state via
+     `Announce(CaseLogEntry)`, not `Create(VulnerabilityCase)`
+   - **Subsumes D5-7-ADDOBJ-1**: inline-objects principle applied to
+     `Announce` delivery; direct `Add/Create` delivery to participants
+     is retired
+4. SYNC-3 — full sync loop with retry/backoff (prereq: SYNC-2)
+5. D5-7-DEMOREPLCHECK-1 — finder replica verification via log state
+   (prereq: SYNC-2)
+6. D5-7-HUMAN — single project-owner sign-off on demo completeness
+   (prereqs: SYNC-2, D5-7-DEMOREPLCHECK-1, all other D5-7 tasks)
+
+See `notes/sync-log-replication.md` and `notes/case-log-authority.md` for
+the architectural rationale.
 
 ## Priority 350: Update python version and other maintenance tasks
 
-General housekeeping items before we move on.
+General housekeeping items. Non-blocking; can proceed in parallel with or
+after Priority 330.
 
 CONFIG-1, TOOLS-1, DOCS-3, VOCAB-REG-1.1, VOCAB-REG-1.2
 
 ## Priority 400: Initial SYNC implementation
 
-SYNC-1 and SYNC-2 tasks are important architecturally to improve the
-multi-actor demo scenarios. This will give us a more realistic demonstration
-of how the protocol really works in a multi-actor context, and will allow us
-to identify issues or gaps in the protocol design and implementation that
-may not be apparent in a single-actor context. It will also allow us to  
-demonstrate the core behavior tree logic in a more realistic context, which  
-is important for showcasing the capabilities of the system. SYNC-3 is
-important to complete the synchronization work.
+> **Superseded by Priority 330.** The SYNC work has been elevated to
+> Priority 330 because D5-7-HUMAN sign-off depends on SYNC-2 completing
+> the demo replication story. OUTBOX-MON-1 was also moved from Priority
+> 350 to Priority 330 as a hard SYNC prerequisite. See Priority 330 for
+> the full task list and sequencing.
 
 ## Priority 500: Re-implement "fuzzer" nodes from the original simulator
 
