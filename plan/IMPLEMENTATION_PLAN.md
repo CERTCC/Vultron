@@ -453,7 +453,7 @@ D5-7-HUMAN
 
 #### D5-7-MSGORDER-1 — Create(Case) must precede Add(CaseParticipant) in outbox queue
 
-- [ ] **D5-7-MSGORDER-1**: The case-creation BT queues `Add(CaseParticipant)` for
+- [x] **D5-7-MSGORDER-1**: The case-creation BT queues `Add(CaseParticipant)` for
   the finder participant (line 472) *before* `Create(Case)` (line 475). When the
   finder's outbox processes in order, the `Add` arrives before the case exists
   in the finder's datalayer, causing a "case not found" warning (line 516).
@@ -490,7 +490,7 @@ D5-7-HUMAN
 
 #### D5-7-LOGCLEAN-1 — Replace verbose Pydantic repr in outbox delivery log
 
-- [ ] **D5-7-LOGCLEAN-1**: The outbox delivery INFO log at
+- [x] **D5-7-LOGCLEAN-1**: The outbox delivery INFO log at
   `vultron/adapters/driving/fastapi/outbox_handler.py` (line ~150) includes the
   full Pydantic `repr()` of the activity object (line 579 of the 2026-04-10 log),
   producing hundreds of characters of unreadable output.

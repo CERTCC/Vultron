@@ -371,3 +371,74 @@ def test_handle_outbox_item_logs_recipient_in_delivery(caplog):
         )
 
     assert recipient in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# _format_object helper (D5-7-LOGCLEAN-1)
+# ---------------------------------------------------------------------------
+
+
+def test_format_object_returns_type_and_id_for_domain_object():
+    """_format_object produces '<TypeName> <id>' for objects with id_."""
+    obj = SimpleNamespace(id_="urn:uuid:abc-123")
+    result = oh._format_object(obj)
+    assert result == "SimpleNamespace urn:uuid:abc-123"
+
+
+def test_format_object_passes_through_strings():
+    """_format_object returns strings unchanged."""
+    uri = "urn:uuid:def-456"
+    assert oh._format_object(uri) == uri
+
+
+def test_format_object_handles_none():
+    """_format_object returns 'None' for None."""
+    assert oh._format_object(None) == "None"
+
+
+def test_format_object_handles_object_without_id():
+    """_format_object returns just the class name when id_ is absent."""
+    obj = SimpleNamespace()  # no id_ attribute
+    result = oh._format_object(obj)
+    assert result == "SimpleNamespace"
+
+
+def test_handle_outbox_item_delivery_log_no_pydantic_repr(caplog):
+    """Delivery log must not contain Pydantic field-repr noise (D5-7-LOGCLEAN-1).
+
+    The log should never include fragments like ``type_=<``, ``context_=``, or
+    ``id_='`` that indicate a raw Pydantic repr was used.
+    """
+    recipient = "https://example.org/actors/alice"
+    obj_id = "urn:uuid:case-001"
+    # Simulate a domain object (Pydantic-like) as the activity's object_
+    domain_obj = SimpleNamespace(id_=obj_id)
+    activity = VultronActivity(
+        id_="urn:test:act-logclean",
+        type_="Create",
+        actor="https://example.org/actors/bob",
+        to=[recipient],
+    )
+    # Attach domain obj so _format_object is exercised via activity_object
+    activity.object_ = domain_obj  # type: ignore[assignment]
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = activity
+    mock_emitter = AsyncMock()
+
+    with caplog.at_level("INFO"):
+        asyncio.run(
+            oh.handle_outbox_item(
+                "actor-bob", activity.id_, mock_dl, mock_emitter
+            )
+        )
+
+    delivery_log = " ".join(
+        r.message for r in caplog.records if "Delivered" in r.message
+    )
+    assert delivery_log, "Expected a 'Delivered' log entry"
+    # Must contain the concise object summary
+    assert "SimpleNamespace" in delivery_log
+    assert obj_id in delivery_log
+    # Must NOT contain Pydantic field-repr fragments
+    assert "type_=<" not in delivery_log
+    assert "context_=" not in delivery_log

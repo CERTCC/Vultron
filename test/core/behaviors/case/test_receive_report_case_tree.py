@@ -385,6 +385,48 @@ def test_tree_queues_create_case_activity(
     assert len(updated_actor.outbox.items) > 0
 
 
+def test_create_case_precedes_add_participant_in_outbox(
+    datalayer,
+    actor,
+    finder_actor,
+    report,
+    offer,
+    bridge,
+    finder_accepted_status,
+    vendor_received_status,
+):
+    """Create(Case) must be queued before Add(CaseParticipant) (D5-7-MSGORDER-1).
+
+    Ensures the finder actor receives the case-creation notification before
+    receiving the participant-addition notification, preventing "case not found"
+    warnings on the finder side.
+    """
+    tree = create_receive_report_case_tree(
+        report_id=report.id_, offer_id=offer.id_
+    )
+    bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+
+    updated_actor = datalayer.read(actor.id_)
+    assert updated_actor is not None
+    items = updated_actor.outbox.items
+    assert len(items) >= 2, f"Expected >= 2 outbox items; got {len(items)}"
+
+    # Read the first two activities to check their types
+    first_activity = datalayer.read(items[0])
+    second_activity = datalayer.read(items[1])
+    assert first_activity is not None, f"Could not read activity '{items[0]}'"
+    assert second_activity is not None, f"Could not read activity '{items[1]}'"
+
+    first_type = getattr(first_activity, "type_", None)
+    second_type = getattr(second_activity, "type_", None)
+    assert (
+        first_type == "Create"
+    ), f"First outbox item should be Create(Case), got type_={first_type!r}"
+    assert (
+        second_type == "Add"
+    ), f"Second outbox item should be Add(CaseParticipant), got type_={second_type!r}"
+
+
 # ============================================================================
 # Idempotency tests
 # ============================================================================

@@ -37,9 +37,16 @@ Structure:
        ├─ CreateCaseNode                 # Create VulnerabilityCase; write case_id
        ├─ InitializeDefaultEmbargoNode   # Create default embargo
        ├─ CreateInitialVendorParticipant # Receiver participant (RM.RECEIVED)
-       ├─ CreateFinderParticipantNode    # Reporter participant (RM.ACCEPTED)
-       ├─ CreateCaseActivity             # Queue Create(Case) notification
-       └─ UpdateActorOutbox              # Add activity to actor outbox
+       ├─ CreateCaseActivity             # Queue Create(Case) BEFORE finder join
+       ├─ UpdateActorOutbox              # Flush Create(Case) to outbox
+       └─ CreateFinderParticipantNode    # Reporter participant (RM.ACCEPTED)
+
+Note: ``CreateCaseActivity`` and ``UpdateActorOutbox`` are intentionally placed
+*before* ``CreateFinderParticipantNode``.  This ensures that the finder
+receives the ``Create(Case)`` notification before the ``Add(CaseParticipant)``
+notification.  If the two activities were queued in the opposite order, the
+finder would receive an ``Add(CaseParticipant)`` for a case it has not yet seen,
+triggering "case not found" warnings on the finder side.
 
 Per specs/case-management.md CM-12 (ADR-0015) and
 docs/adr/0015-create-case-at-report-receipt.md.
@@ -119,12 +126,14 @@ def create_receive_report_case_tree(
                 report_id=report_id,
                 initial_rm_state=RM.RECEIVED,
             ),
+            # Create(Case) MUST be queued before Add(CaseParticipant) so that
+            # the finder actor receives the case notification first (D5-7-MSGORDER-1).
+            CreateCaseActivity(report_id=report_id, offer_id=offer_id),
+            UpdateActorOutbox(),
             CreateFinderParticipantNode(
                 report_id=report_id,
                 offer_id=offer_id,
             ),
-            CreateCaseActivity(report_id=report_id, offer_id=offer_id),
-            UpdateActorOutbox(),
         ],
     )
 

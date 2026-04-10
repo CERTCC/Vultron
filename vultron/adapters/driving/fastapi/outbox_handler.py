@@ -35,6 +35,31 @@ from vultron.core.ports.emitter import ActivityEmitter
 logger = logging.getLogger(__name__)
 
 
+def _format_object(obj: object) -> str:
+    """Return a concise one-line summary of an AS2 object for log messages.
+
+    Produces ``<ClassName> <id>`` for Pydantic-like domain objects, passes
+    strings through unchanged, and falls back to ``str(obj)`` otherwise.
+    Handles ``None`` gracefully.
+
+    Args:
+        obj: The object to format — may be a domain model, a URI string, or
+             ``None``.
+
+    Returns:
+        A short, human-readable representation of the object.
+    """
+    if obj is None:
+        return "None"
+    if isinstance(obj, str):
+        return obj
+    type_name = type(obj).__name__
+    obj_id = getattr(obj, "id_", None)
+    if obj_id is not None:
+        return f"{type_name} {obj_id}"
+    return type_name
+
+
 def _extract_recipients(activity) -> list[str]:
     """Extract deduplicated recipient actor IDs from an AS2 activity.
 
@@ -152,7 +177,7 @@ async def handle_outbox_item(
         " [%s] for actor '%s'.",
         activity_type,
         activity_id,
-        activity_object,
+        _format_object(activity_object),
         len(recipients),
         ", ".join(recipients),
         actor_id,

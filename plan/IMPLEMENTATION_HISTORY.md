@@ -5406,3 +5406,44 @@ fidelity, and cross-model round-trip (simulating outbox delivery).
 - `uv run black vultron/ test/ && uv run flake8 vultron/ test/` → clean
 - `uv run mypy` / `uv run pyright` → 0 errors
 - `uv run pytest --tb=short 2>&1 | tail -5` → `1321 passed, 5581 subtests passed in 45.34s`
+
+---
+
+## D5-7-LOGCLEAN-1 + D5-7-MSGORDER-1 (2026-04-14)
+
+### D5-7-LOGCLEAN-1 — Replace verbose Pydantic repr in outbox delivery log
+
+Added `_format_object(obj)` helper to `outbox_handler.py` that returns
+`"<ClassName> <id>"` for domain objects, passes strings through unchanged, and
+handles `None`. Replaced `activity_object` in the INFO delivery log with
+`_format_object(activity_object)`, eliminating hundreds of characters of
+Pydantic field-repr noise.
+
+**Files changed**:
+
+- `vultron/adapters/driving/fastapi/outbox_handler.py` — added `_format_object`,
+  updated delivery log
+- `test/adapters/driving/fastapi/test_outbox.py` — added 5 tests covering
+  `_format_object` variants and verifying no Pydantic repr in delivery log
+
+### D5-7-MSGORDER-1 — Create(Case) must precede Add(CaseParticipant) in outbox
+
+Reordered BT nodes in `receive_report_case_tree.py` so `CreateCaseActivity` +
+`UpdateActorOutbox` run *before* `CreateFinderParticipantNode`. This ensures
+the finder receives `Create(Case)` before `Add(CaseParticipant)`, preventing
+"case not found" warnings on the finder side. Updated the module docstring to
+document the ordering rationale.
+
+**Files changed**:
+
+- `vultron/core/behaviors/case/receive_report_case_tree.py` — reordered
+  sequence children, updated docstring
+- `test/core/behaviors/case/test_receive_report_case_tree.py` — added
+  `test_create_case_precedes_add_participant_in_outbox`
+
+**Validation**:
+
+- `uv run black vultron/ test/ && uv run flake8 vultron/ test/` → clean
+- `uv run mypy` / `uv run pyright` → 0 errors
+- `uv run pytest --tb=short 2>&1 | tail -5` →
+  `1399 passed, 10 skipped, 5581 subtests passed in 59.08s`
