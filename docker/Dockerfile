@@ -10,20 +10,20 @@ RUN python -m venv "${VIRTUAL_ENV}"
 
 FROM base AS dependencies
 
-ARG BASE_DIR=..
+# Install third-party dependencies in a dedicated layer so that changing
+# application source does not bust the dependency-install cache.
+# Only a change to pyproject.toml or uv.lock triggers a re-install.
+COPY pyproject.toml uv.lock /app/
+RUN uv sync --frozen --no-install-project
 
-# Copy the files we need
-COPY ${BASE_DIR}/ /app
-# Set the environment variable
+# Copy the full application source and install the project package
+# (including console-script entry points such as vultron-demo).
+# Code-only changes only bust this layer, not the dependency layer above.
+COPY . /app/
 ENV PYTHONPATH=/app
-COPY ${BASE_DIR}/pyproject.toml /app/pyproject.toml
-COPY ${BASE_DIR}/uv.lock /app/uv.lock
-
-# install requirements
 RUN uv sync --frozen
 
 FROM dependencies AS test
-ENV PYTHONPATH=/app
 # Install pytest and dev dependencies
 RUN uv sync --frozen --dev
 # Run the unit tests
@@ -37,10 +37,10 @@ CMD ["uv", "run", "vultrabot"]
 
 FROM dependencies AS api-dev
 ENV LOG_LEVEL=DEBUG
+RUN mkdir -p /app/data
 CMD ["uv","run","uvicorn","vultron.adapters.driving.fastapi.main:app","--host","0.0.0.0","--port","7999","--reload"]
 
 FROM dependencies AS demo
-ENV PYTHONPATH=/app
 COPY docker/demo-entrypoint.sh /app/demo-entrypoint.sh
 RUN chmod +x /app/demo-entrypoint.sh
 ENTRYPOINT ["/app/demo-entrypoint.sh"]

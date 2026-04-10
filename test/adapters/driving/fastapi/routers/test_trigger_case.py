@@ -24,7 +24,10 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
-from vultron.adapters.driving.fastapi.routers.trigger_case import _actor_dl
+from vultron.adapters.driving.fastapi.routers.trigger_case import (
+    _actor_dl,
+    _canonical_actor_dl,
+)
 from vultron.adapters.driving.fastapi.routers import (
     trigger_case as trigger_case_router,
 )
@@ -80,6 +83,7 @@ def client_triggers(dl):
     app = FastAPI()
     app.include_router(trigger_case_router.router)
     app.dependency_overrides[_actor_dl] = lambda: dl
+    app.dependency_overrides[_canonical_actor_dl] = lambda: dl
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
@@ -411,3 +415,119 @@ def test_trigger_defer_case_updates_participant_rm_state(
                 found_deferred = True
                 break
     assert found_deferred, "Participant RM state was not updated to DEFERRED"
+
+
+# ===========================================================================
+# Tests for outbox delivery scheduling (D5-6-TRIGDELIV)
+# ===========================================================================
+
+
+class TestTriggerCaseOutboxScheduling:
+    """D5-6-TRIGDELIV: case trigger endpoints must schedule outbox_handler."""
+
+    def test_engage_case_schedules_outbox_handler(
+        self, client_triggers, actor, case_with_participant
+    ):
+        """engage-case schedules outbox delivery after execution."""
+        from unittest.mock import AsyncMock, patch
+
+        with patch(
+            "vultron.adapters.driving.fastapi.routers"
+            ".trigger_case.outbox_handler",
+            new_callable=AsyncMock,
+        ) as mock_outbox:
+            resp = client_triggers.post(
+                f"/actors/{actor.id_}/trigger/engage-case",
+                json={"case_id": case_with_participant.id_},
+            )
+        assert resp.status_code == status.HTTP_202_ACCEPTED
+        mock_outbox.assert_called_once()
+        assert mock_outbox.call_args.args[0] == actor.id_
+
+    def test_defer_case_schedules_outbox_handler(
+        self, client_triggers, actor, case_with_participant
+    ):
+        """defer-case schedules outbox delivery after execution."""
+        from unittest.mock import AsyncMock, patch
+
+        with patch(
+            "vultron.adapters.driving.fastapi.routers"
+            ".trigger_case.outbox_handler",
+            new_callable=AsyncMock,
+        ) as mock_outbox:
+            resp = client_triggers.post(
+                f"/actors/{actor.id_}/trigger/defer-case",
+                json={"case_id": case_with_participant.id_},
+            )
+        assert resp.status_code == status.HTTP_202_ACCEPTED
+        mock_outbox.assert_called_once()
+        assert mock_outbox.call_args.args[0] == actor.id_
+
+
+# ===========================================================================
+# Regression tests for BUG-2026040901 — outbox delivery silently dropped
+# ===========================================================================
+
+
+class TestTriggerCaseOutboxCanonicalId:
+    """Regression tests for BUG-2026040901.
+
+    The bug: trigger routes receive ``actor_id`` as a short UUID from the URL
+    path, but use-case helpers write to the outbox using the canonical full URI
+    (``actor.id_``).  If ``outbox_handler`` is called with the short UUID, it
+    reads from a different TinyDB table and finds nothing — silently dropping
+    all outbox activities.
+
+    Fix: ``_canonical_actor_dl`` resolves the actor from the DataLayer and
+    returns an actor-scoped DataLayer keyed by the canonical URI, which is then
+    passed to ``outbox_handler``.
+    """
+
+    def test_engage_case_canonical_actor_dl_resolves_full_uri(
+        self, dl, actor, case_with_participant
+    ):
+        """outbox_handler receives the canonical-URI-keyed DataLayer.
+
+        When the URL uses a short UUID (last path segment of actor.id_),
+        _canonical_actor_dl must resolve to the full URI so that
+        outbox_handler reads from the same table as record_outbox_item.
+        """
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        short_uuid = actor.id_.rstrip("/").rsplit("/", 1)[-1]
+
+        # Fresh app WITHOUT overriding _canonical_actor_dl so the real
+        # dependency resolves the canonical URI via the real DataLayer.
+        app = FastAPI()
+        app.include_router(trigger_case_router.router)
+        app.dependency_overrides[_actor_dl] = lambda: dl
+        # _canonical_actor_dl intentionally NOT overridden.
+
+        captured_dl_arg = []
+
+        async def capture_outbox(actor_id, actor_dl, shared_dl):
+            captured_dl_arg.append((actor_id, actor_dl))
+
+        import pytest
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(
+                "vultron.adapters.driving.fastapi.routers"
+                ".trigger_case.outbox_handler",
+                capture_outbox,
+            )
+            client = TestClient(app)
+            resp = client.post(
+                f"/actors/{short_uuid}/trigger/engage-case",
+                json={"case_id": case_with_participant.id_},
+            )
+
+        assert resp.status_code == 202, resp.json()
+        assert len(captured_dl_arg) == 1, "outbox_handler was not called"
+        _, actor_dl_used = captured_dl_arg[0]
+        # The actor-scoped DL must be keyed by the FULL canonical URI
+        assert actor_dl_used._actor_id == actor.id_, (
+            f"Expected canonical URI '{actor.id_}', "
+            f"got '{actor_dl_used._actor_id}'"
+        )

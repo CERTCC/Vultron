@@ -240,6 +240,32 @@ class TestRecordOutboxItem:
             "https://example.org/activities/for-bob"
         ]
 
+    def test_record_outbox_item_full_uri_requires_matching_scoped_dl(self):
+        """record_outbox_item with a full URI writes to the full-URI-prefixed table.
+
+        This confirms the contract: the actor-scoped DataLayer passed to
+        outbox_handler MUST be keyed by the same actor ID string used in
+        record_outbox_item.  Trigger routes must resolve the canonical actor
+        URI (actor.id_) and pass it to both get_datalayer() and the
+        outbox_handler call so that the scoped DL reads from the same table
+        that record_outbox_item wrote to (BUG-2026040901).
+        """
+        dl_shared = TinyDbDataLayer(db_path=None)
+        full_uri = "https://example.org/actors/alice"
+        dl_canonical = TinyDbDataLayer(db_path=None, actor_id=full_uri)
+        dl_canonical._db = dl_shared._db
+
+        activity_id = "https://example.org/activities/full-uri-001"
+        dl_shared.record_outbox_item(full_uri, activity_id)
+
+        # The actor-scoped DL keyed by the FULL URI sees the item
+        assert activity_id in dl_canonical.outbox_list()
+
+        # A DL keyed only by the short segment does NOT (different table)
+        dl_short = TinyDbDataLayer(db_path=None, actor_id="alice")
+        dl_short._db = dl_shared._db
+        assert activity_id not in dl_short.outbox_list()
+
 
 # ---------------------------------------------------------------------------
 # get_datalayer() factory and instance caching
@@ -276,6 +302,22 @@ class TestGetDatalayerFactory:
     def test_shared_instance_has_no_actor_id(self):
         dl = get_datalayer()
         assert dl._actor_id is None
+
+    def test_get_datalayer_full_uri_is_distinct_from_short_id(self):
+        """get_datalayer keyed by full URI is distinct from the short-UUID instance.
+
+        This documents the current (intentional) behavior: trigger routes must
+        resolve the canonical actor URI (actor.id_) and pass it to get_datalayer
+        so that outbox_handler reads from the same table that record_outbox_item
+        wrote to.  If a short UUID is passed instead, a separate (empty) DL is
+        returned (BUG-2026040901 — fixed in trigger routes, not here).
+        """
+        dl_short = get_datalayer("alice", db_path=None)
+        dl_full = get_datalayer(
+            "https://example.org/actors/alice", db_path=None
+        )
+        # They ARE different instances — the fix is in the trigger routes
+        assert dl_short is not dl_full
 
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-30 (refresh #61: SPEC-AUDIT-3 complete)
+**Last Updated**: 2026-04-08 (IDEA-260408-01-5 ✅, IDEA-260408-01-6 ✅; dereference pattern + standalone status removal; 1299 tests passing)
 
 ## Overview
 
@@ -13,7 +13,9 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 
 ### Current Status Summary
 
-**Test suite**: 1080 passed, 5581 subtests (2026-03-30).
+**Test suite**: Canonical validation last passed on 2026-04-08
+(1262 passed, 5581 subtests; `black`, `flake8`, `mypy`, `pyright`, full
+`pytest` run).
 
 All 38 message handlers implemented (including `unknown`). All 9 trigger
 endpoints complete. 12 demo scripts, all dockerized in `docker-compose.yml`.
@@ -27,8 +29,23 @@ All PRIORITY-30 through PRIORITY-200 phases complete.
   BUG-FLAKY-1, REORG-1, SECOPS-1, DOCMAINT-1, SPEC-AUDIT-1, SPEC-AUDIT-2,
   SPEC-AUDIT-3
 
-**PRIORITY-300** (multi-actor demos; D5-1 unblocked, D5-2 and later blocked
-by PRIORITY-250).
+**PRIORITY-300** (multi-actor demos; D5-1 through D5-5 complete; D5-6 feedback
+tasks tracked under PRIORITY-310 below).
+
+**PRIORITY-310** Address demo feedback — D5-6-LOG, D5-6-STATE, D5-6-STORE,
+D5-6-WORKFLOW (all ✅); D5-6-DUP, D5-6-TRIGDELIV, D5-6-LOGCTX (all ✅);
+D5-6-DEMOAUDIT ✅; D5-6-AUTOENG ✅; D5-6-NOTECAST ✅; D5-6-CASEPROP ✅;
+D5-6-EMBARGORCP ✅
+**PRIORITY-320** Round-2 demo feedback (independent tasks) —
+D5-7-EMSTATE-1, D5-7-AUTOENG-2, D5-7-TRIGNOTIFY-1, D5-7-DEMONOTECLEAN-1
+(pending). D5-7-MSGORDER-1 ✅, D5-7-LOGCLEAN-1 ✅.
+D5-7-CASEREPL-1 and D5-7-ADDOBJ-1 superseded by SYNC-2 (see Priority 330).
+D5-7-DEMOREPLCHECK-1 and D5-7-HUMAN deferred until after SYNC-2.
+
+**PRIORITY-330** SYNC + demo sign-off — OUTBOX-MON-1, SYNC-1, SYNC-2, SYNC-3
+(sequential); then D5-7-DEMOREPLCHECK-1, D5-7-HUMAN sign-off.
+SYNC-2 subsumes D5-7-CASEREPL-1 and D5-7-ADDOBJ-1.
+Prereq for SYNC-2: D5-7-TRIGNOTIFY-1 (from Priority 320).
 
 ---
 
@@ -175,24 +192,423 @@ PRIORITY-300 demo work. D5-1 (architecture review) MAY proceed in parallel.
   call.
 
 ---
- — Multi-Actor Demos (PRIORITY 300)
+
+### Phase PRIORITY-300 — Multi-Actor Demos (PRIORITY 300)
 
 **Reference**: `plan/PRIORITIES.md` PRIORITY 300, `notes/demo-future-ideas.md`
 
-**Note**: D5-1 (architecture review) is unblocked now that PRIORITY-200 is
-complete. D5-2 and later are blocked by PRIORITY-250 (pre-300 cleanup).
+**Note**: D5-1 is complete. D5-1-G1 through D5-1-G6 are the prerequisites
+for D5-2, identified during the D5-1 architecture review. D5-2 and later
+are blocked by all G tasks.
 
-- [ ] **D5-1**: Confirm the PRIORITY-200 CA-2 follow-up is complete, review
-  the current architecture as specified in `specs/` and as implemented in the
-  codebase, clarify assumptions for isolated actor/container scenarios, and
-  produce a refreshed architectural summary in `notes/` before implementing
-  D5-2 and later multi-actor demo scenarios.
-- [ ] **D5-2**: Demo Scenario 1 (finder + vendor): Dockerized with two actor
-  containers + CaseActor container. **Blocked by PRIORITY-250**.
-- [ ] **D5-3**: Demo Scenario 2 (finder + vendor + coordinator). **Blocked by D5-2**.
-- [ ] **D5-4**: Demo Scenario 3 (ownership transfer + multi-vendor). **Blocked by D5-3**.
-- [ ] **D5-5**: Integration tests and Docker Compose configs for each scenario.
-  **Blocked by D5-2**.
+- [x] **D5-1**: Architectural review complete; CA-2 follow-up confirmed;
+  `notes/multi-actor-architecture.md` produced with actor/container
+  assumptions and D5-2 prerequisites (G1–G6). Completed 2026-03-31.
+
+#### D5-1-G2 — Actor Seeding / Bootstrap CLI Command ✅
+
+- [x] **D5-1-G2**: `vultron-demo seed` CLI sub-command implemented in
+  `vultron/demo/cli.py`. Reads local actor + peer config from env vars
+  (`VULTRON_ACTOR_NAME`, `VULTRON_ACTOR_TYPE`, `VULTRON_ACTOR_ID`) or a JSON
+  file (`VULTRON_SEED_CONFIG`). Calls idempotent `POST /actors/` endpoint
+  (added to `vultron/adapters/driving/fastapi/routers/actors.py`). Docker
+  entrypoint (`docker/demo-entrypoint.sh`) calls `vultron-demo seed` when
+  `VULTRON_ACTOR_NAME` or `VULTRON_SEED_CONFIG` is set. Full test coverage
+  in `test/demo/test_seed_config.py`, `test/demo/test_seed.py`, and
+  `test/adapters/driving/fastapi/routers/test_actors.py`.
+
+#### D5-1-G4 — Multi-Container Docker Compose Configuration ✅
+
+- [x] **D5-1-G4**: Created `docker/docker-compose-multi-actor.yml` with three
+  actor services (`finder` port 7901, `vendor` port 7902, `case-actor` port
+  7903) and a `demo-runner` service. Each actor service has a unique
+  `VULTRON_BASE_URL`, named volume at `/app/data`, healthcheck at
+  `/api/v2/health/ready`, and `vultron-network` membership. Added
+  `VULTRON_DB_PATH` env var support to `get_datalayer()` via module-level
+  `_DEFAULT_DB_PATH` constant (read from `os.environ` at import time). Added
+  `RUN mkdir -p /app/data` to `docker/Dockerfile` api-dev target. Updated
+  `docker/README.md` with multi-actor setup section. Added
+  `test/adapters/driven/test_get_datalayer.py` (7 tests). Completed
+  2026-03-31.
+
+#### D5-1-G6 — Inbox URL Derivation Integration Test ✅
+
+- [x] **D5-1-G6**: Added `test/adapters/driven/test_delivery_inbox_url.py`
+  with 6 tests verifying that `DeliveryQueueAdapter`'s inbox URL derivation
+  formula (`{actor_id}/inbox/`) produces URLs consistent with the FastAPI
+  actors router route (`POST /actors/{actor_id}/inbox/`). Tests confirm the
+  derivation normalises trailing slashes, preserves the actor UUID, and that
+  a POST to the derived path returns 202 (not 404).
+
+#### D5-1-G3 — CaseActor Instantiation Strategy ✅
+
+- [x] **D5-1-G3**: Chosen strategy: pre-seeded container identity with
+  lazy per-case `VultronCaseActor` records. For D5-2, CaseActor co-locates
+  in Vendor container. Added deterministic `VULTRON_ACTOR_ID` values to
+  `docker/docker-compose-multi-actor.yml`. Created
+  `docker/seed-configs/seed-{finder,vendor,case-actor}.json` with full peer
+  meshes. Updated `notes/multi-actor-architecture.md` §3-D and §4 gap
+  list. Tests in `test/demo/test_multi_actor_seed.py` (32 tests).
+
+#### D5-1-G5 — Multi-Container Demo Script ✅
+
+- [x] **D5-1-G5**: Added `vultron/demo/two_actor_demo.py` plus a
+  `vultron-demo two-actor` CLI sub-command for the Finder + Vendor
+  multi-container workflow. The demo accepts per-container base URLs and
+  deterministic actor IDs, seeds both containers in a two-phase peer-aware
+  sequence, orchestrates cross-container inbox + trigger interactions for
+  submit/validate/engage/invite/accept, and verifies final state from each
+  container's DataLayer. Added unit coverage in
+  `test/demo/test_two_actor_demo.py` and activated the `demo-runner` service
+  in `docker/docker-compose-multi-actor.yml` with `DEMO=two-actor`.
+
+#### D5-1-G1 — VULTRON_BASE_URL Exposure via Info/Health Endpoint ✅
+
+- [x] **D5-1-G1**: Added `vultron/adapters/driving/fastapi/routers/info.py`
+  with a `GET /info` endpoint returning `VULTRON_BASE_URL` and the list of
+  actor IDs registered in the shared DataLayer. Registered in `v2_router.py`.
+  Tests in `test/adapters/driving/fastapi/routers/test_info.py` (5 tests).
+  The `/health/ready` DataLayer connectivity check (OB-05-002) was already
+  implemented.
+
+- [x] **D5-2**: Demo Scenario 1 (finder + vendor): Dockerized with two actor
+  containers + CaseActor container. Completed 2026-03-31 with deterministic
+  reset/seeding, stronger final-state assertions, and core validate-report
+  seeding of the Vendor participant / actor-participant index.
+- [x] **D5-3**: Demo Scenario 2 (finder + vendor + coordinator): added
+  `vultron/demo/three_actor_demo.py` and `vultron-demo three-actor`, extended
+  the multi-actor Docker setup with a `coordinator` service plus full seed
+  mesh, and verified the authoritative case/embargo workflow on the dedicated
+  `case-actor` container with unit coverage in
+  `test/demo/test_three_actor_demo.py`. Completed 2026-04-01.
+- [x] **D5-4**: Demo Scenario 3 (ownership transfer + multi-vendor). Implemented
+  5-container demo (`multi_vendor_demo.py`) with Vendor-led case creation,
+  ownership transfer to Coordinator, and Vendor2 invited into the active embargo
+  group. Added seed-vendor2.json, updated all seed configs to 5-actor mesh,
+  updated docker-compose-multi-actor.yml, added CLI command, and 6 unit tests.
+  Also fixed `AcceptInviteToEmbargoOnCaseReceivedUseCase` idempotency bug that
+  prevented per-participant embargo acceptance tracking. Completed 2026-04-01.
+- [x] **D5-5**: Integration test script `run_multi_actor_integration_test.sh`
+  created in `integration_tests/demo/`; accepts `two-actor`, `three-actor`, or
+  `multi-vendor` as a positional argument (or via `DEMO` env var); builds
+  images, runs the full multi-actor compose stack with
+  `--abort-on-container-exit --exit-code-from demo-runner`, and removes
+  volumes on exit. Added `make integration-test-multi-actor`,
+  `integration-test-three-actor`, and `integration-test-multi-vendor` Makefile
+  targets. Updated `integration_tests/README.md` and `docker/README.md` with
+  usage notes. Completed 2026-04-01.
+- [x] **D5-6**: Expanded into specific follow-up tasks D5-6-LOG, D5-6-STATE,
+  D5-6-STORE, and D5-6-WORKFLOW in Phase PRIORITY-310 below, derived from
+  reviewer feedback captured in `notes/two-actor-feedback.md`. See
+  PRIORITY-310 section.
+
+---
+
+### Phase PRIORITY-310 — Address Demo Feedback (PRIORITY 310)
+
+**Reference**: `plan/PRIORITIES.md` PRIORITY 310, `notes/two-actor-feedback.md`
+
+Reviewer feedback on the two-actor multi-container demo is captured in
+`notes/two-actor-feedback.md` (items D5-6a through D5-6l). All tasks in this
+section MUST be completed before proceeding to other priorities.
+
+#### D5-6-LOG — Improve process-flow logging across demo containers ✅
+
+- [x] **D5-6-LOG**: Improved INFO-level logging for coherent process-flow
+  across container logs (D5-6a, b, e, f, g). See IMPLEMENTATION_HISTORY.md.
+
+#### D5-6-STATE — Clarify RM state log messages; initialize finder participant at RM.ACCEPTED ✅
+
+- [x] **D5-6-STATE**: Fixed RM state transition log clarity and finder
+  initial state initialization at RM.ACCEPTED (D5-6c). See
+  IMPLEMENTATION_HISTORY.md.
+
+#### D5-6-STORE — Verify and fix datalayer reference storage for nested activity objects ✅
+
+- [x] **D5-6-STORE**: Datalayer stores nested objects by reference; logs
+  clarified for rehydrated display (D5-6d). See IMPLEMENTATION_HISTORY.md.
+
+#### D5-6-WORKFLOW — Automate complete case creation sequence from validate-report ✅
+
+- [x] **D5-6-WORKFLOW**: Validate-report BT now executes full case creation
+  (7-node sequence: case, embargo, vendor/finder participants, notification)
+  as a single automated workflow (D5-6h). See IMPLEMENTATION_HISTORY.md.
+
+#### D5-6-DUP — Investigate and fix duplicate VulnerabilityReport warning
+
+- [x] **D5-6-DUP**: False-positive WARNING demoted to DEBUG in both
+  `SubmitReportReceivedUseCase` and `CreateReportReceivedUseCase`; the inbox
+  endpoint pre-stores nested objects before dispatch so duplicates are
+  expected. Added `TestDuplicateReportHandling` tests confirming no WARNING
+  on pre-stored report.
+
+#### D5-6-LOGCTX — Improve outbox activity log messages with human-readable context ✅
+
+- [x] **D5-6-LOGCTX**: Improved log messages for outbox activity queuing and
+  delivery. Completed 2026-04-07.
+
+#### D5-6-TRIGDELIV — Fix trigger endpoints to deliver outbox activities ✅
+
+- [x] **D5-6-TRIGDELIV**: Added `BackgroundTasks` to all 9 trigger endpoints
+  and scheduled `outbox_handler(actor_id, actor_dl, shared_dl)` as a background
+  task after each use-case execution. Added 8 new tests verifying
+  `outbox_handler` is scheduled. Completed 2026-04-07.
+
+#### D5-6-DEMOAUDIT — Audit and refactor all demos for protocol compliance ✅
+
+- [x] **D5-6-DEMOAUDIT**: Audited multi-actor demo scripts against protocol
+  docs. Added `to=addressees` and full case embedding to
+  `CreateCaseActivity` node (validate-report BT); added `to=[finder_actor_id]`
+  to `CreateFinderParticipantNode` notification; fixed outbox_handler to expand
+  `Create` activity objects before delivery; added `wait_for_finder_case()`
+  polling helper + verification block to `run_two_actor_demo`. Documented
+  remaining gaps as D5-6-AUTOENG, D5-6-NOTECAST, D5-6-EMBARGORCP,
+  D5-6-CASEPROP. Completed 2026-04-07. See `plan/IMPLEMENTATION_HISTORY.md`.
+
+#### D5-6-AUTOENG — Auto-engage after invitation acceptance
+
+- [x] **D5-6-AUTOENG**: `AcceptInviteActorToCaseReceivedUseCase` now invokes
+  `SvcEngageCaseUseCase` after participant creation, queues an
+  `RmEngageCaseActivity`, and the three-actor / multi-vendor demos no longer
+  call `engage-case` manually. Completed 2026-04-08.
+
+#### D5-6-NOTECAST — Broadcast notes to case participants
+
+- [x] **D5-6-NOTECAST**: When a note is added to a case, the CaseActor
+  MUST broadcast the note to all case participants (excluding the note
+  author).
+  - Modified `AddNoteToCaseReceivedUseCase` to derive recipients from
+    `case.actor_participant_index` and queue a broadcast `AddNoteToCaseActivity`
+    to the outbox via `record_outbox_item`.
+  - Removed manual note-forwarding code from the two-actor demo
+    (`vultron/demo/two_actor_demo.py`).
+  - Added three broadcast tests to `test/core/use_cases/received/test_note.py`.
+  - **Spec**: CM-06-005, OX-03-001.
+  - Completed 2026-04-10. See `plan/IMPLEMENTATION_HISTORY.md`.
+
+#### D5-6-EMBARGORCP — Fix embargo Announce activity addressing
+
+- [x] **D5-6-EMBARGORCP**: Removed the standalone `Announce(embargo)` from
+  `InitializeDefaultEmbargoNode.update()`. Embargo info flows to the finder
+  via `VulnerabilityCase.active_embargo` embedded in the `Create(Case)`
+  activity. Tests updated; all linters and 1267 tests pass.
+  Completed 2026-04-11. See `plan/IMPLEMENTATION_HISTORY.md`.
+
+#### D5-6-CASEPROP — Case propagation and activity addressing
+
+- [x] **D5-6-CASEPROP**: Fix remaining case propagation gaps (partially
+  addressed in D5-6-DEMOAUDIT; D5-6-AUTOENG eliminated the manual
+  `engage-case` demo step).
+  - **Partial fix done** (D5-6-DEMOAUDIT): `CreateCaseActivity` node in
+    `vultron/core/behaviors/report/nodes.py` (validate-report BT) now sets
+    `to=addressees` and embeds the full `VulnerabilityCase` as `object_`.
+    `CreateFinderParticipantNode` now sets `to=[finder_actor_id]`.
+  - **Remaining gap closed** (D5-6-CASEPROP): `EmitCreateCaseActivity` in
+    `vultron/core/behaviors/case/nodes.py` (create-case BT) now reads the
+    full `VulnerabilityCase` via the DataLayer, embeds it as `object_`, and
+    derives `to` from `actor_participant_index` (excluding the actor itself),
+    matching the `report/nodes.py::CreateCaseActivity` pattern.
+  - **Spec**: OX-03-001, DEMO-MA-00-001.
+  - Completed 2026-04-10. See `plan/IMPLEMENTATION_HISTORY.md`.
+
+#### D5-7-HUMAN — Project owner sign-off on demo feedback resolution
+
+- [ ] **D5-7-HUMAN**: Project owner sign off. Agents are forbidden from updating
+  this task; a human must confirm that all of the following are complete before
+  signing off:
+  - All D5-7 independent tasks (EMSTATE-1, AUTOENG-2, TRIGNOTIFY-1,
+    DEMONOTECLEAN-1)
+  - SYNC-2 (log replication; subsumes CASEREPL-1 and ADDOBJ-1)
+  - D5-7-DEMOREPLCHECK-1 (post-SYNC-2 finder replica verification)
+  - Multi-actor demos pass end-to-end with log-sync in place
+
+---
+
+### Phase PRIORITY-320 — Two-Actor Demo Feedback Round 2 (PRIORITY 320)
+
+**Reference**: `notes/two-actor-feedback.md` Review Pass 2 (D5-7-* items),
+`plan/PRIORITIES.md` PRIORITY 320
+
+Second-pass review of the 2026-04-10 two-actor integration log identified
+several concerns. The following tasks are **independent of SYNC** and should
+be completed before starting SYNC work.
+
+**Deferred to SYNC-2 scope** (Priority 330): D5-7-CASEREPL-1 and
+D5-7-ADDOBJ-1 are superseded by the `Announce(CaseLogEntry)` replication path.
+
+**Deferred until after SYNC-2**: D5-7-DEMOREPLCHECK-1 (log-state consistency
+check) and D5-7-HUMAN (final sign-off).
+
+See `notes/two-actor-feedback.md` for detailed observations and log line
+references.
+
+#### D5-7-CASEREPL-1 — Replace create-case handler with replication use case ~~SUPERSEDED~~
+
+> **Superseded by SYNC-2.** The SYNC-2 log-replication design replaces the
+> direct `Create(VulnerabilityCase)` vendor→finder delivery path with
+> `Announce(CaseLogEntry)` replication via the CaseActor. Implementing a
+> stopgap `ReceiveCreateCaseUseCase` here would be deleted/replaced by
+> SYNC-2. The case identity and participant-ID correctness problems this
+> task addressed are resolved by having the CaseActor be the sole writer of
+> canonical log entries that participants replicate. See SYNC-2 for the
+> authoritative fix; see `notes/case-log-authority.md` for rationale.
+>
+> **Fixes**: NEW-1, NEW-12 — addressed by SYNC-2.
+
+#### D5-7-MSGORDER-1 — Create(Case) must precede Add(CaseParticipant) in outbox queue
+
+- [x] **D5-7-MSGORDER-1**: The case-creation BT queues `Add(CaseParticipant)` for
+  the finder participant (line 472) *before* `Create(Case)` (line 475). When the
+  finder's outbox processes in order, the `Add` arrives before the case exists
+  in the finder's datalayer, causing a "case not found" warning (line 516).
+
+  **Fix**:
+  - Reorder the BT nodes in `vultron/core/behaviors/case/nodes.py`
+    (`EmitCreateCaseActivity`) so `Create(Case)` is queued before
+    `Add(CaseParticipant)` notifications.
+  - Verify with an integration test or log inspection that the finder no longer
+    warns "case not found" on `Add(CaseParticipant)` receipt.
+
+  **Spec**: `specs/outbox.md` OX-03-001 (delivery order); `notes/case-log-authority.md`.
+  **Fixes**: NEW-3.
+
+#### D5-7-EMSTATE-1 — Embargo initialization must update CaseStatus EM state
+
+- [ ] **D5-7-EMSTATE-1**: After embargo initialization, `caseStatuses[0].emState`
+  remains `"NONE"` even though `activeEmbargo` is set to a valid embargo ID
+  (visible in final state check, lines 831 and 839 of the 2026-04-10 log). The
+  embargo is created and attached to the case but the CaseStatus is never updated
+  to reflect it.
+
+  **Fix**:
+  - After `InitializeDefaultEmbargoNode` attaches the embargo, append a new
+    `CaseStatus` entry with `em_state` reflecting the embargo's initial protocol
+    state (e.g., `EM.PROPOSED` or as specified by `specs/case-management.md`).
+  - Use `case.record_event(embargo.id_, "embargo_initialized")` per the trusted
+    timestamp pattern.
+  - Add tests verifying `caseStatuses[-1].emState != "NONE"` after case creation.
+
+  **Spec**: `specs/case-management.md` CM-03-006, CM-03-007; AGENTS.md
+  "case_status Field Is a List".
+  **Fixes**: NEW-5.
+
+#### D5-7-LOGCLEAN-1 — Replace verbose Pydantic repr in outbox delivery log
+
+- [x] **D5-7-LOGCLEAN-1**: The outbox delivery INFO log at
+  `vultron/adapters/driving/fastapi/outbox_handler.py` (line ~150) includes the
+  full Pydantic `repr()` of the activity object (line 579 of the 2026-04-10 log),
+  producing hundreds of characters of unreadable output.
+
+  **Fix**:
+  - Replace `activity_object` in the log format string with a concise helper
+    that returns `f"{type(obj).__name__} {getattr(obj, 'id_', str(obj))}"` or
+    similar — producing e.g. `VulnerabilityCase urn:uuid:8d52cb56-…`.
+  - Ensure the helper handles string objects (already-serialized ID refs) and
+    `None` gracefully.
+  - Add a test verifying the delivery log message does not contain Pydantic
+    field repr syntax (e.g. `context_=`, `type_=<`).
+
+  **Fixes**: NEW-6.
+
+#### D5-7-AUTOENG-2 — Auto-cascade from validate-report to engage-case or defer-case
+
+- [ ] **D5-7-AUTOENG-2**: After `validate-report` succeeds, the demo-runner
+  manually triggers `engage-case` (line 639). In a real deployment, the vendor
+  must decide automatically whether to engage or defer based on its own policy.
+  D5-6-AUTOENG automated cascade from invitation-acceptance → engage; this task
+  automates the validate → engage/defer cascade.
+
+  **Fix**:
+  - Add a policy-check node to the `validate-report` BT (or invoke it at the end
+    of `ValidateReportReceivedUseCase`).
+  - Default policy: engage immediately (conservative default for demo).
+  - If policy returns engage → invoke `SvcEngageCaseUseCase` inline and cascade.
+  - If policy returns defer → invoke `SvcDeferCaseUseCase` inline and cascade.
+  - Remove the manual `engage-case` trigger step from `two_actor_demo.py`.
+  - Add tests verifying that after `validate-report`, the vendor participant's RM
+    state is `ACCEPTED` (engaged) without a separate trigger call.
+
+  **Spec**: `specs/triggerable-behaviors.md`; `notes/protocol-event-cascades.md`.
+  **Fixes**: NEW-7.
+
+#### D5-7-ADDOBJ-1 — Always inline `object` field in outbound Add/Create activities ~~SUPERSEDED~~
+
+> **Superseded by SYNC-2.** The root cause (finder receiving `Add(CaseParticipant)`
+> with a URI-only `object` field from the vendor) is eliminated when SYNC-2
+> routes all case state updates through the CaseActor's `Announce(CaseLogEntry)`
+> replication path — participant actors no longer receive direct `Add/Create`
+> activities from peers. The inline-objects principle remains valid and will be
+> applied to `Announce(CaseLogEntry)` delivery in SYNC-2's implementation.
+>
+> **Fixes**: NEW-8, NEW-9 — addressed by SYNC-2.
+
+#### D5-7-TRIGNOTIFY-1 — Populate `to` field in all trigger-use-case outbound activities
+
+> **Prerequisite for SYNC-2.** Trigger activities need correct `to` addressing
+> to reach the CaseActor and be included in replication fan-out. Complete
+> this task (in Priority 320) before starting SYNC-2.
+
+- [ ] **D5-7-TRIGNOTIFY-1**: Trigger use cases that emit outbound state-change
+  activities (engage-case, defer-case, close-case, etc.) construct activities with
+  no `to` field. The outbox handler silently drops them at DEBUG level ("No
+  recipients found"), so case participants never receive these state notifications.
+  For example, after `SvcEngageCaseUseCase` executes (line 640–641), the queued
+  `RmEngageCaseActivity` (`urn:uuid:06492e44-…`, line 644) is silently dropped —
+  the finder never learns the vendor engaged the case.
+
+  **Fix**:
+  - In each trigger use case that creates an outbound activity, populate the
+    activity's `to` field with all current case participants from
+    `case.actor_participant_index`, excluding the triggering actor.
+  - At minimum audit: `SvcEngageCaseUseCase`, `SvcDeferCaseUseCase`,
+    `SvcCloseCaseUseCase`, `SvcCloseReportUseCase`, and all embargo trigger
+    use cases.
+  - Add tests verifying each trigger use case queues activities with non-empty
+    `to` fields matching the expected participant list.
+
+  **Spec**: `specs/outbox.md` OX-03-001; `specs/case-management.md` CM-06.
+  **Fixes**: NEW-13.
+
+#### D5-7-DEMONOTECLEAN-1 — Use trigger API for notes in two-actor demo
+
+- [ ] **D5-7-DEMONOTECLEAN-1**: The two-actor demo directly POSTs
+  `Create(Note)` and `Add(Note)` activities to the vendor's inbox on behalf of
+  the finder (lines 648–695), bypassing the trigger API and the finder's outbox.
+  This is a demo shortcut that does not reflect real deployment behavior.
+
+  **Fix**:
+  - Replace the direct inbox POST with a call to the finder's trigger endpoint:
+    `POST /actors/{finder_id}/trigger/add-note-to-case`.
+  - The note will flow: finder trigger → finder outbox → vendor inbox → vendor
+    `AddNoteToCaseReceivedUseCase` → fan-out (D5-6-NOTECAST).
+  - Verify in the demo log that the finder triggers the note, the finder's
+    outbox delivers it to the vendor, and the vendor logs receipt.
+
+  **Fixes**: NEW-4.
+
+#### D5-7-DEMOREPLCHECK-1 — Add finder replica verification to two-actor demo final state check
+
+> **Depends on SYNC-2.** Meaningful finder-replica verification requires
+> checking log-state consistency (same canonical log hash, matching
+> `CaseLogEntry` history), not just field equality. Implement after SYNC-2
+> is complete.
+
+- [ ] **D5-7-DEMOREPLCHECK-1**: The final state check (lines 805–853 of the
+  2026-04-10 log) inspects only the vendor's datalayer. The finder's replica is
+  never verified. This means replication failures pass all demo checks silently.
+
+  **Fix** (post SYNC-2):
+  - Add a finder replica verification block in `two_actor_demo.py` after the
+    existing vendor state check.
+  - Verify at minimum:
+    - The same case ID exists in finder's datalayer
+    - `actor_participant_index` in finder's copy matches vendor's (same UUIDs)
+    - The same `activeEmbargo` ID is present
+    - Log-state hash consistency (same last-replicated hash from CaseActor)
+  - The participant-ID correctness check will pass once SYNC-2 delivers
+    case state via `Announce(CaseLogEntry)` rather than `Create(VulnerabilityCase)`.
+
+  **Fixes**: NEW-11 (and implicitly NEW-1/NEW-12 via SYNC-2).
 
 ---
 
@@ -215,17 +631,45 @@ complete. D5-2 and later are blocked by PRIORITY-250 (pre-300 cleanup).
   stories lacking requirement coverage. Add a new section in
   `plan/IMPLEMENTATION_NOTES.md` listing stories with insufficient coverage.
 
+#### CONFIG-1 — YAML configuration files with Pydantic schema validation
+
+- [ ] **CONFIG-1**: Replace or supplement JSON/env-var actor configuration
+  with YAML config files loaded into validated Pydantic models (IDEA-260402-01).
+  - Load YAML into a dict (`yaml.safe_load()`), validate via a Pydantic
+    `ActorConfig` model with typed nested sections (actor identity, peer
+    mesh, DataLayer backend settings).
+  - Replace the current `VULTRON_SEED_CONFIG` JSON path with a YAML
+    equivalent; keep env-var overrides for backwards compatibility.
+  - Update `vultron/demo/cli.py` `seed` sub-command to accept YAML seed
+    configs in addition to JSON.
+  - Add unit tests for round-trip load/validate of example seed configs.
+  - `pyyaml` is already an indirect dependency (via `docker-compose` test
+    helper); add `pyyaml` and `types-pyyaml` to `pyproject.toml` if not
+    already present.
+
 ---
 
-### Phase PRIORITY-400 — Replicated Log Synchronization (PRIORITY 400)
+### Phase PRIORITY-330 — Replicated Log Synchronization + Demo Sign-off (PRIORITY 330)
 
-**Reference**: `plan/PRIORITIES.md` PRIORITY 400,
+**Reference**: `plan/PRIORITIES.md` PRIORITY 330,
 `plan/IMPLEMENTATION_NOTES.md` (2026-03-26 SYNC design notes)
+
+> **Note on task/priority coupling**: Going forward, tasks in this section
+> use explicit `Depends on:` notation rather than priority-group section
+> headers, so that `plan/PRIORITIES.md` can be updated without requiring
+> corresponding edits here.
 
 These tasks implement distributed append-only case event log replication using
 AS2 Announce activities as the transport. The CaseActor (acting as de facto
 lead) maintains authoritative case event history and replicates it to
 Participant Actors via log synchronization.
+
+This block was formerly PRIORITY-400. It is elevated because D5-7-HUMAN
+sign-off depends on SYNC-2 completing the participant replication story.
+
+**Sequential dependency chain**: OUTBOX-MON-1 → SYNC-1 → SYNC-2 → SYNC-3
+→ D5-7-DEMOREPLCHECK-1 → D5-7-HUMAN.
+SYNC-2 also requires D5-7-TRIGNOTIFY-1 (from Priority 320) to be complete.
 
 > **Design note:** Case Ownership and replication leadership are distinct
 > concepts. A future ownership transfer likely implies leadership change,
@@ -235,24 +679,123 @@ Participant Actors via log synchronization.
 > design notes and system invariants. The corresponding entries in
 > `plan/IMPLEMENTATION_NOTES.md` have been struck through.
 
+#### OUTBOX-MON-1 — OutboxMonitor background loop
+
+> **Prerequisite for SYNC-1/SYNC-2.** Moved from Priority 350.
+
+- [ ] **OUTBOX-MON-1**: Implement a background outbox-drain loop that
+  periodically checks all actor outboxes and delivers pending activities to
+  their targets' inboxes. This is the transport mechanism that ensures
+  outbox→inbox delivery happens automatically without requiring an external
+  trigger.
+
+  **Motivation**: SYNC-2's replication requires the CaseActor to proactively
+  deliver `Announce(CaseLogEntry)` entries to participants. Without automated
+  outbox delivery this requires manual triggers for every replication event.
+
+  **Design**:
+  - Add `OutboxMonitor` class (or async function) in
+    `vultron/adapters/driving/fastapi/outbox_monitor.py`
+  - Polls every 1–2 seconds via `asyncio.sleep` inside a `while True` loop
+  - Iterates over all registered actor DataLayer instances
+  - For each actor with a non-empty outbox, calls `outbox_handler(actor_id, ...)`
+  - Resolve target actor inbox URLs and POST activities
+  - Start/stop monitor in FastAPI lifespan (`app.py`)
+  - Add unit tests verifying drain, delivery, and error handling
+
+  **Acceptance criteria**:
+  - Docker integration test (`two-actor` scenario) passes end-to-end
+  - Finder receives case updates without manual trigger
+  - Monitor handles delivery failures gracefully (logs error, does not crash)
+
 #### SYNC-1 — Local append-only case event log with indexing
 
-- [ ] **SYNC-1**: Implement local append-only case event log with indexing.
+> **Depends on**: OUTBOX-MON-1.
+
+- [ ] **SYNC-1**: Implement local append-only case event log with indexing and
+  the assertion-recording model from `specs/case-log-processing.md` (CLP).
   The `CaseEvent` model (`vultron/wire/as2/vocab/objects/case_event.py`)
-  provides the foundation. Extend it to a true append-only log with
-  hash-chain indexing (each entry carries a content hash and references the
-  predecessor hash). Place replication logic in core domain (transport-agnostic
-  `CaseEventLog`, `ReplicationState` classes); implement AS2 Announce mappings
-  and persistence in adapters. See design notes in `notes/sync-log-replication.md`
-  (2026-03-26) for full architectural context.
+  provides the foundation. This task extends it to a true canonical log:
+
+  **CaseLogEntry model** (CLP-02-001 through CLP-02-007, SYNC-01-002):
+  - Add `log_index` (monotonically increasing integer, scoped to case)
+  - Add `disposition` field: `recorded` | `rejected`
+  - Add optional `term` field (Raft term; `null` for single-node deployments)
+  - Embed the asserted activity payload as a normalized snapshot (for
+    deterministic replay per CLP-02-003)
+  - For rejections: add `reason_code` (machine-readable) and optional
+    `reason_detail` (human-readable) per CLP-02-005
+
+  **Core domain classes** (transport-agnostic, in `vultron/core/`):
+  - `CaseEventLog` — enforces append-only, hash-chain, immutability
+  - `ReplicationState` — per-peer last-acknowledged hash
+
+  **Assertion intake** (CLP-01-001 through CLP-01-004):
+  - Ordinary inbound case-/proto-case-scoped activities are treated as
+    participant assertions (no separate mode marker needed)
+  - The CaseActor is the sole emitter of canonical log entries
+  - Participant replicas MUST NOT project shared case state from peer
+    assertions directly
+
+  **Local audit vs. replicated canonical chain** (CLP-03 through CLP-05):
+  - The broader local audit log includes both `recorded` and `rejected`
+    `CaseLogEntry` objects
+  - The replicated canonical history is a filtered projection of `recorded`
+    entries only (CLP-04-001, CLP-04-002)
+  - Hash-chain computation is over `recorded` entries only (CLP-04-003)
+  - Rejection feedback is sent only to the asserting sender, not broadcast
+    to all participants (CLP-05-001, CLP-05-002)
+
+  **Canonical serialization** (SYNC-01-005):
+  - Before signing, establish the canonical serialization form for hash
+    computation: deterministic key ordering (RFC 8785 JCS), stable UTF-8
+    encoding, explicit field inclusion/exclusion, no optional whitespace
+  - This is essential for Merkle Tree forward-compatibility
+  - See `notes/sync-log-replication.md` "Canonical Serialization" section
+
+  **Adapter responsibilities**:
+  - AS2 `Announce` activity mapping for replication transport
+  - File/database log storage
+
+  **Leadership guard port** (SYNC-09-003):
+  - Add a leadership role-check port to `vultron/core/behaviors/bridge.py`
+  - In single-node (SYNC-1–4): the port always returns `True`; imposes zero
+    runtime cost but establishes the seam for Phase 3 multi-node
+
+  See design notes in `notes/sync-log-replication.md` and
+  `notes/case-log-authority.md` for full architectural context.
+  **Specs**: `specs/sync-log-replication.md` SYNC-01, SYNC-08, SYNC-09;
+  `specs/case-log-processing.md` CLP-01 through CLP-05.
 
 #### SYNC-2 — One-way log replication to Participant Actors
 
+> **Depends on**: SYNC-1, OUTBOX-MON-1, D5-7-TRIGNOTIFY-1.
+>
+> **Subsumes**:
+>
+> - **D5-7-CASEREPL-1** — `Announce(CaseLogEntry)` replication replaces the
+>   direct `Create(VulnerabilityCase)` path; no separate `ReceiveCreateCaseUseCase`
+>   stopgap should be implemented.
+> - **D5-7-ADDOBJ-1** — The inline-objects principle (embed full object, not
+>   URI stub) is incorporated into `Announce(CaseLogEntry)` delivery;
+>   the direct vendor→finder `Add`/`Create` path is retired.
+
 - [ ] **SYNC-2**: One-way log replication from CaseActor to Participant Actors
-  via AS2 Announce activities, with strict conflict handling (reject mismatched
-  `prev_log_index`, retry with decremented index). Reconcile "replication
-  leadership" with "Case Ownership" (distinct concepts; ownership transfer
-  implies leadership change, but not vice versa). Depends on SYNC-1.
+  via AS2 `Announce(CaseLogEntry)` activities. Requirements:
+  - Strict conflict handling: reject mismatched `prev_log_hash`; respond with
+    last-accepted hash (SYNC-03-001); sender retries from entry following the
+    reported last-accepted hash (SYNC-03-002)
+  - Idempotent delivery: duplicate replication messages MUST NOT create
+    duplicate log entries (SYNC-03-003)
+  - Log state in context: participants SHOULD include last-accepted log hash
+    in `context` field of outbound messages to CaseActor (SYNC-03-004)
+  - **Commit discipline** (SYNC-09-001, SYNC-09-002): External Vultron
+    messages (including participant replication fan-out) MUST only be emitted
+    after the associated `CaseLogEntry` is committed. In single-node this
+    means after the append is durably written.
+  - Reconcile "replication leadership" with "Case Ownership" (SYNC-06-001):
+    distinct concepts; ownership transfer implies leadership change, but not
+    vice versa.
 
 #### SYNC-3 — Full sync loop with retry/backoff
 
@@ -304,16 +847,162 @@ are needed before resuming feature development.
 
 ### VOCAB-REG-1 — Vocabulary registry auto-registration
 
-- [ ] **VOCAB-REG-1**: Research and implement a more robust vocabulary
-  registration mechanism that does not rely on developers remembering to
-  update `__init__.py` or add class decorators manually. Candidate
-  approaches:
-  - Dynamic module discovery in the vocabulary subpackage `__init__.py`
-    (auto-import all sibling modules)
-  - Parent-class/mixin auto-registration on subclass creation
-  The registry *structure* and registry *population* are separate concerns
-  and may require separate solutions. See `specs/vocabulary-model.md`
-  VM-01-005 and the cross-cutting observations in `notes/spec-review-0327.md`.
+> **Design complete** as of 2026-04-08. See `notes/vocabulary-registry.md`
+> for full design rationale. Spec updated in `specs/vocabulary-model.md`
+> VM-01-001 through VM-01-006. Implementation split into two tasks below.
+
+#### VOCAB-REG-1.1 — Redesign vocabulary registry core mechanics
+
+- [x] **VOCAB-REG-1.1**: Implement the new registry mechanics in the
+  `vultron/wire/as2/vocab/base/` package. Scope: infrastructure only;
+  existing decorators remain in place until VOCAB-REG-1.2.
+  - Created `vultron/wire/as2/vocab/base/enums.py` with `VocabNamespace`
+    enum (`AS`, `VULTRON`)
+  - Rewrote `vultron/wire/as2/vocab/base/registry.py`:
+    - Replaced `Vocabulary(BaseModel)` with plain
+      `VOCABULARY: dict[str, type[BaseModel]]` module-level singleton
+    - Updated `find_in_vocabulary(name: str)` to flat-dict lookup,
+      raises `KeyError` on miss
+    - Removed `activitystreams_object`, `activitystreams_activity`,
+      `activitystreams_link` decorator definitions
+  - Updated `vultron/wire/as2/vocab/base/base.py` (`as_Base`):
+    - Added `_vocab_ns: ClassVar[VocabNamespace] = VocabNamespace.AS`
+    - Added `__init_subclass__` that inspects new class's `type_`
+      annotation and registers concrete types in `VOCABULARY`
+  - Updated `vultron/wire/as2/vocab/objects/base.py` (`VultronObject`):
+    - Overrides `_vocab_ns = VocabNamespace.VULTRON`
+  - Completed 2026-04-10.
+
+#### VOCAB-REG-1.2 — Migrate vocabulary classes and update callers
+
+- [x] **VOCAB-REG-1.2**: Remove all `@activitystreams_*` decorator usages,
+  add startup-guarantee discovery, and update all `find_in_vocabulary()`
+  callers. Depends on VOCAB-REG-1.1.
+  - Removed `@activitystreams_object` / `@activitystreams_activity` /
+    `@activitystreams_link` decorators from all 16 vocab class files
+    (74 call sites across `vocab/objects/`, `vocab/activities/`,
+    `vocab/base/objects/`, `vocab/base/links.py`)
+  - Added `pkgutil.iter_modules` + `importlib.import_module` dynamic
+    discovery to `vocab/objects/__init__.py`, `vocab/activities/__init__.py`,
+    `vocab/base/objects/__init__.py`, and
+    `vocab/base/objects/activities/__init__.py`
+  - Registered `as_Actor` explicitly (`VOCABULARY["Actor"] = as_Actor`) since
+    it has no concrete `type_` annotation but is stored as type `"Actor"`
+  - Updated all `find_in_vocabulary()` caller files to handle `KeyError`
+  - Added activity-type check in `parser.py` (`issubclass(cls, as_Activity)`)
+  - Added unit tests in `test/wire/as2/vocab/base/test_registry.py`
+  - Added completeness tests in `test/wire/as2/vocab/base/test_registry_completeness.py`
+  - Added BUG-26040902 regression test in
+    `test/core/behaviors/case/test_bug_26040902_regression.py`
+  - Completed 2026-04-10.
+
+#### OUTBOX-MON-1 → moved to Priority 330 (SYNC block)
+
+> **Moved**: OUTBOX-MON-1 is now the first task in Priority 330 (SYNC block)
+> as it is a hard prerequisite for SYNC-1/SYNC-2. See the P330 section above.
+
+### EMBARGO-DUR-1 — Update EmbargoPolicy model to ISO 8601 duration format
+
+- [x] **EMBARGO-DUR-1**: Replaced integer `_days` fields with `timedelta`
+  fields serialized as ISO 8601 duration strings. `_parse_duration()` helper
+  rejects calendar units (Y, M-month, W). `InitializeDefaultEmbargoNode` reads
+  `preferred_duration` via isodate. 20 new tests added (DUR-04, DUR-05).
+  Completed 2026-04-09.
+
+### FINDER-PART-1 — Create CaseParticipant at report receipt ~~SUPERSEDED~~
+
+> **Superseded by ADR-0015** (Create VulnerabilityCase at Report Receipt).
+> The case is now created at report receipt, so participant records are
+> created atomically as part of case creation. The retroactive re-linking
+> mechanism described below is no longer needed. See
+> `docs/adr/0015-create-case-at-report-receipt.md` and the IDEA-260408-01
+> tasks below.
+
+- ~~[ ] **FINDER-PART-1**: Implement the report-as-proto-case participant
+  lifecycle: create a `CaseParticipant` record for the finder at report
+  receipt (not deferred to case creation) and retroactively re-link it to
+  the case when one is created.~~
+
+---
+
+## IDEA-260408-01 — Case Creation at RM.RECEIVED
+
+Per ADR-0015, `VulnerabilityCase` creation moves from `ValidateReport` BT
+(RM.VALID) to `SubmitReportReceivedUseCase` (RM.RECEIVED). The tasks below
+implement this change. All tasks depend on the documentation work captured
+in ADR-0015, `specs/case-management.md` CM-12, and `specs/duration.md`
+DUR-07-002/DUR-07-004.
+
+### IDEA-260408-01-1 — Add DataLayer report→case lookup
+
+- [x] **IDEA-260408-01-1**: Added `find_case_by_report_id(report_id: str) ->
+  PersistableModel | None` to `DataLayer` Protocol and `TinyDbDataLayer`.
+  Five unit tests added to `test/adapters/driven/test_tinydb_backend.py`.
+  Completed 2026-04-08.
+
+### IDEA-260408-01-2 — New BT: `receive_report_case_tree` ✅
+
+- [x] **IDEA-260408-01-2**: Created
+  `vultron/core/behaviors/case/receive_report_case_tree.py` and
+  `test/core/behaviors/case/test_receive_report_case_tree.py`.
+  Added `CheckCaseExistsForReport` node and `initial_rm_state` parameter to
+  `CreateInitialVendorParticipant`. Completed 2026-04-08.
+
+### IDEA-260408-01-3 — Refactor `SubmitReportReceivedUseCase`
+
+- [x] **IDEA-260408-01-3**: Refactor `SubmitReportReceivedUseCase` in
+  `vultron/core/use_cases/received/report.py` to invoke
+  `receive_report_case_tree` via `BTBridge` (same pattern as
+  `ValidateReportReceivedUseCase`).
+  - Remove standalone `VultronParticipantStatus` record creation from this
+    use case; all RM history now lives in `VultronParticipant.
+    participant_statuses`.
+  - Update `test/core/use_cases/received/test_submit_report.py` to verify
+    case creation, participant creation, and `Create(Case)` queued to outbox.
+  - Depends on IDEA-260408-01-2.
+
+### IDEA-260408-01-4 — Slim `validate_report` BT
+
+- [x] **IDEA-260408-01-4**: Remove case/participant/activity nodes from
+  `vultron/core/behaviors/report/validate_tree.py`:
+  - Remove: `CreateCaseNode`, `InitializeDefaultEmbargoNode`,
+    `CreateInitialVendorParticipant`, `CreateFinderParticipantNode`,
+    `CreateCaseActivity`, `UpdateActorOutbox`
+  - Add: `EnsureEmbargoExists` condition node (verifies embargo exists
+    before completing validation, per DUR-07-004)
+  - Update `test/core/behaviors/report/test_validate_tree.py` to verify
+    the slimmed tree does NOT create a case or participants.
+  - Depends on IDEA-260408-01-2.
+
+### IDEA-260408-01-5 — Dereference pattern for report use cases
+
+- [x] **IDEA-260408-01-5**: Update `InvalidateReportReceivedUseCase`,
+  `CloseReportReceivedUseCase`, and `ValidateReportReceivedUseCase` to
+  dereference `report_id → case_id` using the DataLayer method from
+  IDEA-260408-01-1, then delegate to `InvalidateCaseUseCase` /
+  `CloseCaseUseCase` / `ValidateCaseUseCase` respectively.
+  - Ensures all report-centric protocol activities can locate and update
+    the case created at receipt (CM-12-005).
+  - Add/update tests verifying the dereference pattern works correctly.
+  - Depends on IDEA-260408-01-1.
+
+### IDEA-260408-01-6 — Remove standalone `VultronParticipantStatus` records
+
+- [x] **IDEA-260408-01-6**: Audit and remove standalone
+  `VultronParticipantStatus` record creation in `CreateReport` and
+  `AckReport` use cases (if any), as all RM history now lives in
+  `VultronParticipant.participant_statuses`.
+  - Verify no code path relies on flat `ReportStatus` as the primary RM
+    carrier post-case-creation.
+  - Depends on IDEA-260408-01-3.
+
+### IDEA-260408-01-7 — Update tests
+
+- [x] **IDEA-260408-01-7**: Added `TestFullReportFlow` integration tests to
+  `test/core/use_cases/received/test_report.py` verifying: case created at
+  RM.RECEIVED (not re-created at RM.VALID), vendor transitions to RM.VALID,
+  finder stays RM.ACCEPTED, and full flow produces correct final state.
+  Confirmed `test_validate_tree.py` already reflects ADR-0015.
 
 ---
 
@@ -335,3 +1024,10 @@ are needed before resuming feature development.
   foundation is stable
 - FUZZ-00 **Fuzzer node re-implementation** (Priority 500) — see
   `notes/bt-fuzzer-nodes.md`
+- IDEA-260402-02 **Per-participant case replica management** — Each Participant
+  Actor maintains their own copy of the case object, synchronised from the
+  CaseActor via `Announce(CaseLogEntry)` replication. SYNC-1 through SYNC-4
+  implement the CaseActor side; the participant-side case replica handler
+  (routing inbound `Announce` to the correct local case copy) is part of
+  SYNC-2 scope. See `plan/IDEAS.md` IDEA-260402-02 and
+  `notes/sync-log-replication.md` for the design.

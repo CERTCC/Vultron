@@ -162,3 +162,20 @@ class TerminateEmbargoRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     case_id: UriString
+
+
+class SubmitReportRequest(BaseModel):
+    """Request body for the submit-report trigger endpoint.
+
+    The finder uses this to create a VulnerabilityReport and offer it to a
+    recipient.  The actor_id is taken from the URL path; report_name,
+    report_content, and recipient_id must be supplied in the request body.
+
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    report_name: NonEmptyString
+    report_content: NonEmptyString
+    recipient_id: UriString

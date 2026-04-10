@@ -487,3 +487,59 @@ def test_error_propagation(bridge, datalayer):
     assert result.status == Status.FAILURE
     assert result.errors is not None
     assert "Intentional test error" in result.feedback_message
+
+
+# Tests for BT logger fix (py_trees orphaned-logger root cause)
+
+
+def test_condition_logger_is_managed_not_orphaned():
+    """DataLayerCondition.logger must be a managed logging.Logger, not an
+    orphaned py_trees.logging.Logger with parent=None."""
+    import logging
+
+    node = AlwaysTrueCondition(name="TestLogger")
+    assert isinstance(
+        node.logger, logging.Logger
+    ), "self.logger must be the stdlib logging.Logger, not py_trees.logging.Logger"
+    # A managed logger always has a parent (at minimum the root logger).
+    assert (
+        node.logger.parent is not None
+    ), "self.logger.parent is None — logger is orphaned and log calls will be silently dropped"
+
+
+def test_action_logger_is_managed_not_orphaned():
+    """DataLayerAction.logger must be a managed logging.Logger, not an
+    orphaned py_trees.logging.Logger with parent=None."""
+    import logging
+
+    node = NoOpAction(name="TestLogger")
+    assert isinstance(node.logger, logging.Logger)
+    assert (
+        node.logger.parent is not None
+    ), "self.logger.parent is None — logger is orphaned and log calls will be silently dropped"
+
+
+def test_condition_logger_name_includes_class(bridge, datalayer):
+    """Logger name should include the subclass name so log output is identifiable."""
+    node = AlwaysTrueCondition(name="test-node")
+    assert "AlwaysTrueCondition" in node.logger.name
+
+
+def test_action_logger_emits_via_caplog(bridge, datalayer, caplog):
+    """Log messages from BT action nodes propagate to caplog (not silently dropped)."""
+    import logging
+
+    class LoggingAction(DataLayerAction):
+        def update(self) -> Status:
+            self.logger.info("BT action log message emitted")
+            return Status.SUCCESS
+
+    with caplog.at_level(logging.INFO):
+        tree = LoggingAction(name="LogAction")
+        bridge.execute_with_setup(
+            tree, actor_id="https://example.org/actors/a1"
+        )
+
+    assert any(
+        "BT action log message emitted" in r.message for r in caplog.records
+    )

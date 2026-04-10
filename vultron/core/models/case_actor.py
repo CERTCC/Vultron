@@ -38,5 +38,9 @@ class VultronCaseActor(VultronObject):
     ``type_`` is ``"Service"`` to match ``CaseActor``'s wire value.
     """
 
-    type_: Literal["Service"] = "Service"
+    type_: Literal["Service"] = Field(
+        default="Service",
+        validation_alias="type",
+        serialization_alias="type",
+    )
     outbox: VultronOutbox = Field(default_factory=VultronOutbox)

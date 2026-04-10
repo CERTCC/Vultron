@@ -120,14 +120,14 @@ class TestInviteActorUseCases:
             RmAcceptInviteToCaseActivity,
             RmInviteToCaseActivity,
         )
-        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
         dl = TinyDbDataLayer(db_path=None)
         invitee_id = "https://example.org/users/coordinator"
-        invitee = as_Actor(id_=invitee_id)
+        invitee = as_Organization(id_=invitee_id)
         case = VulnerabilityCase(
             id_="https://example.org/cases/caseIA1",
             name="TEST-ACCEPT-INVITE",
@@ -138,6 +138,7 @@ class TestInviteActorUseCases:
             object_=invitee,
             target=case,
         )
+        dl.create(invitee)
         dl.create(case)
         dl.create(invite)
 
@@ -164,7 +165,7 @@ class TestInviteActorUseCases:
             RmAcceptInviteToCaseActivity,
             RmInviteToCaseActivity,
         )
-        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
@@ -172,7 +173,7 @@ class TestInviteActorUseCases:
 
         dl = TinyDbDataLayer(db_path=None)
         invitee_id = "https://example.org/users/coordinator"
-        invitee = as_Actor(id_=invitee_id)
+        invitee = as_Organization(id_=invitee_id)
         embargo = EmbargoEvent(
             id_="https://example.org/cases/caseIA2/embargo_events/e1",
             content="Active embargo",
@@ -188,6 +189,7 @@ class TestInviteActorUseCases:
             object_=invitee,
             target=case,
         )
+        dl.create(invitee)
         dl.create(case)
         dl.create(embargo)
         dl.create(invite)
@@ -211,6 +213,110 @@ class TestInviteActorUseCases:
         participant_obj = cast(Any, participant_obj)
         assert embargo.id_ in participant_obj.accepted_embargo_ids
 
+    def test_accept_invite_participant_can_reach_rm_accepted(
+        self, make_payload
+    ):
+        """Accepted invite auto-engages the participant to RM.ACCEPTED.
+
+        CM-11-001 requires invitation acceptance to advance the invitee to
+        RM.ACCEPTED without a separate engage-case trigger. The use case still
+        pre-seeds RECEIVED and VALID before invoking the engage-case logic.
+        """
+        from typing import Any, cast
+
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import (
+            RmAcceptInviteToCaseActivity,
+            RmInviteToCaseActivity,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+        from vultron.core.states.rm import RM
+
+        dl = TinyDbDataLayer(db_path=None)
+        invitee_id = "https://example.org/users/coordinator_rm1"
+        invitee = as_Organization(id_=invitee_id)
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/caseRM001",
+            name="TEST-RM-LIFECYCLE",
+        )
+        invite = RmInviteToCaseActivity(
+            id_="https://example.org/cases/caseRM001/invitations/1",
+            actor="https://example.org/users/owner",
+            object_=invitee,
+            target=case,
+        )
+        dl.create(invitee)
+        dl.create(case)
+        dl.create(invite)
+
+        accept = RmAcceptInviteToCaseActivity(
+            actor=invitee_id,
+            object_=invite,
+        )
+        event = make_payload(accept)
+        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
+
+        updated_case = cast(Any, dl.read(case.id_))
+        participant_id = updated_case.actor_participant_index.get(invitee_id)
+        participant_obj = cast(Any, dl.get(id_=participant_id))
+        latest_status = participant_obj.participant_statuses[-1]
+        assert latest_status.rm_state == RM.ACCEPTED
+
+    def test_accept_invite_actor_to_case_emits_engage_activity(
+        self, make_payload
+    ):
+        """AcceptInviteActorToCaseReceivedUseCase queues an RmEngageCaseActivity."""
+        from typing import Any, cast
+
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import (
+            RmAcceptInviteToCaseActivity,
+            RmInviteToCaseActivity,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        invitee_id = "https://example.org/users/coordinator_rm2"
+        invitee = as_Organization(id_=invitee_id)
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/caseRM002",
+            name="TEST-RM-AUTO-ENGAGE",
+        )
+        invite = RmInviteToCaseActivity(
+            id_="https://example.org/cases/caseRM002/invitations/1",
+            actor="https://example.org/users/owner",
+            object_=invitee,
+            target=case,
+        )
+        dl.create(invitee)
+        dl.create(case)
+        dl.create(invite)
+
+        accept = RmAcceptInviteToCaseActivity(
+            actor=invitee_id,
+            object_=invite,
+        )
+        event = make_payload(accept)
+
+        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
+
+        updated_actor = cast(Any, dl.read(invitee_id))
+        assert updated_actor is not None
+        assert len(updated_actor.outbox.items) == 1
+
+        engage_activity_id = updated_actor.outbox.items[0]
+        engage_activity = cast(Any, dl.read(engage_activity_id))
+        assert engage_activity is not None
+        assert str(engage_activity.type_) == "Join"
+        assert engage_activity.actor == invitee_id
+        assert engage_activity.object_ == case.id_
+
     def test_accept_invite_actor_to_case_records_case_event(
         self, monkeypatch, make_payload
     ):
@@ -220,14 +326,14 @@ class TestInviteActorUseCases:
             RmAcceptInviteToCaseActivity,
             RmInviteToCaseActivity,
         )
-        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
         dl = TinyDbDataLayer(db_path=None)
         invitee_id = "https://example.org/users/coordinator"
-        invitee = as_Actor(id_=invitee_id)
+        invitee = as_Organization(id_=invitee_id)
         case = VulnerabilityCase(
             id_="https://example.org/cases/caseIA3",
             name="TEST-ACCEPT-INVITE-EVENT",
@@ -238,6 +344,7 @@ class TestInviteActorUseCases:
             object_=invitee,
             target=case,
         )
+        dl.create(invitee)
         dl.create(case)
         dl.create(invite)
 

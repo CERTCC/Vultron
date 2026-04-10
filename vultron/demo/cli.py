@@ -22,6 +22,9 @@ pass/fail summary.
 
 A ``vultrabot`` sub-group provides access to the three standalone
 behaviour-tree demos (pacman, robot, cvd).
+
+The ``seed`` sub-command bootstraps actor records in the DataLayer on
+container startup, supporting multi-actor demo scenarios (D5-1-G2).
 """
 
 import logging
@@ -41,8 +44,13 @@ import vultron.demo.manage_participants_demo as manage_participants_demo
 import vultron.demo.receive_report_demo as receive_report_demo
 import vultron.demo.status_updates_demo as status_updates_demo
 import vultron.demo.suggest_actor_demo as suggest_actor_demo
+import vultron.demo.multi_vendor_demo as multi_vendor_demo
+import vultron.demo.three_actor_demo as three_actor_demo
 import vultron.demo.transfer_ownership_demo as transfer_ownership_demo
 import vultron.demo.trigger_demo as trigger_demo
+import vultron.demo.two_actor_demo as two_actor_demo
+from vultron.demo.seed_config import SeedConfig
+from vultron.demo.utils import DataLayerClient, BASE_URL, seed_actor
 import vultron.bt.base.demo.pacman as pacman_demo
 import vultron.bt.base.demo.robot as robot_demo
 import vultron.demo.vultrabot as cvd_vultrabot_demo
@@ -154,6 +162,400 @@ def _print_summary(results: list[tuple[str, bool, str]]) -> None:
     click.echo("=" * 50)
     click.echo(f"  {passed_count}/{total} demos passed")
     click.echo("=" * 50)
+
+
+# ---------------------------------------------------------------------------
+# Seed sub-command — bootstrap actor records (D5-1-G2)
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="seed")
+@click.option(
+    "--config",
+    "config_path",
+    envvar="VULTRON_SEED_CONFIG",
+    default=None,
+    metavar="PATH",
+    help="Path to a JSON seed config file. Overrides individual options.",
+)
+@click.option(
+    "--actor-name",
+    envvar="VULTRON_ACTOR_NAME",
+    default=None,
+    help="Display name for the local actor (env: VULTRON_ACTOR_NAME).",
+)
+@click.option(
+    "--actor-type",
+    envvar="VULTRON_ACTOR_TYPE",
+    default=None,
+    help="ActivityStreams type for the local actor (env: VULTRON_ACTOR_TYPE).",
+)
+@click.option(
+    "--actor-id",
+    envvar="VULTRON_ACTOR_ID",
+    default=None,
+    help="Full URI for the local actor (env: VULTRON_ACTOR_ID).",
+)
+@click.option(
+    "--api-url",
+    envvar="VULTRON_API_BASE_URL",
+    default=BASE_URL,
+    show_default=True,
+    help="Base URL of the Vultron API server (env: VULTRON_API_BASE_URL).",
+)
+def seed(
+    config_path: str | None,
+    actor_name: str | None,
+    actor_type: str | None,
+    actor_id: str | None,
+    api_url: str,
+) -> None:
+    """Bootstrap actor records in the local DataLayer (D5-1-G2).
+
+    Creates the local actor and any configured peer actors in the DataLayer
+    via ``POST /actors/``.  Safe to re-run: existing records are returned
+    unchanged (idempotent).
+
+    Configuration is loaded from (in decreasing priority):
+
+    \b
+    1. A JSON config file (``--config`` / ``VULTRON_SEED_CONFIG``).
+    2. Individual CLI options / environment variables.
+    """
+    logger = logging.getLogger(__name__)
+
+    cfg = SeedConfig.load(
+        config_path=config_path,
+        actor_name=actor_name,
+        actor_type=actor_type,
+        actor_id=actor_id,
+    )
+
+    client = DataLayerClient(base_url=api_url)
+
+    # Create local actor.
+    local = cfg.local_actor
+    click.echo(f"🌱 Seeding local actor: {local.name!r} ({local.actor_type})")
+    actor = seed_actor(
+        client=client,
+        name=local.name,
+        actor_type=local.actor_type,
+        actor_id=local.id_,
+    )
+    click.echo(f"   → {actor.id_}")
+    logger.info("Local actor seeded: %s", actor.id_)
+
+    # Register peer actors.
+    for peer in cfg.peers:
+        click.echo(f"🌱 Seeding peer actor: {peer.name!r} ({peer.actor_type})")
+        peer_actor = seed_actor(
+            client=client,
+            name=peer.name,
+            actor_type=peer.actor_type,
+            actor_id=peer.id_,
+        )
+        click.echo(f"   → {peer_actor.id_}")
+        logger.info("Peer actor seeded: %s", peer_actor.id_)
+
+    click.echo("✅ Seed complete.")
+
+
+# ---------------------------------------------------------------------------
+# Two-actor sub-command — multi-container Finder + Vendor demo (D5-1-G5)
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="two-actor")
+@click.option(
+    "--finder-url",
+    envvar="VULTRON_FINDER_BASE_URL",
+    default=two_actor_demo.FINDER_BASE_URL,
+    show_default=True,
+    help="Base URL of the Finder container API "
+    "(env: VULTRON_FINDER_BASE_URL).",
+)
+@click.option(
+    "--vendor-url",
+    envvar="VULTRON_VENDOR_BASE_URL",
+    default=two_actor_demo.VENDOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor container API "
+    "(env: VULTRON_VENDOR_BASE_URL).",
+)
+@click.option(
+    "--finder-id",
+    default=None,
+    help="Deterministic full URI for the Finder actor (optional).",
+)
+@click.option(
+    "--vendor-id",
+    default=None,
+    help="Deterministic full URI for the Vendor actor (optional).",
+)
+@click.option(
+    "--case-actor-url",
+    envvar="VULTRON_CASE_ACTOR_BASE_URL",
+    default=two_actor_demo.CASE_ACTOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the CaseActor container API "
+    "(env: VULTRON_CASE_ACTOR_BASE_URL).",
+)
+@click.option(
+    "--skip-health-check",
+    is_flag=True,
+    default=False,
+    help="Skip container availability checks.",
+)
+def two_actor(
+    finder_url: str,
+    vendor_url: str,
+    finder_id: str | None,
+    vendor_id: str | None,
+    case_actor_url: str,
+    skip_health_check: bool,
+) -> None:
+    """Run the two-actor (Finder + Vendor) multi-container CVD demo (D5-1-G5).
+
+    Orchestrates a complete CVD workflow across two separate API server
+    containers.  Requires both containers to be running and reachable at
+    the configured base URLs.
+
+    Use ``--finder-url`` / ``--vendor-url`` (or env vars
+    ``VULTRON_FINDER_BASE_URL`` / ``VULTRON_VENDOR_BASE_URL``) to point
+    the demo at running containers.
+
+    \b
+    Workflow:
+      1. Seed both containers (actor records + peer registration).
+      2. Finder submits a vulnerability report to Vendor's inbox.
+      3. Vendor validates the report (trigger: validate-report).
+      4. Vendor engages the case (trigger: engage-case).
+      5. Vendor invites Finder to the case (Finder's inbox).
+      6. Finder accepts the invitation (Vendor's inbox).
+      7. Verify final state on both containers.
+    """
+    two_actor_demo.main(
+        skip_health_check=skip_health_check,
+        finder_url=finder_url,
+        vendor_url=vendor_url,
+        case_actor_url=case_actor_url,
+        finder_id=finder_id,
+        vendor_id=vendor_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Three-actor sub-command — multi-container Finder + Vendor + Coordinator demo
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="three-actor")
+@click.option(
+    "--finder-url",
+    envvar="VULTRON_FINDER_BASE_URL",
+    default=three_actor_demo.FINDER_BASE_URL,
+    show_default=True,
+    help="Base URL of the Finder container API "
+    "(env: VULTRON_FINDER_BASE_URL).",
+)
+@click.option(
+    "--vendor-url",
+    envvar="VULTRON_VENDOR_BASE_URL",
+    default=three_actor_demo.VENDOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor container API "
+    "(env: VULTRON_VENDOR_BASE_URL).",
+)
+@click.option(
+    "--coordinator-url",
+    envvar="VULTRON_COORDINATOR_BASE_URL",
+    default=three_actor_demo.COORDINATOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Coordinator container API "
+    "(env: VULTRON_COORDINATOR_BASE_URL).",
+)
+@click.option(
+    "--case-actor-url",
+    envvar="VULTRON_CASE_ACTOR_BASE_URL",
+    default=three_actor_demo.CASE_ACTOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the CaseActor container API "
+    "(env: VULTRON_CASE_ACTOR_BASE_URL).",
+)
+@click.option(
+    "--finder-id",
+    default=None,
+    help="Deterministic full URI for the Finder actor (optional).",
+)
+@click.option(
+    "--vendor-id",
+    default=None,
+    help="Deterministic full URI for the Vendor actor (optional).",
+)
+@click.option(
+    "--coordinator-id",
+    default=None,
+    help="Deterministic full URI for the Coordinator actor (optional).",
+)
+@click.option(
+    "--case-actor-id",
+    default=None,
+    help="Deterministic full URI for the CaseActor actor (optional).",
+)
+@click.option(
+    "--skip-health-check",
+    is_flag=True,
+    default=False,
+    help="Skip container availability checks.",
+)
+def three_actor(
+    finder_url: str,
+    vendor_url: str,
+    coordinator_url: str,
+    case_actor_url: str,
+    finder_id: str | None,
+    vendor_id: str | None,
+    coordinator_id: str | None,
+    case_actor_id: str | None,
+    skip_health_check: bool,
+) -> None:
+    """Run the three-actor multi-container CVD demo (D5-3)."""
+    three_actor_demo.main(
+        skip_health_check=skip_health_check,
+        finder_url=finder_url,
+        vendor_url=vendor_url,
+        coordinator_url=coordinator_url,
+        case_actor_url=case_actor_url,
+        finder_id=finder_id,
+        vendor_id=vendor_id,
+        coordinator_id=coordinator_id,
+        case_actor_id=case_actor_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Multi-vendor sub-command — ownership transfer + second vendor demo (D5-4)
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="multi-vendor")
+@click.option(
+    "--finder-url",
+    envvar="VULTRON_FINDER_BASE_URL",
+    default=multi_vendor_demo.FINDER_BASE_URL,
+    show_default=True,
+    help="Base URL of the Finder container API "
+    "(env: VULTRON_FINDER_BASE_URL).",
+)
+@click.option(
+    "--vendor-url",
+    envvar="VULTRON_VENDOR_BASE_URL",
+    default=multi_vendor_demo.VENDOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor container API "
+    "(env: VULTRON_VENDOR_BASE_URL).",
+)
+@click.option(
+    "--coordinator-url",
+    envvar="VULTRON_COORDINATOR_BASE_URL",
+    default=multi_vendor_demo.COORDINATOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Coordinator container API "
+    "(env: VULTRON_COORDINATOR_BASE_URL).",
+)
+@click.option(
+    "--case-actor-url",
+    envvar="VULTRON_CASE_ACTOR_BASE_URL",
+    default=multi_vendor_demo.CASE_ACTOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the CaseActor container API "
+    "(env: VULTRON_CASE_ACTOR_BASE_URL).",
+)
+@click.option(
+    "--vendor2-url",
+    envvar="VULTRON_VENDOR2_BASE_URL",
+    default=multi_vendor_demo.VENDOR2_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor2 container API "
+    "(env: VULTRON_VENDOR2_BASE_URL).",
+)
+@click.option(
+    "--finder-id",
+    default=None,
+    help="Deterministic full URI for the Finder actor (optional).",
+)
+@click.option(
+    "--vendor-id",
+    default=None,
+    help="Deterministic full URI for the Vendor actor (optional).",
+)
+@click.option(
+    "--coordinator-id",
+    default=None,
+    help="Deterministic full URI for the Coordinator actor (optional).",
+)
+@click.option(
+    "--case-actor-id",
+    default=None,
+    help="Deterministic full URI for the CaseActor actor (optional).",
+)
+@click.option(
+    "--vendor2-id",
+    default=None,
+    help="Deterministic full URI for the Vendor2 actor (optional).",
+)
+@click.option(
+    "--skip-health-check",
+    is_flag=True,
+    default=False,
+    help="Skip container availability checks.",
+)
+def multi_vendor(
+    finder_url: str,
+    vendor_url: str,
+    coordinator_url: str,
+    case_actor_url: str,
+    vendor2_url: str,
+    finder_id: str | None,
+    vendor_id: str | None,
+    coordinator_id: str | None,
+    case_actor_id: str | None,
+    vendor2_id: str | None,
+    skip_health_check: bool,
+) -> None:
+    """Run the multi-vendor ownership-transfer demo (D5-4).
+
+    Demonstrates case ownership transfer from Vendor to Coordinator, followed
+    by Coordinator inviting a second Vendor (Vendor2) to join the case.
+
+    Requires five containers to be running and reachable at the configured
+    base URLs: finder, vendor, coordinator, case-actor, and vendor2.
+
+    \b
+    Workflow:
+      1. Seed all five containers (actor records + peer registration).
+      2. Finder submits a vulnerability report to Vendor's inbox.
+      3. Vendor validates the report.
+      4. Vendor creates the authoritative case on the CaseActor container.
+      5. Vendor invites Finder; both establish an embargo.
+      6. Vendor transfers case ownership to Coordinator.
+      7. Coordinator invites Vendor2; Vendor2 joins and accepts the embargo.
+      8. Verify final state: Coordinator owns the case, three participants,
+         and the embargo is ACTIVE.
+    """
+    multi_vendor_demo.main(
+        skip_health_check=skip_health_check,
+        finder_url=finder_url,
+        vendor_url=vendor_url,
+        coordinator_url=coordinator_url,
+        case_actor_url=case_actor_url,
+        vendor2_url=vendor2_url,
+        finder_id=finder_id,
+        vendor_id=vendor_id,
+        coordinator_id=coordinator_id,
+        case_actor_id=case_actor_id,
+        vendor2_id=vendor2_id,
+    )
 
 
 # ---------------------------------------------------------------------------

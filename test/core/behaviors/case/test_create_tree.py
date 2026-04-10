@@ -380,3 +380,28 @@ def test_create_case_tree_events_have_trusted_timestamps(
         assert evt.received_at is not None
         assert evt.received_at.tzinfo is not None
         assert evt.received_at.tzinfo == timezone.utc
+
+
+# ============================================================================
+# D5-6-LOGCTX: outbox activity log content tests
+# ============================================================================
+
+
+def test_create_case_tree_logs_create_case_activity_type(
+    datalayer, actor, case_obj, bridge, caplog
+):
+    """UpdateActorOutbox MUST log 'Create' activity type (D5-6-LOGCTX)."""
+    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
+    with caplog.at_level("INFO"):
+        bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    assert "Create" in caplog.text
+
+
+def test_create_case_tree_logs_case_id_in_outbox_message(
+    datalayer, actor, case_obj, bridge, caplog
+):
+    """UpdateActorOutbox MUST log the case ID in the outbox message (D5-6-LOGCTX)."""
+    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
+    with caplog.at_level("INFO"):
+        bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    assert case_obj.id_ in caplog.text

@@ -29,11 +29,9 @@ from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef, as_Link
 from vultron.wire.as2.vocab.base.objects.base import as_Object
-from vultron.wire.as2.vocab.base.registry import activitystreams_object
 from vultron.wire.as2.vocab.objects.base import VultronObject
 
 
-@activitystreams_object
 class CaseStatus(VultronObject):
     """
     Represents the case-level (global, participant-agnostic) status of a VulnerabilityCase.
@@ -82,7 +80,6 @@ class CaseStatus(VultronObject):
 CaseStatusRef: TypeAlias = ActivityStreamRef[CaseStatus]
 
 
-@activitystreams_object
 class ParticipantStatus(VultronObject):
     """
     Represents the status of a participant with respect to a VulnerabilityCase (participant-specific).

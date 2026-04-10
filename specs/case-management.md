@@ -18,6 +18,10 @@ the distinction between participant-specific and participant-agnostic state.
 - `CM-01-001` Each actor MUST have an isolated protocol state domain
   - Actor A and Actor B MUST NOT share internal state (RM, EM, CS, BT blackboard)
   - Actors interact ONLY through ActivityStreams protocol messages via inboxes/outboxes
+  - This constraint applies regardless of physical deployment topology; actors that
+    are co-located on the same server MUST still interact via the wire protocol and
+    MUST NOT communicate via direct DataLayer access or in-process calls bypassing
+    the inbox/outbox API
 - `CM-01-002` Each actor's RM state MUST be maintained independently per case
   - RM state is participant-specific; each actor tracks their own RM lifecycle
 
@@ -31,9 +35,14 @@ the distinction between participant-specific and participant-agnostic state.
     canonical state
 - `CM-02-003` CaseActor MUST persist until the associated VulnerabilityCase is closed
 - `CM-02-004` CaseActor MUST know the case owner
-  - Case owner identity is stored in the VulnerabilityCase object
+  - Case owner identity is stored in the VulnerabilityCase object using the
+    `case_owner` field (wire vocabulary: `vultron:caseOwner`)
   - The case owner is an organizational Actor (vendor/coordinator), NOT the CaseActor
   - Initial case owner is typically the recipient of the VulnerabilityReport Offer
+  - `VulnerabilityCase.case_owner` MUST be set at case creation and updated
+    only via ownership-transfer activities (see `OFFER_CASE_OWNERSHIP_TRANSFER`)
+  - The `vultron:caseOwner` wire property MUST carry the full actor URI of
+    the current case owner; it MUST NOT be a local identifier
 - `CM-02-005` `PROD_ONLY` CaseActor MUST restrict certain activities to the case owner
   - Owner-only activities include: closing the case, transferring ownership
   - See `ontology/vultron_activitystreams.ttl` (`vultron_as:CaseOwnerActivity`)
@@ -67,6 +76,17 @@ the distinction between participant-specific and participant-agnostic state.
     disagree on event order, undermining auditability and the
     single-source-of-truth guarantee
   - CM-02-009 depends-on CM-02-002
+- `CM-02-010` The CaseActor and the case owner (named actor) MUST have distinct
+  actor identities — each with their own actor ID — even when co-located on the
+  same server
+  - A named actor MUST NOT serve as its own CaseActor; the two roles MUST remain
+    separate protocol identities
+  - **Rationale**: Enforcing distinct identities ensures that all case-state
+    transitions pass through the wire protocol regardless of deployment topology,
+    preserving audit integrity and enabling future separation onto independent
+    containers without protocol changes
+  - CM-02-010 refines CM-01-001
+  - CM-02-010 depends-on CM-02-001
 
 ## Case State Model
 
@@ -226,6 +246,13 @@ the distinction between participant-specific and participant-agnostic state.
 - `CM-06-004` `PROD_ONLY` Participants MUST authenticate case update
   notifications before accepting them as authoritative
   - CM-06-004 is-constrained-by PROTO-01-001
+- `CM-06-005` When a note is added to a case, the CaseActor MUST
+  broadcast the note to all case participants (excluding the note
+  author)
+  - Recipients MUST be derived from
+    `VulnerabilityCase.actor_participant_index`
+  - CM-06-005 depends-on OX-03-001
+  - CM-06-005 depends-on CM-02-001
 
 ## CVD Action Rules API
 
@@ -253,6 +280,8 @@ the distinction between participant-specific and participant-agnostic state.
 - Unit test: Actor A and Actor B maintain separate RM states for same case
 - Integration test: Actor interaction only occurs via inbox/outbox message exchange
 - Code review: No shared in-memory state across actor contexts
+- Code review: Named actors and case actors never share a DataLayer instance
+  or bypass the inbox endpoint to exchange state
 
 ### CM-02-001, CM-02-002, CM-02-003 Verification
 
@@ -264,6 +293,10 @@ the distinction between participant-specific and participant-agnostic state.
 ### CM-02-004, CM-02-005 Verification
 
 - Unit test: CaseActor has reference to case owner
+- Unit test: `VulnerabilityCase.case_owner` is set at case creation and holds the
+  full actor URI of the owning named actor
+- Code review: Case-owner field is serialized using `vultron:caseOwner` vocabulary
+  term in ActivityStreams wire format
 - `PROD_ONLY` Integration test: Non-owner attempt to close case → authorization error
 
 ### CM-02-009 Verification
@@ -274,6 +307,13 @@ the distinction between participant-specific and participant-agnostic state.
 - Unit test: Note-added event stored with CaseActor-applied timestamp
 - Code review: All case state mutation handlers apply CaseActor timestamp,
   not activity-supplied timestamp
+
+### CM-02-010 Verification
+
+- Unit test: CaseActor actor ID differs from the owning named actor's actor ID
+- Integration test: Two co-located actors exchange state only via inbox/outbox
+  messages, not via shared DataLayer access
+- Code review: No code path allows a named actor to act as its own CaseActor
 
 ### CM-03-001 through CM-03-005 Verification
 
@@ -398,6 +438,89 @@ the distinction between participant-specific and participant-agnostic state.
 - Integration test: Case update sent to a participant who has not accepted the
   current embargo triggers `Offer(Embargo)` first
 
+## CM-11 Invitation Acceptance Lifecycle
+
+When an actor accepts an invitation to join a case, the system MUST
+complete a set of cascading effects automatically, without requiring
+additional triggers from the demo-runner or external caller.
+
+- `CM-11-001` When an actor accepts a case invitation, the accepting
+  actor's RM state MUST advance to ACCEPTED
+  - This means `AcceptInviteActorToCaseReceivedUseCase` (or its BT
+    equivalent) MUST invoke `SvcEngageCaseUseCase` internally after
+    creating the participant record
+  - CM-11-001 implements VP-03-012
+  - CM-11-001 depends-on CM-03-001
+- `CM-11-002` After auto-engagement (CM-11-001), the accepting actor
+  SHOULD emit an `RmEngageCaseActivity` to notify the case owner
+  - This activity is queued to the accepting actor's outbox for
+    delivery to the case-actor inbox
+  - CM-11-002 depends-on OX-02-001
+
+### CM-11-001, CM-11-002 Verification
+
+- Unit test: Accepting an invitation triggers RM state advance to
+  ACCEPTED without a separate `engage-case` trigger
+- Unit test: `RmEngageCaseActivity` is emitted to the outbox after
+  auto-engagement
+- Integration test: Demo-runner triggers only `accept-invite`; system
+  automatically engages the actor and notifies the case owner
+
+## CM-12 Case Creation Timing
+
+Cases MUST be created at report receipt so that case-level tracking begins
+immediately. The term "proto-case" is **redefined** in this context: a
+proto-case is a case object that exists but has not yet been validated
+(RM state is RM.RECEIVED or RM.INVALID). See ADR-0015 for rationale.
+
+- `CM-12-001` (MUST) A `VulnerabilityCase` MUST be created when an
+  `Offer(Report)` activity is received by the vendor actor
+  - This MUST occur in `SubmitReportReceivedUseCase`, at RM.RECEIVED
+  - Case creation MUST NOT be deferred to report validation (RM.VALID)
+  - CM-12-001 implements ADR-0015
+  - CM-12-001 supersedes any prior requirement to create cases at RM.VALID
+- `CM-12-002` (MUST) At case creation, the system MUST create two initial
+  `VultronParticipant` records:
+  - The reporter (finder): `rm_state=RM.ACCEPTED` (they created and
+    submitted the report)
+  - The receiver (vendor): `rm_state=RM.RECEIVED` (they have received the
+    report and not yet validated it)
+  - CM-12-002 depends-on CM-03-001
+  - CM-12-002 depends-on CM-02-008
+- `CM-12-003` (MUST) When a case is created from an `Offer(Report)`, the
+  case owner MUST queue a `Create(Case)` activity to notify the reporter
+  that a case has been opened
+  - This activity MUST be queued to the case owner's outbox at case
+    creation time
+  - CM-12-003 depends-on OX-02-001
+- `CM-12-004` (SHOULD) A default embargo SHOULD be initialized at case
+  creation (RM.RECEIVED)
+  - CM-12-004 refines DUR-07-002 (which now applies at case receipt)
+  - If no embargo is initialized at receipt, one MUST exist before the
+    case transitions to RM.VALID (see DUR-07-004)
+- `CM-12-005` (MUST) `InvalidateReportReceivedUseCase`,
+  `CloseReportReceivedUseCase`, and `ValidateReportReceivedUseCase` MUST
+  dereference the incoming report ID to the associated case ID before
+  delegating to the corresponding case-level use case
+  - This ensures report-centric protocol activities can locate and update
+    the case created at receipt
+  - CM-12-005 depends-on CM-12-001
+
+### CM-12 Verification
+
+- Unit test: `SubmitReportReceivedUseCase` creates a `VulnerabilityCase`
+  immediately upon receiving `Offer(Report)`
+- Unit test: Two `VultronParticipant` records are created at case creation
+  (reporter at RM.ACCEPTED, receiver at RM.RECEIVED)
+- Unit test: A `Create(Case)` activity is queued to the outbox at case
+  creation
+- Unit test: `ValidateReportReceivedUseCase` does NOT create a case
+  (case already exists from CM-12-001)
+- Unit test: `InvalidateReportReceivedUseCase` dereferences report→case
+  and delegates to `InvalidateCaseUseCase`
+- Unit test: A default embargo exists on the case before RM.VALID
+  transition
+
 ## Related
 
 - **Behavior Tree Integration**: `specs/behavior-tree-integration.md`
@@ -418,6 +541,9 @@ the distinction between participant-specific and participant-agnostic state.
 - **Agentic Readiness**: `specs/agentic-readiness.md` (AR-07-001, AR-07-002)
 - **Object IDs**: `specs/object-ids.md`
 - **Do Work Behaviors**: `notes/do-work-behaviors.md`
+- **Protocol Event Cascades**: `notes/protocol-event-cascades.md`
+  (cascading automation design principle, identified gaps in BT
+  automation and activity addressing)
 - **Encryption**: `specs/encryption.md`
 - **Implementation**: `vultron/wire/as2/vocab/objects/vulnerability_case.py`
 - **Implementation**: `vultron/wire/as2/vocab/objects/case_status.py`

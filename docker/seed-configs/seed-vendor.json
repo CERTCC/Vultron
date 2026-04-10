@@ -1,0 +1,29 @@
+{
+  "local_actor": {
+    "name": "Vendor",
+    "actor_type": "Organization",
+    "id": "http://vendor:7999/api/v2/actors/vendor"
+  },
+  "peers": [
+    {
+      "name": "Finder",
+      "actor_type": "Person",
+      "id": "http://finder:7999/api/v2/actors/finder"
+    },
+    {
+      "name": "Coordinator",
+      "actor_type": "Service",
+      "id": "http://coordinator:7999/api/v2/actors/coordinator"
+    },
+    {
+      "name": "CaseActor",
+      "actor_type": "Service",
+      "id": "http://case-actor:7999/api/v2/actors/case-actor"
+    },
+    {
+      "name": "Vendor2",
+      "actor_type": "Organization",
+      "id": "http://vendor2:7999/api/v2/actors/vendor2"
+    }
+  ]
+}

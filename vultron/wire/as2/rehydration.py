@@ -87,10 +87,23 @@ def rehydrate(
         obj_with_object = cast(Any, obj)
         if obj_with_object.object_ is not None:
             logger.debug("Rehydrating nested 'object_' of %s.", obj.type_)
-            rehydrated_nested_object = rehydrate(
-                obj_with_object.object_, dl=dl, depth=depth + 1
-            )
-            obj_with_object.object_ = rehydrated_nested_object
+            try:
+                rehydrated_nested_object = rehydrate(
+                    obj_with_object.object_, dl=dl, depth=depth + 1
+                )
+                obj_with_object.object_ = rehydrated_nested_object
+            except ValueError:
+                # Nested object not found in the local DataLayer — common in
+                # federated scenarios where objects live on remote containers.
+                # Keep the original ID string reference; pattern matching
+                # treats string values as "conservatively allowed" (see
+                # ActivityPattern._match_field), and use cases handle the
+                # missing object gracefully.
+                logger.debug(
+                    "Could not rehydrate nested 'object_' of %s; "
+                    "keeping original reference.",
+                    obj.type_,
+                )
         else:
             logger.error("'object_' field is None in %s.", obj.type_)
             raise ValueError(f"'object_' field is None in {obj.type_}")
@@ -102,17 +115,18 @@ def rehydrate(
     if obj.type_ is None:
         raise ValueError(f"Object {obj} has no 'type_' value.")
 
-    cls = find_in_vocabulary(obj.type_)
-    if cls is None:
+    try:
+        cls = find_in_vocabulary(obj.type_)
+    except KeyError:
         logger.error("Unknown object type: %s.", obj.type_)
-        raise KeyError(f"Unknown object type: {obj.type_}")
+        raise
 
     if isinstance(obj, cls):
         logger.debug(
             "Object already rehydrated as '%s', skipping.",
             obj.__class__.__name__,
         )
-        return obj
+        return cast(as_Object, obj)
 
     logger.debug(
         "Rehydrating to class %s for type %s.", cls.__name__, obj.type_

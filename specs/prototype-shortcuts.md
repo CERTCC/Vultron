@@ -71,8 +71,11 @@ and Python stack candidates.
     `CaseParticipant` (actor-in-case wrapper) carries its own RM state in
     `participant_status[].rm_state`, independent of other participants.
     `ReportStatus` in the flat status layer is a separate mechanism used
-    only for reports that have not yet been associated with a case (i.e.,
-    before a case is created from a validated report).
+    only for transient pre-validation tracking (RM states that predate
+    the `VulnerabilityCase` object — i.e., logically in RM.RECEIVED or
+    RM.INVALID before the case is in a meaningful actionable state). Per
+    ADR-0015, case creation occurs at report receipt (RM.RECEIVED);
+    `VultronParticipant` records carry RM state from that point forward.
 
 ## Domain Model Separation
 

@@ -22,30 +22,40 @@ not just base class fields.
 import pytest
 from fastapi.testclient import TestClient
 
+from vultron.adapters.driven.datalayer_tinydb import (
+    get_datalayer,
+    reset_datalayer as _reset_datalayer,
+)
 from vultron.adapters.driving.fastapi.main import app
-from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
 
 
-@pytest.fixture
-def client():
-    """FastAPI test client."""
-    return TestClient(app)
-
-
 @pytest.fixture(autouse=True)
-def reset_datalayer():
-    """Reset data layer before each test."""
-    dl = get_datalayer()
+def datalayer():
+    """In-memory datalayer fixture; resets the singleton before and after each test."""
+    _reset_datalayer()
+    dl = get_datalayer(db_path=None)
     dl.clear_all()
-    yield
+    yield dl
     dl.clear_all()
+    _reset_datalayer()
 
 
-def test_get_vulnerability_case_includes_vulnerability_reports_field(client):
+@pytest.fixture
+def client(datalayer):
+    """FastAPI test client with in-memory datalayer injected."""
+    app.dependency_overrides[get_datalayer] = lambda: datalayer
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.pop(get_datalayer, None)
+
+
+def test_get_vulnerability_case_includes_vulnerability_reports_field(
+    client, datalayer
+):
     """
     Test that GET /datalayer/{key} includes vulnerability_reports field.
 
@@ -65,9 +75,8 @@ def test_get_vulnerability_case_includes_vulnerability_reports_field(client):
     )
 
     # Store both in data layer
-    dl = get_datalayer()
-    dl.create(report)
-    dl.create(case)
+    datalayer.create(report)
+    datalayer.create(case)
 
     # Retrieve via API
     response = client.get(f"/api/v2/datalayer/{case.id_}")
@@ -86,7 +95,7 @@ def test_get_vulnerability_case_includes_vulnerability_reports_field(client):
     assert data["vulnerabilityReports"][0]["id"] == report.id_
 
 
-def test_get_vulnerability_case_includes_all_fields(client):
+def test_get_vulnerability_case_includes_all_fields(client, datalayer):
     """
     Test that GET /datalayer/{key} includes all VulnerabilityCase fields.
 
@@ -103,8 +112,7 @@ def test_get_vulnerability_case_includes_all_fields(client):
     )
 
     # Store in data layer
-    dl = get_datalayer()
-    dl.create(case)
+    datalayer.create(case)
 
     # Retrieve via API
     response = client.get(f"/api/v2/datalayer/{case.id_}")
@@ -130,7 +138,7 @@ def test_get_vulnerability_case_includes_all_fields(client):
         ), f"Response missing '{field}' field. Keys: {list(data.keys())}"
 
 
-def test_get_vulnerability_report_includes_all_fields(client):
+def test_get_vulnerability_report_includes_all_fields(client, datalayer):
     """
     Test that GET /datalayer/{key} includes all VulnerabilityReport fields.
 
@@ -143,8 +151,7 @@ def test_get_vulnerability_report_includes_all_fields(client):
     )
 
     # Store in data layer
-    dl = get_datalayer()
-    dl.create(report)
+    datalayer.create(report)
 
     # Retrieve via API
     response = client.get(f"/api/v2/datalayer/{report.id_}")
@@ -157,6 +164,22 @@ def test_get_vulnerability_report_includes_all_fields(client):
         "content" in data
     ), f"Response missing 'content' field. Keys: {list(data.keys())}"
     assert data["content"] == "Test vulnerability content"
+
+
+def test_test_datalayer_uses_in_memory_storage():
+    """Regression test for BUG-2026040103.
+
+    The test datalayer must use in-memory storage (db_path=None) to prevent
+    ResourceWarning: unclosed file for mydb.json at session teardown.
+    """
+    from tinydb.storages import MemoryStorage
+
+    dl = get_datalayer()
+    assert isinstance(dl._db.storage, MemoryStorage), (
+        "Test datalayer must use in-memory storage (db_path=None) to prevent "
+        "ResourceWarning: unclosed file. Fix the autouse fixture to call "
+        "get_datalayer(db_path=None)."
+    )
 
 
 if __name__ == "__main__":

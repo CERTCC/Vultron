@@ -65,10 +65,14 @@ SHOULD use BTs for clarity and maintainability.
 ## Workflow-Specific Trees
 
 - `BT-06-001` Complex workflows SHOULD have dedicated BT implementations
-  - Report validation, case creation, embargo management, case engagement/deferral
+  - Report validation, case-from-report setup, embargo management, case engagement/deferral
   - **Decision criteria**: Use BTs for multi-branch workflows, RM/EM/CS state
     transitions with preconditions, or policy injection; use procedural code
     for simple CRUD or linear 3–5 step workflows with no branching
+  - **New**: Per ADR-0015, case/participant creation and embargo initialization
+    run in a dedicated `receive_report_case_tree` BT invoked by
+    `SubmitReportReceivedUseCase`. The `validate_report` BT focuses on
+    validation logic only.
   - **Reference**: `notes/bt-integration.md` for handler-by-handler decision
     table
 - `BT-06-002` BTs SHOULD match structure of simulation trees where applicable
@@ -126,6 +130,10 @@ SHOULD use BTs for clarity and maintainability.
 - `BT-10-002` Case creation MUST create corresponding CaseActor (Service)
 - `BT-10-003` CaseActor MUST manage case-related message processing
 - `BT-10-004` `PROD_ONLY` CaseActor MUST enforce case-level authorization
+- `BT-10-005` When an actor accepts a case invitation, the system
+  SHOULD automatically advance the accepting actor's RM state to
+  ACCEPTED via BT or use-case execution
+  - BT-10-005 implements CM-11-001
 
 ## VFD/PXA State Machine Usage
 
@@ -171,11 +179,13 @@ SHOULD use BTs for clarity and maintainability.
 - Unit test: BT execution occurs synchronously within handler
 - Unit test: BT exceptions propagate to handler error handling
 
-### BT-10-001, BT-10-002, BT-10-003 Verification
+### BT-10-001 through BT-10-005 Verification
 
 - Integration test: Validate report → creates VulnerabilityCase
 - Integration test: Case creation → creates CaseActor service
 - Unit test: CaseActor exists in DataLayer with correct case reference
+- Unit test: Invitation acceptance triggers RM→ACCEPTED without
+  separate engage-case trigger (BT-10-005)
 
 ### BT-11-001, BT-11-002 Verification
 

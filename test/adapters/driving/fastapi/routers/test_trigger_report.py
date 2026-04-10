@@ -111,8 +111,23 @@ def offer(dl, report, actor):
 
 
 @pytest.fixture
-def received_report(report):
-    """Put the report into RM.RECEIVED state (default — no DataLayer record needed)."""
+def received_report(dl, actor, report, offer):
+    """Pre-create a VulnerabilityCase for the report at RM.RECEIVED.
+
+    Per ADR-0015, the case is created at report receipt.  The validate_report
+    BT's EnsureEmbargoExists node requires a case to exist.
+    """
+    from vultron.core.behaviors.bridge import BTBridge
+    from vultron.core.behaviors.case.receive_report_case_tree import (
+        create_receive_report_case_tree,
+    )
+
+    bridge = BTBridge(datalayer=dl)
+    tree = create_receive_report_case_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+    )
+    bridge.execute_with_setup(tree, actor_id=actor.id_)
     return report
 
 
@@ -273,27 +288,28 @@ def test_trigger_validate_report_uses_injected_datalayer(
     assert len(call_log) >= 1, "get_datalayer was not called"
 
 
-def test_trigger_validate_report_adds_activity_to_outbox(
+def test_trigger_validate_report_transitions_rm_to_valid(
     client_triggers, dl, actor, offer, received_report
 ):
-    """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
-    actor_before = dl.read(actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    """TB-07-001: Successful validate-report trigger transitions RM to VALID.
 
+    Per ADR-0015, case creation (and outbox notifications) now happen at
+    RM.RECEIVED via receive_report_case_tree.  The validate-report trigger
+    is responsible only for the RM.RECEIVED → RM.VALID transition.
+    """
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/validate-report",
         json={"offer_id": offer.id_},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
+    valid_status_id = _report_phase_status_id(
+        actor.id_, offer.object_, RM.VALID.value
     )
-    new_items = outbox_after - outbox_before
-    assert len(new_items) >= 1, "No new activity was added to the outbox"
+    valid_record = dl.get("ParticipantStatus", valid_status_id)
+    assert (
+        valid_record is not None
+    ), "Expected a RM.VALID ParticipantStatus after validate-report trigger"
 
 
 def test_trigger_validate_report_non_report_offer_returns_422(
@@ -690,3 +706,210 @@ def test_trigger_close_report_non_report_offer_returns_422(
         json={"offer_id": non_report_object.id_},
     )
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+# ===========================================================================
+# Tests for trigger/submit-report
+# ===========================================================================
+
+
+def test_trigger_submit_report_returns_202(client_triggers, actor):
+    """TB-04-001: submit-report trigger returns 202 with offer payload."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/submit-report",
+        json={
+            "report_name": "Remote Code Execution in Widget",
+            "report_content": "A critical RCE vulnerability was found.",
+            "recipient_id": "https://example.org/actors/vendor",
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    body = resp.json()
+    assert "offer" in body
+    assert body["offer"]["type"] == "Offer"
+
+
+def test_trigger_submit_report_creates_report_in_datalayer(
+    client_triggers, actor, dl
+):
+    """submit-report trigger persists a VulnerabilityReport in the DataLayer."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/submit-report",
+        json={
+            "report_name": "Stored XSS in Dashboard",
+            "report_content": "An attacker can inject scripts via the search box.",
+            "recipient_id": "https://example.org/actors/vendor",
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    offer_id = resp.json()["offer"]["id"]
+
+    # The offer should be fetchable from the DataLayer.
+    stored_offer = dl.read(offer_id)
+    assert stored_offer is not None
+
+
+def test_trigger_submit_report_creates_offer_in_outbox(
+    client_triggers, actor, dl
+):
+    """TB-07-001: submit-report adds the offer to the actor's outbox."""
+    actor_before = dl.read(actor.id_)
+    outbox_before = set(
+        item for item in actor_before.outbox.items if isinstance(item, str)
+    )
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/submit-report",
+        json={
+            "report_name": "SQL Injection",
+            "report_content": "A SQL injection was found in the login form.",
+            "recipient_id": "https://example.org/actors/vendor",
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+    actor_after = dl.read(actor.id_)
+    outbox_after = set(
+        item for item in actor_after.outbox.items if isinstance(item, str)
+    )
+    assert len(outbox_after - outbox_before) >= 1
+
+
+def test_trigger_submit_report_missing_field_returns_422(
+    client_triggers, actor
+):
+    """submit-report rejects a body missing required fields."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/submit-report",
+        json={
+            "report_name": "Missing content",
+            # report_content and recipient_id are missing
+        },
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_submit_report_logs_report_and_offer(
+    client_triggers, actor, caplog
+):
+    """submit-report trigger emits INFO logs for report creation and offer."""
+    import logging
+
+    with caplog.at_level(logging.INFO, logger="vultron"):
+        client_triggers.post(
+            f"/actors/{actor.id_}/trigger/submit-report",
+            json={
+                "report_name": "Heap Buffer Overflow",
+                "report_content": "Heap buffer overflow in network parser.",
+                "recipient_id": "https://example.org/actors/vendor",
+            },
+        )
+
+    messages = [r.message for r in caplog.records]
+    assert any("Created VulnerabilityReport" in m for m in messages)
+    assert any("Offering report" in m for m in messages)
+
+
+# ===========================================================================
+# Tests for outbox delivery scheduling (D5-6-TRIGDELIV)
+# ===========================================================================
+
+
+class TestTriggerReportOutboxScheduling:
+    """D5-6-TRIGDELIV: trigger endpoints must schedule outbox_handler."""
+
+    def _make_patches(self):
+        """Return context managers that mock outbox_handler and get_datalayer."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        mock_dl = MagicMock()
+        return (
+            patch(
+                "vultron.adapters.driving.fastapi.routers"
+                ".trigger_report.outbox_handler",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "vultron.adapters.driving.fastapi.routers"
+                ".trigger_report.get_datalayer",
+                return_value=mock_dl,
+            ),
+            mock_dl,
+        )
+
+    def test_validate_report_schedules_outbox_handler(
+        self, client_triggers, actor, offer
+    ):
+        """validate-report schedules outbox delivery after execution."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        mock_dl = MagicMock()
+        with patch(
+            "vultron.adapters.driving.fastapi.routers"
+            ".trigger_report.outbox_handler",
+            new_callable=AsyncMock,
+        ) as mock_outbox, patch(
+            "vultron.adapters.driving.fastapi.routers"
+            ".trigger_report.get_datalayer",
+            return_value=mock_dl,
+        ):
+            resp = client_triggers.post(
+                f"/actors/{actor.id_}/trigger/validate-report",
+                json={"offer_id": offer.id_},
+            )
+        assert resp.status_code == status.HTTP_202_ACCEPTED
+        mock_outbox.assert_called_once()
+        assert mock_outbox.call_args.args[0] == actor.id_
+        assert mock_outbox.call_args.args[1] is mock_dl
+
+    def test_invalidate_report_schedules_outbox_handler(
+        self, client_triggers, actor, offer
+    ):
+        """invalidate-report schedules outbox delivery after execution."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        mock_dl = MagicMock()
+        with patch(
+            "vultron.adapters.driving.fastapi.routers"
+            ".trigger_report.outbox_handler",
+            new_callable=AsyncMock,
+        ) as mock_outbox, patch(
+            "vultron.adapters.driving.fastapi.routers"
+            ".trigger_report.get_datalayer",
+            return_value=mock_dl,
+        ):
+            resp = client_triggers.post(
+                f"/actors/{actor.id_}/trigger/invalidate-report",
+                json={"offer_id": offer.id_},
+            )
+        assert resp.status_code == status.HTTP_202_ACCEPTED
+        mock_outbox.assert_called_once()
+        assert mock_outbox.call_args.args[0] == actor.id_
+
+    def test_submit_report_schedules_outbox_handler(
+        self, client_triggers, actor
+    ):
+        """submit-report schedules outbox delivery after execution."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        mock_dl = MagicMock()
+        with patch(
+            "vultron.adapters.driving.fastapi.routers"
+            ".trigger_report.outbox_handler",
+            new_callable=AsyncMock,
+        ) as mock_outbox, patch(
+            "vultron.adapters.driving.fastapi.routers"
+            ".trigger_report.get_datalayer",
+            return_value=mock_dl,
+        ):
+            resp = client_triggers.post(
+                f"/actors/{actor.id_}/trigger/submit-report",
+                json={
+                    "report_name": "Test Report",
+                    "report_content": "Content.",
+                    "recipient_id": "https://example.org/actors/vendor",
+                },
+            )
+        assert resp.status_code == status.HTTP_202_ACCEPTED
+        mock_outbox.assert_called_once()
+        assert mock_outbox.call_args.args[0] == actor.id_

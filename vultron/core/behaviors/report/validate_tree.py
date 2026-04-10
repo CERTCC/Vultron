@@ -21,19 +21,22 @@ integrating condition, action, and policy nodes from the nodes module.
 
 Per specs/behavior-tree-integration.md BT-06 requirements.
 
-Structure (Phase 1 - Minimal Match to Procedural Handler):
+Structure:
 
     ValidateReportBT (Selector)
-    ├─ CheckRMStateValid                 # Early exit if already valid
+    ├─ CheckRMStateValid                     # Early exit if already valid
     └─ ValidationFlow (Sequence)
-       ├─ CheckRMStateReceivedOrInvalid  # Precondition check
-       ├─ EvaluateReportCredibility      # Policy check (stub)
-       ├─ EvaluateReportValidity         # Policy check (stub)
+       ├─ CheckRMStateReceivedOrInvalid       # Precondition check
+       ├─ EvaluateReportCredibility           # Policy check (stub)
+       ├─ EvaluateReportValidity             # Policy check (stub)
        └─ ValidationActions (Sequence)
-          ├─ TransitionRMtoValid         # Update statuses
-          ├─ CreateCaseNode              # Create case object
-          ├─ CreateCaseActivity          # Generate CreateCaseActivity activity
-          └─ UpdateActorOutbox           # Add to outbox
+          ├─ TransitionRMtoValid             # Vendor RM: → VALID
+          └─ EnsureEmbargoExists            # Verify embargo present (DUR-07-004)
+
+Per ADR-0015, case and participant creation now occurs at RM.RECEIVED (in
+``SubmitReportReceivedUseCase`` via ``create_receive_report_case_tree``).
+``ValidationActions`` only transitions the report state and confirms the
+precondition (embargo) established at receipt.
 
 Phase 1 simplifications:
 - No invalidation fallback (validation always succeeds)
@@ -45,7 +48,6 @@ Future enhancements (Phase 2+):
 - Add InvalidateReport fallback sequence
 - Implement real policy evaluation logic
 - Add information gathering workflow
-- Add message emission nodes
 """
 
 import logging
@@ -55,12 +57,10 @@ import py_trees
 from vultron.core.behaviors.report.nodes import (
     CheckRMStateReceivedOrInvalid,
     CheckRMStateValid,
-    CreateCaseActivity,
-    CreateCaseNode,
+    EnsureEmbargoExists,
     EvaluateReportCredibility,
     EvaluateReportValidity,
     TransitionRMtoValid,
-    UpdateActorOutbox,
 )
 
 logger = logging.getLogger(__name__)
@@ -102,15 +102,13 @@ def create_validate_report_tree(
     # Phase 1: Match procedural handler logic
     # Future: Add InvalidateReport fallback per simulation BT
 
-    # Child sequence: All validation actions (status updates, case creation, outbox)
+    # Child sequence: All validation actions (status update + embargo check)
     validation_actions = py_trees.composites.Sequence(
         name="ValidationActions",
         memory=False,
         children=[
             TransitionRMtoValid(report_id=report_id, offer_id=offer_id),
-            CreateCaseNode(report_id=report_id),
-            CreateCaseActivity(report_id=report_id, offer_id=offer_id),
-            UpdateActorOutbox(),
+            EnsureEmbargoExists(report_id=report_id),
         ],
     )
 

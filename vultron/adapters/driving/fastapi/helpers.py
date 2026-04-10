@@ -40,9 +40,9 @@ def obj_from_item(item: dict) -> as_Base:
             status_code=400, detail="Item must have a 'type' field."
         )
 
-    cls = find_in_vocabulary(item["type"])
-
-    if cls is None:
+    try:
+        cls = find_in_vocabulary(item["type"])
+    except KeyError:
         raise HTTPException(
             status_code=400, detail=f"Unknown item type: {item['type']}"
         )

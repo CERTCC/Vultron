@@ -10,12 +10,12 @@ from vultron.core.models.events.report import (
     SubmitReportReceivedEvent,
     ValidateReportReceivedEvent,
 )
-from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.datalayer import DataLayer
-from vultron.core.states.rm import RM
-from vultron.core.use_cases._helpers import (
-    _idempotent_create,
-    _report_phase_status_id,
+from vultron.core.use_cases.received.case import (
+    CloseCaseUseCase,
+    InvalidateCaseUseCase,
+    ValidateCaseUseCase,
 )
 
 logger = logging.getLogger(__name__)
@@ -38,8 +38,12 @@ class CreateReportReceivedUseCase:
                     "Stored VulnerabilityReport with ID: %s", request.report_id
                 )
             except ValueError as e:
-                logger.warning(
-                    "VulnerabilityReport %s already exists: %s",
+                # The inbox endpoint pre-stores inline nested objects before
+                # dispatching (actors.py), so a duplicate here is expected
+                # and not an error condition.
+                logger.debug(
+                    "VulnerabilityReport %s already exists (pre-stored by "
+                    "inbox endpoint): %s",
                     request.report_id,
                     e,
                 )
@@ -57,29 +61,6 @@ class CreateReportReceivedUseCase:
                     request.activity_id,
                     e,
                 )
-
-        if request.report_id:
-            status = VultronParticipantStatus(
-                id_=_report_phase_status_id(
-                    request.actor_id, request.report_id, RM.RECEIVED.value
-                ),
-                context=request.report_id,
-                attributed_to=request.actor_id,
-                rm_state=RM.RECEIVED,
-            )
-            _idempotent_create(
-                self._dl,
-                "ParticipantStatus",
-                status.id_,
-                status,
-                "ParticipantStatus (report-phase RM.RECEIVED)",
-                request.activity_id,
-            )
-            logger.info(
-                "RM START → RECEIVED for report '%s' (actor '%s')",
-                request.report_id,
-                request.actor_id,
-            )
 
 
 class SubmitReportReceivedUseCase:
@@ -99,8 +80,12 @@ class SubmitReportReceivedUseCase:
                     "Stored VulnerabilityReport with ID: %s", request.report_id
                 )
             except ValueError as e:
-                logger.warning(
-                    "VulnerabilityReport %s already exists: %s",
+                # The inbox endpoint pre-stores inline nested objects before
+                # dispatching (actors.py), so a duplicate here is expected
+                # and not an error condition.
+                logger.debug(
+                    "VulnerabilityReport %s already exists (pre-stored by "
+                    "inbox endpoint): %s",
                     request.report_id,
                     e,
                 )
@@ -113,34 +98,69 @@ class SubmitReportReceivedUseCase:
                     request.activity_id,
                 )
             except ValueError as e:
-                logger.warning(
-                    "SubmitReport activity %s already exists: %s",
+                # The inbox endpoint pre-stores activities before dispatching,
+                # so a duplicate here is expected and not an error condition.
+                logger.debug(
+                    "SubmitReport activity %s already exists (pre-stored by "
+                    "inbox endpoint): %s",
                     request.activity_id,
                     e,
                 )
 
         if request.report_id:
-            status = VultronParticipantStatus(
-                id_=_report_phase_status_id(
-                    request.actor_id, request.report_id, RM.RECEIVED.value
-                ),
-                context=request.report_id,
-                attributed_to=request.actor_id,
-                rm_state=RM.RECEIVED,
-            )
-            _idempotent_create(
-                self._dl,
-                "ParticipantStatus",
-                status.id_,
-                status,
-                "ParticipantStatus (report-phase RM.RECEIVED)",
-                request.activity_id,
-            )
+            vendor_actor_id = request.target_id
+            if vendor_actor_id is None:
+                logger.warning(
+                    "SubmitReportReceivedUseCase: vendor actor_id not "
+                    "available (Offer.target not set) for report '%s' — "
+                    "skipping case creation",
+                    request.report_id,
+                )
+                return
+
             logger.info(
-                "RM START → RECEIVED for report '%s' (actor '%s')",
+                "Actor '%s' receiving report '%s' — running case-creation BT",
+                vendor_actor_id,
                 request.report_id,
-                request.actor_id,
             )
+
+            from py_trees.common import Status
+
+            from vultron.core.behaviors.bridge import BTBridge
+            from vultron.core.behaviors.case.receive_report_case_tree import (
+                create_receive_report_case_tree,
+            )
+
+            bridge = BTBridge(datalayer=self._dl)
+            tree = create_receive_report_case_tree(
+                report_id=request.report_id,
+                offer_id=request.activity_id,
+            )
+            result = bridge.execute_with_setup(
+                tree, actor_id=vendor_actor_id, activity=request
+            )
+
+            if result.status == Status.SUCCESS:
+                logger.info(
+                    "✓ Case creation at RM.RECEIVED succeeded for report: %s",
+                    request.report_id,
+                )
+            elif result.status == Status.FAILURE:
+                logger.error(
+                    "✗ Case creation at RM.RECEIVED failed for report: "
+                    "%s — %s",
+                    request.report_id,
+                    result.feedback_message,
+                )
+                for err in result.errors or []:
+                    logger.error("  - %s", err)
+            else:
+                logger.warning(
+                    "⚠ Case creation at RM.RECEIVED incomplete for report: "
+                    "%s (status=%s)",
+                    request.report_id,
+                    result.status,
+                )
 
 
 class ValidateReportReceivedUseCase:
@@ -152,12 +172,6 @@ class ValidateReportReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        from py_trees.common import Status
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.report.validate_tree import (
-            create_validate_report_tree,
-        )
-
         actor_id = request.actor_id
         report_id = request.report_id
         offer_id = request.offer_id
@@ -166,36 +180,30 @@ class ValidateReportReceivedUseCase:
                 "ValidateReportReceivedEvent requires report_id and offer_id"
             )
 
+        case = self._dl.find_case_by_report_id(report_id)
+        case_id: str | None = None
+        if is_case_model(case):
+            case_id = case.id_
+        else:
+            logger.warning(
+                "ValidateReportReceivedUseCase: no case found for report "
+                "'%s' — RM state will not be updated in participant record",
+                report_id,
+            )
+
         logger.info(
-            "Actor '%s' validates VulnerabilityReport '%s' via BT execution",
+            "Actor '%s' validates VulnerabilityReport '%s'",
             actor_id,
             report_id,
         )
 
-        bridge = BTBridge(datalayer=self._dl)
-        tree = create_validate_report_tree(
-            report_id=report_id, offer_id=offer_id
-        )
-        result = bridge.execute_with_setup(
-            tree, actor_id=actor_id, activity=request
-        )
-
-        if result.status == Status.SUCCESS:
-            logger.info("✓ BT validation succeeded for report: %s", report_id)
-        elif result.status == Status.FAILURE:
-            logger.error(
-                "✗ BT validation failed for report: %s — %s",
-                report_id,
-                result.feedback_message,
-            )
-            for err in result.errors or []:
-                logger.error("  - %s", err)
-        else:
-            logger.warning(
-                "⚠ BT validation incomplete for report: %s (status=%s)",
-                report_id,
-                result.status,
-            )
+        ValidateCaseUseCase(
+            dl=self._dl,
+            actor_id=actor_id,
+            report_id=report_id,
+            offer_id=offer_id,
+            case_id=case_id,
+        ).execute()
 
 
 class InvalidateReportReceivedUseCase:
@@ -209,7 +217,8 @@ class InvalidateReportReceivedUseCase:
         request = self._request
         actor_id = request.actor_id
         logger.info(
-            "Actor '%s' tentatively rejects offer '%s' of VulnerabilityReport '%s'",
+            "Actor '%s' tentatively rejects offer '%s' of "
+            "VulnerabilityReport '%s'",
             actor_id,
             request.offer_id,
             request.report_id,
@@ -229,22 +238,15 @@ class InvalidateReportReceivedUseCase:
                 )
 
         if request.report_id:
-            status = VultronParticipantStatus(
-                id_=_report_phase_status_id(
-                    actor_id, request.report_id, RM.INVALID.value
-                ),
-                context=request.report_id,
-                attributed_to=actor_id,
-                rm_state=RM.INVALID,
-            )
-            _idempotent_create(
-                self._dl,
-                "ParticipantStatus",
-                status.id_,
-                status,
-                "ParticipantStatus (report-phase RM.INVALID)",
-                request.activity_id,
-            )
+            case = self._dl.find_case_by_report_id(request.report_id)
+            if is_case_model(case):
+                InvalidateCaseUseCase(self._dl, case.id_, actor_id).execute()
+            else:
+                logger.warning(
+                    "InvalidateReportReceivedUseCase: no case found for "
+                    "report '%s' — RM state not updated",
+                    request.report_id,
+                )
 
 
 class AckReportReceivedUseCase:
@@ -255,7 +257,8 @@ class AckReportReceivedUseCase:
     def execute(self) -> None:
         request = self._request
         logger.info(
-            "Actor '%s' acknowledges receipt of offer '%s' of VulnerabilityReport '%s'",
+            "Actor '%s' acknowledges receipt of offer '%s' of "
+            "VulnerabilityReport '%s'",
             request.actor_id,
             request.offer_id,
             request.report_id,
@@ -273,32 +276,6 @@ class AckReportReceivedUseCase:
                     request.activity_id,
                     e,
                 )
-
-        # The report is nested inside the offer: inner_object_id is the report.
-        if request.report_id:
-            status = VultronParticipantStatus(
-                id_=_report_phase_status_id(
-                    request.actor_id,
-                    request.report_id,
-                    RM.RECEIVED.value,
-                ),
-                context=request.report_id,
-                attributed_to=request.actor_id,
-                rm_state=RM.RECEIVED,
-            )
-            _idempotent_create(
-                self._dl,
-                "ParticipantStatus",
-                status.id_,
-                status,
-                "ParticipantStatus (report-phase RM.RECEIVED)",
-                request.activity_id,
-            )
-            logger.info(
-                "RM START → RECEIVED for report '%s' (actor '%s')",
-                request.report_id,
-                request.actor_id,
-            )
 
 
 class CloseReportReceivedUseCase:
@@ -332,19 +309,12 @@ class CloseReportReceivedUseCase:
                 )
 
         if request.report_id:
-            status = VultronParticipantStatus(
-                id_=_report_phase_status_id(
-                    actor_id, request.report_id, RM.CLOSED.value
-                ),
-                context=request.report_id,
-                attributed_to=actor_id,
-                rm_state=RM.CLOSED,
-            )
-            _idempotent_create(
-                self._dl,
-                "ParticipantStatus",
-                status.id_,
-                status,
-                "ParticipantStatus (report-phase RM.CLOSED)",
-                request.activity_id,
-            )
+            case = self._dl.find_case_by_report_id(request.report_id)
+            if is_case_model(case):
+                CloseCaseUseCase(self._dl, case.id_, actor_id).execute()
+            else:
+                logger.warning(
+                    "CloseReportReceivedUseCase: no case found for report "
+                    "'%s' — RM state not updated",
+                    request.report_id,
+                )

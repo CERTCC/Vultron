@@ -25,10 +25,9 @@ from vultron.wire.as2.vocab.base.objects.collections import (
     as_Collection,
     as_OrderedCollection,
 )
-from vultron.wire.as2.vocab.base.registry import activitystreams_object
+from vultron.wire.as2.vocab.base.registry import VOCABULARY
 
 
-@activitystreams_object
 class as_Actor(as_Object):
     """Base class for all ActivityPub actors.
     Describes one or more entities that performed or are expected to perform an activity.
@@ -69,7 +68,6 @@ class as_Actor(as_Object):
 as_ActorRef: TypeAlias = ActivityStreamRef[as_Actor]
 
 
-@activitystreams_object
 class as_Group(as_Actor):
     """A special kind of actor representing a logical group of persons or other actors.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-group>
@@ -85,7 +83,6 @@ class as_Group(as_Actor):
 as_GroupRef: TypeAlias = ActivityStreamRef[as_Group]
 
 
-@activitystreams_object
 class as_Organization(as_Actor):
     """A special kind of actor representing a logical group of persons or other actors.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-organization>
@@ -101,7 +98,6 @@ class as_Organization(as_Actor):
 as_OrganizationRef: TypeAlias = ActivityStreamRef[as_Organization]
 
 
-@activitystreams_object
 class as_Application(as_Actor):
     """A special kind of actor representing a software application.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-application>
@@ -117,7 +113,6 @@ class as_Application(as_Actor):
 as_ApplicationRef: TypeAlias = ActivityStreamRef[as_Application]
 
 
-@activitystreams_object
 class as_Service(as_Actor):
     """A special kind of actor representing a service.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-service>
@@ -134,7 +129,6 @@ class as_Service(as_Actor):
 as_ServiceRef: TypeAlias = ActivityStreamRef[as_Service]
 
 
-@activitystreams_object
 class as_Person(as_Actor):
     """A special kind of actor representing an individual person.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-person>
@@ -148,6 +142,10 @@ class as_Person(as_Actor):
 
 
 as_PersonRef: TypeAlias = ActivityStreamRef[as_Person]
+
+# as_Actor has no concrete type_ annotation of its own but is used as a
+# concrete stored type with type_='Actor' via set_type_from_class_name().
+VOCABULARY["Actor"] = as_Actor
 
 
 def main():

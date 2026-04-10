@@ -22,8 +22,17 @@ port for persisting and fetching ActivityStreams objects.
 The backward-compat re-export shim at
 ``vultron.api.v2.datalayer.tinydb_backend`` will be removed once all callers
 are updated to import from this module directly.
+
+Environment variables
+---------------------
+``VULTRON_DB_PATH``
+    Path to the TinyDB JSON file used by ``get_datalayer()``.  Defaults to
+    ``"mydb.json"`` (relative to the process working directory).  Set this in
+    multi-container deployments to isolate each container's database under a
+    persistent volume (e.g., ``/app/data/mydb.json``).
 """
 
+import os
 from typing import Any, TypeVar, cast
 
 from pydantic import ValidationError
@@ -43,6 +52,12 @@ from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
 PersistableModelT = TypeVar("PersistableModelT", bound=PersistableModel)
+
+#: Default TinyDB file path used by :func:`get_datalayer` when no explicit
+#: ``db_path`` is provided.  Override via the ``VULTRON_DB_PATH`` environment
+#: variable *before* the module is imported (e.g., set the env var in the
+#: container startup script or in ``docker-compose.yml``).
+_DEFAULT_DB_PATH: str = os.environ.get("VULTRON_DB_PATH", "mydb.json")
 
 
 class TinyDbDataLayer(DataLayer):
@@ -104,20 +119,24 @@ class TinyDbDataLayer(DataLayer):
 
         raw_type = stored_record.get("type")
         if isinstance(raw_type, str):
-            vocab_cls = find_in_vocabulary(raw_type)
-            if vocab_cls is not None:
+            try:
+                vocab_cls = find_in_vocabulary(raw_type)
                 return cast(
                     PersistableModel, vocab_cls.model_validate(stored_record)
                 )
+            except KeyError:
+                pass
 
         raw_type = stored_record.get("type_")
         raw_data = stored_record.get("data_")
         if isinstance(raw_type, str) and isinstance(raw_data, dict):
-            vocab_cls = find_in_vocabulary(raw_type)
-            if vocab_cls is not None:
+            try:
+                vocab_cls = find_in_vocabulary(raw_type)
                 return cast(
                     PersistableModel, vocab_cls.model_validate(raw_data)
                 )
+            except KeyError:
+                pass
 
         return None
 
@@ -411,6 +430,43 @@ class TinyDbDataLayer(DataLayer):
 
         return None
 
+    def find_case_by_report_id(
+        self, report_id: str
+    ) -> PersistableModel | None:
+        """Find a VulnerabilityCase whose ``vulnerability_reports`` references
+        the given report ID.
+
+        Each entry in ``vulnerability_reports`` may be stored as either a plain
+        string ID or as a serialised inline object dict (with an ``id_`` key).
+        Both forms are checked.
+
+        Args:
+            report_id: Full URI of the VulnerabilityReport to search for.
+
+        Returns:
+            The reconstituted VulnerabilityCase, or None if not found.
+        """
+        tbl = self._table("VulnerabilityCase")
+        if tbl.name not in self._db.tables():
+            return None
+
+        for rec in tbl.all():
+            try:
+                record = Record.model_validate(dict(rec))
+                reports = record.data_.get("vulnerability_reports", [])
+                for entry in reports:
+                    if entry == report_id:
+                        return cast(PersistableModel, record_to_object(record))
+                    if (
+                        isinstance(entry, dict)
+                        and entry.get("id_") == report_id
+                    ):
+                        return cast(PersistableModel, record_to_object(record))
+            except (ValidationError, ValueError):
+                continue
+
+        return None
+
     # ------------------------------------------------------------------
     # Inbox / Outbox queue helpers
     # ------------------------------------------------------------------
@@ -492,7 +548,7 @@ _datalayer_instances: dict[str, TinyDbDataLayer] = {}
 
 
 def get_datalayer(
-    actor_id: str | None = None, db_path: str | None = "mydb.json"
+    actor_id: str | None = None, db_path: str | None = _DEFAULT_DB_PATH
 ) -> TinyDbDataLayer:
     """Factory function to get or create a TinyDbDataLayer instance.
 
@@ -510,8 +566,10 @@ def get_datalayer(
     Args:
         actor_id: The actor whose scoped DataLayer to return. ``None`` for
             the shared/admin DataLayer.
-        db_path: The path to the backing TinyDB file. If ``None``, uses
-            in-memory storage.
+        db_path: The path to the backing TinyDB file.  Defaults to
+            ``_DEFAULT_DB_PATH`` (the value of ``VULTRON_DB_PATH`` at module
+            import time, or ``"mydb.json"``).  Pass ``None`` explicitly to
+            use in-memory storage (useful for testing).
 
     Returns:
         TinyDbDataLayer: An actor-scoped (or shared) instance.

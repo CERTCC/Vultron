@@ -46,7 +46,11 @@ UriString = Annotated[NonEmptyString, AfterValidator(_valid_uri)]
 
 class VultronBase(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
-    id_: NonEmptyString = Field(default_factory=_new_urn)
+    id_: NonEmptyString = Field(
+        default_factory=_new_urn,
+        validation_alias="id",
+        serialization_alias="id",
+    )
     type_: NonEmptyString | None = Field(
         default=None,
         validation_alias="type",

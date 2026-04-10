@@ -9,85 +9,76 @@ header.
 
 ---
 
-## 2026-03-26 Current active priority
+### 2026-04-08 Plan refresh #72 gap analysis
 
-PRIORITY-250 (pre-300 cleanup) is now the active focus. Tasks in order:
-NAMING-1, QUALITY-1, SECOPS-1, DOCMAINT-1, REORG-1. D5-1 (architecture
-review for multi-actor demos) may proceed in parallel with PRIORITY-250.
-D5-2 and later demo tasks are explicitly blocked until PRIORITY-250 is
-complete (per `plan/PRIORITIES.md`).
+**Test suite**: 1262 tests passing (refresh #72). No warnings, no
+ResourceWarnings. All linters clean.
 
-The trigger→received→sync information flow (participants trigger state
-changes → the resulting messages arrive at CaseActor's inbox as "received"
-events → sync replicates the updated case log to all participants) should be
-documented as part of REORG-1.
+**D5-6-AUTOENG completed (2026-04-08)**: Invitation acceptance now
+auto-advances the invitee to RM.ACCEPTED and queues `RmEngageCaseActivity`
+without a separate trigger. Three-actor and multi-vendor demos no longer
+issue manual `engage-case` calls. D5-6-CASEPROP is now focused solely on
+`EmitCreateCaseActivity` (`create_case` BT) missing `to` field and full
+case embedding.
 
----
+**D5-6-EMBARGORCP dependency clarification**: Per `notes/protocol-event-cascades.md`,
+Option 2 (remove standalone `Announce(embargo)`, rely on `Create(Case)`)
+is recommended and is independent of IDEA-260408-01 ordering. Alternatively,
+it can be deferred until IDEA-260408-01-4 removes `InitializeDefaultEmbargoNode`
+from `validate_tree.py` entirely. The plan has been updated to capture both
+paths.
 
-## 2026-03-30 Gap analysis observations (refresh #57)
+**SYNC spec and CLP spec expansion (2026-04-08)**: `specs/case-log-processing.md`
+(CLP) and `specs/sync-log-replication.md` were significantly expanded with
+new requirements for:
 
-### SECOPS-1 remaining work
+- `CaseLogEntry` model fields: `log_index`, `disposition`, `term`
+- Assertion intake path (CLP-01): ordinary inbound activities as participant
+  assertions; CaseActor as sole canonical log writer
+- Local audit log vs. replicated canonical chain (CLP-03, CLP-04)
+- Canonical serialization for hash computation (SYNC-01-005; RFC 8785 JCS)
+- Commit discipline (SYNC-09): emit-after-commit invariant
+- Leadership guard port in BT bridge (SYNC-09-003)
+SYNC-1 task description updated in IMPLEMENTATION_PLAN.md to capture all of
+these. The old note about `prev_log_index` in SYNC-2 has been corrected to
+`prev_log_hash` to match the hash-chain design.
 
-SHA pinning is complete (all 6 workflow files). `specs/ci-security.md` was
-previously created. Dependabot is configured weekly for `github-actions`,
-satisfying VSR-01-003. Remaining: (1) write ADR documenting the policy and
-Dependabot-as-primary-maintenance; (2) implement CI-SEC-01-003 automated test.
-See updated SECOPS-1 task in IMPLEMENTATION_PLAN.md.
+**BUG-2026040102 (circular import in test_performance.py)**: Marked FIXED
+2026-04-01 in BUGS.md. Test confirmed passing in isolation as of 2026-04-08.
+Resolution section was never written; fix was applied as part of the April 1
+multi-vendor demo work. BUGS.md updated with resolution note.
 
-### Stale spec references inventory (for SPEC-AUDIT-3)
+**Testing note (2026-04-08)**: When tests need to persist actor records
+through `DataLayer.create`, use a concrete actor subtype such as
+`as_Organization` rather than the base `as_Actor`; the base type's optional
+`type_` conflicts with the `PersistableModel` protocol under pyright.
 
-The 2026-03-30 gap analysis found these specific outdated references in
-`specs/`:
+**CONFIG-1 (YAML config)**: IDEA-260402-01 (from `plan/IDEAS.md`) has been
+added as a new PRIORITY-350 task. `pyyaml` is already a transitive dependency
+(from docker-compose YAML parsing). The task is independent and can be
+implemented any time after D5-7 sign-off.
 
-- `verify_semantics` decorator (removed in PREPX-2): referenced in
-  `dispatch-routing.md` DR-01-003, `behavior-tree-integration.md` ~line 170,
-  and `architecture.md` ~line 106 (as a completed item note).
-- `SEMANTIC_HANDLER_MAP` (renamed to `USE_CASE_MAP`): referenced in
-  `dispatch-routing.md` DR-02-001/002, `handler-protocol.md`,
-  `semantic-extraction.md` SE-05-002.
-- `test/api/v2/` test paths (directory removed): referenced in
-  `dispatch-routing.md`, `error-handling.md`, `handler-protocol.md`,
-  `http-protocol.md`, `idempotency.md`, `inbox-endpoint.md`,
-  `message-validation.md`, `observability.md`, `outbox.md`,
-  `response-format.md`, `structured-logging.md`.
-
-These stale references should be corrected as part of SPEC-AUDIT-3.
-
-### VSR-ERR-1: VultronConflictError rename now a plan task
-
-VSR-03-002 (rename `VultronConflictError` → `VultronInvalidStateTransitionError`)
-is now tracked as plan task VSR-ERR-1. The rename affects:
-`vultron/errors.py`, `vultron/core/use_cases/triggers/embargo.py` (4 raises),
-`vultron/core/use_cases/triggers/report.py` (1 raise),
-`vultron/adapters/driving/fastapi/errors.py` (handler mapping), and
-corresponding tests.
-
-### BUG-FLAKY-1: test_remove_embargo root cause
-
-The test at `test/wire/as2/vocab/test_vocab_examples.py::test_remove_embargo`
-calls `examples.remove_embargo()` (which internally calls
-`embargo_event(90)`) and then also calls `examples.embargo_event(days=90)`
-separately. Both calls use `datetime.now()` to produce a time-based `as_id`.
-If the two calls straddle a second boundary, the IDs differ and the equality
-assertion fails. Tracked as plan task BUG-FLAKY-1. Must be fixed before
-PRIORITY-300 demo work.
-
-### notes/activitystreams-semantics.md stale note (for DOCMAINT-1)
-
-`notes/activitystreams-semantics.md` ~line 333 states "CaseActor broadcast is
-not yet implemented". This is outdated — CaseActor broadcast was implemented
-in PRIORITY-200 (CA-2) via
-`vultron/core/use_cases/case.py::_broadcast_case_update`. DOCMAINT-1 should
-update this note.
+**IDEA-260402-02 (per-participant case replica)**: Design captured in
+`plan/IDEAS.md`. Implementation is the participant-side receive path for
+`Announce(CaseLogEntry)` replication; this is SYNC-2 scope. Added to
+Deferred section of IMPLEMENTATION_PLAN.md for visibility.
 
 ---
 
----
+### 2026-04-09 EMBARGO-DUR-1 completed
 
-## 2026-03-30 NAMING-1 complete
+`EmbargoPolicy` now uses `timedelta` internally and ISO 8601 duration strings
+at the wire layer. Key notes:
 
-All `as_`-prefixed field names have been migrated to trailing-underscore
-convention (`id_`, `type_`, `object_`, `context_`). Class names retain
-the `as_` prefix. All 1080 tests pass. `specs/code-style.md` updated to
-MUST-level policy. PRIORITY-250 is now fully complete — D5-2 and later
-PRIORITY-300 demo tasks are unblocked.
+- `isodate.parse_duration("P2W")` returns `timedelta(weeks=2)` — a
+  `timedelta` — so week rejection requires an explicit pre-check for `W` in
+  the date part of the duration string before calling `isodate`.
+- `isodate.parse_duration("P1Y")` returns `isodate.Duration` (not `timedelta`)
+  so year/month rejection is handled by checking `isinstance(parsed, timedelta)`.
+- `object_to_record()` serializes `timedelta` fields as ISO 8601 strings
+  (via `field_serializer(when_used="json")`). The DataLayer round-trip
+  works correctly because `TinyDbDataLayer` stores serialized JSON and
+  `model_validate` re-parses via the `field_validator`.
+- Test helpers that pass ISO 8601 strings to `EmbargoPolicy(...)` must use
+  `cast(Any, EmbargoPolicy)(...)` to satisfy mypy (field is typed `timedelta`
+  but Pydantic accepts strings at runtime via the `field_validator`).

@@ -494,3 +494,45 @@ superseded and removed. The content was relocated as follows:
 
 `vultron/api/v2/` has been fully removed (VCR-014 deleted the last file,
 `data/actor_io.py`, in 2026-03-25).
+
+---
+
+## Router Test Override Pattern: `_shared_dl` and `dependency_overrides`
+
+When writing FastAPI router tests that cover endpoints in
+`vultron/adapters/driving/fastapi/routers/actors.py`, the module-level
+`_shared_dl` variable is populated by calling `get_datalayer()` directly at
+import time (not via `Depends`). This means:
+
+- `app.dependency_overrides[get_datalayer] = lambda: mock_dl` alone is
+  **insufficient** — the `_shared_dl` closure was already bound to the real
+  DataLayer at import time.
+- You **must** also patch `actors_router._shared_dl = mock_dl` (or the
+  equivalent `monkeypatch.setattr`) so that the already-bound module variable
+  points to the test DataLayer.
+
+This is a deliberate design (ADR-0012): cross-actor lookups and the shared
+admin DataLayer use a module-level binding for performance, not `Depends`.
+
+---
+
+## Circular Import Fix Pattern: Shared Helpers in `_helpers.py`
+
+When a module in `vultron/core/behaviors/` needs a helper that is also
+imported by `vultron/core/use_cases/triggers/`, importing it via
+`triggers/_helpers.py` will trigger `triggers/__init__.py`, which eagerly
+loads all trigger use-case sub-modules. If any trigger sub-module imports
+back into the behaviors layer, a circular import results.
+
+**Fix pattern**: Move shared helpers to
+`vultron/core/use_cases/_helpers.py` (the neutral package-top-level module).
+This module is importable from both the `behaviors/` layer and the
+`triggers/` sub-package without loading the `triggers` package at all.
+`triggers/_helpers.py` can re-export from `_helpers.py` for callers already
+inside the `triggers` package.
+
+**Corollary**: Core domain model classes (e.g., `VultronCase`) should
+implement the same interface methods as their wire-layer counterparts (e.g.,
+`record_event()`) so that Protocol guards like `is_case_model()` return
+`True` for both families. Avoid making the Protocol guard depend on the
+concrete wire-layer class.

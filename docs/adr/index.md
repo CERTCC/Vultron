@@ -39,6 +39,8 @@ General information about architectural decision records is available at <https:
 - [ADR-0013 Unify RM State Tracking](0013-unify-rm-state-tracking.md)
 - [ADR-0014 Pin GitHub Actions to Full Commit SHAs with Version
   Comments](0014-sha-pin-github-actions.md)
+- [ADR-0015 Create VulnerabilityCase at Report Receipt
+  (RM.RECEIVED)](0015-create-case-at-report-receipt.md)
 
 ## Proposed ADRs
 

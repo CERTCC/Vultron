@@ -20,13 +20,14 @@ Thin wrapper: validates request → calls adapter → returns response.
 All domain logic lives in vultron.core.use_cases.triggers.embargo.
 """
 
-from fastapi import APIRouter, Depends, Path, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Path, status
 
 from vultron.adapters.driving.fastapi._trigger_adapter import (
     evaluate_embargo_trigger,
     propose_embargo_trigger,
     terminate_embargo_trigger,
 )
+from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.trigger_models import (
     EvaluateEmbargoRequest,
     ProposeEmbargoRequest,
@@ -48,6 +49,24 @@ def _actor_dl(actor_id: str = Path(...)) -> DataLayer:  # noqa: ARG001
     return get_datalayer()
 
 
+def _canonical_actor_dl(
+    actor_id: str = Path(...),
+    dl: DataLayer = Depends(_actor_dl),
+) -> DataLayer:
+    """FastAPI dependency: actor-scoped DataLayer keyed by the canonical URI.
+
+    Resolves *actor_id* (which may be a short UUID from the URL path) to the
+    actor's full canonical URI via the shared DataLayer, then returns the
+    actor-scoped DataLayer instance keyed by that URI.  This ensures that
+    ``outbox_handler`` reads from the same ``{canonical_uri}_outbox`` table
+    that ``record_outbox_item`` wrote to during use-case execution
+    (BUG-2026040901).
+    """
+    actor = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
+    canonical_id = actor.id_ if actor and hasattr(actor, "id_") else actor_id
+    return get_datalayer(canonical_id)
+
+
 @router.post(
     "/{actor_id}/trigger/propose-embargo",
     status_code=status.HTTP_202_ACCEPTED,
@@ -64,7 +83,9 @@ def _actor_dl(actor_id: str = Path(...)) -> DataLayer:  # noqa: ARG001
 def trigger_propose_embargo(
     actor_id: str,
     body: ProposeEmbargoRequest,
+    background_tasks: BackgroundTasks,
     dl: DataLayer = Depends(_actor_dl),
+    actor_dl: DataLayer = Depends(_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the propose-embargo behavior for the given actor.
@@ -73,9 +94,11 @@ def trigger_propose_embargo(
         TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001, TB-03-002,
         TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    return propose_embargo_trigger(
+    result = propose_embargo_trigger(
         actor_id, body.case_id, body.note, body.end_time, dl
     )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result
 
 
 @router.post(
@@ -94,7 +117,9 @@ def trigger_propose_embargo(
 def trigger_evaluate_embargo(
     actor_id: str,
     body: EvaluateEmbargoRequest,
+    background_tasks: BackgroundTasks,
     dl: DataLayer = Depends(_actor_dl),
+    actor_dl: DataLayer = Depends(_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the evaluate-embargo (accept) behavior for the given actor.
@@ -103,9 +128,11 @@ def trigger_evaluate_embargo(
         TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001, TB-03-002,
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    return evaluate_embargo_trigger(
+    result = evaluate_embargo_trigger(
         actor_id, body.case_id, body.proposal_id, dl
     )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result
 
 
 @router.post(
@@ -125,7 +152,9 @@ def trigger_evaluate_embargo(
 def trigger_terminate_embargo(
     actor_id: str,
     body: TerminateEmbargoRequest,
+    background_tasks: BackgroundTasks,
     dl: DataLayer = Depends(_actor_dl),
+    actor_dl: DataLayer = Depends(_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the terminate-embargo behavior for the given actor.
@@ -134,4 +163,6 @@ def trigger_terminate_embargo(
         TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001, TB-03-002,
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    return terminate_embargo_trigger(actor_id, body.case_id, dl)
+    result = terminate_embargo_trigger(actor_id, body.case_id, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result

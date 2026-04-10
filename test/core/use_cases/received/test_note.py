@@ -15,6 +15,7 @@
 from typing import cast
 
 from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.use_cases.received.note import (
     AddNoteToCaseReceivedUseCase,
     CreateNoteReceivedUseCase,
@@ -180,3 +181,168 @@ class TestNoteUseCases:
 
         result = RemoveNoteFromCaseReceivedUseCase(dl, event).execute()
         assert result is None
+
+    # ------------------------------------------------------------------
+    # Broadcast tests (CM-06-005)
+    # ------------------------------------------------------------------
+
+    def test_add_note_broadcasts_to_participants(self, make_payload):
+        """add_note_to_case broadcasts AddNoteToCase to all participants.
+
+        After a note is added to a case, the CaseActor should enqueue an
+        AddNoteToCaseActivity for delivery to all participants that are not
+        the note author (CM-06-005).
+        """
+        dl = TinyDbDataLayer(db_path=None)
+        author_id = "https://example.org/users/vendor"
+        participant_id = "https://example.org/users/finder"
+        case_id = "https://example.org/cases/case_nb1"
+
+        case_actor = VultronCaseActor(
+            id_=f"{case_id}/actor",
+            name=f"CaseActor for {case_id}",
+            attributed_to=author_id,
+            context=case_id,
+        )
+        dl.create(case_actor)
+
+        case = VulnerabilityCase(
+            id_=case_id,
+            name="Broadcast Note Case",
+            attributed_to=author_id,
+        )
+        case.actor_participant_index[author_id] = (
+            "https://example.org/participants/p-nb1-vendor"
+        )
+        case.actor_participant_index[participant_id] = (
+            "https://example.org/participants/p-nb1-finder"
+        )
+        dl.create(case)
+
+        note = as_Note(
+            id_="https://example.org/notes/note_bc1",
+            content="Broadcast note",
+            context=case_id,
+        )
+        dl.create(note)
+
+        activity = AddNoteToCaseActivity(
+            actor=author_id,
+            object_=note,
+            target=case,
+        )
+        event = make_payload(activity)
+
+        AddNoteToCaseReceivedUseCase(dl, event).execute()
+
+        # CaseActor outbox should contain the broadcast activity.
+        refreshed_actor = dl.read(case_actor.id_)
+        assert refreshed_actor is not None
+        refreshed_actor = cast(VultronCaseActor, refreshed_actor)
+        assert len(refreshed_actor.outbox.items) == 1
+
+        broadcast_id = refreshed_actor.outbox.items[0]
+        broadcast = dl.read(broadcast_id)
+        assert broadcast is not None
+        broadcast = cast(AddNoteToCaseActivity, broadcast)
+        assert broadcast.actor == case_actor.id_
+        assert broadcast.to is not None
+        assert participant_id in broadcast.to
+
+        # Verify the broadcast is enqueued for delivery by outbox_handler.
+        queue_table = dl._db.table(f"{case_actor.id_}_outbox")
+        queued_ids = [row["activity_id"] for row in queue_table.all()]
+        assert broadcast_id in queued_ids
+
+    def test_add_note_broadcast_excludes_author(self, make_payload):
+        """The note author is excluded from broadcast recipients (CM-06-005)."""
+        dl = TinyDbDataLayer(db_path=None)
+        author_id = "https://example.org/users/vendor"
+        participant_id = "https://example.org/users/finder"
+        case_id = "https://example.org/cases/case_nb2"
+
+        case_actor = VultronCaseActor(
+            id_=f"{case_id}/actor",
+            name=f"CaseActor for {case_id}",
+            attributed_to=author_id,
+            context=case_id,
+        )
+        dl.create(case_actor)
+
+        case = VulnerabilityCase(
+            id_=case_id,
+            name="Exclude Author Case",
+            attributed_to=author_id,
+        )
+        case.actor_participant_index[author_id] = (
+            "https://example.org/participants/p-nb2-vendor"
+        )
+        case.actor_participant_index[participant_id] = (
+            "https://example.org/participants/p-nb2-finder"
+        )
+        dl.create(case)
+
+        note = as_Note(
+            id_="https://example.org/notes/note_bc2",
+            content="Author excluded note",
+            context=case_id,
+        )
+        dl.create(note)
+
+        activity = AddNoteToCaseActivity(
+            actor=author_id,
+            object_=note,
+            target=case,
+        )
+        event = make_payload(activity)
+
+        AddNoteToCaseReceivedUseCase(dl, event).execute()
+
+        refreshed_actor = dl.read(case_actor.id_)
+        assert refreshed_actor is not None
+        refreshed_actor = cast(VultronCaseActor, refreshed_actor)
+        assert len(refreshed_actor.outbox.items) == 1
+
+        broadcast_id = refreshed_actor.outbox.items[0]
+        broadcast = dl.read(broadcast_id)
+        assert broadcast is not None
+        broadcast = cast(AddNoteToCaseActivity, broadcast)
+        assert broadcast.to is not None
+        assert author_id not in broadcast.to
+        assert participant_id in broadcast.to
+
+    def test_add_note_no_broadcast_when_no_case_actor(self, make_payload):
+        """Broadcast is skipped gracefully when no CaseActor exists (CM-06-005)."""
+        dl = TinyDbDataLayer(db_path=None)
+        author_id = "https://example.org/users/vendor"
+        case_id = "https://example.org/cases/case_nb3"
+
+        case = VulnerabilityCase(
+            id_=case_id,
+            name="No CaseActor Case",
+            attributed_to=author_id,
+        )
+        dl.create(case)
+
+        note = as_Note(
+            id_="https://example.org/notes/note_bc3",
+            content="No broadcast note",
+            context=case_id,
+        )
+        dl.create(note)
+
+        activity = AddNoteToCaseActivity(
+            actor=author_id,
+            object_=note,
+            target=case,
+        )
+        event = make_payload(activity)
+
+        # Should not raise; broadcast is silently skipped.
+        AddNoteToCaseReceivedUseCase(dl, event).execute()
+
+        # Note should still be added to the case.
+        refreshed = dl.read(case_id)
+        assert refreshed is not None
+        refreshed = cast(VulnerabilityCase, refreshed)
+        assert note.id_ in refreshed.notes

@@ -22,18 +22,14 @@ def test_parse_activity_raises_unknown_type_for_unrecognized_type():
 
 def test_parse_activity_raises_validation_error_for_invalid_data(monkeypatch):
     from vultron.wire.as2 import parser as p
-    from types import SimpleNamespace
+    from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
-    class _FailingModel:
-        @staticmethod
-        def model_validate(data):
+    class _FailingModel(as_Activity):
+        @classmethod
+        def model_validate(cls, data, **kwargs):  # type: ignore[override]
             raise ValueError("bad data")
 
-    monkeypatch.setattr(
-        p,
-        "VOCABULARY",
-        SimpleNamespace(activities={"Create": _FailingModel}),
-    )
+    monkeypatch.setattr(p, "find_in_vocabulary", lambda _: _FailingModel)
     with pytest.raises(VultronParseValidationError):
         parse_activity({"type": "Create"})
 

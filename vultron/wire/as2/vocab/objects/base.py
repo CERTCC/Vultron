@@ -16,8 +16,9 @@ Provides a base class for all Vultron ActivityStreams Objects.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import TypeAlias
+from typing import ClassVar, TypeAlias
 
+from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 
@@ -26,6 +27,8 @@ class VultronObject(as_Object):
     """
     Base class for all Vultron ActivityStreams Objects
     """
+
+    _vocab_ns: ClassVar[VocabNamespace] = VocabNamespace.VULTRON
 
 
 VultronObjectRef: TypeAlias = ActivityStreamRef[VultronObject]

@@ -48,7 +48,7 @@ from vultron.core.use_cases._helpers import (
     _idempotent_create,
     _report_phase_status_id,
 )
-from vultron.core.use_cases.triggers._helpers import (
+from vultron.core.use_cases._helpers import (
     update_participant_rm_state,
 )
 
@@ -160,6 +160,68 @@ class CheckRMStateReceivedOrInvalid(DataLayerCondition):
         return Status.SUCCESS
 
 
+class EnsureEmbargoExists(DataLayerCondition):
+    """
+    Check that the case linked to this report has an active embargo.
+
+    Returns SUCCESS if the case exists and has a non-None ``active_embargo``.
+    Returns FAILURE if the case is not found or its ``active_embargo`` is None.
+
+    This node implements DUR-07-004: an embargo end time MUST be established
+    before the case reaches RM.VALID.  It runs after ``TransitionRMtoValid``
+    in ``ValidationActions`` to confirm that the default embargo seeded at
+    RM.RECEIVED (DUR-07-002, via ``InitializeDefaultEmbargoNode``) is
+    present before validation completes.
+    """
+
+    def __init__(self, report_id: str, name: str | None = None):
+        """
+        Initialize EnsureEmbargoExists node.
+
+        Args:
+            report_id: ID of VulnerabilityReport whose linked case to check
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+
+    def update(self) -> Status:
+        """
+        Verify the case linked to this report has an active embargo.
+
+        Returns:
+            SUCCESS if case has active_embargo, FAILURE otherwise
+        """
+        if self.datalayer is None:
+            self.logger.error(f"{self.name}: DataLayer not available")
+            return Status.FAILURE
+
+        case = self.datalayer.find_case_by_report_id(self.report_id)
+        if case is None:
+            self.logger.warning(
+                "%s: No case found for report %s",
+                self.name,
+                self.report_id,
+            )
+            return Status.FAILURE
+
+        if getattr(case, "active_embargo", None) is None:
+            self.logger.warning(
+                "%s: Case for report %s has no active embargo — "
+                "validation blocked (DUR-07-004)",
+                self.name,
+                self.report_id,
+            )
+            return Status.FAILURE
+
+        self.logger.debug(
+            "%s: Case for report %s has active embargo",
+            self.name,
+            self.report_id,
+        )
+        return Status.SUCCESS
+
+
 # ============================================================================
 # Action Nodes
 # ============================================================================
@@ -192,8 +254,13 @@ class TransitionRMtoValid(DataLayerAction):
         """
         Update report and offer statuses.
 
+        Creates a standalone VultronParticipantStatus record for RM.VALID and
+        also updates the CaseParticipant.participant_statuses list (via
+        ``update_participant_rm_state``) so that the engage-case trigger can
+        advance to RM.ACCEPTED from VALID rather than RECEIVED.
+
         Returns:
-            SUCCESS if both statuses updated, FAILURE on error
+            SUCCESS if status updated, FAILURE on error
         """
         if self.datalayer is None or self.actor_id is None:
             self.logger.error(
@@ -218,8 +285,18 @@ class TransitionRMtoValid(DataLayerAction):
                 "ParticipantStatus (report-phase RM.VALID)",
             )
             self.logger.info(
-                f"{self.name}: Set report {self.report_id} to VALID (actor {self.actor_id})"
+                "RM → VALID for report '%s' (actor '%s')",
+                self.report_id,
+                self.actor_id,
             )
+
+            # Also update CaseParticipant.participant_statuses so subsequent
+            # triggers (e.g. engage-case) can advance from VALID → ACCEPTED.
+            case = self.datalayer.find_case_by_report_id(self.report_id)
+            if is_case_model(case):
+                update_participant_rm_state(
+                    case.id_, self.actor_id, RM.VALID, self.datalayer
+                )
 
             return Status.SUCCESS
 
@@ -284,7 +361,9 @@ class TransitionRMtoInvalid(DataLayerAction):
                 "ParticipantStatus (report-phase RM.INVALID)",
             )
             self.logger.info(
-                f"{self.name}: Set report {self.report_id} to INVALID (actor {self.actor_id})"
+                "RM → INVALID for report '%s' (actor '%s')",
+                self.report_id,
+                self.actor_id,
             )
 
             return Status.SUCCESS
@@ -430,10 +509,13 @@ class CreateCaseActivity(DataLayerAction):
                 )
                 return Status.FAILURE
 
-            # Read objects for addressee collection
+            # Read objects for addressee collection.
+            # VultronOffer (type_ = "Offer") is not in the AS2 vocabulary so
+            # dl.read() cannot reconstruct it; use by_type() for the raw dict.
             actor = self.datalayer.read(self.actor_id, raise_on_missing=True)
             report = self.datalayer.read(self.report_id, raise_on_missing=True)
-            offer = self.datalayer.read(self.offer_id, raise_on_missing=True)
+            offer_records = self.datalayer.by_type("Offer")
+            offer_data = offer_records.get(self.offer_id)
 
             # Collect addressees (same logic as handler)
             addressees = []
@@ -442,10 +524,14 @@ class CreateCaseActivity(DataLayerAction):
                 if report is not None
                 else None
             )
-            offer_to = (
-                getattr(offer, "to", None) if offer is not None else None
+            offer_to = offer_data.get("to") if offer_data is not None else None
+            # Also include the offer submitter (offer.actor) — the finder who
+            # created the report and submitted the offer needs to receive the
+            # case so they can participate as a case participant.
+            offer_actor = (
+                offer_data.get("actor") if offer_data is not None else None
             )
-            for x in [actor, report_attributed_to, offer_to]:
+            for x in [actor, report_attributed_to, offer_to, offer_actor]:
                 if x is None:
                     continue
                 if isinstance(x, str):
@@ -459,15 +545,24 @@ class CreateCaseActivity(DataLayerAction):
                 elif hasattr(x, "id_"):
                     addressees.append(x.id_)
 
-            # Unique addressees
-            addressees = list(set(addressees))
+            # Unique addressees, excluding the sending actor itself so
+            # we don't deliver the notification back to our own inbox.
+            addressees = [a for a in set(addressees) if a != self.actor_id]
             self.logger.info(
                 f"{self.name}: Notifying addressees: {addressees}"
             )
 
-            # Create CreateCaseActivity activity domain object
+            # Read full case to embed in the activity so recipients can
+            # store the case object and process it without a separate fetch.
+            case_obj = self.datalayer.read(case_id)
+
+            # Create CreateCaseActivity activity domain object; embed the
+            # full case as object_ so the inbox endpoint on the receiving
+            # side stores the case before dispatching the activity.
             create_case_activity = VultronCreateCaseActivity(
-                actor=self.actor_id, object_=case_id
+                actor=self.actor_id,
+                object_=case_obj if case_obj is not None else case_id,
+                to=addressees if addressees else None,
             )
 
             # Store activity in DataLayer
@@ -522,6 +617,9 @@ class UpdateActorOutbox(DataLayerAction):
         self.blackboard.register_key(
             key="activity_id", access=py_trees.common.Access.READ
         )
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
 
     def update(self) -> Status:
         """
@@ -545,6 +643,8 @@ class UpdateActorOutbox(DataLayerAction):
                 )
                 return Status.FAILURE
 
+            case_id = self.blackboard.get("case_id")
+
             # Read actor
             actor_obj = self.datalayer.read(
                 self.actor_id, raise_on_missing=True
@@ -559,19 +659,19 @@ class UpdateActorOutbox(DataLayerAction):
 
             # Append activity to outbox (history for outbox_ids detection)
             actor_obj.outbox.items.append(activity_id)
-            self.logger.info(
-                f"{self.name}: Added activity {activity_id} to actor"
-                f" {self.actor_id} outbox"
-            )
 
             # Persist updated actor
             self.datalayer.save(actor_obj)
-            self.logger.info(
-                f"{self.name}: Updated actor {self.actor_id} in DataLayer"
-            )
 
             # Also queue for delivery via outbox_handler
             self.datalayer.record_outbox_item(self.actor_id, activity_id)
+            self.logger.info(
+                "Queued Create(Case '%s') activity '%s' to actor '%s' outbox"
+                " (case creation notification)",
+                case_id,
+                activity_id,
+                self.actor_id,
+            )
 
             return Status.SUCCESS
 
