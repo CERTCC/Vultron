@@ -35,7 +35,11 @@ tasks tracked under PRIORITY-310 below).
 **PRIORITY-310** Address demo feedback — D5-6-LOG, D5-6-STATE, D5-6-STORE,
 D5-6-WORKFLOW (all ✅); D5-6-DUP, D5-6-TRIGDELIV, D5-6-LOGCTX (all ✅);
 D5-6-DEMOAUDIT ✅; D5-6-AUTOENG ✅; D5-6-NOTECAST ✅; D5-6-CASEPROP ✅;
-D5-6-EMBARGORCP ✅; D5-7 pending human sign-off.
+D5-6-EMBARGORCP ✅
+**PRIORITY-320** Round-2 demo feedback — D5-7-CASEREPL-1, D5-7-MSGORDER-1,
+D5-7-EMSTATE-1, D5-7-LOGCLEAN-1, D5-7-AUTOENG-2, D5-7-ADDOBJ-1,
+D5-7-TRIGNOTIFY-1, D5-7-DEMONOTECLEAN-1, D5-7-DEMOREPLCHECK-1 (all pending).
+D5-7-HUMAN pending human sign-off.
 
 ---
 
@@ -300,8 +304,7 @@ are blocked by all G tasks.
 
 Reviewer feedback on the two-actor multi-container demo is captured in
 `notes/two-actor-feedback.md` (items D5-6a through D5-6l). All tasks in this
-section MUST be completed before proceeding to PRIORITY-350 and beyond. D5-7
-(project owner sign-off) is the final gate for this phase.
+section MUST be completed before proceeding to other priorities.
 
 #### D5-6-LOG — Improve process-flow logging across demo containers ✅
 
@@ -402,11 +405,217 @@ section MUST be completed before proceeding to PRIORITY-350 and beyond. D5-7
   - **Spec**: OX-03-001, DEMO-MA-00-001.
   - Completed 2026-04-10. See `plan/IMPLEMENTATION_HISTORY.md`.
 
-#### D5-7 — Project owner sign-off on demo feedback resolution
+#### D5-7-HUMAN — Project owner sign-off on demo feedback resolution
 
-- [ ] **D5-7**: Project owner sign off. Agents are forbidden from updating
+- [ ] **D5-7-HUMAN**: Project owner sign off. Agents are forbidden from updating
   this task; a human must confirm that all D5-6-* feedback tasks have been
   addressed and the demo meets quality standards prior to completion.
+
+---
+
+### Phase PRIORITY-320 — Two-Actor Demo Feedback Round 2 (PRIORITY 320)
+
+**Reference**: `notes/two-actor-feedback.md` Review Pass 2 (D5-7-* items),
+`plan/PRIORITIES.md` PRIORITY 320
+
+Second-pass review of the 2026-04-10 two-actor integration log identified
+several new concerns. All tasks here MUST be completed before D5-7-HUMAN
+sign-off.
+See `notes/two-actor-feedback.md` for detailed observations and log line
+references.
+D5-7-HUMAN
+(project owner sign-off) is the final gate for this phase.
+
+#### D5-7-CASEREPL-1 — Replace create-case handler with replication use case
+
+- [ ] **D5-7-CASEREPL-1**: Finder currently dispatches `Create(VulnerabilityCase)`
+  to the same creation BT used by the vendor. This is wrong in two ways: (1) the
+  BT is initialized with the *incoming activity's* actor (vendor) instead of the
+  finder's own actor ID, and (2) the creation BT generates new UUIDs for
+  participants instead of replicating the vendor's IDs, breaking case identity.
+  Additionally, the BT queues a `Create(Case)` notification back to the vendor,
+  creating a circular loop risk.
+
+  **Fix**:
+  - Implement `ReceiveCreateCaseUseCase` in
+    `vultron/core/use_cases/received/case.py`.
+  - This use case stores the incoming `VulnerabilityCase` as-is, preserving all
+    IDs including participant IDs and `actor_participant_index`.
+  - It does NOT run the creation BT, does NOT create new participants, does NOT
+    create a `CaseActor`, and does NOT queue any outbound notification.
+  - Register the new use case in `USE_CASE_MAP` for the `create_case` semantic.
+  - Add tests verifying that after receiving `Create(Case)`, the finder's
+    datalayer contains the case with identical IDs to the vendor's.
+
+  **Spec**: `specs/case-management.md` CM-12; `notes/case-log-authority.md`
+  (CaseActor single-writer authority model).
+  **Fixes**: NEW-1, NEW-12 in `notes/two-actor-feedback.md`.
+
+#### D5-7-MSGORDER-1 — Create(Case) must precede Add(CaseParticipant) in outbox queue
+
+- [ ] **D5-7-MSGORDER-1**: The case-creation BT queues `Add(CaseParticipant)` for
+  the finder participant (line 472) *before* `Create(Case)` (line 475). When the
+  finder's outbox processes in order, the `Add` arrives before the case exists
+  in the finder's datalayer, causing a "case not found" warning (line 516).
+
+  **Fix**:
+  - Reorder the BT nodes in `vultron/core/behaviors/case/nodes.py`
+    (`EmitCreateCaseActivity`) so `Create(Case)` is queued before
+    `Add(CaseParticipant)` notifications.
+  - Verify with an integration test or log inspection that the finder no longer
+    warns "case not found" on `Add(CaseParticipant)` receipt.
+
+  **Spec**: `specs/outbox.md` OX-03-001 (delivery order); `notes/case-log-authority.md`.
+  **Fixes**: NEW-3.
+
+#### D5-7-EMSTATE-1 — Embargo initialization must update CaseStatus EM state
+
+- [ ] **D5-7-EMSTATE-1**: After embargo initialization, `caseStatuses[0].emState`
+  remains `"NONE"` even though `activeEmbargo` is set to a valid embargo ID
+  (visible in final state check, lines 831 and 839 of the 2026-04-10 log). The
+  embargo is created and attached to the case but the CaseStatus is never updated
+  to reflect it.
+
+  **Fix**:
+  - After `InitializeDefaultEmbargoNode` attaches the embargo, append a new
+    `CaseStatus` entry with `em_state` reflecting the embargo's initial protocol
+    state (e.g., `EM.PROPOSED` or as specified by `specs/case-management.md`).
+  - Use `case.record_event(embargo.id_, "embargo_initialized")` per the trusted
+    timestamp pattern.
+  - Add tests verifying `caseStatuses[-1].emState != "NONE"` after case creation.
+
+  **Spec**: `specs/case-management.md` CM-03-006, CM-03-007; AGENTS.md
+  "case_status Field Is a List".
+  **Fixes**: NEW-5.
+
+#### D5-7-LOGCLEAN-1 — Replace verbose Pydantic repr in outbox delivery log
+
+- [ ] **D5-7-LOGCLEAN-1**: The outbox delivery INFO log at
+  `vultron/adapters/driving/fastapi/outbox_handler.py` (line ~150) includes the
+  full Pydantic `repr()` of the activity object (line 579 of the 2026-04-10 log),
+  producing hundreds of characters of unreadable output.
+
+  **Fix**:
+  - Replace `activity_object` in the log format string with a concise helper
+    that returns `f"{type(obj).__name__} {getattr(obj, 'id_', str(obj))}"` or
+    similar — producing e.g. `VulnerabilityCase urn:uuid:8d52cb56-…`.
+  - Ensure the helper handles string objects (already-serialized ID refs) and
+    `None` gracefully.
+  - Add a test verifying the delivery log message does not contain Pydantic
+    field repr syntax (e.g. `context_=`, `type_=<`).
+
+  **Fixes**: NEW-6.
+
+#### D5-7-AUTOENG-2 — Auto-cascade from validate-report to engage-case or defer-case
+
+- [ ] **D5-7-AUTOENG-2**: After `validate-report` succeeds, the demo-runner
+  manually triggers `engage-case` (line 639). In a real deployment, the vendor
+  must decide automatically whether to engage or defer based on its own policy.
+  D5-6-AUTOENG automated cascade from invitation-acceptance → engage; this task
+  automates the validate → engage/defer cascade.
+
+  **Fix**:
+  - Add a policy-check node to the `validate-report` BT (or invoke it at the end
+    of `ValidateReportReceivedUseCase`).
+  - Default policy: engage immediately (conservative default for demo).
+  - If policy returns engage → invoke `SvcEngageCaseUseCase` inline and cascade.
+  - If policy returns defer → invoke `SvcDeferCaseUseCase` inline and cascade.
+  - Remove the manual `engage-case` trigger step from `two_actor_demo.py`.
+  - Add tests verifying that after `validate-report`, the vendor participant's RM
+    state is `ACCEPTED` (engaged) without a separate trigger call.
+
+  **Spec**: `specs/triggerable-behaviors.md`; `notes/protocol-event-cascades.md`.
+  **Fixes**: NEW-7.
+
+#### D5-7-ADDOBJ-1 — Always inline `object` field in outbound Add/Create activities
+
+- [ ] **D5-7-ADDOBJ-1**: `Add(CaseParticipant)` delivered to the finder has
+  `"object": "urn:uuid:…"` — a URI reference only (line 504). The semantic
+  extractor sees a string, cannot determine the object type, and falls back to
+  a wrong semantic (`add_report_to_case` instead of `add_participant_to_case`,
+  line 515).
+
+  **Confirmed rule**: The `object` field in outbound Add and Create activities
+  MUST be inlined (full object, not URI reference) when delivered to a recipient
+  who would not already have the object in their datalayer. The sender MUST NOT
+  rely on the recipient being able to rehydrate from their own datalayer.
+
+  **Simplification**: Always inline the `object` field in outbound Add and
+  Create activities to avoid requiring the sender to track recipient state.
+
+  **Fix**:
+  - Audit all BT nodes and use cases that queue Add/Create activities and ensure
+    the `object_` field is set to the full domain object (not just its ID).
+  - Specifically: `CreateFinderParticipantNode` queuing
+    `Add(CaseParticipant)` must include the full `CaseParticipant` object
+    inline.
+  - The outbox handler's existing Create-expansion logic
+    (`outbox_handler.py` lines 126–137) is a precedent; extend the pattern
+    to Add activities.
+  - Add tests verifying delivered Add activities include inline objects.
+
+  **Spec**: `specs/response-format.md`; `notes/activitystreams-semantics.md`.
+  **Fixes**: NEW-8, NEW-9.
+
+#### D5-7-TRIGNOTIFY-1 — Populate `to` field in all trigger-use-case outbound activities
+
+- [ ] **D5-7-TRIGNOTIFY-1**: Trigger use cases that emit outbound state-change
+  activities (engage-case, defer-case, close-case, etc.) construct activities with
+  no `to` field. The outbox handler silently drops them at DEBUG level ("No
+  recipients found"), so case participants never receive these state notifications.
+  For example, after `SvcEngageCaseUseCase` executes (line 640–641), the queued
+  `RmEngageCaseActivity` (`urn:uuid:06492e44-…`, line 644) is silently dropped —
+  the finder never learns the vendor engaged the case.
+
+  **Fix**:
+  - In each trigger use case that creates an outbound activity, populate the
+    activity's `to` field with all current case participants from
+    `case.actor_participant_index`, excluding the triggering actor.
+  - At minimum audit: `SvcEngageCaseUseCase`, `SvcDeferCaseUseCase`,
+    `SvcCloseCaseUseCase`, `SvcCloseReportUseCase`, and all embargo trigger
+    use cases.
+  - Add tests verifying each trigger use case queues activities with non-empty
+    `to` fields matching the expected participant list.
+
+  **Spec**: `specs/outbox.md` OX-03-001; `specs/case-management.md` CM-06.
+  **Fixes**: NEW-13.
+
+#### D5-7-DEMONOTECLEAN-1 — Use trigger API for notes in two-actor demo
+
+- [ ] **D5-7-DEMONOTECLEAN-1**: The two-actor demo directly POSTs
+  `Create(Note)` and `Add(Note)` activities to the vendor's inbox on behalf of
+  the finder (lines 648–695), bypassing the trigger API and the finder's outbox.
+  This is a demo shortcut that does not reflect real deployment behavior.
+
+  **Fix**:
+  - Replace the direct inbox POST with a call to the finder's trigger endpoint:
+    `POST /actors/{finder_id}/trigger/add-note-to-case`.
+  - The note will flow: finder trigger → finder outbox → vendor inbox → vendor
+    `AddNoteToCaseReceivedUseCase` → fan-out (D5-6-NOTECAST).
+  - Verify in the demo log that the finder triggers the note, the finder's
+    outbox delivers it to the vendor, and the vendor logs receipt.
+
+  **Fixes**: NEW-4.
+
+#### D5-7-DEMOREPLCHECK-1 — Add finder replica verification to two-actor demo final state check
+
+- [ ] **D5-7-DEMOREPLCHECK-1**: The final state check (lines 805–853 of the
+  2026-04-10 log) inspects only the vendor's datalayer. The finder's replica is
+  never verified. This means NEW-1 (wrong participant IDs) and other replication
+  failures pass all demo checks silently.
+
+  **Fix**:
+  - Add a finder replica verification block in `two_actor_demo.py` after the
+    existing vendor state check.
+  - Verify at minimum:
+    - The same case ID exists in finder's datalayer
+    - `actor_participant_index` in finder's copy matches vendor's (same UUIDs)
+    - The same `activeEmbargo` ID is present
+    - The same case participants list is present
+  - This block will auto-detect the NEW-1 participant ID mismatch once
+    D5-7-CASEREPL-1 is implemented.
+
+  **Fixes**: NEW-11.
 
 ---
 

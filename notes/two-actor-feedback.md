@@ -308,6 +308,222 @@ docs (some other docs will be relevant to those demos). The demos are
 intended to convince observers that Vultron is automating the right things
 in the right way, and that the protocol is complete and consistent with real
 case workflows. If the demos are missing key steps or are relying on
-shortcuts that are "just for the demo", then they are not effectively  
-demonstrating the intended capabilities and may be giving a misleading  
+shortcuts that are "just for the demo", then they are not effectively
+demonstrating the intended capabilities and may be giving a misleading
 impression of how the system works in a real case.
+
+---
+
+## Review Pass 2 — 2026-04-10 Log Analysis
+
+This section documents the results of a second review pass against the
+two-actor integration test log dated 2026-04-10. The new log reflects
+substantial improvements since the 2026-04-06 log reviewed above.
+
+### Resolution status of D5-6a through D5-6l
+
+- **D5-6a** ✅ RESOLVED — Finder now logs report creation (line 428) and offer
+  (line 429) with actor and target context.
+- **D5-6b** ✅ RESOLVED — Incoming activities are logged as formatted
+  multi-line JSON (lines 434–457 and 495–506).
+- **D5-6c** ✅ RESOLVED — RM state log now specifies actor ID unambiguously
+  (e.g. line 629: "Set participant '…vendor…' RM state to VALID in case '…'").
+- **D5-6d** ✅ RESOLVED — Demo-runner checks now display "nested objects shown
+  as ID references" (lines 595–620), confirming the datalayer stores references
+  rather than inline copies.
+- **D5-6e** ✅ RESOLVED — Case creation, embargo initialization, and
+  participant creation are all visible in the logs (lines 464–477).
+- **D5-6f** ✅ RESOLVED — Participant creation is logged with roles and RM
+  state (lines 467–471 for vendor participant; 469–471 for finder participant).
+- **D5-6g** ✅ RESOLVED (substantially) — INFO-level logs now provide a
+  coherent process-flow narrative across containers.
+- **D5-6h** ✅ RESOLVED (per ADR-0015) — Case creation now happens at
+  RM.RECEIVED (inside `SubmitReportReceivedUseCase`), not RM.VALID. This is
+  intentional and correct per `docs/adr/0015-create-case-at-report-receipt.md`.
+  The originally expected ordering (validate → create case) is superseded.
+  The remaining gap — auto-cascade from validate-report to engage/defer — is
+  tracked as a new item below (D5-7-AUTOENG-2).
+- **D5-6i** ✅ RESOLVED — Duplicate VulnerabilityReport warning is gone; the
+  pre-storage pattern now handles this correctly.
+- **D5-6j** ✅ RESOLVED — Vendor outbox queue log messages now include object
+  type, participant ID, and reason context (e.g. "Queued Add(CaseParticipant
+  'urn:uuid:…' … to case '…') activity '…' … (finder participant
+  notification)").
+- **D5-6k** ✅ RESOLVED — Finder now logs receipt and processing of
+  Add(CaseParticipant) and Create(Case) activities from the vendor (lines
+  510–591).
+- **D5-6l** ⚠️ STILL OUTSTANDING — Several demo shortcuts remain. Specific
+  instances are captured as new items below and tracked in IMPLEMENTATION_PLAN.
+  - Line 431: demo-runner explicitly triggers outbox delivery (→ D5-7, OUTBOX-MON-1)
+  - Lines 648–695: demo-runner directly injects note to vendor inbox instead of
+    using the trigger API (→ D5-7-DEMONOTECLEAN-1)
+
+---
+
+### New findings — D5-7 items
+
+The following issues were identified in the 2026-04-10 log and were NOT present
+in (or were missed by) the original D5-6 feedback.
+
+#### D5-7-CASEREPL-1 — Finder runs case-creation BT instead of replication handler
+
+**Lines**: 581–591 (finder), 583 specifically
+
+When the finder receives `Create(VulnerabilityCase)` from the vendor, it
+dispatches to the same `create_case` BT that the vendor runs when creating a
+new case. This is wrong in two ways:
+
+1. **Wrong actor ID**: The BT is set up using the activity's `actor` field
+   (the vendor), not the finder's own actor ID. Line 583 shows: `"BT setup
+   complete for actor http://vendor:7999/…"` logged by `finder-1`.
+2. **New IDs generated**: Instead of replicating the vendor's participant UUIDs,
+   the BT creates fresh UUIDs. Vendor's vendor-participant:
+   `urn:uuid:25cc81c1-…`; finder's copy: `urn:uuid:04f1b4f2-…` (wrong).
+3. **Circular loop risk**: The BT queues a `Create(Case)` notification back to
+   the vendor (line 590), which the vendor would then re-process.
+
+**Fix**: The `create_case` semantic should be handled by a dedicated
+`ReceiveCreateCaseUseCase` (not the creation BT). This use case must:
+
+- Store the incoming `VulnerabilityCase` object as-is, preserving all IDs
+- NOT create any new participants, CaseActors, or outbound notifications
+- NOT run the creation BT
+
+#### D5-7-MSGORDER-1 — Create(Case) must precede Add(CaseParticipant) in outbox
+
+**Lines**: 472 (Add queued), 475 (Create queued), 515–516 (finder warning)
+
+The case-creation BT queues `Add(CaseParticipant)` (line 472) before
+`Create(Case)` (line 475). When the finder's outbox processes in order, the
+finder receives the `Add` before it has a record for the case and logs a
+"case not found" warning. The BT should queue `Create(Case)` first, then
+`Add(CaseParticipant)`.
+
+This also has implications for canonical log ordering once SYNC-1/SYNC-2 are
+implemented, since the CaseActor's Announce messages must also respect this
+dependency.
+
+#### D5-7-EMSTATE-1 — Embargo initialization does not update CaseStatus EM state
+
+**Lines**: 831, 839
+
+`caseStatuses[0].emState = "NONE"` even though `activeEmbargo` is set to a
+valid embargo ID. The embargo is created and attached (lines 465–466) but
+the CaseStatus EM state is never updated to reflect it.
+
+**Fix**: The embargo initialization node (or the node that attaches the embargo
+to the case) should append a new `CaseStatus` entry with `em_state` set to
+reflect the embargo's initial state (e.g., `EM.PROPOSED` or `EM.ACCEPTED`
+depending on protocol phase).
+
+#### D5-7-LOGCLEAN-1 — Verbose Pydantic repr in outbox delivery log
+
+**Line**: 579
+
+The delivery log for `Create(Case)` includes a full Pydantic model repr as
+the object description: `context_='…' type_=<VultronObjectType.VULNERABILITY_CASE:
+'VulnerabilityCase'> id_='…' name='…' … case_participants=['…']
+case_statuses=[CaseStatus(…)]`. This is extremely noisy and makes the logs
+unreadable.
+
+**Fix**: Replace the full `activity_object` repr in the delivery log message
+with a concise one-line summary: `<Type> <id>` (e.g. `VulnerabilityCase
+urn:uuid:8d52cb56-…`). The `outbox_handler.py` log at line 150 is the
+call site.
+
+#### D5-7-AUTOENG-2 — validate-report BT lacks auto-cascade to engage/defer
+
+**Lines**: 638–641
+
+The demo-runner manually triggers `engage-case` as a separate step after
+`validate-report` succeeds. The vendor runs `engage-case` only because the
+demo-runner explicitly posts to the trigger endpoint (line 639). In a real
+deployment there is no demo-runner, so the engage/defer decision must be
+automated.
+
+**Fix**: Add a policy-check node to the `validate-report` BT. After a report
+is validated, the BT should:
+
+1. Consult the actor's policy to determine engage vs. defer
+2. If policy says engage → invoke `SvcEngageCaseUseCase` inline and cascade
+3. If policy says defer → invoke `SvcDeferCaseUseCase` inline and cascade
+
+This extends the principle established by D5-6-AUTOENG (which automated
+cascade from invitation acceptance to engagement).
+
+#### D5-7-ADDOBJ-1 — Add and Create activities must inline their `object` field
+
+**Lines**: 496–506 (Add with URI object), 515 (wrong semantic dispatch)
+
+The `Add(CaseParticipant)` delivered to the finder has `"object":
+"urn:uuid:4e2c2e97-…"` — a URI reference only. The semantic extractor sees a
+string and cannot determine the object type, so it falls back to a wrong
+semantic (line 515 dispatches as `add_report_to_case`).
+
+**Confirmed rule**: The `object` field in Add and Create activities MUST be
+inlined when delivered to a recipient who would not already have the object in
+their datalayer. The target (case, actor) MAY remain a URI reference since
+the recipient already has it.
+
+This rule applies to:
+
+- `Add(CaseParticipant)` — participant object must be inline
+- `Add(Note)` fan-out — note object must be inline (exception: fan-out back to
+  originator of the note may use a URI since the originator already has it)
+- `Create(Note)` delivered to participants — note must be inline
+- Any other Add/Create crossing a datalayer boundary
+
+**Simplified implementation rule**: Always inline the `object` field in
+outbound Add and Create activities. The sender does not need to track what
+recipients have; inline-always avoids that inference requirement.
+
+#### D5-7-TRIGNOTIFY-1 — Trigger use cases emit activities with no `to` field
+
+**Lines**: 643–644
+
+After `SvcEngageCaseUseCase` executes, it queues an `RmEngageCaseActivity`
+to the outbox (line 644: `urn:uuid:06492e44-…`). The activity is constructed
+with no `to` field. The outbox handler silently drops it at a `DEBUG`-level
+log ("No recipients found") that does not appear in INFO-level output.
+
+**Consequence**: The finder never receives the vendor's RM.ACCEPTED transition.
+Any participant watching the case has no evidence the vendor engaged it.
+
+**Fix**: All trigger use cases that emit outbound state-change activities MUST
+populate the `to` field from the case's `actor_participant_index` (excluding
+the triggering actor). This audit covers at minimum: `SvcEngageCaseUseCase`,
+`SvcDeferCaseUseCase`, `SvcCloseCaseUseCase`, `SvcCloseReportUseCase`, and
+any embargo trigger use cases.
+
+#### D5-7-DEMONOTECLEAN-1 — Demo directly injects notes rather than using trigger API
+
+**Lines**: 648–695
+
+The demo-runner directly POSTs `Create(Note)` and `Add(Note)` to the vendor's
+inbox on behalf of the finder, bypassing the trigger API. In a real deployment,
+the finder would use the trigger API to create a note, which would then flow
+through the finder's own outbox and into the vendor's inbox via delivery.
+
+**Fix**: Replace the direct inbox injection in the two-actor demo with trigger
+API calls (`POST /actors/{finder_id}/trigger/add-note-to-case`). The fan-out to
+vendor is handled by `AddNoteToCaseReceivedUseCase` (already implemented in
+D5-6-NOTECAST) once the note arrives at the vendor's inbox via the finder's
+outbox.
+
+#### D5-7-DEMOREPLCHECK-1 — Demo final state check only verifies vendor, not finder
+
+**Lines**: 805–853
+
+The final state verification block inspects only the vendor's datalayer. The
+finder's replica is never verified. This means the NEW-1 bug (finder creates
+wrong participant IDs) would pass all demo checks silently.
+
+**Fix**: Add a corresponding finder replica verification block that checks:
+
+- The same case ID exists in the finder's datalayer
+- The same participant IDs exist (matching vendor's `actor_participant_index`)
+- The same embargo ID is present
+- The same `activeEmbargo` reference is set
+
+This verification will automatically detect participant ID mismatches and other
+replication failures going forward.
