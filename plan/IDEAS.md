@@ -165,7 +165,7 @@ demo-centric triggers or if there is a generalized version that would be
 worth implementing. If so, we should implement the generalized one, and
 have the demo just use that with its specific object types or needs.
 
-## IDEA026041004 Use behavior trees for behaviors
+## IDEA-26041004 Use behavior trees for behaviors
 
 The implementation of D5-7-AUTOENG-2 violates the intent that the autoengage
 process should be implemented as a behavior tree structure attached to the
