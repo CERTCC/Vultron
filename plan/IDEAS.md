@@ -90,45 +90,38 @@ there's only one Case Actor per case operated by the case creator/owner.
 local copy of the case object and are not directly writing to their own copy
 either but routing their updates through the Case Actor too).
 
-## IDEA-260408-01 Refining the report:case::caterpillar:butterfly concept
+## IDEA-26040901 TinyDB data layout might not make sense
 
-relevant after commit: 46afe8deaf859518ba52330e280391cd36c6bffe
+Early on a decision was made to use a TinyDB table per activity type. This
+may not be the best way to structure the data. We should consider whether to
+consolidate into a single Activity table and just filter searches by the
+type field.
 
-We have realized that the concept of creating a case only for valid reports
-is a vestigial artifact of an older process in which it was cumbersome to
-create a case, so case creation was reserved for post-credibility and
-lightweight validation completion. However, in the Vultron model, case
-creation is just an automatic recordkeeping mechanism that is not onerous at
-all. And we're starting to notice that having a "report" being a
-second-class object but still requiring tracking like a "case" is going to
-be awkward. We should just have a report get wrapped in a case object on
-receipt, and allow cases to just use the full RM state machine to represent
-where they are in the process. Some cases might go from RECEIVED to INVALID
-to CLOSED, and never get to VALID, ACCEPTED, or DEFERRED. In other systems,
-that path wouldn't have ever created a case because it was not considered
-worth the effort to create a case object for something that would only be
-rejected. But it's easier in Vultron to just create the case for every
-"caterpillar" received, and some cases just never get to "butterfly" stage.
-This will have design and implementation implications but will overall
-simplify the model and make it more consistent. In this new model, the case
-remains a wrapper object around one or more reports, it just gets created
-earlier (on receipt / RM.RECEIVED) rather than later (on validation success
-/ RM.VALID). The case lifecycle can then represent the full lifecycle of the
-report management process, including any rejections. Documentation will also
-need to be updated to reflect this change in thinking.
+## IDEA-26040902 Try a different datalayer altogether
 
-**Captured**: 2026-04-28. Design decisions finalized via grilling session.
-Findings captured in:
+Using **SQLModel backed by SQLite is a materially stronger choice than TinyDB
+for persisting Pydantic models because it eliminates the artificial boundary
+between validation and storage. SQLModel composes Pydantic with SQLAlchemy, so
+your domain models are simultaneously type-checked objects and durable database
+rows. That means no manual serialization/deserialization layer, no ad hoc schema
+enforcement, and no risk of silent data drift—your persistence layer inherits
+transactional guarantees, indexing, and query semantics directly from SQLite
+while remaining idiomatic to your existing Pydantic-based architecture.
 
-- **ADR**: `docs/adr/0015-create-case-at-report-receipt.md`
-- **Specs updated**: `specs/case-management.md` (CM-12), `specs/duration.md`
-  (DUR-07-002 revised, DUR-07-004 added), `specs/case-log-processing.md`
-  (CLP-03-003), `specs/behavior-tree-integration.md` (BT-06-001),
-  `specs/prototype-shortcuts.md` (PROTO-05 note updated)
-- **Notes updated**: `notes/case-state-model.md` (proto-case redefined,
-  FINDER-PART-1 superseded), `notes/protocol-event-cascades.md` (cascade
-  list updated), `notes/case-log-authority.md` (proto-case terminology),
-  `notes/bt-integration.md` (BT value table and RM state section updated)
-- **Implementation tasks**: `plan/IMPLEMENTATION_PLAN.md`
-  IDEA-260408-01-1 through IDEA-260408-01-7; FINDER-PART-1 marked
-  superseded
+By contrast, TinyDB is effectively a JSON file with a query veneer: it has no
+intrinsic schema awareness, limited concurrency safety, and pushes
+responsibility for validation and evolution back onto application code. In
+practice, this recreates the very boilerplate you’re trying to avoid while
+introducing long-term risks around data integrity and migrations. SQLModel
+avoids those failure modes by giving you a principled, declarative model that
+scales from local prototyping to production without changing abstractions,
+making it a more durable and maintainable foundation for object persistence.
+
+## IDEA-26040903 Do not worry about backward compatibility in prototype phase
+
+We are still squarely in a prototyping phase, and there are no outside users
+of the code we are developing here. When we make changes to the codebase we do
+not need to worry about backward compatibility at all. If you're making a
+change, make the change all the way. Do not hedge to preserve backward
+compatibility (but obviously do not break the code in a way that prevents
+you from testing your changes).
