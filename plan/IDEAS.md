@@ -164,3 +164,22 @@ triggers for demo purposes, we should consider whether they are exclusively
 demo-centric triggers or if there is a generalized version that would be
 worth implementing. If so, we should implement the generalized one, and
 have the demo just use that with its specific object types or needs.
+
+## IDEA026041004 Use behavior trees for behaviors
+
+The implementation of D5-7-AUTOENG-2 violates the intent that the autoengage
+process should be implemented as a behavior tree structure attached to the
+BT validation structure. There needs to be a `priority check` node that
+returns `success`, `failure` or `running`. Semantics as follows: success
+means proceed with engagement behavior (which should be a behavior sequence).
+`failure` means `defer` (which is a behavior that moves the case to `RM.
+DEFERRED` and emits events as appropriate), `running` means the evaluation
+has not completed. The default node for the priority check can just return
+success to perform the default engage on valid behavior. But we need to have
+the structure in place because later on this becomes a connection point for
+more complex prioritization rules (like an SSVC evaluator tree).
+
+General observation: don't chain behavior trees with procedural stuff. Use
+behavior trees. If that means wrapping a procedure in a node, so be it. That
+lets us construct and reconfigure the behavior tree to reflect the desired
+behavior logic without worrying about side effects that happen outside the tree.
