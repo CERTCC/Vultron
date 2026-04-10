@@ -66,8 +66,8 @@ demo-runner-1 exited with code 1
 
 ## BUG-2026040902 Finder timeout (incomplete fix of BUG-2026040901)
 
-**Status**: Fixed — serialization alias bugs in Pydantic domain models
-corrected. Pending Docker integration verification.
+**Status**: Open — alias fixes applied (2026-04-10) but Docker
+integration test still fails with the same timeout symptom.
 
 After the claimed fix to BUG-2026040901, the same test still fails.
 
@@ -215,50 +215,85 @@ demo-runner-1  | 2026-04-09 20:25:31,439 ERROR    vultron.demo.two_actor_demo: =
 demo-runner-1 exited with code 1
 ```
 
-### Resolution
+### Attempted fix (2026-04-10) — did not resolve the issue
 
-**Root cause**: Two Pydantic v2 serialization alias bugs in domain
-models broke the HTTP outbox delivery pipeline between Docker
-containers:
+Two real Pydantic v2 serialization alias bugs were found and fixed
+(committed in `38c0a764`), but the Docker integration test still
+fails with the same timeout.
 
-1. **`VultronBase.id_` missing aliases** — The `id_` field in
-   `vultron/core/models/base.py` had `Field(default_factory=...)` but
-   no `validation_alias="id"` or `serialization_alias="id"`.
-   This caused `model_dump(by_alias=True)` to emit `"id_"` instead of
-   `"id"`, and `model_validate({"id": "..."})` to generate a NEW UUID
-   instead of preserving the original.
+The bugs that were fixed (both are real bugs, correctly fixed):
+
+1. **`VultronBase.id_` missing aliases** — `Field(default_factory=...)`
+   with no `validation_alias="id"` or `serialization_alias="id"`.
+   `model_dump(by_alias=True)` emitted `"id_"` instead of `"id"`, and
+   `model_validate({"id": "..."})` generated a NEW UUID instead of
+   preserving the original.
 
 2. **Subclass `type_` overrides losing parent aliases** — Ten domain
-   model classes (`VultronOffer`, `VultronAccept`,
-   `VultronCreateCaseActivity`, `VultronCase`, `VultronReport`,
-   `VultronCaseActor`, `VultronParticipantStatus`,
-   `VultronParticipant`, `VultronCaseStatus`, `VultronEmbargoEvent`,
-   `VultronNote`) redefined `type_` with bare `Literal[...] = ...`
+   model classes redefined `type_` with bare `Literal[...] = ...`
    annotations, losing the parent's `Field(validation_alias="type",
    serialization_alias="type")` metadata.
 
-**Impact**: When the vendor's outbox handler converted activities for
-HTTP delivery via `VultronActivity.model_validate(activity.model_dump(
-by_alias=True))`, the activity ID was silently replaced with a new
-UUID, and field keys emitted `"id_"`/`"type_"` instead of
-`"id"`/`"type"`. The finder's inbox endpoint could not recognize the
-incoming payload.
+These bugs were confirmed by 14 new unit tests and are correctly
+fixed. However, they were not the primary cause of the Docker
+integration failure. The outbox delivery log (see above) shows **only
+one outbox item ever processed** (`RmEngageCaseActivity`, after
+`engage-case`), and that item has no `to=` recipients so nothing is
+delivered. The `Create(VulnerabilityCase)` activity is **never
+processed from the outbox at all** — the problem is upstream of
+serialization.
 
-**Fix**: Added proper `validation_alias` and `serialization_alias`
-to `VultronBase.id_` and all `type_` overrides in domain model
-subclasses. 14 regression tests added in
-`test/core/models/test_serialization_roundtrip.py`.
+### Updated root cause hypothesis
 
-**Files changed**: `vultron/core/models/base.py`,
-`vultron/core/models/activity.py`, `vultron/core/models/case.py`,
-`vultron/core/models/report.py`, `vultron/core/models/case_actor.py`,
-`vultron/core/models/participant_status.py`,
-`vultron/core/models/participant.py`,
-`vultron/core/models/case_status.py`,
-`vultron/core/models/embargo_event.py`,
-`vultron/core/models/note.py`.
+The `Create(VulnerabilityCase)` activity is either:
 
-**Verification**: All 1321 tests pass (including 14 new). All four
-linters pass. Docker integration test
-(`integration_tests/demo/run_multi_actor_integration_test.sh`)
-should be re-run to confirm end-to-end fix.
+**Hypothesis A** (most likely): Never queued into the outbox. The
+activity IS created by `ReceiveReportCaseBT` / `UpdateActorOutbox`,
+but the `record_outbox_item` call writes to a table keyed by the
+vendor actor's canonical URI. If the BT node resolves the actor URI
+differently than the outbox handler reads it, the entry is written to
+a different table than is drained. Specifically: the BT may write
+using the short UUID (e.g. `54dacb37-...`) while the outbox handler
+reads from `http://vendor:7999/api/v2/actors/54dacb37-..._outbox`.
+
+**Hypothesis B**: The activity IS queued but has an empty `to=`
+recipients list. `UpdateActorOutbox` in `ReceiveReportCaseBT`
+collects recipients from `case.actor_participant_index` — if the
+finder is not yet registered there at the time the BT runs (offer
+inbox processing happens before `validate-report` seeds the
+participant index), the recipients list will be empty and delivery is
+skipped silently.
+
+**Hypothesis C**: The outbox IS drained after offer processing, but
+the finder inbox handler (a background task) hasn't stored the case
+yet when `wait_for_finder_case` starts polling. This is a timing
+race, not a logic bug. Increasing the poll timeout or retry interval
+would work around it but not fix the root cause.
+
+### Next steps
+
+1. **Instrument `record_outbox_item`** — add a DEBUG log line showing
+   the exact table name written and the activity ID. Compare to the
+   table name the outbox handler reads from. This will confirm or
+   rule out Hypothesis A.
+
+2. **Inspect `UpdateActorOutbox.update()`** — check what `to=`
+   recipients are collected at BT runtime (offer inbox processing),
+   specifically whether the finder participant appears in
+   `case.actor_participant_index` at that point.
+
+3. **Check timing of participant seeding** — `SubmitReportReceivedUseCase`
+   processes the offer and runs `ReceiveReportCaseBT`. Does the finder
+   get seeded as a case participant before `UpdateActorOutbox` runs?
+   Look at `CreateInitialVendorParticipant` and peer participant nodes.
+
+4. **Add an integration-level smoke test** that directly calls the
+   offer inbox endpoint in-process and asserts that an outbox entry
+   with a non-empty `to=` list is created. This would catch
+   regressions without needing Docker.
+
+5. **If Hypothesis B is confirmed**: Fix `ReceiveReportCaseBT` to
+   ensure the finder/reporter is added as a case participant before
+   `UpdateActorOutbox` runs, OR move the `Create(VulnerabilityCase)`
+   outbox queuing to after participant seeding (e.g. end of
+   `validate-report` trigger instead of offer inbox processing).
