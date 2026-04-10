@@ -82,6 +82,28 @@ Each fuzzer node has its own section with the following fields:
 
 ---
 
+## Table of Contents
+
+| Section | Line | Topic |
+|---------|------|-------|
+| [Vulnerability Discovery](#vulnerability-discovery) | ~85 | Discovery priority, vulnerability finding, `NoVulFound` |
+| [Embargo Management](#embargo-management) | ~140 | Embargo exit triggers, proposal/counter logic, acceptance/rejection |
+| [Report Validation](#report-validation) | ~351 | Validation info gathering, credibility/validity evaluation |
+| [Report Prioritization](#report-prioritization) | ~433 | Prioritization info gathering, engage/defer decisions |
+| [Vulnerability ID Assignment](#vulnerability-id-assignment) | ~511 | In-scope checks, ID assignment |
+| [Fix Development](#fix-development) | ~606 | Fix readiness, patch preparation |
+| [Fix Deployment](#fix-deployment) | ~629 | Deployment status checks, deployer discovery |
+| [Exploit Acquisition](#exploit-acquisition) | ~751 | Exploit publication gates, exploit readiness/preparation |
+| [Threat Monitoring](#threat-monitoring) | ~873 | Threat presence and materialization checks |
+| [Publication](#publication) | ~945 | Publication readiness for exploit, fix, and report |
+| [Reporting to Other Parties](#reporting-to-other-parties) | ~1146 | Recipient selection, contact finding, effort limits |
+| [Report Closure](#report-closure) | ~1449 | Closure criteria and pre-close actions |
+| [Other Work (Do Work)](#other-work-do-work) | ~1489 | Generic work dispatch |
+| [Inbound Message Handling](#inbound-message-handling) | ~1514 | Error message follow-up |
+| [Related](#related) | ~1548 | Cross-references |
+
+---
+
 ## Vulnerability Discovery
 
 These nodes belong to the `DiscoverVulnerabilityBt` fallback tree

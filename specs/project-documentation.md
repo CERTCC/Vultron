@@ -100,6 +100,13 @@ the implementation evolves.
 - Each file focuses on a specific topic area; create new files for
   distinct topics
 - Cross-reference from `AGENTS.md` where relevant
+- **`notes/README.md` MUST be updated** whenever a file is added to or
+  removed from `notes/`, or when a file's scope changes significantly
+- **`archived_notes/README.md` MUST be updated** whenever a file is moved
+  to `archived_notes/` — record the archiving date, reason, and any
+  rescued items
+- Files MUST be added to `notes/README.md` in the same commit as the file
+  itself; do not add files without a corresponding README entry
 
 **Target Audience**: Future agents and developers needing durable design
 context and domain-specific guidance

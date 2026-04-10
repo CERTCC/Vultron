@@ -14,6 +14,22 @@ Source specifications: `specs/*.md`
 
 ---
 
+## Table of Contents
+
+| Section | Line | Stories | Theme |
+|---------|------|---------|-------|
+| [1. Vulnerability Reporting](#1-vulnerability-reporting) | ~17 | 001–020 | Report submission, reception, validation, tracking |
+| [2. Policy Discovery and Management](#2-policy-discovery-and-management) | ~109 | 021–030 | Disclosure policies, policy publication and lookup |
+| [3. Embargo Management](#3-embargo-management) | ~215 | 031–050 | Embargo proposals, negotiation, termination |
+| [4. Case Management and Participant Roles](#4-case-management-and-participant-roles) | ~323 | 051–080 | Case creation, participants, coordinators, roles |
+| [5. Actor Identity, Privacy, and Security](#5-actor-identity-privacy-and-security) | ~570 | 081–090 | Actor registration, identity, privacy constraints |
+| [6. Communication and Messaging](#6-communication-and-messaging) | ~686 | 091–100 | Inbox/outbox, notifications, acknowledgements |
+| [7. Publication and Disclosure](#7-publication-and-disclosure) | ~837 | 101–106 | Coordinated publication, advisories, disclosure timing |
+| [8. Bug Bounty and Incentives](#8-bug-bounty-and-incentives) | ~991 | 107–109 | Bug bounty programs and incentives |
+| [9. Prioritization, Assessment, and Fix Verification](#9-prioritization-assessment-and-fix-verification) | ~1022 | 110–111 | SSVC scoring, fix readiness |
+
+---
+
 ## 1. Vulnerability Reporting
 
 - **story_2022_001** — "As a Finder, discover how to report a vulnerability"

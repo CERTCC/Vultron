@@ -679,6 +679,23 @@ references.
   `pyproject.toml` to `>=3.14`, and update docker base images to use Python
   3.14.
 
+#### TECHDEBT-32c — Remove adapter import from `wire/as2/rehydration.py`
+
+- [ ] **TECHDEBT-32c**: `vultron/wire/as2/rehydration.py` imports
+  `from vultron.adapters.driven.datalayer_tinydb import get_datalayer` as a
+  fallback when no `dl` is passed. This violates CS-05-001 (wire layer must not
+  import from adapters). All production callers already pass `dl` explicitly;
+  the fallback serves only old test paths.
+
+  **Fix**:
+  - Remove the `get_datalayer` import and fallback from `rehydration.py`.
+  - Make `dl` a required parameter, or inject a core-level `DataLayerFactory`
+    port if a fallback is genuinely needed.
+  - Update any test paths that relied on the fallback to pass `dl` explicitly.
+
+  **References**: `notes/datalayer-refactor.md` TECHDEBT-32c (archived);
+  `specs/code-style.md` CS-05-001.
+
 #### DOCS-3 — Update `notes/user-stories-trace.md`
 
 - [ ] **DOCS-3**: Update `notes/user-stories-trace.md` (the traceability

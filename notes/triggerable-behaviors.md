@@ -625,4 +625,5 @@ returns. Cascades from the triggering action to downstream protocol behaviors
 must be expressed as BT child subtrees.
 
 See `specs/behavior-tree-integration.md` BT-06-005 and BT-06-006, and
-`notes/canonical-bt-reference.md` for the subtree composition model.
+`notes/bt-integration.md` for the subtree composition model (see "Canonical CVD
+Protocol Behavior Tree Reference" section).
