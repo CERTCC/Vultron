@@ -18,8 +18,6 @@ from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
-from vultron.core.use_cases.triggers.case import SvcEngageCaseUseCase
-from vultron.core.use_cases.triggers.requests import EngageCaseTriggerRequest
 
 logger = logging.getLogger(__name__)
 
@@ -240,13 +238,19 @@ class AcceptInviteActorToCaseReceivedUseCase:
             case.record_event(active_embargo_id, "embargo_accepted")
         self._dl.save(case)
 
-        SvcEngageCaseUseCase(
-            self._dl,
-            EngageCaseTriggerRequest(actor_id=invitee_id, case_id=case_id),
-        ).execute()
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.report.prioritize_tree import (
+            create_prioritize_subtree,
+        )
+
+        bridge = BTBridge(datalayer=self._dl)
+        prioritize_tree = create_prioritize_subtree(
+            case_id=case_id, actor_id=invitee_id
+        )
+        bridge.execute_with_setup(prioritize_tree, actor_id=invitee_id)
 
         logger.info(
-            "Added participant '%s' to case '%s' via accepted invite and auto-engaged",
+            "Added participant '%s' to case '%s' via accepted invite and auto-engaged via BT",
             invitee_id,
             case_id,
         )

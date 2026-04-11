@@ -392,7 +392,8 @@ workflow support with pause/resume is a future consideration.
 - `notes/bt-fuzzer-nodes.md` — fuzzer node catalog and replacement patterns
 - `notes/use-case-behavior-trees.md` — use-case/BT conceptual layering
 - `notes/protocol-event-cascades.md` — cascade gaps and BT subtree fixes
-- `vultron-bt.txt` — full canonical CVD protocol BT dump (read-only reference)
+- `notes/vultron-bt.txt` — full canonical CVD protocol BT dump (read-only
+  reference)
 
 ---
 

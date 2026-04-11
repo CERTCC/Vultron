@@ -597,3 +597,60 @@ def test_validate_report_tree_case_has_active_embargo(
         "VulnerabilityCase must have active_embargo set so participants "
         "can learn about the embargo from the Create(Case) activity"
     )
+
+
+def test_validate_report_auto_engages_via_bt(
+    bridge, datalayer, actor_id, report, offer, actor, finder_actor, case
+):
+    """validate-report BT with case_id+actor_id auto-engages to RM.ACCEPTED.
+
+    D5-7-BTFIX-1: After validation succeeds, the PrioritizeBT subtree
+    transitions the actor's participant RM state from VALID → ACCEPTED via
+    the BT (no procedural _auto_engage call).
+
+    Verifies:
+    - Tree returns SUCCESS
+    - Actor's CaseParticipant RM state is RM.ACCEPTED
+    - An RmEngageCaseActivity (Join type) appears in the actor's outbox
+    """
+    from typing import cast, Any
+    from vultron.core.states.rm import RM
+
+    # case was created with vendor at RM.RECEIVED by receive_report_case_tree
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+        case_id=case.id_,
+        actor_id=actor_id,
+    )
+    result = bridge.execute_with_setup(
+        tree=tree,
+        actor_id=actor_id,
+        datalayer=datalayer,
+    )
+
+    assert result.status == Status.SUCCESS
+
+    # Vendor's case-participant RM state must be RM.ACCEPTED
+    updated_case = cast(Any, datalayer.read(case.id_))
+    participant_id = updated_case.actor_participant_index.get(actor_id)
+    assert (
+        participant_id is not None
+    ), "Vendor must be in actor_participant_index"
+    participant = cast(Any, datalayer.read(participant_id))
+    assert participant is not None
+    assert participant.participant_statuses[-1].rm_state == RM.ACCEPTED
+
+    # An engage activity (Join) must appear in the actor's outbox
+    updated_actor = cast(Any, datalayer.read(actor_id))
+    outbox_items = updated_actor.outbox.items
+    assert len(outbox_items) >= 1
+    join_activities = [
+        datalayer.read(aid)
+        for aid in outbox_items
+        if datalayer.read(aid) is not None
+        and str(getattr(datalayer.read(aid), "type_", "")) == "Join"
+    ]
+    assert (
+        len(join_activities) >= 1
+    ), "At least one RmEngageCaseActivity (Join) must be in actor outbox"

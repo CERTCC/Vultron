@@ -527,7 +527,7 @@ references.
 
 #### D5-7-BTFIX-1 — Refactor validate→engage/defer cascade to BT subtree
 
-- [ ] **D5-7-BTFIX-1**: `SvcValidateReportUseCase` (triggers/report.py:170)
+- [x] **D5-7-BTFIX-1**: `SvcValidateReportUseCase` (triggers/report.py:170)
   and `ValidateCaseUseCase` (received/case.py:499) both call
   `SvcEngageCaseUseCase().execute()` procedurally after the validate BT
   completes (`_auto_engage()` pattern). This violates BT-06-005/BT-06-006:
@@ -564,7 +564,7 @@ references.
 
 #### D5-7-BTFIX-2 — Refactor AcceptInviteActorToCase to use BT
 
-- [ ] **D5-7-BTFIX-2**: `AcceptInviteActorToCaseReceivedUseCase`
+- [x] **D5-7-BTFIX-2**: `AcceptInviteActorToCaseReceivedUseCase`
   (received/actor.py:243) calls `SvcEngageCaseUseCase().execute()` procedurally
   with NO BT at all. The invitation-acceptance → engagement cascade should be
   expressed as a BT subtree.

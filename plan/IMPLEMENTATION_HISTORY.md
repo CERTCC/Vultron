@@ -5574,3 +5574,56 @@ Vendor replies similarly use the vendor's trigger endpoint.
 - `uv run mypy` / `uv run pyright` → 0 errors
 - `uv run pytest --tb=short 2>&1 | tail -5` →
   `1425 passed, 10 skipped, 5581 subtests passed in 83.31s`
+
+---
+
+### D5-7-BTFIX-1 + D5-7-BTFIX-2 — BT cascade violations refactored to proper
+
+subtrees
+
+**Date**: 2026-05-12
+
+**Tasks**: D5-7-BTFIX-1, D5-7-BTFIX-2 (Priority 320)
+
+**Summary**: Eliminated two categories of BT cascade violation (BT-06-005,
+BT-06-006) where protocol-observable RM state transitions were triggered
+procedurally after `bt.run()` returned rather than as proper BT subtrees.
+
+**Changes**:
+
+- `vultron/core/behaviors/report/nodes.py`: added two new `DataLayerAction`
+  nodes — `EmitEngageCaseActivity` (creates `RmEngageCaseActivity`/Join and
+  adds to actor outbox) and `EmitDeferCaseActivity` (creates
+  `RmDeferCaseActivity`/Leave and adds to actor outbox).
+- `vultron/core/behaviors/report/prioritize_tree.py`: added
+  `create_prioritize_subtree(case_id, actor_id)` factory. Builds a Selector
+  `PrioritizeBT` with an EngagePath (EvaluateCasePriority → EmitEngage →
+  TransitionRMtoAccepted) and a DeferPath (EmitDefer →
+  TransitionRMtoDeferred).
+- `vultron/core/behaviors/report/validate_tree.py`: extended
+  `create_validate_report_tree` to accept optional `case_id`/`actor_id`;
+  when provided, appends the PrioritizeBT as a child.
+- `vultron/core/use_cases/triggers/report.py`: removed `_auto_engage()` from
+  `SvcValidateReportUseCase`; passes `case_id`/`actor_id` to validate tree.
+- `vultron/core/use_cases/received/case.py`: removed `_auto_engage()` from
+  `ValidateCaseUseCase`; passes `case_id`/`actor_id` to validate tree.
+- `vultron/core/use_cases/received/actor.py`: replaced procedural
+  `SvcEngageCaseUseCase().execute()` call in
+  `AcceptInviteActorToCaseReceivedUseCase` with BT bridge execution of a
+  `PrioritizeBT` subtree.
+- `vultron/core/use_cases/_helpers.py`: promoted `case_addressees()` helper
+  from `triggers/_helpers.py` to the core module to break a circular import
+  (`nodes.py → triggers._helpers → triggers/__init__ → report.py →
+  validate_tree → nodes.py`).
+- `notes/bt-integration.md`: updated to document the new PrioritizeBT
+  structure and `create_prioritize_subtree` factory.
+- Tests: `test/core/behaviors/report/test_prioritize_tree.py` (15 new tests),
+  `test/core/behaviors/report/test_validate_tree.py` (updated).
+
+**Validation**:
+
+- `uv run black vultron/ test/ && uv run flake8 vultron/ test/` → clean
+- `uv run mypy` / `uv run pyright` → 0 new errors (11 pre-existing pyright
+  errors in `test_note_trigger.py` unchanged)
+- `uv run pytest --tb=short 2>&1 | tail -5` →
+  `1428 passed, 10 skipped, 5581 subtests passed in 83.60s`

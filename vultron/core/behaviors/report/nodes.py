@@ -49,7 +49,12 @@ from vultron.core.use_cases._helpers import (
     _report_phase_status_id,
 )
 from vultron.core.use_cases._helpers import (
+    case_addressees,
     update_participant_rm_state,
+)
+from vultron.wire.as2.vocab.activities.case import (
+    RmDeferCaseActivity,
+    RmEngageCaseActivity,
 )
 
 logger = logging.getLogger(__name__)
@@ -972,3 +977,179 @@ class EvaluateCasePriority(DataLayerCondition):
             f"{self.name}: Evaluating priority for case {self.case_id} (stub: always engage)"
         )
         return Status.SUCCESS
+
+
+class EmitEngageCaseActivity(DataLayerAction):
+    """Emit RmEngageCaseActivity (Join(VulnerabilityCase)) to the actor outbox.
+
+    Creates the activity, persists it to the datalayer (idempotent), appends
+    its ID to the actor's ``outbox.items`` collection, and queues it for
+    delivery via ``record_outbox_item``.
+
+    Phase 1: Always called after EvaluateCasePriority returns SUCCESS.
+    Future: May be gated by an SSVC policy node (IDEA-26041004).
+
+    Per specs/behavior-tree-integration.md BT-06-005.
+    """
+
+    def __init__(self, case_id: str, actor_id: str, name: str | None = None):
+        """
+        Initialize EmitEngageCaseActivity node.
+
+        Args:
+            case_id: ID of VulnerabilityCase the actor is engaging
+            actor_id: ID of Actor emitting the engage activity
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.actor_id = actor_id
+
+    def update(self) -> Status:
+        """
+        Create and queue RmEngageCaseActivity.
+
+        Returns:
+            SUCCESS if activity created and outbox updated, FAILURE on error
+        """
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                f"{self.name}: DataLayer or actor_id not available"
+            )
+            return Status.FAILURE
+
+        try:
+            case = self.datalayer.read(self.case_id)
+            addressees: list[str] | None = None
+            if is_case_model(case):
+                recipients = case_addressees(case, self.actor_id)
+                if recipients:
+                    addressees = recipients
+
+            activity = RmEngageCaseActivity(
+                actor=self.actor_id,
+                object_=self.case_id,
+                to=addressees,
+            )
+
+            try:
+                self.datalayer.create(activity)
+            except ValueError:
+                self.logger.warning(
+                    "%s: EngageCase activity '%s' already exists",
+                    self.name,
+                    activity.id_,
+                )
+
+            actor_obj = self.datalayer.read(self.actor_id)
+            if has_outbox(actor_obj):
+                actor_obj.outbox.items.append(activity.id_)
+                self.datalayer.save(actor_obj)
+            else:
+                self.logger.warning(
+                    "%s: actor '%s' has no outbox — skipping outbox.items update",
+                    self.name,
+                    self.actor_id,
+                )
+
+            self.datalayer.record_outbox_item(self.actor_id, activity.id_)
+            self.logger.info(
+                "Actor '%s' emitted RmEngageCaseActivity for case '%s'",
+                self.actor_id,
+                self.case_id,
+            )
+            return Status.SUCCESS
+
+        except Exception as e:
+            self.logger.error(
+                f"{self.name}: Error emitting engage activity: {e}"
+            )
+            return Status.FAILURE
+
+
+class EmitDeferCaseActivity(DataLayerAction):
+    """Emit RmDeferCaseActivity (Ignore(VulnerabilityCase)) to the actor outbox.
+
+    Creates the activity, persists it to the datalayer (idempotent), appends
+    its ID to the actor's ``outbox.items`` collection, and queues it for
+    delivery via ``record_outbox_item``.
+
+    Called when EvaluateCasePriority returns FAILURE (defer path in
+    PrioritizeBT).
+
+    Per specs/behavior-tree-integration.md BT-06-006.
+    """
+
+    def __init__(self, case_id: str, actor_id: str, name: str | None = None):
+        """
+        Initialize EmitDeferCaseActivity node.
+
+        Args:
+            case_id: ID of VulnerabilityCase the actor is deferring
+            actor_id: ID of Actor emitting the defer activity
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.actor_id = actor_id
+
+    def update(self) -> Status:
+        """
+        Create and queue RmDeferCaseActivity.
+
+        Returns:
+            SUCCESS if activity created and outbox updated, FAILURE on error
+        """
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                f"{self.name}: DataLayer or actor_id not available"
+            )
+            return Status.FAILURE
+
+        try:
+            case = self.datalayer.read(self.case_id)
+            addressees: list[str] | None = None
+            if is_case_model(case):
+                recipients = case_addressees(case, self.actor_id)
+                if recipients:
+                    addressees = recipients
+
+            activity = RmDeferCaseActivity(
+                actor=self.actor_id,
+                object_=self.case_id,
+                to=addressees,
+            )
+
+            try:
+                self.datalayer.create(activity)
+            except ValueError:
+                self.logger.warning(
+                    "%s: DeferCase activity '%s' already exists",
+                    self.name,
+                    activity.id_,
+                )
+
+            actor_obj = self.datalayer.read(self.actor_id)
+            if has_outbox(actor_obj):
+                actor_obj.outbox.items.append(activity.id_)
+                self.datalayer.save(actor_obj)
+            else:
+                self.logger.warning(
+                    "%s: actor '%s' has no outbox — skipping outbox.items update",
+                    self.name,
+                    self.actor_id,
+                )
+
+            self.datalayer.record_outbox_item(self.actor_id, activity.id_)
+            self.logger.info(
+                "Actor '%s' emitted RmDeferCaseActivity for case '%s'",
+                self.actor_id,
+                self.case_id,
+            )
+            return Status.SUCCESS
+
+        except Exception as e:
+            self.logger.error(
+                f"{self.name}: Error emitting defer activity: {e}"
+            )
+            return Status.FAILURE

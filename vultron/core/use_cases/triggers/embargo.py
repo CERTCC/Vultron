@@ -25,9 +25,9 @@ from transitions import MachineError
 
 from vultron.core.states.em import EM, EMAdapter, create_em_machine
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.use_cases._helpers import case_addressees
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,
-    case_addressees,
     find_embargo_proposal,
     resolve_actor,
     resolve_case,

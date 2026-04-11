@@ -24,9 +24,9 @@ import logging
 from vultron.core.states.rm import RM
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases._helpers import update_participant_rm_state
+from vultron.core.use_cases._helpers import case_addressees
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,
-    case_addressees,
     resolve_actor,
     resolve_case,
 )

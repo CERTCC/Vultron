@@ -9,6 +9,7 @@ import uuid
 from typing import Any
 
 from vultron.core.models.protocols import (
+    CaseModel,
     is_case_model,
     is_participant_model,
 )
@@ -183,3 +184,18 @@ def update_participant_rm_state(
         case_id,
     )
     return False
+
+
+def case_addressees(case: CaseModel, excluding_actor_id: str) -> list[str]:
+    """Return actor IDs for all case participants except *excluding_actor_id*.
+
+    Uses ``case.actor_participant_index`` (a ``dict[actor_id, participant_id]``)
+    so the caller does not need to iterate over ``case_participants`` directly.
+
+    Returns an empty list when there are no other participants.
+    """
+    return [
+        actor_id
+        for actor_id in case.actor_participant_index.keys()
+        if actor_id != excluding_actor_id
+    ]

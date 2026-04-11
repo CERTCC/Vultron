@@ -27,7 +27,6 @@ No HTTP framework imports (FastAPI, Starlette) are permitted here.
 import logging
 from typing import Any
 
-from py_trees.common import Status as BTStatus
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.core.states.rm import RM
@@ -42,15 +41,14 @@ from vultron.core.use_cases._helpers import (
     _report_phase_status_id,
 )
 from vultron.core.models.protocols import is_case_model
+from vultron.core.use_cases._helpers import case_addressees
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,
-    case_addressees,
     outbox_ids,
     resolve_actor,
 )
 from vultron.core.use_cases.triggers.requests import (
     CloseReportTriggerRequest,
-    EngageCaseTriggerRequest,
     InvalidateReportTriggerRequest,
     RejectReportTriggerRequest,
     SubmitReportTriggerRequest,
@@ -155,19 +153,22 @@ class SvcValidateReportUseCase:
 
         before = outbox_ids(actor)
 
+        case = dl.find_case_by_report_id(report_id)
+        case_id = case.id_ if is_case_model(case) else None
+
         bridge = BTBridge(datalayer=dl)
         tree = create_validate_report_tree(
-            report_id=report_id, offer_id=offer_id
+            report_id=report_id,
+            offer_id=offer_id,
+            case_id=case_id,
+            actor_id=actor_id,
         )
 
         context: dict[str, Any] = {}
         if note:
             context["note"] = note
 
-        result = bridge.execute_with_setup(tree, actor_id=actor_id, **context)
-
-        if result.status == BTStatus.SUCCESS:
-            self._auto_engage(actor_id, report_id, dl)
+        bridge.execute_with_setup(tree, actor_id=actor_id, **context)
 
         activity = None
         actor_after = dl.read(actor_id)
@@ -183,31 +184,6 @@ class SvcValidateReportUseCase:
                     )
 
         return {"activity": activity}
-
-    def _auto_engage(
-        self, actor_id: str, report_id: str, dl: DataLayer
-    ) -> None:
-        """Auto-cascade validate → engage (D5-7-AUTOENG-2 default policy)."""
-        from vultron.core.use_cases.triggers.case import SvcEngageCaseUseCase
-
-        case = dl.find_case_by_report_id(report_id)
-        if not is_case_model(case):
-            logger.warning(
-                "SvcValidateReportUseCase: no case found for report '%s' — "
-                "skipping auto-engage cascade",
-                report_id,
-            )
-            return
-        logger.info(
-            "Auto-cascading validate → engage for actor '%s' in case '%s' "
-            "(D5-7-AUTOENG-2 default policy: engage immediately)",
-            actor_id,
-            case.id_,
-        )
-        SvcEngageCaseUseCase(
-            dl,
-            EngageCaseTriggerRequest(actor_id=actor_id, case_id=case.id_),
-        ).execute()
 
 
 class SvcInvalidateReportUseCase:
