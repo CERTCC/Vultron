@@ -26,6 +26,7 @@ import vultron.core.use_cases.received.embargo as _embargo
 import vultron.core.use_cases.received.note as _note
 import vultron.core.use_cases.received.report as _report
 import vultron.core.use_cases.received.status as _status
+import vultron.core.use_cases.received.sync as _sync
 import vultron.core.use_cases.received.unknown as _unknown
 
 USE_CASE_MAP: dict[MessageSemantics, type] = {
@@ -41,6 +42,7 @@ USE_CASE_MAP: dict[MessageSemantics, type] = {
     MessageSemantics.DEFER_CASE: _case.DeferCaseReceivedUseCase,
     MessageSemantics.ADD_REPORT_TO_CASE: _case.AddReportToCaseReceivedUseCase,
     MessageSemantics.CLOSE_CASE: _case.CloseCaseReceivedUseCase,
+    MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY: _sync.AnnounceLogEntryReceivedUseCase,
     MessageSemantics.SUGGEST_ACTOR_TO_CASE: _actor.SuggestActorToCaseReceivedUseCase,
     MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE: _actor.AcceptSuggestActorToCaseReceivedUseCase,
     MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE: _actor.RejectSuggestActorToCaseReceivedUseCase,

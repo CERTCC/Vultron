@@ -110,3 +110,36 @@ def is_participant_model(
 
 def has_outbox(obj: PersistableModel | None) -> TypeGuard[ActorModel]:
     return bool(obj is not None and hasattr(obj, "outbox"))
+
+
+class LogEntryModel(PersistableModel, Protocol):
+    """Protocol for a persisted canonical case log entry.
+
+    Satisfied by :class:`~vultron.core.models.case_log_entry.VultronCaseLogEntry`.
+    Used by the receive-side use case without importing from wire layer.
+    """
+
+    case_id: str
+    log_index: int
+    disposition: str
+    term: int | None
+    log_object_id: str
+    event_type: str
+    payload_snapshot: dict
+    prev_log_hash: str
+    entry_hash: str
+    received_at: Any
+    reason_code: str | None
+    reason_detail: str | None
+
+
+def is_log_entry_model(obj: object | None) -> TypeGuard[LogEntryModel]:
+    """Return True if *obj* satisfies the :class:`LogEntryModel` protocol."""
+    return bool(
+        obj is not None
+        and getattr(obj, "type_", None) == "CaseLogEntry"
+        and hasattr(obj, "case_id")
+        and hasattr(obj, "log_index")
+        and hasattr(obj, "prev_log_hash")
+        and hasattr(obj, "entry_hash")
+    )

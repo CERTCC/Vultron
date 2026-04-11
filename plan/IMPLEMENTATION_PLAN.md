@@ -44,7 +44,7 @@ D5-7-DEMOREPLCHECK-1 and D5-7-HUMAN deferred until after SYNC-2.
 **D5-7-BTFIX-1** and **D5-7-BTFIX-2** (BT cascade violations) are new
 Priority 320 items blocking D5-7-HUMAN; see IDEA-26041004.
 
-**PRIORITY-330** SYNC + demo sign-off — OUTBOX-MON-1 ✅, SYNC-1 ✅, SYNC-2, SYNC-3
+**PRIORITY-330** SYNC + demo sign-off — OUTBOX-MON-1 ✅, SYNC-1 ✅, SYNC-2 ✅, SYNC-3
 (sequential); then D5-7-DEMOREPLCHECK-1, D5-7-HUMAN sign-off.
 SYNC-2 subsumes D5-7-CASEREPL-1 and D5-7-ADDOBJ-1.
 Prereq for SYNC-2: D5-7-TRIGNOTIFY-1 (from Priority 320).

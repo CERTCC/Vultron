@@ -364,7 +364,7 @@ class TestCaseEventLogAppendOnly:
     ):
         entries = log_with_one_entry.entries
         with pytest.raises((TypeError, AttributeError)):
-            entries[0] = None  # type: ignore[assignment]
+            entries[0] = None  # type: ignore[index]
 
     def test_adding_to_entries_tuple_does_not_affect_log(
         self, empty_log: CaseEventLog

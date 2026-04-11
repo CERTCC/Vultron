@@ -27,3 +27,4 @@ class VultronObjectType(StrEnum):
     CASE_PARTICIPANT = "CaseParticipant"
     CASE_STATUS = "CaseStatus"
     PARTICIPANT_STATUS = "ParticipantStatus"
+    CASE_LOG_ENTRY = "CaseLogEntry"

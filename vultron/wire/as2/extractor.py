@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.core.models.base import VultronObject
+from vultron.core.models.case_log_entry import VultronCaseLogEntry
 from vultron.core.models.events import (
     EVENT_CLASS_MAP,
     MessageSemantics,
@@ -252,6 +253,14 @@ RejectInviteActorToCasePattern = ActivityPattern(
 CloseCasePattern = ActivityPattern(
     activity_=TAtype.LEAVE, object_=VOtype.VULNERABILITY_CASE
 )
+AnnounceLogEntryPattern = ActivityPattern(
+    description=(
+        "Announce a canonical CaseLogEntry to a participant for log "
+        "replication. The object is a CaseLogEntry object."
+    ),
+    activity_=TAtype.ANNOUNCE,
+    object_=VOtype.CASE_LOG_ENTRY,
+)
 CreateNotePattern = ActivityPattern(
     activity_=TAtype.CREATE,
     object_=AOtype.NOTE,
@@ -336,6 +345,7 @@ SEMANTICS_ACTIVITY_PATTERNS: dict[MessageSemantics, ActivityPattern] = {
     MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE: AcceptInviteToEmbargoOnCasePattern,
     MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE: RejectInviteToEmbargoOnCasePattern,
     MessageSemantics.CLOSE_CASE: CloseCasePattern,
+    MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY: AnnounceLogEntryPattern,
     MessageSemantics.CREATE_CASE_PARTICIPANT: CreateCaseParticipantPattern,
     MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE: AddCaseParticipantToCasePattern,
     MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE: RemoveCaseParticipantFromCasePattern,
@@ -513,6 +523,38 @@ def extract_intent(
                     url=_get_id(getattr(obj, "url", None)),
                     attributed_to=_get_id(getattr(obj, "attributed_to", None)),
                     context=_get_id(getattr(obj, "context", None)),
+                )
+        elif _obj_type == str(VOtype.CASE_LOG_ENTRY) and obj is not None:
+            object_id = _get_id(obj)
+            case_id = getattr(obj, "case_id", None)
+            log_index = getattr(obj, "log_index", -1)
+            log_object_id = getattr(obj, "log_object_id", None) or getattr(
+                obj, "logObjectId", None
+            )
+            event_type = getattr(obj, "event_type", None) or getattr(
+                obj, "eventType", None
+            )
+            if object_id and case_id and log_object_id and event_type:
+                kw["object_"] = VultronCaseLogEntry(
+                    id_=object_id,
+                    case_id=case_id,
+                    log_index=log_index,
+                    disposition=getattr(obj, "disposition", "recorded"),
+                    term=getattr(obj, "term", None),
+                    log_object_id=log_object_id,
+                    event_type=event_type,
+                    payload_snapshot=getattr(obj, "payload_snapshot", {})
+                    or getattr(obj, "payloadSnapshot", {}),
+                    prev_log_hash=getattr(obj, "prev_log_hash", None)
+                    or getattr(obj, "prevLogHash", None)
+                    or "",
+                    entry_hash=getattr(obj, "entry_hash", None)
+                    or getattr(obj, "entryHash", None)
+                    or "",
+                    reason_code=getattr(obj, "reason_code", None)
+                    or getattr(obj, "reasonCode", None),
+                    reason_detail=getattr(obj, "reason_detail", None)
+                    or getattr(obj, "reasonDetail", None),
                 )
         elif _obj_type == str(VOtype.CASE_STATUS) and obj is not None:
             object_id = _get_id(obj)
