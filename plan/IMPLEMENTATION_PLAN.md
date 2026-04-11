@@ -756,30 +756,10 @@ SYNC-2 also requires D5-7-TRIGNOTIFY-1 (from Priority 320) to be complete.
 
 > **Prerequisite for SYNC-1/SYNC-2.** Moved from Priority 350.
 
-- [ ] **OUTBOX-MON-1**: Implement a background outbox-drain loop that
-  periodically checks all actor outboxes and delivers pending activities to
-  their targets' inboxes. This is the transport mechanism that ensures
-  outbox→inbox delivery happens automatically without requiring an external
-  trigger.
-
-  **Motivation**: SYNC-2's replication requires the CaseActor to proactively
-  deliver `Announce(CaseLogEntry)` entries to participants. Without automated
-  outbox delivery this requires manual triggers for every replication event.
-
-  **Design**:
-  - Add `OutboxMonitor` class (or async function) in
-    `vultron/adapters/driving/fastapi/outbox_monitor.py`
-  - Polls every 1–2 seconds via `asyncio.sleep` inside a `while True` loop
-  - Iterates over all registered actor DataLayer instances
-  - For each actor with a non-empty outbox, calls `outbox_handler(actor_id, ...)`
-  - Resolve target actor inbox URLs and POST activities
-  - Start/stop monitor in FastAPI lifespan (`app.py`)
-  - Add unit tests verifying drain, delivery, and error handling
-
-  **Acceptance criteria**:
-  - Docker integration test (`two-actor` scenario) passes end-to-end
-  - Finder receives case updates without manual trigger
-  - Monitor handles delivery failures gracefully (logs error, does not crash)
+- [x] **OUTBOX-MON-1**: Added `OutboxMonitor` in
+  `vultron/adapters/driving/fastapi/outbox_monitor.py`; started/stopped in
+  FastAPI lifespan (`app.py`). Polls all actor outboxes every 1 s and
+  delivers via `outbox_handler`. 19 unit tests added.
 
 #### SYNC-1 — Local append-only case event log with indexing
 

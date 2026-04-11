@@ -586,6 +586,20 @@ def get_datalayer(
     return _datalayer_instances[actor_id]
 
 
+def get_all_actor_datalayers() -> dict[str, "TinyDbDataLayer"]:
+    """Return a snapshot of all registered actor-scoped DataLayer instances.
+
+    Used by ``OutboxMonitor`` to iterate over all actors' outboxes without
+    exposing the mutable module-level cache directly.
+
+    Returns:
+        A shallow copy of the actor-id → ``TinyDbDataLayer`` mapping for
+        every actor that has called :func:`get_datalayer` with an
+        ``actor_id``.
+    """
+    return dict(_datalayer_instances)
+
+
 def reset_datalayer(actor_id: str | None = None) -> None:
     """Reset one or all cached DataLayer instances. Used primarily for testing.
 
