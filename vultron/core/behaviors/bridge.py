@@ -23,17 +23,22 @@ behavior tree execution. It provides:
 2. Blackboard initialization with activity and actor state
 3. Single-shot BT execution to completion
 4. Result capture and error handling
+5. Leadership guard port (SYNC-09-003): single-node always returns True;
+   seam for future multi-node Raft leader check.
 
 Per specs/behavior-tree-integration.md:
 - BT-05-001: Provides BT execution bridge for handler-to-BT invocation
 - BT-05-002: Sets up py_trees context with DataLayer access
 - BT-05-003: Populates blackboard with activity and actor state
 - BT-05-004: Executes tree and returns execution result
+
+Per specs/sync-log-replication.md:
+- SYNC-09-003: Leadership role-check port; always True in single-node.
 """
 
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 import py_trees
 from py_trees.common import Status
@@ -53,6 +58,18 @@ class BTExecutionResult:
     errors: list[str] | None = None
 
 
+def _default_is_leader() -> bool:
+    """Default leadership guard for single-node deployments.
+
+    Always returns ``True`` — the single-node CaseActor is permanently the
+    replication leader.  In a future multi-node deployment this function is
+    replaced by an actual Raft leader check.
+
+    Per SYNC-09-003, SYNC-06-003.
+    """
+    return True
+
+
 class BTBridge:
     """
     Bridge layer for executing behavior trees from handler functions.
@@ -60,16 +77,29 @@ class BTBridge:
     Provides single-shot BT execution with DataLayer integration and
     blackboard management. Handlers invoke BTs through this bridge to
     orchestrate complex workflows while preserving handler protocol.
+
+    The ``is_leader`` attribute is a leadership guard port (SYNC-09-003).
+    In single-node deployments it always returns ``True``; replace it with
+    a real Raft leader check when multi-node CaseActor cluster support is
+    introduced.
     """
 
-    def __init__(self, datalayer: DataLayer):
+    def __init__(
+        self,
+        datalayer: DataLayer,
+        is_leader: Callable[[], bool] = _default_is_leader,
+    ):
         """
-        Initialize BT bridge with DataLayer access.
+        Initialize BT bridge with DataLayer access and optional leadership guard.
 
         Args:
-            datalayer: DataLayer implementation for persistent state access
+            datalayer: DataLayer implementation for persistent state access.
+            is_leader: Callable returning True iff this node is the
+                replication leader.  Defaults to a function that always
+                returns True (single-node behaviour).  Per SYNC-09-003.
         """
         self.datalayer = datalayer
+        self.is_leader = is_leader
         self.logger = logging.getLogger(
             f"{__name__}.{self.__class__.__name__}"
         )
@@ -238,6 +268,11 @@ class BTBridge:
         """
         Convenience method combining setup and execution.
 
+        Checks the leadership guard before executing.  If ``is_leader()``
+        returns ``False``, execution is skipped and a FAILURE result is
+        returned immediately with a descriptive feedback message
+        (SYNC-09-003).
+
         Typical usage from handler:
             result = bridge.execute_with_setup(
                 tree=ValidateReportBT(...),
@@ -257,7 +292,17 @@ class BTBridge:
 
         Implements:
             - BT-05-001: BT execution bridge for handler-to-BT invocation
+            - SYNC-09-003: Leadership guard check before BT execution
         """
+        if not self.is_leader():
+            msg = (
+                "BT execution skipped: this node is not the replication leader"
+            )
+            self.logger.warning(msg)
+            return BTExecutionResult(
+                status=Status.FAILURE,
+                feedback_message=msg,
+            )
         bt = self.setup_tree(tree, actor_id, activity, **context_data)
         return self.execute_tree(bt, max_iterations)
 

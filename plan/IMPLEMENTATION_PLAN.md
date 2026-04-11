@@ -44,7 +44,7 @@ D5-7-DEMOREPLCHECK-1 and D5-7-HUMAN deferred until after SYNC-2.
 **D5-7-BTFIX-1** and **D5-7-BTFIX-2** (BT cascade violations) are new
 Priority 320 items blocking D5-7-HUMAN; see IDEA-26041004.
 
-**PRIORITY-330** SYNC + demo sign-off — OUTBOX-MON-1, SYNC-1, SYNC-2, SYNC-3
+**PRIORITY-330** SYNC + demo sign-off — OUTBOX-MON-1 ✅, SYNC-1 ✅, SYNC-2, SYNC-3
 (sequential); then D5-7-DEMOREPLCHECK-1, D5-7-HUMAN sign-off.
 SYNC-2 subsumes D5-7-CASEREPL-1 and D5-7-ADDOBJ-1.
 Prereq for SYNC-2: D5-7-TRIGNOTIFY-1 (from Priority 320).
@@ -765,60 +765,12 @@ SYNC-2 also requires D5-7-TRIGNOTIFY-1 (from Priority 320) to be complete.
 
 > **Depends on**: OUTBOX-MON-1.
 
-- [ ] **SYNC-1**: Implement local append-only case event log with indexing and
-  the assertion-recording model from `specs/case-log-processing.md` (CLP).
-  The `CaseEvent` model (`vultron/wire/as2/vocab/objects/case_event.py`)
-  provides the foundation. This task extends it to a true canonical log:
-
-  **CaseLogEntry model** (CLP-02-001 through CLP-02-007, SYNC-01-002):
-  - Add `log_index` (monotonically increasing integer, scoped to case)
-  - Add `disposition` field: `recorded` | `rejected`
-  - Add optional `term` field (Raft term; `null` for single-node deployments)
-  - Embed the asserted activity payload as a normalized snapshot (for
-    deterministic replay per CLP-02-003)
-  - For rejections: add `reason_code` (machine-readable) and optional
-    `reason_detail` (human-readable) per CLP-02-005
-
-  **Core domain classes** (transport-agnostic, in `vultron/core/`):
-  - `CaseEventLog` — enforces append-only, hash-chain, immutability
-  - `ReplicationState` — per-peer last-acknowledged hash
-
-  **Assertion intake** (CLP-01-001 through CLP-01-004):
-  - Ordinary inbound case-/proto-case-scoped activities are treated as
-    participant assertions (no separate mode marker needed)
-  - The CaseActor is the sole emitter of canonical log entries
-  - Participant replicas MUST NOT project shared case state from peer
-    assertions directly
-
-  **Local audit vs. replicated canonical chain** (CLP-03 through CLP-05):
-  - The broader local audit log includes both `recorded` and `rejected`
-    `CaseLogEntry` objects
-  - The replicated canonical history is a filtered projection of `recorded`
-    entries only (CLP-04-001, CLP-04-002)
-  - Hash-chain computation is over `recorded` entries only (CLP-04-003)
-  - Rejection feedback is sent only to the asserting sender, not broadcast
-    to all participants (CLP-05-001, CLP-05-002)
-
-  **Canonical serialization** (SYNC-01-005):
-  - Before signing, establish the canonical serialization form for hash
-    computation: deterministic key ordering (RFC 8785 JCS), stable UTF-8
-    encoding, explicit field inclusion/exclusion, no optional whitespace
-  - This is essential for Merkle Tree forward-compatibility
-  - See `notes/sync-log-replication.md` "Canonical Serialization" section
-
-  **Adapter responsibilities**:
-  - AS2 `Announce` activity mapping for replication transport
-  - File/database log storage
-
-  **Leadership guard port** (SYNC-09-003):
-  - Add a leadership role-check port to `vultron/core/behaviors/bridge.py`
-  - In single-node (SYNC-1–4): the port always returns `True`; imposes zero
-    runtime cost but establishes the seam for Phase 3 multi-node
-
-  See design notes in `notes/sync-log-replication.md` and
-  `notes/case-log-authority.md` for full architectural context.
-  **Specs**: `specs/sync-log-replication.md` SYNC-01, SYNC-08, SYNC-09;
-  `specs/case-log-processing.md` CLP-01 through CLP-05.
+- [x] **SYNC-1**: Implemented `CaseLogEntry`, `CaseEventLog`, and
+  `ReplicationState` in `vultron/core/models/case_log.py`; added
+  `is_leader` leadership guard port to `BTBridge`
+  (`vultron/core/behaviors/bridge.py`). 52 new tests in
+  `test/core/models/test_case_log.py`. See `plan/IMPLEMENTATION_HISTORY.md`
+  for full details.
 
 #### SYNC-2 — One-way log replication to Participant Actors
 

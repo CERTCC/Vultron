@@ -82,3 +82,39 @@ at the wire layer. Key notes:
 - Test helpers that pass ISO 8601 strings to `EmbargoPolicy(...)` must use
   `cast(Any, EmbargoPolicy)(...)` to satisfy mypy (field is typed `timedelta`
   but Pydantic accepts strings at runtime via the `field_validator`).
+
+---
+
+### 2026-04-11 SYNC-1 completed
+
+**`CaseLogEntry` / `CaseEventLog`**:
+
+- `CaseLogEntry` is a plain Pydantic `BaseModel` (not frozen).
+  Immutability of the append-only log is enforced by `CaseEventLog`; the
+  model itself is not frozen so that the `model_validator` can compute
+  `entry_hash` via `model_validator(mode="after")` without hitting a
+  frozen-model assignment error.
+- `entry_hash` is excluded from the content that is hashed (to avoid a
+  self-referential dependency). The `_hashable_dict()` method explicitly
+  lists the fields included in the canonical form; adding new fields
+  requires updating both `_hashable_dict()` and existing log data
+  (hash-chain break risk).
+- Canonical serialisation uses `json.dumps(sort_keys=True, separators=(',', ':'),
+  default=str)` — RFC 8785 JCS-compatible and Merkle-tree forward-compatible
+  (SYNC-01-005). `default=str` handles `datetime` and enum values.
+- `tail_hash` is based on the last **recorded** entry only; rejected entries do
+  not advance the hash chain for replication purposes (CLP-04-003).
+- `verify_chain()` validates: hash integrity of each entry, correct
+  `prev_log_hash` linkage for recorded entries, and sequential `log_index`.
+
+**BTBridge leadership guard**:
+
+- `is_leader` is an injectable `Callable[[], bool]`; single-node default
+  always returns `True`. The seam is there for multi-node Raft; the default
+  imposes zero runtime cost on existing code.
+- Existing callers of `BTBridge(datalayer=...)` are unaffected since
+  `is_leader` is a keyword-only argument with a default.
+
+**Next step**: SYNC-2 — one-way log replication to Participant Actors via
+`Announce(CaseLogEntry)`. Prereqs: SYNC-1 ✅, OUTBOX-MON-1 ✅,
+D5-7-TRIGNOTIFY-1 ✅.
