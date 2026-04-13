@@ -785,7 +785,7 @@ SYNC-2 also requires D5-7-TRIGNOTIFY-1 (from Priority 320) to be complete.
 >   URI stub) is incorporated into `Announce(CaseLogEntry)` delivery;
 >   the direct vendor→finder `Add`/`Create` path is retired.
 
-- [ ] **SYNC-2**: One-way log replication from CaseActor to Participant Actors
+- [x] **SYNC-2**: One-way log replication from CaseActor to Participant Actors
   via AS2 `Announce(CaseLogEntry)` activities. Requirements:
   - Strict conflict handling: reject mismatched `prev_log_hash`; respond with
     last-accepted hash (SYNC-03-001); sender retries from entry following the
@@ -804,7 +804,7 @@ SYNC-2 also requires D5-7-TRIGNOTIFY-1 (from Priority 320) to be complete.
 
 #### SYNC-3 — Full sync loop with retry/backoff
 
-- [ ] **SYNC-3**: Full sync loop with retry/backoff. Depends on SYNC-2.
+- [x] **SYNC-3**: Full sync loop with retry/backoff. Depends on SYNC-2.
 
 #### SYNC-4 — Multi-peer synchronization
 
