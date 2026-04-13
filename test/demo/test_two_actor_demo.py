@@ -455,6 +455,207 @@ class TestWaitForFinderCase:
 
 
 # ---------------------------------------------------------------------------
+# SYNC-2 log replication helper tests
+# ---------------------------------------------------------------------------
+
+
+class TestTriggerLogCommit:
+    """Tests for trigger_log_commit demo helper."""
+
+    def test_returns_entry_hash_string(self, client: TestClient, base: str):
+        """trigger_log_commit returns a non-empty hash string."""
+        finder_client = _make_client(base)
+        vendor_client = _make_client(base)
+
+        finder, vendor = demo.seed_containers(
+            finder_client=finder_client, vendor_client=vendor_client
+        )
+        vendor_in_vendor = demo.get_actor_by_id(vendor_client, vendor.id_)
+        _, offer = demo.finder_submits_report(
+            vendor_client=vendor_client,
+            finder_client=finder_client,
+            finder=finder,
+            vendor=vendor_in_vendor,
+        )
+        demo.vendor_validates_report(
+            vendor_client=vendor_client,
+            vendor=vendor_in_vendor,
+            offer_id=offer.id_,
+        )
+        case = demo.find_case_for_offer(vendor_client, offer.id_)
+        assert case is not None
+
+        entry_hash = demo.trigger_log_commit(
+            client=vendor_client,
+            actor_id=vendor.id_,
+            case_id=case.id_,
+            event_type="test_commit",
+        )
+
+        assert isinstance(entry_hash, str)
+        assert len(entry_hash) > 0
+
+    def test_sequential_commits_return_different_hashes(
+        self, client: TestClient, base: str
+    ):
+        """Two sequential log commits produce distinct entry hashes."""
+        finder_client = _make_client(base)
+        vendor_client = _make_client(base)
+
+        finder, vendor = demo.seed_containers(
+            finder_client=finder_client, vendor_client=vendor_client
+        )
+        vendor_in_vendor = demo.get_actor_by_id(vendor_client, vendor.id_)
+        _, offer = demo.finder_submits_report(
+            vendor_client=vendor_client,
+            finder_client=finder_client,
+            finder=finder,
+            vendor=vendor_in_vendor,
+        )
+        demo.vendor_validates_report(
+            vendor_client=vendor_client,
+            vendor=vendor_in_vendor,
+            offer_id=offer.id_,
+        )
+        case = demo.find_case_for_offer(vendor_client, offer.id_)
+        assert case is not None
+
+        h1 = demo.trigger_log_commit(
+            client=vendor_client,
+            actor_id=vendor.id_,
+            case_id=case.id_,
+            event_type="event_a",
+        )
+        h2 = demo.trigger_log_commit(
+            client=vendor_client,
+            actor_id=vendor.id_,
+            case_id=case.id_,
+            event_type="event_b",
+        )
+
+        assert h1 != h2
+
+
+class TestWaitForFinderLogEntry:
+    """Tests for wait_for_finder_log_entry polling helper."""
+
+    def test_returns_when_entry_present(self, client: TestClient, base: str):
+        """Returns immediately when the log entry exists in the DataLayer."""
+        finder_client = _make_client(base)
+        vendor_client = _make_client(base)
+
+        finder, vendor = demo.seed_containers(
+            finder_client=finder_client, vendor_client=vendor_client
+        )
+        vendor_in_vendor = demo.get_actor_by_id(vendor_client, vendor.id_)
+        _, offer = demo.finder_submits_report(
+            vendor_client=vendor_client,
+            finder_client=finder_client,
+            finder=finder,
+            vendor=vendor_in_vendor,
+        )
+        demo.vendor_validates_report(
+            vendor_client=vendor_client,
+            vendor=vendor_in_vendor,
+            offer_id=offer.id_,
+        )
+        case = demo.find_case_for_offer(vendor_client, offer.id_)
+        assert case is not None
+
+        entry_hash = demo.trigger_log_commit(
+            client=vendor_client,
+            actor_id=vendor.id_,
+            case_id=case.id_,
+            event_type="test_wait",
+        )
+
+        # In single-server mode the vendor DataLayer is shared, so the entry
+        # appears immediately after the commit.
+        demo.wait_for_finder_log_entry(
+            finder_client=vendor_client,
+            case_id=case.id_,
+            entry_hash=entry_hash,
+            timeout_seconds=2.0,
+        )
+
+    def test_raises_when_entry_never_arrives(
+        self, client: TestClient, base: str
+    ):
+        """Raises AssertionError when the entry does not appear within timeout."""
+        finder_client = _make_client(base)
+        with pytest.raises(AssertionError, match="Timed out"):
+            demo.wait_for_finder_log_entry(
+                finder_client=finder_client,
+                case_id="https://example.org/non-existent-case",
+                entry_hash="deadbeef" * 8,
+                timeout_seconds=0.1,
+                poll_interval=0.05,
+            )
+
+
+class TestVerifyFinderReplicaState:
+    """Tests for verify_finder_replica_state."""
+
+    def test_passes_when_replica_matches(self, client: TestClient, base: str):
+        """Passes without error when vendor and finder share the same DataLayer.
+
+        In single-server mode both clients share the same TinyDB, so the
+        replica state is always consistent immediately after the log commit.
+        """
+        finder_client = _make_client(base)
+        vendor_client = _make_client(base)
+
+        finder, vendor = demo.seed_containers(
+            finder_client=finder_client, vendor_client=vendor_client
+        )
+        vendor_in_vendor = demo.get_actor_by_id(vendor_client, vendor.id_)
+        _, offer = demo.finder_submits_report(
+            vendor_client=vendor_client,
+            finder_client=finder_client,
+            finder=finder,
+            vendor=vendor_in_vendor,
+        )
+        demo.vendor_validates_report(
+            vendor_client=vendor_client,
+            vendor=vendor_in_vendor,
+            offer_id=offer.id_,
+        )
+        case = demo.find_case_for_offer(vendor_client, offer.id_)
+        assert case is not None
+
+        demo.trigger_log_commit(
+            client=vendor_client,
+            actor_id=vendor.id_,
+            case_id=case.id_,
+            event_type="demo_verification",
+        )
+
+        # Should not raise — single server means replica is trivially consistent
+        demo.verify_finder_replica_state(
+            finder_client=vendor_client,
+            vendor_client=vendor_client,
+            case_id=case.id_,
+            vendor_actor_id=vendor.id_,
+            finder_actor_id=finder.id_,
+        )
+
+    def test_raises_when_vendor_case_missing(
+        self, client: TestClient, base: str
+    ):
+        """Raises AssertionError when vendor has no record of the given case_id."""
+        vendor_client = _make_client(base)
+
+        with pytest.raises(AssertionError):
+            demo.verify_finder_replica_state(
+                finder_client=vendor_client,
+                vendor_client=vendor_client,
+                case_id="https://example.org/non-existent-case-vrfs",
+                vendor_actor_id="https://example.org/vendor",
+                finder_actor_id="https://example.org/finder",
+            )
+
+
+# ---------------------------------------------------------------------------
 # Full workflow integration test
 # ---------------------------------------------------------------------------
 

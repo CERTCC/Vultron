@@ -194,3 +194,19 @@ class AddNoteToCaseRequest(BaseModel):
     note_name: NonEmptyString
     note_content: NonEmptyString
     in_reply_to: NonEmptyString | None = None
+
+
+class SyncLogEntryRequest(BaseModel):
+    """Request body for the sync-log-entry trigger endpoint.
+
+    Commits a new log entry to the local CaseEventLog chain and fans it out
+    to all case participants via ``Announce(CaseLogEntry)`` activities.
+
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString
+    object_id: UriString
+    event_type: NonEmptyString

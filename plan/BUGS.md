@@ -12,8 +12,10 @@ steps, root cause analysis, and resolution steps in the body.
 
 ## BUG-2026041001 Tests are slow
 
-The test suite has slowed down significantly, which is affecting development
-velocity. Run the suite to investigate which tests are taking the longest
-and identify bottlenecks. Consider whether any of the slowest tests can be
-optimized, isolated, or refactored to improve overall test suite performance
-without sacrificing coverage or reliability.
+The test suite has slowed down significantly (>15m, target is 1 minute),
+which is affecting development velocity. Run the suite to investigate which
+tests are taking the longest and identify bottlenecks. Consider whether any  
+of the slowest tests can be optimized, isolated, or refactored to improve
+overall test suite performance without sacrificing coverage or reliability.
+Isolating slow integration tests is an option, but the primary goal is to
+optimize the test suite as a whole while maintaining confidence in the codebase.

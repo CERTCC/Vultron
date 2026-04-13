@@ -14,11 +14,12 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 ### Current Status Summary
 
 **Test suite**: Canonical validation last passed on 2026-04-14
-(1413 passed, 10 skipped, 5581 subtests; `black`, `flake8`, `mypy`, `pyright`, full
-`pytest` run).
+(~1562 passed, 12 skipped, 5581 subtests; `black`, `flake8`, `mypy`, `pyright`,
+full `pytest` run).
 
-All 38 message handlers implemented (including `unknown`). All 9 trigger
-endpoints complete. 12 demo scripts, all dockerized in `docker-compose.yml`.
+All 38 message handlers implemented (including `unknown`). All 10 trigger
+endpoints complete (including new `sync-log-entry`). 12 demo scripts, all
+dockerized in `docker-compose.yml`.
 All PRIORITY-30 through PRIORITY-200 phases complete.
 
 #### Active open work
@@ -40,12 +41,13 @@ D5-6-EMBARGORCP ✅
 D5-7-EMSTATE-1 ✅, D5-7-AUTOENG-2 (superseded by D5-7-BTFIX-1), D5-7-TRIGNOTIFY-1, D5-7-DEMONOTECLEAN-1
 (pending). D5-7-MSGORDER-1 ✅, D5-7-LOGCLEAN-1 ✅.
 D5-7-CASEREPL-1 and D5-7-ADDOBJ-1 superseded by SYNC-2 (see Priority 330).
-D5-7-DEMOREPLCHECK-1 and D5-7-HUMAN deferred until after SYNC-2.
 **D5-7-BTFIX-1** and **D5-7-BTFIX-2** (BT cascade violations) are new
 Priority 320 items blocking D5-7-HUMAN; see IDEA-26041004.
 
-**PRIORITY-330** SYNC + demo sign-off — OUTBOX-MON-1 ✅, SYNC-1 ✅, SYNC-2 ✅, SYNC-3
-(sequential); then D5-7-DEMOREPLCHECK-1, D5-7-HUMAN sign-off.
+**PRIORITY-330** SYNC + demo sign-off — OUTBOX-MON-1 ✅, SYNC-1 ✅, SYNC-2 ✅,
+SYNC-3 ✅; SYNC-TRIG-1 ✅ (new `sync-log-entry` trigger endpoint);
+D5-7-DEMOREPLCHECK-1 ✅ (finder replica verification in two-actor demo).
+Remaining: D5-7-HUMAN sign-off.
 SYNC-2 subsumes D5-7-CASEREPL-1 and D5-7-ADDOBJ-1.
 Prereq for SYNC-2: D5-7-TRIGNOTIFY-1 (from Priority 320).
 

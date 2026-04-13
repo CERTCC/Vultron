@@ -750,6 +750,225 @@ def wait_for_finder_case(
 
 
 # ---------------------------------------------------------------------------
+# SYNC-2 log replication helpers
+# ---------------------------------------------------------------------------
+
+
+def trigger_log_commit(
+    client: DataLayerClient,
+    actor_id: str,
+    case_id: str,
+    event_type: str,
+    object_id: str | None = None,
+) -> str:
+    """Commit a log entry for *case_id* and return the entry hash.
+
+    POSTs to ``/actors/{actor_id}/trigger/sync-log-entry`` and returns
+    the ``entry_hash`` from the response.  The entry is also fanned out
+    to all case participants via ``Announce(CaseLogEntry)`` activities
+    queued in the actor's outbox.
+
+    Args:
+        client: DataLayerClient connected to the CaseActor container.
+        actor_id: Full URI of the actor committing the log entry.
+        case_id: Full URI of the ``VulnerabilityCase``.
+        event_type: Short machine-readable event descriptor.
+        object_id: Optional URI of the primary object.  Defaults to
+            *case_id* when not supplied.
+
+    Returns:
+        The ``entry_hash`` of the newly committed log entry.
+
+    Spec: SYNC-02-002, SYNC-02-003.
+    """
+    result = post_to_trigger(
+        client=client,
+        actor_id=actor_id,
+        behavior="sync-log-entry",
+        body={
+            "case_id": case_id,
+            "object_id": object_id if object_id is not None else case_id,
+            "event_type": event_type,
+        },
+    )
+    entry_hash: str = result["entry_hash"]
+    logger.info(
+        "Log entry committed for case '%s': hash=%s, index=%d",
+        case_id,
+        entry_hash[:16],
+        result.get("log_index", -1),
+    )
+    return entry_hash
+
+
+def wait_for_finder_log_entry(
+    finder_client: DataLayerClient,
+    case_id: str,
+    entry_hash: str,
+    timeout_seconds: float = 15.0,
+    poll_interval: float = 0.5,
+) -> None:
+    """Poll finder's DataLayer until a ``CaseLogEntry`` with *entry_hash* appears.
+
+    Proves that the vendor's ``Announce(CaseLogEntry)`` outbox activity was
+    delivered to the finder's inbox and processed by
+    ``AnnounceLogEntryReceivedUseCase`` (SYNC-2 receive side).
+
+    Args:
+        finder_client: Client connected to the Finder container.
+        case_id: Full URI of the ``VulnerabilityCase`` (used for filtering).
+        entry_hash: ``entry_hash`` value of the expected log entry.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Raises:
+        AssertionError: If the entry does not appear within *timeout_seconds*.
+
+    Spec: SYNC-02-002.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        raw = finder_client.get("/datalayer/CaseLogEntrys/")
+        if isinstance(raw, dict):
+            for v in raw.values():
+                if (
+                    isinstance(v, dict)
+                    and v.get("case_id") == case_id
+                    and v.get("entry_hash") == entry_hash
+                ):
+                    logger.info(
+                        "Log entry with hash=%s found in finder's DataLayer",
+                        entry_hash[:16],
+                    )
+                    return
+        time.sleep(poll_interval)
+
+    raise AssertionError(
+        f"Timed out waiting for log entry (hash={entry_hash!r}) for case "
+        f"{case_id!r} to appear in finder's DataLayer — replication may "
+        "not have completed"
+    )
+
+
+def _extract_ref_id(ref: object) -> Optional[str]:
+    """Extract the string ID from an object, ``as_Link``, or string reference."""
+    if ref is None:
+        return None
+    if isinstance(ref, str):
+        return ref
+    if hasattr(ref, "id_"):
+        return str(ref.id_)  # type: ignore[union-attr]
+    if hasattr(ref, "href"):
+        return str(ref.href)  # type: ignore[union-attr]
+    return str(ref)
+
+
+def _get_log_entries_for_case(
+    client: DataLayerClient, case_id: str
+) -> list[dict]:
+    """Return all ``CaseLogEntry`` dicts for *case_id* from the DataLayer."""
+    raw = client.get("/datalayer/CaseLogEntrys/")
+    if not isinstance(raw, dict):
+        return []
+    return [
+        v
+        for v in raw.values()
+        if isinstance(v, dict) and v.get("case_id") == case_id
+    ]
+
+
+def verify_finder_replica_state(
+    finder_client: DataLayerClient,
+    vendor_client: DataLayerClient,
+    case_id: str,
+    vendor_actor_id: str,
+    finder_actor_id: str,
+) -> None:
+    """Verify that the finder's case replica matches the authoritative vendor state.
+
+    Checks four properties:
+
+    1. The same ``case_id`` exists in the finder's DataLayer.
+    2. ``actor_participant_index`` keys are identical (same participant set).
+    3. ``active_embargo`` references the same ID on both sides.
+    4. Log-state hash consistency: both sides share the same tail entry hash.
+
+    Args:
+        finder_client: Client connected to the Finder container.
+        vendor_client: Client connected to the Vendor container.
+        case_id: Full URI of the ``VulnerabilityCase`` being verified.
+        vendor_actor_id: Full URI of the Vendor actor (unused directly but
+            retained for symmetry with *finder_actor_id*).
+        finder_actor_id: Full URI of the Finder actor (unused directly but
+            retained for future participant-status checks).
+
+    Raises:
+        AssertionError: If any replica invariant is violated.
+
+    Spec: SYNC-02-002, D5-7-DEMOREPLCHECK-1.
+    """
+    vendor_case_data = vendor_client.get(f"/datalayer/{case_id}")
+    assert vendor_case_data, f"Vendor case {case_id!r} not found"
+    vendor_case = VulnerabilityCase.model_validate(vendor_case_data)
+
+    finder_case_data = finder_client.get(f"/datalayer/{case_id}")
+    assert finder_case_data, (
+        f"Finder does not have a copy of case {case_id!r} — "
+        "outbox delivery or inbox processing may have failed"
+    )
+    finder_case = VulnerabilityCase.model_validate(finder_case_data)
+
+    # 1. Same case ID
+    assert (
+        finder_case.id_ == case_id
+    ), f"Finder case ID mismatch: {finder_case.id_!r} != {case_id!r}"
+    logger.info("✓ Finder case ID matches: %s", case_id)
+
+    # 2. actor_participant_index keys match
+    vendor_index = vendor_case.actor_participant_index or {}
+    finder_index = finder_case.actor_participant_index or {}
+    assert set(vendor_index.keys()) == set(finder_index.keys()), (
+        "Finder actor_participant_index key set differs from vendor: "
+        f"finder={set(finder_index.keys())} "
+        f"vendor={set(vendor_index.keys())}"
+    )
+    logger.info(
+        "✓ Finder actor_participant_index matches (%d participants)",
+        len(finder_index),
+    )
+
+    # 3. active_embargo ID matches (if present on vendor)
+    vendor_embargo_id = _extract_ref_id(vendor_case.active_embargo)
+    finder_embargo_id = _extract_ref_id(finder_case.active_embargo)
+    if vendor_embargo_id is not None:
+        assert vendor_embargo_id == finder_embargo_id, (
+            f"Finder active_embargo {finder_embargo_id!r} != "
+            f"vendor active_embargo {vendor_embargo_id!r}"
+        )
+        logger.info("✓ Finder active_embargo matches: %s", vendor_embargo_id)
+
+    # 4. Log-state hash consistency
+    vendor_entries = _get_log_entries_for_case(vendor_client, case_id)
+    finder_entries = _get_log_entries_for_case(finder_client, case_id)
+    assert len(finder_entries) > 0, (
+        "Finder has no CaseLogEntry records for the case — "
+        "SYNC-2 replication did not complete"
+    )
+    vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
+    finder_tail = max(finder_entries, key=lambda e: e["log_index"])
+    assert vendor_tail["entry_hash"] == finder_tail["entry_hash"], (
+        f"Finder log tail hash {finder_tail['entry_hash']!r} != "
+        f"vendor log tail hash {vendor_tail['entry_hash']!r} — "
+        "hash-chain replication integrity failure"
+    )
+    logger.info(
+        "✓ Finder log tail hash matches vendor: %s… (index=%d)",
+        finder_tail["entry_hash"][:16],
+        finder_tail["log_index"],
+    )
+
+
+# ---------------------------------------------------------------------------
 # Main workflow orchestration
 # ---------------------------------------------------------------------------
 
@@ -899,6 +1118,35 @@ def run_two_actor_demo(
             reply_note_id=reply_note.id_,
         )
         logger.info("Final case state (Vendor): %s", logfmt(final_case))
+
+    # ── Step 6: Commit log entry + verify finder replica ──────────────────
+    # Per SYNC-2, the CaseActor (co-located in the Vendor container for the
+    # D5-2 topology) commits a log entry that fans out to the Finder via
+    # Announce(CaseLogEntry).  We then poll the Finder for the entry and
+    # compare replica state against the authoritative Vendor view.
+    with demo_step("Committing case log entry on Vendor (CaseActor)"):
+        entry_hash = trigger_log_commit(
+            client=vendor_client,
+            actor_id=vendor.id_,
+            case_id=case.id_,
+            event_type="demo_verification",
+        )
+
+    with demo_step("Waiting for Finder to receive replicated log entry"):
+        wait_for_finder_log_entry(
+            finder_client=finder_client,
+            case_id=case.id_,
+            entry_hash=entry_hash,
+        )
+
+    with demo_check("Finder replica state matches authoritative Vendor state"):
+        verify_finder_replica_state(
+            finder_client=finder_client,
+            vendor_client=vendor_client,
+            case_id=case.id_,
+            vendor_actor_id=vendor.id_,
+            finder_actor_id=finder.id_,
+        )
 
     with demo_check("Dedicated CaseActor container remains unused for D5-2"):
         verify_case_actor_unused(case_actor_client, case.id_)
