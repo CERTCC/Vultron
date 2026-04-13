@@ -11,11 +11,14 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Trigger helpers for SYNC-2: commit a log entry and fan it out to peers.
+"""Trigger helpers for SYNC-2/SYNC-3: commit a log entry and fan it out to
+peers; replay missing entries on hash-chain rejection.
 
-Public entry point: :func:`commit_log_entry_trigger`.
+Public entry points:
+- :func:`commit_log_entry_trigger`
+- :func:`replay_missing_entries_trigger`
 
-Spec: SYNC-02-002, SYNC-02-003, SYNC-03-001.
+Spec: SYNC-02-002, SYNC-02-003, SYNC-03-001, SYNC-03-002.
 """
 
 from __future__ import annotations
@@ -176,3 +179,92 @@ def commit_log_entry_trigger(
 
     _fan_out_log_entry(case_id, entry, actor_id, dl)
     return entry
+
+
+def replay_missing_entries_trigger(
+    case_id: str,
+    peer_id: str,
+    from_hash: str,
+    case_actor_id: str,
+    dl: DataLayer,
+) -> int:
+    """Replay all log entries after *from_hash* to a specific peer.
+
+    Queries all :class:`~vultron.core.models.case_log_entry.VultronCaseLogEntry`
+    records for *case_id*, finds entries with ``log_index`` strictly greater
+    than the index of the entry whose ``entry_hash`` matches *from_hash*,
+    and queues an ``Announce(CaseLogEntry)`` activity for each to *peer_id*.
+
+    When *from_hash* is ``GENESIS_HASH`` (or not found among stored entries),
+    ALL entries for the case are replayed.
+
+    Args:
+        case_id: URI of the parent :class:`VulnerabilityCase`.
+        peer_id: URI of the participant who needs the missing entries.
+        from_hash: ``entry_hash`` of the last entry acknowledged by *peer_id*.
+        case_actor_id: URI of the CaseActor sending the announcements.
+        dl: DataLayer instance for persistence and outbox access.
+
+    Returns:
+        The number of entries replayed (i.e. queued for delivery).
+
+    Spec: SYNC-03-002.
+    """
+    raw_entries: dict[str, dict] = dl.by_type("CaseLogEntry")
+    entries: list[VultronCaseLogEntry] = []
+    for data in raw_entries.values():
+        if data.get("case_id") == case_id:
+            try:
+                entries.append(VultronCaseLogEntry.model_validate(data))
+            except Exception:
+                logger.debug(
+                    "sync replay: skipping malformed CaseLogEntry for case '%s'",
+                    case_id,
+                )
+
+    if not entries:
+        logger.debug(
+            "sync replay: no entries for case '%s' — nothing to replay",
+            case_id,
+        )
+        return 0
+
+    entries.sort(key=lambda e: e.log_index)
+
+    # Find the log_index of the entry matching from_hash.
+    # If not found (e.g. GENESIS_HASH or unknown), start from index -1 so
+    # all entries are replayed.
+    from_index = -1
+    for entry in entries:
+        if entry.entry_hash == from_hash:
+            from_index = entry.log_index
+            break
+
+    missing = [e for e in entries if e.log_index > from_index]
+    if not missing:
+        logger.debug(
+            "sync replay: peer '%s' is already up-to-date for case '%s'",
+            peer_id,
+            case_id,
+        )
+        return 0
+
+    replayed = 0
+    for entry in missing:
+        announce = AnnounceLogEntryActivity(
+            actor=case_actor_id,
+            object_=entry,
+            to=[peer_id],
+        )
+        dl.save(announce)
+        add_activity_to_outbox(case_actor_id, announce.id_, dl)
+        logger.info(
+            "sync replay: queued Announce(CaseLogEntry) '%s' "
+            "(log_index=%d) → '%s'",
+            announce.id_,
+            entry.log_index,
+            peer_id,
+        )
+        replayed += 1
+
+    return replayed

@@ -66,7 +66,10 @@ from vultron.core.models.events.status import (
     CreateCaseStatusReceivedEvent,
     CreateParticipantStatusReceivedEvent,
 )
-from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.events.sync import (
+    AnnounceLogEntryReceivedEvent,
+    RejectLogEntryReceivedEvent,
+)
 from vultron.core.models.events.unknown import UnknownReceivedEvent
 
 # Maps each MessageSemantics value to its concrete VultronEvent subclass.
@@ -101,6 +104,7 @@ EVENT_CLASS_MAP: dict[MessageSemantics, type[VultronEvent]] = {
     MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE: RejectInviteToEmbargoOnCaseReceivedEvent,
     MessageSemantics.CLOSE_CASE: CloseCaseReceivedEvent,
     MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY: AnnounceLogEntryReceivedEvent,
+    MessageSemantics.REJECT_CASE_LOG_ENTRY: RejectLogEntryReceivedEvent,
     MessageSemantics.CREATE_CASE_PARTICIPANT: CreateCaseParticipantReceivedEvent,
     MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE: AddCaseParticipantToCaseReceivedEvent,
     MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE: RemoveCaseParticipantFromCaseReceivedEvent,
@@ -165,4 +169,7 @@ __all__ = [
     "AddParticipantStatusToParticipantReceivedEvent",
     # unknown
     "UnknownReceivedEvent",
+    # sync
+    "AnnounceLogEntryReceivedEvent",
+    "RejectLogEntryReceivedEvent",
 ]

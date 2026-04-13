@@ -261,6 +261,14 @@ AnnounceLogEntryPattern = ActivityPattern(
     activity_=TAtype.ANNOUNCE,
     object_=VOtype.CASE_LOG_ENTRY,
 )
+RejectLogEntryPattern = ActivityPattern(
+    description=(
+        "Participant rejects a CaseLogEntry announcement due to "
+        "hash-chain mismatch. The object is the rejected CaseLogEntry."
+    ),
+    activity_=TAtype.REJECT,
+    object_=VOtype.CASE_LOG_ENTRY,
+)
 CreateNotePattern = ActivityPattern(
     activity_=TAtype.CREATE,
     object_=AOtype.NOTE,
@@ -346,6 +354,7 @@ SEMANTICS_ACTIVITY_PATTERNS: dict[MessageSemantics, ActivityPattern] = {
     MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE: RejectInviteToEmbargoOnCasePattern,
     MessageSemantics.CLOSE_CASE: CloseCasePattern,
     MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY: AnnounceLogEntryPattern,
+    MessageSemantics.REJECT_CASE_LOG_ENTRY: RejectLogEntryPattern,
     MessageSemantics.CREATE_CASE_PARTICIPANT: CreateCaseParticipantPattern,
     MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE: AddCaseParticipantToCasePattern,
     MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE: RemoveCaseParticipantFromCasePattern,

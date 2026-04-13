@@ -11,18 +11,22 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for SYNC-2 received use case (AnnounceLogEntryReceivedUseCase)."""
+"""Tests for SYNC-2/SYNC-3 received use cases."""
 
 import pytest
 
 from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-from vultron.core.models.case_log import GENESIS_HASH
+from vultron.core.models.case_log import GENESIS_HASH, CaseLogEntry
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.use_cases.triggers.sync import _to_persistable_entry
 from vultron.core.models.events import MessageSemantics
 from vultron.core.use_cases.received.sync import (
     AnnounceLogEntryReceivedUseCase,
     _reconstruct_tail_hash,
 )
+from typing import cast
+
+from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.wire.as2.extractor import extract_intent
 from vultron.wire.as2.vocab.activities.sync import AnnounceLogEntryActivity
 
@@ -33,14 +37,15 @@ CASE_URI = "https://example.org/cases/case1"
 def _make_entry(
     case_id: str, log_index: int, prev_hash: str
 ) -> VultronCaseLogEntry:
-    return VultronCaseLogEntry(
+    chain = CaseLogEntry(
         case_id=case_id,
         log_index=log_index,
-        log_object_id="https://example.org/activities/act1",
+        object_id="https://example.org/activities/act1",
         event_type="test_event",
         payload_snapshot={"key": "value"},
         prev_log_hash=prev_hash,
     )
+    return _to_persistable_entry(chain)
 
 
 @pytest.fixture
@@ -83,12 +88,14 @@ class TestReconstructTailHash:
 
 
 class TestAnnounceLogEntryReceivedUseCase:
-    def _make_event(self, entry: VultronCaseLogEntry):
+    def _make_event(
+        self, entry: VultronCaseLogEntry
+    ) -> AnnounceLogEntryReceivedEvent:
         activity = AnnounceLogEntryActivity(
             actor=ACTOR_URI,
             object_=entry,  # type: ignore[arg-type]
         )
-        return extract_intent(activity)
+        return cast(AnnounceLogEntryReceivedEvent, extract_intent(activity))
 
     def test_accepts_valid_first_entry(self, dl, first_entry):
         event = self._make_event(first_entry)
@@ -101,12 +108,63 @@ class TestAnnounceLogEntryReceivedUseCase:
         assert stored is not None
 
     def test_rejects_entry_with_wrong_prev_hash(self, dl, first_entry):
-        """Entry whose prev_log_hash does not match local tail is discarded."""
+        """Entry whose prev_log_hash does not match local tail is rejected."""
         bad_entry = _make_entry(CASE_URI, 0, "deadbeef" * 8)
         event = self._make_event(bad_entry)
         uc = AnnounceLogEntryReceivedUseCase(dl, event)
         uc.execute()
+        # Entry not stored
         assert dl.read(bad_entry.id_) is None
+
+    def test_mismatch_queues_reject_activity(self, dl, first_entry):
+        """Hash mismatch causes a RejectLogEntryActivity to be queued (SYNC-03-001)."""
+        # Pre-seed a good entry so tail_hash != GENESIS_HASH
+        dl.save(first_entry)
+        # Send a second entry with wrong prev_hash
+        bad_entry = _make_entry(CASE_URI, 1, "badbadbadbadbad0" * 4)
+        event = self._make_event(bad_entry)
+        uc = AnnounceLogEntryReceivedUseCase(dl, event)
+        uc.execute()
+
+        # Bad entry still not stored
+        assert dl.read(bad_entry.id_) is None
+
+        # A Reject activity should be queued in the outbox
+        queued = dl.outbox_list()
+        assert len(queued) == 1
+
+        reject_obj = dl.read(queued[0])
+        assert reject_obj is not None
+        # DataLayer reconstructs as as_Reject (type_="Reject") via VOCABULARY
+        from vultron.wire.as2.enums import as_TransitiveActivityType
+
+        assert (
+            getattr(reject_obj, "type_", None)
+            == as_TransitiveActivityType.REJECT
+        )
+
+    def test_mismatch_reject_carries_tail_hash(self, dl, first_entry):
+        """The queued Reject carries the local tail hash as context (SYNC-03-001)."""
+        dl.save(first_entry)
+        bad_entry = _make_entry(CASE_URI, 1, "badbadbadbadbad0" * 4)
+        event = self._make_event(bad_entry)
+        AnnounceLogEntryReceivedUseCase(dl, event).execute()
+
+        queued = dl.outbox_list()
+        reject_obj = dl.read(queued[0])
+        assert getattr(reject_obj, "context", None) == first_entry.entry_hash
+
+    def test_mismatch_reject_addressed_to_sender(self, dl, first_entry):
+        """The queued Reject is addressed to the CaseActor who sent the Announce."""
+        dl.save(first_entry)
+        bad_entry = _make_entry(CASE_URI, 1, "badbadbadbadbad0" * 4)
+        event = self._make_event(bad_entry)
+        AnnounceLogEntryReceivedUseCase(dl, event).execute()
+
+        queued = dl.outbox_list()
+        reject_obj = dl.read(queued[0])
+        to_field = getattr(reject_obj, "to", None) or []
+        assert ACTOR_URI in to_field
 
     def test_idempotent_second_accept(self, dl, first_entry):
         """Calling execute twice with the same entry stores it only once."""

@@ -43,6 +43,7 @@ USE_CASE_MAP: dict[MessageSemantics, type] = {
     MessageSemantics.ADD_REPORT_TO_CASE: _case.AddReportToCaseReceivedUseCase,
     MessageSemantics.CLOSE_CASE: _case.CloseCaseReceivedUseCase,
     MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY: _sync.AnnounceLogEntryReceivedUseCase,
+    MessageSemantics.REJECT_CASE_LOG_ENTRY: _sync.RejectLogEntryReceivedUseCase,
     MessageSemantics.SUGGEST_ACTOR_TO_CASE: _actor.SuggestActorToCaseReceivedUseCase,
     MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE: _actor.AcceptSuggestActorToCaseReceivedUseCase,
     MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE: _actor.RejectSuggestActorToCaseReceivedUseCase,
