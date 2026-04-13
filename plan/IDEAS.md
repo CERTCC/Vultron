@@ -117,6 +117,43 @@ avoids those failure modes by giving you a principled, declarative model that
 scales from local prototyping to production without changing abstractions,
 making it a more durable and maintainable foundation for object persistence.
 
+### Additional evidence from BUG-2026041001 (April 2026)
+
+Debugging this bug made the TinyDB performance problem concrete and measurable:
+**TinyDB re-reads and rewrites the entire JSON file on every single read and
+write operation.** As the number of objects in the database grows across
+hundreds of tests, the I/O cost compounds multiplicatively — not linearly.
+The symptom was a test suite that grew from ~13 seconds to **over 15 minutes**
+as test coverage expanded.
+
+The fix required a non-trivial, test-infrastructure-only workaround: a
+`pytest_configure` hook that monkey-patches `TinyDbDataLayer.__init__` to
+force `MemoryStorage` globally, plus a layered autouse fixture to restore the
+original init for integration tests and to re-apply the patch after any
+`importlib.reload()` calls. This is significant accidental complexity —
+infrastructure cost paid entirely to work around a fundamental limitation of
+TinyDB's storage model, not to test any application behavior.
+
+Key takeaways relevant to the migration decision:
+
+- **The `MemoryStorage` workaround is a canary**: switching to in-memory
+  storage reduces the suite from 15+ minutes to 13 seconds. That confirms
+  TinyDB's disk I/O is the dominant cost — not application logic or fixture
+  overhead.
+- **The patch complexity will grow**: every future integration test that
+  touches real storage needs to opt out of the global patch. The fixture
+  protocol already has two layers of fragility and breaks around
+  `importlib.reload()`.
+- **No equivalent problem exists with SQLite**: SQLite's WAL mode and
+  row-level access mean read/write cost is proportional to the *query*, not
+  the *total database size*. Test isolation via transactions (rollback after
+  each test) is idiomatic and requires no patching of application code.
+- **The `DataLayer` port makes migration tractable**: the hexagonal
+  architecture's `DataLayer` Protocol already abstracts all persistence
+  operations. A SQLModel adapter can be written to the same interface and
+  swapped in by changing one factory function, with no changes to any use case
+  or handler.
+
 ## IDEA-26040903 Do not worry about backward compatibility in prototype phase
 
 We are still squarely in a prototyping phase, and there are no outside users
