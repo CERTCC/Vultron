@@ -48,6 +48,7 @@ def test_get_datalayer_in_memory_when_db_path_none():
     assert isinstance(dl._db.storage, MemoryStorage)
 
 
+@pytest.mark.integration
 def test_get_datalayer_file_backed_with_explicit_path(tmp_path):
     """Passing an explicit db_path must create a file-backed DataLayer."""
     db_file = str(tmp_path / "test.json")

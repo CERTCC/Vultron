@@ -14,39 +14,74 @@
 """
 Root pytest configuration file.
 
-This file provides test session hooks for cleanup of test artifacts.
+This file provides test session hooks for cleanup of test artifacts
+and forces in-memory TinyDB storage to keep the test suite fast.
 """
 
 from pathlib import Path
 
 import pytest
 
-from vultron.adapters.driven.datalayer_tinydb import reset_datalayer
+from vultron.adapters.driven.datalayer_tinydb import (
+    TinyDbDataLayer,
+    reset_datalayer,
+)
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Force in-memory TinyDB storage for the entire test session.
+
+    Patches ``TinyDbDataLayer.__init__`` so every instance created anywhere
+    in the test process — regardless of how the class was imported — uses
+    ``MemoryStorage`` instead of a disk-backed JSON file.
+
+    Without this patch, the default ``db_path='mydb.json'`` causes TinyDB to
+    re-read and re-write the entire JSON file on every read/write operation.
+    As the file grows across hundreds of test cases the suite slows to >15
+    minutes.  With in-memory storage each operation is effectively instant,
+    keeping the full suite under ~1 minute.
+
+    Patching ``__init__`` (rather than ``get_datalayer``) is the correct
+    approach because ``get_datalayer`` is imported by name in several modules
+    at import time; a module-attribute patch would not affect those already-
+    bound references.  ``__init__`` is always looked up through the class
+    object at construction time, so the patch applies universally.
+    """
+    _original_init = TinyDbDataLayer.__init__
+
+    def _in_memory_init(
+        self: TinyDbDataLayer,
+        db_path: "str | None" = None,
+        actor_id: "str | None" = None,
+    ) -> None:
+        # Always force db_path=None (MemoryStorage) regardless of what the
+        # caller requested.
+        _original_init(self, db_path=None, actor_id=actor_id)
+
+    TinyDbDataLayer.__init__ = _in_memory_init  # type: ignore[method-assign]
 
 
 @pytest.fixture(scope="session", autouse=True)
 def cleanup_test_db_files():
-    """
-    Automatically clean up any TinyDB files created during tests.
+    """Clean up any stale TinyDB files left from previous runs.
 
-    This fixture runs once per test session and removes mydb.json
-    both before and after the test run to prevent test pollution.
-    Calls reset_datalayer() before deletion so that all cached
-    TinyDbDataLayer instances close their file handles cleanly,
-    preventing ResourceWarning: unclosed file at session teardown.
+    With the ``pytest_configure`` patch above, no new ``mydb.json`` should be
+    created during this session.  This fixture remains as a safety net: it
+    deletes any pre-existing file before tests start and removes it again
+    after the session ends, preventing state from leaking across separate
+    test runs.
     """
-    # Get repository root
     repo_root = Path(__file__).parent.parent
     test_db_file = repo_root / "mydb.json"
 
-    # Clean up before tests
+    # Close any lingering handles and delete leftover file before tests.
     reset_datalayer()
     if test_db_file.exists():
         test_db_file.unlink()
 
     yield
 
-    # Clean up after tests — close handles before deleting the file
+    # Close handles and delete any file that somehow got created.
     reset_datalayer()
     if test_db_file.exists():
         test_db_file.unlink()

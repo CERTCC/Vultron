@@ -99,12 +99,23 @@ target-version = ['py38', 'py39', 'py310', 'py311', 'py312', 'py313' ]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-ra -q"
+# Default run excludes integration tests (demo suite) so the fast unit-test
+# suite stays under ~1 minute.  To run integration tests use one of:
+#
+#   uv run pytest -m integration          # integration tests only
+#   uv run pytest -m ""                   # all tests (unit + integration)
+#   uv run pytest test/demo/              # demo/integration tests only
+#
+# See AGENTS.md "Testing" section for full guidance.
+addopts = "-ra -q -m 'not integration'"
 testpaths = [
     "test",
 ]
 filterwarnings = [
     "error",
+]
+markers = [
+    "integration: marks tests as integration tests (exercise the full HTTP stack; deselected by default)",
 ]
 
 [tool.uv.workspace]

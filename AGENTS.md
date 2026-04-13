@@ -50,9 +50,20 @@ environment notes, and examples you must follow).
 > ⚠️ **STOP — Full test-suite rule (MUST follow)**
 >
 > Follow the instructions in `.github/skills/run-tests/SKILL.md`
-> for running the full test-suite exactly once per validation cycle and
+> for running the test suite exactly once per validation cycle and
 > reading its output. The skill file documents the required single-run
 > invocation and the rationale for the one-run rule.
+>
+> The project has two test suites:
+>
+> - **Unit (default)**: `uv run pytest --tb=short 2>&1 | tail -5`
+>   Excludes `@pytest.mark.integration` tests. Runs in ~13 seconds.
+> - **Integration**: `uv run pytest -m integration --tb=short 2>&1 | tail -5`
+>   Demo tests and file-backed I/O tests. Runs in ~6 seconds.
+> - **All tests**: `uv run pytest -m "" --tb=short 2>&1 | tail -5`
+>
+> For normal code changes, run the unit suite. Run integration tests
+> when touching demo workflows or file-backed datalayer code.
 
 Quick pointers and gotchas:
 

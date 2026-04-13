@@ -15,9 +15,38 @@ import pytest
 
 from vultron.adapters.driven.db_record import Record
 from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-from vultron.wire.as2.vocab.base.objects.object_types import (
-    as_Note,
-)
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+
+@pytest.fixture(autouse=True)
+def reapply_in_memory_patch_after_reload():
+    """Re-apply in-memory TinyDB patch if a module reload stripped it.
+
+    Some tests call importlib.reload() on the datalayer module to verify
+    module-level constant behaviour.  Each reload creates a new
+    TinyDbDataLayer class object with the original (disk-backed) __init__,
+    destroying the pytest_configure patch from test/conftest.py.  This
+    fixture checks after each test whether the patch is still in place and
+    re-applies it if not, preventing state leakage to subsequent tests.
+    """
+    yield
+
+    import vultron.adapters.driven.datalayer_tinydb as _mod
+
+    _cls = _mod.TinyDbDataLayer
+    if getattr(_cls.__init__, "__name__", None) == "_in_memory_init":
+        return  # Patch is still in place; nothing to do.
+
+    _orig = _cls.__init__
+
+    def _in_memory_init(
+        self: _mod.TinyDbDataLayer,
+        db_path: "str | None" = None,
+        actor_id: "str | None" = None,
+    ) -> None:
+        _orig(self, db_path=None, actor_id=actor_id)
+
+    _cls.__init__ = _in_memory_init  # type: ignore[method-assign]
 
 
 @pytest.fixture

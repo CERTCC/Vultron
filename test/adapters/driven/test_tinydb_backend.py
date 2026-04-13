@@ -65,6 +65,7 @@ def created_record(dl, record_factory):
 
 
 # Tests (renamed to be more descriptive)
+@pytest.mark.integration
 def test_database_initialization_creates_db_file_and_no_tables(dl):
     assert isinstance(dl, TinyDbDataLayer)
     assert hasattr(dl, "_db_path")
