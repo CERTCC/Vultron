@@ -19,25 +19,42 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 
 @pytest.fixture(autouse=True)
-def reapply_in_memory_patch_after_reload():
-    """Re-apply in-memory TinyDB patch if a module reload stripped it.
+def manage_storage_patch(request):
+    """Manage the in-memory TinyDB patch around each test in this directory.
 
-    Some tests call importlib.reload() on the datalayer module to verify
-    module-level constant behaviour.  Each reload creates a new
-    TinyDbDataLayer class object with the original (disk-backed) __init__,
-    destroying the pytest_configure patch from test/conftest.py.  This
-    fixture checks after each test whether the patch is still in place and
-    re-applies it if not, preventing state leakage to subsequent tests.
+    Two roles:
+
+    1. **Integration tests that verify file-backed storage**: temporarily
+       restores ``TinyDbDataLayer.__init__`` to the real implementation so the
+       test can exercise actual disk I/O, then re-applies the in-memory patch
+       afterwards.
+
+    2. **Reload recovery**: some tests call ``importlib.reload()`` on the
+       datalayer module, which recreates ``TinyDbDataLayer`` as a fresh class
+       object without the patch installed by ``pytest_configure``.  After every
+       test this fixture checks whether the patch is still in place and
+       re-applies it if not, preventing state leakage to subsequent tests.
     """
-    yield
-
     import vultron.adapters.driven.datalayer_tinydb as _mod
 
     _cls = _mod.TinyDbDataLayer
+    is_integration = request.node.get_closest_marker("integration") is not None
+
+    if is_integration:
+        original = getattr(_cls, "_test_original_init", None)
+        if original is not None:
+            # Restore real __init__ so this test can use file-backed storage.
+            _cls.__init__ = original  # type: ignore[method-assign]
+
+    yield
+
+    # After the test, ensure the in-memory patch is active on the (possibly
+    # reloaded) class.
+    _cls = _mod.TinyDbDataLayer  # Re-fetch in case importlib.reload() ran.
     if getattr(_cls.__init__, "__name__", None) == "_in_memory_init":
         return  # Patch is still in place; nothing to do.
 
-    _orig = _cls.__init__
+    _orig = getattr(_cls, "_test_original_init", _cls.__init__)
 
     def _in_memory_init(
         self: _mod.TinyDbDataLayer,
@@ -46,6 +63,7 @@ def reapply_in_memory_patch_after_reload():
     ) -> None:
         _orig(self, db_path=None, actor_id=actor_id)
 
+    _cls._test_original_init = _orig  # type: ignore[attr-defined]
     _cls.__init__ = _in_memory_init  # type: ignore[method-assign]
 
 

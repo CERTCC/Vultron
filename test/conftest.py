@@ -48,6 +48,8 @@ def pytest_configure(config: pytest.Config) -> None:
     object at construction time, so the patch applies universally.
     """
     _original_init = TinyDbDataLayer.__init__
+    # Store for retrieval by integration tests that need real file-backed storage.
+    TinyDbDataLayer._test_original_init = _original_init  # type: ignore[attr-defined]
 
     def _in_memory_init(
         self: TinyDbDataLayer,
