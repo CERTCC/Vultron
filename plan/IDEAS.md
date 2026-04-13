@@ -99,7 +99,7 @@ type field.
 
 ## IDEA-26040902 Try a different datalayer altogether
 
-Using **SQLModel backed by SQLite is a materially stronger choice than TinyDB
+Using SQLModel backed by SQLite is a materially stronger choice than TinyDB
 for persisting Pydantic models because it eliminates the artificial boundary
 between validation and storage. SQLModel composes Pydantic with SQLAlchemy, so
 your domain models are simultaneously type-checked objects and durable database
