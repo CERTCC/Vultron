@@ -90,14 +90,21 @@ there's only one Case Actor per case operated by the case creator/owner.
 local copy of the case object and are not directly writing to their own copy
 either but routing their updates through the Case Actor too).
 
-## IDEA-26040901 TinyDB data layout might not make sense
+## IDEA-26040901 TinyDB data layout might not make sense ~~SUPERSEDED~~
+
+> **Superseded by IDEA-26040902 / Priority 325.** The single-table polymorphic
+> SQLModel storage model (`VultronObjectRecord`) resolves the per-type table
+> question automatically — there is only one table. No standalone task needed.
 
 Early on a decision was made to use a TinyDB table per activity type. This
 may not be the best way to structure the data. We should consider whether to
 consolidate into a single Activity table and just filter searches by the
 type field.
 
-## IDEA-26040902 Try a different datalayer altogether
+## IDEA-26040902 Try a different datalayer altogether ✅ PLANNED
+
+> **Addressed by**: Priority 325 tasks DL-SQLITE-ADR through DL-SQLITE-5 in
+> `plan/IMPLEMENTATION_PLAN.md`. Must complete before D5-7-HUMAN (Priority 330).
 
 Using SQLModel backed by SQLite is a materially stronger choice than TinyDB
 for persisting Pydantic models because it eliminates the artificial boundary

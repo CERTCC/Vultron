@@ -29,10 +29,22 @@ boundaries, or investigating an import-layering violation.
 **`domain-model-separation.md`**
 Analysis of the current coupling between wire format (ActivityStreams), domain
 logic, and persistence in `VulnerabilityCase`. Documents the recommended
-three-layer separation and migration path, DataLayer isolation options, and
-`FooActivity` vs `FooEvent` naming. Includes post-P75-2 architectural findings.
+three-layer separation and migration path, DataLayer isolation options (now
+superseded by Priority 325), and `FooActivity` vs `FooEvent` naming. Includes
+post-P75-2 architectural findings.
 **Load when**: refactoring `VulnerabilityCase` or related models, evaluating
 DataLayer backends, or planning domain/wire layer decoupling.
+
+**`datalayer-sqlite-design.md`**
+Design notes for the SQLModel/SQLite DataLayer adapter (Priority 325):
+storage schema (`VultronObjectRecord` single-table polymorphic design),
+actor scoping via `actor_id` column, object serialization/deserialization
+(vocabulary registry dependency), test isolation via `sqlite:///:memory:`,
+connection URL patterns, and migration notes (env var rename, TECHDEBT-32c,
+`db_record.py` reuse). Supersedes the TinyDB-specific isolation analysis in
+`domain-model-separation.md`.
+**Load when**: implementing or modifying `datalayer_sqlite.py`, debugging
+DataLayer persistence, or evaluating a future backend swap.
 
 **`use-case-behavior-trees.md`**
 Conceptual layering from Driver → Dispatcher → Use Case → BT → Domain Model.

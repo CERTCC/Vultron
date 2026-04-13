@@ -287,7 +287,11 @@ Before implementing the outbound path (domain event → AS2 activity), consider:
 
 ---
 
-## DataLayer as a Port, TinyDB as a Driven Adapter
+## DataLayer as a Port, TinyDB as a Driven Adapter ~~HISTORICAL~~
+
+> **Status**: TinyDB is being replaced by SQLModel/SQLite in Priority 325.
+> The port/adapter split described here is complete and correct; only the
+> concrete adapter is changing. See `notes/datalayer-sqlite-design.md`.
 
 Independently of per-actor isolation, the `DataLayer` interface is treated as
 a **port** in the hexagonal architecture sense, and the `TinyDbDataLayer`
@@ -317,7 +321,15 @@ MongoDB switch. See the per-actor isolation options below.
 
 ---
 
-## Per-Actor DataLayer Isolation Options
+## Per-Actor DataLayer Isolation Options ~~SUPERSEDED~~
+
+> **Superseded by Priority 325 (DL-SQLITE-*).**
+> The analysis below was written when TinyDB was still the backend and
+> the actor-isolation question was open. Priority 325 resolves both: the
+> SQLModel/SQLite adapter uses a single file with an `actor_id` column index
+> (analogous to "Option B" below) and the MongoDB recommendation has been
+> set aside in favour of SQLite for prototype-phase work.
+> See `notes/datalayer-sqlite-design.md` for the current design.
 
 All actors currently share a singleton `TinyDbDataLayer` backed by a single
 `plan/mydb.json` file. This violates `specs/case-management.md` CM-01-001
@@ -334,7 +346,7 @@ endpoint used by demo scripts.
 
 **Option B — Namespace prefix per actor (one file)**
 One TinyDB file with a separate table per `actor_id`. Keeps a single file;
-partitions data cleanly by actor. **This is the recommended option.**
+partitions data cleanly by actor. **This was the recommended TinyDB option.**
 
 **Rationale for Option B**: In a production database (e.g., MongoDB), you
 would naturally use a separate collection or namespace per actor. Option B
@@ -349,7 +361,16 @@ resistance to production readiness.
 A dict-backed DataLayer scoped per actor. Good for tests; insufficient for
 production or Docker demos where state must survive restarts.
 
-### Production Path: MongoDB Community Edition
+### Production Path ~~SUPERSEDED~~
+
+> **Superseded by Priority 325.**
+> The MongoDB recommendation below pre-dates the BUG-2026041001 root-cause
+> analysis. After measuring that TinyDB's O(n) I/O cost was the dominant test
+> bottleneck, the decision was made to replace TinyDB with a SQLModel/SQLite
+> adapter (single-table polymorphic) rather than jump to MongoDB. SQLite
+> satisfies the prototype-phase requirements with no additional infrastructure.
+> MongoDB remains a viable future upgrade path if sharding or horizontal scale
+> becomes a requirement.
 
 When implementing PRIORITY 100 (actor independence), the recommended
 production-grade approach is to **replace TinyDB with MongoDB Community
@@ -365,23 +386,6 @@ actor independence work, for two reasons:
    and Docker Compose dependency patterns make multi-actor demos
    straightforward to configure. This is significantly easier than
    continuing to extend TinyDB for multi-actor scenarios.
-
-**Recommended approach**: Implement Option B (TinyDB namespace prefix)
-as a near-term bridge to make PRIORITY 30 (triggerable behaviors) and
-PRIORITY 100 (actor independence) work without requiring a full database
-swap. Then replace TinyDB with MongoDB as a concurrent or follow-on step
-when building the multi-actor Docker demos in PRIORITY 300.
-
-**Design Decision**: (blocks ACT-1) The MongoDB switch and the
-per-actor namespace isolation SHOULD be implemented together in the same
-phase as PRIORITY 100. The DataLayer interface (`vultron/api/v2/datalayer/
-abc.py`) is already an abstraction layer; the MongoDB backend can be
-implemented as a new concrete implementation behind the same interface.
-
-**See**: `plan/IMPLEMENTATION_PLAN.md` Phase PRIORITY-100 (ACT-1/ACT-2/ACT-3),
-`notes/demo-future-ideas.md` (multi-actor demo scenarios requiring MongoDB
-or equivalent for PRIORITY 300),
-`notes/triggerable-behaviors.md` "Relationship to Actor Independence".
 
 **Implementation note**: Whichever backing store is chosen, the `BackgroundTasks`
 inbox handler MUST resolve the correct per-actor DataLayer instance from the

@@ -44,6 +44,11 @@ D5-7-CASEREPL-1 and D5-7-ADDOBJ-1 superseded by SYNC-2 (see Priority 330).
 **D5-7-BTFIX-1** and **D5-7-BTFIX-2** (BT cascade violations) are new
 Priority 320 items blocking D5-7-HUMAN; see IDEA-26041004.
 
+**PRIORITY-325** TinyDB → SQLModel/SQLite datalayer migration — DL-SQLITE-ADR,
+DL-SQLITE-1, DL-SQLITE-2, DL-SQLITE-3, DL-SQLITE-4, DL-SQLITE-5 (all pending).
+Addresses IDEA-26040902; supersedes IDEA-26040901.
+Must complete before D5-7-HUMAN.
+
 **PRIORITY-330** SYNC + demo sign-off — OUTBOX-MON-1 ✅, SYNC-1 ✅, SYNC-2 ✅,
 SYNC-3 ✅; SYNC-TRIG-1 ✅ (new `sync-log-entry` trigger endpoint);
 D5-7-DEMOREPLCHECK-1 ✅ (finder replica verification in two-actor demo).
@@ -670,6 +675,129 @@ references.
 
 ---
 
+### Phase PRIORITY-325 — TinyDB → SQLModel/SQLite Datalayer Migration (PRIORITY 325)
+
+**Reference**: `plan/PRIORITIES.md` PRIORITY 325; IDEA-26040902 (primary);
+IDEA-26040901 (superseded by this work).
+
+**Motivation**: TinyDB rewrites the entire JSON file on every read/write
+operation. As test coverage grew, this caused the suite to balloon from ~13 s
+to 15+ minutes, requiring a `pytest_configure` monkey-patch to force
+`MemoryStorage` globally — accidental complexity paid entirely to work around
+a TinyDB limitation. The `DataLayer` port makes a backend swap tractable.
+
+**Approach**: Single-table polymorphic SQLModel storage model in the adapter
+layer. Domain models (Pydantic) are unchanged. SQLModel is imported only in
+the adapter. Test isolation via `sqlite:///:memory:` eliminates all patching.
+
+**Sequential dependency chain**: DL-SQLITE-ADR → DL-SQLITE-1 → DL-SQLITE-2
+→ DL-SQLITE-3 → DL-SQLITE-4; DL-SQLITE-5 may run in parallel with 2–4.
+All tasks must complete before D5-7-HUMAN (Priority 330).
+
+> **IDEA-26040901 disposition**: The per-type table consolidation question
+> (consolidate TinyDB tables into one) is **superseded** by this migration.
+> The single-table polymorphic SQLModel adapter resolves it automatically.
+
+#### DL-SQLITE-ADR — Write ADR for TinyDB → SQLModel/SQLite migration
+
+- [ ] **DL-SQLITE-ADR**: Write `docs/adr/0015-sqlmodel-sqlite-datalayer.md`
+  (or next available ADR number). Cover:
+  - Motivation: O(n) I/O cost, test monkey-patch complexity (BUG-2026041001
+    evidence), and why these are structural rather than fixable.
+  - Decision: Single-table polymorphic SQLModel adapter in the adapter layer.
+  - `VultronObjectRecord(id_, type_, actor_id, data: JSON)` schema.
+  - Test isolation strategy: `sqlite:///:memory:` replaces TinyDB MemoryStorage
+    monkey-patch.
+  - Hex-arch compliance: SQLModel isolated to adapter layer; core unchanged.
+  - Consequences: TinyDB removed; `VULTRON_DB_PATH` renamed `VULTRON_DB_URL`.
+
+  **Addresses**: IDEA-26040902. **Supersedes**: IDEA-26040901 (table layout).
+
+#### DL-SQLITE-1 — Implement `datalayer_sqlite.py`
+
+- [ ] **DL-SQLITE-1**: Create `vultron/adapters/driven/datalayer_sqlite.py`.
+  - Define `VultronObjectRecord(SQLModel, table=True)` with columns:
+    - `id_: str` — primary key
+    - `type_: str` — indexed (replaces per-type table routing)
+    - `actor_id: str | None` — indexed (actor-scoped queries)
+    - `data: dict` — `Field(sa_column=Column(JSON))` — full Pydantic
+      `model_dump(by_alias=True)` serialization
+  - Define `InboxEntry(SQLModel, table=True)` and
+    `OutboxEntry(SQLModel, table=True)` for queue operations (actor-scoped).
+  - Implement `SqliteDataLayer(DataLayer)` class:
+    - Constructor accepts a SQLAlchemy connection URL string.
+    - Manages a SQLModel `Session` and creates tables on init.
+    - Implements all `DataLayer` Protocol methods: `create`, `read`, `get`,
+      `update`, `save`, `delete`, `all`, `by_type`, `get_all`, `count_all`,
+      `clear_table`, `clear_all`, `ping`, `inbox_*`, `outbox_*`,
+      `record_outbox_item`, `find_actor_by_short_id`, `find_case_by_report_id`.
+    - Actor scoping: filter by `actor_id` column (mirrors TinyDB table-prefix
+      logic).
+    - Supports `sqlite:///path.sqlite` and `sqlite:///:memory:`.
+  - Add unit tests in `test/adapters/driven/test_datalayer_sqlite.py` covering
+    CRUD, actor scoping, inbox/outbox, and ping.
+
+  **Depends on**: DL-SQLITE-ADR.
+
+#### DL-SQLITE-2 — Update `get_datalayer()` factory and env var
+
+- [ ] **DL-SQLITE-2**: Wire the new adapter into the factory.
+  - Move or rewrite `get_datalayer()` in `datalayer_sqlite.py` (or a new
+    `vultron/adapters/driven/factory.py`).
+  - Rename env var: `VULTRON_DB_PATH` → `VULTRON_DB_URL`.
+  - New default: `sqlite:///mydb.sqlite` (relative to CWD).
+  - Update all references to `VULTRON_DB_PATH` in source, docs, and tests.
+  - **Absorbs TECHDEBT-32c** (Priority 350): remove the
+    `from vultron.adapters.driven.datalayer_tinydb import get_datalayer`
+    fallback in `vultron/wire/as2/rehydration.py`; make `dl` a required
+    parameter or inject via a core-level port. Mark TECHDEBT-32c ✅.
+
+  **Depends on**: DL-SQLITE-1.
+
+#### DL-SQLITE-3 — Update test infrastructure
+
+- [ ] **DL-SQLITE-3**: Remove TinyDB test patches; configure SQLite in-memory
+  for tests.
+  - Delete the `pytest_configure` hook in `conftest.py` that monkey-patches
+    `TinyDbDataLayer.__init__` to use `MemoryStorage`.
+  - Delete the layered `force_tinydb_memory` autouse fixture (and the
+    integration-test opt-out fixture that restores the original init).
+  - Configure `VULTRON_DB_URL=sqlite:///:memory:` in the top-level
+    `conftest.py` session fixture (or via `pyproject.toml`
+    `[tool.pytest.ini_options] env`).
+  - If per-test DB isolation is needed (e.g., for integration tests), add a
+    fixture that creates a fresh in-memory engine and drops/recreates tables
+    after each test.
+  - Verify the full test suite passes with no TinyDB references.
+
+  **Depends on**: DL-SQLITE-2.
+
+#### DL-SQLITE-4 — Remove TinyDB adapter and dependency
+
+- [ ] **DL-SQLITE-4**: Erase TinyDB from the codebase.
+  - Delete `vultron/adapters/driven/datalayer_tinydb.py`.
+  - Run `uv remove tinydb` (updates `pyproject.toml` and `uv.lock`).
+  - Search for any remaining `TinyDbDataLayer`, `datalayer_tinydb`, or
+    `tinydb` references across source and tests; remove all of them.
+  - Run `uv run black vultron/ test/ && uv run flake8 vultron/ test/ &&
+    uv run mypy && uv run pyright` and the full test suite to confirm clean.
+
+  **Depends on**: DL-SQLITE-3.
+
+#### DL-SQLITE-5 — Update Docker configs and env files
+
+- [ ] **DL-SQLITE-5**: Update deployment configuration for the new env var.
+  - Replace `VULTRON_DB_PATH` with `VULTRON_DB_URL` in all `docker/`
+    env files and `docker-compose*.yml`.
+  - Default value inside containers:
+    `sqlite:////app/data/mydb.sqlite` (absolute path; volume-mounted at
+    `/app/data/`).
+  - Update `docker/README.md` if it documents the database path env var.
+
+  **May run in parallel with**: DL-SQLITE-2 through DL-SQLITE-4.
+
+---
+
 ### Phase PRIORITY-350 — Maintenance and Tooling (PRIORITY 350)
 
 **Reference**: `plan/PRIORITIES.md` PRIORITY 350
@@ -681,7 +809,10 @@ references.
   `pyproject.toml` to `>=3.14`, and update docker base images to use Python
   3.14.
 
-#### TECHDEBT-32c — Remove adapter import from `wire/as2/rehydration.py`
+#### TECHDEBT-32c — Remove adapter import from `wire/as2/rehydration.py` ~~ABSORBED~~
+
+> **Absorbed by DL-SQLITE-2 (Priority 325).** The TinyDB fallback import will
+> be removed as part of the datalayer migration. No standalone action needed here.
 
 - [ ] **TECHDEBT-32c**: `vultron/wire/as2/rehydration.py` imports
   `from vultron.adapters.driven.datalayer_tinydb import get_datalayer` as a
