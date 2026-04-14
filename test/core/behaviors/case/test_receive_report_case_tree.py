@@ -27,7 +27,7 @@ BT-06.
 import pytest
 from py_trees.common import Status
 
-from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.receive_report_case_tree import (
     create_receive_report_case_tree,
@@ -49,7 +49,7 @@ from vultron.core.use_cases._helpers import _report_phase_status_id
 @pytest.fixture
 def datalayer():
     """In-memory TinyDB data layer for testing."""
-    return TinyDbDataLayer(db_path=None)
+    return SqliteDataLayer("sqlite:///:memory:")
 
 
 @pytest.fixture

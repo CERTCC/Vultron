@@ -7,46 +7,54 @@
 #  Created, in part, with funding and support from the United States Government
 #  (see Acknowledgments file). This program may include and/or can make use of
 #  certain third party source code, object code, documentation and other files
-#  (“Third Party Software”). See LICENSE.md for more details.
+#  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Tests for the SQLite/SQLModel-backed DataLayer adapter.
+
+Unit tests use an in-memory SQLite database (no file I/O required).
+Integration tests (marked ``@pytest.mark.integration``) use a real
+file-backed database via ``tmp_path``.
+"""
 
 import os
 
 import pytest
-from tinydb.queries import QueryInstance
-from tinydb.table import Table
 
 from vultron.adapters.driven.db_record import Record
-from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-
+# ---------------------------------------------------------------------------
 # Fixtures
-@pytest.fixture
-def tmp_db_file(tmp_path):
-    db_path = tmp_path / "test_tinydb.json"
-    # don't need to create the file; TinyDB will create it when opened
-    return db_path
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
-def dl(tmp_db_file):
-    # setup
-    dl = TinyDbDataLayer(db_path=str(tmp_db_file))
-    yield dl
-    # teardown
-    dl.clear_all()
-    try:
-        dl._db.close()
-    except Exception:
-        pass
-    # remove db file if present
-    if tmp_db_file.exists():
-        tmp_db_file.unlink()
-    assert not tmp_db_file.exists()
+def dl():
+    """In-memory SqliteDataLayer for unit tests."""
+    instance = SqliteDataLayer("sqlite:///:memory:")
+    yield instance
+    instance.clear_all()
+    instance.close()
 
 
-# New: record factory to DRY Record creation across tests
+@pytest.fixture
+def tmp_db_url(tmp_path):
+    """SQLite URL pointing to a temporary file (for integration tests)."""
+    db_path = tmp_path / "test_sqlite.db"
+    return f"sqlite:///{db_path}"
+
+
+@pytest.fixture
+def file_dl(tmp_db_url):
+    """File-backed SqliteDataLayer for integration tests."""
+    instance = SqliteDataLayer(tmp_db_url)
+    yield instance
+    instance.clear_all()
+    instance.close()
+
+
 @pytest.fixture
 def record_factory():
     def _make(id_="12345", type_="test_table", data_=None):
@@ -56,7 +64,6 @@ def record_factory():
     return _make
 
 
-# New fixture: create and persist a default record in the datastore
 @pytest.fixture
 def created_record(dl, record_factory):
     rec = record_factory()
@@ -64,62 +71,34 @@ def created_record(dl, record_factory):
     return rec
 
 
-# Tests (renamed to be more descriptive)
+# ---------------------------------------------------------------------------
+# Initialisation
+# ---------------------------------------------------------------------------
+
+
 @pytest.mark.integration
-def test_database_initialization_creates_db_file_and_no_tables(dl):
-    assert isinstance(dl, TinyDbDataLayer)
-    assert hasattr(dl, "_db_path")
-
-    # ensure db file is created on initialization
-    assert dl._db_path is not None
-    assert os.path.exists(dl._db_path)
-    # ensure tables are empty
-    assert len(dl._db.tables()) == 0
+def test_database_initialization_creates_db_file(tmp_db_url):
+    """Creating a file-backed SqliteDataLayer creates the SQLite file."""
+    instance = SqliteDataLayer(tmp_db_url)
+    # Extract path from "sqlite:///path/to/file.db"
+    db_path = tmp_db_url.replace("sqlite:///", "")
+    assert os.path.exists(db_path)
+    instance.close()
 
 
-def test_table_lookup_returns_table_with_name(dl):
-    table_name = "test_table"
-    table = dl._table(table_name)
-    assert table is not None
-    assert isinstance(table, Table)
-    assert table.name == table_name
+def test_database_initialization_in_memory():
+    """In-memory DataLayer can be created and is operational."""
+    instance = SqliteDataLayer("sqlite:///:memory:")
+    assert instance.ping()
+    instance.close()
 
 
-def test_id_query_returns_query_instance(dl):
-    test_id = "12345"
-    query = dl._id_query(test_id)
-    assert query is not None
-    assert isinstance(query, QueryInstance)
+# ---------------------------------------------------------------------------
+# create / read / get
+# ---------------------------------------------------------------------------
 
 
-def test_create_inserts_record_and_creates_table(dl, record_factory):
-    record = record_factory()
-    # table is not in db yet
-    assert record.type_ not in dl._db.tables()
-
-    # record is not in db yet
-    table = dl._table(record.type_)
-    assert not table.contains(dl._id_query(record.id_))
-    # create record
-    dl.create(record)
-
-    # table should now exist
-    assert record.type_ in dl._db.tables()
-    # record should now exist
-    got_record = table.get(dl._id_query(record.id_))
-    assert got_record is not None
-    assert got_record["id_"] == record.id_
-    assert got_record["type_"] == record.type_
-    assert got_record["data_"] == record.data_
-
-
-# GET tests split and renamed
-def test_get_returns_none_for_nonexistent_table(dl):
-    assert "nonexistent_table" not in dl._db.tables()
-    assert dl.get("nonexistent_table", "no_id") is None
-
-
-def test_get_returns_record_for_existing_id(dl, record_factory):
+def test_create_inserts_record(dl, record_factory):
     record = record_factory()
     dl.create(record)
     got = dl.get(record.type_, record.id_)
@@ -129,13 +108,54 @@ def test_get_returns_record_for_existing_id(dl, record_factory):
     assert got["data_"] == record.data_
 
 
-def test_get_returns_none_for_missing_id_in_existing_table(dl, record_factory):
+def test_create_raises_on_duplicate_id(dl, record_factory):
+    record = record_factory()
+    dl.create(record)
+    with pytest.raises(ValueError):
+        dl.create(record)
+
+
+def test_get_returns_none_for_nonexistent_type(dl):
+    assert dl.get("nonexistent_table", "no_id") is None
+
+
+def test_get_returns_none_for_missing_id(dl, record_factory):
     record = record_factory()
     dl.create(record)
     assert dl.get(record.type_, "no_such_id") is None
 
 
-# UPDATE tests renamed
+def test_read_returns_object(dl, record_factory):
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    note = as_Note(content="Test Content")
+    dl.save(note)
+    result = dl.read(note.id_)
+    assert result is not None
+    assert result.id_ == note.id_  # type: ignore[union-attr]
+
+
+def test_read_returns_none_for_missing_id(dl):
+    assert dl.read("urn:uuid:does-not-exist") is None
+
+
+def test_read_supports_bare_uuid(dl):
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    note = as_Note(content="Bare UUID test")
+    dl.save(note)
+    # Strip the urn:uuid: prefix
+    bare = note.id_.replace("urn:uuid:", "")
+    result = dl.read(bare)
+    assert result is not None
+    assert result.id_ == note.id_  # type: ignore[union-attr]
+
+
+# ---------------------------------------------------------------------------
+# update / save / delete
+# ---------------------------------------------------------------------------
+
+
 def test_update_updates_existing_record_data(dl, created_record):
     rec = created_record
     new_data = rec.data_.copy()
@@ -151,90 +171,130 @@ def test_update_updates_existing_record_data(dl, created_record):
 
 def test_update_returns_false_for_non_existing_id(dl, record_factory):
     non_existing = record_factory(id_="no_such_id")
-    updated2 = dl.update(id_=non_existing.id_, record=non_existing)
-    assert not updated2
+    updated = dl.update(id_=non_existing.id_, record=non_existing)
+    assert not updated
+
+
+def test_save_inserts_new_object(dl):
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    note = as_Note(content="Save test")
+    dl.save(note)
+    result = dl.read(note.id_)
+    assert result is not None
+
+
+def test_save_overwrites_existing_object(dl):
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    note = as_Note(content="Original content")
+    dl.save(note)
+    # Change the content and save again
+    note2 = as_Note(id_=note.id_, content="Updated content")
+    dl.save(note2)
+    result = dl.read(note.id_)
+    assert result is not None
+    assert result.content == "Updated content"  # type: ignore[union-attr]
 
 
 def test_delete_removes_record_and_returns_true(dl, record_factory):
     record = record_factory()
     dl.create(record)
-    # confirm record exists
-    got = dl.get(record.type_, record.id_)
-    assert got is not None
-
     deleted = dl.delete(record.type_, record.id_)
     assert deleted
-    got_after_delete = dl.get(record.type_, record.id_)
-    assert got_after_delete is None
+    assert dl.get(record.type_, record.id_) is None
+
+
+def test_delete_returns_false_for_nonexistent_record(dl, record_factory):
+    record = record_factory()
+    assert not dl.delete(record.type_, record.id_)
+
+
+# ---------------------------------------------------------------------------
+# all / get_all / by_type / count_all
+# ---------------------------------------------------------------------------
 
 
 def test_all_returns_all_records_for_table(dl, record_factory):
-    # create two records
     record1 = record_factory(id_="id1", data_={"field": "value1"})
     record2 = record_factory(id_="id2", data_={"field": "value2"})
     dl.create(record1)
     dl.create(record2)
 
-    # all() should return both
     all_records = dl.all("test_table")
     assert len(all_records) == 2
-    ids = {rec.id_ for rec in all_records}
+    ids = {rec.id_ for rec in all_records}  # type: ignore[union-attr]
     assert "id1" in ids
     assert "id2" in ids
-
-    # confirm that each is a valid record
     for rec in all_records:
         assert isinstance(rec, Record)
+
+
+def test_all_without_table_returns_dict_of_objects(dl):
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    note = as_Note(content="All test")
+    dl.save(note)
+    result = dl.all()
+    assert isinstance(result, dict)
+    assert note.id_ in result
+
+
+def test_get_all_returns_list_of_dicts(dl, record_factory):
+    rec = record_factory()
+    dl.create(rec)
+    result = dl.get_all("test_table")
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert result[0]["id_"] == rec.id_
+
+
+def test_by_type_returns_dict(dl, record_factory):
+    rec = record_factory()
+    dl.create(rec)
+    result = dl.by_type("test_table")
+    assert isinstance(result, dict)
+    assert rec.id_ in result
+
+
+def test_count_all_returns_dict_with_counts(dl, record_factory):
+    rec = record_factory()
+    dl.create(rec)
+    counts = dl.count_all()
+    assert isinstance(counts, dict)
+    assert "_default" in counts
+    assert counts["test_table"] == 1
+
+
+# ---------------------------------------------------------------------------
+# clear_table / clear_all
+# ---------------------------------------------------------------------------
 
 
 def test_clear_table_removes_all_records(dl, record_factory):
     record = record_factory()
     dl.create(record)
-    # confirm record exists
-    got = dl.get(record.type_, record.id_)
-    assert got is not None
-    # clear the table
     dl.clear_table(record.type_)
-    # confirm record is gone
-    got_after_clear = dl.get(record.type_, record.id_)
-    assert got_after_clear is None
-    # confirm table is empty
-    all_records = dl.all(record.type_)
-    assert len(all_records) == 0
+    assert dl.get(record.type_, record.id_) is None
+    assert len(dl.all(record.type_)) == 0
 
 
-def test_clear_all_removes_all_tables_and_records(dl, record_factory):
-    # create records in two tables
-    record1 = record_factory(
-        id_="id1", type_="table1", data_={"field": "value1"}
-    )
-    record2 = record_factory(
-        id_="id2", type_="table2", data_={"field": "value2"}
-    )
+def test_clear_all_removes_all_records(dl, record_factory):
+    record1 = record_factory(id_="id1", type_="table1")
+    record2 = record_factory(id_="id2", type_="table2")
     dl.create(record1)
     dl.create(record2)
-    # confirm records exist
-    got1 = dl.get(record1.type_, record1.id_)
-    got2 = dl.get(record2.type_, record2.id_)
-    assert got1 is not None
-    assert got2 is not None
-    # confirm both tables exist
-    assert record1.type_ in dl._db.tables()
-    assert record2.type_ in dl._db.tables()
-
-    # clear all
     dl.clear_all()
-    # confirm both records are gone
-    got1_after = dl.get(record1.type_, record1.id_)
-    got2_after = dl.get(record2.type_, record2.id_)
-    assert got1_after is None
-    assert got2_after is None
-    # confirm no tables exist
-    assert len(dl._db.tables()) == 0
+    assert dl.get(record1.type_, record1.id_) is None
+    assert dl.get(record2.type_, record2.id_) is None
 
 
-# EXISTS tests renamed
-def test_exists_returns_false_for_nonexistent_table(dl):
+# ---------------------------------------------------------------------------
+# exists / ping
+# ---------------------------------------------------------------------------
+
+
+def test_exists_returns_false_for_nonexistent_type(dl):
     assert not dl.exists("nonexistent_table", "no_id")
 
 
@@ -257,7 +317,58 @@ def test_exists_returns_false_after_delete(dl, record_factory):
     assert not dl.exists(record.type_, record.id_)
 
 
-# --- Nested-object dehydration integration tests ---
+def test_ping_returns_true(dl):
+    assert dl.ping() is True
+
+
+# ---------------------------------------------------------------------------
+# Inbox / outbox queue methods
+# ---------------------------------------------------------------------------
+
+
+def test_inbox_starts_empty(dl):
+    assert dl.inbox_list() == []
+
+
+def test_inbox_append_and_list(dl):
+    dl.inbox_append("https://example.org/activities/001")
+    assert "https://example.org/activities/001" in dl.inbox_list()
+
+
+def test_inbox_pop_fifo_order(dl):
+    dl.inbox_append("https://example.org/activities/001")
+    dl.inbox_append("https://example.org/activities/002")
+    assert dl.inbox_pop() == "https://example.org/activities/001"
+    assert len(dl.inbox_list()) == 1
+
+
+def test_inbox_pop_empty_returns_none(dl):
+    assert dl.inbox_pop() is None
+
+
+def test_outbox_starts_empty(dl):
+    assert dl.outbox_list() == []
+
+
+def test_outbox_append_and_list(dl):
+    dl.outbox_append("https://example.org/activities/sent-001")
+    assert "https://example.org/activities/sent-001" in dl.outbox_list()
+
+
+def test_outbox_pop_fifo_order(dl):
+    dl.outbox_append("https://example.org/activities/sent-001")
+    dl.outbox_append("https://example.org/activities/sent-002")
+    assert dl.outbox_pop() == "https://example.org/activities/sent-001"
+    assert len(dl.outbox_list()) == 1
+
+
+def test_outbox_pop_empty_returns_none(dl):
+    assert dl.outbox_pop() is None
+
+
+# ---------------------------------------------------------------------------
+# Nested-object dehydration integration tests
+# ---------------------------------------------------------------------------
 
 
 def test_activity_with_nested_object_stores_id_reference_not_inline_copy(dl):
@@ -277,17 +388,12 @@ def test_activity_with_nested_object_stores_id_reference_not_inline_copy(dl):
         object_=report,
     )
 
-    # Store both objects (as use-cases do: nested object first)
     dl.create(report)
     dl.create(offer)
 
-    # Read the raw stored record for the offer
     raw = dl.get(offer.type_, offer.id_)
     assert raw is not None
-    # raw is a dict because get() can't fully reconstruct transitive type
     stored_object_field = raw["data_"]["object_"]
-
-    # Must be a string ID, not a full dict
     assert isinstance(
         stored_object_field, str
     ), f"Expected object_ to be stored as ID string, got {type(stored_object_field)}"
@@ -295,7 +401,6 @@ def test_activity_with_nested_object_stores_id_reference_not_inline_copy(dl):
 
 
 def test_activity_nested_object_retrievable_separately_after_dehydration(dl):
-    """The nested object is individually accessible from the datalayer."""
     from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
         VulnerabilityReport,
@@ -314,14 +419,12 @@ def test_activity_nested_object_retrievable_separately_after_dehydration(dl):
     dl.create(report)
     dl.create(offer)
 
-    # The nested report must be directly retrievable by its own ID
     retrieved_report = dl.read(report.id_)
     assert retrieved_report is not None
     assert retrieved_report.id_ == report.id_  # type: ignore[union-attr]
 
 
 def test_reading_activity_back_yields_id_string_for_nested_object(dl):
-    """dl.read() returns the activity with object_ as an ID string."""
     from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
         VulnerabilityReport,
@@ -340,15 +443,12 @@ def test_reading_activity_back_yields_id_string_for_nested_object(dl):
     dl.create(report)
     dl.create(offer)
 
-    # Read the offer back from the datalayer
     retrieved_offer = dl.read(offer.id_)
     assert retrieved_offer is not None
-    # object_ should be a string ID (not rehydrated inline)
     assert retrieved_offer.object_ == report.id_  # type: ignore[union-attr]
 
 
 def test_rehydration_restores_nested_object_from_datalayer(dl):
-    """rehydrate() restores the full nested object for a dehydrated activity."""
     from vultron.wire.as2.rehydration import rehydrate
     from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -368,11 +468,8 @@ def test_rehydration_restores_nested_object_from_datalayer(dl):
     dl.create(report)
     dl.create(offer)
 
-    # Read the dehydrated offer
     stored_offer = dl.read(offer.id_)
     assert stored_offer is not None
-
-    # Rehydrate: object_ should be resolved to the full VulnerabilityReport
     full_offer = rehydrate(stored_offer, dl=dl)
     assert full_offer.object_ is not None  # type: ignore[union-attr]
     assert full_offer.object_.id_ == report.id_  # type: ignore[union-attr]
@@ -380,7 +477,6 @@ def test_rehydration_restores_nested_object_from_datalayer(dl):
 
 
 def test_rehydration_does_not_mutate_stored_record(dl):
-    """Rehydrating an activity does not alter the stored record's nested ID."""
     from vultron.wire.as2.rehydration import rehydrate
     from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -400,12 +496,10 @@ def test_rehydration_does_not_mutate_stored_record(dl):
     dl.create(report)
     dl.create(offer)
 
-    # Rehydrate once
     stored_offer = dl.read(offer.id_)
     assert stored_offer is not None
     rehydrate(stored_offer, dl=dl)
 
-    # Read the offer back again; the stored record must still show an ID string
     raw = dl.get(offer.type_, offer.id_)
     assert raw is not None
     stored_object_field = raw["data_"]["object_"]
@@ -419,7 +513,6 @@ def test_rehydration_does_not_mutate_stored_record(dl):
 
 
 def test_find_case_by_report_id_returns_case_when_report_stored_as_string(dl):
-    """find_case_by_report_id returns the case when the report is stored as a string ID."""
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
         VulnerabilityCase,
     )
@@ -445,7 +538,6 @@ def test_find_case_by_report_id_returns_case_when_report_stored_as_string(dl):
 
 
 def test_find_case_by_report_id_returns_case_when_report_stored_as_object(dl):
-    """find_case_by_report_id returns the case when the report is stored inline."""
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
         VulnerabilityCase,
     )
@@ -471,7 +563,6 @@ def test_find_case_by_report_id_returns_case_when_report_stored_as_object(dl):
 
 
 def test_find_case_by_report_id_returns_none_when_not_found(dl):
-    """find_case_by_report_id returns None when no case references the given report ID."""
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
         VulnerabilityCase,
     )
@@ -494,13 +585,11 @@ def test_find_case_by_report_id_returns_none_when_not_found(dl):
 
 
 def test_find_case_by_report_id_returns_none_when_no_cases(dl):
-    """find_case_by_report_id returns None when no VulnerabilityCase table exists."""
     result = dl.find_case_by_report_id("urn:uuid:nonexistent-report")
     assert result is None
 
 
 def test_find_case_by_report_id_returns_none_for_unknown_id(dl):
-    """find_case_by_report_id returns None for an ID not linked to any case."""
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
         VulnerabilityCase,
     )
@@ -527,3 +616,20 @@ def test_find_case_by_report_id_returns_none_for_unknown_id(dl):
 
     result = dl.find_case_by_report_id(other_report.id_)
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# File-backed integration test
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+def test_file_backed_store_and_retrieve(file_dl):
+    """Data written to a file-backed DataLayer is readable from the same URL."""
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    note = as_Note(content="Integration test note")
+    file_dl.save(note)
+    result = file_dl.read(note.id_)
+    assert result is not None
+    assert result.id_ == note.id_  # type: ignore[union-attr]

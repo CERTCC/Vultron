@@ -32,11 +32,11 @@ import asyncio
 import logging
 from collections.abc import Callable
 
-from vultron.adapters.driven.datalayer_tinydb import (
-    TinyDbDataLayer,
+from vultron.adapters.driven.datalayer import (
     get_all_actor_datalayers,
     get_datalayer,
 )
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.emitter import ActivityEmitter
@@ -65,7 +65,7 @@ class OutboxMonitor:
         poll_interval: Seconds between drain passes (default 1.0).
         actor_datalayers_factory: Callable returning the current
             ``{actor_id: DataLayer}`` mapping.  Defaults to
-            :func:`~vultron.adapters.driven.datalayer_tinydb.get_all_actor_datalayers`.
+            :func:`~vultron.adapters.driven.datalayer_sqlite.get_all_actor_datalayers`.
         shared_dl: Shared/admin DataLayer used to resolve actor records and
             read activity objects.  Defaults to ``get_datalayer()`` (no
             actor scope).
@@ -78,7 +78,7 @@ class OutboxMonitor:
         self,
         poll_interval: float = 1.0,
         actor_datalayers_factory: (
-            Callable[[], dict[str, TinyDbDataLayer]] | None
+            Callable[[], dict[str, SqliteDataLayer]] | None
         ) = None,
         shared_dl: DataLayer | None = None,
         emitter: ActivityEmitter | None = None,

@@ -15,7 +15,7 @@
 
 """Outbound (driven) port — storage interface used by the core domain layer.
 
-Concrete implementations (e.g. ``TinyDbDataLayer``) live in the adapter
+Concrete implementations (e.g. ``SqliteDataLayer``) live in the adapter
 layer at ``vultron/adapters/driven/`` and import this Protocol to
 verify structural conformance.
 

@@ -22,8 +22,8 @@ Spec: specs/outbox.md OX-03-001; specs/case-management.md CM-06.
 
 import pytest
 
-from vultron.adapters.driven.datalayer_tinydb import (
-    TinyDbDataLayer,
+from vultron.adapters.driven.datalayer_sqlite import (
+    SqliteDataLayer,
     reset_datalayer,
 )
 from vultron.core.states.em import EM
@@ -72,11 +72,11 @@ FUTURE_END_DATETIME = datetime(2099, 12, 1, 0, 0, 0, tzinfo=timezone.utc)
 
 
 def _make_actor_dl(actor_name: str):
-    """Create an as_Service actor and a matching per-actor TinyDbDataLayer."""
+    """Create an as_Service actor and a matching per-actor SqliteDataLayer."""
     actor = as_Service(name=actor_name)
     actor_id = actor.id_
     reset_datalayer(actor_id)
-    dl = TinyDbDataLayer(db_path=None, actor_id=actor_id)
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
     dl.clear_all()
     dl.create(actor)
     return actor, dl

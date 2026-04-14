@@ -26,7 +26,7 @@ from pydantic import ValidationError
 
 import vultron.wire.as2.vocab.objects.embargo_policy as ep_module
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.enums import VultronObjectType as VO_type
 
 ACTOR_ID = "https://example.org/actors/vendor"
@@ -272,7 +272,7 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
 
     def test_datalayer_round_trip(self):
         """DUR-05-001, DUR-05-002: Round-trip through DataLayer preserves durations."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         dl.create(self.policy)
         stored = dl.read(self.policy.id_)
         self.assertIsNotNone(stored)

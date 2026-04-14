@@ -74,9 +74,9 @@ def case(report):
 
 @pytest.fixture
 def dl():
-    from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-    dl = TinyDbDataLayer(db_path=None)
+    dl = SqliteDataLayer("sqlite:///:memory:")
     yield dl
     dl.clear_all()
 

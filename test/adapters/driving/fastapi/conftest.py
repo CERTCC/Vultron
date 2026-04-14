@@ -23,7 +23,7 @@ from vultron.adapters.driving.fastapi.app import app_v2 as app
 
 @pytest.fixture
 def client(datalayer):
-    from vultron.adapters.driven.datalayer_tinydb import get_datalayer
+    from vultron.adapters.driven.datalayer import get_datalayer
 
     app.dependency_overrides = {}
     app.dependency_overrides[get_datalayer] = lambda: datalayer
@@ -34,15 +34,15 @@ def client(datalayer):
 
 @pytest.fixture
 def datalayer():
-    from vultron.adapters.driven.datalayer_tinydb import (
+    from vultron.adapters.driven.datalayer import (
         get_datalayer,
         reset_datalayer,
     )
 
     # Reset the singleton to avoid stale instances
     reset_datalayer()
-    # Use in-memory storage for tests (db_path=None)
-    datalayer = get_datalayer(db_path=None)
+    # Use in-memory storage for tests
+    datalayer = get_datalayer(db_url="sqlite:///:memory:")
     # Clear the datalayer before each test
     datalayer.clear_all()
     yield datalayer

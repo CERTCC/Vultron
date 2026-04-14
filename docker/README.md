@@ -95,7 +95,7 @@ multi-actor demo scenarios (D5-2 and later).
 | `PROJECT_NAME`        | `vultron`                 | Docker resource name prefix           |
 | `COMPOSE_PROJECT_NAME`| `vultron`                 | Docker Compose project name           |
 | `VULTRON_BASE_URL`    | *(set per service)*       | Container's own API base URL          |
-| `VULTRON_DB_PATH`     | `/app/data/mydb.json`     | Path to TinyDB file inside container  |
+| `VULTRON_DB_URL`      | `sqlite:////app/data/mydb.sqlite` | SQLAlchemy connection URL for the DataLayer |
 | `VULTRON_ACTOR_ID`    | *(set per service)*       | Deterministic full actor URI          |
 | `VULTRON_SEED_CONFIG` | *(set per service)*       | Seed config JSON for local + peers    |
 
@@ -204,7 +204,7 @@ scenarios that do not use the `demo-runner` workflow.
 ### Reset actor state between runs
 
 Named volumes (`finder-data`, `vendor-data`, `case-actor-data`) persist the
-TinyDB files across container restarts.  To wipe all state and start fresh:
+SQLite database files across container restarts.  To wipe all state and start fresh:
 
 ```bash
 docker compose -f docker-compose-multi-actor.yml down -v

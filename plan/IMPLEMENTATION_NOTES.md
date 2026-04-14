@@ -390,3 +390,251 @@ Search for residual `tinydb` strings: `grep -rn tinydb vultron/ test/ docs/`.
 (Four slashes: `sqlite:////app/...` = absolute path `/app/...`.)
 
 Also update the comment block near line 36 of `docker-compose-multi-actor.yml`.
+
+---
+
+### 2026-04-13 DL-SQLITE session handoff checklist
+
+This is the current active implementation plan for Priority 325. The ADR is
+already written, but no code has been changed yet in this session. The notes
+below capture the concrete execution order, the files that must change, and the
+small compatibility traps found during codebase review.
+
+#### Current status snapshot
+
+- `docs/adr/0016-sqlmodel-sqlite-datalayer.md` already exists. Treat
+  DL-SQLITE-ADR as complete once `IMPLEMENTATION_PLAN.md` is updated.
+- `vultron/adapters/driven/datalayer_sqlite.py` does not exist yet.
+- `vultron/wire/as2/rehydration.py` already appears to use explicit `dl`
+  injection; no TinyDB fallback import was found during spot-checking.
+- The remaining work is DL-SQLITE-1 through DL-SQLITE-5.
+
+#### Important implementation decision
+
+Use **separate** `InboxEntry` and `OutboxEntry` SQLModel tables, not the
+earlier single `QueueEntry` draft shown above. The ADR, design note, and
+`IMPLEMENTATION_PLAN.md` all describe separate inbox/outbox tables, so that
+should be treated as the authoritative direction.
+
+#### Recommended execution order
+
+1. Add the new dependency and implement the SQLite adapter.
+2. Add the stable datalayer facade module and switch production imports.
+3. Convert the test infrastructure and test imports/usages.
+4. Remove TinyDB and its dependency only after all callers are migrated.
+5. Update Docker env var references and docs.
+6. Update `IMPLEMENTATION_PLAN.md` and append to
+   `plan/IMPLEMENTATION_HISTORY.md`.
+7. Run formatters, linters, and the unit test suite once.
+
+#### Step 1: add dependency and create the adapter
+
+1. Run `uv add sqlmodel`.
+2. Create `vultron/adapters/driven/datalayer_sqlite.py`.
+3. Define:
+   - `VultronObjectRecord`
+   - `InboxEntry`
+   - `OutboxEntry`
+4. Add `_make_engine(db_url: str) -> Engine`:
+   - always set `connect_args={"check_same_thread": False}`
+   - for `sqlite:///:memory:` also set `poolclass=StaticPool`
+5. Implement `SqliteDataLayer` with constructor:
+   - `db_url: str = "sqlite:///:memory:"`
+   - `actor_id: str | None = None`
+   - `SQLModel.metadata.create_all(self._engine)` on init
+6. Reuse `Record` / `object_to_record` / `record_to_object` from
+   `vultron/adapters/driven/db_record.py`; do not duplicate vocabulary lookup.
+7. Match the current `DataLayer` Protocol exactly:
+   - `create`
+   - `read`
+   - `get`
+   - `get_all`
+   - `update`
+   - `save`
+   - `delete`
+   - `all`
+   - `count_all`
+   - `by_type`
+   - `clear_table`
+   - `clear_all`
+   - `ping`
+   - `exists`
+   - `inbox_append`, `inbox_list`, `inbox_pop`
+   - `outbox_append`, `outbox_list`, `outbox_pop`
+   - `record_outbox_item`
+   - `find_actor_by_short_id`
+   - `find_case_by_report_id`
+8. Preserve TinyDB compatibility behaviour where it matters:
+   - `read()` should retry bare UUIDs as `urn:uuid:<uuid>`
+   - actor-scoped instances must filter by `actor_id`
+   - shared/admin instance must see all actors
+   - `record_outbox_item(actor_id, ...)` must bypass the instance scope and
+     write directly to the target actor's outbox queue
+9. Implement module-level factory helpers in the same file:
+   - `_shared_instance`
+   - `_actor_instances`
+   - `get_datalayer(actor_id: str | None = None, db_url: str | None = None)`
+   - `get_all_actor_datalayers()`
+   - `reset_datalayer(actor_id: str | None = None)`
+10. Use `VULTRON_DB_URL`, defaulting to `sqlite:///mydb.sqlite`.
+
+#### Step 2: add stable facade and switch production imports
+
+1. Create `vultron/adapters/driven/datalayer.py`.
+2. Re-export:
+   - `SqliteDataLayer as DataLayerImpl`
+   - `get_datalayer`
+   - `reset_datalayer`
+   - `get_all_actor_datalayers`
+3. Update these production files to import from
+   `vultron.adapters.driven.datalayer`:
+   - `vultron/adapters/driving/cli.py`
+   - `vultron/adapters/driving/fastapi/app.py`
+   - `vultron/adapters/driving/fastapi/main.py`
+   - `vultron/adapters/driving/fastapi/outbox_monitor.py`
+   - `vultron/adapters/driving/fastapi/routers/actors.py`
+   - `vultron/adapters/driving/fastapi/routers/datalayer.py`
+   - `vultron/adapters/driving/fastapi/routers/health.py`
+   - `vultron/adapters/driving/fastapi/routers/info.py`
+   - `vultron/adapters/driving/fastapi/routers/trigger_case.py`
+   - `vultron/adapters/driving/fastapi/routers/trigger_embargo.py`
+   - `vultron/adapters/driving/fastapi/routers/trigger_report.py`
+   - `vultron/adapters/driving/fastapi/routers/trigger_sync.py`
+   - `vultron/adapters/driving/mcp_server.py`
+4. Update `vultron/adapters/driving/fastapi/outbox_monitor.py` typing from
+   `TinyDbDataLayer` to either `SqliteDataLayer` or the `DataLayer` Protocol.
+
+#### Step 3: convert the test infrastructure
+
+1. Replace top-level `test/conftest.py` TinyDB patching with:
+
+   ```python
+   import os
+   os.environ.setdefault("VULTRON_DB_URL", "sqlite:///:memory:")
+   ```
+
+2. Remove:
+   - `pytest_configure`
+   - the `TinyDbDataLayer.__init__` monkey-patch
+   - `cleanup_test_db_files`
+3. Update `test/demo/conftest.py` to import `reset_datalayer` from the new
+   facade module.
+4. Rewrite `test/adapters/driven/conftest.py`:
+   - remove the patch-management fixture entirely
+   - replace file-backed TinyDB fixtures with SQLite fixtures
+   - keep any integration fixture that intentionally uses a real file-backed
+     SQLite URL
+5. Rename `test/adapters/driven/test_tinydb_backend.py` to
+   `test_sqlite_backend.py`.
+6. Update the following test files that still reference TinyDB symbols or
+   `VULTRON_DB_PATH`:
+   - `test/adapters/driven/conftest.py`
+   - `test/adapters/driven/test_datalayer_isolation.py`
+   - `test/adapters/driven/test_delivery_inbox_url.py`
+   - `test/adapters/driven/test_get_datalayer.py`
+   - `test/adapters/driven/test_tinydb_backend.py`
+   - `test/adapters/driving/fastapi/conftest.py`
+   - `test/adapters/driving/fastapi/routers/conftest.py`
+   - `test/adapters/driving/fastapi/routers/test_datalayer_serialization.py`
+   - `test/adapters/driving/fastapi/routers/test_health.py`
+   - `test/adapters/driving/fastapi/routers/test_info.py`
+   - `test/adapters/driving/fastapi/routers/test_trigger_case.py`
+   - `test/adapters/driving/fastapi/routers/test_trigger_embargo.py`
+   - `test/adapters/driving/fastapi/routers/test_trigger_report.py`
+   - `test/adapters/driving/fastapi/routers/test_trigger_sync.py`
+   - `test/conftest.py`
+   - `test/core/behaviors/case/test_bug_26040902_regression.py`
+   - `test/core/behaviors/case/test_create_tree.py`
+   - `test/core/behaviors/case/test_receive_report_case_tree.py`
+   - `test/core/behaviors/report/test_nodes.py`
+   - `test/core/behaviors/report/test_prioritize_tree.py`
+   - `test/core/behaviors/report/test_validate_tree.py`
+   - `test/core/behaviors/test_bridge.py`
+   - `test/core/behaviors/test_helpers.py`
+   - `test/core/use_cases/query/test_action_rules.py`
+   - `test/core/use_cases/received/test_actor.py`
+   - `test/core/use_cases/received/test_case_participant.py`
+   - `test/core/use_cases/received/test_case.py`
+   - `test/core/use_cases/received/test_embargo.py`
+   - `test/core/use_cases/received/test_note.py`
+   - `test/core/use_cases/received/test_reject_sync.py`
+   - `test/core/use_cases/received/test_report.py`
+   - `test/core/use_cases/received/test_status.py`
+   - `test/core/use_cases/received/test_sync.py`
+   - `test/core/use_cases/test_reporting_workflow.py`
+   - `test/core/use_cases/triggers/test_note_trigger.py`
+   - `test/core/use_cases/triggers/test_trignotify.py`
+   - `test/demo/conftest.py`
+   - `test/test_datalayer_in_memory.py`
+   - `test/wire/as2/vocab/test_case_event.py`
+   - `test/wire/as2/vocab/test_embargo_policy.py`
+7. Replace `TinyDbDataLayer(db_path=None)` usages with
+   `SqliteDataLayer("sqlite:///:memory:")`.
+8. Replace file-backed TinyDB tests with file-backed SQLite URLs, for example
+   `sqlite:///.../test.sqlite`.
+
+#### Step 4: remove TinyDB
+
+1. Delete `vultron/adapters/driven/datalayer_tinydb.py`.
+2. Run `uv remove tinydb`.
+3. Search for residual strings:
+   - `datalayer_tinydb`
+   - `TinyDbDataLayer`
+   - `tinydb`
+   - `VULTRON_DB_PATH`
+
+#### Step 5: Docker and docs
+
+1. Update `docker/docker-compose-multi-actor.yml`.
+2. Replace every `VULTRON_DB_PATH` with:
+
+   ```text
+   VULTRON_DB_URL=sqlite:////app/data/mydb.sqlite
+   ```
+
+3. Update the nearby explanatory comments in that compose file.
+4. Update `docker/README.md` to document `VULTRON_DB_URL`.
+
+#### Step 6: plan bookkeeping
+
+1. Update `plan/IMPLEMENTATION_PLAN.md`:
+   - mark DL-SQLITE-ADR complete
+   - mark DL-SQLITE-1 through DL-SQLITE-5 complete when done
+   - fix any stale summary text that still implies Priority 320 is active
+2. Append a short completion note to `plan/IMPLEMENTATION_HISTORY.md`.
+
+#### Validation checklist after implementation
+
+1. Run:
+
+   ```bash
+   uv run black vultron/ test/ && uv run flake8 vultron/ test/
+   ```
+
+2. Run:
+
+   ```bash
+   uv run mypy && uv run pyright
+   ```
+
+3. Run the unit suite once:
+
+   ```bash
+   uv run pytest --tb=short 2>&1 | tail -5
+   ```
+
+#### Small code-reading notes from exploration
+
+- `test/demo/test_two_actor_demo.py` patches
+  `vultron.demo.two_actor_demo.reset_datalayer`; that patch target is part of
+  the demo module and does not need a path rename during this migration.
+- `test/adapters/driven/test_get_datalayer.py` is currently TinyDB-specific and
+  must be rewritten around `VULTRON_DB_URL`, singleton behaviour, and
+  file-backed SQLite URLs.
+- `vultron/adapters/driving/fastapi/routers/actors.py` and
+  `vultron/adapters/driving/fastapi/routers/info.py` currently expect
+  `get_all()` to return raw record dicts with `id_`, `type_`, and `data_`.
+  Preserve that return shape in the SQLite adapter.
+- `vultron/adapters/driving/fastapi/outbox_monitor.py` imports
+  `TinyDbDataLayer` only for typing and factory defaults; it should be updated
+  to a backend-neutral type while keeping current behaviour unchanged.

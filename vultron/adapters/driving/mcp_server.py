@@ -19,7 +19,7 @@ See ``plan/PRIORITIES.md`` PRIORITY 1000 for the design rationale.
 import logging
 from typing import Any
 
-from vultron.adapters.driven.datalayer_tinydb import get_datalayer
+from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.core.use_cases.triggers.case import (
     SvcDeferCaseUseCase,
     SvcEngageCaseUseCase,

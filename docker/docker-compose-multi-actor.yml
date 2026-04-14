@@ -33,7 +33,7 @@
 #                       Must use the Docker service name as hostname so that
 #                       peer containers can route to it (e.g.,
 #                       http://finder:7999/api/v2/).
-#   VULTRON_DB_PATH     Path to the TinyDB file inside the container.
+#   VULTRON_DB_URL      SQLAlchemy connection URL for the DataLayer (default: sqlite:////app/data/mydb.sqlite).
 #                       Each service mounts a named volume at /app/data so
 #                       the database persists across container restarts.
 #   VULTRON_ACTOR_ID    Deterministic full URI for the local actor (D5-1-G3).
@@ -99,8 +99,8 @@ services:
       # Identity: each container gets a unique base URL so peer actors can
       # derive inbox URLs using the Docker service name as hostname.
       - VULTRON_BASE_URL=http://finder:7999/api/v2/
-      # DataLayer: persist the TinyDB file under the named volume.
-      - VULTRON_DB_PATH=/app/data/mydb.json
+      # DataLayer: persist the SQLite file under the named volume.
+      - VULTRON_DB_URL=sqlite:////app/data/mydb.sqlite
       # Deterministic actor ID (D5-1-G3): fixed URI used by vultron-demo seed
       # so peer containers can pre-register this actor without discovery.
       - VULTRON_ACTOR_ID=http://finder:7999/api/v2/actors/finder
@@ -122,7 +122,7 @@ services:
     environment:
       - PYTHONPATH=/app
       - VULTRON_BASE_URL=http://vendor:7999/api/v2/
-      - VULTRON_DB_PATH=/app/data/mydb.json
+      - VULTRON_DB_URL=sqlite:////app/data/mydb.sqlite
       - VULTRON_ACTOR_ID=http://vendor:7999/api/v2/actors/vendor
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-vendor.json
       - LOG_LEVEL=INFO
@@ -138,7 +138,7 @@ services:
     environment:
       - PYTHONPATH=/app
       - VULTRON_BASE_URL=http://coordinator:7999/api/v2/
-      - VULTRON_DB_PATH=/app/data/mydb.json
+      - VULTRON_DB_URL=sqlite:////app/data/mydb.sqlite
       - VULTRON_ACTOR_ID=http://coordinator:7999/api/v2/actors/coordinator
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-coordinator.json
       - LOG_LEVEL=INFO
@@ -166,7 +166,7 @@ services:
     environment:
       - PYTHONPATH=/app
       - VULTRON_BASE_URL=http://case-actor:7999/api/v2/
-      - VULTRON_DB_PATH=/app/data/mydb.json
+      - VULTRON_DB_URL=sqlite:////app/data/mydb.sqlite
       - VULTRON_ACTOR_ID=http://case-actor:7999/api/v2/actors/case-actor
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-case-actor.json
       - LOG_LEVEL=INFO
@@ -186,7 +186,7 @@ services:
     environment:
       - PYTHONPATH=/app
       - VULTRON_BASE_URL=http://vendor2:7999/api/v2/
-      - VULTRON_DB_PATH=/app/data/mydb.json
+      - VULTRON_DB_URL=sqlite:////app/data/mydb.sqlite
       - VULTRON_ACTOR_ID=http://vendor2:7999/api/v2/actors/vendor2
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-vendor2.json
       - LOG_LEVEL=INFO
@@ -243,8 +243,8 @@ networks:
     driver: bridge
 
 # ─── Named volumes ────────────────────────────────────────────────────────
-# One volume per actor service.  Each volume stores the TinyDB JSON file at
-# /app/data/mydb.json (controlled by VULTRON_DB_PATH).
+# One volume per actor service.  Each volume stores the SQLite database at
+# /app/data/mydb.sqlite (controlled by VULTRON_DB_URL).
 #
 # To reset all actor state between demo runs:
 #   docker compose -f docker-compose-multi-actor.yml down -v

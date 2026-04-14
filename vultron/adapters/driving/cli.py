@@ -16,7 +16,7 @@ import sys
 
 import click
 
-from vultron.adapters.driven.datalayer_tinydb import get_datalayer
+from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driving.fastapi.inbox_handler import (
     handle_inbox_item,
     init_dispatcher,

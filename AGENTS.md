@@ -344,8 +344,8 @@ When adding new message types:
   concerns
 - **Data Layer port** (`vultron/core/ports/datalayer.py`): `DataLayer`
   Protocol definition; use this for imports in core and handlers
-- **Data Layer adapter** (`vultron/adapters/driven/datalayer_tinydb.py`):
-  TinyDB implementation
+- **Data Layer adapter** (`vultron/adapters/driven/datalayer_sqlite.py`):
+  SQLite/SQLModel implementation
 
 Never bypass layer boundaries. Routers should never directly access the data
 layer or embed business logic; always go through adapter helpers and/or core
@@ -565,7 +565,7 @@ Per `specs/testability.md`:
 
 - Use `monkeypatch` fixture for dependency injection
 - Mock external dependencies in unit tests
-- Use real TinyDB backend with test data in integration tests
+- Use real SQLite backend with test data in integration tests
 - Verify logs using `caplog` fixture
 - Test both success and error paths
 - New behavior MUST include tests

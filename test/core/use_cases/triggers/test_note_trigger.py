@@ -26,8 +26,8 @@ Verifies that the add-note-to-case trigger:
 
 import pytest
 
-from vultron.adapters.driven.datalayer_tinydb import (
-    TinyDbDataLayer,
+from vultron.adapters.driven.datalayer_sqlite import (
+    SqliteDataLayer,
     reset_datalayer,
 )
 from vultron.core.use_cases.triggers.note import SvcAddNoteToCaseUseCase
@@ -43,11 +43,11 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 
 def _make_actor_dl(actor_name: str):
-    """Create an as_Service actor and a matching per-actor TinyDbDataLayer."""
+    """Create an as_Service actor and a matching per-actor SqliteDataLayer."""
     actor = as_Service(name=actor_name)
     actor_id = actor.id_
     reset_datalayer(actor_id)
-    dl = TinyDbDataLayer(db_path=None, actor_id=actor_id)
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
     dl.clear_all()
     dl.create(actor)
     return actor, dl
@@ -81,14 +81,13 @@ def _to_field(activity_obj) -> list[str] | None:
     return None
 
 
-def _outbox_activity_ids(actor_id: str, dl) -> list[str]:
+def _outbox_activity_ids(actor_id: str, dl: SqliteDataLayer) -> list[str]:
     """Return all activity IDs in the actor's outbox."""
-    outbox_key = f"{actor_id}_outbox"
-    try:
-        table = dl._db.table(outbox_key)
-        return [row.get("activity_id") for row in table.all()]
-    except Exception:  # noqa: BLE001
-        return []
+    scoped = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+    # Share dl's engine — set _owns_engine=False so __del__ doesn't dispose it.
+    scoped._engine = dl._engine
+    scoped._owns_engine = False
+    return scoped.outbox_list()
 
 
 # ---------------------------------------------------------------------------
@@ -161,6 +160,7 @@ class TestSvcAddNoteToCaseUseCase:
         result = self._execute()
         note_id = result["note"]["id"]
         case_obj = self.dl.read(self.case.id_)
+        assert isinstance(case_obj, VulnerabilityCase)
         note_ids = [
             n if isinstance(n, str) else getattr(n, "id_", str(n))
             for n in case_obj.notes
@@ -273,6 +273,7 @@ class TestSvcAddNoteToCaseUseCase:
 
         # Manually call the idempotency guard path by appending note_id again.
         case_obj = self.dl.read(self.case.id_)
+        assert isinstance(case_obj, VulnerabilityCase)
         count_before = sum(
             1
             for n in case_obj.notes
@@ -292,6 +293,7 @@ class TestSvcAddNoteToCaseUseCase:
 
         # Re-read and confirm still exactly one occurrence.
         case_obj2 = self.dl.read(self.case.id_)
+        assert isinstance(case_obj2, VulnerabilityCase)
         count_after = sum(
             1
             for n in case_obj2.notes

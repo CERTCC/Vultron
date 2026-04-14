@@ -40,9 +40,9 @@ from py_trees.common import Status
 @pytest.fixture
 def _fresh_datalayer():
     """In-memory TinyDB DataLayer with NO pre-seeded vocabulary imports."""
-    from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-    return TinyDbDataLayer(db_path=None)
+    return SqliteDataLayer("sqlite:///:memory:")
 
 
 @pytest.fixture

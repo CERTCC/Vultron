@@ -15,7 +15,7 @@
 from typing import cast
 from unittest.mock import MagicMock
 
-from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import VultronObject
 from vultron.core.models.events import MessageSemantics
@@ -84,7 +84,7 @@ class TestUseCaseExecution:
 
     def test_use_case_executes_with_real_datalayer(self, make_payload):
         """CreateReportReceivedUseCase executes without raising on real DataLayer."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         report = VulnerabilityReport(
             name="TEST-003", content="Test report for shim delegation"
         )
@@ -119,7 +119,7 @@ class TestCreateReportNoStandaloneParticipantStatus:
             activity=activity,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         CreateReportReceivedUseCase(dl, event).execute()
 
         all_statuses = dl.get_all("ParticipantStatus")
@@ -144,7 +144,7 @@ class TestCreateReportNoStandaloneParticipantStatus:
             activity=activity,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         CreateReportReceivedUseCase(dl, event).execute()
 
         stored_report = dl.read("https://example.org/reports/r-store-1")
@@ -203,7 +203,7 @@ class TestDuplicateReportHandling:
             "https://example.org/reports/r-dup-1",
             "https://example.org/activities/offer-dup-1",
         )
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         # Simulate inbox pre-storage of the nested objects.
         dl.save(report)
         # CreateFinderParticipantNode reads the vendor actor from DataLayer.
@@ -250,7 +250,7 @@ class TestDuplicateReportHandling:
             object_=report,
             activity=activity,
         )
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         # Simulate inbox pre-storage of the nested object.
         dl.save(report)
 
@@ -301,7 +301,7 @@ class TestSubmitReportLogMessages:
             ),
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         # CreateFinderParticipantNode reads the vendor actor from DataLayer.
         dl.save(VultronCaseActor(id_="https://example.org/actors/vendor"))
         # Pre-store the offer so CreateFinderParticipantNode can look it up.
@@ -363,7 +363,7 @@ class TestSubmitReportCreatesCase:
             activity=activity,
             target=VultronObject(id_=vendor_id, type_="Actor"),
         )
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         # CreateCaseNode reads the report from DataLayer.
         dl.save(report)
         # CreateFinderParticipantNode reads the vendor actor from DataLayer.
@@ -475,7 +475,7 @@ class TestSubmitReportCreatesCase:
             object_=report,
             activity=activity,
         )
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
 
         SubmitReportReceivedUseCase(dl, event).execute()
 
@@ -493,7 +493,7 @@ class TestCaseLevelUseeCases:
     """
 
     def _make_case_with_participant(
-        self, dl: TinyDbDataLayer, actor_id: str, initial_rm: RM
+        self, dl: SqliteDataLayer, actor_id: str, initial_rm: RM
     ):
         """Helper: create a VulnerabilityCase with one participant."""
         from vultron.core.models.participant_status import (
@@ -526,7 +526,7 @@ class TestCaseLevelUseeCases:
     def test_invalidate_case_transitions_participant_to_invalid(self):
         """InvalidateCaseUseCase sets participant RM state to INVALID."""
         actor_id = "https://example.org/actors/vendor"
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         case, _ = self._make_case_with_participant(dl, actor_id, RM.RECEIVED)
 
         InvalidateCaseUseCase(dl, case.id_, actor_id).execute()
@@ -539,7 +539,7 @@ class TestCaseLevelUseeCases:
     def test_close_case_transitions_participant_to_closed(self):
         """CloseCaseUseCase sets participant RM state to CLOSED."""
         actor_id = "https://example.org/actors/vendor"
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         # CLOSED is only reachable from INVALID, ACCEPTED, or DEFERRED
         case, _ = self._make_case_with_participant(dl, actor_id, RM.INVALID)
 
@@ -554,7 +554,7 @@ class TestCaseLevelUseeCases:
         """InvalidateCaseUseCase warns when case_id is not found."""
         import logging
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         with caplog.at_level(logging.WARNING):
             InvalidateCaseUseCase(
                 dl,
@@ -570,7 +570,7 @@ class TestCaseLevelUseeCases:
         """CloseCaseUseCase warns when case_id is not found."""
         import logging
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         with caplog.at_level(logging.WARNING):
             CloseCaseUseCase(
                 dl,
@@ -590,7 +590,7 @@ class TestDereferencePatternInReportUseCases:
 
     def _setup_case_for_report(
         self,
-        dl: TinyDbDataLayer,
+        dl: SqliteDataLayer,
         report_id: str,
         actor_id: str,
         initial_rm: RM = RM.RECEIVED,
@@ -632,7 +632,7 @@ class TestDereferencePatternInReportUseCases:
         """InvalidateReportReceivedUseCase dereferences and sets RM.INVALID."""
         report_id = "https://example.org/reports/r-invalidate-deref"
         actor_id = "https://example.org/actors/vendor"
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         case, _ = self._setup_case_for_report(dl, report_id, actor_id)
 
         offer_activity = VultronActivity(
@@ -662,7 +662,7 @@ class TestDereferencePatternInReportUseCases:
         """CloseReportReceivedUseCase dereferences and sets RM.CLOSED."""
         report_id = "https://example.org/reports/r-close-deref"
         actor_id = "https://example.org/actors/vendor"
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         # CLOSED is only reachable from INVALID, ACCEPTED, or DEFERRED
         case, _ = self._setup_case_for_report(
             dl, report_id, actor_id, RM.INVALID
@@ -697,7 +697,7 @@ class TestDereferencePatternInReportUseCases:
 
         report_id = "https://example.org/reports/r-no-case"
         actor_id = "https://example.org/actors/vendor"
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
 
         offer_activity = VultronActivity(
             id_="https://example.org/activities/offer-no-case",
@@ -728,7 +728,7 @@ class TestDereferencePatternInReportUseCases:
 
         report_id = "https://example.org/reports/r-close-no-case"
         actor_id = "https://example.org/actors/vendor"
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
 
         offer_activity = VultronActivity(
             id_="https://example.org/activities/offer-close-no-case",
@@ -780,7 +780,7 @@ class TestAckReportNoStandaloneStatus:
             activity=offer_activity,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         AckReportReceivedUseCase(dl, event).execute()
 
         all_statuses = dl.get_all("ParticipantStatus")
@@ -813,7 +813,7 @@ class TestFullReportFlow:
         from vultron.core.models.activity import VultronOffer
         from vultron.core.models.case_actor import VultronCaseActor
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         report = VultronReport(id_=self.REPORT_ID)
         vendor = VultronCaseActor(id_=self.VENDOR_ID)
         offer = VultronOffer(

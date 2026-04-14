@@ -40,7 +40,7 @@ class TestEmbargoUseCases:
         self, monkeypatch, make_payload
     ):
         """create_embargo_event persists the EmbargoEvent to the DataLayer."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Create,
         )
@@ -49,7 +49,7 @@ class TestEmbargoUseCases:
             VulnerabilityCase,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
 
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_cem1",
@@ -74,7 +74,7 @@ class TestEmbargoUseCases:
 
     def test_create_embargo_event_idempotent(self, monkeypatch, make_payload):
         """create_embargo_event skips storing a duplicate EmbargoEvent."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Create,
         )
@@ -83,7 +83,7 @@ class TestEmbargoUseCases:
             VulnerabilityCase,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
 
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_cem2",
@@ -112,7 +112,7 @@ class TestEmbargoUseCases:
         self, monkeypatch, make_payload
     ):
         """add_embargo_event_to_case sets the active embargo on the case (PROPOSED → ACTIVE)."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
             AddEmbargoToCaseActivity,
         )
@@ -122,7 +122,7 @@ class TestEmbargoUseCases:
         )
         from vultron.core.states.em import EM
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_em1",
             name="EM Test Case",
@@ -156,7 +156,7 @@ class TestEmbargoUseCases:
     ):
         """add_embargo_event_to_case logs WARNING when EM state is not on the standard machine path (state-sync override)."""
         import logging
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
             AddEmbargoToCaseActivity,
         )
@@ -166,7 +166,7 @@ class TestEmbargoUseCases:
         )
         from vultron.core.states.em import EM
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_em1_warn",
             name="EM Warn Test Case",
@@ -200,13 +200,13 @@ class TestEmbargoUseCases:
         self, monkeypatch, make_payload
     ):
         """invite_to_embargo_on_case persists the EmProposeEmbargoActivity activity."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
             EmProposeEmbargoActivity,
         )
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
 
         embargo = EmbargoEvent(
             id_="https://example.org/cases/case_em2/embargo_events/e2",
@@ -230,7 +230,7 @@ class TestEmbargoUseCases:
         self, monkeypatch, make_payload
     ):
         """accept_invite_to_embargo_on_case activates the embargo on the case (PROPOSED → ACTIVE)."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
             EmAcceptEmbargoActivity,
             EmProposeEmbargoActivity,
@@ -241,7 +241,7 @@ class TestEmbargoUseCases:
         )
         from vultron.core.states.em import EM
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_em3",
             name="EM Accept Test",
@@ -283,7 +283,7 @@ class TestEmbargoUseCases:
     ):
         """accept_invite_to_embargo_on_case logs WARNING when EM state is not on the standard machine path."""
         import logging
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
             EmAcceptEmbargoActivity,
             EmProposeEmbargoActivity,
@@ -294,7 +294,7 @@ class TestEmbargoUseCases:
         )
         from vultron.core.states.em import EM
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_em3_warn",
             name="EM Accept Warn Test",
@@ -334,7 +334,7 @@ class TestEmbargoUseCases:
         self, monkeypatch, make_payload
     ):
         """accept_invite_to_embargo_on_case records embargo ID in participant.accepted_embargo_ids (CM-10-002, CM-10-003)."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
             EmAcceptEmbargoActivity,
             EmProposeEmbargoActivity,
@@ -347,7 +347,7 @@ class TestEmbargoUseCases:
             VulnerabilityCase,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         coordinator_id = "https://example.org/users/coordinator"
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_em5",
@@ -392,7 +392,7 @@ class TestEmbargoUseCases:
         self, monkeypatch, make_payload
     ):
         """accept_invite_to_embargo_on_case appends a trusted-timestamp event to case.events (CM-02-009)."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
             EmAcceptEmbargoActivity,
             EmProposeEmbargoActivity,
@@ -402,7 +402,7 @@ class TestEmbargoUseCases:
             VulnerabilityCase,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_em6",
             name="EM Accept Event Test",
@@ -476,7 +476,7 @@ class TestEmbargoUseCases:
         self, make_payload
     ):
         """remove_embargo_event removes embargo from proposed_embargoes."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
             RemoveEmbargoFromCaseActivity,
         )
@@ -485,7 +485,7 @@ class TestEmbargoUseCases:
             VulnerabilityCase,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_rem1",
             name="Remove Embargo Proposed",
@@ -519,7 +519,7 @@ class TestEmbargoUseCases:
         self, make_payload
     ):
         """remove_embargo_event uses REJECT machine trigger when EM is PROPOSED."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
             RemoveEmbargoFromCaseActivity,
         )
@@ -528,7 +528,7 @@ class TestEmbargoUseCases:
             VulnerabilityCase,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_rem2",
             name="Remove Embargo PROPOSED→NONE",
@@ -560,7 +560,7 @@ class TestEmbargoUseCases:
         self, caplog, make_payload
     ):
         """remove_embargo_event logs WARNING when EM state is ACTIVE (admin override)."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
             RemoveEmbargoFromCaseActivity,
         )
@@ -569,7 +569,7 @@ class TestEmbargoUseCases:
             VulnerabilityCase,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_rem3",
             name="Remove Active Embargo Admin Override",
@@ -604,7 +604,7 @@ class TestEmbargoUseCases:
     ):
         """SvcEvaluateEmbargoUseCase raises VultronInvalidStateTransitionError when EM state does not allow ACCEPT."""
         import pytest
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
             EmProposeEmbargoActivity,
         )
@@ -616,7 +616,7 @@ class TestEmbargoUseCases:
             as_Actor as Actor,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         actor = Actor(id_="https://example.org/users/vendor", name="Vendor")
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_eval_invalid",

@@ -24,7 +24,7 @@ from py_trees.common import Status
 
 from vultron.core.models.participant_status import VultronParticipantStatus
 from vultron.core.use_cases._helpers import _report_phase_status_id
-from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.vultron_types import (
     VultronCaseActor,
     VultronOffer,
@@ -47,7 +47,7 @@ from vultron.core.states.rm import RM
 @pytest.fixture
 def datalayer():
     """In-memory DataLayer for testing."""
-    return TinyDbDataLayer(db_path=None)
+    return SqliteDataLayer("sqlite:///:memory:")
 
 
 @pytest.fixture

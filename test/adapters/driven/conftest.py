@@ -14,79 +14,22 @@
 import pytest
 
 from vultron.adapters.driven.db_record import Record
-from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-
-
-@pytest.fixture(autouse=True)
-def manage_storage_patch(request):
-    """Manage the in-memory TinyDB patch around each test in this directory.
-
-    Two roles:
-
-    1. **Integration tests that verify file-backed storage**: temporarily
-       restores ``TinyDbDataLayer.__init__`` to the real implementation so the
-       test can exercise actual disk I/O, then re-applies the in-memory patch
-       afterwards.
-
-    2. **Reload recovery**: some tests call ``importlib.reload()`` on the
-       datalayer module, which recreates ``TinyDbDataLayer`` as a fresh class
-       object without the patch installed by ``pytest_configure``.  After every
-       test this fixture checks whether the patch is still in place and
-       re-applies it if not, preventing state leakage to subsequent tests.
-    """
-    import vultron.adapters.driven.datalayer_tinydb as _mod
-
-    _cls = _mod.TinyDbDataLayer
-    is_integration = request.node.get_closest_marker("integration") is not None
-
-    if is_integration:
-        original = getattr(_cls, "_test_original_init", None)
-        if original is not None:
-            # Restore real __init__ so this test can use file-backed storage.
-            _cls.__init__ = original  # type: ignore[method-assign]
-
-    yield
-
-    # After the test, ensure the in-memory patch is active on the (possibly
-    # reloaded) class.
-    _cls = _mod.TinyDbDataLayer  # Re-fetch in case importlib.reload() ran.
-    if getattr(_cls.__init__, "__name__", None) == "_in_memory_init":
-        return  # Patch is still in place; nothing to do.
-
-    _orig = getattr(_cls, "_test_original_init", _cls.__init__)
-
-    def _in_memory_init(
-        self: _mod.TinyDbDataLayer,
-        db_path: "str | None" = None,
-        actor_id: "str | None" = None,
-    ) -> None:
-        _orig(self, db_path=None, actor_id=actor_id)
-
-    _cls._test_original_init = _orig  # type: ignore[attr-defined]
-    _cls.__init__ = _in_memory_init  # type: ignore[method-assign]
 
 
 @pytest.fixture
 def tmp_db_file(tmp_path):
-    db_path = tmp_path / "test_tinydb.json"
-    # TinyDB will create the file when opened
+    db_path = tmp_path / "test_sqlite.db"
     return db_path
 
 
 @pytest.fixture
 def dl(tmp_db_file):
-    dl = TinyDbDataLayer(db_path=str(tmp_db_file))
+    dl = SqliteDataLayer(db_url=f"sqlite:///{tmp_db_file}")
     yield dl
-    # teardown
     dl.clear_all()
-    try:
-        dl._db.close()
-    except Exception:
-        pass
-    if tmp_db_file.exists():
-        tmp_db_file.unlink()
-    assert not tmp_db_file.exists()
+    dl.close()
 
 
 @pytest.fixture

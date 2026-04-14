@@ -66,7 +66,7 @@ def configure_logging() -> None:
 async def lifespan(application: FastAPI):
     configure_logging()
     from vultron.adapters.driving.fastapi.inbox_handler import init_dispatcher
-    from vultron.adapters.driven.datalayer_tinydb import get_datalayer
+    from vultron.adapters.driven.datalayer import get_datalayer
     from vultron.adapters.driving.fastapi.outbox_monitor import OutboxMonitor
 
     init_dispatcher(dl=get_datalayer())

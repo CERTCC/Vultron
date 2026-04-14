@@ -19,7 +19,7 @@ Verifies CM-07-001, CM-07-002, CM-07-003, AR-07-001, AR-07-002.
 
 import pytest
 
-from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_pxa, CS_vfd
@@ -44,7 +44,7 @@ PARTICIPANT_ID = "https://example.org/participants/p1"
 @pytest.fixture
 def dl():
     """In-memory DataLayer with a minimal valid case setup."""
-    layer = TinyDbDataLayer(db_path=None)
+    layer = SqliteDataLayer("sqlite:///:memory:")
 
     # Case: VulnerabilityCase with actor_participant_index
     case = VulnerabilityCase(
@@ -151,7 +151,7 @@ class TestGetActionRulesUseCase:
 
     def test_no_case_statuses_defaults(self, dl):
         """When case has no CaseStatus entries, EM/PXA default to None/pxa."""
-        layer = TinyDbDataLayer(db_path=None)
+        layer = SqliteDataLayer("sqlite:///:memory:")
         case = VulnerabilityCase(
             id_=CASE_ID,
             name="Empty Status Case",
@@ -184,7 +184,7 @@ class TestGetActionRulesUseCase:
 
     def test_no_participant_statuses_defaults(self, dl):
         """When participant has no ParticipantStatus entries, RM/VFD default."""
-        layer = TinyDbDataLayer(db_path=None)
+        layer = SqliteDataLayer("sqlite:///:memory:")
         case = VulnerabilityCase(
             id_=CASE_ID,
             name="Default Participant Status Case",
@@ -219,7 +219,7 @@ class TestGetActionRulesUseCase:
             EM.REVISE,
             EM.EXITED,
         ]:
-            layer = TinyDbDataLayer(db_path=None)
+            layer = SqliteDataLayer("sqlite:///:memory:")
             case = VulnerabilityCase(
                 id_=CASE_ID,
                 actor_participant_index={ACTOR_ID: PARTICIPANT_ID},

@@ -14,7 +14,7 @@
 
 from typing import cast
 
-from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.status import (
     AddCaseStatusToCaseReceivedUseCase,
@@ -44,7 +44,7 @@ class TestStatusUseCases:
     def test_create_case_status_stores_status(self, monkeypatch, make_payload):
         """create_case_status persists the CaseStatus to the DataLayer."""
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
 
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_cs1",
@@ -69,7 +69,7 @@ class TestStatusUseCases:
 
     def test_create_case_status_idempotent(self, monkeypatch, make_payload):
         """create_case_status skips storing a duplicate CaseStatus."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
 
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_cs2",
@@ -97,7 +97,7 @@ class TestStatusUseCases:
         self, monkeypatch, make_payload
     ):
         """add_case_status_to_case appends status ID to case.case_statuses."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_cs3",
             name="Add Status Case",
@@ -128,7 +128,7 @@ class TestStatusUseCases:
         self, monkeypatch, make_payload
     ):
         """Invalid EM transition is blocked; status is not appended."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_em_guard",
             name="EM Guard Test Case",
@@ -172,7 +172,7 @@ class TestStatusUseCases:
         self, monkeypatch, make_payload
     ):
         """Valid EM transition is permitted; status is appended."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_em_valid",
             name="EM Valid Transition Case",
@@ -212,7 +212,7 @@ class TestStatusUseCases:
         self, monkeypatch, make_payload
     ):
         """create_participant_status persists the ParticipantStatus."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
 
         pstatus = ParticipantStatus(
             id_="https://example.org/cases/case_ps1/participants/p1/statuses/s1",
@@ -239,7 +239,7 @@ class TestStatusUseCases:
         self, monkeypatch, make_payload
     ):
         """add_participant_status_to_participant appends status to participant."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         participant = CaseParticipant(
             id_="https://example.org/cases/case_ps2/participants/p2",
             context="https://example.org/cases/case_ps2",

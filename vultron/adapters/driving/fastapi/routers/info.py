@@ -25,7 +25,7 @@ notes/multi-actor-architecture.md §4 G1.
 
 from fastapi import APIRouter, Depends
 
-from vultron.adapters.driven.datalayer_tinydb import get_datalayer
+from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.utils import BASE_URL
 from vultron.core.ports.datalayer import DataLayer
 

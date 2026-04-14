@@ -18,7 +18,7 @@ Spec: SYNC-03-001, SYNC-03-002, SYNC-04-001, SYNC-04-002.
 
 import pytest
 
-from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_log import GENESIS_HASH, CaseLogEntry
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
 from vultron.core.use_cases.triggers.sync import _to_persistable_entry
@@ -55,8 +55,8 @@ def _make_entry(
 
 
 @pytest.fixture
-def dl() -> TinyDbDataLayer:
-    return TinyDbDataLayer(db_path=None)
+def dl() -> SqliteDataLayer:
+    return SqliteDataLayer("sqlite:///:memory:")
 
 
 @pytest.fixture

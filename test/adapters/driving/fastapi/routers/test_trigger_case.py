@@ -50,15 +50,15 @@ def actor_and_dl():
     The actor is then persisted into its own DataLayer.  Callers should
     unpack via the ``actor`` and ``dl`` fixtures below.
     """
-    from vultron.adapters.driven.datalayer_tinydb import (
-        TinyDbDataLayer,
+    from vultron.adapters.driven.datalayer_sqlite import (
+        SqliteDataLayer,
         reset_datalayer,
     )
 
     actor_obj = as_Service(name="Vendor Co")
     actor_id = actor_obj.id_
     reset_datalayer(actor_id)
-    actor_dl = TinyDbDataLayer(db_path=None, actor_id=actor_id)
+    actor_dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
     actor_dl.clear_all()
     actor_dl.create(actor_obj)
     yield actor_obj, actor_dl

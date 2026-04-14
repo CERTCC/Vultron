@@ -20,7 +20,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
-from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
 # Test behavior nodes for verifying bridge functionality
 
@@ -126,7 +126,7 @@ class ExceptionNode(py_trees.behaviour.Behaviour):
 @pytest.fixture
 def datalayer():
     """Provide in-memory TinyDB data layer."""
-    return TinyDbDataLayer(db_path=None)
+    return SqliteDataLayer("sqlite:///:memory:")
 
 
 @pytest.fixture

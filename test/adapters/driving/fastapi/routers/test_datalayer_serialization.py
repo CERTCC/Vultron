@@ -22,7 +22,7 @@ not just base class fields.
 import pytest
 from fastapi.testclient import TestClient
 
-from vultron.adapters.driven.datalayer_tinydb import (
+from vultron.adapters.driven.datalayer_sqlite import (
     get_datalayer,
     reset_datalayer as _reset_datalayer,
 )
@@ -37,7 +37,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 def datalayer():
     """In-memory datalayer fixture; resets the singleton before and after each test."""
     _reset_datalayer()
-    dl = get_datalayer(db_path=None)
+    dl = get_datalayer(db_url="sqlite:///:memory:")
     dl.clear_all()
     yield dl
     dl.clear_all()
@@ -167,18 +167,17 @@ def test_get_vulnerability_report_includes_all_fields(client, datalayer):
 
 
 def test_test_datalayer_uses_in_memory_storage():
-    """Regression test for BUG-2026040103.
+    """Regression test: the test datalayer must use in-memory storage.
 
-    The test datalayer must use in-memory storage (db_path=None) to prevent
-    ResourceWarning: unclosed file for mydb.json at session teardown.
+    Ensures the autouse fixture forces an in-memory SQLite database so no
+    on-disk files are created during the test suite.
     """
-    from tinydb.storages import MemoryStorage
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
     dl = get_datalayer()
-    assert isinstance(dl._db.storage, MemoryStorage), (
-        "Test datalayer must use in-memory storage (db_path=None) to prevent "
-        "ResourceWarning: unclosed file. Fix the autouse fixture to call "
-        "get_datalayer(db_path=None)."
+    assert isinstance(dl, SqliteDataLayer), (
+        "Test datalayer must be a SqliteDataLayer. "
+        "Fix the autouse fixture to use get_datalayer(db_url='sqlite:///:memory:')."
     )
 
 

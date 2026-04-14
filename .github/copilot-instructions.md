@@ -78,7 +78,7 @@ Handlers never inspect AS2 types directly.
 | `vultron/core/use_cases/use_case_map.py` | `USE_CASE_MAP`: `MessageSemantics` → use-case class |
 | `vultron/core/dispatcher.py` | `DirectActivityDispatcher` + `get_dispatcher()` |
 | `vultron/core/ports/datalayer.py` | `DataLayer` Protocol (port) |
-| `vultron/adapters/driven/datalayer_tinydb.py` | TinyDB implementation |
+| `vultron/adapters/driven/datalayer_sqlite.py` | SQLite/SQLModel implementation |
 | `vultron/adapters/driving/fastapi/routers/actors.py` | Inbox endpoint |
 | `vultron/errors.py` | `VultronError` base + all custom exceptions |
 

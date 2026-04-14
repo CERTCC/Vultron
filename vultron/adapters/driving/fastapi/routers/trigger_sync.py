@@ -25,7 +25,7 @@ Spec: SYNC-02-002, SYNC-02-003.
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Path, status
 
-from vultron.adapters.driven.datalayer_tinydb import get_datalayer
+from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.trigger_models import SyncLogEntryRequest
 from vultron.core.ports.datalayer import DataLayer

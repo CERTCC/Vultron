@@ -11,67 +11,59 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Verify that the test environment forces in-memory TinyDB storage.
+"""Verify that the test environment uses in-memory SQLite storage.
 
-These tests confirm that the test-suite infrastructure (via pytest_configure in
-test/conftest.py) correctly patches TinyDbDataLayer to use MemoryStorage rather
-than a disk-backed JSON file.  Disk-backed storage in tests causes the test
-suite to slow to >15 minutes as mydb.json grows across hundreds of test cases.
-
-If these tests fail, TinyDbDataLayer.__init__ is not being patched and the test
-suite will be slow.
+These tests confirm that the ``VULTRON_DB_URL`` environment variable is set to
+``sqlite:///:memory:`` by the test infrastructure (``test/conftest.py``), so no
+on-disk SQLite files are created during the test suite.
 """
 
-from vultron.adapters.driven.datalayer_tinydb import (
-    TinyDbDataLayer,
+from vultron.adapters.driven.datalayer_sqlite import (
+    SqliteDataLayer,
+    _DEFAULT_DB_URL,
     get_datalayer,
     reset_datalayer,
 )
 
 
-def test_tinydb_datalayer_init_uses_memory_storage():
-    """TinyDbDataLayer() with no args should use MemoryStorage during tests.
+def test_default_db_url_is_in_memory():
+    """_DEFAULT_DB_URL must be 'sqlite:///:memory:' during tests.
 
-    Before the fix, this creates a file-backed instance (db_path='mydb.json').
-    After the fix, the patch in pytest_configure forces db_path=None (in-memory).
+    The test/conftest.py sets VULTRON_DB_URL=sqlite:///:memory: before any
+    vultron imports, so _DEFAULT_DB_URL is resolved to the in-memory value.
     """
+    assert _DEFAULT_DB_URL == "sqlite:///:memory:", (
+        f"Expected _DEFAULT_DB_URL='sqlite:///:memory:', got {_DEFAULT_DB_URL!r}.  "
+        "Ensure os.environ.setdefault('VULTRON_DB_URL', 'sqlite:///:memory:') "
+        "is set in test/conftest.py BEFORE any vultron imports."
+    )
+
+
+def test_sqlite_datalayer_default_is_in_memory():
+    """SqliteDataLayer() with default args should use in-memory storage."""
     reset_datalayer()
     try:
-        dl = TinyDbDataLayer()
-        assert dl._db_path is None, (
-            f"Expected in-memory storage (db_path=None), "
-            f"but got db_path={dl._db_path!r}.  "
-            "TinyDbDataLayer is using disk-backed storage during tests, "
-            "which causes the test suite to run slowly.  "
-            "See test/conftest.py:pytest_configure for the fix."
-        )
+        dl = SqliteDataLayer()
+        assert dl.ping()
     finally:
         reset_datalayer()
 
 
-def test_get_datalayer_returns_in_memory_instance():
-    """get_datalayer() should return an in-memory instance during tests."""
+def test_get_datalayer_returns_sqlite_instance():
+    """get_datalayer() must return a SqliteDataLayer instance."""
     reset_datalayer()
     try:
         dl = get_datalayer()
-        assert dl._db_path is None, (
-            f"Expected in-memory storage (db_path=None), "
-            f"but got db_path={dl._db_path!r}.  "
-            "get_datalayer() is returning a disk-backed instance."
-        )
+        assert isinstance(dl, SqliteDataLayer)
     finally:
         reset_datalayer()
 
 
-def test_get_datalayer_actor_scoped_uses_memory_storage():
-    """get_datalayer(actor_id=...) should also return an in-memory instance."""
+def test_get_datalayer_actor_scoped_returns_sqlite_instance():
+    """get_datalayer(actor_id=...) must return a SqliteDataLayer instance."""
     reset_datalayer()
     try:
         dl = get_datalayer(actor_id="https://example.org/actors/test-actor")
-        assert dl._db_path is None, (
-            f"Expected in-memory storage (db_path=None), "
-            f"but got db_path={dl._db_path!r}.  "
-            "Actor-scoped get_datalayer() is returning a disk-backed instance."
-        )
+        assert isinstance(dl, SqliteDataLayer)
     finally:
         reset_datalayer()

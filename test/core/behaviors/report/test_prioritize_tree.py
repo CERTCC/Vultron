@@ -24,7 +24,7 @@ participant-specific nature of the RM state machine.
 import pytest
 from py_trees.common import Status
 
-from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.participant_status import VultronParticipantStatus
 from vultron.core.models.vultron_types import (
     VultronCase,
@@ -71,7 +71,7 @@ def _make_participant_in_valid_state(
 
 @pytest.fixture
 def datalayer():
-    return TinyDbDataLayer(db_path=None)
+    return SqliteDataLayer("sqlite:///:memory:")
 
 
 @pytest.fixture

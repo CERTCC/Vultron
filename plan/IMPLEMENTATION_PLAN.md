@@ -44,9 +44,9 @@ D5-7-CASEREPL-1 and D5-7-ADDOBJ-1 superseded by SYNC-2 (see Priority 330).
 **D5-7-BTFIX-1** and **D5-7-BTFIX-2** (BT cascade violations) are new
 Priority 320 items blocking D5-7-HUMAN; see IDEA-26041004.
 
-**PRIORITY-325** TinyDB → SQLModel/SQLite datalayer migration — DL-SQLITE-ADR,
+**PRIORITY-325** ~~TinyDB → SQLModel/SQLite datalayer migration — DL-SQLITE-ADR,
 DL-SQLITE-1, DL-SQLITE-2, DL-SQLITE-3, DL-SQLITE-4, DL-SQLITE-5 (all pending).
-Addresses IDEA-26040902; supersedes IDEA-26040901.
+Addresses IDEA-26040902; supersedes IDEA-26040901.~~ **COMPLETE**.
 Must complete before D5-7-HUMAN.
 
 **PRIORITY-330** SYNC + demo sign-off — OUTBOX-MON-1 ✅, SYNC-1 ✅, SYNC-2 ✅,
@@ -700,7 +700,7 @@ All tasks must complete before D5-7-HUMAN (Priority 330).
 
 #### DL-SQLITE-ADR — Write ADR for TinyDB → SQLModel/SQLite migration
 
-- [ ] **DL-SQLITE-ADR**: Write `docs/adr/0015-sqlmodel-sqlite-datalayer.md`
+- [x] **DL-SQLITE-ADR**: Write `docs/adr/0015-sqlmodel-sqlite-datalayer.md`
   (or next available ADR number). Cover:
   - Motivation: O(n) I/O cost, test monkey-patch complexity (BUG-2026041001
     evidence), and why these are structural rather than fixable.
@@ -715,7 +715,7 @@ All tasks must complete before D5-7-HUMAN (Priority 330).
 
 #### DL-SQLITE-1 — Implement `datalayer_sqlite.py`
 
-- [ ] **DL-SQLITE-1**: Create `vultron/adapters/driven/datalayer_sqlite.py`.
+- [x] **DL-SQLITE-1**: Create `vultron/adapters/driven/datalayer_sqlite.py`.
   - Define `VultronObjectRecord(SQLModel, table=True)` with columns:
     - `id_: str` — primary key
     - `type_: str` — indexed (replaces per-type table routing)
@@ -741,7 +741,7 @@ All tasks must complete before D5-7-HUMAN (Priority 330).
 
 #### DL-SQLITE-2 — Update `get_datalayer()` factory and env var
 
-- [ ] **DL-SQLITE-2**: Wire the new adapter into the factory.
+- [x] **DL-SQLITE-2**: Wire the new adapter into the factory.
   - Move or rewrite `get_datalayer()` in `datalayer_sqlite.py` (or a new
     `vultron/adapters/driven/factory.py`).
   - Rename env var: `VULTRON_DB_PATH` → `VULTRON_DB_URL`.
@@ -756,7 +756,7 @@ All tasks must complete before D5-7-HUMAN (Priority 330).
 
 #### DL-SQLITE-3 — Update test infrastructure
 
-- [ ] **DL-SQLITE-3**: Remove TinyDB test patches; configure SQLite in-memory
+- [x] **DL-SQLITE-3**: Remove TinyDB test patches; configure SQLite in-memory
   for tests.
   - Delete the `pytest_configure` hook in `conftest.py` that monkey-patches
     `TinyDbDataLayer.__init__` to use `MemoryStorage`.
@@ -774,7 +774,7 @@ All tasks must complete before D5-7-HUMAN (Priority 330).
 
 #### DL-SQLITE-4 — Remove TinyDB adapter and dependency
 
-- [ ] **DL-SQLITE-4**: Erase TinyDB from the codebase.
+- [x] **DL-SQLITE-4**: Erase TinyDB from the codebase.
   - Delete `vultron/adapters/driven/datalayer_tinydb.py`.
   - Run `uv remove tinydb` (updates `pyproject.toml` and `uv.lock`).
   - Search for any remaining `TinyDbDataLayer`, `datalayer_tinydb`, or
@@ -786,7 +786,7 @@ All tasks must complete before D5-7-HUMAN (Priority 330).
 
 #### DL-SQLITE-5 — Update Docker configs and env files
 
-- [ ] **DL-SQLITE-5**: Update deployment configuration for the new env var.
+- [x] **DL-SQLITE-5**: Update deployment configuration for the new env var.
   - Replace `VULTRON_DB_PATH` with `VULTRON_DB_URL` in all `docker/`
     env files and `docker-compose*.yml`.
   - Default value inside containers:

@@ -31,7 +31,7 @@ pattern (see ``notes/architecture-ports-and-adapters.md``
 **Outbound (driven) ports** — core calls out to external systems:
 
 - ``DataLayer`` (``datalayer.py``) — persistence interface; implemented by
-  ``TinyDbDataLayer`` in ``vultron/adapters/driven/``.
+  ``SqliteDataLayer`` in ``vultron/adapters/driven/``.
 - ``ActivityEmitter`` (``emitter.py``) — outbound activity delivery;
   implemented by ``DeliveryQueueAdapter`` in ``vultron/adapters/driven/``.
 """

@@ -33,7 +33,7 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     CaseTriggerRequest,
 )
 from vultron.core.ports.datalayer import DataLayer
-from vultron.adapters.driven.datalayer_tinydb import get_datalayer
+from vultron.adapters.driven.datalayer import get_datalayer
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
 

@@ -14,7 +14,7 @@
 
 from typing import cast
 
-from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.use_cases.received.note import (
     AddNoteToCaseReceivedUseCase,
@@ -35,7 +35,7 @@ class TestNoteUseCases:
 
     def test_create_note_stores_note(self, monkeypatch, make_payload):
         """create_note persists the Note to the DataLayer."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
 
         note = as_Note(
             id_="https://example.org/notes/note1",
@@ -55,7 +55,7 @@ class TestNoteUseCases:
 
     def test_create_note_idempotent(self, monkeypatch, make_payload):
         """create_note skips storing a duplicate Note."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
 
         note = as_Note(
             id_="https://example.org/notes/note2",
@@ -75,7 +75,7 @@ class TestNoteUseCases:
 
     def test_add_note_to_case_appends_note(self, monkeypatch, make_payload):
         """add_note_to_case appends note ID to case.notes and persists."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_n1",
             name="Note Case",
@@ -103,7 +103,7 @@ class TestNoteUseCases:
 
     def test_add_note_to_case_idempotent(self, monkeypatch, make_payload):
         """add_note_to_case skips adding a note already in the case."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         note = as_Note(
             id_="https://example.org/notes/note4",
             content="A note",
@@ -131,7 +131,7 @@ class TestNoteUseCases:
         self, monkeypatch, make_payload
     ):
         """remove_note_from_case removes note ID from case.notes and persists."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         note = as_Note(
             id_="https://example.org/notes/note5",
             content="A note",
@@ -160,7 +160,7 @@ class TestNoteUseCases:
 
     def test_remove_note_from_case_idempotent(self, monkeypatch, make_payload):
         """remove_note_from_case is idempotent when note not in case."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         note = as_Note(
             id_="https://example.org/notes/note6",
             content="A note",
@@ -193,7 +193,7 @@ class TestNoteUseCases:
         AddNoteToCaseActivity for delivery to all participants that are not
         the note author (CM-06-005).
         """
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         author_id = "https://example.org/users/vendor"
         participant_id = "https://example.org/users/finder"
         case_id = "https://example.org/cases/case_nb1"
@@ -250,13 +250,17 @@ class TestNoteUseCases:
         assert participant_id in broadcast.to
 
         # Verify the broadcast is enqueued for delivery by outbox_handler.
-        queue_table = dl._db.table(f"{case_actor.id_}_outbox")
-        queued_ids = [row["activity_id"] for row in queue_table.all()]
+        scoped_dl = SqliteDataLayer(
+            "sqlite:///:memory:", actor_id=case_actor.id_
+        )
+        scoped_dl._engine = dl._engine
+        scoped_dl._owns_engine = False
+        queued_ids = scoped_dl.outbox_list()
         assert broadcast_id in queued_ids
 
     def test_add_note_broadcast_excludes_author(self, make_payload):
         """The note author is excluded from broadcast recipients (CM-06-005)."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         author_id = "https://example.org/users/vendor"
         participant_id = "https://example.org/users/finder"
         case_id = "https://example.org/cases/case_nb2"
@@ -313,7 +317,7 @@ class TestNoteUseCases:
 
     def test_add_note_no_broadcast_when_no_case_actor(self, make_payload):
         """Broadcast is skipped gracefully when no CaseActor exists (CM-06-005)."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         author_id = "https://example.org/users/vendor"
         case_id = "https://example.org/cases/case_nb3"
 

@@ -26,7 +26,7 @@ CM-02, and specs/idempotency.md ID-04-004.
 import pytest
 from py_trees.common import Status
 
-from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.vultron_types import (
     VultronCase,
     VultronCaseActor,
@@ -38,7 +38,7 @@ from vultron.core.behaviors.case.create_tree import create_create_case_tree
 
 @pytest.fixture
 def datalayer():
-    return TinyDbDataLayer(db_path=None)
+    return SqliteDataLayer("sqlite:///:memory:")
 
 
 @pytest.fixture
@@ -131,17 +131,19 @@ def test_create_case_tree_creates_case_actor(
 ):
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
-    # Verify at least one CaseActor exists for this case
-    # (also checking via read fallback if stored under different table)
+    # Verify at least one actor-context record was created for this case.
+    from sqlmodel import Session, select
+
+    from vultron.adapters.driven.datalayer_sqlite import VultronObjectRecord
+
     found = False
-    for table_name in datalayer._db.tables():
-        for rec in datalayer._db.table(table_name).all():
-            data = rec.get("data_", {})
+    with Session(datalayer._engine) as session:
+        rows = session.exec(select(VultronObjectRecord)).all()
+        for row in rows:
+            data = row.data or {}
             if data.get("context") == case_obj.id_:
                 found = True
                 break
-        if found:
-            break
     assert found, "CaseActor was not created in DataLayer"
 
 
@@ -214,9 +216,14 @@ def test_create_case_tree_creates_vendor_participant(
     assert len(stored_case.case_participants) >= 1
 
     found_vendor = False
-    for table_name in datalayer._db.tables():
-        for rec in datalayer._db.table(table_name).all():
-            data = rec.get("data_", {})
+    from sqlmodel import Session, select
+
+    from vultron.adapters.driven.datalayer_sqlite import VultronObjectRecord
+
+    with Session(datalayer._engine) as session:
+        rows = session.exec(select(VultronObjectRecord)).all()
+        for row in rows:
+            data = row.data or {}
             at = data.get("attributed_to")
             ctx = data.get("context")
             roles = data.get("case_roles", [])
@@ -227,8 +234,6 @@ def test_create_case_tree_creates_vendor_participant(
             ):
                 found_vendor = True
                 break
-        if found_vendor:
-            break
     assert found_vendor, "VendorParticipant was not found in DataLayer"
 
 

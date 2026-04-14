@@ -27,7 +27,7 @@ from vultron.core.behaviors.helpers import (
     CreateObject,
 )
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import Record
 
 # Test implementation of abstract base classes
@@ -63,7 +63,7 @@ class NoOpAction(DataLayerAction):
 @pytest.fixture
 def datalayer():
     """Create in-memory DataLayer for testing."""
-    return TinyDbDataLayer(db_path=None)
+    return SqliteDataLayer("sqlite:///:memory:")
 
 
 @pytest.fixture

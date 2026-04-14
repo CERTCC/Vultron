@@ -43,15 +43,15 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 @pytest.fixture
 def actor_and_dl():
     """Create actor + shared DataLayer together."""
-    from vultron.adapters.driven.datalayer_tinydb import (
-        TinyDbDataLayer,
+    from vultron.adapters.driven.datalayer_sqlite import (
+        SqliteDataLayer,
         reset_datalayer,
     )
 
     actor_obj = as_Service(name="CaseActor Co")
     actor_id = actor_obj.id_
     reset_datalayer(actor_id)
-    dl = TinyDbDataLayer(db_path=None, actor_id=actor_id)
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
     dl.clear_all()
     dl.create(actor_obj)
     yield actor_obj, dl

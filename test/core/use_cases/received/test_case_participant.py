@@ -27,7 +27,7 @@ class TestCaseParticipantUseCases:
         self, monkeypatch, make_payload
     ):
         """RemoveCaseParticipantFromCaseReceivedUseCase removes the participant from case."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Remove,
         )
@@ -38,7 +38,7 @@ class TestCaseParticipantUseCases:
             VulnerabilityCase,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         case = VulnerabilityCase(
             id_="https://example.org/cases/case2",
             name="TEST-REMOVE",
@@ -72,7 +72,7 @@ class TestCaseParticipantUseCases:
         self, monkeypatch, make_payload
     ):
         """RemoveCaseParticipantFromCaseReceivedUseCase is idempotent when participant absent."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Remove,
         )
@@ -83,7 +83,7 @@ class TestCaseParticipantUseCases:
             VulnerabilityCase,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
 
         case = VulnerabilityCase(
             id_="https://example.org/cases/case3",
@@ -115,7 +115,7 @@ class TestCaseParticipantUseCases:
         self, monkeypatch, make_payload
     ):
         """AddCaseParticipantToCaseReceivedUseCase updates actor_participant_index (SC-PRE-2)."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Add,
         )
@@ -126,7 +126,7 @@ class TestCaseParticipantUseCases:
             VulnerabilityCase,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         actor_id = "https://example.org/users/coordinator"
         case = VulnerabilityCase(
             id_="https://example.org/cases/caseAP1",
@@ -159,7 +159,7 @@ class TestCaseParticipantUseCases:
         self, monkeypatch, make_payload
     ):
         """RemoveCaseParticipantFromCaseReceivedUseCase clears actor_participant_index (SC-PRE-2)."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Remove,
         )
@@ -170,7 +170,7 @@ class TestCaseParticipantUseCases:
             VulnerabilityCase,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         actor_id = "https://example.org/users/coordinator"
         case = VulnerabilityCase(
             id_="https://example.org/cases/caseRM1",
