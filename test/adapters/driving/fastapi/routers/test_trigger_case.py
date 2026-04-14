@@ -62,7 +62,7 @@ def actor_and_dl():
     actor_dl.clear_all()
     actor_dl.create(actor_obj)
     yield actor_obj, actor_dl
-    actor_dl.clear_all()
+    actor_dl.close()
     reset_datalayer(actor_id)
 
 

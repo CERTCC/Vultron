@@ -253,6 +253,7 @@ class TestNoteUseCases:
         scoped_dl = SqliteDataLayer(
             "sqlite:///:memory:", actor_id=case_actor.id_
         )
+        scoped_dl._engine.dispose()
         scoped_dl._engine = dl._engine
         scoped_dl._owns_engine = False
         queued_ids = scoped_dl.outbox_list()

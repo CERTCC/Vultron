@@ -148,6 +148,14 @@ class SqliteDataLayer:
         if self._owns_engine:
             self._engine.dispose()
 
+    def __enter__(self) -> "SqliteDataLayer":
+        """Support ``with SqliteDataLayer(...) as dl:`` usage."""
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        """Close the data layer when exiting the ``with`` block."""
+        self.close()
+
     def __del__(self) -> None:
         """Dispose engine on garbage collection to avoid ResourceWarning.
 
@@ -846,8 +854,20 @@ def get_all_actor_datalayers() -> dict[str, SqliteDataLayer]:
 def reset_datalayer(actor_id: str | None = None) -> None:
     """Reset one or all cached DataLayer instances.
 
-    Drops and recreates all tables on every engine that is being reset,
-    so the next call to :func:`get_datalayer` returns a fresh empty store.
+    Disposes the underlying SQLAlchemy engine for each cached instance that
+    is being cleared, then removes it from the module-level cache.  The next
+    call to :func:`get_datalayer` will create a new instance with a fresh,
+    empty in-memory database.
+
+    Engines are disposed *before* their references are dropped so that
+    ``sqlite3.Connection`` objects are closed explicitly.  Without this,
+    Python's cyclic GC may finalise the connection objects in an order that
+    emits ``ResourceWarning`` during a later, unrelated test.
+
+    .. note::
+        Callers that created a ``SqliteDataLayer`` instance *directly* (not via
+        :func:`get_datalayer`) are responsible for calling :meth:`close` on
+        those instances themselves; ``reset_datalayer`` cannot track them.
 
     Args:
         actor_id: If provided, resets only the instance for that actor.
@@ -855,19 +875,17 @@ def reset_datalayer(actor_id: str | None = None) -> None:
     """
     global _shared_instance, _actor_instances
 
-    engines_to_reset: set[Engine] = set()
+    instances_to_close: list[SqliteDataLayer] = []
 
     if actor_id is None:
         if _shared_instance is not None:
-            engines_to_reset.add(_shared_instance._engine)
-        for inst in _actor_instances.values():
-            engines_to_reset.add(inst._engine)
+            instances_to_close.append(_shared_instance)
+        instances_to_close.extend(_actor_instances.values())
         _shared_instance = None
         _actor_instances = {}
     else:
         if actor_id in _actor_instances:
-            engines_to_reset.add(_actor_instances.pop(actor_id)._engine)
+            instances_to_close.append(_actor_instances.pop(actor_id))
 
-    for engine in engines_to_reset:
-        SQLModel.metadata.drop_all(engine)
-        SQLModel.metadata.create_all(engine)
+    for inst in instances_to_close:
+        inst.close()

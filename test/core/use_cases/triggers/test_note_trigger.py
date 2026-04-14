@@ -83,8 +83,11 @@ def _to_field(activity_obj) -> list[str] | None:
 
 def _outbox_activity_ids(actor_id: str, dl: SqliteDataLayer) -> list[str]:
     """Return all activity IDs in the actor's outbox."""
+    # Create a scoped view sharing dl's engine.  The temporary in-memory
+    # engine allocated by __init__ is disposed immediately before being
+    # replaced, so no sqlite3 connection leaks.
     scoped = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-    # Share dl's engine — set _owns_engine=False so __del__ doesn't dispose it.
+    scoped._engine.dispose()
     scoped._engine = dl._engine
     scoped._owns_engine = False
     return scoped.outbox_list()
