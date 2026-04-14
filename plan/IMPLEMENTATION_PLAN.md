@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-04-08 (IDEA-260408-01-5 ✅, IDEA-260408-01-6 ✅; dereference pattern + standalone status removal; 1299 tests passing)
+**Last Updated**: 2026-04-14 (plan refresh #73: D5-7-BTFIX-1 ✅, D5-7-BTFIX-2 ✅, D5-7-TRIGNOTIFY-1 ✅, D5-7-DEMONOTECLEAN-1 ✅, SYNC-2 ✅, SYNC-3 ✅, SYNC-TRIG-1 ✅, D5-7-DEMOREPLCHECK-1 ✅, PRIORITY-325 DL-SQLITE ✅; 1402 tests passing)
 
 ## Overview
 
@@ -14,8 +14,9 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 ### Current Status Summary
 
 **Test suite**: Canonical validation last passed on 2026-04-14
-(~1562 passed, 12 skipped, 5581 subtests; `black`, `flake8`, `mypy`, `pyright`,
-full `pytest` run).
+(~1402 passed, 13 skipped, 5581 subtests; `black`, `flake8`, `mypy`, `pyright`,
+full `pytest` run). Count reflects removal of TinyDB-specific tests during
+PRIORITY-325 migration.
 
 All 38 message handlers implemented (including `unknown`). All 10 trigger
 endpoints complete (including new `sync-log-entry`). 12 demo scripts, all
@@ -37,12 +38,12 @@ tasks tracked under PRIORITY-310 below).
 D5-6-WORKFLOW (all ✅); D5-6-DUP, D5-6-TRIGDELIV, D5-6-LOGCTX (all ✅);
 D5-6-DEMOAUDIT ✅; D5-6-AUTOENG ✅; D5-6-NOTECAST ✅; D5-6-CASEPROP ✅;
 D5-6-EMBARGORCP ✅
-**PRIORITY-320** Round-2 demo feedback (independent tasks) —
-D5-7-EMSTATE-1 ✅, D5-7-AUTOENG-2 (superseded by D5-7-BTFIX-1), D5-7-TRIGNOTIFY-1, D5-7-DEMONOTECLEAN-1
-(pending). D5-7-MSGORDER-1 ✅, D5-7-LOGCLEAN-1 ✅.
+**PRIORITY-320** Round-2 demo feedback (independent tasks) — all complete:
+D5-7-EMSTATE-1 ✅, D5-7-AUTOENG-2 (superseded by D5-7-BTFIX-1),
+D5-7-TRIGNOTIFY-1 ✅, D5-7-DEMONOTECLEAN-1 ✅, D5-7-MSGORDER-1 ✅,
+D5-7-LOGCLEAN-1 ✅.
 D5-7-CASEREPL-1 and D5-7-ADDOBJ-1 superseded by SYNC-2 (see Priority 330).
-**D5-7-BTFIX-1** and **D5-7-BTFIX-2** (BT cascade violations) are new
-Priority 320 items blocking D5-7-HUMAN; see IDEA-26041004.
+D5-7-BTFIX-1 ✅ and D5-7-BTFIX-2 ✅ (BT cascade violations); see IDEA-26041004.
 
 **PRIORITY-325** ~~TinyDB → SQLModel/SQLite datalayer migration — DL-SQLITE-ADR,
 DL-SQLITE-1, DL-SQLITE-2, DL-SQLITE-3, DL-SQLITE-4, DL-SQLITE-5 (all pending).
@@ -656,7 +657,7 @@ references.
 > `CaseLogEntry` history), not just field equality. Implement after SYNC-2
 > is complete.
 
-- [ ] **D5-7-DEMOREPLCHECK-1**: The final state check (lines 805–853 of the
+- [x] **D5-7-DEMOREPLCHECK-1**: The final state check (lines 805–853 of the
   2026-04-10 log) inspects only the vendor's datalayer. The finder's replica is
   never verified. This means replication failures pass all demo checks silently.
 
@@ -700,8 +701,7 @@ All tasks must complete before D5-7-HUMAN (Priority 330).
 
 #### DL-SQLITE-ADR — Write ADR for TinyDB → SQLModel/SQLite migration
 
-- [x] **DL-SQLITE-ADR**: Write `docs/adr/0015-sqlmodel-sqlite-datalayer.md`
-  (or next available ADR number). Cover:
+- [x] **DL-SQLITE-ADR**: Write `docs/adr/0016-sqlmodel-sqlite-datalayer.md`
   - Motivation: O(n) I/O cost, test monkey-patch complexity (BUG-2026041001
     evidence), and why these are structural rather than fixable.
   - Decision: Single-table polymorphic SQLModel adapter in the adapter layer.
@@ -814,7 +814,7 @@ All tasks must complete before D5-7-HUMAN (Priority 330).
 > **Absorbed by DL-SQLITE-2 (Priority 325).** The TinyDB fallback import will
 > be removed as part of the datalayer migration. No standalone action needed here.
 
-- [ ] **TECHDEBT-32c**: `vultron/wire/as2/rehydration.py` imports
+- [x] **TECHDEBT-32c** ~~(absorbed by DL-SQLITE-2)~~: `vultron/wire/as2/rehydration.py` imports
   `from vultron.adapters.driven.datalayer_tinydb import get_datalayer` as a
   fallback when no `dl` is passed. This violates CS-05-001 (wire layer must not
   import from adapters). All production callers already pass `dl` explicitly;
@@ -852,6 +852,33 @@ All tasks must complete before D5-7-HUMAN (Priority 330).
   - `pyyaml` is already an indirect dependency (via `docker-compose` test
     helper); add `pyyaml` and `types-pyyaml` to `pyproject.toml` if not
     already present.
+
+#### DOCMAINT-2 — Fix stale references to archived notes
+
+- [ ] **DOCMAINT-2**: Several files still reference notes that were moved to
+  `archived_notes/` or merged into other notes files (commit `0922e1f1`).
+  Search for and update all stale cross-references.
+
+  **Files moved to `archived_notes/`** — update references to use the new path:
+  - `notes/state-machine-findings.md` → `archived_notes/state-machine-findings.md`
+    (referenced in `plan/PRIORITIES.md`, `plan/IMPLEMENTATION_PLAN.md`,
+    `specs/behavior-tree-integration.md`)
+  - `notes/multi-actor-architecture.md` → `archived_notes/multi-actor-architecture.md`
+    (referenced in `plan/IMPLEMENTATION_PLAN.md`)
+  - `notes/two-actor-feedback.md` → `archived_notes/two-actor-feedback.md`
+    (referenced in `plan/IMPLEMENTATION_PLAN.md`)
+  - `notes/datalayer-refactor.md` → `archived_notes/datalayer-refactor.md`
+    (referenced in `plan/IMPLEMENTATION_PLAN.md`)
+  - `notes/architecture-review.md` → `archived_notes/architecture-review.md`
+    (referenced in `specs/architecture.md`)
+
+  **Files merged** — update references to point to the merged destination:
+  - `notes/canonical-bt-reference.md` → `notes/bt-integration.md`
+    (referenced in `plan/IDEAS.md`, `plan/IMPLEMENTATION_PLAN.md`,
+    `specs/behavior-tree-integration.md`)
+
+  **Also**: Update `notes/datalayer-sqlite-design.md` status header from
+  "Status: Planned" to "Status: Complete".
 
 ---
 
