@@ -1,7 +1,7 @@
 [build-system]
 # Todo: Why would I want to use a different build system?
 # SetupTools
-requires = ["setuptools>66", "setuptools-scm"]
+requires = ["setuptools>=82.0.1", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 # Flit
 #requires = ["flit_core >=3.2,<4"]
