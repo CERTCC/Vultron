@@ -1,8 +1,8 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-04-15 (plan refresh #74: WIRE-TRANS-01 task block added;
-BUG-26041501 fix committed `f8eede75`; ARCH-12-001–007 added to
-`specs/architecture.md`; PROTO-06-001 removed; 1404 tests passing)
+**Last Updated**: 2026-04-15 (plan refresh #75: WIRE-TRANS-01 ✅, WIRE-TRANS-02 ✅
+completed; shim removed, from_core/to_core/_field_map added to VultronAS2Object;
+1418 tests passing)
 
 ## Overview
 
@@ -59,7 +59,7 @@ Remaining: D5-7-HUMAN sign-off.
 SYNC-2 subsumes D5-7-CASEREPL-1 and D5-7-ADDOBJ-1.
 Prereq for SYNC-2: D5-7-TRIGNOTIFY-1 (from Priority 320).
 
-**PRIORITY-340** Wire-domain translation boundary — WIRE-TRANS-01–05 (pending).
+**PRIORITY-340** Wire-domain translation boundary — WIRE-TRANS-01–02 ✅, WIRE-TRANS-03–05 (pending).
 Renames wire `VultronObject` → `VultronAS2Object`, adds `from_core()`/`to_core()`
 stubs, implements on all wire object and activity types, deletes `serializer.py`.
 See `specs/architecture.md` ARCH-12-001–007 and `notes/domain-model-separation.md`.
@@ -819,23 +819,18 @@ modules.
 **Must complete before starting new protocol features**, as wire/core coupling
 is accruing technical debt with each feature addition.
 
-#### WIRE-TRANS-01 — Rename wire VultronObject → VultronAS2Object
+#### WIRE-TRANS-01 — Rename wire VultronObject → VultronAS2Object ✅
 
-- [ ] **WIRE-TRANS-01-1**: Rename `VultronObject` to `VultronAS2Object` in
-  `vultron/wire/as2/vocab/objects/base.py`. Update all import sites across
-  `vultron/wire/`, `vultron/core/use_cases/triggers/`, and tests.
-  Add `VultronObject = VultronAS2Object` re-export alias in the same module
-  only if callers outside `vultron/` reference the old name (check first).
+- [x] **WIRE-TRANS-01-1**: Renamed `VultronObject` → `VultronAS2Object` in
+  `vultron/wire/as2/vocab/objects/base.py`; removed compatibility shim; no
+  external callers of the wire alias existed.
 
-#### WIRE-TRANS-02 — Add from_core/to_core stubs to VultronAS2Object
+#### WIRE-TRANS-02 — Add from_core/to_core stubs to VultronAS2Object ✅
 
-- [ ] **WIRE-TRANS-02**: Add to `VultronAS2Object`:
-  - `_field_map: ClassVar[dict[str, str]] = {}` class variable
-  - `from_core(cls, core_obj: Any) -> "VultronAS2Object"` classmethod stub
-    (raises `NotImplementedError`)
-  - `to_core(self) -> Any` instance method stub (raises `NotImplementedError`)
-  Both stubs' docstrings MUST state the `_field_map` contract and the expected
-  subclass narrowing.
+- [x] **WIRE-TRANS-02**: Added `_field_map: ClassVar[dict[str, str]] = {}`,
+  `from_core()` (default JSON round-trip + field rename via `_field_map`), and
+  `to_core()` (raises `NotImplementedError`) to `VultronAS2Object`; 14 new
+  tests in `test/wire/as2/vocab/test_vultron_as2_object.py`.
 
 #### WIRE-TRANS-03 — Implement from_core on all wire object types
 

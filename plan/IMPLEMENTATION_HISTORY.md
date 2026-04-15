@@ -6261,3 +6261,44 @@ Deprecated specs are agent noise. Added to `specs/meta-specifications.md`.
 - `plan/IMPLEMENTATION_PLAN.md`: PRIORITY-340 / WIRE-TRANS-01–05 task block
   added; header updated (refresh #74)
 - `plan/IMPLEMENTATION_NOTES.md`: 2026-04-15 session notes appended
+
+---
+
+### WIRE-TRANS-01 (shim removal) + WIRE-TRANS-02 (from_core/to_core)
+
+**Date**: 2026-04-15
+
+**WIRE-TRANS-01 completion** — removed the `VultronObject = VultronAS2Object`
+backward-compatibility alias from `vultron/wire/as2/vocab/objects/base.py`.
+No external callers of the wire-layer alias existed; all `VultronObject`
+references in the codebase import from `vultron.core.models.base` (the core
+domain type), not from the wire module.
+
+**WIRE-TRANS-02** — added to `VultronAS2Object`:
+
+- `_field_map: ClassVar[dict[str, str]] = {}` — class variable for
+  domain-to-wire field name translation; subclasses override when wire field
+  names differ from core field names.
+- `from_core(cls, core_obj: Any) -> "VultronAS2Object"` — default JSON
+  round-trip implementation: `core_obj.model_dump(mode="json")`, apply
+  `_field_map` renames, then `cls.model_validate(data)`. Subclasses narrow
+  the parameter type and can override for complex cases.
+- `to_core(self) -> Any` — raises `NotImplementedError`; subclasses with a
+  well-defined reverse mapping SHOULD override.
+
+Docstrings document the `_field_map` contract and expected subclass narrowing.
+
+`from_core()` provides a working default (not a bare `NotImplementedError`
+stub) because the `CaseLogEntry.from_core()` already demonstrated the pattern
+and it is uniform enough to be a safe base-class default.
+
+**Files changed**:
+
+- `vultron/wire/as2/vocab/objects/base.py` — shim removed; `_field_map`,
+  `from_core()`, `to_core()` added
+- `test/wire/as2/vocab/test_vultron_as2_object.py` — 14 new tests
+- `plan/IMPLEMENTATION_PLAN.md` — WIRE-TRANS-01, WIRE-TRANS-02 marked done;
+  header updated (refresh #75)
+- `plan/IMPLEMENTATION_HISTORY.md` — this entry
+
+**Test counts**: 1418 passed, 12 skipped (up from 1404; +14 new tests).
