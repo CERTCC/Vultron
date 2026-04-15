@@ -23,12 +23,17 @@ from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 
 
-class VultronObject(as_Object):
-    """
-    Base class for all Vultron ActivityStreams Objects
+class VultronAS2Object(as_Object):
+    """Base class for all Vultron ActivityStreams Objects.
+
+    Renamed from ``VultronObject`` to avoid collision with the core domain
+    type ``vultron.core.models.base.VultronObject``.
     """
 
     _vocab_ns: ClassVar[VocabNamespace] = VocabNamespace.VULTRON
 
 
-VultronObjectRef: TypeAlias = ActivityStreamRef[VultronObject]
+# Backward-compatibility alias — migrate callers to ``VultronAS2Object``.
+VultronObject = VultronAS2Object
+
+VultronObjectRef: TypeAlias = ActivityStreamRef[VultronAS2Object]

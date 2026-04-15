@@ -28,13 +28,13 @@ from vultron.core.states.roles import CVDRoles as CVDRole
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef, as_Link
-from vultron.wire.as2.vocab.objects.base import VultronObject
+from vultron.wire.as2.vocab.objects.base import VultronAS2Object
 from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
 
 logger = logging.getLogger(__name__)
 
 
-class CaseParticipant(VultronObject):
+class CaseParticipant(VultronAS2Object):
     """
     A CaseParticipant is a wrapper around an Actor in a VulnerabilityCase.
     It is used to track the status of the participant within the context of a specific case, as well as the roles they

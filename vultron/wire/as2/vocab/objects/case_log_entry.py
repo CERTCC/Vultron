@@ -51,10 +51,10 @@ from vultron.core.models.case_log_entry import (  # noqa: F401
     VultronCaseLogEntry,
     VultronCaseLogEntryRef,
 )
-from vultron.wire.as2.vocab.objects.base import VultronObject
+from vultron.wire.as2.vocab.objects.base import VultronAS2Object
 
 
-class CaseLogEntry(VultronObject):
+class CaseLogEntry(VultronAS2Object):
     """Wire-layer representation of a canonical case log entry.
 
     All fields mirror

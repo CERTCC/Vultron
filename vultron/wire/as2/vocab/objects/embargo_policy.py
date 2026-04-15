@@ -25,7 +25,7 @@ from pydantic import Field, field_serializer, field_validator
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
-from vultron.wire.as2.vocab.objects.base import VultronObject
+from vultron.wire.as2.vocab.objects.base import VultronAS2Object
 
 
 def _parse_duration(value: Any) -> timedelta | None:
@@ -57,7 +57,7 @@ def _parse_duration(value: Any) -> timedelta | None:
     raise TypeError(f"Unsupported duration value: {value!r}")
 
 
-class EmbargoPolicy(VultronObject):
+class EmbargoPolicy(VultronAS2Object):
     """
     Represents an Actor's stated embargo preferences.
 
