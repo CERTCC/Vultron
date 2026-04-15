@@ -47,7 +47,7 @@ from pydantic import Field
 
 from vultron.core.models._helpers import _now_utc
 from vultron.core.models.case_log import GENESIS_HASH
-from vultron.core.models.case_log_entry import (  # noqa: F401
+from vultron.core.models.case_log_entry import (
     VultronCaseLogEntry,
     VultronCaseLogEntryRef,
 )
@@ -148,6 +148,9 @@ class CaseLogEntry(VultronAS2Object):
         do not embed wire-format knowledge (ARCH-01-001).
         """
         return cls.model_validate(entry.model_dump(mode="json"))
+
+    def to_core(self) -> VultronCaseLogEntry:
+        return VultronCaseLogEntry.model_validate(self._to_core_data())
 
 
 __all__ = ["CaseLogEntry", "VultronCaseLogEntry", "VultronCaseLogEntryRef"]

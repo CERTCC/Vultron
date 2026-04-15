@@ -23,6 +23,24 @@ from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 
 
+def _ref_id_or_value(value: Any) -> Any:
+    """Return a reference's ``id`` when present, otherwise the original value."""
+    if isinstance(value, list):
+        return [_ref_id_or_value(item) for item in value]
+    if isinstance(value, dict):
+        return value.get("id", value.get("id_", value))
+    return getattr(value, "id_", value)
+
+
+def _scalar_ref_id_or_value(value: Any) -> Any:
+    """Collapse a scalar-or-list reference to a single ``id`` string when possible."""
+    if isinstance(value, list):
+        if not value:
+            return None
+        return _scalar_ref_id_or_value(value[0])
+    return _ref_id_or_value(value)
+
+
 class VultronAS2Object(as_Object):
     """Base class for all Vultron ActivityStreams Objects.
 
@@ -97,6 +115,14 @@ class VultronAS2Object(as_Object):
             f"{type(self).__name__}.to_core() is not implemented. "
             "Override this method in the subclass."
         )
+
+    def _to_core_data(self) -> dict[str, Any]:
+        """Dump wire data and reverse any ``_field_map`` renames for core use."""
+        data = self.model_dump(mode="python", round_trip=True)
+        for domain_field, wire_field in self._field_map.items():
+            if wire_field in data:
+                data[domain_field] = data.pop(wire_field)
+        return data
 
 
 VultronObjectRef: TypeAlias = ActivityStreamRef[VultronAS2Object]

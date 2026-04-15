@@ -18,10 +18,12 @@ Provides Case Status objects for the Vultron ActivityStreams Vocabulary.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import TypeAlias
+from typing import TypeAlias, cast
 
 from pydantic import Field, field_serializer, field_validator, model_validator
 
+from vultron.core.models.case_status import VultronCaseStatus
+from vultron.core.models.participant_status import VultronParticipantStatus
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_pxa, CS_vfd
@@ -29,7 +31,10 @@ from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef, as_Link
 from vultron.wire.as2.vocab.base.objects.base import as_Object
-from vultron.wire.as2.vocab.objects.base import VultronAS2Object
+from vultron.wire.as2.vocab.objects.base import (
+    VultronAS2Object,
+    _scalar_ref_id_or_value,
+)
 
 
 class CaseStatus(VultronAS2Object):
@@ -75,6 +80,20 @@ class CaseStatus(VultronAS2Object):
         if self.name is None:
             self.name = " ".join([self.em_state.name, self.pxa_state.name])
         return self
+
+    @classmethod
+    def from_core(cls, core_obj: VultronCaseStatus) -> "CaseStatus":
+        return cast("CaseStatus", super().from_core(core_obj))
+
+    def to_core(self) -> VultronCaseStatus:
+        data = self._to_core_data()
+        data["attributed_to"] = _scalar_ref_id_or_value(
+            data.get("attributed_to")
+        )
+        data["context"] = _scalar_ref_id_or_value(data.get("context"))
+        if isinstance(data.get("pxa_state"), str):
+            data["pxa_state"] = CS_pxa[data["pxa_state"]]
+        return VultronCaseStatus.model_validate(data)
 
 
 CaseStatusRef: TypeAlias = ActivityStreamRef[CaseStatus]
@@ -130,6 +149,31 @@ class ParticipantStatus(VultronAS2Object):
                     parts.append(self.case_status.name)
             self.name = " ".join(parts)
         return self
+
+    @classmethod
+    def from_core(
+        cls, core_obj: VultronParticipantStatus
+    ) -> "ParticipantStatus":
+        data = core_obj.model_dump(mode="json")
+        case_status = data.get("case_status")
+        if isinstance(case_status, str):
+            data["case_status"] = CaseStatus(
+                id_=case_status,
+                context=data.get("context"),
+                attributed_to=data.get("attributed_to"),
+            )
+        return cls.model_validate(data)
+
+    def to_core(self) -> VultronParticipantStatus:
+        data = self._to_core_data()
+        data["attributed_to"] = _scalar_ref_id_or_value(
+            data.get("attributed_to")
+        )
+        data["context"] = _scalar_ref_id_or_value(data.get("context"))
+        data["case_status"] = _scalar_ref_id_or_value(data.get("case_status"))
+        if isinstance(data.get("vfd_state"), str):
+            data["vfd_state"] = CS_vfd[data["vfd_state"]]
+        return VultronParticipantStatus.model_validate(data)
 
 
 ParticipantStatusRef: TypeAlias = ActivityStreamRef[ParticipantStatus]

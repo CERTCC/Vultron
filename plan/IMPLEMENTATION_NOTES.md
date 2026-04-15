@@ -186,3 +186,22 @@ mappings as a guide to populate `_field_map` entries.
 that maps grammatical fields (actor, object_, target, context, in_reply_to),
 calling `WireType.from_core()` on `VultronObject` values, passing URI strings
 through unchanged (task WIRE-TRANS-04).
+
+---
+
+### 2026-04-15 WIRE-TRANS-03 completed
+
+**Implemented conversions**: `from_core()` / `to_core()` are now concrete on the
+wire `VulnerabilityCase`, `VulnerabilityReport`, `CaseActor`,
+`CaseParticipant`, `CaseStatus`, `ParticipantStatus`, and `CaseLogEntry`
+types. Focused tests live in `test/wire/as2/vocab/test_wire_domain_translation.py`.
+
+**Key lesson**: reverse conversion must use the wire model's Python-field dump,
+not alias-form output. `as_Base.context_` (`@context`) is distinct from the AS2
+`context` field on `as_Object`; dumping by alias drops `attributed_to`/`case_id`
+into camelCase keys that core models do not accept directly.
+
+**Nested conversion rule**: for reverse translation, nested wire objects should
+call their own `to_core()` methods instead of relying on a raw `model_validate`
+over nested dicts. This preserves enum-valued state fields (`pxa_state`,
+`vfd_state`) and correctly collapses reference-only fields back to ID strings.

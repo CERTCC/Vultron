@@ -1,8 +1,8 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-04-15 (plan refresh #75: WIRE-TRANS-01 ✅, WIRE-TRANS-02 ✅
-completed; shim removed, from_core/to_core/_field_map added to VultronAS2Object;
-1418 tests passing)
+**Last Updated**: 2026-04-15 (plan refresh #76: WIRE-TRANS-03 ✅ completed;
+wire object/domain conversions added for case, report, participant, status,
+case actor, and case log entry types; 1425 tests passing)
 
 ## Overview
 
@@ -59,7 +59,8 @@ Remaining: D5-7-HUMAN sign-off.
 SYNC-2 subsumes D5-7-CASEREPL-1 and D5-7-ADDOBJ-1.
 Prereq for SYNC-2: D5-7-TRIGNOTIFY-1 (from Priority 320).
 
-**PRIORITY-340** Wire-domain translation boundary — WIRE-TRANS-01–02 ✅, WIRE-TRANS-03–05 (pending).
+**PRIORITY-340** Wire-domain translation boundary — WIRE-TRANS-01–03 ✅,
+WIRE-TRANS-04–05 (pending).
 Renames wire `VultronObject` → `VultronAS2Object`, adds `from_core()`/`to_core()`
 stubs, implements on all wire object and activity types, deletes `serializer.py`.
 See `specs/architecture.md` ARCH-12-001–007 and `notes/domain-model-separation.md`.
@@ -832,19 +833,14 @@ is accruing technical debt with each feature addition.
   `to_core()` (raises `NotImplementedError`) to `VultronAS2Object`; 14 new
   tests in `test/wire/as2/vocab/test_vultron_as2_object.py`.
 
-#### WIRE-TRANS-03 — Implement from_core on all wire object types
+#### WIRE-TRANS-03 — Implement from_core on all wire object types ✅
 
-- [ ] **WIRE-TRANS-03**: Implement `from_core()` (and `to_core()` where feasible)
-  on every concrete `VultronAS2Object` subclass. Use the field-by-field mapping
-  in `vultron/wire/as2/serializer.py` as a guide to identify field name
-  differences (captured in `_field_map` where needed).
-  Types to cover (at minimum):
-  - `VulnerabilityCase` (wire)
-  - `VulnerabilityReport` (wire)
-  - `CaseActor` (wire)
-  - `VultronParticipant` (wire)
-  - `VultronParticipantStatus` (wire)
-  - `CaseLogEntry` (wire — already done in commit `f8eede75`)
+- [x] **WIRE-TRANS-03**: Added concrete `from_core()` and feasible `to_core()`
+  conversions for `VulnerabilityCase`, `VulnerabilityReport`, `CaseActor`,
+  `CaseParticipant`, `CaseStatus`, `ParticipantStatus`, and `CaseLogEntry`.
+  Added shared wire-base helpers for reference ID normalization and reverse
+  field-map application, plus focused regression coverage in
+  `test/wire/as2/vocab/test_wire_domain_translation.py`.
 
 #### WIRE-TRANS-04 — Generic activity from_core on wire activity base
 

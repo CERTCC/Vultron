@@ -19,16 +19,20 @@ Provides various CaseParticipant objects for the Vultron ActivityStreams Vocabul
 from __future__ import annotations
 
 import logging
-from typing import TypeAlias
+from typing import TypeAlias, cast
 
 from pydantic import Field, field_serializer, field_validator, model_validator
 
+from vultron.core.models.participant import VultronParticipant
 from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.core.states.roles import CVDRoles as CVDRole
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef, as_Link
-from vultron.wire.as2.vocab.objects.base import VultronAS2Object
+from vultron.wire.as2.vocab.objects.base import (
+    VultronAS2Object,
+    _scalar_ref_id_or_value,
+)
 from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
 
 logger = logging.getLogger(__name__)
@@ -178,6 +182,26 @@ class CaseParticipant(VultronAS2Object):
         if reset:
             self.case_roles = []
         self.case_roles.append(role)
+
+    @classmethod
+    def from_core(cls, core_obj: VultronParticipant) -> "CaseParticipant":
+        return cast("CaseParticipant", super().from_core(core_obj))
+
+    def to_core(self) -> VultronParticipant:
+        data = self._to_core_data()
+        data["attributed_to"] = _scalar_ref_id_or_value(
+            data.get("attributed_to")
+        )
+        data["context"] = _scalar_ref_id_or_value(data.get("context"))
+        data["participant_statuses"] = [
+            (
+                status.to_core()
+                if isinstance(status, ParticipantStatus)
+                else status
+            )
+            for status in self.participant_statuses
+        ]
+        return VultronParticipant.model_validate(data)
 
 
 class FinderParticipant(CaseParticipant):
