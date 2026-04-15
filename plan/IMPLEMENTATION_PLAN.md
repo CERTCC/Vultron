@@ -1,6 +1,8 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-04-14 (plan refresh #73: D5-7-BTFIX-1 ✅, D5-7-BTFIX-2 ✅, D5-7-TRIGNOTIFY-1 ✅, D5-7-DEMONOTECLEAN-1 ✅, SYNC-2 ✅, SYNC-3 ✅, SYNC-TRIG-1 ✅, D5-7-DEMOREPLCHECK-1 ✅, PRIORITY-325 DL-SQLITE ✅; 1402 tests passing)
+**Last Updated**: 2026-04-15 (plan refresh #74: WIRE-TRANS-01 task block added;
+BUG-26041501 fix committed `f8eede75`; ARCH-12-001–007 added to
+`specs/architecture.md`; PROTO-06-001 removed; 1404 tests passing)
 
 ## Overview
 
@@ -56,6 +58,11 @@ D5-7-DEMOREPLCHECK-1 ✅ (finder replica verification in two-actor demo).
 Remaining: D5-7-HUMAN sign-off.
 SYNC-2 subsumes D5-7-CASEREPL-1 and D5-7-ADDOBJ-1.
 Prereq for SYNC-2: D5-7-TRIGNOTIFY-1 (from Priority 320).
+
+**PRIORITY-340** Wire-domain translation boundary — WIRE-TRANS-01–05 (pending).
+Renames wire `VultronObject` → `VultronAS2Object`, adds `from_core()`/`to_core()`
+stubs, implements on all wire object and activity types, deletes `serializer.py`.
+See `specs/architecture.md` ARCH-12-001–007 and `notes/domain-model-separation.md`.
 
 ---
 
@@ -795,6 +802,71 @@ All tasks must complete before D5-7-HUMAN (Priority 330).
   - Update `docker/README.md` if it documents the database path env var.
 
   **May run in parallel with**: DL-SQLITE-2 through DL-SQLITE-4.
+
+---
+
+### Phase PRIORITY-340 — Wire-Domain Translation Boundary (PRIORITY 340)
+
+**Reference**: `specs/architecture.md` ARCH-12-001 through ARCH-12-007,
+`notes/domain-model-separation.md` "Agreed Design Decisions (2026-04-15)"
+
+This phase resolves the remaining wire/core coupling by establishing the
+formal `from_core()` / `to_core()` translation contract across all wire types.
+It eliminates the two-classes-named-`VultronObject` confusion, deletes the
+legacy `serializer.py`, and closes the ARCH-01-001 violations in core trigger
+modules.
+
+**Must complete before starting new protocol features**, as wire/core coupling
+is accruing technical debt with each feature addition.
+
+#### WIRE-TRANS-01 — Rename wire VultronObject → VultronAS2Object
+
+- [ ] **WIRE-TRANS-01-1**: Rename `VultronObject` to `VultronAS2Object` in
+  `vultron/wire/as2/vocab/objects/base.py`. Update all import sites across
+  `vultron/wire/`, `vultron/core/use_cases/triggers/`, and tests.
+  Add `VultronObject = VultronAS2Object` re-export alias in the same module
+  only if callers outside `vultron/` reference the old name (check first).
+
+#### WIRE-TRANS-02 — Add from_core/to_core stubs to VultronAS2Object
+
+- [ ] **WIRE-TRANS-02**: Add to `VultronAS2Object`:
+  - `_field_map: ClassVar[dict[str, str]] = {}` class variable
+  - `from_core(cls, core_obj: Any) -> "VultronAS2Object"` classmethod stub
+    (raises `NotImplementedError`)
+  - `to_core(self) -> Any` instance method stub (raises `NotImplementedError`)
+  Both stubs' docstrings MUST state the `_field_map` contract and the expected
+  subclass narrowing.
+
+#### WIRE-TRANS-03 — Implement from_core on all wire object types
+
+- [ ] **WIRE-TRANS-03**: Implement `from_core()` (and `to_core()` where feasible)
+  on every concrete `VultronAS2Object` subclass. Use the field-by-field mapping
+  in `vultron/wire/as2/serializer.py` as a guide to identify field name
+  differences (captured in `_field_map` where needed).
+  Types to cover (at minimum):
+  - `VulnerabilityCase` (wire)
+  - `VulnerabilityReport` (wire)
+  - `CaseActor` (wire)
+  - `VultronParticipant` (wire)
+  - `VultronParticipantStatus` (wire)
+  - `CaseLogEntry` (wire — already done in commit `f8eede75`)
+
+#### WIRE-TRANS-04 — Generic activity from_core on wire activity base
+
+- [ ] **WIRE-TRANS-04**: Add generic `from_core(cls, domain_activity)` to the
+  wire activity base class that maps grammatical AS2 fields (actor, object_,
+  target, context, in_reply_to): calls `WireType.from_core()` on
+  `VultronObject` values, passes URI strings through unchanged.
+  Subclasses narrow the `domain_activity` type annotation.
+
+#### WIRE-TRANS-05 — Delete serializer.py and update callers
+
+- [ ] **WIRE-TRANS-05**: Delete `vultron/wire/as2/serializer.py`.
+  Update all callers of `domain_xxx_to_wire()` functions to use the
+  corresponding `WireType.from_core()` classmethod. No compatibility shims.
+  Trigger modules in `vultron/core/use_cases/triggers/` are the primary callers
+  — once migrated, their direct wire imports become unnecessary, closing the
+  ARCH-01-001 violations.
 
 ---
 

@@ -149,3 +149,40 @@ added to Phase PRIORITY-350 to track the cleanup.
 DOCMAINT-2 (new), D5-7-HUMAN (sign-off, agents must not mark), SYNC-4
 (multi-peer sync), TOOLS-1 (Python 3.14), DOCS-3 (user-stories trace),
 CONFIG-1 (YAML config).
+
+---
+
+### 2026-04-15 WIRE-TRANS-01 design session (grill-me)
+
+**BUG-26041501 ARCH-01-001 fix (commit `f8eede75`)**: The `_to_wire_entry()`
+helper in `vultron/core/use_cases/triggers/sync.py` was a core module importing
+and calling wire layer code. Fixed by adding `WireCaseLogEntry.from_core(entry)`
+classmethod to `vultron/wire/as2/vocab/objects/case_log_entry.py`, removing
+`_to_wire_entry()`, and updating both call sites. Conversion ownership now lives
+in the wire type (the destination), not in core.
+
+**Key architectural finding**: Two classes named `VultronObject` exist in the
+codebase — one in `vultron.core.models.base` (pure Pydantic domain base) and
+one in `vultron.wire.as2.vocab.objects.base` (AS2 wire base). The wire version
+will be renamed `VultronAS2Object` (task WIRE-TRANS-01-1).
+
+**Domain inheritance is already clean**: Core domain objects (`VulnerabilityCase`,
+`VultronReport`, etc.) are pure Pydantic `BaseModel`. PROTO-06-001 is obsolete;
+removed from `specs/prototype-shortcuts.md`.
+
+**`from_core()` classmethod pattern**: All wire types should implement
+`from_core(cls, core_obj) -> "<WireType>"`. The base class stub raises
+`NotImplementedError`. Default implementation uses JSON round-trip:
+`cls.model_validate(core_obj.model_dump(mode="json"))`. Use `_field_map` for
+transitional field name mismatches — a `ClassVar[dict[str, str]] = {}` on the
+wire base that maps domain field names to wire field names before `model_validate`.
+
+**`serializer.py` to be deleted**: `vultron/wire/as2/serializer.py` has 6
+standalone conversion functions that will be replaced by `from_core()` classmethods
+on the corresponding wire types (task WIRE-TRANS-05). Use its field-by-field
+mappings as a guide to populate `_field_map` entries.
+
+**Activity translation**: Wire activity base class will get generic `from_core()`
+that maps grammatical fields (actor, object_, target, context, in_reply_to),
+calling `WireType.from_core()` on `VultronObject` values, passing URI strings
+through unchanged (task WIRE-TRANS-04).

@@ -6195,3 +6195,69 @@ with `AttributeError: 'VultronObject' object has no attribute 'case_id'`.
 `test_sync.py` reproduces the parse → extract → log_entry.case_id failure path.
 Test helpers in `test_sync.py` and `test_reject_sync.py` updated to use wire
 `CaseLogEntry`. 1404 tests pass (5 new).
+
+## ARCH-01-001 Fix + Wire Translation Boundary Design [2026-04-15]
+
+### from_core() Refactor (commit f8eede75)
+
+Review of commit `87961536` (BUG-26041501) identified an ARCH-01-001 violation:
+`_to_wire_entry()` in `vultron/core/use_cases/triggers/sync.py` was a core
+module importing from `vultron.wire` and embedding conversion logic. The fix
+moves conversion ownership to the wire type:
+
+- Added `WireCaseLogEntry.from_core(cls, entry: VultronCaseLogEntry)` classmethod
+  in `vultron/wire/as2/vocab/objects/case_log_entry.py` using JSON round-trip:
+  `cls.model_validate(entry.model_dump(mode="json"))`
+- Removed `_to_wire_entry()` from `vultron/core/use_cases/triggers/sync.py`
+- Updated both call sites to `WireCaseLogEntry.from_core(entry)`
+
+1404 tests pass; all linters clean.
+
+### Architecture Design Session (grill-me on PROTO-06-001)
+
+Extended design conversation established these decisions (captured in
+`specs/architecture.md` ARCH-12-001 through ARCH-12-007):
+
+**Key finding**: Domain objects are already pure Pydantic BaseModel — they do
+NOT inherit from AS2 types. PROTO-06-001's structural concern is resolved.
+PROTO-06-001 removed from `specs/prototype-shortcuts.md`.
+
+**Two VultronObject classes**: `vultron.core.models.base.VultronObject` (domain
+base, pure Pydantic) and `vultron.wire.as2.vocab.objects.base.VultronObject`
+(AS2 wire base) cause confusion. Wire version to be renamed `VultronAS2Object`.
+
+**Decisions made**:
+
+1. Wire base renamed `VultronAS2Object` (ARCH-12-001)
+2. `from_core(cls, core_obj)` classmethod on all wire types; base raises
+   `NotImplementedError`; default uses JSON round-trip (ARCH-12-002, 007)
+3. `to_core(self)` instance method on all wire types; base raises
+   `NotImplementedError` (ARCH-12-003)
+4. `_field_map: ClassVar[dict[str, str]] = {}` escape hatch for field name
+   mismatches (ARCH-12-004)
+5. Generic `from_core(domain_activity)` on wire activity base class mapping
+   grammatical AS2 fields (ARCH-12-005)
+6. `vultron/wire/as2/serializer.py` to be deleted; callers migrated to
+   `WireType.from_core()` (ARCH-12-006)
+7. Once WIRE-TRANS-05 completes, trigger modules' direct wire imports are
+   unnecessary → closes remaining ARCH-01-001 violations
+
+**Meta-policy decision**: Superseded specs MUST be removed, not deprecated.
+Deprecated specs are agent noise. Added to `specs/meta-specifications.md`.
+
+**Documentation updates**:
+
+- `specs/architecture.md`: ARCH-12 section added; review checklist and
+  remediation status updated; PROTO-06-001 references removed
+- `specs/prototype-shortcuts.md`: PROTO-06-001 section replaced with removal
+  comment
+- `specs/case-management.md`: CM-08-002 upgraded from SHOULD to MUST, updated
+  to reflect current clean inheritance status
+- `specs/meta-specifications.md`: "Lifecycle of Superseded Requirements"
+  section added
+- `notes/domain-model-separation.md`: "Current Status" completely rewritten
+  to reflect 2026-04-15 findings; "Recommended Next Steps" updated to
+  reference WIRE-TRANS-01 task
+- `plan/IMPLEMENTATION_PLAN.md`: PRIORITY-340 / WIRE-TRANS-01–05 task block
+  added; header updated (refresh #74)
+- `plan/IMPLEMENTATION_NOTES.md`: 2026-04-15 session notes appended

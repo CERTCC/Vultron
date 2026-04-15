@@ -77,28 +77,13 @@ and Python stack candidates.
     ADR-0015, case creation occurs at report receipt (RM.RECEIVED);
     `VultronParticipant` records carry RM state from that point forward.
 
-## Domain Model Separation
-
-- `PROTO-06-001` Prototype MAY allow domain objects to directly inherit from
-  ActivityStreams base types (`VultronObject`, `as_Object`, etc.) without a
-  translation boundary between wire representation, domain model, and
-  persistence model
-  - The intended production approach introduces explicit translation functions
-    (`from_activitystreams`, `to_activitystreams`) at the protocol boundary
-  - PROTO-06-001 constrains CM-08-001
-  - PROTO-06-001 constrains CM-08-002
-  - See `notes/domain-model-separation.md` for design rationale, known
-    constraints of the current approach, and recommended migration steps
-
-  **Design Note**: As the hexagonal architecture refactor progresses, the
-  boundary between AS2 wire types and core domain types is becoming more
-  concrete. The emerging use-cases-as-core-ports pattern (see
-  `notes/use-case-behavior-trees.md` and
-  `notes/architecture-ports-and-adapters.md`) may make full AS2 inheritance
-  in domain objects untenable sooner than originally anticipated.
-  If a `core/use_cases/` layer is formalized (post-P60), it will likely
-  require domain objects free of AS2 inheritance. This shortcut SHOULD be
-  revisited when stubbing `core/use_cases/` in P60-3.
+<!-- PROTO-06-001 (Domain Model Separation) removed 2026-04-15.
+     The inheritance concern it described is resolved: domain objects
+     (VulnerabilityCase, VultronReport, etc.) are already pure Pydantic
+     BaseModel with no AS2 inheritance. The remaining wire/domain translation
+     boundary work is now tracked as a production requirement in
+     specs/architecture.md (ARCH-12-001 through ARCH-12-007) and as
+     implementation task WIRE-TRANS-01 in plan/IMPLEMENTATION_PLAN.md. -->
 
 ## Performance Testing
 

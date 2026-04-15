@@ -11,10 +11,10 @@ core through defined **ports**, via thin **adapters**.
 `notes/architecture-review.md`
 
 **Cross-references**: `code-style.md` CS-05-001 (circular import
-prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
-`notes/domain-model-separation.md` (wire/domain/persistence separation),
-`notes/architecture-review.md` (violation inventory and remediation history),
-`docs/adr/0009-hexagonal-architecture.md` (decision rationale)
+prevention), `notes/domain-model-separation.md` (wire/domain/persistence
+separation), `notes/architecture-review.md` (violation inventory and
+remediation history), `docs/adr/0009-hexagonal-architecture.md` (decision
+rationale)
 
 ---
 
@@ -28,7 +28,8 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
     or transport layer
   - **Current state**: Partially achieved. `vultron/core/` has no wire/framework
     imports; `vultron/api/` still uses FastAPI and imports from `vultron/wire/`.
-    Full isolation deferred to post-prototype; see PROTO-06-001
+    Remaining wire imports in `vultron/core/use_cases/triggers/` are tracked
+    as ARCH-01-001 violations to be resolved by WIRE-TRANS-01.
   - ARCH-01-001 is-derived-by CS-05-001
 - `ARCH-01-002` Core functions MUST accept and return domain types only
   - Raw dicts, AS2 types, JSON strings, and framework objects MUST NOT
@@ -36,8 +37,8 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
   - The inbound pipeline MUST complete parse → extract steps before calling
     into core
   - **Current state**: `InboundPayload` domain type introduced (ARCH-1.2);
-    parse → extract pipeline stages in `vultron/wire/as2/`. Full core isolation
-    deferred to post-prototype; see PROTO-06-001
+    parse → extract pipeline stages in `vultron/wire/as2/`. Trigger modules
+    still construct wire activity objects directly; see WIRE-TRANS-01.
 - `ARCH-01-003` The `wire/` layer (AS2 parser, semantic extractor) MUST NOT
   contain handler logic, case management, or journal management
   - **Rationale**: Wire format concerns are structurally distinct from
@@ -120,7 +121,57 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
     `vultron/wire/as2/parser.py`; the router calls it as a thin wrapper
     (ARCH-1.3).
 
-## Core Model Richness
+## Wire-Domain Translation Boundary
+
+- `ARCH-12-001` The wire-layer `VultronObject` base class in
+  `vultron/wire/as2/vocab/objects/base.py` MUST be renamed `VultronAS2Object`;
+  all reference sites MUST be updated accordingly.
+  The core domain `VultronObject` (in `vultron/core/models/base.py`) retains
+  its name — only the wire base is renamed.
+  - **Rationale**: Two classes named `VultronObject` in different packages
+    causes confusion in search, type-checking, and code completion.
+
+- `ARCH-12-002` Every concrete subclass of `VultronAS2Object` MUST implement
+  a `from_core(cls, core_obj: <DomainType>) -> "<WireType>"` classmethod that
+  converts a core domain object to its wire representation.
+  `VultronAS2Object` MUST provide a base stub that raises `NotImplementedError`
+  so that unimplemented subclasses fail loudly at runtime.
+  - Ownership of core→wire translation MUST reside in the wire type (the
+    destination), not in the core layer that constructs the source.
+  - **Implemented**: `WireCaseLogEntry.from_core()` (commit `f8eede75`)
+
+- `ARCH-12-003` Every concrete subclass of `VultronAS2Object` MUST implement
+  a `to_core(self) -> <DomainType>` instance method that converts a wire
+  object back to its core domain representation.
+  `VultronAS2Object` MUST provide a base stub that raises `NotImplementedError`.
+
+- `ARCH-12-004` `VultronAS2Object` MUST define a `_field_map: ClassVar[dict[str,
+  str]] = {}` class variable as a transitional escape hatch for field name
+  mismatches between domain and wire types.
+  `from_core()` and `to_core()` MUST apply `_field_map` key substitutions
+  before calling `model_validate()`.
+  The goal is for `_field_map` to be empty on all subclasses once domain and
+  wire field names are aligned.
+
+- `ARCH-12-005` Wire activity base classes MUST provide a generic
+  `from_core(cls, domain_activity)` classmethod that maps grammatical AS2
+  fields (`actor`, `object_`, `target`, `context`, `in_reply_to`) by calling
+  `WireType.from_core()` on any field value that is a `VultronObject` instance,
+  and passing URI strings through unchanged.
+  Subclasses MUST narrow the `domain_activity` type annotation to their
+  specific domain activity counterpart.
+
+- `ARCH-12-006` `vultron/wire/as2/serializer.py` MUST be removed.
+  All standalone `domain_xxx_to_wire()` functions in that module MUST be
+  migrated to `from_core()` classmethods on the corresponding wire types.
+  No compatibility shims or re-exports are permitted.
+  - **Cross-reference**: `plan/IMPLEMENTATION_PLAN.md` task WIRE-TRANS-01
+
+- `ARCH-12-007` The default `from_core()` / `to_core()` implementation for
+  concrete wire types MAY use a JSON round-trip
+  (`cls.model_validate(core_obj.model_dump(mode="json"))`) as its body.
+  Where field names differ, the `_field_map` escape hatch (ARCH-12-004) MUST
+  be used rather than bespoke field-by-field mapping logic.
 
 - `ARCH-09-001` Core domain models MUST be as rich as or richer than their
   wire-layer counterparts
@@ -179,7 +230,8 @@ Use this checklist during code review to catch boundary violations.
 
 - [ ] Structural AS2 types contain no domain logic
 - [ ] Extractor is the sole location of AS2-to-domain vocabulary mapping
-- [ ] Serializer is the sole location of domain-to-AS2 translation
+- [ ] Wire types expose `from_core()` / `to_core()` for domain↔wire
+  translation; no standalone serializer module with conversion functions
 - [ ] No handler logic or case management in the wire layer
 
 ### Adapters
@@ -216,13 +268,19 @@ See `docs/adr/0009-hexagonal-architecture.md` for full violation inventory.
 - ARCH-07-001 (no re-invocation) — ✅ ARCH-1.2/1.3
 - ARCH-08-001 (parse in wire layer) — ✅ ARCH-1.3
 
-**Partially deferred (PROTO-06-001):**
+**ARCH-12 (Wire-domain translation boundary) — in progress:**
 
-- ARCH-01-001, ARCH-01-002 (full core isolation from wire/framework) —
-  `vultron/core/` is clean; `vultron/api/` imports from `vultron/wire/` as
-  expected for an adapter. Full isolation of all existing domain objects from
-  AS2 base types is deferred to post-prototype; see PROTO-06-001 and
-  `notes/domain-model-separation.md`.
+- ARCH-12-002 partially: `WireCaseLogEntry.from_core()` implemented (commit
+  `f8eede75`). Full rollout across all wire types is task WIRE-TRANS-01 in
+  `plan/IMPLEMENTATION_PLAN.md`.
+
+**Wire imports in core triggers — tolerated, tracked:**
+
+- `vultron/core/use_cases/triggers/` still imports wire types for activity
+  construction. These are ARCH-01-001 violations tolerated until WIRE-TRANS-01
+  is complete; at that point, trigger modules will call wire `from_core()`
+  methods rather than importing wire types directly.
+  See `plan/IMPLEMENTATION_PLAN.md` task WIRE-TRANS-01.
 
 **Not yet started (PRIORITY-60):**
 

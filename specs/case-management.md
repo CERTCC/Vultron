@@ -368,11 +368,14 @@ the distinction between participant-specific and participant-agnostic state.
   - **Persistence model**: Storage-optimized structures for the DataLayer
   - These three concerns SHOULD be independently evolvable; wire format changes
     SHOULD NOT require domain logic changes, and vice versa
-- `CM-08-002` Domain objects SHOULD NOT directly inherit from
-  ActivityStreams base types; explicit translation functions SHOULD be provided
-  at the protocol boundary
-  - See `notes/domain-model-separation.md` for design rationale and recommended migration steps
-  - CM-08-002 is-constrained-by PROTO-06-001
+- `CM-08-002` Domain objects MUST NOT directly inherit from
+  ActivityStreams base types; explicit `from_core()` / `to_core()` translation
+  methods MUST be provided at the wire boundary (see `specs/architecture.md`
+  ARCH-12-001 through ARCH-12-007 and `notes/domain-model-separation.md`)
+  - **Current state**: Domain objects (`VulnerabilityCase`, `VultronReport`,
+    `VultronCaseLogEntry`, etc.) are already pure Pydantic `BaseModel` —
+    they do NOT inherit from AS2 types. The remaining work is establishing
+    the formal `from_core()`/`to_core()` contract on all wire types.
 
 ## Redacted Case View
 

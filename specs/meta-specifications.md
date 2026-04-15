@@ -193,6 +193,25 @@ Examples:
 
 ---
 
+## Lifecycle of Superseded Requirements
+
+When a requirement is superseded by a stronger or more complete replacement:
+
+* **Remove** the old requirement from the spec file rather than marking it
+  deprecated or leaving it in place with a "DEPRECATED" annotation.
+* **Deprecated specs are agent noise.** Agents reading specs will act on
+  whatever they find; a deprecated-but-still-present requirement may cause
+  agents to comply with the wrong rule or generate confusion in discussions.
+* **Record the removal** in `plan/IMPLEMENTATION_HISTORY.md` so there is an
+  audit trail of what changed and why.
+* **Update cross-references.** Any other spec or note that cited the removed
+  requirement MUST be updated to point to the replacement.
+* **Exception: "Stable IDs" rule applies to renumbering, not removal.** The
+  "do not renumber" rule means existing IDs in git history remain traceable;
+  it does not mean dead requirements must stay in the file forever.
+
+---
+
 ## Quality Criteria
 
 A good specification is:
