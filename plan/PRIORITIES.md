@@ -110,10 +110,6 @@ D5-7-DEMOREPLCHECK-1 is **deferred to after SYNC-2** (Priority 330) because
 meaningful finder-replica verification requires checking log-state consistency,
 not just field equality.
 
-**D5-7-HUMAN** (project-owner sign-off on demo completeness) is the gate to
-exit SYNC work. It moves to Priority 330 and fires only after SYNC-2 and
-D5-7-DEMOREPLCHECK-1 are complete.
-
 **D5-7-TRIGNOTIFY-1** (populate `to` field in trigger activities) is also a
 prerequisite for SYNC-2 fan-out to work correctly; complete it as part of
 Priority 320 before starting Priority 330.
@@ -169,7 +165,14 @@ Sequential dependency chain:
 See `notes/sync-log-replication.md` and `notes/case-log-authority.md` for
 the architectural rationale.
 
+## PRIORITY 340: Wire translation
+
+All WIRE-TRANS tasks fall here.
+
 ## Priority 350: Update python version and other maintenance tasks
+
+**D5-7-HUMAN** (project-owner sign-off on demo completeness) is the gate to
+enter Priority 350 and beyond.
 
 General housekeeping items. Non-blocking; can proceed in parallel with or
 after Priority 330.
