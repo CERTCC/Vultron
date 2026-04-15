@@ -237,3 +237,14 @@ General observation: don't chain behavior trees with procedural stuff. Use
 behavior trees. If that means wrapping a procedure in a node, so be it. That
 lets us construct and reconfigure the behavior tree to reflect the desired
 behavior logic without worrying about side effects that happen outside the tree.
+
+## IDEA-26041501 Need spec to avoid compatability shims in prototype
+
+We need a spec that is declarative about avoiding the use of compatability
+shims when refactoring code. We're in prototype development mode so there
+are no
+external dependencies that we need to maintain downstream. When we change
+something it should be complete and permanent. Search notes/ for "shim" and
+you'll see where this has come up before. We just need to make it an
+explicit principle in the specs. Compatibility shims are technical debt that
+we do not want to take on right now.
