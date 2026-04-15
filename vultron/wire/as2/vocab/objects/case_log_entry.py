@@ -139,5 +139,15 @@ class CaseLogEntry(VultronObject):
         serialization_alias="reasonDetail",
     )
 
+    @classmethod
+    def from_core(cls, entry: VultronCaseLogEntry) -> "CaseLogEntry":
+        """Create a wire :class:`CaseLogEntry` from a domain
+        :class:`~vultron.core.models.case_log_entry.VultronCaseLogEntry`.
+
+        Conversion ownership belongs in the wire layer so that core modules
+        do not embed wire-format knowledge (ARCH-01-001).
+        """
+        return cls.model_validate(entry.model_dump(mode="json"))
+
 
 __all__ = ["CaseLogEntry", "VultronCaseLogEntry", "VultronCaseLogEntryRef"]

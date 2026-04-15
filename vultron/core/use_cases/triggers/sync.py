@@ -63,18 +63,6 @@ def _to_persistable_entry(
     )
 
 
-def _to_wire_entry(entry: VultronCaseLogEntry) -> WireCaseLogEntry:
-    """Convert a :class:`VultronCaseLogEntry` to the wire-layer :class:`WireCaseLogEntry`.
-
-    Required so that :class:`~vultron.wire.as2.vocab.activities.sync.AnnounceLogEntryActivity`
-    receives a proper ``as_Object`` subclass as its ``object_`` field.
-    Domain ``VultronCaseLogEntry`` extends core ``VultronObject``; without this
-    conversion it would fail the ``isinstance(obj, as_Object)`` check in
-    rehydration and be dropped by the parser (BUG-26041501).
-    """
-    return WireCaseLogEntry.model_validate(entry.model_dump(mode="json"))
-
-
 def _fan_out_log_entry(
     case_id: str,
     entry: VultronCaseLogEntry,
@@ -112,7 +100,7 @@ def _fan_out_log_entry(
     for recipient_id in recipients:
         announce = AnnounceLogEntryActivity(
             actor=actor_id,
-            object_=_to_wire_entry(entry),
+            object_=WireCaseLogEntry.from_core(entry),
             to=[recipient_id],
         )
         dl.save(announce)
@@ -268,7 +256,7 @@ def replay_missing_entries_trigger(
     for entry in missing:
         announce = AnnounceLogEntryActivity(
             actor=case_actor_id,
-            object_=_to_wire_entry(entry),
+            object_=WireCaseLogEntry.from_core(entry),
             to=[peer_id],
         )
         dl.save(announce)
