@@ -13,7 +13,7 @@
 #  Carnegie Mellon(R), CERT(R) and CERT Coordination Center(R) are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Wire/core translation tests for WIRE-TRANS-03."""
+"""Wire/core translation tests for WIRE-TRANS-03 and WIRE-TRANS-04."""
 
 from vultron.core.models.case import VultronCase
 from vultron.core.models.case_actor import VultronCaseActor
@@ -205,3 +205,89 @@ def test_case_actor_round_trips_between_core_and_wire():
     assert round_tripped.id_ == core.id_
     assert round_tripped.attributed_to == core.attributed_to
     assert round_tripped.context == core.context
+
+
+# ============================================================================
+# WIRE-TRANS-04: VultronAS2Activity.from_core()
+# ============================================================================
+
+
+def test_vultron_as2_activity_from_core_with_string_fields():
+    """VultronAS2Activity.from_core() round-trips a simple activity."""
+    from vultron.core.models.activity import VultronActivity
+    from vultron.wire.as2.vocab.activities.base import VultronAS2Activity
+
+    core = VultronActivity(
+        id_="https://example.org/activities/1",
+        type_="Offer",
+        actor="https://example.org/actors/alice",
+        object_="https://example.org/reports/1",
+    )
+
+    wire = VultronAS2Activity.from_core(core)
+
+    assert isinstance(wire, VultronAS2Activity)
+    assert wire.id_ == core.id_
+    assert wire.actor == core.actor
+    assert wire.object_ == core.object_
+
+
+def test_vultron_as2_activity_from_core_with_no_object():
+    """from_core() handles an activity whose object_ is None."""
+    from vultron.core.models.activity import VultronActivity
+    from vultron.wire.as2.vocab.activities.base import VultronAS2Activity
+
+    core = VultronActivity(
+        id_="https://example.org/activities/2",
+        type_="Read",
+        actor="https://example.org/actors/bob",
+    )
+
+    wire = VultronAS2Activity.from_core(core)
+
+    assert isinstance(wire, VultronAS2Activity)
+    assert wire.id_ == core.id_
+    assert wire.actor == core.actor
+    assert wire.object_ is None
+
+
+def test_vultron_as2_activity_subclass_field_map_renames():
+    """A subclass _field_map renames domain fields before validation."""
+    from typing import ClassVar
+
+    from vultron.core.models.activity import VultronActivity
+    from vultron.wire.as2.vocab.activities.base import VultronAS2Activity
+
+    class _AliasMappedActivity(VultronAS2Activity):
+        _field_map: ClassVar[dict[str, str]] = {"origin": "target"}
+
+    core = VultronActivity(
+        id_="https://example.org/activities/3",
+        type_="Move",
+        actor="https://example.org/actors/alice",
+        origin="https://example.org/cases/old",
+    )
+
+    wire = _AliasMappedActivity.from_core(core)
+
+    assert isinstance(wire, _AliasMappedActivity)
+    assert wire.target == "https://example.org/cases/old"
+
+
+def test_vultron_as2_activity_from_core_accept_subtype():
+    """from_core() works for a VultronAccept domain sub-type."""
+    from vultron.core.models.activity import VultronAccept
+    from vultron.wire.as2.vocab.activities.base import VultronAS2Activity
+
+    core = VultronAccept(
+        id_="https://example.org/activities/4",
+        actor="https://example.org/actors/vendor",
+        object_="https://example.org/activities/offer-1",
+    )
+
+    wire = VultronAS2Activity.from_core(core)
+
+    assert isinstance(wire, VultronAS2Activity)
+    assert wire.id_ == core.id_
+    assert wire.actor == core.actor
+    assert wire.object_ == core.object_

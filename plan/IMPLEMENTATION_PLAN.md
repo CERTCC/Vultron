@@ -59,8 +59,7 @@ Remaining: D5-7-HUMAN sign-off.
 SYNC-2 subsumes D5-7-CASEREPL-1 and D5-7-ADDOBJ-1.
 Prereq for SYNC-2: D5-7-TRIGNOTIFY-1 (from Priority 320).
 
-**PRIORITY-340** Wire-domain translation boundary — WIRE-TRANS-01–03 ✅,
-WIRE-TRANS-04–05 (pending).
+**PRIORITY-340** Wire-domain translation boundary — WIRE-TRANS-01–05 ✅.
 Renames wire `VultronObject` → `VultronAS2Object`, adds `from_core()`/`to_core()`
 stubs, implements on all wire object and activity types, deletes `serializer.py`.
 See `specs/architecture.md` ARCH-12-001–007 and `notes/domain-model-separation.md`.
@@ -844,20 +843,13 @@ is accruing technical debt with each feature addition.
 
 #### WIRE-TRANS-04 — Generic activity from_core on wire activity base
 
-- [ ] **WIRE-TRANS-04**: Add generic `from_core(cls, domain_activity)` to the
-  wire activity base class that maps grammatical AS2 fields (actor, object_,
-  target, context, in_reply_to): calls `WireType.from_core()` on
-  `VultronObject` values, passes URI strings through unchanged.
-  Subclasses narrow the `domain_activity` type annotation.
+- [x] **WIRE-TRANS-04**: Created `VultronAS2Activity(as_TransitiveActivity)` in
+  `vultron/wire/as2/vocab/activities/base.py` with `from_core()` JSON round-trip
+  and `_field_map` support; 4 tests added to `test_wire_domain_translation.py`.
 
-#### WIRE-TRANS-05 — Delete serializer.py and update callers
+#### WIRE-TRANS-05 — Delete serializer.py
 
-- [ ] **WIRE-TRANS-05**: Delete `vultron/wire/as2/serializer.py`.
-  Update all callers of `domain_xxx_to_wire()` functions to use the
-  corresponding `WireType.from_core()` classmethod. No compatibility shims.
-  Trigger modules in `vultron/core/use_cases/triggers/` are the primary callers
-  — once migrated, their direct wire imports become unnecessary, closing the
-  ARCH-01-001 violations.
+- [x] **WIRE-TRANS-05**: Deleted `vultron/wire/as2/serializer.py` (no callers).
 
 ---
 
