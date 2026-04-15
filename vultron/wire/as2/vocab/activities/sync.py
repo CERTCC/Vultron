@@ -29,7 +29,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
 )
 from vultron.wire.as2.vocab.objects.case_log_entry import (
-    VultronCaseLogEntry,
+    CaseLogEntry,
 )
 
 
@@ -43,7 +43,7 @@ class AnnounceLogEntryActivity(as_Announce):
         being replicated.
     """
 
-    object_: Optional[Union[VultronCaseLogEntry, as_Link, str]] = Field(  # type: ignore[assignment]
+    object_: Optional[Union[CaseLogEntry, as_Link, str]] = Field(
         default=None,
         validation_alias="object",
         serialization_alias="object",
@@ -61,14 +61,14 @@ class RejectLogEntryActivity(as_Reject):
     last accepted entry hash as a plain string so the CaseActor can
     determine which entries need to be replayed (SYNC-03-001).
 
-    object_: :class:`~vultron.core.models.case_log_entry.VultronCaseLogEntry`
+    object_: :class:`~vultron.wire.as2.vocab.objects.case_log_entry.CaseLogEntry`
         that was rejected.
     context: Last accepted entry hash string.
 
     Spec: SYNC-03-001, SYNC-03-002.
     """
 
-    object_: Optional[Union[VultronCaseLogEntry, as_Link, str]] = Field(  # type: ignore[assignment]
+    object_: Optional[Union[CaseLogEntry, as_Link, str]] = Field(
         default=None,
         validation_alias="object",
         serialization_alias="object",

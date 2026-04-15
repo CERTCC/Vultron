@@ -62,6 +62,11 @@ spec captures the normative requirements.
 - `SYNC-02-003` Replication MUST originate from the replication leader
   (initially the CaseActor) and be sent to each Participant Actor
   individually
+- `SYNC-02-004` Each `Announce(CaseLogEntry)` activity MUST embed the full
+  inline `CaseLogEntry` object in its `object` field; a URI-only reference
+  MUST NOT be used, because the recipient needs all entry fields (including
+  `prev_log_hash` and `entry_hash`) to validate the hash chain without an
+  additional round-trip to the sender's DataLayer
 
 ## Conflict Handling
 

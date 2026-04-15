@@ -6151,3 +6151,47 @@ not the test that created the leak, causing unrelated tests to fail.
 - `__enter__`/`__exit__` on `SqliteDataLayer` allows safe use in test
   helpers via `with SqliteDataLayer(...) as dl:`, preventing technical debt
   from per-call dispose boilerplate.
+
+## BUG-26041501 — Two-actor demo Finder crash on Announce(CaseLogEntry) [2026-04-15]
+
+**Issue**: The Vendor (CaseActor) fans out a `Announce(CaseLogEntry)` to the
+Finder. The Finder receives the activity with `object: "urn:uuid:.../log/0"`
+(a plain URI string), cannot resolve it to a typed `CaseLogEntry`, and crashes
+with `AttributeError: 'VultronObject' object has no attribute 'case_id'`.
+
+**Root Cause**: A 6-point failure chain:
+
+1. `dl.save(announce)` dehydrates `object_` to URI string via `_dehydrate_data`
+2. `handle_outbox_item` only expands `object_` for `Create`, not `Announce`
+3. Even with inline dict, `parse_activity` dropped CaseLogEntry fields (bare
+   `as_Object` with `extra="ignore"`)
+4. `VultronCaseLogEntry` extends core `VultronObject` (NOT wire `as_Object`),
+   so `rehydrate()` rejects it; no wire-layer `CaseLogEntry` class existed
+5. Extractor got bare `VultronObject`; CASE_LOG_ENTRY branch did not fire
+6. Use case crashed on `entry.case_id` AttributeError
+
+**Resolution**: 7 coordinated fixes across 6 files:
+
+1. `vultron/wire/as2/vocab/objects/case_log_entry.py`: New wire `CaseLogEntry`
+   class inheriting from `VultronObject` (wire, `as_Object` subclass), with all
+   domain fields and auto-registration in `VOCABULARY["CaseLogEntry"]`.
+2. `vultron/wire/as2/vocab/activities/sync.py`: `AnnounceLogEntryActivity` and
+   `RejectLogEntryActivity` use wire `CaseLogEntry` for `object_`; removed
+   `# type: ignore[assignment]` annotations.
+3. `vultron/core/use_cases/triggers/sync.py`: Added `_to_wire_entry()` helper;
+   both fan-out and replay paths now convert to wire `CaseLogEntry` before
+   constructing activities.
+4. `vultron/adapters/driving/fastapi/outbox_handler.py`: Object expansion
+   extended from `"Create"` to `("Create", "Announce")`.
+5. `vultron/wire/as2/parser.py`: Added `_expand_inline_object()` pre-processor
+   that resolves inline object dicts to typed vocabulary instances before outer
+   activity validation, preserving all subtype-specific fields.
+6. `vultron/core/use_cases/received/sync.py`: Added `isinstance` guard for
+   graceful error handling; `_send_rejection` uses `entry.id_` string.
+7. `specs/sync-log-replication.md`: Added `SYNC-02-004` requiring full inline
+   `CaseLogEntry` in `Announce` activities.
+
+**Tests added/updated**: `test_inline_case_log_entry_round_trip` in
+`test_sync.py` reproduces the parse → extract → log_entry.case_id failure path.
+Test helpers in `test_sync.py` and `test_reject_sync.py` updated to use wire
+`CaseLogEntry`. 1404 tests pass (5 new).

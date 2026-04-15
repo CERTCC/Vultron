@@ -149,6 +149,15 @@ class AnnounceLogEntryReceivedUseCase:
             )
             return
 
+        if not isinstance(entry, VultronCaseLogEntry):
+            logger.warning(
+                "sync: received ANNOUNCE_CASE_LOG_ENTRY activity '%s' "
+                "with unexpected object type %s — ignoring",
+                request.activity_id,
+                type(entry).__name__,
+            )
+            return
+
         case_id: str = entry.case_id
         actor_id: str | None = request.actor_id
 
@@ -211,7 +220,7 @@ class AnnounceLogEntryReceivedUseCase:
         local_actor_id = _find_local_actor_id(self._dl) or "unknown"
         reject = RejectLogEntryActivity(
             actor=local_actor_id,
-            object_=entry,
+            object_=entry.id_,
             to=[case_actor_id],
             context=tail_hash,
         )

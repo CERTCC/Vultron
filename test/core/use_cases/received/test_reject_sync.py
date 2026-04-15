@@ -34,6 +34,9 @@ from typing import cast
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.wire.as2.extractor import extract_intent
 from vultron.wire.as2.vocab.activities.sync import RejectLogEntryActivity
+from vultron.wire.as2.vocab.objects.case_log_entry import (
+    CaseLogEntry as WireCaseLogEntry,
+)
 
 CASE_ACTOR_URI = "https://example.org/actors/case-actor"
 PARTICIPANT_URI = "https://example.org/actors/participant-1"
@@ -73,9 +76,10 @@ def _make_reject_event(
     entry: VultronCaseLogEntry, last_accepted_hash: str, actor: str
 ) -> RejectLogEntryReceivedEvent:
     """Build a RejectLogEntryReceivedEvent via the extractor."""
+    wire_entry = WireCaseLogEntry.model_validate(entry.model_dump(mode="json"))
     activity = RejectLogEntryActivity(
         actor=actor,
-        object_=entry,  # type: ignore[arg-type]
+        object_=wire_entry,
         to=[CASE_ACTOR_URI],
         context=last_accepted_hash,
     )
@@ -86,9 +90,12 @@ class TestRejectLogEntryPattern:
     """Pattern matching for REJECT_CASE_LOG_ENTRY (SYNC-03-001)."""
 
     def test_pattern_matches_reject_with_case_log_entry(self, entry0):
+        wire_entry = WireCaseLogEntry.model_validate(
+            entry0.model_dump(mode="json")
+        )
         activity = RejectLogEntryActivity(
             actor=PARTICIPANT_URI,
-            object_=entry0,  # type: ignore[arg-type]
+            object_=wire_entry,
             context=GENESIS_HASH,
         )
         event = extract_intent(activity)
@@ -115,10 +122,12 @@ class TestRejectLogEntryPattern:
         """When no context is set, last_accepted_hash falls back to GENESIS_HASH."""
         from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 
-        # Activity with no context
+        wire_entry = WireCaseLogEntry.model_validate(
+            entry0.model_dump(mode="json")
+        )
         activity = RejectLogEntryActivity(
             actor=PARTICIPANT_URI,
-            object_=entry0,  # type: ignore[arg-type]
+            object_=wire_entry,
         )
         event = extract_intent(activity)
         assert isinstance(event, RejectLogEntryReceivedEvent)

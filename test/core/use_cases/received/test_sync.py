@@ -28,7 +28,11 @@ from typing import cast
 
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.wire.as2.extractor import extract_intent
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.activities.sync import AnnounceLogEntryActivity
+from vultron.wire.as2.vocab.objects.case_log_entry import (
+    CaseLogEntry as WireCaseLogEntry,
+)
 
 ACTOR_URI = "https://example.org/actors/case-actor"
 CASE_URI = "https://example.org/cases/case1"
@@ -91,11 +95,33 @@ class TestAnnounceLogEntryReceivedUseCase:
     def _make_event(
         self, entry: VultronCaseLogEntry
     ) -> AnnounceLogEntryReceivedEvent:
+        wire_entry = WireCaseLogEntry.model_validate(
+            entry.model_dump(mode="json")
+        )
         activity = AnnounceLogEntryActivity(
             actor=ACTOR_URI,
-            object_=entry,  # type: ignore[arg-type]
+            object_=wire_entry,
         )
         return cast(AnnounceLogEntryReceivedEvent, extract_intent(activity))
+
+    def test_inline_case_log_entry_round_trip(self, first_entry):
+        """parse_activity must preserve inline CaseLogEntry fields (BUG-26041501).
+
+        Simulates the Finder receiving an Announce activity with a full inline
+        CaseLogEntry dict via HTTP, and verifies the event's log_entry has all
+        domain fields intact after the parse → extract pipeline.
+        """
+        body = {
+            "type": "Announce",
+            "id": "urn:uuid:test-announce-rt",
+            "actor": ACTOR_URI,
+            "object": first_entry.model_dump(mode="json", by_alias=True),
+        }
+        parsed = parse_activity(body)
+        event = cast(AnnounceLogEntryReceivedEvent, extract_intent(parsed))
+        assert event.semantic_type == MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY
+        assert event.log_entry is not None
+        assert event.log_entry.case_id == CASE_URI
 
     def test_accepts_valid_first_entry(self, dl, first_entry):
         event = self._make_event(first_entry)

@@ -20,6 +20,41 @@ from vultron.wire.as2.errors import (
 logger = logging.getLogger(__name__)
 
 
+def _expand_inline_object(body: dict[str, Any]) -> dict[str, Any]:
+    """Pre-expand an inline object dict to a typed vocabulary instance.
+
+    When an activity body contains an inline object as a plain dict (e.g., a
+    ``CaseLogEntry`` dict embedded in an ``Announce`` body), Pydantic would
+    normally parse it using the *base* field type of ``object_`` (``as_Object``
+    with ``extra="ignore"``), silently dropping any subtype-specific fields.
+
+    This helper detects inline objects with a known ``type`` key, looks up the
+    concrete vocabulary class, and validates the dict into that class *before*
+    the outer activity is validated — preserving all fields.
+
+    If the object is already a string (URI reference), a non-dict, or has an
+    unknown type, the body is returned unchanged.
+
+    Spec: SYNC-02-004 (CaseLogEntry must be fully inlined).
+    """
+    obj = body.get("object")
+    if not isinstance(obj, dict):
+        return body
+    obj_type = obj.get("type")
+    if obj_type is None:
+        return body
+    try:
+        obj_cls = find_in_vocabulary(obj_type)
+    except KeyError:
+        return body
+    try:
+        expanded = body.copy()
+        expanded["object"] = obj_cls.model_validate(obj)
+        return expanded
+    except Exception:
+        return body
+
+
 def parse_activity(body: dict[str, Any]) -> as_Activity:
     """Parse a raw dict into a typed as_Activity object.
 
@@ -59,6 +94,8 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
         )
 
     try:
-        return cast(as_Activity, cls.model_validate(body))
+        return cast(
+            as_Activity, cls.model_validate(_expand_inline_object(body))
+        )
     except Exception as exc:
         raise VultronParseValidationError(str(exc)) from exc

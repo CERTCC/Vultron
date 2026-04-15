@@ -143,21 +143,25 @@ async def handle_outbox_item(
     activity_type = getattr(outbound_activity, "type_", "Activity")
     activity_object = getattr(outbound_activity, "object_", None)
 
-    # For Create activities, expand an ID-string object_ to the full domain
-    # object so the recipient inbox endpoint can store it separately before
-    # dispatching (mirrors the pattern used for inbound Offer(Report)).
-    # Without expansion the receiving side sees only a URI reference and
-    # CreateCaseReceivedUseCase cannot recreate the case.
-    if activity_type == "Create" and isinstance(activity_object, str):
+    # For Create and Announce activities, expand an ID-string object_ to the
+    # full domain object so the recipient inbox endpoint can store it separately
+    # before dispatching.  For Create: the receiving side needs the full object
+    # to recreate the case.  For Announce(CaseLogEntry): the receiving side
+    # needs all CaseLogEntry fields for hash-chain validation (BUG-26041501;
+    # a URI-only reference violates SYNC-02-004).
+    if activity_type in ("Create", "Announce") and isinstance(
+        activity_object, str
+    ):
         full_obj = dl.read(activity_object)
         if full_obj is not None:
             outbound_activity.object_ = full_obj
             activity_object = full_obj
             logger.debug(
-                "Expanded object_ from '%s' to full %s for Create"
+                "Expanded object_ from '%s' to full %s for %s"
                 " activity '%s' delivery.",
                 getattr(full_obj, "id_", activity_object),
                 type(full_obj).__name__,
+                activity_type,
                 activity_id,
             )
 
