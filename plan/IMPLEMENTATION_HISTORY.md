@@ -6372,3 +6372,28 @@ and it is uniform enough to be a safe base-class default.
 - `uv run pyright` → `0 errors, 0 warnings, 0 informations`
 - `uv run pytest --tb=short 2>&1 | tail -5` →
   `1430 passed, 12 skipped, 182 deselected, 5581 subtests passed in 19.30s`
+
+## Spec Token-Overhead Reduction (6-pass cleanup)
+
+Reduced agent token overhead in `specs/` corpus while keeping all
+transformations semantically lossless. Total savings ~18 KB (~5% of corpus).
+
+**Changes**:
+
+  Load Contextually by topic). Replaced stale 2026-03-26 Implementation Status
+  snapshot with pointer to `plan/IMPLEMENTATION_PLAN.md`.
+
+- `specs/vultron-protocol-spec.md`: Stripped 194 per-requirement `Source: docs/...`
+  sub-bullets (~11 KB). Header `**Sources**:` block preserves all referenced docs.
+- `specs/architecture.md`: Removed 8 inline `**Current state**:` sub-bullets,
+  `**Implemented**:` annotation on ARCH-12-002, and entire "Remediation Status"
+  section. Added pointer to `notes/architecture-review.md`.
+- `specs/code-style.md`: Removed superseded requirements CS-01-002, CS-01-003,
+  CS-01-006 (superseded by `tech-stack.md` IMPL-TS-07-*). Trimmed verbose Rationale
+  blocks to single sentences. Removed NAMING-1 commit reference from CS-07-003.
+- `specs/behavior-tree-integration.md`: Condensed multi-line Rationale blocks
+  for BT-06-001 and BT-06-004.
+- `specs/testability.md`: Condensed multi-line Rationale block for TB-10-001.
+- `AGENTS.md`: Removed `**Last Updated:** 2026-03-20` datestamp, "all remediated
+  as of ARCH-CLEANUP" status annotation, and "Handler shims: removed in PREPX-2"
+  entry from Key Files Map.

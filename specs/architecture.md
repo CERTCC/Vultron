@@ -26,19 +26,12 @@ rationale)
     connector libraries, AS2 libraries (`pyld`, `rdflib`, JSON-LD tooling)
   - **Rationale**: Keeps domain logic replaceable without touching the wire
     or transport layer
-  - **Current state**: Partially achieved. `vultron/core/` has no wire/framework
-    imports; `vultron/api/` still uses FastAPI and imports from `vultron/wire/`.
-    Remaining wire imports in `vultron/core/use_cases/triggers/` are tracked
-    as ARCH-01-001 violations to be resolved by WIRE-TRANS-01.
   - ARCH-01-001 is-derived-by CS-05-001
 - `ARCH-01-002` Core functions MUST accept and return domain types only
   - Raw dicts, AS2 types, JSON strings, and framework objects MUST NOT
     enter the domain
   - The inbound pipeline MUST complete parse → extract steps before calling
     into core
-  - **Current state**: `InboundPayload` domain type introduced (ARCH-1.2);
-    parse → extract pipeline stages in `vultron/wire/as2/`. Trigger modules
-    still construct wire activity objects directly; see WIRE-TRANS-01.
 - `ARCH-01-003` The `wire/` layer (AS2 parser, semantic extractor) MUST NOT
   contain handler logic, case management, or journal management
   - **Rationale**: Wire format concerns are structurally distinct from
@@ -52,9 +45,6 @@ rationale)
     in the system, as the domain understands it
   - Wire layer pattern maps are an implementation detail of the extractor,
     not part of the domain definition
-  - **Current location**: `vultron/core/models/events.py` (remediated in
-    ARCH-1.1); re-exported from `vultron/enums.py` for compatibility. AS2
-    structural enums moved to `vultron/wire/as2/enums.py` (ARCH-CLEANUP-2).
 
 ## Semantic Extractor
 
@@ -64,9 +54,6 @@ rationale)
   - Handler code MUST NOT inspect AS2 types to infer message meaning
   - **Rationale**: Isolates the single seam where wire format changes are
     absorbed
-  - **Current state**: ✅ Achieved. `vultron/wire/as2/extractor.py` is the
-    sole location of AS2-to-domain vocabulary mapping (ARCH-1.3,
-    ARCH-CLEANUP-1). Handler code no longer inspects AS2 types (ARCH-CLEANUP-3).
 
 ## Driven Adapter Injection
 
@@ -76,9 +63,6 @@ rationale)
     directly
   - **Rationale**: Enables testing core logic with in-memory ports and
     swapping production backends without touching domain code
-  - **Current state**: ✅ Achieved. All handlers receive `dl: DataLayer` via
-    parameter injection (ARCH-1.4). `get_datalayer()` is no longer called
-    inside handler bodies.
 
 ## Connector Plugins
 
@@ -94,9 +78,6 @@ rationale)
   unit without touching the core or adapter layers
   - If a change to the wire format requires changes in the core, a
     boundary has been violated
-  - **Current state**: Substantially achieved. `DispatchEvent.payload` is
-    now typed as `InboundPayload` (domain type), not `as_Activity` (ARCH-1.2).
-    Full wire replaceability requires completing P60-3 (adapters package).
 
 ## Handler Isolation
 
@@ -105,9 +86,6 @@ rationale)
     wrapper (`DispatchEvent.semantic_type`)
   - Semantic verification decorators MUST compare `dispatchable.semantic_type`
     directly, not re-run pattern matching
-  - **Current state**: ✅ Achieved. Semantic type validation occurs at dispatch
-    time via `USE_CASE_MAP` key lookup in `vultron/core/dispatcher.py`;
-    no re-invocation of `find_matching_semantics`.
 
 ## Driving Adapter Boundary
 
@@ -117,9 +95,6 @@ rationale)
     not responsibilities of the driving adapter itself
   - **Rationale**: Any driving adapter that needs to ingest AS2 can reuse
     the wire pipeline; there is no duplication
-  - **Current state**: ✅ Achieved. `parse_activity()` is in
-    `vultron/wire/as2/parser.py`; the router calls it as a thin wrapper
-    (ARCH-1.3).
 
 ## Wire-Domain Translation Boundary
 
@@ -138,7 +113,6 @@ rationale)
   so that unimplemented subclasses fail loudly at runtime.
   - Ownership of core→wire translation MUST reside in the wire type (the
     destination), not in the core layer that constructs the source.
-  - **Implemented**: `WireCaseLogEntry.from_core()` (commit `f8eede75`)
 
 - `ARCH-12-003` Every concrete subclass of `VultronAS2Object` MUST implement
   a `to_core(self) -> <DomainType>` instance method that converts a wire
@@ -251,41 +225,5 @@ Use this checklist during code review to catch boundary violations.
 - [ ] Wire tests verify parsing and extraction independently of domain logic
 - [ ] Adapter tests mock ports, not external systems
 
----
-
-## Remediation Status
-
-The following architectural requirements had known violations that have been
-remediated through incremental refactoring (ARCH-1.1 through ARCH-CLEANUP-3).
-See `docs/adr/0009-hexagonal-architecture.md` for full violation inventory.
-
-**Remediated (ARCH-1.x and ARCH-CLEANUP-x):**
-
-- ARCH-02-001 (`MessageSemantics` in core) — ✅ ARCH-1.1
-- ARCH-03-001 (sole mapping point) — ✅ ARCH-1.3, ARCH-CLEANUP-1
-- ARCH-04-001 (adapter injection) — ✅ ARCH-1.4
-- ARCH-06-001 (wire replaceability) — ✅ substantially achieved (ARCH-1.2)
-- ARCH-07-001 (no re-invocation) — ✅ ARCH-1.2/1.3
-- ARCH-08-001 (parse in wire layer) — ✅ ARCH-1.3
-
-**ARCH-12 (Wire-domain translation boundary) — in progress:**
-
-- ARCH-12-002 partially: `WireCaseLogEntry.from_core()` implemented (commit
-  `f8eede75`). Full rollout across all wire types is task WIRE-TRANS-01 in
-  `plan/IMPLEMENTATION_PLAN.md`.
-
-**Wire imports in core triggers — tolerated, tracked:**
-
-- `vultron/core/use_cases/triggers/` still imports wire types for activity
-  construction. These are ARCH-01-001 violations tolerated until WIRE-TRANS-01
-  is complete; at that point, trigger modules will call wire `from_core()`
-  methods rather than importing wire types directly.
-  See `plan/IMPLEMENTATION_PLAN.md` task WIRE-TRANS-01.
-
-**Not yet started (PRIORITY-60):**
-
-- P60-3: `vultron/adapters/` package structure stub — see
-  `plan/IMPLEMENTATION_PLAN.md`
-
 See `notes/architecture-review.md` for full violation inventory and
-remediation history (R-01 to R-06).
+remediation history.

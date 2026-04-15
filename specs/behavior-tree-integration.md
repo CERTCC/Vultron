@@ -66,10 +66,8 @@ SHOULD use BTs for clarity and maintainability.
 
 - `BT-06-001` All protocol-significant behavior MUST be implemented as BT
   nodes or subtrees. There is no "simple enough to skip" threshold.
-  - **Rationale**: The BT is the domain documentation. If a behavior is not
-    in the tree, it is invisible to analysis, audit, and explainability
-    tools. The tree structure is the source of truth for what Vultron does —
-    not the code around it.
+  - **Rationale**: The BT is the domain documentation; behaviors outside the
+    tree are invisible to analysis, audit, and explainability.
   - **Procedural glue exception**: `execute()` MAY contain infrastructure
     glue: instantiating the BT, setting up the blackboard from the event,
     calling `bt.run()`, checking BT status, and extracting output from the
@@ -101,11 +99,9 @@ SHOULD use BTs for clarity and maintainability.
   concern (e.g., a single exception check or a single boolean condition)
   - Any node that contains complicated business logic is a candidate for
     refactoring into its own sub-tree
-  - **Rationale**: The tree structure IS the documentation of what Vultron
-    does. Surfacing business logic into the tree — rather than embedding it
-    in node code or in `execute()` outside the tree — makes the process
-    auditable and explainable without reading implementation code. If it is
-    not in the tree, it cannot be reasoned about from the tree alone.
+  - **Rationale**: Surfacing logic in the tree makes the process auditable
+    without reading implementation code; if it is not in the tree it cannot
+    be reasoned about from the tree alone.
 - `BT-06-005` (MUST) Cascades from a parent subtree to a child subtree in
   the canonical BT MUST be expressed as BT subtrees within the use case's
   BT — not as procedural calls in `execute()` after `bt.run()` returns.

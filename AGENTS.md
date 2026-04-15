@@ -185,8 +185,6 @@ include migration/compatibility notes and tests.
 This document provides guidance to AI agents working on the Vultron codebase.
 It supplements the Copilot instructions with implementation-specific advice.
 
-**Last Updated:** 2026-03-20
-
 **For durable design insights**, see the `notes/` directory.
 
 **Priority ordering note**: When `plan/IMPLEMENTATION_PLAN.md` grouping or
@@ -247,8 +245,7 @@ and domain types. Rules:
   a parameter; they do not call `get_datalayer()` directly
 
 See `notes/architecture-ports-and-adapters.md` for the full architecture
-specification and code patterns. See `notes/architecture-review.md` for the
-violation inventory (V-01 to V-12, all remediated as of ARCH-CLEANUP).
+specification and code patterns. See `notes/architecture-review.md` for the violation inventory (V-01 to V-12).
 See `specs/architecture.md` for formal requirements (ARCH-01 to ARCH-08) and
 `docs/adr/0009-hexagonal-architecture.md` for the decision rationale.
 
@@ -653,7 +650,6 @@ behavior across backends (in-memory / tinydb) where reasonable.
   Protocol (dispatch signature: `dispatch(event, dl)`)
 - **Dispatcher**: `vultron/core/dispatcher.py` - `DispatcherBase`,
   `DirectActivityDispatcher`, `get_dispatcher` factory
-- **Handler shims**: removed in PREPX-2
 - **Inbox**: `vultron/adapters/driving/fastapi/routers/actors.py` - Endpoint
   implementation
 - **Triggers**: `vultron/adapters/driving/fastapi/routers/trigger_report.py`,
