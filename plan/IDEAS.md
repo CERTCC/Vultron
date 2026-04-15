@@ -1,19 +1,5 @@
 # Project Ideas
 
-## IDEA-260301-01 Database file for TinyDB should be configurable
-
-relevant on or after commit: 2ff533e26f994b8308f30b74d991dedbfcebfa1e
-
-The original implementation just had a fixed `mydb.json` file acting as the
-TinyDB database. This is fine for a simple demo, but for real-world use, it
-really needs to be configurable. Whatever solution we apply here should
-carry through to how we'd specify the configuration for other adapters as
-well like mongodb, etc. So this seems to argue in favor of a dedicated
-configuration block in the config file for the data layer, where it
-specifies not only which database adapter to use, but also the relevant
-configuration details for that adapter (which will include the db file path
-for TinyDB, but would include other details for other adapters).
-
 ## IDEA-260402-01 Config files should be YAML and loaded into a structured config object
 
 relevant on or after commit: 3fdbfa96155d87d716027c5d3a1fb929d0968b28
@@ -90,77 +76,6 @@ there's only one Case Actor per case operated by the case creator/owner.
 local copy of the case object and are not directly writing to their own copy
 either but routing their updates through the Case Actor too).
 
-## IDEA-26040901 TinyDB data layout might not make sense ~~SUPERSEDED~~
-
-> **Superseded by IDEA-26040902 / Priority 325.** The single-table polymorphic
-> SQLModel storage model (`VultronObjectRecord`) resolves the per-type table
-> question automatically — there is only one table. No standalone task needed.
-
-Early on a decision was made to use a TinyDB table per activity type. This
-may not be the best way to structure the data. We should consider whether to
-consolidate into a single Activity table and just filter searches by the
-type field.
-
-## IDEA-26040902 Try a different datalayer altogether ✅ PLANNED
-
-> **Addressed by**: Priority 325 tasks DL-SQLITE-ADR through DL-SQLITE-5 in
-> `plan/IMPLEMENTATION_PLAN.md`. Must complete before D5-7-HUMAN (Priority 330).
-
-Using SQLModel backed by SQLite is a materially stronger choice than TinyDB
-for persisting Pydantic models because it eliminates the artificial boundary
-between validation and storage. SQLModel composes Pydantic with SQLAlchemy, so
-your domain models are simultaneously type-checked objects and durable database
-rows. That means no manual serialization/deserialization layer, no ad hoc schema
-enforcement, and no risk of silent data drift—your persistence layer inherits
-transactional guarantees, indexing, and query semantics directly from SQLite
-while remaining idiomatic to your existing Pydantic-based architecture.
-
-By contrast, TinyDB is effectively a JSON file with a query veneer: it has no
-intrinsic schema awareness, limited concurrency safety, and pushes
-responsibility for validation and evolution back onto application code. In
-practice, this recreates the very boilerplate you’re trying to avoid while
-introducing long-term risks around data integrity and migrations. SQLModel
-avoids those failure modes by giving you a principled, declarative model that
-scales from local prototyping to production without changing abstractions,
-making it a more durable and maintainable foundation for object persistence.
-
-### Additional evidence from BUG-2026041001 (April 2026)
-
-Debugging this bug made the TinyDB performance problem concrete and measurable:
-**TinyDB re-reads and rewrites the entire JSON file on every single read and
-write operation.** As the number of objects in the database grows across
-hundreds of tests, the I/O cost compounds multiplicatively — not linearly.
-The symptom was a test suite that grew from ~13 seconds to **over 15 minutes**
-as test coverage expanded.
-
-The fix required a non-trivial, test-infrastructure-only workaround: a
-`pytest_configure` hook that monkey-patches `TinyDbDataLayer.__init__` to
-force `MemoryStorage` globally, plus a layered autouse fixture to restore the
-original init for integration tests and to re-apply the patch after any
-`importlib.reload()` calls. This is significant accidental complexity —
-infrastructure cost paid entirely to work around a fundamental limitation of
-TinyDB's storage model, not to test any application behavior.
-
-Key takeaways relevant to the migration decision:
-
-- **The `MemoryStorage` workaround is a canary**: switching to in-memory
-  storage reduces the suite from 15+ minutes to 13 seconds. That confirms
-  TinyDB's disk I/O is the dominant cost — not application logic or fixture
-  overhead.
-- **The patch complexity will grow**: every future integration test that
-  touches real storage needs to opt out of the global patch. The fixture
-  protocol already has two layers of fragility and breaks around
-  `importlib.reload()`.
-- **No equivalent problem exists with SQLite**: SQLite's WAL mode and
-  row-level access mean read/write cost is proportional to the *query*, not
-  the *total database size*. Test isolation via transactions (rollback after
-  each test) is idiomatic and requires no patching of application code.
-- **The `DataLayer` port makes migration tractable**: the hexagonal
-  architecture's `DataLayer` Protocol already abstracts all persistence
-  operations. A SQLModel adapter can be written to the same interface and
-  swapped in by changing one factory function, with no changes to any use case
-  or handler.
-
 ## IDEA-26040903 Do not worry about backward compatibility in prototype phase
 
 We are still squarely in a prototyping phase, and there are no outside users
@@ -208,35 +123,6 @@ triggers for demo purposes, we should consider whether they are exclusively
 demo-centric triggers or if there is a generalized version that would be
 worth implementing. If so, we should implement the generalized one, and
 have the demo just use that with its specific object types or needs.
-
-## IDEA-26041004 Use behavior trees for behaviors ✅ ADDRESSED
-
-> **Addressed by**: D5-7-BTFIX-1 and D5-7-BTFIX-2 (new Priority 320 items
-> in `plan/IMPLEMENTATION_PLAN.md`), plus documentation updates to
-> `specs/behavior-tree-integration.md` (BT-06-001 through BT-06-006),
-> `notes/canonical-bt-reference.md` (NEW), `notes/bt-integration.md`,
-> `notes/use-case-behavior-trees.md`, `notes/protocol-event-cascades.md`,
-> `notes/bt-fuzzer-nodes.md`, `notes/triggerable-behaviors.md`, and
-> `AGENTS.md`. The "When to Use BTs vs. Procedural" decision table has been
-> removed from all documents; the mandatory principle now reads: "All
-> protocol-significant behavior MUST be BT nodes or subtrees."
-
-The implementation of D5-7-AUTOENG-2 violates the intent that the autoengage
-process should be implemented as a behavior tree structure attached to the
-BT validation structure. There needs to be a `priority check` node that
-returns `success`, `failure` or `running`. Semantics as follows: success
-means proceed with engagement behavior (which should be a behavior sequence).
-`failure` means `defer` (which is a behavior that moves the case to `RM.
-DEFERRED` and emits events as appropriate), `running` means the evaluation
-has not completed. The default node for the priority check can just return
-success to perform the default engage on valid behavior. But we need to have
-the structure in place because later on this becomes a connection point for
-more complex prioritization rules (like an SSVC evaluator tree).
-
-General observation: don't chain behavior trees with procedural stuff. Use
-behavior trees. If that means wrapping a procedure in a node, so be it. That
-lets us construct and reconfigure the behavior tree to reflect the desired
-behavior logic without worrying about side effects that happen outside the tree.
 
 ## IDEA-26041501 Need spec to avoid compatability shims in prototype
 
