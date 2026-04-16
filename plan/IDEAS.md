@@ -134,3 +134,25 @@ something it should be complete and permanent. Search notes/ for "shim" and
 you'll see where this has come up before. We just need to make it an
 explicit principle in the specs. Compatibility shims are technical debt that
 we do not want to take on right now.
+
+## IDEA-26041601 Recurring problem: Actors assuming that everyone knows what they know
+
+There appears to be a structural problem in the way that inter-Actor
+communication is happening in the codebase right now (as of commit  
+70c28e544335f83d41aa17d332b59ed23c20958e). We've seen this in a few recent
+bugs, including BUG-26041601 but that was not the first time it happened.
+The root cause is that Actors are sending activities to other Actors using
+object references instead of full objects when the receiver has no such
+object in their system. Actors should not assume knowledge of objects that
+they have in their system when communicating with other Actors. We saw this
+with report submission. We saw this with case log distribution. And now
+we're seeing with other things. It causes our semantic extraction and
+therefore message routing to fail because Activities wind up with
+'object=None' and fail to rehydrate properly. We need to
+find all instances of this pattern in the codebase and fix them. There may
+be a solution in tracking CaseLogEntries and what objects are known to have
+been shared up to a particular log hash item. That would keep down on
+duplicative object transmission, but that might be a lot of bookkeeping
+compared to a simple rule like "always include the full object in an
+activity when sending to another Actor". I'm not sure whether anything
+beyond that is premature optimization or not.
