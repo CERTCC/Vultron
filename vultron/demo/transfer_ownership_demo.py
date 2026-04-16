@@ -198,7 +198,7 @@ def demo_transfer_ownership_accept(
     with demo_step("Step 2: Vendor offers case ownership to coordinator"):
         offer = OfferCaseOwnershipTransferActivity(
             actor=vendor.id_,
-            object_=case.id_,
+            object_=case,
             to=[coordinator.id_],
             content=(f"Offering to transfer ownership of {case.name} to you."),
         )
@@ -269,7 +269,7 @@ def demo_transfer_ownership_reject(
     with demo_step("Step 2: Vendor offers case ownership to coordinator"):
         offer = OfferCaseOwnershipTransferActivity(
             actor=vendor.id_,
-            object_=case.id_,
+            object_=case,
             to=[coordinator.id_],
             content=(f"Offering to transfer ownership of {case.name} to you."),
         )

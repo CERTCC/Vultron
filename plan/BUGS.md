@@ -10,7 +10,7 @@ steps, root cause analysis, and resolution steps in the body.
 
 ---
 
-## BUG-26041601 Unexpected dispatch errors in multi-vendor demo
+## BUG-26041601 Unexpected dispatch errors in multi-vendor demo — **FIXED**
 
 I ran `make integration-test-multi-vendor > multi-vendor-log.txt` and found
 the following error:
@@ -20,6 +20,24 @@ the following error:
 multi-vendor-log.txt:coordinator-1  | ERROR:    Unexpected error dispatching activity_id=urn:uuid:50efe8e3-9ca6-4648-9e32-861b84888bae actor_id=http://vendor:7999/api/v2/actors/2d5b03e8-2392-4cda-a4fb-da2bf28ec514 semantics=submit_report
 multi-vendor-log.txt:coordinator-1  | AttributeError: 'NoneType' object has no attribute 'startswith'
 ```
+
+**Root cause**: `OfferCaseOwnershipTransferActivity` was built with
+`object_=case.id_` (a bare string URI) in both demo files. When the
+coordinator received the offer, rehydration failed silently (the case wasn't
+in the coordinator's DataLayer yet), leaving `object_` as a string. The
+`ActivityPattern._match_field` conservatively returns `True` for any string
+URI, so both `SUBMIT_REPORT` and `OFFER_CASE_OWNERSHIP_TRANSFER` matched;
+since `SUBMIT_REPORT` appeared first in `SEMANTICS_ACTIVITY_PATTERNS`, the
+wrong use case was dispatched, crashing in `db_record.py`.
+
+**Resolution**: Enforced at the model level — changed
+`OfferCaseOwnershipTransferActivity.object_` from `VulnerabilityCaseRef`
+(`VulnerabilityCase | str | None`) to `VulnerabilityCase | None`. This
+requires the inline case to be sent, removing the pattern-matching ambiguity
+at its source. Fixed the two demo files (`multi_vendor_demo.py`,
+`transfer_ownership_demo.py`) to pass `object_=case` instead of
+`object_=case.id_`. Added two regression tests in
+`test/test_semantic_activity_patterns.py`.
 
 ## BUG-26041602 CaseActor is not logging CaseLogEntry sync messages
 

@@ -37,6 +37,7 @@ from vultron.wire.as2.vocab.base.objects.actors import as_ActorRef
 from vultron.wire.as2.vocab.base.objects.object_types import as_NoteRef
 from vultron.wire.as2.vocab.objects.case_status import CaseStatusRef
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    VulnerabilityCase,
     VulnerabilityCaseRef,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -178,11 +179,18 @@ class RmCloseCaseActivity(as_Leave):
 
 class OfferCaseOwnershipTransferActivity(as_Offer):
     """The actor is offering to transfer ownership of the case to another actor.
-    object_: VulnerabilityCase
+
+    The case MUST be provided as an inline ``VulnerabilityCase`` object so that
+    the recipient can identify the object type unambiguously during semantic
+    pattern matching.  Passing only a string URI makes the activity
+    indistinguishable from a ``SUBMIT_REPORT`` Offer and causes incorrect
+    dispatch.
+
+    object_: VulnerabilityCase (inline — not a bare string ID)
     target: as_Actor
     """
 
-    object_: VulnerabilityCaseRef = Field(
+    object_: VulnerabilityCase | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
     target: as_ActorRef = None

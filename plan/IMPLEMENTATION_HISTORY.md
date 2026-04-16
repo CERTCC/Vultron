@@ -6397,3 +6397,49 @@ transformations semantically lossless. Total savings ~18 KB (~5% of corpus).
 - `AGENTS.md`: Removed `**Last Updated:** 2026-03-20` datestamp, "all remediated
   as of ARCH-CLEANUP" status annotation, and "Handler shims: removed in PREPX-2"
   entry from Key Files Map.
+
+## BUG-26041601 — Fixed ownership-transfer dispatch error in multi-vendor demo
+
+**Issue**: The multi-vendor demo crashed with
+`AttributeError: 'NoneType' object has no attribute 'startswith'` when the
+coordinator processed an `OfferCaseOwnershipTransferActivity`. The coordinator
+incorrectly dispatched to `SubmitReportReceivedUseCase` instead of
+`OfferCaseOwnershipTransferReceivedUseCase`, which then crashed trying to store
+a malformed object.
+
+**Root cause (two-layer)**:
+
+1. `OfferCaseOwnershipTransferActivity` was constructed with
+   `object_=case.id_` (a bare string URI) in `multi_vendor_demo.py` and
+   `transfer_ownership_demo.py`. The receiving coordinator could not resolve the
+   case from its DataLayer, so `object_` remained a string after rehydration.
+
+2. `ActivityPattern._match_field` conservatively returns `True` for any string
+   URI (can't type-check an opaque reference). Both `ReportSubmissionPattern`
+   (SUBMIT_REPORT) and `OfferCaseOwnershipTransferActivityPattern`
+   (OFFER_CASE_OWNERSHIP_TRANSFER) are `Offer` activities, so both matched.
+   `SUBMIT_REPORT` appeared first in `SEMANTICS_ACTIVITY_PATTERNS`, winning
+   the ambiguous match.
+
+**Resolution**: Eliminated the ambiguity at its source by enforcing the
+inline-object constraint in the Pydantic model:
+
+- Changed `OfferCaseOwnershipTransferActivity.object_` from
+  `VulnerabilityCaseRef` (`VulnerabilityCase | str | None`) to
+  `VulnerabilityCase | None`. Pydantic now rejects bare string IDs at
+  construction time.
+- Fixed `multi_vendor_demo.py` and `transfer_ownership_demo.py` to pass
+  `object_=case` (the full `VulnerabilityCase` object) instead of
+  `object_=case.id_`.
+- Added two regression tests to `test/test_semantic_activity_patterns.py`:
+  `test_offer_case_ownership_transfer_rejects_string_object` (confirms
+  validation error on string) and
+  `test_offer_case_ownership_transfer_with_inline_case_dispatches_correctly`
+  (confirms correct semantics with inline case).
+
+**Files changed**:
+
+- `vultron/wire/as2/vocab/activities/case.py`
+- `vultron/demo/multi_vendor_demo.py`
+- `vultron/demo/transfer_ownership_demo.py`
+- `test/test_semantic_activity_patterns.py`

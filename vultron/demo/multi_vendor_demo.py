@@ -282,7 +282,7 @@ def vendor_offers_case_ownership_to_coordinator(
     """
     offer = OfferCaseOwnershipTransferActivity(
         actor=vendor.id_,
-        object_=case.id_,
+        object_=case,
         target=coordinator.id_,
         to=[coordinator.id_],
     )

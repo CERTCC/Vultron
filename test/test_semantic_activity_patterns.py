@@ -1,11 +1,19 @@
 from typing import Any, Dict, cast
 import itertools
 
+import pytest
+from pydantic import ValidationError
+
 from vultron.core.models.events import MessageSemantics
 from vultron.wire.as2.extractor import (
     ActivityPattern,
     SEMANTICS_ACTIVITY_PATTERNS,
+    find_matching_semantics,
 )
+from vultron.wire.as2.vocab.activities.case import (
+    OfferCaseOwnershipTransferActivity,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 
 def test_all_message_semantics_have_activity_patterns():
@@ -154,3 +162,35 @@ def test_non_overlapping_activity_patterns():
     assert (
         not problems
     ), f"Problems found in activity pattern groups: {problems}"
+
+
+def test_offer_case_ownership_transfer_rejects_string_object():
+    """OfferCaseOwnershipTransferActivity must have an inline VulnerabilityCase,
+    not a bare string URI as object_.
+
+    Sending a string URI causes pattern-matching ambiguity: both
+    OFFER_CASE_OWNERSHIP_TRANSFER and SUBMIT_REPORT are Offer activities, and
+    the conservative string-passthrough in ActivityPattern._match_field makes
+    both patterns match when the object is opaque.  Enforcing the inline object
+    at the model level eliminates the ambiguity at its source.
+    """
+    with pytest.raises(ValidationError):
+        OfferCaseOwnershipTransferActivity(
+            actor="https://example.org/vendor",
+            object_="urn:uuid:some-case-id",  # type: ignore[arg-type]  # intentional invalid type — must be rejected by Pydantic
+        )
+
+
+def test_offer_case_ownership_transfer_with_inline_case_dispatches_correctly():
+    """An OfferCaseOwnershipTransferActivity with a full inline VulnerabilityCase
+    must be classified as OFFER_CASE_OWNERSHIP_TRANSFER, not SUBMIT_REPORT."""
+    case = VulnerabilityCase(
+        id_="https://example.org/cases/urn:uuid:test-case",
+        name="TEST-001",
+    )
+    offer = OfferCaseOwnershipTransferActivity(
+        actor="https://example.org/vendor",
+        object_=case,
+    )
+    result = find_matching_semantics(offer)
+    assert result == MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
