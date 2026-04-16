@@ -141,29 +141,7 @@ and the final demo quality gate. It is elevated above the old Priority 400
 because D5-7-HUMAN sign-off cannot happen until demos work correctly with
 log-sync in place.
 
-**OUTBOX-MON-1** (background outbox drain loop) is a hard prerequisite for
-SYNC: without it, SYNC-2 replication requires manual triggers. Complete it
-before SYNC-1.
-
-Sequential dependency chain:
-
-1. OUTBOX-MON-1 — automated outbox delivery (prereq for SYNC-1/SYNC-2)
-2. SYNC-1 — local append-only case event log (prereq: OUTBOX-MON-1)
-3. SYNC-2 — one-way log replication via `Announce(CaseLogEntry)` (prereqs:
-   SYNC-1, OUTBOX-MON-1, D5-7-TRIGNOTIFY-1 from Priority 320)
-   - **Subsumes D5-7-CASEREPL-1**: finder receives case state via
-     `Announce(CaseLogEntry)`, not `Create(VulnerabilityCase)`
-   - **Subsumes D5-7-ADDOBJ-1**: inline-objects principle applied to
-     `Announce` delivery; direct `Add/Create` delivery to participants
-     is retired
-4. SYNC-3 — full sync loop with retry/backoff (prereq: SYNC-2)
-5. D5-7-DEMOREPLCHECK-1 — finder replica verification via log state
-   (prereq: SYNC-2)
-6. D5-7-HUMAN — single project-owner sign-off on demo completeness
-   (prereqs: SYNC-2, D5-7-DEMOREPLCHECK-1, all other D5-7 tasks)
-
-See `notes/sync-log-replication.md` and `notes/case-log-authority.md` for
-the architectural rationale.
+INLINE-OBJ tasks also belong here.
 
 ## PRIORITY 340: Wire translation
 

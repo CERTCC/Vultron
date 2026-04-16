@@ -55,7 +55,9 @@ Must complete before D5-7-HUMAN.
 **PRIORITY-330** SYNC + demo sign-off — OUTBOX-MON-1 ✅, SYNC-1 ✅, SYNC-2 ✅,
 SYNC-3 ✅; SYNC-TRIG-1 ✅ (new `sync-log-entry` trigger endpoint);
 D5-7-DEMOREPLCHECK-1 ✅ (finder replica verification in two-actor demo).
-Remaining: D5-7-HUMAN sign-off.
+Remaining: INLINE-OBJ-A, INLINE-OBJ-B, INLINE-OBJ-C (inline object
+enforcement; prereqs for D5-7-HUMAN; see IDEA-26041601), then D5-7-HUMAN
+sign-off.
 SYNC-2 subsumes D5-7-CASEREPL-1 and D5-7-ADDOBJ-1.
 Prereq for SYNC-2: D5-7-TRIGNOTIFY-1 (from Priority 320).
 
@@ -437,6 +439,8 @@ section MUST be completed before proceeding to other priorities.
     DEMONOTECLEAN-1)
   - SYNC-2 (log replication; subsumes CASEREPL-1 and ADDOBJ-1)
   - D5-7-DEMOREPLCHECK-1 (post-SYNC-2 finder replica verification)
+  - INLINE-OBJ-A, INLINE-OBJ-B, INLINE-OBJ-C (inline object enforcement;
+    blocks recurring BUG-26041601 pattern; see IDEA-26041601)
   - Multi-actor demos pass end-to-end with log-sync in place
 
 ---
@@ -1025,6 +1029,106 @@ SYNC-2 also requires D5-7-TRIGNOTIFY-1 (from Priority 320) to be complete.
 
 - [ ] **SYNC-4**: Multi-peer synchronization with per-peer replication state.
   Enables RAFT consensus for CaseActor process. Depends on SYNC-3.
+
+---
+
+### Phase INLINE-OBJ — Enforce Inline Objects in Cross-Actor Activities
+
+**Reference**: `plan/IDEAS.md` IDEA-26041601; root-cause analysis of
+BUG-26041601 and BUG-26041501.
+
+**Context**: `ActivityPattern._match_field` conservatively returns `True` for
+any bare string URI (line 70-71 of `extractor.py`). This means any activity
+whose `object_` is a string ID matches every pattern that checks `object_`
+type — causing wrong-handler dispatch (the bug pattern seen in BUG-26041601
+and BUG-26041501). `ActivityStreamRef[T]` = `T | as_Link | str | None`
+is the permissive inbound-parsing alias; outbound construction must not
+use it for fields whose type drives semantic extraction.
+
+Three sequential sub-tasks address this at increasing generality. All three
+are **prerequisites for D5-7-HUMAN** since the bug pattern recurs across
+demos.
+
+#### INLINE-OBJ-A — Fix Offer/Invite/Create: require inline objects at model + outbox layer
+
+- [ ] **INLINE-OBJ-A**: For all outbound activity classes where semantic
+  type is determined by `(activity_type, object_type)`, narrow `object_`
+  from `XxxRef` (= `T | as_Link | str | None`) to the concrete type `T`.
+  Add outbox-port validation that rejects outbound activities where
+  `object_` is a bare `str` or `as_Link`. Add regression tests.
+
+  Scope: Offer/Invite/Create/Announce activities (and other initiating
+  activities) in `vultron/wire/as2/vocab/activities/`. `AcceptXxx` /
+  `RejectXxx` responses are handled in INLINE-OBJ-B.
+
+  Deliverables:
+  - Audit all activity classes in `vultron/wire/as2/vocab/activities/`
+    for `object_: XxxRef` fields and change to the concrete type where
+    the object is sent to a remote actor who may not have it.
+  - Add a spec requirement to `specs/message-validation.md` (new section
+    "Outbound Activity Object Integrity") requiring that outbound activities
+    destined for other Actors carry full inline objects (not string ID
+    references) in `object_` when the semantic type depends on the object
+    type.
+  - Add outbox-port validation (raise `VultronError` subclass) for
+    activities where `object_` is a bare string or `as_Link` at
+    send time.
+  - Regression tests in `test/test_semantic_activity_patterns.py` and
+    `test/wire/as2/vocab/activities/` covering each fixed activity class.
+
+#### INLINE-OBJ-B — Fix Accept/Reject: require type-stub (not bare string ID)
+
+- [ ] **INLINE-OBJ-B**: Accept/Reject responses reference the original
+  Offer/Invite as `object_`. The receiver created the original, so
+  `rehydrate()` should succeed — but a bare string ID still makes
+  `_match_field` return `True` for every Accept pattern, causing
+  ambiguous dispatch if rehydration ever fails. Change Accept/Reject
+  activity classes to require at minimum a **type-stub** (the full
+  concrete activity class with `id_` + nested `object_` set to its
+  own concrete stub) rather than allowing a bare string ID.
+
+  Update `specs/response-format.md` RF-02-003/RF-02-004 (and the
+  analogous Reject and TentativeReject requirements) to require a
+  type-stub rather than a bare ID string. Also update the corresponding
+  note in `AGENTS.md` ("Accept/Reject: set object to the ID string").
+
+  Deliverables:
+  - Change `object_` type on all `AcceptXxx` / `RejectXxx` /
+    `TentativeRejectXxx` activity classes from `XxxRef` to the concrete
+    `XxxActivity` type.
+  - Update demo files that construct Accept/Reject with bare string IDs.
+  - Update `specs/response-format.md` RF-02-003, RF-02-004, RF-03-003,
+    RF-03-004, RF-04-003, RF-04-004.
+  - Update `AGENTS.md` "Accept/Reject object field" note.
+  - Add regression tests verifying that Accept/Reject with bare string
+    `object_` is rejected at construction time.
+
+  Depends on: INLINE-OBJ-A.
+
+#### INLINE-OBJ-C — Prohibit object_=None where semantics require a typed object
+
+- [ ] **INLINE-OBJ-C**: For activity classes where `object_` is required
+  for semantic extraction (i.e., where the `ActivityPattern` checks
+  `object_` type), `object_=None` is semantically meaningless — such an
+  activity will inevitably land in the `UNKNOWN` catch-all. Ban `None`
+  by changing `| None` out of `object_` field types on those classes,
+  making the field required at construction time.
+
+  Add a spec requirement to `specs/message-validation.md` (extend the
+  "Outbound Activity Object Integrity" section from INLINE-OBJ-A)
+  stating that activity classes whose semantic type depends on `object_`
+  MUST declare `object_` as a required field (no `None` default).
+
+  Deliverables:
+  - Audit all activity classes in `vultron/wire/as2/vocab/activities/`
+    for `object_: ... | None` where the `ActivityPattern` for that class
+    requires a typed object. Remove `| None` and set no default.
+  - Update any callers or test fixtures that pass `object_=None` to
+    those classes.
+  - Add a regression test asserting that each audited class raises
+    `ValidationError` when constructed without `object_`.
+
+  Depends on: INLINE-OBJ-A, INLINE-OBJ-B.
 
 ---
 
