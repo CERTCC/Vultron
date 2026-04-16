@@ -156,3 +156,27 @@ duplicative object transmission, but that might be a lot of bookkeeping
 compared to a simple rule like "always include the full object in an
 activity when sending to another Actor". I'm not sure whether anything
 beyond that is premature optimization or not.
+
+## IDEA-26041602
+
+`vultron/errors.py` contains the following docstring:
+
+```text
+    Outbound initiating activities (Create, Offer, Invite, Announce, Add,
+    Remove, etc.) MUST carry a fully inline typed object so that recipients
+    can determine the semantic type without a round-trip to the sender's
+    DataLayer.  See specs/message-validation.md MV-09-001, MV-09-002.
+```
+
+What concerns me is the phrase "without a round-trip to the sender's
+DataLayer". The concern is that Actors will *never* have access to each
+others' datalayers, and this is not a possibility. This comment could be
+read as saying that sometimes Actors can access each others' datalayers, but
+that we are just avoiding doing that here for efficiency reasons. The
+reality is that Actors will never have access to each others' datalayers.
+This might just be a misguided statement in a docstring, or it might be an
+indication of a deeper misunderstanding in the specs or codebase about how
+Actors are supposed to interact with each other. We need to review the specs and
+codebase to ensure that there is a clear and consistent understanding that
+Actors do not, will not, must not have access to each others' datalayers, and
+that inter-Actor comms always happens at the wire AS2 activity level.
