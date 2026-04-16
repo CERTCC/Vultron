@@ -108,22 +108,24 @@ RF-08-001.
 
 ## Vocabulary Examples as Canonical Reference
 
-The file `vultron/scripts/vocab_examples.py` contains canonical examples of
-every Vultron ActivityStreams activity type. These examples serve as:
+The directory `vultron/wire/as2/vocab/examples/` contains canonical examples
+of every Vultron ActivityStreams activity type, split into submodules by
+topic: `actor.py`, `case.py`, `embargo.py`, `note.py`, `participant.py`,
+`report.py`, `status.py`. These examples serve as:
 
 - **Documentation**: Illustrate the expected structure for each message type.
 - **Pattern-matching reference**: Show which `(Activity Type, Object Type)`
   pairs correspond to each `MessageSemantics` enum value.
 - **Test fixtures**: Provide well-formed activity structures for unit tests
-  against `vultron/activity_patterns.py` and handlers.
+  against `vultron/wire/as2/extractor.py` and handlers.
 
-When implementing or testing a new handler, consult `vocab_examples.py` first
-to understand the expected activity structure before looking at the pattern
-definitions in `vultron/activity_patterns.py`.
+When implementing or testing a new handler, consult the examples submodules
+first to understand the expected activity structure before looking at the
+pattern definitions in `vultron/wire/as2/extractor.py`.
 
 The examples MUST be kept up to date as the vocabulary evolves. When adding a
-new vocabulary type or message semantic, add a corresponding example to
-`vocab_examples.py`.
+new vocabulary type or message semantic, add a corresponding example to the
+appropriate submodule in `vultron/wire/as2/vocab/examples/`.
 
 **Cross-references**: `vultron/wire/as2/extractor.py`,
 `vultron/core/models/events.py`, `vultron/wire/as2/vocab/`.
@@ -294,7 +296,7 @@ the actor in `DEFERRED` emits an `accept` transition to move back to
   represents permanent departure rather than temporary deferral.
 
 **Consequence for implementation**: The `reengage_case()` factory in
-`vultron/scripts/vocab_examples.py` returns a raw `as_Undo` — this is a
+`vultron/wire/as2/vocab/examples/case.py` returns a raw `as_Undo` — this is a
 legacy artifact for documentation purposes only. Actual re-engagement MUST
 be implemented as a second `RmEngageCase` (`as:Join`) activity.
 

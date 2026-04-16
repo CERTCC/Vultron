@@ -289,21 +289,17 @@ base64url encoding).
 
 ---
 
-## Technical Debt: Test Directory Layout Mismatch (TECHDEBT-11, partially resolved)
+## Test Directory Layout (TECHDEBT-11, resolved)
 
 After P60-1 and P60-2 (package relocations), the test directories
-`test/as_vocab/` and `test/behaviors/` were at their old locations.
+`test/as_vocab/` and `test/behaviors/` were migrated to their new locations.
 
-**Status**: New directories created; old directories still present:
+**Status**: All test directories now match the source layout:
 
-- `test/wire/as2/vocab/` ✅ created — parallel to `vultron/wire/as2/vocab/`
-- `test/core/behaviors/` ✅ created — parallel to `vultron/core/behaviors/`
-- `test/as_vocab/` ⚠️ still exists — should be removed once tests confirmed
-  fully migrated to `test/wire/as2/vocab/`
-- `test/behaviors/` ⚠️ still exists — should be removed once tests confirmed
-  fully migrated to `test/core/behaviors/`
-
-Both remaining directories can be removed once confirmed empty or redundant.
+- `test/wire/as2/vocab/` ✅ — parallel to `vultron/wire/as2/vocab/`
+- `test/core/behaviors/` ✅ — parallel to `vultron/core/behaviors/`
+- `test/as_vocab/` — removed ✅
+- `test/behaviors/` — removed ✅
 
 ---
 

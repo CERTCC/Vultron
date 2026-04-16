@@ -21,6 +21,10 @@ before archiving.
 | `spec-review-0327.md` | 2026-04-10 | Session log from a 2026-03-27 spec review; not a durable design insight; action items belonged in `plan/` or `specs/` | None — session artefact only |
 | `state-machine-findings.md` | 2026-04-10 | Header explicitly states "Refactoring complete — all P and OPP items addressed"; all ADR-0013 follow-up opportunities resolved | None — all tasks completed |
 | `two-actor-feedback.md` | 2026-04-10 | Bug-tracking log from the two-actor demo; all bugs resolved except two demo improvement items | **D5-7-DEMONOTECLEAN-1** and **D5-7-DEMOREPLCHECK-1** rescued to `plan/IMPLEMENTATION_PLAN.md` (already present) |
+| `datalayer-sqlite-design.md` | 2026-05-06 | Pre-implementation design doc for PRIORITY-325 (TinyDB → SQLite migration); migration is complete | None — all tasks completed |
+| `protocol-event-cascade-gaps.md` | 2026-05-06 | "Identified Gaps" (D5-6-AUTOENG, D5-6-NOTECAST, D5-6-EMBARGORCP, D5-6-CASEPROP) and "Anti-Pattern" sections extracted from `notes/protocol-event-cascades.md`; all gaps resolved (PRIORITY-310, PRIORITY-320, PRIORITY-330) | None — all tasks completed |
+| `wire-trans-design.md` | 2026-05-06 | "Current Status" and "Recommended Next Steps" sections extracted from `notes/domain-model-separation.md`; WIRE-TRANS-01–05 fully complete (PRIORITY-340) | None — all tasks completed |
+| `priority-30-design.md` | 2026-05-06 | "Open Design Questions" and "Candidate Behaviors for PRIORITY 30" sections extracted from `notes/triggerable-behaviors.md`; all 10 trigger endpoints implemented (PRIORITY-30) | None — all tasks completed |
 
 ---
 
