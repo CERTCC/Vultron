@@ -157,7 +157,7 @@ compared to a simple rule like "always include the full object in an
 activity when sending to another Actor". I'm not sure whether anything
 beyond that is premature optimization or not.
 
-## IDEA-26041602
+## IDEA-26041602 Clarification on Actor knowledge assumptions in specs
 
 `vultron/errors.py` contains the following docstring:
 
