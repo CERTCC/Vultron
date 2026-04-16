@@ -258,7 +258,7 @@ def coordinator_adds_report_to_case(
     """Link the submitted report to the authoritative case."""
     add_report = AddReportToCaseActivity(
         actor=coordinator.id_,
-        object_=report.id_,
+        object_=report,
         target=case.id_,
         to=[case_actor.id_],
     )
@@ -279,7 +279,7 @@ def coordinator_invites_actor(
     """Record and deliver a case invitation from the Coordinator."""
     invite = RmInviteToCaseActivity(
         actor=coordinator.id_,
-        object_=recipient.id_,
+        object_=recipient,
         target=case.id_,
         to=[recipient.id_],
     )

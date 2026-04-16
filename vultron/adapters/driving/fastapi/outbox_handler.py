@@ -31,6 +31,8 @@ from vultron.adapters.driven.delivery_queue import DeliveryQueueAdapter
 from vultron.core.models.activity import VultronActivity
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.emitter import ActivityEmitter
+from vultron.errors import VultronOutboxObjectIntegrityError
+from vultron.wire.as2.vocab.base.links import as_Link
 
 logger = logging.getLogger(__name__)
 
@@ -149,9 +151,20 @@ async def handle_outbox_item(
     # to recreate the case.  For Announce(CaseLogEntry): the receiving side
     # needs all CaseLogEntry fields for hash-chain validation (BUG-26041501;
     # a URI-only reference violates SYNC-02-004).
+    #
+    # NOTE: This expansion path is a backward-compatibility bridge for
+    # activities stored before INLINE-OBJ-A narrowed object_ types.  New
+    # outbound activities should always carry inline objects (MV-09-001).
     if activity_type in ("Create", "Announce") and isinstance(
         activity_object, str
     ):
+        logger.warning(
+            "Outbound %s activity '%s' has a bare string object_ '%s'."
+            " Attempting DataLayer expansion (MV-09-001 violation).",
+            activity_type,
+            activity_id,
+            activity_object,
+        )
         full_obj = dl.read(activity_object)
         if full_obj is not None:
             outbound_activity.object_ = full_obj
@@ -164,6 +177,20 @@ async def handle_outbox_item(
                 activity_type,
                 activity_id,
             )
+
+    # Object integrity check: reject delivery of any outbound activity whose
+    # object_ is still a bare string or an as_Link after the expansion attempt.
+    # Outbound initiating activities must carry fully inline typed objects so
+    # that recipients can determine the semantic type (MV-09-001, MV-09-002).
+    if isinstance(activity_object, (str, as_Link)):
+        raise VultronOutboxObjectIntegrityError(
+            f"Outbound {activity_type} activity '{activity_id}' has an"
+            f" inline object_ that is a bare string or Link"
+            f" ({activity_object!r}). Outbound initiating activities must"
+            " carry fully inline typed objects (MV-09-001).",
+            activity_id=activity_id,
+            activity_type=activity_type,
+        )
 
     recipients = _extract_recipients(outbound_activity)
     if not recipients:

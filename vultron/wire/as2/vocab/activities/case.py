@@ -33,15 +33,15 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
     as_Update,
 )
-from vultron.wire.as2.vocab.base.objects.actors import as_ActorRef
-from vultron.wire.as2.vocab.base.objects.object_types import as_NoteRef
-from vultron.wire.as2.vocab.objects.case_status import CaseStatusRef
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_ActorRef
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_status import CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCase,
     VulnerabilityCaseRef,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReportRef,
+    VulnerabilityReport,
 )
 
 ########################################################################################
@@ -55,7 +55,7 @@ class AddReportToCaseActivity(as_Add):
     target: VulnerabilityCase
     """
 
-    object_: VulnerabilityReportRef = Field(
+    object_: VulnerabilityReport | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
@@ -75,7 +75,7 @@ class AddStatusToCaseActivity(as_Add):
     target: VulnerabilityCase
     """
 
-    object_: CaseStatusRef = Field(
+    object_: CaseStatus | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
@@ -92,7 +92,7 @@ class CreateCaseActivity(as_Create):
     object_: VulnerabilityCase
     """
 
-    object_: VulnerabilityCaseRef = Field(
+    object_: VulnerabilityCase | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
 
@@ -102,7 +102,7 @@ class CreateCaseStatusActivity(as_Create):
     object_: CaseStatus
     """
 
-    object_: CaseStatusRef = Field(
+    object_: CaseStatus | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
 
@@ -114,7 +114,7 @@ class AddNoteToCaseActivity(as_Add):
     target: VulnerabilityCase
     """
 
-    object_: as_NoteRef = Field(
+    object_: as_Note | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
@@ -126,7 +126,7 @@ class UpdateCaseActivity(as_Update):
     object_: VulnerabilityCase
     """
 
-    object_: VulnerabilityCaseRef = Field(
+    object_: VulnerabilityCase | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
 
@@ -143,7 +143,7 @@ class RmEngageCaseActivity(as_Join):
     object_: VulnerabilityCase
     """
 
-    object_: VulnerabilityCaseRef = Field(
+    object_: VulnerabilityCase | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
 
@@ -158,7 +158,7 @@ class RmDeferCaseActivity(as_Ignore):
     object_: VulnerabilityCase
     """
 
-    object_: VulnerabilityCaseRef = Field(
+    object_: VulnerabilityCase | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
 
@@ -172,7 +172,7 @@ class RmCloseCaseActivity(as_Leave):
     object_: VulnerabilityCase
     """
 
-    object_: VulnerabilityCaseRef = Field(
+    object_: VulnerabilityCase | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
 
@@ -226,7 +226,7 @@ class RmInviteToCaseActivity(as_Invite):
     target: VulnerabilityCase
     """
 
-    object_: as_ActorRef = Field(
+    object_: as_Actor | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None

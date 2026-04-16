@@ -20,6 +20,7 @@ No HTTP framework imports permitted here.
 """
 
 import logging
+from typing import Any, cast
 
 from vultron.core.states.rm import RM
 from vultron.core.ports.datalayer import DataLayer
@@ -64,7 +65,7 @@ class SvcEngageCaseUseCase:
 
         engage_activity = RmEngageCaseActivity(
             actor=actor_id,
-            object_=case.id_,
+            object_=cast(Any, case),
             to=case_addressees(case, actor_id) or None,
         )
 
@@ -112,7 +113,7 @@ class SvcDeferCaseUseCase:
 
         defer_activity = RmDeferCaseActivity(
             actor=actor_id,
-            object_=case.id_,
+            object_=cast(Any, case),
             to=case_addressees(case, actor_id) or None,
         )
 

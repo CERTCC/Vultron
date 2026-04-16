@@ -174,7 +174,7 @@ def demo_initialize_case(
 
         add_vendor_participant_activity = AddParticipantToCaseActivity(
             actor=vendor.id_,
-            object_=vendor_participant.id_,
+            object_=vendor_participant,
             target=case.id_,
         )
         post_to_inbox_and_wait(
@@ -196,7 +196,7 @@ def demo_initialize_case(
     with demo_step("Step 5: Vendor links report to case"):
         add_report_activity = AddReportToCaseActivity(
             actor=vendor.id_,
-            object_=report.id_,
+            object_=report,
             target=case.id_,
         )
         post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
@@ -230,7 +230,7 @@ def demo_initialize_case(
     with demo_step("Step 7: Vendor adds finder participant to case"):
         add_participant_activity = AddParticipantToCaseActivity(
             actor=vendor.id_,
-            object_=participant.id_,
+            object_=participant,
             target=case.id_,
         )
         post_to_inbox_and_wait(client, vendor.id_, add_participant_activity)

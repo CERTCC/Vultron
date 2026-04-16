@@ -52,7 +52,7 @@ def read_report() -> RmReadReportActivity:
     # TODO this should probably change to Read(Offer(Report)) to match the other activities
     activity = RmReadReportActivity(
         actor=_VENDOR.id_,
-        object_=_REPORT.id_,
+        object_=_REPORT,
         content="We've read the report. We'll get back to you soon.",
     )
     return activity

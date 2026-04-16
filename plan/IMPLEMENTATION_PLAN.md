@@ -1,8 +1,8 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-04-15 (plan refresh #76: WIRE-TRANS-03 ✅ completed;
-wire object/domain conversions added for case, report, participant, status,
-case actor, and case log entry types; 1425 tests passing)
+**Last Updated**: 2026-04-16 (INLINE-OBJ-A ✅ completed; initiating outbound
+activities now require inline typed `object_` values; 1508 passed, 12 skipped,
+182 deselected)
 
 ## Overview
 
@@ -15,10 +15,9 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 
 ### Current Status Summary
 
-**Test suite**: Canonical validation last passed on 2026-04-14
-(~1402 passed, 13 skipped, 5581 subtests; `black`, `flake8`, `mypy`, `pyright`,
-full `pytest` run). Count reflects removal of TinyDB-specific tests during
-PRIORITY-325 migration.
+**Test suite**: Canonical validation last passed on 2026-04-16
+(1508 passed, 12 skipped, 182 deselected, 5581 subtests; `black`, `flake8`,
+`mypy`, `pyright`, full `pytest` run).
 
 All 38 message handlers implemented (including `unknown`). All 10 trigger
 endpoints complete (including new `sync-log-entry`). 12 demo scripts, all
@@ -55,9 +54,8 @@ Must complete before D5-7-HUMAN.
 **PRIORITY-330** SYNC + demo sign-off — OUTBOX-MON-1 ✅, SYNC-1 ✅, SYNC-2 ✅,
 SYNC-3 ✅; SYNC-TRIG-1 ✅ (new `sync-log-entry` trigger endpoint);
 D5-7-DEMOREPLCHECK-1 ✅ (finder replica verification in two-actor demo).
-Remaining: INLINE-OBJ-A, INLINE-OBJ-B, INLINE-OBJ-C (inline object
-enforcement; prereqs for D5-7-HUMAN; see IDEA-26041601), then D5-7-HUMAN
-sign-off.
+Remaining: INLINE-OBJ-B, INLINE-OBJ-C (inline object enforcement; prereqs for
+D5-7-HUMAN; see IDEA-26041601), then D5-7-HUMAN sign-off.
 SYNC-2 subsumes D5-7-CASEREPL-1 and D5-7-ADDOBJ-1.
 Prereq for SYNC-2: D5-7-TRIGNOTIFY-1 (from Priority 320).
 
@@ -1051,11 +1049,10 @@ demos.
 
 #### INLINE-OBJ-A — Fix Offer/Invite/Create: require inline objects at model + outbox layer
 
-- [ ] **INLINE-OBJ-A**: For all outbound activity classes where semantic
-  type is determined by `(activity_type, object_type)`, narrow `object_`
-  from `XxxRef` (= `T | as_Link | str | None`) to the concrete type `T`.
-  Add outbox-port validation that rejects outbound activities where
-  `object_` is a bare `str` or `as_Link`. Add regression tests.
+- [x] **INLINE-OBJ-A**: Narrowed initiating outbound activity `object_` fields
+  from permissive refs to inline typed objects, added MV-09 outbound-object
+  integrity requirements plus outbox enforcement, fixed all callers/examples,
+  and updated regression coverage. Completed 2026-04-16.
 
   Scope: Offer/Invite/Create/Announce activities (and other initiating
   activities) in `vultron/wire/as2/vocab/activities/`. `AcceptXxx` /

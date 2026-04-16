@@ -168,7 +168,7 @@ def _setup_two_participant_case(
 
     add_report_activity = AddReportToCaseActivity(
         actor=vendor.id_,
-        object_=report.id_,
+        object_=report,
         target=case.id_,
     )
     post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
@@ -187,14 +187,14 @@ def _setup_two_participant_case(
 
     add_participant_activity = AddParticipantToCaseActivity(
         actor=vendor.id_,
-        object_=participant.id_,
+        object_=participant,
         target=case.id_,
     )
     post_to_inbox_and_wait(client, vendor.id_, add_participant_activity)
 
     invite = RmInviteToCaseActivity(
         actor=vendor.id_,
-        object_=coordinator.id_,
+        object_=coordinator,
         target=case.id_,
         to=[coordinator.id_],
         content=f"Inviting you to participate in {case.name}.",
@@ -278,7 +278,7 @@ def demo_activate_then_terminate(
     with demo_step("Step 4: Vendor activates embargo on case"):
         activate = ActivateEmbargoActivity(
             actor=vendor.id_,
-            object_=embargo.id_,
+            object_=embargo,
             target=case.id_,
             in_reply_to=proposal.id_,
             to=f"{case.id_}/participants",
@@ -289,7 +289,7 @@ def demo_activate_then_terminate(
     with demo_step("Step 5: Vendor announces embargo to participants"):
         announce = AnnounceEmbargoActivity(
             actor=vendor.id_,
-            object_=embargo.id_,
+            object_=embargo,
             context=case.id_,
             to=f"{case.id_}/participants",
             summary=f"Embargo for {case.name} is now active.",
@@ -315,7 +315,7 @@ def demo_activate_then_terminate(
     with demo_step("Step 7: Vendor terminates (removes) the active embargo"):
         remove = RemoveEmbargoFromCaseActivity(
             actor=vendor.id_,
-            object_=embargo.id_,
+            object_=embargo,
             origin=case.id_,
             to=f"{case.id_}/participants",
             summary=f"Terminating embargo for {case.name}.",
@@ -461,7 +461,7 @@ def demo_reject_then_repropose(
     with demo_step("Step 7: Vendor activates revised embargo"):
         activate_v2 = ActivateEmbargoActivity(
             actor=vendor.id_,
-            object_=embargo_v2.id_,
+            object_=embargo_v2,
             target=case.id_,
             in_reply_to=proposal_v2.id_,
             to=f"{case.id_}/participants",

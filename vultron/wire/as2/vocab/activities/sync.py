@@ -43,7 +43,7 @@ class AnnounceLogEntryActivity(as_Announce):
         being replicated.
     """
 
-    object_: Optional[Union[CaseLogEntry, as_Link, str]] = Field(
+    object_: CaseLogEntry | None = Field(
         default=None,
         validation_alias="object",
         serialization_alias="object",

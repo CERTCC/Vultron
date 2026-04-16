@@ -175,7 +175,7 @@ def case_with_proposal(dl, actor):
     dl.create(embargo)
     proposal = EmProposeEmbargoActivity(
         actor=actor.id_,
-        object_=embargo.id_,
+        object_=embargo,
         context=case_obj.id_,
     )
     dl.create(proposal)

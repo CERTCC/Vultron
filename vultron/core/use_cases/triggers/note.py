@@ -105,7 +105,7 @@ class SvcAddNoteToCaseUseCase:
         )
         add_note_activity = AddNoteToCaseActivity(
             actor=actor_id,
-            object_=note.id_,
+            object_=note,
             target=case_id,
             to=addressees,
         )

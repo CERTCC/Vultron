@@ -134,7 +134,7 @@ def _setup_initialized_case(
 
     add_report_activity = AddReportToCaseActivity(
         actor=vendor.id_,
-        object_=report.id_,
+        object_=report,
         target=case.id_,
     )
     post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
@@ -153,7 +153,7 @@ def _setup_initialized_case(
 
     add_participant_activity = AddParticipantToCaseActivity(
         actor=vendor.id_,
-        object_=participant.id_,
+        object_=participant,
         target=case.id_,
     )
     post_to_inbox_and_wait(client, vendor.id_, add_participant_activity)

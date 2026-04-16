@@ -21,6 +21,7 @@ No HTTP framework imports permitted here.
 
 import logging
 
+from pydantic import BaseModel, ValidationError
 from transitions import MachineError
 
 from vultron.core.states.em import EM, EMAdapter, create_em_machine
@@ -50,6 +51,28 @@ from vultron.wire.as2.vocab.activities.embargo import (
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 
 logger = logging.getLogger(__name__)
+
+
+def _coerce_embargo_event(
+    raw_embargo: object, embargo_id: str
+) -> EmbargoEvent:
+    """Normalize a persisted embargo record to an ``EmbargoEvent`` instance."""
+    if isinstance(raw_embargo, EmbargoEvent):
+        return raw_embargo
+    if raw_embargo is None:
+        raise VultronNotFoundError("EmbargoEvent", embargo_id)
+    if not isinstance(raw_embargo, BaseModel):
+        raise VultronValidationError(
+            f"Could not resolve EmbargoEvent '{embargo_id}'."
+        )
+    try:
+        return EmbargoEvent.model_validate(
+            raw_embargo.model_dump(by_alias=True)
+        )
+    except ValidationError as exc:
+        raise VultronValidationError(
+            f"Could not resolve EmbargoEvent '{embargo_id}'."
+        ) from exc
 
 
 class SvcProposeEmbargoUseCase:
@@ -109,7 +132,7 @@ class SvcProposeEmbargoUseCase:
 
         proposal = EmProposeEmbargoActivity(
             actor=actor_id,
-            object_=embargo.id_,
+            object_=embargo,
             context=case.id_,
             to=case_addressees(case, actor_id) or None,
         )
@@ -325,9 +348,11 @@ class SvcTerminateEmbargoUseCase:
                 f"Active embargo on case '{case.id_}' is missing an ID."
             )
 
+        embargo = _coerce_embargo_event(dl.read(embargo_id), embargo_id)
+
         announce = AnnounceEmbargoActivity(
             actor=actor_id,
-            object_=embargo_id,
+            object_=embargo,
             context=case.id_,
             to=case_addressees(case, actor_id) or None,
         )

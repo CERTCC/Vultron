@@ -66,7 +66,6 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     demo_check,
     demo_step,
     demo_environment,
-    get_offer_from_datalayer,
     logfmt,
     post_to_inbox_and_wait,
     verify_object_stored,
@@ -160,10 +159,9 @@ def demo_acknowledge_only(
     with demo_step(
         "Step 2: Vendor acknowledges report (RmReadReportActivity to own inbox)"
     ):
-        stored_offer = get_offer_from_datalayer(client, vendor.id_, offer.id_)
         ack = RmReadReportActivity(
             actor=vendor.id_,
-            object_=stored_offer.id_,
+            object_=report,
             content="We have received your report and will review it shortly.",
         )
         post_to_inbox_and_wait(client, vendor.id_, ack)
@@ -173,7 +171,7 @@ def demo_acknowledge_only(
     with demo_step("Step 3: Vendor notifies finder of acknowledgement"):
         ack_to_finder = RmReadReportActivity(
             actor=vendor.id_,
-            object_=stored_offer.id_,
+            object_=report,
             to=[finder.id_],
             content="We have received your report and will review it shortly.",
         )
@@ -227,10 +225,9 @@ def demo_acknowledge_then_validate(
     with demo_step(
         "Step 2: Vendor acknowledges report (RmReadReportActivity)"
     ):
-        stored_offer = get_offer_from_datalayer(client, vendor.id_, offer.id_)
         ack = RmReadReportActivity(
             actor=vendor.id_,
-            object_=stored_offer.id_,
+            object_=report,
             content="Report received — under review.",
         )
         post_to_inbox_and_wait(client, vendor.id_, ack)
@@ -242,7 +239,7 @@ def demo_acknowledge_then_validate(
     ):
         validate = RmValidateReportActivity(
             actor=vendor.id_,
-            object_=stored_offer.id_,
+            object_=offer,
             content="Confirmed SQL injection. Creating a case.",
         )
         post_to_inbox_and_wait(client, vendor.id_, validate)
@@ -252,7 +249,7 @@ def demo_acknowledge_then_validate(
     with demo_step("Step 4: Vendor notifies finder of validation"):
         validate_to_finder = RmValidateReportActivity(
             actor=vendor.id_,
-            object_=stored_offer.id_,
+            object_=offer,
             to=[finder.id_],
             content="Your report has been validated. A case has been created.",
         )
@@ -311,10 +308,9 @@ def demo_acknowledge_then_invalidate(
     with demo_step(
         "Step 2: Vendor acknowledges report (RmReadReportActivity)"
     ):
-        stored_offer = get_offer_from_datalayer(client, vendor.id_, offer.id_)
         ack = RmReadReportActivity(
             actor=vendor.id_,
-            object_=stored_offer.id_,
+            object_=report,
             content="Report received — under review.",
         )
         post_to_inbox_and_wait(client, vendor.id_, ack)
@@ -326,7 +322,7 @@ def demo_acknowledge_then_invalidate(
     ):
         invalidate = RmInvalidateReportActivity(
             actor=vendor.id_,
-            object_=stored_offer.id_,
+            object_=offer,
             content=(
                 "This is a UX defect, not a security vulnerability. "
                 "Holding for further review."
@@ -339,7 +335,7 @@ def demo_acknowledge_then_invalidate(
     with demo_step("Step 4: Vendor notifies finder of invalidation"):
         invalidate_to_finder = RmInvalidateReportActivity(
             actor=vendor.id_,
-            object_=stored_offer.id_,
+            object_=offer,
             to=[finder.id_],
             content=(
                 "After review, this does not appear to be a security vulnerability."

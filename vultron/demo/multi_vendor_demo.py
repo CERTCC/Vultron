@@ -256,7 +256,7 @@ def vendor_adds_report_to_case(
     """Link the submitted report to the authoritative case."""
     add_report = AddReportToCaseActivity(
         actor=vendor.id_,
-        object_=report.id_,
+        object_=report,
         target=case.id_,
         to=[case_actor.id_],
     )

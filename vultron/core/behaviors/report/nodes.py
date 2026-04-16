@@ -24,7 +24,7 @@ Per specs/behavior-tree-integration.md BT-07 and BT-10 requirements.
 """
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
@@ -1028,7 +1028,7 @@ class EmitEngageCaseActivity(DataLayerAction):
 
             activity = RmEngageCaseActivity(
                 actor=self.actor_id,
-                object_=self.case_id,
+                object_=cast(Any, case),
                 to=addressees,
             )
 
@@ -1116,7 +1116,7 @@ class EmitDeferCaseActivity(DataLayerAction):
 
             activity = RmDeferCaseActivity(
                 actor=self.actor_id,
-                object_=self.case_id,
+                object_=cast(Any, case),
                 to=addressees,
             )
 

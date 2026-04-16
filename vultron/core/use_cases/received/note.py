@@ -119,7 +119,7 @@ class AddNoteToCaseReceivedUseCase:
 
         broadcast = AddNoteToCaseActivity(
             actor=case_actor_id,
-            object_=note_id,
+            object_=cast(Any, self._dl.read(note_id)),
             target=case_id,
             to=recipient_ids,
         )

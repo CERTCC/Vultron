@@ -26,8 +26,13 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Remove,
 )
 from vultron.wire.as2.vocab.base.utils import name_of
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipantRef
-from vultron.wire.as2.vocab.objects.case_status import ParticipantStatusRef
+from vultron.wire.as2.vocab.objects.case_participant import (
+    CaseParticipant,
+    CaseParticipantRef,
+)
+from vultron.wire.as2.vocab.objects.case_status import (
+    ParticipantStatus,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCaseRef,
 )
@@ -36,7 +41,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 class CreateParticipantActivity(as_Create):
     """Create a new CaseParticipant"""
 
-    object_: CaseParticipantRef = Field(
+    object_: CaseParticipant | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
@@ -75,7 +80,7 @@ class CreateParticipantActivity(as_Create):
 class CreateStatusForParticipantActivity(as_Create):
     """Create a new CaseStatus for a CaseParticipant"""
 
-    object_: ParticipantStatusRef = Field(
+    object_: ParticipantStatus | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
     target: CaseParticipantRef = None
@@ -88,7 +93,7 @@ class AddStatusToParticipantActivity(as_Add):
     target: CaseParticipant
     """
 
-    object_: ParticipantStatusRef = Field(
+    object_: ParticipantStatus | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
     target: CaseParticipantRef = None
@@ -100,7 +105,7 @@ class AddParticipantToCaseActivity(as_Add):
     target: VulnerabilityCase
     """
 
-    object_: CaseParticipantRef = Field(
+    object_: CaseParticipant | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
@@ -113,7 +118,7 @@ class RemoveParticipantFromCaseActivity(as_Remove):
     target: VulnerabilityCase
     """
 
-    object_: CaseParticipantRef = Field(
+    object_: CaseParticipant | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None

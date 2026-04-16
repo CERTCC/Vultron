@@ -629,7 +629,7 @@ class TestEmbargoUseCases:
         proposal = EmProposeEmbargoActivity(
             id_="https://example.org/cases/case_eval_invalid/proposals/p1",
             actor=actor.id_,
-            object_=embargo.id_,
+            object_=embargo,
             context=case.id_,
         )
         # EM state is NONE — ACCEPT transition is not valid from NONE.

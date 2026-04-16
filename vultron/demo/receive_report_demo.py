@@ -309,7 +309,7 @@ def demo_validate_report(
                 raise ValueError("Could not find case related to this report.")
         create_case_activity = CreateCaseActivity(
             actor=vendor.id_,
-            object_=case_data.id_,
+            object_=case_data,
             to=[finder.id_],
             content="Case created for your vulnerability report.",
         )

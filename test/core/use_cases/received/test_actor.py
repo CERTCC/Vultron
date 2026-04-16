@@ -16,7 +16,7 @@ import logging
 from typing import Any, cast
 from unittest.mock import MagicMock
 
-
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.core.use_cases.received.actor import (
     SuggestActorToCaseReceivedUseCase,
@@ -49,7 +49,7 @@ class TestInviteActorUseCases:
         invite = RmInviteToCaseActivity(
             id_="https://example.org/cases/case1/invitations/1",
             actor="https://example.org/users/owner",
-            object_="https://example.org/users/coordinator",
+            object_=as_Actor(id_="https://example.org/users/coordinator"),
             target="https://example.org/cases/case1",
         )
 
@@ -72,7 +72,7 @@ class TestInviteActorUseCases:
         invite = RmInviteToCaseActivity(
             id_="https://example.org/cases/case1/invitations/2",
             actor="https://example.org/users/owner",
-            object_="https://example.org/users/coordinator",
+            object_=as_Actor(id_="https://example.org/users/coordinator"),
             target="https://example.org/cases/case1",
         )
 
@@ -96,7 +96,7 @@ class TestInviteActorUseCases:
         invite = RmInviteToCaseActivity(
             id_="https://example.org/cases/case1/invitations/3",
             actor="https://example.org/users/owner",
-            object_="https://example.org/users/coordinator",
+            object_=as_Actor(id_="https://example.org/users/coordinator"),
             target="https://example.org/cases/case1",
         )
         reject = RmRejectInviteToCaseActivity(

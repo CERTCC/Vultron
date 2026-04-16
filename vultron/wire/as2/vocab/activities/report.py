@@ -30,7 +30,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TentativeReject,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReportRef,
+    VulnerabilityReport,
 )
 
 OfferRef: TypeAlias = ActivityStreamRef[as_Offer]
@@ -39,7 +39,7 @@ OfferRef: TypeAlias = ActivityStreamRef[as_Offer]
 class RmCreateReportActivity(as_Create):
     """The actor is creating a report."""
 
-    object_: VulnerabilityReportRef = Field(
+    object_: VulnerabilityReport | None = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
 
@@ -51,7 +51,7 @@ class RmSubmitReportActivity(as_Offer):
     object_: VulnerabilityReport
     """
 
-    object_: VulnerabilityReportRef = Field(
+    object_: VulnerabilityReport | None = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
 
@@ -62,7 +62,7 @@ class RmReadReportActivity(as_Read):
     object_: VulnerabilityReport
     """
 
-    object_: VulnerabilityReportRef = Field(
+    object_: VulnerabilityReport | None = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
 

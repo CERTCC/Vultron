@@ -31,7 +31,7 @@ def recommend_actor() -> RecommendActorActivity:
     _coordinator = _COORDINATOR
     _activity = RecommendActorActivity(
         actor=_finder.id_,
-        object_=_coordinator.id_,
+        object_=_coordinator,
         context=_case.id_,
         target=_case.id_,
         to=_vendor.id_,

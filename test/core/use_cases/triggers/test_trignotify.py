@@ -243,7 +243,7 @@ class TestEmbargoTriggerToField:
         self.dl.create(embargo)
         proposal = EmProposeEmbargoActivity(
             actor=self.finder.id_,
-            object_=embargo.id_,
+            object_=embargo,
             context=self.case.id_,
         )
         self.dl.create(proposal)

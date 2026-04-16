@@ -32,6 +32,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Remove,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import (
+    EmbargoEvent,
     EmbargoEventRef,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -45,7 +46,7 @@ class EmProposeEmbargoActivity(as_Invite):
     object_: EmbargoEvent
     """
 
-    object_: EmbargoEventRef = Field(
+    object_: EmbargoEvent | None = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
     context: VulnerabilityCaseRef = None
@@ -105,7 +106,7 @@ class ActivateEmbargoActivity(as_Add):
     in_reply_to: the EmProposeEmbargoActivity activity that proposed the EmbargoEvent
     """
 
-    object_: EmbargoEventRef = Field(
+    object_: EmbargoEvent | None = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
@@ -119,7 +120,7 @@ class AddEmbargoToCaseActivity(as_Add):
     in response to a previous EmProposeEmbargoActivity activity.
     """
 
-    object_: EmbargoEventRef = Field(
+    object_: EmbargoEvent | None = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
@@ -131,7 +132,7 @@ class AnnounceEmbargoActivity(as_Announce):
     context: the VulnerabilityCase for which the EmbargoEvent is active
     """
 
-    object_: EmbargoEventRef = Field(
+    object_: EmbargoEvent | None = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
     context: VulnerabilityCaseRef = None
@@ -146,7 +147,7 @@ class RemoveEmbargoFromCaseActivity(as_Remove):
     origin: VulnerabilityCase
     """
 
-    object_: EmbargoEventRef = Field(
+    object_: EmbargoEvent | None = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
     origin: VulnerabilityCaseRef = None

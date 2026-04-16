@@ -67,6 +67,25 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
   - All layers (API, handlers, data layer) MUST consistently store and compare IDs as URI strings; when creating IDs, prefer fully-qualified URIs.
   - The data layer and rehydration logic MUST perform URL-encoding/decoding only for transport concerns and must persist the original URI string as-is.
   
+## Outbound Activity Object Integrity
+
+- `MV-09-001` Outbound initiating activities (Create, Offer, Invite, Announce,
+  Add, Remove, Update, Join, Ignore, Leave) MUST carry the `object` field as a
+  fully inline typed domain object — bare string URIs and `as_Link` references
+  are NOT permitted in outbound activities.
+  - Rationale: Recipients use the inline object's `type` field for semantic
+    pattern matching.  A bare string URI makes the object type opaque, causing
+    every pattern that checks `object.type` to match (or fail), leading to
+    incorrect handler dispatch.
+  - This constraint is enforced at construction time by narrowing Pydantic
+    `object_` field types to `DomainObject | None` in initiating activity
+    classes.
+- `MV-09-002` The outbox handler MUST raise `VultronOutboxObjectIntegrityError`
+  and abort delivery if an outbound activity's `object_` field is a bare string
+  or `as_Link` after any DataLayer expansion attempt.
+  - This acts as a last-resort runtime guard in case a narrowed activity class
+    is bypassed.
+
 ## Duplicate Detection
 
 - `MV-08-001` The system SHOULD detect duplicate activity submissions during validation
@@ -104,6 +123,22 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 ### MV-08-001 Verification
 
 - See `idempotency.md` ID-02-001 verification criteria
+
+### MV-09-001, MV-09-002 Verification
+
+- Unit test: Constructing an initiating activity class (e.g.,
+  `RmCreateReportActivity`) with a bare string `object_` raises
+  `pydantic.ValidationError`.
+- Unit test: Constructing an initiating activity class with an `as_Link`
+  `object_` raises `pydantic.ValidationError`.
+- Unit test: Constructing an initiating activity class with the correct inline
+  domain object succeeds.
+- Unit test: `outbox_handler.handle_outbox_item()` raises
+  `VultronOutboxObjectIntegrityError` when `object_` remains a bare string
+  after expansion.
+- Implementation: `vultron/wire/as2/vocab/activities/` (narrowed Pydantic types)
+- Implementation: `vultron/adapters/driving/fastapi/outbox_handler.py`
+  (`handle_outbox_item()` integrity check)
 
 ## Related
 

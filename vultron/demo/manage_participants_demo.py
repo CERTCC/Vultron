@@ -158,14 +158,14 @@ def _setup_case_with_vendor(
 
     add_vendor_participant = AddParticipantToCaseActivity(
         actor=vendor.id_,
-        object_=vendor_participant.id_,
+        object_=vendor_participant,
         target=case.id_,
     )
     post_to_inbox_and_wait(client, vendor.id_, add_vendor_participant)
 
     add_report_activity = AddReportToCaseActivity(
         actor=vendor.id_,
-        object_=report.id_,
+        object_=report,
         target=case.id_,
     )
     post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
@@ -208,7 +208,7 @@ def demo_manage_participants_accept(
     with demo_step("Step 2: Vendor invites coordinator to case"):
         invite = RmInviteToCaseActivity(
             actor=vendor.id_,
-            object_=coordinator.id_,
+            object_=coordinator,
             target=case.id_,
             to=[coordinator.id_],
             content=f"Inviting you to participate in {case.name}.",
@@ -243,7 +243,7 @@ def demo_manage_participants_accept(
     with demo_step("Step 5: Vendor adds coordinator participant to case"):
         add_participant = AddParticipantToCaseActivity(
             actor=vendor.id_,
-            object_=coordinator_participant.id_,
+            object_=coordinator_participant,
             target=case.id_,
         )
         post_to_inbox_and_wait(client, vendor.id_, add_participant)
@@ -297,7 +297,7 @@ def demo_manage_participants_accept(
     with demo_step("Step 8: Vendor removes coordinator from case"):
         remove_participant = RemoveParticipantFromCaseActivity(
             actor=vendor.id_,
-            object_=coordinator_participant.id_,
+            object_=coordinator_participant,
             target=case.id_,
         )
         post_to_inbox_and_wait(client, vendor.id_, remove_participant)
@@ -358,7 +358,7 @@ def demo_manage_participants_reject(
     with demo_step("Step 2: Vendor invites coordinator to case"):
         invite = RmInviteToCaseActivity(
             actor=vendor.id_,
-            object_=coordinator.id_,
+            object_=coordinator,
             target=case.id_,
             to=[coordinator.id_],
             content=f"Inviting you to participate in {case.name}.",

@@ -160,14 +160,14 @@ def setup_report_and_case(
 
     add_vendor_participant = AddParticipantToCaseActivity(
         actor=vendor.id_,
-        object_=vendor_participant.id_,
+        object_=vendor_participant,
         target=case.id_,
     )
     post_to_inbox_and_wait(client, vendor.id_, add_vendor_participant)
 
     add_report = AddReportToCaseActivity(
         actor=vendor.id_,
-        object_=report.id_,
+        object_=report,
         target=case.id_,
     )
     post_to_inbox_and_wait(client, vendor.id_, add_report)
@@ -221,7 +221,7 @@ def demo_engage_path(
     with demo_step("Step 3: Vendor engages the case (RmEngageCaseActivity)"):
         engage = RmEngageCaseActivity(
             actor=vendor.id_,
-            object_=case.id_,
+            object_=case,
         )
         post_to_inbox_and_wait(client, vendor.id_, engage)
         with demo_check("RmEngageCaseActivity activity stored"):
@@ -230,7 +230,7 @@ def demo_engage_path(
     with demo_step("Step 4: Vendor closes the case (RmCloseCaseActivity)"):
         close = RmCloseCaseActivity(
             actor=vendor.id_,
-            object_=case.id_,
+            object_=case,
         )
         post_to_inbox_and_wait(client, vendor.id_, close)
         with demo_check("RmCloseCaseActivity activity stored"):
@@ -286,7 +286,7 @@ def demo_defer_reengage_path(
     with demo_step("Step 3: Vendor defers the case (RmDeferCaseActivity)"):
         defer = RmDeferCaseActivity(
             actor=vendor.id_,
-            object_=case.id_,
+            object_=case,
         )
         post_to_inbox_and_wait(client, vendor.id_, defer)
         with demo_check("RmDeferCaseActivity activity stored"):
@@ -298,7 +298,7 @@ def demo_defer_reengage_path(
     ):
         reengage = RmEngageCaseActivity(
             actor=vendor.id_,
-            object_=case.id_,
+            object_=case,
         )
         post_to_inbox_and_wait(client, vendor.id_, reengage)
         with demo_check("RmEngageCaseActivity (re-engage) activity stored"):
@@ -312,7 +312,7 @@ def demo_defer_reengage_path(
     with demo_step("Step 5: Vendor closes the case (RmCloseCaseActivity)"):
         close = RmCloseCaseActivity(
             actor=vendor.id_,
-            object_=case.id_,
+            object_=case,
         )
         post_to_inbox_and_wait(client, vendor.id_, close)
         with demo_check("RmCloseCaseActivity activity stored"):

@@ -134,7 +134,7 @@ def setup_case_precondition(
 
     add_report_activity = AddReportToCaseActivity(
         actor=vendor.id_,
-        object_=report.id_,
+        object_=report,
         target=case.id_,
     )
     post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
@@ -205,7 +205,7 @@ def demo_initialize_participant(
     with demo_step("Step 2: Vendor adds coordinator participant to case"):
         add_coordinator_participant = AddParticipantToCaseActivity(
             actor=vendor.id_,
-            object_=coordinator_participant.id_,
+            object_=coordinator_participant,
             target=case.id_,
         )
         post_to_inbox_and_wait(client, vendor.id_, add_coordinator_participant)
@@ -246,7 +246,7 @@ def demo_initialize_participant(
     with demo_step("Step 4: Vendor adds finder participant to case"):
         add_finder_participant = AddParticipantToCaseActivity(
             actor=vendor.id_,
-            object_=finder_participant.id_,
+            object_=finder_participant,
             target=case.id_,
         )
         post_to_inbox_and_wait(client, vendor.id_, add_finder_participant)

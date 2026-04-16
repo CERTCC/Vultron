@@ -205,3 +205,18 @@ into camelCase keys that core models do not accept directly.
 call their own `to_core()` methods instead of relying on a raw `model_validate`
 over nested dicts. This preserves enum-valued state fields (`pxa_state`,
 `vfd_state`) and correctly collapses reference-only fields back to ID strings.
+
+---
+
+### 2026-04-16 INLINE-OBJ-A completed
+
+**EmbargoEvent normalization note**: The SQLite datalayer can round-trip a
+stored `EmbargoEvent` back as a generic `as_Event`. Before passing a persisted
+embargo into a typed activity constructor such as `AnnounceEmbargoActivity`,
+normalize it with `EmbargoEvent.model_validate(raw.model_dump(by_alias=True))`
+so Pydantic sees the concrete subtype.
+
+**Example-test note**: `vocab.examples` helpers often create fresh objects with
+new UUID-derived IDs on each call. Tests for narrowed inline `object_` fields
+should compare stable fields or IDs instead of comparing two separately
+generated example objects directly.

@@ -22,7 +22,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
     as_Reject,
 )
-from vultron.wire.as2.vocab.base.objects.actors import as_ActorRef
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCaseRef,
 )
@@ -31,7 +31,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 class RecommendActorActivity(as_Offer):
     """The actor is recommending another actor to a case."""
 
-    object_: as_ActorRef = Field(
+    object_: as_Actor | None = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
