@@ -183,13 +183,13 @@ def test_tree_second_child_is_sequence(report, offer):
     assert tree.children[1].name == "ReceiveReportCaseFlow"
 
 
-def test_tree_flow_has_six_children(report, offer):
-    """ReceiveReportCaseFlow sequence has exactly 6 action nodes."""
+def test_tree_flow_has_seven_children(report, offer):
+    """ReceiveReportCaseFlow sequence has exactly 7 action nodes."""
     tree = create_receive_report_case_tree(
         report_id=report.id_, offer_id=offer.id_
     )
     flow = tree.children[1]
-    assert len(flow.children) == 6
+    assert len(flow.children) == 7
 
 
 # ============================================================================

@@ -6536,3 +6536,58 @@ this class of silent dispatch failure.
 
 1607 passed, 12 skipped, 182 deselected, 5581 subtests; `black`, `flake8`,
 `mypy`, `pyright` all clean.
+
+---
+
+## BUG-26041602 — CommitCaseLogEntryNode composable BT node (2026-04-17)
+
+### Problem
+
+`CaseActor` never automatically emitted `Announce(CaseLogEntry)` sync messages
+when processing inbound case activities (`create_case`, `engage_case`,
+`defer_case`, `submit_report`). The two-actor demo worked around this by
+explicitly calling `POST /actors/{id}/trigger/sync-log-entry` after each step.
+The `commit_log_entry_trigger` service existed and was functional, but was never
+wired into the BT execution path.
+
+### Approach
+
+Added `CommitCaseLogEntryNode` as a composable BT node (inheriting
+`DataLayerAction`) that is the final child of each relevant case BT. The node:
+
+1. Resolves `case_id` from constructor param (known at build time) or
+   blackboard fallback (written by `CreateCaseNode` for `ReceiveReportCaseBT`).
+2. Derives `event_type` from `activity.semantic_type.value` (on blackboard) or
+   falls back to `"case_event"` when no activity is present.
+3. Calls `commit_log_entry_trigger(case_id, object_id, event_type, actor_id, dl)`.
+4. Returns `SUCCESS` silently (no-op) when `case_id` is unavailable.
+
+`OutboxMonitor` remains the sole delivery mechanism — the node only writes to
+the outbox, matching the reactive "on-new-item-do" pattern.
+
+**Circular import resolved**: Removed package-level re-exports from
+`vultron/core/use_cases/triggers/__init__.py`. The cycle was:
+`nodes.py` → `triggers.sync` → `triggers/__init__.py` (re-exports `report`)
+→ `triggers/report.py` → `validate_tree` → `prioritize_tree` → `nodes.py`.
+No callers imported from the package level, so removing the re-exports was safe.
+
+### Files changed
+
+- `vultron/core/behaviors/case/nodes.py` — added `CommitCaseLogEntryNode`
+- `vultron/core/behaviors/case/create_tree.py` — wired node as last child
+- `vultron/core/behaviors/report/prioritize_tree.py` — wired node into both
+  `EngageCaseBT` and `DeferCaseBT`
+- `vultron/core/behaviors/case/receive_report_case_tree.py` — wired node as
+  last child (blackboard `case_id` fallback)
+- `vultron/core/use_cases/triggers/__init__.py` — removed package-level
+  re-exports to break circular import
+- `test/core/behaviors/case/test_commit_log_entry_node.py` — 7 new unit tests
+- `test/core/behaviors/case/test_receive_report_case_tree.py` — updated
+  flow-children count test (6 → 7)
+- `test/core/behaviors/report/test_prioritize_tree.py` — updated
+  `EngageCaseBT`/`DeferCaseBT` children count tests (2 → 3)
+
+### Test results at completion
+
+1614 passed, 12 skipped, 182 deselected, 5581 subtests; `black`, `flake8`,
+`mypy`, `pyright` all clean.

@@ -55,6 +55,7 @@ from vultron.core.use_cases._helpers import (
     _report_phase_status_id,
     update_participant_rm_state,
 )
+from vultron.core.use_cases.triggers.sync import commit_log_entry_trigger
 
 logger = logging.getLogger(__name__)
 
@@ -1046,4 +1047,111 @@ class UpdateActorOutbox(DataLayerAction):
 
         except Exception as e:
             self.logger.error(f"{self.name}: Error updating actor outbox: {e}")
+            return Status.FAILURE
+
+
+class CommitCaseLogEntryNode(DataLayerAction):
+    """
+    Commit a hash-chained CaseLogEntry and fan it out to all case participants.
+
+    Creates a :class:`~vultron.core.models.case_log_entry.VultronCaseLogEntry`,
+    persists it, and queues one ``Announce(CaseLogEntry)`` activity per
+    participant to the actor's outbox.  The :class:`OutboxMonitor` delivers
+    queued activities reactively — this node only writes to the outbox.
+
+    ``case_id`` is resolved in order:
+
+    1. Constructor parameter (if provided at tree-build time).
+    2. ``case_id`` key in the py_trees blackboard (written by a prior node
+       such as :class:`CreateCaseNode` or :class:`PersistCase`).
+
+    If ``case_id`` cannot be resolved, the node returns ``SUCCESS`` silently
+    (no-op for trees that run in a non-case context).
+
+    ``event_type`` and ``object_id`` are derived from the ``activity``
+    blackboard key (the inbound :class:`~vultron.core.models.events.base.VultronEvent`
+    placed there by :class:`~vultron.core.behaviors.bridge.BTBridge`).
+
+    Per specs/sync-log-replication.md SYNC-02-002, SYNC-02-003.
+    """
+
+    def __init__(
+        self,
+        case_id: str | None = None,
+        name: str | None = None,
+    ):
+        """
+        Args:
+            case_id: ID of the ``VulnerabilityCase`` to log against.  When
+                ``None`` the node reads ``case_id`` from the blackboard.
+            name: Optional display name for the node.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                f"{self.name}: DataLayer or actor_id not available"
+            )
+            return Status.FAILURE
+
+        try:
+            case_id = self._case_id or self.blackboard.get("case_id")
+        except KeyError:
+            case_id = self._case_id
+        if not case_id:
+            self.logger.debug(
+                f"{self.name}: no case_id available — skipping log entry"
+            )
+            return Status.SUCCESS
+
+        try:
+            activity = self.blackboard.get("activity")
+        except KeyError:
+            activity = None
+        if activity is not None:
+            object_id: str = getattr(activity, "activity_id", case_id)
+            semantic_type = getattr(activity, "semantic_type", None)
+            event_type: str = (
+                semantic_type.value
+                if semantic_type is not None
+                else getattr(activity, "activity_type", "case_event")
+                or "case_event"
+            )
+        else:
+            object_id = case_id
+            event_type = "case_event"
+
+        try:
+            commit_log_entry_trigger(
+                case_id=case_id,
+                object_id=object_id,
+                event_type=event_type,
+                actor_id=self.actor_id,
+                dl=self.datalayer,
+            )
+            self.logger.info(
+                "%s: committed log entry '%s' for case '%s'",
+                self.name,
+                event_type,
+                case_id,
+            )
+            return Status.SUCCESS
+        except Exception as e:
+            self.logger.error(
+                "%s: failed to commit log entry for case '%s': %s",
+                self.name,
+                case_id,
+                e,
+            )
             return Status.FAILURE

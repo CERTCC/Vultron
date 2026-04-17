@@ -439,24 +439,13 @@ section MUST be completed before proceeding to other priorities.
   - **Spec**: OX-03-001, DEMO-MA-00-001.
   - Completed 2026-04-10. See `plan/IMPLEMENTATION_HISTORY.md`.
 
-#### BUG-26041602 — CaseActor auto-sync emission
+#### BUG-26041602 — CaseActor auto-sync emission ✅
 
-> **Prerequisite for D5-7-HUMAN.** Tracked in `plan/BUGS.md`.
-
-- [ ] **BUG-26041602**: CaseActor does not automatically emit
-  `Announce(CaseLogEntry)` sync messages when processing inbound protocol
-  activities. The two-actor demo works around this by explicitly calling
-  `POST /actors/{actor_id}/trigger/sync-log-entry` after each step. In a
-  real deployment, the CaseActor must trigger sync automatically after each
-  activity is processed and committed. The `is_leader` guard in `BTBridge`
-  provides the leadership check, but there is no wiring from
-  incoming-activity dispatch to the `commit_log_entry_trigger` service.
-
-  Fix: After a successful BT execution in the inbox handler, check
-  `is_leader()` and, if true, invoke the `commit_log_entry_trigger` service
-  to emit and replicate the new `CaseLogEntry`. See
-  `vultron/core/use_cases/triggers/sync.py` and
-  `vultron/adapters/driven/db_record.py` for the relevant code paths.
+- [x] **BUG-26041602**: Fixed. Added `CommitCaseLogEntryNode` as a composable
+  BT node (final child of `CreateCaseBT`, `EngageCaseBT`, `DeferCaseBT`,
+  `ReceiveReportCaseBT`). `OutboxMonitor` delivers reactively; no inbound
+  handler changes needed. Removed package-level re-exports from
+  `triggers/__init__.py` to break the circular import chain.
 
 #### D5-7-HUMAN — Project owner sign-off on demo feedback resolution
 

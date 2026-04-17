@@ -152,7 +152,7 @@ def test_create_engage_case_tree_returns_sequence(
     assert tree is not None
     assert tree.name == "EngageCaseBT"
     assert hasattr(tree, "children")
-    assert len(tree.children) == 2
+    assert len(tree.children) == 3
 
 
 def test_create_defer_case_tree_returns_sequence(
@@ -164,7 +164,7 @@ def test_create_defer_case_tree_returns_sequence(
     assert tree is not None
     assert tree.name == "DeferCaseBT"
     assert hasattr(tree, "children")
-    assert len(tree.children) == 2
+    assert len(tree.children) == 3
 
 
 def test_engage_tree_node_names(case_with_participant, actor_id):

@@ -39,7 +39,8 @@ Structure:
        ├─ CreateInitialVendorParticipant # Receiver participant (RM.RECEIVED)
        ├─ CreateCaseActivity             # Queue Create(Case) BEFORE finder join
        ├─ UpdateActorOutbox              # Flush Create(Case) to outbox
-       └─ CreateFinderParticipantNode    # Reporter participant (RM.ACCEPTED)
+       ├─ CreateFinderParticipantNode    # Reporter participant (RM.ACCEPTED)
+       └─ CommitCaseLogEntryNode         # Log entry → Announce fan-out (SYNC-02-002)
 
 Note: ``CreateCaseActivity`` and ``UpdateActorOutbox`` are intentionally placed
 *before* ``CreateFinderParticipantNode``.  This ensures that the finder
@@ -58,6 +59,7 @@ import py_trees
 
 from vultron.core.behaviors.case.nodes import (
     CheckCaseExistsForReport,
+    CommitCaseLogEntryNode,
     CreateFinderParticipantNode,
     CreateInitialVendorParticipant,
     InitializeDefaultEmbargoNode,
@@ -134,6 +136,9 @@ def create_receive_report_case_tree(
                 report_id=report_id,
                 offer_id=offer_id,
             ),
+            # case_id is not known at build time; CreateCaseNode writes it to
+            # the blackboard so CommitCaseLogEntryNode can read it here.
+            CommitCaseLogEntryNode(),
         ],
     )
 

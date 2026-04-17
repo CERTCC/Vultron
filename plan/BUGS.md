@@ -41,9 +41,14 @@ at its source. Fixed the two demo files (`multi_vendor_demo.py`,
 
 ## BUG-26041602 CaseActor is not logging CaseLogEntry sync messages
 
-I notice that in the logs, `case-actor-1` appears to be receiving and
+**FIXED** in commit implementing composable `CommitCaseLogEntryNode` BT node
+(2026-04-17). The node is wired as the final child of `CreateCaseBT`,
+`EngageCaseBT`, `DeferCaseBT`, and `ReceiveReportCaseBT`. No inbound-handler
+code changes; outbox delivery remains reactive via `OutboxMonitor`.
+
+~~I notice that in the logs, `case-actor-1` appears to be receiving and
 dispatching incoming messages, but I do not see any log entries indicating
 that it is emitting `Announce` messages carrying `CaseLogEntry` activities
 or that these are being delivered. These `Announce` messages are the primary
 way for the `CaseActor` to sync the case log state to participants, so this
-is a critical issue to resolve.
+is a critical issue to resolve.~~
