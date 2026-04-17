@@ -424,7 +424,12 @@ def test_activity_nested_object_retrievable_separately_after_dehydration(dl):
     assert retrieved_report.id_ == report.id_  # type: ignore[union-attr]
 
 
-def test_reading_activity_back_yields_id_string_for_nested_object(dl):
+def test_reading_activity_back_yields_expanded_nested_object(dl):
+    """After DL-REHYDRATE, dl.read() expands dehydrated object_ fields.
+
+    Previously ``dl.read()`` returned a string ID for the nested ``object_``
+    field; after the rehydration pipeline the full typed object is returned.
+    """
     from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
         VulnerabilityReport,
@@ -445,7 +450,9 @@ def test_reading_activity_back_yields_id_string_for_nested_object(dl):
 
     retrieved_offer = dl.read(offer.id_)
     assert retrieved_offer is not None
-    assert retrieved_offer.object_ == report.id_  # type: ignore[union-attr]
+    # object_ is now a fully-expanded VulnerabilityReport, not a string ID
+    assert isinstance(retrieved_offer.object_, VulnerabilityReport)  # type: ignore[union-attr]
+    assert retrieved_offer.object_.id_ == report.id_  # type: ignore[union-attr]
 
 
 def test_rehydration_restores_nested_object_from_datalayer(dl):
@@ -633,3 +640,119 @@ def test_file_backed_store_and_retrieve(file_dl):
     result = file_dl.read(note.id_)
     assert result is not None
     assert result.id_ == note.id_  # type: ignore[union-attr]
+
+
+# ---------------------------------------------------------------------------
+# DL-REHYDRATE: semantic type recovery tests
+# ---------------------------------------------------------------------------
+
+
+class TestRehydrateFields:
+    """_rehydrate_fields expands dehydrated string IDs back to typed objects."""
+
+    def test_offer_object_field_expanded_to_vulnerability_report(self, dl):
+        """RmSubmitReportActivity.object_ is a VulnerabilityReport after read."""
+        from vultron.wire.as2.vocab.activities.report import (
+            RmSubmitReportActivity,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_report import (
+            VulnerabilityReport,
+        )
+
+        report = VulnerabilityReport(name="CVE-TEST-001", content="Test body")
+        offer = RmSubmitReportActivity(
+            actor="https://alice.example.org", object_=report
+        )
+        dl.save(report)
+        dl.save(offer)
+
+        result = dl.read(offer.id_)
+
+        assert isinstance(result, RmSubmitReportActivity)
+        assert isinstance(result.object_, VulnerabilityReport)  # type: ignore[union-attr]
+        assert result.object_.name == "CVE-TEST-001"  # type: ignore[union-attr]
+
+    def test_missing_nested_object_keeps_string(self, dl):
+        """When a referenced object is not in the DB, the string ID is kept."""
+        from vultron.wire.as2.vocab.activities.report import (
+            RmSubmitReportActivity,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_report import (
+            VulnerabilityReport,
+        )
+
+        report = VulnerabilityReport(name="CVE-MISSING", content="Body")
+        offer = RmSubmitReportActivity(
+            actor="https://alice.example.org", object_=report
+        )
+        # Save offer but NOT the report — reference is dangling
+        dl.save(offer)
+
+        result = dl.read(offer.id_)
+
+        # Object field keeps the string ID since the report cannot be resolved
+        assert result is not None
+        assert isinstance(result.object_, str)  # type: ignore[union-attr]
+
+
+class TestCoerceToSemanticClass:
+    """_coerce_to_semantic_class promotes base-vocab activities to subtypes."""
+
+    def test_rm_submit_report_round_trip_returns_specific_class(self, dl):
+        """dl.read returns RmSubmitReportActivity, not generic as_Offer."""
+        from vultron.wire.as2.vocab.activities.report import (
+            RmSubmitReportActivity,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_report import (
+            VulnerabilityReport,
+        )
+
+        report = VulnerabilityReport(name="CVE-ROUND-TRIP", content="Body")
+        offer = RmSubmitReportActivity(
+            actor="https://alice.example.org", object_=report
+        )
+        dl.save(report)
+        dl.save(offer)
+
+        result = dl.read(offer.id_)
+
+        assert type(result).__name__ == "RmSubmitReportActivity"
+
+    def test_em_propose_embargo_round_trip_returns_specific_class(self, dl):
+        """dl.read returns EmProposeEmbargoActivity with EmbargoEvent object_."""
+        from vultron.wire.as2.vocab.activities.embargo import (
+            EmProposeEmbargoActivity,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        case = VulnerabilityCase()
+        embargo = EmbargoEvent(context=case.id_)
+        proposal = EmProposeEmbargoActivity(
+            actor="https://alice.example.org",
+            object_=embargo,
+            context=case.id_,
+        )
+        dl.save(case)
+        dl.save(embargo)
+        dl.save(proposal)
+
+        result = dl.read(proposal.id_)
+
+        assert type(result).__name__ == "EmProposeEmbargoActivity"
+        assert isinstance(result.object_, EmbargoEvent)  # type: ignore[union-attr]
+
+    def test_non_activity_object_not_coerced(self, dl):
+        """Non-activity objects (e.g. VulnerabilityReport) are returned as-is."""
+        from vultron.wire.as2.vocab.objects.vulnerability_report import (
+            VulnerabilityReport,
+        )
+
+        report = VulnerabilityReport(name="CVE-PLAIN", content="Body")
+        dl.save(report)
+
+        result = dl.read(report.id_)
+
+        assert isinstance(result, VulnerabilityReport)

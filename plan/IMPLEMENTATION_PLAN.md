@@ -67,15 +67,13 @@ See `specs/architecture.md` ARCH-12-001–007 and `notes/domain-model-separation
 
 **PRIORITY-345** DataLayer auto-rehydration.
 
-- [ ] **DL-REHYDRATE**: Implement auto-rehydration in the SQLite/TinyDB
-  DataLayer adapters so that `dl.read()` and `dl.list()` always return fully
-  typed domain objects with all dehydrated fields (`object_`, `target`,
-  `origin`) restored to their original types. Once implemented, audit and
-  remove all manual `model_validate` coercion scattered across
-  `vultron/core/use_cases/` (currently in `triggers/embargo.py`,
-  `triggers/report.py`, `received/sync.py`).
-  See `specs/datalayer.md` DL-01-001 through DL-01-004 and
-  `notes/datalayer-design.md`.
+- [x] **DL-REHYDRATE**: Added `_rehydrate_fields` + `_coerce_to_semantic_class`
+  to `SqliteDataLayer._from_row`; `dl.read()` now returns fully-typed semantic
+  subclasses (e.g. `RmSubmitReportActivity`, `EmProposeEmbargoActivity`) with
+  nested objects expanded. Removed manual coercion blocks from
+  `triggers/embargo.py` and `triggers/report.py`. Added `model_copy` to
+  `PersistableModel` Protocol. Added tests in
+  `test/adapters/driven/test_sqlite_backend.py`.
 
 **PRIORITY-347** Demo puppeteering, trigger completeness, and BT node
 generalization (see `plan/IMPLEMENTATION_NOTES.md` BUG-26041701 for full

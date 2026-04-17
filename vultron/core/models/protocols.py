@@ -20,7 +20,7 @@ VultronCase) conform structurally to these Protocols, so use cases can call
 methods on DataLayer results without importing wire-layer classes.
 """
 
-from typing import Any, Protocol, TypeGuard
+from typing import Any, Mapping, Protocol, TypeGuard
 
 from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.em import EM
@@ -35,6 +35,10 @@ class PersistableModel(Protocol):
     def type_(self) -> str: ...
 
     def model_dump(self, *args: Any, **kwargs: Any) -> dict[str, Any]: ...
+
+    def model_copy(
+        self, *, update: Mapping[str, Any] | None = None, deep: bool = False
+    ) -> "PersistableModel": ...
 
 
 class CaseStatusModel(Protocol):

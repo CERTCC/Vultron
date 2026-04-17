@@ -439,4 +439,4 @@ def test_prioritize_subtree_engages_by_default(
     assert engage_activity is not None
     assert str(engage_activity.type_) == "Join"
     assert engage_activity.actor == actor_id
-    assert engage_activity.object_ == case_with_participant.id_
+    assert engage_activity.object_.id_ == case_with_participant.id_

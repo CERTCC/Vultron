@@ -44,12 +44,18 @@ from sqlmodel import Field, Session, SQLModel, col, create_engine, select
 
 from vultron.adapters.driven.db_record import (
     Record,
+    _AS_OBJECT_REF_FIELDS,
     object_to_record,
     record_to_object,
 )
 from vultron.adapters.utils import _URN_UUID_PREFIX, _UUID_RE
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
+from vultron.wire.as2.extractor import (
+    SEMANTICS_TO_ACTIVITY_CLASS,
+    find_matching_semantics,
+)
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
 logger = logging.getLogger(__name__)
@@ -210,12 +216,99 @@ class SqliteDataLayer:
         )
 
     def _from_row(self, row: VultronObjectRecord) -> PersistableModel | None:
-        """Convert a storage row back to a domain object."""
+        """Convert a storage row back to a fully-typed domain object.
+
+        Reconstruction is a three-step pipeline:
+
+        1. ``record_to_object`` — vocabulary-based base-type reconstruction.
+        2. ``_rehydrate_fields`` — expand dehydrated ``object_`` / ``target`` /
+           ``origin`` / ``result`` / ``instrument`` ID strings back to typed
+           Pydantic objects by reading them from the DataLayer.
+        3. ``_coerce_to_semantic_class`` — pattern-match the rehydrated object
+           against ``SEMANTICS_ACTIVITY_PATTERNS`` and, when a more specific
+           Python class is known (e.g. ``RmSubmitReportActivity`` for
+           ``as_Offer``), coerce via ``model_validate`` so that callers always
+           receive the most precise type without manual coercion.
+        """
         rec = Record(id_=row.id_, type_=row.type_, data_=row.data)
         try:
-            return cast(PersistableModel, record_to_object(rec))
+            obj = cast(PersistableModel, record_to_object(rec))
         except (ValueError, ValidationError):
             return None
+        if obj is None:
+            return None
+        obj = self._rehydrate_fields(obj)
+        return self._coerce_to_semantic_class(obj)
+
+    def _rehydrate_fields(self, obj: PersistableModel) -> PersistableModel:
+        """Expand dehydrated object-reference fields back to typed objects.
+
+        Fields listed in ``_AS_OBJECT_REF_FIELDS`` (``object_``, ``target``,
+        ``origin``, ``result``, ``instrument``) are dehydrated to ID strings
+        by the storage layer.  This method resolves each string ID via
+        ``self.read()`` and replaces it with the full domain object.  If a
+        referenced object is not found the string is kept and a warning is
+        logged.
+        """
+        updates: dict[str, object] = {}
+        for field_name in _AS_OBJECT_REF_FIELDS:
+            value = getattr(obj, field_name, None)
+            if not isinstance(value, str) or not value:
+                continue
+            nested = self.read(value)
+            if nested is None:
+                logger.warning(
+                    "Could not rehydrate field %r with id %r on %r;"
+                    " keeping string reference.",
+                    field_name,
+                    value,
+                    type(obj).__name__,
+                )
+                continue
+            updates[field_name] = nested
+        if updates:
+            obj = obj.model_copy(update=updates)
+        return obj
+
+    def _coerce_to_semantic_class(
+        self, obj: PersistableModel
+    ) -> PersistableModel:
+        """Coerce a base-vocabulary activity to its semantic subtype.
+
+        After rehydration the object has correct field types but may still be
+        typed as a base vocabulary class (e.g. ``as_Offer``).  This method
+        uses :func:`find_matching_semantics` to identify the semantic intent
+        and, when a more specific class is registered in
+        ``SEMANTICS_TO_ACTIVITY_CLASS``, coerces via ``model_validate``.
+        Coercion failures are logged as warnings and the original object is
+        returned unchanged.
+        """
+        if not isinstance(obj, as_Activity):
+            return obj
+
+        from vultron.core.models.events import MessageSemantics
+
+        semantics = find_matching_semantics(obj)
+        if semantics == MessageSemantics.UNKNOWN:
+            return obj
+
+        activity_cls = SEMANTICS_TO_ACTIVITY_CLASS.get(semantics)
+        if activity_cls is None or isinstance(obj, activity_cls):
+            return obj
+
+        try:
+            return cast(
+                PersistableModel,
+                activity_cls.model_validate(obj.model_dump(by_alias=True)),
+            )
+        except (ValidationError, TypeError) as exc:
+            logger.warning(
+                "Could not coerce %r to semantic class %r: %s",
+                type(obj).__name__,
+                activity_cls.__name__,
+                exc,
+            )
+            return obj
 
     def _object_from_storage(
         self, stored_record: dict[str, Any]

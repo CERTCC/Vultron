@@ -27,8 +27,6 @@ No HTTP framework imports (FastAPI, Starlette) are permitted here.
 import logging
 from typing import Any
 
-from vultron.wire.as2.rehydration import rehydrate
-from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.core.states.rm import RM
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.validate_tree import (
@@ -68,8 +66,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
 
-from pydantic import ValidationError as PydanticValidationError
-
 logger = logging.getLogger(__name__)
 
 
@@ -78,47 +74,25 @@ def _resolve_offer_and_report(
 ) -> tuple["RmSubmitReportActivity", VulnerabilityReport]:
     """Resolve offer and its embedded report; raise domain errors on failure.
 
-    The returned offer is coerced to :class:`RmSubmitReportActivity` so callers
-    can safely pass it as the ``object_`` of an Accept/TentativeReject/Reject
-    activity without stripping it to a bare string ID.
+    After the DataLayer rehydration pipeline, ``dl.read(offer_id)`` returns an
+    ``RmSubmitReportActivity`` with its ``object_`` already expanded to a
+    ``VulnerabilityReport``.  No manual coercion is needed.
     """
-    offer_raw = dl.read(offer_id)
-    if offer_raw is None:
+    offer = dl.read(offer_id)
+    if offer is None:
         raise VultronNotFoundError("Offer", offer_id)
-    if not isinstance(offer_raw, as_Object):
+    if not isinstance(offer, RmSubmitReportActivity):
         raise VultronValidationError(
-            f"Expected AS2 object for offer, got {type(offer_raw).__name__}."
+            f"Expected RmSubmitReportActivity for offer '{offer_id}', "
+            f"got {type(offer).__name__}."
         )
-
-    try:
-        offer_hydrated = rehydrate(offer_raw, dl=dl)
-        offer_object = getattr(offer_hydrated, "object_", None)
-        if offer_object is None:
-            raise VultronValidationError("Offer is missing object reference.")
-        report = rehydrate(offer_object, dl=dl)
-    except (ValueError, KeyError, AttributeError) as e:
-        raise VultronValidationError(str(e)) from e
-
-    if getattr(report, "type_", None) != "VulnerabilityReport":
+    report = offer.object_
+    if not isinstance(report, VulnerabilityReport):
         raise VultronValidationError(
-            f"Expected VulnerabilityReport, got "
-            f"{getattr(report, 'type_', type(report).__name__)}."
+            f"Expected VulnerabilityReport embedded in offer '{offer_id}', "
+            f"got {type(report).__name__ if report is not None else 'None'}."
         )
-
-    if not isinstance(offer_hydrated, RmSubmitReportActivity):
-        try:
-            offer = RmSubmitReportActivity.model_validate(
-                offer_hydrated.model_dump(by_alias=True)
-            )
-        except PydanticValidationError as exc:
-            raise VultronValidationError(
-                f"Could not coerce offer '{offer_id}' to "
-                f"RmSubmitReportActivity: {exc}"
-            ) from exc
-    else:
-        offer = offer_hydrated
-
-    return offer, report  # type: ignore[return-value]
+    return offer, report
 
 
 def _report_addressees(

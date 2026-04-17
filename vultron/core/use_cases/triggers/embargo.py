@@ -207,44 +207,11 @@ class SvcEvaluateEmbargoUseCase:
                     f"(pending for case '{case.id_}')",
                 )
 
-        if str(getattr(proposal, "type_", "")) != "Invite":
+        if not isinstance(proposal, EmProposeEmbargoActivity):
             raise VultronValidationError(
-                f"Expected an Invite (embargo proposal), got "
+                f"Expected an EmProposeEmbargoActivity (embargo proposal), got "
                 f"{type(proposal).__name__}."
             )
-
-        # Coerce to typed EmProposeEmbargoActivity so it can be passed as the
-        # object_ of the Accept activity (bare string IDs are no longer accepted).
-        # The storage layer dehydrates nested objects to ID strings, so
-        # ``proposal.object_`` may be a string rather than a full ``EmbargoEvent``.
-        # When the field is a dehydrated string, resolve the full EmbargoEvent
-        # from the data layer before coercing so that ``object_: EmbargoEvent``
-        # can be satisfied at construction time.
-        if not isinstance(proposal, EmProposeEmbargoActivity):
-            raw_data = proposal.model_dump(by_alias=True)
-            obj_field = raw_data.get("object")
-            if isinstance(obj_field, str):
-                raw_embargo = dl.read(obj_field)
-                if raw_embargo is None:
-                    raise VultronValidationError(
-                        f"Could not resolve EmbargoEvent '{obj_field}'."
-                    )
-                try:
-                    embargo_event = EmbargoEvent.model_validate(
-                        raw_embargo.model_dump(by_alias=True)
-                    )
-                except ValidationError as exc:
-                    raise VultronValidationError(
-                        f"Could not coerce EmbargoEvent '{obj_field}': {exc}"
-                    ) from exc
-                raw_data["object"] = embargo_event.model_dump(by_alias=True)
-            try:
-                proposal = EmProposeEmbargoActivity.model_validate(raw_data)
-            except ValidationError as exc:
-                raise VultronValidationError(
-                    f"Could not coerce proposal '{proposal_id or '(auto)'}' to "
-                    f"EmProposeEmbargoActivity: {exc}"
-                ) from exc
 
         embargo_id = getattr(proposal.object_, "id_", None)
         if not embargo_id:
@@ -253,7 +220,7 @@ class SvcEvaluateEmbargoUseCase:
             )
 
         embargo = dl.read(embargo_id)
-        if embargo is None or str(getattr(embargo, "type_", "")) != "Event":
+        if embargo is None:
             raise VultronValidationError(
                 f"Could not resolve EmbargoEvent '{embargo_id}'."
             )

@@ -14,6 +14,55 @@ from typing import Any, Optional, Union
 
 from pydantic import BaseModel
 
+from vultron.wire.as2.vocab.activities.actor import (
+    AcceptActorRecommendationActivity,
+    RecommendActorActivity,
+    RejectActorRecommendationActivity,
+)
+from vultron.wire.as2.vocab.activities.case import (
+    AcceptCaseOwnershipTransferActivity,
+    AddNoteToCaseActivity,
+    AddReportToCaseActivity,
+    AddStatusToCaseActivity,
+    CreateCaseActivity,
+    CreateCaseStatusActivity,
+    OfferCaseOwnershipTransferActivity,
+    RejectCaseOwnershipTransferActivity,
+    RmAcceptInviteToCaseActivity,
+    RmCloseCaseActivity,
+    RmDeferCaseActivity,
+    RmEngageCaseActivity,
+    RmInviteToCaseActivity,
+    RmRejectInviteToCaseActivity,
+    UpdateCaseActivity,
+)
+from vultron.wire.as2.vocab.activities.case_participant import (
+    AddParticipantToCaseActivity,
+    AddStatusToParticipantActivity,
+    CreateParticipantActivity,
+    CreateStatusForParticipantActivity,
+    RemoveParticipantFromCaseActivity,
+)
+from vultron.wire.as2.vocab.activities.embargo import (
+    AddEmbargoToCaseActivity,
+    AnnounceEmbargoActivity,
+    EmAcceptEmbargoActivity,
+    EmProposeEmbargoActivity,
+    EmRejectEmbargoActivity,
+    RemoveEmbargoFromCaseActivity,
+)
+from vultron.wire.as2.vocab.activities.report import (
+    RmCloseReportActivity,
+    RmCreateReportActivity,
+    RmInvalidateReportActivity,
+    RmReadReportActivity,
+    RmSubmitReportActivity,
+    RmValidateReportActivity,
+)
+from vultron.wire.as2.vocab.activities.sync import (
+    AnnounceLogEntryActivity,
+    RejectLogEntryActivity,
+)
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.core.models.base import VultronObject
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
@@ -660,3 +709,49 @@ def find_matching_semantics(activity: as_Activity) -> MessageSemantics:
         if pattern.match(activity):
             return semantics
     return MessageSemantics.UNKNOWN
+
+
+#: Maps each ``MessageSemantics`` value to the specific Python activity class
+#: that represents it on the wire.  Used by the DataLayer to coerce
+#: base-vocabulary objects (e.g. ``as_Offer``) back to their semantic subtypes
+#: (e.g. ``RmSubmitReportActivity``) during ``dl.read()`` so that callers
+#: receive correctly-typed objects without manual ``model_validate`` coercion.
+SEMANTICS_TO_ACTIVITY_CLASS: dict[MessageSemantics, type[as_Activity]] = {
+    MessageSemantics.CREATE_REPORT: RmCreateReportActivity,
+    MessageSemantics.SUBMIT_REPORT: RmSubmitReportActivity,
+    MessageSemantics.ACK_REPORT: RmReadReportActivity,
+    MessageSemantics.VALIDATE_REPORT: RmValidateReportActivity,
+    MessageSemantics.INVALIDATE_REPORT: RmInvalidateReportActivity,
+    MessageSemantics.CLOSE_REPORT: RmCloseReportActivity,
+    MessageSemantics.CREATE_CASE: CreateCaseActivity,
+    MessageSemantics.UPDATE_CASE: UpdateCaseActivity,
+    MessageSemantics.ENGAGE_CASE: RmEngageCaseActivity,
+    MessageSemantics.DEFER_CASE: RmDeferCaseActivity,
+    MessageSemantics.ADD_REPORT_TO_CASE: AddReportToCaseActivity,
+    MessageSemantics.SUGGEST_ACTOR_TO_CASE: RecommendActorActivity,
+    MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE: AcceptActorRecommendationActivity,
+    MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE: RejectActorRecommendationActivity,
+    MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER: OfferCaseOwnershipTransferActivity,
+    MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER: AcceptCaseOwnershipTransferActivity,
+    MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER: RejectCaseOwnershipTransferActivity,
+    MessageSemantics.INVITE_ACTOR_TO_CASE: RmInviteToCaseActivity,
+    MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE: RmAcceptInviteToCaseActivity,
+    MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE: RmRejectInviteToCaseActivity,
+    MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE: AddEmbargoToCaseActivity,
+    MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE: RemoveEmbargoFromCaseActivity,
+    MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE: AnnounceEmbargoActivity,
+    MessageSemantics.INVITE_TO_EMBARGO_ON_CASE: EmProposeEmbargoActivity,
+    MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE: EmAcceptEmbargoActivity,
+    MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE: EmRejectEmbargoActivity,
+    MessageSemantics.CLOSE_CASE: RmCloseCaseActivity,
+    MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY: AnnounceLogEntryActivity,
+    MessageSemantics.REJECT_CASE_LOG_ENTRY: RejectLogEntryActivity,
+    MessageSemantics.CREATE_CASE_PARTICIPANT: CreateParticipantActivity,
+    MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE: AddParticipantToCaseActivity,
+    MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE: RemoveParticipantFromCaseActivity,
+    MessageSemantics.ADD_NOTE_TO_CASE: AddNoteToCaseActivity,
+    MessageSemantics.CREATE_CASE_STATUS: CreateCaseStatusActivity,
+    MessageSemantics.ADD_CASE_STATUS_TO_CASE: AddStatusToCaseActivity,
+    MessageSemantics.CREATE_PARTICIPANT_STATUS: CreateStatusForParticipantActivity,
+    MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT: AddStatusToParticipantActivity,
+}

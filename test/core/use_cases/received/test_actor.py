@@ -315,7 +315,7 @@ class TestInviteActorUseCases:
         assert engage_activity is not None
         assert str(engage_activity.type_) == "Join"
         assert engage_activity.actor == invitee_id
-        assert engage_activity.object_ == case.id_
+        assert engage_activity.object_.id_ == case.id_
 
     def test_accept_invite_actor_to_case_records_case_event(
         self, monkeypatch, make_payload
