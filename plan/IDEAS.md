@@ -218,7 +218,7 @@ toward single process actors. A future production implementation might look
 a lot more like a distributed system with separate services and message
 queues with workers that handle individual use cases etc.
 
-## IDEA-26041702
+## IDEA-26041702 Generalize behavior nodes to avoid overfitting to the demo
 
 There should not be a `CreateFinderParticipantNode` behavior. This is
 overfitting the codebase to the demo. There should be a more general
@@ -233,7 +233,7 @@ same create participant node would be used for creating the case
 creator/owner participant node first, and so the actor identity and the role
 (s) would be parameters to the node, not hardcoded in the node itself.
 
-## IDEA-26041703
+## IDEA-26041703 Concern about behavior tree integration into design
 
 The situation described in IDEA-26041702 is an example of a general concern
 I have about whether or not we have truly captured the idea of the behavior
@@ -265,3 +265,24 @@ puppeteers for the Actors involved in the demos. I don't know why there's a
 tendency to avoid thinking in terms of behavior trees, but we need to
 incorporate the use of behavior trees to capture process logic as a core
 principle of how we build out the system.
+
+## IDEA-26041704 Bugfix skill prematurely locks in on simple fixes
+
+Sometimes the bugfix skill is used to fix a bug that has a simple surface
+fix but is an indication of a deeper underlying issue that is not being
+addressed. The agent is often overly narrow in its analysis of the scope and
+does not currently ask enough questions to get to the true root cause of the
+issue, resulting in more bugs later on that are related to the same
+underlying issue. I want to update the bugfix skill to be more rigorous
+itself, but also to have more explicit instructions for when to use the ask user
+tool to have a conversation about the bug with the user so we can come to a
+shared understanding before setting off on implementation. Sort of similar
+to the "grill me" skill but for bugs. Ask the user to help you understand
+the bug better, and check in periodically to ask the user if you are on the
+right track in your analysis and implementation plan. You are not expected
+to solve the entire problem in an autonomous one-shot way. Sometimes bugfix
+analysis will lead to a recognition that there are multiple issues that must
+be addressed in order to fully resolve the problem, and that is okay, but
+the bugfix skill should recognize when that is the case and suggest breaking
+the work into new tasks in the implementation plan and/or capturing
+additional bugs.
