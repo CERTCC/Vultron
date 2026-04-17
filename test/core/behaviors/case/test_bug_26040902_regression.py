@@ -149,7 +149,9 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
     # Run the BT — must succeed without conftest side-effect imports
     bridge = BTBridge(datalayer=dl)
     tree = create_receive_report_case_tree(
-        report_id=_report_id, offer_id=_offer_id
+        report_id=_report_id,
+        offer_id=_offer_id,
+        finder_actor_id=_finder_actor_id,
     )
     result = bridge.execute_with_setup(tree=tree, actor_id=_actor_id)
 

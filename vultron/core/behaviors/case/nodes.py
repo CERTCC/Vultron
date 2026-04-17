@@ -33,7 +33,6 @@ import isodate  # type: ignore[import-untyped]
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.models.activity import VultronActivity
 from vultron.core.models.embargo_event import VultronEmbargoEvent
 from vultron.core.models.enums import VultronObjectType
 from vultron.core.models.participant_status import VultronParticipantStatus
@@ -47,6 +46,10 @@ from vultron.core.models.vultron_types import (
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.states.roles import CVDRoles
+from vultron.wire.as2.vocab.activities.case_participant import (
+    AddParticipantToCaseActivity,
+)
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerCondition,
@@ -795,31 +798,42 @@ class InitializeDefaultEmbargoNode(DataLayerAction):
             return Status.FAILURE
 
 
-class CreateFinderParticipantNode(DataLayerAction):
+class CreateCaseParticipantNode(DataLayerAction):
     """
-    Create and persist a FinderReporter CaseParticipant for the finder actor,
-    then attach it to the case.
+    Create and persist a CaseParticipant for the given actor, then attach
+    it to the case.
 
-    Reads the offer to determine the finder's actor ID (``offer.actor``).
-    Seeds the participant with the report-phase RM.ACCEPTED status that was
-    created during ``SubmitReportReceivedUseCase`` (deterministic ID via
-    ``_report_phase_status_id``), preserving the finder's engagement history
-    from the report phase.
+    Parameterized by ``actor_id`` (the actor being added as a participant)
+    and ``roles`` (the CVD roles to assign).  This replaces the earlier
+    hard-coded ``CreateFinderParticipantNode`` which was coupled to the
+    finder/reporter role pair.
 
-    Creates an Add activity for the notification and queues it to the actor's
-    outbox so downstream actors are notified.
+    When ``report_id`` is supplied, the node reuses the deterministic
+    report-phase ``VultronParticipantStatus`` for ``RM.ACCEPTED`` that was
+    created during ``SubmitReportReceivedUseCase``, preserving engagement
+    history.
 
-    Must run after CreateCaseNode and CreateInitialVendorParticipant.
+    Emits ``AddParticipantToCaseActivity(object_=<CaseParticipant>)`` to
+    the actor's outbox so downstream actors are notified.  Using the typed
+    activity (not a bare ``VultronActivity``) satisfies MV-09-001 and
+    avoids the ``VultronOutboxObjectIntegrityError`` caused by bare-string
+    ``object_`` fields after dehydration.
 
-    Per notes/two-actor-feedback.md D5-6h requirements.
+    Must run after ``CreateCaseNode`` (so ``case_id`` is on the blackboard)
+    and after ``CreateInitialVendorParticipant``.
     """
 
     def __init__(
-        self, report_id: str, offer_id: str, name: str | None = None
+        self,
+        actor_id: str,
+        roles: list[CVDRoles],
+        report_id: str | None = None,
+        name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
+        self.participant_actor_id = actor_id
+        self.roles = roles
         self.report_id = report_id
-        self.offer_id = offer_id
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
@@ -842,73 +856,59 @@ class CreateFinderParticipantNode(DataLayerAction):
                 )
                 return Status.FAILURE
 
-            # Determine finder's actor_id from the offer.
-            # VultronOffer (type_ = "Offer") is not in the AS2 vocabulary
-            # registry, so dl.read() cannot reconstruct it.  Use by_type() to
-            # get the raw data dict directly from the "Offer" table.
-            offer_records = self.datalayer.by_type("Offer")
-            offer_data = offer_records.get(self.offer_id)
-            if offer_data is None:
-                self.logger.error(
-                    f"{self.name}: Offer {self.offer_id} not found in DataLayer"
+            # Reuse the report-phase RM.ACCEPTED status if available,
+            # otherwise create a fresh one.
+            accepted_status: VultronParticipantStatus | None = None
+            if self.report_id is not None:
+                accepted_status_id = _report_phase_status_id(
+                    self.participant_actor_id,
+                    self.report_id,
+                    RM.ACCEPTED.value,
                 )
-                return Status.FAILURE
-            finder_actor_id = offer_data.get("actor")
-            if not finder_actor_id:
-                self.logger.error(
-                    f"{self.name}: Could not determine finder actor_id from"
-                    f" offer {self.offer_id}"
-                )
-                return Status.FAILURE
-
-            # Reuse the report-phase RM.ACCEPTED status created during
-            # SubmitReportReceivedUseCase (deterministic ID).
-            accepted_status_id = _report_phase_status_id(
-                finder_actor_id, self.report_id, RM.ACCEPTED.value
-            )
-            accepted_status = self.datalayer.read(accepted_status_id)
-            if accepted_status is None or not isinstance(
-                accepted_status, VultronParticipantStatus
-            ):
-                # Per ADR-0015: case creation now happens at RM.RECEIVED
-                # (receive_report_case_tree), so the finder's RM.ACCEPTED
-                # status may not yet exist.  This is the normal path —
-                # create a fresh RM.ACCEPTED status here.
-                self.logger.info(
-                    "%s: Creating fresh RM.ACCEPTED status for finder '%s'"
-                    " (report-phase status not pre-created)",
-                    self.name,
-                    finder_actor_id,
-                )
-                accepted_status = VultronParticipantStatus(
-                    id_=accepted_status_id,
-                    context=self.report_id,
-                    rm_state=RM.ACCEPTED,
-                    attributed_to=finder_actor_id,
-                )
-                try:
-                    self.datalayer.create(accepted_status)
-                except ValueError:
-                    pass  # idempotent — already exists
+                existing = self.datalayer.read(accepted_status_id)
+                if existing is not None and isinstance(
+                    existing, VultronParticipantStatus
+                ):
+                    accepted_status = existing
+                else:
+                    self.logger.info(
+                        "%s: Creating fresh RM.ACCEPTED status for actor '%s'"
+                        " (report-phase status not pre-created)",
+                        self.name,
+                        self.participant_actor_id,
+                    )
+                    accepted_status = VultronParticipantStatus(
+                        id_=accepted_status_id,
+                        context=self.report_id,
+                        rm_state=RM.ACCEPTED,
+                        attributed_to=self.participant_actor_id,
+                    )
+                    try:
+                        self.datalayer.create(accepted_status)
+                    except ValueError:
+                        pass  # idempotent — already exists
 
             participant = VultronParticipant(
-                attributed_to=finder_actor_id,
+                attributed_to=self.participant_actor_id,
                 context=case_id,
-                case_roles=[CVDRoles.FINDER, CVDRoles.REPORTER],
-                participant_statuses=[accepted_status],
+                case_roles=self.roles,
+                participant_statuses=(
+                    [accepted_status] if accepted_status is not None else []
+                ),
             )
 
             if self.datalayer.read(participant.id_) is None:
                 self.datalayer.create(participant)
                 self.logger.info(
-                    "Created FinderReporter CaseParticipant '%s' for actor"
-                    " '%s' (roles: [FINDER, REPORTER], rm_state: RM.ACCEPTED)",
+                    "Created CaseParticipant '%s' for actor '%s'"
+                    " (roles: %s, rm_state: RM.ACCEPTED)",
                     participant.id_,
-                    finder_actor_id,
+                    self.participant_actor_id,
+                    [r.name for r in self.roles],
                 )
             else:
                 self.logger.debug(
-                    "%s: FinderParticipant %s already exists — skipping",
+                    "%s: CaseParticipant %s already exists — skipping",
                     self.name,
                     participant.id_,
                 )
@@ -927,28 +927,32 @@ class CreateFinderParticipantNode(DataLayerAction):
             if participant.id_ not in existing_ids:
                 stored_case.case_participants.append(participant.id_)
             if (
-                stored_case.actor_participant_index.get(finder_actor_id)
+                stored_case.actor_participant_index.get(
+                    self.participant_actor_id
+                )
                 != participant.id_
             ):
-                stored_case.actor_participant_index[finder_actor_id] = (
-                    participant.id_
-                )
+                stored_case.actor_participant_index[
+                    self.participant_actor_id
+                ] = participant.id_
             stored_case.record_event(participant.id_, "participant_added")
             self.datalayer.save(stored_case)
             self.logger.info(
-                "FinderReporter CaseParticipant '%s' attached to case '%s'",
+                "CaseParticipant '%s' attached to case '%s'",
                 participant.id_,
                 case_id,
             )
 
-            # Emit Add activity to notify the finder that they have been
-            # added to the case as a participant.
-            add_notification = VultronActivity(
-                type_="Add",
+            # Emit Add activity with a fully typed CaseParticipant object
+            # (not a bare string ID) to satisfy MV-09-001.
+            case_participant = CaseParticipant.model_validate(
+                participant.model_dump(by_alias=True)
+            )
+            add_notification = AddParticipantToCaseActivity(
                 actor=self.actor_id,
-                object_=participant.id_,
+                object_=case_participant,
                 target=case_id,
-                to=[finder_actor_id],
+                to=[self.participant_actor_id],
             )
             try:
                 self.datalayer.create(add_notification)
@@ -966,10 +970,9 @@ class CreateFinderParticipantNode(DataLayerAction):
             )
             self.logger.info(
                 "Queued Add(CaseParticipant '%s' for actor '%s' to case '%s')"
-                " activity '%s' to actor '%s' outbox"
-                " (finder participant notification)",
+                " activity '%s' to actor '%s' outbox",
                 participant.id_,
-                finder_actor_id,
+                self.participant_actor_id,
                 case_id,
                 add_notification.id_,
                 self.actor_id,
@@ -979,9 +982,13 @@ class CreateFinderParticipantNode(DataLayerAction):
 
         except Exception as e:
             self.logger.error(
-                f"{self.name}: Error creating FinderParticipant: {e}"
+                f"{self.name}: Error creating CaseParticipant: {e}"
             )
             return Status.FAILURE
+
+
+# Backward-compatibility alias.
+CreateFinderParticipantNode = CreateCaseParticipantNode
 
 
 class UpdateActorOutbox(DataLayerAction):

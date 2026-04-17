@@ -196,7 +196,6 @@ class TestDuplicateReportHandling:
         """
         import logging
 
-        from vultron.core.models.activity import VultronOffer
         from vultron.core.models.case_actor import VultronCaseActor
 
         report, event = self._make_submit_event(
@@ -206,16 +205,8 @@ class TestDuplicateReportHandling:
         dl = SqliteDataLayer("sqlite:///:memory:")
         # Simulate inbox pre-storage of the nested objects.
         dl.save(report)
-        # CreateFinderParticipantNode reads the vendor actor from DataLayer.
+        # CreateCaseParticipantNode reads the vendor actor from DataLayer.
         dl.save(VultronCaseActor(id_="https://example.org/actors/vendor"))
-        # Pre-store the Offer so CreateFinderParticipantNode can read it.
-        offer_obj = VultronOffer(
-            id_="https://example.org/activities/offer-dup-1",
-            actor="https://example.org/users/finder",
-            object_=report.id_,
-            target="https://example.org/actors/vendor",
-        )
-        dl.save(offer_obj)
 
         with caplog.at_level(logging.WARNING):
             SubmitReportReceivedUseCase(dl, event).execute()
@@ -279,7 +270,6 @@ class TestSubmitReportLogMessages:
         """
         import logging
 
-        from vultron.core.models.activity import VultronOffer
         from vultron.core.models.base import VultronObject
         from vultron.core.models.case_actor import VultronCaseActor
 
@@ -302,16 +292,8 @@ class TestSubmitReportLogMessages:
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
-        # CreateFinderParticipantNode reads the vendor actor from DataLayer.
+        # CreateCaseParticipantNode reads the vendor actor from DataLayer.
         dl.save(VultronCaseActor(id_="https://example.org/actors/vendor"))
-        # Pre-store the offer so CreateFinderParticipantNode can look it up.
-        offer_obj = VultronOffer(
-            id_="https://example.org/activities/submit-log-1",
-            actor="https://example.org/users/finder",
-            object_=report.id_,
-            target="https://example.org/actors/vendor",
-        )
-        dl.save(offer_obj)
 
         with caplog.at_level(logging.INFO):
             SubmitReportReceivedUseCase(dl, event).execute()
@@ -344,7 +326,6 @@ class TestSubmitReportCreatesCase:
         vendor_id: str = VENDOR_ID,
         finder_id: str = FINDER_ID,
     ):
-        from vultron.core.models.activity import VultronOffer
         from vultron.core.models.base import VultronObject
         from vultron.core.models.case_actor import VultronCaseActor
 
@@ -366,16 +347,9 @@ class TestSubmitReportCreatesCase:
         dl = SqliteDataLayer("sqlite:///:memory:")
         # CreateCaseNode reads the report from DataLayer.
         dl.save(report)
-        # CreateFinderParticipantNode reads the vendor actor from DataLayer.
+        # CreateCaseParticipantNode reads the vendor actor from DataLayer.
         vendor_actor = VultronCaseActor(id_=vendor_id)
         dl.save(vendor_actor)
-        offer_obj = VultronOffer(
-            id_=offer_id,
-            actor=finder_id,
-            object_=report.id_,
-            target=vendor_id,
-        )
-        dl.save(offer_obj)
         return event, dl
 
     def test_submit_report_creates_case_at_received(self):
@@ -421,7 +395,7 @@ class TestSubmitReportCreatesCase:
         """SubmitReportReceivedUseCase creates finder's RM.ACCEPTED status.
 
         The finder submitted the report, so the BT records RM.ACCEPTED for
-        them via CreateFinderParticipantNode.
+        them via CreateCaseParticipantNode.
         """
         event, dl = self._make_event_and_dl()
         SubmitReportReceivedUseCase(dl, event).execute()

@@ -151,10 +151,14 @@ def bridge(datalayer):
 # ============================================================================
 
 
-def test_create_receive_report_case_tree_returns_selector(report, offer):
+def test_create_receive_report_case_tree_returns_selector(
+    report, offer, finder_actor_id
+):
     """Tree factory returns a Selector root node."""
     tree = create_receive_report_case_tree(
-        report_id=report.id_, offer_id=offer.id_
+        report_id=report.id_,
+        offer_id=offer.id_,
+        finder_actor_id=finder_actor_id,
     )
     assert tree is not None
     assert tree.name == "ReceiveReportCaseBT"
@@ -162,31 +166,37 @@ def test_create_receive_report_case_tree_returns_selector(report, offer):
     assert len(tree.children) == 2
 
 
-def test_tree_first_child_is_idempotency_check(report, offer):
+def test_tree_first_child_is_idempotency_check(report, offer, finder_actor_id):
     """First child is CheckCaseExistsForReport (idempotency guard)."""
     from vultron.core.behaviors.case.nodes import CheckCaseExistsForReport
 
     tree = create_receive_report_case_tree(
-        report_id=report.id_, offer_id=offer.id_
+        report_id=report.id_,
+        offer_id=offer.id_,
+        finder_actor_id=finder_actor_id,
     )
     assert isinstance(tree.children[0], CheckCaseExistsForReport)
 
 
-def test_tree_second_child_is_sequence(report, offer):
+def test_tree_second_child_is_sequence(report, offer, finder_actor_id):
     """Second child is a Sequence (ReceiveReportCaseFlow)."""
     import py_trees
 
     tree = create_receive_report_case_tree(
-        report_id=report.id_, offer_id=offer.id_
+        report_id=report.id_,
+        offer_id=offer.id_,
+        finder_actor_id=finder_actor_id,
     )
     assert isinstance(tree.children[1], py_trees.composites.Sequence)
     assert tree.children[1].name == "ReceiveReportCaseFlow"
 
 
-def test_tree_flow_has_seven_children(report, offer):
+def test_tree_flow_has_seven_children(report, offer, finder_actor_id):
     """ReceiveReportCaseFlow sequence has exactly 7 action nodes."""
     tree = create_receive_report_case_tree(
-        report_id=report.id_, offer_id=offer.id_
+        report_id=report.id_,
+        offer_id=offer.id_,
+        finder_actor_id=finder_actor_id,
     )
     flow = tree.children[1]
     assert len(flow.children) == 7
@@ -201,6 +211,7 @@ def test_tree_succeeds(
     datalayer,
     actor,
     finder_actor,
+    finder_actor_id,
     report,
     offer,
     bridge,
@@ -209,7 +220,9 @@ def test_tree_succeeds(
 ):
     """Tree executes successfully and returns Status.SUCCESS."""
     tree = create_receive_report_case_tree(
-        report_id=report.id_, offer_id=offer.id_
+        report_id=report.id_,
+        offer_id=offer.id_,
+        finder_actor_id=finder_actor_id,
     )
     result = bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
     assert result.status == Status.SUCCESS
@@ -219,6 +232,7 @@ def test_tree_creates_case(
     datalayer,
     actor,
     finder_actor,
+    finder_actor_id,
     report,
     offer,
     bridge,
@@ -227,7 +241,9 @@ def test_tree_creates_case(
 ):
     """Tree creates a VulnerabilityCase linked to the report."""
     tree = create_receive_report_case_tree(
-        report_id=report.id_, offer_id=offer.id_
+        report_id=report.id_,
+        offer_id=offer.id_,
+        finder_actor_id=finder_actor_id,
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
@@ -245,6 +261,7 @@ def test_tree_creates_vendor_participant_at_rm_received(
     datalayer,
     actor,
     finder_actor,
+    finder_actor_id,
     report,
     offer,
     bridge,
@@ -255,7 +272,9 @@ def test_tree_creates_vendor_participant_at_rm_received(
     from vultron.core.states.roles import CVDRoles
 
     tree = create_receive_report_case_tree(
-        report_id=report.id_, offer_id=offer.id_
+        report_id=report.id_,
+        offer_id=offer.id_,
+        finder_actor_id=finder_actor_id,
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
@@ -295,6 +314,7 @@ def test_tree_creates_finder_participant_at_rm_accepted(
     datalayer,
     actor,
     finder_actor,
+    finder_actor_id,
     report,
     offer,
     bridge,
@@ -305,7 +325,9 @@ def test_tree_creates_finder_participant_at_rm_accepted(
     from vultron.core.states.roles import CVDRoles
 
     tree = create_receive_report_case_tree(
-        report_id=report.id_, offer_id=offer.id_
+        report_id=report.id_,
+        offer_id=offer.id_,
+        finder_actor_id=finder_actor_id,
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
@@ -347,6 +369,7 @@ def test_tree_creates_default_embargo(
     datalayer,
     actor,
     finder_actor,
+    finder_actor_id,
     report,
     offer,
     bridge,
@@ -355,7 +378,9 @@ def test_tree_creates_default_embargo(
 ):
     """Tree creates a default embargo and attaches it to the case."""
     tree = create_receive_report_case_tree(
-        report_id=report.id_, offer_id=offer.id_
+        report_id=report.id_,
+        offer_id=offer.id_,
+        finder_actor_id=finder_actor_id,
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
@@ -368,6 +393,7 @@ def test_tree_sets_em_state_proposed_after_embargo_init(
     datalayer,
     actor,
     finder_actor,
+    finder_actor_id,
     report,
     offer,
     bridge,
@@ -380,7 +406,9 @@ def test_tree_sets_em_state_proposed_after_embargo_init(
     from vultron.core.states.em import EM
 
     tree = create_receive_report_case_tree(
-        report_id=report.id_, offer_id=offer.id_
+        report_id=report.id_,
+        offer_id=offer.id_,
+        finder_actor_id=finder_actor_id,
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
@@ -400,6 +428,7 @@ def test_tree_records_embargo_initialized_event(
     datalayer,
     actor,
     finder_actor,
+    finder_actor_id,
     report,
     offer,
     bridge,
@@ -410,7 +439,9 @@ def test_tree_records_embargo_initialized_event(
     recorded in the case event log (D5-7-EMSTATE-1, CM-02-009).
     """
     tree = create_receive_report_case_tree(
-        report_id=report.id_, offer_id=offer.id_
+        report_id=report.id_,
+        offer_id=offer.id_,
+        finder_actor_id=finder_actor_id,
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
@@ -426,6 +457,7 @@ def test_tree_embargo_initialized_event_references_embargo_id(
     datalayer,
     actor,
     finder_actor,
+    finder_actor_id,
     report,
     offer,
     bridge,
@@ -436,7 +468,9 @@ def test_tree_embargo_initialized_event_references_embargo_id(
     object_id (D5-7-EMSTATE-1, CM-02-009).
     """
     tree = create_receive_report_case_tree(
-        report_id=report.id_, offer_id=offer.id_
+        report_id=report.id_,
+        offer_id=offer.id_,
+        finder_actor_id=finder_actor_id,
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
@@ -454,6 +488,7 @@ def test_tree_queues_create_case_activity(
     datalayer,
     actor,
     finder_actor,
+    finder_actor_id,
     report,
     offer,
     bridge,
@@ -462,7 +497,9 @@ def test_tree_queues_create_case_activity(
 ):
     """Tree queues a Create(Case) activity to the actor's outbox."""
     tree = create_receive_report_case_tree(
-        report_id=report.id_, offer_id=offer.id_
+        report_id=report.id_,
+        offer_id=offer.id_,
+        finder_actor_id=finder_actor_id,
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
@@ -475,6 +512,7 @@ def test_create_case_precedes_add_participant_in_outbox(
     datalayer,
     actor,
     finder_actor,
+    finder_actor_id,
     report,
     offer,
     bridge,
@@ -488,7 +526,9 @@ def test_create_case_precedes_add_participant_in_outbox(
     warnings on the finder side.
     """
     tree = create_receive_report_case_tree(
-        report_id=report.id_, offer_id=offer.id_
+        report_id=report.id_,
+        offer_id=offer.id_,
+        finder_actor_id=finder_actor_id,
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
@@ -522,6 +562,7 @@ def test_tree_is_idempotent(
     datalayer,
     actor,
     finder_actor,
+    finder_actor_id,
     report,
     offer,
     bridge,
@@ -530,13 +571,17 @@ def test_tree_is_idempotent(
 ):
     """Running the tree twice succeeds and does not duplicate the case."""
     tree1 = create_receive_report_case_tree(
-        report_id=report.id_, offer_id=offer.id_
+        report_id=report.id_,
+        offer_id=offer.id_,
+        finder_actor_id=finder_actor_id,
     )
     result1 = bridge.execute_with_setup(tree=tree1, actor_id=actor.id_)
     assert result1.status == Status.SUCCESS
 
     tree2 = create_receive_report_case_tree(
-        report_id=report.id_, offer_id=offer.id_
+        report_id=report.id_,
+        offer_id=offer.id_,
+        finder_actor_id=finder_actor_id,
     )
     result2 = bridge.execute_with_setup(tree=tree2, actor_id=actor.id_)
     assert result2.status == Status.SUCCESS
@@ -550,6 +595,7 @@ def test_tree_early_exits_when_case_already_initialized(
     datalayer,
     actor,
     finder_actor,
+    finder_actor_id,
     report,
     offer,
     bridge,
@@ -559,7 +605,9 @@ def test_tree_early_exits_when_case_already_initialized(
     """CheckCaseExistsForReport returns SUCCESS when case has participants."""
     # Run once to initialize case
     tree1 = create_receive_report_case_tree(
-        report_id=report.id_, offer_id=offer.id_
+        report_id=report.id_,
+        offer_id=offer.id_,
+        finder_actor_id=finder_actor_id,
     )
     bridge.execute_with_setup(tree=tree1, actor_id=actor.id_)
 
@@ -569,7 +617,9 @@ def test_tree_early_exits_when_case_already_initialized(
 
     # Second run: CheckCaseExistsForReport should succeed (early exit)
     tree2 = create_receive_report_case_tree(
-        report_id=report.id_, offer_id=offer.id_
+        report_id=report.id_,
+        offer_id=offer.id_,
+        finder_actor_id=finder_actor_id,
     )
     result2 = bridge.execute_with_setup(tree=tree2, actor_id=actor.id_)
     assert result2.status == Status.SUCCESS
@@ -588,6 +638,7 @@ def test_vendor_participant_reuses_existing_received_status(
     datalayer,
     actor,
     finder_actor,
+    finder_actor_id,
     report,
     offer,
     bridge,
@@ -596,7 +647,9 @@ def test_vendor_participant_reuses_existing_received_status(
 ):
     """Vendor participant reuses pre-existing RM.RECEIVED status (no duplicate)."""
     tree = create_receive_report_case_tree(
-        report_id=report.id_, offer_id=offer.id_
+        report_id=report.id_,
+        offer_id=offer.id_,
+        finder_actor_id=finder_actor_id,
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
@@ -627,6 +680,7 @@ def test_vendor_participant_created_without_pre_existing_status(
     datalayer,
     actor,
     finder_actor,
+    finder_actor_id,
     report,
     offer,
     bridge,
@@ -635,7 +689,9 @@ def test_vendor_participant_created_without_pre_existing_status(
     """Vendor participant is created with fresh RM.RECEIVED when no prior status."""
     # No vendor_received_status fixture — vendor has no prior status record
     tree = create_receive_report_case_tree(
-        report_id=report.id_, offer_id=offer.id_
+        report_id=report.id_,
+        offer_id=offer.id_,
+        finder_actor_id=finder_actor_id,
     )
     result = bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
     assert result.status == Status.SUCCESS

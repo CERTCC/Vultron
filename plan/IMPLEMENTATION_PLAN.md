@@ -21,20 +21,6 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 All tasks in this section are prerequisites for **D5-7-HUMAN** sign-off.
 The section can proceed in parallel with PRIORITY-360.
 
-- [ ] **P347-BUGFIX**: Fix `CreateFinderParticipantNode.update()` in
-  `vultron/core/behaviors/case/nodes.py`: replace
-  `VultronActivity(type_="Add", object_=participant.id_, ...)` with
-  `AddParticipantToCaseActivity(object_=participant, ...)`.
-  Refs: BUG-26041701, MV-09-001.
-
-- [ ] **P347-NODEGENERAL**: Generalize `CreateFinderParticipantNode` →
-  `CreateCaseParticipantNode(actor_id, role)` so that the node is
-  parameterized and not hard-coded to the finder/reporter role.
-  The existing call site(s) should pass role and actor identity as
-  constructor arguments.
-  Update all call sites and tests.
-  Refs: IDEA-26041702.
-
 - [ ] **P347-BRIDGE**: Extend the outbox expansion bridge in
   `vultron/core/use_cases/received/outbox_handler.py` from
   `("Create", "Announce")` to also include `"Add"`, `"Invite"`, and

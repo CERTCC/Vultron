@@ -114,7 +114,16 @@ def bridge(datalayer):
 
 
 @pytest.fixture
-def case(bridge, datalayer, actor_id, report, offer, actor, finder_actor):
+def case(
+    bridge,
+    datalayer,
+    actor_id,
+    report,
+    offer,
+    actor,
+    finder_actor,
+    finder_actor_id,
+):
     """Pre-create the VulnerabilityCase at RM.RECEIVED.
 
     Mirrors what SubmitReportReceivedUseCase does via receive_report_case_tree
@@ -128,6 +137,7 @@ def case(bridge, datalayer, actor_id, report, offer, actor, finder_actor):
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        finder_actor_id=finder_actor_id,
     )
     bridge.execute_with_setup(tree, actor_id=actor_id, datalayer=datalayer)
     cases = datalayer.by_type("VulnerabilityCase")

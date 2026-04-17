@@ -60,7 +60,7 @@ import py_trees
 from vultron.core.behaviors.case.nodes import (
     CheckCaseExistsForReport,
     CommitCaseLogEntryNode,
-    CreateFinderParticipantNode,
+    CreateCaseParticipantNode,
     CreateInitialVendorParticipant,
     InitializeDefaultEmbargoNode,
     UpdateActorOutbox,
@@ -70,6 +70,7 @@ from vultron.core.behaviors.report.nodes import (
     CreateCaseNode,
 )
 from vultron.core.states.rm import RM
+from vultron.core.states.roles import CVDRoles
 
 logger = logging.getLogger(__name__)
 
@@ -77,12 +78,14 @@ logger = logging.getLogger(__name__)
 def create_receive_report_case_tree(
     report_id: str,
     offer_id: str,
+    finder_actor_id: str,
 ) -> py_trees.behaviour.Behaviour:
     """
     Create behavior tree for case creation at report receipt.
 
-    Given a ``VulnerabilityReport`` ID and the ID of the ``Offer`` activity
-    that delivered it, builds and returns a behavior tree that:
+    Given a ``VulnerabilityReport`` ID, the ID of the ``Offer`` activity
+    that delivered it, and the finder's actor ID, builds and returns a
+    behavior tree that:
 
     - Creates a ``VulnerabilityCase`` linked to the report.
     - Creates a default embargo and attaches it to the case.
@@ -92,6 +95,8 @@ def create_receive_report_case_tree(
       ``rm_state=RM.ACCEPTED`` (reusing the report-phase status if present).
     - Queues a ``Create(Case)`` activity to the actor's outbox so the finder
       receives a copy of the case.
+    - Queues an ``Add(CaseParticipant)`` activity for the finder so downstream
+      actors are notified with a fully typed object (satisfying MV-09-001).
 
     The root is a ``Selector`` so that if a fully-initialised case already
     exists for this report the tree succeeds immediately (idempotency).
@@ -99,7 +104,10 @@ def create_receive_report_case_tree(
     Args:
         report_id: ID of the ``VulnerabilityReport`` to link to the case.
         offer_id: ID of the ``Offer`` activity that delivered the report
-                  (used to determine the finder actor and addressees).
+                  (used to determine addressees for the Create(Case) activity).
+        finder_actor_id: Actor ID of the party who submitted the report.
+                         Passed as a constructor argument so the BT node is
+                         not coupled to the DataLayer offer lookup.
 
     Returns:
         Root node of the receive-report case-creation behavior tree.
@@ -108,6 +116,7 @@ def create_receive_report_case_tree(
         >>> tree = create_receive_report_case_tree(
         ...     report_id="https://example.org/reports/CVE-2024-001",
         ...     offer_id="https://example.org/activities/offer-123",
+        ...     finder_actor_id="https://example.org/actors/finder",
         ... )
         >>> from vultron.core.behaviors.bridge import BTBridge
         >>> bridge = BTBridge()
@@ -132,9 +141,10 @@ def create_receive_report_case_tree(
             # the finder actor receives the case notification first (D5-7-MSGORDER-1).
             CreateCaseActivity(report_id=report_id, offer_id=offer_id),
             UpdateActorOutbox(),
-            CreateFinderParticipantNode(
+            CreateCaseParticipantNode(
+                actor_id=finder_actor_id,
+                roles=[CVDRoles.FINDER, CVDRoles.REPORTER],
                 report_id=report_id,
-                offer_id=offer_id,
             ),
             # case_id is not known at build time; CreateCaseNode writes it to
             # the blackboard so CommitCaseLogEntryNode can read it here.
@@ -152,8 +162,9 @@ def create_receive_report_case_tree(
     )
 
     logger.debug(
-        "Created ReceiveReportCaseBT for report=%s, offer=%s",
+        "Created ReceiveReportCaseBT for report=%s, offer=%s, finder=%s",
         report_id,
         offer_id,
+        finder_actor_id,
     )
     return root
