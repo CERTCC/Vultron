@@ -128,7 +128,7 @@ def _setup_initialized_case(
     offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
     validate_activity = RmValidateReportActivity(
         actor=vendor.id_,
-        object_=offer.id_,
+        object_=offer,
         content="Confirmed — heap buffer overflow via malformed image input.",
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)

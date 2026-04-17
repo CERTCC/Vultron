@@ -127,7 +127,7 @@ def setup_report_and_case(
     offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
     validate_activity = RmValidateReportActivity(
         actor=vendor.id_,
-        object_=offer.id_,
+        object_=offer,
         content="Confirmed — vulnerability verified.",
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
@@ -363,7 +363,7 @@ def demo_invalidate_path(
         stored_offer = get_offer_from_datalayer(client, vendor.id_, offer.id_)
         invalidate = RmInvalidateReportActivity(
             actor=vendor.id_,
-            object_=stored_offer.id_,
+            object_=stored_offer,
             content=(
                 "Assessed as not a vulnerability — consistent error messages "
                 "are expected behavior per the security policy."
@@ -376,7 +376,7 @@ def demo_invalidate_path(
     with demo_step("Step 3: Vendor closes the report (RmCloseReportActivity)"):
         close_report = RmCloseReportActivity(
             actor=vendor.id_,
-            object_=stored_offer.id_,
+            object_=stored_offer,
             content="Report closed — assessed as not a valid vulnerability.",
         )
         post_to_inbox_and_wait(client, vendor.id_, close_report)

@@ -119,7 +119,7 @@ def _setup_initialized_case(
     offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
     validate_activity = RmValidateReportActivity(
         actor=vendor.id_,
-        object_=offer.id_,
+        object_=offer,
         content="Confirmed — remote code execution via unsanitized input.",
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
@@ -208,7 +208,7 @@ def demo_invite_actor_accept(
         # datalayer with all fields intact
         accept = RmAcceptInviteToCaseActivity(
             actor=coordinator.id_,
-            object_=invite.id_,
+            object_=invite,
             to=[vendor.id_],
             content=f"Accepting invitation to participate in {case.name}.",
         )
@@ -284,7 +284,7 @@ def demo_invite_actor_reject(
         # datalayer with all fields intact
         reject = RmRejectInviteToCaseActivity(
             actor=coordinator.id_,
-            object_=invite.id_,
+            object_=invite,
             to=[vendor.id_],
             content=f"Declining the invitation to participate in {case.name}.",
         )

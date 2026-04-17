@@ -320,7 +320,7 @@ def coordinator_accepts_case_ownership(
     """
     accept = AcceptCaseOwnershipTransferActivity(
         actor=coordinator.id_,
-        object_=offer.id_,
+        object_=offer,
         to=[case_actor.id_],
     )
 

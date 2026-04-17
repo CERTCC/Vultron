@@ -149,7 +149,7 @@ def _setup_two_participant_case(
     offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
     validate_activity = RmValidateReportActivity(
         actor=vendor.id_,
-        object_=offer.id_,
+        object_=offer,
         content="Confirmed — use-after-free via unsanitized network input.",
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
@@ -204,7 +204,7 @@ def _setup_two_participant_case(
 
     accept = RmAcceptInviteToCaseActivity(
         actor=coordinator.id_,
-        object_=invite.id_,
+        object_=invite,
         to=[vendor.id_],
         content=f"Accepting invitation to {case.name}.",
     )
@@ -266,7 +266,7 @@ def demo_propose_embargo_accept(
     with demo_step("Step 3: Vendor accepts embargo and activates it"):
         accept = EmAcceptEmbargoActivity(
             actor=vendor.id_,
-            object_=proposal.id_,
+            object_=proposal,
             context=case.id_,
             to=[coordinator.id_],
             summary=f"Accepting embargo proposal for {case.name}.",
@@ -363,7 +363,7 @@ def demo_propose_embargo_reject(
     with demo_step("Step 3: Vendor rejects embargo proposal"):
         reject = EmRejectEmbargoActivity(
             actor=vendor.id_,
-            object_=proposal.id_,
+            object_=proposal,
             context=case.id_,
             to=[coordinator.id_],
             summary=f"Rejecting embargo proposal for {case.name}.",

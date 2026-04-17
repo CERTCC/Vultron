@@ -115,7 +115,7 @@ def _setup_initialized_case(
     offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
     validate_activity = RmValidateReportActivity(
         actor=vendor.id_,
-        object_=offer.id_,
+        object_=offer,
         content="Confirmed — remote code execution via unsanitized input.",
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
@@ -210,7 +210,7 @@ def demo_transfer_ownership_accept(
     with demo_step("Step 3: Coordinator accepts ownership transfer"):
         accept = AcceptCaseOwnershipTransferActivity(
             actor=coordinator.id_,
-            object_=offer.id_,
+            object_=offer,
             to=[vendor.id_],
             content=(f"Accepting ownership of {case.name}."),
         )
@@ -281,7 +281,7 @@ def demo_transfer_ownership_reject(
     with demo_step("Step 3: Coordinator rejects ownership transfer"):
         reject = RejectCaseOwnershipTransferActivity(
             actor=coordinator.id_,
-            object_=offer.id_,
+            object_=offer,
             to=[vendor.id_],
             content=(f"Declining ownership of {case.name}."),
         )

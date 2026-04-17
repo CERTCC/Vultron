@@ -128,7 +128,7 @@ def _setup_case_with_vendor(
     offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
     validate_activity = RmValidateReportActivity(
         actor=vendor.id_,
-        object_=offer.id_,
+        object_=offer,
         content="Confirmed — use-after-free via crafted allocation sequence.",
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
@@ -219,7 +219,7 @@ def demo_manage_participants_accept(
     with demo_step("Step 3: Coordinator accepts invitation"):
         accept = RmAcceptInviteToCaseActivity(
             actor=coordinator.id_,
-            object_=invite.id_,
+            object_=invite,
             to=[vendor.id_],
             content=f"Accepting invitation to participate in {case.name}.",
         )
@@ -369,7 +369,7 @@ def demo_manage_participants_reject(
     with demo_step("Step 3: Coordinator rejects invitation"):
         reject = RmRejectInviteToCaseActivity(
             actor=coordinator.id_,
-            object_=invite.id_,
+            object_=invite,
             to=[vendor.id_],
             content=f"Declining invitation to participate in {case.name}.",
         )

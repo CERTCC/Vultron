@@ -149,7 +149,7 @@ def _setup_two_participant_case(
     offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
     validate_activity = RmValidateReportActivity(
         actor=vendor.id_,
-        object_=offer.id_,
+        object_=offer,
         content="Confirmed — heap overflow via malformed auth token.",
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
@@ -203,7 +203,7 @@ def _setup_two_participant_case(
 
     accept = RmAcceptInviteToCaseActivity(
         actor=coordinator.id_,
-        object_=invite.id_,
+        object_=invite,
         to=[vendor.id_],
         content=f"Accepting invitation to {case.name}.",
     )
@@ -267,7 +267,7 @@ def demo_activate_then_terminate(
     with demo_step("Step 3: Vendor accepts embargo proposal"):
         accept = EmAcceptEmbargoActivity(
             actor=vendor.id_,
-            object_=proposal.id_,
+            object_=proposal,
             context=case.id_,
             to=[coordinator.id_],
             summary=f"Accepting embargo proposal for {case.name}.",
@@ -398,7 +398,7 @@ def demo_reject_then_repropose(
     with demo_step("Step 3: Vendor rejects first embargo proposal"):
         reject = EmRejectEmbargoActivity(
             actor=vendor.id_,
-            object_=proposal_v1.id_,
+            object_=proposal_v1,
             context=case.id_,
             to=[coordinator.id_],
             summary=(
@@ -450,7 +450,7 @@ def demo_reject_then_repropose(
     with demo_step("Step 6: Vendor accepts revised embargo proposal"):
         accept_v2 = EmAcceptEmbargoActivity(
             actor=vendor.id_,
-            object_=proposal_v2.id_,
+            object_=proposal_v2,
             context=case.id_,
             to=[coordinator.id_],
             summary=f"Accepting revised 90-day embargo for {case.name}.",

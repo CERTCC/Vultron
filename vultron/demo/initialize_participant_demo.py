@@ -116,7 +116,7 @@ def setup_case_precondition(
     offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
     validate_activity = RmValidateReportActivity(
         actor=vendor.id_,
-        object_=offer.id_,
+        object_=offer,
         content="Confirmed — integer overflow via crafted packet.",
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)

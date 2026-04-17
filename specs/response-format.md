@@ -21,11 +21,14 @@ The Vultron protocol uses ActivityStreams activities for both requests and respo
 - `RF-02-001` Accept responses MUST use `Accept` activity type
   - RF-02-001 implements VP-06-004
 - `RF-02-002` Accept responses MUST include `object` field referencing accepted activity or object
-- `RF-02-003` Accepting an Offer of an object MUST reference the Offer activity in the `object` field of the Accept response
+- `RF-02-003` Accepting an Offer of an object MUST reference the Offer activity
+  in the `object` field of the Accept response
 - `RF-02-004` (MUST) When accepting an offered object, the `object` field of the
   `Accept` activity MUST reference the Offer activity itself (e.g.,
   `OfferCaseOwnershipTransfer`, `RecommendActor`), not the underlying object
-  being offered
+  being offered. The Offer activity MUST be passed as an inline typed object
+  (e.g., `RmSubmitReportActivity`, `EmProposeEmbargoActivity`), not as a bare
+  string ID — bare string IDs are rejected at construction time
   - Downstream processing SHOULD rehydrate the referenced Offer to discover
     the underlying offered object
 
@@ -34,10 +37,13 @@ The Vultron protocol uses ActivityStreams activities for both requests and respo
 - `RF-03-001` Reject responses MUST use `Reject` activity type
   - RF-03-001 implements VP-06-004
 - `RF-03-002` Reject responses SHOULD include reason in `content` field
-- `RF-03-003` Rejecting an Offer of an object MUST reference the Offer activity in the `object` field of the Reject response
+- `RF-03-003` Rejecting an Offer of an object MUST reference the Offer activity
+  in the `object` field of the Reject response
 - `RF-03-004` (MUST) When rejecting an offered object, the `object` field of the
   `Reject` activity MUST reference the Offer activity itself, not the
-  underlying object being offered
+  underlying object being offered. The Offer activity MUST be passed as an
+  inline typed object, not as a bare string ID — bare string IDs are rejected
+  at construction time
   - Downstream processing SHOULD rehydrate the referenced Offer to discover
     the underlying offered object
 
@@ -46,10 +52,13 @@ The Vultron protocol uses ActivityStreams activities for both requests and respo
 - `RF-04-001` TentativeReject responses MUST use `TentativeReject` activity type
   - RF-04-001 implements VP-06-004
 - `RF-04-002` TentativeReject responses SHOULD include reason in `content` field
-- `RF-04-003` Tentatively Rejecting an Offer of an object MUST reference the Offer activity in the `object` field of the TentativeReject response
-- `RF-04-004` (MUST) When tentatively rejecting an offered object, the `object` field
-  of the `Tentative Reject` activity MUST reference the Offer activity itself,
-  not the underlying object being offered
+- `RF-04-003` Tentatively Rejecting an Offer of an object MUST reference the
+  Offer activity in the `object` field of the TentativeReject response
+- `RF-04-004` (MUST) When tentatively rejecting an offered object, the `object`
+  field of the `Tentative Reject` activity MUST reference the Offer activity
+  itself, not the underlying object being offered. The Offer activity MUST be
+  passed as an inline typed object, not as a bare string ID — bare string IDs
+  are rejected at construction time
   - Downstream processing SHOULD rehydrate the referenced Offer to discover
     the underlying offered object
 

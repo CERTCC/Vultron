@@ -308,7 +308,7 @@ def actor_accepts_case_invite(
     """Accept a case invitation by notifying the CaseActor container."""
     accept = RmAcceptInviteToCaseActivity(
         actor=actor.id_,
-        object_=invite.id_,
+        object_=invite,
         to=[case_actor.id_],
     )
     with demo_step(f"{actor.name} accepts the case invitation"):
@@ -377,7 +377,7 @@ def actor_accepts_embargo(
     """Accept the active embargo proposal on the authoritative case."""
     accept = EmAcceptEmbargoActivity(
         actor=actor.id_,
-        object_=proposal.id_,
+        object_=proposal,
         context=case.id_,
         to=[case_actor.id_],
     )

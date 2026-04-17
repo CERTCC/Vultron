@@ -68,11 +68,20 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
 
+from pydantic import ValidationError as PydanticValidationError
+
 logger = logging.getLogger(__name__)
 
 
-def _resolve_offer_and_report(offer_id: str, dl: DataLayer):
-    """Resolve offer and its embedded report; raise domain errors on failure."""
+def _resolve_offer_and_report(
+    offer_id: str, dl: DataLayer
+) -> tuple["RmSubmitReportActivity", VulnerabilityReport]:
+    """Resolve offer and its embedded report; raise domain errors on failure.
+
+    The returned offer is coerced to :class:`RmSubmitReportActivity` so callers
+    can safely pass it as the ``object_`` of an Accept/TentativeReject/Reject
+    activity without stripping it to a bare string ID.
+    """
     offer_raw = dl.read(offer_id)
     if offer_raw is None:
         raise VultronNotFoundError("Offer", offer_id)
@@ -82,8 +91,8 @@ def _resolve_offer_and_report(offer_id: str, dl: DataLayer):
         )
 
     try:
-        offer = rehydrate(offer_raw, dl=dl)
-        offer_object = getattr(offer, "object_", None)
+        offer_hydrated = rehydrate(offer_raw, dl=dl)
+        offer_object = getattr(offer_hydrated, "object_", None)
         if offer_object is None:
             raise VultronValidationError("Offer is missing object reference.")
         report = rehydrate(offer_object, dl=dl)
@@ -96,7 +105,20 @@ def _resolve_offer_and_report(offer_id: str, dl: DataLayer):
             f"{getattr(report, 'type_', type(report).__name__)}."
         )
 
-    return offer, report
+    if not isinstance(offer_hydrated, RmSubmitReportActivity):
+        try:
+            offer = RmSubmitReportActivity.model_validate(
+                offer_hydrated.model_dump(by_alias=True)
+            )
+        except PydanticValidationError as exc:
+            raise VultronValidationError(
+                f"Could not coerce offer '{offer_id}' to "
+                f"RmSubmitReportActivity: {exc}"
+            ) from exc
+    else:
+        offer = offer_hydrated
+
+    return offer, report  # type: ignore[return-value]
 
 
 def _report_addressees(
@@ -208,7 +230,7 @@ class SvcInvalidateReportUseCase:
 
         invalidate_activity = RmInvalidateReportActivity(
             actor=actor_id,
-            object_=offer.id_,
+            object_=offer,
             to=_report_addressees(report.id_, actor_id, offer, dl),
         )
 
@@ -274,7 +296,7 @@ class SvcRejectReportUseCase:
 
         reject_activity = RmCloseReportActivity(
             actor=actor_id,
-            object_=offer.id_,
+            object_=offer,
             to=_report_addressees(report.id_, actor_id, offer, dl),
         )
 
@@ -352,7 +374,7 @@ class SvcCloseReportUseCase:
 
         close_activity = RmCloseReportActivity(
             actor=actor_id,
-            object_=offer.id_,
+            object_=offer,
             to=_report_addressees(report.id_, actor_id, offer, dl),
         )
 

@@ -131,7 +131,7 @@ def demo_initialize_case(
         offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
         validate_activity = RmValidateReportActivity(
             actor=vendor.id_,
-            object_=offer.id_,
+            object_=offer,
             content="Confirmed — remote code execution via unsanitized input.",
         )
         post_to_inbox_and_wait(client, vendor.id_, validate_activity)

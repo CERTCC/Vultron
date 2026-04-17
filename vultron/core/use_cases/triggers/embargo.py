@@ -213,8 +213,31 @@ class SvcEvaluateEmbargoUseCase:
                 f"{type(proposal).__name__}."
             )
 
+        # Coerce to typed EmProposeEmbargoActivity so it can be passed as the
+        # object_ of the Accept activity (bare string IDs are no longer accepted).
+        # The storage layer dehydrates nested objects to ID strings, so
+        # ``proposal.object_`` may be a string rather than a full ``EmbargoEvent``.
+        # We strip the dehydrated ``object_`` field before coercing so that the
+        # type identity (``type_="Invite"``) is preserved without requiring the
+        # inner EmbargoEvent to be fully reconstructed from the stored string ref.
+        # The dehydrated embargo event ID is saved so the embargo lookup still works.
+        dehydrated_embargo_id: str | None = None
+        if not isinstance(proposal, EmProposeEmbargoActivity):
+            raw_data = proposal.model_dump(by_alias=True)
+            obj_field = raw_data.get("object")
+            if isinstance(obj_field, str):
+                dehydrated_embargo_id = obj_field
+                raw_data.pop("object", None)
+            try:
+                proposal = EmProposeEmbargoActivity.model_validate(raw_data)
+            except ValidationError as exc:
+                raise VultronValidationError(
+                    f"Could not coerce proposal '{proposal_id or '(auto)'}' to "
+                    f"EmProposeEmbargoActivity: {exc}"
+                ) from exc
+
         embargo_ref = getattr(proposal, "object_", None)
-        embargo_id = (
+        embargo_id = dehydrated_embargo_id or (
             embargo_ref
             if isinstance(embargo_ref, str)
             else getattr(embargo_ref, "id_", None)
@@ -232,7 +255,7 @@ class SvcEvaluateEmbargoUseCase:
 
         accept = EmAcceptEmbargoActivity(
             actor=actor_id,
-            object_=proposal.id_,
+            object_=proposal,
             context=case.id_,
             to=case_addressees(case, actor_id) or None,
         )

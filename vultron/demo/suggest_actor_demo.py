@@ -118,7 +118,7 @@ def _setup_initialized_case(
     offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
     validate_activity = RmValidateReportActivity(
         actor=vendor.id_,
-        object_=offer.id_,
+        object_=offer,
         content="Confirmed — remote code execution via unsanitized input.",
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
@@ -210,7 +210,7 @@ def demo_suggest_actor_accept(
     with demo_step("Step 3: Vendor accepts recommendation"):
         accept = AcceptActorRecommendationActivity(
             actor=vendor.id_,
-            object_=recommendation.id_,
+            object_=recommendation,
             to=[finder.id_],
             content=(
                 f"Accepting your suggestion to invite "
@@ -277,7 +277,7 @@ def demo_suggest_actor_reject(
     with demo_step("Step 3: Vendor rejects recommendation"):
         reject = RejectActorRecommendationActivity(
             actor=vendor.id_,
-            object_=recommendation.id_,
+            object_=recommendation,
             to=[finder.id_],
             content=(
                 f"Declining your suggestion to invite "

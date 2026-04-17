@@ -54,7 +54,7 @@ Must complete before D5-7-HUMAN.
 **PRIORITY-330** SYNC + demo sign-off — OUTBOX-MON-1 ✅, SYNC-1 ✅, SYNC-2 ✅,
 SYNC-3 ✅; SYNC-TRIG-1 ✅ (new `sync-log-entry` trigger endpoint);
 D5-7-DEMOREPLCHECK-1 ✅ (finder replica verification in two-actor demo).
-Remaining: INLINE-OBJ-B, INLINE-OBJ-C (inline object enforcement; prereqs for
+Remaining: INLINE-OBJ-C (inline object enforcement; prereq for
 D5-7-HUMAN; see IDEA-26041601), then D5-7-HUMAN sign-off.
 SYNC-2 subsumes D5-7-CASEREPL-1 and D5-7-ADDOBJ-1.
 Prereq for SYNC-2: D5-7-TRIGNOTIFY-1 (from Priority 320).
@@ -1073,34 +1073,14 @@ demos.
   - Regression tests in `test/test_semantic_activity_patterns.py` and
     `test/wire/as2/vocab/activities/` covering each fixed activity class.
 
-#### INLINE-OBJ-B — Fix Accept/Reject: require type-stub (not bare string ID)
+#### INLINE-OBJ-B — Fix Accept/Reject: require type-stub (not bare string ID) ✅
 
-- [ ] **INLINE-OBJ-B**: Accept/Reject responses reference the original
-  Offer/Invite as `object_`. The receiver created the original, so
-  `rehydrate()` should succeed — but a bare string ID still makes
-  `_match_field` return `True` for every Accept pattern, causing
-  ambiguous dispatch if rehydration ever fails. Change Accept/Reject
-  activity classes to require at minimum a **type-stub** (the full
-  concrete activity class with `id_` + nested `object_` set to its
-  own concrete stub) rather than allowing a bare string ID.
-
-  Update `specs/response-format.md` RF-02-003/RF-02-004 (and the
-  analogous Reject and TentativeReject requirements) to require a
-  type-stub rather than a bare ID string. Also update the corresponding
-  note in `AGENTS.md` ("Accept/Reject: set object to the ID string").
-
-  Deliverables:
-  - Change `object_` type on all `AcceptXxx` / `RejectXxx` /
-    `TentativeRejectXxx` activity classes from `XxxRef` to the concrete
-    `XxxActivity` type.
-  - Update demo files that construct Accept/Reject with bare string IDs.
-  - Update `specs/response-format.md` RF-02-003, RF-02-004, RF-03-003,
-    RF-03-004, RF-04-003, RF-04-004.
-  - Update `AGENTS.md` "Accept/Reject object field" note.
-  - Add regression tests verifying that Accept/Reject with bare string
-    `object_` is rejected at construction time.
-
-  Depends on: INLINE-OBJ-A.
+- [x] **INLINE-OBJ-B**: Changed `object_` type on all 12 Accept/Reject/TentativeReject
+  activity classes from `XxxRef` (= `Xxx | as_Link | str | None`) to the concrete
+  typed activity class (`XxxActivity | None`). Updated 9 demo files, trigger use
+  cases (with storage-layer dehydration-aware coercion), `specs/response-format.md`,
+  `AGENTS.md`, and `vultron/demo/utils.py`. Added regression tests in
+  `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`.
 
 #### INLINE-OBJ-C — Prohibit object_=None where semantics require a typed object
 

@@ -19,11 +19,10 @@ out canonical log entries to participant actors, and
 mismatches back to the CaseActor.
 """
 
-from typing import Any, Optional, Union
+from typing import Any
 
 from pydantic import Field
 
-from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Announce,
     as_Reject,
@@ -68,7 +67,7 @@ class RejectLogEntryActivity(as_Reject):
     Spec: SYNC-03-001, SYNC-03-002.
     """
 
-    object_: Optional[Union[CaseLogEntry, as_Link, str]] = Field(
+    object_: CaseLogEntry | None = Field(
         default=None,
         validation_alias="object",
         serialization_alias="object",

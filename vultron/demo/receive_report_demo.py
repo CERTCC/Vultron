@@ -291,7 +291,7 @@ def demo_validate_report(
         offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
         validate_activity = RmValidateReportActivity(
             actor=vendor.id_,
-            object_=offer.id_,
+            object_=offer,
             content="Validating the report as legitimate. Creating case.",
         )
         post_to_inbox_and_wait(client, vendor.id_, validate_activity)
@@ -371,7 +371,7 @@ def demo_invalidate_report(
         offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
         invalidate_activity = RmInvalidateReportActivity(
             actor=vendor.id_,
-            object_=offer.id_,
+            object_=offer,
             content="Invalidating the report - needs more investigation before accepting.",
         )
         post_to_inbox_and_wait(client, vendor.id_, invalidate_activity)
@@ -386,7 +386,7 @@ def demo_invalidate_report(
     with demo_step("Step 3: Vendor notifies finder of invalidation"):
         invalidate_response_to_finder = RmInvalidateReportActivity(
             actor=vendor.id_,
-            object_=offer.id_,
+            object_=offer,
             to=[finder.id_],
             content="We are holding this report for further investigation.",
         )
@@ -448,13 +448,13 @@ def demo_invalidate_and_close_report(
         offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
         invalidate_activity = RmInvalidateReportActivity(
             actor=vendor.id_,
-            object_=offer.id_,
+            object_=offer,
             content="Invalidating the report - this is a false positive.",
         )
         post_to_inbox_and_wait(client, vendor.id_, invalidate_activity)
         close_activity = RmCloseReportActivity(
             actor=vendor.id_,
-            object_=offer.id_,
+            object_=offer,
             content="Closing the report as invalid.",
         )
         post_to_inbox_and_wait(client, vendor.id_, close_activity)
@@ -475,7 +475,7 @@ def demo_invalidate_and_close_report(
     ):
         invalidate_response_to_finder = RmInvalidateReportActivity(
             actor=vendor.id_,
-            object_=offer.id_,
+            object_=offer,
             to=[finder.id_],
             content="This report has been invalidated as a false positive.",
         )
@@ -486,7 +486,7 @@ def demo_invalidate_and_close_report(
         )
         close_response_to_finder = RmCloseReportActivity(
             actor=vendor.id_,
-            object_=offer.id_,
+            object_=offer,
             to=[finder.id_],
             content="This report has been closed.",
         )

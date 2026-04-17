@@ -40,11 +40,12 @@ class RecommendActorActivity(as_Offer):
 class AcceptActorRecommendationActivity(as_Accept):
     """The case owner is accepting a recommendation to add an actor to the case.
 
-    - object_: the RecommendActorActivity offer being accepted
+    - object_: the RecommendActorActivity offer being accepted (inline typed
+      object required — bare string IDs are rejected at construction time)
     Should be followed by an RmInviteToCaseActivity activity targeted at the recommended actor.
     """
 
-    object_: "RecommendActorActivity | str | None" = Field(
+    object_: RecommendActorActivity | None = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
@@ -53,10 +54,11 @@ class AcceptActorRecommendationActivity(as_Accept):
 class RejectActorRecommendationActivity(as_Reject):
     """The case owner is rejecting a recommendation to add an actor to the case.
 
-    - object_: the RecommendActorActivity offer being rejected
+    - object_: the RecommendActorActivity offer being rejected (inline typed
+      object required — bare string IDs are rejected at construction time)
     """
 
-    object_: "RecommendActorActivity | str | None" = Field(
+    object_: RecommendActorActivity | None = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None

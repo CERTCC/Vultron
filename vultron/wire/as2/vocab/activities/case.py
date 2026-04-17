@@ -199,10 +199,11 @@ class OfferCaseOwnershipTransferActivity(as_Offer):
 class AcceptCaseOwnershipTransferActivity(as_Accept):
     """The actor is accepting an offer to transfer ownership of the case.
 
-    - object_: the OfferCaseOwnershipTransferActivity being accepted
+    - object_: the OfferCaseOwnershipTransferActivity being accepted (inline
+      typed object required — bare string IDs are rejected at construction time)
     """
 
-    object_: OfferCaseOwnershipTransferActivity | str | None = Field(
+    object_: OfferCaseOwnershipTransferActivity | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
 
@@ -210,10 +211,11 @@ class AcceptCaseOwnershipTransferActivity(as_Accept):
 class RejectCaseOwnershipTransferActivity(as_Reject):
     """The actor is rejecting an offer to transfer ownership of the case.
 
-    - object_: the OfferCaseOwnershipTransferActivity being rejected
+    - object_: the OfferCaseOwnershipTransferActivity being rejected (inline
+      typed object required — bare string IDs are rejected at construction time)
     """
 
-    object_: OfferCaseOwnershipTransferActivity | str | None = Field(
+    object_: OfferCaseOwnershipTransferActivity | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
 
@@ -239,10 +241,12 @@ class RmAcceptInviteToCaseActivity(as_Accept):
     """The actor is accepting an invitation to a case.
     This corresponds to the Vultron Message Type RV when the case already exists.
     See also RmValidateReportActivity for the scenario when the case does not exist yet.
-    object_: the RmInviteToCaseActivity being accepted
+
+    object_: the RmInviteToCaseActivity being accepted (inline typed object
+        required — bare string IDs are rejected at construction time)
     """
 
-    object_: RmInviteToCaseRef = Field(
+    object_: RmInviteToCaseActivity | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
 
@@ -252,9 +256,10 @@ class RmRejectInviteToCaseActivity(as_Reject):
     This corresponds to the Vultron Message Type RI when the case already exists.
     See also RmInvalidateReportActivity for the scenario when the case does not exist yet.
 
-    `object_`: the `RmInviteToCaseActivity` being rejected
+    `object_`: the `RmInviteToCaseActivity` being rejected (inline typed
+        object required — bare string IDs are rejected at construction time)
     """
 
-    object_: RmInviteToCaseRef = Field(
+    object_: RmInviteToCaseActivity | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )

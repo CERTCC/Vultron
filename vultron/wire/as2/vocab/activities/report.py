@@ -71,10 +71,13 @@ class RmValidateReportActivity(as_Accept):
     """The actor has validated a report.
     Corresponds to the Vultron Message Type RV when no case exists.
     This should be followed by a Create(VulnerabilityCase) activity.
-    object_: an as_Offer wrapping a VulnerabilityReport
+
+    object_: the RmSubmitReportActivity offer wrapping the VulnerabilityReport
+        (inline typed object required — bare string IDs are rejected at
+        construction time)
     """
 
-    object_: OfferRef = Field(
+    object_: RmSubmitReportActivity | None = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
 
@@ -83,10 +86,13 @@ class RmInvalidateReportActivity(as_TentativeReject):
     """The actor has invalidated a report.
     Corresponds to the Vultron Message Type RI when no case exists.
     See also RmRejectInviteToCaseActivity for the scenario when a case already exists.
-    object_: an as_Offer wrapping a VulnerabilityReport
+
+    object_: the RmSubmitReportActivity offer wrapping the VulnerabilityReport
+        (inline typed object required — bare string IDs are rejected at
+        construction time)
     """
 
-    object_: OfferRef = Field(
+    object_: RmSubmitReportActivity | None = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
 
@@ -96,9 +102,12 @@ class RmCloseReportActivity(as_Reject):
     This corresponds to the Vultron Message Type RC when no case exists.
     It can only be emitted when the report is in the RM.INVALID state, because anything past that will
     have an associated VulnerabilityCase object, and closure of the case falls to the RmCloseCaseActivity activity.
-    object_: an as_Offer wrapping a VulnerabilityReport
+
+    object_: the RmSubmitReportActivity offer wrapping the VulnerabilityReport
+        (inline typed object required — bare string IDs are rejected at
+        construction time)
     """
 
-    object_: OfferRef = Field(
+    object_: RmSubmitReportActivity | None = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )

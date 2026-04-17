@@ -60,11 +60,13 @@ class EmAcceptEmbargoActivity(as_Accept):
     This corresponds to the Vultron Message Types EA and EC.
     Per ActivityStreams convention: Accept(object=<Invite>) — the actor accepts
     the proposal activity itself, not the EmbargoEvent being proposed.
-    object_: the EmProposeEmbargoActivity activity being accepted
+
+    object_: the EmProposeEmbargoActivity activity being accepted (inline typed
+        object required — bare string IDs are rejected at construction time)
     context: the VulnerabilityCase for which the embargo was proposed
     """
 
-    object_: EmProposeEmbargoRef = Field(
+    object_: EmProposeEmbargoActivity | None = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
     context: VulnerabilityCaseRef = None
@@ -75,11 +77,13 @@ class EmRejectEmbargoActivity(as_Reject):
     This corresponds to the Vultron Message Types ER and EJ.
     Per ActivityStreams convention: Reject(object=<Invite>) — the actor rejects
     the proposal activity itself, not the EmbargoEvent being proposed.
-    object_: the EmProposeEmbargoActivity activity being rejected
+
+    object_: the EmProposeEmbargoActivity activity being rejected (inline typed
+        object required — bare string IDs are rejected at construction time)
     context: the VulnerabilityCase for which the embargo was proposed
     """
 
-    object_: EmProposeEmbargoRef = Field(
+    object_: EmProposeEmbargoActivity | None = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
     context: VulnerabilityCaseRef = None

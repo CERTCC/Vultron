@@ -216,11 +216,13 @@ class AnnounceLogEntryReceivedUseCase:
         from vultron.wire.as2.vocab.activities.sync import (
             RejectLogEntryActivity,
         )
+        from vultron.wire.as2.vocab.objects.case_log_entry import CaseLogEntry
 
         local_actor_id = _find_local_actor_id(self._dl) or "unknown"
+        wire_entry = CaseLogEntry.from_core(entry)
         reject = RejectLogEntryActivity(
             actor=local_actor_id,
-            object_=entry.id_,
+            object_=wire_entry,
             to=[case_actor_id],
             context=tail_hash,
         )

@@ -268,7 +268,10 @@ not cause the work.
 **Response activities** (Accept, Reject, TentativeReject) in reply to an Offer
 or Invite MUST:
 
-- Set the `object` field to the Offer/Invite activity being responded to
+- Set the `object` field to the Offer/Invite activity being responded to,
+  passed as a full inline typed object (e.g., `RmSubmitReportActivity`,
+  `EmProposeEmbargoActivity`) — bare string IDs are rejected at construction
+  time
 - Set `inReplyTo` to the ID of the Offer/Invite activity
 
 See `specs/response-format.md` RF-02-003, RF-03-003, RF-04-003, RF-08-001.
@@ -1197,31 +1200,42 @@ See `notes/activitystreams-semantics.md` for details.
 
 ---
 
-### Accept/Reject `object` Field Must Use ID String, Not Inline Object
+### Accept/Reject `object` Field Must Use an Inline Typed Activity Object
 
-**Symptom**: Accept or Reject handler fails with `ValidationError` during
-rehydration because the referenced Invite/Offer is missing its `actor` field.
+**Symptom**: `ValidationError` at construction time when passing a bare string
+ID as the `object_` field of an Accept, Reject, or TentativeReject activity.
 
-**Cause**: When the full inline Invite/Offer object is passed as `object` in
-an Accept/Reject activity and sent over HTTP, FastAPI deserializes it as
-generic `as_Object`, losing subtype-specific fields like `actor`. The
-subsequent `rehydrate()` call cannot reconstruct the full Invite.
+**Cause**: All Accept/Reject/TentativeReject activity classes now require the
+full typed inline activity object as `object_` (e.g., `RmSubmitReportActivity`,
+`EmProposeEmbargoActivity`, `RmInviteToCaseActivity`). Bare string IDs and
+`as_Link` references are no longer accepted — they are rejected by Pydantic
+validation at construction time, preventing ambiguous dispatch.
 
-**Fix**: Set `object` to the **ID string** of the original Invite/Offer.
-The handler rehydrates the full object from the DataLayer.
+**Fix**: Pass the full typed inline activity object, not a bare string ID.
+If the activity was loaded from the DataLayer as a generic object, coerce it
+to the correct type using `model_validate` before passing it.
 
 ```python
-# Correct
-accept = RmAcceptInviteToCase(actor=actor.id_, object=invite.id_)
+# Correct — pass the full typed inline object
+accept = RmAcceptInviteToCaseActivity(actor=actor.id_, object_=invite)
 
-# Incorrect — loses `actor` field after HTTP deserialization
-accept = RmAcceptInviteToCase(actor=actor.id_, object=invite)
+# Incorrect — bare string ID is rejected at construction time
+accept = RmAcceptInviteToCaseActivity(actor=actor.id_, object_=invite.id_)
+```
+
+When the original activity is read from the DataLayer as a generic object,
+coerce it first:
+
+```python
+if not isinstance(invite, RmInviteToCaseActivity):
+    invite = RmInviteToCaseActivity.model_validate(
+        invite.model_dump(by_alias=True)
+    )
+accept = RmAcceptInviteToCaseActivity(actor=actor.id_, object_=invite)
 ```
 
 This applies to all `Accept` / `Reject` / `TentativeReject` responses to
 `Invite` or `Offer` activities.
-
-See `notes/activitystreams-semantics.md` for details.
 
 ---
 
