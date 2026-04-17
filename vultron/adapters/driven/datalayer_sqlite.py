@@ -148,6 +148,26 @@ class SqliteDataLayer:
         if self._owns_engine:
             self._engine.dispose()
 
+    def clone_for_actor(self, actor_id: str) -> "SqliteDataLayer":
+        """Return a new actor-scoped instance sharing this instance's engine.
+
+        The returned instance borrows the underlying engine (it does not own
+        it) so its :meth:`close` / ``__del__`` will not dispose the engine.
+        The original instance remains responsible for engine lifecycle.
+
+        Args:
+            actor_id: The actor URI to scope the new instance to.
+
+        Returns:
+            A :class:`SqliteDataLayer` scoped to *actor_id* that reads and
+            writes to the same database as this instance.
+        """
+        clone = SqliteDataLayer.__new__(SqliteDataLayer)
+        clone._engine = self._engine
+        clone._actor_id = actor_id
+        clone._owns_engine = False
+        return clone
+
     def __enter__(self) -> "SqliteDataLayer":
         """Support ``with SqliteDataLayer(...) as dl:`` usage."""
         return self

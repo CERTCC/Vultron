@@ -22,8 +22,8 @@ not just base class fields.
 import pytest
 from fastapi.testclient import TestClient
 
+from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.datalayer_sqlite import (
-    get_datalayer,
     reset_datalayer as _reset_datalayer,
 )
 from vultron.adapters.driving.fastapi.main import app

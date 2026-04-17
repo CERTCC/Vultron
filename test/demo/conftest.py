@@ -13,6 +13,8 @@
 
 """Shared fixtures and helpers for demo tests."""
 
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -30,7 +32,9 @@ demo_utils.DEFAULT_WAIT_SECONDS = 0.0
 
 
 def pytest_collection_modifyitems(
-    items: list[pytest.Item], config: pytest.Config
+    session: pytest.Session,
+    config: pytest.Config,
+    items: list[pytest.Item],
 ) -> None:
     """Mark every test collected from test/demo/ as ``integration``.
 
@@ -49,7 +53,10 @@ def pytest_collection_modifyitems(
     are selected (e.g. ``pytest test/demo/`` or ``pytest`` from the root).
     """
     for item in items:
-        if "/test/demo/" in str(item.fspath):
+        path = Path(str(item.fspath))
+        if any(
+            p.name == "demo" and p.parent.name == "test" for p in path.parents
+        ):
             item.add_marker(pytest.mark.integration)
 
 
@@ -58,14 +65,14 @@ def reset_datalayer_between_modules():
     """Reset all cached DataLayer instances before each demo test module.
 
     Demo tests create actors, reports, and cases via the API.  Without a
-    reset between modules the shared in-memory TinyDB accumulates data from
-    every preceding module, which (a) slows later tests as the in-memory DB
-    grows, and (b) can cause unexpected cross-module data visibility.
+    reset between modules, cached SQLite-backed DataLayer instances can retain
+    data created by earlier demo modules, which both slows later tests and
+    risks unexpected cross-module visibility.
 
-    Resetting here ensures each test module starts with an empty DataLayer.
-    The ``pytest_configure`` patch in ``test/conftest.py`` guarantees that
-    the fresh instance created by the first API call after the reset will use
-    MemoryStorage.
+    Resetting here ensures each module starts from a clean DataLayer cache.
+    After the reset, the first API call recreates the SQLite DataLayer with a
+    fresh in-memory database (``sqlite:///:memory:``), which provides module
+    isolation for the demo test suite.
     """
     reset_datalayer()
     yield
