@@ -15,8 +15,8 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 
 ### Current Status Summary
 
-**Test suite**: Canonical validation last passed on 2026-04-16
-(1508 passed, 12 skipped, 182 deselected, 5581 subtests; `black`, `flake8`,
+**Test suite**: Canonical validation last passed on 2026-04-17
+(1607 passed, 12 skipped, 182 deselected, 5581 subtests; `black`, `flake8`,
 `mypy`, `pyright`, full `pytest` run).
 
 All 38 message handlers implemented (including `unknown`). All 10 trigger
@@ -53,9 +53,10 @@ Must complete before D5-7-HUMAN.
 
 **PRIORITY-330** SYNC + demo sign-off — OUTBOX-MON-1 ✅, SYNC-1 ✅, SYNC-2 ✅,
 SYNC-3 ✅; SYNC-TRIG-1 ✅ (new `sync-log-entry` trigger endpoint);
-D5-7-DEMOREPLCHECK-1 ✅ (finder replica verification in two-actor demo).
-Remaining: INLINE-OBJ-C (inline object enforcement; prereq for
-D5-7-HUMAN; see IDEA-26041601), then D5-7-HUMAN sign-off.
+D5-7-DEMOREPLCHECK-1 ✅ (finder replica verification in two-actor demo);
+INLINE-OBJ-A ✅, INLINE-OBJ-B ✅, INLINE-OBJ-C ✅ (inline object enforcement).
+Remaining: BUG-26041602 (CaseActor auto-sync emission; blocks D5-7-HUMAN),
+then D5-7-HUMAN sign-off.
 SYNC-2 subsumes D5-7-CASEREPL-1 and D5-7-ADDOBJ-1.
 Prereq for SYNC-2: D5-7-TRIGNOTIFY-1 (from Priority 320).
 
@@ -438,6 +439,25 @@ section MUST be completed before proceeding to other priorities.
   - **Spec**: OX-03-001, DEMO-MA-00-001.
   - Completed 2026-04-10. See `plan/IMPLEMENTATION_HISTORY.md`.
 
+#### BUG-26041602 — CaseActor auto-sync emission
+
+> **Prerequisite for D5-7-HUMAN.** Tracked in `plan/BUGS.md`.
+
+- [ ] **BUG-26041602**: CaseActor does not automatically emit
+  `Announce(CaseLogEntry)` sync messages when processing inbound protocol
+  activities. The two-actor demo works around this by explicitly calling
+  `POST /actors/{actor_id}/trigger/sync-log-entry` after each step. In a
+  real deployment, the CaseActor must trigger sync automatically after each
+  activity is processed and committed. The `is_leader` guard in `BTBridge`
+  provides the leadership check, but there is no wiring from
+  incoming-activity dispatch to the `commit_log_entry_trigger` service.
+
+  Fix: After a successful BT execution in the inbox handler, check
+  `is_leader()` and, if true, invoke the `commit_log_entry_trigger` service
+  to emit and replicate the new `CaseLogEntry`. See
+  `vultron/core/use_cases/triggers/sync.py` and
+  `vultron/adapters/driven/db_record.py` for the relevant code paths.
+
 #### D5-7-HUMAN — Project owner sign-off on demo feedback resolution
 
 - [ ] **D5-7-HUMAN**: Project owner sign off. Agents are forbidden from updating
@@ -447,8 +467,9 @@ section MUST be completed before proceeding to other priorities.
     DEMONOTECLEAN-1)
   - SYNC-2 (log replication; subsumes CASEREPL-1 and ADDOBJ-1)
   - D5-7-DEMOREPLCHECK-1 (post-SYNC-2 finder replica verification)
-  - INLINE-OBJ-A, INLINE-OBJ-B, INLINE-OBJ-C (inline object enforcement;
-    blocks recurring BUG-26041601 pattern; see IDEA-26041601)
+  - INLINE-OBJ-A ✅, INLINE-OBJ-B ✅, INLINE-OBJ-C ✅ (inline object
+    enforcement; blocks recurring BUG-26041601 pattern; see IDEA-26041601)
+  - BUG-26041602 (CaseActor auto-sync emission; must be fixed)
   - Multi-actor demos pass end-to-end with log-sync in place
 
 ---

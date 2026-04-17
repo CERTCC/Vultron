@@ -220,3 +220,49 @@ so Pydantic sees the concrete subtype.
 new UUID-derived IDs on each call. Tests for narrowed inline `object_` fields
 should compare stable fields or IDs instead of comparing two separately
 generated example objects directly.
+
+---
+
+### 2026-04-17 Plan refresh #74 gap analysis
+
+**Test suite**: 1607 passed, 12 skipped, 182 deselected, 5581 subtests.
+All linters (`black`, `flake8`, `mypy`, `pyright`) clean.
+
+**Completed since last refresh (2026-04-14)**:
+
+- WIRE-TRANS-01–05 ✅ — wire/domain translation boundary; wire `VultronObject`
+  renamed `VultronAS2Object`; `from_core()`/`to_core()` implemented on all
+  wire object and activity types; `serializer.py` deleted.
+- INLINE-OBJ-A ✅ (2026-04-16) — initiating outbound activities require inline
+  typed `object_`; MV-09 outbox enforcement added.
+- INLINE-OBJ-B ✅ — Accept/Reject/TentativeReject activities require inline
+  typed activity as `object_`; dehydration-aware coercion in trigger use
+  cases; demo utils updated.
+- INLINE-OBJ-C ✅ — 37 activity classes whose `ActivityPattern` inspects
+  `object_.type` now require a non-None `object_` at construction time;
+  MV-09-003 added to `specs/message-validation.md`.
+
+**BUG-26041602 analysis**: CaseActor does not automatically emit
+`Announce(CaseLogEntry)` sync messages after processing inbound activities.
+The two-actor demo works around this by explicitly calling
+`POST /actors/{actor_id}/trigger/sync-log-entry` after each step. In a real
+deployment the CaseActor must trigger sync automatically. The `is_leader`
+guard in `BTBridge` (`vultron/core/behaviors/bridge.py`) provides leadership
+detection, but there is no wiring from the inbox dispatch path to the
+`commit_log_entry_trigger` service. No fix commits found as of this refresh.
+Task added to IMPLEMENTATION_PLAN.md under PRIORITY-330; listed as a
+prerequisite for D5-7-HUMAN.
+
+**Open items going forward (priority order)**:
+
+1. BUG-26041602 — CaseActor auto-sync emission (blocks D5-7-HUMAN)
+2. D5-7-HUMAN — project owner sign-off (human-only; agents must not mark)
+3. SYNC-4 — multi-peer synchronization (depends on SYNC-3)
+4. DL-REHYDRATE (PRIORITY-345) — DataLayer auto-rehydration; design in
+   `notes/datalayer-design.md`; spec in `specs/datalayer.md` DL-01-001–004;
+   manual coercion sites to remove: `triggers/embargo.py`,
+   `triggers/report.py`, `received/sync.py`
+5. DOCMAINT-2 — stale `archived_notes/` cross-references in `plan/`,
+   `specs/`, `notes/`
+6. TOOLS-1, DOCS-3, CONFIG-1 (PRIORITY-350; independent; can run in
+   parallel after D5-7-HUMAN)
