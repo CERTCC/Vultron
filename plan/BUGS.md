@@ -10,45 +10,34 @@ steps, root cause analysis, and resolution steps in the body.
 
 ---
 
-## BUG-26041601 Unexpected dispatch errors in multi-vendor demo — **FIXED**
+## BUG-26041701 Outbound initiating activities have inline object_ as bare string/Link — NEW
 
-I ran `make integration-test-multi-vendor > multi-vendor-log.txt` and found
-the following error:
+I observed repeated errors during multi-vendor demo runs indicating outbound
+initiating activities (Add/Invite/Join) were emitted with inline `object_`
+values that are bare strings or Links rather than inline typed objects. Examples
+from multi-vendor demo log:
 
 ```text
-% grep -i error *log.txt    
-multi-vendor-log.txt:coordinator-1  | ERROR:    Unexpected error dispatching activity_id=urn:uuid:50efe8e3-9ca6-4648-9e32-861b84888bae actor_id=http://vendor:7999/api/v2/actors/2d5b03e8-2392-4cda-a4fb-da2bf28ec514 semantics=submit_report
-multi-vendor-log.txt:coordinator-1  | AttributeError: 'NoneType' object has no attribute 'startswith'
+vendor-1       | ERROR:    Error processing outbox item for actor http://vendor:7999/...: Outbound Add activity 'urn:uuid:612d9084-0503-4efc-be82-ac7268a063c3' has an inline object_ that is a bare string or Link ('urn:uuid:a8e00b2f-07ad-45de-8944-03aab84fac1f'). Outbound initiating activities must carry fully inline typed objects (MV-09-001).
+vendor-1       | ERROR:    Too many errors processing outbox for actor e5cff123-3cec-485f-8449-bab649dfb2ff, aborting.
 ```
 
-**Root cause**: `OfferCaseOwnershipTransferActivity` was built with
-`object_=case.id_` (a bare string URI) in both demo files. When the
-coordinator received the offer, rehydration failed silently (the case wasn't
-in the coordinator's DataLayer yet), leaving `object_` as a string. The
-`ActivityPattern._match_field` conservatively returns `True` for any string
-URI, so both `SUBMIT_REPORT` and `OFFER_CASE_OWNERSHIP_TRANSFER` matched;
-since `SUBMIT_REPORT` appeared first in `SEMANTICS_ACTIVITY_PATTERNS`, the
-wrong use case was dispatched, crashing in `db_record.py`.
+Reproduction: run the multi-vendor demo (`make integration-test-multi-vendor` or
+the demo runner) and inspect `multi-vendor-demo-log.txt` for MV-09-001 errors.
 
-**Resolution**: Enforced at the model level — changed
-`OfferCaseOwnershipTransferActivity.object_` from `VulnerabilityCaseRef`
-(`VulnerabilityCase | str | None`) to `VulnerabilityCase | None`. This
-requires the inline case to be sent, removing the pattern-matching ambiguity
-at its source. Fixed the two demo files (`multi_vendor_demo.py`,
-`transfer_ownership_demo.py`) to pass `object_=case` instead of
-`object_=case.id_`. Added two regression tests in
-`test/test_semantic_activity_patterns.py`.
+Hypothesis / root cause: demo helper code (or demo fixtures) constructs outbound
+initiating activities using `object_=obj.id_` (a string/Link) instead of
+embedding the inline typed `obj` (e.g., `Case`, `Participant`). This leads to
+outbound validation failing in the Outbox processor.
 
-## BUG-26041602 CaseActor is not logging CaseLogEntry sync messages
+Resolution steps:
 
-**FIXED** in commit implementing composable `CommitCaseLogEntryNode` BT node
-(2026-04-17). The node is wired as the final child of `CreateCaseBT`,
-`EngageCaseBT`, `DeferCaseBT`, and `ReceiveReportCaseBT`. No inbound-handler
-code changes; outbox delivery remains reactive via `OutboxMonitor`.
+- Update demo code to emit inline typed objects for initiating outbound
+  activities (replace `object_=id_` with `object_=obj`).
+- Add validation in Outbox processing (or regression test) to catch and
+  fail-fast when an outbound initiating activity contains a bare string/Link as
+  `object_`.
+- Add a regression test that runs the demo flow and fails if MV-09-001 errors
+  appear.
 
-~~I notice that in the logs, `case-actor-1` appears to be receiving and
-dispatching incoming messages, but I do not see any log entries indicating
-that it is emitting `Announce` messages carrying `CaseLogEntry` activities
-or that these are being delivered. These `Announce` messages are the primary
-way for the `CaseActor` to sync the case log state to participants, so this
-is a critical issue to resolve.~~
+Status: NEW — added 2026-04-17.
