@@ -26,6 +26,14 @@ paths.
 **Load when**: designing new components, adding adapters, reviewing layer
 boundaries, or investigating an import-layering violation.
 
+**`datalayer-design.md`**
+DataLayer design decisions: auto-rehydration contract (`dl.read()` / `dl.list()`
+must return fully typed domain objects), storage record evaluation, vocabulary
+registry entanglement analysis. The authoritative reference for the DL-REHYDRATE
+implementation task.
+**Load when**: implementing or modifying the DataLayer adapter, debugging typed
+object round-trips, or working on DL-REHYDRATE.
+
 **`domain-model-separation.md`**
 Analysis of the current coupling between wire format (ActivityStreams), domain
 logic, and persistence in `VulnerabilityCase`. Documents the recommended
@@ -74,10 +82,20 @@ evaluating the relay/journal delivery architecture.
 **`activitystreams-semantics.md`**
 Canonical guidance for how ActivityStreams activities are used as
 state-change notifications (not commands): inbound vs outbound semantics,
-`Accept`/`Reject` `object` field conventions, `rehydrate()` patterns,
-`CaseActor` as authoritative case author, and vocabulary examples.
+`Accept`/`Reject` `object_` field conventions (inline typed object required),
+`rehydrate()` patterns, `CaseActor` as authoritative case author, and
+vocabulary examples.
 **Load when**: implementing any inbound or outbound message handler, debugging
 semantic extraction, or writing new ActivityStreams vocabulary classes.
+
+**`stub-objects.md`**
+Design notes for the AS2 minimalist object pattern (stub/stub-object): using
+minimal `{"id": "...", "type": "..."}` references to reduce wire verbosity,
+address privacy concerns (avoid leaking content to intermediaries), and support
+future redaction. Covers the redaction concept and its relationship to
+full inline objects.
+**Load when**: designing outbound message payloads, evaluating object verbosity
+trade-offs, or scoping privacy/redaction features.
 
 **`bt-integration.md`**
 BT design decisions (when to use BTs vs procedural code), py_trees patterns,

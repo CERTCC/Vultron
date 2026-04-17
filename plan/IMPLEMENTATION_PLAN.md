@@ -64,6 +64,16 @@ Renames wire `VultronObject` → `VultronAS2Object`, adds `from_core()`/`to_core
 stubs, implements on all wire object and activity types, deletes `serializer.py`.
 See `specs/architecture.md` ARCH-12-001–007 and `notes/domain-model-separation.md`.
 
+**PRIORITY-345** DataLayer auto-rehydration — DL-REHYDRATE (pending).
+Implement auto-rehydration in the SQLite/TinyDB DataLayer adapters so that
+`dl.read()` and `dl.list()` always return fully typed domain objects with all
+dehydrated fields (`object_`, `target`, `origin`) restored to their original
+types. Once implemented, audit and remove all manual `model_validate` coercion
+scattered across `vultron/core/use_cases/` (currently in `triggers/embargo.py`,
+`triggers/report.py`, `received/sync.py`).
+See `specs/datalayer.md` DL-01-001 through DL-01-004 and
+`notes/datalayer-design.md`.
+
 ---
 
 ## Completed Phases

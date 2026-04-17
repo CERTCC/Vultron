@@ -39,6 +39,7 @@ Load additional files only when the task touches the relevant area. See the
 
 | Topic | Files to add |
 |-------|-------------|
+| DataLayer adapter | `datalayer.md` |
 | Handler pipeline | `inbox-endpoint.md`, `message-validation.md`, `semantic-extraction.md`, `dispatch-routing.md` |
 | Behavior Trees | `behavior-tree-integration.md`, `triggerable-behaviors.md` |
 | Case / state management | `case-management.md`, `state-machine.md`, `case-log-processing.md` |
@@ -79,6 +80,12 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 3. **`semantic-extraction.md`** - Pattern matching to determine message semantics
 4. **`dispatch-routing.md`** - Routing DispatchEvent to handler functions
 5. **`handler-protocol.md`** - Handler function contract and implementation patterns
+
+**DataLayer Port**:
+
+- **`datalayer.md`** — DataLayer port requirements: auto-rehydration on read
+  (DL-01), type-safe writes (DL-02), port isolation (DL-03). Formal requirements
+  for the DL-REHYDRATE implementation task.
 
 **Wire Vocabulary and Rehydration**:
 
@@ -264,6 +271,7 @@ is reserved for `testability.md`).
 | `DC` | `demo-cli.md` |
 | `DEMO-MA` | `multi-actor-demo.md` |
 | `DF` | `diataxis-requirements.md` |
+| `DL` | `datalayer.md` |
 | `EH` | `error-handling.md` |
 | `EP` | `embargo-policy.md` |
 | `HP` | `handler-protocol.md` |

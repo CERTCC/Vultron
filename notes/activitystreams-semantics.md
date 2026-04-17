@@ -242,38 +242,54 @@ core AS2 type.
 
 ---
 
-## Accept/Reject `object` Field Should Reference Offer/Invite by ID
+## Accept/Reject `object` Field MUST Use an Inline Typed Activity Object
 
-When constructing `Accept` or `Reject` responses to an `Invite` or `Offer`,
-set the `object` field to the **ID string** of the original activity, not the
-full inline object. Using the full inline object causes it to be deserialized
-as generic `as_Object` during HTTP deserialization (losing subtype fields
-like `actor`), which then fails Pydantic validation during rehydration.
-
-Using the ID string allows the handler to rehydrate the full invite/offer
-from the DataLayer with all fields intact.
+When constructing `Accept`, `Reject`, or `TentativeReject` responses to an
+`Invite` or `Offer`, set the `object_` field to the **full typed inline
+activity object** — not a bare string ID. Bare string IDs are rejected by
+Pydantic validation at construction time (enforced by INLINE-OBJ-B).
 
 **Pattern**:
 
 ```python
-# Correct: object is the invite's ID string
+# Correct: object_ is the full typed inline activity object
 accept = RmAcceptInviteToCase(
-    actor=responding_actor.as_id,
-    object=invite.as_id,  # ID string, not inline object
+    actor=responding_actor.id_,
+    object_=invite,  # RmInviteToCaseActivity instance
 )
 
-# Incorrect: object is the full invite object inline
+# Incorrect: bare string ID raises pydantic.ValidationError
 accept = RmAcceptInviteToCase(
-    actor=responding_actor.as_id,
-    object=invite,  # Loses actor field during HTTP deserialization
+    actor=responding_actor.id_,
+    object_=invite.id_,  # ValidationError at construction time
 )
 ```
 
-This applies to all Accept/Reject/TentativeReject responses to Invite/Offer
-activities.
+### Reading from the DataLayer
+
+The DataLayer adapter dehydrates nested `object_` fields to ID strings on
+write. When reading an Accept/Reject activity back from the DataLayer, the
+stored offer or invite must be re-read separately and coerced before
+constructing the response:
+
+```python
+# Read the stored offer/invite from the DataLayer
+raw = dl.read(offer_id)
+# Coerce to the correct typed subclass
+invite = RmInviteToCaseActivity.model_validate(raw.model_dump(by_alias=True))
+# Now pass as object_ to the response activity
+accept = RmAcceptInviteToCase(actor=actor.id_, object_=invite)
+```
+
+> **Note**: Once `DL-REHYDRATE` is implemented (`plan/IMPLEMENTATION_PLAN.md`),
+> `dl.read()` will return fully rehydrated typed objects automatically and the
+> manual `model_validate` coercion step above will no longer be needed.
+
+This applies to all `Accept`/`Reject`/`TentativeReject` responses to
+`Invite`/`Offer` activities.
 
 **Cross-reference**: `specs/response-format.md` RF-02-003, RF-03-003,
-RF-04-003, RF-08-001.
+RF-04-003, RF-08-001; `specs/datalayer.md` DL-01-001.
 
 ---
 
