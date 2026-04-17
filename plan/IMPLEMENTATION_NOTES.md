@@ -9,260 +9,156 @@ header.
 
 ---
 
-### 2026-04-08 Plan refresh #72 gap analysis
+### 2026-04-17 BUG-26041701 design scope expansion
 
-**Test suite**: 1262 tests passing (refresh #72). No warnings, no
-ResourceWarnings. All linters clean.
+**Context**: BUG-26041701 started as a narrow bug (bare-string `object_` in
+`CreateFinderParticipantNode`'s Add activity) but investigation revealed a
+deeper design gap: the demos are "spoofing" actors rather than "puppeteering"
+them. The fix requires a systematic rethink of how the demos and the trigger
+layer work together.
 
-**D5-6-AUTOENG completed (2026-04-08)**: Invitation acceptance now
-auto-advances the invitee to RM.ACCEPTED and queues `RmEngageCaseActivity`
-without a separate trigger. Three-actor and multi-vendor demos no longer
-issue manual `engage-case` calls. D5-6-CASEPROP is now focused solely on
-`EmitCreateCaseActivity` (`create_case` BT) missing `to` field and full
-case embedding.
+#### Root cause (the original bug)
 
-**D5-6-EMBARGORCP dependency clarification**: Per `notes/protocol-event-cascades.md`,
-Option 2 (remove standalone `Announce(embargo)`, rely on `Create(Case)`)
-is recommended and is independent of IDEA-260408-01 ordering. Alternatively,
-it can be deferred until IDEA-260408-01-4 removes `InitializeDefaultEmbargoNode`
-from `validate_tree.py` entirely. The plan has been updated to capture both
-paths.
+`CreateFinderParticipantNode.update()` in
+`vultron/core/behaviors/case/nodes.py` (lines 944–952) creates:
 
-**SYNC spec and CLP spec expansion (2026-04-08)**: `specs/case-log-processing.md`
-(CLP) and `specs/sync-log-replication.md` were significantly expanded with
-new requirements for:
+```python
+VultronActivity(type_="Add", actor=self.actor_id,
+                object_=participant.id_,   # ← bare string, not inline CaseParticipant
+                target=case_id, to=[finder_actor_id])
+```
 
-- `CaseLogEntry` model fields: `log_index`, `disposition`, `term`
-- Assertion intake path (CLP-01): ordinary inbound activities as participant
-  assertions; CaseActor as sole canonical log writer
-- Local audit log vs. replicated canonical chain (CLP-03, CLP-04)
-- Canonical serialization for hash computation (SYNC-01-005; RFC 8785 JCS)
-- Commit discipline (SYNC-09): emit-after-commit invariant
-- Leadership guard port in BT bridge (SYNC-09-003)
-SYNC-1 task description updated in IMPLEMENTATION_PLAN.md to capture all of
-these. The old note about `prev_log_index` in SYNC-2 has been corrected to
-`prev_log_hash` to match the hash-chain design.
+The `_dehydrate_data` mechanism in `db_record.py` intentionally collapses
+`object_` dict-values to ID strings during storage. A bare string is stored
+as-is. The outbox handler's expansion bridge only covers `("Create",
+"Announce")`. Any other type with a bare-string `object_` fails MV-09-001
+(`VultronOutboxObjectIntegrityError`). This is confirmed by
+`multi-vendor-demo-log.txt` line 607.
 
-**BUG-2026040102 (circular import in test_performance.py)**: Marked FIXED
-2026-04-01 in BUGS.md. Test confirmed passing in isolation as of 2026-04-08.
-Resolution section was never written; fix was applied as part of the April 1
-multi-vendor demo work. BUGS.md updated with resolution note.
+**Immediate fix** (still needed):
 
-**Testing note (2026-04-08)**: When tests need to persist actor records
-through `DataLayer.create`, use a concrete actor subtype such as
-`as_Organization` rather than the base `as_Actor`; the base type's optional
-`type_` conflicts with the `PersistableModel` protocol under pyright.
+- Replace `VultronActivity(type_="Add", object_=participant.id_, ...)` with
+  `AddParticipantToCaseActivity(object_=participant, ...)`.
+- Extend the outbox expansion bridge (line 158 of `outbox_handler.py`) from
+  `("Create", "Announce")` to `("Create", "Announce", "Add", "Invite",
+  "Accept")` — because `_dehydrate_data` collapses **all** transitive
+  activity `object_` fields, and these types are now also emitted via
+  outbox.
 
-**CONFIG-1 (YAML config)**: IDEA-260402-01 (from `plan/IDEAS.md`) has been
-added as a new PRIORITY-350 task. `pyyaml` is already a transitive dependency
-(from docker-compose YAML parsing). The task is independent and can be
-implemented any time after D5-7 sign-off.
+#### The deeper issue: demo spoofing vs. puppeteering
 
-**IDEA-260402-02 (per-participant case replica)**: Design captured in
-`plan/IDEAS.md`. Implementation is the participant-side receive path for
-`Announce(CaseLogEntry)` replication; this is SYNC-2 scope. Added to
-Deferred section of IMPLEMENTATION_PLAN.md for visibility.
+The three-actor and multi-vendor demos currently **spoof** several protocol
+exchanges: they construct AS2 activities manually and POST them directly to
+another actor's inbox, bypassing the sending actor's own outbox. This
+violates the principle that all inter-actor communication should go through
+the AS2 outbox/inbox pipeline.
 
----
+Affected functions in `three_actor_demo.py` (and `multi_vendor_demo.py`):
 
-### 2026-04-09 EMBARGO-DUR-1 completed
+| Function | Spoofing action |
+|---|---|
+| `coordinator_creates_case_on_case_actor` | coordinator constructs `CreateCaseActivity` → POSTs to case_actor's inbox directly |
+| `coordinator_adds_report_to_case` | coordinator constructs `AddReportToCaseActivity` → POSTs to case_actor's inbox directly |
+| `coordinator_invites_actor` | coordinator constructs `RmInviteToCaseActivity` → POSTs to case_actor's inbox AND recipient's inbox directly |
+| `actor_accepts_case_invite` | invitee constructs `RmAcceptInviteToCaseActivity` → POSTs to case_actor's inbox directly |
+| `actor_accepts_embargo` | actor constructs `EmAcceptEmbargoActivity` → POSTs to case_actor's inbox directly |
 
-`EmbargoPolicy` now uses `timedelta` internally and ISO 8601 duration strings
-at the wire layer. Key notes:
+The correct pattern — "puppeteering" — is: the demo calls a trigger
+endpoint on the actor's **own** container. The actor's BT/use-case logic
+produces the activity, adds it to the actor's outbox, and the outbox handler
+delivers it to the recipient's inbox via HTTP.
 
-- `isodate.parse_duration("P2W")` returns `timedelta(weeks=2)` — a
-  `timedelta` — so week rejection requires an explicit pre-check for `W` in
-  the date part of the duration string before calling `isodate`.
-- `isodate.parse_duration("P1Y")` returns `isodate.Duration` (not `timedelta`)
-  so year/month rejection is handled by checking `isinstance(parsed, timedelta)`.
-- `object_to_record()` serializes `timedelta` fields as ISO 8601 strings
-  (via `field_serializer(when_used="json")`). The DataLayer round-trip
-  works correctly because `TinyDbDataLayer` stores serialized JSON and
-  `model_validate` re-parses via the `field_validator`.
-- Test helpers that pass ISO 8601 strings to `EmbargoPolicy(...)` must use
-  `cast(Any, EmbargoPolicy)(...)` to satisfy mypy (field is typed `timedelta`
-  but Pydantic accepts strings at runtime via the `field_validator`).
+#### Recommended design for participant invitation workflow
 
----
+The correct protocol sequence for adding a new participant is:
 
-### 2026-04-11 SYNC-1 completed
+```text
+1. Coordinator → trigger suggest-actor-to-case
+       ↓ creates RecommendActorActivity(actor=coordinator, object=invitee, target=case)
+       ↓ added to coordinator outbox → delivered to case_actor inbox
 
-**`CaseLogEntry` / `CaseEventLog`**:
+2. Case-actor receives RecommendActorActivity
+       ↓ BT: verify case_actor IS the case owner (attributed_to check)
+       ↓ BT: emit AcceptActorRecommendationActivity(to=[coordinator])
+       ↓ BT: emit RmInviteToCaseActivity(actor=case_actor, object=invitee, target=case, to=[invitee])
+       ↓ both activities added to case_actor outbox
+       ↓ outbox handler delivers Accept to coordinator inbox, Invite to invitee inbox
 
-- `CaseLogEntry` is a plain Pydantic `BaseModel` (not frozen).
-  Immutability of the append-only log is enforced by `CaseEventLog`; the
-  model itself is not frozen so that the `model_validator` can compute
-  `entry_hash` via `model_validator(mode="after")` without hitting a
-  frozen-model assignment error.
-- `entry_hash` is excluded from the content that is hashed (to avoid a
-  self-referential dependency). The `_hashable_dict()` method explicitly
-  lists the fields included in the canonical form; adding new fields
-  requires updating both `_hashable_dict()` and existing log data
-  (hash-chain break risk).
-- Canonical serialisation uses `json.dumps(sort_keys=True, separators=(',', ':'),
-  default=str)` — RFC 8785 JCS-compatible and Merkle-tree forward-compatible
-  (SYNC-01-005). `default=str` handles `datetime` and enum values.
-- `tail_hash` is based on the last **recorded** entry only; rejected entries do
-  not advance the hash chain for replication purposes (CLP-04-003).
-- `verify_chain()` validates: hash integrity of each entry, correct
-  `prev_log_hash` linkage for recorded entries, and sequential `log_index`.
+3. Invitee → trigger accept-case-invite (after polling for invite to arrive)
+       ↓ creates RmAcceptInviteToCaseActivity(actor=invitee, object=invite, to=[case_actor])
+       ↓ added to invitee outbox → delivered to case_actor inbox
 
-**BTBridge leadership guard**:
+4. Case-actor receives RmAcceptInviteToCaseActivity
+       ↓ existing AcceptInviteActorToCaseReceivedUseCase handles this correctly:
+         creates CaseParticipant, appends RM states, runs prioritize BT
+```
 
-- `is_leader` is an injectable `Callable[[], bool]`; single-node default
-  always returns `True`. The seam is there for multi-node Raft; the default
-  imposes zero runtime cost on existing code.
-- Existing callers of `BTBridge(datalayer=...)` are unaffected since
-  `is_leader` is a keyword-only argument with a default.
+The key point: the case_actor acts autonomously — it doesn't need to be
+told "now send an invite". It always accepts case-owner suggestions and
+invites the recommended actor. This is modeled as a BT triggered by the
+`SuggestActorToCaseReceivedUseCase.execute()` method.
 
-**Next step**: SYNC-2 — one-way log replication to Participant Actors via
-`Announce(CaseLogEntry)`. Prereqs: SYNC-1 ✅, OUTBOX-MON-1 ✅,
-D5-7-TRIGNOTIFY-1 ✅.
+#### New triggers needed
 
----
+| Trigger | Actor | HTTP body | Emits |
+|---|---|---|---|
+| `suggest-actor-to-case` | coordinator | `{case_id, suggested_actor_id}` | `RecommendActorActivity` to case_actor outbox |
+| `accept-case-invite` | invitee | `{invite_id, case_owner_id}` | `RmAcceptInviteToCaseActivity` to invitee outbox |
+| `create-case` | coordinator | `{report_id, name, content}` | `CreateCaseActivity` to coordinator outbox |
+| `add-report-to-case` | coordinator | `{case_id, report_id}` | `AddReportToCaseActivity` to coordinator outbox |
+| `accept-embargo` | actor | `{case_id, proposal_id?}` | `EmAcceptEmbargoActivity` to actor outbox |
 
-### 2026-04-14 Plan refresh #73 gap analysis
+Note: `evaluate-embargo` already exists but needs to be verified as
+correctly using the outbox delivery path.
 
-**Completed since last refresh (2026-04-08)**:
-D5-7-BTFIX-1 ✅, D5-7-BTFIX-2 ✅ (BT cascade violations; commit `0b8fa4c6`),
-D5-7-TRIGNOTIFY-1 ✅ (trigger activities populate `to` field),
-D5-7-DEMONOTECLEAN-1 ✅ (add-note-to-case uses trigger API; commit `1a89d7dd`),
-SYNC-2 ✅ (Announce(CaseLogEntry) replication; commit `4268549d`),
-SYNC-3 ✅ (full sync loop with retry/backoff; commit `25babfd6`),
-SYNC-TRIG-1 ✅ (sync-log-entry trigger endpoint; commit `2af8a85e`),
-D5-7-DEMOREPLCHECK-1 ✅ (finder replica verification; commit `2af8a85e`),
-PRIORITY-325 DL-SQLITE ✅ (TinyDB→SQLite migration; commit `c9316e30`).
+#### Behavior tree for SuggestActorToCase (new)
 
-**Test count**: 1402 passed, 13 skipped (post DL-SQLITE migration). Count is
-lower than the 1544 high-water mark after SYNC-TRIG-1 because the TinyDB
-backend test file was replaced with a SQLite equivalent during PRIORITY-325.
+The `SuggestActorToCaseReceivedUseCase.execute()` should run a BT with:
 
-**DL-SQLITE ADR**: ADR number is 0016 (not 0015 as the original plan task
-body stated). Fixed in IMPLEMENTATION_PLAN.md.
+- **Precondition**: the receiving actor is the case owner
+  (`case.attributed_to == self.actor_id`)
+- **Accept recommendation**: emit `AcceptActorRecommendationActivity`
+  (to [recommending actor]) and queue in outbox
+- **Invite recommended actor**: emit `RmInviteToCaseActivity`
+  (to [recommended actor]) and queue in outbox
 
-**Stale references to archived notes** (DOCMAINT-2 task added):
-Commit `0922e1f1` archived several notes files; corresponding cross-references
-in `plan/`, `specs/`, and `notes/` still point to old paths. DOCMAINT-2
-added to Phase PRIORITY-350 to track the cleanup.
+The BT should be idempotent: if an invite for this actor+case already
+exists in the DataLayer, skip and log.
 
-**Only open items after this refresh**:
-DOCMAINT-2 (new), D5-7-HUMAN (sign-off, agents must not mark), SYNC-4
-(multi-peer sync), TOOLS-1 (Python 3.14), DOCS-3 (user-stories trace),
-CONFIG-1 (YAML config).
+#### Outbox expansion bridge (transitive activities)
 
----
+The expansion bridge in `outbox_handler.py` must be extended for all
+transitive activity types that go through the dehydrate/rehydrate cycle.
+The current set to add: `"Add"`, `"Invite"`, `"Accept"`. Additional types
+(`"Join"`, `"Remove"`) may need the same treatment as they are implemented.
 
-### 2026-04-15 WIRE-TRANS-01 design session (grill-me)
+Note: `_dehydrate_data` collapsing `object_` to ID strings is **intentional
+design** — it avoids redundant inline storage. The expansion bridge is the
+correct compensating mechanism for delivery.
 
-**BUG-26041501 ARCH-01-001 fix (commit `f8eede75`)**: The `_to_wire_entry()`
-helper in `vultron/core/use_cases/triggers/sync.py` was a core module importing
-and calling wire layer code. Fixed by adding `WireCaseLogEntry.from_core(entry)`
-classmethod to `vultron/wire/as2/vocab/objects/case_log_entry.py`, removing
-`_to_wire_entry()`, and updating both call sites. Conversion ownership now lives
-in the wire type (the destination), not in core.
+#### DataLayer lookup for expansion bridge
 
-**Key architectural finding**: Two classes named `VultronObject` exist in the
-codebase — one in `vultron.core.models.base` (pure Pydantic domain base) and
-one in `vultron.wire.as2.vocab.objects.base` (AS2 wire base). The wire version
-will be renamed `VultronAS2Object` (task WIRE-TRANS-01-1).
+For the bridge to expand a bare-string `object_` to its full object, the
+referenced object must be present in the **actor's own** DataLayer at
+delivery time. This is generally true for:
 
-**Domain inheritance is already clean**: Core domain objects (`VulnerabilityCase`,
-`VultronReport`, etc.) are pure Pydantic `BaseModel`. PROTO-06-001 is obsolete;
-removed from `specs/prototype-shortcuts.md`.
+- `Add`: the `CaseParticipant` is created in the same BT run
+- `Invite`: the invitee actor is seeded on all containers at demo start
+- `Accept`: the invite activity is stored in the actor's DataLayer when
+  they receive it
 
-**`from_core()` classmethod pattern**: All wire types should implement
-`from_core(cls, core_obj) -> "<WireType>"`. The base class stub raises
-`NotImplementedError`. Default implementation uses JSON round-trip:
-`cls.model_validate(core_obj.model_dump(mode="json"))`. Use `_field_map` for
-transitional field name mismatches — a `ClassVar[dict[str, str]] = {}` on the
-wire base that maps domain field names to wire field names before `model_validate`.
+If `dl.read(activity_object)` returns `None`, the expansion bridge should
+log a warning and skip delivery (matching current `Create`/`Announce`
+behavior).
 
-**`serializer.py` to be deleted**: `vultron/wire/as2/serializer.py` has 6
-standalone conversion functions that will be replaced by `from_core()` classmethods
-on the corresponding wire types (task WIRE-TRANS-05). Use its field-by-field
-mappings as a guide to populate `_field_map` entries.
+#### Impact on test suite
 
-**Activity translation**: Wire activity base class will get generic `from_core()`
-that maps grammatical fields (actor, object_, target, context, in_reply_to),
-calling `WireType.from_core()` on `VultronObject` values, passing URI strings
-through unchanged (task WIRE-TRANS-04).
+Tests for `SuggestActorToCaseReceivedUseCase` currently only verify that
+the activity is stored. After this change, they must also verify:
 
----
+- `AcceptActorRecommendationActivity` is emitted and queued in outbox
+- `RmInviteToCaseActivity` is emitted and queued in outbox
+- Both are idempotent if the invite already exists
 
-### 2026-04-15 WIRE-TRANS-03 completed
-
-**Implemented conversions**: `from_core()` / `to_core()` are now concrete on the
-wire `VulnerabilityCase`, `VulnerabilityReport`, `CaseActor`,
-`CaseParticipant`, `CaseStatus`, `ParticipantStatus`, and `CaseLogEntry`
-types. Focused tests live in `test/wire/as2/vocab/test_wire_domain_translation.py`.
-
-**Key lesson**: reverse conversion must use the wire model's Python-field dump,
-not alias-form output. `as_Base.context_` (`@context`) is distinct from the AS2
-`context` field on `as_Object`; dumping by alias drops `attributed_to`/`case_id`
-into camelCase keys that core models do not accept directly.
-
-**Nested conversion rule**: for reverse translation, nested wire objects should
-call their own `to_core()` methods instead of relying on a raw `model_validate`
-over nested dicts. This preserves enum-valued state fields (`pxa_state`,
-`vfd_state`) and correctly collapses reference-only fields back to ID strings.
-
----
-
-### 2026-04-16 INLINE-OBJ-A completed
-
-**EmbargoEvent normalization note**: The SQLite datalayer can round-trip a
-stored `EmbargoEvent` back as a generic `as_Event`. Before passing a persisted
-embargo into a typed activity constructor such as `AnnounceEmbargoActivity`,
-normalize it with `EmbargoEvent.model_validate(raw.model_dump(by_alias=True))`
-so Pydantic sees the concrete subtype.
-
-**Example-test note**: `vocab.examples` helpers often create fresh objects with
-new UUID-derived IDs on each call. Tests for narrowed inline `object_` fields
-should compare stable fields or IDs instead of comparing two separately
-generated example objects directly.
-
----
-
-### 2026-04-17 Plan refresh #74 gap analysis
-
-**Test suite**: 1607 passed, 12 skipped, 182 deselected, 5581 subtests.
-All linters (`black`, `flake8`, `mypy`, `pyright`) clean.
-
-**Completed since last refresh (2026-04-14)**:
-
-- WIRE-TRANS-01–05 ✅ — wire/domain translation boundary; wire `VultronObject`
-  renamed `VultronAS2Object`; `from_core()`/`to_core()` implemented on all
-  wire object and activity types; `serializer.py` deleted.
-- INLINE-OBJ-A ✅ (2026-04-16) — initiating outbound activities require inline
-  typed `object_`; MV-09 outbox enforcement added.
-- INLINE-OBJ-B ✅ — Accept/Reject/TentativeReject activities require inline
-  typed activity as `object_`; dehydration-aware coercion in trigger use
-  cases; demo utils updated.
-- INLINE-OBJ-C ✅ — 37 activity classes whose `ActivityPattern` inspects
-  `object_.type` now require a non-None `object_` at construction time;
-  MV-09-003 added to `specs/message-validation.md`.
-
-**BUG-26041602 analysis**: CaseActor does not automatically emit
-`Announce(CaseLogEntry)` sync messages after processing inbound activities.
-The two-actor demo works around this by explicitly calling
-`POST /actors/{actor_id}/trigger/sync-log-entry` after each step. In a real
-deployment the CaseActor must trigger sync automatically. The `is_leader`
-guard in `BTBridge` (`vultron/core/behaviors/bridge.py`) provides leadership
-detection, but there is no wiring from the inbox dispatch path to the
-`commit_log_entry_trigger` service. No fix commits found as of this refresh.
-Task added to IMPLEMENTATION_PLAN.md under PRIORITY-330; listed as a
-prerequisite for D5-7-HUMAN.
-
-**Open items going forward (priority order)**:
-
-1. BUG-26041602 — CaseActor auto-sync emission (blocks D5-7-HUMAN)
-2. D5-7-HUMAN — project owner sign-off (human-only; agents must not mark)
-3. SYNC-4 — multi-peer synchronization (depends on SYNC-3)
-4. DL-REHYDRATE (PRIORITY-345) — DataLayer auto-rehydration; design in
-   `notes/datalayer-design.md`; spec in `specs/datalayer.md` DL-01-001–004;
-   manual coercion sites to remove: `triggers/embargo.py`,
-   `triggers/report.py`, `received/sync.py`
-5. DOCMAINT-2 — stale `archived_notes/` cross-references in `plan/`,
-   `specs/`, `notes/`
-6. TOOLS-1, DOCS-3, CONFIG-1 (PRIORITY-350; independent; can run in
-   parallel after D5-7-HUMAN)
+Integration tests in `test/demo/` will need to be updated once the demo
+scripts switch from direct inbox injection to trigger-based puppeteering.
