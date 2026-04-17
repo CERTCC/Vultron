@@ -11,11 +11,35 @@ header.
 
 ### 2026-04-17 BUG-26041701 design scope expansion
 
+**Scope decision**: BUG-26041701 absorbs IDEA-26041702 (generalize
+`CreateFinderParticipantNode`) but NOT IDEA-26041703 (broad BT composability
+audit). The immediate fix plus node generalization form a single coherent
+change; IDEA-26041703 is tracked as a separate future task in
+`plan/PRIORITIES.md`.
+
+This analysis has been folded into **PRIORITY-347** in `IMPLEMENTATION_PLAN.md`
+(after P-345 DL-REHYDRATE). IDEA-26041703 becomes a subsequent priority block
+with `notes/bt-reusability.md` and `specs/behavior-tree-node-design.md` as
+deliverables.
+
 **Context**: BUG-26041701 started as a narrow bug (bare-string `object_` in
 `CreateFinderParticipantNode`'s Add activity) but investigation revealed a
 deeper design gap: the demos are "spoofing" actors rather than "puppeteering"
-them. The fix requires a systematic rethink of how the demos and the trigger
-layer work together.
+them, and the BT node is overfitted to the demo rather than being a general
+reusable behavior. The fix requires a systematic rethink of how the demos and
+the trigger layer work together, including a generalization of the BT node.
+
+**Two categories of demos** (clarified during analysis):
+
+- **Exchange demos** (`vultron/demo/exchange/`): Demonstrate individual
+  protocol message exchanges in isolation. These intentionally use direct
+  inbox injection ("spoofing") because they are showing protocol fragments,
+  not end-to-end behavior. Examples: `receive_report_demo.py`,
+  `suggest_actor_demo.py`.
+- **Scenario demos** (`vultron/demo/scenario/`): Demonstrate full multi-actor
+  workflows. These MUST use trigger endpoints ("puppeteering") so that the
+  system's own BT and outbox logic is exercised. Examples:
+  `two_actor_demo.py`, `three_actor_demo.py`, `multi_vendor_demo.py`.
 
 #### Root cause (the original bug)
 

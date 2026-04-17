@@ -55,8 +55,8 @@ Must complete before D5-7-HUMAN.
 SYNC-3 ✅; SYNC-TRIG-1 ✅ (new `sync-log-entry` trigger endpoint);
 D5-7-DEMOREPLCHECK-1 ✅ (finder replica verification in two-actor demo);
 INLINE-OBJ-A ✅, INLINE-OBJ-B ✅, INLINE-OBJ-C ✅ (inline object enforcement).
-Remaining: BUG-26041602 (CaseActor auto-sync emission; blocks D5-7-HUMAN),
-then D5-7-HUMAN sign-off.
+BUG-26041602 ✅ (CaseActor auto-sync emission).
+D5-7-HUMAN blocked pending P-347 completion (see below).
 SYNC-2 subsumes D5-7-CASEREPL-1 and D5-7-ADDOBJ-1.
 Prereq for SYNC-2: D5-7-TRIGNOTIFY-1 (from Priority 320).
 
@@ -65,15 +65,129 @@ Renames wire `VultronObject` → `VultronAS2Object`, adds `from_core()`/`to_core
 stubs, implements on all wire object and activity types, deletes `serializer.py`.
 See `specs/architecture.md` ARCH-12-001–007 and `notes/domain-model-separation.md`.
 
-**PRIORITY-345** DataLayer auto-rehydration — DL-REHYDRATE (pending).
-Implement auto-rehydration in the SQLite/TinyDB DataLayer adapters so that
-`dl.read()` and `dl.list()` always return fully typed domain objects with all
-dehydrated fields (`object_`, `target`, `origin`) restored to their original
-types. Once implemented, audit and remove all manual `model_validate` coercion
-scattered across `vultron/core/use_cases/` (currently in `triggers/embargo.py`,
-`triggers/report.py`, `received/sync.py`).
-See `specs/datalayer.md` DL-01-001 through DL-01-004 and
-`notes/datalayer-design.md`.
+**PRIORITY-345** DataLayer auto-rehydration.
+
+- [ ] **DL-REHYDRATE**: Implement auto-rehydration in the SQLite/TinyDB
+  DataLayer adapters so that `dl.read()` and `dl.list()` always return fully
+  typed domain objects with all dehydrated fields (`object_`, `target`,
+  `origin`) restored to their original types. Once implemented, audit and
+  remove all manual `model_validate` coercion scattered across
+  `vultron/core/use_cases/` (currently in `triggers/embargo.py`,
+  `triggers/report.py`, `received/sync.py`).
+  See `specs/datalayer.md` DL-01-001 through DL-01-004 and
+  `notes/datalayer-design.md`.
+
+**PRIORITY-347** Demo puppeteering, trigger completeness, and BT node
+generalization (see `plan/IMPLEMENTATION_NOTES.md` BUG-26041701 for full
+context and design rationale). All tasks below are prerequisites for
+**D5-7-HUMAN** sign-off.
+
+- [ ] **P347-BUGFIX**: Fix `CreateFinderParticipantNode.update()` in
+  `vultron/core/behaviors/case/nodes.py`: replace
+  `VultronActivity(type_="Add", object_=participant.id_, ...)` with
+  `AddParticipantToCaseActivity(object_=participant, ...)`.
+  Refs: BUG-26041701, MV-09-001.
+
+- [ ] **P347-NODEGENERAL**: Generalize `CreateFinderParticipantNode` →
+  `CreateCaseParticipantNode(actor_id, role)` so that the node is
+  parameterized and not hard-coded to the finder/reporter role.
+  The existing call site(s) should pass role and actor identity as
+  constructor arguments.
+  Update all call sites and tests.
+  Refs: IDEA-26041702.
+
+- [ ] **P347-BRIDGE**: Extend the outbox expansion bridge in
+  `vultron/core/use_cases/received/outbox_handler.py` from
+  `("Create", "Announce")` to also include `"Add"`, `"Invite"`, and
+  `"Accept"`. Document that `"Join"` and `"Remove"` will need the same
+  treatment when implemented.
+
+- [ ] **P347-SUGGESTBT**: Implement a proper BT in
+  `SuggestActorToCaseReceivedUseCase.execute()`:
+  - Precondition: the receiving actor is the case owner
+    (`case.attributed_to == actor_id`); skip silently if not.
+  - Emit `AcceptActorRecommendationActivity(to=[recommender_id])` and queue
+    in outbox.
+  - Emit `RmInviteToCaseActivity(actor=case_actor, object_=invitee,
+    target=case, to=[invitee_id])` and queue in outbox.
+  - Idempotent: if an invite for this actor+case already exists in the
+    DataLayer, skip and log.
+  Update tests to verify both activities are emitted and idempotency holds.
+
+- [ ] **P347-TRIGGERS**: Add new trigger endpoints:
+  - `create-case` and `add-report-to-case` in
+    `vultron/adapters/driving/fastapi/routers/trigger_case.py` with
+    corresponding `SvcCreateCaseUseCase` and `SvcAddReportToCaseUseCase` in
+    `vultron/core/use_cases/triggers/`.
+  - New router file `trigger_actor.py` with `suggest-actor-to-case` and
+    `accept-case-invite` trigger endpoints, backed by
+    `SvcSuggestActorToCaseUseCase` and `SvcAcceptCaseInviteUseCase`.
+
+- [ ] **P347-EMBARGOTRIGGERS**:
+  - Rename `evaluate-embargo` endpoint → `accept-embargo` (update router,
+    `_trigger_adapter.py`, `SvcEvaluateEmbargoUseCase` → `SvcAcceptEmbargoUseCase`,
+    all call sites, tests, and spec references).
+  - Add `reject-embargo` trigger endpoint + `SvcRejectEmbargoUseCase`.
+  - Add `propose-embargo-revision` trigger endpoint +
+    `SvcProposeEmbargoRevisionUseCase`.
+  - Update `specs/triggerable-behaviors.md` to reflect all embargo trigger
+    renames and additions.
+
+- [ ] **P347-DEMOORG**: Reorganize `vultron/demo/` into two sub-packages:
+  - `vultron/demo/exchange/` — individual protocol-fragment demos
+    (direct inbox injection; demonstrating message semantics).
+    Move: all single-activity demos (`receive_report_demo.py`,
+    `suggest_actor_demo.py`, `establish_embargo_demo.py`, etc.).
+  - `vultron/demo/scenario/` — end-to-end multi-actor workflow demos
+    (trigger-based puppeteering).
+    Move: `two_actor_demo.py`, `three_actor_demo.py`,
+    `multi_vendor_demo.py`.
+  - Update `vultron/demo/cli.py`, all Docker Compose files, and Makefile
+    imports/references.
+  - Add `README.md` to each sub-package explaining the distinction.
+
+- [ ] **P347-PUPPETEER**: Convert scenario demos to trigger-based
+  puppeteering:
+  - `three_actor_demo.py`: replace `coordinator_creates_case_on_case_actor`,
+    `coordinator_adds_report_to_case`, `coordinator_invites_actor`,
+    `actor_accepts_case_invite`, and `actor_accepts_embargo` with calls to
+    the trigger endpoints added in P347-TRIGGERS and P347-EMBARGOTRIGGERS.
+  - `multi_vendor_demo.py`: same pattern for its equivalent spoofing
+    functions.
+  - `two_actor_demo.py`: audit and convert any remaining direct inbox
+    injections.
+
+- [ ] **P347-SPECS**: Spec and notes updates:
+  - `specs/triggerable-behaviors.md`: reflect trigger renames and additions
+    from P347-EMBARGOTRIGGERS; add `create-case`, `add-report-to-case`,
+    `suggest-actor-to-case`, `accept-case-invite`.
+  - `specs/multi-actor-demo.md`: add requirement that scenario demos MUST
+    use trigger endpoints (not direct inbox injection) for all actor-initiated
+    actions.
+  - `notes/protocol-event-cascades.md`: document the 4-step
+    suggest→invite→accept→record cascade as a concrete named example.
+
+**PRIORITY-360** BT composability audit (IDEA-26041703). Can proceed in
+parallel with P-347.
+
+- [ ] **P360-NOTES**: Create `notes/bt-reusability.md` capturing the fractal
+  composability pattern from `vultron/bt/`, the "trunkless branch" intent,
+  and anti-patterns (one-off nodes, hard-coded actor roles, demo-specific
+  subtrees). Reference `notes/vultron-bt.txt` as the canonical BT structure
+  blueprint.
+
+- [ ] **P360-SPEC**: Create `specs/behavior-tree-node-design.md` with formal
+  requirements for BT node parameterization and composability, e.g.:
+  - BT nodes MUST NOT hard-code actor roles; identity and role MUST be
+    constructor parameters.
+  - Reusable logic that appears in multiple subtrees MUST be extracted into
+    a shared composable subtree.
+  - New BT subtrees SHOULD be verified against `notes/vultron-bt.txt` to
+    confirm they match the intended structure.
+
+- [ ] **P360-AUDIT**: Audit existing BT nodes in `vultron/core/behaviors/`
+  against the above requirements. Produce a task list of nodes/subtrees
+  requiring refactoring.
 
 ---
 

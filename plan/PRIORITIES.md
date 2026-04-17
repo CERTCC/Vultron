@@ -147,6 +147,28 @@ INLINE-OBJ tasks also belong here.
 
 All WIRE-TRANS tasks fall here.
 
+## Priority 345: DataLayer auto-rehydration
+
+DL-REHYDRATE: auto-rehydration in SQLite/TinyDB adapters so `dl.read()` and
+`dl.list()` always return fully typed domain objects. Audit and remove manual
+`model_validate` coercion in use cases after completion.
+
+## Priority 347: Demo puppeteering, trigger completeness, BT node generalization
+
+Addresses BUG-26041701 (bare-string `object_` in `CreateFinderParticipantNode`)
+and IDEA-26041702 (generalize to `CreateCaseParticipantNode`). Also converts
+scenario demos from spoofing to trigger-based puppeteering, adds missing trigger
+endpoints, renames `evaluate-embargo` → `accept-embargo`, and reorganizes
+`vultron/demo/` into `exchange/` (protocol fragments) and `scenario/`
+(end-to-end workflows).
+
+Tasks: P347-BUGFIX, P347-NODEGENERAL, P347-BRIDGE, P347-SUGGESTBT,
+P347-TRIGGERS, P347-EMBARGOTRIGGERS, P347-DEMOORG, P347-PUPPETEER,
+P347-SPECS.
+
+Prereqs: P-345 (DL-REHYDRATE) must complete first.
+Blocks: D5-7-HUMAN sign-off (gate to P-350).
+
 ## Priority 350: Update python version and other maintenance tasks
 
 **D5-7-HUMAN** (project-owner sign-off on demo completeness) is the gate to
@@ -156,6 +178,27 @@ General housekeeping items. Non-blocking; can proceed in parallel with or
 after Priority 330.
 
 CONFIG-1, TOOLS-1, DOCS-3, VOCAB-REG-1.1, VOCAB-REG-1.2
+
+## Priority 360: BT composability audit (IDEA-26041703)
+
+Addresses the deeper concern from IDEA-26041703: BT nodes and subtrees should
+be composable, reusable branches rather than one-off behaviors hard-coded to
+specific actors or demo scenarios. The "fractal" composition pattern in
+`vultron/bt/` is the intended model.
+
+Deliverables:
+
+- `notes/bt-reusability.md` — durable design note capturing the fractal
+  composability pattern, the "trunkless branch" intent, and anti-patterns
+  to avoid.
+- `specs/behavior-tree-node-design.md` — formal requirements for BT node
+  parameterization, composability, and reuse (e.g., nodes MUST NOT hard-code
+  actor roles; roles/identities MUST be constructor parameters; reusable
+  subtrees MUST be composed rather than duplicated).
+- Codebase audit: identify one-off BT nodes or near-duplicate subtrees that
+  should be refactored to use the composability pattern; produce a task list.
+
+Can begin in parallel with P-347.
 
 ## Priority 400: Initial SYNC implementation
 
