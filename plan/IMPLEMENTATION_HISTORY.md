@@ -5540,7 +5540,7 @@ position was never updated.
 
 ## D5-7-DEMONOTECLEAN-1 — Use trigger API for notes in two-actor demo
 
-**Completed**: 2026-05-15
+**Completed**: 2026-04-17
 
 **Summary**: Replaced the two-actor demo's direct inbox POSTs (`Create(Note)` +
 `AddNoteToCase`) with proper trigger API calls so that finder notes flow through
@@ -5581,7 +5581,7 @@ Vendor replies similarly use the vendor's trigger endpoint.
 
 subtrees
 
-**Date**: 2026-05-12
+**Date**: 2026-04-17
 
 **Tasks**: D5-7-BTFIX-1, D5-7-BTFIX-2 (Priority 320)
 
@@ -6504,7 +6504,7 @@ inline-object constraint in the Pydantic model:
 
 ---
 
-## Phase INLINE-OBJ-C — Prohibit object_=None on semantic-dispatch classes (COMPLETE 2026-05-12)
+## Phase INLINE-OBJ-C — Prohibit object_=None on semantic-dispatch classes (COMPLETE 2026-04-17)
 
 Removed `| None` and `default=None` from `object_` fields on all 37 activity
 classes in `vultron/wire/as2/vocab/activities/` where the `ActivityPattern`

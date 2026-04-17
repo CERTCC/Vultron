@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-05-12 (INLINE-OBJ-C ✅ completed; 37 activity classes
+**Last Updated**: 2026-04-17 (INLINE-OBJ-C ✅ completed; 37 activity classes
 now require `object_` at construction time; 1607 passed, 12 skipped, 182
 deselected)
 
