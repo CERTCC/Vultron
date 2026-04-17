@@ -80,13 +80,18 @@ multi-actor demo scenarios (D5-2 and later).
 
 ### Services and port mappings
 
-| Service      | Host port | Docker-internal URL                      |
-|:-------------|----------:|:-----------------------------------------|
-| `finder`     |      7901 | `http://finder:7999/api/v2/`             |
-| `vendor`     |      7902 | `http://vendor:7999/api/v2/`             |
-| `coordinator`|      7904 | `http://coordinator:7999/api/v2/`        |
-| `case-actor` |      7903 | `http://case-actor:7999/api/v2/`         |
-| `demo-runner`|         — | (no host port; uses vultron-network)     |
+| Service       | Host port override      | Docker-internal URL                  |
+|:--------------|:------------------------|:-------------------------------------|
+| `finder`      | `${FINDER_HOST_PORT:-0}`     | `http://finder:7999/api/v2/`    |
+| `vendor`      | `${VENDOR_HOST_PORT:-0}`     | `http://vendor:7999/api/v2/`    |
+| `coordinator` | `${COORDINATOR_HOST_PORT:-0}`| `http://coordinator:7999/api/v2/` |
+| `case-actor`  | `${CASE_ACTOR_HOST_PORT:-0}` | `http://case-actor:7999/api/v2/`|
+| `demo-runner` | —                       | (no host port; uses vultron-network) |
+
+A default value of `0` means Docker will publish the container port on an
+ephemeral host port chosen at runtime. Set the corresponding environment
+variable to use a fixed host port, or inspect the assigned port with
+`docker compose port <service> 7999` or `docker ps`.
 
 ### Required environment variables
 
