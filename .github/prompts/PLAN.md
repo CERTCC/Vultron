@@ -44,10 +44,10 @@ Objective: Update the implementation plan based on current priorities, specifica
      include explicit priority labels in the task descriptions themselves. 
      A later build step will be responsible for prioritizing tasks at build 
      time.
-   - Completed task details should be moved to IMPLEMENTATION_HISTORY.md 
-     leaving a short one-three line summary reference in IMPLEMENTATION_PLAN.md 
-     for each moved item (or moved section if an entire block of 
-     related tasks was completed)
+   - Completed tasks MUST be moved to IMPLEMENTATION_HISTORY.md and then
+     DELETED from IMPLEMENTATION_PLAN.md entirely. Do not leave tombstones,
+     `[x]` checkboxes, or summary references for completed tasks. The PLAN
+     must contain only pending, in-progress, or blocked tasks.
 
 4. Update plan/IMPLEMENTATION_NOTES.md
 

@@ -206,6 +206,19 @@ beyond the current two-actor scenario.
 
 ---
 
+## Project Management and Planning
+
+**`plan-history-management.md`**
+Authoritative rules for managing `plan/IMPLEMENTATION_PLAN.md` (PLAN) and
+`plan/IMPLEMENTATION_HISTORY.md` (HISTORY): Core Invariant (no DONE tasks in
+PLAN), No Tombstones rule, atomic two-phase completion protocol, bounded PLAN
+size (≤ 20 tasks), failure modes, and entry formats.
+**Load when**: completing a task and updating PLAN/HISTORY, reviewing or
+adding to IMPLEMENTATION_HISTORY.md, or auditing PLAN for stale completed
+items.
+
+---
+
 ## Documentation and Traceability
 
 **`diataxis-framework.md`**

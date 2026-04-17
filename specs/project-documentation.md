@@ -191,19 +191,20 @@ history from implementation work.
 
 **Scope** (MUST contain):
 
-- Implementation phases with clear tasks
+- Pending, in-progress, and blocked tasks only
 - Dependency ordering (what must be done before what)
-- Acceptance criteria for each phase
+- Acceptance criteria for each task
 - Blockers and open questions
-- Future work priorities
-- Current phase status (high-level only)
 
 **Scope** (MUST NOT contain):
 
 - Detailed debugging history (belongs in IMPLEMENTATION_NOTES.md)
 - Lessons learned (belongs in IMPLEMENTATION_NOTES.md)
 - Technical how-tos (belongs in AGENTS.md)
-- Completed work details (summarize and move to IMPLEMENTATION_HISTORY.md)
+- Completed tasks in any form — completed tasks belong exclusively in
+  `plan/IMPLEMENTATION_HISTORY.md`
+- Tombstone entries, "done" markers, or completed-task summaries; once a task
+  is complete it is deleted from the PLAN entirely
 
 **Maintenance**:
 
@@ -260,22 +261,28 @@ history from implementation work.
     deletions of task items within a step to be less disruptive to the overall
     numbering scheme
 - Mark blockers as resolved when fixed
-- `PD-02-001` Prior task history SHOULD be moved out of  
-  `plan/IMPLEMENTATION_PLAN.md` into the append-only
-  `plan/IMPLEMENTATION_HISTORY.md` archive to keep the active plan concise
-  - Create `plan/IMPLEMENTATION_HISTORY.md` if it does not exist
-- `PD-02-002` Completed items MUST be replaced with tombstone one-liners in
-  `plan/IMPLEMENTATION_PLAN.md` rather than retaining full task detail.
-  - Tombstone format: `**ID(s)** — Brief description (date) → see HISTORY`
-  - Example: `**TECHDEBT-17, 18, 20** — Batch 80a: Dead code removal
-    (2026-03-16) → see HISTORY`
-  - Multiple related completed items MAY be grouped into a single tombstone
-    (e.g., all items in a batch or phase completed together).
-  - A brief blurb at the top of the completed-phases section MUST direct
-    readers to `plan/IMPLEMENTATION_HISTORY.md` for full details.
-  - The Gap Analysis section (if present) SHOULD be condensed into the
-    tombstone list rather than maintained as separate ✅ subsections.
-  - Tombstones SHOULD be ordered approximately chronologically.
+- `PD-02-001` Completed task history MUST be stored exclusively in the
+  append-only `plan/IMPLEMENTATION_HISTORY.md` archive.
+  - Create `plan/IMPLEMENTATION_HISTORY.md` if it does not exist.
+  - `plan/IMPLEMENTATION_HISTORY.md` is **append-only**: entries are never
+    edited, updated, or deleted once written.
+- `PD-02-002` *(superseded)* — The tombstone one-liner format is **abolished**.
+  See PD-02-003 through PD-02-006 for the replacement rules.
+- `PD-02-003` **Core Invariant**: A task in DONE state MUST NOT exist in PLAN
+  in any form — not as a checked item, not as a tombstone, not as a one-liner
+  summary.
+- `PD-02-004` **Atomic Completion**: Completing a task is a two-phase atomic
+  operation: (1) append the completed task record to
+  `plan/IMPLEMENTATION_HISTORY.md`, then (2) delete the task from
+  `plan/IMPLEMENTATION_PLAN.md`. Both steps MUST happen together — a task
+  MUST NOT remain in PLAN after its HISTORY entry is written.
+- `PD-02-005` **No Tombstones**: Completed tasks MUST be removed entirely from
+  `plan/IMPLEMENTATION_PLAN.md`. No tombstone entries, ~~strikethrough~~
+  items, `[x]` checkboxes, or "→ see HISTORY" one-liners are permitted.
+- `PD-02-006` **Bounded Plan**: `plan/IMPLEMENTATION_PLAN.md` SHOULD contain
+  no more than 20 active tasks at any time. When new work is identified,
+  either add it as a pending task (removing a lower-priority item if needed)
+  or queue it externally.
 
 **Target Audience**: Agents planning next implementation steps
 

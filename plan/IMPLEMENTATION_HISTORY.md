@@ -6661,3 +6661,55 @@ domain objects without requiring manual coercion in use cases.
 
 1619 passed, 12 skipped, 182 deselected, 5581 subtests; `black`, `flake8`,
 `mypy`, `pyright` all clean.
+
+---
+
+## 2026-04-10 — VOCAB-REG-1.1: Redesign vocabulary registry core mechanics
+
+- **Outcome**: SUCCESS
+- **Summary**: Replaced the Pydantic `Vocabulary(BaseModel)` singleton with a
+  plain `VOCABULARY: dict[str, type[BaseModel]]` module-level dict and switched
+  auto-registration from explicit decorator calls to `__init_subclass__` hook in
+  `as_Base`. Added `VocabNamespace` enum (`AS`, `VULTRON`). All class files
+  updated to remove `@activitystreams_*` decorator imports while leaving the
+  decorator definitions in place for the follow-on migration (VOCAB-REG-1.2).
+- **Artifacts**:
+  - `vultron/wire/as2/vocab/base/enums.py` — new `VocabNamespace` enum
+  - `vultron/wire/as2/vocab/base/registry.py` — rewrote flat-dict registry,
+    removed decorator definitions, updated `find_in_vocabulary()` to raise
+    `KeyError` on miss
+  - `vultron/wire/as2/vocab/base/base.py` (`as_Base`) — added
+    `_vocab_ns: ClassVar[VocabNamespace]`, added `__init_subclass__`
+    auto-registration hook
+  - `vultron/wire/as2/vocab/objects/base.py` (`VultronObject`) — overrides
+    `_vocab_ns = VocabNamespace.VULTRON`
+
+---
+
+## 2026-04-10 — VOCAB-REG-1.2: Migrate vocabulary classes and update callers
+
+- **Outcome**: SUCCESS
+- **Summary**: Completed the vocabulary registry migration by removing all
+  `@activitystreams_*` decorator call sites (74 sites across 16 files), adding
+  `pkgutil`/`importlib` dynamic discovery to four `__init__.py` files,
+  explicitly registering `as_Actor`, updating all `find_in_vocabulary()` callers
+  to handle `KeyError`, and adding a subclass-identity preservation fix to the
+  registry decorators (returning `TypeVar`-based generic signature instead of
+  `type[BaseModel]`). Test suite updated with new registry and completeness
+  tests plus a regression test for BUG-26040902.
+- **Artifacts**:
+  - 16 vocab class files: removed `@activitystreams_object` /
+    `@activitystreams_activity` / `@activitystreams_link` call sites
+  - `vultron/wire/as2/vocab/objects/__init__.py`,
+    `vultron/wire/as2/vocab/activities/__init__.py`,
+    `vultron/wire/as2/vocab/base/objects/__init__.py`,
+    `vultron/wire/as2/vocab/base/objects/activities/__init__.py` — added
+    dynamic module discovery
+  - `vultron/wire/as2/vocab/base/registry.py` — explicit `as_Actor`
+    registration, `TypeVar` return type preservation
+  - `vultron/wire/as2/parser.py` — activity-type guard (`issubclass` check)
+  - `test/wire/as2/vocab/base/test_registry.py` — new unit tests
+  - `test/wire/as2/vocab/base/test_registry_completeness.py` — new completeness
+    tests
+  - `test/core/behaviors/case/test_bug_26040902_regression.py` — regression
+    test for BUG-26040902
