@@ -217,17 +217,27 @@ class SvcEvaluateEmbargoUseCase:
         # object_ of the Accept activity (bare string IDs are no longer accepted).
         # The storage layer dehydrates nested objects to ID strings, so
         # ``proposal.object_`` may be a string rather than a full ``EmbargoEvent``.
-        # We strip the dehydrated ``object_`` field before coercing so that the
-        # type identity (``type_="Invite"``) is preserved without requiring the
-        # inner EmbargoEvent to be fully reconstructed from the stored string ref.
-        # The dehydrated embargo event ID is saved so the embargo lookup still works.
-        dehydrated_embargo_id: str | None = None
+        # When the field is a dehydrated string, resolve the full EmbargoEvent
+        # from the data layer before coercing so that ``object_: EmbargoEvent``
+        # can be satisfied at construction time.
         if not isinstance(proposal, EmProposeEmbargoActivity):
             raw_data = proposal.model_dump(by_alias=True)
             obj_field = raw_data.get("object")
             if isinstance(obj_field, str):
-                dehydrated_embargo_id = obj_field
-                raw_data.pop("object", None)
+                raw_embargo = dl.read(obj_field)
+                if raw_embargo is None:
+                    raise VultronValidationError(
+                        f"Could not resolve EmbargoEvent '{obj_field}'."
+                    )
+                try:
+                    embargo_event = EmbargoEvent.model_validate(
+                        raw_embargo.model_dump(by_alias=True)
+                    )
+                except ValidationError as exc:
+                    raise VultronValidationError(
+                        f"Could not coerce EmbargoEvent '{obj_field}': {exc}"
+                    ) from exc
+                raw_data["object"] = embargo_event.model_dump(by_alias=True)
             try:
                 proposal = EmProposeEmbargoActivity.model_validate(raw_data)
             except ValidationError as exc:
@@ -236,12 +246,7 @@ class SvcEvaluateEmbargoUseCase:
                     f"EmProposeEmbargoActivity: {exc}"
                 ) from exc
 
-        embargo_ref = getattr(proposal, "object_", None)
-        embargo_id = dehydrated_embargo_id or (
-            embargo_ref
-            if isinstance(embargo_ref, str)
-            else getattr(embargo_ref, "id_", None)
-        )
+        embargo_id = getattr(proposal.object_, "id_", None)
         if not embargo_id:
             raise VultronValidationError(
                 "Proposal is missing an embargo event reference."

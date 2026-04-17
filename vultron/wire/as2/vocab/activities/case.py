@@ -55,8 +55,8 @@ class AddReportToCaseActivity(as_Add):
     target: VulnerabilityCase
     """
 
-    object_: VulnerabilityReport | None = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: VulnerabilityReport = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
 
@@ -75,8 +75,8 @@ class AddStatusToCaseActivity(as_Add):
     target: VulnerabilityCase
     """
 
-    object_: CaseStatus | None = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: CaseStatus = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
 
@@ -92,8 +92,8 @@ class CreateCaseActivity(as_Create):
     object_: VulnerabilityCase
     """
 
-    object_: VulnerabilityCase | None = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
@@ -102,8 +102,8 @@ class CreateCaseStatusActivity(as_Create):
     object_: CaseStatus
     """
 
-    object_: CaseStatus | None = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: CaseStatus = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
@@ -114,8 +114,8 @@ class AddNoteToCaseActivity(as_Add):
     target: VulnerabilityCase
     """
 
-    object_: as_Note | None = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: as_Note = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
 
@@ -126,8 +126,8 @@ class UpdateCaseActivity(as_Update):
     object_: VulnerabilityCase
     """
 
-    object_: VulnerabilityCase | None = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
@@ -143,8 +143,8 @@ class RmEngageCaseActivity(as_Join):
     object_: VulnerabilityCase
     """
 
-    object_: VulnerabilityCase | None = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
@@ -158,8 +158,8 @@ class RmDeferCaseActivity(as_Ignore):
     object_: VulnerabilityCase
     """
 
-    object_: VulnerabilityCase | None = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
@@ -172,8 +172,8 @@ class RmCloseCaseActivity(as_Leave):
     object_: VulnerabilityCase
     """
 
-    object_: VulnerabilityCase | None = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
@@ -190,8 +190,8 @@ class OfferCaseOwnershipTransferActivity(as_Offer):
     target: as_Actor
     """
 
-    object_: VulnerabilityCase | None = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
     target: as_ActorRef = None
 
@@ -203,8 +203,8 @@ class AcceptCaseOwnershipTransferActivity(as_Accept):
       typed object required — bare string IDs are rejected at construction time)
     """
 
-    object_: OfferCaseOwnershipTransferActivity | None = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: OfferCaseOwnershipTransferActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
@@ -215,8 +215,8 @@ class RejectCaseOwnershipTransferActivity(as_Reject):
       typed object required — bare string IDs are rejected at construction time)
     """
 
-    object_: OfferCaseOwnershipTransferActivity | None = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: OfferCaseOwnershipTransferActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
@@ -246,8 +246,8 @@ class RmAcceptInviteToCaseActivity(as_Accept):
         required — bare string IDs are rejected at construction time)
     """
 
-    object_: RmInviteToCaseActivity | None = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: RmInviteToCaseActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
@@ -260,6 +260,6 @@ class RmRejectInviteToCaseActivity(as_Reject):
         object required — bare string IDs are rejected at construction time)
     """
 
-    object_: RmInviteToCaseActivity | None = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: RmInviteToCaseActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )

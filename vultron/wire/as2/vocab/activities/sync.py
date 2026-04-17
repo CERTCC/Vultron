@@ -42,8 +42,8 @@ class AnnounceLogEntryActivity(as_Announce):
         being replicated.
     """
 
-    object_: CaseLogEntry | None = Field(
-        default=None,
+    object_: CaseLogEntry = Field(
+        default=...,
         validation_alias="object",
         serialization_alias="object",
     )
@@ -67,8 +67,8 @@ class RejectLogEntryActivity(as_Reject):
     Spec: SYNC-03-001, SYNC-03-002.
     """
 
-    object_: CaseLogEntry | None = Field(
-        default=None,
+    object_: CaseLogEntry = Field(
+        default=...,
         validation_alias="object",
         serialization_alias="object",
     )

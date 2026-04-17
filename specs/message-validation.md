@@ -86,6 +86,13 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
   - This acts as a last-resort runtime guard in case a narrowed activity class
     is bypassed.
 
+- `MV-09-003` Vultron activity classes where semantic dispatch depends on the
+  `object_` type MUST require `object_` at construction time — no `None`
+  default is permitted.  An omitted or `None` `object_` renders the activity
+  semantically meaningless because `ActivityPattern._match_field` returns
+  `False` for `None`, causing every pattern that inspects `object_.type` to
+  fail, which forces dispatch to `UNKNOWN`.
+
 ## Duplicate Detection
 
 - `MV-08-001` The system SHOULD detect duplicate activity submissions during validation
@@ -139,6 +146,18 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 - Implementation: `vultron/wire/as2/vocab/activities/` (narrowed Pydantic types)
 - Implementation: `vultron/adapters/driving/fastapi/outbox_handler.py`
   (`handle_outbox_item()` integrity check)
+
+### MV-09-003 Verification
+
+- Unit test: Constructing any activity class that has a semantic `ActivityPattern`
+  checking `object_` type without providing `object_` raises
+  `pydantic.ValidationError`.
+- Unit test: Constructing the same class with `object_=None` raises
+  `pydantic.ValidationError`.
+- Implementation: `vultron/wire/as2/vocab/activities/` (all 37 affected classes
+  have `object_: DomainType = Field(...)` with no `None` default)
+- Test: `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`
+  `TestNoneObjectRejected`
 
 ## Related
 

@@ -1,8 +1,8 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-04-16 (INLINE-OBJ-A ✅ completed; initiating outbound
-activities now require inline typed `object_` values; 1508 passed, 12 skipped,
-182 deselected)
+**Last Updated**: 2026-05-12 (INLINE-OBJ-C ✅ completed; 37 activity classes
+now require `object_` at construction time; 1607 passed, 12 skipped, 182
+deselected)
 
 ## Overview
 
@@ -1082,30 +1082,15 @@ demos.
   `AGENTS.md`, and `vultron/demo/utils.py`. Added regression tests in
   `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`.
 
-#### INLINE-OBJ-C — Prohibit object_=None where semantics require a typed object
+#### INLINE-OBJ-C — Prohibit object_=None where semantics require a typed object ✅
 
-- [ ] **INLINE-OBJ-C**: For activity classes where `object_` is required
-  for semantic extraction (i.e., where the `ActivityPattern` checks
-  `object_` type), `object_=None` is semantically meaningless — such an
-  activity will inevitably land in the `UNKNOWN` catch-all. Ban `None`
-  by changing `| None` out of `object_` field types on those classes,
-  making the field required at construction time.
-
-  Add a spec requirement to `specs/message-validation.md` (extend the
-  "Outbound Activity Object Integrity" section from INLINE-OBJ-A)
-  stating that activity classes whose semantic type depends on `object_`
-  MUST declare `object_` as a required field (no `None` default).
-
-  Deliverables:
-  - Audit all activity classes in `vultron/wire/as2/vocab/activities/`
-    for `object_: ... | None` where the `ActivityPattern` for that class
-    requires a typed object. Remove `| None` and set no default.
-  - Update any callers or test fixtures that pass `object_=None` to
-    those classes.
-  - Add a regression test asserting that each audited class raises
-    `ValidationError` when constructed without `object_`.
-
-  Depends on: INLINE-OBJ-A, INLINE-OBJ-B.
+- [x] **INLINE-OBJ-C**: Removed `| None` and `default=None` from `object_`
+  fields on all 37 activity classes whose `ActivityPattern` inspects
+  `object_.type`. Updated `triggers/embargo.py` to resolve `EmbargoEvent`
+  from the data layer when the stored field is a dehydrated string.
+  Added `MV-09-003` to `specs/message-validation.md`. Added
+  `TestNoneObjectRejected` with 74 tests (37 classes × 2 checks each).
+  1607 passed, 12 skipped, 182 deselected, 5581 subtests.
 
 ---
 

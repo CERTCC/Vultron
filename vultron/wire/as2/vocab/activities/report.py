@@ -39,8 +39,8 @@ OfferRef: TypeAlias = ActivityStreamRef[as_Offer]
 class RmCreateReportActivity(as_Create):
     """The actor is creating a report."""
 
-    object_: VulnerabilityReport | None = Field(
-        default=None, validation_alias="object", serialization_alias="object"
+    object_: VulnerabilityReport = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
@@ -51,8 +51,8 @@ class RmSubmitReportActivity(as_Offer):
     object_: VulnerabilityReport
     """
 
-    object_: VulnerabilityReport | None = Field(
-        default=None, validation_alias="object", serialization_alias="object"
+    object_: VulnerabilityReport = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
@@ -62,8 +62,8 @@ class RmReadReportActivity(as_Read):
     object_: VulnerabilityReport
     """
 
-    object_: VulnerabilityReport | None = Field(
-        default=None, validation_alias="object", serialization_alias="object"
+    object_: VulnerabilityReport = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
@@ -77,8 +77,8 @@ class RmValidateReportActivity(as_Accept):
         construction time)
     """
 
-    object_: RmSubmitReportActivity | None = Field(
-        default=None, validation_alias="object", serialization_alias="object"
+    object_: RmSubmitReportActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
@@ -92,8 +92,8 @@ class RmInvalidateReportActivity(as_TentativeReject):
         construction time)
     """
 
-    object_: RmSubmitReportActivity | None = Field(
-        default=None, validation_alias="object", serialization_alias="object"
+    object_: RmSubmitReportActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
@@ -108,6 +108,6 @@ class RmCloseReportActivity(as_Reject):
         construction time)
     """
 
-    object_: RmSubmitReportActivity | None = Field(
-        default=None, validation_alias="object", serialization_alias="object"
+    object_: RmSubmitReportActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
