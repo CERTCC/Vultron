@@ -217,3 +217,51 @@ interactions between components in the architecture. The prototype is geared
 toward single process actors. A future production implementation might look
 a lot more like a distributed system with separate services and message
 queues with workers that handle individual use cases etc.
+
+## IDEA-26041702
+
+There should not be a `CreateFinderParticipantNode` behavior. This is
+overfitting the codebase to the demo. There should be a more general
+`CreateCaseParticipantNode` behavior that can be used to create any type of
+participant node. This is generally true of any behavior node that
+explicitly references a specific role or type of participant. So in the BT
+that creates a case from a report Offer, the participant is the
+attributed_to Actor of the Offer(Report) with the role of reporter (we don't
+actually know who the finder is at that point, we only know that they
+reported it to us so they are the reporter). But for reuse purposes, the
+same create participant node would be used for creating the case
+creator/owner participant node first, and so the actor identity and the role
+(s) would be parameters to the node, not hardcoded in the node itself.
+
+## IDEA-26041703
+
+The situation described in IDEA-26041702 is an example of a general concern
+I have about whether or not we have truly captured the idea of the behavior
+trees and how they are supposed to be used in the design, specs, and
+codebase. The structure of the behavior logic is pretty clear in the
+behavior tree structure file in notes/vultron-bt.txt but I am concerned the
+BT notes and specs have misinterpreted the intent of the "trunkless branch"
+idea to be overly literal. What was meant by "trunkless branch" was that
+there are entire hierarchies of behavior trees that serve as reusable
+branches that can be composed into larger behaviors. So things like
+evaluating whether an embargo should be terminated based on a case update
+shows up in multiple places in the BT structure. The idea was that this
+logic would be implemented once as a reusable branch that could then be
+composed into any larger behavior that needed that logic. Look at how
+vultron/bt constructs the big tree that served as the origin of the BT
+structure file and you'll see how we are reusing the same branches in
+multiple places, and that the compositions themselves also serve as reusable
+branches. There's a fractal pattern of behavior that comes through when you
+understand that about the design. So far what I've seen is that we're
+implementing a lot of one-off behaviors that are only used in one place and
+then reconstructing nearly identical logic with different parameters in
+other places, or sometimes avoiding building out behaviors in favor of just
+putting logic directly in the code or demo scripts. The behavior tree
+structure is meant to be the blueprint (and literal implementation structure)
+of the internal logic of the system. Most of what you should be doing is
+wiring up AS2 messages to use cases that trigger behaviors, and then a few
+endpoints that trigger behaviors directly so that the demos can act as
+puppeteers for the Actors involved in the demos. I don't know why there's a
+tendency to avoid thinking in terms of behavior trees, but we need to
+incorporate the use of behavior trees to capture process logic as a core
+principle of how we build out the system.
