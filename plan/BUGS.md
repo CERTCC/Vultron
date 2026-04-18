@@ -41,3 +41,19 @@ Resolution steps:
   appear.
 
 Status: NEW — added 2026-04-17.
+
+## BUG-26041801
+
+We don't actually know whether the `reporter` is the `finder` but we do know
+that the `reporter` is the `attributed_to` of the `Offer` of a `Report`. So
+we should not have attribute names including `finder` anywhere. We should
+rename it the `reporter` everywhere.
+
+` finder_actor_id: Actor ID of the party who submitted the report.
+`
+
+## BUG-26041802
+
+The solution to P-247-BRIDGE might be incomplete. It seems like we probably
+want this behavior to apply ot all activities that have an `object_`, not
+just a specific list. All transitive activities need to require an object.
