@@ -21,12 +21,6 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 All tasks in this section are prerequisites for **D5-7-HUMAN** sign-off.
 The section can proceed in parallel with PRIORITY-360.
 
-- [ ] **P347-BRIDGE**: Extend the outbox expansion bridge in
-  `vultron/core/use_cases/received/outbox_handler.py` from
-  `("Create", "Announce")` to also include `"Add"`, `"Invite"`, and
-  `"Accept"`. Document that `"Join"` and `"Remove"` will need the same
-  treatment when implemented.
-
 - [ ] **P347-SUGGESTBT**: Implement a proper BT in
   `SuggestActorToCaseReceivedUseCase.execute()`:
   - Precondition: the receiving actor is the case owner

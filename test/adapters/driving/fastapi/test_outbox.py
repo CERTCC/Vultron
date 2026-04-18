@@ -36,8 +36,11 @@ from types import SimpleNamespace
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 from vultron.core.models.activity import VultronActivity
+from vultron.errors import VultronOutboxObjectIntegrityError
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -442,3 +445,87 @@ def test_handle_outbox_item_delivery_log_no_pydantic_repr(caplog):
     # Must NOT contain Pydantic field-repr fragments
     assert "type_=<" not in delivery_log
     assert "context_=" not in delivery_log
+
+
+# ---------------------------------------------------------------------------
+# handle_outbox_item — expansion bridge for Add, Invite, Accept (P347-BRIDGE)
+# ---------------------------------------------------------------------------
+
+
+def _make_activity_with_bare_object(
+    activity_type: str, activity_id: str, recipient: str
+) -> VultronActivity:
+    """Return a VultronActivity of *activity_type* with a bare-string object_."""
+    act = VultronActivity(
+        id_=activity_id,
+        type_=activity_type,
+        actor="https://example.org/actors/bob",
+        to=[recipient],
+    )
+    act.object_ = "urn:uuid:inner-obj-001"  # type: ignore[assignment]
+    return act
+
+
+@pytest.mark.parametrize("activity_type", ["Add", "Invite", "Accept"])
+def test_handle_outbox_item_expands_bare_object_for_new_types(
+    activity_type, caplog
+):
+    """handle_outbox_item expands bare-string object_ for Add/Invite/Accept."""
+    recipient = "https://example.org/actors/alice"
+    activity = _make_activity_with_bare_object(
+        activity_type, f"urn:test:act-{activity_type.lower()}", recipient
+    )
+    inner_id = "urn:uuid:inner-obj-001"
+    inner_obj = SimpleNamespace(id_=inner_id)
+
+    def _read(id_):
+        if id_ == activity.id_:
+            return activity
+        if id_ == inner_id:
+            return inner_obj
+        return None
+
+    mock_dl = MagicMock()
+    mock_dl.read.side_effect = _read
+    mock_emitter = AsyncMock()
+
+    with caplog.at_level("DEBUG"):
+        asyncio.run(
+            oh.handle_outbox_item(
+                "actor-bob", activity.id_, mock_dl, mock_emitter
+            )
+        )
+
+    # object_ should have been expanded to the full inner object
+    mock_emitter.emit.assert_called_once()
+    emitted_activity, _ = mock_emitter.emit.call_args[0]
+    assert emitted_activity.object_ is inner_obj
+    assert "Expanded" in caplog.text
+
+
+@pytest.mark.parametrize("activity_type", ["Add", "Invite", "Accept"])
+def test_handle_outbox_item_raises_integrity_error_when_expansion_fails(
+    activity_type,
+):
+    """handle_outbox_item raises VultronOutboxObjectIntegrityError when the
+    inner object is not found for Add/Invite/Accept activities."""
+    recipient = "https://example.org/actors/alice"
+    activity = _make_activity_with_bare_object(
+        activity_type, f"urn:test:act-{activity_type.lower()}-fail", recipient
+    )
+
+    def _read(id_):
+        if id_ == activity.id_:
+            return activity
+        return None  # inner object not found → expansion fails
+
+    mock_dl = MagicMock()
+    mock_dl.read.side_effect = _read
+    mock_emitter = AsyncMock()
+
+    with pytest.raises(VultronOutboxObjectIntegrityError):
+        asyncio.run(
+            oh.handle_outbox_item(
+                "actor-bob", activity.id_, mock_dl, mock_emitter
+            )
+        )

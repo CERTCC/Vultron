@@ -145,19 +145,28 @@ async def handle_outbox_item(
     activity_type = getattr(outbound_activity, "type_", "Activity")
     activity_object = getattr(outbound_activity, "object_", None)
 
-    # For Create and Announce activities, expand an ID-string object_ to the
-    # full domain object so the recipient inbox endpoint can store it separately
+    # For initiating activity types, expand an ID-string object_ to the full
+    # domain object so the recipient inbox endpoint can store it separately
     # before dispatching.  For Create: the receiving side needs the full object
     # to recreate the case.  For Announce(CaseLogEntry): the receiving side
     # needs all CaseLogEntry fields for hash-chain validation (BUG-26041501;
-    # a URI-only reference violates SYNC-02-004).
+    # a URI-only reference violates SYNC-02-004).  For Add, Invite, Accept:
+    # the receiving side needs the full inline object to determine semantic
+    # type and update its own state correctly.
     #
     # NOTE: This expansion path is a backward-compatibility bridge for
     # activities stored before INLINE-OBJ-A narrowed object_ types.  New
     # outbound activities should always carry inline objects (MV-09-001).
-    if activity_type in ("Create", "Announce") and isinstance(
-        activity_object, str
-    ):
+    #
+    # TODO: When "Join" and "Remove" are implemented they will also require
+    # expansion here.
+    if activity_type in (
+        "Create",
+        "Announce",
+        "Add",
+        "Invite",
+        "Accept",
+    ) and isinstance(activity_object, str):
         logger.warning(
             "Outbound %s activity '%s' has a bare string object_ '%s'."
             " Attempting DataLayer expansion (MV-09-001 violation).",

@@ -6758,3 +6758,28 @@ passed as a constructor argument from `SubmitReportReceivedUseCase`).
 ### Test Result
 
 1619 passed, 12 skipped, 182 deselected, 5581 subtests passed
+
+---
+
+## P347-BRIDGE — Extend outbox expansion bridge (COMPLETE 2026-05-22)
+
+**Task**: Extend the backward-compatibility expansion bridge in
+`handle_outbox_item` from `("Create", "Announce")` to also include
+`"Add"`, `"Invite"`, and `"Accept"` activity types. Added a TODO comment
+noting that `"Join"` and `"Remove"` will need the same treatment when
+implemented.
+
+### Files Changed
+
+- `vultron/adapters/driving/fastapi/outbox_handler.py`: Extended
+  `activity_type in (...)` tuple; updated comment block; added TODO for
+  `"Join"` and `"Remove"`.
+- `test/adapters/driving/fastapi/test_outbox.py`: Added 6 new parametrized
+  tests (3 expansion-success + 3 integrity-error-on-failure) covering
+  `Add`, `Invite`, `Accept`; moved top-level imports (`pytest`,
+  `VultronOutboxObjectIntegrityError`); added `_make_activity_with_bare_object`
+  helper.
+
+### Test Result
+
+1625 passed, 12 skipped, 182 deselected, 5581 subtests passed
