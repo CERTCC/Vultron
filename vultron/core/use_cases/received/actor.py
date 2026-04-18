@@ -31,14 +31,52 @@ class SuggestActorToCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
+        activity_id = request.activity_id
+        recommender_id = request.actor_id
+        invitee_id = request.object_id
+        case_id = request.target_id
+
+        if not invitee_id or not case_id:
+            logger.warning(
+                "SuggestActorToCaseReceived: missing invitee_id or case_id"
+                " in event '%s' — skipping",
+                activity_id,
+            )
+            return
+
+        # Persist the incoming recommendation for record-keeping.
         _idempotent_create(
             self._dl,
             request.activity_type,
-            request.activity_id,
+            activity_id,
             request.activity,
-            "SuggestActorToCase",
-            request.activity_id,
+            "RecommendActor",
+            activity_id,
         )
+
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.case.suggest_actor_tree import (
+            create_suggest_actor_tree,
+        )
+        from vultron.core.use_cases.received.sync import _find_local_actor_id
+
+        local_actor_id = _find_local_actor_id(self._dl)
+        if local_actor_id is None:
+            logger.warning(
+                "SuggestActorToCaseReceived: no local actor found in DataLayer"
+                " — skipping event '%s'",
+                activity_id,
+            )
+            return
+
+        tree = create_suggest_actor_tree(
+            recommendation_id=activity_id,
+            recommender_id=recommender_id,
+            invitee_id=invitee_id,
+            case_id=case_id,
+        )
+        bridge = BTBridge(datalayer=self._dl)
+        bridge.execute_with_setup(tree, actor_id=local_actor_id)
 
 
 class AcceptSuggestActorToCaseReceivedUseCase:

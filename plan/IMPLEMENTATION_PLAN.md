@@ -21,18 +21,6 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 All tasks in this section are prerequisites for **D5-7-HUMAN** sign-off.
 The section can proceed in parallel with PRIORITY-360.
 
-- [ ] **P347-SUGGESTBT**: Implement a proper BT in
-  `SuggestActorToCaseReceivedUseCase.execute()`:
-  - Precondition: the receiving actor is the case owner
-    (`case.attributed_to == actor_id`); skip silently if not.
-  - Emit `AcceptActorRecommendationActivity(to=[recommender_id])` and queue
-    in outbox.
-  - Emit `RmInviteToCaseActivity(actor=case_actor, object_=invitee,
-    target=case, to=[invitee_id])` and queue in outbox.
-  - Idempotent: if an invite for this actor+case already exists in the
-    DataLayer, skip and log.
-  Update tests to verify both activities are emitted and idempotency holds.
-
 - [ ] **P347-TRIGGERS**: Add new trigger endpoints:
   - `create-case` and `add-report-to-case` in
     `vultron/adapters/driving/fastapi/routers/trigger_case.py` with

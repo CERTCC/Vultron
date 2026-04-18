@@ -16,6 +16,9 @@ import logging
 from typing import Any, cast
 from unittest.mock import MagicMock
 
+import py_trees
+import pytest
+
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.core.use_cases.received.actor import (
@@ -497,6 +500,130 @@ class TestSuggestActorUseCases:
             ).execute()
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
+
+    @pytest.fixture(autouse=True)
+    def clear_blackboard(self):
+        py_trees.blackboard.Blackboard.storage.clear()
+        yield
+        py_trees.blackboard.Blackboard.storage.clear()
+
+    def _setup_dl_with_owner(self):
+        """Return a DataLayer seeded with a local Service actor and a case."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        local_actor_id = "https://example.org/actors/local-coordinator"
+        local_actor = as_Service(id_=local_actor_id)
+        case_id = "https://example.org/cases/suggest-test-case"
+        case = VulnerabilityCase(
+            id_=case_id,
+            name="SUGGEST-TEST",
+            attributed_to=local_actor_id,
+        )
+        dl.create(local_actor)
+        dl.create(case)
+        return dl, local_actor_id, case_id
+
+    def test_suggest_actor_emits_both_activities_when_owner(
+        self, make_payload
+    ):
+        """Owner emits Accept + Invite when receiving a recommendation."""
+        from vultron.wire.as2.vocab.activities.actor import (
+            RecommendActorActivity,
+        )
+
+        dl, local_actor_id, case_id = self._setup_dl_with_owner()
+        recommender_id = "https://example.org/actors/finder"
+        invitee_id = "https://example.org/actors/vendor"
+        invitee = as_Actor(id_=invitee_id)
+
+        recommendation = RecommendActorActivity(
+            id_="https://example.org/activities/rec-001",
+            actor=recommender_id,
+            object_=invitee,
+            target=case_id,
+            to=[local_actor_id],
+        )
+        event = make_payload(recommendation)
+
+        SuggestActorToCaseReceivedUseCase(dl, event).execute()
+
+        outbox = dl.outbox_list()
+        assert (
+            len(outbox) == 2
+        ), f"Expected 2 outbox entries (Accept + Invite), got {len(outbox)}"
+
+    def test_suggest_actor_skips_when_not_case_owner(self, make_payload):
+        """Non-owner silently skips — no outbox entries emitted."""
+        from vultron.wire.as2.vocab.activities.actor import (
+            RecommendActorActivity,
+        )
+
+        dl, local_actor_id, case_id = self._setup_dl_with_owner()
+        # Override case with a different owner
+        case = dl.read(case_id)
+        other_owner = "https://example.org/actors/other-owner"
+        case = cast(Any, case)
+        case = case.model_copy(update={"attributed_to": other_owner})
+        dl.save(case)
+
+        recommender_id = "https://example.org/actors/finder"
+        invitee_id = "https://example.org/actors/vendor"
+        invitee = as_Actor(id_=invitee_id)
+
+        recommendation = RecommendActorActivity(
+            id_="https://example.org/activities/rec-002",
+            actor=recommender_id,
+            object_=invitee,
+            target=case_id,
+            to=[local_actor_id],
+        )
+        event = make_payload(recommendation)
+
+        SuggestActorToCaseReceivedUseCase(dl, event).execute()
+
+        outbox = dl.outbox_list()
+        assert len(outbox) == 0, (
+            "Expected no outbox entries for non-owner, " f"got {len(outbox)}"
+        )
+
+    def test_suggest_actor_idempotent_when_invite_exists(self, make_payload):
+        """Second execute() adds no new outbox entries."""
+        from vultron.wire.as2.vocab.activities.actor import (
+            RecommendActorActivity,
+        )
+
+        dl, local_actor_id, case_id = self._setup_dl_with_owner()
+        recommender_id = "https://example.org/actors/finder"
+        invitee_id = "https://example.org/actors/vendor"
+        invitee = as_Actor(id_=invitee_id)
+
+        recommendation = RecommendActorActivity(
+            id_="https://example.org/activities/rec-003",
+            actor=recommender_id,
+            object_=invitee,
+            target=case_id,
+            to=[local_actor_id],
+        )
+        event = make_payload(recommendation)
+
+        # First execution
+        SuggestActorToCaseReceivedUseCase(dl, event).execute()
+        outbox_after_first = len(dl.outbox_list())
+
+        # Second execution (should be a no-op)
+        py_trees.blackboard.Blackboard.storage.clear()
+        SuggestActorToCaseReceivedUseCase(dl, event).execute()
+        outbox_after_second = len(dl.outbox_list())
+
+        assert (
+            outbox_after_first == 2
+        ), f"Expected 2 entries after first run, got {outbox_after_first}"
+        assert outbox_after_second == outbox_after_first, (
+            "Expected no new entries on second run (idempotency), "
+            f"got {outbox_after_second - outbox_after_first} extra"
+        )
 
 
 class TestOwnershipTransferUseCases:
