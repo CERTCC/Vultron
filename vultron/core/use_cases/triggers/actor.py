@@ -30,6 +30,7 @@ from vultron.core.use_cases.triggers._helpers import (
 )
 from vultron.core.use_cases.triggers.requests import (
     AcceptCaseInviteTriggerRequest,
+    InviteActorToCaseTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
@@ -83,6 +84,50 @@ class SvcSuggestActorToCaseUseCase:
             "Actor '%s' suggested actor '%s' for case '%s'",
             actor_id,
             self._request.suggested_actor_id,
+            case.id_,
+        )
+
+        return {
+            "activity": activity.model_dump(by_alias=True, exclude_none=True)
+        }
+
+
+class SvcInviteActorToCaseUseCase:
+    """Directly invite an actor to a case (case-owner action).
+
+    Emits an RmInviteToCaseActivity addressed to the invitee, queued in the
+    actor's outbox for delivery.
+    """
+
+    def __init__(
+        self, dl: DataLayer, request: InviteActorToCaseTriggerRequest
+    ) -> None:
+        self._dl = dl
+        self._request = request
+
+    def execute(self) -> dict[str, Any]:
+        actor_id = self._request.actor_id
+        actor = resolve_actor(actor_id, self._dl)
+        case = resolve_case(self._request.case_id, self._dl)
+
+        invitee_raw = self._dl.read(self._request.invitee_id)
+        if invitee_raw is None:
+            raise VultronNotFoundError("Actor", self._request.invitee_id)
+
+        activity = RmInviteToCaseActivity(
+            actor=actor.id_,
+            object_=cast(as_Actor, invitee_raw),
+            target=cast(VulnerabilityCase, case),
+            to=[self._request.invitee_id],
+        )
+        self._dl.create(activity)
+
+        add_activity_to_outbox(actor_id, activity.id_, self._dl)
+
+        logger.info(
+            "Actor '%s' invited actor '%s' to case '%s'",
+            actor_id,
+            self._request.invitee_id,
             case.id_,
         )
 

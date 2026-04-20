@@ -297,6 +297,19 @@ class AcceptCaseInviteRequest(BaseModel):
     invite_id: NonEmptyString
 
 
+class InviteActorToCaseRequest(BaseModel):
+    """Request body for the invite-actor-to-case trigger endpoint.
+
+    TB-03-001: Must include case_id and invitee_id.
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString
+    invitee_id: UriString
+
+
 class SyncLogEntryRequest(BaseModel):
     """Request body for the sync-log-entry trigger endpoint.
 

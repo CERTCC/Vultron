@@ -21,16 +21,6 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 All tasks in this section are prerequisites for **D5-7-HUMAN** sign-off.
 The section can proceed in parallel with PRIORITY-360.
 
-- [ ] **P347-PUPPETEER**: Convert scenario demos to trigger-based puppeteering:
-  - `three_actor_demo.py`: replace `coordinator_creates_case_on_case_actor`,
-    `coordinator_adds_report_to_case`, `coordinator_invites_actor`,
-    `actor_accepts_case_invite`, and `actor_accepts_embargo` with calls to
-    the trigger endpoints added in P347-TRIGGERS and P347-EMBARGOTRIGGERS.
-  - `multi_vendor_demo.py`: same pattern for its equivalent spoofing
-    functions.
-  - `two_actor_demo.py`: audit and convert any remaining direct inbox
-    injections.
-
 - [ ] **P347-SPECS**: Spec and notes updates:
   - `specs/triggerable-behaviors.md`: reflect trigger renames and additions
     from P347-EMBARGOTRIGGERS; add `create-case`, `add-report-to-case`,

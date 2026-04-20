@@ -78,6 +78,7 @@ from vultron.demo.utils import (
     demo_step,
     logfmt,
     post_to_inbox_and_wait,
+    post_to_trigger,
     ref_id,
     reset_datalayer,
     seed_actor,
@@ -217,28 +218,33 @@ def reset_containers(
 
 
 def vendor_creates_case_on_case_actor(
+    vendor_client: DataLayerClient,
     case_actor_client: DataLayerClient,
     case_actor: as_Actor,
     vendor: as_Actor,
     report: VulnerabilityReport,
 ) -> VulnerabilityCase:
     """Vendor creates the authoritative case on the CaseActor container."""
-    case = VulnerabilityCase(
-        attributed_to=vendor.id_,
-        name="Multi-Vendor Demo Case",
-        content=(
-            "Case initially managed by Vendor, later transferred to "
-            "Coordinator, who expands the coordination group to include "
-            "a second Vendor."
-        ),
-        vulnerability_reports=[report.id_],
+    with demo_step("Vendor creates the case via trigger"):
+        result = post_to_trigger(
+            client=vendor_client,
+            actor_id=vendor.id_,
+            behavior="create-case",
+            body={
+                "name": "Multi-Vendor Demo Case",
+                "content": (
+                    "Case initially managed by Vendor, later transferred to "
+                    "Coordinator, who expands the coordination group to include "
+                    "a second Vendor."
+                ),
+                "report_id": report.id_,
+            },
+        )
+    create_case = CreateCaseActivity.model_validate(result["activity"])
+    case = VulnerabilityCase.model_validate(
+        create_case.object_.model_dump(by_alias=True)  # type: ignore[union-attr]
     )
-    create_case = CreateCaseActivity(
-        actor=vendor.id_,
-        object_=case,
-        to=[case_actor.id_],
-    )
-    with demo_step("Vendor creates the case on the CaseActor container"):
+    with demo_step("Delivering CreateCase activity to CaseActor"):
         post_to_inbox_and_wait(case_actor_client, case_actor.id_, create_case)
     with demo_check("Case is stored in the CaseActor DataLayer"):
         verify_object_stored(case_actor_client, case.id_)
@@ -247,6 +253,7 @@ def vendor_creates_case_on_case_actor(
 
 
 def vendor_adds_report_to_case(
+    vendor_client: DataLayerClient,
     case_actor_client: DataLayerClient,
     case_actor: as_Actor,
     vendor: as_Actor,
@@ -254,13 +261,20 @@ def vendor_adds_report_to_case(
     report: VulnerabilityReport,
 ) -> None:
     """Link the submitted report to the authoritative case."""
-    add_report = AddReportToCaseActivity(
-        actor=vendor.id_,
-        object_=report,
-        target=case.id_,
-        to=[case_actor.id_],
-    )
-    with demo_step("Vendor links the submitted report to the case"):
+    with demo_step(
+        "Vendor links the submitted report to the case via trigger"
+    ):
+        result = post_to_trigger(
+            client=vendor_client,
+            actor_id=vendor.id_,
+            behavior="add-report-to-case",
+            body={
+                "case_id": case.id_,
+                "report_id": report.id_,
+            },
+        )
+    add_report = AddReportToCaseActivity.model_validate(result["activity"])
+    with demo_step("Delivering AddReportToCase activity to CaseActor"):
         post_to_inbox_and_wait(case_actor_client, case_actor.id_, add_report)
     with demo_check("CaseActor stores the AddReportToCase activity"):
         verify_object_stored(case_actor_client, add_report.id_)
@@ -484,7 +498,7 @@ def run_multi_vendor_demo(
     vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
     vendor_in_case_actor = get_actor_by_id(case_actor_client, vendor.id_)
     finder_in_finder = get_actor_by_id(finder_client, finder.id_)
-    finder_in_case_actor = get_actor_by_id(case_actor_client, finder.id_)
+    finder_in_vendor = get_actor_by_id(vendor_client, finder.id_)
     coordinator_in_coordinator = get_actor_by_id(
         coordinator_client, coordinator.id_
     )
@@ -509,28 +523,32 @@ def run_multi_vendor_demo(
     )
 
     case = vendor_creates_case_on_case_actor(
+        vendor_client=vendor_client,
         case_actor_client=case_actor_client,
         case_actor=case_actor,
-        vendor=vendor_in_case_actor,
+        vendor=vendor_in_vendor,
         report=report,
     )
     vendor_adds_report_to_case(
+        vendor_client=vendor_client,
         case_actor_client=case_actor_client,
         case_actor=case_actor,
-        vendor=vendor_in_case_actor,
+        vendor=vendor_in_vendor,
         case=case,
         report=report,
     )
 
     finder_invite = coordinator_invites_actor(
+        actor_client=vendor_client,
+        recipient_client=finder_client,
+        actor=vendor_in_vendor,
+        recipient=finder_in_vendor,
+        case=case,
         case_actor_client=case_actor_client,
         case_actor=case_actor,
-        recipient_client=finder_client,
-        coordinator=vendor_in_case_actor,
-        recipient=finder_in_case_actor,
-        case=case,
     )
     actor_accepts_case_invite(
+        actor_client=finder_client,
         case_actor_client=case_actor_client,
         case_actor=case_actor,
         actor=finder_in_finder,
@@ -556,7 +574,6 @@ def run_multi_vendor_demo(
     )
     actor_accepts_embargo(
         case_actor_client=case_actor_client,
-        case_actor=case_actor,
         actor=finder_in_finder,
         case=case,
         proposal=embargo_proposal,
@@ -564,7 +581,6 @@ def run_multi_vendor_demo(
     # Vendor also accepts the embargo they proposed.
     actor_accepts_embargo(
         case_actor_client=case_actor_client,
-        case_actor=case_actor,
         actor=vendor_in_vendor,
         case=case,
         proposal=embargo_proposal,
@@ -591,14 +607,14 @@ def run_multi_vendor_demo(
     # ── Phase 3: Coordinator invites Vendor2 ─────────────────────────────────
 
     vendor2_invite = coordinator_invites_actor(
-        case_actor_client=case_actor_client,
-        case_actor=case_actor,
+        actor_client=case_actor_client,
         recipient_client=vendor2_client,
-        coordinator=coordinator_in_case_actor,
+        actor=coordinator_in_case_actor,
         recipient=vendor2_in_case_actor,
         case=case,
     )
     actor_accepts_case_invite(
+        actor_client=vendor2_client,
         case_actor_client=case_actor_client,
         case_actor=case_actor,
         actor=vendor2_in_vendor2,
@@ -618,7 +634,6 @@ def run_multi_vendor_demo(
     )
     actor_accepts_embargo(
         case_actor_client=case_actor_client,
-        case_actor=case_actor,
         actor=vendor2_in_vendor2,
         case=case,
         proposal=embargo_proposal,

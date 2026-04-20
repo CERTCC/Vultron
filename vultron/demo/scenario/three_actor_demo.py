@@ -61,7 +61,6 @@ from vultron.wire.as2.vocab.activities.case import (
     RmInviteToCaseActivity,
 )
 from vultron.wire.as2.vocab.activities.embargo import (
-    EmAcceptEmbargoActivity,
     EmProposeEmbargoActivity,
 )
 from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
@@ -220,27 +219,32 @@ def finder_submits_report_to_coordinator(
 
 
 def coordinator_creates_case_on_case_actor(
+    coordinator_client: DataLayerClient,
     case_actor_client: DataLayerClient,
     case_actor: as_Actor,
     coordinator: as_Actor,
     report: VulnerabilityReport,
 ) -> VulnerabilityCase:
     """Create the authoritative case on the dedicated CaseActor container."""
-    case = VulnerabilityCase(
-        attributed_to=coordinator.id_,
-        name="Three-Actor Demo Case",
-        content=(
-            "Case coordinated by the Coordinator with Finder and Vendor "
-            "participating through the dedicated CaseActor container."
-        ),
-        vulnerability_reports=[report.id_],
+    with demo_step("Coordinator creates the case via trigger"):
+        result = post_to_trigger(
+            client=coordinator_client,
+            actor_id=coordinator.id_,
+            behavior="create-case",
+            body={
+                "name": "Three-Actor Demo Case",
+                "content": (
+                    "Case coordinated by the Coordinator with Finder and Vendor "
+                    "participating through the dedicated CaseActor container."
+                ),
+                "report_id": report.id_,
+            },
+        )
+    create_case = CreateCaseActivity.model_validate(result["activity"])
+    case = VulnerabilityCase.model_validate(
+        create_case.object_.model_dump(by_alias=True)  # type: ignore[union-attr]
     )
-    create_case = CreateCaseActivity(
-        actor=coordinator.id_,
-        object_=case,
-        to=[case_actor.id_],
-    )
-    with demo_step("Coordinator creates the case on the CaseActor container"):
+    with demo_step("Delivering CreateCase activity to CaseActor"):
         post_to_inbox_and_wait(case_actor_client, case_actor.id_, create_case)
     with demo_check("Case is stored in the CaseActor DataLayer"):
         verify_object_stored(case_actor_client, case.id_)
@@ -249,6 +253,7 @@ def coordinator_creates_case_on_case_actor(
 
 
 def coordinator_adds_report_to_case(
+    coordinator_client: DataLayerClient,
     case_actor_client: DataLayerClient,
     case_actor: as_Actor,
     coordinator: as_Actor,
@@ -256,62 +261,84 @@ def coordinator_adds_report_to_case(
     report: VulnerabilityReport,
 ) -> None:
     """Link the submitted report to the authoritative case."""
-    add_report = AddReportToCaseActivity(
-        actor=coordinator.id_,
-        object_=report,
-        target=case.id_,
-        to=[case_actor.id_],
-    )
-    with demo_step("Coordinator links the submitted report to the case"):
+    with demo_step(
+        "Coordinator links the submitted report to the case via trigger"
+    ):
+        result = post_to_trigger(
+            client=coordinator_client,
+            actor_id=coordinator.id_,
+            behavior="add-report-to-case",
+            body={
+                "case_id": case.id_,
+                "report_id": report.id_,
+            },
+        )
+    add_report = AddReportToCaseActivity.model_validate(result["activity"])
+    with demo_step("Delivering AddReportToCase activity to CaseActor"):
         post_to_inbox_and_wait(case_actor_client, case_actor.id_, add_report)
     with demo_check("CaseActor stores the AddReportToCase activity"):
         verify_object_stored(case_actor_client, add_report.id_)
 
 
 def coordinator_invites_actor(
-    case_actor_client: DataLayerClient,
-    case_actor: as_Actor,
+    actor_client: DataLayerClient,
     recipient_client: DataLayerClient,
-    coordinator: as_Actor,
+    actor: as_Actor,
     recipient: as_Actor,
     case: VulnerabilityCase,
+    case_actor_client: DataLayerClient | None = None,
+    case_actor: as_Actor | None = None,
 ) -> RmInviteToCaseActivity:
-    """Record and deliver a case invitation from the Coordinator."""
-    invite = RmInviteToCaseActivity(
-        actor=coordinator.id_,
-        object_=recipient,
-        target=case.id_,
-        to=[recipient.id_],
-    )
-    if case_actor_client.base_url != recipient_client.base_url:
-        with demo_step(
-            "Coordinator records the invite on the CaseActor container"
-        ):
+    """Record and deliver a case invitation from the case owner."""
+    with demo_step(f"{actor.name} invites {recipient.name} via trigger"):
+        result = post_to_trigger(
+            client=actor_client,
+            actor_id=actor.id_,
+            behavior="invite-actor-to-case",
+            body={
+                "case_id": case.id_,
+                "invitee_id": recipient.id_,
+            },
+        )
+    invite = RmInviteToCaseActivity.model_validate(result["activity"])
+
+    if (
+        case_actor_client is not None
+        and case_actor is not None
+        and case_actor_client.base_url != actor_client.base_url
+    ):
+        with demo_step("Delivering invite to CaseActor container"):
             post_to_inbox_and_wait(case_actor_client, case_actor.id_, invite)
         with demo_check("Invite is stored in the CaseActor DataLayer"):
             verify_object_stored(case_actor_client, invite.id_)
 
-    with demo_step(f"Coordinator invites {recipient.name} to the case"):
-        post_to_inbox_and_wait(recipient_client, recipient.id_, invite)
-    with demo_check(f"Invite is stored in {recipient.name}'s DataLayer"):
-        verify_object_stored(recipient_client, invite.id_)
+    if recipient_client.base_url != actor_client.base_url:
+        with demo_step(f"Delivering invite to {recipient.name}"):
+            post_to_inbox_and_wait(recipient_client, recipient.id_, invite)
+        with demo_check(f"Invite is stored in {recipient.name}'s DataLayer"):
+            verify_object_stored(recipient_client, invite.id_)
+
     logger.info("Invite sent to %s: %s", recipient.name, invite.id_)
     return invite
 
 
 def actor_accepts_case_invite(
+    actor_client: DataLayerClient,
     case_actor_client: DataLayerClient,
     case_actor: as_Actor,
     actor: as_Actor,
     invite: RmInviteToCaseActivity,
 ) -> RmAcceptInviteToCaseActivity:
     """Accept a case invitation by notifying the CaseActor container."""
-    accept = RmAcceptInviteToCaseActivity(
-        actor=actor.id_,
-        object_=invite,
-        to=[case_actor.id_],
-    )
-    with demo_step(f"{actor.name} accepts the case invitation"):
+    with demo_step(f"{actor.name} accepts the case invitation via trigger"):
+        result = post_to_trigger(
+            client=actor_client,
+            actor_id=actor.id_,
+            behavior="accept-case-invite",
+            body={"invite_id": invite.id_},
+        )
+    accept = RmAcceptInviteToCaseActivity.model_validate(result["activity"])
+    with demo_step("Delivering accept activity to CaseActor"):
         post_to_inbox_and_wait(case_actor_client, case_actor.id_, accept)
     with demo_check("Accept activity is stored in the CaseActor DataLayer"):
         verify_object_stored(case_actor_client, accept.id_)
@@ -369,24 +396,22 @@ def deliver_embargo_proposal(
 
 def actor_accepts_embargo(
     case_actor_client: DataLayerClient,
-    case_actor: as_Actor,
     actor: as_Actor,
     case: VulnerabilityCase,
     proposal: EmProposeEmbargoActivity,
-) -> EmAcceptEmbargoActivity:
+) -> None:
     """Accept the active embargo proposal on the authoritative case."""
-    accept = EmAcceptEmbargoActivity(
-        actor=actor.id_,
-        object_=proposal,
-        context=case.id_,
-        to=[case_actor.id_],
-    )
-    with demo_step(f"{actor.name} accepts the embargo proposal"):
-        post_to_inbox_and_wait(case_actor_client, case_actor.id_, accept)
-    with demo_check("Embargo acceptance is stored in the CaseActor DataLayer"):
-        verify_object_stored(case_actor_client, accept.id_)
-    logger.info("Embargo accepted by %s: %s", actor.name, accept.id_)
-    return accept
+    with demo_step(f"{actor.name} accepts the embargo proposal via trigger"):
+        post_to_trigger(
+            client=case_actor_client,
+            actor_id=actor.id_,
+            behavior="accept-embargo",
+            body={
+                "case_id": case.id_,
+                "proposal_id": proposal.id_,
+            },
+        )
+    logger.info("Embargo accepted by %s", actor.name)
 
 
 def verify_case_actor_case_state(
@@ -505,8 +530,8 @@ def run_three_actor_demo(
     coordinator_in_case_actor = get_actor_by_id(
         case_actor_client, coordinator.id_
     )
-    finder_in_case_actor = get_actor_by_id(case_actor_client, finder.id_)
-    vendor_in_case_actor = get_actor_by_id(case_actor_client, vendor.id_)
+    finder_in_coordinator = get_actor_by_id(coordinator_client, finder.id_)
+    vendor_in_coordinator = get_actor_by_id(coordinator_client, vendor.id_)
     finder_in_finder = get_actor_by_id(finder_client, finder.id_)
     vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
 
@@ -517,28 +542,32 @@ def run_three_actor_demo(
     )
 
     case = coordinator_creates_case_on_case_actor(
+        coordinator_client=coordinator_client,
         case_actor_client=case_actor_client,
         case_actor=case_actor,
-        coordinator=coordinator_in_case_actor,
+        coordinator=coordinator_in_coordinator,
         report=report,
     )
     coordinator_adds_report_to_case(
+        coordinator_client=coordinator_client,
         case_actor_client=case_actor_client,
         case_actor=case_actor,
-        coordinator=coordinator_in_case_actor,
+        coordinator=coordinator_in_coordinator,
         case=case,
         report=report,
     )
 
     finder_invite = coordinator_invites_actor(
+        actor_client=coordinator_client,
+        recipient_client=finder_client,
+        actor=coordinator_in_coordinator,
+        recipient=finder_in_coordinator,
+        case=case,
         case_actor_client=case_actor_client,
         case_actor=case_actor,
-        recipient_client=finder_client,
-        coordinator=coordinator_in_case_actor,
-        recipient=finder_in_case_actor,
-        case=case,
     )
     actor_accepts_case_invite(
+        actor_client=finder_client,
         case_actor_client=case_actor_client,
         case_actor=case_actor,
         actor=finder_in_finder,
@@ -563,21 +592,22 @@ def run_three_actor_demo(
     )
     actor_accepts_embargo(
         case_actor_client=case_actor_client,
-        case_actor=case_actor,
         actor=finder_in_finder,
         case=case,
         proposal=embargo_proposal,
     )
 
     vendor_invite = coordinator_invites_actor(
+        actor_client=coordinator_client,
+        recipient_client=vendor_client,
+        actor=coordinator_in_coordinator,
+        recipient=vendor_in_coordinator,
+        case=case,
         case_actor_client=case_actor_client,
         case_actor=case_actor,
-        recipient_client=vendor_client,
-        coordinator=coordinator_in_case_actor,
-        recipient=vendor_in_case_actor,
-        case=case,
     )
     actor_accepts_case_invite(
+        actor_client=vendor_client,
         case_actor_client=case_actor_client,
         case_actor=case_actor,
         actor=vendor_in_vendor,
@@ -597,7 +627,6 @@ def run_three_actor_demo(
     )
     actor_accepts_embargo(
         case_actor_client=case_actor_client,
-        case_actor=case_actor,
         actor=vendor_in_vendor,
         case=case,
         proposal=embargo_proposal,

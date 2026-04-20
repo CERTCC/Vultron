@@ -24,11 +24,13 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Path, status
 
 from vultron.adapters.driving.fastapi._trigger_adapter import (
     accept_case_invite_trigger,
+    invite_actor_to_case_trigger,
     suggest_actor_to_case_trigger,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.trigger_models import (
     AcceptCaseInviteRequest,
+    InviteActorToCaseRequest,
     SuggestActorToCaseRequest,
 )
 from vultron.core.ports.datalayer import DataLayer
@@ -128,6 +130,40 @@ def trigger_accept_case_invite(
     result = accept_case_invite_trigger(
         actor_id=actor_id,
         invite_id=body.invite_id,
+        dl=dl,
+    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result
+
+
+@router.post(
+    "/{actor_id}/trigger/invite-actor-to-case",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Directly invite an actor to a case.",
+    description=(
+        "Emits an RmInviteToCaseActivity from the case owner to the "
+        "specified invitee.  The case must exist in the actor's DataLayer."
+    ),
+    operation_id="actors_trigger_invite_actor_to_case",
+)
+def trigger_invite_actor_to_case(
+    actor_id: str,
+    body: InviteActorToCaseRequest,
+    background_tasks: BackgroundTasks,
+    dl: DataLayer = Depends(_actor_dl),
+    actor_dl: DataLayer = Depends(_canonical_actor_dl),
+) -> dict:
+    """
+    Trigger the invite-actor-to-case behavior for the given actor.
+
+    Implements:
+        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-04-001
+    """
+    result = invite_actor_to_case_trigger(
+        actor_id=actor_id,
+        case_id=body.case_id,
+        invitee_id=body.invitee_id,
         dl=dl,
     )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)

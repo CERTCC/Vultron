@@ -95,9 +95,6 @@ class TestCoordinatorCreatesCase:
         coordinator_in_coordinator = demo.get_actor_by_id(
             coordinator_client, coordinator.id_
         )
-        coordinator_in_case_actor = demo.get_actor_by_id(
-            case_actor_client, coordinator.id_
-        )
 
         report, _offer = demo.finder_submits_report_to_coordinator(
             coordinator_client=coordinator_client,
@@ -105,20 +102,16 @@ class TestCoordinatorCreatesCase:
             coordinator=coordinator_in_coordinator,
         )
         case = demo.coordinator_creates_case_on_case_actor(
+            coordinator_client=coordinator_client,
             case_actor_client=case_actor_client,
             case_actor=case_actor,
-            coordinator=coordinator_in_case_actor,
+            coordinator=coordinator_in_coordinator,
             report=report,
         )
 
         assert case.id_ is not None
         case_ids = case_actor_client.get("/datalayer/VulnerabilityCases/")
         assert case.id_ in case_ids
-        if coordinator_client.base_url != case_actor_client.base_url:
-            coordinator_case_ids = coordinator_client.get(
-                "/datalayer/VulnerabilityCases/"
-            )
-            assert case.id_ not in coordinator_case_ids
 
 
 class TestRunThreeActorDemo:

@@ -36,6 +36,7 @@ from vultron.core.use_cases.triggers.case import (
 )
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptCaseInviteUseCase,
+    SvcInviteActorToCaseUseCase,
     SvcSuggestActorToCaseUseCase,
 )
 from vultron.core.use_cases.triggers.embargo import (
@@ -63,6 +64,7 @@ from vultron.core.use_cases.triggers.requests import (
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
     InvalidateReportTriggerRequest,
+    InviteActorToCaseTriggerRequest,
     ProposeEmbargoRevisionTriggerRequest,
     ProposeEmbargoTriggerRequest,
     RejectEmbargoTriggerRequest,
@@ -294,3 +296,18 @@ def accept_case_invite_trigger(
             invite_id=invite_id,
         )
         return SvcAcceptCaseInviteUseCase(dl, request).execute()
+
+
+def invite_actor_to_case_trigger(
+    actor_id: str,
+    case_id: str,
+    invitee_id: str,
+    dl: DataLayer,
+) -> dict:
+    with domain_error_translation():
+        request = InviteActorToCaseTriggerRequest(
+            actor_id=actor_id,
+            case_id=case_id,
+            invitee_id=invitee_id,
+        )
+        return SvcInviteActorToCaseUseCase(dl, request).execute()

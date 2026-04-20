@@ -111,9 +111,6 @@ class TestVendorCreatesCase:
             vendor2_client=vendor2_client,
         )
         vendor_in_vendor = demo.get_actor_by_id(vendor_client, vendor.id_)
-        vendor_in_case_actor = demo.get_actor_by_id(
-            case_actor_client, vendor.id_
-        )
 
         report, report_offer = demo.finder_submits_report(
             vendor_client=vendor_client,
@@ -126,9 +123,10 @@ class TestVendorCreatesCase:
             offer_id=report_offer.id_,
         )
         case = demo.vendor_creates_case_on_case_actor(
+            vendor_client=vendor_client,
             case_actor_client=case_actor_client,
             case_actor=case_actor,
-            vendor=vendor_in_case_actor,
+            vendor=vendor_in_vendor,
             report=report,
         )
 
@@ -140,7 +138,7 @@ class TestVendorCreatesCase:
         stored_case = demo.VulnerabilityCase(**case_data)
         from vultron.demo.scenario.multi_vendor_demo import ref_id as _ref_id
 
-        assert _ref_id(stored_case.attributed_to) == vendor_in_case_actor.id_
+        assert _ref_id(stored_case.attributed_to) == vendor_in_vendor.id_
 
 
 class TestOwnershipTransfer:
@@ -175,6 +173,7 @@ class TestOwnershipTransfer:
             case_actor_client=case_actor_client,
             vendor2_client=vendor2_client,
         )
+        vendor_in_vendor = demo.get_actor_by_id(vendor_client, vendor.id_)
         vendor_in_case_actor = demo.get_actor_by_id(
             case_actor_client, vendor.id_
         )
@@ -185,12 +184,13 @@ class TestOwnershipTransfer:
         report, _ = demo.finder_submits_report(
             vendor_client=vendor_client,
             finder=finder,
-            vendor=demo.get_actor_by_id(vendor_client, vendor.id_),
+            vendor=vendor_in_vendor,
         )
         case = demo.vendor_creates_case_on_case_actor(
+            vendor_client=vendor_client,
             case_actor_client=case_actor_client,
             case_actor=case_actor,
-            vendor=vendor_in_case_actor,
+            vendor=vendor_in_vendor,
             report=report,
         )
 
@@ -199,7 +199,7 @@ class TestOwnershipTransfer:
         initial_case = demo.VulnerabilityCase(**case_data)
         from vultron.demo.scenario.multi_vendor_demo import ref_id as _ref_id
 
-        assert _ref_id(initial_case.attributed_to) == vendor_in_case_actor.id_
+        assert _ref_id(initial_case.attributed_to) == vendor_in_vendor.id_
 
         offer = demo.vendor_offers_case_ownership_to_coordinator(
             case_actor_client=case_actor_client,

@@ -175,3 +175,13 @@ class AcceptCaseInviteTriggerRequest(TriggerRequest):
     """
 
     invite_id: NonEmptyString
+
+
+class InviteActorToCaseTriggerRequest(CaseTriggerRequest):
+    """Trigger request for the case owner to directly invite an actor.
+
+    Emits an RmInviteToCaseActivity addressed to the invitee, queued in the
+    actor's outbox for delivery.
+    """
+
+    invitee_id: NonEmptyString
