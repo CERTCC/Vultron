@@ -233,7 +233,7 @@ class PersistCase(DataLayerAction):
             return Status.FAILURE
 
         try:
-            self.datalayer.create(self.case_obj)
+            self.datalayer.save(self.case_obj)
             self.logger.info(
                 f"{self.name}: Persisted VulnerabilityCase"
                 f" {self.case_obj.id_}"
@@ -244,16 +244,6 @@ class PersistCase(DataLayerAction):
             )
             self.blackboard.case_id = self.case_obj.id_
 
-            return Status.SUCCESS
-
-        except ValueError as e:
-            self.logger.warning(
-                f"{self.name}: Case {self.case_obj.id_} already exists: {e}"
-            )
-            self.blackboard.register_key(
-                key="case_id", access=py_trees.common.Access.WRITE
-            )
-            self.blackboard.case_id = self.case_obj.id_
             return Status.SUCCESS
 
         except Exception as e:

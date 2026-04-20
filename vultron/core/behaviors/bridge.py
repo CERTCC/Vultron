@@ -307,6 +307,36 @@ class BTBridge:
         return self.execute_tree(bt, max_iterations)
 
     @staticmethod
+    def get_failure_reason(
+        tree: py_trees.behaviour.Behaviour,
+    ) -> str:
+        """Return a human-readable explanation for a tree that returned FAILURE.
+
+        Performs a depth-first walk of the tree and returns the
+        ``feedback_message`` of the first node whose status is
+        ``Status.FAILURE``.  If no node carries a message, the class name of
+        that node is returned instead.  If the tree succeeded (or is still
+        RUNNING), an empty string is returned.
+
+        Args:
+            tree: Root behavior node to inspect.
+
+        Returns:
+            First FAILURE node's ``feedback_message``, its class name, or
+            ``""`` when no FAILURE node is found.
+        """
+        stack = [tree]
+        while stack:
+            node = stack.pop()
+            if node.status == Status.FAILURE:
+                if not node.children:
+                    # Leaf node — this is the actual source of failure.
+                    return node.feedback_message or node.__class__.__name__
+                # Composite node — the failure originates in a child.
+                stack.extend(reversed(node.children))
+        return ""
+
+    @staticmethod
     def get_tree_visualization(
         tree: py_trees.behaviour.Behaviour, show_status: bool = False
     ) -> str:

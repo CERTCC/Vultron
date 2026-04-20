@@ -70,15 +70,6 @@ Architectural decisions for each issue are documented in
   `Organization`, `Service`). Requires either subtype-aware matching in
   `_match_field()` or a custom actor-type predicate.
 
-- [ ] **DR-08 — `create_note`: AttachNoteToCaseNode BT node (High, two-actor):**
-  Implement `AttachNoteToCaseNode` BT node that reads the case from the
-  DataLayer, appends the note's `id_` to `case.notes` if not already present
-  (idempotent), and calls `dl.save(case)`. Wire this into the `create_note`
-  BT so the note→case linkage is expressed in the tree. Fix idempotency: the
-  attach path must run even if the `Note` object already exists in the
-  DataLayer — check `case.notes`, not `dl.read(note_id)`, to determine whether
-  to skip.
-
 - [ ] **DR-09 — Actor ID normalization: full URI only (Low, all):**
   Normalize actor IDs to full URIs at the point they are first established
   (actor creation / seed / session context). `add_activity_to_outbox` and all
@@ -106,19 +97,6 @@ Architectural decisions for each issue are documented in
   check both conditions and emit `Announce(VulnerabilityCase)` with the
   full object when both are satisfied. This is a BT cascade — not post-BT
   procedural code.
-
-- [ ] **DR-11 — PersistCase: upsert semantics (Low, all):**
-  Change `PersistCase` BT node to call `dl.save()` with upsert / idempotent
-  semantics so that a second actor processing the same `CreateCase` activity
-  silently succeeds rather than logging a duplicate-key warning.
-
-- [ ] **DR-12 — `get_failure_reason(tree)` helper (Medium, three-actor,
-  multi-vendor):**
-  Add a `get_failure_reason(tree)` utility in
-  `vultron/core/behaviors/bridge.py` that walks the tree after a `FAILURE`
-  result and returns the first failing node's `feedback_message` (py_trees
-  standard attribute). Use this in every BT-failure log message so that
-  `EngageCaseBT` (and all other BTs) produce actionable diagnostic detail.
 
 - [ ] **DR-13 — `SubmitReportReceivedUseCase`: remove vendor/target
   assumptions (Medium, three-actor):**

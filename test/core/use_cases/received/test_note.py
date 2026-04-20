@@ -73,6 +73,66 @@ class TestNoteUseCases:
         stored = dl.get(note.type_.value, note.id_)
         assert stored is not None
 
+    def test_create_note_attaches_to_case_when_context_set(
+        self, monkeypatch, make_payload
+    ):
+        """create_note attaches the Note to the case when note.context is set."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/case_cn1",
+            name="Context Case",
+        )
+        dl.create(case)
+
+        note = as_Note(
+            id_="https://example.org/notes/note_ctx1",
+            content="Note with context",
+            context=case.id_,
+        )
+        activity = as_Create(
+            actor="https://example.org/users/finder",
+            object_=note,
+        )
+        event = make_payload(activity)
+
+        CreateNoteReceivedUseCase(dl, event).execute()
+
+        refreshed = dl.read(case.id_)
+        assert refreshed is not None
+        refreshed = cast(VulnerabilityCase, refreshed)
+        assert note.id_ in refreshed.notes
+
+    def test_create_note_attach_to_case_idempotent(
+        self, monkeypatch, make_payload
+    ):
+        """create_note is idempotent when note already attached to case."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        note_id = "https://example.org/notes/note_ctx2"
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/case_cn2",
+            name="Idempotent Case",
+            notes=[note_id],
+        )
+        dl.create(case)
+
+        note = as_Note(
+            id_=note_id,
+            content="Note already in case",
+            context=case.id_,
+        )
+        activity = as_Create(
+            actor="https://example.org/users/finder",
+            object_=note,
+        )
+        event = make_payload(activity)
+
+        CreateNoteReceivedUseCase(dl, event).execute()
+
+        refreshed = dl.read(case.id_)
+        assert refreshed is not None
+        refreshed = cast(VulnerabilityCase, refreshed)
+        assert refreshed.notes.count(note_id) == 1
+
     def test_add_note_to_case_appends_note(self, monkeypatch, make_payload):
         """add_note_to_case appends note ID to case.notes and persists."""
         dl = SqliteDataLayer("sqlite:///:memory:")

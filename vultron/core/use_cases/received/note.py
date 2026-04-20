@@ -3,6 +3,8 @@
 import logging
 from typing import Any, cast
 
+from py_trees.common import Status
+
 from vultron.core.models.events.note import (
     AddNoteToCaseReceivedEvent,
     CreateNoteReceivedEvent,
@@ -10,7 +12,7 @@ from vultron.core.models.events.note import (
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.models.protocols import is_case_model
-from vultron.core.use_cases._helpers import _as_id, _idempotent_create
+from vultron.core.use_cases._helpers import _as_id
 from vultron.wire.as2.vocab.activities.case import AddNoteToCaseActivity
 
 logger = logging.getLogger(__name__)
@@ -25,14 +27,35 @@ class CreateNoteReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        _idempotent_create(
-            self._dl,
-            request.object_type,
-            request.note_id,
-            request.note,
-            "Note",
-            request.activity_id,
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.note.create_note_tree import (
+            create_note_tree,
         )
+
+        note = request.note
+        if note is None:
+            logger.warning(
+                "create_note: no note domain object in event for activity '%s'",
+                request.activity_id,
+            )
+            return
+
+        case_id: str | None = note.context
+        actor_id = request.actor_id
+
+        bridge = BTBridge(datalayer=self._dl)
+        tree = create_note_tree(note_obj=note, case_id=case_id)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=actor_id, activity=request
+        )
+
+        if result.status != Status.SUCCESS:
+            reason = BTBridge.get_failure_reason(tree)
+            logger.warning(
+                "CreateNoteBT did not succeed for activity '%s': %s",
+                request.activity_id,
+                reason or result.feedback_message,
+            )
 
 
 class AddNoteToCaseReceivedUseCase:
