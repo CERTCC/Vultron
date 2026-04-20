@@ -55,21 +55,6 @@ Architectural decisions for each issue are documented in
   - Full case details MUST NOT be sent until BOTH rm_state=ACCEPTED AND
     embargo_adherence=True (or no active embargo)
 
-- [ ] **DR-07 — ActivityPattern discrimination requirement (Low/arch, all):**
-  Audit `SEMANTICS_ACTIVITY_PATTERNS` in `vultron/wire/as2/extractor.py`.
-  Every pattern must match on at minimum `(Activity type, Object type)`.
-  No bare Activity-type-only patterns. Deeply nested activities (e.g.,
-  `Accept(Invite(...))`) must also check the nested object type where needed
-  to disambiguate (e.g., `Accept(Invite(embargo))` vs
-  `Accept(Invite(case))`). `AnnounceLogEntryActivity` pattern immediate fix
-  is already complete.
-
-  **Remaining:** `InviteActorToCasePattern` needs `object_` discriminator, but
-  `AOtype.ACTOR` cannot be used directly — the pattern matcher uses exact
-  `type_` string equality, while real actors use subtypes (`Person`,
-  `Organization`, `Service`). Requires either subtype-aware matching in
-  `_match_field()` or a custom actor-type predicate.
-
 - [ ] **DR-09 — Actor ID normalization: full URI only (Low, all):**
   Normalize actor IDs to full URIs at the point they are first established
   (actor creation / seed / session context). `add_activity_to_outbox` and all

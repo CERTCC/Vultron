@@ -12,8 +12,16 @@ from vultron.wire.as2.extractor import (
 )
 from vultron.wire.as2.vocab.activities.case import (
     OfferCaseOwnershipTransferActivity,
+    RmAcceptInviteToCaseActivity,
+    RmInviteToCaseActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Accept
+from vultron.wire.as2.vocab.base.objects.actors import (
+    as_Actor,
+    as_Organization,
+    as_Person,
+    as_Service,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 
@@ -211,3 +219,100 @@ def test_accept_with_bare_string_object_returns_unknown():
     )
     result = find_matching_semantics(accept)
     assert result == MessageSemantics.UNKNOWN
+
+
+# ---------------------------------------------------------------------------
+# DR-07 — Actor subtype-aware pattern matching for InviteActorToCasePattern
+# ---------------------------------------------------------------------------
+
+
+CASE_URI = "https://example.org/cases/case1"
+ACTOR_URI = "https://example.org/actors/alice"
+OWNER_URI = "https://example.org/actors/owner"
+
+
+def _make_case() -> VulnerabilityCase:
+    return VulnerabilityCase(id_=CASE_URI, name="TEST-001")
+
+
+@pytest.mark.parametrize(
+    "actor_obj",
+    [
+        as_Actor(id_=ACTOR_URI),
+        as_Person(id_=ACTOR_URI),
+        as_Organization(id_=ACTOR_URI),
+        as_Service(id_=ACTOR_URI),
+    ],
+    ids=["base-Actor", "Person", "Organization", "Service"],
+)
+def test_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
+    """InviteActorToCasePattern must match Invite(actor_subtype, target=Case).
+
+    DR-07: _match_field() must be subtype-aware for AOtype.ACTOR so that
+    Person, Organization, and Service (the real actor subtypes used in
+    production) are correctly identified as INVITE_ACTOR_TO_CASE.
+    """
+    invite = RmInviteToCaseActivity(
+        id_="https://example.org/invitations/1",
+        actor=OWNER_URI,
+        object_=actor_obj,
+        target=_make_case(),
+    )
+    result = find_matching_semantics(invite)
+    assert result == MessageSemantics.INVITE_ACTOR_TO_CASE, (
+        f"Expected INVITE_ACTOR_TO_CASE for Invite({type(actor_obj).__name__}), "
+        f"got {result}"
+    )
+
+
+@pytest.mark.parametrize(
+    "actor_obj",
+    [
+        as_Actor(id_=ACTOR_URI),
+        as_Person(id_=ACTOR_URI),
+        as_Organization(id_=ACTOR_URI),
+        as_Service(id_=ACTOR_URI),
+    ],
+    ids=["base-Actor", "Person", "Organization", "Service"],
+)
+def test_accept_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
+    """AcceptInviteActorToCasePattern must match Accept(Invite(actor_subtype, target=Case)).
+
+    The nested-pattern check propagates actor subtype-awareness through the
+    AcceptInviteActorToCasePattern → InviteActorToCasePattern chain.
+    """
+    invite = RmInviteToCaseActivity(
+        id_="https://example.org/invitations/1",
+        actor=OWNER_URI,
+        object_=actor_obj,
+        target=_make_case(),
+    )
+    accept = RmAcceptInviteToCaseActivity(
+        actor=ACTOR_URI,
+        object_=invite,
+    )
+    result = find_matching_semantics(accept)
+    assert result == MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE, (
+        f"Expected ACCEPT_INVITE_ACTOR_TO_CASE for Accept(Invite({type(actor_obj).__name__})), "
+        f"got {result}"
+    )
+
+
+def test_invite_actor_to_case_without_actor_object_does_not_match():
+    """Invite(Note, target=Case) must NOT match INVITE_ACTOR_TO_CASE.
+
+    Enforces the object_ discriminator added by DR-07: a non-Actor object
+    must not be accepted as an actor-invite pattern match.
+    """
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Invite,
+    )
+    from vultron.wire.as2.vocab.base.objects.base import as_Object
+
+    invite_with_non_actor = as_Invite(
+        actor=OWNER_URI,
+        object_=as_Object(id_="https://example.org/notes/1"),
+        target=_make_case(),
+    )
+    result = find_matching_semantics(invite_with_non_actor)
+    assert result != MessageSemantics.INVITE_ACTOR_TO_CASE

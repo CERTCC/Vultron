@@ -64,6 +64,7 @@ from vultron.wire.as2.vocab.activities.sync import (
     RejectLogEntryActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.core.models.base import VultronObject
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
 from vultron.core.models.events import (
@@ -126,6 +127,12 @@ class ActivityPattern(BaseModel):
                 return True
             if activity_field is None:
                 return False
+            # Subtype-aware matching: AOtype.ACTOR matches any as_Actor subclass
+            # (Person, Organization, Service, etc.) whose type_ differs from "Actor".
+            if pattern_field == AOtype.ACTOR and isinstance(
+                activity_field, as_Actor
+            ):
+                return True
             return bool(
                 pattern_field == getattr(activity_field, "type_", None)
             )
@@ -291,6 +298,7 @@ RejectCaseOwnershipTransferActivityPattern = ActivityPattern(
 )
 InviteActorToCasePattern = ActivityPattern(
     activity_=TAtype.INVITE,
+    object_=AOtype.ACTOR,
     target_=VOtype.VULNERABILITY_CASE,
 )
 AcceptInviteActorToCasePattern = ActivityPattern(
