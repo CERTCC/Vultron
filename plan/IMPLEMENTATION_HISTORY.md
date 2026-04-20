@@ -7236,3 +7236,60 @@ to match real invites because `"Person" != "Actor"`.
 **Test Result:**
 
 1715 passed, 12 skipped, 182 deselected, 5581 subtests passed
+
+---
+
+## DR-13 — `SubmitReportReceivedUseCase`: Remove vendor/target assumptions (COMPLETE)
+
+**Task**: Refactor `SubmitReportReceivedUseCase` to use `Offer.to` (not
+`Offer.target`) as the signal for identifying the receiving actor and
+determining whether to create a case. Per HP-09-001 and HP-09-002.
+
+**Changes:**
+
+1. `vultron/core/models/events/base.py` — Added `receiving_actor_id: str | None
+   = None` to `VultronEvent`. This dispatch-context annotation holds the
+   canonical ID of the actor whose inbox is being processed (set by the inbox
+   adapter, not extracted from wire format).
+
+2. `vultron/wire/as2/extractor.py` — Added `_get_id_list()` helper that converts
+   AS2 `to`/`cc` fields (`Any | None`) to `list[str] | None`. Now copies `to`
+   and `cc` into the `VultronActivity` when building domain kwargs for
+   `_ACTIVITY_SEMANTICS` message types.
+
+3. `vultron/adapters/driving/fastapi/inbox_handler.py` — Two changes:
+   - `handle_inbox_item`: injects `receiving_actor_id` into the event via
+     `model_copy(update={"receiving_actor_id": actor_id})` after
+     `prepare_for_dispatch`.
+   - `inbox_handler`: normalizes `actor_id` to canonical URI via
+     `getattr(actor, "id_", None) or actor_id` before calling
+     `handle_inbox_item` (so that it matches `activity.to`/`cc` field values).
+
+4. `vultron/core/use_cases/received/report.py` — Replaced
+   `vendor_actor_id = request.target_id` with:
+   - Reads `receiving_actor_id` from `request.receiving_actor_id`
+   - Reads `to_list`/`cc_list` from `request.activity.to`/`.cc`
+   - If `receiving_actor_id` is in `to_list` → proceed to case creation
+   - If in `cc_list` → log WARNING "cc addressing not supported", discard
+   - Otherwise → log WARNING "receiving actor in neither to nor cc", discard
+   - BT execution now uses `receiving_actor_id` (was `vendor_actor_id`)
+
+5. `test/core/use_cases/received/test_report.py` — Updated all
+   `SubmitReportReceivedEvent` constructions to use `to=[vendor_id]` and
+   `receiving_actor_id=vendor_id` instead of `target=vendor_id`. Added new
+   `TestOfferAddressingSemantics` class with 5 tests covering HP-09-001/HP-09-002
+   verification criteria (in-to, in-cc, in-neither, target-not-consulted,
+   inverse-target-check).
+
+6. `test/adapters/driving/fastapi/test_inbox_handler.py` — Updated
+   `test_handle_inbox_item_dispatches` to use a real `VultronEvent` instead of
+   `SimpleNamespace` (required by the new `model_copy` call in `handle_inbox_item`).
+   Added assertion that `dispatched_event.receiving_actor_id` is set correctly.
+
+**Key design decision**: `receiving_actor_id` is a dispatch-context annotation
+added by the inbox adapter — not a wire-format concept. It defaults to `None`
+for backward compatibility with non-inbox dispatch paths (CLI, triggers, tests).
+
+**Test Result:**
+
+1720 passed, 12 skipped, 182 deselected, 5581 subtests passed

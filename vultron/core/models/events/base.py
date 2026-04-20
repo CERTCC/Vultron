@@ -119,6 +119,13 @@ class VultronEvent(BaseModel):
     # MUST narrow this to required by redeclaring without a default.
     activity: VultronActivity | None = None
 
+    # Dispatch-context annotation: the canonical ID of the actor whose inbox
+    # is being processed.  Set by the inbox adapter (not extracted from wire
+    # format) so that use cases can compare it against activity.to/cc without
+    # inspecting AS2 types.  None when dispatched outside the inbox path (CLI,
+    # triggers, tests that don't set it).
+    receiving_actor_id: str | None = None
+
     @property
     def id_(self) -> str:
         return self.activity_id

@@ -173,17 +173,15 @@ class TestDuplicateReportHandling:
             id_=activity_id,
             type_="Offer",
             actor="https://example.org/users/finder",
-            target=vendor_id,
+            to=[vendor_id],
         )
-        from vultron.core.models.base import VultronObject
-
         event = SubmitReportReceivedEvent(
             semantic_type=MessageSemantics.SUBMIT_REPORT,
             activity_id=activity_id,
             actor_id="https://example.org/users/finder",
             object_=report,
             activity=activity,
-            target=VultronObject(id_=vendor_id, type_="Actor"),
+            receiving_actor_id=vendor_id,
         )
         return (report, event)
 
@@ -263,14 +261,12 @@ class TestSubmitReportLogMessages:
     def test_submit_report_log_identifies_vendor_and_report(self, caplog):
         """SubmitReportReceivedUseCase logs vendor actor and report IDs.
 
-        Per ADR-0015, SubmitReportReceivedUseCase now invokes the
-        receive_report_case_tree BT using the vendor's actor_id
-        (request.target_id).  The log must identify both the vendor and
-        the report being received.  Per D5-6-STATE.
+        Per HP-09-001, SubmitReportReceivedUseCase uses receiving_actor_id
+        (from activity.to) to create a case.  The log must identify both the
+        receiving actor and the report being received.  Per D5-6-STATE.
         """
         import logging
 
-        from vultron.core.models.base import VultronObject
         from vultron.core.models.case_actor import VultronCaseActor
 
         report = VultronReport(id_="https://example.org/reports/r-log-1")
@@ -278,7 +274,7 @@ class TestSubmitReportLogMessages:
             id_="https://example.org/activities/submit-log-1",
             type_="Offer",
             actor="https://example.org/users/finder",
-            target="https://example.org/actors/vendor",
+            to=["https://example.org/actors/vendor"],
         )
         event = SubmitReportReceivedEvent(
             semantic_type=MessageSemantics.SUBMIT_REPORT,
@@ -286,9 +282,7 @@ class TestSubmitReportLogMessages:
             actor_id="https://example.org/users/finder",
             object_=report,
             activity=activity,
-            target=VultronObject(
-                id_="https://example.org/actors/vendor", type_="Actor"
-            ),
+            receiving_actor_id="https://example.org/actors/vendor",
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -326,7 +320,6 @@ class TestSubmitReportCreatesCase:
         vendor_id: str = VENDOR_ID,
         finder_id: str = FINDER_ID,
     ):
-        from vultron.core.models.base import VultronObject
         from vultron.core.models.case_actor import VultronCaseActor
 
         report = VultronReport(id_=report_id)
@@ -334,7 +327,7 @@ class TestSubmitReportCreatesCase:
             id_=offer_id,
             type_="Offer",
             actor=finder_id,
-            target=vendor_id,
+            to=[vendor_id],
         )
         event = SubmitReportReceivedEvent(
             semantic_type=MessageSemantics.SUBMIT_REPORT,
@@ -342,7 +335,7 @@ class TestSubmitReportCreatesCase:
             actor_id=finder_id,
             object_=report,
             activity=activity,
-            target=VultronObject(id_=vendor_id, type_="Actor"),
+            receiving_actor_id=vendor_id,
         )
         dl = SqliteDataLayer("sqlite:///:memory:")
         # CreateCaseNode reads the report from DataLayer.
@@ -430,24 +423,25 @@ class TestSubmitReportCreatesCase:
             " idempotent calls"
         )
 
-    def test_submit_report_skips_case_creation_without_target(self):
-        """SubmitReportReceivedUseCase skips BT when vendor_actor_id is None.
+    def test_submit_report_skips_case_creation_when_not_in_to(self):
+        """SubmitReportReceivedUseCase skips BT when receiving actor not in to.
 
-        If Offer.target is absent, the use case logs a WARNING and returns
-        without creating a case.
+        If Offer.to is absent (or receiving actor is not listed), the use case
+        logs a WARNING and returns without creating a case (HP-09-001).
         """
-        report = VultronReport(id_="https://example.org/reports/r-no-target-1")
+        report = VultronReport(id_="https://example.org/reports/r-no-to-1")
         activity = VultronActivity(
-            id_="https://example.org/activities/offer-no-target-1",
+            id_="https://example.org/activities/offer-no-to-1",
             type_="Offer",
             actor=self.FINDER_ID,
         )
         event = SubmitReportReceivedEvent(
             semantic_type=MessageSemantics.SUBMIT_REPORT,
-            activity_id="https://example.org/activities/offer-no-target-1",
+            activity_id="https://example.org/activities/offer-no-to-1",
             actor_id=self.FINDER_ID,
             object_=report,
             activity=activity,
+            receiving_actor_id=self.VENDOR_ID,
         )
         dl = SqliteDataLayer("sqlite:///:memory:")
 
@@ -456,7 +450,150 @@ class TestSubmitReportCreatesCase:
         all_cases = dl.get_all("VulnerabilityCase")
         assert (
             all_cases == []
-        ), "Expected no VulnerabilityCase when vendor_actor_id is None"
+        ), "Expected no VulnerabilityCase when receiving actor not in to"
+
+
+class TestOfferAddressingSemantics:
+    """Tests for HP-09-001 / HP-09-002: Offer(Report) to/cc addressing semantics."""
+
+    VENDOR_ID = "https://example.org/actors/vendor"
+    OTHER_ID = "https://example.org/actors/other"
+    FINDER_ID = "https://example.org/users/finder"
+    REPORT_ID = "https://example.org/reports/r-addr-1"
+    OFFER_ID = "https://example.org/activities/offer-addr-1"
+
+    def _make_event(
+        self,
+        to: list[str] | None = None,
+        cc: list[str] | None = None,
+        target: str | None = None,
+        receiving_actor_id: str | None = None,
+    ) -> SubmitReportReceivedEvent:
+        report = VultronReport(id_=self.REPORT_ID)
+        activity = VultronActivity(
+            id_=self.OFFER_ID,
+            type_="Offer",
+            actor=self.FINDER_ID,
+            to=to,
+            cc=cc,
+            target=target,
+        )
+        return SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id=self.OFFER_ID,
+            actor_id=self.FINDER_ID,
+            object_=report,
+            activity=activity,
+            receiving_actor_id=receiving_actor_id,
+        )
+
+    def _make_dl(self) -> SqliteDataLayer:
+        from vultron.core.models.case_actor import VultronCaseActor
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl.save(VultronReport(id_=self.REPORT_ID))
+        dl.save(VultronCaseActor(id_=self.VENDOR_ID))
+        return dl
+
+    def test_receiving_actor_in_to_creates_case(self):
+        """HP-09-001: Receiving actor in Offer.to → case created."""
+        event = self._make_event(
+            to=[self.VENDOR_ID], receiving_actor_id=self.VENDOR_ID
+        )
+        dl = self._make_dl()
+
+        SubmitReportReceivedUseCase(dl, event).execute()
+
+        all_cases = dl.get_all("VulnerabilityCase")
+        assert len(all_cases) >= 1, "Expected case when receiving actor in to"
+
+    def test_receiving_actor_in_cc_logs_warning_no_case(self, caplog):
+        """HP-09-002: Receiving actor in Offer.cc → WARNING logged, no case."""
+        import logging
+
+        event = self._make_event(
+            cc=[self.VENDOR_ID], receiving_actor_id=self.VENDOR_ID
+        )
+        dl = self._make_dl()
+
+        with caplog.at_level(logging.WARNING):
+            SubmitReportReceivedUseCase(dl, event).execute()
+
+        all_cases = dl.get_all("VulnerabilityCase")
+        assert (
+            all_cases == []
+        ), "Expected no case when receiving actor only in cc"
+
+        warning_text = " ".join(
+            r.message for r in caplog.records if r.levelno >= logging.WARNING
+        )
+        assert (
+            "cc" in warning_text.lower()
+        ), "Expected a WARNING mentioning cc addressing"
+
+    def test_receiving_actor_in_neither_logs_warning_no_case(self, caplog):
+        """HP-09-001: Receiving actor in neither to nor cc → WARNING, no case."""
+        import logging
+
+        event = self._make_event(
+            to=[self.OTHER_ID], receiving_actor_id=self.VENDOR_ID
+        )
+        dl = self._make_dl()
+
+        with caplog.at_level(logging.WARNING):
+            SubmitReportReceivedUseCase(dl, event).execute()
+
+        all_cases = dl.get_all("VulnerabilityCase")
+        assert (
+            all_cases == []
+        ), "Expected no case when receiving actor not in to or cc"
+
+        warning_text = " ".join(
+            r.message for r in caplog.records if r.levelno >= logging.WARNING
+        )
+        assert (
+            self.VENDOR_ID in warning_text
+        ), "Expected WARNING to mention the receiving actor ID"
+
+    def test_offer_target_not_consulted_to_wins(self):
+        """HP-09-002: Offer.target is not consulted; to field determines case creation.
+
+        With target=OTHER_ID but to=[VENDOR_ID] and receiving_actor_id=VENDOR_ID,
+        the case must be created (target is ignored).
+        """
+        event = self._make_event(
+            to=[self.VENDOR_ID],
+            target=self.OTHER_ID,
+            receiving_actor_id=self.VENDOR_ID,
+        )
+        dl = self._make_dl()
+
+        SubmitReportReceivedUseCase(dl, event).execute()
+
+        all_cases = dl.get_all("VulnerabilityCase")
+        assert (
+            len(all_cases) >= 1
+        ), "Expected case when receiving actor in to, even if target differs"
+
+    def test_offer_target_set_but_not_in_to_no_case(self):
+        """HP-09-002 inverse: target=VENDOR_ID but to=[OTHER_ID] → no case.
+
+        Even though target matches the receiving actor, the use case must
+        only consult to/cc — not target.
+        """
+        event = self._make_event(
+            to=[self.OTHER_ID],
+            target=self.VENDOR_ID,
+            receiving_actor_id=self.VENDOR_ID,
+        )
+        dl = self._make_dl()
+
+        SubmitReportReceivedUseCase(dl, event).execute()
+
+        all_cases = dl.get_all("VulnerabilityCase")
+        assert (
+            all_cases == []
+        ), "Expected no case when receiving actor in target but not in to"
 
 
 class TestCaseLevelUseeCases:
@@ -807,7 +944,7 @@ class TestFullReportFlow:
             id_=self.OFFER_ID,
             type_="Offer",
             actor=self.FINDER_ID,
-            target=self.VENDOR_ID,
+            to=[self.VENDOR_ID],
         )
         report = VultronReport(id_=self.REPORT_ID)
         return SubmitReportReceivedEvent(
@@ -816,7 +953,7 @@ class TestFullReportFlow:
             actor_id=self.FINDER_ID,
             object_=report,
             activity=activity,
-            target=VultronObject(id_=self.VENDOR_ID, type_="Actor"),
+            receiving_actor_id=self.VENDOR_ID,
         )
 
     def _make_validate_event(self):

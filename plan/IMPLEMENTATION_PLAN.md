@@ -83,21 +83,6 @@ Architectural decisions for each issue are documented in
   full object when both are satisfied. This is a BT cascade — not post-BT
   procedural code.
 
-- [ ] **DR-13 — `SubmitReportReceivedUseCase`: remove vendor/target
-  assumptions (Medium, three-actor):**
-  Refactor `SubmitReportReceivedUseCase` to eliminate the `vendor_actor_id` /
-  `Offer.target` lookup entirely. Actors are generically typed; the
-  finder/vendor/coordinator labels are demo conventions, not protocol roles
-  baked into core. New logic:
-  - If the receiving actor's ID is in the `Offer.to` field → proceed to create
-    a case.
-  - If the receiving actor's ID is in `Offer.cc` → `cc` addressing is NOT
-    supported; log a WARNING and discard the activity without creating a case.
-  - If the receiving actor's ID is in neither `to` nor `cc` → log WARNING
-    (activity arrived at wrong destination); discard.
-  - Update `specs/handler-protocol.md` HP-09-001 (already done) to document
-    the `to`-only case-creation rule and the unsupported `cc` behavior.
-
 - [ ] **DR-14 — Dead-letter handling for unresolvable-object_ UNKNOWN
   (Medium, all):**
   When `find_matching_semantics()` returns `MessageSemantics.UNKNOWN` because

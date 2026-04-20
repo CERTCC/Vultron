@@ -452,6 +452,19 @@ def extract_intent(
             return field
         return getattr(field, "id_", str(field)) or None
 
+    def _get_id_list(field) -> list[str] | None:
+        """Convert an AS2 to/cc field (Any | None) to a list of ID strings."""
+        if field is None:
+            return None
+        if isinstance(field, str):
+            return [field] if field else None
+        if isinstance(field, list):
+            ids = [_get_id(x) for x in field]
+            result = [r for r in ids if r]
+            return result or None
+        single = _get_id(field)
+        return [single] if single else None
+
     def _get_type(field) -> str | None:
         if field is None or isinstance(field, str):
             return None
@@ -511,6 +524,8 @@ def extract_intent(
                 origin=_get_id(origin),
                 context=_get_id(context),
                 in_reply_to=_get_id(getattr(activity, "in_reply_to", None)),
+                to=_get_id_list(getattr(activity, "to", None)),
+                cc=_get_id_list(getattr(activity, "cc", None)),
             )
 
         if _obj_type == str(VOtype.VULNERABILITY_REPORT) and obj is not None:

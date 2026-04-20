@@ -94,7 +94,7 @@ def handle_inbox_item(actor_id: str, obj: as_Activity, dl: DataLayer) -> None:
     """Handle a single item in the Actor's inbox.
 
     Args:
-        actor_id: The ID of the Actor whose inbox is being processed.
+        actor_id: The canonical URI of the Actor whose inbox is being processed.
         obj: The Activity item to process.
         dl: The DataLayer instance scoped to the current actor.
     """
@@ -104,6 +104,7 @@ def handle_inbox_item(actor_id: str, obj: as_Activity, dl: DataLayer) -> None:
         obj.model_dump_json(indent=2, exclude_none=True),
     )
     event = prepare_for_dispatch(activity=obj)
+    event = event.model_copy(update={"receiving_actor_id": actor_id})
     dispatch(event=event, dl=dl)
 
 
@@ -128,6 +129,10 @@ async def inbox_handler(
         actor = dl.find_actor_by_short_id(actor_id)
     if actor is None:
         logger.warning("Actor %s not found in inbox_handler.", actor_id)
+
+    # Normalise to the canonical actor URI so that handle_inbox_item can
+    # inject receiving_actor_id that matches activity.to/cc fields (HP-09-001).
+    canonical_actor_id = getattr(actor, "id_", None) or actor_id
 
     logger.info("Processing inbox for actor %s", actor_id)
 
@@ -162,7 +167,7 @@ async def inbox_handler(
             )
 
         try:
-            handle_inbox_item(actor_id=actor_id, obj=item, dl=dl)
+            handle_inbox_item(actor_id=canonical_actor_id, obj=item, dl=dl)
         except Exception as e:
             logger.error(
                 "Error processing inbox item for actor %s: %s", actor_id, e

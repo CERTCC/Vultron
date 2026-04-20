@@ -109,19 +109,39 @@ class SubmitReportReceivedUseCase:
                 )
 
         if request.report_id:
-            vendor_actor_id = request.target_id
-            if vendor_actor_id is None:
+            receiving_actor_id = request.receiving_actor_id
+            to_list = (request.activity.to or []) if request.activity else []
+            cc_list = (request.activity.cc or []) if request.activity else []
+
+            if receiving_actor_id is None:
                 logger.warning(
-                    "SubmitReportReceivedUseCase: vendor actor_id not "
-                    "available (Offer.target not set) for report '%s' — "
-                    "skipping case creation",
+                    "SubmitReportReceivedUseCase: receiving_actor_id not set "
+                    "for report '%s' — skipping case creation",
+                    request.report_id,
+                )
+                return
+
+            if to_list and receiving_actor_id in to_list:
+                pass  # primary recipient — proceed to case creation
+            elif cc_list and receiving_actor_id in cc_list:
+                logger.warning(
+                    "SubmitReportReceivedUseCase: cc addressing not supported "
+                    "for Offer(Report) — discarding activity for report '%s'",
+                    request.report_id,
+                )
+                return
+            else:
+                logger.warning(
+                    "SubmitReportReceivedUseCase: receiving actor '%s' in "
+                    "neither to nor cc — discarding activity for report '%s'",
+                    receiving_actor_id,
                     request.report_id,
                 )
                 return
 
             logger.info(
                 "Actor '%s' receiving report '%s' — running case-creation BT",
-                vendor_actor_id,
+                receiving_actor_id,
                 request.report_id,
             )
 
@@ -139,7 +159,7 @@ class SubmitReportReceivedUseCase:
                 finder_actor_id=request.actor_id,
             )
             result = bridge.execute_with_setup(
-                tree, actor_id=vendor_actor_id, activity=request
+                tree, actor_id=receiving_actor_id, activity=request
             )
 
             if result.status == Status.SUCCESS:
