@@ -22,23 +22,6 @@ three-actor, multi-vendor). All high-severity items block every demo scenario.
 Architectural decisions for each issue are documented in
 `plan/IMPLEMENTATION_NOTES.md` under **REVIEW-26042001**.
 
-- [ ] **DR-01 — Outbox reference-field dehydration (High, all demos):**
-  Add a `_dehydrate_references()` step in
-  `vultron/adapters/driving/fastapi/outbox_handler.py` inside
-  `handle_outbox_item()`, applied before `VultronActivity.model_validate()`.
-  Dehydrate `actor`, `target`, `to`, `cc`, `origin`, `result`, `instrument`
-  fields to URI strings whenever the value is a domain model instance.
-  `object_` is explicitly exempt — it must remain a full inline typed object.
-  This is an adapter responsibility; core/BT may construct activities using
-  full domain objects.
-  **Side effect:** Also fixes §2 (activity `name` repr bug) when combined with DR-02.
-
-- [ ] **DR-02 — Activity `name` repr bug (Medium, three-actor, multi-vendor):**
-  Fix BT nodes that construct outbound `Add`, `Invite`, and `Accept` activities
-  to use `object_.name or object_.id_` (not `repr(object_)`) when setting the
-  activity `name` field. This is a construction-time fix in core/BT, not the
-  adapter's concern.
-
 - [ ] **DR-05 — Accept.object_ must carry the original Invite (Medium,
   three-actor, multi-vendor):**
   When constructing `RmAcceptInviteToCaseActivity` and

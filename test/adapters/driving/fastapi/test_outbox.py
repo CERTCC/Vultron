@@ -529,3 +529,137 @@ def test_handle_outbox_item_raises_integrity_error_when_expansion_fails(
                 "actor-bob", activity.id_, mock_dl, mock_emitter
             )
         )
+
+
+# ---------------------------------------------------------------------------
+# _dehydrate_references (DR-01)
+# ---------------------------------------------------------------------------
+
+
+def test_dehydrate_references_collapses_target_dict_to_id():
+    """_dehydrate_references replaces a 'target' dict with its 'id' string."""
+    raw = {
+        "type": "Invite",
+        "actor": "https://example.org/actors/alice",
+        "target": {
+            "id": "https://example.org/cases/case-001",
+            "type": "VulnerabilityCase",
+        },
+    }
+    result = oh._dehydrate_references(raw)
+    assert result["target"] == "https://example.org/cases/case-001"
+
+
+def test_dehydrate_references_prefers_href_over_id():
+    """_dehydrate_references uses 'href' rather than 'id' for AS2 Link dicts."""
+    raw = {
+        "actor": "https://example.org/actors/alice",
+        "target": {
+            "id": "urn:uuid:link-object-id",
+            "href": "https://example.org/cases/case-002",
+        },
+    }
+    result = oh._dehydrate_references(raw)
+    assert result["target"] == "https://example.org/cases/case-002"
+
+
+def test_dehydrate_references_handles_list_field():
+    """_dehydrate_references collapses actor dicts in list fields element-wise."""
+    raw = {
+        "to": [
+            {"id": "https://example.org/actors/bob", "type": "Person"},
+            "https://example.org/actors/charlie",  # already a string
+        ]
+    }
+    result = oh._dehydrate_references(raw)
+    assert result["to"] == [
+        "https://example.org/actors/bob",
+        "https://example.org/actors/charlie",
+    ]
+
+
+def test_dehydrate_references_leaves_object_field_intact():
+    """_dehydrate_references does NOT touch the 'object' field (exempt)."""
+    inline_obj = {
+        "id": "urn:uuid:report-001",
+        "type": "VulnerabilityReport",
+        "name": "TEST",
+    }
+    raw = {
+        "actor": "https://example.org/actors/alice",
+        "object": inline_obj,
+    }
+    result = oh._dehydrate_references(raw)
+    assert result["object"] is inline_obj
+
+
+def test_dehydrate_references_leaves_string_fields_unchanged():
+    """_dehydrate_references does not alter fields that are already strings."""
+    raw = {
+        "actor": "https://example.org/actors/alice",
+        "target": "https://example.org/cases/case-already-string",
+    }
+    result = oh._dehydrate_references(raw)
+    assert result["actor"] == "https://example.org/actors/alice"
+    assert result["target"] == "https://example.org/cases/case-already-string"
+
+
+def test_dehydrate_references_leaves_none_fields_unchanged():
+    """_dehydrate_references skips fields that are None."""
+    raw = {"actor": "https://example.org/actors/alice", "target": None}
+    result = oh._dehydrate_references(raw)
+    assert result["target"] is None
+
+
+def test_handle_outbox_item_converts_typed_activity_with_full_target():
+    """handle_outbox_item delivers when activity.target is a full domain object.
+
+    Regression test for DR-01: typed AS2 activities (e.g. RmInviteToCaseActivity)
+    may store a full VulnerabilityCase as target.  The outbox handler must
+    dehydrate it to an ID string before VultronActivity.model_validate().
+    """
+    recipient = "https://example.org/actors/alice"
+    case_id = "https://example.org/cases/case-123"
+
+    # Simulate a typed activity whose model_dump produces a full case dict as target
+    activity_dict = {
+        "id": "urn:uuid:act-invite-001",
+        "type": "Invite",
+        "actor": "https://example.org/actors/coordinator",
+        "to": [recipient],
+        "object": {
+            "id": "urn:uuid:actor-alice",
+            "type": "Person",
+            "name": "Alice",
+        },
+        "target": {
+            "id": case_id,
+            "type": "VulnerabilityCase",
+            "name": "Test Case",
+        },
+    }
+
+    class FakeTypedActivity:
+        """Minimal stand-in for a typed AS2 activity from the DataLayer."""
+
+        def model_dump(self, *, by_alias=False):
+            return activity_dict
+
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = FakeTypedActivity()
+    mock_emitter = AsyncMock()
+
+    asyncio.run(
+        oh.handle_outbox_item(
+            "actor-coordinator",
+            "urn:uuid:act-invite-001",
+            mock_dl,
+            mock_emitter,
+        )
+    )
+
+    mock_emitter.emit.assert_called_once()
+    emitted_activity, emitted_recipients = mock_emitter.emit.call_args[0]
+    # target must be the case ID string, not the full dict
+    assert emitted_activity.target == case_id
+    assert recipient in emitted_recipients

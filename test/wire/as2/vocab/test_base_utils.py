@@ -20,7 +20,11 @@ import uuid
 
 
 from vultron.wire.as2.vocab.base.base import as_Base
-from vultron.wire.as2.vocab.base.utils import URN_UUID_PREFIX, generate_new_id
+from vultron.wire.as2.vocab.base.utils import (
+    URN_UUID_PREFIX,
+    generate_new_id,
+    name_of,
+)
 
 _UUID_PATTERN = re.compile(
     r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
@@ -85,3 +89,90 @@ class TestAsBaseDefaultId:
         explicit_id = f"urn:uuid:{uuid.uuid4()}"
         obj = as_Base(id_=explicit_id)
         assert obj.id_ == explicit_id
+
+
+class TestNameOf:
+    """Tests for the updated name_of() utility — DR-02."""
+
+    def test_returns_string_unchanged(self):
+        """name_of returns a plain string without any attribute lookup."""
+        uri = "https://example.org/actors/alice"
+        assert name_of(uri) == uri
+
+    def test_returns_name_attribute_when_set(self):
+        """name_of returns obj.name when it is not None."""
+        from types import SimpleNamespace
+
+        obj = SimpleNamespace(name="My Report", id_="urn:uuid:abc123")
+        assert name_of(obj) == "My Report"
+
+    def test_falls_back_to_href_when_name_is_none(self):
+        """name_of returns href when name is None (AS2 Link objects)."""
+        from types import SimpleNamespace
+
+        link = SimpleNamespace(
+            name=None,
+            href="https://example.org/cases/1",
+            id_="urn:uuid:link-id",
+        )
+        assert name_of(link) == "https://example.org/cases/1"
+
+    def test_falls_back_to_id_when_name_and_href_are_none(self):
+        """name_of returns id_ when name and href are both None."""
+        from types import SimpleNamespace
+
+        obj = SimpleNamespace(name=None, id_="urn:uuid:domain-obj-123")
+        assert name_of(obj) == "urn:uuid:domain-obj-123"
+
+    def test_falls_back_to_str_when_no_useful_attributes(self):
+        """name_of falls back to str() when no recognizable attributes exist."""
+        from types import SimpleNamespace
+
+        obj = SimpleNamespace()
+        result = name_of(obj)
+        assert isinstance(result, str)
+
+    def test_does_not_return_none_string(self):
+        """name_of never returns the literal string 'None' for objects with id_."""
+        from types import SimpleNamespace
+
+        obj = SimpleNamespace(name=None, id_="urn:uuid:real-id")
+        assert name_of(obj) != "None"
+
+
+class TestSetNameUsesNameOf:
+    """set_name() must use name_of() for target, origin, instrument — DR-02."""
+
+    def test_set_name_target_uses_id_when_name_none(self):
+        """Activity name must include target.id_, not a Pydantic repr."""
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Add,
+        )
+        from vultron.wire.as2.vocab.base.objects.base import as_Object
+
+        actor_id = "https://example.org/actors/alice"
+        case_id = "https://example.org/cases/case-001"
+        target_obj = as_Object(id_=case_id)  # name=None by default
+
+        act = as_Add(actor=actor_id, target=target_obj, object_=None)
+        assert act.name is not None
+        assert case_id in act.name
+        # Must not contain Pydantic/repr noise
+        assert "type_=" not in act.name
+        assert "context_=" not in act.name
+
+    def test_set_name_target_uses_name_when_set(self):
+        """Activity name includes target.name when target.name is not None."""
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Add,
+        )
+        from vultron.wire.as2.vocab.base.objects.base import as_Object
+
+        actor_id = "https://example.org/actors/alice"
+        target_obj = as_Object(
+            id_="https://example.org/cases/case-002", name="Demo Case"
+        )
+
+        act = as_Add(actor=actor_id, target=target_obj, object_=None)
+        assert act.name is not None
+        assert "Demo Case" in act.name

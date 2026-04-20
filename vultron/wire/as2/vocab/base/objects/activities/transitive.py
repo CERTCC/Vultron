@@ -48,11 +48,11 @@ class as_TransitiveActivity(Activity):
         if self.object_ is not None:
             parts.append(name_of(self.object_))
         if self.origin is not None:
-            parts.extend(("from", self.origin))
+            parts.extend(("from", name_of(self.origin)))
         if self.target is not None:
-            parts.extend(("to", self.target))
+            parts.extend(("to", name_of(self.target)))
         if self.instrument is not None:
-            parts.extend(("using", self.instrument))
+            parts.extend(("using", name_of(self.instrument)))
 
         if parts:
             self.name = " ".join([str(part) for part in parts])

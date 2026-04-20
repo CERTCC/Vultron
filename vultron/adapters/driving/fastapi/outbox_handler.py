@@ -36,6 +36,66 @@ from vultron.wire.as2.vocab.base.links import as_Link
 
 logger = logging.getLogger(__name__)
 
+# Reference fields that must be collapsed to URI strings before validating as
+# VultronActivity.  ``object`` is intentionally excluded — it must remain a
+# full inline typed object so recipients can determine the semantic type
+# (MV-09-001).
+_DEHYDRATION_FIELDS: frozenset[str] = frozenset(
+    {
+        "actor",
+        "target",
+        "to",
+        "cc",
+        "bto",
+        "bcc",
+        "origin",
+        "result",
+        "instrument",
+    }
+)
+
+
+def _dehydrate_references(activity_dict: dict) -> dict:
+    """Collapse domain-object dicts in reference fields to URI strings.
+
+    Adapts a raw ``model_dump(by_alias=True)`` dict for ``VultronActivity``
+    validation.  Wire-layer AS2 activities may carry full domain objects
+    (e.g. ``VulnerabilityCase``) in reference fields such as ``target``.
+    ``VultronActivity`` expects those fields to be URI strings, so this
+    function collapses any dict with ``"href"`` or ``"id"`` to the
+    corresponding URI string.  List fields are handled element-wise.
+
+    ``"object"`` is explicitly excluded from dehydration because outbound
+    initiating activities must carry a fully inline typed object for semantic
+    routing on the receiving side (MV-09-001).
+
+    Args:
+        activity_dict: Raw ``dict`` produced by ``model_dump(by_alias=True)``
+            on a typed AS2 activity model.
+
+    Returns:
+        A new ``dict`` with reference fields collapsed to URI strings where
+        possible.
+    """
+
+    def _coerce(value: object) -> object:
+        if not isinstance(value, dict):
+            return value
+        # Prefer href (AS2 Link) then id (any AS2 object)
+        uri = value.get("href") or value.get("id")
+        return uri if uri is not None else value
+
+    result = dict(activity_dict)
+    for field in _DEHYDRATION_FIELDS:
+        value = result.get(field)
+        if value is None:
+            continue
+        if isinstance(value, list):
+            result[field] = [_coerce(item) for item in value]
+        else:
+            result[field] = _coerce(value)
+    return result
+
 
 def _format_object(obj: object) -> str:
     """Return a concise one-line summary of an AS2 object for log messages.
@@ -132,9 +192,8 @@ async def handle_outbox_item(
     if isinstance(activity, VultronActivity):
         outbound_activity = activity
     elif hasattr(activity, "model_dump"):
-        outbound_activity = VultronActivity.model_validate(
-            activity.model_dump(by_alias=True)
-        )
+        raw = _dehydrate_references(activity.model_dump(by_alias=True))
+        outbound_activity = VultronActivity.model_validate(raw)
     else:
         logger.warning(
             "Activity %s could not be converted for delivery; skipping.",

@@ -23,19 +23,34 @@ URN_UUID_PREFIX = "urn:uuid:"
 
 
 def name_of(obj: Any) -> str:
-    """Get the name of an object if it has one, otherwise return the object itself
+    """Return a concise human-readable label for an AS2 object or reference.
+
+    Resolution order:
+    1. Strings are returned unchanged (already a URI or label).
+    2. ``obj.name`` if present and not ``None``.
+    3. ``obj.href`` if present and not ``None`` (AS2 Link objects).
+    4. ``obj.id_`` if present and not ``None`` (any AS2/domain object).
+    5. ``str(obj)`` as a last resort.
 
     Args:
-        obj: The object to get the name of
+        obj: The object to get the name of — may be a string, an AS2 object,
+             an AS2 Link, or any other value.
 
     Returns:
-        Either the name of the object or the object itself
+        A short, human-readable string representation of *obj*.
     """
-
-    try:
-        return str(obj.name)
-    except AttributeError:
-        return str(obj)
+    if isinstance(obj, str):
+        return obj
+    name = getattr(obj, "name", None)
+    if name is not None:
+        return str(name)
+    href = getattr(obj, "href", None)
+    if href is not None:
+        return str(href)
+    id_ = getattr(obj, "id_", None)
+    if id_ is not None:
+        return str(id_)
+    return str(obj)
 
 
 def exclude_if_none(value: Any) -> bool:
