@@ -196,6 +196,60 @@ class AddNoteToCaseRequest(BaseModel):
     in_reply_to: NonEmptyString | None = None
 
 
+class CreateCaseRequest(BaseModel):
+    """Request body for the create-case trigger endpoint.
+
+    The actor creates a local VulnerabilityCase and queues a
+    CreateCaseActivity in their outbox for delivery to the CaseActor.
+
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    name: NonEmptyString
+    content: NonEmptyString
+    report_id: NonEmptyString | None = None
+
+
+class AddReportToCaseRequest(BaseModel):
+    """Request body for the add-report-to-case trigger endpoint.
+
+    TB-03-001: Must include case_id and report_id.
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString
+    report_id: NonEmptyString
+
+
+class SuggestActorToCaseRequest(BaseModel):
+    """Request body for the suggest-actor-to-case trigger endpoint.
+
+    TB-03-001: Must include case_id and suggested_actor_id.
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString
+    suggested_actor_id: UriString
+
+
+class AcceptCaseInviteRequest(BaseModel):
+    """Request body for the accept-case-invite trigger endpoint.
+
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    invite_id identifies the RmInviteToCaseActivity to accept.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    invite_id: NonEmptyString
+
+
 class SyncLogEntryRequest(BaseModel):
     """Request body for the sync-log-entry trigger endpoint.
 

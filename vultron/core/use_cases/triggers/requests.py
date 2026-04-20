@@ -116,3 +116,41 @@ class AddNoteToCaseTriggerRequest(CaseTriggerRequest):
     note_name: NonEmptyString
     note_content: NonEmptyString
     in_reply_to: NonEmptyString | None = None
+
+
+class CreateCaseTriggerRequest(TriggerRequest):
+    """Trigger request to create a new VulnerabilityCase.
+
+    The actor creates a local case and emits a CreateCaseActivity queued in
+    the outbox for delivery to the CaseActor (or other recipients).
+    """
+
+    name: NonEmptyString
+    content: NonEmptyString
+    report_id: NonEmptyString | None = None
+
+
+class AddReportToCaseTriggerRequest(CaseTriggerRequest):
+    """Trigger request to link a report to an existing case."""
+
+    report_id: NonEmptyString
+
+
+class SuggestActorToCaseTriggerRequest(CaseTriggerRequest):
+    """Trigger request for an actor to recommend another actor to a case.
+
+    Emits a RecommendActorActivity addressed to the case owner (typically
+    the CaseActor), which then autonomously invites the suggested actor.
+    """
+
+    suggested_actor_id: NonEmptyString
+
+
+class AcceptCaseInviteTriggerRequest(TriggerRequest):
+    """Trigger request for an invitee to accept a case invitation.
+
+    Emits an RmAcceptInviteToCaseActivity queued in the actor's outbox for
+    delivery to the case owner.
+    """
+
+    invite_id: NonEmptyString

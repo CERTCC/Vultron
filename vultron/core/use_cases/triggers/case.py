@@ -32,12 +32,21 @@ from vultron.core.use_cases.triggers._helpers import (
     resolve_case,
 )
 from vultron.core.use_cases.triggers.requests import (
+    AddReportToCaseTriggerRequest,
+    CreateCaseTriggerRequest,
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
 )
+from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.activities.case import (
+    AddReportToCaseActivity,
+    CreateCaseActivity,
     RmDeferCaseActivity,
     RmEngageCaseActivity,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
 )
 
 logger = logging.getLogger(__name__)
@@ -137,3 +146,110 @@ class SvcDeferCaseUseCase:
 
         activity = defer_activity.model_dump(by_alias=True, exclude_none=True)
         return {"activity": activity}
+
+
+class SvcCreateCaseUseCase:
+    """Create a new VulnerabilityCase and emit a CreateCaseActivity.
+
+    The actor creates a local case and queues the activity for delivery to
+    the CaseActor inbox.  An optional report_id links an existing
+    VulnerabilityReport to the new case.
+    """
+
+    def __init__(
+        self, dl: DataLayer, request: CreateCaseTriggerRequest
+    ) -> None:
+        self._dl = dl
+        self._request = request
+
+    def execute(self) -> dict[str, Any]:
+        actor_id = self._request.actor_id
+        actor = resolve_actor(actor_id, self._dl)
+
+        case = VulnerabilityCase(
+            name=self._request.name,
+            content=self._request.content,
+            attributed_to=actor.id_,
+        )
+
+        if self._request.report_id is not None:
+            raw = self._dl.read(self._request.report_id)
+            if raw is None:
+                raise VultronNotFoundError(
+                    "VulnerabilityReport", self._request.report_id
+                )
+            if not isinstance(raw, VulnerabilityReport):
+                raise VultronValidationError(
+                    f"'{self._request.report_id}' is not a VulnerabilityReport"
+                )
+            case.vulnerability_reports.append(raw.id_)
+
+        self._dl.create(case)
+
+        activity = CreateCaseActivity(
+            actor=actor.id_,
+            object_=case,
+        )
+        self._dl.create(activity)
+
+        add_activity_to_outbox(actor_id, activity.id_, self._dl)
+
+        logger.info(
+            "Actor '%s' created case '%s' (CreateCaseActivity '%s')",
+            actor_id,
+            case.id_,
+            activity.id_,
+        )
+
+        return {
+            "activity": activity.model_dump(by_alias=True, exclude_none=True)
+        }
+
+
+class SvcAddReportToCaseUseCase:
+    """Link a VulnerabilityReport to an existing case.
+
+    Emits an AddReportToCaseActivity queued in the actor's outbox.
+    """
+
+    def __init__(
+        self, dl: DataLayer, request: AddReportToCaseTriggerRequest
+    ) -> None:
+        self._dl = dl
+        self._request = request
+
+    def execute(self) -> dict[str, Any]:
+        actor_id = self._request.actor_id
+        actor = resolve_actor(actor_id, self._dl)
+        case = resolve_case(self._request.case_id, self._dl)
+
+        raw = self._dl.read(self._request.report_id)
+        if raw is None:
+            raise VultronNotFoundError(
+                "VulnerabilityReport", self._request.report_id
+            )
+        if not isinstance(raw, VulnerabilityReport):
+            raise VultronValidationError(
+                f"'{self._request.report_id}' is not a VulnerabilityReport"
+            )
+        report = cast(VulnerabilityReport, raw)
+
+        activity = AddReportToCaseActivity(
+            actor=actor.id_,
+            object_=report,
+            target=cast(VulnerabilityCase, case),
+        )
+        self._dl.create(activity)
+
+        add_activity_to_outbox(actor_id, activity.id_, self._dl)
+
+        logger.info(
+            "Actor '%s' added report '%s' to case '%s'",
+            actor_id,
+            report.id_,
+            case.id_,
+        )
+
+        return {
+            "activity": activity.model_dump(by_alias=True, exclude_none=True)
+        }

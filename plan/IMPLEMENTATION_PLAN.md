@@ -21,15 +21,6 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 All tasks in this section are prerequisites for **D5-7-HUMAN** sign-off.
 The section can proceed in parallel with PRIORITY-360.
 
-- [ ] **P347-TRIGGERS**: Add new trigger endpoints:
-  - `create-case` and `add-report-to-case` in
-    `vultron/adapters/driving/fastapi/routers/trigger_case.py` with
-    corresponding `SvcCreateCaseUseCase` and `SvcAddReportToCaseUseCase` in
-    `vultron/core/use_cases/triggers/`.
-  - New router file `trigger_actor.py` with `suggest-actor-to-case` and
-    `accept-case-invite` trigger endpoints, backed by
-    `SvcSuggestActorToCaseUseCase` and `SvcAcceptCaseInviteUseCase`.
-
 - [ ] **P347-EMBARGOTRIGGERS**:
   - Rename `evaluate-embargo` endpoint → `accept-embargo` (update router,
     `_trigger_adapter.py`, `SvcEvaluateEmbargoUseCase` →

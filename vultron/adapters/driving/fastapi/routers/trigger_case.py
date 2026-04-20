@@ -24,13 +24,17 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Path, status
 
 from vultron.adapters.driving.fastapi._trigger_adapter import (
     add_note_to_case_trigger,
+    add_report_to_case_trigger,
+    create_case_trigger,
     defer_case_trigger,
     engage_case_trigger,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.trigger_models import (
     AddNoteToCaseRequest,
+    AddReportToCaseRequest,
     CaseTriggerRequest,
+    CreateCaseRequest,
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.adapters.driven.datalayer import get_datalayer
@@ -160,6 +164,77 @@ def trigger_add_note_to_case(
         note_name=body.note_name,
         note_content=body.note_content,
         in_reply_to=body.in_reply_to,
+        dl=dl,
+    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result
+
+
+@router.post(
+    "/{actor_id}/trigger/create-case",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Create a new VulnerabilityCase.",
+    description=(
+        "Creates a local VulnerabilityCase attributed to the actor and "
+        "queues a CreateCaseActivity in the actor's outbox for delivery "
+        "to the CaseActor.  An optional report_id links an existing "
+        "VulnerabilityReport to the new case."
+    ),
+    operation_id="actors_trigger_create_case",
+)
+def trigger_create_case(
+    actor_id: str,
+    body: CreateCaseRequest,
+    background_tasks: BackgroundTasks,
+    dl: DataLayer = Depends(_actor_dl),
+    actor_dl: DataLayer = Depends(_canonical_actor_dl),
+) -> dict:
+    """
+    Trigger the create-case behavior for the given actor.
+
+    Implements:
+        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-04-001
+    """
+    result = create_case_trigger(
+        actor_id=actor_id,
+        name=body.name,
+        content=body.content,
+        report_id=body.report_id,
+        dl=dl,
+    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result
+
+
+@router.post(
+    "/{actor_id}/trigger/add-report-to-case",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Add a report to an existing case.",
+    description=(
+        "Links a VulnerabilityReport to an existing VulnerabilityCase and "
+        "queues an AddReportToCaseActivity in the actor's outbox."
+    ),
+    operation_id="actors_trigger_add_report_to_case",
+)
+def trigger_add_report_to_case(
+    actor_id: str,
+    body: AddReportToCaseRequest,
+    background_tasks: BackgroundTasks,
+    dl: DataLayer = Depends(_actor_dl),
+    actor_dl: DataLayer = Depends(_canonical_actor_dl),
+) -> dict:
+    """
+    Trigger the add-report-to-case behavior for the given actor.
+
+    Implements:
+        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-04-001
+    """
+    result = add_report_to_case_trigger(
+        actor_id=actor_id,
+        case_id=body.case_id,
+        report_id=body.report_id,
         dl=dl,
     )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)

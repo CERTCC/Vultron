@@ -24,6 +24,7 @@ from vultron.adapters.driving.fastapi.routers import (
     examples,
     health,
     info,
+    trigger_actor,
     trigger_case,
     trigger_embargo,
     trigger_report,
@@ -50,6 +51,8 @@ router.include_router(health.router)
 router.include_router(info.router)
 
 router.include_router(trigger_report.router)
+
+router.include_router(trigger_actor.router)
 
 router.include_router(trigger_case.router)
 

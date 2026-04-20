@@ -29,8 +29,14 @@ from datetime import datetime
 from vultron.adapters.driving.fastapi.errors import domain_error_translation
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases.triggers.case import (
+    SvcAddReportToCaseUseCase,
+    SvcCreateCaseUseCase,
     SvcDeferCaseUseCase,
     SvcEngageCaseUseCase,
+)
+from vultron.core.use_cases.triggers.actor import (
+    SvcAcceptCaseInviteUseCase,
+    SvcSuggestActorToCaseUseCase,
 )
 from vultron.core.use_cases.triggers.embargo import (
     SvcEvaluateEmbargoUseCase,
@@ -46,8 +52,11 @@ from vultron.core.use_cases.triggers.report import (
     SvcValidateReportUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
+    AcceptCaseInviteTriggerRequest,
     AddNoteToCaseTriggerRequest,
+    AddReportToCaseTriggerRequest,
     CloseReportTriggerRequest,
+    CreateCaseTriggerRequest,
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
     EvaluateEmbargoTriggerRequest,
@@ -55,6 +64,7 @@ from vultron.core.use_cases.triggers.requests import (
     ProposeEmbargoTriggerRequest,
     RejectReportTriggerRequest,
     SubmitReportTriggerRequest,
+    SuggestActorToCaseTriggerRequest,
     TerminateEmbargoTriggerRequest,
     ValidateReportTriggerRequest,
 )
@@ -185,3 +195,63 @@ def add_note_to_case_trigger(
             in_reply_to=in_reply_to,
         )
         return SvcAddNoteToCaseUseCase(dl, request).execute()
+
+
+def create_case_trigger(
+    actor_id: str,
+    name: str,
+    content: str,
+    report_id: str | None,
+    dl: DataLayer,
+) -> dict:
+    with domain_error_translation():
+        request = CreateCaseTriggerRequest(
+            actor_id=actor_id,
+            name=name,
+            content=content,
+            report_id=report_id,
+        )
+        return SvcCreateCaseUseCase(dl, request).execute()
+
+
+def add_report_to_case_trigger(
+    actor_id: str,
+    case_id: str,
+    report_id: str,
+    dl: DataLayer,
+) -> dict:
+    with domain_error_translation():
+        request = AddReportToCaseTriggerRequest(
+            actor_id=actor_id,
+            case_id=case_id,
+            report_id=report_id,
+        )
+        return SvcAddReportToCaseUseCase(dl, request).execute()
+
+
+def suggest_actor_to_case_trigger(
+    actor_id: str,
+    case_id: str,
+    suggested_actor_id: str,
+    dl: DataLayer,
+) -> dict:
+    with domain_error_translation():
+        request = SuggestActorToCaseTriggerRequest(
+            actor_id=actor_id,
+            case_id=case_id,
+            suggested_actor_id=suggested_actor_id,
+        )
+        return SvcSuggestActorToCaseUseCase(dl, request).execute()
+
+
+def accept_case_invite_trigger(
+    actor_id: str,
+    invite_id: str,
+    dl: DataLayer,
+) -> dict:
+    with domain_error_translation():
+        request = AcceptCaseInviteTriggerRequest(
+            actor_id=actor_id,
+            invite_id=invite_id,
+        )
+        return SvcAcceptCaseInviteUseCase(dl, request).execute()

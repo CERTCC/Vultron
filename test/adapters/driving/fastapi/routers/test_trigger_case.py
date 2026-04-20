@@ -531,3 +531,167 @@ class TestTriggerCaseOutboxCanonicalId:
             f"Expected canonical URI '{actor.id_}', "
             f"got '{actor_dl_used._actor_id}'"
         )
+
+
+# ===========================================================================
+# Fixtures for create-case and add-report-to-case
+# ===========================================================================
+
+
+@pytest.fixture
+def report(dl):
+    """Create a persisted VulnerabilityReport for use in tests."""
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        VulnerabilityReport,
+    )
+
+    report_obj = VulnerabilityReport(
+        name="TEST-REPORT-001",
+        content="Vulnerability description",
+    )
+    dl.create(report_obj)
+    return report_obj
+
+
+# ===========================================================================
+# Tests for trigger/create-case
+# ===========================================================================
+
+
+def test_trigger_create_case_returns_202(client_triggers, actor):
+    """TB-01-002: POST /actors/{id}/trigger/create-case returns HTTP 202."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/create-case",
+        json={"name": "Case-001", "content": "Case content"},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_create_case_response_contains_activity(
+    client_triggers, actor
+):
+    """TB-04-001: Successful trigger response body contains 'activity' key."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/create-case",
+        json={"name": "Case-001", "content": "Case content"},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert "activity" in data
+    assert data["activity"] is not None
+
+
+def test_trigger_create_case_with_report_id(client_triggers, actor, report):
+    """Create-case with optional report_id returns 202."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/create-case",
+        json={
+            "name": "Case-001",
+            "content": "Case content",
+            "report_id": report.id_,
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_create_case_missing_name_returns_422(client_triggers, actor):
+    """TB-03-001: Missing required field returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/create-case",
+        json={"content": "Case content"},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_create_case_ignores_unknown_fields(client_triggers, actor):
+    """TB-03-002: Unknown fields in request body are silently ignored."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/create-case",
+        json={"name": "Case-001", "content": "Case content", "extra": 99},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_create_case_unknown_actor_returns_404(client_triggers):
+    """TB-01-003: Unknown actor_id returns HTTP 404."""
+    resp = client_triggers.post(
+        "/actors/nonexistent-actor/trigger/create-case",
+        json={"name": "Case-001", "content": "Case content"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    data = resp.json()
+    assert data["detail"]["error"] == "NotFound"
+
+
+# ===========================================================================
+# Tests for trigger/add-report-to-case
+# ===========================================================================
+
+
+def test_trigger_add_report_to_case_returns_202(
+    client_triggers, actor, case_with_participant, report
+):
+    """TB-01-002: POST /actors/{id}/trigger/add-report-to-case returns 202."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-report-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "report_id": report.id_,
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_add_report_to_case_response_contains_activity(
+    client_triggers, actor, case_with_participant, report
+):
+    """TB-04-001: Successful trigger response contains 'activity' key."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-report-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "report_id": report.id_,
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert "activity" in data
+
+
+def test_trigger_add_report_to_case_missing_report_id_returns_422(
+    client_triggers, actor, case_with_participant
+):
+    """TB-03-001: Missing report_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-report-to-case",
+        json={"case_id": case_with_participant.id_},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_add_report_to_case_unknown_case_returns_404(
+    client_triggers, actor, report
+):
+    """TB-01-003: Unknown case_id returns HTTP 404."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-report-to-case",
+        json={
+            "case_id": "urn:uuid:nonexistent-case",
+            "report_id": report.id_,
+        },
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_trigger_add_report_to_case_unknown_report_returns_404(
+    client_triggers, actor, case_with_participant
+):
+    """TB-01-003: Unknown report_id returns HTTP 404."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-report-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "report_id": "urn:uuid:nonexistent-report",
+        },
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
