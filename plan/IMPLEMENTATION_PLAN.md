@@ -21,18 +21,6 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 All tasks in this section are prerequisites for **D5-7-HUMAN** sign-off.
 The section can proceed in parallel with PRIORITY-360.
 
-- [ ] **P347-DEMOORG**: Reorganize `vultron/demo/` into two sub-packages:
-  - `vultron/demo/exchange/` — individual protocol-fragment demos
-    (direct inbox injection; demonstrating message semantics).
-    Move: all single-activity demos (`receive_report_demo.py`,
-    `suggest_actor_demo.py`, `establish_embargo_demo.py`, etc.).
-  - `vultron/demo/scenario/` — end-to-end multi-actor workflow demos
-    (trigger-based puppeteering).
-    Move: `two_actor_demo.py`, `three_actor_demo.py`, `multi_vendor_demo.py`.
-  - Update `vultron/demo/cli.py`, all Docker Compose files, and Makefile
-    imports/references.
-  - Add `README.md` to each sub-package explaining the distinction.
-
 - [ ] **P347-PUPPETEER**: Convert scenario demos to trigger-based puppeteering:
   - `three_actor_demo.py`: replace `coordinator_creates_case_on_case_actor`,
     `coordinator_adds_report_to_case`, `coordinator_invites_actor`,
