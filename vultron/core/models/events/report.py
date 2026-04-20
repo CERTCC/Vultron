@@ -2,6 +2,8 @@
 
 from typing import Literal
 
+from pydantic import model_validator
+
 from vultron.core.models.events._mixins import (
     _InnerObjectIsReportMixin,
     _ObjectIsOfferMixin,
@@ -34,6 +36,20 @@ class ValidateReportReceivedEvent(
     semantic_type: Literal[MessageSemantics.VALIDATE_REPORT] = (
         MessageSemantics.VALIDATE_REPORT
     )
+
+    @model_validator(mode="after")
+    def _require_offer_and_report_ids(self) -> "ValidateReportReceivedEvent":
+        if self.offer_id is None:
+            raise ValueError(
+                "ValidateReportReceivedEvent requires offer_id "
+                "(object_ must reference a non-None VultronActivity)"
+            )
+        if self.report_id is None:
+            raise ValueError(
+                "ValidateReportReceivedEvent requires report_id "
+                "(inner_object must reference a non-None VulnerabilityReport)"
+            )
+        return self
 
 
 class InvalidateReportReceivedEvent(

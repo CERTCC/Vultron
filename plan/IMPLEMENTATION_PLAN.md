@@ -39,22 +39,6 @@ Architectural decisions for each issue are documented in
   activity `name` field. This is a construction-time fix in core/BT, not the
   adapter's concern.
 
-- [ ] **DR-03 — Semantic extraction: bare-string object_ returns UNKNOWN
-  (High, three-actor, multi-vendor):**
-  In `find_matching_semantics()` (`vultron/wire/as2/extractor.py`): when
-  `object_` is still a bare string after rehydration, return
-  `MessageSemantics.UNKNOWN` immediately rather than continuing to match
-  typed-object patterns. Also enforce the general rule: every `ActivityPattern`
-  MUST discriminate on at minimum `(Activity type, Object type)`. No pattern
-  may match on Activity type alone. Add this as a formal requirement in
-  `specs/semantic-extraction.md`.
-
-- [ ] **DR-04 — Fail-fast for required event fields (High):**
-  In `ValidateReportReceivedEvent` (and any other `*ReceivedEvent` that has
-  required fields such as `report_id`, `offer_id`): make those fields
-  non-optional (`str` not `str | None`). Validation MUST fail at construction
-  time per ARCH-10-001, not inside `execute()`.
-
 - [ ] **DR-05 — Accept.object_ must carry the original Invite (Medium,
   three-actor, multi-vendor):**
   When constructing `RmAcceptInviteToCaseActivity` and
@@ -94,16 +78,14 @@ Architectural decisions for each issue are documented in
   No bare Activity-type-only patterns. Deeply nested activities (e.g.,
   `Accept(Invite(...))`) must also check the nested object type where needed
   to disambiguate (e.g., `Accept(Invite(embargo))` vs
-  `Accept(Invite(case))`). Fix `AnnounceLogEntryActivity` pattern to require
-  `object.type_ == CaseLogEntry` as the immediate fix; then audit all other
-  patterns.
+  `Accept(Invite(case))`). `AnnounceLogEntryActivity` pattern immediate fix
+  is already complete.
 
-  **Confirmed violation (new):** `InviteActorToCasePattern` is missing
-  `object_=AOtype.ACTOR`. Fix: add `object_=AOtype.ACTOR` to that pattern.
-  Per AS2 spec and `notes/activitystreams-semantics.md`, `Invite(object=Actor,
-  target=Case)` is the correct structure — the actor being invited IS the
-  object. `AcceptInviteActorToCasePattern` and `RejectInviteActorToCasePattern`
-  will automatically inherit the fix.
+  **Remaining:** `InviteActorToCasePattern` needs `object_` discriminator, but
+  `AOtype.ACTOR` cannot be used directly — the pattern matcher uses exact
+  `type_` string equality, while real actors use subtypes (`Person`,
+  `Organization`, `Service`). Requires either subtype-aware matching in
+  `_match_field()` or a custom actor-type predicate.
 
 - [ ] **DR-08 — `create_note`: AttachNoteToCaseNode BT node (High, two-actor):**
   Implement `AttachNoteToCaseNode` BT node that reads the case from the

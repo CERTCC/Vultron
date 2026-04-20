@@ -17,6 +17,7 @@ from vultron.core.use_cases.received.case import (
     InvalidateCaseUseCase,
     ValidateCaseUseCase,
 )
+from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +178,7 @@ class ValidateReportReceivedUseCase:
         report_id = request.report_id
         offer_id = request.offer_id
         if report_id is None or offer_id is None:
-            raise ValueError(
+            raise VultronValidationError(
                 "ValidateReportReceivedEvent requires report_id and offer_id"
             )
 

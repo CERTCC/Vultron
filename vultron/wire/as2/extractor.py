@@ -115,13 +115,15 @@ class ActivityPattern(BaseModel):
         ) -> bool:
             if pattern_field is None:
                 return True
-            # URI/ID string reference: can't type-check, conservatively allow
-            if isinstance(activity_field, str):
-                return True
+            # Nested pattern: bare-string references cannot satisfy a typed
+            # nested-activity constraint — rehydration is required first.
             if isinstance(pattern_field, ActivityPattern):
                 return isinstance(
                     activity_field, as_Activity
                 ) and pattern_field.match(activity_field)
+            # URI/ID string reference: can't type-check AOtype/VOtype, allow
+            if isinstance(activity_field, str):
+                return True
             if activity_field is None:
                 return False
             return bool(

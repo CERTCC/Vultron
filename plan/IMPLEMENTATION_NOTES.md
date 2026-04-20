@@ -441,6 +441,17 @@ field, violating SE-03-003. Per AS2 spec ("extending an invitation for the
 `notes/activitystreams-semantics.md`, `Invite(object=Actor, target=Case)` is
 the correct structure. Fix: add `object_=AOtype.ACTOR`.
 
+**Constraint discovered (2026-04-20):** `AOtype.ACTOR = "Actor"` only matches
+the base `as_Actor` class (`type_="Actor"`). Real AS2 actor subtypes
+(`VultronPerson`, `VultronOrganization`, `CaseActor`) have `type_="Person"`,
+`type_="Organization"`, `type_="Service"` respectively. The pattern matcher
+uses exact string equality (`pattern_field == getattr(activity_field, "type_",
+None)`), so `object_=AOtype.ACTOR` would NOT match real invite objects
+containing actor subtypes. Adding it breaks existing tests and real invite
+flows. Requires subtype-aware matching in `_match_field()` (e.g., check
+`isinstance(activity_field, as_Actor)`) or a custom actor-type predicate in
+`ActivityPattern` before this can be implemented.
+
 #### DR-13 Update — cc Addressing Not Supported
 
 `cc` addressing has no defined handler semantics in the current protocol

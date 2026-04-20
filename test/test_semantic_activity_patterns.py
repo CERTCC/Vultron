@@ -13,6 +13,7 @@ from vultron.wire.as2.extractor import (
 from vultron.wire.as2.vocab.activities.case import (
     OfferCaseOwnershipTransferActivity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Accept
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 
@@ -194,3 +195,19 @@ def test_offer_case_ownership_transfer_with_inline_case_dispatches_correctly():
     )
     result = find_matching_semantics(offer)
     assert result == MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
+
+
+def test_accept_with_bare_string_object_returns_unknown():
+    """Accept with a bare string object_ (unrehydrated ref) must not match
+    VALIDATE_REPORT or any other semantic requiring a nested-activity object.
+
+    DR-03: _match_field() must check nested ActivityPattern before the
+    conservative string-passthrough, so that bare-string refs don't
+    accidentally satisfy typed nested-pattern constraints.
+    """
+    accept = as_Accept(
+        actor="https://example.org/coordinator",
+        object_="urn:uuid:some-offer-id",  # bare string — not rehydrated
+    )
+    result = find_matching_semantics(accept)
+    assert result == MessageSemantics.UNKNOWN
