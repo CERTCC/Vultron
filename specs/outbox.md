@@ -86,6 +86,33 @@ is deferred to future work.
 
 - Integration test: Delivering same activity twice → recipient inbox has one copy
 
+## Outbound Reference Dehydration
+
+- `OX-07-001` The outbox handler MUST dehydrate the following ActivityStreams
+  reference fields to URI strings before wire delivery: `actor`, `target`,
+  `to`, `cc`, `bto`, `bcc`, `origin`, `result`, `instrument`
+  - If a field value is a domain model instance (Pydantic model), replace it
+    with its `id_` string
+  - If a field value is a list, apply the substitution element-wise
+  - **Rationale**: Core and BT nodes construct activities using full domain
+    objects for type safety and convenience; wire delivery requires URI strings
+    in peripheral reference fields (ActivityPub federation convention)
+- `OX-07-002` The `object_` field of outbound activities MUST NOT be dehydrated
+  - `object_` MUST remain a full inline typed domain object on the wire so
+    that recipients can determine semantic type for correct handler dispatch
+  - OX-07-002 depends-on MV-09-001
+
+### OX-07-001, OX-07-002 Verification
+
+- Unit test: Outbound activity with a domain object in `actor` field is
+  dehydrated to URI string before delivery
+- Unit test: Outbound activity with a domain object in `target` field is
+  dehydrated to URI string before delivery
+- Unit test: Outbound activity `object_` field containing a full domain object
+  is NOT dehydrated and is delivered as an inline typed object
+- Integration test: Recipient inbox receives activity with string `actor`
+  and full typed `object_`
+
 ## Related
 
 - **Response Format**: `specs/response-format.md` (response activity structure)

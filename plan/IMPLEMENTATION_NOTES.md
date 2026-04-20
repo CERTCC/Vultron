@@ -9,6 +9,216 @@ header.
 
 ---
 
+### 2026-04-20 REVIEW-26042001 — Multi-Actor Demo Review: Architectural Decisions
+
+Source: `notes/demo-review-26042001.md`. Decisions captured via structured
+design interview. Tasks tracked in `plan/IMPLEMENTATION_PLAN.md`
+PRIORITY-348.
+
+#### DR-01 — Outbox reference-field dehydration (arch principle)
+
+**Decision**: The outbound adapter (outbox_handler.py) is solely responsible
+for producing wire-clean ActivityStreams JSON. Core and BT nodes may construct
+activities using full domain model instances in any field. The outbox handler
+MUST dehydrate the following fields to URI strings before wire delivery:
+`actor`, `target`, `to`, `cc`, `origin`, `result`, `instrument`.
+
+`object_` is explicitly **exempt** from dehydration — it must always carry the
+full inline typed object on the wire so recipients can determine semantic type.
+
+**Implementation**: Add `_dehydrate_references(activity_dict: dict) -> dict` in
+`vultron/adapters/driving/fastapi/outbox_handler.py`. Apply it to the raw
+`model_dump(by_alias=True)` output before calling
+`VultronActivity.model_validate()` in `handle_outbox_item()`. For each field
+in the dehydration set: if the value is a dict with an `id` key, replace with
+the `id` value string; if it's a list, apply element-wise.
+
+**Rationale**: Core must not be responsible for knowing what is appropriate to
+send on the wire. That is entirely an outbound port concern (hexagonal
+architecture: adapters translate between domain and wire formats).
+
+#### DR-02 — Activity `name` construction (BT node responsibility)
+
+**Decision**: The `name` field of outbound activities is semantic content
+(human-readable label), not a wire-format concern. BT nodes that set `name`
+when constructing activities MUST use `object_.name or object_.id_` — never
+`repr(object_)` or `str(object_)`. The outbound adapter does not sanitize
+semantic content.
+
+**Files to audit**: any BT node in `vultron/core/behaviors/` that constructs
+`Add`, `Invite`, or `Accept` activities with a computed `name` string.
+
+#### DR-03 — Semantic extraction: bare-string object_ guard
+
+**Decision**: `find_matching_semantics()` in `vultron/wire/as2/extractor.py`
+MUST return `MessageSemantics.UNKNOWN` immediately when `object_` is a bare
+string after rehydration. It MUST NOT continue matching typed-object patterns
+against a string reference.
+
+**General rule** (formal requirement to add to `specs/semantic-extraction.md`):
+Every `ActivityPattern` MUST discriminate on at minimum `(Activity type, Object
+type)`. No pattern may match on Activity type alone. For nested activities (e.g.
+`Accept(Invite(...))`), the pattern MUST also check the nested object type where
+needed to disambiguate semantically distinct activities with the same outer
+shape.
+
+#### DR-04 — Fail-fast for required event fields (ARCH-10-001)
+
+**Decision**: Required fields in `*ReceivedEvent` classes (e.g. `report_id`,
+`offer_id` in `ValidateReportReceivedEvent`) MUST be typed as non-optional
+(`str`, not `str | None`). Pydantic validation MUST raise at construction time.
+A use case MUST NOT raise `ValueError` inside `execute()` for missing required
+fields.
+
+**Audit**: Check all `*ReceivedEvent` classes for fields that are required by
+their subtype but typed as optional in the parent.
+
+#### DR-05 — Accept.object_ must carry the original Invite
+
+**Decision**: `InviteReceivedUseCase` (both RM and EM variants) MUST stash
+the received invite activity on the BT blackboard when the invite is processed.
+The `AcceptInvite` BT node reads the invite from the blackboard and uses it
+as `object_` when constructing the `Accept` activity.
+
+**Wrong pattern**: passing the case object or embargo event as `object_` when
+constructing Accept — this produces coercion failures on the receiving end.
+
+**Correct pattern**:
+
+```python
+# In InviteReceivedUseCase.execute() — store invite on blackboard
+bb.set("invite_activity", invite)
+
+# In AcceptInviteNode.update() — read invite from blackboard
+invite = bb.get("invite_activity")
+accept = RmAcceptInviteToCaseActivity(actor=actor_id, object_=invite)
+```
+
+See AGENTS.md "Accept/Reject `object` Field Must Use an Inline Typed Activity
+Object" pitfall entry.
+
+#### DR-06 — Multi-party embargo: per-participant EM state
+
+**Decision**: Each `CaseParticipant` carries its own EM state field (not just
+the shared `VulnerabilityCase` EM state). Case EM state transitions to `ACTIVE`
+when the **case owner** accepts, not on the first participant accept.
+
+**Case owner determination**: `case.attributed_to == actor_id` identifies
+the case owner (CaseActor / Coordinator role).
+
+**Subsequent participant accepts**: When a non-owner participant calls
+`accept-embargo` and the case EM state is already `ACTIVE`, the call MUST
+succeed (200/204) and update only that participant's own EM state in
+`CaseParticipant`. No 409.
+
+**Rationale**: The EM model in the protocol is per-participant (`q^em` is
+per-actor). The shared EM state is an aggregate derived from participant states.
+The case owner's acceptance is the authoritative signal for `ACTIVE`. Inactive
+participants do not hold a pocket veto because their lack of response does not
+block the case owner from acting.
+
+**Reference**: `docs/topics/process_models/em/` — the EM model is consent-based
+with the case owner as the resolution authority when consensus fails.
+
+#### DR-07 — ActivityPattern discrimination requirement
+
+**Decision**: All entries in `SEMANTICS_ACTIVITY_PATTERNS` MUST match on at
+minimum `(Activity type, Object type)`. No bare Activity-type matches.
+
+**Immediate fix**: `AnnounceLogEntryActivity` pattern — add
+`object_type = CaseLogEntry` discriminator.
+
+**Audit required**: Review all patterns for bare-type matches. Pay particular
+attention to `Accept` patterns which must distinguish:
+
+- `Accept(Offer(VulnerabilityReport))` → `validate_report`
+- `Accept(Invite(VulnerabilityCase))` → `accept_invite_to_case`
+- `Accept(Invite(EmbargoEvent))` → `accept_embargo`
+
+#### DR-08 — create_note: AttachNoteToCaseNode BT node
+
+**Decision**: Implement `AttachNoteToCaseNode` BT node (in
+`vultron/core/behaviors/case/nodes.py` or similar). The node:
+
+1. Reads the `VulnerabilityCase` from the DataLayer.
+2. Checks `case.notes` for the note's `id_` — if already present, returns
+   `SUCCESS` (idempotent).
+3. Appends `note.id_` to `case.notes`.
+4. Calls `dl.save(case)`.
+
+Wire this into the `create_note` BT subtree. The use case `execute()` remains
+infrastructure glue only.
+
+**Idempotency fix**: The Note object already existing in the DataLayer does NOT
+mean it is attached to the case. The idempotency check MUST be `note.id_ in
+case.notes`, not `dl.read(note_id) is not None`.
+
+#### DR-09 — Actor ID normalization
+
+**Decision**: Actor IDs MUST be full URIs everywhere in the system. Normalize
+to full URI at the point the actor ID is first established (actor creation,
+seed load, session context). No function downstream of that point should ever
+receive or handle a short UUID.
+
+**Audit**: Search for short-UUID actor ID assignment in
+`vultron/demo/`, `vultron/adapters/`, and `vultron/core/` seeding code.
+
+#### DR-10 — Stub objects for selective disclosure
+
+**Decision**: Implement stub-object support (as designed in
+`notes/stub-objects.md`) as part of the Invite/embargo flow:
+
+- When constructing an `Invite` to a case, the `target` field MUST be a stub
+  object `{id: case_id, type: "VulnerabilityCase"}` — not the full case.
+  The invitee has not yet accepted the embargo and must not receive case details.
+- Stub objects carry `id` + `type` (+ optional `summary`) only.
+- Stubs MUST carry `type` so semantic routing works correctly.
+- Recipient-side: stubs MUST NOT overwrite a full object already in the
+  DataLayer. If the DataLayer already has a full `VulnerabilityCase` for that
+  id, the stub is discarded.
+- A new `specs/stub-objects.md` (or section in `specs/message-validation.md`)
+  MUST formally define when stubs are permitted.
+
+**Connection to MV-09-001**: Stub objects are a controlled exception to the
+"full inline typed object" requirement. The spec must be updated to define
+this exception explicitly.
+
+#### DR-11 — PersistCase: upsert semantics
+
+**Decision**: `PersistCase` BT node calls `dl.save()` with upsert / idempotent
+semantics. Duplicate-key conditions MUST be silently handled. No WARNING log
+for a pre-existing case with the same `id_`.
+
+#### DR-12 — BT failure reason propagation
+
+**Decision**: Add `get_failure_reason(tree) -> str` utility in
+`vultron/core/behaviors/bridge.py`. Implementation: walk the behaviour tree
+depth-first; return the first node with `status == Status.FAILURE` and its
+`feedback_message`. If no node has a feedback message, return the failing
+node's class name.
+
+Apply to all BT-failure log messages (e.g., `EngageCaseBT`,
+`ValidateReportBT`, etc.).
+
+#### DR-13 — SubmitReportReceivedUseCase: remove vendor/target assumptions
+
+**Decision**: Remove the `vendor_actor_id` / `Offer.target` lookup from
+`SubmitReportReceivedUseCase`. The "vendor" label is a demo convenience; at the
+protocol level all actors are generic. `Offer.target` has no defined semantic
+meaning for `Offer(Report)` — it is misuse of the AS2 `target` field.
+
+**Correct `to`/`cc` semantics**:
+
+- Receiving actor in `Offer.to` → create a case (primary recipient).
+- Receiving actor in `Offer.cc` → informational; log DEBUG; do NOT create a
+  case.
+- Receiving actor not in `to` or `cc` → log WARNING (why did this arrive?).
+
+**Add to `specs/handler-protocol.md`**: document the `to`-only case-creation
+rule as a formal requirement.
+
+---
+
 ### 2026-04-17 BUG-26041701 design scope expansion
 
 **Scope decision**: BUG-26041701 absorbs IDEA-26041702 (generalize
@@ -186,3 +396,84 @@ the activity is stored. After this change, they must also verify:
 
 Integration tests in `test/demo/` will need to be updated once the demo
 scripts switch from direct inbox injection to trigger-based puppeteering.
+
+---
+
+### 2026-04-20 REVIEW-26042001 (Supplement) — Second-Pass Spec Implications
+
+Source: Architectural review of spec changes from REVIEW-26042001.
+
+#### DR-06 Update — Per-Participant Embargo Consent State Machine
+
+The existing `ParticipantStatus.embargo_adherence: bool` field is correct as a
+derived value, but it needs a formal 5-state machine behind it. The states are:
+`NO_EMBARGO` → `INVITED` → `SIGNATORY` (embargo_adherence=True) or `DECLINED`
+(embargo_adherence=False), plus `LAPSED` (was signatory; embargo revised but
+not yet re-accepted). `LAPSED` is distinct from `DECLINED` because a lapsed
+participant had prior good standing. Both `INVITED` and `LAPSED` have
+timer-based "pocket-veto" transitions to `DECLINED` (configurable timeout).
+
+Implement with `transitions` library in
+`vultron/core/states/participant_embargo_consent.py`. Full spec in
+`notes/participant-embargo-consent.md`.
+
+**Embargo meta-protocol delivery**: `Offer(Embargo)`, `Invite(Embargo)`, and
+`Announce(Embargo)` MUST be delivered to `DECLINED` and `LAPSED` participants
+so they can re-accept without deadlocking. Only case content is gated on
+`embargo_adherence=True`.
+
+**Accept(Invite(case)) implies embargo consent**: If the case has an active
+embargo when a participant accepts the case invitation, the acceptance MUST
+simultaneously set consent to `SIGNATORY`. The reverse DOES NOT apply:
+accepting an embargo does not imply case participation.
+
+**Full case delivery precondition**: The case owner MUST only send
+`Announce(VulnerabilityCase)` with full case details when BOTH
+`rm_state=ACCEPTED` AND `embargo_adherence=True` (or no active embargo). This
+check MUST be in the BT subtree for `AcceptInviteActorToCase`, not in
+post-BT procedural code.
+
+#### DR-07 Update — InviteActorToCasePattern Missing object_
+
+`InviteActorToCasePattern` in `vultron/wire/as2/extractor.py` has no `object_`
+field, violating SE-03-003. Per AS2 spec ("extending an invitation for the
+**object** to the **target**") and the existing notes in
+`notes/activitystreams-semantics.md`, `Invite(object=Actor, target=Case)` is
+the correct structure. Fix: add `object_=AOtype.ACTOR`.
+
+#### DR-13 Update — cc Addressing Not Supported
+
+`cc` addressing has no defined handler semantics in the current protocol
+version. When a receiving actor finds itself in `cc` of an `Offer(Report)`:
+
+- Log WARNING (not DEBUG): "`cc` addressing is not supported; activity discarded"
+- Discard without creating a case
+This is a deliberate simplification — implementing an "informational receive"
+use case for `cc` recipients would require defining what "informational only"
+means, which we're deferring.
+
+#### DR-14 — Dead-Letter Handling for Unresolvable object_ (New)
+
+When `find_matching_semantics()` returns UNKNOWN because `object_` is a bare
+string URI after rehydration (VAM-01-009), this is NOT the same as UNKNOWN due
+to no registered pattern. The two cases require different handling:
+
+- **UNKNOWN_NO_PATTERN** (no matching `ActivityPattern`): raise
+  `VultronApiHandlerMissingSemanticError` as currently
+- **UNKNOWN_UNRESOLVABLE_OBJECT** (`object_` still bare string after rehydration):
+  log WARNING, store dead-letter record, return silently
+
+Dead-letter record schema:
+
+```json
+{
+  "activity_id": "urn:uuid:...",
+  "activity_json": {},
+  "unresolvable_uri": "https://...",
+  "actor_id": "https://...",
+  "received_at": "2026-..."
+}
+```
+
+For future synchronous paths: return HTTP 422 Unprocessable Content with the
+unresolvable URI in the error body.

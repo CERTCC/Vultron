@@ -31,6 +31,13 @@ The Vultron protocol uses ActivityStreams activities for both requests and respo
   string ID — bare string IDs are rejected at construction time
   - Downstream processing SHOULD rehydrate the referenced Offer to discover
     the underlying offered object
+- `RF-02-005` (MUST) When accepting an Invite, the `object` field of the `Accept`
+  activity MUST reference the Invite activity itself as a full inline typed
+  object (e.g., `RmInviteToCaseActivity`, `EmInviteToEmbargoOnCaseActivity`),
+  not the case, embargo, or any other domain object
+  - The Invite activity MUST be stashed at receive time (e.g., on the BT
+    blackboard) so it is available when constructing the Accept response
+  - RF-02-005 refines RF-02-002
 
 ## Reject Response
 

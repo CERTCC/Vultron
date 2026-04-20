@@ -55,9 +55,22 @@ sole implementation location for the AS2 mapping.
 - `VAM-01-005` (MUST) When a pattern specifies a nested activity as the `object` field,
   the outer activity's `object` MUST be a fully rehydrated AS2 activity object
   matching the inner `ActivityPattern`
-- `VAM-01-006` Pattern matching MUST be conservative when a field is a
-  non-rehydratable URI string: such a field MUST be treated as matching any
-  expected type rather than failing the match
+- `VAM-01-006` Pattern matching MUST be conservative when a non-`object_` field
+  is a non-rehydratable URI string: such a field MUST be treated as matching
+  any expected type rather than failing the match
+  - **Rationale**: Peripheral reference fields (`actor`, `target`, `context`,
+    etc.) do not drive semantic dispatch; conservatively matching them avoids
+    false negatives when the DataLayer cannot expand every reference
+  - This conservative rule does NOT apply to the `object_` field — see
+    VAM-01-009
+- `VAM-01-009` (MUST) If the `object_` field of an activity remains a bare
+  string URI after rehydration (i.e., the DataLayer does not have a record for
+  that URI), `find_matching_semantics()` MUST return `MessageSemantics.UNKNOWN`
+  - **Rationale**: Semantic dispatch depends on the object type. A bare string
+    in `object_` makes the object type unknowable; proceeding as if the pattern
+    matches would route the activity to the wrong handler
+  - This is a stronger constraint than VAM-01-006; VAM-01-006 applies to
+    non-`object_` fields only
 - `VAM-01-007` `MessageSemantics.UNKNOWN` MUST be returned when no registered
   pattern matches the incoming activity
 - `VAM-01-008` (MUST) Inbound activities represent state-change notifications, not

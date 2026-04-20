@@ -93,6 +93,64 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
   `False` for `None`, causing every pattern that inspects `object_.type` to
   fail, which forces dispatch to `UNKNOWN`.
 
+## Stub Objects
+
+Stub objects are minimal ActivityStreams object representations carrying only
+`id` and `type` (and optionally `summary`). They are a controlled exception to
+MV-09-001 (full inline typed object) permitted in specific selective-disclosure
+scenarios.
+
+- `MV-10-001` Stub objects MUST carry at minimum an `id` field (full URI) and a
+  `type` field; they MAY carry a `summary` field for human-readable context
+  - A stub without a `type` field MUST be treated as an unresolvable bare
+    string reference and MUST trigger `MessageSemantics.UNKNOWN` per VAM-01-009
+- `MV-10-002` Stub objects are ONLY permitted in the following field positions:
+  - The `target` field of an `Invite` activity when the invitee has not yet
+    accepted the embargo and must not receive full case details
+  - Future selective-disclosure contexts MUST be explicitly documented in this
+    specification before use
+- `MV-10-003` The DataLayer MUST NOT overwrite a full domain object with a stub
+  object
+  - If a DataLayer record already exists for the stub's `id`, the incoming stub
+    MUST be discarded silently; no update MUST occur
+  - **Rationale**: A recipient may receive a stub for an object they already
+    have in full; discarding preserves data completeness
+- `MV-10-004` Inbound stubs MUST NOT be used to create new domain records
+  - Stub receipt logs the stub's `id` and `type` for correlation but does not
+    trigger object creation in the DataLayer
+
+- `MV-10-005` (MUST) A participant MUST satisfy BOTH of the following conditions
+  before the case owner delivers full case details to them:
+  1. `ParticipantStatus.rm_state == ACCEPTED` (participant accepted the case
+     invitation)
+  2. `ParticipantStatus.embargo_adherence == True` (participant is a signatory
+     to the active embargo), OR there is no active embargo (`CaseStatus.em_state
+     == NONE`)
+  - Full case details MUST NOT be sent to participants who have not satisfied
+    both conditions simultaneously
+- `MV-10-006` (MUST) When a participant `Accept`s an `Invite(case)` and the
+  case has an active embargo (`CaseStatus.em_state == ACTIVE`), the acceptance
+  MUST imply consent to the active embargo, transitioning that participant's
+  consent state to `SIGNATORY`
+  - This implication is a shortcut: the case owner treats a single
+    `Accept(Invite(case))` as simultaneously accepting the case invitation
+    AND the active embargo
+  - The reverse implication MUST NOT apply: accepting an embargo (`Accept(Offer/
+    Invite(Embargo))`) MUST NOT imply accepting a case invitation; case
+    participation requires an explicit `Accept(Invite(case))`
+  - MV-10-006 depends-on CM-03-008
+
+### MV-10-005, MV-10-006 Verification
+
+- Unit test: Case with active embargo — participant who has accepted case invite
+  is automatically set as embargo signatory
+- Unit test: Participant with rm_state=ACCEPTED but embargo_adherence=False →
+  no full case details delivered
+- Unit test: Participant who accepts embargo only → rm_state unchanged, no
+  case participation
+- Integration test: Full case delivery triggered when both rm=ACCEPTED AND
+  embargo_adherence=True are satisfied simultaneously
+
 ## Duplicate Detection
 
 - `MV-08-001` The system SHOULD detect duplicate activity submissions during validation

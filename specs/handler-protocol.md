@@ -173,6 +173,34 @@ protocol business logic. All handlers follow a common contract defined by the
 - Integration test: Actor inbox/outbox collections persist correctly after handler updates
 - Regression test: Objects with populated collections retain data after `model_validate()`
 
+## Offer Recipient Addressing
+
+- `HP-09-001` Handlers processing an inbound `Offer` activity MUST determine
+  case-creation eligibility from the `to` field only
+  - An actor in the `to` field of an `Offer(VulnerabilityReport)` MUST create
+    a `VulnerabilityCase` for the submitted report
+  - Vultron does NOT implement a cc-recipient handler; `cc` addressing carries
+    no defined processing semantics in the current protocol version
+  - If the receiving actor appears in the `cc` field, the handler MUST log a
+    WARNING that `cc` addressing is not supported and discard the activity
+    without creating a case
+  - If the receiving actor appears in neither `to` nor `cc`, the handler MUST
+    log a WARNING and discard the activity without creating a case
+- `HP-09-002` The `target` field MUST NOT be used to determine case-creation
+  eligibility for `Offer` activities
+  - AS2 `target` means "the collection to which an activity is directed" and is
+    appropriate for `Add`/`Remove`; it carries no defined semantic meaning on
+    an `Offer` in ActivityStreams 2.0
+  - Handler code MUST NOT inspect `Offer.target` to infer a recipient actor ID
+  - HP-09-002 depends-on VAM-01-008
+
+### HP-09-001, HP-09-002 Verification
+
+- Unit test: Receiving actor in `to` → case created
+- Unit test: Receiving actor in `cc` → no case created; WARNING log entry
+- Unit test: Receiving actor in neither → no case created; WARNING log entry
+- Unit test: `Offer.target` field not consulted when determining case creation
+
 ## Related
 
 - Implementation: `vultron/core/use_cases/` (use-case modules)

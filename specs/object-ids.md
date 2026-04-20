@@ -28,6 +28,14 @@ Should Be URL-Like, Not Bare UUIDs"), `plan/IMPLEMENTATION_PLAN.md`
 - `OID-01-004` (MUST) Helper functions for constructing full-URI IDs from UUIDs
   MUST be provided in a shared utility module (e.g.,
   `vultron.as_vocab.utils.make_id`)
+- `OID-01-005` (MUST) Actor IDs MUST be normalized to full URI form at the point
+  of first establishment — actor creation, seed data loading, or session
+  initialization
+  - No component downstream of that establishment point MUST ever generate,
+    accept, or persist a bare UUID as an actor ID
+  - If a bare UUID is received from an external source, it MUST be expanded to
+    a full URI using the configured base URL before storage or use
+  - OID-01-005 depends-on OID-01-003
 
 ## DataLayer Handling
 

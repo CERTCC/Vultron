@@ -101,12 +101,24 @@ the distinction between participant-specific and participant-agnostic state.
   - CM-03-002 implements VP-01-002
   - CM-03-002 implements VP-02-002
   - CM-03-002 implements VP-03-001
-- `CM-03-003` EM state MUST be participant-agnostic (shared per case)
-  - EM state is tracked in `CaseStatus.em_state`
-  - All case participants share the same EM state
+- `CM-03-003` A shared EM state MUST be tracked at the case level in
+  `CaseStatus.em_state` to represent the collective embargo agreement
   - CM-03-003 implements VP-04-002
   - CM-03-003 implements VP-13-009
   - CM-03-003 implements VP-14-001
+- `CM-03-008` Each `CaseParticipant` MUST track their own embargo consent state
+  via the `ParticipantStatus.embargo_adherence` field
+  - `embargo_adherence: bool = True` is a derived property of the participant's
+    position in a 5-state consent machine (see `notes/participant-embargo-consent.md`)
+  - `embargo_adherence` is `True` iff the participant is in the `SIGNATORY`
+    consent state; all other states yield `False`
+  - The 5 consent states are: `NO_EMBARGO`, `INVITED`, `SIGNATORY`, `LAPSED`,
+    `DECLINED` (see notes for full transition table and timer-based pocket-veto
+    transitions from `INVITED` and `LAPSED` to `DECLINED`)
+  - The shared `CaseStatus.em_state` represents the collective embargo
+    agreement; per-participant `embargo_adherence` tracks each actor's
+    individual consent to the current embargo terms
+  - CM-03-008 implements VP-04-002
 - `CM-03-004` CS (PXA sub-state) MUST be participant-agnostic (shared per case)
   - PXA state is tracked in `CaseStatus.pxa_state`
   - Reflects observable world state (Public awareness, eXploit publication,
@@ -147,14 +159,29 @@ the distinction between participant-specific and participant-agnostic state.
   - CM-04-001 implements VP-13-005
 - `CM-04-002` Handlers processing VFD state transitions MUST update
   `ParticipantStatus.vfd_state` for the sending actor's CaseParticipant
-- `CM-04-003` Handlers processing EM state transitions MUST update
-  `CaseStatus.em_state` — this is shared and affects all case participants
+- `CM-04-003` Handlers processing EM state transitions MUST update the
+  appropriate EM state field based on who is accepting and the current state:
+  - When the **case owner** (identified by `VulnerabilityCase.attributed_to`)
+    accepts an embargo proposal, the shared `CaseStatus.em_state` MUST
+    transition to `ACTIVE`; the case owner's `ParticipantStatus.embargo_adherence`
+    MUST also transition to `SIGNATORY` state (yielding `embargo_adherence=True`)
+  - When a **non-owner participant** accepts an embargo proposal, only that
+    participant's `ParticipantStatus.embargo_adherence` MUST transition to
+    `SIGNATORY`; the shared `CaseStatus.em_state` MUST NOT be changed if it
+    is already `ACTIVE`
+  - When the shared `CaseStatus.em_state` is already `ACTIVE` and a non-owner
+    calls accept-embargo, the handler MUST succeed idempotently (HTTP 2xx),
+    updating only that participant's consent state; a 4xx error MUST NOT be
+    returned in this case
+  - When the shared `CaseStatus.em_state` enters `REVISE`, all participants'
+    consent states MUST transition from `SIGNATORY` to `LAPSED`
   - CM-04-003 implements VP-06-001
   - CM-04-003 implements VP-09-001
   - CM-04-003 implements VP-11-001
   - CM-04-003 implements VP-11-002
   - CM-04-003 implements VP-14-001
   - CM-04-003 implements VP-14-002
+  - CM-04-003 depends-on CM-03-008
 - `CM-04-004` (MUST) Handlers processing PXA state transitions (public disclosure,
   exploit publication, attack observation) MUST update `CaseStatus.pxa_state`
   - CM-04-004 implements VP-03-002
@@ -168,10 +195,15 @@ the distinction between participant-specific and participant-agnostic state.
   - The validation rule MUST be shared across code paths that persist the
     corresponding state so invalid sequences are rejected consistently
 - `CM-04-006` State transition handlers MUST NOT mix participant-specific and
-  participant-agnostic state updates
-  - Updating `CaseStatus.em_state` with a participant-specific value is
-    incorrect and MUST be avoided
+  participant-agnostic state updates incorrectly
+  - The shared `CaseStatus.em_state` MUST NOT be transitioned by non-owner
+    participant accept-embargo actions; only the case owner's acceptance
+    drives the shared EM state
+  - Participant-specific EM consent MUST be tracked via
+    `ParticipantStatus.embargo_adherence` (and its underlying 5-state consent
+    machine), NOT via `CaseStatus.em_state`
   - CM-04-006 implements VP-13-009
+  - CM-04-006 depends-on CM-03-008
 
 ## Object Model Relationships
 
