@@ -33,22 +33,22 @@ from types import SimpleNamespace
 
 import click
 
-import vultron.demo.acknowledge_demo as acknowledge_demo
-import vultron.demo.establish_embargo_demo as establish_embargo_demo
-import vultron.demo.initialize_case_demo as initialize_case_demo
-import vultron.demo.initialize_participant_demo as initialize_participant_demo
-import vultron.demo.invite_actor_demo as invite_actor_demo
-import vultron.demo.manage_case_demo as manage_case_demo
-import vultron.demo.manage_embargo_demo as manage_embargo_demo
-import vultron.demo.manage_participants_demo as manage_participants_demo
-import vultron.demo.receive_report_demo as receive_report_demo
-import vultron.demo.status_updates_demo as status_updates_demo
-import vultron.demo.suggest_actor_demo as suggest_actor_demo
-import vultron.demo.multi_vendor_demo as multi_vendor_demo
-import vultron.demo.three_actor_demo as three_actor_demo
-import vultron.demo.transfer_ownership_demo as transfer_ownership_demo
-import vultron.demo.trigger_demo as trigger_demo
-import vultron.demo.two_actor_demo as two_actor_demo
+import vultron.demo.exchange.acknowledge_demo as acknowledge_demo
+import vultron.demo.exchange.establish_embargo_demo as establish_embargo_demo
+import vultron.demo.exchange.initialize_case_demo as initialize_case_demo
+import vultron.demo.exchange.initialize_participant_demo as initialize_participant_demo
+import vultron.demo.exchange.invite_actor_demo as invite_actor_demo
+import vultron.demo.exchange.manage_case_demo as manage_case_demo
+import vultron.demo.exchange.manage_embargo_demo as manage_embargo_demo
+import vultron.demo.exchange.manage_participants_demo as manage_participants_demo
+import vultron.demo.exchange.receive_report_demo as receive_report_demo
+import vultron.demo.exchange.status_updates_demo as status_updates_demo
+import vultron.demo.exchange.suggest_actor_demo as suggest_actor_demo
+import vultron.demo.scenario.multi_vendor_demo as multi_vendor_demo
+import vultron.demo.scenario.three_actor_demo as three_actor_demo
+import vultron.demo.exchange.transfer_ownership_demo as transfer_ownership_demo
+import vultron.demo.exchange.trigger_demo as trigger_demo
+import vultron.demo.scenario.two_actor_demo as two_actor_demo
 from vultron.demo.seed_config import SeedConfig
 from vultron.demo.utils import DataLayerClient, BASE_URL, seed_actor
 import vultron.bt.base.demo.pacman as pacman_demo

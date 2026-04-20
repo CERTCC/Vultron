@@ -16,7 +16,7 @@ from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
-import vultron.demo.multi_vendor_demo as demo
+import vultron.demo.scenario.multi_vendor_demo as demo
 from test.demo._helpers import make_testclient_call
 
 
@@ -138,7 +138,7 @@ class TestVendorCreatesCase:
 
         case_data = case_actor_client.get(f"/datalayer/{case.id_}")
         stored_case = demo.VulnerabilityCase(**case_data)
-        from vultron.demo.multi_vendor_demo import ref_id as _ref_id
+        from vultron.demo.scenario.multi_vendor_demo import ref_id as _ref_id
 
         assert _ref_id(stored_case.attributed_to) == vendor_in_case_actor.id_
 
@@ -197,7 +197,7 @@ class TestOwnershipTransfer:
         # Confirm initial owner is vendor
         case_data = case_actor_client.get(f"/datalayer/{case.id_}")
         initial_case = demo.VulnerabilityCase(**case_data)
-        from vultron.demo.multi_vendor_demo import ref_id as _ref_id
+        from vultron.demo.scenario.multi_vendor_demo import ref_id as _ref_id
 
         assert _ref_id(initial_case.attributed_to) == vendor_in_case_actor.id_
 
@@ -222,7 +222,7 @@ class TestOwnershipTransfer:
         # Verify case ownership transferred to coordinator
         updated_data = case_actor_client.get(f"/datalayer/{case.id_}")
         updated_case = demo.VulnerabilityCase(**updated_data)
-        from vultron.demo.multi_vendor_demo import ref_id as _ref_id
+        from vultron.demo.scenario.multi_vendor_demo import ref_id as _ref_id
 
         assert (
             _ref_id(updated_case.attributed_to)
@@ -278,7 +278,8 @@ class TestMultiVendorCLI:
 
         patched_run = MagicMock()
         with patch(
-            "vultron.demo.multi_vendor_demo.run_multi_vendor_demo", patched_run
+            "vultron.demo.scenario.multi_vendor_demo.run_multi_vendor_demo",
+            patched_run,
         ):
             runner = CliRunner()
             result = runner.invoke(

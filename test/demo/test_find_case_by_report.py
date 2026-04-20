@@ -18,7 +18,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
-from vultron.demo.receive_report_demo import find_case_by_report
+from vultron.demo.exchange.receive_report_demo import find_case_by_report
 
 
 def test_find_case_by_report_with_vulnerability_reports_field():

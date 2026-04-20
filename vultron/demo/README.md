@@ -6,26 +6,43 @@ unified demo CLI.
 ## Overview
 
 The demo suite walks through the Vultron Coordinated Vulnerability Disclosure
-(CVD) protocol by posting ActivityStreams activities directly to actor inboxes
-via the Vultron API. Each demo exercises a specific CVD workflow and prints a
-structured log of each step and verification check.
+(CVD) protocol. Demos are organized into two sub-packages reflecting two
+distinct techniques:
 
-### Available demos
+- **`exchange/`** — Individual protocol-fragment demos. Each script
+  demonstrates a single ActivityStreams message exchange using direct inbox
+  injection. These are for exploring protocol message semantics with a single
+  running API server. See `exchange/README.md` for the full list.
 
-| Sub-command              | Script                        | What it demonstrates                                  |
-|--------------------------|-------------------------------|-------------------------------------------------------|
-| `receive-report`         | `receive_report_demo.py`      | Receiving and processing a vulnerability report       |
-| `initialize-case`        | `initialize_case_demo.py`     | Creating and initializing a vulnerability case        |
-| `initialize-participant` | `initialize_participant_demo.py` | Initializing a standalone CaseParticipant          |
-| `invite-actor`           | `invite_actor_demo.py`        | Inviting an actor to participate in a case            |
-| `establish-embargo`      | `establish_embargo_demo.py`   | Establishing a coordinated disclosure embargo         |
-| `acknowledge`            | `acknowledge_demo.py`         | Acknowledging receipt of a vulnerability report       |
-| `status-updates`         | `status_updates_demo.py`      | Posting case status updates and notes                 |
-| `suggest-actor`          | `suggest_actor_demo.py`       | Suggesting an actor for a case                        |
-| `transfer-ownership`     | `transfer_ownership_demo.py`  | Transferring case ownership between actors            |
-| `manage-case`            | `manage_case_demo.py`         | Managing report management state transitions          |
-| `manage-embargo`         | `manage_embargo_demo.py`      | Managing embargo lifecycle state transitions          |
-| `manage-participants`    | `manage_participants_demo.py` | Adding and removing case participants                 |
+- **`scenario/`** — End-to-end multi-actor workflow demos. Each script
+  orchestrates a complete CVD workflow across separate API server containers
+  using trigger-based puppeteering, so that each actor's own behavior tree
+  and outbox logic is exercised. See `scenario/README.md` for the full list.
+
+### Exchange demos (`exchange/`)
+
+| Sub-command              | What it demonstrates                                  |
+|--------------------------|-------------------------------------------------------|
+| `receive-report`         | Receiving and processing a vulnerability report       |
+| `initialize-case`        | Creating and initializing a vulnerability case        |
+| `initialize-participant` | Initializing a standalone CaseParticipant             |
+| `invite-actor`           | Inviting an actor to participate in a case            |
+| `establish-embargo`      | Establishing a coordinated disclosure embargo         |
+| `acknowledge`            | Acknowledging receipt of a vulnerability report       |
+| `status-updates`         | Posting case status updates and notes                 |
+| `suggest-actor`          | Suggesting an actor for a case                        |
+| `transfer-ownership`     | Transferring case ownership between actors            |
+| `manage-case`            | Managing report management state transitions          |
+| `manage-embargo`         | Managing embargo lifecycle state transitions          |
+| `manage-participants`    | Adding and removing case participants                 |
+
+### Scenario demos (`scenario/`)
+
+| Sub-command    | What it demonstrates                                      |
+|----------------|-----------------------------------------------------------|
+| `two-actor`    | Two-actor (Finder + Vendor) multi-container CVD workflow  |
+| `three-actor`  | Three-actor (+ Coordinator) multi-container CVD workflow  |
+| `multi-vendor` | Ownership transfer + second vendor multi-container demo   |
 
 The `vultrabot` sub-group provides standalone behavior-tree demos (pacman,
 robot, cvd) that do not require a running API server.
@@ -102,7 +119,8 @@ vultron-demo --log-file /tmp/demo.log all
 Each demo script remains directly invokable as a Python module:
 
 ```bash
-uv run python -m vultron.demo.receive_report_demo
+uv run python -m vultron.demo.exchange.receive_report_demo
+uv run python -m vultron.demo.scenario.two_actor_demo
 ```
 
 ## Unified CLI (`vultron-demo`)

@@ -29,7 +29,7 @@ import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
 
-import vultron.demo.two_actor_demo as demo
+import vultron.demo.scenario.two_actor_demo as demo
 from test.demo._helpers import make_testclient_call
 
 # ---------------------------------------------------------------------------
@@ -156,7 +156,7 @@ class TestResetContainers:
         case_actor_client.get.return_value = {}
 
         with patch(
-            "vultron.demo.two_actor_demo.reset_datalayer",
+            "vultron.demo.scenario.two_actor_demo.reset_datalayer",
             return_value={"status": "ok"},
         ) as reset_mock:
             demo.reset_containers(
@@ -716,7 +716,8 @@ class TestTwoActorCLI:
 
         patched_run = MagicMock()
         with patch(
-            "vultron.demo.two_actor_demo.run_two_actor_demo", patched_run
+            "vultron.demo.scenario.two_actor_demo.run_two_actor_demo",
+            patched_run,
         ):
             runner = CliRunner()
             result = runner.invoke(

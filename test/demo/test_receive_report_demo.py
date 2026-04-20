@@ -16,7 +16,7 @@ import pytest
 from _pytest.monkeypatch import MonkeyPatch
 
 from test.demo._helpers import make_testclient_call
-from vultron.demo import receive_report_demo as demo
+from vultron.demo.exchange import receive_report_demo as demo
 
 
 @pytest.fixture(scope="module")

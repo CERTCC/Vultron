@@ -13,63 +13,33 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Multi-vendor with ownership transfer demo (D5-4).
+"""Three-actor (Finder + Vendor + Coordinator) multi-container CVD demo.
 
-Extends D5-3 (three-actor) with a vendor-led initial case that is later
-transferred to a Coordinator, who then invites a second Vendor (Vendor2).
+This scenario extends the D5-2 two-actor workflow by introducing a dedicated
+Coordinator and an authoritative CaseActor container. The workflow remains
+fully deterministic for repeatable acceptance runs:
 
-Workflow (five containers: finder, vendor, coordinator, vendor2, case-actor):
-
-1.  Reset all containers and seed all five actors as peers.
-2.  Finder submits a vulnerability report to Vendor's inbox.
-3.  Vendor validates the report (trigger: validate-report).
-4.  Vendor creates the authoritative case on the CaseActor container
-    (case.attributed_to = Vendor).
-5.  Vendor links the report to the case.
-6.  Vendor invites Finder to the case; Finder accepts.
-7.  Vendor proposes an embargo; Finder accepts; Vendor self-accepts.
-8.  Vendor offers case ownership to Coordinator; Coordinator accepts
-    (case.attributed_to is updated to Coordinator on the CaseActor).
-9.  Coordinator invites Vendor2 to the case; Vendor2 accepts.
-10. Coordinator delivers the embargo proposal to Vendor2; Vendor2 accepts.
-11. Verify final state: 3 participants (Finder, Vendor, Vendor2), Coordinator
-    is the case owner, and the embargo is ACTIVE with all participants
-    having accepted it.
-
-This corresponds to Scenario 3 in ``specs/multi-actor-demo.md``
-(DEMO-MA-04-001) and the MultiParty Demo described in
-``notes/demo-future-ideas.md``.
+1. Reset Finder, Vendor, Coordinator, and CaseActor containers.
+2. Seed each container with its local actor plus all peers.
+3. Finder submits a report to the Coordinator.
+4. Coordinator creates the authoritative case on the CaseActor container.
+5. Coordinator invites Finder into the case and Finder accepts.
+6. Coordinator proposes an embargo and Finder accepts it.
+7. Coordinator invites Vendor into the case and Vendor accepts.
+8. Vendor accepts the active embargo.
+9. Verify the case exists only in the CaseActor container with all three
+   participants registered and the embargo active.
 """
 
+from datetime import datetime, timedelta, timezone
 import logging
 import os
 import sys
 
 from vultron.core.states.em import EM
-from vultron.wire.as2.vocab.activities.case import (
-    AcceptCaseOwnershipTransferActivity,
-    AddReportToCaseActivity,
-    CreateCaseActivity,
-    OfferCaseOwnershipTransferActivity,
-)
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
-)
-from vultron.demo.two_actor_demo import (
-    finder_submits_report,
+from vultron.demo.scenario.two_actor_demo import (
     get_actor_by_id,
-    vendor_validates_report,
     wait_for_case_participants,
-)
-from vultron.demo.three_actor_demo import (
-    actor_accepts_case_invite,
-    actor_accepts_embargo,
-    coordinator_invites_actor,
-    coordinator_proposes_embargo,
-    deliver_embargo_proposal,
 )
 from vultron.demo.utils import (
     DataLayerClient,
@@ -78,10 +48,28 @@ from vultron.demo.utils import (
     demo_step,
     logfmt,
     post_to_inbox_and_wait,
+    post_to_trigger,
     ref_id,
     reset_datalayer,
     seed_actor,
     verify_object_stored,
+)
+from vultron.wire.as2.vocab.activities.case import (
+    AddReportToCaseActivity,
+    CreateCaseActivity,
+    RmAcceptInviteToCaseActivity,
+    RmInviteToCaseActivity,
+)
+from vultron.wire.as2.vocab.activities.embargo import (
+    EmAcceptEmbargoActivity,
+    EmProposeEmbargoActivity,
+)
+from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
 )
 
 logger = logging.getLogger(__name__)
@@ -98,15 +86,11 @@ CASE_ACTOR_BASE_URL = os.environ.get(
 COORDINATOR_BASE_URL = os.environ.get(
     "VULTRON_COORDINATOR_BASE_URL", "http://localhost:7904/api/v2"
 )
-VENDOR2_BASE_URL = os.environ.get(
-    "VULTRON_VENDOR2_BASE_URL", "http://localhost:7905/api/v2"
-)
 
 FINDER_ACTOR_ID = "http://finder:7999/api/v2/actors/finder"
 VENDOR_ACTOR_ID = "http://vendor:7999/api/v2/actors/vendor"
 CASE_ACTOR_ID = "http://case-actor:7999/api/v2/actors/case-actor"
 COORDINATOR_ACTOR_ID = "http://coordinator:7999/api/v2/actors/coordinator"
-VENDOR2_ACTOR_ID = "http://vendor2:7999/api/v2/actors/vendor2"
 
 
 def seed_containers(
@@ -114,14 +98,12 @@ def seed_containers(
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     case_actor_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
     finder_actor_id: str | None = None,
     vendor_actor_id: str | None = None,
     coordinator_actor_id: str | None = None,
     case_actor_id: str | None = None,
-    vendor2_actor_id: str | None = None,
-) -> tuple[as_Actor, as_Actor, as_Actor, as_Actor, as_Actor]:
-    """Seed all five containers with their local actor and all peer actors."""
+) -> tuple[as_Actor, as_Actor, as_Actor, as_Actor]:
+    """Seed all containers with their local actor and all peer actors."""
     local_specs = [
         ("Finder", finder_client, "Finder", "Person", finder_actor_id),
         ("Vendor", vendor_client, "Vendor", "Organization", vendor_actor_id),
@@ -138,13 +120,6 @@ def seed_containers(
             "CaseActor",
             "Service",
             case_actor_id,
-        ),
-        (
-            "Vendor2",
-            vendor2_client,
-            "Vendor2",
-            "Organization",
-            vendor2_actor_id,
         ),
     ]
 
@@ -182,7 +157,6 @@ def seed_containers(
         actors["Vendor"],
         actors["Coordinator"],
         actors["CaseActor"],
-        actors["Vendor2"],
     )
 
 
@@ -191,15 +165,13 @@ def reset_containers(
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     case_actor_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
 ) -> None:
-    """Reset all five containers used by the demo to a clean baseline."""
+    """Reset all containers used by the demo to a clean baseline."""
     targets = [
         ("Finder", finder_client),
         ("Vendor", vendor_client),
         ("Coordinator", coordinator_client),
         ("CaseActor", case_actor_client),
-        ("Vendor2", vendor2_client),
     ]
 
     with demo_step("Resetting actor containers to a clean baseline"):
@@ -216,29 +188,59 @@ def reset_containers(
                 )
 
 
-def vendor_creates_case_on_case_actor(
+def finder_submits_report_to_coordinator(
+    coordinator_client: DataLayerClient,
+    finder: as_Actor,
+    coordinator: as_Actor,
+) -> tuple[VulnerabilityReport, RmSubmitReportActivity]:
+    """Finder submits a report to the Coordinator container."""
+    report = VulnerabilityReport(
+        attributed_to=finder.id_,
+        name="Coordinated disclosure for dependency parser RCE",
+        content=(
+            "A dependency parser accepts untrusted archive metadata and can "
+            "be coerced into remote code execution before package signature "
+            "verification completes."
+        ),
+    )
+    offer = RmSubmitReportActivity(
+        actor=finder.id_,
+        object_=report,
+        to=[coordinator.id_],
+    )
+    with demo_step(
+        "Finder submits vulnerability report to Coordinator's inbox"
+    ):
+        post_to_inbox_and_wait(coordinator_client, coordinator.id_, offer)
+    with demo_check("Report and offer are stored in Coordinator's DataLayer"):
+        verify_object_stored(coordinator_client, report.id_)
+        verify_object_stored(coordinator_client, offer.id_)
+    logger.info("Report submitted to Coordinator: %s", ref_id(report))
+    return report, offer
+
+
+def coordinator_creates_case_on_case_actor(
     case_actor_client: DataLayerClient,
     case_actor: as_Actor,
-    vendor: as_Actor,
+    coordinator: as_Actor,
     report: VulnerabilityReport,
 ) -> VulnerabilityCase:
-    """Vendor creates the authoritative case on the CaseActor container."""
+    """Create the authoritative case on the dedicated CaseActor container."""
     case = VulnerabilityCase(
-        attributed_to=vendor.id_,
-        name="Multi-Vendor Demo Case",
+        attributed_to=coordinator.id_,
+        name="Three-Actor Demo Case",
         content=(
-            "Case initially managed by Vendor, later transferred to "
-            "Coordinator, who expands the coordination group to include "
-            "a second Vendor."
+            "Case coordinated by the Coordinator with Finder and Vendor "
+            "participating through the dedicated CaseActor container."
         ),
         vulnerability_reports=[report.id_],
     )
     create_case = CreateCaseActivity(
-        actor=vendor.id_,
+        actor=coordinator.id_,
         object_=case,
         to=[case_actor.id_],
     )
-    with demo_step("Vendor creates the case on the CaseActor container"):
+    with demo_step("Coordinator creates the case on the CaseActor container"):
         post_to_inbox_and_wait(case_actor_client, case_actor.id_, create_case)
     with demo_check("Case is stored in the CaseActor DataLayer"):
         verify_object_stored(case_actor_client, case.id_)
@@ -246,108 +248,148 @@ def vendor_creates_case_on_case_actor(
     return case
 
 
-def vendor_adds_report_to_case(
+def coordinator_adds_report_to_case(
     case_actor_client: DataLayerClient,
     case_actor: as_Actor,
-    vendor: as_Actor,
+    coordinator: as_Actor,
     case: VulnerabilityCase,
     report: VulnerabilityReport,
 ) -> None:
     """Link the submitted report to the authoritative case."""
     add_report = AddReportToCaseActivity(
-        actor=vendor.id_,
+        actor=coordinator.id_,
         object_=report,
         target=case.id_,
         to=[case_actor.id_],
     )
-    with demo_step("Vendor links the submitted report to the case"):
+    with demo_step("Coordinator links the submitted report to the case"):
         post_to_inbox_and_wait(case_actor_client, case_actor.id_, add_report)
     with demo_check("CaseActor stores the AddReportToCase activity"):
         verify_object_stored(case_actor_client, add_report.id_)
 
 
-def vendor_offers_case_ownership_to_coordinator(
-    case_actor_client: DataLayerClient,
-    coordinator_client: DataLayerClient,
-    case_actor: as_Actor,
-    vendor: as_Actor,
-    coordinator: as_Actor,
-    case: VulnerabilityCase,
-) -> OfferCaseOwnershipTransferActivity:
-    """Vendor records a case ownership offer and delivers it to Coordinator.
-
-    The offer is first posted to the CaseActor container so it can be
-    rehydrated later when the Accept arrives.  It is then delivered to the
-    Coordinator's inbox.
-    """
-    offer = OfferCaseOwnershipTransferActivity(
-        actor=vendor.id_,
-        object_=case,
-        target=coordinator.id_,
-        to=[coordinator.id_],
-    )
-
-    # Record the offer on the CaseActor container so that it can be
-    # rehydrated when the Accept arrives. Skip if case-actor and coordinator
-    # share the same DataLayer (single-container test environment).
-    if case_actor_client.base_url != coordinator_client.base_url:
-        with demo_step("Recording ownership offer on the CaseActor container"):
-            post_to_inbox_and_wait(case_actor_client, case_actor.id_, offer)
-        with demo_check("Ownership offer stored in CaseActor DataLayer"):
-            verify_object_stored(case_actor_client, offer.id_)
-
-    with demo_step("Delivering ownership offer to Coordinator's inbox"):
-        post_to_inbox_and_wait(coordinator_client, coordinator.id_, offer)
-    with demo_check("Ownership offer stored in Coordinator's DataLayer"):
-        verify_object_stored(coordinator_client, offer.id_)
-
-    logger.info("Ownership offer sent to Coordinator: %s", offer.id_)
-    return offer
-
-
-def coordinator_accepts_case_ownership(
+def coordinator_invites_actor(
     case_actor_client: DataLayerClient,
     case_actor: as_Actor,
+    recipient_client: DataLayerClient,
     coordinator: as_Actor,
-    offer: OfferCaseOwnershipTransferActivity,
+    recipient: as_Actor,
     case: VulnerabilityCase,
-) -> AcceptCaseOwnershipTransferActivity:
-    """Coordinator accepts the ownership transfer offer on the CaseActor.
-
-    The Accept is posted to the CaseActor's inbox, which rehydrates the Offer,
-    extracts the case ID, and updates ``case.attributed_to`` to the
-    Coordinator's ID.
-    """
-    accept = AcceptCaseOwnershipTransferActivity(
+) -> RmInviteToCaseActivity:
+    """Record and deliver a case invitation from the Coordinator."""
+    invite = RmInviteToCaseActivity(
         actor=coordinator.id_,
-        object_=offer,
+        object_=recipient,
+        target=case.id_,
+        to=[recipient.id_],
+    )
+    if case_actor_client.base_url != recipient_client.base_url:
+        with demo_step(
+            "Coordinator records the invite on the CaseActor container"
+        ):
+            post_to_inbox_and_wait(case_actor_client, case_actor.id_, invite)
+        with demo_check("Invite is stored in the CaseActor DataLayer"):
+            verify_object_stored(case_actor_client, invite.id_)
+
+    with demo_step(f"Coordinator invites {recipient.name} to the case"):
+        post_to_inbox_and_wait(recipient_client, recipient.id_, invite)
+    with demo_check(f"Invite is stored in {recipient.name}'s DataLayer"):
+        verify_object_stored(recipient_client, invite.id_)
+    logger.info("Invite sent to %s: %s", recipient.name, invite.id_)
+    return invite
+
+
+def actor_accepts_case_invite(
+    case_actor_client: DataLayerClient,
+    case_actor: as_Actor,
+    actor: as_Actor,
+    invite: RmInviteToCaseActivity,
+) -> RmAcceptInviteToCaseActivity:
+    """Accept a case invitation by notifying the CaseActor container."""
+    accept = RmAcceptInviteToCaseActivity(
+        actor=actor.id_,
+        object_=invite,
         to=[case_actor.id_],
     )
-
-    with demo_step(
-        "Coordinator accepts ownership transfer (posts to CaseActor)"
-    ):
+    with demo_step(f"{actor.name} accepts the case invitation"):
         post_to_inbox_and_wait(case_actor_client, case_actor.id_, accept)
-    with demo_check("Accept activity stored in CaseActor DataLayer"):
+    with demo_check("Accept activity is stored in the CaseActor DataLayer"):
         verify_object_stored(case_actor_client, accept.id_)
-
-    with demo_check("Case attributed_to updated to Coordinator on CaseActor"):
-        case_data = case_actor_client.get(f"/datalayer/{case.id_}")
-        updated_case = VulnerabilityCase(**case_data)
-        coord_segment = coordinator.id_.split("/")[-1]
-        if coord_segment not in str(updated_case.attributed_to):
-            raise AssertionError(
-                f"Expected case owner to be Coordinator '{coordinator.id_}', "
-                f"got: {updated_case.attributed_to}"
-            )
-    logger.info(
-        "Ownership transferred — new owner: %s",
-        updated_case.attributed_to,
-    )
+    logger.info("Case invite accepted by %s: %s", actor.name, accept.id_)
     return accept
 
 
-def verify_multi_vendor_case_state(
+def coordinator_proposes_embargo(
+    case_actor_client: DataLayerClient,
+    coordinator: as_Actor,
+    case: VulnerabilityCase,
+) -> tuple[EmProposeEmbargoActivity, str]:
+    """Propose an embargo on the authoritative case."""
+    end_time = datetime.now(tz=timezone.utc) + timedelta(days=30)
+    with demo_step("Coordinator proposes an embargo on the case"):
+        result = post_to_trigger(
+            client=case_actor_client,
+            actor_id=coordinator.id_,
+            behavior="propose-embargo",
+            body={
+                "case_id": case.id_,
+                "note": "Default coordinator embargo window for initial triage.",
+                "end_time": end_time.isoformat(),
+            },
+        )
+    proposal = EmProposeEmbargoActivity.model_validate(result["activity"])
+    embargo_id = ref_id(proposal.object_)
+    if embargo_id is None:
+        raise AssertionError(
+            "Embargo proposal is missing an embargo reference"
+        )
+    with demo_check("Embargo proposal is stored in the CaseActor DataLayer"):
+        verify_object_stored(case_actor_client, proposal.id_)
+        verify_object_stored(case_actor_client, embargo_id)
+    logger.info("Embargo proposed: %s", proposal.id_)
+    return proposal, embargo_id
+
+
+def deliver_embargo_proposal(
+    recipient_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
+    recipient: as_Actor,
+    proposal: EmProposeEmbargoActivity,
+) -> None:
+    """Deliver an embargo proposal activity to a participant inbox."""
+    if recipient_client.base_url == case_actor_client.base_url:
+        return
+    with demo_step(f"Delivering embargo proposal to {recipient.name}"):
+        post_to_inbox_and_wait(recipient_client, recipient.id_, proposal)
+    with demo_check(
+        f"Embargo proposal stored in {recipient.name}'s DataLayer"
+    ):
+        verify_object_stored(recipient_client, proposal.id_)
+
+
+def actor_accepts_embargo(
+    case_actor_client: DataLayerClient,
+    case_actor: as_Actor,
+    actor: as_Actor,
+    case: VulnerabilityCase,
+    proposal: EmProposeEmbargoActivity,
+) -> EmAcceptEmbargoActivity:
+    """Accept the active embargo proposal on the authoritative case."""
+    accept = EmAcceptEmbargoActivity(
+        actor=actor.id_,
+        object_=proposal,
+        context=case.id_,
+        to=[case_actor.id_],
+    )
+    with demo_step(f"{actor.name} accepts the embargo proposal"):
+        post_to_inbox_and_wait(case_actor_client, case_actor.id_, accept)
+    with demo_check("Embargo acceptance is stored in the CaseActor DataLayer"):
+        verify_object_stored(case_actor_client, accept.id_)
+    logger.info("Embargo accepted by %s: %s", actor.name, accept.id_)
+    return accept
+
+
+def verify_case_actor_case_state(
     case_actor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     case_id: str,
@@ -355,29 +397,21 @@ def verify_multi_vendor_case_state(
     coordinator_actor_id: str,
     finder_actor_id: str,
     vendor_actor_id: str,
-    vendor2_actor_id: str,
     embargo_id: str,
 ) -> VulnerabilityCase:
-    """Assert the authoritative final multi-vendor case state.
-
-    Checks:
-    - Exactly three participants: Finder, Vendor, Vendor2.
-    - Coordinator is the case owner (``attributed_to``).
-    - The report is linked to the case.
-    - The embargo is ACTIVE and all three participants have accepted it.
-    - Coordinator and Vendor2 containers do not hold the authoritative case.
-    """
+    """Assert the authoritative final case state on the CaseActor container."""
     final_case_data = case_actor_client.get(f"/datalayer/{case_id}")
     final_case = VulnerabilityCase(**final_case_data)
 
     if len(final_case.case_participants) != 3:
         raise AssertionError(
-            "Expected 3 case participants on the CaseActor container "
-            f"(Finder, Vendor, Vendor2), found {len(final_case.case_participants)}"
+            "Expected 3 case participants on the CaseActor container, "
+            f"found {len(final_case.case_participants)}"
         )
 
     if report_id not in [
-        ref_id(r) or str(r) for r in final_case.vulnerability_reports
+        ref_id(report) or str(report)
+        for report in final_case.vulnerability_reports
     ]:
         raise AssertionError(
             "Final case does not reference the submitted report"
@@ -394,26 +428,19 @@ def verify_multi_vendor_case_state(
             "Final case does not reference the accepted active embargo"
         )
 
-    for actor_id in (finder_actor_id, vendor_actor_id, vendor2_actor_id):
+    for actor_id in (coordinator_actor_id, finder_actor_id, vendor_actor_id):
         if actor_id not in final_case.actor_participant_index:
             raise AssertionError(
                 f"Actor {actor_id} missing from actor_participant_index"
             )
 
-    coord_segment = coordinator_actor_id.split("/")[-1]
-    if coord_segment not in str(final_case.attributed_to):
-        raise AssertionError(
-            f"Expected Coordinator '{coordinator_actor_id}' to own the case, "
-            f"got: {final_case.attributed_to}"
-        )
     participant_records = case_actor_client.get("/datalayer/CaseParticipants/")
-    for actor_id in (finder_actor_id, vendor_actor_id, vendor2_actor_id):
+    for actor_id in (finder_actor_id, vendor_actor_id):
         participant_id = final_case.actor_participant_index[actor_id]
         participant_data = participant_records.get(participant_id)
         if participant_data is None:
             raise AssertionError(
-                f"Participant record {participant_id} not found in "
-                "CaseActor DataLayer"
+                f"Participant record {participant_id} not found in CaseActor DataLayer"
             )
         participant = CaseParticipant(**participant_data)
         if embargo_id not in participant.accepted_embargo_ids:
@@ -428,96 +455,77 @@ def verify_multi_vendor_case_state(
         )
         if case_id in coordinator_cases:
             raise AssertionError(
-                "Coordinator container unexpectedly persisted the "
-                "authoritative case"
+                "Coordinator container unexpectedly persisted the authoritative case"
             )
 
     return final_case
 
 
-def run_multi_vendor_demo(
+def run_three_actor_demo(
     finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     case_actor_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
     finder_id: str | None = None,
     vendor_id: str | None = None,
     coordinator_id: str | None = None,
     case_actor_id: str | None = None,
-    vendor2_id: str | None = None,
-) -> VulnerabilityCase:
-    """Run the full deterministic multi-vendor ownership-transfer scenario."""
+) -> None:
+    """Run the full deterministic three-actor scenario."""
     logger.info("=" * 80)
-    logger.info(
-        "MULTI-VENDOR DEMO: Finder + Vendor + Coordinator + Vendor2 (D5-4)"
-    )
+    logger.info("THREE-ACTOR DEMO: Finder + Vendor + Coordinator (D5-3)")
     logger.info("=" * 80)
-    logger.info("Finder container:      %s", finder_client.base_url)
-    logger.info("Vendor container:      %s", vendor_client.base_url)
+    logger.info("Finder container: %s", finder_client.base_url)
+    logger.info("Vendor container: %s", vendor_client.base_url)
     logger.info("Coordinator container: %s", coordinator_client.base_url)
-    logger.info("CaseActor container:   %s", case_actor_client.base_url)
-    logger.info("Vendor2 container:     %s", vendor2_client.base_url)
+    logger.info("CaseActor container: %s", case_actor_client.base_url)
 
     reset_containers(
         finder_client=finder_client,
         vendor_client=vendor_client,
         coordinator_client=coordinator_client,
         case_actor_client=case_actor_client,
-        vendor2_client=vendor2_client,
     )
 
     with demo_step("Seeding all containers with actor records"):
-        finder, vendor, coordinator, case_actor, vendor2 = seed_containers(
+        finder, vendor, coordinator, case_actor = seed_containers(
             finder_client=finder_client,
             vendor_client=vendor_client,
             coordinator_client=coordinator_client,
             case_actor_client=case_actor_client,
-            vendor2_client=vendor2_client,
             finder_actor_id=finder_id,
             vendor_actor_id=vendor_id,
             coordinator_actor_id=coordinator_id,
             case_actor_id=case_actor_id,
-            vendor2_actor_id=vendor2_id,
         )
 
-    vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
-    vendor_in_case_actor = get_actor_by_id(case_actor_client, vendor.id_)
-    finder_in_finder = get_actor_by_id(finder_client, finder.id_)
-    finder_in_case_actor = get_actor_by_id(case_actor_client, finder.id_)
     coordinator_in_coordinator = get_actor_by_id(
         coordinator_client, coordinator.id_
     )
     coordinator_in_case_actor = get_actor_by_id(
         case_actor_client, coordinator.id_
     )
-    vendor2_in_vendor2 = get_actor_by_id(vendor2_client, vendor2.id_)
-    vendor2_in_case_actor = get_actor_by_id(case_actor_client, vendor2.id_)
+    finder_in_case_actor = get_actor_by_id(case_actor_client, finder.id_)
+    vendor_in_case_actor = get_actor_by_id(case_actor_client, vendor.id_)
+    finder_in_finder = get_actor_by_id(finder_client, finder.id_)
+    vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
 
-    # ── Phase 1: Vendor-led initial case setup ───────────────────────────────
-
-    report, report_offer = finder_submits_report(
-        vendor_client=vendor_client,
+    report, _offer = finder_submits_report_to_coordinator(
+        coordinator_client=coordinator_client,
         finder=finder,
-        vendor=vendor_in_vendor,
+        coordinator=coordinator_in_coordinator,
     )
 
-    vendor_validates_report(
-        vendor_client=vendor_client,
-        vendor=vendor_in_vendor,
-        offer_id=report_offer.id_,
-    )
-
-    case = vendor_creates_case_on_case_actor(
+    case = coordinator_creates_case_on_case_actor(
         case_actor_client=case_actor_client,
         case_actor=case_actor,
-        vendor=vendor_in_case_actor,
+        coordinator=coordinator_in_case_actor,
         report=report,
     )
-    vendor_adds_report_to_case(
+    coordinator_adds_report_to_case(
         case_actor_client=case_actor_client,
         case_actor=case_actor,
-        vendor=vendor_in_case_actor,
+        coordinator=coordinator_in_case_actor,
         case=case,
         report=report,
     )
@@ -526,7 +534,7 @@ def run_multi_vendor_demo(
         case_actor_client=case_actor_client,
         case_actor=case_actor,
         recipient_client=finder_client,
-        coordinator=vendor_in_case_actor,
+        coordinator=coordinator_in_case_actor,
         recipient=finder_in_case_actor,
         case=case,
     )
@@ -542,10 +550,9 @@ def run_multi_vendor_demo(
         expected_count=2,
     )
 
-    # Vendor proposes the embargo (vendor is the initial case owner).
     embargo_proposal, embargo_id = coordinator_proposes_embargo(
         case_actor_client=case_actor_client,
-        coordinator=vendor_in_case_actor,
+        coordinator=coordinator_in_case_actor,
         case=case,
     )
     deliver_embargo_proposal(
@@ -561,48 +568,20 @@ def run_multi_vendor_demo(
         case=case,
         proposal=embargo_proposal,
     )
-    # Vendor also accepts the embargo they proposed.
-    actor_accepts_embargo(
+
+    vendor_invite = coordinator_invites_actor(
         case_actor_client=case_actor_client,
         case_actor=case_actor,
-        actor=vendor_in_vendor,
-        case=case,
-        proposal=embargo_proposal,
-    )
-
-    # ── Phase 2: Ownership transfer ──────────────────────────────────────────
-
-    offer = vendor_offers_case_ownership_to_coordinator(
-        case_actor_client=case_actor_client,
-        coordinator_client=coordinator_client,
-        case_actor=case_actor,
-        vendor=vendor_in_case_actor,
-        coordinator=coordinator_in_coordinator,
-        case=case,
-    )
-    coordinator_accepts_case_ownership(
-        case_actor_client=case_actor_client,
-        case_actor=case_actor,
-        coordinator=coordinator_in_coordinator,
-        offer=offer,
-        case=case,
-    )
-
-    # ── Phase 3: Coordinator invites Vendor2 ─────────────────────────────────
-
-    vendor2_invite = coordinator_invites_actor(
-        case_actor_client=case_actor_client,
-        case_actor=case_actor,
-        recipient_client=vendor2_client,
+        recipient_client=vendor_client,
         coordinator=coordinator_in_case_actor,
-        recipient=vendor2_in_case_actor,
+        recipient=vendor_in_case_actor,
         case=case,
     )
     actor_accepts_case_invite(
         case_actor_client=case_actor_client,
         case_actor=case_actor,
-        actor=vendor2_in_vendor2,
-        invite=vendor2_invite,
+        actor=vendor_in_vendor,
+        invite=vendor_invite,
     )
     wait_for_case_participants(
         vendor_client=case_actor_client,
@@ -611,25 +590,23 @@ def run_multi_vendor_demo(
     )
 
     deliver_embargo_proposal(
-        recipient_client=vendor2_client,
+        recipient_client=vendor_client,
         case_actor_client=case_actor_client,
-        recipient=vendor2_in_vendor2,
+        recipient=vendor_in_vendor,
         proposal=embargo_proposal,
     )
     actor_accepts_embargo(
         case_actor_client=case_actor_client,
         case_actor=case_actor,
-        actor=vendor2_in_vendor2,
+        actor=vendor_in_vendor,
         case=case,
         proposal=embargo_proposal,
     )
 
-    # ── Verification ─────────────────────────────────────────────────────────
-
     with demo_check(
-        "CaseActor container holds the authoritative multi-vendor final state"
+        "CaseActor container holds the authoritative three-actor final state"
     ):
-        final_case = verify_multi_vendor_case_state(
+        final_case = verify_case_actor_case_state(
             case_actor_client=case_actor_client,
             coordinator_client=coordinator_client,
             case_id=case.id_,
@@ -637,16 +614,13 @@ def run_multi_vendor_demo(
             coordinator_actor_id=coordinator.id_,
             finder_actor_id=finder.id_,
             vendor_actor_id=vendor.id_,
-            vendor2_actor_id=vendor2.id_,
             embargo_id=embargo_id,
         )
         logger.info("Final case state (CaseActor): %s", logfmt(final_case))
 
     logger.info("=" * 80)
-    logger.info("MULTI-VENDOR DEMO COMPLETE ✓")
+    logger.info("THREE-ACTOR DEMO COMPLETE ✓")
     logger.info("=" * 80)
-
-    return final_case
 
 
 def main(
@@ -655,25 +629,21 @@ def main(
     vendor_url: str | None = None,
     coordinator_url: str | None = None,
     case_actor_url: str | None = None,
-    vendor2_url: str | None = None,
     finder_id: str | None = None,
     vendor_id: str | None = None,
     coordinator_id: str | None = None,
     case_actor_id: str | None = None,
-    vendor2_id: str | None = None,
 ) -> None:
-    """Entry point for the multi-vendor multi-container demo."""
+    """Entry point for the three-actor multi-container demo."""
     f_url = finder_url or FINDER_BASE_URL
     v_url = vendor_url or VENDOR_BASE_URL
     coord_url = coordinator_url or COORDINATOR_BASE_URL
     c_url = case_actor_url or CASE_ACTOR_BASE_URL
-    v2_url = vendor2_url or VENDOR2_BASE_URL
 
     finder_client = DataLayerClient(base_url=f_url)
     vendor_client = DataLayerClient(base_url=v_url)
     coordinator_client = DataLayerClient(base_url=coord_url)
     case_actor_client = DataLayerClient(base_url=c_url)
-    vendor2_client = DataLayerClient(base_url=v2_url)
 
     if not skip_health_check:
         targets = [
@@ -681,7 +651,6 @@ def main(
             ("Vendor", vendor_client),
             ("Coordinator", coordinator_client),
             ("CaseActor", case_actor_client),
-            ("Vendor2", vendor2_client),
         ]
         for label, client in targets:
             if not check_server_availability(client):
@@ -696,20 +665,18 @@ def main(
                 sys.exit(1)
 
     try:
-        run_multi_vendor_demo(
+        run_three_actor_demo(
             finder_client=finder_client,
             vendor_client=vendor_client,
             coordinator_client=coordinator_client,
             case_actor_client=case_actor_client,
-            vendor2_client=vendor2_client,
             finder_id=finder_id,
             vendor_id=vendor_id,
             coordinator_id=coordinator_id,
             case_actor_id=case_actor_id,
-            vendor2_id=vendor2_id,
         )
     except Exception as exc:
-        logger.error("Multi-vendor demo failed: %s", exc, exc_info=True)
+        logger.error("Three-actor demo failed: %s", exc, exc_info=True)
         logger.error("=" * 80)
         logger.error("ERROR SUMMARY")
         logger.error("=" * 80)

@@ -16,7 +16,7 @@ from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
-import vultron.demo.three_actor_demo as demo
+import vultron.demo.scenario.three_actor_demo as demo
 from test.demo._helpers import make_testclient_call
 
 
@@ -170,7 +170,8 @@ class TestThreeActorCLI:
 
         patched_run = MagicMock()
         with patch(
-            "vultron.demo.three_actor_demo.run_three_actor_demo", patched_run
+            "vultron.demo.scenario.three_actor_demo.run_three_actor_demo",
+            patched_run,
         ):
             runner = CliRunner()
             result = runner.invoke(
