@@ -21,16 +21,6 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 All tasks in this section are prerequisites for **D5-7-HUMAN** sign-off.
 The section can proceed in parallel with PRIORITY-360.
 
-- [ ] **P347-EMBARGOTRIGGERS**:
-  - Rename `evaluate-embargo` endpoint → `accept-embargo` (update router,
-    `_trigger_adapter.py`, `SvcEvaluateEmbargoUseCase` →
-    `SvcAcceptEmbargoUseCase`, all call sites, tests, and spec references).
-  - Add `reject-embargo` trigger endpoint + `SvcRejectEmbargoUseCase`.
-  - Add `propose-embargo-revision` trigger endpoint +
-    `SvcProposeEmbargoRevisionUseCase`.
-  - Update `specs/triggerable-behaviors.md` to reflect all embargo trigger
-    renames and additions.
-
 - [ ] **P347-DEMOORG**: Reorganize `vultron/demo/` into two sub-packages:
   - `vultron/demo/exchange/` — individual protocol-fragment demos
     (direct inbox injection; demonstrating message semantics).

@@ -76,11 +76,13 @@ them; a complete implementation requires both reactive and triggerable sides.
 - `TRIG-02-002` The following EM behaviors SHOULD be individually
   triggerable via the trigger API:
 
-  | `behavior-name`      | BT reference        | Description |
-  |----------------------|---------------------|-------------|
-  | `propose-embargo`    | `em_propose_bt.md`  | Actor proposes an embargo |
-  | `evaluate-embargo`   | `em_eval_bt.md`     | Actor evaluates an embargo proposal |
-  | `terminate-embargo`  | `em_bt.md`          | Actor announces embargo termination |
+  | `behavior-name`            | BT reference        | Description |
+  |----------------------------|---------------------|-------------|
+  | `propose-embargo`          | `em_propose_bt.md`  | Actor proposes an embargo |
+  | `accept-embargo`           | `em_eval_bt.md`     | Actor accepts an embargo proposal |
+  | `reject-embargo`           | `em_eval_bt.md`     | Actor rejects an embargo proposal |
+  | `propose-embargo-revision` | `em_propose_bt.md`  | Actor proposes a revision to an active embargo |
+  | `terminate-embargo`        | `em_bt.md`          | Actor announces embargo termination |
 
 ---
 
@@ -106,7 +108,8 @@ them; a complete implementation requires both reactive and triggerable sides.
     `report_id` as a confirmation guard against acting on an offer for the
     wrong report
   - Case-scoped behaviors (`engage-case`, `defer-case`, `propose-embargo`,
-    `evaluate-embargo`, `terminate-embargo`, `notify-actor`,
+    `accept-embargo`, `reject-embargo`, `propose-embargo-revision`,
+    `terminate-embargo`, `notify-actor`,
     `assign-cve-id`, `identify-participants`): MUST include `case_id`
 - `TRIG-03-002` Unknown fields in the request body MUST be ignored
   (forward-compatibility)

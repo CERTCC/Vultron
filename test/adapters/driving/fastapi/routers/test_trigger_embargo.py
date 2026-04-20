@@ -15,7 +15,7 @@
 
 """
 Tests for the embargo trigger endpoints
-(POST /actors/{actor_id}/trigger/{propose,evaluate,terminate}-embargo).
+(POST /actors/{actor_id}/trigger/{propose,accept,reject,terminate,propose-revision}-embargo).
 
 Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.md.
 """
@@ -343,29 +343,29 @@ def test_trigger_propose_embargo_exited_returns_409(
 
 
 # ===========================================================================
-# Tests for trigger/evaluate-embargo
+# Tests for trigger/accept-embargo
 # ===========================================================================
 
 
-def test_trigger_evaluate_embargo_returns_202(
+def test_trigger_accept_embargo_returns_202(
     client_triggers, actor, case_with_proposal
 ):
-    """TB-01-002: POST /actors/{id}/trigger/evaluate-embargo returns HTTP 202."""
+    """TB-01-002: POST /actors/{id}/trigger/accept-embargo returns HTTP 202."""
     case_obj, proposal, _ = case_with_proposal
     resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/evaluate-embargo",
+        f"/actors/{actor.id_}/trigger/accept-embargo",
         json={"case_id": case_obj.id_, "proposal_id": proposal.id_},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
 
-def test_trigger_evaluate_embargo_response_contains_activity_key(
+def test_trigger_accept_embargo_response_contains_activity_key(
     client_triggers, actor, case_with_proposal
 ):
     """TB-04-001: Successful trigger response body contains 'activity' key."""
     case_obj, proposal, _ = case_with_proposal
     resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/evaluate-embargo",
+        f"/actors/{actor.id_}/trigger/accept-embargo",
         json={"case_id": case_obj.id_, "proposal_id": proposal.id_},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
@@ -374,24 +374,24 @@ def test_trigger_evaluate_embargo_response_contains_activity_key(
     assert data["activity"] is not None
 
 
-def test_trigger_evaluate_embargo_missing_case_id_returns_422(
+def test_trigger_accept_embargo_missing_case_id_returns_422(
     client_triggers, actor
 ):
     """TB-03-001: Request missing case_id returns HTTP 422."""
     resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/evaluate-embargo",
+        f"/actors/{actor.id_}/trigger/accept-embargo",
         json={},
     )
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
-def test_trigger_evaluate_embargo_ignores_unknown_fields(
+def test_trigger_accept_embargo_ignores_unknown_fields(
     client_triggers, actor, case_with_proposal
 ):
     """TB-03-002: Unknown fields in request body are silently ignored."""
     case_obj, proposal, _ = case_with_proposal
     resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/evaluate-embargo",
+        f"/actors/{actor.id_}/trigger/accept-embargo",
         json={
             "case_id": case_obj.id_,
             "proposal_id": proposal.id_,
@@ -401,10 +401,10 @@ def test_trigger_evaluate_embargo_ignores_unknown_fields(
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
 
-def test_trigger_evaluate_embargo_unknown_actor_returns_404(client_triggers):
+def test_trigger_accept_embargo_unknown_actor_returns_404(client_triggers):
     """TB-01-003: Unknown actor_id returns HTTP 404 with structured body."""
     resp = client_triggers.post(
-        "/actors/nonexistent-actor/trigger/evaluate-embargo",
+        "/actors/nonexistent-actor/trigger/accept-embargo",
         json={"case_id": "urn:uuid:any-case"},
     )
     assert resp.status_code == status.HTTP_404_NOT_FOUND
@@ -412,23 +412,23 @@ def test_trigger_evaluate_embargo_unknown_actor_returns_404(client_triggers):
     assert data["detail"]["error"] == "NotFound"
 
 
-def test_trigger_evaluate_embargo_unknown_case_returns_404(
+def test_trigger_accept_embargo_unknown_case_returns_404(
     client_triggers, actor
 ):
     """TB-01-003: Unknown case_id returns HTTP 404."""
     resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/evaluate-embargo",
+        f"/actors/{actor.id_}/trigger/accept-embargo",
         json={"case_id": "urn:uuid:nonexistent-case"},
     )
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
-def test_trigger_evaluate_embargo_unknown_proposal_returns_404(
+def test_trigger_accept_embargo_unknown_proposal_returns_404(
     client_triggers, actor, case_without_participant
 ):
     """TB-01-003: Unknown proposal_id returns HTTP 404."""
     resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/evaluate-embargo",
+        f"/actors/{actor.id_}/trigger/accept-embargo",
         json={
             "case_id": case_without_participant.id_,
             "proposal_id": "urn:uuid:nonexistent-proposal",
@@ -437,18 +437,18 @@ def test_trigger_evaluate_embargo_unknown_proposal_returns_404(
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
-def test_trigger_evaluate_embargo_no_proposal_returns_404(
+def test_trigger_accept_embargo_no_proposal_returns_404(
     client_triggers, actor, case_without_participant
 ):
-    """evaluate-embargo returns HTTP 404 when no proposal is found for the case."""
+    """accept-embargo returns HTTP 404 when no proposal is found for the case."""
     resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/evaluate-embargo",
+        f"/actors/{actor.id_}/trigger/accept-embargo",
         json={"case_id": case_without_participant.id_},
     )
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
-def test_trigger_evaluate_embargo_adds_activity_to_outbox(
+def test_trigger_accept_embargo_adds_activity_to_outbox(
     client_triggers, dl, actor, case_with_proposal
 ):
     """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
@@ -459,7 +459,7 @@ def test_trigger_evaluate_embargo_adds_activity_to_outbox(
     )
 
     resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/evaluate-embargo",
+        f"/actors/{actor.id_}/trigger/accept-embargo",
         json={"case_id": case_obj.id_, "proposal_id": proposal.id_},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
@@ -471,14 +471,14 @@ def test_trigger_evaluate_embargo_adds_activity_to_outbox(
     assert len(outbox_after - outbox_before) >= 1
 
 
-def test_trigger_evaluate_embargo_activates_embargo(
+def test_trigger_accept_embargo_activates_embargo(
     client_triggers, dl, actor, case_with_proposal
 ):
-    """evaluate-embargo activates the embargo and sets EM state to ACTIVE."""
+    """accept-embargo activates the embargo and sets EM state to ACTIVE."""
     case_obj, proposal, embargo = case_with_proposal
 
     resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/evaluate-embargo",
+        f"/actors/{actor.id_}/trigger/accept-embargo",
         json={"case_id": case_obj.id_, "proposal_id": proposal.id_},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
@@ -488,20 +488,272 @@ def test_trigger_evaluate_embargo_activates_embargo(
     assert updated_case.active_embargo is not None
 
 
-def test_trigger_evaluate_embargo_without_proposal_id_uses_first_proposal(
+def test_trigger_accept_embargo_without_proposal_id_uses_first_proposal(
     client_triggers, dl, actor, case_with_proposal
 ):
-    """evaluate-embargo without proposal_id finds the first pending proposal."""
+    """accept-embargo without proposal_id finds the first pending proposal."""
     case_obj, _, _ = case_with_proposal
 
     resp = client_triggers.post(
-        f"/actors/{actor.id_}/trigger/evaluate-embargo",
+        f"/actors/{actor.id_}/trigger/accept-embargo",
         json={"case_id": case_obj.id_},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
     updated_case = dl.read(case_obj.id_)
     assert updated_case.current_status.em_state == EM.ACTIVE
+
+
+# ===========================================================================
+# Tests for trigger/reject-embargo
+# ===========================================================================
+
+
+def test_trigger_reject_embargo_returns_202(
+    client_triggers, actor, case_with_proposal
+):
+    """TB-01-002: POST /actors/{id}/trigger/reject-embargo returns HTTP 202."""
+    case_obj, proposal, _ = case_with_proposal
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/reject-embargo",
+        json={"case_id": case_obj.id_, "proposal_id": proposal.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_reject_embargo_response_contains_activity_key(
+    client_triggers, actor, case_with_proposal
+):
+    """TB-04-001: Successful trigger response body contains 'activity' key."""
+    case_obj, proposal, _ = case_with_proposal
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/reject-embargo",
+        json={"case_id": case_obj.id_, "proposal_id": proposal.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert "activity" in data
+    assert data["activity"] is not None
+
+
+def test_trigger_reject_embargo_missing_case_id_returns_422(
+    client_triggers, actor
+):
+    """TB-03-001: Request missing case_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/reject-embargo",
+        json={},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_reject_embargo_unknown_actor_returns_404(client_triggers):
+    """TB-01-003: Unknown actor_id returns HTTP 404 with structured body."""
+    resp = client_triggers.post(
+        "/actors/nonexistent-actor/trigger/reject-embargo",
+        json={"case_id": "urn:uuid:any-case"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    data = resp.json()
+    assert data["detail"]["error"] == "NotFound"
+
+
+def test_trigger_reject_embargo_unknown_case_returns_404(
+    client_triggers, actor
+):
+    """TB-01-003: Unknown case_id returns HTTP 404."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/reject-embargo",
+        json={"case_id": "urn:uuid:nonexistent-case"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_trigger_reject_embargo_no_proposal_returns_404(
+    client_triggers, actor, case_without_participant
+):
+    """reject-embargo returns HTTP 404 when no proposal is found for the case."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/reject-embargo",
+        json={"case_id": case_without_participant.id_},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_trigger_reject_embargo_sets_em_state_to_no_embargo(
+    client_triggers, dl, actor, case_with_proposal
+):
+    """reject-embargo transitions case EM state from PROPOSED to NO_EMBARGO."""
+    case_obj, proposal, _ = case_with_proposal
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/reject-embargo",
+        json={"case_id": case_obj.id_, "proposal_id": proposal.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+    updated_case = dl.read(case_obj.id_)
+    assert updated_case.current_status.em_state == EM.NO_EMBARGO
+
+
+def test_trigger_reject_embargo_adds_activity_to_outbox(
+    client_triggers, dl, actor, case_with_proposal
+):
+    """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
+    case_obj, proposal, _ = case_with_proposal
+    actor_before = dl.read(actor.id_)
+    outbox_before = set(
+        item for item in actor_before.outbox.items if isinstance(item, str)
+    )
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/reject-embargo",
+        json={"case_id": case_obj.id_, "proposal_id": proposal.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+    actor_after = dl.read(actor.id_)
+    outbox_after = set(
+        item for item in actor_after.outbox.items if isinstance(item, str)
+    )
+    assert len(outbox_after - outbox_before) >= 1
+
+
+# ===========================================================================
+# Tests for trigger/propose-embargo-revision
+# ===========================================================================
+
+
+def test_trigger_propose_embargo_revision_returns_202(
+    client_triggers, actor, case_with_embargo
+):
+    """TB-01-002: POST /actors/{id}/trigger/propose-embargo-revision returns 202."""
+    case_obj, _ = case_with_embargo
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/propose-embargo-revision",
+        json={"case_id": case_obj.id_, "end_time": FUTURE_END_TIME},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_propose_embargo_revision_response_contains_activity_key(
+    client_triggers, actor, case_with_embargo
+):
+    """TB-04-001: Successful trigger response body contains 'activity' key."""
+    case_obj, _ = case_with_embargo
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/propose-embargo-revision",
+        json={"case_id": case_obj.id_, "end_time": FUTURE_END_TIME},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert "activity" in data
+    assert data["activity"] is not None
+
+
+def test_trigger_propose_embargo_revision_missing_case_id_returns_422(
+    client_triggers, actor
+):
+    """TB-03-001: Request missing case_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/propose-embargo-revision",
+        json={"end_time": FUTURE_END_TIME},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_propose_embargo_revision_missing_end_time_returns_422(
+    client_triggers, actor, case_with_embargo
+):
+    """TB-03-001: Request missing end_time returns HTTP 422."""
+    case_obj, _ = case_with_embargo
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/propose-embargo-revision",
+        json={"case_id": case_obj.id_},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_propose_embargo_revision_unknown_actor_returns_404(
+    client_triggers,
+):
+    """TB-01-003: Unknown actor_id returns HTTP 404 with structured body."""
+    resp = client_triggers.post(
+        "/actors/nonexistent-actor/trigger/propose-embargo-revision",
+        json={"case_id": "urn:uuid:any-case", "end_time": FUTURE_END_TIME},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    data = resp.json()
+    assert data["detail"]["error"] == "NotFound"
+
+
+def test_trigger_propose_embargo_revision_unknown_case_returns_404(
+    client_triggers, actor
+):
+    """TB-01-003: Unknown case_id returns HTTP 404."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/propose-embargo-revision",
+        json={
+            "case_id": "urn:uuid:nonexistent-case",
+            "end_time": FUTURE_END_TIME,
+        },
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_trigger_propose_embargo_revision_non_active_em_state_returns_409(
+    client_triggers, actor, case_without_participant
+):
+    """propose-embargo-revision returns 409 when case EM state is not ACTIVE/REVISE."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/propose-embargo-revision",
+        json={
+            "case_id": case_without_participant.id_,
+            "end_time": FUTURE_END_TIME,
+        },
+    )
+    assert resp.status_code == status.HTTP_409_CONFLICT
+    data = resp.json()
+    assert data["detail"]["error"] == "Conflict"
+
+
+def test_trigger_propose_embargo_revision_sets_em_state_to_revise(
+    client_triggers, dl, actor, case_with_embargo
+):
+    """propose-embargo-revision transitions case EM state from ACTIVE to REVISE."""
+    case_obj, _ = case_with_embargo
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/propose-embargo-revision",
+        json={"case_id": case_obj.id_, "end_time": FUTURE_END_TIME},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+    updated_case = dl.read(case_obj.id_)
+    assert updated_case.current_status.em_state == EM.REVISE
+
+
+def test_trigger_propose_embargo_revision_adds_activity_to_outbox(
+    client_triggers, dl, actor, case_with_embargo
+):
+    """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
+    case_obj, _ = case_with_embargo
+    actor_before = dl.read(actor.id_)
+    outbox_before = set(
+        item for item in actor_before.outbox.items if isinstance(item, str)
+    )
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/propose-embargo-revision",
+        json={"case_id": case_obj.id_, "end_time": FUTURE_END_TIME},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+    actor_after = dl.read(actor.id_)
+    outbox_after = set(
+        item for item in actor_after.outbox.items if isinstance(item, str)
+    )
+    assert len(outbox_after - outbox_before) >= 1
 
 
 # ===========================================================================
@@ -708,10 +960,10 @@ class TestTriggerEmbargoOutboxScheduling:
         assert mock_outbox.call_args.args[0] == actor.id_
         assert mock_outbox.call_args.args[1] is mock_dl
 
-    def test_evaluate_embargo_schedules_outbox_handler(
+    def test_accept_embargo_schedules_outbox_handler(
         self, client_triggers, actor, case_with_proposal
     ):
-        """evaluate-embargo schedules outbox delivery after execution."""
+        """accept-embargo schedules outbox delivery after execution."""
         from unittest.mock import AsyncMock, MagicMock, patch
 
         case_obj, proposal, _ = case_with_proposal
@@ -726,7 +978,7 @@ class TestTriggerEmbargoOutboxScheduling:
             return_value=mock_dl,
         ):
             resp = client_triggers.post(
-                f"/actors/{actor.id_}/trigger/evaluate-embargo",
+                f"/actors/{actor.id_}/trigger/accept-embargo",
                 json={
                     "case_id": case_obj.id_,
                     "proposal_id": proposal.id_,

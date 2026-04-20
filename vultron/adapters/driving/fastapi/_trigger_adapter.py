@@ -39,8 +39,10 @@ from vultron.core.use_cases.triggers.actor import (
     SvcSuggestActorToCaseUseCase,
 )
 from vultron.core.use_cases.triggers.embargo import (
-    SvcEvaluateEmbargoUseCase,
+    SvcAcceptEmbargoUseCase,
+    SvcProposeEmbargoRevisionUseCase,
     SvcProposeEmbargoUseCase,
+    SvcRejectEmbargoUseCase,
     SvcTerminateEmbargoUseCase,
 )
 from vultron.core.use_cases.triggers.note import SvcAddNoteToCaseUseCase
@@ -53,15 +55,17 @@ from vultron.core.use_cases.triggers.report import (
 )
 from vultron.core.use_cases.triggers.requests import (
     AcceptCaseInviteTriggerRequest,
+    AcceptEmbargoTriggerRequest,
     AddNoteToCaseTriggerRequest,
     AddReportToCaseTriggerRequest,
     CloseReportTriggerRequest,
     CreateCaseTriggerRequest,
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
-    EvaluateEmbargoTriggerRequest,
     InvalidateReportTriggerRequest,
+    ProposeEmbargoRevisionTriggerRequest,
     ProposeEmbargoTriggerRequest,
+    RejectEmbargoTriggerRequest,
     RejectReportTriggerRequest,
     SubmitReportTriggerRequest,
     SuggestActorToCaseTriggerRequest,
@@ -138,17 +142,52 @@ def propose_embargo_trigger(
         return SvcProposeEmbargoUseCase(dl, request).execute()
 
 
-def evaluate_embargo_trigger(
+def accept_embargo_trigger(
     actor_id: str,
     case_id: str,
     proposal_id: str | None,
     dl: DataLayer,
 ) -> dict:
     with domain_error_translation():
-        request = EvaluateEmbargoTriggerRequest(
+        request = AcceptEmbargoTriggerRequest(
             actor_id=actor_id, case_id=case_id, proposal_id=proposal_id
         )
-        return SvcEvaluateEmbargoUseCase(dl, request).execute()
+        return SvcAcceptEmbargoUseCase(dl, request).execute()
+
+
+# Backward-compatible alias
+evaluate_embargo_trigger = accept_embargo_trigger
+
+
+def reject_embargo_trigger(
+    actor_id: str,
+    case_id: str,
+    proposal_id: str | None,
+    dl: DataLayer,
+) -> dict:
+    with domain_error_translation():
+        request = RejectEmbargoTriggerRequest(
+            actor_id=actor_id, case_id=case_id, proposal_id=proposal_id
+        )
+        return SvcRejectEmbargoUseCase(dl, request).execute()
+
+
+def propose_embargo_revision_trigger(
+    actor_id: str,
+    case_id: str,
+    note: str | None,
+    end_time: datetime | None,
+    dl: DataLayer,
+) -> dict:
+    with domain_error_translation():
+        if end_time is None:
+            raise ValueError(
+                "end_time is required for propose_embargo_revision"
+            )
+        request = ProposeEmbargoRevisionTriggerRequest(
+            actor_id=actor_id, case_id=case_id, note=note, end_time=end_time
+        )
+        return SvcProposeEmbargoRevisionUseCase(dl, request).execute()
 
 
 def terminate_embargo_trigger(

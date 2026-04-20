@@ -26,9 +26,9 @@ from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     RejectInviteToEmbargoOnCaseReceivedUseCase,
 )
-from vultron.core.use_cases.triggers.embargo import SvcEvaluateEmbargoUseCase
+from vultron.core.use_cases.triggers.embargo import SvcAcceptEmbargoUseCase
 from vultron.core.use_cases.triggers.requests import (
-    EvaluateEmbargoTriggerRequest,
+    AcceptEmbargoTriggerRequest,
 )
 from vultron.errors import VultronInvalidStateTransitionError
 
@@ -602,7 +602,7 @@ class TestEmbargoUseCases:
     def test_evaluate_embargo_raises_invalid_state_transition_when_em_state_invalid(
         self,
     ):
-        """SvcEvaluateEmbargoUseCase raises VultronInvalidStateTransitionError when EM state does not allow ACCEPT."""
+        """SvcAcceptEmbargoUseCase raises VultronInvalidStateTransitionError when EM state does not allow ACCEPT."""
         import pytest
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
@@ -644,10 +644,10 @@ class TestEmbargoUseCases:
         dl.create(embargo)
         dl.create(proposal)
 
-        request = EvaluateEmbargoTriggerRequest(
+        request = AcceptEmbargoTriggerRequest(
             actor_id=actor.id_,
             case_id=case.id_,
             proposal_id=proposal.id_,
         )
         with pytest.raises(VultronInvalidStateTransitionError):
-            SvcEvaluateEmbargoUseCase(dl, request).execute()
+            SvcAcceptEmbargoUseCase(dl, request).execute()

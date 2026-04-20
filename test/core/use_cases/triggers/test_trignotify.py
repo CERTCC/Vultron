@@ -32,7 +32,7 @@ from vultron.core.use_cases.triggers.case import (
     SvcEngageCaseUseCase,
 )
 from vultron.core.use_cases.triggers.embargo import (
-    SvcEvaluateEmbargoUseCase,
+    SvcAcceptEmbargoUseCase,
     SvcProposeEmbargoUseCase,
     SvcTerminateEmbargoUseCase,
 )
@@ -44,7 +44,7 @@ from vultron.core.use_cases.triggers.report import (
 from vultron.core.use_cases.triggers.requests import (
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
-    EvaluateEmbargoTriggerRequest,
+    AcceptEmbargoTriggerRequest,
     ProposeEmbargoTriggerRequest,
     TerminateEmbargoTriggerRequest,
     CloseReportTriggerRequest,
@@ -238,7 +238,7 @@ class TestEmbargoTriggerToField:
         assert self.vendor.id_ not in recipients
 
     def test_evaluate_embargo_to_field_contains_other_participant(self):
-        """SvcEvaluateEmbargoUseCase queues EmAcceptEmbargoActivity with to."""
+        """SvcAcceptEmbargoUseCase queues EmAcceptEmbargoActivity with to."""
         embargo = EmbargoEvent(context=self.case.id_)
         self.dl.create(embargo)
         proposal = EmProposeEmbargoActivity(
@@ -251,12 +251,12 @@ class TestEmbargoTriggerToField:
         self.case.proposed_embargoes.append(embargo.id_)
         self.dl.save(self.case)
 
-        request = EvaluateEmbargoTriggerRequest(
+        request = AcceptEmbargoTriggerRequest(
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
             proposal_id=proposal.id_,
         )
-        result = SvcEvaluateEmbargoUseCase(self.dl, request).execute()
+        result = SvcAcceptEmbargoUseCase(self.dl, request).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)

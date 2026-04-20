@@ -23,14 +23,18 @@ All domain logic lives in vultron.core.use_cases.triggers.embargo.
 from fastapi import APIRouter, BackgroundTasks, Depends, Path, status
 
 from vultron.adapters.driving.fastapi._trigger_adapter import (
-    evaluate_embargo_trigger,
+    accept_embargo_trigger,
+    propose_embargo_revision_trigger,
     propose_embargo_trigger,
+    reject_embargo_trigger,
     terminate_embargo_trigger,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.trigger_models import (
-    EvaluateEmbargoRequest,
+    AcceptEmbargoRequest,
     ProposeEmbargoRequest,
+    ProposeEmbargoRevisionRequest,
+    RejectEmbargoRequest,
     TerminateEmbargoRequest,
 )
 from vultron.core.ports.datalayer import DataLayer
@@ -102,34 +106,104 @@ def trigger_propose_embargo(
 
 
 @router.post(
-    "/{actor_id}/trigger/evaluate-embargo",
+    "/{actor_id}/trigger/accept-embargo",
     status_code=status.HTTP_202_ACCEPTED,
-    summary="Trigger embargo evaluation (accept a proposal).",
+    summary="Trigger embargo acceptance (accept a proposal).",
     description=(
-        "Triggers the evaluate-embargo behavior for the given actor. "
+        "Triggers the accept-embargo behavior for the given actor. "
         "Accepts the current (or specified) embargo proposal by emitting "
         "an EmAcceptEmbargoActivity activity. Activates the embargo on the case "
         "(EM state → ACTIVE). "
         "Returns the resulting activity in the response body (TB-04-001)."
     ),
-    operation_id="actors_trigger_evaluate_embargo",
+    operation_id="actors_trigger_accept_embargo",
 )
-def trigger_evaluate_embargo(
+def trigger_accept_embargo(
     actor_id: str,
-    body: EvaluateEmbargoRequest,
+    body: AcceptEmbargoRequest,
     background_tasks: BackgroundTasks,
     dl: DataLayer = Depends(_actor_dl),
     actor_dl: DataLayer = Depends(_canonical_actor_dl),
 ) -> dict:
     """
-    Trigger the evaluate-embargo (accept) behavior for the given actor.
+    Trigger the accept-embargo behavior for the given actor.
 
     Implements:
         TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001, TB-03-002,
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    result = evaluate_embargo_trigger(
+    result = accept_embargo_trigger(
         actor_id, body.case_id, body.proposal_id, dl
+    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result
+
+
+@router.post(
+    "/{actor_id}/trigger/reject-embargo",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Trigger embargo rejection (reject a proposal).",
+    description=(
+        "Triggers the reject-embargo behavior for the given actor. "
+        "Rejects the current (or specified) embargo proposal by emitting "
+        "an EmRejectEmbargoActivity activity. "
+        "EM state transitions: PROPOSED → NO_EMBARGO or REVISE → ACTIVE. "
+        "Returns the resulting activity in the response body (TB-04-001)."
+    ),
+    operation_id="actors_trigger_reject_embargo",
+)
+def trigger_reject_embargo(
+    actor_id: str,
+    body: RejectEmbargoRequest,
+    background_tasks: BackgroundTasks,
+    dl: DataLayer = Depends(_actor_dl),
+    actor_dl: DataLayer = Depends(_canonical_actor_dl),
+) -> dict:
+    """
+    Trigger the reject-embargo behavior for the given actor.
+
+    Implements:
+        TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001, TB-03-002,
+        TB-04-001, TB-06-001, TB-06-002, TB-07-001
+    """
+    result = reject_embargo_trigger(
+        actor_id, body.case_id, body.proposal_id, dl
+    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result
+
+
+@router.post(
+    "/{actor_id}/trigger/propose-embargo-revision",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Trigger an embargo revision proposal.",
+    description=(
+        "Triggers the propose-embargo-revision behavior for the given actor. "
+        "Proposes a revision to the active embargo by emitting an "
+        "EmProposeEmbargoActivity activity. "
+        "Only valid when EM state is ACTIVE or REVISE; "
+        "use propose-embargo for initial proposals. "
+        "EM state transitions: ACTIVE → REVISE or REVISE → REVISE. "
+        "Returns the resulting activity in the response body (TB-04-001)."
+    ),
+    operation_id="actors_trigger_propose_embargo_revision",
+)
+def trigger_propose_embargo_revision(
+    actor_id: str,
+    body: ProposeEmbargoRevisionRequest,
+    background_tasks: BackgroundTasks,
+    dl: DataLayer = Depends(_actor_dl),
+    actor_dl: DataLayer = Depends(_canonical_actor_dl),
+) -> dict:
+    """
+    Trigger the propose-embargo-revision behavior for the given actor.
+
+    Implements:
+        TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001, TB-03-002,
+        TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
+    """
+    result = propose_embargo_revision_trigger(
+        actor_id, body.case_id, body.note, body.end_time, dl
     )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result

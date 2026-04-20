@@ -102,8 +102,29 @@ class ProposeEmbargoTriggerRequest(CaseTriggerRequest):
         return v
 
 
-class EvaluateEmbargoTriggerRequest(CaseTriggerRequest):
+class AcceptEmbargoTriggerRequest(CaseTriggerRequest):
     pass
+
+
+# Backward-compatible alias
+EvaluateEmbargoTriggerRequest = AcceptEmbargoTriggerRequest
+
+
+class RejectEmbargoTriggerRequest(CaseTriggerRequest):
+    pass
+
+
+class ProposeEmbargoRevisionTriggerRequest(CaseTriggerRequest):
+    end_time: datetime  # pyright: ignore[reportGeneralTypeIssues]
+
+    @field_validator("end_time")
+    @classmethod
+    def end_time_must_be_tz_aware_and_future(cls, v: datetime) -> datetime:
+        if v.tzinfo is None or v.utcoffset() is None:
+            raise ValueError("end_time must be timezone-aware")
+        if v <= datetime.now(tz=timezone.utc):
+            raise ValueError("end_time must be in the future")
+        return v
 
 
 class TerminateEmbargoTriggerRequest(CaseTriggerRequest):
