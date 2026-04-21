@@ -46,7 +46,7 @@ dependencies = [
     "mkdocstrings>=1.0.4",
     "networkx>=3.5",
     "owlready2>=0.48",
-    "pandas>=2.3.2",
+    "pandas>=3.0.2",
     "pydantic==2.13.0",
     "py-trees>=2.2.0",
     "rdflib>=7.2.1",
