@@ -22,16 +22,6 @@ three-actor, multi-vendor). All high-severity items block every demo scenario.
 Architectural decisions for each issue are documented in
 `plan/IMPLEMENTATION_NOTES.md` under **REVIEW-26042001**.
 
-- [ ] **DR-05 — Accept.object_ must carry the original Invite (Medium,
-  three-actor, multi-vendor):**
-  When constructing `RmAcceptInviteToCaseActivity` and
-  `EmAcceptEmbargoActivity`, the `object_` field must be the original invite
-  activity, not the case object or embargo event. Fix: the
-  `InviteReceivedUseCase` (both RM and EM variants) MUST stash the invite
-  activity on the BT blackboard. The `AcceptInvite` BT node reads the invite
-  from the blackboard rather than querying the DataLayer or passing a
-  convenience object.
-
 - [ ] **DR-09 — Actor ID normalization: full URI only (Low, all):**
   Normalize actor IDs to full URIs at the point they are first established
   (actor creation / seed / session context). `add_activity_to_outbox` and all
@@ -99,20 +89,6 @@ The section can proceed in parallel with PRIORITY-360.
   - All P347-* tasks above
   - SYNC-4 (multi-peer log synchronization)
   - Multi-actor demos pass end-to-end with log-sync in place
-
----
-
-## PRIORITY-330 — Replicated Log Synchronization (SYNC-4)
-
-**Reference**: `plan/PRIORITIES.md` PRIORITY 330,
-`notes/sync-log-replication.md`
-
-OUTBOX-MON-1, SYNC-1, SYNC-2, and SYNC-3 are complete (see HISTORY). The
-remaining open task is SYNC-4.
-
-- [ ] **SYNC-4**: Multi-peer synchronization with per-peer replication state.
-  Enables RAFT consensus for CaseActor process.
-  **Depends on**: SYNC-3 (complete).
 
 ---
 

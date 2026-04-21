@@ -7399,3 +7399,66 @@ case-level `EM` state machine.
   `embargo_invitation_timeout`) is a policy concern left for a future task.
 - The `embargo_adherence: bool` derived property (returns `state == SIGNATORY`)
   was not added; deferred — no spec requiring it was blocked on this.
+
+---
+
+## SYNC-4 — Multi-peer synchronization with per-peer replication state
+
+**Status**: Complete (discovered already implemented; plan updated)
+**Priority**: 330
+**Completed**: 2026-05-02
+**Commits**: `25babfd6` (implemented as part of SYNC-3 changeset)
+
+### Summary
+
+SYNC-4 was fully implemented in commit `25babfd6` alongside SYNC-3. The
+plan entry was not removed at the time. Verification confirmed all
+components present:
+
+- `VultronReplicationState` model (`vultron/core/models/replication_state.py`)
+- `_update_replication_state()` in `vultron/core/use_cases/received/sync.py`
+- BT leadership guard (`is_leader` parameter on `BTBridge.__init__()`)
+- Tests: `test/core/use_cases/received/test_reject_sync.py` (SYNC-04-001/002)
+
+No code changes required; removed stale plan entry.
+
+---
+
+## DR-05 — Accept.object_ must carry the original Invite
+
+**Status**: Complete (bug already fixed; regression tests added)
+**Priority**: 348
+**Completed**: 2026-05-02
+**Commits**: `e27bb4ef` (accept-case-invite trigger), `001b1cc4` (INLINE-OBJ-B),
+`1dff5fab` (P347-PUPPETEER); regression tests in this session.
+
+### Summary
+
+The DR-05 bug (Accept.object_ set to VulnerabilityCase instead of the
+original invite) was introduced by old demo puppeteering scripts and fixed
+on 2026-04-20 via three coordinated changes:
+
+1. `e27bb4ef` — Added `accept-case-invite` trigger
+   (`SvcAcceptCaseInviteUseCase`), which reads the invite from the DataLayer
+   and passes it as `object_=invite` to `RmAcceptInviteToCaseActivity`.
+2. `001b1cc4` (INLINE-OBJ-B) — Pydantic enforces `object_:
+   RmInviteToCaseActivity` (required) on all Accept/Reject invite activities,
+   and `object_: EmProposeEmbargoActivity` on embargo Accept/Reject.
+3. `1dff5fab` (P347-PUPPETEER) — Demo scripts migrated to trigger-based
+   approach; old puppeteering code removed.
+
+`SvcAcceptEmbargoUseCase` (embargo.py) was similarly correct.
+
+This session added two regression tests:
+
+- `test_trigger_accept_case_invite_object_is_invite` — verifies
+  `activity.object.id == invite.id_` (RM path)
+- `test_trigger_accept_embargo_object_is_proposal` — verifies
+  `activity.object.id == proposal.id_` (EM path)
+
+### Notes
+
+The IMPLEMENTATION_NOTES design described a "BT blackboard stash" approach
+as the intended fix. The actual fix used the trigger + DataLayer lookup
+pattern instead. The BT-blackboard description in NOTES is superseded and
+was not implemented; trigger-based DL lookup is the canonical pattern.

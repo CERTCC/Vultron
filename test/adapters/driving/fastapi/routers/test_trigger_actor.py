@@ -252,6 +252,19 @@ def test_trigger_accept_case_invite_response_contains_activity(
     assert data["activity"] is not None
 
 
+def test_trigger_accept_case_invite_object_is_invite(
+    client_triggers, other_actor, invite, dl
+):
+    """DR-05: Accept activity object_ must be the original invite, not the case."""
+    resp = client_triggers.post(
+        f"/actors/{other_actor.id_}/trigger/accept-case-invite",
+        json={"invite_id": invite.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert data["activity"]["object"]["id"] == invite.id_
+
+
 def test_trigger_accept_case_invite_missing_invite_id_returns_422(
     client_triggers, other_actor
 ):

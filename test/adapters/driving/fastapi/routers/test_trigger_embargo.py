@@ -374,6 +374,20 @@ def test_trigger_accept_embargo_response_contains_activity_key(
     assert data["activity"] is not None
 
 
+def test_trigger_accept_embargo_object_is_proposal(
+    client_triggers, actor, case_with_proposal
+):
+    """DR-05: Accept activity object_ must be the original proposal, not the embargo event."""
+    case_obj, proposal, _ = case_with_proposal
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/accept-embargo",
+        json={"case_id": case_obj.id_, "proposal_id": proposal.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert data["activity"]["object"]["id"] == proposal.id_
+
+
 def test_trigger_accept_embargo_missing_case_id_returns_422(
     client_triggers, actor
 ):
