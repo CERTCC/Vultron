@@ -7406,7 +7406,7 @@ case-level `EM` state machine.
 
 **Status**: Complete (discovered already implemented; plan updated)
 **Priority**: 330
-**Completed**: 2026-05-02
+**Completed**: 2026-04-21
 **Commits**: `25babfd6` (implemented as part of SYNC-3 changeset)
 
 ### Summary
@@ -7428,7 +7428,7 @@ No code changes required; removed stale plan entry.
 
 **Status**: Complete (bug already fixed; regression tests added)
 **Priority**: 348
-**Completed**: 2026-05-02
+**Completed**: 2026-04-21
 **Commits**: `e27bb4ef` (accept-case-invite trigger), `001b1cc4` (INLINE-OBJ-B),
 `1dff5fab` (P347-PUPPETEER); regression tests in this session.
 
@@ -7525,7 +7525,7 @@ Key changes:
 
 ## DR-09 — Actor ID normalization (PRIORITY-348)
 
-**Completed:** 2026-05-02
+**Completed:** 2026-04-21
 
 **Task:** Normalize actor IDs to full URIs everywhere internally so that
 `add_activity_to_outbox` and related functions never receive a short UUID.
