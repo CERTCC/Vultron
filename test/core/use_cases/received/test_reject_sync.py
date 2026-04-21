@@ -32,7 +32,7 @@ from vultron.core.use_cases.triggers.sync import replay_missing_entries_trigger
 from typing import cast
 
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
-from vultron.wire.as2.extractor import extract_intent
+from vultron.semantic_registry import extract_event
 from vultron.wire.as2.vocab.activities.sync import RejectLogEntryActivity
 from vultron.wire.as2.vocab.objects.case_log_entry import (
     CaseLogEntry as WireCaseLogEntry,
@@ -83,7 +83,7 @@ def _make_reject_event(
         to=[CASE_ACTOR_URI],
         context=last_accepted_hash,
     )
-    return cast(RejectLogEntryReceivedEvent, extract_intent(activity))
+    return cast(RejectLogEntryReceivedEvent, extract_event(activity))
 
 
 class TestRejectLogEntryPattern:
@@ -98,7 +98,7 @@ class TestRejectLogEntryPattern:
             object_=wire_entry,
             context=GENESIS_HASH,
         )
-        event = extract_intent(activity)
+        event = extract_event(activity)
         assert event.semantic_type == MessageSemantics.REJECT_CASE_LOG_ENTRY
 
     def test_rejected_entry_accessible(self, entry0):
@@ -129,7 +129,7 @@ class TestRejectLogEntryPattern:
             actor=PARTICIPANT_URI,
             object_=wire_entry,
         )
-        event = extract_intent(activity)
+        event = extract_event(activity)
         assert isinstance(event, RejectLogEntryReceivedEvent)
         assert event.last_accepted_hash == GENESIS_HASH
 

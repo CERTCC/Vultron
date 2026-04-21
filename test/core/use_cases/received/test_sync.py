@@ -27,7 +27,7 @@ from vultron.core.use_cases.received.sync import (
 from typing import cast
 
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
-from vultron.wire.as2.extractor import extract_intent
+from vultron.semantic_registry import extract_event
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.activities.sync import AnnounceLogEntryActivity
 from vultron.wire.as2.vocab.objects.case_log_entry import (
@@ -102,7 +102,7 @@ class TestAnnounceLogEntryReceivedUseCase:
             actor=ACTOR_URI,
             object_=wire_entry,
         )
-        return cast(AnnounceLogEntryReceivedEvent, extract_intent(activity))
+        return cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
 
     def test_inline_case_log_entry_round_trip(self, first_entry):
         """parse_activity must preserve inline CaseLogEntry fields (BUG-26041501).
@@ -118,7 +118,7 @@ class TestAnnounceLogEntryReceivedUseCase:
             "object": first_entry.model_dump(mode="json", by_alias=True),
         }
         parsed = parse_activity(body)
-        event = cast(AnnounceLogEntryReceivedEvent, extract_intent(parsed))
+        event = cast(AnnounceLogEntryReceivedEvent, extract_event(parsed))
         assert event.semantic_type == MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY
         assert event.log_entry is not None
         assert event.log_entry.case_id == CASE_URI

@@ -14,61 +14,11 @@ from typing import Any, Optional, Union
 
 from pydantic import BaseModel
 
-from vultron.wire.as2.vocab.activities.actor import (
-    AcceptActorRecommendationActivity,
-    RecommendActorActivity,
-    RejectActorRecommendationActivity,
-)
-from vultron.wire.as2.vocab.activities.case import (
-    AcceptCaseOwnershipTransferActivity,
-    AddNoteToCaseActivity,
-    AddReportToCaseActivity,
-    AddStatusToCaseActivity,
-    CreateCaseActivity,
-    CreateCaseStatusActivity,
-    OfferCaseOwnershipTransferActivity,
-    RejectCaseOwnershipTransferActivity,
-    RmAcceptInviteToCaseActivity,
-    RmCloseCaseActivity,
-    RmDeferCaseActivity,
-    RmEngageCaseActivity,
-    RmInviteToCaseActivity,
-    RmRejectInviteToCaseActivity,
-    UpdateCaseActivity,
-)
-from vultron.wire.as2.vocab.activities.case_participant import (
-    AddParticipantToCaseActivity,
-    AddStatusToParticipantActivity,
-    CreateParticipantActivity,
-    CreateStatusForParticipantActivity,
-    RemoveParticipantFromCaseActivity,
-)
-from vultron.wire.as2.vocab.activities.embargo import (
-    AddEmbargoToCaseActivity,
-    AnnounceEmbargoActivity,
-    EmAcceptEmbargoActivity,
-    EmProposeEmbargoActivity,
-    EmRejectEmbargoActivity,
-    RemoveEmbargoFromCaseActivity,
-)
-from vultron.wire.as2.vocab.activities.report import (
-    RmCloseReportActivity,
-    RmCreateReportActivity,
-    RmInvalidateReportActivity,
-    RmReadReportActivity,
-    RmSubmitReportActivity,
-    RmValidateReportActivity,
-)
-from vultron.wire.as2.vocab.activities.sync import (
-    AnnounceLogEntryActivity,
-    RejectLogEntryActivity,
-)
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.core.models.base import VultronObject
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
 from vultron.core.models.events import (
-    EVENT_CLASS_MAP,
     MessageSemantics,
     VultronEvent,
 )
@@ -379,71 +329,126 @@ AddParticipantStatusToParticipantPattern = ActivityPattern(
 
 
 # ---------------------------------------------------------------------------
-# Semantics → pattern mapping (formerly in vultron/semantic_map.py)
+# Pattern → semantics ordered lookup list (private).
 # The order of entries matters: find_matching_semantics returns the first match.
+# Specific patterns must appear before general ones that could also match.
 # ---------------------------------------------------------------------------
 
-SEMANTICS_ACTIVITY_PATTERNS: dict[MessageSemantics, ActivityPattern] = {
-    MessageSemantics.CREATE_REPORT: CreateReportPattern,
-    MessageSemantics.SUBMIT_REPORT: ReportSubmissionPattern,
-    MessageSemantics.ACK_REPORT: AckReportPattern,
-    MessageSemantics.VALIDATE_REPORT: ValidateReportPattern,
-    MessageSemantics.INVALIDATE_REPORT: InvalidateReportPattern,
-    MessageSemantics.CLOSE_REPORT: CloseReportPattern,
-    MessageSemantics.CREATE_CASE: CreateCaseActivityPattern,
-    MessageSemantics.UPDATE_CASE: UpdateCaseActivityPattern,
-    MessageSemantics.ENGAGE_CASE: EngageCasePattern,
-    MessageSemantics.DEFER_CASE: DeferCasePattern,
-    MessageSemantics.ADD_REPORT_TO_CASE: AddReportToCaseActivityPattern,
-    MessageSemantics.SUGGEST_ACTOR_TO_CASE: SuggestActorToCasePattern,
-    MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE: AcceptSuggestActorToCasePattern,
-    MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE: RejectSuggestActorToCasePattern,
-    MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER: OfferCaseOwnershipTransferActivityPattern,
-    MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER: AcceptCaseOwnershipTransferActivityPattern,
-    MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER: RejectCaseOwnershipTransferActivityPattern,
-    MessageSemantics.INVITE_ACTOR_TO_CASE: InviteActorToCasePattern,
-    MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE: AcceptInviteActorToCasePattern,
-    MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE: RejectInviteActorToCasePattern,
-    MessageSemantics.CREATE_EMBARGO_EVENT: CreateEmbargoEventPattern,
-    MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE: AddEmbargoEventToCasePattern,
-    MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE: RemoveEmbargoEventFromCasePattern,
-    MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE: AnnounceEmbargoEventToCasePattern,
-    MessageSemantics.INVITE_TO_EMBARGO_ON_CASE: InviteToEmbargoOnCasePattern,
-    MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE: AcceptInviteToEmbargoOnCasePattern,
-    MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE: RejectInviteToEmbargoOnCasePattern,
-    MessageSemantics.CLOSE_CASE: CloseCasePattern,
-    MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY: AnnounceLogEntryPattern,
-    MessageSemantics.REJECT_CASE_LOG_ENTRY: RejectLogEntryPattern,
-    MessageSemantics.CREATE_CASE_PARTICIPANT: CreateCaseParticipantPattern,
-    MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE: AddCaseParticipantToCasePattern,
-    MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE: RemoveCaseParticipantFromCasePattern,
-    MessageSemantics.CREATE_NOTE: CreateNotePattern,
-    MessageSemantics.ADD_NOTE_TO_CASE: AddNoteToCaseActivityPattern,
-    MessageSemantics.REMOVE_NOTE_FROM_CASE: RemoveNoteFromCasePattern,
-    MessageSemantics.CREATE_CASE_STATUS: CreateCaseStatusActivityPattern,
-    MessageSemantics.ADD_CASE_STATUS_TO_CASE: AddCaseStatusToCasePattern,
-    MessageSemantics.CREATE_PARTICIPANT_STATUS: CreateParticipantStatusPattern,
-    MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT: AddParticipantStatusToParticipantPattern,
-}
+_PATTERN_SEMANTICS: list[tuple[ActivityPattern, MessageSemantics]] = [
+    (CreateReportPattern, MessageSemantics.CREATE_REPORT),
+    (ReportSubmissionPattern, MessageSemantics.SUBMIT_REPORT),
+    (AckReportPattern, MessageSemantics.ACK_REPORT),
+    (ValidateReportPattern, MessageSemantics.VALIDATE_REPORT),
+    (InvalidateReportPattern, MessageSemantics.INVALIDATE_REPORT),
+    (CloseReportPattern, MessageSemantics.CLOSE_REPORT),
+    (CreateCaseActivityPattern, MessageSemantics.CREATE_CASE),
+    (UpdateCaseActivityPattern, MessageSemantics.UPDATE_CASE),
+    (EngageCasePattern, MessageSemantics.ENGAGE_CASE),
+    (DeferCasePattern, MessageSemantics.DEFER_CASE),
+    (AddReportToCaseActivityPattern, MessageSemantics.ADD_REPORT_TO_CASE),
+    (SuggestActorToCasePattern, MessageSemantics.SUGGEST_ACTOR_TO_CASE),
+    (
+        AcceptSuggestActorToCasePattern,
+        MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE,
+    ),
+    (
+        RejectSuggestActorToCasePattern,
+        MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE,
+    ),
+    (
+        OfferCaseOwnershipTransferActivityPattern,
+        MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER,
+    ),
+    (
+        AcceptCaseOwnershipTransferActivityPattern,
+        MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
+    ),
+    (
+        RejectCaseOwnershipTransferActivityPattern,
+        MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER,
+    ),
+    (InviteActorToCasePattern, MessageSemantics.INVITE_ACTOR_TO_CASE),
+    (
+        AcceptInviteActorToCasePattern,
+        MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
+    ),
+    (
+        RejectInviteActorToCasePattern,
+        MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE,
+    ),
+    (CreateEmbargoEventPattern, MessageSemantics.CREATE_EMBARGO_EVENT),
+    (AddEmbargoEventToCasePattern, MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE),
+    (
+        RemoveEmbargoEventFromCasePattern,
+        MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
+    ),
+    (
+        AnnounceEmbargoEventToCasePattern,
+        MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE,
+    ),
+    (InviteToEmbargoOnCasePattern, MessageSemantics.INVITE_TO_EMBARGO_ON_CASE),
+    (
+        AcceptInviteToEmbargoOnCasePattern,
+        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
+    ),
+    (
+        RejectInviteToEmbargoOnCasePattern,
+        MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
+    ),
+    (CloseCasePattern, MessageSemantics.CLOSE_CASE),
+    (AnnounceLogEntryPattern, MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY),
+    (RejectLogEntryPattern, MessageSemantics.REJECT_CASE_LOG_ENTRY),
+    (CreateCaseParticipantPattern, MessageSemantics.CREATE_CASE_PARTICIPANT),
+    (
+        AddCaseParticipantToCasePattern,
+        MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
+    ),
+    (
+        RemoveCaseParticipantFromCasePattern,
+        MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
+    ),
+    (CreateNotePattern, MessageSemantics.CREATE_NOTE),
+    (AddNoteToCaseActivityPattern, MessageSemantics.ADD_NOTE_TO_CASE),
+    (RemoveNoteFromCasePattern, MessageSemantics.REMOVE_NOTE_FROM_CASE),
+    (CreateCaseStatusActivityPattern, MessageSemantics.CREATE_CASE_STATUS),
+    (AddCaseStatusToCasePattern, MessageSemantics.ADD_CASE_STATUS_TO_CASE),
+    (
+        CreateParticipantStatusPattern,
+        MessageSemantics.CREATE_PARTICIPANT_STATUS,
+    ),
+    (
+        AddParticipantStatusToParticipantPattern,
+        MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
+    ),
+]
 
 
 def extract_intent(
     activity: as_Activity,
+    semantics: MessageSemantics,
+    event_class: type[VultronEvent],
+    include_activity: bool = False,
 ) -> VultronEvent:
-    """Extract semantic intent and domain fields from an AS2 activity.
+    """Extract domain fields from an AS2 activity given pre-computed semantics.
 
-    Returns a fully-populated per-semantic VultronEvent subclass with all
-    relevant IDs and types extracted from the AS2 object graph.
-    This is the sole point where AS2 wire types are translated to domain concepts.
+    This function is the sole AS2 → domain translation point.  It is called
+    after pattern matching has already determined the ``semantics``; the
+    caller must supply the matching ``event_class`` and ``include_activity``
+    flag from the registry entry.
+
+    For a single-call convenience wrapper that performs pattern matching and
+    registry lookup automatically, use ``vultron.semantic_registry.extract_event``.
 
     Args:
-        activity: The AS2 activity to classify and extract from.
+        activity: The AS2 activity to extract fields from.
+        semantics: Pre-matched ``MessageSemantics`` value.
+        event_class: Concrete ``VultronEvent`` subclass to instantiate.
+        include_activity: When ``True``, populate ``event.activity`` with a
+            summarised ``VultronActivity`` snapshot of the outer activity.
 
     Returns:
         A concrete VultronEvent subclass discriminated by MessageSemantics.
     """
-
-    semantics = find_matching_semantics(activity)
 
     def _get_id(field) -> str | None:
         if field is None:
@@ -486,9 +491,7 @@ def extract_intent(
         inner_target = getattr(obj, "target", None)
         inner_context = getattr(obj, "context", None)
 
-    event_class: type[VultronEvent] = EVENT_CLASS_MAP.get(
-        semantics, EVENT_CLASS_MAP[MessageSemantics.UNKNOWN]
-    )
+    event_class = event_class  # passed in; no lookup needed
 
     def _build_domain_kwargs() -> dict[str, Any]:
         # Use type_ string comparison because the wire parser returns
@@ -500,21 +503,7 @@ def extract_intent(
         kw: dict[str, Any] = {}
         activity_type = str(activity.type_) if activity.type_ else "Activity"
 
-        _ACTIVITY_SEMANTICS = {
-            MessageSemantics.CREATE_REPORT,
-            MessageSemantics.SUBMIT_REPORT,
-            MessageSemantics.VALIDATE_REPORT,
-            MessageSemantics.INVALIDATE_REPORT,
-            MessageSemantics.ACK_REPORT,
-            MessageSemantics.CLOSE_REPORT,
-            MessageSemantics.SUGGEST_ACTOR_TO_CASE,
-            MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE,
-            MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER,
-            MessageSemantics.INVITE_ACTOR_TO_CASE,
-            MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
-            MessageSemantics.CREATE_CASE,
-        }
-        if semantics in _ACTIVITY_SEMANTICS:
+        if include_activity:
             kw["activity"] = VultronActivity(
                 id_=activity.id_,
                 type_=activity_type,
@@ -717,8 +706,8 @@ def extract_intent(
 def find_matching_semantics(activity: as_Activity) -> MessageSemantics:
     """Find the MessageSemantics for the given AS2 activity.
 
-    Iterates SEMANTICS_ACTIVITY_PATTERNS in order and returns the first match.
-    Returns MessageSemantics.UNKNOWN if no pattern matches.
+    Iterates ``_PATTERN_SEMANTICS`` in order and returns the first match.
+    Returns ``MessageSemantics.UNKNOWN`` if no pattern matches.
 
     Note:
         Pattern ordering matters when patterns overlap. More specific patterns
@@ -730,53 +719,7 @@ def find_matching_semantics(activity: as_Activity) -> MessageSemantics:
     Returns:
         The matching MessageSemantics value, or MessageSemantics.UNKNOWN.
     """
-    for semantics, pattern in SEMANTICS_ACTIVITY_PATTERNS.items():
+    for pattern, semantics in _PATTERN_SEMANTICS:
         if pattern.match(activity):
             return semantics
     return MessageSemantics.UNKNOWN
-
-
-#: Maps each ``MessageSemantics`` value to the specific Python activity class
-#: that represents it on the wire.  Used by the DataLayer to coerce
-#: base-vocabulary objects (e.g. ``as_Offer``) back to their semantic subtypes
-#: (e.g. ``RmSubmitReportActivity``) during ``dl.read()`` so that callers
-#: receive correctly-typed objects without manual ``model_validate`` coercion.
-SEMANTICS_TO_ACTIVITY_CLASS: dict[MessageSemantics, type[as_Activity]] = {
-    MessageSemantics.CREATE_REPORT: RmCreateReportActivity,
-    MessageSemantics.SUBMIT_REPORT: RmSubmitReportActivity,
-    MessageSemantics.ACK_REPORT: RmReadReportActivity,
-    MessageSemantics.VALIDATE_REPORT: RmValidateReportActivity,
-    MessageSemantics.INVALIDATE_REPORT: RmInvalidateReportActivity,
-    MessageSemantics.CLOSE_REPORT: RmCloseReportActivity,
-    MessageSemantics.CREATE_CASE: CreateCaseActivity,
-    MessageSemantics.UPDATE_CASE: UpdateCaseActivity,
-    MessageSemantics.ENGAGE_CASE: RmEngageCaseActivity,
-    MessageSemantics.DEFER_CASE: RmDeferCaseActivity,
-    MessageSemantics.ADD_REPORT_TO_CASE: AddReportToCaseActivity,
-    MessageSemantics.SUGGEST_ACTOR_TO_CASE: RecommendActorActivity,
-    MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE: AcceptActorRecommendationActivity,
-    MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE: RejectActorRecommendationActivity,
-    MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER: OfferCaseOwnershipTransferActivity,
-    MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER: AcceptCaseOwnershipTransferActivity,
-    MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER: RejectCaseOwnershipTransferActivity,
-    MessageSemantics.INVITE_ACTOR_TO_CASE: RmInviteToCaseActivity,
-    MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE: RmAcceptInviteToCaseActivity,
-    MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE: RmRejectInviteToCaseActivity,
-    MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE: AddEmbargoToCaseActivity,
-    MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE: RemoveEmbargoFromCaseActivity,
-    MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE: AnnounceEmbargoActivity,
-    MessageSemantics.INVITE_TO_EMBARGO_ON_CASE: EmProposeEmbargoActivity,
-    MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE: EmAcceptEmbargoActivity,
-    MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE: EmRejectEmbargoActivity,
-    MessageSemantics.CLOSE_CASE: RmCloseCaseActivity,
-    MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY: AnnounceLogEntryActivity,
-    MessageSemantics.REJECT_CASE_LOG_ENTRY: RejectLogEntryActivity,
-    MessageSemantics.CREATE_CASE_PARTICIPANT: CreateParticipantActivity,
-    MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE: AddParticipantToCaseActivity,
-    MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE: RemoveParticipantFromCaseActivity,
-    MessageSemantics.ADD_NOTE_TO_CASE: AddNoteToCaseActivity,
-    MessageSemantics.CREATE_CASE_STATUS: CreateCaseStatusActivity,
-    MessageSemantics.ADD_CASE_STATUS_TO_CASE: AddStatusToCaseActivity,
-    MessageSemantics.CREATE_PARTICIPANT_STATUS: CreateStatusForParticipantActivity,
-    MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT: AddStatusToParticipantActivity,
-}

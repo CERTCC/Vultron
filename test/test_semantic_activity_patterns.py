@@ -5,9 +5,9 @@ import pytest
 from pydantic import ValidationError
 
 from vultron.core.models.events import MessageSemantics
+from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.wire.as2.extractor import (
     ActivityPattern,
-    SEMANTICS_ACTIVITY_PATTERNS,
     find_matching_semantics,
 )
 from vultron.wire.as2.vocab.activities.case import (
@@ -26,17 +26,12 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 
 def test_all_message_semantics_have_activity_patterns():
-    """Ensure every MessageSemantics member is present as a key in SEMANTICS_ACTIVITY_PATTERNS."""
+    """Ensure every non-UNKNOWN MessageSemantics member has a pattern in SEMANTIC_REGISTRY."""
     missing = [
-        member
-        for member in MessageSemantics
-        if member not in SEMANTICS_ACTIVITY_PATTERNS
+        e.semantics
+        for e in SEMANTIC_REGISTRY
+        if e.semantics != MessageSemantics.UNKNOWN and e.pattern is None
     ]
-
-    # it's okay for MessageSemantics.UNKNOWN to not have a pattern, since it's a catch-all for unmatched semantics
-    if MessageSemantics.UNKNOWN in missing:
-        missing.remove(MessageSemantics.UNKNOWN)
-
     assert not missing, f"Missing activity patterns for semantics: {missing}"
 
 
@@ -111,7 +106,10 @@ def test_non_overlapping_activity_patterns():
     subset of another in the same activity_ group (either direction).
     """
     groups: dict[str, list[ActivityPattern]] = {}
-    for pat in SEMANTICS_ACTIVITY_PATTERNS.values():
+    for entry in SEMANTIC_REGISTRY:
+        if entry.pattern is None:
+            continue
+        pat = entry.pattern
         groups.setdefault(getattr(pat, "activity_", ""), []).append(pat)
 
     problems = []

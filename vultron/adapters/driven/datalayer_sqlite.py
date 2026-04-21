@@ -51,8 +51,10 @@ from vultron.adapters.driven.db_record import (
 from vultron.adapters.utils import _URN_UUID_PREFIX, _UUID_RE
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
+from vultron.semantic_registry import (
+    semantics_to_activity_class as _semantics_to_activity_class,
+)
 from vultron.wire.as2.extractor import (
-    SEMANTICS_TO_ACTIVITY_CLASS,
     find_matching_semantics,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -278,8 +280,8 @@ class SqliteDataLayer:
         After rehydration the object has correct field types but may still be
         typed as a base vocabulary class (e.g. ``as_Offer``).  This method
         uses :func:`find_matching_semantics` to identify the semantic intent
-        and, when a more specific class is registered in
-        ``SEMANTICS_TO_ACTIVITY_CLASS``, coerces via ``model_validate``.
+        and, when a more specific class is registered in the semantic registry,
+        coerces via ``model_validate``.
         Coercion failures are logged as warnings and the original object is
         returned unchanged.
         """
@@ -292,7 +294,7 @@ class SqliteDataLayer:
         if semantics == MessageSemantics.UNKNOWN:
             return obj
 
-        activity_cls = SEMANTICS_TO_ACTIVITY_CLASS.get(semantics)
+        activity_cls = _semantics_to_activity_class().get(semantics)
         if activity_cls is None or isinstance(obj, activity_cls):
             return obj
 

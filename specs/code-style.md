@@ -322,11 +322,28 @@ def extract_id_segment(url: str) -> str:
   - **Trigger use cases** (executing actor-initiated behaviors, in
     `core/use_cases/triggers/`) SHOULD carry the `Svc` prefix:
     `SvcEngageCaseUseCase`, `SvcProposeEmbargoUseCase`, etc.
-  - The `USE_CASE_MAP` in `core/use_cases/use_case_map.py` MUST be updated in
-    the same commit as any rename
+  - The `SEMANTIC_REGISTRY` in `vultron/semantic_registry.py` MUST be updated
+    in the same commit as any rename
   - **Rationale**: Distinguishes messages received from external parties from
     actions the local actor has decided to take. This distinction is fundamental
     to the Vultron protocol model (see `notes/activitystreams-semantics.md`)
     and prevents accidentally treating incoming messages as local commands.
   - **See also**: TECHDEBT-21 for the rename task; CS-10-002 for the parallel
     `FooReceivedEvent` / `FooTriggerEvent` domain event convention
+
+## No Compatibility Shims
+
+- `CS-13-001` (MUST) When a module, function, variable, or symbol is
+  refactored or replaced, the old symbol MUST be deleted. Compatibility
+  aliases, re-exports, and shims that exist solely to avoid updating call
+  sites are prohibited.
+  - All call sites MUST be updated as part of the same change that removes
+    the old symbol
+  - **Rationale**: The codebase is in prototype development; there are no
+    external downstream consumers that require stable import paths. Leaving
+    old symbols in place accumulates technical debt and makes the codebase
+    harder to navigate.
+  - **Cross-reference**: `plan/IDEAS.md` IDEA-26040903, IDEA-26041501
+  - **Verification**: Code review MUST reject any PR that introduces a symbol
+    whose only purpose is to delegate to a replacement symbol at a new import
+    path

@@ -11,14 +11,14 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 
 def test_prepare_for_dispatch_returns_vultron_event(monkeypatch):
-    """prepare_for_dispatch should return a VultronEvent from extract_intent."""
+    """prepare_for_dispatch should return a VultronEvent from extract_event."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
-    import vultron.wire.as2.extractor as extractor_mod
+    import vultron.semantic_registry as registry_mod
 
     monkeypatch.setattr(
-        extractor_mod,
+        registry_mod,
         "find_matching_semantics",
         lambda activity: MessageSemantics.UNKNOWN,
     )

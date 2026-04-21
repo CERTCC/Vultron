@@ -24,8 +24,10 @@ from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.events import VultronEvent
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
-from vultron.core.use_cases.use_case_map import USE_CASE_MAP
-from vultron.wire.as2.extractor import extract_intent
+from vultron.semantic_registry import (
+    extract_event,
+    use_case_map as _use_case_map,
+)
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 
@@ -39,7 +41,7 @@ def prepare_for_dispatch(activity: as_Activity) -> VultronEvent:
         activity.id_,
         activity.type_,
     )
-    event = extract_intent(activity)
+    event = extract_event(activity)
     logger.debug(
         "Prepared event with semantics '%s' for activity '%s'",
         event.semantic_type,
@@ -63,7 +65,7 @@ def init_dispatcher(dl: DataLayer | None = None) -> None:
             passed at dispatch time via :func:`dispatch`.
     """
     global _DISPATCHER
-    _DISPATCHER = get_dispatcher(use_case_map=USE_CASE_MAP)
+    _DISPATCHER = get_dispatcher(use_case_map=_use_case_map())
     logger.info("Initialised inbox dispatcher: %s", type(_DISPATCHER).__name__)
 
 
