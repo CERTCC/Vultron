@@ -77,6 +77,7 @@ class CaseParticipant(VultronAS2Object):
     case_roles: list[CVDRole] = Field(default_factory=list)
     participant_statuses: list[ParticipantStatus] = Field(default_factory=list)
     accepted_embargo_ids: list[str] = Field(default_factory=list)
+    embargo_consent_state: str = Field(default="NO_EMBARGO")
     participant_case_name: NonEmptyString | None = Field(
         default=None, exclude=True
     )

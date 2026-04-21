@@ -164,6 +164,7 @@ class TestInviteActorUseCases:
     ):
         """AcceptInviteActorToCaseReceivedUseCase records the active embargo ID on the new participant (CM-10-001, CM-10-003)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.states.em import EM
         from vultron.wire.as2.vocab.activities.case import (
             RmAcceptInviteToCaseActivity,
             RmInviteToCaseActivity,
@@ -186,6 +187,7 @@ class TestInviteActorUseCases:
             name="TEST-ACCEPT-INVITE-EMBARGO",
         )
         case.active_embargo = embargo.id_
+        case.current_status.em_state = EM.ACTIVE
         invite = RmInviteToCaseActivity(
             id_="https://example.org/cases/caseIA2/invitations/1",
             actor="https://example.org/users/owner",

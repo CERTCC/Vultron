@@ -16,6 +16,12 @@ from vultron.core.models.events.actor import (
 from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import (
+    PEC,
+    PEC_Trigger,
+    apply_pec_trigger,
+)
 from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 
@@ -249,6 +255,7 @@ class AcceptInviteActorToCaseReceivedUseCase:
             return
 
         active_embargo_id = _as_id(case.active_embargo)
+        em_state = case.current_status.em_state
 
         participant = VultronParticipant(
             id_=f"{case_id}/participants/{invitee_id.split('/')[-1]}",
@@ -264,15 +271,21 @@ class AcceptInviteActorToCaseReceivedUseCase:
         participant.append_rm_state(
             RM.VALID, actor=invitee_id, context=case_id
         )
-        if active_embargo_id:
+        # Only auto-sign embargo consent when the embargo is fully ACTIVE.
+        # In REVISE state the terms are under negotiation; auto-signing would
+        # commit the new participant to unresolved terms.
+        if active_embargo_id and em_state == EM.ACTIVE:
             participant.accepted_embargo_ids.append(active_embargo_id)
+            participant.embargo_consent_state = apply_pec_trigger(
+                PEC.NO_EMBARGO, PEC_Trigger.ACCEPT
+            )
         self._dl.create(participant)
 
         # Use string IDs to avoid wire-type serialization incompatibility
         case.case_participants.append(participant.id_)
         case.actor_participant_index[invitee_id] = participant.id_
         case.record_event(invitee_id, "participant_joined")
-        if active_embargo_id:
+        if active_embargo_id and em_state == EM.ACTIVE:
             case.record_event(active_embargo_id, "embargo_accepted")
         self._dl.save(case)
 

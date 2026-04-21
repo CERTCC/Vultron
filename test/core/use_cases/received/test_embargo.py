@@ -242,9 +242,11 @@ class TestEmbargoUseCases:
         from vultron.core.states.em import EM
 
         dl = SqliteDataLayer("sqlite:///:memory:")
+        coordinator_id = "https://example.org/users/coordinator"
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_em3",
             name="EM Accept Test",
+            attributed_to=coordinator_id,
         )
         embargo = EmbargoEvent(
             id_="https://example.org/cases/case_em3/embargo_events/e3",
@@ -264,7 +266,7 @@ class TestEmbargoUseCases:
         dl.create(proposal)
 
         accept = EmAcceptEmbargoActivity(
-            actor="https://example.org/users/coordinator",
+            actor=coordinator_id,
             object_=proposal,
             context=case,
         )
@@ -295,9 +297,11 @@ class TestEmbargoUseCases:
         from vultron.core.states.em import EM
 
         dl = SqliteDataLayer("sqlite:///:memory:")
+        coordinator_id = "https://example.org/users/coordinator"
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_em3_warn",
             name="EM Accept Warn Test",
+            attributed_to=coordinator_id,
         )
         embargo = EmbargoEvent(
             id_="https://example.org/cases/case_em3_warn/embargo_events/e3",
@@ -315,7 +319,7 @@ class TestEmbargoUseCases:
         dl.create(proposal)
 
         accept = EmAcceptEmbargoActivity(
-            actor="https://example.org/users/coordinator",
+            actor=coordinator_id,
             object_=proposal,
             context=case,
         )
@@ -403,9 +407,11 @@ class TestEmbargoUseCases:
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
+        coordinator_id = "https://example.org/users/coordinator"
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_em6",
             name="EM Accept Event Test",
+            attributed_to=coordinator_id,
         )
         embargo = EmbargoEvent(
             id_="https://example.org/cases/case_em6/embargo_events/e6",
@@ -422,7 +428,7 @@ class TestEmbargoUseCases:
         dl.create(proposal)
 
         accept = EmAcceptEmbargoActivity(
-            actor="https://example.org/users/coordinator",
+            actor=coordinator_id,
             object_=proposal,
             context=case,
         )

@@ -7344,3 +7344,58 @@ implemented in PRIORITY-347:
 - `notes/protocol-event-cascades.md`: Added a concrete 4-step
   suggest→invite→accept→record cascade example (with implementation
   requirements referencing TRIG-02-005 and DEMO-MA-05-001).
+
+---
+
+## DR-06 — Per-participant embargo consent state machine
+
+**Completed:** PRIORITY-348 / DR-06 (High)
+
+### Summary
+
+Implemented a 5-state `PEC` (Participant Embargo Consent) machine to track
+each case participant's individual consent status independently of the shared
+case-level `EM` state machine.
+
+### Files Created
+
+- `vultron/core/states/participant_embargo_consent.py` — `PEC` enum, `PEC_Trigger`
+  enum, `PECAdapter`, `create_pec_machine()`, and `apply_pec_trigger()` helper.
+- `test/core/states/__init__.py` and `test/core/states/test_participant_embargo_consent.py` —
+  tests for all valid and invalid PEC transitions.
+
+### Files Modified
+
+- `vultron/core/models/participant.py` — Added `embargo_consent_state: PEC` field.
+- `vultron/wire/as2/vocab/objects/case_participant.py` — Added `embargo_consent_state: str`
+  wire field.
+- `vultron/core/models/protocols.py` — Added `embargo_consent_state: str` to `ParticipantModel`.
+- `vultron/core/use_cases/received/embargo.py`:
+  - `InviteToEmbargoOnCaseReceivedUseCase`: sets participant consent to `INVITED`.
+  - `AcceptInviteToEmbargoOnCaseReceivedUseCase`: case-owner gate — only the
+    `attributed_to` actor activates shared EM; non-owners update own consent
+    only. Sets participant consent to `SIGNATORY`.
+  - `RejectInviteToEmbargoOnCaseReceivedUseCase`: sets participant consent to
+    `DECLINED`, extracts case/embargo IDs from stored invite activity.
+  - `RemoveEmbargoEventFromCaseReceivedUseCase`: resets all participants to
+    `NO_EMBARGO` when active embargo is removed.
+- `vultron/core/use_cases/received/actor.py`:
+  - `AcceptInviteActorToCaseReceivedUseCase`: auto-sign embargo consent
+    (`SIGNATORY`) only when `em_state == EM.ACTIVE` (not when REVISE).
+- `vultron/core/use_cases/triggers/embargo.py`:
+  - Added `_cascade_pec_revise()` and `_cascade_pec_reset()` helpers.
+  - `SvcAcceptEmbargoUseCase`: sets local actor's participant to `SIGNATORY`.
+  - `SvcProposeEmbargoUseCase`: cascades `REVISE` trigger on `ACTIVE → REVISE`
+    transition (all signatories lapse).
+  - `SvcTerminateEmbargoUseCase`: cascades `RESET` before saving case.
+- `test/core/use_cases/received/test_embargo.py` — Updated 3 tests to set
+  `attributed_to` on the case, matching the case-owner gate requirement.
+- `test/core/use_cases/received/test_actor.py` — Updated 1 test to set
+  `em_state = EM.ACTIVE` when `active_embargo` is present, matching the guard.
+
+### Notes
+
+- Timer-based pocket-veto (`INVITED`/`LAPSED → DECLINED` after
+  `embargo_invitation_timeout`) is a policy concern left for a future task.
+- The `embargo_adherence: bool` derived property (returns `state == SIGNATORY`)
+  was not added; deferred — no spec requiring it was blocked on this.

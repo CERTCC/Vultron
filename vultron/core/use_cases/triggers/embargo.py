@@ -25,7 +25,17 @@ from pydantic import BaseModel, ValidationError
 from transitions import MachineError
 
 from vultron.core.states.em import EM, EMAdapter, create_em_machine
+from vultron.core.models.protocols import (
+    PersistableModel,
+    is_case_model,
+    is_participant_model,
+)
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.states.participant_embargo_consent import (
+    PEC,
+    PEC_Trigger,
+    apply_pec_trigger,
+)
 from vultron.core.use_cases._helpers import case_addressees
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,
@@ -76,6 +86,44 @@ def _coerce_embargo_event(
         raise VultronValidationError(
             f"Could not resolve EmbargoEvent '{embargo_id}'."
         ) from exc
+
+
+def _cascade_pec_revise(case: PersistableModel | None, dl: DataLayer) -> None:
+    """Transition all SIGNATORY participants to LAPSED.
+
+    Called when an embargo transitions to REVISE state, meaning the embargo
+    terms are being renegotiated.  Existing signatories temporarily lapse
+    until they accept the revised terms.
+    """
+    if not is_case_model(case):
+        return
+    for participant_id in case.case_participants:
+        participant = dl.read(participant_id)
+        if not is_participant_model(participant):
+            continue
+        if participant.embargo_consent_state == PEC.SIGNATORY.value:
+            participant.embargo_consent_state = apply_pec_trigger(
+                PEC.SIGNATORY, PEC_Trigger.REVISE
+            )
+            dl.save(participant)
+
+
+def _cascade_pec_reset(case: PersistableModel | None, dl: DataLayer) -> None:
+    """Reset all participants' embargo consent state to NO_EMBARGO.
+
+    Called when an embargo is terminated or removed.
+    """
+    if not is_case_model(case):
+        return
+    for participant_id in case.case_participants:
+        participant = dl.read(participant_id)
+        if not is_participant_model(participant):
+            continue
+        if participant.embargo_consent_state != PEC.NO_EMBARGO.value:
+            participant.embargo_consent_state = apply_pec_trigger(
+                PEC(participant.embargo_consent_state), PEC_Trigger.RESET
+            )
+            dl.save(participant)
 
 
 class SvcProposeEmbargoUseCase:
@@ -148,6 +196,10 @@ class SvcProposeEmbargoUseCase:
             )
 
         case.current_status.em_state = new_em_state
+        # When transitioning from ACTIVE to REVISE, all current signatories
+        # lapse — the embargo terms are being renegotiated.
+        if em_state == EM.ACTIVE and new_em_state == EM.REVISE:
+            _cascade_pec_revise(case, dl)
         if new_em_state != em_state:
             logger.info(
                 "Actor '%s' proposed embargo '%s' on case '%s' (EM %s → %s)",
@@ -266,6 +318,20 @@ class SvcAcceptEmbargoUseCase:
         new_em_state = EM(adapter.state)
 
         case.current_status.em_state = new_em_state
+        # The local actor is now a signatory to the active embargo.
+        participant_id = case.actor_participant_index.get(actor_id)
+        if participant_id:
+            participant = dl.read(participant_id)
+            if is_participant_model(participant):
+                participant.accepted_embargo_ids = list(
+                    dict.fromkeys(
+                        participant.accepted_embargo_ids + [embargo_id]
+                    )
+                )
+                participant.embargo_consent_state = apply_pec_trigger(
+                    PEC(participant.embargo_consent_state), PEC_Trigger.ACCEPT
+                )
+                dl.save(participant)
         dl.save(case)
 
         add_activity_to_outbox(actor_id, accept.id_, dl)
@@ -364,6 +430,8 @@ class SvcTerminateEmbargoUseCase:
 
         case.current_status.em_state = EM(adapter.state)
         case.active_embargo = None
+        # Reset all participants' embargo consent state.
+        _cascade_pec_reset(case, dl)
         dl.save(case)
 
         add_activity_to_outbox(actor_id, announce.id_, dl)

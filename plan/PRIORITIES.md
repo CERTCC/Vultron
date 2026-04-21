@@ -169,6 +169,10 @@ P347-SPECS.
 Prereqs: P-345 (DL-REHYDRATE) must complete first.
 Blocks: D5-7-HUMAN sign-off (gate to P-350).
 
+## Priority 348: More Demo prep
+
+DR-* tasks go here
+
 ## Priority 350: Update python version and other maintenance tasks
 
 **D5-7-HUMAN** (project-owner sign-off on demo completeness) is the gate to

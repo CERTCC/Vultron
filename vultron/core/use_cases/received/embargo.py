@@ -10,6 +10,11 @@ from vultron.core.states.em import (
     create_em_machine,
     is_valid_em_transition,
 )
+from vultron.core.states.participant_embargo_consent import (
+    PEC,
+    PEC_Trigger,
+    apply_pec_trigger,
+)
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
     AddEmbargoEventToCaseReceivedEvent,
@@ -168,6 +173,17 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
 
         case.active_embargo = None  # type: ignore[attr-defined]
         case.current_status.em_state = new_em_state
+        # Reset all participants' embargo consent state when the active embargo
+        # is administratively removed.
+        for participant_id in case.case_participants:
+            participant = self._dl.read(participant_id)
+            if not is_participant_model(participant):
+                continue
+            if participant.embargo_consent_state != PEC.NO_EMBARGO.value:
+                participant.embargo_consent_state = apply_pec_trigger(
+                    PEC(participant.embargo_consent_state), PEC_Trigger.RESET
+                )
+                self._dl.save(participant)
         self._dl.save(case)
         logger.info(
             "Removed active embargo '%s' from case '%s' (EM %s → %s)",
@@ -210,6 +226,38 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             request.activity,
             "InviteToEmbargoOnCase",
             request.activity_id,
+        )
+
+        # Advance the invitee's consent state to INVITED so they can later
+        # accept or decline via the PEC machine.
+        invitee_id = request.receiving_actor_id
+        case_id = _as_id(getattr(request.activity, "context_", None))
+        if not invitee_id or not case_id:
+            return
+
+        case = self._dl.read(case_id)
+        if not is_case_model(case):
+            return
+
+        participant_id = case.actor_participant_index.get(invitee_id)
+        if not participant_id:
+            return
+
+        participant = self._dl.read(participant_id)
+        if not is_participant_model(participant):
+            return
+
+        new_state = apply_pec_trigger(
+            PEC(participant.embargo_consent_state), PEC_Trigger.INVITE
+        )
+        participant.embargo_consent_state = new_state
+        self._dl.save(participant)
+        logger.info(
+            "Set participant '%s' (actor '%s') embargo consent to INVITED"
+            " (case '%s')",
+            participant_id,
+            invitee_id,
+            case_id,
         )
 
 
@@ -259,18 +307,15 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             return
         case_id = case.id_
 
+        accepting_actor_id = request.actor_id
+
+        # Only the case owner's acceptance should activate the shared EM state.
+        is_case_owner = _as_id(case.attributed_to) == accepting_actor_id
+
         current_embargo_id = _as_id(case.active_embargo)
         case_already_active = current_embargo_id == embargo_id
 
-        if case_already_active:
-            logger.info(
-                "Case '%s' already has embargo '%s' active — "
-                "skipping case-level state update (idempotent); "
-                "still recording participant acceptance",
-                case_id,
-                embargo_id,
-            )
-        else:
+        if is_case_owner and not case_already_active:
             current_em = case.current_status.em_state
             if not is_valid_em_transition(current_em, EM.ACTIVE):
                 # Receive-side state-sync: the sender accepted an embargo invite;
@@ -285,20 +330,43 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 )
             case.set_embargo(embargo_id)
             case.current_status.em_state = EM.ACTIVE
+        elif not is_case_owner and not case_already_active:
+            logger.info(
+                "accept_invite_to_embargo_on_case: actor '%s' accepted embargo"
+                " '%s' on case '%s' but is not the case owner — recording"
+                " consent only (EM state unchanged)",
+                accepting_actor_id,
+                embargo_id,
+                case_id,
+            )
+        elif case_already_active:
+            logger.info(
+                "Case '%s' already has embargo '%s' active — "
+                "still recording participant acceptance",
+                case_id,
+                embargo_id,
+            )
 
-        accepting_actor_id = request.actor_id
+        if is_case_owner and not case_already_active:
+            case.record_event(embargo_id, "embargo_accepted")
+
         participant_id = case.actor_participant_index.get(accepting_actor_id)
         if participant_id:
             participant = self._dl.read(participant_id)
-            if is_participant_model(participant) and (
-                embargo_id not in participant.accepted_embargo_ids
-            ):
-                participant.accepted_embargo_ids.append(embargo_id)
+            if is_participant_model(participant):
+                if embargo_id not in participant.accepted_embargo_ids:
+                    participant.accepted_embargo_ids.append(embargo_id)
+                new_state = apply_pec_trigger(
+                    PEC(participant.embargo_consent_state), PEC_Trigger.ACCEPT
+                )
+                participant.embargo_consent_state = new_state
                 self._dl.save(participant)
                 logger.info(
-                    "Recorded embargo acceptance '%s' for participant '%s'",
+                    "Recorded embargo acceptance '%s' for participant '%s'"
+                    " (consent state: %s)",
                     embargo_id,
                     accepting_actor_id,
+                    new_state,
                 )
         else:
             logger.warning(
@@ -308,12 +376,12 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 case_id,
             )
 
-        if not case_already_active:
-            case.record_event(embargo_id, "embargo_accepted")
         self._dl.save(case)
         logger.info(
-            "Accepted embargo proposal '%s'; activated embargo '%s' on case '%s'",
+            "Accepted embargo proposal '%s'; actor '%s' recorded as SIGNATORY"
+            " for embargo '%s' on case '%s'",
             request.invite_id,
+            accepting_actor_id,
             embargo_id,
             case_id,
         )
@@ -328,8 +396,49 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
+        rejecting_actor_id = request.actor_id
+        invite_id = request.invite_id
         logger.info(
             "Actor '%s' rejected embargo proposal '%s'",
-            request.actor_id,
-            request.invite_id,
+            rejecting_actor_id,
+            invite_id,
+        )
+
+        # Update the rejecting actor's embargo consent state to DECLINED.
+        # Extract case and embargo IDs from the stored invite activity.
+        case_id: str | None = None
+        embargo_id: str | None = None
+        if invite_id:
+            invite = self._dl.read(invite_id)
+            if invite is not None:
+                case_id = _as_id(getattr(invite, "context_", None))
+                embargo_id = _as_id(getattr(invite, "object_", None))
+
+        if not case_id:
+            return
+        case = self._dl.read(case_id)
+        if not is_case_model(case):
+            return
+
+        participant_id = case.actor_participant_index.get(rejecting_actor_id)
+        if not participant_id:
+            return
+
+        participant = self._dl.read(participant_id)
+        if not is_participant_model(participant):
+            return
+
+        # Remove any stale embargo acceptance entry (pocket-veto semantics).
+        if embargo_id and embargo_id in participant.accepted_embargo_ids:
+            participant.accepted_embargo_ids.remove(embargo_id)
+
+        new_state = apply_pec_trigger(
+            PEC(participant.embargo_consent_state), PEC_Trigger.DECLINE
+        )
+        participant.embargo_consent_state = new_state
+        self._dl.save(participant)
+        logger.info(
+            "Set participant '%s' (actor '%s') embargo consent to DECLINED",
+            participant_id,
+            rejecting_actor_id,
         )

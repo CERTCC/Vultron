@@ -74,6 +74,7 @@ class CaseModel(PersistableModel, Protocol):
 
 class ParticipantModel(PersistableModel, Protocol):
     accepted_embargo_ids: list
+    embargo_consent_state: str
     participant_statuses: list[ParticipantStatusModel]
     attributed_to: object
     case_roles: list

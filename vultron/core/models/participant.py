@@ -19,6 +19,7 @@ import logging
 
 from pydantic import Field, field_serializer, field_validator
 
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.core.states.roles import CVDRoles
 from vultron.core.models.base import NonEmptyString, VultronObject
@@ -48,6 +49,7 @@ class VultronParticipant(VultronObject):
         default_factory=list
     )
     accepted_embargo_ids: list[NonEmptyString] = Field(default_factory=list)
+    embargo_consent_state: PEC = Field(default=PEC.NO_EMBARGO)
     participant_case_name: NonEmptyString | None = None
 
     @field_serializer("case_roles")

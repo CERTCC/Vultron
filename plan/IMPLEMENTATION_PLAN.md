@@ -32,29 +32,6 @@ Architectural decisions for each issue are documented in
   from the blackboard rather than querying the DataLayer or passing a
   convenience object.
 
-- [ ] **DR-06 — Multi-party embargo: per-participant consent state machine
-  (High, three-actor, multi-vendor):**
-  The `VulnerabilityCase` EM state is an aggregate view. Refactor so that each
-  `CaseParticipant` tracks their own embargo consent via a 5-state machine
-  (`NO_EMBARGO` / `INVITED` / `SIGNATORY` / `LAPSED` / `DECLINED`) backed by
-  the existing `ParticipantStatus.embargo_adherence: bool` (which becomes a
-  derived property returning `state == SIGNATORY`). Implement using the
-  `transitions` library in `vultron/core/states/participant_embargo_consent.py`.
-  The case owner's `Accept(Invite/Offer(Embargo))` is the only action that
-  transitions the shared `CaseStatus.em_state` to `ACTIVE`. Non-owner accepts
-  update only their own consent state to `SIGNATORY`. When shared EM enters
-  `REVISE`, all SIGNATORY participants transition to `LAPSED`. Timer-based
-  "pocket-veto" transitions from `INVITED` and `LAPSED` to `DECLINED` are
-  configurable (policy setting: `embargo_invitation_timeout`).
-  See `notes/participant-embargo-consent.md` for full state machine spec.
-
-  **Embargo/case acceptance semantics (new):**
-  - `Accept(Invite(case))` while embargo is ACTIVE → IMPLIES accepting the
-    active embargo; set consent to `SIGNATORY` in addition to rm_state=ACCEPTED
-  - `Accept(Offer/Invite(embargo))` → DOES NOT imply case participation
-  - Full case details MUST NOT be sent until BOTH rm_state=ACCEPTED AND
-    embargo_adherence=True (or no active embargo)
-
 - [ ] **DR-09 — Actor ID normalization: full URI only (Low, all):**
   Normalize actor IDs to full URIs at the point they are first established
   (actor creation / seed / session context). `add_activity_to_outbox` and all
