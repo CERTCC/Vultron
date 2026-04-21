@@ -110,16 +110,6 @@ Architectural decisions for each issue are documented in
 All tasks in this section are prerequisites for **D5-7-HUMAN** sign-off.
 The section can proceed in parallel with PRIORITY-360.
 
-- [ ] **P347-SPECS**: Spec and notes updates:
-  - `specs/triggerable-behaviors.md`: reflect trigger renames and additions
-    from P347-EMBARGOTRIGGERS; add `create-case`, `add-report-to-case`,
-    `suggest-actor-to-case`, `accept-case-invite`.
-  - `specs/multi-actor-demo.md`: add requirement that scenario demos MUST
-    use trigger endpoints (not direct inbox injection) for all actor-initiated
-    actions.
-  - `notes/protocol-event-cascades.md`: document the 4-step
-    suggest→invite→accept→record cascade as a concrete named example.
-
 ---
 
 ## D5-7-HUMAN — Project Owner Sign-off on Demo Feedback Resolution
