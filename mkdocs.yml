@@ -265,6 +265,7 @@ plugins:
           options:
             show_bases: true
             show_root_heading: true
+            show_source: false
             heading_level: 2
   - markdown-exec
   - search
