@@ -7293,3 +7293,31 @@ for backward compatibility with non-inbox dispatch paths (CLI, triggers, tests).
 **Test Result:**
 
 1720 passed, 12 skipped, 182 deselected, 5581 subtests passed
+
+---
+
+## IDEA-26041501: Consolidated Semantic Dispatch Registry
+
+**Commit:** bee96bb3
+**Branch:** d5
+
+Replaced four separate dispatch dictionaries (`SEMANTICS_ACTIVITY_PATTERNS`,
+`EVENT_CLASS_MAP`, `USE_CASE_MAP`, `SEMANTICS_TO_ACTIVITY_CLASS`) with a
+single `SEMANTIC_REGISTRY` list of frozen `SemanticEntry` dataclasses in
+`vultron/semantic_registry.py`. Per CS-13-001, no backward-compatibility
+aliases were added — all four dicts were deleted and all callers updated.
+
+Key changes:
+
+- `vultron/semantic_registry.py` — new neutral module; single source of truth
+  for pattern→semantics→event-class→use-case-class→wire-activity-class mapping
+- `extractor.py` — stripped wire activity-class imports; `extract_intent()`
+  signature now takes explicit params; `_PATTERN_SEMANTICS` replaces public dict
+- `vultron/core/use_cases/use_case_map.py` — deleted
+- `vultron/core/models/events/__init__.py` — `EVENT_CLASS_MAP` deleted
+- `specs/code-style.md` — CS-13-001 No Compatibility Shims added
+- `test/test_semantic_registry.py` — new completeness/consistency tests
+
+**Test Result:**
+
+1729 passed, 12 skipped, 182 deselected, 5581 subtests passed
