@@ -87,7 +87,10 @@ from vultron.core.models.events.sync import (
     AnnounceLogEntryReceivedEvent,
     RejectLogEntryReceivedEvent,
 )
-from vultron.core.models.events.unknown import UnknownReceivedEvent
+from vultron.core.models.events.unknown import (
+    UnknownReceivedEvent,
+    UnresolvableObjectReceivedEvent,
+)
 from vultron.core.use_cases.received.actor import (
     AcceptCaseOwnershipTransferReceivedUseCase,
     AcceptInviteActorToCaseReceivedUseCase,
@@ -144,7 +147,10 @@ from vultron.core.use_cases.received.sync import (
     AnnounceLogEntryReceivedUseCase,
     RejectLogEntryReceivedUseCase,
 )
-from vultron.core.use_cases.received.unknown import UnknownUseCase
+from vultron.core.use_cases.received.unknown import (
+    UnknownUseCase,
+    UnresolvableObjectUseCase,
+)
 from vultron.wire.as2.extractor import (
     AcceptCaseOwnershipTransferActivityPattern,
     AcceptInviteActorToCasePattern,
@@ -570,6 +576,15 @@ SEMANTIC_REGISTRY: list[SemanticEntry] = [
         event_class=AddParticipantStatusToParticipantReceivedEvent,
         use_case_class=AddParticipantStatusToParticipantReceivedUseCase,
         wire_activity_class=AddStatusToParticipantActivity,
+    ),
+    # --- Unresolvable object_ (before UNKNOWN fallback) ---
+    SemanticEntry(
+        semantics=MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT,
+        pattern=None,
+        event_class=UnresolvableObjectReceivedEvent,
+        use_case_class=UnresolvableObjectUseCase,
+        wire_activity_class=None,
+        include_activity=True,
     ),
     # --- Unknown (fallback, must be last) ---
     SemanticEntry(

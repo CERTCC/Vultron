@@ -46,10 +46,14 @@ def test_find_matching_semantics_returns_correct_semantics_for_create_report():
 
 
 def test_all_message_semantics_except_unknown_have_patterns():
+    _no_pattern_sentinels = {
+        MessageSemantics.UNKNOWN,
+        MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT,
+    }
     missing = [
         e.semantics
         for e in SEMANTIC_REGISTRY
-        if e.semantics != MessageSemantics.UNKNOWN and e.pattern is None
+        if e.semantics not in _no_pattern_sentinels and e.pattern is None
     ]
     assert not missing, f"Missing patterns for: {missing}"
 

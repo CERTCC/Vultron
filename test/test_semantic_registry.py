@@ -18,11 +18,22 @@ def test_registry_unknown_is_last():
     assert SEMANTIC_REGISTRY[-1].semantics == MessageSemantics.UNKNOWN
 
 
+def test_registry_unresolvable_object_is_second_to_last():
+    assert (
+        SEMANTIC_REGISTRY[-2].semantics
+        == MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
+    )
+
+
 def test_non_unknown_entries_have_patterns():
+    _no_pattern_sentinels = {
+        MessageSemantics.UNKNOWN,
+        MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT,
+    }
     missing = [
         e.semantics
         for e in SEMANTIC_REGISTRY
-        if e.semantics != MessageSemantics.UNKNOWN and e.pattern is None
+        if e.semantics not in _no_pattern_sentinels and e.pattern is None
     ]
     assert not missing, f"Missing patterns: {missing}"
 

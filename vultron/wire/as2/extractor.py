@@ -422,6 +422,13 @@ _PATTERN_SEMANTICS: list[tuple[ActivityPattern, MessageSemantics]] = [
     ),
 ]
 
+# Frozenset of activity type strings that have at least one registered pattern.
+# Used by find_matching_semantics() to distinguish "known type with unresolvable
+# object_" from "genuinely unknown activity type".
+_ACTIVITY_TYPES_WITH_PATTERNS: frozenset[str] = frozenset(
+    str(pattern.activity_) for pattern, _ in _PATTERN_SEMANTICS
+)
+
 
 def extract_intent(
     activity: as_Activity,
@@ -707,7 +714,11 @@ def find_matching_semantics(activity: as_Activity) -> MessageSemantics:
     """Find the MessageSemantics for the given AS2 activity.
 
     Iterates ``_PATTERN_SEMANTICS`` in order and returns the first match.
-    Returns ``MessageSemantics.UNKNOWN`` if no pattern matches.
+    Returns ``MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`` when no pattern
+    matches, the activity type is registered (has patterns), and ``object_``
+    is still a bare string URI (rehydration did not resolve it).
+    Returns ``MessageSemantics.UNKNOWN`` when the activity type is not
+    registered at all.
 
     Note:
         Pattern ordering matters when patterns overlap. More specific patterns
@@ -722,4 +733,8 @@ def find_matching_semantics(activity: as_Activity) -> MessageSemantics:
     for pattern, semantics in _PATTERN_SEMANTICS:
         if pattern.match(activity):
             return semantics
+    obj = getattr(activity, "object_", None)
+    activity_type = str(activity.type_) if activity.type_ else ""
+    if isinstance(obj, str) and activity_type in _ACTIVITY_TYPES_WITH_PATTERNS:
+        return MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
     return MessageSemantics.UNKNOWN

@@ -7462,3 +7462,61 @@ The IMPLEMENTATION_NOTES design described a "BT blackboard stash" approach
 as the intended fix. The actual fix used the trigger + DataLayer lookup
 pattern instead. The BT-blackboard description in NOTES is superseded and
 was not implemented; trigger-based DL lookup is the canonical pattern.
+
+---
+
+## DR-14 — Dead-letter handling for unresolvable `object_` URIs (COMPLETE 2026-05-01)
+
+**Reference**: `specs/semantic-extraction.md` SE-04-002–SE-04-004
+
+### What was implemented
+
+Introduced a new `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT` enum value and
+a full pipeline for activities that match a known AS2 type but whose `object_`
+field remains a bare string URI after rehydration (i.e., cannot be resolved
+from the DataLayer).
+
+Key changes:
+
+1. **`vultron/core/models/events/base.py`** — Added `UNKNOWN_UNRESOLVABLE_OBJECT`
+   enum value after `UNKNOWN`.
+
+2. **`vultron/wire/as2/extractor.py`** — Added `_ACTIVITY_TYPES_WITH_PATTERNS`
+   frozenset (computed from `_PATTERN_SEMANTICS`); updated `find_matching_semantics()`
+   to return `UNKNOWN_UNRESOLVABLE_OBJECT` when: no pattern matched AND `object_`
+   is still a bare string AND the activity type is registered in known patterns.
+   Truly unrecognized activity types continue to fall through to `UNKNOWN`.
+
+3. **`vultron/core/models/events/unknown.py`** — Added `UnresolvableObjectReceivedEvent`
+   with required (narrowed) `activity: VultronActivity` field.
+
+4. **`vultron/core/models/dead_letter.py`** (new) — `DeadLetterRecord` domain
+   model for dead-letter storage with fields: `type_`, `unresolvable_uri`,
+   `actor_id`, `activity_id`, `activity_type`, `activity_summary`, `received_at`.
+
+5. **`vultron/core/use_cases/received/unknown.py`** — Added `UnresolvableObjectUseCase`
+   that logs a WARNING and calls `dl.save(DeadLetterRecord(...))`.
+
+6. **`vultron/semantic_registry.py`** — Added `SemanticEntry` for
+   `UNKNOWN_UNRESOLVABLE_OBJECT` (with `include_activity=True`, `pattern=None`)
+   as the second-to-last entry, before the `UNKNOWN` fallback.
+
+7. **Tests** — Updated two registry tests to use a sentinel set excluding both
+   UNKNOWN variants. Added `test_registry_unresolvable_object_is_second_to_last`.
+   Updated `test_semantic_activity_patterns.py` with renamed bare-string test
+   and new unregistered-type test. Added new
+   `test/core/use_cases/received/test_unresolvable_object.py` (7 tests).
+
+### Commits
+
+- see git log (DR-14 commit)
+
+### Notes
+
+- `DeadLetterRecord` does NOT require vocabulary registration; `dl.by_type()`
+  queries the `type_` column directly, so no `record_to_object()` call needed.
+- `by_type()` returns raw data dicts (without the `type_` column), so tests
+  check for presence of field values rather than `type_` key.
+- `UnresolvableObjectReceivedEvent.activity` narrows the optional base field to
+  required; a file-level `# pyright: reportGeneralTypeIssues=false` directive
+  suppresses the pyright inheritance warning (documented pattern).

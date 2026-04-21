@@ -50,23 +50,6 @@ Architectural decisions for each issue are documented in
   full object when both are satisfied. This is a BT cascade — not post-BT
   procedural code.
 
-- [ ] **DR-14 — Dead-letter handling for unresolvable-object_ UNKNOWN
-  (Medium, all):**
-  When `find_matching_semantics()` returns `MessageSemantics.UNKNOWN` because
-  `object_` is a bare string URI that could not be rehydrated (VAM-01-009),
-  the background processing MUST NOT raise `VultronApiHandlerMissingSemanticError`.
-  Instead:
-  - Log a WARNING: `"Activity {id} not processed: object_ URI {uri} unresolvable
-    after rehydration"`
-  - Store a dead-letter record in the DataLayer containing: full activity JSON,
-    unresolvable URI, actor ID, timestamp
-  - Return silently (the 202 was already sent before background processing)
-  - For any future synchronous processing path, return HTTP 422 with an
-    explanatory error body identifying the unresolvable URI
-  Implement by distinguishing UNKNOWN cause in the dispatcher:
-  `UNKNOWN_NO_PATTERN` (raise error) vs `UNKNOWN_UNRESOLVABLE_OBJECT` (dead-letter).
-  See `specs/semantic-extraction.md` SE-04-002 through SE-04-004.
-
 ---
 
 ## PRIORITY-347 — Demo Puppeteering, Trigger Completeness, BT Generalization

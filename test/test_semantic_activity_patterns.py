@@ -26,11 +26,15 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 
 def test_all_message_semantics_have_activity_patterns():
-    """Ensure every non-UNKNOWN MessageSemantics member has a pattern in SEMANTIC_REGISTRY."""
+    """Ensure every non-UNKNOWN* MessageSemantics member has a pattern in SEMANTIC_REGISTRY."""
+    no_pattern_sentinels = {
+        MessageSemantics.UNKNOWN,
+        MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT,
+    }
     missing = [
         e.semantics
         for e in SEMANTIC_REGISTRY
-        if e.semantics != MessageSemantics.UNKNOWN and e.pattern is None
+        if e.semantics not in no_pattern_sentinels and e.pattern is None
     ]
     assert not missing, f"Missing activity patterns for semantics: {missing}"
 
@@ -203,19 +207,40 @@ def test_offer_case_ownership_transfer_with_inline_case_dispatches_correctly():
     assert result == MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
 
 
-def test_accept_with_bare_string_object_returns_unknown():
-    """Accept with a bare string object_ (unrehydrated ref) must not match
-    VALIDATE_REPORT or any other semantic requiring a nested-activity object.
+def test_accept_with_bare_string_object_returns_unresolvable():
+    """Accept with a bare string object_ (unrehydrated ref) must return
+    UNKNOWN_UNRESOLVABLE_OBJECT, not UNKNOWN, because Accept is a registered
+    activity type and the failure is due to an unresolvable URI.
 
-    DR-03: _match_field() must check nested ActivityPattern before the
-    conservative string-passthrough, so that bare-string refs don't
-    accidentally satisfy typed nested-pattern constraints.
+    DR-14: find_matching_semantics() distinguishes "no pattern match for a
+    known type with bare-string object_" from "genuinely unknown activity type".
     """
     accept = as_Accept(
         actor="https://example.org/coordinator",
         object_="urn:uuid:some-offer-id",  # bare string — not rehydrated
     )
     result = find_matching_semantics(accept)
+    assert result == MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
+
+
+def test_unknown_activity_type_with_bare_string_object_returns_unknown():
+    """An activity type with no registered patterns returns UNKNOWN (not
+    UNKNOWN_UNRESOLVABLE_OBJECT) even when object_ is a bare string.
+
+    DR-14: The unresolvable-object heuristic only fires for *known* activity
+    types (those with at least one registered pattern).
+    """
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Undo,
+    )
+
+    # as_Undo has no registered Vultron patterns; a bare-string object_ should
+    # return UNKNOWN, not UNKNOWN_UNRESOLVABLE_OBJECT.
+    activity = as_Undo(
+        actor="https://example.org/alice",
+        object_="urn:uuid:some-object",
+    )
+    result = find_matching_semantics(activity)
     assert result == MessageSemantics.UNKNOWN
 
 

@@ -69,6 +69,8 @@ class MessageSemantics(StrEnum):
 
     # reserved for activities that don't fit any of the above semantics, but we want to be able to dispatch on them anyway
     UNKNOWN = auto()
+    # object_ URI could not be resolved after rehydration; activity is dead-lettered
+    UNKNOWN_UNRESOLVABLE_OBJECT = auto()
 
 
 class VultronEvent(BaseModel):
