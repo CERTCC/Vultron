@@ -57,3 +57,33 @@ rename it the `reporter` everywhere.
 The solution to P-247-BRIDGE might be incomplete. It seems like we probably
 want this behavior to apply ot all activities that have an `object_`, not
 just a specific list. All transitive activities need to require an object.
+
+---
+
+## BUG-26042101 — accept-embargo 409 on second acceptance in multi-party demos — NEW
+
+**Symptoms:** `test/demo/test_multi_vendor_demo.py` and
+`test/demo/test_three_actor_demo.py` fail with:
+
+```text
+  "message":"Cannot accept embargo: case '...' EM state 'ACTIVE'
+  does not allow an ACCEPT transition."}}
+```
+
+**Root cause:** The `SvcAcceptEmbargoUseCase` updates the *case-level*
+`current_status.em_state`. When participant A (e.g. finder) accepts the
+embargo, the case EM state transitions `PROPOSED → ACTIVE`. When participant
+B (e.g. vendor) then calls `accept-embargo` on the same shared case, the
+state is already `ACTIVE` — which has no ACCEPT transition — so the trigger
+raises `VultronInvalidStateTransitionError`.
+
+**Related plan item:** The implementation plan already has a task to refactor
+per-participant embargo consent into a dedicated 5-state machine
+(`NO_EMBARGO → INVITED → SIGNATORY → LAPSED → DECLINED`) on each
+`CaseParticipant`, replacing the single case-level EM state as the tracking
+mechanism. When that task lands this bug will be resolved.
+
+**Workaround until fix:** None — multi-party embargo acceptance is broken for
+any case with more than one non-coordinating participant.
+
+Status: NEW — added 2026-04-21.
