@@ -22,12 +22,6 @@ three-actor, multi-vendor). All high-severity items block every demo scenario.
 Architectural decisions for each issue are documented in
 `plan/IMPLEMENTATION_NOTES.md` under **REVIEW-26042001**.
 
-- [ ] **DR-09 — Actor ID normalization: full URI only (Low, all):**
-  Normalize actor IDs to full URIs at the point they are first established
-  (actor creation / seed / session context). `add_activity_to_outbox` and all
-  other functions MUST only ever receive full URIs; short UUIDs MUST NOT be in
-  circulation internally. Audit actor ID assignment in seed/init code paths.
-
 - [ ] **DR-10 — Stub objects for Invite.target (Low/arch, three-actor,
   multi-vendor):**
   Implement stub-object support as described in `notes/stub-objects.md` as

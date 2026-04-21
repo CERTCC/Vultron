@@ -7520,3 +7520,41 @@ Key changes:
 - `UnresolvableObjectReceivedEvent.activity` narrows the optional base field to
   required; a file-level `# pyright: reportGeneralTypeIssues=false` directive
   suppresses the pyright inheritance warning (documented pattern).
+
+---
+
+## DR-09 — Actor ID normalization (PRIORITY-348)
+
+**Completed:** 2026-05-02
+
+**Task:** Normalize actor IDs to full URIs everywhere internally so that
+`add_activity_to_outbox` and related functions never receive a short UUID.
+
+**Root cause:** Three trigger use cases in
+`vultron/core/use_cases/triggers/actor.py` — `SvcSuggestActorToCaseUseCase`,
+`SvcInviteActorToCaseUseCase`, and `SvcAcceptCaseInviteUseCase` — called
+`resolve_actor(actor_id, dl)` to look up the actor but never reassigned
+`actor_id = actor.id_`. As a result, `add_activity_to_outbox(actor_id, ...)` was
+called with the raw short UUID from the HTTP URL path, causing a DataLayer lookup
+failure and the warning logged in the demo review.
+
+**Fix:** Added `actor_id = actor.id_` immediately after each `resolve_actor()`
+call in all three use cases. Replaced redundant `actor.id_` references in
+activity constructors with the now-canonical `actor_id`.
+
+**Tests added:**
+
+- `test/core/use_cases/triggers/test_actor_triggers.py` extended with:
+  - `TestSvcInviteActorToCaseUseCase.test_invite_normalises_short_uuid_actor_id`
+  - `TestSvcSuggestActorToCaseUseCase` (new class: 2 tests)
+  - `TestSvcAcceptCaseInviteUseCase` (new class: 3 tests)
+
+All 1770 unit tests pass; all four linters (black, flake8, mypy, pyright) clean.
+
+**Lessons learned:**
+
+- All other trigger use case files (embargo.py, case.py, report.py, note.py)
+  already had the correct `actor_id = actor.id_` reassignment pattern.
+- The FastAPI trigger routers pass the raw URL path `actor_id` to use-case
+  requests; the `_canonical_actor_dl` dependency only normalizes the DataLayer
+  scoping, not the actor_id string passed in the request body.

@@ -63,6 +63,7 @@ class SvcSuggestActorToCaseUseCase:
     def execute(self) -> dict[str, Any]:
         actor_id = self._request.actor_id
         actor = resolve_actor(actor_id, self._dl)
+        actor_id = actor.id_
         case = resolve_case(self._request.case_id, self._dl)
 
         suggested_raw = self._dl.read(self._request.suggested_actor_id)
@@ -72,7 +73,7 @@ class SvcSuggestActorToCaseUseCase:
             )
 
         activity = RecommendActorActivity(
-            actor=actor.id_,
+            actor=actor_id,
             object_=cast(as_Actor, suggested_raw),
             target=cast(VulnerabilityCase, case),
         )
@@ -108,6 +109,7 @@ class SvcInviteActorToCaseUseCase:
     def execute(self) -> dict[str, Any]:
         actor_id = self._request.actor_id
         actor = resolve_actor(actor_id, self._dl)
+        actor_id = actor.id_
         case = resolve_case(self._request.case_id, self._dl)
 
         invitee_raw = self._dl.read(self._request.invitee_id)
@@ -115,7 +117,7 @@ class SvcInviteActorToCaseUseCase:
             raise VultronNotFoundError("Actor", self._request.invitee_id)
 
         activity = RmInviteToCaseActivity(
-            actor=actor.id_,
+            actor=actor_id,
             object_=cast(as_Actor, invitee_raw),
             target=cast(VulnerabilityCase, case),
             to=[self._request.invitee_id],
@@ -153,6 +155,7 @@ class SvcAcceptCaseInviteUseCase:
     def execute(self) -> dict[str, Any]:
         actor_id = self._request.actor_id
         actor = resolve_actor(actor_id, self._dl)
+        actor_id = actor.id_
 
         raw_invite = self._dl.read(self._request.invite_id)
         if raw_invite is None:
@@ -174,7 +177,7 @@ class SvcAcceptCaseInviteUseCase:
             invite = raw_invite
 
         activity = RmAcceptInviteToCaseActivity(
-            actor=actor.id_,
+            actor=actor_id,
             object_=invite,
         )
         self._dl.create(activity)
