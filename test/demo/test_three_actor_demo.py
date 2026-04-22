@@ -138,13 +138,28 @@ class TestRunThreeActorDemo:
             + caplog.text
         )
 
-        case_ids = case_actor_client.get("/datalayer/VulnerabilityCases/")
-        assert len(case_ids) == 1
-        case_id = next(iter(case_ids))
-        case_data = case_actor_client.get(f"/datalayer/{case_id}")
-        final_case = demo.VulnerabilityCase(**case_data)
-        assert len(final_case.case_participants) == 3
-        assert final_case.current_status.em_state == demo.EM.ACTIVE
+        case_records = case_actor_client.get("/datalayer/VulnerabilityCases/")
+        final_cases = [
+            demo.VulnerabilityCase(**case_data)
+            for case_data in case_records.values()
+        ]
+        matching_cases = [
+            case
+            for case in final_cases
+            if len(case.case_participants) == 3
+            and case.current_status.em_state == demo.EM.ACTIVE
+        ]
+        assert len(matching_cases) == 1
+        final_case = matching_cases[0]
+        embargo_id = demo.ref_id(final_case.active_embargo)
+        assert embargo_id is not None
+
+        participant_records = case_actor_client.get(
+            "/datalayer/CaseParticipants/"
+        )
+        for participant_id in final_case.actor_participant_index.values():
+            participant = participant_records[participant_id]
+            assert embargo_id in participant["accepted_embargo_ids"]
 
 
 class TestThreeActorCLI:

@@ -24,13 +24,11 @@ The failure is raised from
 `vultron/demo/scenario/three_actor_demo.py:447` inside
 `verify_case_actor_case_state()`.
 
-**Likely root cause:** The demo scenario still has the **finder** and
-**vendor** call the `accept-embargo` trigger, but never has the **case owner**
-accept.
-
-(Except note that as the case creator, the vendor in the scenario *is* the
-case owner, so there's a logic gap here that will need to be resolved in the
-fix.)
+**Root cause:** The demo scenario still had the **finder** and **vendor** call
+the `accept-embargo` trigger, but never had the **case owner** accept. Because
+the coordinator creates the case in this scenario, the coordinator remains the
+authoritative case owner and is the actor that must drive the shared case EM
+state from `PROPOSED` to `ACTIVE`.
 
 After the recent owner-gated embargo trigger change,
 `SvcAcceptEmbargoUseCase` only advances the shared case EM state when the
@@ -39,14 +37,20 @@ triggering actor is the case owner (`_is_case_owner()` in
 participant consent without changing `case.current_status.em_state`, so the
 scenario can finish with the authoritative case still in `PROPOSED`.
 
-**Likely components involved:**
+**Components involved:**
 
 - `vultron/demo/scenario/three_actor_demo.py`
 - `vultron/core/use_cases/triggers/embargo.py`
 - `test/demo/test_three_actor_demo.py`
 
-**Brief description:** The three-actor demo orchestration appears to be out of
-sync with the new embargo-accept semantics. It still expects participant
-acceptances alone to drive the authoritative case into `EM.ACTIVE`.
+**Brief description:** The three-actor demo orchestration was out of sync with
+the owner-gated embargo-accept semantics. It expected participant acceptances
+alone to drive the authoritative case into `EM.ACTIVE`.
 
-Status: NEW — added 2026-04-22.
+**Resolution:** The three-actor scenario now has the coordinator-owned case
+accept the embargo proposal on the authoritative CaseActor before the other
+participant acceptances are recorded. Final-state verification and integration
+coverage now require all three participants, including the coordinator owner,
+to record acceptance of the active embargo.
+
+Status: FIXED — 2026-04-22.

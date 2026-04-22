@@ -603,3 +603,17 @@ redundant follow-up patch.
 - Setting `inReplyTo` directly on invite accept/reject activity models is a
   safer invariant than relying on every trigger/demo/example call site to wire
   the original invite ID correctly.
+
+---
+
+### 2026-04-22 BUG-26042204 follow-on requirement — available embargo at case creation
+
+- This bug was fixed by correcting the demo orchestration, not by changing the
+  underlying case-initialization semantics.
+- Follow-on requirement to capture in `notes/` / `specs/` / planning: when a
+  case is created with an available embargo, the authoritative case should be
+  initialized directly into `EM.ACTIVE`, and the case owner should be seeded as
+  a `SIGNATORY` from the start.
+- Rationale: the case creator is the case owner by default, so the owner should
+  not be able to create or receive a case in a state where they are effectively
+  locked out of their own active embargo until a separate accept step occurs.

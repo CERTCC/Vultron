@@ -7768,3 +7768,19 @@ subclass-only fields such as `caseId`, `logObjectId`, and `eventType`.
   accept/reject `inReplyTo` to the original invite ID, and added regression
   coverage for parser extraction, SQLite semantic coercion, and
   `accept-case-invite` trigger output.
+
+---
+
+## 2026-04-22 — BUG-26042204 fixed: three-actor embargo activation flow
+
+- Issue: the three-actor demo left the authoritative case embargo in
+  `EM.PROPOSED` because only the finder and vendor accepted the embargo
+  proposal.
+- Root cause: after owner-gated embargo activation landed, only the case owner
+  can drive the shared case EM transition to `ACTIVE`; the coordinator-created
+  case never had the coordinator accept the proposal.
+- Resolution: updated `vultron/demo/scenario/three_actor_demo.py` so the
+  coordinator accepts the embargo proposal on the authoritative CaseActor
+  before the other participant accepts are recorded, and tightened final-state
+  verification so all three participants, including the coordinator owner,
+  must record acceptance of the active embargo.

@@ -460,7 +460,11 @@ def verify_case_actor_case_state(
             )
 
     participant_records = case_actor_client.get("/datalayer/CaseParticipants/")
-    for actor_id in (reporter_actor_id, vendor_actor_id):
+    for actor_id in (
+        coordinator_actor_id,
+        reporter_actor_id,
+        vendor_actor_id,
+    ):
         participant_id = final_case.actor_participant_index[actor_id]
         participant_data = participant_records.get(participant_id)
         if participant_data is None:
@@ -588,6 +592,12 @@ def run_three_actor_demo(
         recipient_client=finder_client,
         case_actor_client=case_actor_client,
         recipient=finder_in_finder,
+        proposal=embargo_proposal,
+    )
+    actor_accepts_embargo(
+        case_actor_client=case_actor_client,
+        actor=coordinator_in_case_actor,
+        case=case,
         proposal=embargo_proposal,
     )
     actor_accepts_embargo(
