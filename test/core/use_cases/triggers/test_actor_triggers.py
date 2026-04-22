@@ -261,6 +261,7 @@ class TestSvcAcceptCaseInviteUseCase:
 
         assert "activity" in result
         assert result["activity"]["actor"] == invitee.id_
+        assert result["activity"]["inReplyTo"] == invite.id_
 
     def test_accept_raises_when_invite_missing(self):
         _, dl = _make_actor_dl("Finder")

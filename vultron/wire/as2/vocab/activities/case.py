@@ -18,7 +18,7 @@ Each activity should have a VulnerabilityCase object as either its target or obj
 
 from typing import TypeAlias
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -252,6 +252,12 @@ class RmAcceptInviteToCaseActivity(as_Accept):
         ..., validation_alias="object", serialization_alias="object"
     )
 
+    @model_validator(mode="after")
+    def set_in_reply_to_from_invite(self):
+        if self.in_reply_to is None:
+            self.in_reply_to = self.object_.id_
+        return self
+
 
 class RmRejectInviteToCaseActivity(as_Reject):
     """The actor is rejecting an invitation to a case.
@@ -265,6 +271,12 @@ class RmRejectInviteToCaseActivity(as_Reject):
     object_: RmInviteToCaseActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
+
+    @model_validator(mode="after")
+    def set_in_reply_to_from_invite(self):
+        if self.in_reply_to is None:
+            self.in_reply_to = self.object_.id_
+        return self
 
 
 class AnnounceVulnerabilityCaseActivity(as_Announce):

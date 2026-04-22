@@ -744,6 +744,67 @@ class TestCoerceToSemanticClass:
         assert type(result).__name__ == "EmProposeEmbargoActivity"
         assert isinstance(result.object_, EmbargoEvent)  # type: ignore[union-attr]
 
+    def test_accept_invite_round_trip_returns_specific_class_from_generic_parse(
+        self, dl
+    ):
+        """Generic inbound Accept(Invite(...)) reads back as RmAcceptInviteToCaseActivity."""
+        from typing import cast
+
+        from vultron.wire.as2.parser import parse_activity
+        from vultron.wire.as2.vocab.activities.case import (
+            RmAcceptInviteToCaseActivity,
+            RmInviteToCaseActivity,
+        )
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Accept,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+
+        parsed = cast(
+            as_Accept,
+            parse_activity(
+                {
+                    "type": "Accept",
+                    "id": "urn:uuid:accept-invite-roundtrip-1",
+                    "actor": "https://example.org/actors/coordinator",
+                    "inReplyTo": "urn:uuid:invite-roundtrip-1",
+                    "object": {
+                        "type": "Invite",
+                        "id": "urn:uuid:invite-roundtrip-1",
+                        "actor": "https://example.org/actors/vendor",
+                        "object": {
+                            "type": "Organization",
+                            "id": "https://example.org/actors/coordinator",
+                            "name": "Coordinator",
+                        },
+                        "target": {
+                            "type": "VulnerabilityCase",
+                            "id": "https://example.org/cases/case-roundtrip-1",
+                        },
+                        "to": ["https://example.org/actors/coordinator"],
+                    },
+                },
+            ),
+        )
+
+        nested_invite = parsed.object_
+        assert nested_invite is not None
+        dl.save(
+            as_Organization(
+                id_="https://example.org/actors/coordinator",
+                name="Coordinator",
+            )
+        )
+        dl.save(nested_invite)
+        dl.save(parsed)
+
+        result = dl.read(parsed.id_)
+
+        assert isinstance(result, RmAcceptInviteToCaseActivity)
+        assert isinstance(result.object_, RmInviteToCaseActivity)
+        assert result.object_.id_ == "urn:uuid:invite-roundtrip-1"
+        assert result.in_reply_to == "urn:uuid:invite-roundtrip-1"
+
     def test_announce_log_entry_round_trip_returns_specific_class(self, dl):
         """dl.read returns AnnounceLogEntryActivity with CaseLogEntry object_."""
         from vultron.core.models.case_log import GENESIS_HASH, CaseLogEntry

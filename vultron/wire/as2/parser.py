@@ -9,8 +9,13 @@ to transport-level error responses (e.g., HTTP status codes).
 import logging
 from typing import Any, cast
 
+from pydantic import BaseModel
+
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    VulnerabilityCaseStub,
+)
 from vultron.wire.as2.errors import (
     VultronParseMissingTypeError,
     VultronParseUnknownTypeError,
@@ -20,39 +25,57 @@ from vultron.wire.as2.errors import (
 logger = logging.getLogger(__name__)
 
 
-def _expand_inline_object(body: dict[str, Any]) -> dict[str, Any]:
-    """Pre-expand an inline object dict to a typed vocabulary instance.
+_VULNERABILITY_CASE_STUB_KEYS = frozenset(
+    {"@context", "id", "type", "summary"}
+)
 
-    When an activity body contains an inline object as a plain dict (e.g., a
-    ``CaseLogEntry`` dict embedded in an ``Announce`` body), Pydantic would
-    normally parse it using the *base* field type of ``object_`` (``as_Object``
-    with ``extra="ignore"``), silently dropping any subtype-specific fields.
 
-    This helper detects inline objects with a known ``type`` key, looks up the
-    concrete vocabulary class, and validates the dict into that class *before*
-    the outer activity is validated — preserving all fields.
+def _inline_vocab_class(value: dict[str, Any]) -> type[BaseModel] | None:
+    """Return the most specific vocabulary class for an inline dict, if known."""
+    obj_type = value.get("type")
+    if not isinstance(obj_type, str):
+        return None
 
-    If the object is already a string (URI reference), a non-dict, or has an
-    unknown type, the body is returned unchanged.
+    if (
+        obj_type == "VulnerabilityCase"
+        and value.keys() <= _VULNERABILITY_CASE_STUB_KEYS
+    ):
+        return VulnerabilityCaseStub
 
-    Spec: SYNC-02-004 (CaseLogEntry must be fully inlined).
-    """
-    obj = body.get("object")
-    if not isinstance(obj, dict):
-        return body
-    obj_type = obj.get("type")
-    if obj_type is None:
-        return body
     try:
-        obj_cls = find_in_vocabulary(obj_type)
+        return find_in_vocabulary(obj_type)
     except KeyError:
-        return body
-    try:
-        expanded = body.copy()
-        expanded["object"] = obj_cls.model_validate(obj)
+        return None
+
+
+def _expand_inline_value(value: object) -> object:
+    """Recursively pre-expand inline AS2 dicts to typed vocabulary instances.
+
+    Generic field annotations such as ``as_Object`` or ``as_ObjectRef`` can
+    silently erase subtype information when Pydantic validates nested inline
+    dicts. Recursively coercing any typed dict to its vocabulary class preserves
+    the actor/activity/case subtype information needed for semantic matching of
+    nested invite/accept/reject flows.
+    """
+    if isinstance(value, list):
+        return [_expand_inline_value(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+
+    expanded = {key: _expand_inline_value(item) for key, item in value.items()}
+    inline_cls = _inline_vocab_class(expanded)
+    if inline_cls is None:
         return expanded
+
+    try:
+        return inline_cls.model_validate(expanded)
     except Exception:
-        return body
+        return expanded
+
+
+def _expand_inline_object(body: dict[str, Any]) -> dict[str, Any]:
+    """Recursively expand nested inline dicts while leaving the outer body raw."""
+    return {key: _expand_inline_value(value) for key, value in body.items()}
 
 
 def parse_activity(body: dict[str, Any]) -> as_Activity:

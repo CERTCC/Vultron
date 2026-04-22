@@ -5,8 +5,6 @@ This file archives completed phases from `IMPLEMENTATION_PLAN.md`.
 at the top or in the middle; this is an append-only log. Past entries MUST
 NOT be edited. Include date completed when known.
 
----
-
 ## Phase 0 & 0A — Report Demo (COMPLETE 2026-02-13)
 
 - All 6 report handlers implemented with full business logic
@@ -438,8 +436,6 @@ plan) and P70-2.
 ## 2026-03-09 — Hexagonal architecture refactor elevated to PRIORITY 50 (immediate next)
 
 Per updated `plan/PRIORITIES.md`, the hexagonal architecture refactor with `triggers.py`
-
----
 
 as the starting point is now the top priority. The plan has been updated accordingly:
 `Phase ARCH-1` is renamed to `Phase PRIORITY-50` and moved to be the immediate next
@@ -7754,3 +7750,21 @@ subclass-only fields such as `caseId`, `logObjectId`, and `eventType`.
 - Resolution: normalized `actor_id` to the resolved canonical actor URI before
   queueing the activity in both case trigger use cases, and added router
   regressions covering short-ID trigger requests for URL-form actors.
+
+---
+
+## 2026-04-22 — BUG-26042203 fixed: invite response parsing/coercion
+
+- Issue: multi-party invite response flows could degrade inbound
+  `Accept(Invite(...))` / `Reject(Invite(...))` activities into generic or
+  unresolved shapes, which blocked semantic extraction and could lead to
+  dead-letter handling downstream.
+- Root cause: `parse_activity()` only pre-expanded the outer inline `object`
+  dict, so nested actor and case-stub dicts inside invite response payloads
+  were validated through generic base-field types and lost the subtype
+  information required by invite-response patterns.
+- Resolution: added recursive inline-model expansion in the AS2 parser with
+  special handling for `VulnerabilityCase` stubs, defaulted invite
+  accept/reject `inReplyTo` to the original invite ID, and added regression
+  coverage for parser extraction, SQLite semantic coercion, and
+  `accept-case-invite` trigger output.

@@ -7,8 +7,6 @@ insights, issues, and learnings during the implementation process.
 Append new items below any existing ones, marking them with the date and a
 header.
 
----
-
 ### 2026-04-20 REVIEW-26042001 — Multi-Actor Demo Review: Architectural Decisions
 
 Source: `notes/demo-review-26042001.md`. Decisions captured via structured
@@ -591,3 +589,17 @@ redundant follow-up patch.
 - For short-ID trigger regressions, asserting both `outbox.items` mutation and
   absence of the warning log is a better guard than checking the queued activity
   alone.
+
+---
+
+### 2026-04-22 BUG-26042203 — invite response parsing lessons
+
+- Generic AS2 parsing must recurse into nested inline dicts, not just the outer
+  `object`, or `Accept(Invite(...))` / `Reject(Invite(...))` lose the actor and
+  stub-object subtype information that `ActivityPattern` matching relies on.
+- Minimal `{id, type[, summary]}` `VulnerabilityCase` dicts should be expanded
+  as `VulnerabilityCaseStub`, not full `VulnerabilityCase`, so selective
+  disclosure survives generic inbound parsing.
+- Setting `inReplyTo` directly on invite accept/reject activity models is a
+  safer invariant than relying on every trigger/demo/example call site to wire
+  the original invite ID correctly.

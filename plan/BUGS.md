@@ -41,7 +41,20 @@ activities whose referenced objects cannot be rehydrated back into the expected
 typed form. This is visible before the demo-ending 409s and suggests a
 separate interoperability/data-shape problem in invite/accept handling.
 
-Status: NEW — added 2026-04-22.
+**Root cause:** The generic AS2 parser only pre-expanded the outer inline
+`object`, so nested `Accept(Invite(...))` and `Reject(Invite(...))` payloads
+lost actor/stub subtype fidelity before semantic extraction. That left inbound
+responses classified as `unknown` or semantically incomplete, and invite
+responses also omitted `inReplyTo` unless callers set it manually.
+
+**Resolution:** The parser now recursively expands nested inline AS2 dicts to
+their vocabulary classes, preserving actor subtypes and `VulnerabilityCase`
+stub objects through semantic extraction and SQLite round-trips. Invite
+accept/reject activities now default `inReplyTo` to the original invite ID, and
+regression coverage was added for parser extraction, SQLite coercion, and the
+accept-case-invite trigger response.
+
+Status: FIXED — 2026-04-22.
 
 ## BUG-26042204 — three-actor demo never activates the case embargo after owner-gated accept flow — NEW
 
