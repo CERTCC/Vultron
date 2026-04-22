@@ -7698,3 +7698,40 @@ updated `test/wire/as2/vocab/test_base_utils.py` and
 canonical repository format/lint/type-check/test commands, including
 `uv run pytest --tb=short 2>&1 | tail -5` →
 `1785 passed, 12 skipped, 182 deselected, 5633 subtests passed in 20.15s`.
+
+---
+
+## BUG-26042201 — Announce log-entry coercion and delivery serialization (2026-04-22)
+
+**Issue**: `Announce(CaseLogEntry)` activities round-tripped out of SQLite as
+generic `as_Announce` objects, and outbound delivery could emit the same
+truncated base-object payload. Demo runs then logged Announce coercion warnings
+and timed out waiting for replicated log entries.
+
+**Root cause**: Both semantic coercion in
+`SqliteDataLayer._coerce_to_semantic_class()` and outbound activity adaptation
+in `outbox_handler.handle_outbox_item()` used plain
+`model_dump(by_alias=True)`. Because transitive activities annotate `object_`
+as the base `as_Object` reference type, Pydantic serialized the rehydrated
+inline `CaseLogEntry` through that base annotation and silently dropped
+subclass-only fields such as `caseId`, `logObjectId`, and `eventType`.
+
+**Resolution**:
+
+1. Switched both code paths to
+   `model_dump(by_alias=True, serialize_as_any=True)` so inline subclass
+   payloads retain their full wire shape.
+2. Added a SQLite regression test proving `dl.read()` now returns a typed
+   `AnnounceLogEntryActivity` with a complete `CaseLogEntry` object.
+3. Added an outbox regression test proving delivered
+   `Announce(CaseLogEntry)` payloads keep `caseId`, `logObjectId`, and
+   `eventType`.
+
+**Validation**:
+
+- `uv run pytest test/adapters/driven/test_sqlite_backend.py -k announce_log_entry_round_trip_returns_specific_class -q`
+- `uv run pytest test/adapters/driving/fastapi/test_outbox.py -k preserves_inline_case_log_entry_fields -q`
+- `uv run pytest test/core/use_cases/received/test_sync.py -q`
+- `uv run pytest test/adapters/driving/fastapi/test_outbox.py -q`
+- `uv run black vultron/ test/ && uv run flake8 vultron/ test/ && uv run mypy && uv run pyright`
+- `uv run pytest --tb=short 2>&1 | tail -5` → `1787 passed, 12 skipped, 182 deselected, 5633 subtests passed in 24.65s`

@@ -650,7 +650,7 @@ def test_handle_outbox_item_converts_typed_activity_with_full_target():
     class FakeTypedActivity:
         """Minimal stand-in for a typed AS2 activity from the DataLayer."""
 
-        def model_dump(self, *, by_alias=False):
+        def model_dump(self, *, by_alias=False, serialize_as_any=False):
             return activity_dict
 
     mock_dl = MagicMock()
@@ -671,3 +671,47 @@ def test_handle_outbox_item_converts_typed_activity_with_full_target():
     # target must be the case ID string, not the full dict
     assert emitted_activity.target == case_id
     assert recipient in emitted_recipients
+
+
+def test_handle_outbox_item_preserves_inline_case_log_entry_fields():
+    """Announce(CaseLogEntry) delivery keeps full inline log-entry fields."""
+    from vultron.core.models.case_log import GENESIS_HASH, CaseLogEntry
+    from vultron.core.use_cases.triggers.sync import _to_persistable_entry
+    from vultron.wire.as2.vocab.activities.sync import AnnounceLogEntryActivity
+    from vultron.wire.as2.vocab.objects.case_log_entry import (
+        CaseLogEntry as WireCaseLogEntry,
+    )
+
+    recipient = "https://example.org/actors/participant"
+    chain_entry = CaseLogEntry(
+        case_id="https://example.org/cases/case-sync-2",
+        log_index=0,
+        object_id="https://example.org/activities/logged-2",
+        event_type="log_entry_committed",
+        payload_snapshot={"state": "replicated"},
+        prev_log_hash=GENESIS_HASH,
+    )
+    entry = _to_persistable_entry(chain_entry)
+    activity = AnnounceLogEntryActivity(
+        actor="https://example.org/actors/case-actor",
+        object_=WireCaseLogEntry.from_core(entry),
+        to=[recipient],
+    )
+
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = activity
+    mock_emitter = AsyncMock()
+
+    asyncio.run(
+        oh.handle_outbox_item(
+            "actor-case", activity.id_, mock_dl, mock_emitter
+        )
+    )
+
+    mock_emitter.emit.assert_called_once()
+    emitted_activity, emitted_recipients = mock_emitter.emit.call_args[0]
+    assert emitted_recipients == [recipient]
+    assert isinstance(emitted_activity.object_, dict)
+    assert emitted_activity.object_["caseId"] == entry.case_id
+    assert emitted_activity.object_["logObjectId"] == entry.log_object_id
+    assert emitted_activity.object_["eventType"] == entry.event_type

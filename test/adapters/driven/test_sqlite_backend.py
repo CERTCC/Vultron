@@ -744,6 +744,41 @@ class TestCoerceToSemanticClass:
         assert type(result).__name__ == "EmProposeEmbargoActivity"
         assert isinstance(result.object_, EmbargoEvent)  # type: ignore[union-attr]
 
+    def test_announce_log_entry_round_trip_returns_specific_class(self, dl):
+        """dl.read returns AnnounceLogEntryActivity with CaseLogEntry object_."""
+        from vultron.core.models.case_log import GENESIS_HASH, CaseLogEntry
+        from vultron.core.use_cases.triggers.sync import _to_persistable_entry
+        from vultron.wire.as2.vocab.activities.sync import (
+            AnnounceLogEntryActivity,
+        )
+        from vultron.wire.as2.vocab.objects.case_log_entry import (
+            CaseLogEntry as WireCaseLogEntry,
+        )
+
+        chain_entry = CaseLogEntry(
+            case_id="https://example.org/cases/case-sync-1",
+            log_index=0,
+            object_id="https://example.org/activities/logged-1",
+            event_type="log_entry_committed",
+            payload_snapshot={"status": "ok"},
+            prev_log_hash=GENESIS_HASH,
+        )
+        entry = _to_persistable_entry(chain_entry)
+        announce = AnnounceLogEntryActivity(
+            actor="https://example.org/actors/case-actor",
+            object_=WireCaseLogEntry.from_core(entry),
+            to=["https://example.org/actors/participant"],
+        )
+        dl.save(entry)
+        dl.save(announce)
+
+        result = dl.read(announce.id_)
+
+        assert isinstance(result, AnnounceLogEntryActivity)
+        assert isinstance(result.object_, WireCaseLogEntry)
+        assert result.object_.case_id == entry.case_id
+        assert result.object_.log_object_id == entry.log_object_id
+
     def test_non_activity_object_not_coerced(self, dl):
         """Non-activity objects (e.g. VulnerabilityReport) are returned as-is."""
         from vultron.wire.as2.vocab.objects.vulnerability_report import (

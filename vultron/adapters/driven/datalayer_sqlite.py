@@ -301,7 +301,9 @@ class SqliteDataLayer:
         try:
             return cast(
                 PersistableModel,
-                activity_cls.model_validate(obj.model_dump(by_alias=True)),
+                activity_cls.model_validate(
+                    obj.model_dump(by_alias=True, serialize_as_any=True)
+                ),
             )
         except (ValidationError, TypeError) as exc:
             logger.warning(

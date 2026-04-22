@@ -104,7 +104,19 @@ inconsistent across demos. The warnings are present in both the two-actor and
 three-actor logs, and the two-actor scenario aborts after timing out while
 waiting for the expected replicated log entry.
 
-Status: NEW — added 2026-04-22.
+Resolution update (2026-04-22):
+
+- Preserved subclass-specific inline `CaseLogEntry` fields during SQLite
+  semantic coercion by using `serialize_as_any=True` when re-validating
+  rehydrated activities into their specific semantic activity classes.
+- Applied the same serialization rule in the FastAPI outbox adapter so
+  outbound `Announce(CaseLogEntry)` delivery keeps the full inline log-entry
+  payload instead of collapsing it to the base `as_Object` shape.
+- Added regression coverage for both SQLite round-trips and outbox delivery of
+  `AnnounceLogEntryActivity`, ensuring `caseId`, `logObjectId`, and
+  `eventType` survive the round-trip.
+
+Status: FIXED — verified 2026-04-22.
 
 ## BUG-26042202 — Trigger flows skip outbox updates because actor record cannot be found with an outbox — NEW
 

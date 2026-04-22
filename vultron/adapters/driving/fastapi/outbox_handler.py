@@ -212,7 +212,9 @@ async def handle_outbox_item(
     if isinstance(activity, VultronActivity):
         outbound_activity = activity
     elif hasattr(activity, "model_dump"):
-        raw = _dehydrate_references(activity.model_dump(by_alias=True))
+        raw = _dehydrate_references(
+            activity.model_dump(by_alias=True, serialize_as_any=True)
+        )
         outbound_activity = VultronActivity.model_validate(raw)
     else:
         logger.warning(

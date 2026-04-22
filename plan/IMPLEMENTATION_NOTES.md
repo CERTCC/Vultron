@@ -564,3 +564,17 @@ redundant follow-up patch.
 - Wire/domain translation tests must reflect the stricter contract too:
   `VultronAS2Activity.from_core()` should reject objectless transitive domain
   activities rather than silently materializing invalid wire objects.
+
+---
+
+### 2026-04-22 BUG-26042201 — base-typed activity serialization can drop inline subtype fields
+
+- When a typed AS2 activity stores `object_` through a base reference annotation
+  like `as_ObjectRequiredRef`, plain `model_dump()` can serialize the nested
+  value as the base `as_Object` shape and silently omit subtype-only fields.
+- For any adapter path that re-validates or delivers rehydrated activities,
+  prefer `model_dump(..., serialize_as_any=True)` so inline typed payloads such
+  as `CaseLogEntry` survive semantic coercion and HTTP delivery intact.
+- Regression coverage needs to hit both persistence and outbound delivery
+  boundaries. A DataLayer round-trip test alone would not catch the same field
+  loss in the outbox adapter.
