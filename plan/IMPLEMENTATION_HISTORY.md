@@ -438,6 +438,9 @@ plan) and P70-2.
 ## 2026-03-09 — Hexagonal architecture refactor elevated to PRIORITY 50 (immediate next)
 
 Per updated `plan/PRIORITIES.md`, the hexagonal architecture refactor with `triggers.py`
+
+---
+
 as the starting point is now the top priority. The plan has been updated accordingly:
 `Phase ARCH-1` is renamed to `Phase PRIORITY-50` and moved to be the immediate next
 phase after PRIORITY-30 (now complete). The old "PRIORITY 150" label in the plan was
@@ -3319,7 +3322,8 @@ after `UpdateCaseReceivedUseCase` saves a case update, it now emits an
   3. Creates a `VultronActivity(as_type="Announce", actor=case_actor_id,
      as_object=case_id, to=participant_ids)` and persists it.
   4. Appends the broadcast activity ID to the CaseActor's
-     `outbox.items` and saves the CaseActor.
+`outbox.items` and saves the CaseActor.
+
 - Broadcast also fires when the update contains only a reference (no
   fields to apply), consistent with CM-06-001 applying to any case update.
 
@@ -7735,3 +7739,18 @@ subclass-only fields such as `caseId`, `logObjectId`, and `eventType`.
 - `uv run pytest test/adapters/driving/fastapi/test_outbox.py -q`
 - `uv run black vultron/ test/ && uv run flake8 vultron/ test/ && uv run mypy && uv run pyright`
 - `uv run pytest --tb=short 2>&1 | tail -5` → `1787 passed, 12 skipped, 182 deselected, 5633 subtests passed in 24.65s`
+
+---
+
+## 2026-04-22 — BUG-26042202 short-ID case triggers now update actor outboxes
+
+- Issue: trigger-driven create-case and add-report-to-case requests could
+  resolve actors from a short URL segment, but then passed that unresolved
+  short ID into `add_activity_to_outbox`, which skipped the canonical actor
+  `outbox.items` update and logged a warning.
+- Root cause: unlike the other trigger use cases, `SvcCreateCaseUseCase` and
+  `SvcAddReportToCaseUseCase` did not replace `request.actor_id` with
+  `actor.id_` after `resolve_actor(...)`.
+- Resolution: normalized `actor_id` to the resolved canonical actor URI before
+  queueing the activity in both case trigger use cases, and added router
+  regressions covering short-ID trigger requests for URL-form actors.

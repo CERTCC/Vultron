@@ -578,3 +578,16 @@ redundant follow-up patch.
 - Regression coverage needs to hit both persistence and outbound delivery
   boundaries. A DataLayer round-trip test alone would not catch the same field
   loss in the outbox adapter.
+
+---
+
+### 2026-04-22 BUG-26042202 — case triggers must normalize actor IDs before outbox updates
+
+- Trigger paths that accept short actor IDs from router path params need to
+  overwrite `actor_id` with the resolved `actor.id_` before any outbox mutation.
+- SQLite bare-UUID compatibility in `dl.read()` hides this class of bug for
+  `urn:uuid:` actor IDs, so regressions must use URL-form actor records to
+  exercise the missing canonicalization path.
+- For short-ID trigger regressions, asserting both `outbox.items` mutation and
+  absence of the warning log is a better guard than checking the queued activity
+  alone.

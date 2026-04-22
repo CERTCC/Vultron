@@ -165,6 +165,7 @@ class SvcCreateCaseUseCase:
     def execute(self) -> dict[str, Any]:
         actor_id = self._request.actor_id
         actor = resolve_actor(actor_id, self._dl)
+        actor_id = actor.id_
 
         case = VulnerabilityCase(
             name=self._request.name,
@@ -221,6 +222,7 @@ class SvcAddReportToCaseUseCase:
     def execute(self) -> dict[str, Any]:
         actor_id = self._request.actor_id
         actor = resolve_actor(actor_id, self._dl)
+        actor_id = actor.id_
         case = resolve_case(self._request.case_id, self._dl)
 
         raw = self._dl.read(self._request.report_id)

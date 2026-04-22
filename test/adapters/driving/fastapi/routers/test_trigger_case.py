@@ -31,6 +31,7 @@ from vultron.adapters.driving.fastapi.routers.trigger_case import (
 from vultron.adapters.driving.fastapi.routers import (
     trigger_case as trigger_case_router,
 )
+from vultron.adapters.utils import parse_id
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
@@ -553,6 +554,17 @@ def report(dl):
     return report_obj
 
 
+@pytest.fixture
+def http_actor(dl):
+    """Create a URL-form actor to match demo trigger path behavior."""
+    actor_obj = as_Service(
+        id_="https://example.test/api/v2/actors/vendor-http",
+        name="Vendor Co HTTP",
+    )
+    dl.create(actor_obj)
+    return actor_obj
+
+
 # ===========================================================================
 # Tests for trigger/create-case
 # ===========================================================================
@@ -621,6 +633,35 @@ def test_trigger_create_case_unknown_actor_returns_404(client_triggers):
     assert resp.status_code == status.HTTP_404_NOT_FOUND
     data = resp.json()
     assert data["detail"]["error"] == "NotFound"
+
+
+def test_trigger_create_case_short_actor_id_updates_outbox_without_warning(
+    client_triggers, dl, http_actor, caplog
+):
+    """Short actor IDs should still update the canonical actor outbox."""
+    import logging
+
+    short_uuid = parse_id(http_actor.id_)["object_id"]
+    actor_before = dl.read(http_actor.id_)
+    outbox_before = set(
+        item for item in actor_before.outbox.items if isinstance(item, str)
+    )
+
+    with caplog.at_level(logging.WARNING):
+        resp = client_triggers.post(
+            f"/actors/{short_uuid}/trigger/create-case",
+            json={"name": "Case-001", "content": "Case content"},
+        )
+
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    actor_after = dl.read(http_actor.id_)
+    outbox_after = set(
+        item for item in actor_after.outbox.items if isinstance(item, str)
+    )
+    assert len(outbox_after - outbox_before) >= 1
+    assert not any(
+        "add_activity_to_outbox" in record.message for record in caplog.records
+    )
 
 
 # ===========================================================================
@@ -695,3 +736,35 @@ def test_trigger_add_report_to_case_unknown_report_returns_404(
         },
     )
     assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_trigger_add_report_short_actor_id_updates_outbox_without_warning(
+    client_triggers, dl, http_actor, case_with_participant, report, caplog
+):
+    """Short actor IDs should not break add-report outbox updates."""
+    import logging
+
+    short_uuid = parse_id(http_actor.id_)["object_id"]
+    actor_before = dl.read(http_actor.id_)
+    outbox_before = set(
+        item for item in actor_before.outbox.items if isinstance(item, str)
+    )
+
+    with caplog.at_level(logging.WARNING):
+        resp = client_triggers.post(
+            f"/actors/{short_uuid}/trigger/add-report-to-case",
+            json={
+                "case_id": case_with_participant.id_,
+                "report_id": report.id_,
+            },
+        )
+
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    actor_after = dl.read(http_actor.id_)
+    outbox_after = set(
+        item for item in actor_after.outbox.items if isinstance(item, str)
+    )
+    assert len(outbox_after - outbox_before) >= 1
+    assert not any(
+        "add_activity_to_outbox" in record.message for record in caplog.records
+    )
