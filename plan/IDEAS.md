@@ -329,3 +329,12 @@ order to add new entries to an append-only file. The equivalent of a shell
 command like `echo "new entry" >> file.txt` should be the mental model for how to
 handle append-only files. The agent should not be trying to parse the file and
 figure out where to insert the new entry, it should just be adding it to the end.
+
+## IDEA-26042202
+
+The bugfix skill should be updated (and any relevant specs as well) to adopt
+similar behavior to what the build skill does with implementation plan tasks.
+Namely: When a bug is fixed, the implementation history file should be
+appended and then the bug should be removed from BUGS.md entirely rather
+than leaving a tombstone or summary behind. BUGS.md should only contain open
+bugs, not closed ones.
