@@ -500,3 +500,22 @@ Dead-letter record schema:
 
 For future synchronous paths: return HTTP 422 Unprocessable Content with the
 unresolvable URI in the error body.
+
+---
+
+### 2026-04-22 BUG-26041701 closure verification
+
+BUG-26041701 no longer reproduces in the current tree. The relevant fix points
+are now split across three layers:
+
+- initiating activity models reject bare string / Link `object_` values at
+  construction time;
+- `CreateCaseParticipantNode` emits `AddParticipantToCaseActivity` with an
+  inline typed `CaseParticipant`; and
+- the outbox handler expands legacy bare-string `object_` values for the
+  transitive initiating activity types it still needs to bridge, then raises an
+  integrity error if expansion fails.
+
+Practical lesson: when a backlog bug may already be fixed, close it with
+concrete code-search and regression-test evidence rather than forcing a
+redundant follow-up patch.

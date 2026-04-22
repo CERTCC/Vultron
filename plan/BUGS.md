@@ -40,7 +40,21 @@ Resolution steps:
 - Add a regression test that runs the demo flow and fails if MV-09-001 errors
   appear.
 
-Status: NEW — added 2026-04-17.
+Verification update (2026-04-22):
+
+- `vultron/core/behaviors/case/nodes.py` now emits
+  `AddParticipantToCaseActivity(object_=case_participant, ...)`, so the
+  case-participant Add path no longer queues a bare-string `object_`.
+- `vultron/wire/as2/vocab/activities/` constrains initiating activity
+  `object_` fields to typed inline objects, and the regression tests under
+  `test/wire/as2/vocab/test_actvitities/` reject bare strings and Links.
+- `vultron/adapters/driving/fastapi/outbox_handler.py` now expands legacy bare
+  string `object_` values for `Create` / `Announce` / `Add` / `Invite` /
+  `Accept`, then raises `VultronOutboxObjectIntegrityError` if the object is
+  still unresolved.
+
+Status: FIXED — verified 2026-04-22; the bug appears already resolved in the
+current tree by existing INLINE-OBJ / outbox integrity changes.
 
 ## BUG-26041801
 

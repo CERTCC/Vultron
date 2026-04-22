@@ -7602,3 +7602,21 @@ object after the invitee accepts.
 - `VulnerabilityCaseStub` had to override the inherited `published` and
   `updated` defaults from `as_Object`; otherwise timestamp fields leaked into
   the serialized stub and broke the selective-disclosure contract.
+
+---
+
+## BUG-26041701 — outbound initiating bare-string `object_` bug closure (COMPLETE 2026-04-22)
+
+**Issue:** `plan/BUGS.md` tracked multi-party demo failures where outbound
+initiating activities appeared to carry bare-string or Link `object_` values,
+triggering MV-09-001 outbox integrity errors.
+
+**Root cause:** The bug entry was still open after the underlying INLINE-OBJ
+and outbox integrity work had already landed. Current code now emits typed
+inline objects in the case-participant Add path, activity classes reject bare
+string/Link `object_` payloads at construction time, and the outbox handler
+enforces/bridges legacy bare-string cases before delivery.
+
+**Resolution:** Verified the fix in the current tree, confirmed the relevant
+regression tests pass, and marked BUG-26041701 fixed without additional code
+changes.
