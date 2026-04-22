@@ -26,7 +26,7 @@ CM-02, and specs/idempotency.md ID-04-004.
 import pytest
 from py_trees.common import Status
 
-from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.vultron_types import (
     VultronCase,
     VultronCaseActor,
@@ -38,7 +38,7 @@ from vultron.core.behaviors.case.create_tree import create_create_case_tree
 
 @pytest.fixture
 def datalayer():
-    return TinyDbDataLayer(db_path=None)
+    return SqliteDataLayer("sqlite:///:memory:")
 
 
 @pytest.fixture
@@ -131,17 +131,19 @@ def test_create_case_tree_creates_case_actor(
 ):
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
-    # Verify at least one CaseActor exists for this case
-    # (also checking via read fallback if stored under different table)
+    # Verify at least one actor-context record was created for this case.
+    from sqlmodel import Session, select
+
+    from vultron.adapters.driven.datalayer_sqlite import VultronObjectRecord
+
     found = False
-    for table_name in datalayer._db.tables():
-        for rec in datalayer._db.table(table_name).all():
-            data = rec.get("data_", {})
+    with Session(datalayer._engine) as session:
+        rows = session.exec(select(VultronObjectRecord)).all()
+        for row in rows:
+            data = row.data or {}
             if data.get("context") == case_obj.id_:
                 found = True
                 break
-        if found:
-            break
     assert found, "CaseActor was not created in DataLayer"
 
 
@@ -214,9 +216,14 @@ def test_create_case_tree_creates_vendor_participant(
     assert len(stored_case.case_participants) >= 1
 
     found_vendor = False
-    for table_name in datalayer._db.tables():
-        for rec in datalayer._db.table(table_name).all():
-            data = rec.get("data_", {})
+    from sqlmodel import Session, select
+
+    from vultron.adapters.driven.datalayer_sqlite import VultronObjectRecord
+
+    with Session(datalayer._engine) as session:
+        rows = session.exec(select(VultronObjectRecord)).all()
+        for row in rows:
+            data = row.data or {}
             at = data.get("attributed_to")
             ctx = data.get("context")
             roles = data.get("case_roles", [])
@@ -227,8 +234,6 @@ def test_create_case_tree_creates_vendor_participant(
             ):
                 found_vendor = True
                 break
-        if found_vendor:
-            break
     assert found_vendor, "VendorParticipant was not found in DataLayer"
 
 
@@ -380,3 +385,28 @@ def test_create_case_tree_events_have_trusted_timestamps(
         assert evt.received_at is not None
         assert evt.received_at.tzinfo is not None
         assert evt.received_at.tzinfo == timezone.utc
+
+
+# ============================================================================
+# D5-6-LOGCTX: outbox activity log content tests
+# ============================================================================
+
+
+def test_create_case_tree_logs_create_case_activity_type(
+    datalayer, actor, case_obj, bridge, caplog
+):
+    """UpdateActorOutbox MUST log 'Create' activity type (D5-6-LOGCTX)."""
+    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
+    with caplog.at_level("INFO"):
+        bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    assert "Create" in caplog.text
+
+
+def test_create_case_tree_logs_case_id_in_outbox_message(
+    datalayer, actor, case_obj, bridge, caplog
+):
+    """UpdateActorOutbox MUST log the case ID in the outbox message (D5-6-LOGCTX)."""
+    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
+    with caplog.at_level("INFO"):
+        bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    assert case_obj.id_ in caplog.text

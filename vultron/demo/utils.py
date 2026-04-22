@@ -36,6 +36,7 @@ from pydantic import BaseModel
 
 # Vultron imports
 from vultron.adapters.utils import parse_id
+from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -136,9 +137,9 @@ class DataLayerClient(BaseModel):
             raise ValueError(f"Unsupported HTTP method: {method}")
 
         url = f"{self.base_url}{path}"
-        logger.info(f"Calling {method.upper()} {url}")
+        logger.debug(f"Calling {method.upper()} {url}")
         response = requests.request(method, url, **kwargs)
-        logger.info(f"Response status: {response.status_code}")
+        logger.debug(f"Response status: {response.status_code}")
 
         data = {}
         try:
@@ -180,7 +181,7 @@ def reset_datalayer(client: DataLayerClient, init: bool = True) -> dict:
         client: DataLayerClient instance.
         init: When ``True``, re-seed the DataLayer with default actors after reset.
     """
-    logger.info("Resetting data layer...")
+    logger.debug("Resetting data layer...")
     return client.delete("/datalayer/reset/", params={"init": init})
 
 
@@ -245,7 +246,7 @@ def post_to_inbox_and_wait(
         wait_seconds: Seconds to sleep after posting; defaults to ``DEFAULT_WAIT_SECONDS``.
     """
     actor_obj_id = parse_id(actor_id)["object_id"]
-    logger.info(
+    logger.debug(
         f"Posting activity to {actor_obj_id}'s inbox: {logfmt(activity)}"
     )
     client.post(f"/actors/{actor_obj_id}/inbox/", json=postfmt(activity))
@@ -287,21 +288,40 @@ def post_to_trigger(
 def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
     """Fetch an object from the DataLayer by ID and verify it is present.
 
+    Logs the stored representation so all fields are visible. Nested objects
+    are stored as ID-string references (not inline copies); the log therefore
+    shows ID strings for nested fields such as ``object_``, ``target``, etc.
+    To inspect a nested object, call ``verify_object_stored`` again with the
+    nested object's own ID.
+
     Returns:
         The retrieved ``as_Object``.
 
     Raises:
         requests.HTTPError: If the object is not found.
     """
+
+    def _drop_nulls(value: object) -> object:
+        if isinstance(value, dict):
+            return {
+                k: _drop_nulls(v) for k, v in value.items() if v is not None
+            }
+        if isinstance(value, list):
+            return [_drop_nulls(item) for item in value]
+        return value
+
     obj = client.get(f"/datalayer/{obj_id}")
-    reconstructed_obj = as_Object(**obj)
-    logger.info(f"Verified object stored: {logfmt(reconstructed_obj)}")
-    return reconstructed_obj
+    filtered = _drop_nulls(obj)
+    logger.info(
+        "Stored record (nested objects shown as ID references): %s",
+        json.dumps(filtered, indent=2, default=str),
+    )
+    return as_Object(**obj)
 
 
 def get_offer_from_datalayer(
     client: DataLayerClient, vendor_id: str, offer_id: str
-) -> as_Offer:
+) -> RmSubmitReportActivity:
     """Retrieve a specific Offer from a vendor's DataLayer store.
 
     Args:
@@ -310,14 +330,17 @@ def get_offer_from_datalayer(
         offer_id: ID of the offer to retrieve.
 
     Returns:
-        The retrieved ``as_Offer``.
+        The retrieved offer coerced to :class:`RmSubmitReportActivity`.
     """
     vendor_obj_id = parse_id(vendor_id)["object_id"]
     offer_obj_id = parse_id(offer_id)["object_id"]
     offer_data = client.get(
         f"/datalayer/Actors/{vendor_obj_id}/Offers/{offer_obj_id}"
     )
-    offer = as_Offer(**offer_data)
+    raw = as_Offer(**offer_data)
+    offer = RmSubmitReportActivity.model_validate(
+        raw.model_dump(by_alias=True)
+    )
     logger.info(f"Retrieved Offer: {logfmt(offer)}")
     return offer
 
@@ -376,6 +399,36 @@ def demo_environment(client: DataLayerClient):
         logger.info("Tearing down demo environment...")
         reset_datalayer(client=client, init=False)
         logger.info("Demo environment torn down.")
+
+
+def seed_actor(
+    client: DataLayerClient,
+    name: str,
+    actor_type: str = "Organization",
+    actor_id: str | None = None,
+) -> as_Actor:
+    """Create or return an actor record in the remote DataLayer.
+
+    Calls ``POST /actors/`` with the supplied parameters.  The endpoint is
+    idempotent: if an actor with the same ``actor_id`` already exists it is
+    returned unchanged (HTTP 200).
+
+    Args:
+        client: DataLayerClient instance pointing at the target API server.
+        name: Display name for the actor.
+        actor_type: ActivityStreams actor type string (default: ``"Organization"``).
+        actor_id: Optional full URI for the actor.  When absent the server
+            derives one from ``VULTRON_BASE_URL``.
+
+    Returns:
+        The created (or pre-existing) ``as_Actor`` object.
+    """
+    payload: dict = {"name": name, "actor_type": actor_type}
+    if actor_id is not None:
+        payload["id"] = actor_id
+
+    response_data = client.post("/actors/", json=payload)
+    return as_Actor.model_validate(response_data)
 
 
 def check_server_availability(

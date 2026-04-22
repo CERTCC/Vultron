@@ -657,3 +657,43 @@ These invariants govern the outbox-based delivery model:
    immediate HTTP rejection. Semantic validation (is this transition
    allowed? is the sender authorized?) occurs in core after delivery and
    may produce compensating events (rejection, error signaling).
+
+---
+
+## Compliance Reference — What Is Correctly Structured
+
+This section records modules and patterns that comply with the architectural
+rules above. Use it as a reference when reviewing new code for boundary
+violations.
+
+**`vultron/wire/as2/extractor.py`** — Correctly consolidated as the sole
+location for AS2-to-domain vocabulary mapping (Rule 4). `ActivityPattern`
+and `find_matching_semantics` live here and nowhere else.
+
+**`vultron/wire/as2/parser.py`** — Clean wire-layer module. Raises domain
+parse errors; contains no domain logic or handler logic.
+
+**`vultron/adapters/driving/fastapi/routers/actors.py` HTTP inbox endpoint**
+— Correctly delegates parsing to `wire/as2/parser.py`, returns 202
+immediately, and schedules inbox processing via `BackgroundTasks`.
+
+**`vultron/core/use_cases/use_case_map.py`** — `USE_CASE_MAP` lives in the
+core layer, binding `MessageSemantics` values to use-case classes. This is
+the correct boundary: core owns the routing table, adapters own HTTP routing.
+
+**`vultron/core/dispatcher.py`** — `ActivityDispatcher` Protocol and
+`DirectActivityDispatcher` accept domain `VultronEvent`, not raw dicts or
+HTTP requests. `prepare_for_dispatch()` lives in the adapter layer
+(`inbox_handler.py`).
+
+**`vultron/core/models/events.py`, `MessageSemantics` enum** — Domain
+vocabulary with no wire-format dependencies. Enum values express domain
+intent, not AS2 verbs.
+
+**`vultron/errors.py` and `VultronError` base** — Domain exception hierarchy
+with no framework or wire-format dependencies.
+
+**`vultron/adapters/` package** — `adapters/driving/`, `adapters/driven/`,
+and `adapters/connectors/` are correctly scoped. `ConnectorPlugin` Protocol
+in `adapters/connectors/base.py` is the right abstraction for external
+connector plugins.

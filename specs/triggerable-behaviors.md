@@ -76,11 +76,44 @@ them; a complete implementation requires both reactive and triggerable sides.
 - `TRIG-02-002` The following EM behaviors SHOULD be individually
   triggerable via the trigger API:
 
-  | `behavior-name`      | BT reference        | Description |
-  |----------------------|---------------------|-------------|
-  | `propose-embargo`    | `em_propose_bt.md`  | Actor proposes an embargo |
-  | `evaluate-embargo`   | `em_eval_bt.md`     | Actor evaluates an embargo proposal |
-  | `terminate-embargo`  | `em_bt.md`          | Actor announces embargo termination |
+  | `behavior-name`            | BT reference        | Description |
+  |----------------------------|---------------------|-------------|
+  | `propose-embargo`          | `em_propose_bt.md`  | Actor proposes an embargo |
+  | `accept-embargo`           | `em_eval_bt.md`     | Actor accepts an embargo proposal |
+  | `reject-embargo`           | `em_eval_bt.md`     | Actor rejects an embargo proposal |
+  | `propose-embargo-revision` | `em_propose_bt.md`  | Actor proposes a revision to an active embargo |
+  | `terminate-embargo`        | `em_bt.md`          | Actor announces embargo termination |
+
+---
+
+## Candidate Case Management Behaviors
+
+- `TRIG-02-004` The following case management behaviors SHOULD be individually
+  triggerable via the trigger API:
+
+  | `behavior-name`        | BT reference           | Description |
+  |------------------------|------------------------|-------------|
+  | `create-case`          | `rm_case_bt.md`        | Actor creates a new VulnerabilityCase and notifies the CaseActor |
+  | `add-report-to-case`   | `rm_case_bt.md`        | Actor links an existing VulnerabilityReport to a VulnerabilityCase |
+  | `add-note-to-case`     | `add_note_bt.md`       | Actor adds a Note to a case and broadcasts it to all participants |
+  | `submit-report`        | `rm_submit_bt.md`      | Actor (finder) creates and offers a VulnerabilityReport to a vendor |
+
+---
+
+## Candidate Participant Management Behaviors
+
+- `TRIG-02-005` The following participant management behaviors SHOULD be
+  individually triggerable via the trigger API:
+
+  | `behavior-name`          | BT reference               | Description |
+  |--------------------------|----------------------------|-------------|
+  | `suggest-actor-to-case`  | `rm_notify_bt.md`          | Actor recommends another actor to the case owner for invitation |
+  | `invite-actor-to-case`   | `rm_notify_bt.md`          | Case owner directly invites an actor to participate in a case |
+  | `accept-case-invite`     | `rm_accept_invite_bt.md`   | Invited actor accepts an RmInviteToCaseActivity |
+
+  **Note**: The `suggest-actor-to-case` → `invite-actor-to-case` → `accept-case-invite`
+  sequence is a concrete example of a protocol event cascade. See
+  `notes/protocol-event-cascades.md` for the full 4-step cascade description.
 
 ---
 
@@ -102,12 +135,17 @@ them; a complete implementation requires both reactive and triggerable sides.
 - `TRIG-03-001` The trigger endpoint request body MUST be a JSON object
   containing sufficient context to identify the target report or case:
   - Report-scoped behaviors (`validate-report`, `invalidate-report`,
-    `reject-report`, `close-report`): MUST include `offer_id`; MAY include
-    `report_id` as a confirmation guard against acting on an offer for the
-    wrong report
+    `reject-report`, `close-report`, `submit-report`): MUST include
+    `offer_id`; MAY include `report_id` as a confirmation guard against
+    acting on an offer for the wrong report. The `submit-report` behavior
+    uses `report_id` directly.
   - Case-scoped behaviors (`engage-case`, `defer-case`, `propose-embargo`,
-    `evaluate-embargo`, `terminate-embargo`, `notify-actor`,
-    `assign-cve-id`, `identify-participants`): MUST include `case_id`
+    `accept-embargo`, `reject-embargo`, `propose-embargo-revision`,
+    `terminate-embargo`, `add-note-to-case`, `add-report-to-case`,
+    `create-case`, `invite-actor-to-case`, `suggest-actor-to-case`,
+    `notify-actor`, `assign-cve-id`, `identify-participants`):
+    MUST include `case_id`
+  - Invite-scoped behaviors (`accept-case-invite`): MUST include `invite_id`
 - `TRIG-03-002` Unknown fields in the request body MUST be ignored
   (forward-compatibility)
 - `TRIG-03-003` The trigger endpoint request body SHOULD support an optional
@@ -187,7 +225,7 @@ them; a complete implementation requires both reactive and triggerable sides.
   error per EH-05-001
 - Integration test: HTTP 202 returned before behavior execution completes
 
-### TRIG-02-001, TRIG-02-002, TRIG-02-003 Verification
+### TRIG-02-001, TRIG-02-002, TRIG-02-003, TRIG-02-004, TRIG-02-005 Verification
 
 - Integration test: Each named behavior endpoint exists and accepts
   a valid request body

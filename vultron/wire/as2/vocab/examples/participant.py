@@ -121,7 +121,7 @@ def rm_invite_to_case() -> RmInviteToCaseActivity:
     _activity = RmInviteToCaseActivity(
         id_=f"{_case.id_}/invitation/1",
         actor=_vendor.id_,
-        object_=_coordinator.id_,
+        object_=_coordinator,
         target=_case.id_,
         to=_coordinator.id_,
         content=f"We're inviting you to participate in {_case.name}.",
@@ -208,7 +208,7 @@ def invite_to_case():
     activity = RmInviteToCaseActivity(
         id_=f"{_case.id_}/invitation/1",
         actor=_vendor.id_,
-        object_=_coordinator.id_,
+        object_=_coordinator,
         target=_case.id_,
         to=_coordinator.id_,
         content=f"We're inviting you to participate in case {_case.name}.",
@@ -222,7 +222,7 @@ def remove_participant_from_case():
     coord_p = coordinator_participant()
     activity = RemoveParticipantFromCaseActivity(
         actor=_vendor.id_,
-        object_=coord_p.id_,
+        object_=coord_p,
         origin=_case.id_,
         summary="Vendor is removing the coordinator from the case.",
     )

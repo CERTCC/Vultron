@@ -17,6 +17,7 @@ VultronActorMixin (EP-01-001).
 """
 
 import unittest
+from datetime import timedelta
 
 from vultron.wire.as2.enums import as_ActorType
 from vultron.wire.as2.vocab.objects.embargo_policy import EmbargoPolicy
@@ -35,9 +36,9 @@ def _make_policy() -> EmbargoPolicy:
     return EmbargoPolicy(
         actor_id=ACTOR_ID,
         inbox=INBOX,
-        preferred_duration_days=90,
-        minimum_duration_days=45,
-        maximum_duration_days=180,
+        preferred_duration=timedelta(days=90),
+        minimum_duration=timedelta(days=45),
+        maximum_duration=timedelta(days=180),
         notes="Prefer 90 days.",
     )
 
@@ -61,7 +62,9 @@ class TestVultronPersonBasics(unittest.TestCase):
         )
         assert isinstance(p.embargo_policy, EmbargoPolicy)
         self.assertEqual(policy.id_, p.embargo_policy.id_)
-        self.assertEqual(90, p.embargo_policy.preferred_duration_days)
+        self.assertEqual(
+            timedelta(days=90), p.embargo_policy.preferred_duration
+        )
 
     def test_embargo_policy_reference_string(self):
         policy_id = "https://example.org/policies/alice-ep"
@@ -113,7 +116,9 @@ class TestVultronOrganizationBasics(unittest.TestCase):
             embargo_policy=policy,
         )
         assert isinstance(org.embargo_policy, EmbargoPolicy)
-        self.assertEqual(90, org.embargo_policy.preferred_duration_days)
+        self.assertEqual(
+            timedelta(days=90), org.embargo_policy.preferred_duration
+        )
 
     def test_is_instance_of_mixin(self):
         org = VultronOrganization()

@@ -19,14 +19,16 @@ See ``plan/PRIORITIES.md`` PRIORITY 1000 for the design rationale.
 import logging
 from typing import Any
 
-from vultron.adapters.driven.datalayer_tinydb import get_datalayer
+from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.core.use_cases.triggers.case import (
     SvcDeferCaseUseCase,
     SvcEngageCaseUseCase,
 )
 from vultron.core.use_cases.triggers.embargo import (
-    SvcEvaluateEmbargoUseCase,
+    SvcAcceptEmbargoUseCase,
+    SvcProposeEmbargoRevisionUseCase,
     SvcProposeEmbargoUseCase,
+    SvcRejectEmbargoUseCase,
     SvcTerminateEmbargoUseCase,
 )
 from vultron.core.use_cases.triggers.report import (
@@ -36,12 +38,14 @@ from vultron.core.use_cases.triggers.report import (
     SvcValidateReportUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
+    AcceptEmbargoTriggerRequest,
     CloseReportTriggerRequest,
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
-    EvaluateEmbargoTriggerRequest,
     InvalidateReportTriggerRequest,
+    ProposeEmbargoRevisionTriggerRequest,
     ProposeEmbargoTriggerRequest,
+    RejectEmbargoTriggerRequest,
     RejectReportTriggerRequest,
     TerminateEmbargoTriggerRequest,
     ValidateReportTriggerRequest,
@@ -133,15 +137,50 @@ def mcp_propose_embargo(
     return SvcProposeEmbargoUseCase(dl, request).execute()
 
 
-def mcp_evaluate_embargo(
+def mcp_accept_embargo(
     actor_id: str, case_id: str, proposal_id: str | None = None
 ) -> dict[str, Any]:
     """MCP tool: accept an embargo proposal for an actor."""
     dl = get_datalayer()
-    request = EvaluateEmbargoTriggerRequest(
+    request = AcceptEmbargoTriggerRequest(
         actor_id=actor_id, case_id=case_id, proposal_id=proposal_id
     )
-    return SvcEvaluateEmbargoUseCase(dl, request).execute()
+    return SvcAcceptEmbargoUseCase(dl, request).execute()
+
+
+def mcp_reject_embargo(
+    actor_id: str, case_id: str, proposal_id: str | None = None
+) -> dict[str, Any]:
+    """MCP tool: reject an embargo proposal for an actor."""
+    dl = get_datalayer()
+    request = RejectEmbargoTriggerRequest(
+        actor_id=actor_id, case_id=case_id, proposal_id=proposal_id
+    )
+    return SvcRejectEmbargoUseCase(dl, request).execute()
+
+
+def mcp_propose_embargo_revision(
+    actor_id: str,
+    case_id: str,
+    end_time: str,
+    note: str | None = None,
+) -> dict[str, Any]:
+    """MCP tool: propose a revision to an active embargo for an actor.
+
+    ``end_time`` is a required ISO 8601 datetime string.
+    Only valid when EM state is ACTIVE or REVISE.
+    """
+    from datetime import datetime
+
+    parsed_end_time = datetime.fromisoformat(end_time)
+    dl = get_datalayer()
+    request = ProposeEmbargoRevisionTriggerRequest(
+        actor_id=actor_id,
+        case_id=case_id,
+        note=note,
+        end_time=parsed_end_time,
+    )
+    return SvcProposeEmbargoRevisionUseCase(dl, request).execute()
 
 
 def mcp_terminate_embargo(actor_id: str, case_id: str) -> dict[str, Any]:
@@ -161,6 +200,8 @@ MCP_TOOLS = [
     mcp_engage_case,
     mcp_defer_case,
     mcp_propose_embargo,
-    mcp_evaluate_embargo,
+    mcp_accept_embargo,
+    mcp_reject_embargo,
+    mcp_propose_embargo_revision,
     mcp_terminate_embargo,
 ]

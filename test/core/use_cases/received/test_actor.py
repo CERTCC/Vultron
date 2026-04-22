@@ -16,8 +16,14 @@ import logging
 from typing import Any, cast
 from unittest.mock import MagicMock
 
+import py_trees
+import pytest
 
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    VulnerabilityCase,
+    VulnerabilityCaseStub,
+)
 from vultron.core.use_cases.received.actor import (
     SuggestActorToCaseReceivedUseCase,
     AcceptSuggestActorToCaseReceivedUseCase,
@@ -39,17 +45,17 @@ class TestInviteActorUseCases:
         self, monkeypatch, make_payload
     ):
         """InviteActorToCaseReceivedUseCase persists the Invite activity to the DataLayer."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.activities.case import (
             RmInviteToCaseActivity,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
 
         invite = RmInviteToCaseActivity(
             id_="https://example.org/cases/case1/invitations/1",
             actor="https://example.org/users/owner",
-            object_="https://example.org/users/coordinator",
+            object_=as_Actor(id_="https://example.org/users/coordinator"),
             target="https://example.org/cases/case1",
         )
 
@@ -62,17 +68,17 @@ class TestInviteActorUseCases:
 
     def test_invite_actor_to_case_idempotent(self, monkeypatch, make_payload):
         """InviteActorToCaseReceivedUseCase skips storing a duplicate Invite."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.activities.case import (
             RmInviteToCaseActivity,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
 
         invite = RmInviteToCaseActivity(
             id_="https://example.org/cases/case1/invitations/2",
             actor="https://example.org/users/owner",
-            object_="https://example.org/users/coordinator",
+            object_=as_Actor(id_="https://example.org/users/coordinator"),
             target="https://example.org/cases/case1",
         )
 
@@ -96,7 +102,7 @@ class TestInviteActorUseCases:
         invite = RmInviteToCaseActivity(
             id_="https://example.org/cases/case1/invitations/3",
             actor="https://example.org/users/owner",
-            object_="https://example.org/users/coordinator",
+            object_=as_Actor(id_="https://example.org/users/coordinator"),
             target="https://example.org/cases/case1",
         )
         reject = RmRejectInviteToCaseActivity(
@@ -115,19 +121,19 @@ class TestInviteActorUseCases:
         self, monkeypatch, make_payload
     ):
         """AcceptInviteActorToCaseReceivedUseCase creates a CaseParticipant and adds them to the case."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.activities.case import (
             RmAcceptInviteToCaseActivity,
             RmInviteToCaseActivity,
         )
-        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         invitee_id = "https://example.org/users/coordinator"
-        invitee = as_Actor(id_=invitee_id)
+        invitee = as_Organization(id_=invitee_id)
         case = VulnerabilityCase(
             id_="https://example.org/cases/caseIA1",
             name="TEST-ACCEPT-INVITE",
@@ -136,8 +142,9 @@ class TestInviteActorUseCases:
             id_="https://example.org/cases/caseIA1/invitations/1",
             actor="https://example.org/users/owner",
             object_=invitee,
-            target=case,
+            target=VulnerabilityCaseStub(id_=case.id_),
         )
+        dl.create(invitee)
         dl.create(case)
         dl.create(invite)
 
@@ -159,20 +166,21 @@ class TestInviteActorUseCases:
         self, monkeypatch, make_payload
     ):
         """AcceptInviteActorToCaseReceivedUseCase records the active embargo ID on the new participant (CM-10-001, CM-10-003)."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.states.em import EM
         from vultron.wire.as2.vocab.activities.case import (
             RmAcceptInviteToCaseActivity,
             RmInviteToCaseActivity,
         )
-        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         invitee_id = "https://example.org/users/coordinator"
-        invitee = as_Actor(id_=invitee_id)
+        invitee = as_Organization(id_=invitee_id)
         embargo = EmbargoEvent(
             id_="https://example.org/cases/caseIA2/embargo_events/e1",
             content="Active embargo",
@@ -182,12 +190,14 @@ class TestInviteActorUseCases:
             name="TEST-ACCEPT-INVITE-EMBARGO",
         )
         case.active_embargo = embargo.id_
+        case.current_status.em_state = EM.ACTIVE
         invite = RmInviteToCaseActivity(
             id_="https://example.org/cases/caseIA2/invitations/1",
             actor="https://example.org/users/owner",
             object_=invitee,
-            target=case,
+            target=VulnerabilityCaseStub(id_=case.id_),
         )
+        dl.create(invitee)
         dl.create(case)
         dl.create(embargo)
         dl.create(invite)
@@ -211,23 +221,134 @@ class TestInviteActorUseCases:
         participant_obj = cast(Any, participant_obj)
         assert embargo.id_ in participant_obj.accepted_embargo_ids
 
-    def test_accept_invite_actor_to_case_records_case_event(
-        self, monkeypatch, make_payload
+    def test_accept_invite_participant_can_reach_rm_accepted(
+        self, make_payload
     ):
-        """AcceptInviteActorToCaseReceivedUseCase appends a trusted-timestamp event to case.events (CM-02-009)."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        """Accepted invite auto-engages the participant to RM.ACCEPTED.
+
+        CM-11-001 requires invitation acceptance to advance the invitee to
+        RM.ACCEPTED without a separate engage-case trigger. The use case still
+        pre-seeds RECEIVED and VALID before invoking the engage-case logic.
+        """
+        from typing import Any, cast
+
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.activities.case import (
             RmAcceptInviteToCaseActivity,
             RmInviteToCaseActivity,
         )
-        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+        from vultron.core.states.rm import RM
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        invitee_id = "https://example.org/users/coordinator_rm1"
+        invitee = as_Organization(id_=invitee_id)
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/caseRM001",
+            name="TEST-RM-LIFECYCLE",
+        )
+        invite = RmInviteToCaseActivity(
+            id_="https://example.org/cases/caseRM001/invitations/1",
+            actor="https://example.org/users/owner",
+            object_=invitee,
+            target=VulnerabilityCaseStub(id_=case.id_),
+        )
+        dl.create(invitee)
+        dl.create(case)
+        dl.create(invite)
+
+        accept = RmAcceptInviteToCaseActivity(
+            actor=invitee_id,
+            object_=invite,
+        )
+        event = make_payload(accept)
+        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
+
+        updated_case = cast(Any, dl.read(case.id_))
+        participant_id = updated_case.actor_participant_index.get(invitee_id)
+        participant_obj = cast(Any, dl.get(id_=participant_id))
+        latest_status = participant_obj.participant_statuses[-1]
+        assert latest_status.rm_state == RM.ACCEPTED
+
+    def test_accept_invite_actor_to_case_emits_engage_activity(
+        self, make_payload
+    ):
+        """AcceptInviteActorToCaseReceivedUseCase queues an RmEngageCaseActivity."""
+        from typing import Any, cast
+
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.activities.case import (
+            RmAcceptInviteToCaseActivity,
+            RmInviteToCaseActivity,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        invitee_id = "https://example.org/users/coordinator_rm2"
+        invitee = as_Organization(id_=invitee_id)
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/caseRM002",
+            name="TEST-RM-AUTO-ENGAGE",
+        )
+        invite = RmInviteToCaseActivity(
+            id_="https://example.org/cases/caseRM002/invitations/1",
+            actor="https://example.org/users/owner",
+            object_=invitee,
+            target=VulnerabilityCaseStub(id_=case.id_),
+        )
+        dl.create(invitee)
+        dl.create(case)
+        dl.create(invite)
+
+        accept = RmAcceptInviteToCaseActivity(
+            actor=invitee_id,
+            object_=invite,
+        )
+        event = make_payload(accept)
+
+        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
+
+        updated_actor = cast(Any, dl.read(invitee_id))
+        assert updated_actor is not None
+        # At least the engage (Join) activity must be present.  An Announce
+        # activity may also be queued by _emit_announce_case so we allow ≥ 1.
+        assert len(updated_actor.outbox.items) >= 1
+
+        engage_activity = None
+        for item_id in updated_actor.outbox.items:
+            candidate = cast(Any, dl.read(item_id))
+            if candidate is not None and str(candidate.type_) == "Join":
+                engage_activity = candidate
+                break
+        assert (
+            engage_activity is not None
+        ), "No Join/engage activity found in outbox"
+        assert engage_activity.actor == invitee_id
+        assert engage_activity.object_.id_ == case.id_
+
+    def test_accept_invite_actor_to_case_records_case_event(
+        self, monkeypatch, make_payload
+    ):
+        """AcceptInviteActorToCaseReceivedUseCase appends a trusted-timestamp event to case.events (CM-02-009)."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.activities.case import (
+            RmAcceptInviteToCaseActivity,
+            RmInviteToCaseActivity,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
         invitee_id = "https://example.org/users/coordinator"
-        invitee = as_Actor(id_=invitee_id)
+        invitee = as_Organization(id_=invitee_id)
         case = VulnerabilityCase(
             id_="https://example.org/cases/caseIA3",
             name="TEST-ACCEPT-INVITE-EVENT",
@@ -236,8 +357,9 @@ class TestInviteActorUseCases:
             id_="https://example.org/cases/caseIA3/invitations/1",
             actor="https://example.org/users/owner",
             object_=invitee,
-            target=case,
+            target=VulnerabilityCaseStub(id_=case.id_),
         )
+        dl.create(invitee)
         dl.create(case)
         dl.create(invite)
 
@@ -267,13 +389,13 @@ class TestSuggestActorUseCases:
         self, monkeypatch, make_payload
     ):
         """SuggestActorToCaseReceivedUseCase persists the RecommendActor offer."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.actors import as_Actor
         from vultron.wire.as2.vocab.activities.actor import (
             RecommendActorActivity,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
 
         coordinator = as_Actor(id_="https://example.org/users/coordinator")
         case = VulnerabilityCase(
@@ -296,13 +418,13 @@ class TestSuggestActorUseCases:
 
     def test_suggest_actor_to_case_idempotent(self, monkeypatch, make_payload):
         """SuggestActorToCaseReceivedUseCase is idempotent — second call is a no-op."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.activities.actor import (
             RecommendActorActivity,
         )
         from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
 
         coordinator = as_Actor(id_="https://example.org/users/coordinator")
         case = VulnerabilityCase(
@@ -326,14 +448,14 @@ class TestSuggestActorUseCases:
         self, monkeypatch, make_payload
     ):
         """AcceptSuggestActorToCaseReceivedUseCase persists the AcceptActorRecommendation."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.activities.actor import (
             AcceptActorRecommendationActivity,
             RecommendActorActivity,
         )
         from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
 
         coordinator = as_Actor(id_="https://example.org/users/coordinator")
         case = VulnerabilityCase(
@@ -391,6 +513,130 @@ class TestSuggestActorUseCases:
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
 
+    @pytest.fixture(autouse=True)
+    def clear_blackboard(self):
+        py_trees.blackboard.Blackboard.storage.clear()
+        yield
+        py_trees.blackboard.Blackboard.storage.clear()
+
+    def _setup_dl_with_owner(self):
+        """Return a DataLayer seeded with a local Service actor and a case."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        local_actor_id = "https://example.org/actors/local-coordinator"
+        local_actor = as_Service(id_=local_actor_id)
+        case_id = "https://example.org/cases/suggest-test-case"
+        case = VulnerabilityCase(
+            id_=case_id,
+            name="SUGGEST-TEST",
+            attributed_to=local_actor_id,
+        )
+        dl.create(local_actor)
+        dl.create(case)
+        return dl, local_actor_id, case_id
+
+    def test_suggest_actor_emits_both_activities_when_owner(
+        self, make_payload
+    ):
+        """Owner emits Accept + Invite when receiving a recommendation."""
+        from vultron.wire.as2.vocab.activities.actor import (
+            RecommendActorActivity,
+        )
+
+        dl, local_actor_id, case_id = self._setup_dl_with_owner()
+        recommender_id = "https://example.org/actors/finder"
+        invitee_id = "https://example.org/actors/vendor"
+        invitee = as_Actor(id_=invitee_id)
+
+        recommendation = RecommendActorActivity(
+            id_="https://example.org/activities/rec-001",
+            actor=recommender_id,
+            object_=invitee,
+            target=case_id,
+            to=[local_actor_id],
+        )
+        event = make_payload(recommendation)
+
+        SuggestActorToCaseReceivedUseCase(dl, event).execute()
+
+        outbox = dl.outbox_list()
+        assert (
+            len(outbox) == 2
+        ), f"Expected 2 outbox entries (Accept + Invite), got {len(outbox)}"
+
+    def test_suggest_actor_skips_when_not_case_owner(self, make_payload):
+        """Non-owner silently skips — no outbox entries emitted."""
+        from vultron.wire.as2.vocab.activities.actor import (
+            RecommendActorActivity,
+        )
+
+        dl, local_actor_id, case_id = self._setup_dl_with_owner()
+        # Override case with a different owner
+        case = dl.read(case_id)
+        other_owner = "https://example.org/actors/other-owner"
+        case = cast(Any, case)
+        case = case.model_copy(update={"attributed_to": other_owner})
+        dl.save(case)
+
+        recommender_id = "https://example.org/actors/finder"
+        invitee_id = "https://example.org/actors/vendor"
+        invitee = as_Actor(id_=invitee_id)
+
+        recommendation = RecommendActorActivity(
+            id_="https://example.org/activities/rec-002",
+            actor=recommender_id,
+            object_=invitee,
+            target=case_id,
+            to=[local_actor_id],
+        )
+        event = make_payload(recommendation)
+
+        SuggestActorToCaseReceivedUseCase(dl, event).execute()
+
+        outbox = dl.outbox_list()
+        assert len(outbox) == 0, (
+            "Expected no outbox entries for non-owner, " f"got {len(outbox)}"
+        )
+
+    def test_suggest_actor_idempotent_when_invite_exists(self, make_payload):
+        """Second execute() adds no new outbox entries."""
+        from vultron.wire.as2.vocab.activities.actor import (
+            RecommendActorActivity,
+        )
+
+        dl, local_actor_id, case_id = self._setup_dl_with_owner()
+        recommender_id = "https://example.org/actors/finder"
+        invitee_id = "https://example.org/actors/vendor"
+        invitee = as_Actor(id_=invitee_id)
+
+        recommendation = RecommendActorActivity(
+            id_="https://example.org/activities/rec-003",
+            actor=recommender_id,
+            object_=invitee,
+            target=case_id,
+            to=[local_actor_id],
+        )
+        event = make_payload(recommendation)
+
+        # First execution
+        SuggestActorToCaseReceivedUseCase(dl, event).execute()
+        outbox_after_first = len(dl.outbox_list())
+
+        # Second execution (should be a no-op)
+        py_trees.blackboard.Blackboard.storage.clear()
+        SuggestActorToCaseReceivedUseCase(dl, event).execute()
+        outbox_after_second = len(dl.outbox_list())
+
+        assert (
+            outbox_after_first == 2
+        ), f"Expected 2 entries after first run, got {outbox_after_first}"
+        assert outbox_after_second == outbox_after_first, (
+            "Expected no new entries on second run (idempotency), "
+            f"got {outbox_after_second - outbox_after_first} extra"
+        )
+
 
 class TestOwnershipTransferUseCases:
     """Tests for offer/accept/reject ownership transfer use cases."""
@@ -399,12 +645,12 @@ class TestOwnershipTransferUseCases:
         self, monkeypatch, make_payload
     ):
         """OfferCaseOwnershipTransferReceivedUseCase persists the offer."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.activities.case import (
             OfferCaseOwnershipTransferActivity,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
 
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_ot1",
@@ -426,13 +672,13 @@ class TestOwnershipTransferUseCases:
         self, monkeypatch, make_payload
     ):
         """AcceptCaseOwnershipTransferReceivedUseCase updates case.attributed_to to new owner."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.activities.case import (
             AcceptCaseOwnershipTransferActivity,
             OfferCaseOwnershipTransferActivity,
         )
 
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_ot2",
             name="OT Case 2",

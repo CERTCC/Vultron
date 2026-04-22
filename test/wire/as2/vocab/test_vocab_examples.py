@@ -144,7 +144,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertIsInstance(read_report, as_Read)
         self.assertEqual(read_report.type_, "Read")
         self.assertEqual(read_report.actor, vendor.id_)
-        self.assertEqual(read_report.object_, report.id_)
+        self.assertEqual(read_report.object_, report)
 
     def test_validate_report(self):
         # is it an activity?
@@ -258,7 +258,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertIsInstance(add_report_to_case, as_Add)
         self.assertEqual(add_report_to_case.type_, "Add")
         self.assertEqual(add_report_to_case.actor, vendor.id_)
-        self.assertEqual(add_report_to_case.object_, report.id_)
+        self.assertEqual(add_report_to_case.object_, report)
         self.assertEqual(add_report_to_case.target, case.id_)
 
     def test_add_vendor_participant_to_case(self):
@@ -324,7 +324,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.type_, "Join")
 
         self.assertEqual(activity.actor, vendor.id_)
-        self.assertEqual(activity.object_, case.id_)
+        self.assertEqual(activity.object_, case)
 
     def test_close_case(self):
         activity = examples.close_case()
@@ -336,7 +336,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.type_, "Leave")
 
         self.assertEqual(activity.actor, vendor.id_)
-        self.assertEqual(activity.object_, case.id_)
+        self.assertEqual(activity.object_, case)
 
     def test_defer_case(self):
         activity = examples.defer_case()
@@ -348,7 +348,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.type_, "Ignore")
 
         self.assertEqual(activity.actor, vendor.id_)
-        self.assertEqual(activity.object_, case.id_)
+        self.assertEqual(activity.object_, case)
 
     def test_reengage_case(self):
         activity = examples.reengage_case()
@@ -365,7 +365,7 @@ class TestVocabExamples(unittest.TestCase):
         inner_activity = cast(as_Ignore, activity.object_)
         self.assertEqual(inner_activity.type_, "Ignore")
         self.assertEqual(inner_activity.actor, vendor.id_)
-        self.assertEqual(inner_activity.object_, case.id_)
+        self.assertEqual(inner_activity.object_, case)
 
         self.assertEqual(activity.context, case.id_)
 
@@ -456,7 +456,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.type_, "Update")
 
         self.assertEqual(activity.actor, vendor.id_)
-        self.assertEqual(activity.object_, case.id_)
+        self.assertEqual(activity.object_, case)
 
     def test_recommend_actor(self):
         activity = examples.recommend_actor()
@@ -470,7 +470,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.type_, "Offer")
 
         self.assertEqual(activity.actor, finder.id_)
-        self.assertEqual(activity.object_, coordinator.id_)
+        self.assertEqual(activity.object_, coordinator)
         self.assertEqual(activity.target, case.id_)
         self.assertEqual(activity.to, vendor.id_)
 
@@ -529,7 +529,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.type_, "Invite")
 
         self.assertEqual(activity.actor, vendor.id_)
-        self.assertEqual(activity.object_, coordinator.id_)
+        self.assertEqual(activity.object_, coordinator)
         self.assertEqual(activity.target, case.id_)
         self.assertEqual(activity.to, coordinator.id_)
 
@@ -657,7 +657,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.type_, "Invite")
 
         self.assertEqual(activity.actor, vendor.id_)
-        self.assertEqual(activity.object_, coordinator.id_)
+        self.assertEqual(activity.object_, coordinator)
         self.assertEqual(activity.target, case.id_)
         self.assertEqual(activity.to, coordinator.id_)
 
@@ -709,7 +709,10 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.type_, "Remove")
 
         self.assertEqual(activity.actor, vendor.id_)
-        self.assertEqual(activity.object_, coord_p.id_)
+        participant = cast(CaseParticipant, activity.object_)
+        self.assertEqual(participant.attributed_to, coord_p.attributed_to)
+        self.assertEqual(participant.name, coord_p.name)
+        self.assertEqual(participant.context, case.id_)
         self.assertEqual(activity.origin, case.id_)
 
     def test_propose_embargo(self):

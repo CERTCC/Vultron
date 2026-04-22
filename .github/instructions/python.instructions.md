@@ -51,7 +51,7 @@ applyTo: "**/*.py"
 ### Imports & Layering Rules (Hexagonal Architecture)
 
 - **Layer Separation**: Keep core modules free of adapter or framework
-  imports. Core code (`vultron/core/`) must not import FastAPI, TinyDB, or
+  imports. Core code (`vultron/core/`) must not import FastAPI, SQLModel, or
   wire-layer modules. Adapters may depend on all layers.
 - **Neutral Modules**: Use small neutral modules (e.g., `types.py`,
   `dispatcher_errors.py`) when shareable types avoid circular imports.

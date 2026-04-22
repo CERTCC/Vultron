@@ -79,12 +79,11 @@ Objective: Complete the highest-priority pending implementation task.
 
 4. If Validation Succeeds
 
-    - Append a 'what was done' summary to plan/IMPLEMENTATION_HISTORY.md 
+    - Append a 'what was done' summary to plan/IMPLEMENTATION_HISTORY.md
       with relevant details of the task(s) completed.
-    - Mark the task complete in plan/IMPLEMENTATION_PLAN.md, replacing task 
-      details with a one-line summary of the work done. (Actual task details 
-      should be captured in the IMPLEMENTATION_HISTORY.md entry so we're not 
-      losing information, just relocating it from future-planning to past-record.)
+    - Delete the completed task from plan/IMPLEMENTATION_PLAN.md entirely.
+      Do not leave tombstones, `[x]` checkboxes, or one-line summaries — the
+      task details belong in IMPLEMENTATION_HISTORY.md, not in PLAN.
     - capture any lessons learned or constraints in 
       plan/IMPLEMENTATION_NOTES.md.
     - `git add` modified files and commit with a clear, specific message.

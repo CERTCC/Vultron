@@ -135,9 +135,9 @@ class ProposeEmbargoRequest(BaseModel):
         return v
 
 
-class EvaluateEmbargoRequest(BaseModel):
+class AcceptEmbargoRequest(BaseModel):
     """
-    Request body for the evaluate-embargo trigger endpoint.
+    Request body for the accept-embargo trigger endpoint.
 
     TB-03-001: Must include case_id to identify the target case.
     TB-03-002: Unknown fields are silently ignored (extra="ignore").
@@ -151,6 +151,53 @@ class EvaluateEmbargoRequest(BaseModel):
     proposal_id: NonEmptyString | None = None
 
 
+# Backward-compatible alias
+EvaluateEmbargoRequest = AcceptEmbargoRequest
+
+
+class RejectEmbargoRequest(BaseModel):
+    """
+    Request body for the reject-embargo trigger endpoint.
+
+    TB-03-001: Must include case_id to identify the target case.
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    Optional proposal_id identifies the specific EmProposeEmbargoActivity to reject;
+    if omitted, the first pending proposal for the case is used.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString
+    proposal_id: NonEmptyString | None = None
+
+
+class ProposeEmbargoRevisionRequest(BaseModel):
+    """
+    Request body for the propose-embargo-revision trigger endpoint.
+
+    TB-03-001: Must include case_id to identify the target case.
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    end_time is required and must be timezone-aware and in the future.
+    Only valid when EM state is ACTIVE or REVISE; use propose-embargo for
+    initial proposals.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString
+    note: NonEmptyString | None = None
+    end_time: datetime
+
+    @field_validator("end_time")
+    @classmethod
+    def end_time_must_be_tz_aware_and_future(cls, v: datetime) -> datetime:
+        if v.tzinfo is None or v.utcoffset() is None:
+            raise ValueError("end_time must be timezone-aware")
+        if v <= datetime.now(tz=timezone.utc):
+            raise ValueError("end_time must be in the future")
+        return v
+
+
 class TerminateEmbargoRequest(BaseModel):
     """
     Request body for the terminate-embargo trigger endpoint.
@@ -162,3 +209,118 @@ class TerminateEmbargoRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     case_id: UriString
+
+
+class SubmitReportRequest(BaseModel):
+    """Request body for the submit-report trigger endpoint.
+
+    The finder uses this to create a VulnerabilityReport and offer it to a
+    recipient.  The actor_id is taken from the URL path; report_name,
+    report_content, and recipient_id must be supplied in the request body.
+
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    report_name: NonEmptyString
+    report_content: NonEmptyString
+    recipient_id: UriString
+
+
+class AddNoteToCaseRequest(BaseModel):
+    """Request body for the add-note-to-case trigger endpoint.
+
+    TB-03-001: Must include case_id to identify the target case.
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString
+    note_name: NonEmptyString
+    note_content: NonEmptyString
+    in_reply_to: NonEmptyString | None = None
+
+
+class CreateCaseRequest(BaseModel):
+    """Request body for the create-case trigger endpoint.
+
+    The actor creates a local VulnerabilityCase and queues a
+    CreateCaseActivity in their outbox for delivery to the CaseActor.
+
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    name: NonEmptyString
+    content: NonEmptyString
+    report_id: NonEmptyString | None = None
+
+
+class AddReportToCaseRequest(BaseModel):
+    """Request body for the add-report-to-case trigger endpoint.
+
+    TB-03-001: Must include case_id and report_id.
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString
+    report_id: NonEmptyString
+
+
+class SuggestActorToCaseRequest(BaseModel):
+    """Request body for the suggest-actor-to-case trigger endpoint.
+
+    TB-03-001: Must include case_id and suggested_actor_id.
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString
+    suggested_actor_id: UriString
+
+
+class AcceptCaseInviteRequest(BaseModel):
+    """Request body for the accept-case-invite trigger endpoint.
+
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    invite_id identifies the RmInviteToCaseActivity to accept.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    invite_id: NonEmptyString
+
+
+class InviteActorToCaseRequest(BaseModel):
+    """Request body for the invite-actor-to-case trigger endpoint.
+
+    TB-03-001: Must include case_id and invitee_id.
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString
+    invitee_id: UriString
+
+
+class SyncLogEntryRequest(BaseModel):
+    """Request body for the sync-log-entry trigger endpoint.
+
+    Commits a new log entry to the local CaseEventLog chain and fans it out
+    to all case participants via ``Announce(CaseLogEntry)`` activities.
+
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString
+    object_id: UriString
+    event_type: NonEmptyString

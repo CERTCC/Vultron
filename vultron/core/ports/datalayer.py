@@ -15,7 +15,7 @@
 
 """Outbound (driven) port — storage interface used by the core domain layer.
 
-Concrete implementations (e.g. ``TinyDbDataLayer``) live in the adapter
+Concrete implementations (e.g. ``SqliteDataLayer``) live in the adapter
 layer at ``vultron/adapters/driven/`` and import this Protocol to
 verify structural conformance.
 
@@ -111,4 +111,8 @@ class DataLayer(Protocol):
 
     def find_actor_by_short_id(
         self, short_id: str
+    ) -> PersistableModel | None: ...
+
+    def find_case_by_report_id(
+        self, report_id: str
     ) -> PersistableModel | None: ...

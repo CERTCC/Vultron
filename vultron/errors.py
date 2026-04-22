@@ -54,6 +54,27 @@ class VultronApiHandlerNotFoundError(VultronError, KeyError):
     """Raised when no handler is found for a given activity type."""
 
 
+class VultronOutboxObjectIntegrityError(VultronError):
+    """Raised when an outbound activity's object_ is a bare string URI or
+    Link reference instead of the required inline domain object.
+
+    Outbound initiating activities (Create, Offer, Invite, Announce, Add,
+    Remove, etc.) MUST carry a fully inline typed object so that recipients
+    can determine the semantic type without a round-trip to the sender's
+    DataLayer.  See specs/message-validation.md MV-09-001, MV-09-002.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        activity_id: str | None = None,
+        activity_type: str | None = None,
+    ):
+        self.activity_id = activity_id
+        self.activity_type = activity_type
+        super().__init__(message)
+
+
 class CvdStateModelError(VultronError):
     """Base class for errors in the CVD state model."""
 

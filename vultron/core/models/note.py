@@ -15,6 +15,8 @@
 
 """Domain representation of a Note."""
 
+from pydantic import Field
+
 from vultron.core.models.base import NonEmptyString, VultronObject
 
 
@@ -24,5 +26,9 @@ class VultronNote(VultronObject):
     ``type_`` is ``"Note"`` to match the wire value.
     """
 
-    type_: str = "Note"
+    type_: str = Field(
+        default="Note",
+        validation_alias="type",
+        serialization_alias="type",
+    )
     content: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]

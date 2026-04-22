@@ -24,10 +24,14 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
-from vultron.adapters.driving.fastapi.routers.trigger_case import _actor_dl
+from vultron.adapters.driving.fastapi.routers.trigger_case import (
+    _actor_dl,
+    _canonical_actor_dl,
+)
 from vultron.adapters.driving.fastapi.routers import (
     trigger_case as trigger_case_router,
 )
+from vultron.adapters.utils import parse_id
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
@@ -47,19 +51,19 @@ def actor_and_dl():
     The actor is then persisted into its own DataLayer.  Callers should
     unpack via the ``actor`` and ``dl`` fixtures below.
     """
-    from vultron.adapters.driven.datalayer_tinydb import (
-        TinyDbDataLayer,
+    from vultron.adapters.driven.datalayer_sqlite import (
+        SqliteDataLayer,
         reset_datalayer,
     )
 
     actor_obj = as_Service(name="Vendor Co")
     actor_id = actor_obj.id_
     reset_datalayer(actor_id)
-    actor_dl = TinyDbDataLayer(db_path=None, actor_id=actor_id)
+    actor_dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
     actor_dl.clear_all()
     actor_dl.create(actor_obj)
     yield actor_obj, actor_dl
-    actor_dl.clear_all()
+    actor_dl.close()
     reset_datalayer(actor_id)
 
 
@@ -80,6 +84,7 @@ def client_triggers(dl):
     app = FastAPI()
     app.include_router(trigger_case_router.router)
     app.dependency_overrides[_actor_dl] = lambda: dl
+    app.dependency_overrides[_canonical_actor_dl] = lambda: dl
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
@@ -411,3 +416,355 @@ def test_trigger_defer_case_updates_participant_rm_state(
                 found_deferred = True
                 break
     assert found_deferred, "Participant RM state was not updated to DEFERRED"
+
+
+# ===========================================================================
+# Tests for outbox delivery scheduling (D5-6-TRIGDELIV)
+# ===========================================================================
+
+
+class TestTriggerCaseOutboxScheduling:
+    """D5-6-TRIGDELIV: case trigger endpoints must schedule outbox_handler."""
+
+    def test_engage_case_schedules_outbox_handler(
+        self, client_triggers, actor, case_with_participant
+    ):
+        """engage-case schedules outbox delivery after execution."""
+        from unittest.mock import AsyncMock, patch
+
+        with patch(
+            "vultron.adapters.driving.fastapi.routers"
+            ".trigger_case.outbox_handler",
+            new_callable=AsyncMock,
+        ) as mock_outbox:
+            resp = client_triggers.post(
+                f"/actors/{actor.id_}/trigger/engage-case",
+                json={"case_id": case_with_participant.id_},
+            )
+        assert resp.status_code == status.HTTP_202_ACCEPTED
+        mock_outbox.assert_called_once()
+        assert mock_outbox.call_args.args[0] == actor.id_
+
+    def test_defer_case_schedules_outbox_handler(
+        self, client_triggers, actor, case_with_participant
+    ):
+        """defer-case schedules outbox delivery after execution."""
+        from unittest.mock import AsyncMock, patch
+
+        with patch(
+            "vultron.adapters.driving.fastapi.routers"
+            ".trigger_case.outbox_handler",
+            new_callable=AsyncMock,
+        ) as mock_outbox:
+            resp = client_triggers.post(
+                f"/actors/{actor.id_}/trigger/defer-case",
+                json={"case_id": case_with_participant.id_},
+            )
+        assert resp.status_code == status.HTTP_202_ACCEPTED
+        mock_outbox.assert_called_once()
+        assert mock_outbox.call_args.args[0] == actor.id_
+
+
+# ===========================================================================
+# Regression tests for BUG-2026040901 — outbox delivery silently dropped
+# ===========================================================================
+
+
+class TestTriggerCaseOutboxCanonicalId:
+    """Regression tests for BUG-2026040901.
+
+    The bug: trigger routes receive ``actor_id`` as a short UUID from the URL
+    path, but use-case helpers write to the outbox using the canonical full URI
+    (``actor.id_``).  If ``outbox_handler`` is called with the short UUID, it
+    reads from a different TinyDB table and finds nothing — silently dropping
+    all outbox activities.
+
+    Fix: ``_canonical_actor_dl`` resolves the actor from the DataLayer and
+    returns an actor-scoped DataLayer keyed by the canonical URI, which is then
+    passed to ``outbox_handler``.
+    """
+
+    def test_engage_case_canonical_actor_dl_resolves_full_uri(
+        self, dl, actor, case_with_participant
+    ):
+        """outbox_handler receives the canonical-URI-keyed DataLayer.
+
+        When the URL uses a short UUID (last path segment of actor.id_),
+        _canonical_actor_dl must resolve to the full URI so that
+        outbox_handler reads from the same table as record_outbox_item.
+        """
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        short_uuid = actor.id_.rstrip("/").rsplit("/", 1)[-1]
+
+        # Fresh app WITHOUT overriding _canonical_actor_dl so the real
+        # dependency resolves the canonical URI via the real DataLayer.
+        app = FastAPI()
+        app.include_router(trigger_case_router.router)
+        app.dependency_overrides[_actor_dl] = lambda: dl
+        # _canonical_actor_dl intentionally NOT overridden.
+
+        captured_dl_arg = []
+
+        async def capture_outbox(actor_id, actor_dl, shared_dl):
+            captured_dl_arg.append((actor_id, actor_dl))
+
+        import pytest
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(
+                "vultron.adapters.driving.fastapi.routers"
+                ".trigger_case.outbox_handler",
+                capture_outbox,
+            )
+            client = TestClient(app)
+            resp = client.post(
+                f"/actors/{short_uuid}/trigger/engage-case",
+                json={"case_id": case_with_participant.id_},
+            )
+
+        assert resp.status_code == 202, resp.json()
+        assert len(captured_dl_arg) == 1, "outbox_handler was not called"
+        _, actor_dl_used = captured_dl_arg[0]
+        # The actor-scoped DL must be keyed by the FULL canonical URI
+        assert actor_dl_used._actor_id == actor.id_, (
+            f"Expected canonical URI '{actor.id_}', "
+            f"got '{actor_dl_used._actor_id}'"
+        )
+
+
+# ===========================================================================
+# Fixtures for create-case and add-report-to-case
+# ===========================================================================
+
+
+@pytest.fixture
+def report(dl):
+    """Create a persisted VulnerabilityReport for use in tests."""
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        VulnerabilityReport,
+    )
+
+    report_obj = VulnerabilityReport(
+        name="TEST-REPORT-001",
+        content="Vulnerability description",
+    )
+    dl.create(report_obj)
+    return report_obj
+
+
+@pytest.fixture
+def http_actor(dl):
+    """Create a URL-form actor to match demo trigger path behavior."""
+    actor_obj = as_Service(
+        id_="https://example.test/api/v2/actors/vendor-http",
+        name="Vendor Co HTTP",
+    )
+    dl.create(actor_obj)
+    return actor_obj
+
+
+# ===========================================================================
+# Tests for trigger/create-case
+# ===========================================================================
+
+
+def test_trigger_create_case_returns_202(client_triggers, actor):
+    """TB-01-002: POST /actors/{id}/trigger/create-case returns HTTP 202."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/create-case",
+        json={"name": "Case-001", "content": "Case content"},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_create_case_response_contains_activity(
+    client_triggers, actor
+):
+    """TB-04-001: Successful trigger response body contains 'activity' key."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/create-case",
+        json={"name": "Case-001", "content": "Case content"},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert "activity" in data
+    assert data["activity"] is not None
+
+
+def test_trigger_create_case_with_report_id(client_triggers, actor, report):
+    """Create-case with optional report_id returns 202."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/create-case",
+        json={
+            "name": "Case-001",
+            "content": "Case content",
+            "report_id": report.id_,
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_create_case_missing_name_returns_422(client_triggers, actor):
+    """TB-03-001: Missing required field returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/create-case",
+        json={"content": "Case content"},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_create_case_ignores_unknown_fields(client_triggers, actor):
+    """TB-03-002: Unknown fields in request body are silently ignored."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/create-case",
+        json={"name": "Case-001", "content": "Case content", "extra": 99},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_create_case_unknown_actor_returns_404(client_triggers):
+    """TB-01-003: Unknown actor_id returns HTTP 404."""
+    resp = client_triggers.post(
+        "/actors/nonexistent-actor/trigger/create-case",
+        json={"name": "Case-001", "content": "Case content"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    data = resp.json()
+    assert data["detail"]["error"] == "NotFound"
+
+
+def test_trigger_create_case_short_actor_id_updates_outbox_without_warning(
+    client_triggers, dl, http_actor, caplog
+):
+    """Short actor IDs should still update the canonical actor outbox."""
+    import logging
+
+    short_uuid = parse_id(http_actor.id_)["object_id"]
+    actor_before = dl.read(http_actor.id_)
+    outbox_before = set(
+        item for item in actor_before.outbox.items if isinstance(item, str)
+    )
+
+    with caplog.at_level(logging.WARNING):
+        resp = client_triggers.post(
+            f"/actors/{short_uuid}/trigger/create-case",
+            json={"name": "Case-001", "content": "Case content"},
+        )
+
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    actor_after = dl.read(http_actor.id_)
+    outbox_after = set(
+        item for item in actor_after.outbox.items if isinstance(item, str)
+    )
+    assert len(outbox_after - outbox_before) >= 1
+    assert not any(
+        "add_activity_to_outbox" in record.message for record in caplog.records
+    )
+
+
+# ===========================================================================
+# Tests for trigger/add-report-to-case
+# ===========================================================================
+
+
+def test_trigger_add_report_to_case_returns_202(
+    client_triggers, actor, case_with_participant, report
+):
+    """TB-01-002: POST /actors/{id}/trigger/add-report-to-case returns 202."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-report-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "report_id": report.id_,
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_add_report_to_case_response_contains_activity(
+    client_triggers, actor, case_with_participant, report
+):
+    """TB-04-001: Successful trigger response contains 'activity' key."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-report-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "report_id": report.id_,
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert "activity" in data
+
+
+def test_trigger_add_report_to_case_missing_report_id_returns_422(
+    client_triggers, actor, case_with_participant
+):
+    """TB-03-001: Missing report_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-report-to-case",
+        json={"case_id": case_with_participant.id_},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_add_report_to_case_unknown_case_returns_404(
+    client_triggers, actor, report
+):
+    """TB-01-003: Unknown case_id returns HTTP 404."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-report-to-case",
+        json={
+            "case_id": "urn:uuid:nonexistent-case",
+            "report_id": report.id_,
+        },
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_trigger_add_report_to_case_unknown_report_returns_404(
+    client_triggers, actor, case_with_participant
+):
+    """TB-01-003: Unknown report_id returns HTTP 404."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-report-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "report_id": "urn:uuid:nonexistent-report",
+        },
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_trigger_add_report_short_actor_id_updates_outbox_without_warning(
+    client_triggers, dl, http_actor, case_with_participant, report, caplog
+):
+    """Short actor IDs should not break add-report outbox updates."""
+    import logging
+
+    short_uuid = parse_id(http_actor.id_)["object_id"]
+    actor_before = dl.read(http_actor.id_)
+    outbox_before = set(
+        item for item in actor_before.outbox.items if isinstance(item, str)
+    )
+
+    with caplog.at_level(logging.WARNING):
+        resp = client_triggers.post(
+            f"/actors/{short_uuid}/trigger/add-report-to-case",
+            json={
+                "case_id": case_with_participant.id_,
+                "report_id": report.id_,
+            },
+        )
+
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    actor_after = dl.read(http_actor.id_)
+    outbox_after = set(
+        item for item in actor_after.outbox.items if isinstance(item, str)
+    )
+    assert len(outbox_after - outbox_before) >= 1
+    assert not any(
+        "add_activity_to_outbox" in record.message for record in caplog.records
+    )

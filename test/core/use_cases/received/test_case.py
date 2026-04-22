@@ -15,7 +15,7 @@
 import logging
 from typing import cast
 
-from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.activity import VultronActivity
 from vultron.core.use_cases.received.case import UpdateCaseReceivedUseCase
@@ -33,7 +33,7 @@ class TestCaseUseCases:
         self, monkeypatch, caplog, make_payload
     ):
         """update_case applies name/summary/content updates from a full object."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         owner_id = "https://example.org/users/owner"
         case = VulnerabilityCase(
             id_="https://example.org/cases/uc1",
@@ -77,7 +77,7 @@ class TestCaseUseCases:
         self, monkeypatch, caplog, make_payload
     ):
         """update_case logs a warning and skips if actor is not the case owner."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         owner_id = "https://example.org/users/owner"
         non_owner_id = "https://example.org/users/other"
         case = VulnerabilityCase(
@@ -109,7 +109,7 @@ class TestCaseUseCases:
 
     def test_update_case_idempotent(self, monkeypatch, make_payload):
         """update_case with same data produces the same result (last-write-wins)."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         owner_id = "https://example.org/users/owner"
         case = VulnerabilityCase(
             id_="https://example.org/cases/uc3",
@@ -151,7 +151,7 @@ class TestCaseUseCases:
         self, monkeypatch, caplog, make_payload
     ):
         """update_case logs WARNING per CM-10-004 when a participant has not accepted the active embargo."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         owner_id = "https://example.org/users/owner"
         actor_id = "https://example.org/users/alice"
         embargo = EmbargoEvent(id_="https://example.org/embargoes/em1")
@@ -194,7 +194,7 @@ class TestCaseUseCases:
         self, monkeypatch, caplog, make_payload
     ):
         """update_case does NOT warn when all participants have accepted the active embargo (CM-10-004)."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         owner_id = "https://example.org/users/owner"
         actor_id = "https://example.org/users/bob"
         embargo = EmbargoEvent(id_="https://example.org/embargoes/em2")
@@ -234,7 +234,7 @@ class TestCaseUseCases:
         self, monkeypatch, caplog, make_payload
     ):
         """update_case does NOT warn when there is no active embargo (CM-10-004)."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         owner_id = "https://example.org/users/owner"
         actor_id = "https://example.org/users/carol"
 
@@ -276,7 +276,7 @@ class TestCaseUseCases:
         self, make_payload
     ):
         """After a case update, the CaseActor outbox contains an Announce."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         owner_id = "https://example.org/users/owner"
         participant_id = "https://example.org/users/alice"
         case_id = "https://example.org/cases/bc1"
@@ -322,13 +322,13 @@ class TestCaseUseCases:
         assert participant_id in broadcast.to
 
         # Verify the broadcast is also enqueued for delivery by outbox_handler
-        queue_table = dl._db.table(f"{case_actor.id_}_outbox")
-        queued_ids = [row["activity_id"] for row in queue_table.all()]
+        scoped_dl = dl.clone_for_actor(case_actor.id_)
+        queued_ids = scoped_dl.outbox_list()
         assert broadcast_id in queued_ids
 
     def test_update_case_no_broadcast_when_no_case_actor(self, make_payload):
         """Broadcast is skipped gracefully when no CaseActor exists."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         owner_id = "https://example.org/users/owner"
         case_id = "https://example.org/cases/bc2"
 
@@ -353,7 +353,7 @@ class TestCaseUseCases:
 
     def test_update_case_no_broadcast_when_no_participants(self, make_payload):
         """Broadcast is skipped gracefully when the case has no participants."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         owner_id = "https://example.org/users/owner"
         case_id = "https://example.org/cases/bc3"
 
@@ -387,7 +387,7 @@ class TestCaseUseCases:
         self, make_payload
     ):
         """Broadcast Announce.to includes every participant actor ID."""
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         owner_id = "https://example.org/users/owner"
         case_id = "https://example.org/cases/bc4"
         alice = "https://example.org/users/alice"

@@ -5,11 +5,10 @@ from typing import Any, cast
 
 from vultron.core.models.events import MessageSemantics
 from vultron.wire.as2.extractor import (
-    SEMANTICS_ACTIVITY_PATTERNS,
     ActivityPattern,
     find_matching_semantics,
-    extract_intent,
 )
+from vultron.semantic_registry import SEMANTIC_REGISTRY, extract_event
 
 
 def test_find_matching_semantics_returns_unknown_for_unmatched_activity():
@@ -47,11 +46,14 @@ def test_find_matching_semantics_returns_correct_semantics_for_create_report():
 
 
 def test_all_message_semantics_except_unknown_have_patterns():
+    _no_pattern_sentinels = {
+        MessageSemantics.UNKNOWN,
+        MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT,
+    }
     missing = [
-        m
-        for m in MessageSemantics
-        if m != MessageSemantics.UNKNOWN
-        and m not in SEMANTICS_ACTIVITY_PATTERNS
+        e.semantics
+        for e in SEMANTIC_REGISTRY
+        if e.semantics not in _no_pattern_sentinels and e.pattern is None
     ]
     assert not missing, f"Missing patterns for: {missing}"
 
@@ -98,7 +100,7 @@ def test_extract_intent_report_pass_through_fields():
         updated=now,
     )
     activity = as_Create(actor="https://example.org/alice", object_=report)
-    event = extract_intent(activity)
+    event = extract_event(activity)
 
     r = cast(Any, event).report
     assert r is not None
@@ -126,7 +128,7 @@ def test_extract_intent_case_pass_through_fields():
         updated=now,
     )
     activity = as_Create(actor="https://example.org/alice", object_=case)
-    event = extract_intent(activity)
+    event = extract_event(activity)
 
     c = cast(Any, event).case
     assert c is not None
@@ -153,7 +155,7 @@ def test_extract_intent_embargo_pass_through_fields():
         object_=embargo,
         context="https://example.org/cases/1",
     )
-    event = extract_intent(activity)
+    event = extract_event(activity)
 
     e = cast(Any, event).embargo
     assert e is not None
@@ -177,7 +179,7 @@ def test_extract_intent_note_pass_through_fields():
         context="https://example.org/cases/1",
     )
     activity = as_Create(actor="https://example.org/alice", object_=note)
-    event = extract_intent(activity)
+    event = extract_event(activity)
 
     n = cast(Any, event).note
     assert n is not None
@@ -200,7 +202,7 @@ def test_extract_intent_activity_origin_field():
         object_=report,
         origin="https://example.org/cases/original",
     )
-    event = extract_intent(activity)
+    event = extract_event(activity)
 
     assert event.activity is not None
     assert event.activity.origin == "https://example.org/cases/original"
@@ -227,7 +229,7 @@ def test_extract_intent_participant_case_roles():
         object_=participant,
         context="https://example.org/cases/1",
     )
-    event = extract_intent(activity)
+    event = extract_event(activity)
 
     p = cast(Any, event).participant
     assert p is not None
@@ -248,7 +250,7 @@ def test_extract_intent_case_status_name():
         object_=cs,
         context="https://example.org/cases/1",
     )
-    event = extract_intent(activity)
+    event = extract_event(activity)
 
     s = cast(Any, event).status
     assert s is not None
@@ -271,7 +273,7 @@ def test_extract_intent_participant_status_vfd_state():
         actor="https://example.org/alice",
         object_=ps,
     )
-    event = extract_intent(activity)
+    event = extract_event(activity)
 
     s = cast(Any, event).status
     assert s is not None

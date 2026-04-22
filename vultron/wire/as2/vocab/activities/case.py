@@ -18,12 +18,13 @@ Each activity should have a VulnerabilityCase object as either its target or obj
 
 from typing import TypeAlias
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
+    as_Announce,
     as_Create,
     as_Ignore,
     as_Invite,
@@ -33,14 +34,16 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
     as_Update,
 )
-from vultron.wire.as2.vocab.base.objects.actors import as_ActorRef
-from vultron.wire.as2.vocab.base.objects.object_types import as_NoteRef
-from vultron.wire.as2.vocab.objects.case_status import CaseStatusRef
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_ActorRef
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_status import CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    VulnerabilityCase,
     VulnerabilityCaseRef,
+    VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReportRef,
+    VulnerabilityReport,
 )
 
 ########################################################################################
@@ -54,8 +57,8 @@ class AddReportToCaseActivity(as_Add):
     target: VulnerabilityCase
     """
 
-    object_: VulnerabilityReportRef = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: VulnerabilityReport = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
 
@@ -74,8 +77,8 @@ class AddStatusToCaseActivity(as_Add):
     target: VulnerabilityCase
     """
 
-    object_: CaseStatusRef = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: CaseStatus = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
 
@@ -91,8 +94,8 @@ class CreateCaseActivity(as_Create):
     object_: VulnerabilityCase
     """
 
-    object_: VulnerabilityCaseRef = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
@@ -101,8 +104,8 @@ class CreateCaseStatusActivity(as_Create):
     object_: CaseStatus
     """
 
-    object_: CaseStatusRef = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: CaseStatus = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
@@ -113,8 +116,8 @@ class AddNoteToCaseActivity(as_Add):
     target: VulnerabilityCase
     """
 
-    object_: as_NoteRef = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: as_Note = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
 
@@ -125,8 +128,8 @@ class UpdateCaseActivity(as_Update):
     object_: VulnerabilityCase
     """
 
-    object_: VulnerabilityCaseRef = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
@@ -142,8 +145,8 @@ class RmEngageCaseActivity(as_Join):
     object_: VulnerabilityCase
     """
 
-    object_: VulnerabilityCaseRef = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
@@ -157,8 +160,8 @@ class RmDeferCaseActivity(as_Ignore):
     object_: VulnerabilityCase
     """
 
-    object_: VulnerabilityCaseRef = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
@@ -171,19 +174,26 @@ class RmCloseCaseActivity(as_Leave):
     object_: VulnerabilityCase
     """
 
-    object_: VulnerabilityCaseRef = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
 class OfferCaseOwnershipTransferActivity(as_Offer):
     """The actor is offering to transfer ownership of the case to another actor.
-    object_: VulnerabilityCase
+
+    The case MUST be provided as an inline ``VulnerabilityCase`` object so that
+    the recipient can identify the object type unambiguously during semantic
+    pattern matching.  Passing only a string URI makes the activity
+    indistinguishable from a ``SUBMIT_REPORT`` Offer and causes incorrect
+    dispatch.
+
+    object_: VulnerabilityCase (inline — not a bare string ID)
     target: as_Actor
     """
 
-    object_: VulnerabilityCaseRef = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
     target: as_ActorRef = None
 
@@ -191,22 +201,24 @@ class OfferCaseOwnershipTransferActivity(as_Offer):
 class AcceptCaseOwnershipTransferActivity(as_Accept):
     """The actor is accepting an offer to transfer ownership of the case.
 
-    - object_: the OfferCaseOwnershipTransferActivity being accepted
+    - object_: the OfferCaseOwnershipTransferActivity being accepted (inline
+      typed object required — bare string IDs are rejected at construction time)
     """
 
-    object_: OfferCaseOwnershipTransferActivity | str | None = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: OfferCaseOwnershipTransferActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
 class RejectCaseOwnershipTransferActivity(as_Reject):
     """The actor is rejecting an offer to transfer ownership of the case.
 
-    - object_: the OfferCaseOwnershipTransferActivity being rejected
+    - object_: the OfferCaseOwnershipTransferActivity being rejected (inline
+      typed object required — bare string IDs are rejected at construction time)
     """
 
-    object_: OfferCaseOwnershipTransferActivity | str | None = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: OfferCaseOwnershipTransferActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
 
@@ -218,10 +230,10 @@ class RmInviteToCaseActivity(as_Invite):
     target: VulnerabilityCase
     """
 
-    object_: as_ActorRef = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: as_Actor = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
-    target: VulnerabilityCaseRef = None
+    target: VulnerabilityCaseStub | str | None = None
 
 
 RmInviteToCaseRef: TypeAlias = ActivityStreamRef[RmInviteToCaseActivity]
@@ -231,12 +243,20 @@ class RmAcceptInviteToCaseActivity(as_Accept):
     """The actor is accepting an invitation to a case.
     This corresponds to the Vultron Message Type RV when the case already exists.
     See also RmValidateReportActivity for the scenario when the case does not exist yet.
-    object_: the RmInviteToCaseActivity being accepted
+
+    object_: the RmInviteToCaseActivity being accepted (inline typed object
+        required — bare string IDs are rejected at construction time)
     """
 
-    object_: RmInviteToCaseRef = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: RmInviteToCaseActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
+
+    @model_validator(mode="after")
+    def set_in_reply_to_from_invite(self):
+        if self.in_reply_to is None:
+            self.in_reply_to = self.object_.id_
+        return self
 
 
 class RmRejectInviteToCaseActivity(as_Reject):
@@ -244,9 +264,32 @@ class RmRejectInviteToCaseActivity(as_Reject):
     This corresponds to the Vultron Message Type RI when the case already exists.
     See also RmInvalidateReportActivity for the scenario when the case does not exist yet.
 
-    `object_`: the `RmInviteToCaseActivity` being rejected
+    `object_`: the `RmInviteToCaseActivity` being rejected (inline typed
+        object required — bare string IDs are rejected at construction time)
     """
 
-    object_: RmInviteToCaseRef = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: RmInviteToCaseActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+    @model_validator(mode="after")
+    def set_in_reply_to_from_invite(self):
+        if self.in_reply_to is None:
+            self.in_reply_to = self.object_.id_
+        return self
+
+
+class AnnounceVulnerabilityCaseActivity(as_Announce):
+    """The case owner announces full case details to a newly accepted invitee.
+
+    Sent by the case owner after an ``Accept(Invite)`` is received and the
+    invitee's embargo consent has been verified (MV-10-003 through MV-10-006).
+    The full :class:`VulnerabilityCase` is sent as the inline object so the
+    recipient can seed their local DataLayer.
+
+    ``object_``: :class:`VulnerabilityCase` — the complete case object.
+    """
+
+    object_: VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )

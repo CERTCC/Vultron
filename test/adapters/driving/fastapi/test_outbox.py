@@ -36,8 +36,11 @@ from types import SimpleNamespace
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 from vultron.core.models.activity import VultronActivity
+from vultron.errors import VultronOutboxObjectIntegrityError
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -320,3 +323,395 @@ def test_extract_recipients_returns_empty_for_no_fields():
     activity = SimpleNamespace(to=None, cc=None, bto=None, bcc=None)
     recipients = oh._extract_recipients(activity)
     assert recipients == []
+
+
+# ---------------------------------------------------------------------------
+# handle_outbox_item — improved delivery log content (D5-6-LOGCTX)
+# ---------------------------------------------------------------------------
+
+
+def test_handle_outbox_item_logs_activity_type_in_delivery(caplog):
+    """handle_outbox_item logs the activity type in the delivery message."""
+    recipient = "https://example.org/actors/alice"
+    activity = VultronActivity(
+        id_="urn:test:act-type-log",
+        type_="Announce",
+        actor="https://example.org/actors/bob",
+        to=[recipient],
+    )
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = activity
+    mock_emitter = AsyncMock()
+
+    with caplog.at_level("INFO"):
+        asyncio.run(
+            oh.handle_outbox_item(
+                "actor-bob", activity.id_, mock_dl, mock_emitter
+            )
+        )
+
+    assert "Announce" in caplog.text
+
+
+def test_handle_outbox_item_logs_recipient_in_delivery(caplog):
+    """handle_outbox_item logs the recipient URL in the delivery message."""
+    recipient = "https://example.org/actors/alice"
+    activity = VultronActivity(
+        id_="urn:test:act-recip-log",
+        type_="Create",
+        actor="https://example.org/actors/bob",
+        to=[recipient],
+    )
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = activity
+    mock_emitter = AsyncMock()
+
+    with caplog.at_level("INFO"):
+        asyncio.run(
+            oh.handle_outbox_item(
+                "actor-bob", activity.id_, mock_dl, mock_emitter
+            )
+        )
+
+    assert recipient in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# _format_object helper (D5-7-LOGCLEAN-1)
+# ---------------------------------------------------------------------------
+
+
+def test_format_object_returns_type_and_id_for_domain_object():
+    """_format_object produces '<TypeName> <id>' for objects with id_."""
+    obj = SimpleNamespace(id_="urn:uuid:abc-123")
+    result = oh._format_object(obj)
+    assert result == "SimpleNamespace urn:uuid:abc-123"
+
+
+def test_format_object_passes_through_strings():
+    """_format_object returns strings unchanged."""
+    uri = "urn:uuid:def-456"
+    assert oh._format_object(uri) == uri
+
+
+def test_format_object_handles_none():
+    """_format_object returns 'None' for None."""
+    assert oh._format_object(None) == "None"
+
+
+def test_format_object_handles_object_without_id():
+    """_format_object returns just the class name when id_ is absent."""
+    obj = SimpleNamespace()  # no id_ attribute
+    result = oh._format_object(obj)
+    assert result == "SimpleNamespace"
+
+
+def test_handle_outbox_item_delivery_log_no_pydantic_repr(caplog):
+    """Delivery log must not contain Pydantic field-repr noise (D5-7-LOGCLEAN-1).
+
+    The log should never include fragments like ``type_=<``, ``context_=``, or
+    ``id_='`` that indicate a raw Pydantic repr was used.
+    """
+    recipient = "https://example.org/actors/alice"
+    obj_id = "urn:uuid:case-001"
+    # Simulate a domain object (Pydantic-like) as the activity's object_
+    domain_obj = SimpleNamespace(id_=obj_id)
+    activity = VultronActivity(
+        id_="urn:test:act-logclean",
+        type_="Create",
+        actor="https://example.org/actors/bob",
+        to=[recipient],
+    )
+    # Attach domain obj so _format_object is exercised via activity_object
+    activity.object_ = domain_obj  # type: ignore[assignment]
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = activity
+    mock_emitter = AsyncMock()
+
+    with caplog.at_level("INFO"):
+        asyncio.run(
+            oh.handle_outbox_item(
+                "actor-bob", activity.id_, mock_dl, mock_emitter
+            )
+        )
+
+    delivery_log = " ".join(
+        r.message for r in caplog.records if "Delivered" in r.message
+    )
+    assert delivery_log, "Expected a 'Delivered' log entry"
+    # Must contain the concise object summary
+    assert "SimpleNamespace" in delivery_log
+    assert obj_id in delivery_log
+    # Must NOT contain Pydantic field-repr fragments
+    assert "type_=<" not in delivery_log
+    assert "context_=" not in delivery_log
+
+
+# ---------------------------------------------------------------------------
+# handle_outbox_item — expansion bridge for Add, Invite, Accept (P347-BRIDGE)
+# ---------------------------------------------------------------------------
+
+
+def _make_activity_with_bare_object(
+    activity_type: str, activity_id: str, recipient: str
+) -> VultronActivity:
+    """Return a VultronActivity of *activity_type* with a bare-string object_."""
+    act = VultronActivity(
+        id_=activity_id,
+        type_=activity_type,
+        actor="https://example.org/actors/bob",
+        to=[recipient],
+    )
+    act.object_ = "urn:uuid:inner-obj-001"  # type: ignore[assignment]
+    return act
+
+
+@pytest.mark.parametrize("activity_type", ["Add", "Invite", "Accept"])
+def test_handle_outbox_item_expands_bare_object_for_new_types(
+    activity_type, caplog
+):
+    """handle_outbox_item expands bare-string object_ for Add/Invite/Accept."""
+    recipient = "https://example.org/actors/alice"
+    activity = _make_activity_with_bare_object(
+        activity_type, f"urn:test:act-{activity_type.lower()}", recipient
+    )
+    inner_id = "urn:uuid:inner-obj-001"
+    inner_obj = SimpleNamespace(id_=inner_id)
+
+    def _read(id_):
+        if id_ == activity.id_:
+            return activity
+        if id_ == inner_id:
+            return inner_obj
+        return None
+
+    mock_dl = MagicMock()
+    mock_dl.read.side_effect = _read
+    mock_emitter = AsyncMock()
+
+    with caplog.at_level("DEBUG"):
+        asyncio.run(
+            oh.handle_outbox_item(
+                "actor-bob", activity.id_, mock_dl, mock_emitter
+            )
+        )
+
+    # object_ should have been expanded to the full inner object
+    mock_emitter.emit.assert_called_once()
+    emitted_activity, _ = mock_emitter.emit.call_args[0]
+    assert emitted_activity.object_ is inner_obj
+    assert "Expanded" in caplog.text
+
+
+@pytest.mark.parametrize("activity_type", ["Add", "Invite", "Accept"])
+def test_handle_outbox_item_raises_integrity_error_when_expansion_fails(
+    activity_type,
+):
+    """handle_outbox_item raises VultronOutboxObjectIntegrityError when the
+    inner object is not found for Add/Invite/Accept activities."""
+    recipient = "https://example.org/actors/alice"
+    activity = _make_activity_with_bare_object(
+        activity_type, f"urn:test:act-{activity_type.lower()}-fail", recipient
+    )
+
+    def _read(id_):
+        if id_ == activity.id_:
+            return activity
+        return None  # inner object not found → expansion fails
+
+    mock_dl = MagicMock()
+    mock_dl.read.side_effect = _read
+    mock_emitter = AsyncMock()
+
+    with pytest.raises(VultronOutboxObjectIntegrityError):
+        asyncio.run(
+            oh.handle_outbox_item(
+                "actor-bob", activity.id_, mock_dl, mock_emitter
+            )
+        )
+
+
+# ---------------------------------------------------------------------------
+# _dehydrate_references (DR-01)
+# ---------------------------------------------------------------------------
+
+
+def test_dehydrate_references_preserves_vulnerability_case_stub():
+    """_dehydrate_references preserves VulnerabilityCase stub dicts (MV-10-001).
+
+    A minimal {id, type} dict with type=VulnerabilityCase must survive
+    dehydration intact so that selective disclosure (stub-based invite.target)
+    is not erased before the activity reaches the outbox.
+    """
+    raw = {
+        "type": "Invite",
+        "actor": "https://example.org/actors/alice",
+        "target": {
+            "id": "https://example.org/cases/case-001",
+            "type": "VulnerabilityCase",
+        },
+    }
+    result = oh._dehydrate_references(raw)
+    assert result["target"] == {
+        "id": "https://example.org/cases/case-001",
+        "type": "VulnerabilityCase",
+    }
+
+
+def test_dehydrate_references_prefers_href_over_id():
+    """_dehydrate_references uses 'href' rather than 'id' for AS2 Link dicts."""
+    raw = {
+        "actor": "https://example.org/actors/alice",
+        "target": {
+            "id": "urn:uuid:link-object-id",
+            "href": "https://example.org/cases/case-002",
+        },
+    }
+    result = oh._dehydrate_references(raw)
+    assert result["target"] == "https://example.org/cases/case-002"
+
+
+def test_dehydrate_references_handles_list_field():
+    """_dehydrate_references collapses actor dicts in list fields element-wise."""
+    raw = {
+        "to": [
+            {"id": "https://example.org/actors/bob", "type": "Person"},
+            "https://example.org/actors/charlie",  # already a string
+        ]
+    }
+    result = oh._dehydrate_references(raw)
+    assert result["to"] == [
+        "https://example.org/actors/bob",
+        "https://example.org/actors/charlie",
+    ]
+
+
+def test_dehydrate_references_leaves_object_field_intact():
+    """_dehydrate_references does NOT touch the 'object' field (exempt)."""
+    inline_obj = {
+        "id": "urn:uuid:report-001",
+        "type": "VulnerabilityReport",
+        "name": "TEST",
+    }
+    raw = {
+        "actor": "https://example.org/actors/alice",
+        "object": inline_obj,
+    }
+    result = oh._dehydrate_references(raw)
+    assert result["object"] is inline_obj
+
+
+def test_dehydrate_references_leaves_string_fields_unchanged():
+    """_dehydrate_references does not alter fields that are already strings."""
+    raw = {
+        "actor": "https://example.org/actors/alice",
+        "target": "https://example.org/cases/case-already-string",
+    }
+    result = oh._dehydrate_references(raw)
+    assert result["actor"] == "https://example.org/actors/alice"
+    assert result["target"] == "https://example.org/cases/case-already-string"
+
+
+def test_dehydrate_references_leaves_none_fields_unchanged():
+    """_dehydrate_references skips fields that are None."""
+    raw = {"actor": "https://example.org/actors/alice", "target": None}
+    result = oh._dehydrate_references(raw)
+    assert result["target"] is None
+
+
+def test_handle_outbox_item_converts_typed_activity_with_full_target():
+    """handle_outbox_item delivers when activity.target is a full domain object.
+
+    Regression test for DR-01: typed AS2 activities (e.g. RmInviteToCaseActivity)
+    may store a full VulnerabilityCase as target.  The outbox handler must
+    dehydrate it to an ID string before VultronActivity.model_validate().
+    """
+    recipient = "https://example.org/actors/alice"
+    case_id = "https://example.org/cases/case-123"
+
+    # Simulate a typed activity whose model_dump produces a full case dict as target
+    activity_dict = {
+        "id": "urn:uuid:act-invite-001",
+        "type": "Invite",
+        "actor": "https://example.org/actors/coordinator",
+        "to": [recipient],
+        "object": {
+            "id": "urn:uuid:actor-alice",
+            "type": "Person",
+            "name": "Alice",
+        },
+        "target": {
+            "id": case_id,
+            "type": "VulnerabilityCase",
+            "name": "Test Case",
+        },
+    }
+
+    class FakeTypedActivity:
+        """Minimal stand-in for a typed AS2 activity from the DataLayer."""
+
+        def model_dump(self, *, by_alias=False, serialize_as_any=False):
+            return activity_dict
+
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = FakeTypedActivity()
+    mock_emitter = AsyncMock()
+
+    asyncio.run(
+        oh.handle_outbox_item(
+            "actor-coordinator",
+            "urn:uuid:act-invite-001",
+            mock_dl,
+            mock_emitter,
+        )
+    )
+
+    mock_emitter.emit.assert_called_once()
+    emitted_activity, emitted_recipients = mock_emitter.emit.call_args[0]
+    # target must be the case ID string, not the full dict
+    assert emitted_activity.target == case_id
+    assert recipient in emitted_recipients
+
+
+def test_handle_outbox_item_preserves_inline_case_log_entry_fields():
+    """Announce(CaseLogEntry) delivery keeps full inline log-entry fields."""
+    from vultron.core.models.case_log import GENESIS_HASH, CaseLogEntry
+    from vultron.core.use_cases.triggers.sync import _to_persistable_entry
+    from vultron.wire.as2.vocab.activities.sync import AnnounceLogEntryActivity
+    from vultron.wire.as2.vocab.objects.case_log_entry import (
+        CaseLogEntry as WireCaseLogEntry,
+    )
+
+    recipient = "https://example.org/actors/participant"
+    chain_entry = CaseLogEntry(
+        case_id="https://example.org/cases/case-sync-2",
+        log_index=0,
+        object_id="https://example.org/activities/logged-2",
+        event_type="log_entry_committed",
+        payload_snapshot={"state": "replicated"},
+        prev_log_hash=GENESIS_HASH,
+    )
+    entry = _to_persistable_entry(chain_entry)
+    activity = AnnounceLogEntryActivity(
+        actor="https://example.org/actors/case-actor",
+        object_=WireCaseLogEntry.from_core(entry),
+        to=[recipient],
+    )
+
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = activity
+    mock_emitter = AsyncMock()
+
+    asyncio.run(
+        oh.handle_outbox_item(
+            "actor-case", activity.id_, mock_dl, mock_emitter
+        )
+    )
+
+    mock_emitter.emit.assert_called_once()
+    emitted_activity, emitted_recipients = mock_emitter.emit.call_args[0]
+    assert emitted_recipients == [recipient]
+    assert isinstance(emitted_activity.object_, dict)
+    assert emitted_activity.object_["caseId"] == entry.case_id
+    assert emitted_activity.object_["logObjectId"] == entry.log_object_id
+    assert emitted_activity.object_["eventType"] == entry.event_type

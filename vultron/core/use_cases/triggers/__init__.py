@@ -20,32 +20,9 @@ Provides class-based domain use cases for actor-initiated behaviors.
 No HTTP framework imports.  Raises domain exceptions
 (``VultronNotFoundError``, ``VultronInvalidStateTransitionError``, ``VultronValidationError``)
 that callers in the adapter layer should catch and translate.
+
+Import trigger use-case classes directly from their submodules
+(e.g. ``from vultron.core.use_cases.triggers.report import SvcValidateReportUseCase``).
+The package-level re-exports were removed to avoid a circular import chain
+introduced by the BT node layer importing ``triggers.sync``.
 """
-
-from vultron.core.use_cases.triggers.case import (
-    SvcDeferCaseUseCase,
-    SvcEngageCaseUseCase,
-)
-from vultron.core.use_cases.triggers.embargo import (
-    SvcEvaluateEmbargoUseCase,
-    SvcProposeEmbargoUseCase,
-    SvcTerminateEmbargoUseCase,
-)
-from vultron.core.use_cases.triggers.report import (
-    SvcCloseReportUseCase,
-    SvcInvalidateReportUseCase,
-    SvcRejectReportUseCase,
-    SvcValidateReportUseCase,
-)
-
-__all__ = [
-    "SvcValidateReportUseCase",
-    "SvcInvalidateReportUseCase",
-    "SvcRejectReportUseCase",
-    "SvcCloseReportUseCase",
-    "SvcEngageCaseUseCase",
-    "SvcDeferCaseUseCase",
-    "SvcProposeEmbargoUseCase",
-    "SvcEvaluateEmbargoUseCase",
-    "SvcTerminateEmbargoUseCase",
-]

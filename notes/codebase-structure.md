@@ -195,25 +195,6 @@ API are more likely to use the OpenAPI docs. Ensure:
 
 ---
 
-## API Layer Architecture (Historical — Completed in VCR Batch B / P65)
-
-> **Note**: This section is retained as historical context. The proposed
-> reorganization was completed in VCR Batch B (March 2026). `vultron/api/v2/`
-> no longer exists. All code now lives under
-> `vultron/adapters/driving/fastapi/` (inbox, outbox, routers) and
-> `vultron/core/use_cases/` (business logic).
-
-The old codebase treated `vultron/api/v1/` and `vultron/api/v2/` as version
-numbers, but they were actually more like **distinct layers**:
-
-| Layer | Old location | Current canonical location |
-|---|---|---|
-| ActivityPub layer | `vultron/api/v2/routers/actors.py` | `vultron/adapters/driving/fastapi/routers/actors.py` |
-| Backend services layer | `vultron/api/v2/backend/` | `vultron/core/use_cases/` + `vultron/adapters/driving/fastapi/` |
-| Examples layer | `vultron/api/v1/` | Removed |
-
----
-
 ## Module Boundary: `vultron/bt/` vs `vultron/core/behaviors/`
 
 These two trees coexist and MUST NOT be merged or confused:
@@ -228,40 +209,6 @@ MUST NOT be confused with `vultron/bt/` or `vultron/core/behaviors/`.
 
 See `notes/bt-integration.md` for architectural decisions about the BT
 layer.
-
----
-
-## Use-Case Module Structure (Completed — REORG-1)
-
-The `vultron/core/use_cases/` package is organized as follows:
-
-- `received/` — inbound message handler use cases (8 submodules: `report.py`,
-  `case.py`, `embargo.py`, `actor.py`, `note.py`, `participant.py`,
-  `status.py`, `unknown.py`)
-- `triggers/` — actor-initiated trigger use cases (`embargo.py`, `report.py`,
-  `case.py`, `_helpers.py`)
-- `query/` — query use cases (`action_rules.py`)
-- `_helpers.py` — shared helpers used by `received/` and `triggers/`
-- `use_case_map.py` — `USE_CASE_MAP` routing table (`MessageSemantics` →
-  use-case class)
-
-**See**: `vultron/core/use_cases/README.md` and `plan/IMPLEMENTATION_HISTORY.md`
-Phase REORG-1 (completed 2026-03-30).
-
----
-
-## Vocabulary Examples Module Structure (Completed)
-
-`vultron/wire/as2/vocab/examples/` contains vocabulary example submodules
-organized by topic: `_base.py`, `actor.py`, `case.py`, `embargo.py`, `note.py`,
-`participant.py`, `report.py`, `status.py`. The top-level `vocab_examples.py`
-in that package re-exports all public names.
-
-The old `vultron/as_vocab/` package was relocated to `vultron/wire/as2/vocab/`
-as part of P60-1. Import directly from `vultron.wire.as2.vocab.examples`.
-
-**See**: `plan/IMPLEMENTATION_PLAN.md` Phase TECHDEBT-5, TECHDEBT-6, and P60-1
-(all completed).
 
 ---
 
@@ -342,56 +289,17 @@ base64url encoding).
 
 ---
 
-## Technical Debt: Test Directory Layout Mismatch (TECHDEBT-11, partially resolved)
+## Test Directory Layout (TECHDEBT-11, resolved)
 
 After P60-1 and P60-2 (package relocations), the test directories
-`test/as_vocab/` and `test/behaviors/` were at their old locations.
+`test/as_vocab/` and `test/behaviors/` were migrated to their new locations.
 
-**Status**: New directories created; old directories still present:
+**Status**: All test directories now match the source layout:
 
-- `test/wire/as2/vocab/` ✅ created — parallel to `vultron/wire/as2/vocab/`
-- `test/core/behaviors/` ✅ created — parallel to `vultron/core/behaviors/`
-- `test/as_vocab/` ⚠️ still exists — should be removed once tests confirmed
-  fully migrated to `test/wire/as2/vocab/`
-- `test/behaviors/` ⚠️ still exists — should be removed once tests confirmed
-  fully migrated to `test/core/behaviors/`
-
-Both remaining directories can be removed once confirmed empty or redundant.
-
----
-
-## Technical Debt: Deprecated HTTP Status Constant (TECHDEBT-12, ✅ resolved)
-
-The trigger_services files that contained `HTTP_422_UNPROCESSABLE_ENTITY`
-usages (`vultron/api/v2/backend/trigger_services/`) were removed in VCR Batch
-D (2026-03-19). The trigger adapter code is now in
-`vultron/adapters/driving/fastapi/_trigger_adapter.py` and
-`vultron/adapters/driving/fastapi/errors.py`, which use
-`HTTP_422_UNPROCESSABLE_CONTENT`.
-
----
-
-## Resolved: Outbox Delivery (OX-1.0–1.4, ✅ completed 2026-03-25)
-
-Outbox delivery was implemented in OX-1.0 through OX-1.4 (March 2026).
-The `ActivityEmitter` port stub, delivery queue, and outbox delivery loop
-are now in place. `actor_io.py` (the old placeholder) was deleted in
-VCR-014.
-
-**Reference**: `specs/outbox.md`; `plan/IMPLEMENTATION_HISTORY.md` Phase
-OX-1.0–1.4 and VCR-014.
-
----
-
-## Resolved: `app.py` Root Logger Side Effect
-
-`vultron/adapters/driving/fastapi/app.py` (formerly `vultron/api/v2/app.py`)
-previously called `logging.getLogger().setLevel(logging.DEBUG)` at module
-import time, causing test isolation problems.
-
-**Status**: Fixed in BUGFIX-1.1. Root logger configuration is now inside the
-`lifespan` context manager so importing the module in tests does not mutate
-the root logger.
+- `test/wire/as2/vocab/` ✅ — parallel to `vultron/wire/as2/vocab/`
+- `test/core/behaviors/` ✅ — parallel to `vultron/core/behaviors/`
+- `test/as_vocab/` — removed ✅
+- `test/behaviors/` — removed ✅
 
 ---
 
@@ -479,18 +387,42 @@ another with import path changes), the following approach works reliably:
 
 ---
 
-## Trigger Services Package (✅ completed in VCR Batch D / P75, 2026-03-19)
+## Router Test Override Pattern: `_shared_dl` and `dependency_overrides`
 
-The `vultron/api/v2/backend/trigger_services/` package has been fully
-superseded and removed. The content was relocated as follows:
+When writing FastAPI router tests that cover endpoints in
+`vultron/adapters/driving/fastapi/routers/actors.py`, the module-level
+`_shared_dl` variable is populated by calling `get_datalayer()` directly at
+import time (not via `Depends`). This means:
 
-| Old file | New location |
-|----------|-------------|
-| `_helpers.py` | `vultron/adapters/driving/fastapi/_trigger_adapter.py` and `vultron/adapters/driving/fastapi/errors.py` |
-| `_models.py` | `vultron/adapters/driving/fastapi/trigger_models.py` |
-| `case.py` | `vultron/core/use_cases/triggers/case.py` (logic) + `vultron/adapters/driving/fastapi/routers/trigger_case.py` (HTTP) |
-| `embargo.py` | `vultron/core/use_cases/triggers/embargo.py` (logic) + `vultron/adapters/driving/fastapi/routers/trigger_embargo.py` (HTTP) |
-| `report.py` | `vultron/core/use_cases/triggers/report.py` (logic) + `vultron/adapters/driving/fastapi/routers/trigger_report.py` (HTTP) |
+- `app.dependency_overrides[get_datalayer] = lambda: mock_dl` alone is
+  **insufficient** — the `_shared_dl` closure was already bound to the real
+  DataLayer at import time.
+- You **must** also patch `actors_router._shared_dl = mock_dl` (or the
+  equivalent `monkeypatch.setattr`) so that the already-bound module variable
+  points to the test DataLayer.
 
-`vultron/api/v2/` has been fully removed (VCR-014 deleted the last file,
-`data/actor_io.py`, in 2026-03-25).
+This is a deliberate design (ADR-0012): cross-actor lookups and the shared
+admin DataLayer use a module-level binding for performance, not `Depends`.
+
+---
+
+## Circular Import Fix Pattern: Shared Helpers in `_helpers.py`
+
+When a module in `vultron/core/behaviors/` needs a helper that is also
+imported by `vultron/core/use_cases/triggers/`, importing it via
+`triggers/_helpers.py` will trigger `triggers/__init__.py`, which eagerly
+loads all trigger use-case sub-modules. If any trigger sub-module imports
+back into the behaviors layer, a circular import results.
+
+**Fix pattern**: Move shared helpers to
+`vultron/core/use_cases/_helpers.py` (the neutral package-top-level module).
+This module is importable from both the `behaviors/` layer and the
+`triggers/` sub-package without loading the `triggers` package at all.
+`triggers/_helpers.py` can re-export from `_helpers.py` for callers already
+inside the `triggers` package.
+
+**Corollary**: Core domain model classes (e.g., `VultronCase`) should
+implement the same interface methods as their wire-layer counterparts (e.g.,
+`record_event()`) so that Protocol guards like `is_case_model()` return
+`True` for both families. Avoid making the Protocol guard depend on the
+concrete wire-layer class.

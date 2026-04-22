@@ -16,32 +16,41 @@ Vultron API Routers
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import json
 import logging
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from fastapi import (
     APIRouter,
     BackgroundTasks,
     Depends,
     HTTPException,
+    Response,
     status,
 )
+from pydantic import BaseModel, Field
 
+from vultron.adapters.utils import make_id
 from vultron.adapters.driving.fastapi.inbox_handler import (
     inbox_handler,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.core.use_cases.query.action_rules import (
     ActionRulesRequest,
     GetActionRulesUseCase,
 )
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.adapters.driven.datalayer_tinydb import get_datalayer
+from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.links import as_Link
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.actors import (
+    as_Actor,
+    as_Application,
+    as_Group,
+)
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.collections import (
     as_OrderedCollection,
@@ -52,6 +61,11 @@ from vultron.wire.as2.errors import (
     VultronParseMissingTypeError,
 )
 from vultron.wire.as2.parser import parse_activity as _parse_activity
+from vultron.wire.as2.vocab.objects.vultron_actor import (
+    VultronOrganization,
+    VultronPerson,
+    VultronService,
+)
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -95,14 +109,90 @@ def get_actors(
 
     objects: list[as_Actor] = []
     for rec in results:
-        cls = find_in_vocabulary(rec["type_"])
-        if cls is None:
+        try:
+            cls = find_in_vocabulary(rec["type_"])
+        except KeyError:
             continue
         obj = cls.model_validate(rec["data_"])
         if isinstance(obj, as_Actor):
             objects.append(obj)
 
     return objects
+
+
+# ---------------------------------------------------------------------------
+# Actor type map — used by create_actor
+# ---------------------------------------------------------------------------
+
+_ACTOR_TYPE_MAP: dict[str, type[as_Actor]] = {
+    "Person": VultronPerson,
+    "Organization": VultronOrganization,
+    "Service": VultronService,
+    "Application": as_Application,
+    "Group": as_Group,
+}
+
+
+class ActorCreateRequest(BaseModel):
+    """Request body for ``POST /actors/`` (D5-1-G2).
+
+    Creates a new actor record in the shared DataLayer.  The operation is
+    idempotent: if ``id`` is supplied and an actor with that URI already
+    exists, the existing record is returned with HTTP 200.
+    """
+
+    name: str = Field(description="Display name of the actor.")
+    actor_type: Literal[
+        "Person", "Organization", "Service", "Application", "Group"
+    ] = Field(
+        default="Organization",
+        description="ActivityStreams actor type.",
+    )
+    id_: str | None = Field(
+        default=None,
+        alias="id",
+        description=(
+            "Full URI for the actor.  Omit to let the server derive one "
+            "from ``VULTRON_BASE_URL``."
+        ),
+    )
+
+    model_config = {"populate_by_name": True}
+
+
+@router.post(
+    "/",
+    response_model_exclude_none=True,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create Actor",
+    description=(
+        "Creates a new actor record in the shared DataLayer. "
+        "Idempotent: if an actor with the same ``id`` already exists the "
+        "existing record is returned with HTTP 200."
+    ),
+    operation_id="actors_create",
+)
+def create_actor(
+    request: ActorCreateRequest,
+    response: Response,
+    datalayer: DataLayer = Depends(_shared_dl),
+) -> as_Actor:
+    """Create (or return existing) actor record."""
+    actor_id = request.id_ or make_id("actors")
+
+    # Idempotency: return existing record unchanged.
+    existing = datalayer.read(actor_id)
+    if existing is None:
+        existing = datalayer.find_actor_by_short_id(actor_id)
+    if existing is not None:
+        response.status_code = status.HTTP_200_OK
+        return as_Actor.model_validate(existing)
+
+    actor_cls = _ACTOR_TYPE_MAP.get(request.actor_type, VultronOrganization)
+    actor = actor_cls(id_=actor_id, name=request.name)
+    datalayer.create(object_to_record(cast(PersistableModel, actor)))
+    logger.info("Created actor %s (type=%s)", actor_id, request.actor_type)
+    return actor
 
 
 @router.get(
@@ -247,7 +337,11 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
         HTTPException: 400 if the `type` field is missing; 422 for all other
             parse failures (unknown type, validation error).
     """
-    logger.info(f"Parsing activity from request body. {body}")
+    logger.info(
+        "Parsing activity from request body (type=%r):\n%s",
+        body.get("type"),
+        json.dumps(body, indent=2, default=str),
+    )
     try:
         return _parse_activity(body)
     except VultronParseMissingTypeError as exc:
@@ -321,10 +415,38 @@ def post_actor_inbox(
             )
             return None
 
+    # Store any inline nested object (e.g. VulnerabilityReport in an Offer)
+    # in the DataLayer BEFORE storing the activity itself.  The dehydration
+    # step in ``object_to_record`` replaces the inline object with its ID
+    # string; the separate record ensures the inbox handler can later resolve
+    # that reference via ``rehydrate()``.
+    nested_obj = getattr(activity, "object_", None)
+    if nested_obj is not None and not isinstance(nested_obj, str):
+        nested = nested_obj
+        if (
+            nested is not None
+            and hasattr(nested, "id_")
+            and hasattr(nested, "type_")
+            and nested.type_ is not None
+            and not nested.type_.startswith("as_")
+        ):
+            try:
+                dl.create(object_to_record(cast(PersistableModel, nested)))
+            except ValueError:
+                pass  # already exists — idempotent
+
     # Store activity in the SHARED DataLayer so cross-actor lookups work.
     # (Operational data must be accessible to all actors' use cases and
     # rehydration; actor-scoped DL is used only for queue management.)
-    dl.create(object_to_record(activity))
+    # Use try/except for idempotency: triggers (and outbox re-deliveries) may
+    # have already stored the activity in the shared DL.
+    try:
+        dl.create(object_to_record(activity))
+    except ValueError:
+        logger.debug(
+            "Activity %s already exists in shared DL; skipping re-store.",
+            activity.id_,
+        )
 
     logger.debug(
         f"Posting activity to actor {canonical_actor_id} inbox: {activity}"

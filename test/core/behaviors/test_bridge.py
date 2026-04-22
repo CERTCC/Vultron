@@ -20,7 +20,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
-from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
 # Test behavior nodes for verifying bridge functionality
 
@@ -126,7 +126,7 @@ class ExceptionNode(py_trees.behaviour.Behaviour):
 @pytest.fixture
 def datalayer():
     """Provide in-memory TinyDB data layer."""
-    return TinyDbDataLayer(db_path=None)
+    return SqliteDataLayer("sqlite:///:memory:")
 
 
 @pytest.fixture
@@ -367,3 +367,46 @@ def test_bridge_sequential_executions(bridge, test_actor_id):
     # All should succeed
     assert all(r.status == Status.SUCCESS for r in results)
     assert len(results) == 3
+
+
+# get_failure_reason tests
+
+
+def test_get_failure_reason_returns_empty_for_success():
+    """get_failure_reason returns '' when tree succeeds."""
+    tree = AlwaysSucceed()
+    tree.setup()
+    tree.tick_once()
+    assert BTBridge.get_failure_reason(tree) == ""
+
+
+def test_get_failure_reason_returns_message_for_leaf_failure():
+    """get_failure_reason returns feedback_message from failing leaf."""
+    tree = AlwaysFail()
+    tree.setup()
+    tree.tick_once()
+    assert BTBridge.get_failure_reason(tree) == "Failure"
+
+
+def test_get_failure_reason_returns_class_name_when_no_message():
+    """get_failure_reason returns class name when feedback_message is empty."""
+
+    class SilentFail(py_trees.behaviour.Behaviour):
+        def update(self) -> Status:
+            return Status.FAILURE
+
+    node = SilentFail(name="SilentFail")
+    node.setup()
+    node.tick_once()
+    result = BTBridge.get_failure_reason(node)
+    assert result == "SilentFail"
+
+
+def test_get_failure_reason_finds_first_failing_child():
+    """get_failure_reason depth-first finds the first failing child."""
+    root = py_trees.composites.Sequence(name="Root", memory=False)
+    root.add_children([AlwaysFail(name="FailA"), AlwaysSucceed(name="OkB")])
+    root.setup_with_descendants()
+    root.tick_once()
+    result = BTBridge.get_failure_reason(root)
+    assert result == "Failure"

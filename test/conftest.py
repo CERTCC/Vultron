@@ -14,32 +14,28 @@
 """
 Root pytest configuration file.
 
-This file provides test session hooks for cleanup of test artifacts.
+Forces SQLite in-memory storage for the entire test session so that no
+on-disk database files are created and the test suite stays fast.
 """
 
-from pathlib import Path
+import os
 
-import pytest
+# Set VULTRON_DB_URL BEFORE any vultron module imports so that _DEFAULT_DB_URL
+# in datalayer_sqlite.py picks up the in-memory value at import time.
+os.environ.setdefault("VULTRON_DB_URL", "sqlite:///:memory:")
+
+import pytest  # noqa: E402
+from vultron.adapters.driven.datalayer_sqlite import (  # noqa: E402
+    reset_datalayer,
+)
 
 
 @pytest.fixture(scope="session", autouse=True)
-def cleanup_test_db_files():
+def cleanup_test_datalayer():
+    """Reset all cached DataLayer instances before and after the session.
+
+    Ensures no stale in-memory database state leaks between test modules.
     """
-    Automatically clean up any TinyDB files created during tests.
-
-    This fixture runs once per test session and removes mydb.json
-    both before and after the test run to prevent test pollution.
-    """
-    # Get repository root
-    repo_root = Path(__file__).parent.parent
-    test_db_file = repo_root / "mydb.json"
-
-    # Clean up before tests
-    if test_db_file.exists():
-        test_db_file.unlink()
-
+    reset_datalayer()
     yield
-
-    # Clean up after tests
-    if test_db_file.exists():
-        test_db_file.unlink()
+    reset_datalayer()

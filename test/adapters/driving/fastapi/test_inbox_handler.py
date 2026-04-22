@@ -11,14 +11,14 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 
 def test_prepare_for_dispatch_returns_vultron_event(monkeypatch):
-    """prepare_for_dispatch should return a VultronEvent from extract_intent."""
+    """prepare_for_dispatch should return a VultronEvent from extract_event."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
-    import vultron.wire.as2.extractor as extractor_mod
+    import vultron.semantic_registry as registry_mod
 
     monkeypatch.setattr(
-        extractor_mod,
+        registry_mod,
         "find_matching_semantics",
         lambda activity: MessageSemantics.UNKNOWN,
     )
@@ -44,7 +44,13 @@ def test_handle_inbox_item_dispatches(monkeypatch):
     fake_activity = FakeActivity()
     mock_dl = MagicMock()
 
-    fake_event = SimpleNamespace(activity_id="aid", semantic_type="stest")
+    # Use a real VultronEvent so that model_copy() works correctly when
+    # handle_inbox_item injects receiving_actor_id (HP-09-001).
+    fake_event = VultronEvent(
+        semantic_type=MessageSemantics.UNKNOWN,
+        activity_id="https://example.org/activities/aid",
+        actor_id="https://example.org/actors/actor1",
+    )
     monkeypatch.setattr(
         ih, "prepare_for_dispatch", lambda activity: fake_event
     )
@@ -53,10 +59,18 @@ def test_handle_inbox_item_dispatches(monkeypatch):
     monkeypatch.setattr(ih, "_DISPATCHER", mock_dispatcher)
 
     ih.handle_inbox_item(
-        actor_id="actor1", obj=cast(Any, fake_activity), dl=mock_dl
+        actor_id="https://example.org/actors/actor1",
+        obj=cast(Any, fake_activity),
+        dl=mock_dl,
     )
 
-    mock_dispatcher.dispatch.assert_called_once_with(fake_event, mock_dl)
+    mock_dispatcher.dispatch.assert_called_once()
+    dispatched_event, dispatched_dl = mock_dispatcher.dispatch.call_args[0]
+    assert dispatched_dl is mock_dl
+    assert (
+        dispatched_event.receiving_actor_id
+        == "https://example.org/actors/actor1"
+    )
 
 
 def test_inbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):

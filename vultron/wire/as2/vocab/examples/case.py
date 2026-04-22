@@ -58,7 +58,7 @@ def add_report_to_case() -> AddReportToCaseActivity:
 
     activity = AddReportToCaseActivity(
         actor=_vendor.id_,
-        object_=_report.id_,
+        object_=_report,
         target=_case.id_,
         content="We're adding this report to this case.",
     )
@@ -71,7 +71,7 @@ def engage_case() -> RmEngageCaseActivity:
 
     activity = RmEngageCaseActivity(
         actor=_vendor.id_,
-        object_=_case.id_,
+        object_=_case,
         content="We're engaging this case.",
     )
     return activity
@@ -83,7 +83,7 @@ def close_case() -> RmCloseCaseActivity:
 
     activity = RmCloseCaseActivity(
         actor=_vendor.id_,
-        object_=_case.id_,
+        object_=_case,
         content="We're closing this case.",
     )
     return activity
@@ -95,7 +95,7 @@ def defer_case() -> RmDeferCaseActivity:
 
     activity = RmDeferCaseActivity(
         actor=_vendor.id_,
-        object_=_case.id_,
+        object_=_case,
         content="We're deferring this case.",
     )
     return activity
@@ -158,7 +158,7 @@ def update_case() -> UpdateCaseActivity:
 
     _activity = UpdateCaseActivity(
         actor=_vendor.id_,
-        object_=_case.id_,
+        object_=_case,
         content="We're updating the case to reflect a transfer of ownership.",
     )
     return _activity

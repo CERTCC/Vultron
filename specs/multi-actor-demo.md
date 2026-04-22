@@ -71,3 +71,20 @@ actor isolation, acceptance testing, and reproducibility.
     Compose configuration
 - `DEMO-MA-04-002` Each scenario SHOULD include a summary of the expected
   CVD workflow steps and the expected final RM/EM/CS state for each actor
+
+## Demo Trigger Protocol
+
+- `DEMO-MA-05-001` All actor-initiated actions in scenario demos MUST be
+  driven through the trigger API (`POST /actors/{actor_id}/trigger/{behavior-name}`),
+  not by direct inbox injection or other mechanisms that bypass the actor's
+  own protocol logic
+  - **Rationale**: Using trigger endpoints ensures that the demo exercises
+    the same code paths that a real actor would use, including BT execution,
+    outbox queuing, and downstream cascading behaviors. Direct inbox injection
+    spoofs protocol messages and does not validate that the initiating actor's
+    behavior is correctly implemented.
+  - DEMO-MA-05-001 depends-on TRIG-01-001 (trigger endpoint format)
+- `DEMO-MA-05-002` Scenario demo scripts MUST NOT construct and POST raw
+  ActivityStreams JSON directly to an actor's inbox as a substitute for
+  calling that actor's trigger endpoint
+  - DEMO-MA-05-002 refines DEMO-MA-00-001

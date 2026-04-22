@@ -32,6 +32,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Remove,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import (
+    EmbargoEvent,
     EmbargoEventRef,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -45,8 +46,8 @@ class EmProposeEmbargoActivity(as_Invite):
     object_: EmbargoEvent
     """
 
-    object_: EmbargoEventRef = Field(
-        default=None, validation_alias="object", serialization_alias="object"
+    object_: EmbargoEvent = Field(
+        default=..., validation_alias="object", serialization_alias="object"
     )
     context: VulnerabilityCaseRef = None
 
@@ -59,12 +60,14 @@ class EmAcceptEmbargoActivity(as_Accept):
     This corresponds to the Vultron Message Types EA and EC.
     Per ActivityStreams convention: Accept(object=<Invite>) — the actor accepts
     the proposal activity itself, not the EmbargoEvent being proposed.
-    object_: the EmProposeEmbargoActivity activity being accepted
+
+    object_: the EmProposeEmbargoActivity activity being accepted (inline typed
+        object required — bare string IDs are rejected at construction time)
     context: the VulnerabilityCase for which the embargo was proposed
     """
 
-    object_: EmProposeEmbargoRef = Field(
-        default=None, validation_alias="object", serialization_alias="object"
+    object_: EmProposeEmbargoActivity = Field(
+        default=..., validation_alias="object", serialization_alias="object"
     )
     context: VulnerabilityCaseRef = None
 
@@ -74,12 +77,14 @@ class EmRejectEmbargoActivity(as_Reject):
     This corresponds to the Vultron Message Types ER and EJ.
     Per ActivityStreams convention: Reject(object=<Invite>) — the actor rejects
     the proposal activity itself, not the EmbargoEvent being proposed.
-    object_: the EmProposeEmbargoActivity activity being rejected
+
+    object_: the EmProposeEmbargoActivity activity being rejected (inline typed
+        object required — bare string IDs are rejected at construction time)
     context: the VulnerabilityCase for which the embargo was proposed
     """
 
-    object_: EmProposeEmbargoRef = Field(
-        default=None, validation_alias="object", serialization_alias="object"
+    object_: EmProposeEmbargoActivity = Field(
+        default=..., validation_alias="object", serialization_alias="object"
     )
     context: VulnerabilityCaseRef = None
 
@@ -105,8 +110,8 @@ class ActivateEmbargoActivity(as_Add):
     in_reply_to: the EmProposeEmbargoActivity activity that proposed the EmbargoEvent
     """
 
-    object_: EmbargoEventRef = Field(
-        default=None, validation_alias="object", serialization_alias="object"
+    object_: EmbargoEvent = Field(
+        default=..., validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
     in_reply_to: EmProposeEmbargoRef = None
@@ -119,8 +124,8 @@ class AddEmbargoToCaseActivity(as_Add):
     in response to a previous EmProposeEmbargoActivity activity.
     """
 
-    object_: EmbargoEventRef = Field(
-        default=None, validation_alias="object", serialization_alias="object"
+    object_: EmbargoEvent = Field(
+        default=..., validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
 
@@ -131,8 +136,8 @@ class AnnounceEmbargoActivity(as_Announce):
     context: the VulnerabilityCase for which the EmbargoEvent is active
     """
 
-    object_: EmbargoEventRef = Field(
-        default=None, validation_alias="object", serialization_alias="object"
+    object_: EmbargoEvent = Field(
+        default=..., validation_alias="object", serialization_alias="object"
     )
     context: VulnerabilityCaseRef = None
 
@@ -146,7 +151,7 @@ class RemoveEmbargoFromCaseActivity(as_Remove):
     origin: VulnerabilityCase
     """
 
-    object_: EmbargoEventRef = Field(
-        default=None, validation_alias="object", serialization_alias="object"
+    object_: EmbargoEvent = Field(
+        default=..., validation_alias="object", serialization_alias="object"
     )
     origin: VulnerabilityCaseRef = None

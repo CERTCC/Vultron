@@ -19,24 +19,6 @@ formatting conventions and coding style standards only.
   - **Implementation**: Black formatter MUST be used for consistency
   - **Settings**: Default Black settings (88 character line length, etc.)
   - CS-01-001 refines IMPL-TS-07-001
-- `CS-01-002` Formatting checks MUST be included in CI/CD pipeline.
-  *Superseded by `tech-stack.md` IMPL-TS-07-005.*
-  CI/CD formatting check and enforcement requirements are consolidated in
-  `tech-stack.md`.
-  - CS-01-002 is-superseded-by IMPL-TS-07-005
-- `CS-01-003` Code formatting MUST be enforced.
-  *Superseded by `tech-stack.md` IMPL-TS-07-001, IMPL-TS-07-004,
-  IMPL-TS-07-005.* Code formatting enforcement requirements (pre-commit hooks,
-  CI pipeline pass criteria) are consolidated in `tech-stack.md`.
-  - CS-01-003 is-superseded-by IMPL-TS-07-001
-  - CS-01-003 is-superseded-by IMPL-TS-07-004
-  - CS-01-003 is-superseded-by IMPL-TS-07-005
-- `CS-01-006` Static type checking MUST be enforced in CI.
-  *Superseded by `tech-stack.md` IMPL-TS-07-002, IMPL-TS-07-003.*
-  Static type checking enforcement requirements are consolidated in
-  `tech-stack.md`.
-  - CS-01-006 is-superseded-by IMPL-TS-07-002
-  - CS-01-006 is-superseded-by IMPL-TS-07-003
 
 ## Docstring Standards
 
@@ -156,13 +138,11 @@ def extract_id_segment(url: str) -> str:
     object_: str = Field(alias="object")
     ```
 
-  - **Rationale**: Trailing underscore + alias is the idiomatic Python
-    pattern (PEP 8) for builtin/reserved-word field names. It keeps models
-    readable and decoupled from AS2 naming conventions across all layers.
+  - **Rationale**: Idiomatic Python (PEP 8); keeps models readable and
+    decoupled from AS2 naming conventions.
 - `CS-07-003` (MUST) Do not introduce new `as_`-prefixed field names anywhere.
-  The migration of existing `as_`-prefixed field names was completed in
-  NAMING-1 (2026-03-30). All wire-layer and core-layer field names now use
-  the trailing-underscore convention where needed. Class names retain `as_`.
+  All wire-layer and core-layer field names use the trailing-underscore
+  convention where needed. Class names retain `as_`.
 
 ## Optional Field Non-Emptiness
 
@@ -175,8 +155,7 @@ def extract_id_segment(url: str) -> str:
     Pydantic models (e.g., via `minLength: 1` on string properties that
     are not required)
   - **Rationale**: Distinguishes "not provided" from "provided but blank",
-    preventing ambiguous database states and simplifying downstream
-    validation logic
+    avoiding ambiguous database states.
 - `CS-08-002` Non-empty string validation SHOULD be consolidated into a
   shared type alias rather than duplicated per-field validators
   - Define a `NonEmptyString` type (e.g., `Annotated[str, Field(min_length=1)]`)
@@ -185,10 +164,8 @@ def extract_id_segment(url: str) -> str:
     `NonEmptyString | None` rather than a named alias
   - Replace per-field `@field_validator` stubs that only check `if not v` or
     `if not v.strip()` with the shared type
-  - **Rationale**: Eliminates boilerplate across many object models; makes the
-    empty-string invariant visible in the field type signature rather than
-    buried in a validator; aligns with Python/Pydantic idioms for reusable
-    constraints
+  - **Rationale**: Reduces boilerplate and makes the invariant visible in
+    the type signature rather than buried in a per-field validator.
   - CS-08-002 refines CS-08-001
 
 ## Code Reuse
@@ -345,11 +322,28 @@ def extract_id_segment(url: str) -> str:
   - **Trigger use cases** (executing actor-initiated behaviors, in
     `core/use_cases/triggers/`) SHOULD carry the `Svc` prefix:
     `SvcEngageCaseUseCase`, `SvcProposeEmbargoUseCase`, etc.
-  - The `USE_CASE_MAP` in `core/use_cases/use_case_map.py` MUST be updated in
-    the same commit as any rename
+  - The `SEMANTIC_REGISTRY` in `vultron/semantic_registry.py` MUST be updated
+    in the same commit as any rename
   - **Rationale**: Distinguishes messages received from external parties from
     actions the local actor has decided to take. This distinction is fundamental
     to the Vultron protocol model (see `notes/activitystreams-semantics.md`)
     and prevents accidentally treating incoming messages as local commands.
   - **See also**: TECHDEBT-21 for the rename task; CS-10-002 for the parallel
     `FooReceivedEvent` / `FooTriggerEvent` domain event convention
+
+## No Compatibility Shims
+
+- `CS-13-001` (MUST) When a module, function, variable, or symbol is
+  refactored or replaced, the old symbol MUST be deleted. Compatibility
+  aliases, re-exports, and shims that exist solely to avoid updating call
+  sites are prohibited.
+  - All call sites MUST be updated as part of the same change that removes
+    the old symbol
+  - **Rationale**: The codebase is in prototype development; there are no
+    external downstream consumers that require stable import paths. Leaving
+    old symbols in place accumulates technical debt and makes the codebase
+    harder to navigate.
+  - **Cross-reference**: `plan/IDEAS.md` IDEA-26040903, IDEA-26041501
+  - **Verification**: Code review MUST reject any PR that introduces a symbol
+    whose only purpose is to delegate to a replacement symbol at a new import
+    path

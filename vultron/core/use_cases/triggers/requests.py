@@ -69,6 +69,18 @@ class CloseReportTriggerRequest(OfferTriggerRequest):
     pass
 
 
+class SubmitReportTriggerRequest(TriggerRequest):
+    """Trigger request for a finder to create and offer a vulnerability report.
+
+    Creates a ``VulnerabilityReport`` in the actor's DataLayer and queues an
+    ``RmSubmitReportActivity`` offer to the specified recipient.
+    """
+
+    report_name: NonEmptyString
+    report_content: NonEmptyString
+    recipient_id: UriString
+
+
 class EngageCaseTriggerRequest(CaseTriggerRequest):
     pass
 
@@ -90,9 +102,86 @@ class ProposeEmbargoTriggerRequest(CaseTriggerRequest):
         return v
 
 
-class EvaluateEmbargoTriggerRequest(CaseTriggerRequest):
+class AcceptEmbargoTriggerRequest(CaseTriggerRequest):
     pass
+
+
+# Backward-compatible alias
+EvaluateEmbargoTriggerRequest = AcceptEmbargoTriggerRequest
+
+
+class RejectEmbargoTriggerRequest(CaseTriggerRequest):
+    pass
+
+
+class ProposeEmbargoRevisionTriggerRequest(CaseTriggerRequest):
+    end_time: datetime  # pyright: ignore[reportGeneralTypeIssues]
+
+    @field_validator("end_time")
+    @classmethod
+    def end_time_must_be_tz_aware_and_future(cls, v: datetime) -> datetime:
+        if v.tzinfo is None or v.utcoffset() is None:
+            raise ValueError("end_time must be timezone-aware")
+        if v <= datetime.now(tz=timezone.utc):
+            raise ValueError("end_time must be in the future")
+        return v
 
 
 class TerminateEmbargoTriggerRequest(CaseTriggerRequest):
     pass
+
+
+class AddNoteToCaseTriggerRequest(CaseTriggerRequest):
+    """Trigger request for adding a note to a case."""
+
+    note_name: NonEmptyString
+    note_content: NonEmptyString
+    in_reply_to: NonEmptyString | None = None
+
+
+class CreateCaseTriggerRequest(TriggerRequest):
+    """Trigger request to create a new VulnerabilityCase.
+
+    The actor creates a local case and emits a CreateCaseActivity queued in
+    the outbox for delivery to the CaseActor (or other recipients).
+    """
+
+    name: NonEmptyString
+    content: NonEmptyString
+    report_id: NonEmptyString | None = None
+
+
+class AddReportToCaseTriggerRequest(CaseTriggerRequest):
+    """Trigger request to link a report to an existing case."""
+
+    report_id: NonEmptyString
+
+
+class SuggestActorToCaseTriggerRequest(CaseTriggerRequest):
+    """Trigger request for an actor to recommend another actor to a case.
+
+    Emits a RecommendActorActivity addressed to the case owner (typically
+    the CaseActor), which then autonomously invites the suggested actor.
+    """
+
+    suggested_actor_id: NonEmptyString
+
+
+class AcceptCaseInviteTriggerRequest(TriggerRequest):
+    """Trigger request for an invitee to accept a case invitation.
+
+    Emits an RmAcceptInviteToCaseActivity queued in the actor's outbox for
+    delivery to the case owner.
+    """
+
+    invite_id: NonEmptyString
+
+
+class InviteActorToCaseTriggerRequest(CaseTriggerRequest):
+    """Trigger request for the case owner to directly invite an actor.
+
+    Emits an RmInviteToCaseActivity addressed to the invitee, queued in the
+    actor's outbox for delivery.
+    """
+
+    invitee_id: NonEmptyString

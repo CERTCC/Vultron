@@ -15,11 +15,17 @@
 
 """Domain representation of a case participant."""
 
+import logging
+
 from pydantic import Field, field_serializer, field_validator
 
+from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.core.states.roles import CVDRoles
 from vultron.core.models.base import NonEmptyString, VultronObject
 from vultron.core.models.participant_status import VultronParticipantStatus
+
+logger = logging.getLogger(__name__)
 
 
 class VultronParticipant(VultronObject):
@@ -31,7 +37,11 @@ class VultronParticipant(VultronObject):
     ``CaseParticipant`` subclasses.
     """
 
-    type_: str = "CaseParticipant"
+    type_: str = Field(
+        default="CaseParticipant",
+        validation_alias="type",
+        serialization_alias="type",
+    )
     attributed_to: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     case_roles: list[CVDRoles] = Field(default_factory=list)
@@ -39,6 +49,7 @@ class VultronParticipant(VultronObject):
         default_factory=list
     )
     accepted_embargo_ids: list[NonEmptyString] = Field(default_factory=list)
+    embargo_consent_state: PEC = Field(default=PEC.NO_EMBARGO)
     participant_case_name: NonEmptyString | None = None
 
     @field_serializer("case_roles")
@@ -53,3 +64,31 @@ class VultronParticipant(VultronObject):
         if isinstance(value, list) and value and isinstance(value[0], str):
             return [CVDRoles[name] for name in value]
         return value
+
+    def append_rm_state(self, rm_state: RM, actor: str, context: str) -> bool:
+        """Append a new VultronParticipantStatus with the given RM state.
+
+        Validates the transition against the RM state machine.
+        Returns True when the status was appended, False when blocked.
+        """
+        current = (
+            self.participant_statuses[-1].rm_state
+            if self.participant_statuses
+            else RM.START
+        )
+        if not is_valid_rm_transition(current, rm_state):
+            logger.warning(
+                "Invalid RM transition %s → %s for participant %s; skipping",
+                current,
+                rm_state,
+                self.id_,
+            )
+            return False
+        self.participant_statuses.append(
+            VultronParticipantStatus(
+                rm_state=rm_state,
+                context=context,
+                attributed_to=actor,
+            )
+        )
+        return True

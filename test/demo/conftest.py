@@ -13,10 +13,13 @@
 
 """Shared fixtures and helpers for demo tests."""
 
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
 import vultron.demo.utils as demo_utils
+from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
 from vultron.adapters.driving.fastapi.main import app as api_app
 from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
     make_testclient_call,
@@ -26,6 +29,54 @@ from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
 # background tasks synchronously, so no sleep is needed between inbox posts
 # and state checks.
 demo_utils.DEFAULT_WAIT_SECONDS = 0.0
+
+
+def pytest_collection_modifyitems(
+    session: pytest.Session,
+    config: pytest.Config,
+    items: list[pytest.Item],
+) -> None:
+    """Mark every test collected from test/demo/ as ``integration``.
+
+    Demo tests spin up a full FastAPI ASGI app via ``TestClient`` and exercise
+    end-to-end HTTP request / DataLayer workflows.  They are integration tests
+    by nature and should be labelled accordingly so callers can include or
+    exclude them explicitly::
+
+        # Run only integration tests
+        uv run pytest -m integration
+
+        # Run everything
+        uv run pytest -m ""
+
+    This hook runs after collection so it applies regardless of how the tests
+    are selected (e.g. ``pytest test/demo/`` or ``pytest`` from the root).
+    """
+    for item in items:
+        path = Path(str(item.fspath))
+        if any(
+            p.name == "demo" and p.parent.name == "test" for p in path.parents
+        ):
+            item.add_marker(pytest.mark.integration)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def reset_datalayer_between_modules():
+    """Reset all cached DataLayer instances before each demo test module.
+
+    Demo tests create actors, reports, and cases via the API.  Without a
+    reset between modules, cached SQLite-backed DataLayer instances can retain
+    data created by earlier demo modules, which both slows later tests and
+    risks unexpected cross-module visibility.
+
+    Resetting here ensures each module starts from a clean DataLayer cache.
+    After the reset, the first API call recreates the SQLite DataLayer with a
+    fresh in-memory database (``sqlite:///:memory:``), which provides module
+    isolation for the demo test suite.
+    """
+    reset_datalayer()
+    yield
+    reset_datalayer()
 
 
 @pytest.fixture(scope="module")

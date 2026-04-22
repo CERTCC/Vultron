@@ -13,3 +13,21 @@
 """
 Provides Vultron-specific Activity Streams 2.0 objects.
 """
+
+import importlib
+import pkgutil
+import sys
+
+
+def _discover_modules() -> None:
+    """Import all modules in this package to ensure vocab classes are registered."""
+    package = sys.modules[__name__]
+    for _finder, name, _ispkg in pkgutil.iter_modules(
+        package.__path__,  # type: ignore[attr-defined]
+        package.__name__ + ".",
+    ):
+        if name not in sys.modules:
+            importlib.import_module(name)
+
+
+_discover_modules()

@@ -31,8 +31,115 @@ from vultron.adapters.driven.delivery_queue import DeliveryQueueAdapter
 from vultron.core.models.activity import VultronActivity
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.emitter import ActivityEmitter
+from vultron.errors import VultronOutboxObjectIntegrityError
+from vultron.wire.as2.vocab.base.links import as_Link
 
 logger = logging.getLogger(__name__)
+
+# Reference fields that must be collapsed to URI strings before validating as
+# VultronActivity.  ``object`` is intentionally excluded — it must remain a
+# full inline typed object so recipients can determine the semantic type
+# (MV-09-001).
+#
+# ``target`` is also partially excluded: minimal stub dicts
+# ``{id, type[, summary]}`` are preserved so that ``Invite.target`` carries
+# the case type to the recipient (MV-10-001).
+_DEHYDRATION_FIELDS: frozenset[str] = frozenset(
+    {
+        "actor",
+        "target",
+        "to",
+        "cc",
+        "bto",
+        "bcc",
+        "origin",
+        "result",
+        "instrument",
+    }
+)
+
+# Keys permitted in a stub dict (MV-10-001).  Any other key causes full
+# dehydration to a bare URI so that only intentional stubs are preserved.
+_STUB_KEYS: frozenset[str] = frozenset({"id", "type", "summary", "@context"})
+
+# AS2 object types that are intentional stubs and must be preserved in-line
+# rather than collapsed to a bare URI string.
+_STUB_OBJECT_TYPES: frozenset[str] = frozenset({"VulnerabilityCase"})
+
+
+def _dehydrate_references(activity_dict: dict) -> dict:
+    """Collapse domain-object dicts in reference fields to URI strings.
+
+    Adapts a raw ``model_dump(by_alias=True)`` dict for ``VultronActivity``
+    validation.  Wire-layer AS2 activities may carry full domain objects
+    (e.g. ``VulnerabilityCase``) in reference fields such as ``target``.
+    ``VultronActivity`` expects those fields to be URI strings, so this
+    function collapses any dict with ``"href"`` or ``"id"`` to the
+    corresponding URI string.  List fields are handled element-wise.
+
+    ``"object"`` is explicitly excluded from dehydration because outbound
+    initiating activities must carry a fully inline typed object for semantic
+    routing on the receiving side (MV-09-001).
+
+    Args:
+        activity_dict: Raw ``dict`` produced by ``model_dump(by_alias=True)``
+            on a typed AS2 activity model.
+
+    Returns:
+        A new ``dict`` with reference fields collapsed to URI strings where
+        possible.
+    """
+
+    def _coerce(value: object) -> object:
+        if not isinstance(value, dict):
+            return value
+        # Preserve minimal stub dicts that carry {id, type} for selective
+        # disclosure (MV-10-001).  Only VulnerabilityCase stubs are preserved;
+        # all other object dicts (e.g. actors) are collapsed to a bare URI.
+        if (
+            value.get("type") in _STUB_OBJECT_TYPES
+            and value.keys() <= _STUB_KEYS
+        ):
+            return value
+        # Prefer href (AS2 Link) then id (any AS2 object)
+        uri = value.get("href") or value.get("id")
+        return uri if uri is not None else value
+
+    result = dict(activity_dict)
+    for field in _DEHYDRATION_FIELDS:
+        value = result.get(field)
+        if value is None:
+            continue
+        if isinstance(value, list):
+            result[field] = [_coerce(item) for item in value]
+        else:
+            result[field] = _coerce(value)
+    return result
+
+
+def _format_object(obj: object) -> str:
+    """Return a concise one-line summary of an AS2 object for log messages.
+
+    Produces ``<ClassName> <id>`` for Pydantic-like domain objects, passes
+    strings through unchanged, and falls back to ``str(obj)`` otherwise.
+    Handles ``None`` gracefully.
+
+    Args:
+        obj: The object to format — may be a domain model, a URI string, or
+             ``None``.
+
+    Returns:
+        A short, human-readable representation of the object.
+    """
+    if obj is None:
+        return "None"
+    if isinstance(obj, str):
+        return obj
+    type_name = type(obj).__name__
+    obj_id = getattr(obj, "id_", None)
+    if obj_id is not None:
+        return f"{type_name} {obj_id}"
+    return type_name
 
 
 def _extract_recipients(activity) -> list[str]:
@@ -105,9 +212,10 @@ async def handle_outbox_item(
     if isinstance(activity, VultronActivity):
         outbound_activity = activity
     elif hasattr(activity, "model_dump"):
-        outbound_activity = VultronActivity.model_validate(
-            activity.model_dump(by_alias=True)
+        raw = _dehydrate_references(
+            activity.model_dump(by_alias=True, serialize_as_any=True)
         )
+        outbound_activity = VultronActivity.model_validate(raw)
     else:
         logger.warning(
             "Activity %s could not be converted for delivery; skipping.",
@@ -115,10 +223,70 @@ async def handle_outbox_item(
         )
         return
 
+    activity_type = getattr(outbound_activity, "type_", "Activity")
+    activity_object = getattr(outbound_activity, "object_", None)
+
+    # For initiating activity types, expand an ID-string object_ to the full
+    # domain object so the recipient inbox endpoint can store it separately
+    # before dispatching.  For Create: the receiving side needs the full object
+    # to recreate the case.  For Announce(CaseLogEntry): the receiving side
+    # needs all CaseLogEntry fields for hash-chain validation (BUG-26041501;
+    # a URI-only reference violates SYNC-02-004).  For Add, Invite, Accept:
+    # the receiving side needs the full inline object to determine semantic
+    # type and update its own state correctly.
+    #
+    # NOTE: This expansion path is a backward-compatibility bridge for
+    # activities stored before INLINE-OBJ-A narrowed object_ types.  New
+    # outbound activities should always carry inline objects (MV-09-001).
+    #
+    # TODO: When "Join" and "Remove" are implemented they will also require
+    # expansion here.
+    if activity_type in (
+        "Create",
+        "Announce",
+        "Add",
+        "Invite",
+        "Accept",
+    ) and isinstance(activity_object, str):
+        logger.warning(
+            "Outbound %s activity '%s' has a bare string object_ '%s'."
+            " Attempting DataLayer expansion (MV-09-001 violation).",
+            activity_type,
+            activity_id,
+            activity_object,
+        )
+        full_obj = dl.read(activity_object)
+        if full_obj is not None:
+            outbound_activity.object_ = full_obj
+            activity_object = full_obj
+            logger.debug(
+                "Expanded object_ from '%s' to full %s for %s"
+                " activity '%s' delivery.",
+                getattr(full_obj, "id_", activity_object),
+                type(full_obj).__name__,
+                activity_type,
+                activity_id,
+            )
+
+    # Object integrity check: reject delivery of any outbound activity whose
+    # object_ is still a bare string or an as_Link after the expansion attempt.
+    # Outbound initiating activities must carry fully inline typed objects so
+    # that recipients can determine the semantic type (MV-09-001, MV-09-002).
+    if isinstance(activity_object, (str, as_Link)):
+        raise VultronOutboxObjectIntegrityError(
+            f"Outbound {activity_type} activity '{activity_id}' has an"
+            f" inline object_ that is a bare string or Link"
+            f" ({activity_object!r}). Outbound initiating activities must"
+            " carry fully inline typed objects (MV-09-001).",
+            activity_id=activity_id,
+            activity_type=activity_type,
+        )
+
     recipients = _extract_recipients(outbound_activity)
     if not recipients:
         logger.debug(
-            "No recipients found for activity %s (actor %s).",
+            "No recipients found for %s activity '%s' (actor '%s').",
+            activity_type,
             activity_id,
             actor_id,
         )
@@ -126,9 +294,13 @@ async def handle_outbox_item(
 
     await emitter.emit(outbound_activity, recipients)
     logger.info(
-        "Emitted activity %s to %d recipient(s) for actor %s.",
+        "Delivered %s activity '%s' (object: %s) to %d recipient(s)"
+        " [%s] for actor '%s'.",
+        activity_type,
         activity_id,
+        _format_object(activity_object),
         len(recipients),
+        ", ".join(recipients),
         actor_id,
     )
 

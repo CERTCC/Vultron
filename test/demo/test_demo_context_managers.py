@@ -17,7 +17,7 @@ import logging
 
 import pytest
 
-from vultron.demo.initialize_case_demo import demo_check, demo_step
+from vultron.demo.exchange.initialize_case_demo import demo_check, demo_step
 
 
 class TestDemoStep:

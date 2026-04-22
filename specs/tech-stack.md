@@ -35,8 +35,8 @@ This specification defines the normative technology constraints and implementati
 
 ## Persistence and Data
 
-- `IMPL-TS-02-001` The prototype MUST use TinyDB for lightweight local persistence.
-- `IMPL-TS-02-002` The system MUST support JSON-based storage for demo and local development use.
+- `IMPL-TS-02-001` The prototype MUST use SQLModel/SQLite for lightweight local persistence.
+- `IMPL-TS-02-002` The system MUST support SQLite-based storage for demo and local development use.
 - `IMPL-TS-02-003` The system MUST support ISO 8601 date/time parsing and formatting using isodate.
 - `IMPL-TS-02-004` The system MUST support graph construction and analysis using networkx.
 

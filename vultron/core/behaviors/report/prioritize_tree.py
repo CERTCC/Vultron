@@ -30,12 +30,14 @@ Per specs/behavior-tree-integration.md BT-06 requirements.
 Structure:
 
     EngageCaseBT (Sequence)
-    ├─ CheckParticipantExists        # Precondition: actor has a participant record
-    └─ TransitionParticipantRMtoAccepted  # Update RM state to ACCEPTED
+    ├─ CheckParticipantExists              # Precondition: actor has a participant record
+    ├─ TransitionParticipantRMtoAccepted   # Update RM state to ACCEPTED
+    └─ CommitCaseLogEntryNode              # Log entry → Announce fan-out (SYNC-02-002)
 
     DeferCaseBT (Sequence)
-    ├─ CheckParticipantExists        # Precondition: actor has a participant record
-    └─ TransitionParticipantRMtoDeferred  # Update RM state to DEFERRED
+    ├─ CheckParticipantExists              # Precondition: actor has a participant record
+    ├─ TransitionParticipantRMtoDeferred   # Update RM state to DEFERRED
+    └─ CommitCaseLogEntryNode              # Log entry → Announce fan-out (SYNC-02-002)
 
 Note: EvaluateCasePriority (in nodes.py) is the stub node for the outgoing
 direction — when the local actor decides whether to engage or defer. It is
@@ -46,8 +48,12 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes import CommitCaseLogEntryNode
 from vultron.core.behaviors.report.nodes import (
     CheckParticipantExists,
+    EmitDeferCaseActivity,
+    EmitEngageCaseActivity,
+    EvaluateCasePriority,
     TransitionParticipantRMtoAccepted,
     TransitionParticipantRMtoDeferred,
 )
@@ -81,6 +87,7 @@ def create_engage_case_tree(
             TransitionParticipantRMtoAccepted(
                 case_id=case_id, actor_id=actor_id
             ),
+            CommitCaseLogEntryNode(case_id=case_id),
         ],
     )
 
@@ -114,8 +121,70 @@ def create_defer_case_tree(
             TransitionParticipantRMtoDeferred(
                 case_id=case_id, actor_id=actor_id
             ),
+            CommitCaseLogEntryNode(case_id=case_id),
         ],
     )
 
     logger.debug(f"Created DeferCaseBT for case={case_id}, actor={actor_id}")
+    return root
+
+
+def create_prioritize_subtree(
+    case_id: str,
+    actor_id: str,
+) -> py_trees.behaviour.Behaviour:
+    """
+    Create behavior tree subtree for case prioritization (engage or defer).
+
+    Phase 1: EvaluateCasePriority always returns SUCCESS → engage path.
+    Future: Plug in SSVC or other priority evaluator (IDEA-26041004).
+
+    Structure::
+
+        PrioritizeBT (Selector)
+        ├─ EngagePath (Sequence)
+        │    ├─ EvaluateCasePriority      # stub: SUCCESS = engage
+        │    ├─ EmitEngageCaseActivity    # emit RmEngageCaseActivity
+        │    └─ TransitionParticipantRMtoAccepted  # RM → ACCEPTED
+        └─ DeferPath (Sequence)
+             ├─ EmitDeferCaseActivity     # emit RmDeferCaseActivity
+             └─ TransitionParticipantRMtoDeferred   # RM → DEFERRED
+
+    Per specs/behavior-tree-integration.md BT-06-005, BT-06-006.
+    This is the SSVC evaluator connection point (IDEA-26041004).
+
+    Args:
+        case_id: ID of VulnerabilityCase to prioritize
+        actor_id: ID of Actor making the engage/defer decision
+
+    Returns:
+        Root node of the prioritize behavior tree (Selector)
+    """
+    engage_path = py_trees.composites.Sequence(
+        name="EngagePath",
+        memory=False,
+        children=[
+            EvaluateCasePriority(case_id=case_id),
+            EmitEngageCaseActivity(case_id=case_id, actor_id=actor_id),
+            TransitionParticipantRMtoAccepted(
+                case_id=case_id, actor_id=actor_id
+            ),
+        ],
+    )
+    defer_path = py_trees.composites.Sequence(
+        name="DeferPath",
+        memory=False,
+        children=[
+            EmitDeferCaseActivity(case_id=case_id, actor_id=actor_id),
+            TransitionParticipantRMtoDeferred(
+                case_id=case_id, actor_id=actor_id
+            ),
+        ],
+    )
+    root = py_trees.composites.Selector(
+        name="PrioritizeBT",
+        memory=False,
+        children=[engage_path, defer_path],
+    )
+    logger.debug(f"Created PrioritizeBT for case={case_id}, actor={actor_id}")
     return root

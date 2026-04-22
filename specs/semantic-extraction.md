@@ -49,11 +49,36 @@ The inbox handler extracts semantic meaning from ActivityStreams activities by m
 
 - `SE-03-001` SEMANTICS_ACTIVITY_PATTERNS MUST contain patterns for all supported MessageSemantics values except UNKNOWN
 - `SE-03-002` Pattern registry MUST be ordered from most specific to least specific
+- `SE-03-003` (MUST) Every `ActivityPattern` entry in `SEMANTICS_ACTIVITY_PATTERNS`
+  MUST discriminate on at minimum both Activity type AND Object type
+  - Patterns that match on Activity type alone (without an `object_type`
+    constraint) are NOT permitted
+  - **Rationale**: A pattern without an object-type constraint would match
+    every activity of that verb type regardless of payload, causing
+    misrouting when multiple semantics share an outer Activity type
+  - For nested activity patterns (e.g., `Accept(Offer(VulnerabilityReport))`),
+    the inner activity type and its object type MUST also be discriminated
+    where multiple nested patterns share the same outer shape
 
 ## Unrecognized Activity Handling
 
 - `SE-04-001` The system MUST log unrecognized activities at WARNING level
-- `SE-04-002` The system MUST raise VultronApiHandlerMissingSemanticError for unmatched activities
+- `SE-04-002` The system MUST distinguish two causes of `MessageSemantics.UNKNOWN`:
+  1. **No pattern match**: No registered `ActivityPattern` matched the activity
+     structure → raise `VultronApiHandlerMissingSemanticError`
+  2. **Unresolvable `object_`**: `object_` remains a bare string URI after
+     rehydration (per VAM-01-009) → do NOT raise an error; instead log a
+     WARNING, store the activity in a dead-letter record, and return silently
+  - **Rationale**: An unresolvable `object_` URI is not a programming error;
+    it is a data completeness issue that may resolve later. Treating it as a
+    5xx error would cause unnecessary noise and fail legitimate protocol flows.
+- `SE-04-003` (MUST) Dead-letter records for unresolvable-object_ activities
+  MUST include: the full activity JSON, the unresolvable URI, the actor ID,
+  and a timestamp. They MUST be stored in a DataLayer collection accessible
+  for administrative review and retry.
+- `SE-04-004` For any future synchronous processing path (non-background),
+  UNKNOWN due to unresolvable `object_` MUST return HTTP 422 with an
+  explanatory error body identifying the unresolvable URI
 
 ## Pattern Validation
 

@@ -74,17 +74,17 @@ def case(report):
 
 @pytest.fixture
 def dl():
-    from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
-    dl = TinyDbDataLayer(db_path=None)
+    dl = SqliteDataLayer("sqlite:///:memory:")
     yield dl
     dl.clear_all()
 
 
 def _call_use_case(activity: as_Activity, use_case_class, dl=None):
-    from vultron.wire.as2.extractor import extract_intent
+    from vultron.semantic_registry import extract_event
 
-    event = extract_intent(activity)
+    event = extract_event(activity)
 
     assert event.semantic_type != MessageSemantics.UNKNOWN
     assert event.semantic_type in MessageSemantics

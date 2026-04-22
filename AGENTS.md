@@ -50,9 +50,20 @@ environment notes, and examples you must follow).
 > ⚠️ **STOP — Full test-suite rule (MUST follow)**
 >
 > Follow the instructions in `.github/skills/run-tests/SKILL.md`
-> for running the full test-suite exactly once per validation cycle and
+> for running the test suite exactly once per validation cycle and
 > reading its output. The skill file documents the required single-run
 > invocation and the rationale for the one-run rule.
+>
+> The project has two test suites:
+>
+> - **Unit (default)**: `uv run pytest --tb=short 2>&1 | tail -5`
+>   Excludes `@pytest.mark.integration` tests. Runs in ~13 seconds.
+> - **Integration**: `uv run pytest -m integration --tb=short 2>&1 | tail -5`
+>   Demo tests and file-backed I/O tests. Runs in ~6 seconds.
+> - **All tests**: `uv run pytest -m "" --tb=short 2>&1 | tail -5`
+>
+> For normal code changes, run the unit suite. Run integration tests
+> when touching demo workflows or file-backed datalayer code.
 
 Quick pointers and gotchas:
 
@@ -174,8 +185,6 @@ include migration/compatibility notes and tests.
 This document provides guidance to AI agents working on the Vultron codebase.
 It supplements the Copilot instructions with implementation-specific advice.
 
-**Last Updated:** 2026-03-20
-
 **For durable design insights**, see the `notes/` directory.
 
 **Priority ordering note**: When `plan/IMPLEMENTATION_PLAN.md` grouping or
@@ -236,8 +245,7 @@ and domain types. Rules:
   a parameter; they do not call `get_datalayer()` directly
 
 See `notes/architecture-ports-and-adapters.md` for the full architecture
-specification and code patterns. See `notes/architecture-review.md` for the
-violation inventory (V-01 to V-12, all remediated as of ARCH-CLEANUP).
+specification and code patterns. See `notes/architecture-review.md` for the violation inventory (V-01 to V-12).
 See `specs/architecture.md` for formal requirements (ARCH-01 to ARCH-08) and
 `docs/adr/0009-hexagonal-architecture.md` for the decision rationale.
 
@@ -260,7 +268,10 @@ not cause the work.
 **Response activities** (Accept, Reject, TentativeReject) in reply to an Offer
 or Invite MUST:
 
-- Set the `object` field to the Offer/Invite activity being responded to
+- Set the `object` field to the Offer/Invite activity being responded to,
+  passed as a full inline typed object (e.g., `RmSubmitReportActivity`,
+  `EmProposeEmbargoActivity`) — bare string IDs are rejected at construction
+  time
 - Set `inReplyTo` to the ID of the Offer/Invite activity
 
 See `specs/response-format.md` RF-02-003, RF-03-003, RF-04-003, RF-08-001.
@@ -333,8 +344,8 @@ When adding new message types:
   concerns
 - **Data Layer port** (`vultron/core/ports/datalayer.py`): `DataLayer`
   Protocol definition; use this for imports in core and handlers
-- **Data Layer adapter** (`vultron/adapters/driven/datalayer_tinydb.py`):
-  TinyDB implementation
+- **Data Layer adapter** (`vultron/adapters/driven/datalayer_sqlite.py`):
+  SQLite/SQLModel implementation
 
 Never bypass layer boundaries. Routers should never directly access the data
 layer or embed business logic; always go through adapter helpers and/or core
@@ -554,7 +565,7 @@ Per `specs/testability.md`:
 
 - Use `monkeypatch` fixture for dependency injection
 - Mock external dependencies in unit tests
-- Use real TinyDB backend with test data in integration tests
+- Use real SQLite backend with test data in integration tests
 - Verify logs using `caplog` fixture
 - Test both success and error paths
 - New behavior MUST include tests
@@ -642,7 +653,6 @@ behavior across backends (in-memory / tinydb) where reasonable.
   Protocol (dispatch signature: `dispatch(event, dl)`)
 - **Dispatcher**: `vultron/core/dispatcher.py` - `DispatcherBase`,
   `DirectActivityDispatcher`, `get_dispatcher` factory
-- **Handler shims**: removed in PREPX-2
 - **Inbox**: `vultron/adapters/driving/fastapi/routers/actors.py` - Endpoint
   implementation
 - **Triggers**: `vultron/adapters/driving/fastapi/routers/trigger_report.py`,
@@ -902,34 +912,27 @@ event = CreateReportReceivedEvent(semantic_type=MessageSemantics.CREATE_REPORT, 
 
 See `specs/testability.md` TB-05-004, TB-05-005 for requirements.
 
-### When to Use Behavior Trees
+### All Protocol-Significant Behavior MUST Be in the BT
 
-Not all handlers need BT execution. Use this guide when deciding:
+**There is no "simple enough to skip" threshold for BT usage.**
 
-**Use BTs** (complex orchestration):
+All protocol-observable actions and state transitions MUST be implemented as
+BT nodes or subtrees. This includes emitting activities, transitioning
+RM/EM/CS state, creating/updating domain objects, and cascading to downstream
+behaviors. See `specs/behavior-tree-integration.md` BT-06-001 and
+`notes/canonical-bt-reference.md` for the trunk-removed branches model and
+subtree composition guidance.
 
-- Multiple conditional branches in the workflow
-- State machine transitions (RM/EM/CS state changes with preconditions)
-- Policy injection needed (e.g., pluggable validation rules)
-- Workflow composition (reuse subtrees across handlers)
-- Reference implementations for CVD protocol documentation alignment
-
-**Use procedural code** (simple workflows):
-
-- Simple CRUD operations (ack_report, create_report, submit_report)
-- Linear workflows with 3–5 steps and no branching
-- Single database read/write operations
-- Logging-only or passthrough operations
-
-**Uncertain?** Start procedural; refactor to BT if branching complexity grows.
+The `execute()` method of a use case MAY contain infrastructure glue only:
+instantiate the BT, set up the blackboard from the event, call
+`bridge.execute_with_setup()`, check BT status, extract output from
+blackboard. Nothing domain-significant lives outside the tree.
 
 **Trigger behavior logic belongs outside the API router**: Triggerable
-behavior implementations (BT or procedural) MUST live in separate modules
-that can be called from both API endpoints and CLI commands. API routers
-handle only request parsing, validation, and response formatting — they
-delegate immediately to the behavior implementation. This supports the
-hexagonal architecture goal of keeping business logic independent of the
-transport layer. See `specs/architecture.md` ARCH-08-001.
+behavior implementations MUST live in separate modules that can be called
+from both API endpoints and CLI commands. API routers handle only request
+parsing, validation, and response formatting. See `specs/architecture.md`
+ARCH-08-001.
 
 **Reuse request/response models before creating new ones**: Before adding a
 new Pydantic request or response model to a router, check whether an existing
@@ -943,8 +946,66 @@ engage or defer a case. Receive-side trees (`EngageCaseBT`, `DeferCaseBT`)
 do **not** use it — they only record the **sender's already-made decision** by
 updating the sender's `CaseParticipant.participant_status[].rm_state`.
 
-See `specs/behavior-tree-integration.md` for BT integration requirements and
-`notes/bt-integration.md` for BT design decisions.
+See `specs/behavior-tree-integration.md` for formal BT requirements,
+`notes/bt-integration.md` for design decisions, and
+`notes/canonical-bt-reference.md` for the canonical subtree map.
+
+### Protocol Event Cascades (Cascading Automation)
+
+**Symptom**: Demo-runner must manually trigger intermediate protocol steps
+that should be automated consequences of a primary event.
+
+**Cause**: Some use-case handlers and BT nodes perform only their immediate
+action without triggering the cascading effects required by the protocol.
+For example, accepting an invitation should automatically advance RM to
+ACCEPTED, but the handler only pre-seeds states and requires a separate
+`engage-case` trigger.
+
+**Principle**: The demo-runner (or a human, or an agentic client) should only
+trigger *primary events* (submit-report, validate-report, add-note,
+propose-embargo). Everything else should cascade automatically via BT
+execution or use-case chaining.
+
+**When implementing handlers**: When the primary action implies downstream
+cascading effects that appear as parent→child in the canonical CVD protocol
+BT, express those cascades as BT subtrees — not as post-BT procedural calls.
+See `notes/protocol-event-cascades.md` for the full analysis and gap
+inventory, and `notes/canonical-bt-reference.md` for the subtree model.
+
+### Post-BT Procedural Cascade Anti-Pattern
+
+**Symptom**: A use case's `execute()` calls a function or another use case
+after `bridge.execute_with_setup()` returns — the cascade is invisible in
+the behavior tree.
+
+**Cause**: Domain logic or cascades were implemented procedurally after the
+BT runs instead of as child subtrees. This breaks auditability: an observer
+reading the BT cannot see the full causal chain.
+
+**Example** (the `_auto_engage` violations tracked as D5-7-BTFIX-1/2):
+
+```python
+# ❌ ANTI-PATTERN — cascade outside the tree
+def execute(self) -> None:
+    bridge.execute_with_setup(self._dl, bt, bb)
+    self._auto_engage(...)            # ← domain logic AFTER BT
+```
+
+```python
+# ✅ CORRECT — cascade as child subtree
+class ValidateReportBt:
+    def setup(self):
+        prioritize_subtree = PrioritizeBt(...)  # engage OR defer
+        self.root.add_child(prioritize_subtree) # ← inside tree
+```
+
+**Rule**: `execute()` contains only infrastructure glue — BT instantiation,
+blackboard setup from event, `bt.run()`, status check, output extraction.
+Nothing else.
+
+**Formal requirements**: BT-06-001, BT-06-005, BT-06-006 in
+`specs/behavior-tree-integration.md`. Canonical subtree reference:
+`notes/canonical-bt-reference.md`.
 
 ### py_trees Blackboard Global State
 
@@ -1139,31 +1200,42 @@ See `notes/activitystreams-semantics.md` for details.
 
 ---
 
-### Accept/Reject `object` Field Must Use ID String, Not Inline Object
+### Accept/Reject `object` Field Must Use an Inline Typed Activity Object
 
-**Symptom**: Accept or Reject handler fails with `ValidationError` during
-rehydration because the referenced Invite/Offer is missing its `actor` field.
+**Symptom**: `ValidationError` at construction time when passing a bare string
+ID as the `object_` field of an Accept, Reject, or TentativeReject activity.
 
-**Cause**: When the full inline Invite/Offer object is passed as `object` in
-an Accept/Reject activity and sent over HTTP, FastAPI deserializes it as
-generic `as_Object`, losing subtype-specific fields like `actor`. The
-subsequent `rehydrate()` call cannot reconstruct the full Invite.
+**Cause**: All Accept/Reject/TentativeReject activity classes now require the
+full typed inline activity object as `object_` (e.g., `RmSubmitReportActivity`,
+`EmProposeEmbargoActivity`, `RmInviteToCaseActivity`). Bare string IDs and
+`as_Link` references are no longer accepted — they are rejected by Pydantic
+validation at construction time, preventing ambiguous dispatch.
 
-**Fix**: Set `object` to the **ID string** of the original Invite/Offer.
-The handler rehydrates the full object from the DataLayer.
+**Fix**: Pass the full typed inline activity object, not a bare string ID.
+If the activity was loaded from the DataLayer as a generic object, coerce it
+to the correct type using `model_validate` before passing it.
 
 ```python
-# Correct
-accept = RmAcceptInviteToCase(actor=actor.id_, object=invite.id_)
+# Correct — pass the full typed inline object
+accept = RmAcceptInviteToCaseActivity(actor=actor.id_, object_=invite)
 
-# Incorrect — loses `actor` field after HTTP deserialization
-accept = RmAcceptInviteToCase(actor=actor.id_, object=invite)
+# Incorrect — bare string ID is rejected at construction time
+accept = RmAcceptInviteToCaseActivity(actor=actor.id_, object_=invite.id_)
+```
+
+When the original activity is read from the DataLayer as a generic object,
+coerce it first:
+
+```python
+if not isinstance(invite, RmInviteToCaseActivity):
+    invite = RmInviteToCaseActivity.model_validate(
+        invite.model_dump(by_alias=True)
+    )
+accept = RmAcceptInviteToCaseActivity(actor=actor.id_, object_=invite)
 ```
 
 This applies to all `Accept` / `Reject` / `TentativeReject` responses to
 `Invite` or `Offer` activities.
-
-See `notes/activitystreams-semantics.md` for details.
 
 ---
 
@@ -1297,6 +1369,27 @@ field definition.
 Pydantic inheritance edge cases where an optional base field is intentionally
 narrowed to required in a subclass. Use this sparingly and only when weakening
 runtime constraints would be the alternative.
+
+---
+
+### Pytest `filterwarnings = ["error"]` Does Not Catch All Warnings
+
+`pyproject.toml` sets `filterwarnings = ["error"]`, which converts Python
+`warnings.warn()` calls into test errors. This prevents silent accumulation
+of deprecation and misuse warnings.
+
+**Scope caveat**: This policy applies only to `warnings.warn()` calls
+captured by pytest's warning machinery. It does **not** catch
+`"Exception ignored in:"` messages printed by the Python interpreter at
+process teardown (e.g., `ResourceWarning: unclosed file ...`). Those arise
+from finalizers (`__del__`) running after pytest exits and are invisible to
+`filterwarnings`.
+
+**Rule for agents**: After running the test suite, also scan the output for
+`ResourceWarning` or `"Exception ignored in:"` messages. These signal
+unclosed resources and are still bugs even if they do not cause test
+failures. File them in `plan/BUGS.md` if not already tracked and fix them
+by explicitly closing resources in fixtures.
 
 ---
 

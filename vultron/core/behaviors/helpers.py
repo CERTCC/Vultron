@@ -46,6 +46,10 @@ class DataLayerCondition(py_trees.behaviour.Behaviour):
     Subclasses should override update() to implement condition logic.
     """
 
+    # Declare the managed logger type so subclass log calls are type-checked
+    # against the stdlib logging.Logger API (not py_trees.logging.Logger).
+    logger: logging.Logger  # type: ignore[assignment]
+
     def __init__(self, name: str):
         """
         Initialize condition node.
@@ -54,6 +58,12 @@ class DataLayerCondition(py_trees.behaviour.Behaviour):
             name: Descriptive name for this condition node
         """
         super().__init__(name=name)
+        # py_trees creates self.logger = logging.Logger(name) with parent=None,
+        # so messages are silently dropped.  Replace with a proper managed logger
+        # so BT node log messages propagate through the standard logging hierarchy.
+        self.logger = logging.getLogger(  # type: ignore[assignment]
+            f"{self.__class__.__module__}.{self.__class__.__name__}"
+        )
         self.datalayer: DataLayer | None = None
         self.actor_id: str | None = None
 
@@ -101,6 +111,10 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
     Subclasses should override update() to implement action logic.
     """
 
+    # Declare the managed logger type so subclass log calls are type-checked
+    # against the stdlib logging.Logger API (not py_trees.logging.Logger).
+    logger: logging.Logger  # type: ignore[assignment]
+
     def __init__(self, name: str):
         """
         Initialize action node.
@@ -109,6 +123,12 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
             name: Descriptive name for this action node
         """
         super().__init__(name=name)
+        # py_trees creates self.logger = logging.Logger(name) with parent=None,
+        # so messages are silently dropped.  Replace with a proper managed logger
+        # so BT node log messages propagate through the standard logging hierarchy.
+        self.logger = logging.getLogger(  # type: ignore[assignment]
+            f"{self.__class__.__module__}.{self.__class__.__name__}"
+        )
         self.datalayer: DataLayer | None = None
         self.actor_id: str | None = None
 

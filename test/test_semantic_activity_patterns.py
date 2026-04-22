@@ -1,25 +1,44 @@
 from typing import Any, Dict, cast
 import itertools
 
+import pytest
+from pydantic import ValidationError
+
 from vultron.core.models.events import MessageSemantics
+from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.wire.as2.extractor import (
     ActivityPattern,
-    SEMANTICS_ACTIVITY_PATTERNS,
+    find_matching_semantics,
+)
+from vultron.wire.as2.vocab.activities.case import (
+    OfferCaseOwnershipTransferActivity,
+    RmAcceptInviteToCaseActivity,
+    RmInviteToCaseActivity,
+)
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Accept
+from vultron.wire.as2.vocab.base.objects.actors import (
+    as_Actor,
+    as_Organization,
+    as_Person,
+    as_Service,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    VulnerabilityCase,
+    VulnerabilityCaseStub,
 )
 
 
 def test_all_message_semantics_have_activity_patterns():
-    """Ensure every MessageSemantics member is present as a key in SEMANTICS_ACTIVITY_PATTERNS."""
+    """Ensure every non-UNKNOWN* MessageSemantics member has a pattern in SEMANTIC_REGISTRY."""
+    no_pattern_sentinels = {
+        MessageSemantics.UNKNOWN,
+        MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT,
+    }
     missing = [
-        member
-        for member in MessageSemantics
-        if member not in SEMANTICS_ACTIVITY_PATTERNS
+        e.semantics
+        for e in SEMANTIC_REGISTRY
+        if e.semantics not in no_pattern_sentinels and e.pattern is None
     ]
-
-    # it's okay for MessageSemantics.UNKNOWN to not have a pattern, since it's a catch-all for unmatched semantics
-    if MessageSemantics.UNKNOWN in missing:
-        missing.remove(MessageSemantics.UNKNOWN)
-
     assert not missing, f"Missing activity patterns for semantics: {missing}"
 
 
@@ -94,7 +113,10 @@ def test_non_overlapping_activity_patterns():
     subset of another in the same activity_ group (either direction).
     """
     groups: dict[str, list[ActivityPattern]] = {}
-    for pat in SEMANTICS_ACTIVITY_PATTERNS.values():
+    for entry in SEMANTIC_REGISTRY:
+        if entry.pattern is None:
+            continue
+        pat = entry.pattern
         groups.setdefault(getattr(pat, "activity_", ""), []).append(pat)
 
     problems = []
@@ -154,3 +176,236 @@ def test_non_overlapping_activity_patterns():
     assert (
         not problems
     ), f"Problems found in activity pattern groups: {problems}"
+
+
+def test_offer_case_ownership_transfer_rejects_string_object():
+    """OfferCaseOwnershipTransferActivity must have an inline VulnerabilityCase,
+    not a bare string URI as object_.
+
+    Sending a string URI causes pattern-matching ambiguity: both
+    OFFER_CASE_OWNERSHIP_TRANSFER and SUBMIT_REPORT are Offer activities, and
+    the conservative string-passthrough in ActivityPattern._match_field makes
+    both patterns match when the object is opaque.  Enforcing the inline object
+    at the model level eliminates the ambiguity at its source.
+    """
+    with pytest.raises(ValidationError):
+        OfferCaseOwnershipTransferActivity(
+            actor="https://example.org/vendor",
+            object_="urn:uuid:some-case-id",  # type: ignore[arg-type]  # intentional invalid type — must be rejected by Pydantic
+        )
+
+
+def test_offer_case_ownership_transfer_with_inline_case_dispatches_correctly():
+    """An OfferCaseOwnershipTransferActivity with a full inline VulnerabilityCase
+    must be classified as OFFER_CASE_OWNERSHIP_TRANSFER, not SUBMIT_REPORT."""
+    case = VulnerabilityCase(
+        id_="https://example.org/cases/urn:uuid:test-case",
+        name="TEST-001",
+    )
+    offer = OfferCaseOwnershipTransferActivity(
+        actor="https://example.org/vendor",
+        object_=case,
+    )
+    result = find_matching_semantics(offer)
+    assert result == MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
+
+
+def test_accept_with_bare_string_object_returns_unresolvable():
+    """Accept with a bare string object_ (unrehydrated ref) must return
+    UNKNOWN_UNRESOLVABLE_OBJECT, not UNKNOWN, because Accept is a registered
+    activity type and the failure is due to an unresolvable URI.
+
+    DR-14: find_matching_semantics() distinguishes "no pattern match for a
+    known type with bare-string object_" from "genuinely unknown activity type".
+    """
+    accept = as_Accept(
+        actor="https://example.org/coordinator",
+        object_="urn:uuid:some-offer-id",  # bare string — not rehydrated
+    )
+    result = find_matching_semantics(accept)
+    assert result == MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
+
+
+def test_unknown_activity_type_with_bare_string_object_returns_unknown():
+    """An activity type with no registered patterns returns UNKNOWN (not
+    UNKNOWN_UNRESOLVABLE_OBJECT) even when object_ is a bare string.
+
+    DR-14: The unresolvable-object heuristic only fires for *known* activity
+    types (those with at least one registered pattern).
+    """
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Undo,
+    )
+
+    # as_Undo has no registered Vultron patterns; a bare-string object_ should
+    # return UNKNOWN, not UNKNOWN_UNRESOLVABLE_OBJECT.
+    activity = as_Undo(
+        actor="https://example.org/alice",
+        object_="urn:uuid:some-object",
+    )
+    result = find_matching_semantics(activity)
+    assert result == MessageSemantics.UNKNOWN
+
+
+# ---------------------------------------------------------------------------
+# DR-07 — Actor subtype-aware pattern matching for InviteActorToCasePattern
+# ---------------------------------------------------------------------------
+
+
+CASE_URI = "https://example.org/cases/case1"
+ACTOR_URI = "https://example.org/actors/alice"
+OWNER_URI = "https://example.org/actors/owner"
+
+
+def _make_case() -> VulnerabilityCaseStub:
+    return VulnerabilityCaseStub(id_=CASE_URI)
+
+
+@pytest.mark.parametrize(
+    "actor_obj",
+    [
+        as_Actor(id_=ACTOR_URI),
+        as_Person(id_=ACTOR_URI),
+        as_Organization(id_=ACTOR_URI),
+        as_Service(id_=ACTOR_URI),
+    ],
+    ids=["base-Actor", "Person", "Organization", "Service"],
+)
+def test_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
+    """InviteActorToCasePattern must match Invite(actor_subtype, target=Case).
+
+    DR-07: _match_field() must be subtype-aware for AOtype.ACTOR so that
+    Person, Organization, and Service (the real actor subtypes used in
+    production) are correctly identified as INVITE_ACTOR_TO_CASE.
+    """
+    invite = RmInviteToCaseActivity(
+        id_="https://example.org/invitations/1",
+        actor=OWNER_URI,
+        object_=actor_obj,
+        target=_make_case(),
+    )
+    result = find_matching_semantics(invite)
+    assert result == MessageSemantics.INVITE_ACTOR_TO_CASE, (
+        f"Expected INVITE_ACTOR_TO_CASE for Invite({type(actor_obj).__name__}), "
+        f"got {result}"
+    )
+
+
+@pytest.mark.parametrize(
+    "actor_obj",
+    [
+        as_Actor(id_=ACTOR_URI),
+        as_Person(id_=ACTOR_URI),
+        as_Organization(id_=ACTOR_URI),
+        as_Service(id_=ACTOR_URI),
+    ],
+    ids=["base-Actor", "Person", "Organization", "Service"],
+)
+def test_accept_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
+    """AcceptInviteActorToCasePattern must match Accept(Invite(actor_subtype, target=Case)).
+
+    The nested-pattern check propagates actor subtype-awareness through the
+    AcceptInviteActorToCasePattern → InviteActorToCasePattern chain.
+    """
+    invite = RmInviteToCaseActivity(
+        id_="https://example.org/invitations/1",
+        actor=OWNER_URI,
+        object_=actor_obj,
+        target=_make_case(),
+    )
+    accept = RmAcceptInviteToCaseActivity(
+        actor=ACTOR_URI,
+        object_=invite,
+    )
+    result = find_matching_semantics(accept)
+    assert result == MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE, (
+        f"Expected ACCEPT_INVITE_ACTOR_TO_CASE for Accept(Invite({type(actor_obj).__name__})), "
+        f"got {result}"
+    )
+
+
+def test_invite_actor_to_case_without_actor_object_does_not_match():
+    """Invite(Note, target=Case) must NOT match INVITE_ACTOR_TO_CASE.
+
+    Enforces the object_ discriminator added by DR-07: a non-Actor object
+    must not be accepted as an actor-invite pattern match.
+    """
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Invite,
+    )
+    from vultron.wire.as2.vocab.base.objects.base import as_Object
+
+    invite_with_non_actor = as_Invite(
+        actor=OWNER_URI,
+        object_=as_Object(id_="https://example.org/notes/1"),
+        target=_make_case(),
+    )
+    result = find_matching_semantics(invite_with_non_actor)
+    assert result != MessageSemantics.INVITE_ACTOR_TO_CASE
+
+
+def test_announce_vulnerability_case_pattern_matches():
+    """AnnounceVulnerabilityCasePattern must match Announce(VulnerabilityCase).
+
+    DR-10: the pattern must be registered so incoming AnnounceVulnerabilityCase
+    activities are routed to AnnounceVulnerabilityCaseReceivedUseCase.
+    """
+    from vultron.wire.as2.vocab.activities.case import (
+        AnnounceVulnerabilityCaseActivity,
+    )
+
+    case = VulnerabilityCase(
+        id_="https://example.org/cases/case-pattern-001", name="Pattern Test"
+    )
+    announce = AnnounceVulnerabilityCaseActivity(
+        actor="https://example.org/actors/owner",
+        object_=case,
+    )
+    result = find_matching_semantics(announce)
+    assert (
+        result == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE
+    ), f"Expected ANNOUNCE_VULNERABILITY_CASE, got {result}"
+
+
+def test_vulnerability_case_stub_serialises_minimally():
+    """VulnerabilityCaseStub must produce only {id, type} when serialised.
+
+    DR-10 / MV-10-001: the stub is the selective-disclosure object used in
+    Invite.target; it must not expose full case details to uninvited parties.
+    """
+    stub = VulnerabilityCaseStub(id_="https://example.org/cases/case-stub-001")
+    dumped = stub.model_dump(by_alias=True, exclude_none=True)
+    assert set(dumped.keys()) <= {"id", "type", "@context"}
+    assert dumped.get("id") == "https://example.org/cases/case-stub-001"
+    assert dumped.get("type") == "VulnerabilityCase"
+
+
+def test_vulnerability_case_stub_with_summary():
+    """VulnerabilityCaseStub may expose a summary field (MV-10-002)."""
+    stub = VulnerabilityCaseStub(
+        id_="https://example.org/cases/case-stub-002",
+        summary="Heap overflow in libfoo",
+    )
+    dumped = stub.model_dump(by_alias=True, exclude_none=True)
+    assert "summary" in dumped
+    assert dumped["summary"] == "Heap overflow in libfoo"
+
+
+def test_rm_invite_rejects_full_vulnerability_case_as_target():
+    """RmInviteToCaseActivity must reject a full VulnerabilityCase in target.
+
+    DR-10 / MV-10-001: only VulnerabilityCaseStub (or a bare URI string) is
+    accepted so that full case details are never sent to uninvited parties.
+    """
+    from pydantic import ValidationError
+
+    actor = as_Actor(id_="https://example.org/actors/alice")
+    full_case = VulnerabilityCase(
+        id_="https://example.org/cases/c1", name="Full"
+    )
+    with pytest.raises(ValidationError):
+        RmInviteToCaseActivity(
+            actor=actor.id_,
+            object_=actor,
+            target=cast(Any, full_case),
+        )

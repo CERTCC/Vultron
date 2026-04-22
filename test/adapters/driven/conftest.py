@@ -14,32 +14,22 @@
 import pytest
 
 from vultron.adapters.driven.db_record import Record
-from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-from vultron.wire.as2.vocab.base.objects.object_types import (
-    as_Note,
-)
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 
 @pytest.fixture
 def tmp_db_file(tmp_path):
-    db_path = tmp_path / "test_tinydb.json"
-    # TinyDB will create the file when opened
+    db_path = tmp_path / "test_sqlite.db"
     return db_path
 
 
 @pytest.fixture
 def dl(tmp_db_file):
-    dl = TinyDbDataLayer(db_path=str(tmp_db_file))
+    dl = SqliteDataLayer(db_url=f"sqlite:///{tmp_db_file}")
     yield dl
-    # teardown
     dl.clear_all()
-    try:
-        dl._db.close()
-    except Exception:
-        pass
-    if tmp_db_file.exists():
-        tmp_db_file.unlink()
-    assert not tmp_db_file.exists()
+    dl.close()
 
 
 @pytest.fixture

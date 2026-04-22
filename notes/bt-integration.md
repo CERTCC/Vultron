@@ -2,10 +2,11 @@
 
 ## Architecture Overview
 
-Handler functions in `vultron/api/v2/backend/handlers` MAY orchestrate
-complex workflows using the `py_trees` behavior tree library via the bridge
-layer in `vultron/core/behaviors/`. Simple CRUD-style handlers use procedural
-code directly.
+Use-case functions in `vultron/core/use_cases/` orchestrate complex workflows
+using the `py_trees` behavior tree library via the bridge layer in
+`vultron/core/behaviors/`. All protocol-significant behaviors MUST be
+implemented as BT nodes or subtrees. See
+`specs/behavior-tree-integration.md` BT-06-001.
 
 **Key boundary**: `vultron/bt/` is the simulation BT engine (custom, do NOT
 modify or reuse for prototype handlers). `vultron/core/behaviors/` uses
@@ -134,47 +135,68 @@ execution of the inbox queue is sufficient for prototype validation.
 
 ---
 
-## When to Use BTs vs. Procedural Code
+## All Protocol-Significant Behavior MUST Be in the BT
 
-**Use BTs** (complex orchestration):
+**There is no "simple enough to skip" threshold for BT usage.**
 
-- Multiple conditional branches in the workflow
-- State machine transitions (RM/EM/CS) with preconditions
-- Policy injection needed (e.g., pluggable validation rules)
-- Workflow composition (reuse subtrees across handlers)
-- Reference implementations for CVD protocol documentation alignment
+All protocol-observable actions and state transitions MUST be implemented as
+BT nodes or subtrees. This includes:
 
-**Use procedural code** (simple workflows):
+- Emitting ActivityStreams activities
+- Transitioning RM/EM/CS state
+- Creating or updating domain objects that represent protocol state
+- Cascading to downstream behaviors (e.g., validate → engage/defer)
 
-- Simple CRUD operations (`ack_report`, `create_report`, `submit_report`)
-- Linear workflows with 3–5 steps and no branching
-- Single database read/write operations
-- Logging-only or passthrough operations
+The BT is the domain documentation. If a behavior is not in the tree, it is
+invisible to analysis, audit, and explainability tools. See BT-06-001,
+BT-06-005, BT-06-006 in `specs/behavior-tree-integration.md`.
 
-**Decision table for report, case, and embargo handlers**:
+### Post-BT Procedural Cascade Anti-Pattern
 
-| Handler                          | BT Value  | Rationale                                                                |
-|----------------------------------|-----------|--------------------------------------------------------------------------|
-| `validate_report`                | ✅ HIGH   | ✅ DONE — complex branching, policy injection, case creation subtree      |
-| `engage_case`                    | ✅ HIGH   | ✅ DONE — participant RM state, policy evaluation, state transitions      |
-| `defer_case`                     | ✅ HIGH   | ✅ DONE — participant RM state, policy evaluation, state transitions      |
-| `create_case`                    | ✅ HIGH   | ✅ DONE — idempotency check, validate, persist, CaseActor creation        |
-| `close_report`                   | ⚠️ MEDIUM | Has procedural logic; multi-step with preconditions; BT adds clarity    |
-| `invalidate_report`              | ⚠️ MEDIUM | Has procedural logic; relatively short but state-machine-tied           |
-| `create_report`                  | ❌ LOW    | Simple CRUD; no branching; keep procedural                              |
-| `submit_report`                  | ❌ LOW    | Offer/status update; simple; keep procedural                            |
-| `ack_report`                     | ❌ LOW    | Single status transition; no branching; keep procedural                 |
-| `add_report_to_case`             | ❌ LOW    | Simple append with idempotency; keep procedural                         |
-| `close_case`                     | ❌ LOW    | Leave + activity emit; simple; keep procedural                          |
-| `create_case_participant`        | ❌ LOW    | Simple CRUD with idempotency; keep procedural                           |
-| `add_case_participant_to_case`   | ❌ LOW    | Simple append with idempotency; keep procedural                         |
-| `create_embargo_event`           | ❌ LOW    | ✅ DONE (procedural) — CRUD; store EmbargoEvent in DataLayer             |
-| `add_embargo_event_to_case`      | ❌ LOW    | ✅ DONE (procedural) — sets `active_embargo`, transitions EM → PROPOSED  |
-| `remove_embargo_event_from_case` | ❌ LOW    | ✅ DONE (procedural) — removes active embargo, transitions EM → NONE     |
-| `announce_embargo_event_to_case` | ❌ LOW    | ✅ DONE (procedural) — log only; cannot write to `case_activity` (type limitation) |
-| `invite_to_embargo_on_case`      | ❌ LOW    | ✅ DONE (procedural) — stores invite activity in DataLayer               |
-| `accept_invite_to_embargo_on_case` | ❌ LOW  | ✅ DONE (procedural) — sets `active_embargo`, transitions EM → ACTIVE    |
-| `reject_invite_to_embargo_on_case` | ❌ LOW  | ✅ DONE (procedural) — stores reject activity; no state change           |
+```python
+# ❌ WRONG — cascade hidden outside the tree
+def execute(self) -> None:
+    bridge.execute_with_setup(self._dl, bt, bb)
+    if bt.status == Status.SUCCESS:
+        SvcEngageCaseUseCase(self._dl, engage_event).execute()  # ← VIOLATION
+```
+
+The validate→engage cascade is invisible at the BT level. This pattern exists
+in three places and is tracked as D5-7-BTFIX-1 and D5-7-BTFIX-2.
+
+```python
+# ✅ CORRECT — cascade expressed as a child subtree
+class ValidateReportBt:
+    def __init__(...):
+        bt = py_trees.composites.Sequence(...)
+        validate_node = ValidateReportNode(...)
+        prioritize_subtree = PrioritizeBt(...)  # engage OR defer
+        bt.add_children([validate_node, prioritize_subtree])
+```
+
+The cascade from the canonical `?_RMValidateBt → ?_RMPrioritizeBt` is now
+visible in the BT structure and auditable from the tree alone.
+
+### Procedural Glue Exception
+
+The `execute()` method MAY contain infrastructure glue only:
+
+- Instantiate the BT
+- Set up the blackboard from the event (load actor/case IDs)
+- Call `bridge.execute_with_setup()`
+- Check BT status
+- Extract output from the blackboard
+
+Nothing domain-significant lives outside the tree.
+
+### Historical Decision Table (Retired)
+
+The "When to Use BTs vs. Procedural Code" table that previously appeared in
+this section has been removed. It created a false "simple enough to skip"
+threshold that led directly to the anti-pattern violations above.
+
+For the mapping of canonical BT subtrees to current use cases, see
+the "Canonical CVD Protocol Behavior Tree Reference" section of this file.
 
 ---
 
@@ -295,10 +317,18 @@ RM is a **participant-specific** state machine — each `CaseParticipant`
 carries its own RM state in `participant_status[].rm_state`, independently
 of other participants.
 
-`ReportStatus` in the flat status layer is a **separate mechanism** used
-only for reports not yet associated with a case (pre-case RM states:
-RECEIVED, INVALID). Once a case is created from a validated report, RM state
-is tracked in `CaseParticipant.participant_status[].rm_state`.
+Per ADR-0015, a `VulnerabilityCase` is created at report receipt
+(RM.RECEIVED). `VultronParticipant` records are created at that time:
+reporter at RM.ACCEPTED, receiver at RM.RECEIVED. RM state is tracked
+in `VultronParticipant.participant_status[].rm_state` from the moment
+of case creation.
+
+`ReportStatus` in the flat status layer is a **transient pre-case
+mechanism** that was previously used for reports not yet associated with
+a case (pre-case RM states: RECEIVED, INVALID). Under ADR-0015, the case
+is created at receipt, so `VultronParticipant` records carry RM state
+from the start. `ReportStatus` is retained for backwards compatibility but
+is no longer the primary RM state carrier.
 
 This distinction affects how `engage_case` / `defer_case` handlers work:
 they update participant-level RM state, not flat report status.
@@ -349,3 +379,244 @@ decided.
 acceptance, and similar steps require human judgment. The prototype uses
 configurable default policies (always-accept stubs with audit logging). Async
 workflow support with pause/resume is a future consideration.
+
+---
+
+## Related
+
+- `notes/bt-integration.md` — canonical subtree map, trunk-removed
+  branches model, anti-pattern examples (merged from former
+  `canonical-bt-reference.md`)
+- `specs/behavior-tree-integration.md` — formal BT requirements
+  (BT-06-001 through BT-06-006 especially)
+- `notes/bt-fuzzer-nodes.md` — fuzzer node catalog and replacement patterns
+- `notes/use-case-behavior-trees.md` — use-case/BT conceptual layering
+- `notes/protocol-event-cascades.md` — cascade gaps and BT subtree fixes
+- `notes/vultron-bt.txt` — full canonical CVD protocol BT dump (read-only
+  reference)
+
+---
+
+## Canonical CVD Protocol Behavior Tree Reference
+
+This section documents the **canonical CVD Protocol Behavior Tree** — the
+authoritative definition of what Vultron does at the domain level. It
+captures the "trunk-removed branches" mental model, provides an annotated
+structural overview, maps canonical subtrees to current use cases, and
+gives implementation guidance for locating new behaviors before coding them.
+
+**Source**: `vultron-bt.txt` (full tree dump from the simulation engine),
+`docs/topics/behavior_logic/` (narrative documentation per subtree),
+`vultron/bt/` (simulation implementation, do NOT modify).
+
+### The Trunk-Removed Branches Model
+
+The Vultron simulation runs one large `CvdProtocolRoot` tree continuously,
+ticking through all branches on every cycle. The prototype cannot do this
+— it is event-driven, receiving one ActivityStreams message at a time.
+
+The solution: **remove the trunk, keep the branches**.
+
+Each use case in `vultron/core/use_cases/` corresponds to a named subtree
+in the canonical BT. When an external event (HTTP message, trigger API call)
+arrives, the dispatcher activates the matching subtree as a py_trees BT.
+The branch executes to completion, exactly as it would if the full tree had
+ticked down to it.
+
+```text
+Canonical tree:          Prototype:
+CvdProtocolRoot          (trunk removed)
+  ├─ ReceiveMessages ──►  CreateReportReceivedUseCase → __HandleRs_51 subtree
+  │    └─ HandleRS  ──►   ValidateReportUseCase       → RMValidateBt_416 subtree
+  │    └─ HandleEP  ──►   ProposeEmbargoReceivedUseCase → __HandleEp_135 subtree
+  └─ ReportMgmtBt ──►    SvcEngageCaseUseCase         → RMPrioritizeBt_505 subtree
+       └─ RmValid        SvcDeferCaseUseCase           → RMPrioritizeBt_505 subtree
+            └─ Prioritize
+```
+
+**Why this matters**: When adding a cascade (A triggers B), check the
+canonical tree. If B is a *child* of A in the canonical tree, B must be a
+BT subtree within A's use-case BT — not a procedural call after `bt.run()`
+returns. The tree structure IS the documentation. Anything outside the tree
+is invisible to analysis and audit.
+
+### Node Symbol Legend
+
+The canonical BT uses prefix symbols to identify node types:
+
+| Symbol | Node type | py_trees equivalent |
+|--------|-----------|---------------------|
+| `+--`  | Root sequence | `py_trees.composites.Sequence` |
+| `>`    | Sequence (all children must succeed) | `py_trees.composites.Sequence` |
+| `?`    | Selector (first success wins) | `py_trees.composites.Selector` |
+| `l`    | While/loop | custom repeat decorator |
+| `^`    | Inverter | `py_trees.decorators.Inverter` |
+| `!`    | Action (emit message) | action leaf node |
+| `a`    | Action (state transition) | action leaf node |
+| `c`    | Condition check | condition leaf node |
+| `z`    | Fuzzer node (human/external input stub) | replaced by real integration |
+| `L->`  | Last child of parent | (same types as above) |
+
+### Top-Level Structure
+
+```text
+CvdProtocolRoot (Sequence)
+├─ Snapshot                     # capture current state
+├─ DiscoverVulnerabilityBt      # finder role: find/receive vuln
+├─ ReceiveMessagesBt            # process inbound message queue
+├─ ReportManagementBt           # RM state machine (non-message-driven)
+├─ EmbargoManagementBt          # EM state machine (non-message-driven)
+└─ CaseStateBt                  # CS state machine (non-message-driven)
+```
+
+The prototype maps these five branches to use cases. The first three
+(Snapshot, DiscoverVuln, ReceiveMessages) are reactive; the last two plus
+ReportManagementBt are autonomous/trigger behaviors.
+
+### Subtree Map: Canonical BT → Use Cases
+
+#### Message Receipt: ReceiveMessagesBt (lines 26–410 in vultron-bt.txt)
+
+The canonical tree dispatches on message type inside
+`?__HandleMessage_36`. Each message type handler is a subtree:
+
+| Canonical subtree | Message type | Current use case |
+|---|---|---|
+| `>__HandleRs_51` | RS (Report Submit) | `SubmitReportReceivedUseCase` |
+| `>_ProcessRMMessagesBt_37` + `>__HandleRs_51` | RS inbound | `SubmitReportReceivedUseCase` |
+| `>_ProcessEMMessagesBt_78` + `>__HandleEp_135` | EP (Embargo Propose) | `ProposeEmbargoReceivedUseCase` |
+| `>_ProcessEMMessagesBt_78` + `>__HandleEr_113` | ER (Embargo Revise) | `ReviseEmbargoReceivedUseCase` |
+| `>_ProcessEMMessagesBt_78` + `>__HandleEa_148` | EA (Embargo Accept) | `AcceptEmbargoReceivedUseCase` |
+| `>_ProcessEMMessagesBt_78` + `>__HandleEt_98` | ET (Embargo Terminate) | `TerminateEmbargoReceivedUseCase` |
+| `>_ProcessCSMessagesBt_277` | CV/CF/CD/CP/CX messages | CS-state use cases |
+
+#### Report Management State Machine: ReportManagementBt (lines 411–940)
+
+The RM state machine drives autonomous behavior once a report is received.
+Sub-trees by RM state:
+
+| Canonical subtree | RM state trigger | Current use case |
+|---|---|---|
+| `>_RmReceived_414` + `?_RMValidateBt_416` | RM=RECEIVED → validate | `SvcValidateReportUseCase` / `ValidateCaseUseCase` |
+| `>__ValidationSequence_425` → `>__ValidateReport_431` | validate → RM.VALID | validate BT (validate_tree.py) |
+| `>__InvalidateReport_440` | validate → RM.INVALID | validate BT failure path |
+| `>_RmValid_503` + `?_RMPrioritizeBt_505` | RM=VALID → prioritize | `SvcEngageCaseUseCase` / `SvcDeferCaseUseCase` |
+| `>__TransitionToRmAccepted_524` | prioritize → RM.ACCEPTED | `SvcEngageCaseUseCase` (engage BT) |
+| `>__TransitionToRmDeferred_536` | prioritize → RM.DEFERRED | `SvcDeferCaseUseCase` (defer BT) |
+| `?_RMCloseBt_451/549/613` + `>__ReportClosureSequence_453` | RM=VALID/DEFERRED/ACCEPTED → close | `SvcCloseReportUseCase` |
+
+**Critical**: In the canonical tree, `?_RMValidateBt_416` and
+`?_RMPrioritizeBt_505` are parent→child. The validate subtree runs, then
+the prioritize subtree runs as the next step in the same RM sequence. This
+means **the validate→prioritize (engage/defer) cascade MUST be expressed as
+a BT subtree**, not as a procedural call after validation succeeds.
+
+#### Embargo Management State Machine: EmbargoManagementBt (lines 940+)
+
+| Canonical subtree | Trigger | Current use case |
+|---|---|---|
+| `?_EMProposeBt` | EM=NONE → propose | `SvcProposeEmbargoUseCase` |
+| `?_EMEvalBt` | EM=PROPOSED → evaluate | embargo evaluation BT |
+| `?_EMRevise` | EM=ACTIVE → revise | `SvcReviseEmbargoUseCase` |
+| `?_EMTerminateBt` | EM=ACTIVE → terminate | `SvcTerminateEmbargoUseCase` |
+
+### The Prioritize Subtree in Detail
+
+The validate → engage/defer cascade is one of the most commonly
+misimplemented patterns. The canonical structure is:
+
+```text
+?_RMPrioritizeBt_505 (Selector)
+├─ >__ConsiderGatheringMorePrioritizationInfo_506
+│    └─ skip if already DEFERRED or ACCEPTED
+├─ >__DecideIfFurtherActionNeeded_515 (Sequence)
+│    ├─ check RM in VALID/DEFERRED/ACCEPTED
+│    ├─ a_EvaluatePriority_520          ← fuzzer: SSVC or other evaluator
+│    ├─ c_PriorityNotDefer_521          ← condition: should we engage?
+│    └─ ?__EnsureRmAccepted_522
+│         └─ >__TransitionToRmAccepted_524
+│              ├─ OnAccept_525
+│              ├─ transition RM → ACCEPTED
+│              └─ !_Emit_RA_533         ← emit RA message
+└─ ?__EnsureRmDeferred_534
+     └─ >__TransitionToRmDeferred_536
+          ├─ OnDefer_537
+          ├─ transition RM → DEFERRED
+          └─ !_Emit_RD_545              ← emit RD message
+```
+
+`a_EvaluatePriority_520` is a fuzzer node — a stub for real-world
+prioritization logic. In the prototype this becomes the
+**priority-check node** described in IDEA-26041004: a node that returns
+SUCCESS (engage), FAILURE (defer), or RUNNING (evaluation pending). The
+default implementation returns SUCCESS to preserve current demo behavior.
+
+This subtree MUST be a child of the validate BT (or its parent), not a
+procedural function called after `bt.run()` returns.
+
+### How to Locate a New Behavior in the Canonical Tree
+
+When implementing a new cascade, state transition, or downstream behavior:
+
+1. **Find the canonical subtree path** in `vultron-bt.txt`. Use the node
+   names (e.g., `?_RMPrioritizeBt_505`) to locate the right section.
+2. **Check whether it is a child of the triggering subtree** in the
+   canonical tree. If yes → it MUST be a BT subtree, not procedural code.
+3. **Identify any fuzzer nodes** (`z_` prefix) in the path. These are
+   integration points where real logic (human, AI, external system) must
+   replace the stub. In the prototype, implement as a leaf node that can
+   be replaced without changing the tree structure.
+4. **Implement as a shared subtree factory** (e.g.,
+   `create_prioritize_subtree()`) so the same subtree can be instantiated
+   anywhere the canonical tree reuses it.
+5. **Document divergence**: if the prototype diverges from the canonical
+   structure (e.g., skips a branch that requires human input), add a
+   comment explaining why and file a tech debt item.
+
+### Key Fuzzer Nodes: Future Integration Points
+
+Fuzzer nodes in the canonical BT represent the planned extension points for
+the Vultron system. Each one is a location where real-world logic will
+eventually replace the simulation stub. See `notes/bt-fuzzer-nodes.md`
+for the full inventory.
+
+Highest-priority fuzzer nodes for the prototype:
+
+| Node | Location | Real-world replacement |
+|---|---|---|
+| `a_EvaluatePriority_520` | RMPrioritizeBt | SSVC evaluator, policy engine, or simple default |
+| `z_EvaluateReportCredibility_429` | RMValidateBt | Report credibility check (reporter trust, content check) |
+| `z_EvaluateReportValidity_430` | RMValidateBt | Technical validity assessment |
+| `z_EnoughPrioritizationInfo_511` | RMPrioritizeBt | Data sufficiency check before prioritization |
+
+### Anti-Pattern Reference
+
+#### DO NOT: post-BT procedural cascade
+
+```python
+# BAD — the engage/defer decision is invisible outside the BT
+def execute(self) -> None:
+    result = bridge.execute_with_setup(validate_tree, actor_id=...)
+    if result.status == Status.SUCCESS:
+        SvcEngageCaseUseCase(self._dl, ...).execute()  # ANTI-PATTERN
+```
+
+This pattern violates BT-06-006.
+
+#### DO: cascade as BT subtree
+
+```python
+# GOOD — engage/defer is a child subtree of the validate tree
+def create_validate_and_prioritize_tree(report_id, offer_id):
+    validate_subtree = create_validate_report_subtree(report_id, offer_id)
+    prioritize_subtree = create_prioritize_subtree(report_id)
+    root = py_trees.composites.Sequence(
+        name="ValidateAndPrioritize",
+        memory=False,
+        children=[validate_subtree, prioritize_subtree],
+    )
+    return root
+```
+
+The full behavior — validate then prioritize (engage or defer) — is visible
+by reading the tree. No domain logic lives in `execute()`.

@@ -1,0 +1,99 @@
+---
+name: build
+description: >
+  Completes the highest-priority pending implementation task by following the
+  repository's BUILD workflow from task selection through validation,
+  plan-history updates, and commit. Use when the user asks to continue planned
+  implementation work, run the BUILD workflow, or turn the next prioritized
+  item in the implementation plan into a completed changeset.
+---
+
+# Skill: Build
+
+This skill wraps `@.github/prompts/BUILD.md` as a reusable workflow skill. It
+preserves the prompt's task-selection rules, prerequisite guardrails,
+validation expectations, and finalize-and-commit behavior.
+
+## Quick start
+
+1. Read `plan/PRIORITIES.md`, `specs/README.md`, `plan/IMPLEMENTATION_PLAN.md`,
+   `plan/IMPLEMENTATION_NOTES.md`, and relevant `notes/*.md`.
+2. Select the highest-priority unchecked task that can be completed in one run.
+3. Verify the current implementation in `vultron/` and `test/` before coding.
+4. Implement only the selected task, then run the required validation.
+5. If validation succeeds, update plan/history files, stage changes, and commit.
+
+## Inputs
+
+- `repo_root` (optional, default `.`): repository root containing the plan,
+  specs, source, and tests.
+
+## Workflow
+
+### Phase 1 - Review context
+
+1. Study `plan/PRIORITIES.md` for authoritative priority ordering.
+2. Study `specs/*.md` starting with `specs/README.md`.
+3. Study `plan/IMPLEMENTATION_PLAN.md` for current task status.
+4. Study `plan/IMPLEMENTATION_NOTES.md` and relevant `notes/*.md` starting
+   with `notes/README.md`.
+5. Study the relevant implementation and tests under `vultron/` and `test/`.
+
+### Phase 2 - Select work
+
+1. Identify the highest-priority unchecked task in
+   `plan/IMPLEMENTATION_PLAN.md`.
+2. Use `plan/PRIORITIES.md` as authoritative, but account for prerequisites,
+   blockers, dependencies, and whether the work fits in a single run.
+3. Small trivial tasks at the same priority may be grouped when that avoids
+   wasteful context switching.
+
+### Phase 3 - Verify before coding
+
+1. Search `vultron/` and `test/` to confirm the current implementation.
+2. Do not assume missing functionality; verify it in code.
+3. If a blocking prerequisite is discovered, you may add **at most one**
+   minimal prerequisite entry to `plan/IMPLEMENTATION_PLAN.md` only when all of
+   the following are true:
+   - it is strictly necessary for the selected task
+   - it is labeled `auto-added`
+   - it includes a short title, one-line justification, and one-line
+     acceptance criterion
+   - the rationale is recorded in `plan/IMPLEMENTATION_NOTES.md`
+   - the commit message is prefixed `plan: add prerequisite`
+4. If more than one prerequisite is required, or the prerequisite change is
+   non-trivial, update `plan/IMPLEMENTATION_NOTES.md` with details and stop.
+
+### Phase 4 - Implement
+
+1. Implement only the selected task.
+2. Follow project conventions and keep the change focused.
+3. Add or update tests for new or changed behavior.
+4. Reuse existing helpers and keep the implementation DRY.
+5. Sub-agents may help with implementation, but main-agent validation is
+   mandatory.
+
+### Phase 5 - Validate
+
+1. Run the validation commands required by `AGENTS.md`.
+2. Do not skip or delegate validation.
+3. If incidental bugs are discovered, add them to `plan/BUGS.md` with clear
+   reproduction notes and do not pursue them unless they block the current task.
+
+### Phase 6 - Finalize
+
+1. Append a completion summary to `plan/IMPLEMENTATION_HISTORY.md`.
+2. Delete the completed task from `plan/IMPLEMENTATION_PLAN.md` entirely.
+   Do not leave tombstones, `[x]` checkboxes, or one-line summaries — the
+   task details belong in HISTORY, not in PLAN.
+3. Record lessons learned or constraints in `plan/IMPLEMENTATION_NOTES.md`.
+4. Stage modified files and commit with a clear, specific message.
+
+## Constraints
+
+- Preserve focus on a single task, or a tightly related set of trivial tasks.
+- Do not modify unrelated tasks.
+- Do not skip validation.
+- Each run starts in a fresh context.
+- The single-prerequisite exception is narrow and does not authorize broader
+  plan edits.

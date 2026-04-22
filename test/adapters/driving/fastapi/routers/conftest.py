@@ -43,7 +43,7 @@ def dl(datalayer):
 # TestClient for datalayer router
 @pytest.fixture
 def client_datalayer(dl):
-    from vultron.adapters.driven.datalayer_tinydb import get_datalayer
+    from vultron.adapters.driven.datalayer import get_datalayer
 
     app = FastAPI()
     app.include_router(datalayer_router.router)
@@ -57,7 +57,7 @@ def client_datalayer(dl):
 # TestClient for actors router
 @pytest.fixture
 def client_actors(dl):
-    from vultron.adapters.driven.datalayer_tinydb import get_datalayer
+    from vultron.adapters.driven.datalayer import get_datalayer
 
     app = FastAPI()
     app.include_router(actors_router.router)

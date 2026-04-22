@@ -21,7 +21,7 @@ from specs/observability.md.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from vultron.adapters.driven.datalayer_tinydb import get_datalayer
+from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.core.ports.datalayer import DataLayer
 
 router = APIRouter(prefix="/health", tags=["Health"])

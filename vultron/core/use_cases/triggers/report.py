@@ -27,8 +27,6 @@ No HTTP framework imports (FastAPI, Starlette) are permitted here.
 import logging
 from typing import Any
 
-from vultron.wire.as2.rehydration import rehydrate
-from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.core.states.rm import RM
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.validate_tree import (
@@ -40,6 +38,8 @@ from vultron.core.use_cases._helpers import (
     _idempotent_create,
     _report_phase_status_id,
 )
+from vultron.core.models.protocols import is_case_model
+from vultron.core.use_cases._helpers import case_addressees
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,
     outbox_ids,
@@ -49,6 +49,7 @@ from vultron.core.use_cases.triggers.requests import (
     CloseReportTriggerRequest,
     InvalidateReportTriggerRequest,
     RejectReportTriggerRequest,
+    SubmitReportTriggerRequest,
     ValidateReportTriggerRequest,
 )
 from vultron.errors import (
@@ -59,37 +60,68 @@ from vultron.errors import (
 from vultron.wire.as2.vocab.activities.report import (
     RmCloseReportActivity,
     RmInvalidateReportActivity,
+    RmSubmitReportActivity,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def _resolve_offer_and_report(offer_id: str, dl: DataLayer):
-    """Resolve offer and its embedded report; raise domain errors on failure."""
-    offer_raw = dl.read(offer_id)
-    if offer_raw is None:
+def _resolve_offer_and_report(
+    offer_id: str, dl: DataLayer
+) -> tuple["RmSubmitReportActivity", VulnerabilityReport]:
+    """Resolve offer and its embedded report; raise domain errors on failure.
+
+    After the DataLayer rehydration pipeline, ``dl.read(offer_id)`` returns an
+    ``RmSubmitReportActivity`` with its ``object_`` already expanded to a
+    ``VulnerabilityReport``.  No manual coercion is needed.
+    """
+    offer = dl.read(offer_id)
+    if offer is None:
         raise VultronNotFoundError("Offer", offer_id)
-    if not isinstance(offer_raw, as_Object):
+    if not isinstance(offer, RmSubmitReportActivity):
         raise VultronValidationError(
-            f"Expected AS2 object for offer, got {type(offer_raw).__name__}."
+            f"Expected RmSubmitReportActivity for offer '{offer_id}', "
+            f"got {type(offer).__name__}."
         )
-
-    try:
-        offer = rehydrate(offer_raw, dl=dl)
-        offer_object = getattr(offer, "object_", None)
-        if offer_object is None:
-            raise VultronValidationError("Offer is missing object reference.")
-        report = rehydrate(offer_object, dl=dl)
-    except (ValueError, KeyError, AttributeError) as e:
-        raise VultronValidationError(str(e)) from e
-
-    if getattr(report, "type_", None) != "VulnerabilityReport":
+    report = offer.object_
+    if not isinstance(report, VulnerabilityReport):
         raise VultronValidationError(
-            f"Expected VulnerabilityReport, got "
-            f"{getattr(report, 'type_', type(report).__name__)}."
+            f"Expected VulnerabilityReport embedded in offer '{offer_id}', "
+            f"got {type(report).__name__ if report is not None else 'None'}."
         )
-
     return offer, report
+
+
+def _report_addressees(
+    report_id: str, actor_id: str, offer, dl: DataLayer
+) -> list[str] | None:
+    """Return the ``to`` recipient list for a report-phase outbound activity.
+
+    Looks up the case linked to *report_id* via ``find_case_by_report_id``.
+    If a case is found, returns all case participants except *actor_id*.
+    Falls back to the offer submitter when no case exists yet.
+
+    Returns ``None`` when no addressees can be determined.
+    """
+    case = dl.find_case_by_report_id(report_id)
+    if case is not None and is_case_model(case):
+        recipients = case_addressees(case, actor_id)
+        if recipients:
+            return recipients
+    offer_actor = getattr(offer, "actor", None)
+    if offer_actor is None:
+        return None
+    offer_actor_id = (
+        offer_actor
+        if isinstance(offer_actor, str)
+        else getattr(offer_actor, "id_", None)
+    )
+    if offer_actor_id and offer_actor_id != actor_id:
+        return [offer_actor_id]
+    return None
 
 
 class SvcValidateReportUseCase:
@@ -117,9 +149,15 @@ class SvcValidateReportUseCase:
 
         before = outbox_ids(actor)
 
+        case = dl.find_case_by_report_id(report_id)
+        case_id = case.id_ if is_case_model(case) else None
+
         bridge = BTBridge(datalayer=dl)
         tree = create_validate_report_tree(
-            report_id=report_id, offer_id=offer_id
+            report_id=report_id,
+            offer_id=offer_id,
+            case_id=case_id,
+            actor_id=actor_id,
         )
 
         context: dict[str, Any] = {}
@@ -166,7 +204,8 @@ class SvcInvalidateReportUseCase:
 
         invalidate_activity = RmInvalidateReportActivity(
             actor=actor_id,
-            object_=offer.id_,
+            object_=offer,
+            to=_report_addressees(report.id_, actor_id, offer, dl),
         )
 
         try:
@@ -231,7 +270,8 @@ class SvcRejectReportUseCase:
 
         reject_activity = RmCloseReportActivity(
             actor=actor_id,
-            object_=offer.id_,
+            object_=offer,
+            to=_report_addressees(report.id_, actor_id, offer, dl),
         )
 
         try:
@@ -308,7 +348,8 @@ class SvcCloseReportUseCase:
 
         close_activity = RmCloseReportActivity(
             actor=actor_id,
-            object_=offer.id_,
+            object_=offer,
+            to=_report_addressees(report.id_, actor_id, offer, dl),
         )
 
         try:
@@ -345,3 +386,67 @@ class SvcCloseReportUseCase:
 
         activity = close_activity.model_dump(by_alias=True, exclude_none=True)
         return {"activity": activity}
+
+
+class SvcSubmitReportUseCase:
+    """Create a VulnerabilityReport and offer it to a recipient.
+
+    Stores the report and an RmSubmitReportActivity in the actor's DataLayer,
+    queues the offer in the actor's outbox, and returns the serialised offer so
+    the caller can deliver it (e.g. POST to the recipient's inbox).
+    """
+
+    def __init__(
+        self, dl: DataLayer, request: SubmitReportTriggerRequest
+    ) -> None:
+        self._dl = dl
+        self._request = request
+
+    def execute(self) -> dict:
+        request = self._request
+        dl = self._dl
+
+        actor = resolve_actor(request.actor_id, dl)
+        actor_id = actor.id_
+
+        report = VulnerabilityReport(
+            name=request.report_name,
+            content=request.report_content,
+            attributed_to=actor_id,
+        )
+        try:
+            dl.create(report)
+        except ValueError:
+            logger.warning(
+                "VulnerabilityReport '%s' already exists", report.id_
+            )
+
+        logger.info(
+            "Created VulnerabilityReport '%s' (id: '%s')",
+            request.report_name,
+            report.id_,
+        )
+
+        offer = RmSubmitReportActivity(
+            actor=actor_id,
+            object_=report,
+            target=request.recipient_id,
+            to=[request.recipient_id],
+        )
+        try:
+            dl.create(offer)
+        except ValueError:
+            logger.warning(
+                "RmSubmitReportActivity '%s' already exists", offer.id_
+            )
+
+        logger.info(
+            "Offering report '%s' to '%s' (offer: '%s')",
+            report.id_,
+            request.recipient_id,
+            offer.id_,
+        )
+
+        add_activity_to_outbox(actor_id, offer.id_, dl)
+
+        return {"offer": offer.model_dump(by_alias=True, exclude_none=True)}

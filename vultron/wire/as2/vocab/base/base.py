@@ -14,9 +14,15 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import types as _types
+import typing as _typing
+from typing import ClassVar
+
 from pydantic import BaseModel, Field, model_validator, ConfigDict
 from pydantic.alias_generators import to_camel
 
+from vultron.wire.as2.vocab.base.enums import VocabNamespace
+from vultron.wire.as2.vocab.base.registry import VOCABULARY
 from vultron.wire.as2.vocab.base.utils import generate_new_id
 
 ACTIVITY_STREAMS_NS = "https://www.w3.org/ns/activitystreams"
@@ -28,6 +34,22 @@ class as_Base(BaseModel):
         validate_by_name=True,
         validate_by_alias=True,
     )
+
+    _vocab_ns: ClassVar[VocabNamespace] = VocabNamespace.AS
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)  # type: ignore[arg-type]
+        annotations = cls.__dict__.get("__annotations__", {})
+        if "type_" not in annotations:
+            return  # No type_ override → abstract base, skip
+        annotation = annotations["type_"]
+        # Skip if annotation is a union type (e.g., str | None = abstract base)
+        if isinstance(annotation, _types.UnionType):
+            return
+        if _typing.get_origin(annotation) is _typing.Union:
+            return
+        key = cls.__name__.removeprefix("as_")
+        VOCABULARY[key] = cls
 
     context_: str = Field(
         default=ACTIVITY_STREAMS_NS,

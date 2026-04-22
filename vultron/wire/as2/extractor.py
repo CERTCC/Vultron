@@ -15,9 +15,10 @@ from typing import Any, Optional, Union
 from pydantic import BaseModel
 
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.core.models.base import VultronObject
+from vultron.core.models.case_log_entry import VultronCaseLogEntry
 from vultron.core.models.events import (
-    EVENT_CLASS_MAP,
     MessageSemantics,
     VultronEvent,
 )
@@ -65,15 +66,23 @@ class ActivityPattern(BaseModel):
         ) -> bool:
             if pattern_field is None:
                 return True
-            # URI/ID string reference: can't type-check, conservatively allow
-            if isinstance(activity_field, str):
-                return True
+            # Nested pattern: bare-string references cannot satisfy a typed
+            # nested-activity constraint — rehydration is required first.
             if isinstance(pattern_field, ActivityPattern):
                 return isinstance(
                     activity_field, as_Activity
                 ) and pattern_field.match(activity_field)
+            # URI/ID string reference: can't type-check AOtype/VOtype, allow
+            if isinstance(activity_field, str):
+                return True
             if activity_field is None:
                 return False
+            # Subtype-aware matching: AOtype.ACTOR matches any as_Actor subclass
+            # (Person, Organization, Service, etc.) whose type_ differs from "Actor".
+            if pattern_field == AOtype.ACTOR and isinstance(
+                activity_field, as_Actor
+            ):
+                return True
             return bool(
                 pattern_field == getattr(activity_field, "type_", None)
             )
@@ -239,6 +248,7 @@ RejectCaseOwnershipTransferActivityPattern = ActivityPattern(
 )
 InviteActorToCasePattern = ActivityPattern(
     activity_=TAtype.INVITE,
+    object_=AOtype.ACTOR,
     target_=VOtype.VULNERABILITY_CASE,
 )
 AcceptInviteActorToCasePattern = ActivityPattern(
@@ -251,6 +261,30 @@ RejectInviteActorToCasePattern = ActivityPattern(
 )
 CloseCasePattern = ActivityPattern(
     activity_=TAtype.LEAVE, object_=VOtype.VULNERABILITY_CASE
+)
+AnnounceLogEntryPattern = ActivityPattern(
+    description=(
+        "Announce a canonical CaseLogEntry to a participant for log "
+        "replication. The object is a CaseLogEntry object."
+    ),
+    activity_=TAtype.ANNOUNCE,
+    object_=VOtype.CASE_LOG_ENTRY,
+)
+AnnounceVulnerabilityCasePattern = ActivityPattern(
+    description=(
+        "Case owner announces full VulnerabilityCase details to a newly "
+        "accepted invitee (MV-10-003). The object is a VulnerabilityCase."
+    ),
+    activity_=TAtype.ANNOUNCE,
+    object_=VOtype.VULNERABILITY_CASE,
+)
+RejectLogEntryPattern = ActivityPattern(
+    description=(
+        "Participant rejects a CaseLogEntry announcement due to "
+        "hash-chain mismatch. The object is the rejected CaseLogEntry."
+    ),
+    activity_=TAtype.REJECT,
+    object_=VOtype.CASE_LOG_ENTRY,
 )
 CreateNotePattern = ActivityPattern(
     activity_=TAtype.CREATE,
@@ -303,69 +337,137 @@ AddParticipantStatusToParticipantPattern = ActivityPattern(
 
 
 # ---------------------------------------------------------------------------
-# Semantics → pattern mapping (formerly in vultron/semantic_map.py)
+# Pattern → semantics ordered lookup list (private).
 # The order of entries matters: find_matching_semantics returns the first match.
+# Specific patterns must appear before general ones that could also match.
 # ---------------------------------------------------------------------------
 
-SEMANTICS_ACTIVITY_PATTERNS: dict[MessageSemantics, ActivityPattern] = {
-    MessageSemantics.CREATE_REPORT: CreateReportPattern,
-    MessageSemantics.SUBMIT_REPORT: ReportSubmissionPattern,
-    MessageSemantics.ACK_REPORT: AckReportPattern,
-    MessageSemantics.VALIDATE_REPORT: ValidateReportPattern,
-    MessageSemantics.INVALIDATE_REPORT: InvalidateReportPattern,
-    MessageSemantics.CLOSE_REPORT: CloseReportPattern,
-    MessageSemantics.CREATE_CASE: CreateCaseActivityPattern,
-    MessageSemantics.UPDATE_CASE: UpdateCaseActivityPattern,
-    MessageSemantics.ENGAGE_CASE: EngageCasePattern,
-    MessageSemantics.DEFER_CASE: DeferCasePattern,
-    MessageSemantics.ADD_REPORT_TO_CASE: AddReportToCaseActivityPattern,
-    MessageSemantics.SUGGEST_ACTOR_TO_CASE: SuggestActorToCasePattern,
-    MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE: AcceptSuggestActorToCasePattern,
-    MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE: RejectSuggestActorToCasePattern,
-    MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER: OfferCaseOwnershipTransferActivityPattern,
-    MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER: AcceptCaseOwnershipTransferActivityPattern,
-    MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER: RejectCaseOwnershipTransferActivityPattern,
-    MessageSemantics.INVITE_ACTOR_TO_CASE: InviteActorToCasePattern,
-    MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE: AcceptInviteActorToCasePattern,
-    MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE: RejectInviteActorToCasePattern,
-    MessageSemantics.CREATE_EMBARGO_EVENT: CreateEmbargoEventPattern,
-    MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE: AddEmbargoEventToCasePattern,
-    MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE: RemoveEmbargoEventFromCasePattern,
-    MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE: AnnounceEmbargoEventToCasePattern,
-    MessageSemantics.INVITE_TO_EMBARGO_ON_CASE: InviteToEmbargoOnCasePattern,
-    MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE: AcceptInviteToEmbargoOnCasePattern,
-    MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE: RejectInviteToEmbargoOnCasePattern,
-    MessageSemantics.CLOSE_CASE: CloseCasePattern,
-    MessageSemantics.CREATE_CASE_PARTICIPANT: CreateCaseParticipantPattern,
-    MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE: AddCaseParticipantToCasePattern,
-    MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE: RemoveCaseParticipantFromCasePattern,
-    MessageSemantics.CREATE_NOTE: CreateNotePattern,
-    MessageSemantics.ADD_NOTE_TO_CASE: AddNoteToCaseActivityPattern,
-    MessageSemantics.REMOVE_NOTE_FROM_CASE: RemoveNoteFromCasePattern,
-    MessageSemantics.CREATE_CASE_STATUS: CreateCaseStatusActivityPattern,
-    MessageSemantics.ADD_CASE_STATUS_TO_CASE: AddCaseStatusToCasePattern,
-    MessageSemantics.CREATE_PARTICIPANT_STATUS: CreateParticipantStatusPattern,
-    MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT: AddParticipantStatusToParticipantPattern,
-}
+_PATTERN_SEMANTICS: list[tuple[ActivityPattern, MessageSemantics]] = [
+    (CreateReportPattern, MessageSemantics.CREATE_REPORT),
+    (ReportSubmissionPattern, MessageSemantics.SUBMIT_REPORT),
+    (AckReportPattern, MessageSemantics.ACK_REPORT),
+    (ValidateReportPattern, MessageSemantics.VALIDATE_REPORT),
+    (InvalidateReportPattern, MessageSemantics.INVALIDATE_REPORT),
+    (CloseReportPattern, MessageSemantics.CLOSE_REPORT),
+    (CreateCaseActivityPattern, MessageSemantics.CREATE_CASE),
+    (UpdateCaseActivityPattern, MessageSemantics.UPDATE_CASE),
+    (EngageCasePattern, MessageSemantics.ENGAGE_CASE),
+    (DeferCasePattern, MessageSemantics.DEFER_CASE),
+    (AddReportToCaseActivityPattern, MessageSemantics.ADD_REPORT_TO_CASE),
+    (SuggestActorToCasePattern, MessageSemantics.SUGGEST_ACTOR_TO_CASE),
+    (
+        AcceptSuggestActorToCasePattern,
+        MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE,
+    ),
+    (
+        RejectSuggestActorToCasePattern,
+        MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE,
+    ),
+    (
+        OfferCaseOwnershipTransferActivityPattern,
+        MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER,
+    ),
+    (
+        AcceptCaseOwnershipTransferActivityPattern,
+        MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
+    ),
+    (
+        RejectCaseOwnershipTransferActivityPattern,
+        MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER,
+    ),
+    (InviteActorToCasePattern, MessageSemantics.INVITE_ACTOR_TO_CASE),
+    (
+        AcceptInviteActorToCasePattern,
+        MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
+    ),
+    (
+        RejectInviteActorToCasePattern,
+        MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE,
+    ),
+    (CreateEmbargoEventPattern, MessageSemantics.CREATE_EMBARGO_EVENT),
+    (AddEmbargoEventToCasePattern, MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE),
+    (
+        RemoveEmbargoEventFromCasePattern,
+        MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
+    ),
+    (
+        AnnounceEmbargoEventToCasePattern,
+        MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE,
+    ),
+    (InviteToEmbargoOnCasePattern, MessageSemantics.INVITE_TO_EMBARGO_ON_CASE),
+    (
+        AcceptInviteToEmbargoOnCasePattern,
+        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
+    ),
+    (
+        RejectInviteToEmbargoOnCasePattern,
+        MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
+    ),
+    (CloseCasePattern, MessageSemantics.CLOSE_CASE),
+    (AnnounceLogEntryPattern, MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY),
+    (
+        AnnounceVulnerabilityCasePattern,
+        MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
+    ),
+    (RejectLogEntryPattern, MessageSemantics.REJECT_CASE_LOG_ENTRY),
+    (CreateCaseParticipantPattern, MessageSemantics.CREATE_CASE_PARTICIPANT),
+    (
+        AddCaseParticipantToCasePattern,
+        MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
+    ),
+    (
+        RemoveCaseParticipantFromCasePattern,
+        MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
+    ),
+    (CreateNotePattern, MessageSemantics.CREATE_NOTE),
+    (AddNoteToCaseActivityPattern, MessageSemantics.ADD_NOTE_TO_CASE),
+    (RemoveNoteFromCasePattern, MessageSemantics.REMOVE_NOTE_FROM_CASE),
+    (CreateCaseStatusActivityPattern, MessageSemantics.CREATE_CASE_STATUS),
+    (AddCaseStatusToCasePattern, MessageSemantics.ADD_CASE_STATUS_TO_CASE),
+    (
+        CreateParticipantStatusPattern,
+        MessageSemantics.CREATE_PARTICIPANT_STATUS,
+    ),
+    (
+        AddParticipantStatusToParticipantPattern,
+        MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
+    ),
+]
+
+# Frozenset of activity type strings that have at least one registered pattern.
+# Used by find_matching_semantics() to distinguish "known type with unresolvable
+# object_" from "genuinely unknown activity type".
+_ACTIVITY_TYPES_WITH_PATTERNS: frozenset[str] = frozenset(
+    str(pattern.activity_) for pattern, _ in _PATTERN_SEMANTICS
+)
 
 
 def extract_intent(
     activity: as_Activity,
+    semantics: MessageSemantics,
+    event_class: type[VultronEvent],
+    include_activity: bool = False,
 ) -> VultronEvent:
-    """Extract semantic intent and domain fields from an AS2 activity.
+    """Extract domain fields from an AS2 activity given pre-computed semantics.
 
-    Returns a fully-populated per-semantic VultronEvent subclass with all
-    relevant IDs and types extracted from the AS2 object graph.
-    This is the sole point where AS2 wire types are translated to domain concepts.
+    This function is the sole AS2 → domain translation point.  It is called
+    after pattern matching has already determined the ``semantics``; the
+    caller must supply the matching ``event_class`` and ``include_activity``
+    flag from the registry entry.
+
+    For a single-call convenience wrapper that performs pattern matching and
+    registry lookup automatically, use ``vultron.semantic_registry.extract_event``.
 
     Args:
-        activity: The AS2 activity to classify and extract from.
+        activity: The AS2 activity to extract fields from.
+        semantics: Pre-matched ``MessageSemantics`` value.
+        event_class: Concrete ``VultronEvent`` subclass to instantiate.
+        include_activity: When ``True``, populate ``event.activity`` with a
+            summarised ``VultronActivity`` snapshot of the outer activity.
 
     Returns:
         A concrete VultronEvent subclass discriminated by MessageSemantics.
     """
-
-    semantics = find_matching_semantics(activity)
 
     def _get_id(field) -> str | None:
         if field is None:
@@ -373,6 +475,19 @@ def extract_intent(
         if isinstance(field, str):
             return field
         return getattr(field, "id_", str(field)) or None
+
+    def _get_id_list(field) -> list[str] | None:
+        """Convert an AS2 to/cc field (Any | None) to a list of ID strings."""
+        if field is None:
+            return None
+        if isinstance(field, str):
+            return [field] if field else None
+        if isinstance(field, list):
+            ids = [_get_id(x) for x in field]
+            result = [r for r in ids if r]
+            return result or None
+        single = _get_id(field)
+        return [single] if single else None
 
     def _get_type(field) -> str | None:
         if field is None or isinstance(field, str):
@@ -395,9 +510,7 @@ def extract_intent(
         inner_target = getattr(obj, "target", None)
         inner_context = getattr(obj, "context", None)
 
-    event_class: type[VultronEvent] = EVENT_CLASS_MAP.get(
-        semantics, EVENT_CLASS_MAP[MessageSemantics.UNKNOWN]
-    )
+    event_class = event_class  # passed in; no lookup needed
 
     def _build_domain_kwargs() -> dict[str, Any]:
         # Use type_ string comparison because the wire parser returns
@@ -409,30 +522,18 @@ def extract_intent(
         kw: dict[str, Any] = {}
         activity_type = str(activity.type_) if activity.type_ else "Activity"
 
-        _ACTIVITY_SEMANTICS = {
-            MessageSemantics.CREATE_REPORT,
-            MessageSemantics.SUBMIT_REPORT,
-            MessageSemantics.VALIDATE_REPORT,
-            MessageSemantics.INVALIDATE_REPORT,
-            MessageSemantics.ACK_REPORT,
-            MessageSemantics.CLOSE_REPORT,
-            MessageSemantics.SUGGEST_ACTOR_TO_CASE,
-            MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE,
-            MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER,
-            MessageSemantics.INVITE_ACTOR_TO_CASE,
-            MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
-            MessageSemantics.CREATE_CASE,
-        }
-        if semantics in _ACTIVITY_SEMANTICS:
+        if include_activity:
             kw["activity"] = VultronActivity(
                 id_=activity.id_,
                 type_=activity_type,
                 actor=actor_id,
-                object_=_get_id(obj),
-                target=_get_id(target),
+                object_=obj,
+                target=target,
                 origin=_get_id(origin),
-                context=_get_id(context),
+                context=context,
                 in_reply_to=_get_id(getattr(activity, "in_reply_to", None)),
+                to=_get_id_list(getattr(activity, "to", None)),
+                cc=_get_id_list(getattr(activity, "cc", None)),
             )
 
         if _obj_type == str(VOtype.VULNERABILITY_REPORT) and obj is not None:
@@ -514,6 +615,38 @@ def extract_intent(
                     attributed_to=_get_id(getattr(obj, "attributed_to", None)),
                     context=_get_id(getattr(obj, "context", None)),
                 )
+        elif _obj_type == str(VOtype.CASE_LOG_ENTRY) and obj is not None:
+            object_id = _get_id(obj)
+            case_id = getattr(obj, "case_id", None)
+            log_index = getattr(obj, "log_index", -1)
+            log_object_id = getattr(obj, "log_object_id", None) or getattr(
+                obj, "logObjectId", None
+            )
+            event_type = getattr(obj, "event_type", None) or getattr(
+                obj, "eventType", None
+            )
+            if object_id and case_id and log_object_id and event_type:
+                kw["object_"] = VultronCaseLogEntry(
+                    id_=object_id,
+                    case_id=case_id,
+                    log_index=log_index,
+                    disposition=getattr(obj, "disposition", "recorded"),
+                    term=getattr(obj, "term", None),
+                    log_object_id=log_object_id,
+                    event_type=event_type,
+                    payload_snapshot=getattr(obj, "payload_snapshot", {})
+                    or getattr(obj, "payloadSnapshot", {}),
+                    prev_log_hash=getattr(obj, "prev_log_hash", None)
+                    or getattr(obj, "prevLogHash", None)
+                    or "",
+                    entry_hash=getattr(obj, "entry_hash", None)
+                    or getattr(obj, "entryHash", None)
+                    or "",
+                    reason_code=getattr(obj, "reason_code", None)
+                    or getattr(obj, "reasonCode", None),
+                    reason_detail=getattr(obj, "reason_detail", None)
+                    or getattr(obj, "reasonDetail", None),
+                )
         elif _obj_type == str(VOtype.CASE_STATUS) and obj is not None:
             object_id = _get_id(obj)
             case_context = _get_id(getattr(obj, "context", None))
@@ -592,8 +725,12 @@ def extract_intent(
 def find_matching_semantics(activity: as_Activity) -> MessageSemantics:
     """Find the MessageSemantics for the given AS2 activity.
 
-    Iterates SEMANTICS_ACTIVITY_PATTERNS in order and returns the first match.
-    Returns MessageSemantics.UNKNOWN if no pattern matches.
+    Iterates ``_PATTERN_SEMANTICS`` in order and returns the first match.
+    Returns ``MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`` when no pattern
+    matches, the activity type is registered (has patterns), and ``object_``
+    is still a bare string URI (rehydration did not resolve it).
+    Returns ``MessageSemantics.UNKNOWN`` when the activity type is not
+    registered at all.
 
     Note:
         Pattern ordering matters when patterns overlap. More specific patterns
@@ -605,7 +742,11 @@ def find_matching_semantics(activity: as_Activity) -> MessageSemantics:
     Returns:
         The matching MessageSemantics value, or MessageSemantics.UNKNOWN.
     """
-    for semantics, pattern in SEMANTICS_ACTIVITY_PATTERNS.items():
+    for pattern, semantics in _PATTERN_SEMANTICS:
         if pattern.match(activity):
             return semantics
+    obj = getattr(activity, "object_", None)
+    activity_type = str(activity.type_) if activity.type_ else ""
+    if isinstance(obj, str) and activity_type in _ACTIVITY_TYPES_WITH_PATTERNS:
+        return MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
     return MessageSemantics.UNKNOWN

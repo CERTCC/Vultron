@@ -67,6 +67,90 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
   - All layers (API, handlers, data layer) MUST consistently store and compare IDs as URI strings; when creating IDs, prefer fully-qualified URIs.
   - The data layer and rehydration logic MUST perform URL-encoding/decoding only for transport concerns and must persist the original URI string as-is.
   
+## Outbound Activity Object Integrity
+
+- `MV-09-001` Outbound initiating activities (Create, Offer, Invite, Announce,
+  Add, Remove, Update, Join, Ignore, Leave) MUST carry the `object` field as a
+  fully inline typed domain object — bare string URIs and `as_Link` references
+  are NOT permitted in outbound activities.
+  - Rationale: Recipients use the inline object's `type` field for semantic
+    pattern matching.  A bare string URI makes the object type opaque, causing
+    every pattern that checks `object.type` to match (or fail), leading to
+    incorrect handler dispatch.
+  - This constraint is enforced at construction time by narrowing Pydantic
+    `object_` field types to `DomainObject | None` in initiating activity
+    classes.
+- `MV-09-002` The outbox handler MUST raise `VultronOutboxObjectIntegrityError`
+  and abort delivery if an outbound activity's `object_` field is a bare string
+  or `as_Link` after any DataLayer expansion attempt.
+  - This acts as a last-resort runtime guard in case a narrowed activity class
+    is bypassed.
+
+- `MV-09-003` Vultron activity classes where semantic dispatch depends on the
+  `object_` type MUST require `object_` at construction time — no `None`
+  default is permitted.  An omitted or `None` `object_` renders the activity
+  semantically meaningless because `ActivityPattern._match_field` returns
+  `False` for `None`, causing every pattern that inspects `object_.type` to
+  fail, which forces dispatch to `UNKNOWN`.
+
+## Stub Objects
+
+Stub objects are minimal ActivityStreams object representations carrying only
+`id` and `type` (and optionally `summary`). They are a controlled exception to
+MV-09-001 (full inline typed object) permitted in specific selective-disclosure
+scenarios.
+
+- `MV-10-001` Stub objects MUST carry at minimum an `id` field (full URI) and a
+  `type` field; they MAY carry a `summary` field for human-readable context
+  - A stub without a `type` field MUST be treated as an unresolvable bare
+    string reference and MUST trigger `MessageSemantics.UNKNOWN` per VAM-01-009
+- `MV-10-002` Stub objects are ONLY permitted in the following field positions:
+  - The `target` field of an `Invite` activity when the invitee has not yet
+    accepted the embargo and must not receive full case details
+  - Future selective-disclosure contexts MUST be explicitly documented in this
+    specification before use
+- `MV-10-003` The DataLayer MUST NOT overwrite a full domain object with a stub
+  object
+  - If a DataLayer record already exists for the stub's `id`, the incoming stub
+    MUST be discarded silently; no update MUST occur
+  - **Rationale**: A recipient may receive a stub for an object they already
+    have in full; discarding preserves data completeness
+- `MV-10-004` Inbound stubs MUST NOT be used to create new domain records
+  - Stub receipt logs the stub's `id` and `type` for correlation but does not
+    trigger object creation in the DataLayer
+
+- `MV-10-005` (MUST) A participant MUST satisfy BOTH of the following conditions
+  before the case owner delivers full case details to them:
+  1. `ParticipantStatus.rm_state == ACCEPTED` (participant accepted the case
+     invitation)
+  2. `ParticipantStatus.embargo_adherence == True` (participant is a signatory
+     to the active embargo), OR there is no active embargo (`CaseStatus.em_state
+     == NONE`)
+  - Full case details MUST NOT be sent to participants who have not satisfied
+    both conditions simultaneously
+- `MV-10-006` (MUST) When a participant `Accept`s an `Invite(case)` and the
+  case has an active embargo (`CaseStatus.em_state == ACTIVE`), the acceptance
+  MUST imply consent to the active embargo, transitioning that participant's
+  consent state to `SIGNATORY`
+  - This implication is a shortcut: the case owner treats a single
+    `Accept(Invite(case))` as simultaneously accepting the case invitation
+    AND the active embargo
+  - The reverse implication MUST NOT apply: accepting an embargo (`Accept(Offer/
+    Invite(Embargo))`) MUST NOT imply accepting a case invitation; case
+    participation requires an explicit `Accept(Invite(case))`
+  - MV-10-006 depends-on CM-03-008
+
+### MV-10-005, MV-10-006 Verification
+
+- Unit test: Case with active embargo — participant who has accepted case invite
+  is automatically set as embargo signatory
+- Unit test: Participant with rm_state=ACCEPTED but embargo_adherence=False →
+  no full case details delivered
+- Unit test: Participant who accepts embargo only → rm_state unchanged, no
+  case participation
+- Integration test: Full case delivery triggered when both rm=ACCEPTED AND
+  embargo_adherence=True are satisfied simultaneously
+
 ## Duplicate Detection
 
 - `MV-08-001` The system SHOULD detect duplicate activity submissions during validation
@@ -104,6 +188,34 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 ### MV-08-001 Verification
 
 - See `idempotency.md` ID-02-001 verification criteria
+
+### MV-09-001, MV-09-002 Verification
+
+- Unit test: Constructing an initiating activity class (e.g.,
+  `RmCreateReportActivity`) with a bare string `object_` raises
+  `pydantic.ValidationError`.
+- Unit test: Constructing an initiating activity class with an `as_Link`
+  `object_` raises `pydantic.ValidationError`.
+- Unit test: Constructing an initiating activity class with the correct inline
+  domain object succeeds.
+- Unit test: `outbox_handler.handle_outbox_item()` raises
+  `VultronOutboxObjectIntegrityError` when `object_` remains a bare string
+  after expansion.
+- Implementation: `vultron/wire/as2/vocab/activities/` (narrowed Pydantic types)
+- Implementation: `vultron/adapters/driving/fastapi/outbox_handler.py`
+  (`handle_outbox_item()` integrity check)
+
+### MV-09-003 Verification
+
+- Unit test: Constructing any activity class that has a semantic `ActivityPattern`
+  checking `object_` type without providing `object_` raises
+  `pydantic.ValidationError`.
+- Unit test: Constructing the same class with `object_=None` raises
+  `pydantic.ValidationError`.
+- Implementation: `vultron/wire/as2/vocab/activities/` (all 37 affected classes
+  have `object_: DomainType = Field(...)` with no `None` default)
+- Test: `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`
+  `TestNoneObjectRejected`
 
 ## Related
 

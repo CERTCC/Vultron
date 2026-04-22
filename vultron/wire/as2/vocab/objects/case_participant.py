@@ -19,24 +19,26 @@ Provides various CaseParticipant objects for the Vultron ActivityStreams Vocabul
 from __future__ import annotations
 
 import logging
-from typing import TypeAlias
+from typing import TypeAlias, cast
 
 from pydantic import Field, field_serializer, field_validator, model_validator
 
+from vultron.core.models.participant import VultronParticipant
 from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.core.states.roles import CVDRoles as CVDRole
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef, as_Link
-from vultron.wire.as2.vocab.base.registry import activitystreams_object
-from vultron.wire.as2.vocab.objects.base import VultronObject
+from vultron.wire.as2.vocab.objects.base import (
+    VultronAS2Object,
+    _scalar_ref_id_or_value,
+)
 from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
 
 logger = logging.getLogger(__name__)
 
 
-@activitystreams_object
-class CaseParticipant(VultronObject):
+class CaseParticipant(VultronAS2Object):
     """
     A CaseParticipant is a wrapper around an Actor in a VulnerabilityCase.
     It is used to track the status of the participant within the context of a specific case, as well as the roles they
@@ -75,6 +77,7 @@ class CaseParticipant(VultronObject):
     case_roles: list[CVDRole] = Field(default_factory=list)
     participant_statuses: list[ParticipantStatus] = Field(default_factory=list)
     accepted_embargo_ids: list[str] = Field(default_factory=list)
+    embargo_consent_state: str = Field(default="NO_EMBARGO")
     participant_case_name: NonEmptyString | None = Field(
         default=None, exclude=True
     )
@@ -181,8 +184,27 @@ class CaseParticipant(VultronObject):
             self.case_roles = []
         self.case_roles.append(role)
 
+    @classmethod
+    def from_core(cls, core_obj: VultronParticipant) -> "CaseParticipant":
+        return cast("CaseParticipant", super().from_core(core_obj))
 
-@activitystreams_object
+    def to_core(self) -> VultronParticipant:
+        data = self._to_core_data()
+        data["attributed_to"] = _scalar_ref_id_or_value(
+            data.get("attributed_to")
+        )
+        data["context"] = _scalar_ref_id_or_value(data.get("context"))
+        data["participant_statuses"] = [
+            (
+                status.to_core()
+                if isinstance(status, ParticipantStatus)
+                else status
+            )
+            for status in self.participant_statuses
+        ]
+        return VultronParticipant.model_validate(data)
+
+
 class FinderParticipant(CaseParticipant):
     """
     A FinderParticipant is a CaseParticipant that has the FINDER role in a VulnerabilityCase.
@@ -195,7 +217,6 @@ class FinderParticipant(CaseParticipant):
         return self
 
 
-@activitystreams_object
 class ReporterParticipant(CaseParticipant):
     """
     A ReporterParticipant is a CaseParticipant that has the REPORTER role in a VulnerabilityCase.
@@ -220,7 +241,6 @@ class ReporterParticipant(CaseParticipant):
         return self
 
 
-@activitystreams_object
 class FinderReporterParticipant(CaseParticipant):
     """
     A FinderReporterParticipant is a CaseParticipant that has both the FINDER and REPORTER roles in a
@@ -249,7 +269,6 @@ class FinderReporterParticipant(CaseParticipant):
         return self
 
 
-@activitystreams_object
 class VendorParticipant(CaseParticipant):
     """
     A VendorParticipant is a CaseParticipant that has the VENDOR role in a VulnerabilityCase.
@@ -262,7 +281,6 @@ class VendorParticipant(CaseParticipant):
         return self
 
 
-@activitystreams_object
 class DeployerParticipant(CaseParticipant):
     """
     A DeployerParticipant is a CaseParticipant that has the DEPLOYER role in a VulnerabilityCase.
@@ -275,7 +293,6 @@ class DeployerParticipant(CaseParticipant):
         return self
 
 
-@activitystreams_object
 class CoordinatorParticipant(CaseParticipant):
     """
     A CoordinatorParticipant is a CaseParticipant that has the COORDINATOR role in a VulnerabilityCase.
@@ -288,7 +305,6 @@ class CoordinatorParticipant(CaseParticipant):
         return self
 
 
-@activitystreams_object
 class OtherParticipant(CaseParticipant):
     """
     An OtherParticipant is a CaseParticipant that has the OTHER role in a VulnerabilityCase.

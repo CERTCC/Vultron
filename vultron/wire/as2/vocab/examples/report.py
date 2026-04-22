@@ -52,7 +52,7 @@ def read_report() -> RmReadReportActivity:
     # TODO this should probably change to Read(Offer(Report)) to match the other activities
     activity = RmReadReportActivity(
         actor=_VENDOR.id_,
-        object_=_REPORT.id_,
+        object_=_REPORT,
         content="We've read the report. We'll get back to you soon.",
     )
     return activity
@@ -71,7 +71,7 @@ def validate_report(verbose: bool = False) -> RmValidateReportActivity:
     else:
         activity = RmValidateReportActivity(
             actor=_VENDOR.id_,
-            object_=_offer.id_,
+            object_=_offer,
             content="We've validated the report. We'll be creating a case shortly.",
         )
     return activity
@@ -90,7 +90,7 @@ def invalidate_report(verbose: bool = False) -> RmInvalidateReportActivity:
     else:
         activity = RmInvalidateReportActivity(
             actor=_VENDOR.id_,
-            object_=_offer.id_,
+            object_=_offer,
             content="We're declining this report as invalid. If you have a reason we should reconsider, please let us know. Otherwise we'll be closing it shortly.",
         )
     return activity
@@ -108,7 +108,7 @@ def close_report(verbose: bool = False) -> RmCloseReportActivity:
     else:
         activity = RmCloseReportActivity(
             actor=_VENDOR.id_,
-            object_=_offer.id_,
+            object_=_offer,
             content="We're closing this report.",
         )
     return activity

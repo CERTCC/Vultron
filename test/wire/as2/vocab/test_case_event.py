@@ -25,7 +25,7 @@ import pytest
 from pydantic import ValidationError
 
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.wire.as2.vocab.objects.case_event import CaseEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
@@ -177,7 +177,7 @@ class TestVulnerabilityCaseEventsField(unittest.TestCase):
         self.assertIn("received_at", evt_data)
 
     def test_events_round_trip_via_datalayer(self):
-        dl = TinyDbDataLayer(db_path=None)
+        dl = SqliteDataLayer("sqlite:///:memory:")
         case = VulnerabilityCase()
         ts = datetime(2026, 3, 6, 20, 0, 0, tzinfo=timezone.utc)
         case.events.append(

@@ -17,6 +17,8 @@
 
 from datetime import datetime
 
+from pydantic import Field
+
 from vultron.core.models.base import NonEmptyString, VultronObject
 
 
@@ -27,6 +29,10 @@ class VultronEmbargoEvent(VultronObject):
     as_Event and does not override type_).
     """
 
-    type_: str = "Event"
+    type_: str = Field(
+        default="Event",
+        validation_alias="type",
+        serialization_alias="type",
+    )
     end_time: datetime  # pyright: ignore[reportGeneralTypeIssues]
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]

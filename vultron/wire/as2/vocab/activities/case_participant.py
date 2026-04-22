@@ -26,8 +26,13 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Remove,
 )
 from vultron.wire.as2.vocab.base.utils import name_of
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipantRef
-from vultron.wire.as2.vocab.objects.case_status import ParticipantStatusRef
+from vultron.wire.as2.vocab.objects.case_participant import (
+    CaseParticipant,
+    CaseParticipantRef,
+)
+from vultron.wire.as2.vocab.objects.case_status import (
+    ParticipantStatus,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCaseRef,
 )
@@ -36,8 +41,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 class CreateParticipantActivity(as_Create):
     """Create a new CaseParticipant"""
 
-    object_: CaseParticipantRef = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: CaseParticipant = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
 
@@ -57,13 +62,12 @@ class CreateParticipantActivity(as_Create):
         if self.actor is not None:
             parts.append(name_of(self.actor))
         parts.append("Create CaseParticipant")
-        if self.object_ is not None:
-            participant_id = getattr(self.object_, "id_", None)
-            if participant_id:
-                parts.append(str(participant_id))
-            attributed_to = getattr(self.object_, "attributed_to", None)
-            if attributed_to:
-                parts.extend(["from", str(attributed_to)])
+        participant_id = getattr(self.object_, "id_", None)
+        if participant_id:
+            parts.append(str(participant_id))
+        attributed_to = getattr(self.object_, "attributed_to", None)
+        if attributed_to:
+            parts.extend(["from", str(attributed_to)])
         if self.context is not None:
             parts.extend(["in", str(self.context)])
 
@@ -75,8 +79,8 @@ class CreateParticipantActivity(as_Create):
 class CreateStatusForParticipantActivity(as_Create):
     """Create a new CaseStatus for a CaseParticipant"""
 
-    object_: ParticipantStatusRef = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: ParticipantStatus = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
     target: CaseParticipantRef = None
 
@@ -88,8 +92,8 @@ class AddStatusToParticipantActivity(as_Add):
     target: CaseParticipant
     """
 
-    object_: ParticipantStatusRef = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: ParticipantStatus = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
     target: CaseParticipantRef = None
 
@@ -100,8 +104,8 @@ class AddParticipantToCaseActivity(as_Add):
     target: VulnerabilityCase
     """
 
-    object_: CaseParticipantRef = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: CaseParticipant = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
 
@@ -113,7 +117,7 @@ class RemoveParticipantFromCaseActivity(as_Remove):
     target: VulnerabilityCase
     """
 
-    object_: CaseParticipantRef = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: CaseParticipant = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None

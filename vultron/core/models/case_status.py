@@ -17,7 +17,7 @@
 
 from typing import Any
 
-from pydantic import field_serializer
+from pydantic import Field, field_serializer
 
 from vultron.core.states.em import EM
 from vultron.core.states.cs import CS_pxa
@@ -31,7 +31,11 @@ class VultronCaseStatus(VultronObject):
     ``type_`` is ``"CaseStatus"`` to match the wire value.
     """
 
-    type_: str = "CaseStatus"
+    type_: str = Field(
+        default="CaseStatus",
+        validation_alias="type",
+        serialization_alias="type",
+    )
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     attributed_to: Any  # pyright: ignore[reportGeneralTypeIssues]
     em_state: EM = EM.EMBARGO_MANAGEMENT_NONE

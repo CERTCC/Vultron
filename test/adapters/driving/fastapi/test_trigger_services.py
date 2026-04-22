@@ -93,7 +93,24 @@ def offer(dl, report, actor):
 
 
 @pytest.fixture
-def received_report(report):
+def received_report(dl, actor, report, offer):
+    """Pre-create a VulnerabilityCase for the report at RM.RECEIVED.
+
+    Per ADR-0015, the case is created at report receipt.  The validate_report
+    BT's EnsureEmbargoExists node requires a case to exist.
+    """
+    from vultron.core.behaviors.bridge import BTBridge
+    from vultron.core.behaviors.case.receive_report_case_tree import (
+        create_receive_report_case_tree,
+    )
+
+    bridge = BTBridge(datalayer=dl)
+    tree = create_receive_report_case_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+        reporter_actor_id=actor.id_,
+    )
+    bridge.execute_with_setup(tree, actor_id=actor.id_)
     return report
 
 
@@ -159,7 +176,7 @@ def case_with_proposal(dl, actor):
     dl.create(embargo)
     proposal = EmProposeEmbargoActivity(
         actor=actor.id_,
-        object_=embargo.id_,
+        object_=embargo,
         context=case_obj.id_,
     )
     dl.create(proposal)
@@ -205,22 +222,24 @@ def test_validate_report_trigger_unknown_offer_raises_404(dl, actor):
     assert exc_info.value.status_code == 404
 
 
-def test_validate_report_trigger_adds_activity_to_outbox(
+def test_validate_report_trigger_transitions_rm_to_valid(
     dl, actor, offer, received_report
 ):
-    """validate_report_trigger adds a new activity to the actor's outbox."""
-    actor_before = dl.read(actor.id_)
-    before = {
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    }
+    """validate_report_trigger transitions RM state to VALID.
 
+    Per ADR-0015, case creation (and outbox notifications) now happen at
+    RM.RECEIVED via receive_report_case_tree.  The validate-report trigger
+    is responsible only for the RM.RECEIVED → RM.VALID transition.
+    """
     validate_report_trigger(actor.id_, offer.id_, None, dl)
 
-    actor_after = dl.read(actor.id_)
-    after = {
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    }
-    assert len(after - before) >= 1
+    valid_status_id = _report_phase_status_id(
+        actor.id_, offer.object_, RM.VALID.value
+    )
+    valid_record = dl.get("ParticipantStatus", valid_status_id)
+    assert (
+        valid_record is not None
+    ), "Expected a RM.VALID ParticipantStatus after validate_report_trigger"
 
 
 def test_validate_report_trigger_non_report_offer_raises_422(

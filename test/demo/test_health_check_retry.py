@@ -15,7 +15,7 @@ from unittest.mock import Mock, patch
 
 import requests  # type: ignore[import-untyped]
 
-from vultron.demo.receive_report_demo import (
+from vultron.demo.exchange.receive_report_demo import (
     DataLayerClient,
     check_server_availability,
 )

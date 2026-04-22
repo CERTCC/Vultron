@@ -17,11 +17,61 @@
 
 """Provides a Record model for document database storage."""
 
+from typing import Any
+
 from pydantic import BaseModel
 
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+
+# ActivityStreams fields typed as ``as_ObjectRef`` (accept URI string
+# references).  Only these fields are candidates for dehydration.  Fields
+# typed as concrete sub-objects (e.g. ``inbox``/``outbox`` on actors,
+# ``participant_statuses`` on participants) must remain as inline dicts so
+# that round-trip reconstruction via ``model_validate`` continues to work.
+_AS_OBJECT_REF_FIELDS: frozenset[str] = frozenset(
+    {
+        "object_",  # as_TransitiveActivity.object_
+        "target",  # optional target on activities
+        "origin",  # optional origin on activities
+        "result",  # optional result
+        "instrument",  # optional instrument
+    }
+)
+
+
+def _dehydrate_data(data: dict[str, Any]) -> dict[str, Any]:
+    """Replace ``as_ObjectRef``-typed fields with their ID string.
+
+    Only fields whose names are in ``_AS_OBJECT_REF_FIELDS`` are
+    candidates.  A field value is collapsed to its ID string when it is a
+    dict with a non-empty ``id_`` key.  All other fields (including lists)
+    are passed through unchanged.
+
+    This ensures that transitive activities (Offer, Create, …) store a URI
+    reference to the nested object instead of an inline copy, eliminating
+    redundant storage.
+
+    Args:
+        data: Serialised (``model_dump(mode="json")``) field dict of a
+              domain object.
+
+    Returns:
+        A shallow copy of *data* with qualifying nested object dicts
+        replaced by ID strings.
+    """
+    result: dict[str, Any] = {}
+    for key, value in data.items():
+        if key in _AS_OBJECT_REF_FIELDS and isinstance(value, dict):
+            nested_id = value.get("id_")
+            if isinstance(nested_id, str) and nested_id:
+                result[key] = nested_id
+            else:
+                result[key] = value
+        else:
+            result[key] = value
+    return result
 
 
 class Record(StorableRecord):
@@ -51,7 +101,7 @@ class Record(StorableRecord):
         record = Record(
             id_=obj.id_,
             type_=obj.type_,
-            data_=obj.model_dump(mode="json"),
+            data_=_dehydrate_data(obj.model_dump(mode="json")),
         )
         return record
 
@@ -61,8 +111,9 @@ class Record(StorableRecord):
         Returns:
             BaseModel: The converted object.
         """
-        cls = find_in_vocabulary(self.type_)
-        if cls is None:
+        try:
+            cls = find_in_vocabulary(self.type_)
+        except KeyError:
             raise ValueError(
                 f"Type '{self.type_}' not found in vocabulary for Record conversion"
             )

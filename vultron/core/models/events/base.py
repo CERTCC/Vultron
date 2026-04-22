@@ -39,6 +39,7 @@ class MessageSemantics(StrEnum):
     INVITE_ACTOR_TO_CASE = auto()
     ACCEPT_INVITE_ACTOR_TO_CASE = auto()
     REJECT_INVITE_ACTOR_TO_CASE = auto()
+    ANNOUNCE_VULNERABILITY_CASE = auto()
 
     CREATE_EMBARGO_EVENT = auto()
     ADD_EMBARGO_EVENT_TO_CASE = auto()
@@ -49,6 +50,9 @@ class MessageSemantics(StrEnum):
     REJECT_INVITE_TO_EMBARGO_ON_CASE = auto()
 
     CLOSE_CASE = auto()
+
+    ANNOUNCE_CASE_LOG_ENTRY = auto()
+    REJECT_CASE_LOG_ENTRY = auto()
 
     CREATE_CASE_PARTICIPANT = auto()
     ADD_CASE_PARTICIPANT_TO_CASE = auto()
@@ -66,6 +70,8 @@ class MessageSemantics(StrEnum):
 
     # reserved for activities that don't fit any of the above semantics, but we want to be able to dispatch on them anyway
     UNKNOWN = auto()
+    # object_ URI could not be resolved after rehydration; activity is dead-lettered
+    UNKNOWN_UNRESOLVABLE_OBJECT = auto()
 
 
 class VultronEvent(BaseModel):
@@ -115,6 +121,13 @@ class VultronEvent(BaseModel):
     # Optional at the base level; subclasses that always carry an activity
     # MUST narrow this to required by redeclaring without a default.
     activity: VultronActivity | None = None
+
+    # Dispatch-context annotation: the canonical ID of the actor whose inbox
+    # is being processed.  Set by the inbox adapter (not extracted from wire
+    # format) so that use cases can compare it against activity.to/cc without
+    # inspecting AS2 types.  None when dispatched outside the inbox path (CLI,
+    # triggers, tests that don't set it).
+    receiving_actor_id: str | None = None
 
     @property
     def id_(self) -> str:

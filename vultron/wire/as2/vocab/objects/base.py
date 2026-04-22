@@ -16,16 +16,113 @@ Provides a base class for all Vultron ActivityStreams Objects.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import TypeAlias
+from typing import Any, ClassVar, TypeAlias
 
+from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 
 
-class VultronObject(as_Object):
-    """
-    Base class for all Vultron ActivityStreams Objects
-    """
+def _ref_id_or_value(value: Any) -> Any:
+    """Return a reference's ``id`` when present, otherwise the original value."""
+    if isinstance(value, list):
+        return [_ref_id_or_value(item) for item in value]
+    if isinstance(value, dict):
+        return value.get("id", value.get("id_", value))
+    return getattr(value, "id_", value)
 
 
-VultronObjectRef: TypeAlias = ActivityStreamRef[VultronObject]
+def _scalar_ref_id_or_value(value: Any) -> Any:
+    """Collapse a scalar-or-list reference to a single ``id`` string when possible."""
+    if isinstance(value, list):
+        if not value:
+            return None
+        return _scalar_ref_id_or_value(value[0])
+    return _ref_id_or_value(value)
+
+
+class VultronAS2Object(as_Object):
+    """Base class for all Vultron ActivityStreams Objects.
+
+    Subclasses represent specific Vultron wire-format object types and MUST
+    implement :meth:`from_core` (and SHOULD implement :meth:`to_core`) with
+    a narrowed type signature, e.g.::
+
+        @classmethod
+        def from_core(cls, core_obj: VultronReport) -> "VulnerabilityReport":
+            ...
+
+    **``_field_map`` contract**: If a subclass wire type uses different field
+    names than the corresponding core domain type, declare the mapping as::
+
+        _field_map: ClassVar[dict[str, str]] = {"domain_field": "wire_field"}
+
+    The default :meth:`from_core` implementation applies ``_field_map``
+    renames before calling :func:`~pydantic.BaseModel.model_validate`, so
+    subclasses with no name differences can inherit the default without
+    override.
+
+    ``to_core`` always raises :exc:`NotImplementedError` at this level;
+    subclasses that have a meaningful reverse mapping SHOULD override it.
+    """
+
+    _vocab_ns: ClassVar[VocabNamespace] = VocabNamespace.VULTRON
+    _field_map: ClassVar[dict[str, str]] = {}
+
+    @classmethod
+    def from_core(cls, core_obj: Any) -> "VultronAS2Object":
+        """Create a wire object from a core domain object.
+
+        The default implementation performs a JSON round-trip::
+
+            data = core_obj.model_dump(mode="json")
+            # apply _field_map renames (domain key → wire key)
+            cls.model_validate(data)
+
+        Subclasses MUST narrow the ``core_obj`` parameter type.  Override
+        this method when simple field-rename mapping via ``_field_map`` is
+        insufficient.
+
+        Args:
+            core_obj: A core domain model instance (Pydantic ``BaseModel``
+                subclass).
+
+        Returns:
+            A new instance of this wire type populated from ``core_obj``.
+        """
+        data: dict[str, Any] = core_obj.model_dump(mode="json")
+        for domain_field, wire_field in cls._field_map.items():
+            if domain_field in data:
+                data[wire_field] = data.pop(domain_field)
+        return cls.model_validate(data)
+
+    def to_core(self) -> Any:
+        """Convert this wire object to a core domain object.
+
+        Subclasses that have a well-defined reverse mapping SHOULD override
+        this method and return the appropriate core domain type.
+
+        The ``_field_map`` contract is the inverse of :meth:`from_core`:
+        wire field names map to domain field names.  Subclass overrides
+        should apply the reverse mapping before calling
+        ``CoreType.model_validate(data)``.
+
+        Raises:
+            NotImplementedError: Always — no generic reverse mapping exists
+                at the wire base level.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__}.to_core() is not implemented. "
+            "Override this method in the subclass."
+        )
+
+    def _to_core_data(self) -> dict[str, Any]:
+        """Dump wire data and reverse any ``_field_map`` renames for core use."""
+        data = self.model_dump(mode="python", round_trip=True)
+        for domain_field, wire_field in self._field_map.items():
+            if wire_field in data:
+                data[domain_field] = data.pop(wire_field)
+        return data
+
+
+VultronObjectRef: TypeAlias = ActivityStreamRef[VultronAS2Object]

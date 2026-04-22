@@ -121,10 +121,8 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
     `vultron/api/`
   - Implementation: use `pytest` + `ast` or an import-linting tool
     (e.g., `import-linter`) to detect boundary violations automatically
-  - **Rationale**: As the codebase grows, accidental cross-layer imports are
-    easy to introduce. Automated boundary tests catch violations earlier than
-    code review and enforce the architectural rules documented in
-    `notes/architecture-ports-and-adapters.md`
+  - **Rationale**: Automated boundary tests catch accidental cross-layer
+    imports earlier than code review.
   - **Timing**: Add these tests once the P65-x violation remediation series
     is complete and all active violations in `notes/architecture-review.md`
     are resolved

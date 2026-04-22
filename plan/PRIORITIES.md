@@ -77,22 +77,140 @@ via the Vultron Protocol, with CaseActor managing case state.
 
 See `notes/demo-future-ideas.md` for the full scenario descriptions.
 
-D5-1, D5-2, D5-3, D5-4, D5-5.
+Specific tasks include (but not limited to): D5-1, D5-2, D5-3, D5-4, D5-5.
+
+## Priority 310: Address feedback on demos
+
+This is a placeholder priority for addressing feedback on the multi-actor
+demo scenarios and their implementation. We should not proceed with
+priorities beyond this until we have completed all known feedback.
+
+All D5-6 tasks belong here.
+
+IDEA-260408-01-1 through IDEA-260408-01-7 are all related to addressing  
+feedback on the demos, so they also belong here.
+
+EMBARGO-DUR-1 — update EmbargoPolicy model to ISO‑8601 durations (pending)
+
+## Priority 320: additional demo feedback
+
+Tasks in this priority: D5-7-EMSTATE-1, D5-7-AUTOENG-2,
+D5-7-TRIGNOTIFY-1, D5-7-DEMONOTECLEAN-1.
+
+These are the remaining round-2 demo feedback tasks that are independent of
+the SYNC replication work.
+
+Two tasks originally in this group — D5-7-CASEREPL-1 and D5-7-ADDOBJ-1 —
+have been **superseded by SYNC-2** (Priority 330). The `Announce(CaseLogEntry)`
+replication path replaces the direct `Create(VulnerabilityCase)` and
+`Add(CaseParticipant)` delivery paths to participant actors. Implementing
+stopgap fixes would require rework immediately after SYNC-2.
+
+D5-7-DEMOREPLCHECK-1 is **deferred to after SYNC-2** (Priority 330) because
+meaningful finder-replica verification requires checking log-state consistency,
+not just field equality.
+
+**D5-7-TRIGNOTIFY-1** (populate `to` field in trigger activities) is also a
+prerequisite for SYNC-2 fan-out to work correctly; complete it as part of
+Priority 320 before starting Priority 330.
+
+## Priority 325: TinyDB → SQLModel/SQLite Datalayer Migration
+
+Replace the TinyDB persistence backend with a SQLModel/SQLite adapter.
+TinyDB's O(n) I/O cost (whole-file rewrite on every operation) was measured
+concretely in BUG-2026041001: the test suite grew from ~13 s to 15+ minutes
+as test coverage expanded. The fix required a `pytest_configure` monkey-patch
+to force `MemoryStorage` globally — accidental complexity paid entirely to
+work around a TinyDB limitation, not to test any application behavior.
+
+**Approach**: Single-table polymorphic SQLModel storage model
+(`VultronObjectRecord`) defined entirely in the adapter layer. Domain models
+(Pydantic) are unchanged. SQLModel is isolated to the adapter.
+Test isolation via `sqlite:///:memory:` replaces the monkey-patch.
+
+Tasks: DL-SQLITE-ADR, DL-SQLITE-1, DL-SQLITE-2, DL-SQLITE-3, DL-SQLITE-4,
+DL-SQLITE-5. All must complete before D5-7-HUMAN (Priority 330).
+
+IDEA-26040901 (TinyDB table consolidation) is superseded by this migration.
+IDEA-26040902 is the primary driver.
+
+## Priority 330: SYNC implementation + demo sign-off
+
+This priority covers the log-centric replication work (formerly Priority 400)
+and the final demo quality gate. It is elevated above the old Priority 400
+because D5-7-HUMAN sign-off cannot happen until demos work correctly with
+log-sync in place.
+
+INLINE-OBJ tasks also belong here.
+
+## PRIORITY 340: Wire translation
+
+All WIRE-TRANS tasks fall here.
+
+## Priority 345: DataLayer auto-rehydration
+
+DL-REHYDRATE: auto-rehydration in SQLite/TinyDB adapters so `dl.read()` and
+`dl.list()` always return fully typed domain objects. Audit and remove manual
+`model_validate` coercion in use cases after completion.
+
+## Priority 347: Demo puppeteering, trigger completeness, BT node generalization
+
+Addresses BUG-26041701 (bare-string `object_` in `CreateFinderParticipantNode`)
+and IDEA-26041702 (generalize to `CreateCaseParticipantNode`). Also converts
+scenario demos from spoofing to trigger-based puppeteering, adds missing trigger
+endpoints, renames `evaluate-embargo` → `accept-embargo`, and reorganizes
+`vultron/demo/` into `exchange/` (protocol fragments) and `scenario/`
+(end-to-end workflows).
+
+Tasks: P347-BUGFIX, P347-NODEGENERAL, P347-BRIDGE, P347-SUGGESTBT,
+P347-TRIGGERS, P347-EMBARGOTRIGGERS, P347-DEMOORG, P347-PUPPETEER,
+P347-SPECS.
+
+Prereqs: P-345 (DL-REHYDRATE) must complete first.
+Blocks: D5-7-HUMAN sign-off (gate to P-350).
+
+## Priority 348: More Demo prep
+
+DR-* tasks go here
 
 ## Priority 350: Update python version and other maintenance tasks
 
-TOOLS-1, DOCS-3, VOCAB-REG-1
+**D5-7-HUMAN** (project-owner sign-off on demo completeness) is the gate to
+enter Priority 350 and beyond.
+
+General housekeeping items. Non-blocking; can proceed in parallel with or
+after Priority 330.
+
+CONFIG-1, TOOLS-1, DOCS-3, VOCAB-REG-1.1, VOCAB-REG-1.2
+
+## Priority 360: BT composability audit (IDEA-26041703)
+
+Addresses the deeper concern from IDEA-26041703: BT nodes and subtrees should
+be composable, reusable branches rather than one-off behaviors hard-coded to
+specific actors or demo scenarios. The "fractal" composition pattern in
+`vultron/bt/` is the intended model.
+
+Deliverables:
+
+- `notes/bt-reusability.md` — durable design note capturing the fractal
+  composability pattern, the "trunkless branch" intent, and anti-patterns
+  to avoid.
+- `specs/behavior-tree-node-design.md` — formal requirements for BT node
+  parameterization, composability, and reuse (e.g., nodes MUST NOT hard-code
+  actor roles; roles/identities MUST be constructor parameters; reusable
+  subtrees MUST be composed rather than duplicated).
+- Codebase audit: identify one-off BT nodes or near-duplicate subtrees that
+  should be refactored to use the composability pattern; produce a task list.
+
+Can begin in parallel with P-347.
 
 ## Priority 400: Initial SYNC implementation
 
-SYNC-1 and SYNC-2 tasks are important architecturally to improve the
-multi-actor demo scenarios. This will give us a more realistic demonstration
-of how the protocol really works in a multi-actor context, and will allow us
-to identify issues or gaps in the protocol design and implementation that
-may not be apparent in a single-actor context. It will also allow us to  
-demonstrate the core behavior tree logic in a more realistic context, which  
-is important for showcasing the capabilities of the system. SYNC-3 is
-important to complete the synchronization work.
+> **Superseded by Priority 330.** The SYNC work has been elevated to
+> Priority 330 because D5-7-HUMAN sign-off depends on SYNC-2 completing
+> the demo replication story. OUTBOX-MON-1 was also moved from Priority
+> 350 to Priority 330 as a hard SYNC prerequisite. See Priority 330 for
+> the full task list and sequencing.
 
 ## Priority 500: Re-implement "fuzzer" nodes from the original simulator
 

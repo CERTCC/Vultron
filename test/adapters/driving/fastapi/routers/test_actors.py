@@ -210,3 +210,116 @@ def test_get_action_rules_actor_not_in_case_returns_404(client_actors, dl):
         f"{_HTTP_CASE_ID}/action-rules"
     )
     assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+# ---------------------------------------------------------------------------
+# POST /actors/ — actor creation (D5-1-G2)
+# ---------------------------------------------------------------------------
+
+
+class TestCreateActor:
+    """Tests for ``POST /actors/`` idempotent actor creation endpoint."""
+
+    def test_create_organization_returns_201(self, client_actors):
+        payload = {"name": "TestOrg", "actor_type": "Organization"}
+        resp = client_actors.post("/actors/", json=payload)
+        assert resp.status_code == status.HTTP_201_CREATED
+        data = resp.json()
+        assert data["name"] == "TestOrg"
+        assert data["type"] == "Organization"
+        assert "id" in data
+
+    def test_create_person_returns_201(self, client_actors):
+        payload = {"name": "Alice", "actor_type": "Person"}
+        resp = client_actors.post("/actors/", json=payload)
+        assert resp.status_code == status.HTTP_201_CREATED
+        data = resp.json()
+        assert data["name"] == "Alice"
+        assert data["type"] == "Person"
+
+    def test_create_service_returns_201(self, client_actors):
+        payload = {"name": "MyService", "actor_type": "Service"}
+        resp = client_actors.post("/actors/", json=payload)
+        assert resp.status_code == status.HTTP_201_CREATED
+        data = resp.json()
+        assert data["type"] == "Service"
+
+    def test_create_application_returns_201(self, client_actors):
+        payload = {"name": "MyApp", "actor_type": "Application"}
+        resp = client_actors.post("/actors/", json=payload)
+        assert resp.status_code == status.HTTP_201_CREATED
+        data = resp.json()
+        assert data["type"] == "Application"
+
+    def test_create_group_returns_201(self, client_actors):
+        payload = {"name": "MyGroup", "actor_type": "Group"}
+        resp = client_actors.post("/actors/", json=payload)
+        assert resp.status_code == status.HTTP_201_CREATED
+        data = resp.json()
+        assert data["type"] == "Group"
+
+    def test_create_actor_default_type_is_organization(self, client_actors):
+        payload = {"name": "DefaultTypeActor"}
+        resp = client_actors.post("/actors/", json=payload)
+        assert resp.status_code == status.HTTP_201_CREATED
+        assert resp.json()["type"] == "Organization"
+
+    def test_create_actor_with_custom_id(self, client_actors):
+        custom_id = "http://finder:7999/api/v2/actors/finder-uuid"
+        payload = {
+            "name": "Finder",
+            "actor_type": "Person",
+            "id": custom_id,
+        }
+        resp = client_actors.post("/actors/", json=payload)
+        assert resp.status_code == status.HTTP_201_CREATED
+        assert resp.json()["id"] == custom_id
+
+    def test_create_actor_idempotent_returns_200_on_second_call(
+        self, client_actors
+    ):
+        custom_id = "http://vendor:7999/api/v2/actors/vendor-uuid"
+        payload = {
+            "name": "Vendor",
+            "actor_type": "Organization",
+            "id": custom_id,
+        }
+        first = client_actors.post("/actors/", json=payload)
+        assert first.status_code == status.HTTP_201_CREATED
+
+        second = client_actors.post("/actors/", json=payload)
+        assert second.status_code == status.HTTP_200_OK
+        assert second.json()["id"] == custom_id
+
+    def test_idempotent_creation_returns_same_actor(self, client_actors):
+        custom_id = "http://example.org/actors/alice"
+        payload = {"name": "Alice", "actor_type": "Person", "id": custom_id}
+        first = client_actors.post("/actors/", json=payload)
+        second = client_actors.post("/actors/", json=payload)
+        assert first.json()["id"] == second.json()["id"]
+        assert first.json()["name"] == second.json()["name"]
+
+    def test_created_actor_appears_in_list(self, client_actors):
+        payload = {
+            "name": "ListCheckActor",
+            "actor_type": "Organization",
+            "id": "http://example.org/actors/listcheck",
+        }
+        client_actors.post("/actors/", json=payload)
+        resp = client_actors.get("/actors/")
+        ids = [a["id"] for a in resp.json()]
+        assert "http://example.org/actors/listcheck" in ids
+
+    def test_created_actor_retrievable_by_id(self, client_actors):
+        custom_id = "http://example.org/actors/fetchable"
+        payload = {
+            "name": "FetchableActor",
+            "actor_type": "Organization",
+            "id": custom_id,
+        }
+        client_actors.post("/actors/", json=payload)
+        # GET /actors/{short_id} — path parameters cannot contain '/', so use
+        # the last URL segment; find_actor_by_short_id resolves to the full ID.
+        resp = client_actors.get("/actors/fetchable")
+        assert resp.status_code == status.HTTP_200_OK
+        assert resp.json()["id"] == custom_id

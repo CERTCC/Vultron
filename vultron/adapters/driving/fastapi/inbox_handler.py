@@ -24,8 +24,10 @@ from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.events import VultronEvent
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
-from vultron.core.use_cases.use_case_map import USE_CASE_MAP
-from vultron.wire.as2.extractor import extract_intent
+from vultron.semantic_registry import (
+    extract_event,
+    use_case_map as _use_case_map,
+)
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 
@@ -39,7 +41,7 @@ def prepare_for_dispatch(activity: as_Activity) -> VultronEvent:
         activity.id_,
         activity.type_,
     )
-    event = extract_intent(activity)
+    event = extract_event(activity)
     logger.debug(
         "Prepared event with semantics '%s' for activity '%s'",
         event.semantic_type,
@@ -63,7 +65,7 @@ def init_dispatcher(dl: DataLayer | None = None) -> None:
             passed at dispatch time via :func:`dispatch`.
     """
     global _DISPATCHER
-    _DISPATCHER = get_dispatcher(use_case_map=USE_CASE_MAP)
+    _DISPATCHER = get_dispatcher(use_case_map=_use_case_map())
     logger.info("Initialised inbox dispatcher: %s", type(_DISPATCHER).__name__)
 
 
@@ -94,7 +96,7 @@ def handle_inbox_item(actor_id: str, obj: as_Activity, dl: DataLayer) -> None:
     """Handle a single item in the Actor's inbox.
 
     Args:
-        actor_id: The ID of the Actor whose inbox is being processed.
+        actor_id: The canonical URI of the Actor whose inbox is being processed.
         obj: The Activity item to process.
         dl: The DataLayer instance scoped to the current actor.
     """
@@ -104,6 +106,7 @@ def handle_inbox_item(actor_id: str, obj: as_Activity, dl: DataLayer) -> None:
         obj.model_dump_json(indent=2, exclude_none=True),
     )
     event = prepare_for_dispatch(activity=obj)
+    event = event.model_copy(update={"receiving_actor_id": actor_id})
     dispatch(event=event, dl=dl)
 
 
@@ -129,6 +132,10 @@ async def inbox_handler(
     if actor is None:
         logger.warning("Actor %s not found in inbox_handler.", actor_id)
 
+    # Normalise to the canonical actor URI so that handle_inbox_item can
+    # inject receiving_actor_id that matches activity.to/cc fields (HP-09-001).
+    canonical_actor_id = getattr(actor, "id_", None) or actor_id
+
     logger.info("Processing inbox for actor %s", actor_id)
 
     err_count = 0
@@ -151,13 +158,18 @@ async def inbox_handler(
         logger.debug("Rehydrated item from inbox: %s", item.type_)
         if hasattr(item, "object_"):
             item_with_object = cast(Any, item)
+            obj_field = item_with_object.object_
+            obj_type_label = (
+                obj_field
+                if isinstance(obj_field, str)
+                else getattr(obj_field, "type_", repr(obj_field))
+            )
             logger.debug(
-                "Item has transitive object of type: %s",
-                item_with_object.object_.type_,
+                "Item has transitive object of type: %s", obj_type_label
             )
 
         try:
-            handle_inbox_item(actor_id=actor_id, obj=item, dl=dl)
+            handle_inbox_item(actor_id=canonical_actor_id, obj=item, dl=dl)
         except Exception as e:
             logger.error(
                 "Error processing inbox item for actor %s: %s", actor_id, e

@@ -21,41 +21,56 @@ type before semantic extraction can assign it a domain meaning.
 
 ## Vocabulary Registration
 
-- `VM-01-001` (MUST) Every concrete wire-layer AS2 class (object, activity, or link)
-  MUST be registered in the shared `VOCABULARY` registry at module import time
-  using the appropriate decorator:
-  - `@activitystreams_object` for object subclasses
-  - `@activitystreams_activity` for activity subclasses
-  - `@activitystreams_link` for link subclasses
-  - Decorators register the class under the key produced by stripping the
-    leading `as_` from the class name (e.g., `as_Create` → `"Create"`)
+- `VM-01-001` (MUST) Every concrete wire-layer AS2 class (object, activity, or
+  link) MUST be registered in the shared `VOCABULARY` registry automatically
+  at class-definition time
+  - Registration MUST occur via `as_Base.__init_subclass__`, which fires once
+    when the class body is executed (i.e., at module import time)
+  - A class is treated as concrete — and therefore registered — when its
+    `type_` field annotation is `Literal[str]`; abstract or intermediate base
+    classes that leave `type_` typed as `str | None` are skipped
+  - The registration key is the `Literal` value (e.g., `"Create"`,
+    `"VulnerabilityCase"`), which MUST equal the AS2 wire type name
   - Unregistered types cannot be deserialized from storage or rehydrated from
     URI references; any unregistered wire type is a runtime defect
-- `VM-01-002` The `VOCABULARY` singleton MUST be the sole authoritative source
-  for type lookup during dynamic deserialization
+    - VM-01-001 is-implemented-by `as_Base.__init_subclass__` in
+      `vultron/wire/as2/vocab/base/base.py`
+- `VM-01-002` (MUST) The `VOCABULARY` singleton MUST be the sole authoritative
+  source for type lookup during dynamic deserialization
   - `find_in_vocabulary()` MUST be used wherever a type must be resolved by
     name (e.g., in `record_to_object()`, `rehydrate()`, parser utilities)
   - Direct imports of concrete vocab classes inside deserialization paths
     MUST NOT bypass `find_in_vocabulary()`; such direct imports couple the
     deserializer to specific types and prevent vocabulary extension
-- `VM-01-003` New vocabulary types MUST be importable at startup without
+  - `find_in_vocabulary()` MUST raise `KeyError` when the requested type name
+    is not in the registry (fail-fast; see VM-06-005)
+- `VM-01-003` (MUST) New vocabulary types MUST be importable at startup without
   explicit registration calls in application code
-  - Registration MUST happen as a side effect of the class definition
-    (via the decorator), so that any module importing the class also registers
+  - Registration MUST happen as a side effect of the class definition via
+    `__init_subclass__`, so that any module importing the class also registers
     it automatically
-- `VM-01-004` The vocabulary registry MUST store objects, activities, and
-  links in separate namespaces (`VOCABULARY.objects`, `VOCABULARY.activities`,
-  `VOCABULARY.links`) to avoid collisions between similarly named types in
-  different AS2 categories
-- `VM-01-005` The vocabulary subpackage `__init__.py` SHOULD dynamically
-  discover and import all sibling modules in the package at startup, so that
-  new vocabulary classes are automatically registered without requiring
-  developers to update `__init__.py` manually
-  - This eliminates the registration fragility caused by relying on import
-    side effects or explicit `__init__.py` maintenance
-  - As an alternative, a parent-class or mixin auto-registration mechanism
-    SHOULD be evaluated; the goal is to prevent runtime failures from
-    unimported vocabulary modules
+- `VM-01-004` (MUST) The `VOCABULARY` registry MUST be a flat
+  `dict[str, type[as_Base]]` keyed by AS2 type name
+  - AS2 vs. Vultron provenance is expressed as a `_vocab_ns: ClassVar[VocabNamespace]`
+    attribute on each class (see VM-01-006), not as a registry key dimension
+  - This design avoids forcing callers to know the provenance of a type when
+    all they have is the wire `"type"` string
+- `VM-01-005` (MUST) The `vocab/objects/__init__.py` and
+  `vocab/activities/__init__.py` files MUST use `pkgutil.iter_modules` and
+  `importlib.import_module` to dynamically import all sibling modules at
+  package import time
+  - This provides a startup guarantee that all vocabulary classes are defined
+    and registered before any deserialization occurs, independent of which
+    application code paths happen to import specific vocab classes
+  - VM-01-005 refines VM-01-001
+- `VM-01-006` (MUST) A `VocabNamespace` enum (values: `AS`, `VULTRON`) MUST
+  be defined in `vultron/wire/as2/vocab/base/enums.py` and used to annotate
+  the provenance of each vocabulary class
+  - `as_Base` MUST declare `_vocab_ns: ClassVar[VocabNamespace] = VocabNamespace.AS`
+  - `VultronObject` MUST override this to `_vocab_ns = VocabNamespace.VULTRON`
+  - All Vultron-specific object subclasses inherit `VocabNamespace.VULTRON` from
+    `VultronObject` without additional annotation; AS2 base types inherit
+    `VocabNamespace.AS` from `as_Base`
 
 ## Base Model Configuration
 
@@ -119,14 +134,12 @@ type before semantic extraction can assign it a domain meaning.
   MUST:
   1. Inherit from `VultronObject` (or an appropriate AS2 base such as
      `as_Object`, `as_Activity`, etc.)
-  2. Be decorated with the appropriate registration decorator
-     (`@activitystreams_object`, `@activitystreams_activity`,
-     `@activitystreams_link`)
-  3. Define `as_type` as a `Literal[...]` field matching the wire type name
-  4. Be placed in the vocabulary subpackage that matches its category
+  2. Define `type_` as a `Literal[str]` field matching the wire type name
+     (registration via `__init_subclass__` fires automatically)
+  3. Be placed in the vocabulary subpackage that matches its category
      (`vocab/objects/`, `vocab/activities/`)
-  5. Be exported from the subpackage `__init__.py` so that it is imported
-     and registered at startup
+  4. Be reachable via the dynamic discovery in the subpackage `__init__.py`
+     (i.e., exist as a `.py` file in the package directory)
 - `VM-05-002` (MUST) Adding a new vocabulary type that represents a domain concept
   MUST be accompanied by:
   - A `MessageSemantics` enum value (see `architecture.md` ARCH-02-001)
@@ -210,14 +223,23 @@ type before semantic extraction can assign it a domain meaning.
 
 ## Verification
 
-### VM-01-001, VM-01-002 Verification
+### VM-01-001 through VM-01-006 Verification
 
-- Unit test: After importing any vocabulary module, all its classes appear
-  in `VOCABULARY.objects`, `VOCABULARY.activities`, or `VOCABULARY.links`
+- Unit test: After importing `vocab/objects` and `vocab/activities`, all
+  concrete classes (those with `Literal` `type_` annotations) appear in
+  `VOCABULARY`; abstract bases (`as_Object`, `VultronObject`, `as_Activity`,
+  `as_Actor`) do not
 - Unit test: `find_in_vocabulary("VulnerabilityCase")` returns the correct
   class after importing the objects vocabulary subpackage
+- Unit test: `find_in_vocabulary("UnknownType")` raises `KeyError`
 - Unit test: `record_to_object()` correctly reconstructs objects whose type
-  is registered; raises `ValueError` for unregistered types
+  is registered; raises `KeyError` for unregistered types
+- Unit test: Defining a new concrete `as_Base` subclass with
+  `type_: Literal["TestType"]` results in `"TestType"` appearing in
+  `VOCABULARY` without any decorator
+- Unit test: Every `.py` module in `vocab/objects/` and `vocab/activities/`
+  contributes at least one class to `VOCABULARY` after the package is imported
+  (registration completeness test)
 
 ### VM-02-001, VM-02-002, VM-02-003 Verification
 

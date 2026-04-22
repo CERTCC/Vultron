@@ -43,7 +43,6 @@ from vultron.wire.as2.vocab.base.objects.actors import (
     as_Person,
     as_Service,
 )
-from vultron.wire.as2.vocab.base.registry import activitystreams_object
 from vultron.wire.as2.vocab.objects.embargo_policy import EmbargoPolicyRef
 
 
@@ -62,7 +61,6 @@ class VultronActorMixin(BaseModel):
     )
 
 
-@activitystreams_object
 class VultronPerson(VultronActorMixin, as_Person):
     """
     An ActivityStreams Person extended with Vultron profile fields.
@@ -74,7 +72,6 @@ class VultronPerson(VultronActorMixin, as_Person):
 VultronPersonRef: TypeAlias = ActivityStreamRef[VultronPerson]
 
 
-@activitystreams_object
 class VultronOrganization(VultronActorMixin, as_Organization):
     """
     An ActivityStreams Organization extended with Vultron profile fields.
@@ -86,7 +83,6 @@ class VultronOrganization(VultronActorMixin, as_Organization):
 VultronOrganizationRef: TypeAlias = ActivityStreamRef[VultronOrganization]
 
 
-@activitystreams_object
 class VultronService(VultronActorMixin, as_Service):
     """
     An ActivityStreams Service extended with Vultron profile fields.

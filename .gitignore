@@ -8,7 +8,7 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-build/
+/build/
 develop-eggs/
 dist/
 downloads/
@@ -142,3 +142,4 @@ mydb.json
 /ontology/*.properties
 catalog-*.xml
 /wip_notes/
+devlogs

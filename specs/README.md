@@ -8,6 +8,55 @@ This directory contains formal, testable specifications for the Vultron API v2 i
 
 ---
 
+## Agent Loading Guide
+
+When an agent consumes specs, load files in two tiers to minimize token
+overhead while ensuring full coverage.
+
+### Always Load (any implementation task)
+
+These 12 files (~82 KB) apply to virtually every code change:
+
+| File | Covers |
+|------|--------|
+| `architecture.md` | Layer separation rules, adapter injection, wire boundary |
+| `code-style.md` | Formatting, naming, import organization, type strictness |
+| `tech-stack.md` | Approved runtime, tools, and dependency constraints |
+| `handler-protocol.md` | Handler use-case contract and implementation patterns |
+| `testability.md` | Test coverage requirements, test organization rules |
+| `error-handling.md` | Exception hierarchy and error categories |
+| `object-ids.md` | Object ID format (full URI) and blackboard key conventions |
+| `use-case-organization.md` | Package layout for `vultron/core/use_cases/` |
+| `prototype-shortcuts.md` | Permissible shortcuts at the prototype stage |
+| `http-protocol.md` | HTTP status codes, Content-Type, error response format |
+| `structured-logging.md` | Log format, correlation IDs, log levels |
+| `idempotency.md` | Duplicate detection and idempotent processing |
+
+### Load Contextually (by topic)
+
+Load additional files only when the task touches the relevant area. See the
+**Specification Structure** section below for the full topic index.
+
+| Topic | Files to add |
+|-------|-------------|
+| DataLayer adapter | `datalayer.md` |
+| Handler pipeline | `inbox-endpoint.md`, `message-validation.md`, `semantic-extraction.md`, `dispatch-routing.md` |
+| Behavior Trees | `behavior-tree-integration.md`, `triggerable-behaviors.md` |
+| Case / state management | `case-management.md`, `state-machine.md`, `case-log-processing.md` |
+| Protocol conformance | `vultron-protocol-spec.md`, `vultron-as2-mapping.md` |
+| Wire vocabulary | `vocabulary-model.md` |
+| Response generation / outbox | `response-format.md`, `outbox.md` |
+| Synchronization | `sync-log-replication.md` |
+| Embargo / duration | `embargo-policy.md`, `duration.md` |
+| Demo / CLI | `demo-cli.md`, `multi-actor-demo.md` |
+| Observability | `observability.md` |
+| Security / CI | `ci-security.md`, `encryption.md` |
+| Agentic API | `agentic-readiness.md` |
+| Documentation work | `diataxis-requirements.md`, `project-documentation.md`, `traceability.md` |
+| Writing/updating specs | `meta-specifications.md` |
+
+---
+
 ## Specification Structure
 
 Specifications are organized by topic with minimal overlap. Cross-references link related requirements across files.
@@ -31,6 +80,12 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 3. **`semantic-extraction.md`** - Pattern matching to determine message semantics
 4. **`dispatch-routing.md`** - Routing DispatchEvent to handler functions
 5. **`handler-protocol.md`** - Handler function contract and implementation patterns
+
+**DataLayer Port**:
+
+- **`datalayer.md`** — DataLayer port requirements: auto-rehydration on read
+  (DL-01), type-safe writes (DL-02), port isolation (DL-03). Formal requirements
+  for the DL-REHYDRATE implementation task.
 
 **Wire Vocabulary and Rehydration**:
 
@@ -59,6 +114,10 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   object model relationships (Report/Case/CaseReference/VulnerabilityRecord), case update
   broadcast, CVD action rules API, redacted case view (CM-09), per-participant embargo
   acceptance tracking (CM-10)
+- **`case-log-processing.md`** - Participant assertions, CaseActor-authored
+  `CaseLogEntry` objects, case audit scope, recorded-history projection, and
+  replication rules for recorded vs rejected log outcomes (CLP-01 through
+  CLP-05)
 
 **State Machines**:
 
@@ -117,6 +176,9 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 ### Actor Profiles and Policies
 
 - **`embargo-policy.md`** - Actor embargo policy record format and API
+- **`duration.md`** - Canonical ISO 8601 duration format for embargo
+  policy fields: restricted grammar, validation rules, Pydantic mapping
+  (DUR-01 through DUR-07)
 
 ### Security
 
@@ -203,11 +265,13 @@ is reserved for `testability.md`).
 | `AR` | `agentic-readiness.md` |
 | `BT` | `behavior-tree-integration.md` |
 | `CI-SEC` | `ci-security.md` |
+| `CLP` | `case-log-processing.md` |
 | `CM` | `case-management.md` |
 | `CS` | `code-style.md` |
 | `DC` | `demo-cli.md` |
 | `DEMO-MA` | `multi-actor-demo.md` |
 | `DF` | `diataxis-requirements.md` |
+| `DL` | `datalayer.md` |
 | `EH` | `error-handling.md` |
 | `EP` | `embargo-policy.md` |
 | `HP` | `handler-protocol.md` |
@@ -273,28 +337,8 @@ source.
 
 ## Implementation Status
 
-See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by
+See `plan/IMPLEMENTATION_PLAN.md` for current implementation status by
 specification.
-
-**Snapshot (2026-03-26)**:
-
-- ✅ **Core message-processing infrastructure is in place**: parsing,
-  semantic extraction, dispatch routing, typed use-case execution, and the
-  DataLayer port/adapter split are all established.
-- ✅ **Received-message and trigger use cases are implemented**: all 38
-  received-message use cases and all 9 trigger use cases live in
-  `vultron/core/use_cases/`.
-- ✅ **FastAPI adapter consolidation is complete**: the active HTTP adapter
-  code lives under `vultron/adapters/driving/fastapi/`, and `vultron/api/v1/`
-  has been removed.
-- ✅ **Operator/demo surfaces are available**: the unified demo CLI and actor
-  profile discovery endpoint are implemented.
-- ⚠️ **Outbound delivery remains partial**: the outbound `ActivityEmitter`
-  port exists in `vultron/core/ports/emitter.py`, but outbox delivery work
-  beyond that stub (`OX-1.1+`) is still pending.
-- ⚠️ **Use the plan for volatile details**: exact test counts, active-phase
-  status, and recently completed implementation batches are maintained in
-  `plan/IMPLEMENTATION_PLAN.md` and `plan/IMPLEMENTATION_HISTORY.md`.
 
 ---
 

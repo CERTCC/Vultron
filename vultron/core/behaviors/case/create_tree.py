@@ -34,7 +34,8 @@ Structure:
        ├─ CreateInitialVendorParticipant  # Add vendor as initial participant (CM-02-008)
        ├─ CreateCaseActorNode          # Create CaseActor service (CM-02-001)
        ├─ EmitCreateCaseActivity       # Generate CreateCaseActivity activity
-       └─ UpdateActorOutbox            # Append activity to actor outbox
+       ├─ UpdateActorOutbox            # Append activity to actor outbox
+       └─ CommitCaseLogEntryNode       # Log entry → Announce fan-out (SYNC-02-002)
 """
 
 import logging
@@ -44,6 +45,7 @@ import py_trees
 from vultron.core.models.vultron_types import VultronCase
 from vultron.core.behaviors.case.nodes import (
     CheckCaseAlreadyExists,
+    CommitCaseLogEntryNode,
     CreateCaseActorNode,
     CreateInitialVendorParticipant,
     EmitCreateCaseActivity,
@@ -93,6 +95,7 @@ def create_create_case_tree(
             CreateCaseActorNode(case_id=case_id, actor_id=actor_id),
             EmitCreateCaseActivity(),
             UpdateActorOutbox(),
+            CommitCaseLogEntryNode(case_id=case_id),
         ],
     )
 

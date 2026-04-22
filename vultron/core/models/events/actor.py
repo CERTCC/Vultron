@@ -99,3 +99,12 @@ class RejectInviteActorToCaseReceivedEvent(_ObjectIsInviteMixin, VultronEvent):
     semantic_type: Literal[MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE] = (
         MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE
     )
+
+
+class AnnounceVulnerabilityCaseReceivedEvent(VultronEvent):
+    """Case owner announced full VulnerabilityCase details to this actor."""
+
+    semantic_type: Literal[MessageSemantics.ANNOUNCE_VULNERABILITY_CASE] = (
+        MessageSemantics.ANNOUNCE_VULNERABILITY_CASE
+    )
+    activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]

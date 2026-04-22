@@ -43,9 +43,9 @@ logic, but MUST NOT be directly reused in prototype handlers. See
 
 ### Generation 3: Current ActivityStreams-based implementation
 
-**Files**: `vultron/as_vocab/**/*.py`, `vultron/api/**/*.py`,
-`vultron/behaviors/**/*.py`, `vultron/activity_patterns.py`,
-`vultron/semantic_map.py`, etc.
+**Files**: `vultron/wire/as2/vocab/**/*.py`, `vultron/adapters/**/*.py`,
+`vultron/core/behaviors/**/*.py`, `vultron/wire/as2/extractor.py`,
+`vultron/core/use_cases/use_case_map.py`, etc.
 
 This is the current prototype codebase. Documentation in `docs/howto/activitypub/`
 and `specs/**/*.md` reflects this generation.

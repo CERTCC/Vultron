@@ -24,7 +24,10 @@ from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.dt_utils import (
     now_utc,
 )
-from vultron.wire.as2.vocab.base.links import ActivityStreamRef
+from vultron.wire.as2.vocab.base.links import (
+    ActivityStreamRef,
+    ActivityStreamRequiredRef,
+)
 
 
 class as_Object(as_Base):
@@ -115,6 +118,7 @@ class as_Object(as_Base):
 
 
 as_ObjectRef: TypeAlias = ActivityStreamRef[as_Object]
+as_ObjectRequiredRef: TypeAlias = ActivityStreamRequiredRef[as_Object]
 
 
 def main():

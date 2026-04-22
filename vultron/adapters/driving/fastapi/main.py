@@ -36,13 +36,15 @@ async def lifespan(application: FastAPI):
 
     Starlette does not automatically propagate lifespan events to mounted
     sub-applications, so any initialisation that must run before the first
-    request (e.g. the inbox dispatcher) is performed here as well as in the
-    ``app_v2`` lifespan (which fires when that sub-app is used directly,
-    e.g. in unit tests targeting ``app_v2`` directly).
+    request (e.g. the inbox dispatcher and logging) is performed here as well
+    as in the ``app_v2`` lifespan (which fires when that sub-app is used
+    directly, e.g. in unit tests targeting ``app_v2`` directly).
     """
+    from vultron.adapters.driving.fastapi.app import configure_logging
     from vultron.adapters.driving.fastapi.inbox_handler import init_dispatcher
-    from vultron.adapters.driven.datalayer_tinydb import get_datalayer
+    from vultron.adapters.driven.datalayer import get_datalayer
 
+    configure_logging()
     init_dispatcher(dl=get_datalayer())
     yield
 

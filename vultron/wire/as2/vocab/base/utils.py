@@ -23,19 +23,34 @@ URN_UUID_PREFIX = "urn:uuid:"
 
 
 def name_of(obj: Any) -> str:
-    """Get the name of an object if it has one, otherwise return the object itself
+    """Return a concise human-readable label for an AS2 object or reference.
+
+    Resolution order:
+    1. Strings are returned unchanged (already a URI or label).
+    2. ``obj.name`` if present and not ``None``.
+    3. ``obj.href`` if present and not ``None`` (AS2 Link objects).
+    4. ``obj.id_`` if present and not ``None`` (any AS2/domain object).
+    5. ``str(obj)`` as a last resort.
 
     Args:
-        obj: The object to get the name of
+        obj: The object to get the name of — may be a string, an AS2 object,
+             an AS2 Link, or any other value.
 
     Returns:
-        Either the name of the object or the object itself
+        A short, human-readable string representation of *obj*.
     """
-
-    try:
-        return str(obj.name)
-    except AttributeError:
-        return str(obj)
+    if isinstance(obj, str):
+        return obj
+    name = getattr(obj, "name", None)
+    if name is not None:
+        return str(name)
+    href = getattr(obj, "href", None)
+    if href is not None:
+        return str(href)
+    id_ = getattr(obj, "id_", None)
+    if id_ is not None:
+        return str(id_)
+    return str(obj)
 
 
 def exclude_if_none(value: Any) -> bool:
@@ -96,21 +111,18 @@ def print_object_examples() -> None:
     """Print out empty examples of the classes in the given module"""
     from vultron.wire.as2.vocab import VOCABULARY
 
-    object_types = VOCABULARY.objects
-    _print_examples(object_types)
+    _print_examples(VOCABULARY)
 
 
 def print_activity_examples():
     """Print out empty examples of the classes in the given module"""
     from vultron.wire.as2.vocab import VOCABULARY
 
-    activity_types = VOCABULARY.activities
-    _print_examples(activity_types)
+    _print_examples(VOCABULARY)
 
 
 def print_link_examples():
     """Print out empty examples of the classes in the given module"""
     from vultron.wire.as2.vocab import VOCABULARY
 
-    link_types = VOCABULARY.links
-    _print_examples(link_types)
+    _print_examples(VOCABULARY)

@@ -20,7 +20,8 @@ from vultron.core.models.protocols import (
     is_case_model,
     is_participant_model,
 )
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.states.rm import RM
+from vultron.core.use_cases._helpers import _as_id, update_participant_rm_state
 
 logger = logging.getLogger(__name__)
 
@@ -382,3 +383,131 @@ class CloseCaseReceivedUseCase:
             )
         # Queue for delivery via outbox_handler regardless of outbox field
         self._dl.record_outbox_item(actor_id, close_activity.id_)
+
+
+class InvalidateCaseUseCase:
+    """Transition the actor's RM state to INVALID within the given case.
+
+    Called by ``InvalidateReportReceivedUseCase`` after dereferencing
+    report_id to case_id (CM-12-005).
+    """
+
+    def __init__(self, dl: DataLayer, case_id: str, actor_id: str) -> None:
+        self._dl = dl
+        self._case_id = case_id
+        self._actor_id = actor_id
+
+    def execute(self) -> None:
+        success = update_participant_rm_state(
+            self._case_id, self._actor_id, RM.INVALID, self._dl
+        )
+        if success:
+            logger.info(
+                "RM → INVALID for actor '%s' in case '%s'",
+                self._actor_id,
+                self._case_id,
+            )
+        else:
+            logger.warning(
+                "Failed to set RM.INVALID for actor '%s' in case '%s'",
+                self._actor_id,
+                self._case_id,
+            )
+
+
+class CloseCaseUseCase:
+    """Transition the actor's RM state to CLOSED within the given case.
+
+    Called by ``CloseReportReceivedUseCase`` after dereferencing
+    report_id to case_id (CM-12-005).
+    """
+
+    def __init__(self, dl: DataLayer, case_id: str, actor_id: str) -> None:
+        self._dl = dl
+        self._case_id = case_id
+        self._actor_id = actor_id
+
+    def execute(self) -> None:
+        success = update_participant_rm_state(
+            self._case_id, self._actor_id, RM.CLOSED, self._dl
+        )
+        if success:
+            logger.info(
+                "RM → CLOSED for actor '%s' in case '%s'",
+                self._actor_id,
+                self._case_id,
+            )
+        else:
+            logger.warning(
+                "Failed to set RM.CLOSED for actor '%s' in case '%s'",
+                self._actor_id,
+                self._case_id,
+            )
+
+
+class ValidateCaseUseCase:
+    """Run the validate-report behavior tree for the given case.
+
+    Called by ``ValidateReportReceivedUseCase`` after dereferencing
+    report_id to case_id (CM-12-005).
+
+    After successful BT validation (RM → VALID), auto-cascades to engage the
+    case (RM → ACCEPTED) using the default policy of immediate engagement.
+    This eliminates the need for a separate manual ``engage-case`` trigger call
+    (D5-7-AUTOENG-2).
+    """
+
+    def __init__(
+        self,
+        dl: DataLayer,
+        actor_id: str,
+        report_id: str,
+        offer_id: str,
+        case_id: str | None = None,
+    ) -> None:
+        self._dl = dl
+        self._actor_id = actor_id
+        self._report_id = report_id
+        self._offer_id = offer_id
+        self._case_id = case_id
+
+    def execute(self) -> None:
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.report.validate_tree import (
+            create_validate_report_tree,
+        )
+
+        logger.info(
+            "Actor '%s' validates VulnerabilityReport '%s'%s via BT",
+            self._actor_id,
+            self._report_id,
+            f" (case '{self._case_id}')" if self._case_id else "",
+        )
+
+        bridge = BTBridge(datalayer=self._dl)
+        tree = create_validate_report_tree(
+            report_id=self._report_id,
+            offer_id=self._offer_id,
+            case_id=self._case_id,
+            actor_id=self._actor_id,
+        )
+        result = bridge.execute_with_setup(tree, actor_id=self._actor_id)
+
+        if result.status == Status.SUCCESS:
+            logger.info(
+                "✓ BT validation succeeded for report: %s", self._report_id
+            )
+        elif result.status == Status.FAILURE:
+            logger.error(
+                "✗ BT validation failed for report: %s — %s",
+                self._report_id,
+                result.feedback_message,
+            )
+            for err in result.errors or []:
+                logger.error("  - %s", err)
+        else:
+            logger.warning(
+                "⚠ BT validation incomplete for report: %s (status=%s)",
+                self._report_id,
+                result.status,
+            )

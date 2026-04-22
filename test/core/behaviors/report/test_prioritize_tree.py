@@ -24,7 +24,7 @@ participant-specific nature of the RM state machine.
 import pytest
 from py_trees.common import Status
 
-from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.participant_status import VultronParticipantStatus
 from vultron.core.models.vultron_types import (
     VultronCase,
@@ -36,6 +36,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.prioritize_tree import (
     create_defer_case_tree,
     create_engage_case_tree,
+    create_prioritize_subtree,
 )
 from vultron.core.states.rm import RM
 
@@ -70,7 +71,7 @@ def _make_participant_in_valid_state(
 
 @pytest.fixture
 def datalayer():
-    return TinyDbDataLayer(db_path=None)
+    return SqliteDataLayer("sqlite:///:memory:")
 
 
 @pytest.fixture
@@ -151,7 +152,7 @@ def test_create_engage_case_tree_returns_sequence(
     assert tree is not None
     assert tree.name == "EngageCaseBT"
     assert hasattr(tree, "children")
-    assert len(tree.children) == 2
+    assert len(tree.children) == 3
 
 
 def test_create_defer_case_tree_returns_sequence(
@@ -163,7 +164,7 @@ def test_create_defer_case_tree_returns_sequence(
     assert tree is not None
     assert tree.name == "DeferCaseBT"
     assert hasattr(tree, "children")
-    assert len(tree.children) == 2
+    assert len(tree.children) == 3
 
 
 def test_engage_tree_node_names(case_with_participant, actor_id):
@@ -372,3 +373,70 @@ def test_defer_case_tree_idempotent(
         if s.rm_state == RM.DEFERRED
     ]
     assert len(deferred_entries) == 1
+
+
+# ============================================================================
+# create_prioritize_subtree tests (D5-7-BTFIX-1 / D5-7-BTFIX-2)
+# ============================================================================
+
+
+def test_create_prioritize_subtree_returns_selector(
+    case_with_participant, actor_id
+):
+    """create_prioritize_subtree returns a Selector named PrioritizeBT."""
+    tree = create_prioritize_subtree(
+        case_id=case_with_participant.id_, actor_id=actor_id
+    )
+    assert tree is not None
+    assert tree.name == "PrioritizeBT"
+    assert hasattr(tree, "children")
+    assert len(tree.children) == 2
+
+    engage_path = tree.children[0]
+    assert engage_path.name == "EngagePath"
+    assert len(engage_path.children) == 3
+    assert engage_path.children[0].name == "EvaluateCasePriority"
+    assert engage_path.children[1].name == "EmitEngageCaseActivity"
+    assert engage_path.children[2].name == "TransitionParticipantRMtoAccepted"
+
+    defer_path = tree.children[1]
+    assert defer_path.name == "DeferPath"
+    assert len(defer_path.children) == 2
+    assert defer_path.children[0].name == "EmitDeferCaseActivity"
+    assert defer_path.children[1].name == "TransitionParticipantRMtoDeferred"
+
+
+def test_prioritize_subtree_engages_by_default(
+    bridge, datalayer, actor_id, case_with_participant
+):
+    """PrioritizeBT engages by default (EvaluateCasePriority is always SUCCESS).
+
+    Verifies:
+    - Tree returns SUCCESS
+    - Participant RM state transitions to ACCEPTED
+    - An RmEngageCaseActivity (Join type) is created in the datalayer
+    - The activity appears in the actor's outbox (D5-7-BTFIX-1)
+    """
+    tree = create_prioritize_subtree(
+        case_id=case_with_participant.id_, actor_id=actor_id
+    )
+    result = bridge.execute_with_setup(tree=tree, actor_id=actor_id)
+
+    assert result.status == Status.SUCCESS
+
+    # Participant RM state must be ACCEPTED
+    participant_id = "https://example.org/participants/vendor-cp-001"
+    updated_participant = datalayer.read(participant_id)
+    assert updated_participant.participant_statuses[-1].rm_state == RM.ACCEPTED
+
+    # An engage activity must have been created and added to outbox
+    updated_actor = datalayer.read(actor_id)
+    assert updated_actor is not None
+    assert len(updated_actor.outbox.items) == 1
+
+    engage_activity_id = updated_actor.outbox.items[0]
+    engage_activity = datalayer.read(engage_activity_id)
+    assert engage_activity is not None
+    assert str(engage_activity.type_) == "Join"
+    assert engage_activity.actor == actor_id
+    assert engage_activity.object_.id_ == case_with_participant.id_

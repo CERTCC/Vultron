@@ -23,8 +23,7 @@ from pydantic import Field, field_validator
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
-from vultron.wire.as2.vocab.base.registry import activitystreams_object
-from vultron.wire.as2.vocab.objects.base import VultronObject
+from vultron.wire.as2.vocab.objects.base import VultronAS2Object
 
 # CVE JSON Schema reference tag vocabulary
 CASE_REFERENCE_TAG_VOCABULARY = {
@@ -50,8 +49,7 @@ CASE_REFERENCE_TAG_VOCABULARY = {
 }
 
 
-@activitystreams_object
-class CaseReference(VultronObject):
+class CaseReference(VultronAS2Object):
     """
     Represents a typed external reference associated with a case.
 

@@ -20,22 +20,25 @@ Thin wrapper: validates request → calls adapter → returns response.
 All domain logic lives in vultron.core.use_cases.triggers.report.
 """
 
-from fastapi import APIRouter, Depends, Path, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Path, status
 
 from vultron.adapters.driving.fastapi._trigger_adapter import (
     close_report_trigger,
     invalidate_report_trigger,
     reject_report_trigger,
+    submit_report_trigger,
     validate_report_trigger,
 )
+from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.trigger_models import (
     CloseReportRequest,
     InvalidateReportRequest,
     RejectReportRequest,
+    SubmitReportRequest,
     ValidateReportRequest,
 )
 from vultron.core.ports.datalayer import DataLayer
-from vultron.adapters.driven.datalayer_tinydb import get_datalayer
+from vultron.adapters.driven.datalayer import get_datalayer
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
 
@@ -48,6 +51,24 @@ def _actor_dl(actor_id: str = Path(...)) -> DataLayer:  # noqa: ARG001
     ``app.dependency_overrides[_actor_dl]`` works in tests (ADR-0012).
     """
     return get_datalayer()
+
+
+def _canonical_actor_dl(
+    actor_id: str = Path(...),
+    dl: DataLayer = Depends(_actor_dl),
+) -> DataLayer:
+    """FastAPI dependency: actor-scoped DataLayer keyed by the canonical URI.
+
+    Resolves *actor_id* (which may be a short UUID from the URL path) to the
+    actor's full canonical URI via the shared DataLayer, then returns the
+    actor-scoped DataLayer instance keyed by that URI.  This ensures that
+    ``outbox_handler`` reads from the same ``{canonical_uri}_outbox`` table
+    that ``record_outbox_item`` wrote to during use-case execution
+    (BUG-2026040901).
+    """
+    actor = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
+    canonical_id = actor.id_ if actor and hasattr(actor, "id_") else actor_id
+    return get_datalayer(canonical_id)
 
 
 @router.post(
@@ -64,7 +85,9 @@ def _actor_dl(actor_id: str = Path(...)) -> DataLayer:  # noqa: ARG001
 def trigger_validate_report(
     actor_id: str,
     body: ValidateReportRequest,
+    background_tasks: BackgroundTasks,
     dl: DataLayer = Depends(_actor_dl),
+    actor_dl: DataLayer = Depends(_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the validate-report behavior for the given actor.
@@ -73,7 +96,9 @@ def trigger_validate_report(
         TB-01-001, TB-01-002, TB-01-003, TB-03-001, TB-03-002, TB-03-003,
         TB-04-001, TB-05-001, TB-05-002, TB-06-001, TB-06-002, TB-07-001
     """
-    return validate_report_trigger(actor_id, body.offer_id, body.note, dl)
+    result = validate_report_trigger(actor_id, body.offer_id, body.note, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result
 
 
 @router.post(
@@ -92,7 +117,9 @@ def trigger_validate_report(
 def trigger_invalidate_report(
     actor_id: str,
     body: InvalidateReportRequest,
+    background_tasks: BackgroundTasks,
     dl: DataLayer = Depends(_actor_dl),
+    actor_dl: DataLayer = Depends(_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the invalidate-report behavior for the given actor.
@@ -101,7 +128,9 @@ def trigger_invalidate_report(
         TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
         TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    return invalidate_report_trigger(actor_id, body.offer_id, body.note, dl)
+    result = invalidate_report_trigger(actor_id, body.offer_id, body.note, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result
 
 
 @router.post(
@@ -121,7 +150,9 @@ def trigger_invalidate_report(
 def trigger_reject_report(
     actor_id: str,
     body: RejectReportRequest,
+    background_tasks: BackgroundTasks,
     dl: DataLayer = Depends(_actor_dl),
+    actor_dl: DataLayer = Depends(_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the reject-report (hard-close) behavior for the given actor.
@@ -130,7 +161,9 @@ def trigger_reject_report(
         TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
         TB-03-004, TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    return reject_report_trigger(actor_id, body.offer_id, body.note, dl)
+    result = reject_report_trigger(actor_id, body.offer_id, body.note, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result
 
 
 @router.post(
@@ -153,7 +186,9 @@ def trigger_reject_report(
 def trigger_close_report(
     actor_id: str,
     body: CloseReportRequest,
+    background_tasks: BackgroundTasks,
     dl: DataLayer = Depends(_actor_dl),
+    actor_dl: DataLayer = Depends(_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the close-report (RM → CLOSED) behavior for the given actor.
@@ -162,4 +197,37 @@ def trigger_close_report(
         TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
         TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    return close_report_trigger(actor_id, body.offer_id, body.note, dl)
+    result = close_report_trigger(actor_id, body.offer_id, body.note, dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result
+
+
+@router.post(
+    "/{actor_id}/trigger/submit-report",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Create and offer a vulnerability report.",
+    description=(
+        "Creates a VulnerabilityReport in the actor's DataLayer and queues an "
+        "RmSubmitReportActivity (Offer) to the specified recipient. "
+        "Returns the serialised offer so the caller can deliver it to the "
+        "recipient's inbox."
+    ),
+    operation_id="actors_trigger_submit_report",
+)
+def trigger_submit_report(
+    actor_id: str,
+    body: SubmitReportRequest,
+    background_tasks: BackgroundTasks,
+    dl: DataLayer = Depends(_actor_dl),
+    actor_dl: DataLayer = Depends(_canonical_actor_dl),
+) -> dict:
+    """Create a VulnerabilityReport and offer it to a recipient."""
+    result = submit_report_trigger(
+        actor_id,
+        body.report_name,
+        body.report_content,
+        body.recipient_id,
+        dl,
+    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result
