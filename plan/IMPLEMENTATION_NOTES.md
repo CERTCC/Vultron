@@ -519,3 +519,17 @@ are now split across three layers:
 Practical lesson: when a backlog bug may already be fixed, close it with
 concrete code-search and regression-test evidence rather than forcing a
 redundant follow-up patch.
+
+---
+
+### 2026-04-22 BUG-26041801 — Reporter terminology at report receipt
+
+- `finder_actor_id` was part of the externally visible contract for
+  receive-report orchestration, so the rename had to cover scenario/demo helper
+  functions and their tests along with the core BT factory.
+- The correct semantic claim is "report submitter" / "reporter", not "finder".
+  Keep role taxonomies and participant-state concepts separate from field names
+  that identify who sent an `Offer(VulnerabilityReport)`.
+- For terminology bugs, search adapter/demo layers as well as core code. Demo
+  helpers often mirror public parameter names closely enough that leaving them
+  behind creates avoidable inconsistency.

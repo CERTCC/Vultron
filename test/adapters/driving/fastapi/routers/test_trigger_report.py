@@ -126,7 +126,7 @@ def received_report(dl, actor, report, offer):
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=actor.id_,
+        reporter_actor_id=actor.id_,
     )
     bridge.execute_with_setup(tree, actor_id=actor.id_)
     return report

@@ -51,8 +51,8 @@ def _actor_id():
 
 
 @pytest.fixture
-def _finder_actor_id():
-    return "https://example.org/actors/finder"
+def _reporter_actor_id():
+    return "https://example.org/actors/reporter"
 
 
 @pytest.fixture
@@ -68,7 +68,7 @@ def _offer_id():
 def test_receive_report_case_bt_succeeds_without_conftest_imports(
     _fresh_datalayer,
     _actor_id,
-    _finder_actor_id,
+    _reporter_actor_id,
     _report_id,
     _offer_id,
 ):
@@ -110,8 +110,10 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
     actor = VultronCaseActor(id_=_actor_id, name="Vendor Co")
     dl.create(actor)
 
-    finder_actor = VultronCaseActor(id_=_finder_actor_id, name="Finder Co")
-    dl.create(finder_actor)
+    reporter_actor = VultronCaseActor(
+        id_=_reporter_actor_id, name="Reporter Co"
+    )
+    dl.create(reporter_actor)
 
     report = VultronReport(
         id_=_report_id,
@@ -122,21 +124,21 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
 
     offer = VultronOffer(
         id_=_offer_id,
-        actor=_finder_actor_id,
+        actor=_reporter_actor_id,
         object_=_report_id,
         target=_actor_id,
     )
     dl.create(offer)
 
-    finder_status = VultronParticipantStatus(
+    reporter_status = VultronParticipantStatus(
         id_=_report_phase_status_id(
-            _finder_actor_id, _report_id, RM.ACCEPTED.value
+            _reporter_actor_id, _report_id, RM.ACCEPTED.value
         ),
         context=_report_id,
-        attributed_to=_finder_actor_id,
+        attributed_to=_reporter_actor_id,
         rm_state=RM.ACCEPTED,
     )
-    dl.create(finder_status)
+    dl.create(reporter_status)
 
     vendor_status = VultronParticipantStatus(
         id_=_report_phase_status_id(_actor_id, _report_id, RM.RECEIVED.value),
@@ -151,7 +153,7 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
     tree = create_receive_report_case_tree(
         report_id=_report_id,
         offer_id=_offer_id,
-        finder_actor_id=_finder_actor_id,
+        reporter_actor_id=_reporter_actor_id,
     )
     result = bridge.execute_with_setup(tree=tree, actor_id=_actor_id)
 
@@ -171,5 +173,5 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
     assert updated_actor is not None
     assert len(updated_actor.outbox.items) > 0, (
         "BUG-26040902 regression: no outbox entry created — "
-        "finder would never receive VulnerabilityCase"
+        "reporter would never receive VulnerabilityCase"
     )

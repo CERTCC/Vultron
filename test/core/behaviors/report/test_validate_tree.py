@@ -53,9 +53,9 @@ def actor_id():
 
 
 @pytest.fixture
-def finder_actor_id():
-    """Test finder actor ID — distinct from the vendor."""
-    return "https://example.org/actors/finder"
+def reporter_actor_id():
+    """Test reporter actor ID — distinct from the vendor."""
+    return "https://example.org/actors/reporter"
 
 
 @pytest.fixture
@@ -71,13 +71,13 @@ def report(datalayer, actor_id):
 
 
 @pytest.fixture
-def offer(datalayer, report, actor_id, finder_actor_id):
-    """Create test Offer activity.  The *finder* submits the offer to the
-    *vendor* inbox, so ``actor`` is the finder's ID.
+def offer(datalayer, report, actor_id, reporter_actor_id):
+    """Create test Offer activity. The reporter submits the offer to the
+    vendor inbox, so ``actor`` is the reporter's ID.
     """
     offer_obj = VultronOffer(
         id_="https://example.org/activities/offer-123",
-        actor=finder_actor_id,
+        actor=reporter_actor_id,
         object_=report.id_,
         target=actor_id,
     )
@@ -97,11 +97,11 @@ def actor(datalayer, actor_id):
 
 
 @pytest.fixture
-def finder_actor(datalayer, finder_actor_id):
-    """Create test finder actor in the DataLayer."""
+def reporter_actor(datalayer, reporter_actor_id):
+    """Create test reporter actor in the DataLayer."""
     actor_obj = VultronCaseActor(
-        id_=finder_actor_id,
-        name="Finder Co",
+        id_=reporter_actor_id,
+        name="Reporter Co",
     )
     datalayer.create(actor_obj)
     return actor_obj
@@ -121,8 +121,8 @@ def case(
     report,
     offer,
     actor,
-    finder_actor,
-    finder_actor_id,
+    reporter_actor,
+    reporter_actor_id,
 ):
     """Pre-create the VulnerabilityCase at RM.RECEIVED.
 
@@ -137,7 +137,7 @@ def case(
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=finder_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
     bridge.execute_with_setup(tree, actor_id=actor_id, datalayer=datalayer)
     cases = datalayer.by_type("VulnerabilityCase")
@@ -211,7 +211,7 @@ def test_tree_structure_matches_spec(report, offer):
 
 
 def test_tree_execution_success_new_report(
-    bridge, datalayer, actor_id, report, offer, actor, finder_actor, case
+    bridge, datalayer, actor_id, report, offer, actor, reporter_actor, case
 ):
     """Tree executes successfully for report after case was created at receipt."""
     tree = create_validate_report_tree(
@@ -236,7 +236,7 @@ def test_tree_execution_success_new_report(
 
 
 def test_tree_execution_does_not_create_case(
-    bridge, datalayer, actor_id, report, offer, actor, finder_actor, case
+    bridge, datalayer, actor_id, report, offer, actor, reporter_actor, case
 ):
     """validate-report BT does NOT create a case (case was created at receipt).
 
@@ -266,7 +266,7 @@ def test_tree_execution_does_not_create_case(
 
 
 def test_tree_execution_transitions_vendor_to_valid(
-    bridge, datalayer, actor_id, report, offer, actor, finder_actor, case
+    bridge, datalayer, actor_id, report, offer, actor, reporter_actor, case
 ):
     """validate-report advances vendor's report-phase status to RM.VALID."""
     tree = create_validate_report_tree(
@@ -288,7 +288,7 @@ def test_tree_execution_transitions_vendor_to_valid(
 
 
 def test_tree_execution_early_exit_already_valid(
-    bridge, datalayer, actor_id, report, offer, actor, finder_actor, case
+    bridge, datalayer, actor_id, report, offer, actor, reporter_actor, case
 ):
     """Tree short-circuits if report already in VALID state."""
     # Arrange: Set report to VALID state in DataLayer
@@ -317,7 +317,7 @@ def test_tree_execution_early_exit_already_valid(
 
 
 def test_tree_execution_invalid_state_transitions_to_valid(
-    bridge, datalayer, actor_id, report, offer, actor, finder_actor, case
+    bridge, datalayer, actor_id, report, offer, actor, reporter_actor, case
 ):
     """Tree can validate report from INVALID state."""
     # Arrange: Set report to INVALID state in DataLayer (no VALID record present)
@@ -350,7 +350,7 @@ def test_tree_execution_invalid_state_transitions_to_valid(
 
 
 def test_tree_execution_no_prior_status_succeeds(
-    bridge, datalayer, actor_id, report, offer, actor, finder_actor, case
+    bridge, datalayer, actor_id, report, offer, actor, reporter_actor, case
 ):
     """Tree succeeds even if report has no prior status (new report)."""
     # Arrange: No status set (report has no status tracking yet)
@@ -377,7 +377,7 @@ def test_tree_execution_no_prior_status_succeeds(
 
 
 def test_tree_execution_policy_stubs_always_accept(
-    bridge, datalayer, actor_id, report, offer, actor, finder_actor, case
+    bridge, datalayer, actor_id, report, offer, actor, reporter_actor, case
 ):
     """Policy nodes (stubs) always return SUCCESS in Phase 1."""
     tree = create_validate_report_tree(
@@ -445,7 +445,7 @@ def test_tree_execution_missing_actor_id_fails(
 
 
 def test_tree_execution_missing_report_fails(
-    bridge, datalayer, actor_id, offer, actor, finder_actor
+    bridge, datalayer, actor_id, offer, actor, reporter_actor
 ):
     """Tree fails if no case exists for the report (EnsureEmbargoExists fails)."""
     # Arrange: Use non-existent report ID — no case will exist for it
@@ -473,7 +473,7 @@ def test_tree_execution_missing_report_fails(
 
 
 def test_tree_execution_idempotency(
-    bridge, datalayer, actor_id, report, offer, actor, finder_actor, case
+    bridge, datalayer, actor_id, report, offer, actor, reporter_actor, case
 ):
     """Multiple executions produce same result (idempotent)."""
     tree1 = create_validate_report_tree(
@@ -551,7 +551,7 @@ def test_tree_execution_actor_isolation(
 
 
 def test_ensure_embargo_exists_fails_without_case(
-    bridge, datalayer, actor_id, report, offer, actor, finder_actor
+    bridge, datalayer, actor_id, report, offer, actor, reporter_actor
 ):
     """validate-report BT fails if no case exists for the report.
 
@@ -576,7 +576,7 @@ def test_ensure_embargo_exists_fails_without_case(
 
 
 def test_validate_report_tree_case_has_active_embargo(
-    bridge, datalayer, actor_id, report, offer, actor, finder_actor, case
+    bridge, datalayer, actor_id, report, offer, actor, reporter_actor, case
 ):
     """After validate-report BT, case MUST have active_embargo set (D5-6-EMBARGORCP).
 
@@ -610,7 +610,7 @@ def test_validate_report_tree_case_has_active_embargo(
 
 
 def test_validate_report_auto_engages_via_bt(
-    bridge, datalayer, actor_id, report, offer, actor, finder_actor, case
+    bridge, datalayer, actor_id, report, offer, actor, reporter_actor, case
 ):
     """validate-report BT with case_id+actor_id auto-engages to RM.ACCEPTED.
 

@@ -7620,3 +7620,25 @@ enforces/bridges legacy bare-string cases before delivery.
 **Resolution:** Verified the fix in the current tree, confirmed the relevant
 regression tests pass, and marked BUG-26041701 fixed without additional code
 changes.
+
+---
+
+## BUG-26041801 — report submitter naming uses `finder` where protocol only guarantees `reporter` (COMPLETE 2026-04-22)
+
+**Issue:** report-receipt code and demo helpers exposed the submitter identity
+as `finder_actor_id`, which implied the submitter is always the finder.
+
+**Root cause:** the receive-report behavior-tree factory and its callers had
+encoded a stronger assumption than the protocol guarantees. For
+`Offer(VulnerabilityReport)`, the stable identity is the report **reporter** /
+`attributed_to` actor on the offer.
+
+**Resolution:** renamed the receive-report case-tree parameter surface to
+`reporter_actor_id`, updated the `SubmitReportReceivedUseCase` call chain, and
+carried the same rename through the affected core tests, FastAPI trigger tests,
+and scenario demo code/tests. Existing domain-role labels such as `Finder` and
+`CVDRoles.FINDER` were left intact because this bug was about parameter naming,
+not role taxonomy.
+
+**Validation:** demo-focused regressions and the canonical repository
+format/lint/type-check/test commands all passed after the rename.

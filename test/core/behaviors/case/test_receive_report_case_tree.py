@@ -59,9 +59,9 @@ def actor_id():
 
 
 @pytest.fixture
-def finder_actor_id():
-    """Finder (reporter) actor ID."""
-    return "https://example.org/actors/finder"
+def reporter_actor_id():
+    """Reporter actor ID."""
+    return "https://example.org/actors/reporter"
 
 
 @pytest.fixture
@@ -73,9 +73,9 @@ def actor(datalayer, actor_id):
 
 
 @pytest.fixture
-def finder_actor(datalayer, finder_actor_id):
-    """Create finder actor in the DataLayer."""
-    obj = VultronCaseActor(id_=finder_actor_id, name="Finder Co")
+def reporter_actor(datalayer, reporter_actor_id):
+    """Create reporter actor in the DataLayer."""
+    obj = VultronCaseActor(id_=reporter_actor_id, name="Reporter Co")
     datalayer.create(obj)
     return obj
 
@@ -93,17 +93,17 @@ def report(datalayer):
 
 
 @pytest.fixture
-def finder_accepted_status(datalayer, finder_actor_id, report):
-    """Pre-create the finder's RM.ACCEPTED report-phase status record.
+def reporter_accepted_status(datalayer, reporter_actor_id, report):
+    """Pre-create the reporter's RM.ACCEPTED report-phase status record.
 
     SubmitReportReceivedUseCase creates this record before the tree runs.
     """
     status = VultronParticipantStatus(
         id_=_report_phase_status_id(
-            finder_actor_id, report.id_, RM.ACCEPTED.value
+            reporter_actor_id, report.id_, RM.ACCEPTED.value
         ),
         context=report.id_,
-        attributed_to=finder_actor_id,
+        attributed_to=reporter_actor_id,
         rm_state=RM.ACCEPTED,
     )
     datalayer.create(status)
@@ -128,11 +128,11 @@ def vendor_received_status(datalayer, actor_id, report):
 
 
 @pytest.fixture
-def offer(datalayer, report, actor_id, finder_actor_id):
-    """Create test Offer activity (finder submits report to vendor)."""
+def offer(datalayer, report, actor_id, reporter_actor_id):
+    """Create test Offer activity (reporter submits report to vendor)."""
     obj = VultronOffer(
         id_="https://example.org/activities/offer-123",
-        actor=finder_actor_id,
+        actor=reporter_actor_id,
         object_=report.id_,
         target=actor_id,
     )
@@ -152,13 +152,13 @@ def bridge(datalayer):
 
 
 def test_create_receive_report_case_tree_returns_selector(
-    report, offer, finder_actor_id
+    report, offer, reporter_actor_id
 ):
     """Tree factory returns a Selector root node."""
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=finder_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
     assert tree is not None
     assert tree.name == "ReceiveReportCaseBT"
@@ -166,37 +166,39 @@ def test_create_receive_report_case_tree_returns_selector(
     assert len(tree.children) == 2
 
 
-def test_tree_first_child_is_idempotency_check(report, offer, finder_actor_id):
+def test_tree_first_child_is_idempotency_check(
+    report, offer, reporter_actor_id
+):
     """First child is CheckCaseExistsForReport (idempotency guard)."""
     from vultron.core.behaviors.case.nodes import CheckCaseExistsForReport
 
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=finder_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
     assert isinstance(tree.children[0], CheckCaseExistsForReport)
 
 
-def test_tree_second_child_is_sequence(report, offer, finder_actor_id):
+def test_tree_second_child_is_sequence(report, offer, reporter_actor_id):
     """Second child is a Sequence (ReceiveReportCaseFlow)."""
     import py_trees
 
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=finder_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
     assert isinstance(tree.children[1], py_trees.composites.Sequence)
     assert tree.children[1].name == "ReceiveReportCaseFlow"
 
 
-def test_tree_flow_has_seven_children(report, offer, finder_actor_id):
+def test_tree_flow_has_seven_children(report, offer, reporter_actor_id):
     """ReceiveReportCaseFlow sequence has exactly 7 action nodes."""
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=finder_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
     flow = tree.children[1]
     assert len(flow.children) == 7
@@ -210,19 +212,19 @@ def test_tree_flow_has_seven_children(report, offer, finder_actor_id):
 def test_tree_succeeds(
     datalayer,
     actor,
-    finder_actor,
-    finder_actor_id,
+    reporter_actor,
+    reporter_actor_id,
     report,
     offer,
     bridge,
-    finder_accepted_status,
+    reporter_accepted_status,
     vendor_received_status,
 ):
     """Tree executes successfully and returns Status.SUCCESS."""
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=finder_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
     result = bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
     assert result.status == Status.SUCCESS
@@ -231,19 +233,19 @@ def test_tree_succeeds(
 def test_tree_creates_case(
     datalayer,
     actor,
-    finder_actor,
-    finder_actor_id,
+    reporter_actor,
+    reporter_actor_id,
     report,
     offer,
     bridge,
-    finder_accepted_status,
+    reporter_accepted_status,
     vendor_received_status,
 ):
     """Tree creates a VulnerabilityCase linked to the report."""
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=finder_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
@@ -260,12 +262,12 @@ def test_tree_creates_case(
 def test_tree_creates_vendor_participant_at_rm_received(
     datalayer,
     actor,
-    finder_actor,
-    finder_actor_id,
+    reporter_actor,
+    reporter_actor_id,
     report,
     offer,
     bridge,
-    finder_accepted_status,
+    reporter_accepted_status,
     vendor_received_status,
 ):
     """Tree creates a vendor (receiver) participant at RM.RECEIVED."""
@@ -274,7 +276,7 @@ def test_tree_creates_vendor_participant_at_rm_received(
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=finder_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
@@ -313,21 +315,21 @@ def test_tree_creates_vendor_participant_at_rm_received(
 def test_tree_creates_finder_participant_at_rm_accepted(
     datalayer,
     actor,
-    finder_actor,
-    finder_actor_id,
+    reporter_actor,
+    reporter_actor_id,
     report,
     offer,
     bridge,
-    finder_accepted_status,
+    reporter_accepted_status,
     vendor_received_status,
 ):
-    """Tree creates a finder/reporter participant at RM.ACCEPTED."""
+    """Tree creates a reporter participant at RM.ACCEPTED."""
     from vultron.core.states.roles import CVDRoles
 
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=finder_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
@@ -346,7 +348,7 @@ def test_tree_creates_finder_participant_at_rm_accepted(
             if isinstance(p_actor, str)
             else getattr(p_actor, "id_", p_actor)
         )
-        if p_actor_id != finder_actor.id_:
+        if p_actor_id != reporter_actor.id_:
             continue
         roles = participant.case_roles
         if CVDRoles.FINDER not in roles:
@@ -357,30 +359,28 @@ def test_tree_creates_finder_participant_at_rm_accepted(
         rm = getattr(latest, "rm_state", None)
         assert (
             rm == RM.ACCEPTED
-        ), f"Expected finder rm_state=RM.ACCEPTED, got {rm}"
+        ), f"Expected reporter rm_state=RM.ACCEPTED, got {rm}"
         found_finder = True
 
-    assert (
-        found_finder
-    ), "No finder/reporter (FINDER-role) participant found in case"
+    assert found_finder, "No reporter participant found in case"
 
 
 def test_tree_creates_default_embargo(
     datalayer,
     actor,
-    finder_actor,
-    finder_actor_id,
+    reporter_actor,
+    reporter_actor_id,
     report,
     offer,
     bridge,
-    finder_accepted_status,
+    reporter_accepted_status,
     vendor_received_status,
 ):
     """Tree creates a default embargo and attaches it to the case."""
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=finder_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
@@ -392,12 +392,12 @@ def test_tree_creates_default_embargo(
 def test_tree_sets_em_state_proposed_after_embargo_init(
     datalayer,
     actor,
-    finder_actor,
-    finder_actor_id,
+    reporter_actor,
+    reporter_actor_id,
     report,
     offer,
     bridge,
-    finder_accepted_status,
+    reporter_accepted_status,
     vendor_received_status,
 ):
     """After embargo initialization, the case's current EM state MUST be
@@ -408,7 +408,7 @@ def test_tree_sets_em_state_proposed_after_embargo_init(
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=finder_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
@@ -427,12 +427,12 @@ def test_tree_sets_em_state_proposed_after_embargo_init(
 def test_tree_records_embargo_initialized_event(
     datalayer,
     actor,
-    finder_actor,
-    finder_actor_id,
+    reporter_actor,
+    reporter_actor_id,
     report,
     offer,
     bridge,
-    finder_accepted_status,
+    reporter_accepted_status,
     vendor_received_status,
 ):
     """After embargo initialization, an 'embargo_initialized' event MUST be
@@ -441,7 +441,7 @@ def test_tree_records_embargo_initialized_event(
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=finder_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
@@ -456,12 +456,12 @@ def test_tree_records_embargo_initialized_event(
 def test_tree_embargo_initialized_event_references_embargo_id(
     datalayer,
     actor,
-    finder_actor,
-    finder_actor_id,
+    reporter_actor,
+    reporter_actor_id,
     report,
     offer,
     bridge,
-    finder_accepted_status,
+    reporter_accepted_status,
     vendor_received_status,
 ):
     """The 'embargo_initialized' event MUST reference the embargo's ID as
@@ -470,7 +470,7 @@ def test_tree_embargo_initialized_event_references_embargo_id(
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=finder_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
@@ -487,19 +487,19 @@ def test_tree_embargo_initialized_event_references_embargo_id(
 def test_tree_queues_create_case_activity(
     datalayer,
     actor,
-    finder_actor,
-    finder_actor_id,
+    reporter_actor,
+    reporter_actor_id,
     report,
     offer,
     bridge,
-    finder_accepted_status,
+    reporter_accepted_status,
     vendor_received_status,
 ):
     """Tree queues a Create(Case) activity to the actor's outbox."""
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=finder_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
@@ -511,24 +511,24 @@ def test_tree_queues_create_case_activity(
 def test_create_case_precedes_add_participant_in_outbox(
     datalayer,
     actor,
-    finder_actor,
-    finder_actor_id,
+    reporter_actor,
+    reporter_actor_id,
     report,
     offer,
     bridge,
-    finder_accepted_status,
+    reporter_accepted_status,
     vendor_received_status,
 ):
     """Create(Case) must be queued before Add(CaseParticipant) (D5-7-MSGORDER-1).
 
-    Ensures the finder actor receives the case-creation notification before
+    Ensures the reporter actor receives the case-creation notification before
     receiving the participant-addition notification, preventing "case not found"
-    warnings on the finder side.
+    warnings on the reporter side.
     """
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=finder_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
@@ -561,19 +561,19 @@ def test_create_case_precedes_add_participant_in_outbox(
 def test_tree_is_idempotent(
     datalayer,
     actor,
-    finder_actor,
-    finder_actor_id,
+    reporter_actor,
+    reporter_actor_id,
     report,
     offer,
     bridge,
-    finder_accepted_status,
+    reporter_accepted_status,
     vendor_received_status,
 ):
     """Running the tree twice succeeds and does not duplicate the case."""
     tree1 = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=finder_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
     result1 = bridge.execute_with_setup(tree=tree1, actor_id=actor.id_)
     assert result1.status == Status.SUCCESS
@@ -581,7 +581,7 @@ def test_tree_is_idempotent(
     tree2 = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=finder_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
     result2 = bridge.execute_with_setup(tree=tree2, actor_id=actor.id_)
     assert result2.status == Status.SUCCESS
@@ -594,12 +594,12 @@ def test_tree_is_idempotent(
 def test_tree_early_exits_when_case_already_initialized(
     datalayer,
     actor,
-    finder_actor,
-    finder_actor_id,
+    reporter_actor,
+    reporter_actor_id,
     report,
     offer,
     bridge,
-    finder_accepted_status,
+    reporter_accepted_status,
     vendor_received_status,
 ):
     """CheckCaseExistsForReport returns SUCCESS when case has participants."""
@@ -607,7 +607,7 @@ def test_tree_early_exits_when_case_already_initialized(
     tree1 = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=finder_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
     bridge.execute_with_setup(tree=tree1, actor_id=actor.id_)
 
@@ -619,7 +619,7 @@ def test_tree_early_exits_when_case_already_initialized(
     tree2 = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=finder_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
     result2 = bridge.execute_with_setup(tree=tree2, actor_id=actor.id_)
     assert result2.status == Status.SUCCESS
@@ -637,19 +637,19 @@ def test_tree_early_exits_when_case_already_initialized(
 def test_vendor_participant_reuses_existing_received_status(
     datalayer,
     actor,
-    finder_actor,
-    finder_actor_id,
+    reporter_actor,
+    reporter_actor_id,
     report,
     offer,
     bridge,
-    finder_accepted_status,
+    reporter_accepted_status,
     vendor_received_status,
 ):
     """Vendor participant reuses pre-existing RM.RECEIVED status (no duplicate)."""
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=finder_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
@@ -679,19 +679,19 @@ def test_vendor_participant_reuses_existing_received_status(
 def test_vendor_participant_created_without_pre_existing_status(
     datalayer,
     actor,
-    finder_actor,
-    finder_actor_id,
+    reporter_actor,
+    reporter_actor_id,
     report,
     offer,
     bridge,
-    finder_accepted_status,
+    reporter_accepted_status,
 ):
     """Vendor participant is created with fresh RM.RECEIVED when no prior status."""
     # No vendor_received_status fixture — vendor has no prior status record
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        finder_actor_id=finder_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
     result = bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
     assert result.status == Status.SUCCESS

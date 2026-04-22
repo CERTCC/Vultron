@@ -10,15 +10,25 @@ steps, root cause analysis, and resolution steps in the body.
 
 ---
 
-## BUG-26041801
+## BUG-26041801 — report submitter naming uses `finder` where protocol only guarantees `reporter`
 
 We don't actually know whether the `reporter` is the `finder` but we do know
 that the `reporter` is the `attributed_to` of the `Offer` of a `Report`. So
 we should not have attribute names including `finder` anywhere. We should
 rename it the `reporter` everywhere.
 
-` finder_actor_id: Actor ID of the party who submitted the report.
-`
+`finder_actor_id: Actor ID of the party who submitted the report.`
+
+Resolution update (2026-04-22):
+
+- Renamed the receive-report BT factory and its caller chain from
+  `finder_actor_id` to `reporter_actor_id`.
+- Updated the non-demo and demo regression coverage to use reporter naming for
+  the report submitter field.
+- Left actor-role labels like `Finder` / `CVDRoles.FINDER` unchanged; this fix
+  is scoped to attribute/parameter naming for the submitter identity.
+
+Status: FIXED — verified 2026-04-22.
 
 ## BUG-26041802
 

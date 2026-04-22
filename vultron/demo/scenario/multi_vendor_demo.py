@@ -116,7 +116,7 @@ def seed_containers(
     coordinator_client: DataLayerClient,
     case_actor_client: DataLayerClient,
     vendor2_client: DataLayerClient,
-    finder_actor_id: str | None = None,
+    reporter_actor_id: str | None = None,
     vendor_actor_id: str | None = None,
     coordinator_actor_id: str | None = None,
     case_actor_id: str | None = None,
@@ -124,7 +124,7 @@ def seed_containers(
 ) -> tuple[as_Actor, as_Actor, as_Actor, as_Actor, as_Actor]:
     """Seed all five containers with their local actor and all peer actors."""
     local_specs = [
-        ("Finder", finder_client, "Finder", "Person", finder_actor_id),
+        ("Finder", finder_client, "Finder", "Person", reporter_actor_id),
         ("Vendor", vendor_client, "Vendor", "Organization", vendor_actor_id),
         (
             "Coordinator",
@@ -367,7 +367,7 @@ def verify_multi_vendor_case_state(
     case_id: str,
     report_id: str,
     coordinator_actor_id: str,
-    finder_actor_id: str,
+    reporter_actor_id: str,
     vendor_actor_id: str,
     vendor2_actor_id: str,
     embargo_id: str,
@@ -408,7 +408,7 @@ def verify_multi_vendor_case_state(
             "Final case does not reference the accepted active embargo"
         )
 
-    for actor_id in (finder_actor_id, vendor_actor_id, vendor2_actor_id):
+    for actor_id in (reporter_actor_id, vendor_actor_id, vendor2_actor_id):
         if actor_id not in final_case.actor_participant_index:
             raise AssertionError(
                 f"Actor {actor_id} missing from actor_participant_index"
@@ -421,7 +421,7 @@ def verify_multi_vendor_case_state(
             f"got: {final_case.attributed_to}"
         )
     participant_records = case_actor_client.get("/datalayer/CaseParticipants/")
-    for actor_id in (finder_actor_id, vendor_actor_id, vendor2_actor_id):
+    for actor_id in (reporter_actor_id, vendor_actor_id, vendor2_actor_id):
         participant_id = final_case.actor_participant_index[actor_id]
         participant_data = participant_records.get(participant_id)
         if participant_data is None:
@@ -488,7 +488,7 @@ def run_multi_vendor_demo(
             coordinator_client=coordinator_client,
             case_actor_client=case_actor_client,
             vendor2_client=vendor2_client,
-            finder_actor_id=finder_id,
+            reporter_actor_id=finder_id,
             vendor_actor_id=vendor_id,
             coordinator_actor_id=coordinator_id,
             case_actor_id=case_actor_id,
@@ -650,7 +650,7 @@ def run_multi_vendor_demo(
             case_id=case.id_,
             report_id=report.id_,
             coordinator_actor_id=coordinator.id_,
-            finder_actor_id=finder.id_,
+            reporter_actor_id=finder.id_,
             vendor_actor_id=vendor.id_,
             vendor2_actor_id=vendor2.id_,
             embargo_id=embargo_id,

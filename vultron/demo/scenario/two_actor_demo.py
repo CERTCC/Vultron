@@ -114,7 +114,7 @@ VENDOR_ACTOR_ID = "http://vendor:7999/api/v2/actors/vendor"
 def seed_containers(
     finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    finder_actor_id: str | None = None,
+    reporter_actor_id: str | None = None,
     vendor_actor_id: str | None = None,
 ) -> Tuple[as_Actor, as_Actor]:
     """Seed both containers: create actor records and register cross-container peers.
@@ -130,7 +130,7 @@ def seed_containers(
     Args:
         finder_client: Client connected to the Finder container.
         vendor_client: Client connected to the Vendor container.
-        finder_actor_id: Optional deterministic URI for the Finder actor.
+        reporter_actor_id: Optional deterministic URI for the Finder actor.
             When absent the server derives one from ``VULTRON_BASE_URL``.
         vendor_actor_id: Optional deterministic URI for the Vendor actor.
             When absent the server derives one from ``VULTRON_BASE_URL``.
@@ -144,7 +144,7 @@ def seed_containers(
         client=finder_client,
         name="Finder",
         actor_type="Person",
-        actor_id=finder_actor_id,
+        actor_id=reporter_actor_id,
     )
     logger.info("Finder actor seeded on Finder container: %s", finder.id_)
 
@@ -583,7 +583,7 @@ def verify_vendor_case_state(
     case_id: str,
     report_id: str,
     vendor_actor_id: str,
-    finder_actor_id: str,
+    reporter_actor_id: str,
     question_note_id: str | None = None,
     reply_note_id: str | None = None,
 ) -> VulnerabilityCase:
@@ -615,7 +615,7 @@ def verify_vendor_case_state(
         )
 
     finder_participant_id = final_case.actor_participant_index.get(
-        finder_actor_id
+        reporter_actor_id
     )
     if finder_participant_id is None:
         raise AssertionError(
@@ -882,7 +882,7 @@ def verify_finder_replica_state(
     vendor_client: DataLayerClient,
     case_id: str,
     vendor_actor_id: str,
-    finder_actor_id: str,
+    reporter_actor_id: str,
 ) -> None:
     """Verify that the finder's case replica matches the authoritative vendor state.
 
@@ -898,8 +898,8 @@ def verify_finder_replica_state(
         vendor_client: Client connected to the Vendor container.
         case_id: Full URI of the ``VulnerabilityCase`` being verified.
         vendor_actor_id: Full URI of the Vendor actor (unused directly but
-            retained for symmetry with *finder_actor_id*).
-        finder_actor_id: Full URI of the Finder actor (unused directly but
+            retained for symmetry with *reporter_actor_id*).
+        reporter_actor_id: Full URI of the Finder actor (unused directly but
             retained for future participant-status checks).
 
     Raises:
@@ -1022,7 +1022,7 @@ def run_two_actor_demo(
         finder, vendor = seed_containers(
             finder_client=finder_client,
             vendor_client=vendor_client,
-            finder_actor_id=finder_id,
+            reporter_actor_id=finder_id,
             vendor_actor_id=vendor_id,
         )
 
@@ -1113,7 +1113,7 @@ def run_two_actor_demo(
             case_id=case.id_,
             report_id=report.id_,
             vendor_actor_id=vendor.id_,
-            finder_actor_id=finder.id_,
+            reporter_actor_id=finder.id_,
             question_note_id=question_note.id_,
             reply_note_id=reply_note.id_,
         )
@@ -1145,7 +1145,7 @@ def run_two_actor_demo(
             vendor_client=vendor_client,
             case_id=case.id_,
             vendor_actor_id=vendor.id_,
-            finder_actor_id=finder.id_,
+            reporter_actor_id=finder.id_,
         )
 
     with demo_check("Dedicated CaseActor container remains unused for D5-2"):

@@ -156,7 +156,7 @@ class SubmitReportReceivedUseCase:
             tree = create_receive_report_case_tree(
                 report_id=request.report_id,
                 offer_id=request.activity_id,
-                finder_actor_id=request.actor_id,
+                reporter_actor_id=request.actor_id,
             )
             result = bridge.execute_with_setup(
                 tree, actor_id=receiving_actor_id, activity=request

@@ -134,7 +134,7 @@ class TestSeedContainers:
         finder, vendor = demo.seed_containers(
             finder_client=finder_client,
             vendor_client=vendor_client,
-            finder_actor_id=finder_id,
+            reporter_actor_id=finder_id,
             vendor_actor_id=vendor_id,
         )
 
@@ -210,7 +210,7 @@ class TestFinderSubmitsReport:
         finder, vendor = demo.seed_containers(
             finder_client=finder_client,
             vendor_client=vendor_client,
-            finder_actor_id=finder_id,
+            reporter_actor_id=finder_id,
             vendor_actor_id=vendor_id,
         )
         vendor_in_vendor = demo.get_actor_by_id(vendor_client, vendor.id_)
@@ -241,7 +241,7 @@ class TestVendorValidatesReport:
         finder, vendor = demo.seed_containers(
             finder_client=finder_client,
             vendor_client=vendor_client,
-            finder_actor_id=finder_id,
+            reporter_actor_id=finder_id,
             vendor_actor_id=vendor_id,
         )
         vendor_in_vendor = demo.get_actor_by_id(vendor_client, vendor.id_)
@@ -271,7 +271,7 @@ class TestVendorValidatesReport:
         finder, vendor = demo.seed_containers(
             finder_client=finder_client,
             vendor_client=vendor_client,
-            finder_actor_id=finder_id,
+            reporter_actor_id=finder_id,
             vendor_actor_id=vendor_id,
         )
         vendor_in_vendor = demo.get_actor_by_id(vendor_client, vendor.id_)
@@ -309,7 +309,7 @@ class TestFinderAsksQuestion:
         finder, vendor = demo.seed_containers(
             finder_client=finder_client,
             vendor_client=vendor_client,
-            finder_actor_id=finder_id,
+            reporter_actor_id=finder_id,
             vendor_actor_id=vendor_id,
         )
         vendor_in_vendor = demo.get_actor_by_id(vendor_client, vendor.id_)
@@ -412,7 +412,7 @@ class TestWaitForFinderCase:
         finder, vendor = demo.seed_containers(
             finder_client=finder_client,
             vendor_client=vendor_client,
-            finder_actor_id=finder_id,
+            reporter_actor_id=finder_id,
             vendor_actor_id=vendor_id,
         )
         vendor_in_vendor = demo.get_actor_by_id(vendor_client, vendor.id_)
@@ -636,7 +636,7 @@ class TestVerifyFinderReplicaState:
             vendor_client=vendor_client,
             case_id=case.id_,
             vendor_actor_id=vendor.id_,
-            finder_actor_id=finder.id_,
+            reporter_actor_id=finder.id_,
         )
 
     def test_raises_when_vendor_case_missing(
@@ -651,7 +651,7 @@ class TestVerifyFinderReplicaState:
                 vendor_client=vendor_client,
                 case_id="https://example.org/non-existent-case-vrfs",
                 vendor_actor_id="https://example.org/vendor",
-                finder_actor_id="https://example.org/finder",
+                reporter_actor_id="https://example.org/finder",
             )
 
 

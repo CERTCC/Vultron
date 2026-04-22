@@ -37,17 +37,17 @@ Structure:
        ├─ CreateCaseNode                 # Create VulnerabilityCase; write case_id
        ├─ InitializeDefaultEmbargoNode   # Create default embargo
        ├─ CreateInitialVendorParticipant # Receiver participant (RM.RECEIVED)
-       ├─ CreateCaseActivity             # Queue Create(Case) BEFORE finder join
+       ├─ CreateCaseActivity             # Queue Create(Case) BEFORE reporter add
        ├─ UpdateActorOutbox              # Flush Create(Case) to outbox
        ├─ CreateFinderParticipantNode    # Reporter participant (RM.ACCEPTED)
        └─ CommitCaseLogEntryNode         # Log entry → Announce fan-out (SYNC-02-002)
 
 Note: ``CreateCaseActivity`` and ``UpdateActorOutbox`` are intentionally placed
-*before* ``CreateFinderParticipantNode``.  This ensures that the finder
+*before* ``CreateFinderParticipantNode``.  This ensures that the reporter
 receives the ``Create(Case)`` notification before the ``Add(CaseParticipant)``
 notification.  If the two activities were queued in the opposite order, the
-finder would receive an ``Add(CaseParticipant)`` for a case it has not yet seen,
-triggering "case not found" warnings on the finder side.
+reporter would receive an ``Add(CaseParticipant)`` for a case it has not yet
+seen, triggering "case not found" warnings on the reporter side.
 
 Per specs/case-management.md CM-12 (ADR-0015) and
 docs/adr/0015-create-case-at-report-receipt.md.
@@ -78,24 +78,25 @@ logger = logging.getLogger(__name__)
 def create_receive_report_case_tree(
     report_id: str,
     offer_id: str,
-    finder_actor_id: str,
+    reporter_actor_id: str,
 ) -> py_trees.behaviour.Behaviour:
     """
     Create behavior tree for case creation at report receipt.
 
     Given a ``VulnerabilityReport`` ID, the ID of the ``Offer`` activity
-    that delivered it, and the finder's actor ID, builds and returns a
+    that delivered it, and the reporter's actor ID, builds and returns a
     behavior tree that:
 
     - Creates a ``VulnerabilityCase`` linked to the report.
     - Creates a default embargo and attaches it to the case.
     - Creates a ``VultronParticipant`` for the receiving actor (vendor) at
       ``rm_state=RM.RECEIVED``.
-    - Creates a ``VultronParticipant`` for the reporting actor (finder) at
+    - Creates a ``VultronParticipant`` for the reporting actor (reporter) at
       ``rm_state=RM.ACCEPTED`` (reusing the report-phase status if present).
-    - Queues a ``Create(Case)`` activity to the actor's outbox so the finder
+    - Queues a ``Create(Case)`` activity to the actor's outbox so the reporter
       receives a copy of the case.
-    - Queues an ``Add(CaseParticipant)`` activity for the finder so downstream
+    - Queues an ``Add(CaseParticipant)`` activity for the reporter so
+      downstream
       actors are notified with a fully typed object (satisfying MV-09-001).
 
     The root is a ``Selector`` so that if a fully-initialised case already
@@ -105,9 +106,9 @@ def create_receive_report_case_tree(
         report_id: ID of the ``VulnerabilityReport`` to link to the case.
         offer_id: ID of the ``Offer`` activity that delivered the report
                   (used to determine addressees for the Create(Case) activity).
-        finder_actor_id: Actor ID of the party who submitted the report.
-                         Passed as a constructor argument so the BT node is
-                         not coupled to the DataLayer offer lookup.
+        reporter_actor_id: Actor ID of the party who submitted the report.
+            Passed as a constructor argument so the BT node is not coupled to
+            the DataLayer offer lookup.
 
     Returns:
         Root node of the receive-report case-creation behavior tree.
@@ -116,7 +117,7 @@ def create_receive_report_case_tree(
         >>> tree = create_receive_report_case_tree(
         ...     report_id="https://example.org/reports/CVE-2024-001",
         ...     offer_id="https://example.org/activities/offer-123",
-        ...     finder_actor_id="https://example.org/actors/finder",
+        ...     reporter_actor_id="https://example.org/actors/reporter",
         ... )
         >>> from vultron.core.behaviors.bridge import BTBridge
         >>> bridge = BTBridge()
@@ -138,11 +139,12 @@ def create_receive_report_case_tree(
                 initial_rm_state=RM.RECEIVED,
             ),
             # Create(Case) MUST be queued before Add(CaseParticipant) so that
-            # the finder actor receives the case notification first (D5-7-MSGORDER-1).
+            # the reporter actor receives the case notification first
+            # (D5-7-MSGORDER-1).
             CreateCaseActivity(report_id=report_id, offer_id=offer_id),
             UpdateActorOutbox(),
             CreateCaseParticipantNode(
-                actor_id=finder_actor_id,
+                actor_id=reporter_actor_id,
                 roles=[CVDRoles.FINDER, CVDRoles.REPORTER],
                 report_id=report_id,
             ),
@@ -162,9 +164,9 @@ def create_receive_report_case_tree(
     )
 
     logger.debug(
-        "Created ReceiveReportCaseBT for report=%s, offer=%s, finder=%s",
+        "Created ReceiveReportCaseBT for report=%s, offer=%s, reporter=%s",
         report_id,
         offer_id,
-        finder_actor_id,
+        reporter_actor_id,
     )
     return root
