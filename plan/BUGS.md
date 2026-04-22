@@ -10,33 +10,6 @@ steps, root cause analysis, and resolution steps in the body.
 
 ---
 
-## BUG-26041802 — transitive activities still allowed missing `object_`
-
-**Symptoms:** The earlier inline-object fix covered a hand-picked subset of
-typed Vultron activities, but generic ActivityStreams transitive classes such
-as `as_Add`, `as_Offer`, and `as_Accept` still allowed construction with
-`object_=None` or no `object_` at all. `RmInviteToCaseActivity` also still
-overrode `object_` as optional.
-
-**Root cause:** `as_TransitiveActivity.object_` still used the optional
-`ActivityStreamRef` alias and a `None` default, so every generic transitive
-subclass inherited an objectless constructor contract. `RmInviteToCaseActivity`
-reintroduced the same laxness with its own optional override.
-
-**Resolution update (2026-04-22):**
-
-- Added a required `as_ObjectRequiredRef` alias and made
-  `as_TransitiveActivity.object_` required.
-- Made `RmInviteToCaseActivity.object_` required so invites follow the same
-  fail-fast rule as other transitive activities.
-- Expanded regression coverage to generic transitive ActivityStreams classes
-  and invite construction, and updated translation/base-utils tests that had
-  been relying on objectless transitive activities.
-
-Status: FIXED — verified 2026-04-22.
-
----
-
 ## BUG-26042101 — accept-embargo 409 on second acceptance in multi-party demos — NEW
 
 **Symptoms:** `test/demo/test_multi_vendor_demo.py` and
