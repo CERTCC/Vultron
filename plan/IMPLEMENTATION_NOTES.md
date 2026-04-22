@@ -533,3 +533,19 @@ redundant follow-up patch.
 - For terminology bugs, search adapter/demo layers as well as core code. Demo
   helpers often mirror public parameter names closely enough that leaving them
   behind creates avoidable inconsistency.
+
+---
+
+### 2026-04-22 BUG-26042101 — Trigger-side embargo ownership gate
+
+- Trigger-side embargo responses need the same owner-vs-participant split as the
+  receive-side embargo handlers. The case owner drives shared EM transitions;
+  non-owner participants mutate only their own consent state.
+- For compatibility with older single-actor fixtures and legacy cases,
+  `case.attributed_to is None` should fall back to treating the triggering actor
+  as the owner. Without that fallback, existing single-actor embargo triggers
+  silently stop advancing the shared EM state.
+- Participant-only accept/reject updates should avoid re-running the PEC machine
+  when the participant is already in the target state (`SIGNATORY` /
+  `DECLINED`), so idempotent repeats do not create avoidable invalid-transition
+  warnings.

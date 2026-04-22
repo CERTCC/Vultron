@@ -36,7 +36,7 @@ from vultron.core.states.participant_embargo_consent import (
     PEC_Trigger,
     apply_pec_trigger,
 )
-from vultron.core.use_cases._helpers import case_addressees
+from vultron.core.use_cases._helpers import _as_id, case_addressees
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,
     find_embargo_proposal,
@@ -124,6 +124,102 @@ def _cascade_pec_reset(case: PersistableModel | None, dl: DataLayer) -> None:
                 PEC(participant.embargo_consent_state), PEC_Trigger.RESET
             )
             dl.save(participant)
+
+
+def _is_case_owner(case: PersistableModel | None, actor_id: str) -> bool:
+    """Return True when ``actor_id`` matches the case owner.
+
+    Cases created before owner attribution was consistently populated still
+    need a sensible single-actor default, so ``None`` falls back to treating
+    the triggering actor as the owner.
+    """
+    if not is_case_model(case):
+        return False
+    owner_id = _as_id(case.attributed_to)
+    return owner_id is None or owner_id == actor_id
+
+
+def _update_participant_embargo_acceptance(
+    case: PersistableModel | None,
+    actor_id: str,
+    embargo_id: str,
+    dl: DataLayer,
+) -> None:
+    """Persist a participant-level embargo acceptance without re-driving EM."""
+    if not is_case_model(case):
+        return
+
+    participant_id = case.actor_participant_index.get(actor_id)
+    if not participant_id:
+        logger.warning(
+            "Actor '%s' has no CaseParticipant in case '%s' — cannot record"
+            " embargo acceptance",
+            actor_id,
+            case.id_,
+        )
+        return
+
+    participant = dl.read(participant_id)
+    if not is_participant_model(participant):
+        logger.warning(
+            "CaseParticipant '%s' for actor '%s' on case '%s' is missing or"
+            " invalid — cannot record embargo acceptance",
+            participant_id,
+            actor_id,
+            case.id_,
+        )
+        return
+
+    participant.accepted_embargo_ids = list(
+        dict.fromkeys(participant.accepted_embargo_ids + [embargo_id])
+    )
+    current_state = PEC(participant.embargo_consent_state)
+    if current_state != PEC.SIGNATORY:
+        participant.embargo_consent_state = apply_pec_trigger(
+            current_state, PEC_Trigger.ACCEPT
+        )
+    dl.save(participant)
+
+
+def _update_participant_embargo_rejection(
+    case: PersistableModel | None,
+    actor_id: str,
+    embargo_id: str,
+    dl: DataLayer,
+) -> None:
+    """Persist a participant-level embargo rejection without re-driving EM."""
+    if not is_case_model(case):
+        return
+
+    participant_id = case.actor_participant_index.get(actor_id)
+    if not participant_id:
+        logger.warning(
+            "Actor '%s' has no CaseParticipant in case '%s' — cannot record"
+            " embargo rejection",
+            actor_id,
+            case.id_,
+        )
+        return
+
+    participant = dl.read(participant_id)
+    if not is_participant_model(participant):
+        logger.warning(
+            "CaseParticipant '%s' for actor '%s' on case '%s' is missing or"
+            " invalid — cannot record embargo rejection",
+            participant_id,
+            actor_id,
+            case.id_,
+        )
+        return
+
+    if embargo_id in participant.accepted_embargo_ids:
+        participant.accepted_embargo_ids.remove(embargo_id)
+    current_state = PEC(participant.embargo_consent_state)
+    if current_state != PEC.DECLINED:
+        participant.embargo_consent_state = apply_pec_trigger(
+            current_state, PEC_Trigger.DECLINE
+        )
+    dl.save(participant)
 
 
 class SvcProposeEmbargoUseCase:
@@ -294,58 +390,65 @@ class SvcAcceptEmbargoUseCase:
                 "EmAcceptEmbargoActivity '%s' already exists", accept.id_
             )
 
-        case.set_embargo(embargo_id)
-
         em_state = case.current_status.em_state
-        adapter = EMAdapter(em_state)
-        em_machine = create_em_machine()
-        em_machine.add_model(adapter, initial=em_state)
-        try:
-            getattr(adapter, "accept")()
-        except MachineError:
-            logger.warning(
-                "Invalid EM state transition: actor '%s' cannot ACCEPT"
-                " proposal '%s' on case '%s' (EM state '%s').",
-                actor_id,
-                proposal.id_,
-                case.id_,
-                em_state,
-            )
-            raise VultronInvalidStateTransitionError(
-                f"Cannot accept embargo: case '{case.id_}' EM state"
-                f" '{em_state}' does not allow an ACCEPT transition."
-            )
-        new_em_state = EM(adapter.state)
+        active_embargo_id = _as_id(case.active_embargo)
+        is_case_owner = _is_case_owner(case, actor_id)
+        case_already_active = (
+            em_state == EM.ACTIVE and active_embargo_id == embargo_id
+        )
 
-        case.current_status.em_state = new_em_state
-        # The local actor is now a signatory to the active embargo.
-        participant_id = case.actor_participant_index.get(actor_id)
-        if participant_id:
-            participant = dl.read(participant_id)
-            if is_participant_model(participant):
-                participant.accepted_embargo_ids = list(
-                    dict.fromkeys(
-                        participant.accepted_embargo_ids + [embargo_id]
-                    )
+        if is_case_owner and not case_already_active:
+            adapter = EMAdapter(em_state)
+            em_machine = create_em_machine()
+            em_machine.add_model(adapter, initial=em_state)
+            try:
+                getattr(adapter, "accept")()
+            except MachineError:
+                logger.warning(
+                    "Invalid EM state transition: actor '%s' cannot ACCEPT"
+                    " proposal '%s' on case '%s' (EM state '%s').",
+                    actor_id,
+                    proposal.id_,
+                    case.id_,
+                    em_state,
                 )
-                participant.embargo_consent_state = apply_pec_trigger(
-                    PEC(participant.embargo_consent_state), PEC_Trigger.ACCEPT
+                raise VultronInvalidStateTransitionError(
+                    f"Cannot accept embargo: case '{case.id_}' EM state"
+                    f" '{em_state}' does not allow an ACCEPT transition."
                 )
-                dl.save(participant)
+            new_em_state = EM(adapter.state)
+            case.set_embargo(embargo_id)
+            case.current_status.em_state = new_em_state
+        else:
+            new_em_state = em_state
+
+        _update_participant_embargo_acceptance(case, actor_id, embargo_id, dl)
         dl.save(case)
 
         add_activity_to_outbox(actor_id, accept.id_, dl)
 
-        logger.info(
-            "Actor '%s' accepted embargo proposal '%s'; activated embargo '%s' "
-            "on case '%s' (EM %s → %s)",
-            actor_id,
-            proposal.id_,
-            embargo_id,
-            case.id_,
-            em_state,
-            new_em_state,
-        )
+        if is_case_owner and not case_already_active:
+            logger.info(
+                "Actor '%s' accepted embargo proposal '%s'; activated embargo"
+                " '%s' on case '%s' (EM %s → %s)",
+                actor_id,
+                proposal.id_,
+                embargo_id,
+                case.id_,
+                em_state,
+                new_em_state,
+            )
+        else:
+            logger.info(
+                "Actor '%s' accepted embargo proposal '%s'; recorded"
+                " participant consent for embargo '%s' on case '%s'"
+                " (EM unchanged at %s)",
+                actor_id,
+                proposal.id_,
+                embargo_id,
+                case.id_,
+                new_em_state,
+            )
 
         activity = accept.model_dump(by_alias=True, exclude_none=True)
         return {"activity": activity}
@@ -496,28 +599,40 @@ class SvcRejectEmbargoUseCase:
                 f"{type(proposal).__name__}."
             )
 
+        embargo_id = getattr(proposal.object_, "id_", None)
+        if not embargo_id:
+            raise VultronValidationError(
+                "Proposal is missing an embargo event reference."
+            )
+
         em_state = case.current_status.em_state
-        adapter = EMAdapter(em_state)
-        em_machine = create_em_machine()
-        em_machine.add_model(adapter, initial=em_state)
+        is_case_owner = _is_case_owner(case, actor_id)
 
-        try:
-            getattr(adapter, "reject")()
-        except MachineError:
-            logger.warning(
-                "Invalid EM state transition: actor '%s' cannot REJECT"
-                " proposal '%s' on case '%s' (EM state '%s').",
-                actor_id,
-                proposal.id_,
-                case.id_,
-                em_state,
-            )
-            raise VultronInvalidStateTransitionError(
-                f"Cannot reject embargo: case '{case.id_}' EM state"
-                f" '{em_state}' does not allow a REJECT transition."
-            )
+        if is_case_owner:
+            adapter = EMAdapter(em_state)
+            em_machine = create_em_machine()
+            em_machine.add_model(adapter, initial=em_state)
 
-        new_em_state = EM(adapter.state)
+            try:
+                getattr(adapter, "reject")()
+            except MachineError:
+                logger.warning(
+                    "Invalid EM state transition: actor '%s' cannot REJECT"
+                    " proposal '%s' on case '%s' (EM state '%s').",
+                    actor_id,
+                    proposal.id_,
+                    case.id_,
+                    em_state,
+                )
+                raise VultronInvalidStateTransitionError(
+                    f"Cannot reject embargo: case '{case.id_}' EM state"
+                    f" '{em_state}' does not allow a REJECT transition."
+                )
+
+            new_em_state = EM(adapter.state)
+            case.current_status.em_state = new_em_state
+        else:
+            new_em_state = em_state
 
         reject = EmRejectEmbargoActivity(
             actor=actor_id,
@@ -533,20 +648,32 @@ class SvcRejectEmbargoUseCase:
                 "EmRejectEmbargoActivity '%s' already exists", reject.id_
             )
 
-        case.current_status.em_state = new_em_state
+        _update_participant_embargo_rejection(case, actor_id, embargo_id, dl)
         dl.save(case)
 
         add_activity_to_outbox(actor_id, reject.id_, dl)
 
-        logger.info(
-            "Actor '%s' rejected embargo proposal '%s' on case '%s'"
-            " (EM %s → %s)",
-            actor_id,
-            proposal.id_,
-            case.id_,
-            em_state,
-            new_em_state,
-        )
+        if is_case_owner:
+            logger.info(
+                "Actor '%s' rejected embargo proposal '%s' on case '%s'"
+                " (EM %s → %s)",
+                actor_id,
+                proposal.id_,
+                case.id_,
+                em_state,
+                new_em_state,
+            )
+        else:
+            logger.info(
+                "Actor '%s' rejected embargo proposal '%s'; recorded"
+                " participant consent for embargo '%s' on case '%s'"
+                " (EM unchanged at %s)",
+                actor_id,
+                proposal.id_,
+                embargo_id,
+                case.id_,
+                new_em_state,
+            )
 
         activity = reject.model_dump(by_alias=True, exclude_none=True)
         return {"activity": activity}

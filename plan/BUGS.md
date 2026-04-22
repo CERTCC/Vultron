@@ -44,7 +44,20 @@ mechanism. When that task lands this bug will be resolved.
 **Workaround until fix:** None — multi-party embargo acceptance is broken for
 any case with more than one non-coordinating participant.
 
-Status: NEW — added 2026-04-21.
+Resolution update (2026-04-22):
+
+- `SvcAcceptEmbargoUseCase` now gates shared EM transitions on case ownership;
+  non-owner accepts update only the matching participant's consent state and
+  accepted embargo IDs.
+- `SvcRejectEmbargoUseCase` now follows the same split: the case owner may drive
+  the shared EM machine, while non-owner rejects only update participant
+  consent.
+- Added regression coverage for non-owner accept/reject responses on an
+  already-active embargo so later participant responses no longer raise 409s.
+- Preserved single-actor/legacy trigger behavior by treating the triggering
+  actor as the owner when `case.attributed_to` is unset.
+
+Status: FIXED — verified 2026-04-22.
 
 ## BUG-26042201 — Announce log-entry activities fail coercion and demos time out waiting for replication — NEW
 
