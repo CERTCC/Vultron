@@ -316,3 +316,16 @@ activities with the right fields and type hints for our use cases. This
 might help us to also be able to specify the patterns to use in the semantic
 extraction process as well. And it could even further decouple the core
 logic from the AS2 message details.
+
+## IDEA-26042201
+
+I notice that agents often try to "insert at specific location in file" even
+when the file is intended to be append-only, like the implementation history.
+This is a sign that the agent is not fully understanding the intended use and
+structure of the file. For append-only files, the agent should just be adding
+new content to the end of the file, not trying to edit or rearrange existing
+content. There is no need to read or understand the existing content in
+order to add new entries to an append-only file. The equivalent of a shell
+command like `echo "new entry" >> file.txt` should be the mental model for how to
+handle append-only files. The agent should not be trying to parse the file and
+figure out where to insert the new entry, it should just be adding it to the end.
