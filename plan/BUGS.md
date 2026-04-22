@@ -87,3 +87,87 @@ mechanism. When that task lands this bug will be resolved.
 any case with more than one non-coordinating participant.
 
 Status: NEW — added 2026-04-21.
+
+## BUG-26042201 — Announce log-entry activities fail coercion and demos time out waiting for replication — NEW
+
+**Symptoms:** Multiple demo logs show repeated warnings when processing
+`as_Announce` activities that are expected to coerce to
+`AnnounceLogEntryActivity`. In the two-actor demo, the run later fails while
+waiting for the replicated log entry to appear in the recipient's DataLayer.
+
+```text
+multi-actor-demo-log.txt
+vendor-1       | WARNING:  Could not coerce 'as_Announce' to semantic class 'AnnounceLogEntryActivity': 3 validation errors for AnnounceLogEntryActivity
+vendor-1       | object.caseId
+vendor-1       |   Field required [type=missing, input_value={'@context': 'https://www...e, 'attributedTo': None}, input_type=dict]
+
+multi-actor-demo-log.txt
+demo-runner-1  | ERROR    vultron.demo.scenario.two_actor_demo: Two-actor demo failed: Timed out waiting for log entry (hash='02218ef7d2dafbab9a5c24e30751ddb47f20432b27fc93e18b0108e091537f68') for case 'urn:uuid:7a3cc005-5932-4c65-80df-c86dd9b9319d' to appear in finder's DataLayer — replication may not have completed
+
+three-actor-demo-log.txt
+coordinator-1  | WARNING:  Could not coerce 'as_Announce' to semantic class 'AnnounceLogEntryActivity': 3 validation errors for AnnounceLogEntryActivity
+coordinator-1  | object.caseId
+```
+
+**Brief description:** Log-entry announcement handling appears incomplete or
+inconsistent across demos. The warnings are present in both the two-actor and
+three-actor logs, and the two-actor scenario aborts after timing out while
+waiting for the expected replicated log entry.
+
+Status: NEW — added 2026-04-22.
+
+## BUG-26042202 — Trigger flows skip outbox updates because actor record cannot be found with an outbox — NEW
+
+**Symptoms:** Trigger-driven demo steps log warnings that
+`add_activity_to_outbox` could not find the actor or an `outbox` field, so the
+code skips the `outbox.items` update even though the trigger itself continues.
+
+```text
+multi-vendor-demo-log.txt
+vendor-1       | WARNING:  add_activity_to_outbox: actor 'bc51a90a-830b-49ed-9e19-70b8bbf749a5' not found or has no outbox field; skipping outbox.items update
+vendor-1       | INFO:     Actor 'bc51a90a-830b-49ed-9e19-70b8bbf749a5' created case 'urn:uuid:338a1bc3-bfde-410f-b59a-a0d827ffb9e9' (CreateCaseActivity 'urn:uuid:60c5ed6f-be50-4369-996e-fa1bac55d3f2')
+
+three-actor-demo-log.txt
+coordinator-1  | WARNING:  add_activity_to_outbox: actor '05ad9820-c910-4721-8636-0dfd133949eb' not found or has no outbox field; skipping outbox.items update
+coordinator-1  | INFO:     Actor '05ad9820-c910-4721-8636-0dfd133949eb' created case 'urn:uuid:b1229615-f1dc-4fae-8cba-e44c8ce1d715' (CreateCaseActivity 'urn:uuid:45b3cad6-404a-42ac-a45b-3184169d23ff')
+```
+
+**Brief description:** At least the create-case path in the multi-party demos
+is emitting a warning that the actor record used for outbox mutation is missing
+or lacks an `outbox`. The scenarios continue past the warning, so this may be a
+silent consistency problem rather than an immediate crash.
+
+Status: NEW — added 2026-04-22.
+
+## BUG-26042203 — Multi-party invite/accept activities retain unresolved references and can dead-letter inbound Accepts — NEW
+
+**Symptoms:** The multi-vendor and three-actor logs show a recurring cluster of
+warnings around invitation and acceptance activities: failed `target`
+rehydration on `as_Invite`, failed coercion of `as_Accept` to
+`RmAcceptInviteToCaseActivity`, and later failed `object_` rehydration that
+causes an inbound `Accept` to be stored as a dead-letter record.
+
+```text
+multi-vendor-demo-log.txt
+finder-1       | WARNING:  Could not rehydrate field 'target' with id 'urn:uuid:338a1bc3-bfde-410f-b59a-a0d827ffb9e9' on 'as_Invite'; keeping string reference.
+finder-1       | WARNING:  Could not coerce 'as_Accept' to semantic class 'RmAcceptInviteToCaseActivity': 1 validation error for RmAcceptInviteToCaseActivity
+finder-1       | object.actor
+finder-1       |   Field required [type=missing, input_value={'@context': 'https://www...e, 'attributedTo': None}, input_type=dict]
+
+multi-vendor-demo-log.txt
+vendor-1       | WARNING:  Could not rehydrate field 'object_' with id 'urn:uuid:4adf4185-ea7f-446d-a584-7664a8308b43' on 'as_Accept'; keeping string reference.
+vendor-1       | INFO:     Dispatching activity of type 'None' with semantics 'unknown_unresolvable_object'
+vendor-1       | WARNING:  Unresolvable object_ URI 'urn:uuid:4adf4185-ea7f-446d-a584-7664a8308b43' in activity 'urn:uuid:1bdb9a0a-12c3-4d27-b351-0c82187918b7' (actor 'http://finder:7999/api/v2/actors/cde5f548-5f07-4a76-a92d-cacc4b61d258'); storing dead-letter record.
+
+three-actor-demo-log.txt
+coordinator-1  | WARNING:  Could not rehydrate field 'object_' with id 'urn:uuid:2e92889d-1cbe-4f61-b0f2-8af921b09d7f' on 'as_Accept'; keeping string reference.
+coordinator-1  | INFO:     Dispatching activity of type 'None' with semantics 'unknown_unresolvable_object'
+coordinator-1  | WARNING:  Unresolvable object_ URI 'urn:uuid:2e92889d-1cbe-4f61-b0f2-8af921b09d7f' in activity 'urn:uuid:43af50f0-baef-4f04-b32e-a7b9668009de' (actor 'http://finder:7999/api/v2/actors/8e15535a-2e7b-4e75-adc1-97da3c8af649'); storing dead-letter record.
+```
+
+**Brief description:** Multi-party coordination flows are producing inbound
+activities whose referenced objects cannot be rehydrated back into the expected
+typed form. This is visible before the demo-ending 409s and suggests a
+separate interoperability/data-shape problem in invite/accept handling.
+
+Status: NEW — added 2026-04-22.
