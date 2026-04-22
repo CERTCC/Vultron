@@ -334,8 +334,6 @@ All 19 tasks completed. Key achievements:
 | Q9 | Coverage enforcement | Threshold-based (80% overall, 100% critical paths) |
 | Q10 | Response generation timing | Defer decision until Phase 5 |
 
----
-
 ## 2026-04-01 — D5-3 complete: three-actor demo scenario
 
 - Added `vultron/demo/three_actor_demo.py`, a deterministic Finder + Vendor +
@@ -7558,3 +7556,49 @@ All 1770 unit tests pass; all four linters (black, flake8, mypy, pyright) clean.
 - The FastAPI trigger routers pass the raw URL path `actor_id` to use-case
   requests; the `_canonical_actor_dl` dependency only normalizes the DataLayer
   scoping, not the actor_id string passed in the request body.
+
+---
+
+## DR-10 — Stub objects for Invite.target selective disclosure
+
+**Completed:** 2026-04-21
+
+**Task:** Implement selective disclosure for case invites so `Invite.target`
+uses a `VulnerabilityCase` stub before acceptance, then deliver the full case
+object after the invitee accepts.
+
+**What was done:**
+
+- Added `VulnerabilityCaseStub` and narrowed `RmInviteToCaseActivity.target`
+  so invite flows now disclose only `{id, type}` plus optional `summary`.
+- Added `ANNOUNCE_VULNERABILITY_CASE` across the semantic pipeline:
+  `MessageSemantics`, extractor pattern registration, event model, semantic
+  registry wiring, and `AnnounceVulnerabilityCaseActivity`.
+- Updated invite acceptance handling to emit
+  `AnnounceVulnerabilityCaseActivity` with the full case object after
+  acceptance so the invitee can seed a local case copy.
+- Added `AnnounceVulnerabilityCaseReceivedUseCase` to create the case
+  idempotently on the recipient side and skip malformed/non-case payloads.
+- Tightened outbox dehydration so only `VulnerabilityCase` stubs are preserved
+  as stub objects; unrelated minimal objects like actors still collapse to IDs.
+- Added regression coverage for selective-disclosure serialization, invite
+  typing, semantic pattern routing, announce receive-side seeding, and the new
+  outbox behavior.
+
+**Validation:**
+
+- `uv run flake8 vultron/ test/`
+- `uv run mypy`
+- `uv run pyright`
+- `uv run pytest --tb=short 2>&1 | tail -5`
+- Final unit summary:
+  `1779 passed, 12 skipped, 182 deselected, 5581 subtests passed`
+
+**Lessons learned:**
+
+- `event.activity` cannot be collapsed to ID strings when a receive-side use
+  case needs the full inline payload; DR-10 required preserving rich
+  `object_` / `target` / `context` values on the included activity snapshot.
+- `VulnerabilityCaseStub` had to override the inherited `published` and
+  `updated` defaults from `as_Object`; otherwise timestamp fields leaked into
+  the serialized stub and broke the selective-disclosure contract.

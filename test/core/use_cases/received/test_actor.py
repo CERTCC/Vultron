@@ -20,7 +20,10 @@ import py_trees
 import pytest
 
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    VulnerabilityCase,
+    VulnerabilityCaseStub,
+)
 from vultron.core.use_cases.received.actor import (
     SuggestActorToCaseReceivedUseCase,
     AcceptSuggestActorToCaseReceivedUseCase,
@@ -139,7 +142,7 @@ class TestInviteActorUseCases:
             id_="https://example.org/cases/caseIA1/invitations/1",
             actor="https://example.org/users/owner",
             object_=invitee,
-            target=case,
+            target=VulnerabilityCaseStub(id_=case.id_),
         )
         dl.create(invitee)
         dl.create(case)
@@ -192,7 +195,7 @@ class TestInviteActorUseCases:
             id_="https://example.org/cases/caseIA2/invitations/1",
             actor="https://example.org/users/owner",
             object_=invitee,
-            target=case,
+            target=VulnerabilityCaseStub(id_=case.id_),
         )
         dl.create(invitee)
         dl.create(case)
@@ -251,7 +254,7 @@ class TestInviteActorUseCases:
             id_="https://example.org/cases/caseRM001/invitations/1",
             actor="https://example.org/users/owner",
             object_=invitee,
-            target=case,
+            target=VulnerabilityCaseStub(id_=case.id_),
         )
         dl.create(invitee)
         dl.create(case)
@@ -297,7 +300,7 @@ class TestInviteActorUseCases:
             id_="https://example.org/cases/caseRM002/invitations/1",
             actor="https://example.org/users/owner",
             object_=invitee,
-            target=case,
+            target=VulnerabilityCaseStub(id_=case.id_),
         )
         dl.create(invitee)
         dl.create(case)
@@ -313,12 +316,19 @@ class TestInviteActorUseCases:
 
         updated_actor = cast(Any, dl.read(invitee_id))
         assert updated_actor is not None
-        assert len(updated_actor.outbox.items) == 1
+        # At least the engage (Join) activity must be present.  An Announce
+        # activity may also be queued by _emit_announce_case so we allow ≥ 1.
+        assert len(updated_actor.outbox.items) >= 1
 
-        engage_activity_id = updated_actor.outbox.items[0]
-        engage_activity = cast(Any, dl.read(engage_activity_id))
-        assert engage_activity is not None
-        assert str(engage_activity.type_) == "Join"
+        engage_activity = None
+        for item_id in updated_actor.outbox.items:
+            candidate = cast(Any, dl.read(item_id))
+            if candidate is not None and str(candidate.type_) == "Join":
+                engage_activity = candidate
+                break
+        assert (
+            engage_activity is not None
+        ), "No Join/engage activity found in outbox"
         assert engage_activity.actor == invitee_id
         assert engage_activity.object_.id_ == case.id_
 
@@ -347,7 +357,7 @@ class TestInviteActorUseCases:
             id_="https://example.org/cases/caseIA3/invitations/1",
             actor="https://example.org/users/owner",
             object_=invitee,
-            target=case,
+            target=VulnerabilityCaseStub(id_=case.id_),
         )
         dl.create(invitee)
         dl.create(case)

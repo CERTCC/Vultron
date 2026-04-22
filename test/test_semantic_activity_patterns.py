@@ -22,7 +22,10 @@ from vultron.wire.as2.vocab.base.objects.actors import (
     as_Person,
     as_Service,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    VulnerabilityCase,
+    VulnerabilityCaseStub,
+)
 
 
 def test_all_message_semantics_have_activity_patterns():
@@ -254,8 +257,8 @@ ACTOR_URI = "https://example.org/actors/alice"
 OWNER_URI = "https://example.org/actors/owner"
 
 
-def _make_case() -> VulnerabilityCase:
-    return VulnerabilityCase(id_=CASE_URI, name="TEST-001")
+def _make_case() -> VulnerabilityCaseStub:
+    return VulnerabilityCaseStub(id_=CASE_URI)
 
 
 @pytest.mark.parametrize(
@@ -339,3 +342,70 @@ def test_invite_actor_to_case_without_actor_object_does_not_match():
     )
     result = find_matching_semantics(invite_with_non_actor)
     assert result != MessageSemantics.INVITE_ACTOR_TO_CASE
+
+
+def test_announce_vulnerability_case_pattern_matches():
+    """AnnounceVulnerabilityCasePattern must match Announce(VulnerabilityCase).
+
+    DR-10: the pattern must be registered so incoming AnnounceVulnerabilityCase
+    activities are routed to AnnounceVulnerabilityCaseReceivedUseCase.
+    """
+    from vultron.wire.as2.vocab.activities.case import (
+        AnnounceVulnerabilityCaseActivity,
+    )
+
+    case = VulnerabilityCase(
+        id_="https://example.org/cases/case-pattern-001", name="Pattern Test"
+    )
+    announce = AnnounceVulnerabilityCaseActivity(
+        actor="https://example.org/actors/owner",
+        object_=case,
+    )
+    result = find_matching_semantics(announce)
+    assert (
+        result == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE
+    ), f"Expected ANNOUNCE_VULNERABILITY_CASE, got {result}"
+
+
+def test_vulnerability_case_stub_serialises_minimally():
+    """VulnerabilityCaseStub must produce only {id, type} when serialised.
+
+    DR-10 / MV-10-001: the stub is the selective-disclosure object used in
+    Invite.target; it must not expose full case details to uninvited parties.
+    """
+    stub = VulnerabilityCaseStub(id_="https://example.org/cases/case-stub-001")
+    dumped = stub.model_dump(by_alias=True, exclude_none=True)
+    assert set(dumped.keys()) <= {"id", "type", "@context"}
+    assert dumped.get("id") == "https://example.org/cases/case-stub-001"
+    assert dumped.get("type") == "VulnerabilityCase"
+
+
+def test_vulnerability_case_stub_with_summary():
+    """VulnerabilityCaseStub may expose a summary field (MV-10-002)."""
+    stub = VulnerabilityCaseStub(
+        id_="https://example.org/cases/case-stub-002",
+        summary="Heap overflow in libfoo",
+    )
+    dumped = stub.model_dump(by_alias=True, exclude_none=True)
+    assert "summary" in dumped
+    assert dumped["summary"] == "Heap overflow in libfoo"
+
+
+def test_rm_invite_rejects_full_vulnerability_case_as_target():
+    """RmInviteToCaseActivity must reject a full VulnerabilityCase in target.
+
+    DR-10 / MV-10-001: only VulnerabilityCaseStub (or a bare URI string) is
+    accepted so that full case details are never sent to uninvited parties.
+    """
+    from pydantic import ValidationError
+
+    actor = as_Actor(id_="https://example.org/actors/alice")
+    full_case = VulnerabilityCase(
+        id_="https://example.org/cases/c1", name="Full"
+    )
+    with pytest.raises(ValidationError):
+        RmInviteToCaseActivity(
+            actor=actor.id_,
+            object_=actor,
+            target=cast(Any, full_case),
+        )

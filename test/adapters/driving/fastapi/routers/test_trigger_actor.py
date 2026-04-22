@@ -33,7 +33,10 @@ from vultron.adapters.driving.fastapi.routers.trigger_actor import (
 )
 from vultron.wire.as2.vocab.activities.case import RmInviteToCaseActivity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    VulnerabilityCase,
+    VulnerabilityCaseStub,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -110,7 +113,7 @@ def invite(dl, actor, case_obj, other_actor):
     invite_activity = RmInviteToCaseActivity(
         actor=actor.id_,
         object_=other_actor,
-        target=case_obj,
+        target=VulnerabilityCaseStub(id_=case_obj.id_),
     )
     dl.create(invite_activity)
     return invite_activity

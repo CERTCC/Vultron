@@ -40,7 +40,10 @@ from vultron.wire.as2.vocab.activities.case import (
     RmInviteToCaseActivity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    VulnerabilityCase,
+    VulnerabilityCaseStub,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +122,7 @@ class SvcInviteActorToCaseUseCase:
         activity = RmInviteToCaseActivity(
             actor=actor_id,
             object_=cast(as_Actor, invitee_raw),
-            target=cast(VulnerabilityCase, case),
+            target=VulnerabilityCaseStub(id_=case.id_),
             to=[self._request.invitee_id],
         )
         self._dl.create(activity)

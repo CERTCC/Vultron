@@ -40,6 +40,10 @@ logger = logging.getLogger(__name__)
 # VultronActivity.  ``object`` is intentionally excluded — it must remain a
 # full inline typed object so recipients can determine the semantic type
 # (MV-09-001).
+#
+# ``target`` is also partially excluded: minimal stub dicts
+# ``{id, type[, summary]}`` are preserved so that ``Invite.target`` carries
+# the case type to the recipient (MV-10-001).
 _DEHYDRATION_FIELDS: frozenset[str] = frozenset(
     {
         "actor",
@@ -53,6 +57,14 @@ _DEHYDRATION_FIELDS: frozenset[str] = frozenset(
         "instrument",
     }
 )
+
+# Keys permitted in a stub dict (MV-10-001).  Any other key causes full
+# dehydration to a bare URI so that only intentional stubs are preserved.
+_STUB_KEYS: frozenset[str] = frozenset({"id", "type", "summary", "@context"})
+
+# AS2 object types that are intentional stubs and must be preserved in-line
+# rather than collapsed to a bare URI string.
+_STUB_OBJECT_TYPES: frozenset[str] = frozenset({"VulnerabilityCase"})
 
 
 def _dehydrate_references(activity_dict: dict) -> dict:
@@ -80,6 +92,14 @@ def _dehydrate_references(activity_dict: dict) -> dict:
 
     def _coerce(value: object) -> object:
         if not isinstance(value, dict):
+            return value
+        # Preserve minimal stub dicts that carry {id, type} for selective
+        # disclosure (MV-10-001).  Only VulnerabilityCase stubs are preserved;
+        # all other object dicts (e.g. actors) are collapsed to a bare URI.
+        if (
+            value.get("type") in _STUB_OBJECT_TYPES
+            and value.keys() <= _STUB_KEYS
+        ):
             return value
         # Prefer href (AS2 Link) then id (any AS2 object)
         uri = value.get("href") or value.get("id")

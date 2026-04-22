@@ -270,6 +270,14 @@ AnnounceLogEntryPattern = ActivityPattern(
     activity_=TAtype.ANNOUNCE,
     object_=VOtype.CASE_LOG_ENTRY,
 )
+AnnounceVulnerabilityCasePattern = ActivityPattern(
+    description=(
+        "Case owner announces full VulnerabilityCase details to a newly "
+        "accepted invitee (MV-10-003). The object is a VulnerabilityCase."
+    ),
+    activity_=TAtype.ANNOUNCE,
+    object_=VOtype.VULNERABILITY_CASE,
+)
 RejectLogEntryPattern = ActivityPattern(
     description=(
         "Participant rejects a CaseLogEntry announcement due to "
@@ -397,6 +405,10 @@ _PATTERN_SEMANTICS: list[tuple[ActivityPattern, MessageSemantics]] = [
     ),
     (CloseCasePattern, MessageSemantics.CLOSE_CASE),
     (AnnounceLogEntryPattern, MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY),
+    (
+        AnnounceVulnerabilityCasePattern,
+        MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
+    ),
     (RejectLogEntryPattern, MessageSemantics.REJECT_CASE_LOG_ENTRY),
     (CreateCaseParticipantPattern, MessageSemantics.CREATE_CASE_PARTICIPANT),
     (
@@ -515,10 +527,10 @@ def extract_intent(
                 id_=activity.id_,
                 type_=activity_type,
                 actor=actor_id,
-                object_=_get_id(obj),
-                target=_get_id(target),
+                object_=obj,
+                target=target,
                 origin=_get_id(origin),
-                context=_get_id(context),
+                context=context,
                 in_reply_to=_get_id(getattr(activity, "in_reply_to", None)),
                 to=_get_id_list(getattr(activity, "to", None)),
                 cc=_get_id_list(getattr(activity, "cc", None)),

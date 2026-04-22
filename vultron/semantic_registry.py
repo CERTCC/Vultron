@@ -35,6 +35,7 @@ from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
     AcceptInviteActorToCaseReceivedEvent,
     AcceptSuggestActorToCaseReceivedEvent,
+    AnnounceVulnerabilityCaseReceivedEvent,
     InviteActorToCaseReceivedEvent,
     OfferCaseOwnershipTransferReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
@@ -95,6 +96,7 @@ from vultron.core.use_cases.received.actor import (
     AcceptCaseOwnershipTransferReceivedUseCase,
     AcceptInviteActorToCaseReceivedUseCase,
     AcceptSuggestActorToCaseReceivedUseCase,
+    AnnounceVulnerabilityCaseReceivedUseCase,
     InviteActorToCaseReceivedUseCase,
     OfferCaseOwnershipTransferReceivedUseCase,
     RejectCaseOwnershipTransferReceivedUseCase,
@@ -180,6 +182,7 @@ from vultron.wire.as2.extractor import (
     InvalidateReportPattern,
     InviteActorToCasePattern,
     InviteToEmbargoOnCasePattern,
+    AnnounceVulnerabilityCasePattern,
     OfferCaseOwnershipTransferActivityPattern,
     RejectCaseOwnershipTransferActivityPattern,
     RejectInviteActorToCasePattern,
@@ -215,6 +218,7 @@ from vultron.wire.as2.vocab.activities.case import (
     RmInviteToCaseActivity,
     RmRejectInviteToCaseActivity,
     UpdateCaseActivity,
+    AnnounceVulnerabilityCaseActivity,
 )
 from vultron.wire.as2.vocab.activities.case_participant import (
     AddParticipantToCaseActivity,
@@ -432,6 +436,14 @@ SEMANTIC_REGISTRY: list[SemanticEntry] = [
         event_class=RejectInviteActorToCaseReceivedEvent,
         use_case_class=RejectInviteActorToCaseReceivedUseCase,
         wire_activity_class=RmRejectInviteToCaseActivity,
+    ),
+    SemanticEntry(
+        semantics=MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
+        pattern=AnnounceVulnerabilityCasePattern,
+        event_class=AnnounceVulnerabilityCaseReceivedEvent,
+        use_case_class=AnnounceVulnerabilityCaseReceivedUseCase,
+        wire_activity_class=AnnounceVulnerabilityCaseActivity,
+        include_activity=True,
     ),
     # --- Embargo ---
     SemanticEntry(

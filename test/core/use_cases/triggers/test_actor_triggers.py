@@ -39,7 +39,10 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.vocab.activities.case import RmInviteToCaseActivity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    VulnerabilityCase,
+    VulnerabilityCaseStub,
+)
 
 _BASE = "http://coordinator:7999/api/v2/actors"
 _UUID = "24d63c7d-6b1e-4f61-a5e1-180d27192d0b"
@@ -244,7 +247,7 @@ class TestSvcAcceptCaseInviteUseCase:
         invite = RmInviteToCaseActivity(
             actor=inviter.id_,
             object_=invitee,
-            target=case,
+            target=VulnerabilityCaseStub(id_=case.id_),
             to=[invitee.id_],
         )
         dl_invitee.create(inviter)
@@ -288,7 +291,7 @@ class TestSvcAcceptCaseInviteUseCase:
         invite = RmInviteToCaseActivity(
             actor=inviter.id_,
             object_=invitee,
-            target=case,
+            target=VulnerabilityCaseStub(id_=case.id_),
             to=[invitee.id_],
         )
         dl_invitee.create(inviter)

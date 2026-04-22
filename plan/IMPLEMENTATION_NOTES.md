@@ -183,6 +183,18 @@ receive or handle a short UUID.
 "full inline typed object" requirement. The spec must be updated to define
 this exception explicitly.
 
+**Implementation lessons (2026-04-21)**:
+
+- `event.activity` cannot be reduced to ID strings for DR-10 announcement
+  handling. `AnnounceVulnerabilityCaseReceivedUseCase` needs the full inline
+  `VulnerabilityCase` on `activity.object_`, so `extract_intent()` must
+  preserve rich `object_` / `target` / `context` values when
+  `include_activity=True`.
+- `VulnerabilityCaseStub` must override the inherited `published` and
+  `updated` defaults from `as_Object`; otherwise `model_dump(exclude_none=True)`
+  leaks timestamps and violates the "stub carries only id/type(+summary)"
+  selective-disclosure rule.
+
 #### DR-11 — PersistCase: upsert semantics
 
 **Decision**: `PersistCase` BT node calls `dl.save()` with upsert / idempotent

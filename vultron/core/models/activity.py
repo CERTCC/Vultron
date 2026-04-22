@@ -58,7 +58,7 @@ class VultronActivity(VultronObject):
         validation_alias="object",
         serialization_alias="object",
     )
-    target: NonEmptyString | None = None
+    target: Any | None = None
     origin: NonEmptyString | None = None
     to: list[str] | None = None
     cc: list[str] | None = None

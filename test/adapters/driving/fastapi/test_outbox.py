@@ -536,8 +536,13 @@ def test_handle_outbox_item_raises_integrity_error_when_expansion_fails(
 # ---------------------------------------------------------------------------
 
 
-def test_dehydrate_references_collapses_target_dict_to_id():
-    """_dehydrate_references replaces a 'target' dict with its 'id' string."""
+def test_dehydrate_references_preserves_vulnerability_case_stub():
+    """_dehydrate_references preserves VulnerabilityCase stub dicts (MV-10-001).
+
+    A minimal {id, type} dict with type=VulnerabilityCase must survive
+    dehydration intact so that selective disclosure (stub-based invite.target)
+    is not erased before the activity reaches the outbox.
+    """
     raw = {
         "type": "Invite",
         "actor": "https://example.org/actors/alice",
@@ -547,7 +552,10 @@ def test_dehydrate_references_collapses_target_dict_to_id():
         },
     }
     result = oh._dehydrate_references(raw)
-    assert result["target"] == "https://example.org/cases/case-001"
+    assert result["target"] == {
+        "id": "https://example.org/cases/case-001",
+        "type": "VulnerabilityCase",
+    }
 
 
 def test_dehydrate_references_prefers_href_over_id():

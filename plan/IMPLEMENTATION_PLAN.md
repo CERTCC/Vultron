@@ -13,39 +13,6 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 
 ---
 
-## PRIORITY-348 — Demo Review 2026-04-20: Protocol and Architecture Fixes
-
-**Reference**: `notes/demo-review-26042001.md`
-
-These issues were identified during multi-actor demo runs (two-actor,
-three-actor, multi-vendor). All high-severity items block every demo scenario.
-Architectural decisions for each issue are documented in
-`plan/IMPLEMENTATION_NOTES.md` under **REVIEW-26042001**.
-
-- [ ] **DR-10 — Stub objects for Invite.target (Low/arch, three-actor,
-  multi-vendor):**
-  Implement stub-object support as described in `notes/stub-objects.md` as
-  part of the Invite/embargo flow fix. When constructing an `Invite` to a case,
-  the `target` field MUST be a stub object `{id: ..., type: VulnerabilityCase}`
-  rather than the full case (selective disclosure: the invitee has not yet
-  accepted the embargo). Requirements:
-  - Pydantic stub model for `VulnerabilityCase` (and other types as needed).
-  - Semantic extraction supports stubs: stub `type` field must route correctly.
-  - Recipient-side handling: stubs MUST NOT overwrite a full object in the
-    DataLayer.
-  - Formal spec in `specs/message-validation.md` MV-10-001–006.
-
-  **Stub upgrade path (new):**
-  Full case delivery to a newly accepted participant triggers ONLY when BOTH:
-  1. `rm_state = ACCEPTED` (accepted case invite)
-  2. `embargo_adherence = True` (SIGNATORY state), OR no active embargo
-  The case owner's `AcceptInviteActorToCase` handler (BT subtree) MUST
-  check both conditions and emit `Announce(VulnerabilityCase)` with the
-  full object when both are satisfied. This is a BT cascade — not post-BT
-  procedural code.
-
----
-
 ## PRIORITY-347 — Demo Puppeteering, Trigger Completeness, BT Generalization
 
 **Reference**: `plan/PRIORITIES.md` PRIORITY 347;

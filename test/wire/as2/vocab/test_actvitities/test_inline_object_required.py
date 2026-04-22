@@ -82,7 +82,10 @@ from vultron.wire.as2.vocab.objects.case_status import (
     ParticipantStatus,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    VulnerabilityCase,
+    VulnerabilityCaseStub,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
@@ -102,7 +105,8 @@ _LOG_ENTRY = CaseLogEntry(
 )
 
 _SUBMIT = RmSubmitReportActivity(actor=_ACTOR, object_=_REPORT)
-_INVITE = RmInviteToCaseActivity(actor=_ACTOR, object_=_ACTOR, target=_CASE)
+_STUB = VulnerabilityCaseStub(id_=_CASE.id_)
+_INVITE = RmInviteToCaseActivity(actor=_ACTOR, object_=_ACTOR, target=_STUB)
 _PROPOSE = EmProposeEmbargoActivity(
     actor=_ACTOR,
     object_=EmbargoEvent(name="Embargo Event"),

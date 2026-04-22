@@ -39,6 +39,7 @@ class MessageSemantics(StrEnum):
     INVITE_ACTOR_TO_CASE = auto()
     ACCEPT_INVITE_ACTOR_TO_CASE = auto()
     REJECT_INVITE_ACTOR_TO_CASE = auto()
+    ANNOUNCE_VULNERABILITY_CASE = auto()
 
     CREATE_EMBARGO_EVENT = auto()
     ADD_EMBARGO_EVENT_TO_CASE = auto()

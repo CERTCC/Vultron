@@ -24,6 +24,7 @@ from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
+    as_Announce,
     as_Create,
     as_Ignore,
     as_Invite,
@@ -39,6 +40,7 @@ from vultron.wire.as2.vocab.objects.case_status import CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCase,
     VulnerabilityCaseRef,
+    VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
@@ -231,7 +233,7 @@ class RmInviteToCaseActivity(as_Invite):
     object_: as_Actor | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
-    target: VulnerabilityCaseRef = None
+    target: VulnerabilityCaseStub | str | None = None
 
 
 RmInviteToCaseRef: TypeAlias = ActivityStreamRef[RmInviteToCaseActivity]
@@ -261,5 +263,21 @@ class RmRejectInviteToCaseActivity(as_Reject):
     """
 
     object_: RmInviteToCaseActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+class AnnounceVulnerabilityCaseActivity(as_Announce):
+    """The case owner announces full case details to a newly accepted invitee.
+
+    Sent by the case owner after an ``Accept(Invite)`` is received and the
+    invitee's embargo consent has been verified (MV-10-003 through MV-10-006).
+    The full :class:`VulnerabilityCase` is sent as the inline object so the
+    recipient can seed their local DataLayer.
+
+    ``object_``: :class:`VulnerabilityCase` — the complete case object.
+    """
+
+    object_: VulnerabilityCase = Field(
         ..., validation_alias="object", serialization_alias="object"
     )

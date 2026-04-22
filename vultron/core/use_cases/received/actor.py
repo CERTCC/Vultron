@@ -6,6 +6,7 @@ from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
     AcceptInviteActorToCaseReceivedEvent,
     AcceptSuggestActorToCaseReceivedEvent,
+    AnnounceVulnerabilityCaseReceivedEvent,
     InviteActorToCaseReceivedEvent,
     OfferCaseOwnershipTransferReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
@@ -216,6 +217,16 @@ class InviteActorToCaseReceivedUseCase:
             "InviteActorToCase",
             request.activity_id,
         )
+        # MV-10-004: do NOT create a case from the stub target.  The stub
+        # carries only {id, type} for identification; the full case details
+        # arrive later in an AnnounceVulnerabilityCase activity (MV-10-003).
+        case_stub_id = request.target_id
+        if case_stub_id:
+            logger.info(
+                "InviteActorToCase: received invite with case stub '%s'."
+                " Awaiting AnnounceVulnerabilityCase before creating case.",
+                case_stub_id,
+            )
 
 
 class AcceptInviteActorToCaseReceivedUseCase:
@@ -289,6 +300,12 @@ class AcceptInviteActorToCaseReceivedUseCase:
             case.record_event(active_embargo_id, "embargo_accepted")
         self._dl.save(case)
 
+        # MV-10-003/MV-10-005: emit full case details to the invitee now that
+        # embargo consent has been resolved (auto-signed above when ACTIVE).
+        # The case owner (receiving_actor_id) sends Announce(VulnerabilityCase)
+        # so the invitee can seed their local DataLayer.
+        self._emit_announce_case(case_id, invitee_id, case)
+
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.report.prioritize_tree import (
             create_prioritize_subtree,
@@ -306,6 +323,52 @@ class AcceptInviteActorToCaseReceivedUseCase:
             case_id,
         )
 
+    def _emit_announce_case(self, case_id: str, invitee_id: str, case) -> None:
+        """Emit Announce(VulnerabilityCase) to the invitee from the case owner.
+
+        Per MV-10-003, the case owner sends the full case object after the
+        invitee's embargo consent has been verified.
+        """
+        from vultron.core.use_cases.received.sync import _find_local_actor_id
+        from vultron.core.use_cases.triggers._helpers import (
+            add_activity_to_outbox,
+        )
+        from vultron.wire.as2.vocab.activities.case import (
+            AnnounceVulnerabilityCaseActivity,
+        )
+
+        case_owner_id = _find_local_actor_id(self._dl)
+        if case_owner_id is None:
+            logger.warning(
+                "AcceptInviteActorToCase: no local actor found;"
+                " cannot emit AnnounceVulnerabilityCase for case '%s'",
+                case_id,
+            )
+            return
+
+        try:
+            announce = AnnounceVulnerabilityCaseActivity(
+                actor=case_owner_id,
+                object_=case,
+                to=[invitee_id],
+            )
+            self._dl.create(announce)
+            add_activity_to_outbox(case_owner_id, announce.id_, self._dl)
+            logger.info(
+                "Emitted AnnounceVulnerabilityCase '%s' to '%s' for case '%s'",
+                announce.id_,
+                invitee_id,
+                case_id,
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed to emit AnnounceVulnerabilityCase for case '%s'"
+                " to '%s': %s",
+                case_id,
+                invitee_id,
+                exc,
+            )
+
 
 class RejectInviteActorToCaseReceivedUseCase:
     def __init__(
@@ -321,3 +384,81 @@ class RejectInviteActorToCaseReceivedUseCase:
             request.actor_id,
             request.invite_id,
         )
+
+
+class AnnounceVulnerabilityCaseReceivedUseCase:
+    """Seed the local DataLayer with a full VulnerabilityCase from the case owner.
+
+    Per MV-10-003, the invitee creates the case if it does not already exist.
+    Per MV-10-004, if the case already exists locally, the announcement is
+    accepted without overwriting the existing record (idempotent).
+    """
+
+    def __init__(
+        self,
+        dl: DataLayer,
+        request: AnnounceVulnerabilityCaseReceivedEvent,
+    ) -> None:
+        self._dl = dl
+        self._request = request
+
+    def execute(self) -> None:
+        request = self._request
+        activity = request.activity
+        if activity is None:
+            logger.warning(
+                "AnnounceVulnerabilityCase: no activity on event '%s' — skipping",
+                request.activity_id,
+            )
+            return
+
+        # The case object is the object_ field of the announce activity.
+        case_obj = getattr(activity, "object_", None)
+        if case_obj is None:
+            logger.warning(
+                "AnnounceVulnerabilityCase: no case object in activity '%s'"
+                " — skipping",
+                request.activity_id,
+            )
+            return
+
+        if not is_case_model(case_obj):
+            logger.warning(
+                "AnnounceVulnerabilityCase: object in activity '%s' is not a"
+                " VulnerabilityCase (%s) — skipping",
+                request.activity_id,
+                type(case_obj).__name__,
+            )
+            return
+
+        case_id = _as_id(case_obj)
+        if case_id is None:
+            logger.warning(
+                "AnnounceVulnerabilityCase: case object has no id in"
+                " activity '%s' — skipping",
+                request.activity_id,
+            )
+            return
+
+        existing = self._dl.read(case_id)
+        if existing is not None:
+            logger.info(
+                "AnnounceVulnerabilityCase: case '%s' already exists locally"
+                " — skipping (idempotent, MV-10-004)",
+                case_id,
+            )
+            return
+
+        try:
+            self._dl.create(case_obj)
+            logger.info(
+                "AnnounceVulnerabilityCase: seeded case '%s' from actor '%s'",
+                case_id,
+                request.actor_id,
+            )
+        except Exception as exc:
+            logger.error(
+                "AnnounceVulnerabilityCase: failed to create case '%s': %s",
+                case_id,
+                exc,
+            )
