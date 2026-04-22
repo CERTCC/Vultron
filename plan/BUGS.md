@@ -10,52 +10,6 @@ steps, root cause analysis, and resolution steps in the body.
 
 ---
 
-## BUG-26041701 Outbound initiating activities have inline object_ as bare string/Link — NEW
-
-I observed repeated errors during multi-vendor demo runs indicating outbound
-initiating activities (Add/Invite/Join) were emitted with inline `object_`
-values that are bare strings or Links rather than inline typed objects. Examples
-from multi-vendor demo log:
-
-```text
-vendor-1       | ERROR:    Error processing outbox item for actor http://vendor:7999/...: Outbound Add activity 'urn:uuid:612d9084-0503-4efc-be82-ac7268a063c3' has an inline object_ that is a bare string or Link ('urn:uuid:a8e00b2f-07ad-45de-8944-03aab84fac1f'). Outbound initiating activities must carry fully inline typed objects (MV-09-001).
-vendor-1       | ERROR:    Too many errors processing outbox for actor e5cff123-3cec-485f-8449-bab649dfb2ff, aborting.
-```
-
-Reproduction: run the multi-vendor demo (`make integration-test-multi-vendor` or
-the demo runner) and inspect `multi-vendor-demo-log.txt` for MV-09-001 errors.
-
-Hypothesis / root cause: demo helper code (or demo fixtures) constructs outbound
-initiating activities using `object_=obj.id_` (a string/Link) instead of
-embedding the inline typed `obj` (e.g., `Case`, `Participant`). This leads to
-outbound validation failing in the Outbox processor.
-
-Resolution steps:
-
-- Update demo code to emit inline typed objects for initiating outbound
-  activities (replace `object_=id_` with `object_=obj`).
-- Add validation in Outbox processing (or regression test) to catch and
-  fail-fast when an outbound initiating activity contains a bare string/Link as
-  `object_`.
-- Add a regression test that runs the demo flow and fails if MV-09-001 errors
-  appear.
-
-Verification update (2026-04-22):
-
-- `vultron/core/behaviors/case/nodes.py` now emits
-  `AddParticipantToCaseActivity(object_=case_participant, ...)`, so the
-  case-participant Add path no longer queues a bare-string `object_`.
-- `vultron/wire/as2/vocab/activities/` constrains initiating activity
-  `object_` fields to typed inline objects, and the regression tests under
-  `test/wire/as2/vocab/test_actvitities/` reject bare strings and Links.
-- `vultron/adapters/driving/fastapi/outbox_handler.py` now expands legacy bare
-  string `object_` values for `Create` / `Announce` / `Add` / `Invite` /
-  `Accept`, then raises `VultronOutboxObjectIntegrityError` if the object is
-  still unresolved.
-
-Status: FIXED — verified 2026-04-22; the bug appears already resolved in the
-current tree by existing INLINE-OBJ / outbox integrity changes.
-
 ## BUG-26041801
 
 We don't actually know whether the `reporter` is the `finder` but we do know
