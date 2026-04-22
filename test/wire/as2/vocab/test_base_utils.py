@@ -153,8 +153,9 @@ class TestSetNameUsesNameOf:
         actor_id = "https://example.org/actors/alice"
         case_id = "https://example.org/cases/case-001"
         target_obj = as_Object(id_=case_id)  # name=None by default
+        object_obj = as_Object(id_="https://example.org/objects/object-001")
 
-        act = as_Add(actor=actor_id, target=target_obj, object_=None)
+        act = as_Add(actor=actor_id, target=target_obj, object_=object_obj)
         assert act.name is not None
         assert case_id in act.name
         # Must not contain Pydantic/repr noise
@@ -172,7 +173,8 @@ class TestSetNameUsesNameOf:
         target_obj = as_Object(
             id_="https://example.org/cases/case-002", name="Demo Case"
         )
+        object_obj = as_Object(id_="https://example.org/objects/object-002")
 
-        act = as_Add(actor=actor_id, target=target_obj, object_=None)
+        act = as_Add(actor=actor_id, target=target_obj, object_=object_obj)
         assert act.name is not None
         assert "Demo Case" in act.name

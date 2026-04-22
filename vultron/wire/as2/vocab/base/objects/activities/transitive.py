@@ -20,7 +20,7 @@ from vultron.wire.as2.enums import as_TransitiveActivityType as TA_type
 from vultron.wire.as2.vocab.base.objects.activities.base import (
     as_Activity as Activity,
 )
-from vultron.wire.as2.vocab.base.objects.base import as_ObjectRef
+from vultron.wire.as2.vocab.base.objects.base import as_ObjectRequiredRef
 from vultron.wire.as2.vocab.base.utils import name_of
 
 
@@ -30,8 +30,8 @@ class as_TransitiveActivity(Activity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-activity>
     """
 
-    object_: as_ObjectRef = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: as_ObjectRequiredRef = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
 
     @model_validator(mode="after")

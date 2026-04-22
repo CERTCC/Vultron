@@ -230,8 +230,8 @@ class RmInviteToCaseActivity(as_Invite):
     target: VulnerabilityCase
     """
 
-    object_: as_Actor | None = Field(
-        None, validation_alias="object", serialization_alias="object"
+    object_: as_Actor = Field(
+        ..., validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseStub | str | None = None
 

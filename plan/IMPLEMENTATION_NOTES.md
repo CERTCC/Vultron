@@ -549,3 +549,18 @@ redundant follow-up patch.
   when the participant is already in the target state (`SIGNATORY` /
   `DECLINED`), so idempotent repeats do not create avoidable invalid-transition
   warnings.
+
+---
+
+### 2026-04-22 BUG-26041802 — transitive activity object contract
+
+- If a field is semantically required across an entire AS2 activity family, the
+  shared base type must encode that requirement. Keeping the base
+  `as_TransitiveActivity.object_` optional let generic `as_*` constructors drift
+  out of sync with the stricter typed subclasses.
+- Use a distinct required-reference alias instead of only changing a `Field(...)`
+  default. `ActivityStreamRef` still includes `None`, so type-level and runtime
+  contracts diverge unless required fields use `ActivityStreamRequiredRef`.
+- Wire/domain translation tests must reflect the stricter contract too:
+  `VultronAS2Activity.from_core()` should reject objectless transitive domain
+  activities rather than silently materializing invalid wire objects.

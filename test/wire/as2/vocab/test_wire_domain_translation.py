@@ -15,6 +15,9 @@
 
 """Wire/core translation tests for WIRE-TRANS-03 and WIRE-TRANS-04."""
 
+import pytest
+from pydantic import ValidationError
+
 from vultron.core.models.case import VultronCase
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
@@ -233,7 +236,7 @@ def test_vultron_as2_activity_from_core_with_string_fields():
 
 
 def test_vultron_as2_activity_from_core_with_no_object():
-    """from_core() handles an activity whose object_ is None."""
+    """from_core() rejects objectless transitive activities."""
     from vultron.core.models.activity import VultronActivity
     from vultron.wire.as2.vocab.activities.base import VultronAS2Activity
 
@@ -243,12 +246,8 @@ def test_vultron_as2_activity_from_core_with_no_object():
         actor="https://example.org/actors/bob",
     )
 
-    wire = VultronAS2Activity.from_core(core)
-
-    assert isinstance(wire, VultronAS2Activity)
-    assert wire.id_ == core.id_
-    assert wire.actor == core.actor
-    assert wire.object_ is None
+    with pytest.raises(ValidationError):
+        VultronAS2Activity.from_core(core)
 
 
 def test_vultron_as2_activity_subclass_field_map_renames():
@@ -265,6 +264,7 @@ def test_vultron_as2_activity_subclass_field_map_renames():
         id_="https://example.org/activities/3",
         type_="Move",
         actor="https://example.org/actors/alice",
+        object_="https://example.org/reports/1",
         origin="https://example.org/cases/old",
     )
 

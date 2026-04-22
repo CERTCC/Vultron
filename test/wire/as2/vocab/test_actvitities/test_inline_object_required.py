@@ -73,6 +73,34 @@ from vultron.wire.as2.vocab.activities.sync import (
     AnnounceLogEntryActivity,
     RejectLogEntryActivity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Accept,
+    as_Add,
+    as_Announce,
+    as_Block,
+    as_Create,
+    as_Delete,
+    as_Dislike,
+    as_Flag,
+    as_Follow,
+    as_Ignore,
+    as_Invite,
+    as_Join,
+    as_Leave,
+    as_Like,
+    as_Listen,
+    as_Move,
+    as_Offer,
+    as_Read,
+    as_Reject,
+    as_Remove,
+    as_TentativeAccept,
+    as_TentativeReject,
+    as_TransitiveActivity,
+    as_Undo,
+    as_Update,
+    as_View,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Person
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_log_entry import CaseLogEntry
@@ -115,6 +143,34 @@ _PROPOSE = EmProposeEmbargoActivity(
 _RECOMMEND = RecommendActorActivity(actor=_ACTOR, object_=_ACTOR, target=_CASE)
 _OFFER_TRANSFER = OfferCaseOwnershipTransferActivity(
     actor=_ACTOR, object_=_CASE
+)
+_GENERIC_TRANSITIVE_CLASSES = (
+    as_TransitiveActivity,
+    as_Like,
+    as_Ignore,
+    as_Block,
+    as_Offer,
+    as_Invite,
+    as_Flag,
+    as_Remove,
+    as_Undo,
+    as_Create,
+    as_Delete,
+    as_Move,
+    as_Add,
+    as_Join,
+    as_Update,
+    as_Listen,
+    as_Leave,
+    as_Announce,
+    as_Follow,
+    as_Accept,
+    as_TentativeAccept,
+    as_View,
+    as_Dislike,
+    as_Reject,
+    as_TentativeReject,
+    as_Read,
 )
 
 
@@ -476,6 +532,34 @@ class TestNoneObjectRejected(unittest.TestCase):
 
     def test_reject_log_entry_rejects_missing(self):
         self._assert_missing_rejected(RejectLogEntryActivity)
+
+
+class TestGenericTransitiveActivitiesRequireObject(unittest.TestCase):
+    """All transitive AS2 activities must require object_ at construction."""
+
+    def _assert_none_rejected(self, cls, **kwargs):
+        with pytest.raises(ValidationError):
+            cls(actor=_ACTOR.id_, object_=None, **kwargs)
+
+    def _assert_missing_rejected(self, cls, **kwargs):
+        with pytest.raises(ValidationError):
+            cls(actor=_ACTOR.id_, **kwargs)
+
+    def test_generic_transitive_classes_reject_none(self):
+        for cls in _GENERIC_TRANSITIVE_CLASSES:
+            with self.subTest(cls=cls.__name__):
+                self._assert_none_rejected(cls)
+
+    def test_generic_transitive_classes_reject_missing(self):
+        for cls in _GENERIC_TRANSITIVE_CLASSES:
+            with self.subTest(cls=cls.__name__):
+                self._assert_missing_rejected(cls)
+
+    def test_rm_invite_to_case_rejects_none(self):
+        self._assert_none_rejected(RmInviteToCaseActivity, target=_STUB)
+
+    def test_rm_invite_to_case_rejects_missing(self):
+        self._assert_missing_rejected(RmInviteToCaseActivity, target=_STUB)
 
 
 if __name__ == "__main__":

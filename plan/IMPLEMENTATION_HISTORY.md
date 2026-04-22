@@ -7669,3 +7669,32 @@ behavior.
 an already-active embargo, kept the focused embargo trigger/router coverage
 green, and passed the canonical repository format/lint/type-check/test
 commands.
+
+---
+
+## BUG-26041802 — require `object_` on all transitive activities
+
+**Completed:** 2026-04-22
+
+**Issue:** The earlier inline-object enforcement covered only a curated list of
+typed Vultron activities, leaving the generic ActivityStreams transitive base
+classes and `RmInviteToCaseActivity` able to construct objectless activities.
+
+**Root cause:** `as_TransitiveActivity.object_` still used the optional
+`ActivityStreamRef` alias with a `None` default, and
+`RmInviteToCaseActivity` overrode `object_` as optional instead of inheriting a
+required contract.
+
+**Resolution:** added `as_ObjectRequiredRef`, made
+`as_TransitiveActivity.object_` required, tightened
+`RmInviteToCaseActivity.object_`, and extended regression coverage to generic
+transitive ActivityStreams classes. Updated translation and naming tests that
+had been depending on objectless transitive activities.
+
+**Validation:** added regression coverage in
+`test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`,
+updated `test/wire/as2/vocab/test_base_utils.py` and
+`test/wire/as2/vocab/test_wire_domain_translation.py`, and passed the
+canonical repository format/lint/type-check/test commands, including
+`uv run pytest --tb=short 2>&1 | tail -5` →
+`1785 passed, 12 skipped, 182 deselected, 5633 subtests passed in 20.15s`.
