@@ -7787,6 +7787,15 @@ subclass-only fields such as `caseId`, `logObjectId`, and `eventType`.
 
 ---
 
+## D5-7-HUMAN - sign off on multi-container demo (2026-04-22)
+
+adh reviewed the demo outputs. The structure of them is mostly correct, but
+there are still some logs indicating problems. These are captured as
+sub-issues of Vultron#387. The demo is not yet ready for public release, but
+this allowed us to get some other folks looking at the code.
+
+---
+
 ## P360-NOTES — BT Reusability and Composability Design Notes (2026-04-23)
 
 **Task**: Create `notes/bt-reusability.md` capturing the fractal composability
@@ -7829,3 +7838,31 @@ pattern from `vultron/bt/`, the "trunkless branch" intent, and anti-patterns
 - File references canonical structure in `notes/vultron-bt.txt` and formal
   requirements in `specs/behavior-tree-integration.md`
 - Ready for use in P360-SPEC (spec writing) and P360-AUDIT (node auditing)
+
+---
+
+## DOCMAINT-2 — Fix stale references to archived notes (2026-04-23)
+
+**Task**: Fix stale cross-references throughout specs/, docs/, notes/, plan/,
+AGENTS.md, and prompts/ following the archival of several notes files.
+
+**Changes**:
+
+- `notes/canonical-bt-reference.md` → `notes/bt-integration.md` (merged):
+  Updated in `specs/behavior-tree-integration.md`, `notes/protocol-event-cascades.md`,
+  `notes/bt-fuzzer-nodes.md`, `notes/use-case-behavior-trees.md`, `AGENTS.md`.
+
+- `notes/architecture-review.md` → `archived_notes/architecture-review.md`:
+  Updated in `specs/architecture.md`, `specs/testability.md`,
+  `docs/adr/0009-hexagonal-architecture.md`, `AGENTS.md`,
+  `prompts/ARCHITECTURE_REVIEW_prompt.md`.
+
+- `notes/state-machine-findings.md` → `archived_notes/state-machine-findings.md`:
+  Updated in `plan/PRIORITIES.md`, `specs/behavior-tree-integration.md`,
+  `specs/state-machine.md`, `docs/adr/0013-unify-rm-state-tracking.md`,
+  `notes/case-state-model.md`.
+
+- Updated `archived_notes/datalayer-sqlite-design.md` status header from
+  "Planned" to "Complete" (PRIORITY-325 completed 2026-04-14).
+
+**Validation**: `./mdlint.sh` — 0 errors across 483 files.

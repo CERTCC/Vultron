@@ -11,7 +11,7 @@ relative order.
 ## Priority 90: Fully address ADR-0013 and OPP-06
 
 `docs/adr/0013-unify-rm-state-tracking.md` was created to capture the decision to unify state
-tracking for the RM lifecycle. As noted in `notes/state-machine-findings.md`,
+tracking for the RM lifecycle. As noted in `archived_notes/state-machine-findings.md`,
 there are a number of steps to be taken to fully implement this
 decision. We need to clearly identify and execute those steps before we
 proceed with the next priority. These need to be added to `notes/`, `specs/`,

@@ -18,7 +18,7 @@ from different layers to accumulate in the same modules. ActivityStreams 2.0
 (AS2) structural types leaked into domain logic; semantic extraction was
 scattered across multiple files; handler functions instantiated the
 persistence layer directly; and the root `vultron/` package mixed domain
-enums with wire-format enums. An architectural review (`notes/architecture-review.md`)
+enums with wire-format enums. An architectural review (`archived_notes/architecture-review.md`)
 catalogued twelve violations of the intended separation of concerns, ranging
 in severity from minor to critical. A clear architecture decision was needed
 to guide remediation and prevent the same violations from re-accumulating.
@@ -116,7 +116,7 @@ an adapter of a particular external system.
 
 ## Validation
 
-- Violations V-01 through V-12 (see `notes/architecture-review.md`)
+- Violations V-01 through V-12 (see `archived_notes/architecture-review.md`)
   serve as the acceptance criteria: each is tracked and remediated
   incrementally.
 - The review checklist in `notes/architecture-ports-and-adapters.md`
@@ -203,7 +203,7 @@ in `plan/IMPLEMENTATION_PLAN.md`:
 
 - `notes/architecture-ports-and-adapters.md` — canonical layer model,
   file layout target, code patterns, and review checklist.
-- `notes/architecture-review.md` — full violation inventory (V-01 to V-12)
+- `archived_notes/architecture-review.md` — full violation inventory (V-01 to V-12)
   and remediation plans (R-01 to R-06).
 - `specs/architecture.md` — testable requirements derived from this decision
   (ARCH-01-001 through ARCH-03-001 and beyond).

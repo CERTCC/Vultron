@@ -1569,7 +1569,7 @@ from unexpected or malformed inbound protocol messages.
 
 ## Related
 
-- `notes/canonical-bt-reference.md` — canonical subtree map; each fuzzer
+- `notes/bt-integration.md` — canonical subtree map; each fuzzer
   node listed here is an integration point where a real behavior subtree
   will replace the stub. The canonical-bt-reference maps these points to
   their use-case BT targets.

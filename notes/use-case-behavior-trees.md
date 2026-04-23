@@ -75,7 +75,7 @@ removes the top-level continuous-tick trunk and exposes individual
 subbranches as use cases triggered by external events (HTTP inbox, trigger
 API, CLI). The branch structure remains intact.
 
-See `notes/canonical-bt-reference.md` for:
+See `notes/bt-integration.md` for:
 
 * The full trunk-removed branches model
 * A mapping table: canonical subtree path → current use case

@@ -87,7 +87,7 @@ SHOULD use BTs for clarity and maintainability.
   - **Divergence rule**: If a prototype BT diverges from the canonical
     tree structure, that divergence MUST be documented with justification
     (in a note or ADR). Undocumented divergence is a bug.
-  - **Implementation guide**: `notes/canonical-bt-reference.md` — subtree
+  - **Implementation guide**: `notes/bt-integration.md` — subtree
     map, trunk-removed branches model, implementation guidance
 - `BT-06-003` BT nodes SHOULD be deterministic
   - **Definition**: Given same input state, node always returns same result
@@ -111,7 +111,7 @@ SHOULD use BTs for clarity and maintainability.
     not a call to `SvcEngageCaseUseCase()` after the BT completes.
   - **Anti-pattern** (MUST NOT): calling `SvcXxxUseCase().execute()` or any
     domain-significant function procedurally after `bridge.execute_with_setup()`
-    returns. See `notes/canonical-bt-reference.md` for the corrected pattern.
+    returns. See `notes/bt-integration.md` for the corrected pattern.
 - `BT-06-006` (MUST NOT) Protocol-observable actions and state transitions
   MUST NOT be performed as procedural code outside the BT.
   - Protocol-observable = emitting activities, transitioning RM/EM/CS state,
@@ -171,7 +171,7 @@ SHOULD use BTs for clarity and maintainability.
   - **Rationale**: Ensures the `transitions` machines remain the normative
     definition of valid VFD/PXA state progressions as new features are added,
     preventing divergence between the machines and the implementation.
-  - **See also**: OPP-06 in `notes/state-machine-findings.md`
+  - **See also**: OPP-06 in `archived_notes/state-machine-findings.md`
 
 ## Concurrency
 
@@ -245,7 +245,7 @@ SHOULD use BTs for clarity and maintainability.
 
 ## Related
 
-- **Canonical BT Reference**: `notes/canonical-bt-reference.md` (subtree
+- **Canonical BT Reference**: `notes/bt-integration.md` (subtree
   map, trunk-removed branches model, anti-pattern examples)
 - **Behavior Trees in CVD**: `docs/topics/behavior_logic/`
 - **Simulation Trees**: `vultron/bt/` (reference, not modified)
@@ -253,7 +253,7 @@ SHOULD use BTs for clarity and maintainability.
 - **Case Management**: `specs/case-management.md` (CaseActor, actor isolation)
 - **Data Layer**: `specs/testability.md` (DataLayer abstraction)
 - **Design Notes**: `notes/bt-integration.md` (durable design decisions),
-  `notes/canonical-bt-reference.md` (canonical subtree map)
+  `notes/bt-integration.md` (canonical subtree map)
 - **ADRs**: ADR-0002 (BT rationale), ADR-0007 (dispatcher architecture)
 - **Implementation**: `vultron/core/behaviors/` (bridge layer, helpers,
   report trees)

@@ -11,31 +11,6 @@ This plan tracks forward-looking work against `specs/*` and
 priority. Section order here groups related work by execution context and MUST
 NOT override `plan/PRIORITIES.md` when the two differ.
 
----
-
-## PRIORITY-347 — Demo Puppeteering, Trigger Completeness, BT Generalization
-
-**Reference**: `plan/PRIORITIES.md` PRIORITY 347;
-`plan/IMPLEMENTATION_NOTES.md` BUG-26041701
-
-All tasks in this section are prerequisites for **D5-7-HUMAN** sign-off.
-The section can proceed in parallel with PRIORITY-360.
-
----
-
-## D5-7-HUMAN — Project Owner Sign-off on Demo Feedback Resolution
-
-**State**: BLOCKED — waiting for P347-* and SYNC-4 completion
-
-- [x] **D5-7-HUMAN**: Project owner sign off. Agents are forbidden from
-  updating this task; a human must confirm that all of the following are
-  complete before signing off:
-  - All P347-* tasks above
-  - SYNC-4 (multi-peer log synchronization)
-  - Multi-actor demos pass end-to-end with log-sync in place
-
----
-
 ## PRIORITY-360 — BT Composability Audit
 
 **Reference**: `plan/PRIORITIES.md` PRIORITY 360; IDEA-26041703
@@ -86,31 +61,6 @@ Can proceed in parallel with PRIORITY-347.
   - `pyyaml` is already an indirect dependency (via `docker-compose` test
     helper); add `pyyaml` and `types-pyyaml` to `pyproject.toml` if not
     already present.
-
-- [ ] **DOCMAINT-2**: Fix stale references to archived notes. Several files
-  still reference notes that were moved to `archived_notes/` or merged into
-  other notes files (commit `0922e1f1`). Search for and update all stale
-  cross-references.
-
-  **Files moved to `archived_notes/`** — update references to use the new
-  path:
-  - `notes/state-machine-findings.md` → `archived_notes/state-machine-findings.md`
-    (referenced in `plan/PRIORITIES.md`,
-    `specs/behavior-tree-integration.md`)
-  - `notes/multi-actor-architecture.md` →
-    `archived_notes/multi-actor-architecture.md`
-  - `notes/two-actor-feedback.md` → `archived_notes/two-actor-feedback.md`
-  - `notes/datalayer-refactor.md` → `archived_notes/datalayer-refactor.md`
-  - `notes/architecture-review.md` → `archived_notes/architecture-review.md`
-    (referenced in `specs/architecture.md`)
-
-  **Files merged** — update references to point to the merged destination:
-  - `notes/canonical-bt-reference.md` → `notes/bt-integration.md`
-    (referenced in `plan/IDEAS.md`,
-    `specs/behavior-tree-integration.md`)
-
-  **Also**: Update `notes/datalayer-sqlite-design.md` status header from
-  "Status: Planned" to "Status: Complete".
 
 ---
 

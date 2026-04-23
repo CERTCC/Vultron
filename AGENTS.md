@@ -246,7 +246,7 @@ and domain types. Rules:
   a parameter; they do not call `get_datalayer()` directly
 
 See `notes/architecture-ports-and-adapters.md` for the full architecture
-specification and code patterns. See `notes/architecture-review.md` for the violation inventory (V-01 to V-12).
+specification and code patterns. See `archived_notes/architecture-review.md` for the violation inventory (V-01 to V-12).
 See `specs/architecture.md` for formal requirements (ARCH-01 to ARCH-08) and
 `docs/adr/0009-hexagonal-architecture.md` for the decision rationale.
 
@@ -936,7 +936,7 @@ All protocol-observable actions and state transitions MUST be implemented as
 BT nodes or subtrees. This includes emitting activities, transitioning
 RM/EM/CS state, creating/updating domain objects, and cascading to downstream
 behaviors. See `specs/behavior-tree-integration.md` BT-06-001 and
-`notes/canonical-bt-reference.md` for the trunk-removed branches model and
+`notes/bt-integration.md` for the trunk-removed branches model and
 subtree composition guidance.
 
 The `execute()` method of a use case MAY contain infrastructure glue only:
@@ -964,7 +964,7 @@ updating the sender's `CaseParticipant.participant_status[].rm_state`.
 
 See `specs/behavior-tree-integration.md` for formal BT requirements,
 `notes/bt-integration.md` for design decisions, and
-`notes/canonical-bt-reference.md` for the canonical subtree map.
+`notes/bt-integration.md` for the canonical subtree map.
 
 ### Protocol Event Cascades (Cascading Automation)
 
@@ -986,7 +986,7 @@ execution or use-case chaining.
 cascading effects that appear as parent→child in the canonical CVD protocol
 BT, express those cascades as BT subtrees — not as post-BT procedural calls.
 See `notes/protocol-event-cascades.md` for the full analysis and gap
-inventory, and `notes/canonical-bt-reference.md` for the subtree model.
+inventory, and `notes/bt-integration.md` for the subtree model.
 
 ### Post-BT Procedural Cascade Anti-Pattern
 
@@ -1021,7 +1021,7 @@ Nothing else.
 
 **Formal requirements**: BT-06-001, BT-06-005, BT-06-006 in
 `specs/behavior-tree-integration.md`. Canonical subtree reference:
-`notes/canonical-bt-reference.md`.
+`notes/bt-integration.md`.
 
 ### py_trees Blackboard Global State
 

@@ -105,7 +105,7 @@ without introducing a new record type.
 
 ## More Information
 
-- See `notes/state-machine-findings.md` OPP-09, P-07 for the analysis that
+- See `archived_notes/state-machine-findings.md` OPP-09, P-07 for the analysis that
   led to this decision.
 - Related: `vultron/core/states/rm.py` `create_rm_machine()` — authoritative
   RM state machine definition.

@@ -1,7 +1,6 @@
 # SQLModel/SQLite DataLayer Design
 
-**Status**: Planned — Priority 325 (`plan/IMPLEMENTATION_PLAN.md`
-Phase PRIORITY-325).
+**Status**: Complete — Priority 325 (PRIORITY-325 completed 2026-04-14).
 
 **Replaces**: `TinyDbDataLayer` in `vultron/adapters/driven/datalayer_tinydb.py`.
 

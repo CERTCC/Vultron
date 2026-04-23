@@ -231,7 +231,7 @@ keeps participant-specific VFD logic and shared PXA logic aligned with the
 formal state model and ensures future persistence guards stay consistent across
 code paths.
 
-See `notes/state-machine-findings.md` OPP-06 and
+See `archived_notes/state-machine-findings.md` OPP-06 and
 `specs/case-management.md` `CM-04-005`.
 
 ### Key Reference Documents

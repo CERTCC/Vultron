@@ -15,7 +15,7 @@ shared across all participants via the CaseActor; the VFD
 (Vendor Fix Deployed) axis is maintained strictly per-participant, since
 each vendor's fix deployment status is independent.
 
-**Source**: `vultron/core/states/`, `notes/state-machine-findings.md`,
+**Source**: `vultron/core/states/`, `archived_notes/state-machine-findings.md`,
 `docs/adr/0013-unify-rm-state-tracking.md`,
 `specs/vultron-protocol-spec.md`
 
@@ -52,7 +52,7 @@ tracking), `behavior-tree-integration.md` BT-06 (BT-driven transitions),
   - Documentation MUST be updated to match the enum, not the other way around
   - Any detected mismatch between the authoritative core state enums and
     formal protocol documentation MUST be recorded as a noteworthy event
-    (e.g., a note in `notes/state-machine-findings.md` or an issue) rather
+    (e.g., a note in `archived_notes/state-machine-findings.md` or an issue) rather
     than being silently corrected; such discrepancies indicate a potential
     design flaw requiring explicit review
 
@@ -236,5 +236,5 @@ tracking), `behavior-tree-integration.md` BT-06 (BT-driven transitions),
 - **Handler protocol**: `specs/handler-protocol.md` (HP-00, HP-07)
 - **BT integration**: `specs/behavior-tree-integration.md` (BT-06)
 - **Protocol spec**: `specs/vultron-protocol-spec.md` (VP-01 through VP-13)
-- **Design notes**: `notes/state-machine-findings.md`
+- **Design notes**: `archived_notes/state-machine-findings.md`
 - **ADR**: `docs/adr/0013-unify-rm-state-tracking.md`

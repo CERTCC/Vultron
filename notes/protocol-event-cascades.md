@@ -82,7 +82,7 @@ after the BT finishes, it:
 
 1. Identify where the parent→child relationship appears in the canonical BT
    (`vultron-bt.txt` or `docs/topics/behavior_logic/`). See
-   `notes/canonical-bt-reference.md` for a subtree map.
+   `notes/bt-integration.md` for a subtree map.
 2. Implement the child behavior as a BT subtree.
 3. Add the child subtree as a child node of the parent BT.
 4. Do NOT implement the cascade as a procedural function called after
@@ -156,7 +156,7 @@ trigger. The demo-runner calls only Step 1.
 
 ## Related
 
-- `notes/canonical-bt-reference.md` (subtree map, trunk-removed branches
+- `notes/bt-integration.md` (subtree map, trunk-removed branches
   model, anti-pattern examples)
 - `specs/behavior-tree-integration.md` BT-06-001, BT-06-005, BT-06-006
   (cascade-as-subtree requirement)

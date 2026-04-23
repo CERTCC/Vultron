@@ -113,7 +113,7 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
 ## Architecture Boundary Tests
 
 - `TB-10-001` (SHOULD) `PROD_ONLY` Once the `core` and `wire` packages are fully
-  separated (see `specs/architecture.md` and `notes/architecture-review.md`),
+  separated (see `specs/architecture.md` and `archived_notes/architecture-review.md`),
   architecture boundary tests SHOULD be added to enforce layer separation rules
   - Tests SHOULD verify that `vultron/core/` does not import from
     `vultron/wire/` or `vultron/api/`
@@ -124,7 +124,7 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
   - **Rationale**: Automated boundary tests catch accidental cross-layer
     imports earlier than code review.
   - **Timing**: Add these tests once the P65-x violation remediation series
-    is complete and all active violations in `notes/architecture-review.md`
+    is complete and all active violations in `archived_notes/architecture-review.md`
     are resolved
 
 ## Verification

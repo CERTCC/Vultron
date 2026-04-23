@@ -8,11 +8,11 @@ is isolated from all external systems. External systems interact with the
 core through defined **ports**, via thin **adapters**.
 
 **Source**: `notes/architecture-ports-and-adapters.md`,
-`notes/architecture-review.md`
+`archived_notes/architecture-review.md`
 
 **Cross-references**: `code-style.md` CS-05-001 (circular import
 prevention), `notes/domain-model-separation.md` (wire/domain/persistence
-separation), `notes/architecture-review.md` (violation inventory and
+separation), `archived_notes/architecture-review.md` (violation inventory and
 remediation history), `docs/adr/0009-hexagonal-architecture.md` (decision
 rationale)
 
@@ -225,5 +225,5 @@ Use this checklist during code review to catch boundary violations.
 - [ ] Wire tests verify parsing and extraction independently of domain logic
 - [ ] Adapter tests mock ports, not external systems
 
-See `notes/architecture-review.md` for full violation inventory and
+See `archived_notes/architecture-review.md` for full violation inventory and
 remediation history.

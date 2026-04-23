@@ -1,7 +1,7 @@
 You are reviewing this codebase for adherence to the architecture described in
 `notes/architecture-ports-and-adapters.md`, as refined in
 `specs/architecture.md`. Additional notes from a previous review are found
-in `notes/architecture-review.md`. Read those document in full
+in `archived_notes/architecture-review.md`. Read those document in full
 before examining any code. Use it as your ground truth throughout.
 
 ### Context to hold in mind
@@ -93,7 +93,7 @@ separated.
 
 ### Output format
 
-Output your findings into `notes/architecture-review.md`, updating the
+Output your findings into `archived_notes/architecture-review.md`, updating the
 existing content to reflect your current findings. You can remove prior
 findings that have been addressed, but do not remove prior findings that are
 not yet addressed in the code. Produce your findings in three sections:
