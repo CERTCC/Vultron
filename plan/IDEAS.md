@@ -62,15 +62,6 @@ there's only one Case Actor per case operated by the case creator/owner.
 local copy of the case object and are not directly writing to their own copy
 either but routing their updates through the Case Actor too).
 
-## IDEA-26040903 Do not worry about backward compatibility in prototype phase
-
-We are still squarely in a prototyping phase, and there are no outside users
-of the code we are developing here. When we make changes to the codebase we do
-not need to worry about backward compatibility at all. If you're making a
-change, make the change all the way. Do not hedge to preserve backward
-compatibility (but obviously do not break the code in a way that prevents
-you from testing your changes).
-
 ## IDEA-26041001 Outbox posting must have `to:` field requirement
 
 The fact that D5-7-TRIGNOTIFY-1 even had to be a task is an indicator that
@@ -109,17 +100,6 @@ triggers for demo purposes, we should consider whether they are exclusively
 demo-centric triggers or if there is a generalized version that would be
 worth implementing. If so, we should implement the generalized one, and
 have the demo just use that with its specific object types or needs.
-
-## IDEA-26041501 Need spec to avoid compatability shims in prototype
-
-We need a spec that is declarative about avoiding the use of compatability
-shims when refactoring code. We're in prototype development mode so there
-are no
-external dependencies that we need to maintain downstream. When we change
-something it should be complete and permanent. Search notes/ for "shim" and
-you'll see where this has come up before. We just need to make it an
-explicit principle in the specs. Compatibility shims are technical debt that
-we do not want to take on right now.
 
 ## IDEA-26041601 Recurring problem: Actors assuming that everyone knows what they know
 

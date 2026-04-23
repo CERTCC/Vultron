@@ -77,6 +77,36 @@ and Python stack candidates.
     ADR-0015, case creation occurs at report receipt (RM.RECEIVED);
     `VultronParticipant` records carry RM state from that point forward.
 
+## Backward Compatibility and Change Completeness
+
+Requirements in this section apply to changes made during the prototype phase.
+There are no external downstream consumers of this codebase, so backward
+compatibility is not a constraint.
+
+- `PROTO-08-001` (MUST NOT) Add backward-compatibility shims when refactoring,
+  renaming, moving, or removing code. Shims include re-export stubs, import
+  aliases, wrapper functions, and deprecation stubs that exist solely to
+  preserve old import paths or call signatures.
+  - **Rationale**: Without shims a failing import immediately signals a missed
+    call site; with a shim the missed update is invisible and accumulates as
+    technical debt
+- `PROTO-08-002` (MUST) Complete every code change fully — all call sites for a
+  renamed, moved, or removed symbol MUST be updated in the same commit as the
+  symbol change.
+  - Use `grep -r` across `vultron/` and `test/` before starting to locate every
+    call site
+  - A clean test run after the change is the proof of completeness; no shim
+    should be needed to make tests pass
+- `PROTO-08-003` (MUST NOT) Preserve an old API, import path, field name, or
+  function signature solely for backward compatibility.
+  - If there is no functional reason beyond compatibility to keep the old form,
+    remove it entirely and update all consumers
+- `PROTO-08-004` `PROD_ONLY` (SHOULD) Follow a documented deprecation cycle
+  with migration guidance when external consumers of the API exist.
+  - `DeprecationWarning` raises or deprecation annotations are appropriate in
+    production when users need a migration window; they are not appropriate as
+    prototype-phase placeholders for incomplete migrations
+
 <!-- PROTO-06-001 (Domain Model Separation) removed 2026-04-15.
      The inheritance concern it described is resolved: domain objects
      (VulnerabilityCase, VultronReport, etc.) are already pure Pydantic

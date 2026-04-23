@@ -22,3 +22,34 @@ config for different adapters or features.
 **Processed**: 2026-04-23 — design decisions captured in
 `specs/configuration.md` (CFG-01 through CFG-06) and
 `notes/configuration.md`.
+
+---
+
+## IDEA-26040903 Do not worry about backward compatibility in prototype phase
+
+We are still squarely in a prototyping phase, and there are no outside users
+of the code we are developing here. When we make changes to the codebase we do
+not need to worry about backward compatibility at all. If you're making a
+change, make the change all the way. Do not hedge to preserve backward
+compatibility (but obviously do not break the code in a way that prevents
+you from testing your changes).
+
+**Processed**: 2026-04-23 — design decisions captured in
+`specs/prototype-shortcuts.md` (PROTO-08-001 through PROTO-08-004).
+
+---
+
+## IDEA-26041501 Need spec to avoid compatability shims in prototype
+
+We need a spec that is declarative about avoiding the use of compatability
+shims when refactoring code. We're in prototype development mode so there
+are no
+external dependencies that we need to maintain downstream. When we change
+something it should be complete and permanent. Search notes/ for "shim" and
+you'll see where this has come up before. We just need to make it an
+explicit principle in the specs. Compatibility shims are technical debt that
+we do not want to take on right now.
+
+**Processed**: 2026-04-23 — folded into IDEA-26040903 processing; design
+decisions captured in `specs/prototype-shortcuts.md` (PROTO-08-001 through
+PROTO-08-004).

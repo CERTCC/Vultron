@@ -219,8 +219,8 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 - **`project-documentation.md`** - Documentation file structure and purpose
 - **`prototype-shortcuts.md`** - Permissible shortcuts for the prototype stage,
-  including domain model separation deferral (PROTO-06) and performance
-  testing deferral (PROTO-07)
+  including performance testing deferral (PROTO-07) and backward-compatibility
+  / change-completeness policy (PROTO-08)
 - **`agentic-readiness.md`** - API and CLI requirements for automated agent integration
 
 ---
