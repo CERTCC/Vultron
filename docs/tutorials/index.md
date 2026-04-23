@@ -9,6 +9,9 @@
   actor management, embargo negotiation, acknowledgement, status updates,
   and the full RM case lifecycle using the remaining `vultron-demo`
   sub-commands.
+- [Running the Multi-Actor Container Demos](container_demos.md) — run the
+  two-actor, three-actor, and multi-vendor container scenarios to see the
+  full Vultron Protocol in action across isolated participant containers.
 
 ## Further reading
 

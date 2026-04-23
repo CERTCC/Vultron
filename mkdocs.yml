@@ -9,6 +9,7 @@ nav:
     - 'tutorials/index.md'
     - Run the Receive-Report Demo: 'tutorials/receive_report_demo.md'
     - Running the Other Demos: 'tutorials/other_demos.md'
+    - Running the Multi-Actor Container Demos: 'tutorials/container_demos.md'
   - Understanding Vultron:
     - 'topics/index.md'
     - Background:
