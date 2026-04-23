@@ -42,12 +42,6 @@ The section can proceed in parallel with PRIORITY-360.
 
 Can proceed in parallel with PRIORITY-347.
 
-- [ ] **P360-NOTES**: Create `notes/bt-reusability.md` capturing the fractal
-  composability pattern from `vultron/bt/`, the "trunkless branch" intent,
-  and anti-patterns (one-off nodes, hard-coded actor roles, demo-specific
-  subtrees). Reference `notes/vultron-bt.txt` as the canonical BT structure
-  blueprint.
-
 - [ ] **P360-SPEC**: Create `specs/behavior-tree-node-design.md` with formal
   requirements for BT node parameterization and composability, e.g.:
   - BT nodes MUST NOT hard-code actor roles; identity and role MUST be
