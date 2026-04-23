@@ -344,7 +344,7 @@ proposals and rejections without ever establishing an embargo in the first place
 In the worst case (i.e., where the Reporter declines to extend their embargo), a short embargo is usually preferable to
 none at all.
 This implies a preference for strings starting with *par* over strings starting with *ppa* or *prpa*, among others.
-We will come back to this idea in [Default Embargoes](#default-embargoes) and in the
+We will come back to this idea in [Default Embargoes](./defaults.md) and in the
 [worked protocol example](../../formal_protocol/worked_example.md#vendor-accepts-then-proposes-revision).
 
 ### EM DFA Fully Defined

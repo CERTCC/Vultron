@@ -3,7 +3,7 @@
 {% include-markdown "../../../includes/normative.md" %}
 
 In this section, we elaborate on the input symbols and transition functions for our CS DFA.
-A row-wise reading of the [CVD Case Substates](#cs-model-states-defined) table above
+A row-wise reading of the [CVD Case Substates](./cs_model.md) table above
 implies a set of events corresponding to each specific substate change, which we correspond to the symbols in the DFA.
 
 <!-- for spacing -->

@@ -258,7 +258,7 @@ stateDiagram-v2
             Revise \xrightarrow{terminate} eXited \\
         \end{cases}$$
 
-As with the *Fix Ready* scenario [above](#sec:cs_f_em), MPCVD cases may have Vendors in varying states of *Fix Deployment*.
+As with the *Fix Ready* scenario above, MPCVD cases may have Vendors in varying states of *Fix Deployment*.
 Therefore the embargo extension caveats from that section apply to the *Fix Deployed* state as well.
 
 ## Public Awareness
@@ -364,7 +364,7 @@ stateDiagram-v2
 
 ```
 
-In the [Case State model](../cs/cs_model.md#cs-transitions-defined), we have already established that
+In the [Case State model](../cs/cs_model.md), we have already established that
 public exploit code is either preceded by Public Awareness (**P**) or immediately leads to it.
 Therefore,
 
@@ -423,7 +423,7 @@ constraining adversary activity.
 As we outlined in [Early Termination](../em/early_termination.md), when attacks are occurring,
 embargoes can often be of more benefit to adversaries than defenders.
 However, we also acknowledged in
-[CS Transitions](../cs/cs_model.md#attacks-do-not-necessarily-cause-public-awarenesss) that narrowly scoped attacks need
+[CS Transitions](../cs/cs_model.md) that narrowly scoped attacks need
 not imply widespread adversary knowledge of the vulnerability.
 In such scenarios, it is possible that early embargo termination&mdash;leading to publication&mdash;might be of more
 assistance to other adversaries than it is to defenders.

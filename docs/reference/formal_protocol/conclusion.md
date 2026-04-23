@@ -116,7 +116,7 @@ stateDiagram-v2
 The CS pxa model is shown below, and is agnostic to individual Participants.
 It reflects the state changes driven by external events that affect all Participants.
 Note that the diagram shown below simplifies the $X \implies P$ transitions based on the discussion
-in the detailed [CS model](../../topics/process_models/cs/cs_model.md#exploit-publication-causes-public-awareness).
+in the detailed [CS model](../../topics/process_models/cs/cs_model.md).
 
 ```mermaid
 ---

@@ -8,7 +8,7 @@ an embargoed case.
 As anyone who has tried to schedule a meeting with multiple attendees
 can attest, multi-party scheduling can be difficult. When that schedule
 must also accommodate work completion schedules for an
-MPCVD case, it becomes even harder. In [Default Embargoes](#default-embargoes),
+MPCVD case, it becomes even harder. In [Default Embargoes](./defaults.md),
 we laid out a heuristic for resolving multiple embargo proposals, *The Shortest Embargo Proposed
 Wins*.
 More specifically, we recommended that Participants *accept* the
@@ -119,7 +119,7 @@ the new Participant to accept the embargo prior to receiving the report.
     The inviting Participant MAY interpret the potential Participant's
     default embargo contained in their published vulnerability
     disclosure policy in accordance with the default acceptance
-    strategies listed in [Default Embargoes](#default-embargoes).
+    strategies listed in [Default Embargoes](./defaults.md).
 
 !!! note ""
 

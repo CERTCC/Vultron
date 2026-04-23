@@ -56,7 +56,7 @@ Asymmetry is inherent in the CVD process because those who currently have the vu
 with whom they will share it.
 This asymmetry puts Reporters at somewhat of an advantage when it comes
 to the initial report submission to another Participant.
-We discuss some ways to improve (but not fully remove) this asymmetry in [Default Embargoes](#default-embargoes),
+We discuss some ways to improve (but not fully remove) this asymmetry in [Default Embargoes](./defaults.md),
 but for now we just need to acknowledge that it exists.
 
 !!! note ""  

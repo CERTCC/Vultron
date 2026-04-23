@@ -104,6 +104,21 @@ a second coordinator who **rejects** (and is not added). Notice the log
 lines showing the `RmInviteToCase` (Invite) and the corresponding
 `RmAcceptInviteToCase` / `RmRejectInviteToCase` activities.
 
+```mermaid
+sequenceDiagram
+    participant O as Case Owner
+    participant C1 as Coordinator 1
+    participant C2 as Coordinator 2
+
+    O->>+C1: RmInviteToCase (Invite)
+    C1-->>-O: RmAcceptInviteToCase
+    Note over O: Coordinator 1 added as participant
+
+    O->>+C2: RmInviteToCase (Invite)
+    C2-->>-O: RmRejectInviteToCase
+    Note over O: Coordinator 2 not added
+```
+
 See
 [Invite an Actor to a Case](../howto/activitypub/activities/invite_actor.md)
 for background.
@@ -118,6 +133,21 @@ This demo shows a finder *suggesting* a coordinator to the case owner.
 Two paths are demonstrated: the vendor **accepts** the suggestion (and
 sends an invitation to the coordinator) and the vendor **rejects** the
 suggestion (no invitation is sent).
+
+```mermaid
+sequenceDiagram
+    participant F as Finder
+    participant V as Vendor
+    participant C as Coordinator
+
+    F->>V: Suggest Coordinator
+    alt Vendor accepts suggestion
+        V->>C: RmInviteToCase (Invite)
+        Note over V,C: Coordinator invited to case
+    else Vendor rejects suggestion
+        Note over V: No invitation sent
+    end
+```
 
 See
 [Suggest an Actor for a Case](../howto/activitypub/activities/suggest_actor.md)
@@ -134,6 +164,23 @@ create participant → add to case → update participant status → remove
 from case. A second path shows the rejection outcome. Each step is logged
 so we can follow the state changes.
 
+```mermaid
+sequenceDiagram
+    participant O as Case Owner
+    participant P as Participant
+
+    O->>P: RmInviteToCase (Invite)
+    alt Participant accepts
+        P-->>O: RmAcceptInviteToCase
+        Note over O: CaseParticipant created;<br/>added to case
+        Note over O: Participant status updated
+        O->>P: Remove from case
+    else Participant rejects
+        P-->>O: RmRejectInviteToCase
+        Note over O: No participant created
+    end
+```
+
 See
 [Manage Participants](../howto/activitypub/activities/manage_participants.md)
 for details.
@@ -148,6 +195,21 @@ This demo shows case ownership transfer: the current owner (vendor) offers
 the case to a coordinator, who either **accepts** (the case `attributed_to`
 field is updated to the coordinator) or **rejects** (ownership remains with
 the vendor).
+
+```mermaid
+sequenceDiagram
+    participant V as Vendor
+    participant C as Coordinator
+
+    V->>C: CaseTransferOffer (Offer)
+    alt Coordinator accepts
+        C-->>V: Accept
+        Note over V,C: case.attributed_to = Coordinator
+    else Coordinator rejects
+        C-->>V: Reject
+        Note over V: Ownership unchanged
+    end
+```
 
 See
 [Transfer Case Ownership](../howto/activitypub/activities/transfer_ownership.md)
@@ -167,6 +229,21 @@ This demo exercises embargo negotiation. A participant proposes an embargo
 period; the case owner either **accepts** (activating the embargo on the
 case, EM state = `ACTIVE`) or **rejects** (no change to EM state).
 
+```mermaid
+sequenceDiagram
+    participant P as Participant
+    participant O as Case Owner
+
+    P->>O: EmProposeEmbargo (Offer)
+    alt Case owner accepts
+        O-->>P: Accept
+        Note over P,O: EM state = ACTIVE
+    else Case owner rejects
+        O-->>P: Reject
+        Note over P,O: EM state unchanged
+    end
+```
+
 See
 [Establish an Embargo](../howto/activitypub/activities/establish_embargo.md)
 for background.
@@ -183,6 +260,30 @@ This demo continues from an active embargo. Two paths are shown:
    embargo activated → vendor terminates (removes) the embargo.
 2. **Reject and repropose**: coordinator proposes → vendor rejects →
    coordinator proposes a revised embargo → vendor accepts → activated.
+
+```mermaid
+sequenceDiagram
+    participant C as Coordinator
+    participant V as Vendor
+
+    rect rgb(220, 245, 220)
+        Note over C,V: Path 1 - Activate then terminate
+        C->>V: EmProposeEmbargo (Offer)
+        V-->>C: Accept
+        Note over C,V: EM state = ACTIVE
+        V->>C: EmTerminateEmbargo
+        Note over C,V: EM state = NONE
+    end
+
+    rect rgb(245, 220, 220)
+        Note over C,V: Path 2 - Reject then repropose
+        C->>V: EmProposeEmbargo (Offer)
+        V-->>C: Reject
+        C->>V: EmProposeEmbargo (Offer, revised)
+        V-->>C: Accept
+        Note over C,V: EM state = ACTIVE
+    end
+```
 
 See
 [Manage an Embargo](../howto/activitypub/activities/manage_embargo.md)
@@ -205,6 +306,24 @@ demonstrated:
 1. **Acknowledge only** — ack, then notify finder.
 2. **Acknowledge then validate** — ack → validate → notify finder.
 3. **Acknowledge then invalidate** — ack → invalidate → notify finder.
+
+```mermaid
+sequenceDiagram
+    participant F as Finder
+    participant V as Vendor
+
+    F->>V: RmSubmitReport (Offer)
+    V->>V: RmReadReport (Read / ack)
+    alt Path 1 - Acknowledge only
+        V-->>F: Notify finder (ack)
+    else Path 2 - Acknowledge then validate
+        V->>V: RmValidateReport (Accept)
+        V-->>F: Notify finder (validated)
+    else Path 3 - Acknowledge then invalidate
+        V->>V: RmInvalidateReport (TentativeReject)
+        V-->>F: Notify finder (invalidated)
+    end
+```
 
 See
 [Acknowledge a Report](../howto/activitypub/activities/acknowledge.md)
@@ -246,6 +365,33 @@ submission through closure. Three paths are shown:
 3. **Invalidate path** — submit → invalidate → close report.
 
 Notice the RM state transitions logged at each step.
+
+```mermaid
+sequenceDiagram
+    participant F as Finder
+    participant V as Vendor
+
+    F->>V: RmSubmitReport (Offer)
+    alt Path 1 - Engage
+        V->>V: RmValidateReport (Accept)
+        Note over V: Case created
+        V->>V: EngageCase
+        Note over V: RM state = ACCEPTED
+        V->>V: RmCloseReport
+    else Path 2 - Defer then re-engage
+        V->>V: RmValidateReport (Accept)
+        Note over V: Case created
+        V->>V: DeferCase
+        Note over V: RM state = DEFERRED
+        V->>V: EngageCase
+        Note over V: RM state = ACCEPTED
+        V->>V: RmCloseReport
+    else Path 3 - Invalidate
+        V->>V: RmInvalidateReport (TentativeReject)
+        V->>V: RmCloseReport
+        Note over V: No case created
+    end
+```
 
 See
 [Manage a Case](../howto/activitypub/activities/manage_case.md) for

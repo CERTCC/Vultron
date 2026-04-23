@@ -2,7 +2,7 @@
 
 {% include-markdown "../../../includes/normative.md" %}
 
-As described in the [EM process model](index.md#sec:em_grammar), the EM process has the potential for unbounded
+As described in the [EM process model](index.md), the EM process has the potential for unbounded
 *propose-reject* churn. To reduce the potential for this churn and
 increase the likelihood that *some* embargo is established rather than a
 stalemate of unaccepted proposals, we offer the following guidance.
@@ -211,7 +211,7 @@ to lengthen it.
     Readers may notice that we have taken a _shortest proposal wins_
     approach to the above guidance. This is intentional, and it results
     directly from the asymmetry mentioned in
-    [Negotiating Embargoes](#negotiating-embargoes)
+    [Negotiating Embargoes](./negotiating.md)
     The Receiver is faced with a
     choice to either *accept* the Reporter's proposal and attempt to extend
     it or to *reject* the proposal and end up with no embargo at all.
@@ -228,7 +228,7 @@ to lengthen it.
     providing the report to the Receiver. That is not to say that we
     recommend this sort of behavior from Reporters. In fact, we specifically
     recommend the opposite in
-    [Negotiating Embargoes](#negotiating-embargoes). Rather, it once more
+    [Negotiating Embargoes](./negotiating.md). Rather, it once more
     acknowledges the time-dependent informational asymmetry inherent to the
     CVD process.
 

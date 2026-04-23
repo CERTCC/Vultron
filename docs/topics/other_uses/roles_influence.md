@@ -28,7 +28,7 @@ to cover the **A** transition.
 Different stakeholders might want different things, although most
 benevolent parties will likely seek some subset of $\mathbb{D}$. Because
 $\mathcal{H}$ is the same for all stakeholders, the expected frequencies
-shown in [Event Order Frequency](../measuring_cvd/reasoning_over_histories.md/#event-order-frequency)
+shown in [Event Order Frequency](../measuring_cvd/reasoning_over_histories.md)
 will be consistent across any such variations in desiderata.
 
 A discussion of some stakeholder preferences is given below, while a

@@ -79,7 +79,7 @@ information as part of the case.
 ## A Reward Function for Minimizing EM Strings
 
 Similarly, the EM process also has the potential to generate arbitrarily long histories,
-as shown in [A Regular Grammar for EM](../process_models/em/index.md#sec:em_grammar).
+as shown in [A Regular Grammar for EM](../process_models/em/index.md).
 Again, reliance on humans to resolve this shortcoming may be acceptable for now;
 however, looking to the future, we can imagine a reward function to be optimized.
 The EM reward function might include the following:

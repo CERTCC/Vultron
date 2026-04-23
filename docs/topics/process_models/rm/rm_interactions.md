@@ -3,7 +3,7 @@
 Each Participant in a case has their own instance of the RM state model.
 Participants can change their local state independent of the state of other Participants.
 Events within a CVD case may trigger a state transition in one Participant while no transition occurs in another.
-For example, in [particpants interact from the accepted state](#participants-interact-from-the-accepted-state) we showed
+For example, in [participants interact from the accepted state](index.md) we showed
 that even though the *sender* is the one taking the action, it is the *recipient*'s state that changes.
 The table below lists role-based actions.
 
@@ -12,8 +12,8 @@ The table below lists role-based actions.
 | :material-check: |                  |                  | Discover Vulnerability (hidden)         |                           [Receive Report](index.md#receive-report)                            |
 | :material-check: |                  |                  | Analyze Discovery (hidden)              |                          [Validate Report](index.md#validate-report)                           |
 | :material-check: |                  |                  | Decide whether to initiate CVD (hidden) |                        [Prioritize Report](index.md#prioritize-report)                         |
-| :material-check: | :material-check: | :material-check: | Notify Vendor                           | [Participants Interact from Accepted](index.md#participants-interact-from-the-accepted-state) |
-| :material-check: | :material-check: | :material-check: | Notify Coordinator                      | [Participants Interact from Accepted](index.md#participants-interact-from-the-accepted-state) |
+| :material-check: | :material-check: | :material-check: | Notify Vendor                           | [Participants Interact from Accepted](index.md) |
+| :material-check: | :material-check: | :material-check: | Notify Coordinator                      | [Participants Interact from Accepted](index.md) |
 |                  | :material-check: | :material-check: | Receive Report                          |                           [Receive Report](index.md#receive-report)                            |
 |                  | :material-check: | :material-check: | Validate Report                         |                          [Validate Report](index.md#validate-report)                           |
 | :material-check: | :material-check: | :material-check: | Prioritize Report                       |                        [Prioritize Report](index.md#prioritize-report)                         |
@@ -81,8 +81,7 @@ stateDiagram-v2
 A simple Finder-Vendor CVD scenario is shown below.
 As explained [above](#the-secret-lives-of-finders), many of the Finder's states would be
 hidden from view until they reach the *Accepted* ($A_f$) state. The
-*receive* action bridging $A_f \xrightarrow{r} R_v$ corresponds to the
-[participants interact from the accepted state](#participants-interact-from-the-accepted-state) scenario above.
+*receive* action bridging $A_f \xrightarrow{r} R_v$ corresponds to [participants interact from the accepted state](index.md) scenario above.
 
 ```mermaid
 ---
@@ -139,7 +138,7 @@ This scenario is very common in our
 experience at the CERT/CC, which should come as no surprise
 considering our role as a Coordinator means that we do not participate
 in cases following the previous example. Here we see three notification
-actions corresponding to [participants interacting from the accepted state](#participants-interact-from-the-accepted-state):
+actions corresponding to [participants interacting from the accepted state](index.md):
 
 - First, $A_f \xrightarrow{r_0} R_v$ represents the Finder's initial
     attempt to reach the Vendor.
@@ -222,7 +221,7 @@ stateDiagram-v2
 ## MPCVD with a Coordinator and Multiple Vendors
 
 A small MPCVD scenario is shown below. As with the other examples, each
-notification shown is an instance of [participants interacting from the accepted state](#participants-interact-from-the-accepted-state).
+notification shown is an instance of [participants interacting from the accepted state](index.md).
 Contrary to the previous example, this scenario starts with the Finder contacting a Coordinator, perhaps
 because they recognize the increased complexity of coordinating multiple Vendors' responses.
 

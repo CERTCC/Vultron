@@ -142,8 +142,8 @@ from vultron.wire.as2.vocab.examples.vocab_examples import (
 
 _case = case()
 _case.add_report(gen_report())
-_case.add_participant(add_vendor_participant_to_case().as_object)
-_case.add_participant(add_finder_participant_to_case().as_object)
+_case.add_participant(add_vendor_participant_to_case())
+_case.add_participant(add_finder_participant_to_case())
 
 print(json2md(_case))
 ```

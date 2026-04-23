@@ -42,7 +42,7 @@ in the table below.
     $$D \implies F \implies V$$
 
 CS states can be any combination of statuses, provided that a number of caveats elaborated in
-[CS Transitions](#cs-transitions) are met.
+[CS Transitions](./transitions.md) are met.
 One such caveat worth noting here is that valid states must follow what we call the *Vendor fix path*.
 
 The reason is causal: For a fix to be deployed (*D*), it must have been ready (*F*) for deployment.

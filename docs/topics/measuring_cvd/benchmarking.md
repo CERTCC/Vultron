@@ -21,14 +21,14 @@ If, as seems plausible from the evidence, it turns out that further
 observations of $h$ are significantly skewed toward the higher end of
 the poset $(\mathcal{H},\leq_{\mathbb{D}})$, then it may be useful to
 empirically calibrate our metrics rather than using the *a priori*
-frequencies in [Reasoning over Histories](./reasoning_over_histories.md#event-order-frequency-analysis) as our baseline.
+frequencies in [Reasoning over Histories](./reasoning_over_histories.md) as our baseline.
 This analysis baseline
 would provide context on "more skillful than the average for some set of
 teams" rather than more skillful than blind luck.
 
 - [CVD Benchmarks](#cvd-benchmarks) discusses this topic, which should be viewed as an examination of what
 "reasonable" should mean in the context of a "reasonable baseline expectation."
-- [MPCVD](#mpcvd) suggests how the model might be applied to establish benchmarks for
+- [MPCVD](#cvd-benchmarks) suggests how the model might be applied to establish benchmarks for
 CVD processes involving any number of participants.
 
 ## CVD Benchmarks

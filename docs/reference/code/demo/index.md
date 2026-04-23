@@ -55,5 +55,3 @@ python -m vultron.demo.receive_report_demo
 ## See Also
 
 - [Demo Tutorial](../../../tutorials/receive_report_demo.md)
-- [Demo CLI Specification](../../../../specs/demo-cli.md)
-- [Demo README](../../../../vultron/demo/README.md)

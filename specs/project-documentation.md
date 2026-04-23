@@ -398,3 +398,24 @@ agents to quickly find technical guidance.
 - Agents can quickly scan AGENTS.md for technical patterns
 - Historical context preserved in IMPLEMENTATION_NOTES.md for deep analysis
 - Planning discussions stay focused in IMPLEMENTATION_PLAN.md
+
+---
+
+## Documentation Build Validation
+
+- `PD-04-001` (MUST) `mkdocs build --strict` MUST pass without warnings
+  before any changes to `docs/` directory files are staged for commit
+  - The `--strict` flag treats all warnings (broken links, missing anchors,
+    invalid markdown) as errors that prevent the build from completing
+  - Common failure causes:
+    - Broken anchor links: `#section-name` references that do not exist in
+      the target document
+    - Missing files: links to documentation files that have been deleted or
+      moved without updating references
+    - Invalid markdown: syntax errors that prevent proper rendering
+- `PD-04-002` Validation MUST occur after markdown linting (via
+  `.github/skills/format-markdown/SKILL.md`) and before test runs, in the
+  build-and-test workflow documented in `.github/skills/build-docs/SKILL.md`
+- `PD-04-003` (SHOULD) Agents SHOULD run `uv run mkdocs build --strict`
+  locally when modifying `docs/` files to catch issues before staging for
+  commit, reducing CI failures and improving development velocity

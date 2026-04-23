@@ -115,6 +115,18 @@ DEMO 1: Validate Report and Create Case
    the *finder*'s inbox to notify them a case has been opened.
    Notice the final ✅ confirming the activity appears in the finder's inbox.
 
+```mermaid
+sequenceDiagram
+    participant F as Finder
+    participant V as Vendor
+
+    F->>V: RmSubmitReport (Offer)<br/>+ VulnerabilityReport
+    Note over V: Stores offer and report
+    V->>V: RmValidateReport (Accept)
+    Note over V: Validation BT runs;<br/>case created
+    V->>F: CreateCase notification
+```
+
 ### Demo 2: Invalidate Report
 
 ```text
@@ -126,6 +138,16 @@ The finder submits a second, separate report. The vendor responds with an
 further investigation rather than closed outright. Notice that no case is
 created this time.
 
+```mermaid
+sequenceDiagram
+    participant F as Finder
+    participant V as Vendor
+
+    F->>V: RmSubmitReport (Offer)<br/>+ VulnerabilityReport
+    V->>V: RmInvalidateReport (TentativeReject)
+    Note over V: Report held open;<br/>no case created
+```
+
 ### Demo 3: Invalidate and Close Report
 
 ```text
@@ -136,6 +158,18 @@ A third report is submitted. The vendor first invalidates it
 (`RmInvalidateReport`) and then closes it (`RmCloseReport`), corresponding
 to a full rejection. Notice two separate activities appear in the finder's
 inbox at the end.
+
+```mermaid
+sequenceDiagram
+    participant F as Finder
+    participant V as Vendor
+
+    F->>V: RmSubmitReport (Offer)<br/>+ VulnerabilityReport
+    V->>V: RmInvalidateReport (TentativeReject)
+    V->>V: RmCloseReport
+    Note over V: Report closed;<br/>no case created
+    V-->>F: Two activities in finder's inbox
+```
 
 ---
 

@@ -207,7 +207,7 @@ For example, a Reporter who bows out of a case shortly after reporting it to a C
 
 !!! tip inline end
 
-    As discussed in [Embargo Principles](../topics/process_models/em/principles.md#sec:embargo_engagement), 
+    As discussed in [Embargo Principles](../topics/process_models/em/principles.md), 
     it is possible for a `Participant` to exit a case while still agreeing to abide by the terms of the extant embargo.
 
 `embargo_adherence`

@@ -43,9 +43,10 @@ Checklist (edit → validate → commit):
 Essential commands (run in zsh):
 
 See `.github/skills/format-code/SKILL.md`, `.github/skills/run-linters/SKILL.md`,
-and `.github/skills/run-tests/SKILL.md` for the canonical Black, linter, and
-pytest invocation commands (these files contain the exact invocation semantics,
-environment notes, and examples you must follow).
+`.github/skills/run-tests/SKILL.md`, and `.github/skills/build-docs/SKILL.md` for
+the canonical Black, linter, pytest, and mkdocs invocation commands (these files
+contain the exact invocation semantics, environment notes, and examples you must
+follow).
 
 > ⚠️ **STOP — Full test-suite rule (MUST follow)**
 >
@@ -731,12 +732,18 @@ to relevant tests and design notes.
 
 ### Commit Workflow
 
-**BEFORE committing**, agents MUST follow the procedure documented in
-`.github/skills/format-code/SKILL.md` (format and lint first), then
-`.github/skills/run-linters/SKILL.md` (run all four linters), then
-`.github/skills/run-tests/SKILL.md` (run the test-suite exactly once), then
-commit. The skill files contain the exact commands and the required
-invocation order.
+**BEFORE committing**, agents MUST follow the procedure documented in the
+relevant skills, in this order:
+
+1. `.github/skills/format-code/SKILL.md` — Format Python sources
+2. `.github/skills/run-linters/SKILL.md` — Run all four linters (Black, flake8,
+   mypy, pyright)
+3. `.github/skills/run-tests/SKILL.md` — Run the test-suite exactly once
+4. `.github/skills/build-docs/SKILL.md` — Build docs in strict mode (only if
+   `docs/` files were modified)
+5. Commit with message including the Co-authored-by trailer
+
+The skill files contain the exact commands and the required invocation order.
 
 **Why this order matters**:
 
@@ -748,6 +755,9 @@ invocation order.
 3. The test suite must pass before committing — read the single-run test
    output as documented in the skill file (the skill explains how to capture
    the summary line and why you must not re-run pytest to grep for counts).
+4. Documentation MUST build cleanly (`mkdocs build --strict`) whenever `docs/`
+   files are modified. This catches broken links and invalid markdown before CI
+   fails.
 
 **When to run formatting and linters**:
 
@@ -755,6 +765,12 @@ invocation order.
 - Run `uv run black vultron/ test/ && uv run flake8 vultron/ test/ && uv run mypy && uv run pyright`
   to check all four linters at once (see `.github/skills/run-linters/SKILL.md`)
 - Do NOT run `black` on markdown files (use `markdownlint-cli2` for those)
+
+**When to run docs build**:
+
+- After editing any files in `docs/`, before staging for commit
+- Run `uv run mkdocs build --strict` (see `.github/skills/build-docs/SKILL.md`)
+- Fix all reported broken links and anchor issues before staging
 
 **Alternative**: If you forget and the pre-commit hook reformats files, simply:
 
@@ -1455,8 +1471,17 @@ Markdown links in `docs/` MUST be relative to the current file and MUST NOT
 go above the `docs/` directory (the site root). Keep relative paths as short
 as possible. For example, a link from `docs/a/b/c/file.md` to
 `docs/a/d/other.md` should be `../../d/other.md`.
-Use `mkdocs build --site-dir PATH` and `linkchecker PATH` to verify links
-before committing.
+
+**Before committing changes to `docs/`**, validate the build using the
+`.github/skills/build-docs/SKILL.md` skill:
+
+```bash
+uv run mkdocs build --strict
+```
+
+This catches broken anchor links, invalid markdown, and other documentation
+issues. The build MUST pass without warnings before staging changes for commit.
+See `.github/skills/build-docs/SKILL.md` for details.
 
 ### Demo script lifecycle logging
 

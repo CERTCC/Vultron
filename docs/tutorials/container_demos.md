@@ -107,6 +107,26 @@ A successful run ends with:
 | 6    | Vendor    | Replies; case forwards reply to Finder's inbox       |
 | ✅   | Vendor    | Case DataLayer holds 2 participants and 2 notes      |
 
+```mermaid
+sequenceDiagram
+    participant F as Finder
+    box Vendor Container
+        participant V as Vendor
+        participant CA as CaseActor
+    end
+
+    F->>V: RmSubmitReport (Offer)<br/>+ VulnerabilityReport
+    Note over V: validate-report trigger;<br/>RM state = ACCEPTED
+    V->>CA: CreateCase + AddReport
+    V->>F: RmInviteToCase (Invite)
+    F->>V: RmAcceptInviteToCase
+    V->>CA: AddParticipant (Finder)
+    F->>CA: Add Note (question)
+    V->>CA: Add Note (reply)
+    CA->>F: Forward reply to Finder's inbox
+    Note over CA: 2 participants, 2 notes
+```
+
 ---
 
 ## Step 3 — Run the three-actor scenario
@@ -132,6 +152,25 @@ DEMO=three-actor docker compose -f docker/docker-compose-multi-actor.yml \
 | 6    | Coordinator | Invites Vendor; Vendor accepts                       |
 | 7    | Vendor      | Accepts the active embargo                           |
 | ✅   | CaseActor   | Case holds 3 participants; embargo EM state = ACTIVE |
+
+```mermaid
+sequenceDiagram
+    participant F as Finder
+    participant C as Coordinator
+    participant V as Vendor
+    participant CA as CaseActor
+
+    F->>C: RmSubmitReport (Offer)<br/>+ VulnerabilityReport
+    C->>CA: CreateCase + AddReport
+    C->>F: RmInviteToCase (Invite)
+    F->>C: RmAcceptInviteToCase
+    C->>F: EmProposeEmbargo (Offer)
+    F->>C: Accept
+    C->>V: RmInviteToCase (Invite)
+    V->>C: RmAcceptInviteToCase
+    V->>C: Accept active embargo
+    Note over CA: 3 participants;<br/>EM state = ACTIVE
+```
 
 ---
 
@@ -160,6 +199,33 @@ DEMO=multi-vendor docker compose -f docker/docker-compose-multi-actor.yml \
 | 8     | Coordinator | Invites Vendor2; Vendor2 accepts                          |
 | 9     | Coordinator | Delivers embargo proposal to Vendor2; Vendor2 accepts     |
 | ✅    | CaseActor   | 3 participants; Coordinator is owner; embargo ACTIVE       |
+
+```mermaid
+sequenceDiagram
+    participant F as Finder
+    participant V as Vendor
+    participant C as Coordinator
+    participant V2 as Vendor2
+    participant CA as CaseActor
+
+    F->>V: RmSubmitReport (Offer)<br/>+ VulnerabilityReport
+    Note over V: validate-report trigger
+    V->>CA: CreateCase (attributed_to = Vendor)
+    V->>CA: AddReport
+    V->>F: RmInviteToCase (Invite)
+    F->>V: RmAcceptInviteToCase
+    V->>F: EmProposeEmbargo (Offer)
+    F->>V: Accept
+    Note over CA: Embargo ACTIVE
+    V->>C: CaseTransferOffer
+    C->>V: Accept transfer
+    Note over CA: attributed_to = Coordinator
+    C->>V2: RmInviteToCase (Invite)
+    V2->>C: RmAcceptInviteToCase
+    C->>V2: EmProposeEmbargo (Offer)
+    V2->>C: Accept
+    Note over CA: 3 participants;<br/>Coordinator is owner;<br/>EM state = ACTIVE
+```
 
 ---
 

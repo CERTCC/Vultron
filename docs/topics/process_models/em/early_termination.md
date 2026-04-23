@@ -60,7 +60,7 @@ following:
 The above is not a complete list of acceptable reasons to terminate an
 embargo early. Note that the distinction between the *SHALL* in the
 first item and the *SHOULD* in the second is derived from the reasoning
-given in the [CS model](../cs/cs_model.md#cs-transitions)
+given in the [CS model](../cs/cs_model.md)
 , where we describe the CS model's transition function.
 Embargo termination is the set of transitions described in the [EM model](index.md#terminate-embargo).
 
