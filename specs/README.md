@@ -48,6 +48,7 @@ Load additional files only when the task touches the relevant area. See the
 | Response generation / outbox | `response-format.md`, `outbox.md` |
 | Synchronization | `sync-log-replication.md` |
 | Embargo / duration | `embargo-policy.md`, `duration.md` |
+| Configuration | `configuration.md` |
 | Demo / CLI | `demo-cli.md`, `multi-actor-demo.md` |
 | Observability | `observability.md` |
 | Security / CI | `ci-security.md`, `encryption.md` |
@@ -69,6 +70,10 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   separation rules, SemanticIntent placement, extractor isolation, adapter
   injection, connector plugins, wire replaceability, review checklist
   (ARCH-01 through ARCH-08)
+- **`configuration.md`** - Unified YAML + Pydantic configuration management:
+  `AppConfig` structure, `get_config()` / `reload_config()` API, env var
+  naming conventions, `SeedConfig` alignment, testing patterns
+  (CFG-01 through CFG-06)
 - **`vultron-protocol-spec.md`** - Requirements extracted from Vultron
   Protocol documentation: participant state tracking, RM/EM/CS messaging,
   model interactions, and implementation guidance

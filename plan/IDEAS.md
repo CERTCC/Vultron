@@ -1,19 +1,5 @@
 # Project Ideas
 
-## IDEA-260402-01 Config files should be YAML and loaded into a structured config object
-
-relevant on or after commit: 3fdbfa96155d87d716027c5d3a1fb929d0968b28
-
-When we have a need for config files, we should use YAML for readability and
-ease of editing. We should also load the YAML config into a structured
-config object using Pydantic so that we can enforce types and have a clear
-schema for our configuration. Rough sketch of the workflow: Load YAML config
-into a dict (`config_dict=yaml.safe_load()`), then pass that dict to a Pydantic
-model (`Config.model_validate(config_dict)`) that defines the schema for our
-configuration. This can also allow us to have nested configuration sections
-for different components, and modularity in how we define and validate
-config for different adapters or features.
-
 ## IDEA-260402-02 Does each participant need their own stub Case Actor clone to manage their copy of the case?
 
 relevant on or after commit: d2d2e3b5c285c9af66fad717697e9795707d2978
