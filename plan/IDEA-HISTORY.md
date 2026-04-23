@@ -114,3 +114,41 @@ Check if IDEA-HISTORY.md exists (shell)
 **Processed**: 2026-04-23 — design decisions captured in
 `specs/project-documentation.md` (PD-05-001 through PD-05-005) and
 `notes/append-only-file-handling.md`.
+
+## IDEA-26041704 Bugfix skill prematurely locks in on simple fixes
+
+Sometimes the bugfix skill is used to fix a bug that has a simple surface
+fix but is an indication of a deeper underlying issue that is not being
+addressed. The agent is often overly narrow in its analysis of the scope and
+does not currently ask enough questions to get to the true root cause of the
+issue, resulting in more bugs later on that are related to the same
+underlying issue. I want to update the bugfix skill to be more rigorous
+itself, but also to have more explicit instructions for when to use the ask user
+tool to have a conversation about the bug with the user so we can come to a
+shared understanding before setting off on implementation. Sort of similar
+to the "grill me" skill but for bugs. Ask the user to help you understand
+the bug better, and check in periodically to ask the user if you are on the
+right track in your analysis and implementation plan. You are not expected
+to solve the entire problem in an autonomous one-shot way. Sometimes bugfix
+analysis will lead to a recognition that there are multiple issues that must
+be addressed in order to fully resolve the problem, and that is okay, but
+the bugfix skill should recognize when that is the case and suggest breaking
+the work into new tasks in the implementation plan and/or capturing
+additional bugs.
+
+**Processed**: 2026-04-23 — design decisions captured in
+`specs/bugfix-workflow.md` (BFW-01 through BFW-04) and
+`notes/bugfix-workflow.md`.
+
+## IDEA-26042202 bugfix skill should move fixed bugs out of BUGS.md
+
+The bugfix skill should be updated (and any relevant specs as well) to adopt
+similar behavior to what the build skill does with implementation plan tasks.
+Namely: When a bug is fixed, the implementation history file should be
+appended and then the bug should be removed from BUGS.md entirely rather
+than leaving a tombstone or summary behind. BUGS.md should only contain open
+bugs, not closed ones.
+
+**Processed**: 2026-04-23 — design decisions captured in
+`specs/bugfix-workflow.md` (BFW-04-001 through BFW-04-004) and
+`notes/bugfix-workflow.md`.

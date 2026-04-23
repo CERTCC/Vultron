@@ -220,27 +220,6 @@ tendency to avoid thinking in terms of behavior trees, but we need to
 incorporate the use of behavior trees to capture process logic as a core
 principle of how we build out the system.
 
-## IDEA-26041704 Bugfix skill prematurely locks in on simple fixes
-
-Sometimes the bugfix skill is used to fix a bug that has a simple surface
-fix but is an indication of a deeper underlying issue that is not being
-addressed. The agent is often overly narrow in its analysis of the scope and
-does not currently ask enough questions to get to the true root cause of the
-issue, resulting in more bugs later on that are related to the same
-underlying issue. I want to update the bugfix skill to be more rigorous
-itself, but also to have more explicit instructions for when to use the ask user
-tool to have a conversation about the bug with the user so we can come to a
-shared understanding before setting off on implementation. Sort of similar
-to the "grill me" skill but for bugs. Ask the user to help you understand
-the bug better, and check in periodically to ask the user if you are on the
-right track in your analysis and implementation plan. You are not expected
-to solve the entire problem in an autonomous one-shot way. Sometimes bugfix
-analysis will lead to a recognition that there are multiple issues that must
-be addressed in order to fully resolve the problem, and that is okay, but
-the bugfix skill should recognize when that is the case and suggest breaking
-the work into new tasks in the implementation plan and/or capturing
-additional bugs.
-
 ## IDEA-26042001 The Vultron-specific activities might make more sense as factory functions
 
 Something I've observed in watching agents coding the implementation is that
@@ -270,12 +249,3 @@ activities with the right fields and type hints for our use cases. This
 might help us to also be able to specify the patterns to use in the semantic
 extraction process as well. And it could even further decouple the core
 logic from the AS2 message details.
-
-## IDEA-26042202 bugfix skill should move fixed bugs out of BUGS.md
-
-The bugfix skill should be updated (and any relevant specs as well) to adopt
-similar behavior to what the build skill does with implementation plan tasks.
-Namely: When a bug is fixed, the implementation history file should be
-appended and then the bug should be removed from BUGS.md entirely rather
-than leaving a tombstone or summary behind. BUGS.md should only contain open
-bugs, not closed ones.

@@ -55,6 +55,7 @@ Load additional files only when the task touches the relevant area. See the
 | Agentic API | `agentic-readiness.md` |
 | Documentation work | `diataxis-requirements.md`, `project-documentation.md`, `traceability.md` |
 | Writing/updating specs | `meta-specifications.md` |
+| Bugfix skill / bug lifecycle | `bugfix-workflow.md` |
 
 ---
 
@@ -224,6 +225,10 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   including performance testing deferral (PROTO-07) and backward-compatibility
   / change-completeness policy (PROTO-08)
 - **`agentic-readiness.md`** - API and CLI requirements for automated agent integration
+- **`bugfix-workflow.md`** - Bugfix skill requirements: root-cause depth analysis
+  (Phase 2b), user engagement, issue escalation to `plan/BUGS.md`, and bug
+  lifecycle archiving to `plan/IMPLEMENTATION_HISTORY.md`
+  (BFW-01 through BFW-04)
 
 ---
 

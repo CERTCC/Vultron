@@ -50,9 +50,30 @@ sufficient clarity):
 5. **Open questions**: If any assumption is still unclear after the four
    questions above, continue asking until it is resolved.
 
-**Do not proceed to Phase 3 until the user has explicitly confirmed or
+**Do not proceed to Phase 2b until the user has explicitly confirmed or
 corrected each point.** If the user provides a correction, restate your updated
 understanding and ask them to confirm before moving on.
+
+## Phase 2b — Root Cause Depth (BLOCKING)
+
+After Phase 2 alignment is confirmed, check whether the user has already
+indicated a broader underlying issue. If not, ask one more targeted question
+before locking in scope:
+
+> "My working theory for the root cause is [specific code path / invariant /
+> data flow you identified]. Does this look like an isolated defect, or might
+> it be a symptom of a deeper issue in [module / design pattern]?"
+
+- If the user says **isolated defect**: proceed to Phase 3.
+- If the user says **deeper issue**: ask which of the related concerns this
+  fix should address, then file the remaining concerns as new bugs in
+  `plan/BUGS.md` (see Constraints). Confirm the narrowed scope before
+  proceeding.
+
+See `specs/bugfix-workflow.md` BFW-02-001 through BFW-02-004 and
+`notes/bugfix-workflow.md` for question templates and escalation patterns.
+
+**Do not proceed to Phase 3 until Phase 2b scope is confirmed.**
 
 ## Phase 3 — Implement (follows BUGFIX.md)
 
@@ -72,19 +93,29 @@ starting at step 3 ("Verify Before Changes"):
    incidental bugs discovered go into `plan/BUGS.md`; do not pursue them now.
 
 5. **Finalize**
-   - Mark the bug fixed in `plan/BUGS.md`.
-   - Append a summary (issue, root cause, resolution) to
-     `plan/IMPLEMENTATION_HISTORY.md`.
+   - Append a completion summary (bug ID, symptoms, root cause, fix) to
+     `plan/IMPLEMENTATION_HISTORY.md` using the template in
+     `notes/bugfix-workflow.md`.
+   - Remove the bug's entry entirely from `plan/BUGS.md`. Do not leave a
+     tombstone, `FIXED` marker, or closed-notice — see `specs/bugfix-workflow.md`
+     BFW-04-002.
+   - If any other bugs in `plan/BUGS.md` are already marked fixed, archive and
+     remove them opportunistically (BFW-04-004).
    - Capture lessons learned in `plan/IMPLEMENTATION_NOTES.md`.
-   - `git add` and commit with a clear, specific message.
+   - `git add` and commit with a clear, specific message. Reference any new
+     bugs filed during Phase 2b analysis (e.g., `Also filed: BUG-YYMMDDXX`).
 
 ## Constraints
 
-- **Implementation is blocked** until Phase 2 produces confirmed shared
-  understanding. This is non-negotiable.
+- **Implementation is blocked** until Phase 2 AND Phase 2b both produce
+  confirmed shared understanding. This is non-negotiable.
 - Follow test-first discipline; never fix before the failing test exists.
 - Do not work on implementation-plan tasks while bugs remain.
-- Do not pursue incidental bugs discovered during implementation.
+- Do not pursue incidental bugs discovered during implementation; file them
+  in `plan/BUGS.md` instead.
+- When Phase 2b surfaces additional issues, file each as `BUG-YYMMDDXX` and
+  implement only the confirmed-scope fix in the current run.
+- `plan/BUGS.md` MUST contain only open bugs; remove fixed entries entirely.
 - Run `uv run black vultron/ test/ && uv run flake8 vultron/ test/` before
   committing.
 - Run the full test suite exactly once per validation cycle:
