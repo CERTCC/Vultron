@@ -27,7 +27,7 @@ import os
 import time
 from contextlib import contextmanager
 from http import HTTPMethod
-from typing import Optional, Sequence, Tuple, cast
+from typing import Generator, Optional, Sequence, Tuple, cast
 
 # Third-party imports
 import requests  # type: ignore[import-untyped]
@@ -119,7 +119,7 @@ class DataLayerClient(BaseModel):
 
     base_url: str = BASE_URL
 
-    def call(self, method: HTTPMethod, path: str, **kwargs) -> dict:
+    def call(self, method: HTTPMethod, path: str, **kwargs: object) -> dict:
         """Make an HTTP request to the DataLayer API.
 
         Args:
@@ -383,7 +383,9 @@ def setup_clean_environment(
 
 
 @contextmanager
-def demo_environment(client: DataLayerClient):
+def demo_environment(
+    client: DataLayerClient,
+) -> Generator[Tuple[as_Actor, as_Actor, as_Actor], None, None]:
     """Context manager providing an isolated, clean DataLayer environment.
 
     Sets up a clean environment on entry and tears it down on exit, even

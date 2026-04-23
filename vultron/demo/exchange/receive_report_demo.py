@@ -132,7 +132,7 @@ def get_actor_by_id(
     return None
 
 
-def get_item_id(item):
+def get_item_id(item: Optional[str | object]) -> Optional[str]:
     """
     Extract ID from an ActivityStreams collection item.
 

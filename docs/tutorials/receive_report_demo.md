@@ -144,15 +144,11 @@ sequenceDiagram
     participant V as Vendor
 
     F->>V: RmSubmitReport (Offer)<br/>+ VulnerabilityReport
-    V->>V: RmInvalidateReport (TentativeReject)
-    Note over V: Report held open<br/>no case created
+    V->>F: RmInvalidateReport (TentativeReject)
+    Note over V: Case created<br/>report held in RM.INVALID
 ```
 
 ### Demo 3: Invalidate and Close Report
-
-```text
-DEMO 3: Invalidate and Close Report
-```
 
 A third report is submitted. The vendor first invalidates it
 (`RmInvalidateReport`) and then closes it (`RmCloseReport`), corresponding
@@ -165,10 +161,10 @@ sequenceDiagram
     participant V as Vendor
 
     F->>V: RmSubmitReport (Offer)<br/>+ VulnerabilityReport
-    V->>V: RmInvalidateReport (TentativeReject)
-    V->>V: RmCloseReport
+    V->>F: RmInvalidateReport (TentativeReject)
+    V->>F: RmCloseReport
     Note over V: Report closed<br/>no case created
-    V-->>F: Two activities in finder's inbox
+    Note over F: Two activities in finder's inbox
 ```
 
 ---
