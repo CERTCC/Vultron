@@ -245,6 +245,20 @@ traceability.
 
 ---
 
+## Tooling and Diagramming
+
+**`mermaid-sequence-diagrams.md`**
+Complete syntax reference for Mermaid sequence diagrams: participants,
+actors and stereotypes, aliases, actor creation/destruction, grouping,
+all arrow types (standard, half-arrow, bidirectional), activations, notes,
+loops, alt/opt, parallel, critical regions, break, background highlighting,
+comments, entity codes, sequence numbers, actor menus, CSS classes, and
+configuration parameters. Includes a quick-reference composite example.
+**Load when**: authoring or reviewing sequence diagrams in `docs/`, creating
+protocol flow diagrams, or looking up a specific Mermaid sequence syntax detail.
+
+---
+
 ## Conventions
 
 - Each file focuses on a specific topic area.
