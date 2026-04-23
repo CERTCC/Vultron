@@ -116,7 +116,7 @@ sequenceDiagram
     end
 
     F->>V: RmSubmitReport (Offer)<br/>+ VulnerabilityReport
-    Note over V: validate-report trigger;<br/>RM state = ACCEPTED
+    Note over V: "validate-report trigger<br/>RM state = ACCEPTED"
     V->>CA: CreateCase + AddReport
     V->>F: RmInviteToCase (Invite)
     F->>V: RmAcceptInviteToCase
@@ -169,7 +169,7 @@ sequenceDiagram
     C->>V: RmInviteToCase (Invite)
     V->>C: RmAcceptInviteToCase
     V->>C: Accept active embargo
-    Note over CA: 3 participants;<br/>EM state = ACTIVE
+    Note over CA: 3 participants<br/>EM state = ACTIVE
 ```
 
 ---
@@ -224,7 +224,7 @@ sequenceDiagram
     V2->>C: RmAcceptInviteToCase
     C->>V2: EmProposeEmbargo (Offer)
     V2->>C: Accept
-    Note over CA: 3 participants;<br/>Coordinator is owner;<br/>EM state = ACTIVE
+    Note over CA: 3 participants<br/>Coordinator is owner<br/>EM state = ACTIVE
 ```
 
 ---

@@ -123,7 +123,7 @@ sequenceDiagram
     F->>V: RmSubmitReport (Offer)<br/>+ VulnerabilityReport
     Note over V: Stores offer and report
     V->>V: RmValidateReport (Accept)
-    Note over V: Validation BT runs;<br/>case created
+    Note over V: Validation BT runs<br/>case created
     V->>F: CreateCase notification
 ```
 
@@ -145,7 +145,7 @@ sequenceDiagram
 
     F->>V: RmSubmitReport (Offer)<br/>+ VulnerabilityReport
     V->>V: RmInvalidateReport (TentativeReject)
-    Note over V: Report held open;<br/>no case created
+    Note over V: Report held open<br/>no case created
 ```
 
 ### Demo 3: Invalidate and Close Report
@@ -167,7 +167,7 @@ sequenceDiagram
     F->>V: RmSubmitReport (Offer)<br/>+ VulnerabilityReport
     V->>V: RmInvalidateReport (TentativeReject)
     V->>V: RmCloseReport
-    Note over V: Report closed;<br/>no case created
+    Note over V: Report closed<br/>no case created
     V-->>F: Two activities in finder's inbox
 ```
 

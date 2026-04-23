@@ -172,7 +172,7 @@ sequenceDiagram
     O->>P: RmInviteToCase (Invite)
     alt Participant accepts
         P-->>O: RmAcceptInviteToCase
-        Note over O: CaseParticipant created;<br/>added to case
+        Note over O: CaseParticipant created<br/>added to case
         Note over O: Participant status updated
         O->>P: Remove from case
     else Participant rejects
@@ -266,8 +266,7 @@ sequenceDiagram
     participant C as Coordinator
     participant V as Vendor
 
-    rect rgb(220, 245, 220)
-        Note over C,V: Path 1 - Activate then terminate
+    alt  Path 1 - Activate then terminate
         C->>V: EmProposeEmbargo (Offer)
         V-->>C: Accept
         Note over C,V: EM state = ACTIVE
@@ -275,8 +274,7 @@ sequenceDiagram
         Note over C,V: EM state = NONE
     end
 
-    rect rgb(245, 220, 220)
-        Note over C,V: Path 2 - Reject then repropose
+    alt Path 2 - Reject then repropose
         C->>V: EmProposeEmbargo (Offer)
         V-->>C: Reject
         C->>V: EmProposeEmbargo (Offer, revised)
