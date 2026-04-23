@@ -271,20 +271,7 @@ might help us to also be able to specify the patterns to use in the semantic
 extraction process as well. And it could even further decouple the core
 logic from the AS2 message details.
 
-## IDEA-26042201
-
-I notice that agents often try to "insert at specific location in file" even
-when the file is intended to be append-only, like the implementation history.
-This is a sign that the agent is not fully understanding the intended use and
-structure of the file. For append-only files, the agent should just be adding
-new content to the end of the file, not trying to edit or rearrange existing
-content. There is no need to read or understand the existing content in
-order to add new entries to an append-only file. The equivalent of a shell
-command like `echo "new entry" >> file.txt` should be the mental model for how to
-handle append-only files. The agent should not be trying to parse the file and
-figure out where to insert the new entry, it should just be adding it to the end.
-
-## IDEA-26042202
+## IDEA-26042202 bugfix skill should move fixed bugs out of BUGS.md
 
 The bugfix skill should be updated (and any relevant specs as well) to adopt
 similar behavior to what the build skill does with implementation plan tasks.
@@ -292,22 +279,3 @@ Namely: When a bug is fixed, the implementation history file should be
 appended and then the bug should be removed from BUGS.md entirely rather
 than leaving a tombstone or summary behind. BUGS.md should only contain open
 bugs, not closed ones.
-
-## IDEA-26042301 Do not check existence of append-only files before appending
-
-When adding entries to append-only files like the implementation history,
-idea history, priority history, etc., there is no need to check for the  
-existence of the file before appending. The agent can just open the file in
-append mode and write the new entry, and if the file does not exist it will
-be created automatically. This simplifies the logic and avoids unnecessary
-checks for file existence. The agent should just assume that the file is
-there or will be created as needed when appending new entries.
-
-Antipattern:
-
-```text
-Check if IDEA-HISTORY.md exists (shell)
-│ ls /Users/adh/Documents/git/vultron_pub/plan/IDEA-HISTORY.md 2>/dev/null && echo "EXISTS" || echo "NOT FOUND"
-└ 3
- lines...
-```

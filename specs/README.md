@@ -218,7 +218,8 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 ### Project and Agent Guidance
 
-- **`project-documentation.md`** - Documentation file structure and purpose
+- **`project-documentation.md`** - Documentation file structure and purpose;
+  includes append-only history write protocol (PD-05) for `plan/*HISTORY.md`
 - **`prototype-shortcuts.md`** - Permissible shortcuts for the prototype stage,
   including performance testing deferral (PROTO-07) and backward-compatibility
   / change-completeness policy (PROTO-08)

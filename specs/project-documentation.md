@@ -263,7 +263,9 @@ history from implementation work.
 - Mark blockers as resolved when fixed
 - `PD-02-001` Completed task history MUST be stored exclusively in the
   append-only `plan/IMPLEMENTATION_HISTORY.md` archive.
-  - Create `plan/IMPLEMENTATION_HISTORY.md` if it does not exist.
+  - Ensure the file exists before appending (e.g., `touch` if absent) — do
+    NOT perform a conditional existence check followed by divergent create vs.
+    append logic. See PD-05-002.
   - `plan/IMPLEMENTATION_HISTORY.md` is **append-only**: entries are never
     edited, updated, or deleted once written.
 - `PD-02-002` *(superseded)* — The tombstone one-liner format is **abolished**.
@@ -419,3 +421,53 @@ agents to quickly find technical guidance.
 - `PD-04-003` (SHOULD) Agents SHOULD run `uv run mkdocs build --strict`
   locally when modifying `docs/` files to catch issues before staging for
   commit, reducing CI failures and improving development velocity
+
+---
+
+## Append-Only History Write Protocol
+
+**Scope**: `plan/IMPLEMENTATION_HISTORY.md`, `plan/IDEA-HISTORY.md`, and
+`plan/PRIORITY_HISTORY.md` — collectively `plan/*HISTORY.md` files.
+
+These files are authoritative append-only logs. The following rules govern
+how agents write new entries to them.
+
+### Canonical Append Pattern
+
+- `PD-05-001` Agents MUST append new entries exclusively to the **end** of
+  `plan/*HISTORY.md` files. Inserting content at an arbitrary line number, a
+  specific section heading, or anywhere other than the very end of the file
+  is **prohibited**.
+- `PD-05-002` Agents MUST NOT perform a conditional existence check (e.g.,
+  `ls`, `test -f`, `os.path.exists`) before appending. Instead, agents MUST
+  unconditionally ensure the file exists using a simple guard (e.g.,
+  `touch plan/HISTORY.md`), then proceed directly to the append step.
+  The prohibited pattern is the `ls → if not found: create; if found: append`
+  decision tree.
+- `PD-05-003` Agents MUST NOT read the full content of an append-only file
+  in order to append a new entry. Only the final lines need to be inspected
+  (using `view_range` with the tail of the file) to locate the exact
+  end-of-file position.
+- `PD-05-004` Agents MUST use the following canonical append procedure:
+  1. Ensure the file exists: `touch <file>` (no-op if already present).
+  2. Write the new entry to a temporary file, then append that file to the
+     target using `bash("cat /tmp/entry.md >> plan/HISTORY.md")` — or use
+     Python `open(file, 'a')` for content that contains shell-special
+     characters. Do NOT use the `edit` tool for appending, because `edit`
+     requires a unique `old_str` anchor that is not guaranteed in files with
+     repeated structural patterns.
+  3. Verify the entry was written correctly: read the tail with
+     `bash("tail -30 <file>")` to confirm the content appears as expected.
+- `PD-05-005` Agents MUST NOT edit, reorder, or remove any existing entry
+  from a `plan/*HISTORY.md` file. Once written, a history entry is permanent.
+
+### Rationale
+
+> Append-only files are authoritative event logs. Reading the entire file
+> before appending wastes context-window tokens and creates the opportunity
+> to "understand the structure" and then insert at the wrong location.
+> Existence checks followed by divergent code paths are unnecessary complexity
+> because `touch` is a safe, idempotent no-op. Post-append verification with
+> `tail` provides the safety check without requiring pre-append reads.
+
+**Source**: IDEA-26042201, IDEA-26042301

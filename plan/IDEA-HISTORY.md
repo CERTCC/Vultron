@@ -70,3 +70,47 @@ port itself as an acceptance criteria that raises an exception when violated.
 
 **Processed**: 2026-04-23 — design decisions captured in
 `specs/outbox.md` (OX-08-001 through OX-08-004) and `notes/outbox.md`.
+
+---
+
+## IDEA-26042201 append-only means append, not "insert at specific location"
+
+I notice that agents often try to "insert at specific location in file" even
+when the file is intended to be append-only, like the implementation history.
+This is a sign that the agent is not fully understanding the intended use and
+structure of the file. For append-only files, the agent should just be adding
+new content to the end of the file, not trying to edit or rearrange existing
+content. There is no need to read or understand the existing content in
+order to add new entries to an append-only file. The equivalent of a shell
+command like `echo "new entry" >> file.txt` should be the mental model for how to
+handle append-only files. The agent should not be trying to parse the file and
+figure out where to insert the new entry, it should just be adding it to the end.
+
+**Processed**: 2026-04-23 — design decisions captured in
+`specs/project-documentation.md` (PD-05-001 through PD-05-005) and
+`notes/append-only-file-handling.md`.
+
+---
+
+## IDEA-26042301 Do not check existence of append-only files before appending
+
+When adding entries to append-only files like the implementation history,
+idea history, priority history, etc., there is no need to check for the
+existence of the file before appending. The agent can just open the file in
+append mode and write the new entry, and if the file does not exist it will
+be created automatically. This simplifies the logic and avoids unnecessary
+checks for file existence. The agent should just assume that the file is
+there or will be created as needed when appending new entries.
+
+Antipattern:
+
+```text
+Check if IDEA-HISTORY.md exists (shell)
+│ ls /Users/adh/Documents/git/vultron_pub/plan/IDEA-HISTORY.md 2>/dev/null && echo "EXISTS" || echo "NOT FOUND"
+└ 3
+ lines...
+```
+
+**Processed**: 2026-04-23 — design decisions captured in
+`specs/project-documentation.md` (PD-05-001 through PD-05-005) and
+`notes/append-only-file-handling.md`.

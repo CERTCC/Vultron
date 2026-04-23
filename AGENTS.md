@@ -1506,9 +1506,31 @@ lines). Completed phase details and historical implementation notes belong
 in `plan/IMPLEMENTATION_HISTORY.md` (append-only; create if absent). See
 `specs/project-documentation.md` `PD-02-001`.
 
-### IMPLEMENTATION_HISTORY.md is append-only
+### `plan/*HISTORY.md` files are append-only
 
-`plan/IMPLEMENTATION_HISTORY.md` is an **append-only** log of completed tasks.
-New entries MUST be added to the **end** of the file, not inserted at the top
-or in the middle. Past entries MUST NOT be edited. When adding a completion
-entry, append it after the last existing entry.
+`plan/IMPLEMENTATION_HISTORY.md`, `plan/IDEA-HISTORY.md`, and
+`plan/PRIORITY_HISTORY.md` are **append-only** logs. All new entries MUST be
+added at the **end** of the file. Past entries MUST NOT be edited or removed.
+
+**Canonical append procedure** (PD-05-004):
+
+1. Ensure the file exists: `bash("touch <file>")` — safe no-op if already
+   present; creates an empty file if absent. Do NOT run an existence check
+   (`ls`, `test -f`) before this step.
+2. Append using `bash` with `cat >> <file>` (heredoc for simple content) or
+   Python `open(file, 'a')` (for content with shell-special characters). Do
+   NOT use the `edit` tool for appending — `edit` requires a unique `old_str`
+   anchor, which history files cannot guarantee.
+3. Verify: `bash("tail -30 <file>")` to confirm the entry was written
+   correctly.
+
+**Prohibited patterns** (both are bugs — fix if you see them):
+
+- `ls plan/IDEA-HISTORY.md && ... || ...` — existence-check decision tree
+- `view(plan/IMPLEMENTATION_HISTORY.md)` without `view_range` — full-file
+  read before appending
+- Inserting new content at a specific line or before an existing section
+  heading instead of at the end
+
+See `specs/project-documentation.md` PD-05-001 through PD-05-005 and
+`notes/append-only-file-handling.md` for full guidance.
