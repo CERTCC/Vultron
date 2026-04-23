@@ -27,7 +27,7 @@ import os
 import time
 from contextlib import contextmanager
 from http import HTTPMethod
-from typing import Generator, Optional, Sequence, Tuple, cast
+from typing import Any, Generator, Optional, Sequence, Tuple, cast
 
 # Third-party imports
 import requests  # type: ignore[import-untyped]
@@ -119,7 +119,7 @@ class DataLayerClient(BaseModel):
 
     base_url: str = BASE_URL
 
-    def call(self, method: HTTPMethod, path: str, **kwargs: object) -> dict:
+    def call(self, method: HTTPMethod, path: str, **kwargs: Any) -> dict:
         """Make an HTTP request to the DataLayer API.
 
         Args:

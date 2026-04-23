@@ -176,7 +176,7 @@ def _print_summary(results: list[tuple[str, bool, str]]) -> None:
     envvar="VULTRON_SEED_CONFIG",
     default=None,
     metavar="PATH",
-    help="Path to a JSON seed config file. Overrides individual options.",
+    help="Path to a YAML seed config file. Overrides individual options.",
 )
 @click.option(
     "--actor-name",
@@ -219,7 +219,7 @@ def seed(
     Configuration is loaded from (in decreasing priority):
 
     \b
-    1. A JSON config file (``--config`` / ``VULTRON_SEED_CONFIG``).
+    1. A YAML config file (``--config`` / ``VULTRON_SEED_CONFIG``).
     2. Individual CLI options / environment variables.
     """
     logger = logging.getLogger(__name__)

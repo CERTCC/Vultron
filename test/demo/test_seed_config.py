@@ -14,10 +14,10 @@
 """Tests for the seed configuration model (D5-1-G2).
 
 Covers ``SeedConfig``, ``LocalActorConfig``, and ``PeerActorConfig`` loaded
-from environment variables and from a JSON file.
+from environment variables and from a YAML file.
 """
 
-import json
+import yaml
 
 import pytest
 
@@ -124,8 +124,8 @@ class TestSeedConfigFromFile:
                 "id": "http://finder:7999/api/v2/actors/finder-uuid",
             }
         }
-        config_file = tmp_path / "seed.json"
-        config_file.write_text(json.dumps(data))
+        config_file = tmp_path / "seed.yaml"
+        config_file.write_text(yaml.dump(data))
         cfg = SeedConfig.from_file(str(config_file))
         assert cfg.local_actor.name == "Finder"
         assert cfg.local_actor.actor_type == "Person"
@@ -155,8 +155,8 @@ class TestSeedConfigFromFile:
                 },
             ],
         }
-        config_file = tmp_path / "seed.json"
-        config_file.write_text(json.dumps(data))
+        config_file = tmp_path / "seed.yaml"
+        config_file.write_text(yaml.dump(data))
         cfg = SeedConfig.from_file(str(config_file))
         assert len(cfg.peers) == 2
         assert cfg.peers[0].name == "Vendor"
@@ -164,11 +164,11 @@ class TestSeedConfigFromFile:
 
     def test_from_file_not_found_raises(self):
         with pytest.raises(FileNotFoundError):
-            SeedConfig.from_file("/nonexistent/path/seed.json")
+            SeedConfig.from_file("/nonexistent/path/seed.yaml")
 
     def test_from_file_invalid_schema_raises(self, tmp_path):
-        config_file = tmp_path / "bad.json"
-        config_file.write_text('{"bad_key": "bad_value"}')
+        config_file = tmp_path / "bad.yaml"
+        config_file.write_text("bad_key: bad_value\n")
         with pytest.raises(Exception):
             SeedConfig.from_file(str(config_file))
 
@@ -184,8 +184,8 @@ class TestSeedConfigLoad:
                 "id": "http://example.org/actors/fromfile",
             }
         }
-        config_file = tmp_path / "seed.json"
-        config_file.write_text(json.dumps(data))
+        config_file = tmp_path / "seed.yaml"
+        config_file.write_text(yaml.dump(data))
         monkeypatch.delenv("VULTRON_SEED_CONFIG", raising=False)
         cfg = SeedConfig.load(config_path=str(config_file))
         assert cfg.local_actor.name == "FromFile"
@@ -198,8 +198,8 @@ class TestSeedConfigLoad:
                 "id": "http://f/a",
             }
         }
-        config_file = tmp_path / "seed.json"
-        config_file.write_text(json.dumps(data))
+        config_file = tmp_path / "seed.yaml"
+        config_file.write_text(yaml.dump(data))
         monkeypatch.setenv("VULTRON_SEED_CONFIG", str(config_file))
         cfg = SeedConfig.load()
         assert cfg.local_actor.name == "EnvFile"
@@ -223,10 +223,10 @@ class TestSeedConfigLoad:
             "local_actor": {"name": "ExplicitFileActor", "id": "http://exp/a"}
         }
 
-        env_file = tmp_path / "env_seed.json"
-        env_file.write_text(json.dumps(env_data))
-        explicit_file = tmp_path / "explicit_seed.json"
-        explicit_file.write_text(json.dumps(explicit_data))
+        env_file = tmp_path / "env_seed.yaml"
+        env_file.write_text(yaml.dump(env_data))
+        explicit_file = tmp_path / "explicit_seed.yaml"
+        explicit_file.write_text(yaml.dump(explicit_data))
 
         monkeypatch.setenv("VULTRON_SEED_CONFIG", str(env_file))
         cfg = SeedConfig.load(config_path=str(explicit_file))

@@ -617,3 +617,20 @@ redundant follow-up patch.
 - Rationale: the case creator is the case owner by default, so the owner should
   not be able to create or receive a case in a state where they are effectively
   locked out of their own active embargo until a separate accept step occurs.
+
+---
+
+### 2026-04-23 TOOLS-1 — Python 3.14 deferred
+
+Python 3.14.0rc2 is available but the test suite fails with:
+
+```text
+TypeError: _eval_type() got an unexpected keyword argument 'prefer_fwd_module'
+Unable to evaluate type annotation 'ClassVar[MetaData]'
+```
+
+Root cause: `pydantic==2.13.3` uses the old `typing._eval_type()` call
+signature that Python 3.14 removed. There is no Pydantic update available
+that resolves this. Revisit when Pydantic releases Python 3.14-compatible
+builds. Until then, `requires-python = ">=3.12"` and docker base image
+`python:3.13-slim-bookworm` are unchanged.

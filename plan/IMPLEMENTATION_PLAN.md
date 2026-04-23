@@ -15,31 +15,11 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 
 **Reference**: `plan/PRIORITIES.md` PRIORITY 350
 
-- [ ] **TOOLS-1**: Evaluate Python 3.14 compatibility. Run the test suite on a
-  Python 3.14 branch; if tests pass without issue, update `requires-python`
-  in `pyproject.toml` to `>=3.14`, and update docker base images to use
-  Python 3.14.
-
 - [ ] **DOCS-3**: Update `notes/user-stories-trace.md` (the traceability
   matrix) to map every user story in `docs/topics/user_stories` to the
   exact implementing requirements in `specs/`. Add a mapping for each story
   and mark stories lacking requirement coverage. Add a new section in
   `plan/IMPLEMENTATION_NOTES.md` listing stories with insufficient coverage.
-
-- [ ] **CONFIG-1**: Replace or supplement JSON/env-var actor configuration
-  with YAML config files loaded into validated Pydantic models
-  (IDEA-260402-01).
-  - Load YAML into a dict (`yaml.safe_load()`), validate via a Pydantic
-    `ActorConfig` model with typed nested sections (actor identity, peer
-    mesh, DataLayer backend settings).
-  - Replace the current `VULTRON_SEED_CONFIG` JSON path with a YAML
-    equivalent; keep env-var overrides for backwards compatibility.
-  - Update `vultron/demo/cli.py` `seed` sub-command to accept YAML seed
-    configs in addition to JSON.
-  - Add unit tests for round-trip load/validate of example seed configs.
-  - `pyyaml` is already an indirect dependency (via `docker-compose` test
-    helper); add `pyyaml` and `types-pyyaml` to `pyproject.toml` if not
-    already present.
 
 ---
 
