@@ -27,7 +27,7 @@ The section can proceed in parallel with PRIORITY-360.
 
 **State**: BLOCKED — waiting for P347-* and SYNC-4 completion
 
-- [ ] **D5-7-HUMAN**: Project owner sign off. Agents are forbidden from
+- [x] **D5-7-HUMAN**: Project owner sign off. Agents are forbidden from
   updating this task; a human must confirm that all of the following are
   complete before signing off:
   - All P347-* tasks above
