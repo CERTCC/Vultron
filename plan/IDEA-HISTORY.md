@@ -53,3 +53,20 @@ we do not want to take on right now.
 **Processed**: 2026-04-23 — folded into IDEA-26040903 processing; design
 decisions captured in `specs/prototype-shortcuts.md` (PROTO-08-001 through
 PROTO-08-004).
+
+---
+
+## IDEA-26041001 Outbox posting must have `to:` field requirement
+
+The fact that D5-7-TRIGNOTIFY-1 even had to be a task is an indicator that
+we are missing a requirement: Only activities can be posted to an outbox.
+And activities must have a `to:` field. We are not supporting `bto:` or
+`cc:` or `bcc:`, and so far we are assuming that all Vultron exchanges are
+DMs. There
+are no public messages (which in ActivityPub would be an Activity lacking a
+`to:`). So we should make it a requirement (or two) that only activities
+with a `to:` field can be posted an outbox, and this should be on the outbox
+port itself as an acceptance criteria that raises an exception when violated.
+
+**Processed**: 2026-04-23 — design decisions captured in
+`specs/outbox.md` (OX-08-001 through OX-08-004) and `notes/outbox.md`.

@@ -62,18 +62,6 @@ there's only one Case Actor per case operated by the case creator/owner.
 local copy of the case object and are not directly writing to their own copy
 either but routing their updates through the Case Actor too).
 
-## IDEA-26041001 Outbox posting must have `to:` field requirement
-
-The fact that D5-7-TRIGNOTIFY-1 even had to be a task is an indicator that
-we are missing a requirement: Only activities can be posted to an outbox.
-And activities must have a `to:` field. We are not supporting `bto:` or
-`cc:` or `bcc:`, and so far we are assuming that all Vultron exchanges are
-DMs. There
-are no public messages (which in ActivityPub would be an Activity lacking a
-`to:`). So we should make it a requirement (or two) that only activities
-with a `to:` field can be posted an outbox, and this should be on the outbox
-port itself as an acceptance criteria that raises an exception when violated.
-
 ## IDEA-26041002 Default embargo should result in `EM.ACTIVE` not `EM.PROPOSED`
 
 Contrary to what was implemented in `D5-7-EMSTATE-1`, when a default embargo
@@ -304,3 +292,22 @@ Namely: When a bug is fixed, the implementation history file should be
 appended and then the bug should be removed from BUGS.md entirely rather
 than leaving a tombstone or summary behind. BUGS.md should only contain open
 bugs, not closed ones.
+
+## IDEA-26042301 Do not check existence of append-only files before appending
+
+When adding entries to append-only files like the implementation history,
+idea history, priority history, etc., there is no need to check for the  
+existence of the file before appending. The agent can just open the file in
+append mode and write the new entry, and if the file does not exist it will
+be created automatically. This simplifies the logic and avoids unnecessary
+checks for file existence. The agent should just assume that the file is
+there or will be created as needed when appending new entries.
+
+Antipattern:
+
+```text
+Check if IDEA-HISTORY.md exists (shell)
+│ ls /Users/adh/Documents/git/vultron_pub/plan/IDEA-HISTORY.md 2>/dev/null && echo "EXISTS" || echo "NOT FOUND"
+└ 3
+ lines...
+```

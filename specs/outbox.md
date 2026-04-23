@@ -113,12 +113,51 @@ is deferred to future work.
 - Integration test: Recipient inbox receives activity with string `actor`
   and full typed `object_`
 
+## Outbox Addressing
+
+Vultron protocol exchanges are direct messages (DMs). All outbound activities
+MUST be explicitly addressed to at least one recipient via the `to:` field.
+Public addressing (activities without a `to:` field) is not supported.
+
+- `OX-08-001` Every activity posted to an actor's outbox MUST have a non-empty
+  `to:` field
+  - An absent `to:` (value is `None`) MUST be rejected
+  - An empty list `to: []` MUST be rejected
+  - **Rationale**: Vultron exchanges are direct messages; there are no public
+    or broadcast activities in the protocol
+- `OX-08-002` The `to:` field on outbound activities MUST be a list containing
+  at least one URI string
+  - Non-list scalar values (e.g. a bare string) MUST also be accepted as valid
+    (they identify a single recipient)
+- `OX-08-003` `handle_outbox_item` MUST raise `VultronOutboxToFieldMissingError`
+  when it detects a missing or empty `to:` field
+  - The `outbox_handler` error-recovery loop re-queues the item (up to the
+    configured error limit)
+  - See `vultron/errors.py` for the exception class definition
+- `OX-08-004` If an outbound activity carries non-empty `cc:`, `bto:`, or
+  `bcc:` fields, the outbox handler SHOULD log a WARNING
+  - These fields are not used for Vultron addressing; their presence indicates
+    a likely bug in the producing use case or BT node
+  - Delivery MUST NOT be blocked solely because these fields are present
+
+### OX-08-001 through OX-08-004 Verification
+
+- Unit test: Activity with `to=None` → `VultronOutboxToFieldMissingError` raised
+- Unit test: Activity with `to=[]` → `VultronOutboxToFieldMissingError` raised
+- Unit test: Activity with `to=["https://example.org/alice"]` → no exception
+- Unit test: Activity with `to=None` but `cc=["https://example.org/alice"]` →
+  `VultronOutboxToFieldMissingError` raised (cc does not substitute for to)
+- Unit test: Activity with `to=["https://example.org/alice"]` and
+  `cc=["https://example.org/bob"]` → WARNING logged, delivery proceeds
+- Integration test: Trigger use case that omits `to:` is caught before delivery
+
 ## Related
 
 - **Response Format**: `specs/response-format.md` (response activity structure)
 - **Idempotency**: `specs/idempotency.md` (duplicate delivery prevention)
 - **Inbox Endpoint**: `specs/inbox-endpoint.md` (receiving delivered activities)
 - **Handler Protocol**: `specs/handler-protocol.md` (handler generates responses)
+- **Outbox Addressing Notes**: `notes/outbox.md` (implementation guidance)
 - **Implementation**: `vultron/core/use_cases/` (outbox population in use-case handlers)
 - **Implementation**: `vultron/adapters/driven/delivery_queue.py` (delivery queue)
 - **Implementation**: `vultron/adapters/driving/fastapi/outbox_handler.py` (outbox delivery)

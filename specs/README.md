@@ -163,7 +163,8 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 **Future Implementation**:
 
 - **`response-format.md`** - ActivityStreams response generation (Accept, Reject, etc.)
-- **`outbox.md`** - Actor outbox structure and delivery
+- **`outbox.md`** - Actor outbox structure, delivery, and addressing
+  (OX-01 through OX-08)
 
 ### Synchronization
 
