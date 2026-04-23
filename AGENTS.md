@@ -755,7 +755,7 @@ The skill files contain the exact commands and the required invocation order.
 3. The test suite must pass before committing — read the single-run test
    output as documented in the skill file (the skill explains how to capture
    the summary line and why you must not re-run pytest to grep for counts).
-4. Documentation MUST build cleanly (`mkdocs build --strict`) whenever `docs/`
+4. Documentation MUST build cleanly (use `build-docs` skill) whenever `docs/`
    files are modified. This catches broken links and invalid markdown before CI
    fails.
 
@@ -768,9 +768,11 @@ The skill files contain the exact commands and the required invocation order.
 
 **When to run docs build**:
 
-- After editing any files in `docs/`, before staging for commit
-- Run `uv run mkdocs build --strict` (see `.github/skills/build-docs/SKILL.md`)
+- After editing any files in `docs/` before staging for commit
+- See `.github/skills/build-docs/SKILL.md` for the exact command and instructions
 - Fix all reported broken links and anchor issues before staging
+- Do not run the docs build if you did not modify any
+  `docs/` files
 
 **Alternative**: If you forget and the pre-commit hook reformats files, simply:
 
