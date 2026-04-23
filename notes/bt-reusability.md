@@ -12,7 +12,7 @@ to avoid.
 - `notes/bt-integration.md` — Architecture decisions and design rationale
 - `notes/vultron-bt.txt` — Canonical simulation BT structure (reference)
 - `specs/behavior-tree-integration.md` — Formal requirements (BT-06-*)
-- `specs/behavior-tree-node-design.md` — Node design specification (TBD via P360-SPEC)
+- `specs/behavior-tree-node-design.md` — Node design specification (BTND-01 through BTND-04)
 
 ---
 
@@ -555,4 +555,4 @@ Before adding a new BT node or subtree, check:
 - `notes/vultron-bt.txt` — Canonical simulation BT structure (reference)
 - `notes/use-case-behavior-trees.md` — Use-case orchestration patterns
 - `specs/behavior-tree-integration.md` — Formal requirements (BT-06-*)
-- `specs/behavior-tree-node-design.md` — Node design specification (via P360-SPEC)
+- `specs/behavior-tree-node-design.md` — Node design specification (BTND-01 through BTND-04)

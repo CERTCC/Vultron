@@ -41,7 +41,7 @@ Load additional files only when the task touches the relevant area. See the
 |-------|-------------|
 | DataLayer adapter | `datalayer.md` |
 | Handler pipeline | `inbox-endpoint.md`, `message-validation.md`, `semantic-extraction.md`, `dispatch-routing.md` |
-| Behavior Trees | `behavior-tree-integration.md`, `triggerable-behaviors.md` |
+| Behavior Trees | `behavior-tree-integration.md`, `behavior-tree-node-design.md`, `triggerable-behaviors.md` |
 | Case / state management | `case-management.md`, `state-machine.md`, `case-log-processing.md` |
 | Protocol conformance | `vultron-protocol-spec.md`, `vultron-as2-mapping.md` |
 | Wire vocabulary | `vocabulary-model.md` |
@@ -104,6 +104,8 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 **Behavior Tree Integration** (optional for complex workflows):
 
 - **`behavior-tree-integration.md`** - BT execution model, bridge layer, DataLayer integration
+- **`behavior-tree-node-design.md`** - BT node parameterization, composability, reuse, and
+  blackboard interface contracts (BTND-01 through BTND-04)
 - **`triggerable-behaviors.md`** - Trigger API for actor-initiated behaviors (PRIORITY 30):
   endpoint format, RM/EM candidate behaviors, request/response schema,
   BT integration, per-actor DataLayer dependency, outbox activity requirement
@@ -264,6 +266,7 @@ is reserved for `testability.md`).
 | `ARCH` | `architecture.md` |
 | `AR` | `agentic-readiness.md` |
 | `BT` | `behavior-tree-integration.md` |
+| `BTND` | `behavior-tree-node-design.md` |
 | `CI-SEC` | `ci-security.md` |
 | `CLP` | `case-log-processing.md` |
 | `CM` | `case-management.md` |

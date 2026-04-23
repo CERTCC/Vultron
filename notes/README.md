@@ -107,6 +107,15 @@ and subtree composition examples.
 uses py_trees, deciding whether a new use case needs a BT, or diagnosing BT
 execution issues.
 
+**`bt-reusability.md`**
+Fractal composability pattern for BT nodes and subtrees: the "trunkless branch"
+model, parameterization guidelines, anti-patterns (hard-coded actor roles,
+demo-specific logic in nodes, one-off subtrees, duplicated logic), and a
+composability checklist. Operationalizes `specs/behavior-tree-node-design.md`
+(BTND-01 through BTND-04).
+**Load when**: designing a new BT node or subtree, auditing existing nodes for
+composability violations, or refactoring near-duplicate BT implementations.
+
 **`bt-fuzzer-nodes.md`**
 Structured catalog (~1,500 lines) of all fuzzer nodes in the legacy BT
 simulation, organized by topic with automation potential ratings. A ToC at the

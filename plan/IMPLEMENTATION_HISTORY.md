@@ -7866,3 +7866,46 @@ AGENTS.md, and prompts/ following the archival of several notes files.
   "Planned" to "Complete" (PRIORITY-325 completed 2026-04-14).
 
 **Validation**: `./mdlint.sh` — 0 errors across 483 files.
+
+---
+
+## P360-SPEC — BT Node Design Spec (COMPLETE 2026-04-23)
+
+**Task**: Create `specs/behavior-tree-node-design.md` (formal requirements for
+BT node parameterization and composability) and register `notes/bt-reusability.md`
+in relevant index files.
+
+**Changes**:
+
+- Created `specs/behavior-tree-node-design.md` with formal requirements
+  BTND-01 through BTND-04 covering node parameterization, composability and
+  reuse, blackboard interface contracts, and module ownership.
+- Updated `specs/README.md`: registered `behavior-tree-node-design.md` in the
+  BT section, contextual load table, and `BTND` prefix registry.
+- Updated `notes/bt-reusability.md`: replaced "(TBD via P360-SPEC)" references
+  with the actual spec file and requirement IDs.
+- Updated `notes/README.md`: added `bt-reusability.md` entry to the BT section.
+
+---
+
+## P360-AUDIT — BT Composability Audit (COMPLETE 2026-04-23)
+
+**Task**: Audit existing BT nodes in `vultron/core/behaviors/` against
+`specs/behavior-tree-node-design.md`; produce a task list of refactoring work.
+
+**Findings**:
+
+Three composability violations were identified and added to
+`plan/IMPLEMENTATION_PLAN.md` as P360-FIX-1 through P360-FIX-3:
+
+1. **P360-FIX-1** — `UpdateActorOutbox` duplicated in `report/nodes.py` and
+   `case/nodes.py` (BTND-04-001, BTND-02-001); extract to `helpers.py`.
+
+2. **P360-FIX-2** — `CreateInitialVendorParticipant` and
+   `CreateCaseParticipantNode` share overlapping DataLayer write logic with
+   different (non-identical) semantics (BTND-02-001); extract a shared
+   `_create_and_attach_participant()` helper function; keep thin wrappers.
+
+3. **P360-FIX-3** — `RecordCaseCreationEvents` (and possibly other nodes)
+   read blackboard keys without declaring them in `setup()` (BTND-03-001,
+   BTND-03-002); audit all nodes and add `register_key()` calls.
