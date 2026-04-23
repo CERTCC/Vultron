@@ -36,7 +36,7 @@ from py_trees.common import Status
 from vultron.core.models.embargo_event import VultronEmbargoEvent
 from vultron.core.models.enums import VultronObjectType
 from vultron.core.models.participant_status import VultronParticipantStatus
-from vultron.core.models.protocols import has_outbox, is_case_model
+from vultron.core.models.protocols import CaseModel, has_outbox, is_case_model
 from vultron.core.models.vultron_types import (
     VultronCase,
     VultronCaseActor,
@@ -54,6 +54,8 @@ from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerCondition,
 )
+from vultron.core.behaviors.helpers import UpdateActorOutbox  # noqa: F401
+from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases._helpers import (
     _report_phase_status_id,
     update_participant_rm_state,
@@ -405,6 +407,73 @@ class SetCaseAttributedTo(DataLayerAction):
         return Status.SUCCESS
 
 
+def _create_and_attach_participant(
+    dl: DataLayer,
+    participant: "VultronParticipant",
+    case_id: str,
+    actor_id_for_index: str,
+    node_logger: logging.Logger,
+) -> "CaseModel | None":
+    """
+    Create a VultronParticipant in the DataLayer if it does not exist,
+    attach it to the case, and return the **unsaved** updated case object.
+
+    The caller is responsible for any additional case mutations (e.g.,
+    ``record_event``, RM advancement) and for calling ``dl.save(case)``
+    after this function returns.
+
+    Args:
+        dl: DataLayer instance for persistence.
+        participant: The participant object to create and attach.
+        case_id: ID of the case to attach the participant to.
+        actor_id_for_index: Actor ID key for the case's
+            ``actor_participant_index``.
+        node_logger: Logger from the calling BT node.
+
+    Returns:
+        The updated (unsaved) case object on success, or ``None`` if the
+        case was not found.
+    """
+    if dl.read(participant.id_) is None:
+        dl.create(participant)
+        node_logger.info(
+            "Created CaseParticipant '%s' for actor '%s'",
+            participant.id_,
+            participant.attributed_to,
+        )
+    else:
+        node_logger.debug(
+            "CaseParticipant %s already exists — skipping creation",
+            participant.id_,
+        )
+
+    stored_case = dl.read(case_id)
+    if not is_case_model(stored_case):
+        node_logger.error("Case %s not found in DataLayer", case_id)
+        return None
+
+    existing_ids = {
+        p.id_ if hasattr(p, "id_") else p
+        for p in stored_case.case_participants
+    }
+    if participant.id_ not in existing_ids:
+        stored_case.case_participants.append(participant.id_)
+    if (
+        stored_case.actor_participant_index.get(actor_id_for_index)
+        != participant.id_
+    ):
+        stored_case.actor_participant_index[actor_id_for_index] = (
+            participant.id_
+        )
+
+    node_logger.info(
+        "CaseParticipant '%s' attached to case '%s'",
+        participant.id_,
+        stored_case.id_,
+    )
+    return stored_case
+
+
 class CreateInitialVendorParticipant(DataLayerAction):
     """
     Create and persist a VendorParticipant for the receiving actor, then
@@ -494,55 +563,26 @@ class CreateInitialVendorParticipant(DataLayerAction):
                 case_roles=[CVDRoles.VENDOR],
                 participant_statuses=[initial_status],
             )
-            if self.datalayer.read(participant.id_) is None:
-                self.datalayer.create(participant)
-                self.logger.info(
-                    "Created CaseParticipant '%s' for actor '%s'"
-                    " (roles: [VENDOR], rm_state: %s)",
-                    participant.id_,
-                    self.actor_id,
-                    self.initial_rm_state.name,
-                )
-            else:
-                self.logger.debug(
-                    "%s: VendorParticipant %s already exists — skipping"
-                    " creation",
-                    self.name,
-                    participant.id_,
-                )
 
-            stored_case = self.datalayer.read(case_id)
-            if not is_case_model(stored_case):
+            stored_case = _create_and_attach_participant(
+                self.datalayer,
+                participant,
+                case_id,
+                self.actor_id,
+                self.logger,
+            )
+            if stored_case is None:
                 self.logger.error(
                     f"{self.name}: Case {case_id} not found in DataLayer"
                 )
                 return Status.FAILURE
-
-            existing_ids = {
-                p.id_ if hasattr(p, "id_") else p
-                for p in stored_case.case_participants
-            }
-            if participant.id_ not in existing_ids:
-                stored_case.case_participants.append(participant.id_)
-            if (
-                stored_case.actor_participant_index.get(self.actor_id)
-                != participant.id_
-            ):
-                stored_case.actor_participant_index[self.actor_id] = (
-                    participant.id_
-                )
-            self.datalayer.save(stored_case)
-            self.logger.info(
-                "CaseParticipant '%s' attached to case '%s'",
-                participant.id_,
-                stored_case.id_,
-            )
 
             # Optionally advance vendor RM to ACCEPTED — creating the case
             # is the act of engaging it in the validate-report BT, so no
             # separate engage-case trigger is needed.  The create-case BT
             # seeds VALID only (ADR-0013).
             if self.advance_to_accepted:
+                self.datalayer.save(stored_case)
                 advanced = update_participant_rm_state(
                     case_id, self.actor_id, RM.ACCEPTED, self.datalayer
                 )
@@ -561,6 +601,8 @@ class CreateInitialVendorParticipant(DataLayerAction):
                         self.actor_id,
                         case_id,
                     )
+            else:
+                self.datalayer.save(stored_case)
 
             return Status.SUCCESS
 
@@ -595,6 +637,9 @@ class RecordCaseCreationEvents(DataLayerAction):
         self.blackboard.register_key(
             key="case_id", access=py_trees.common.Access.READ
         )
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.READ
+        )
 
     def update(self) -> Status:
         if self.datalayer is None:
@@ -617,13 +662,11 @@ class RecordCaseCreationEvents(DataLayerAction):
                 return Status.FAILURE
 
             # Backfill originating offer receipt if available.
-            # Read directly from global storage — activity is optional and may
-            # not be written to the blackboard when the tree is invoked without
-            # an inbound activity. The blackboard storage key includes the root
-            # namespace prefix "/".
-            activity = py_trees.blackboard.Blackboard.storage.get(
-                "/activity", None
-            )
+            # The activity key is optional — the node handles its absence.
+            try:
+                activity = self.blackboard.get("activity")
+            except KeyError:
+                activity = None
             if activity is not None:
                 offer_ref = getattr(activity, "in_reply_to", None)
                 if offer_ref is not None:
@@ -887,51 +930,21 @@ class CreateCaseParticipantNode(DataLayerAction):
                 ),
             )
 
-            if self.datalayer.read(participant.id_) is None:
-                self.datalayer.create(participant)
-                self.logger.info(
-                    "Created CaseParticipant '%s' for actor '%s'"
-                    " (roles: %s, rm_state: RM.ACCEPTED)",
-                    participant.id_,
-                    self.participant_actor_id,
-                    [r.name for r in self.roles],
-                )
-            else:
-                self.logger.debug(
-                    "%s: CaseParticipant %s already exists — skipping",
-                    self.name,
-                    participant.id_,
-                )
-
-            stored_case = self.datalayer.read(case_id)
-            if not is_case_model(stored_case):
+            stored_case = _create_and_attach_participant(
+                self.datalayer,
+                participant,
+                case_id,
+                self.participant_actor_id,
+                self.logger,
+            )
+            if stored_case is None:
                 self.logger.error(
                     f"{self.name}: Case {case_id} not found in DataLayer"
                 )
                 return Status.FAILURE
 
-            existing_ids = {
-                p.id_ if hasattr(p, "id_") else p
-                for p in stored_case.case_participants
-            }
-            if participant.id_ not in existing_ids:
-                stored_case.case_participants.append(participant.id_)
-            if (
-                stored_case.actor_participant_index.get(
-                    self.participant_actor_id
-                )
-                != participant.id_
-            ):
-                stored_case.actor_participant_index[
-                    self.participant_actor_id
-                ] = participant.id_
             stored_case.record_event(participant.id_, "participant_added")
             self.datalayer.save(stored_case)
-            self.logger.info(
-                "CaseParticipant '%s' attached to case '%s'",
-                participant.id_,
-                case_id,
-            )
 
             # Emit Add activity with a fully typed CaseParticipant object
             # (not a bare string ID) to satisfy MV-09-001.
@@ -979,72 +992,6 @@ class CreateCaseParticipantNode(DataLayerAction):
 
 # Backward-compatibility alias.
 CreateFinderParticipantNode = CreateCaseParticipantNode
-
-
-class UpdateActorOutbox(DataLayerAction):
-    """
-    Append the CreateCaseActivity activity to the actor's outbox.
-
-    Reads activity_id from blackboard (set by EmitCreateCaseActivity) and
-    appends it to the actor's outbox.items list.
-    """
-
-    def __init__(self, name: str | None = None):
-        super().__init__(name=name or self.__class__.__name__)
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="activity_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
-
-    def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                f"{self.name}: DataLayer or actor_id not available"
-            )
-            return Status.FAILURE
-
-        try:
-            activity_id = self.blackboard.get("activity_id")
-            if activity_id is None:
-                self.logger.error(
-                    f"{self.name}: activity_id not found in blackboard"
-                )
-                return Status.FAILURE
-
-            case_id = self.blackboard.get("case_id")
-
-            actor_obj = self.datalayer.read(
-                self.actor_id, raise_on_missing=True
-            )
-
-            if not has_outbox(actor_obj):
-                self.logger.error(
-                    f"{self.name}: Actor {self.actor_id} has no outbox"
-                )
-                return Status.FAILURE
-
-            actor_obj.outbox.items.append(activity_id)
-            self.datalayer.save(actor_obj)
-            # Also queue for delivery via outbox_handler
-            self.datalayer.record_outbox_item(self.actor_id, activity_id)
-            self.logger.info(
-                "Queued Create(Case '%s') activity '%s' to actor '%s' outbox"
-                " (case creation notification)",
-                case_id,
-                activity_id,
-                self.actor_id,
-            )
-
-            return Status.SUCCESS
-
-        except Exception as e:
-            self.logger.error(f"{self.name}: Error updating actor outbox: {e}")
-            return Status.FAILURE
 
 
 class CommitCaseLogEntryNode(DataLayerAction):

@@ -31,6 +31,7 @@ from typing import Any
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.models.protocols import has_outbox
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
 
 logger = logging.getLogger(__name__)
@@ -402,4 +403,90 @@ class CreateObject(DataLayerAction):
                 f"Error creating object in {self.table}: {e}"
             )
             self.logger.error(self.feedback_message)
+            return Status.FAILURE
+
+
+class UpdateActorOutbox(DataLayerAction):
+    """
+    Update actor's outbox with a new activity.
+
+    Reads ``activity_id`` and ``case_id`` from the blackboard (set by the
+    preceding activity-creation node) and appends the activity ID to the
+    actor's outbox.  Also queues the activity for delivery via
+    ``record_outbox_item``.
+
+    Per BTND-04-001: defined here as shared logic used by both
+    ``vultron/core/behaviors/report/nodes.py`` and
+    ``vultron/core/behaviors/case/nodes.py``.
+    """
+
+    def __init__(self, name: str | None = None):
+        """
+        Initialize UpdateActorOutbox node.
+
+        Args:
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+
+    def setup(self, **kwargs: Any) -> None:
+        """Set up blackboard access including activity_id and case_id keys."""
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="activity_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        """
+        Update actor's outbox with activity ID.
+
+        Returns:
+            SUCCESS if outbox updated, FAILURE on error
+        """
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                f"{self.name}: DataLayer or actor_id not available"
+            )
+            return Status.FAILURE
+
+        try:
+            activity_id = self.blackboard.get("activity_id")
+            if activity_id is None:
+                self.logger.error(
+                    f"{self.name}: activity_id not found in blackboard"
+                )
+                return Status.FAILURE
+
+            case_id = self.blackboard.get("case_id")
+
+            actor_obj = self.datalayer.read(
+                self.actor_id, raise_on_missing=True
+            )
+
+            if not has_outbox(actor_obj):
+                self.logger.error(
+                    f"{self.name}: Actor {self.actor_id} has no outbox"
+                    " or outbox.items"
+                )
+                return Status.FAILURE
+
+            actor_obj.outbox.items.append(activity_id)
+            self.datalayer.save(actor_obj)
+
+            self.datalayer.record_outbox_item(self.actor_id, activity_id)
+            self.logger.info(
+                "Queued Create(Case '%s') activity '%s' to actor '%s' outbox"
+                " (case creation notification)",
+                case_id,
+                activity_id,
+                self.actor_id,
+            )
+
+            return Status.SUCCESS
+
+        except Exception as e:
+            self.logger.error(f"{self.name}: Error updating actor outbox: {e}")
             return Status.FAILURE

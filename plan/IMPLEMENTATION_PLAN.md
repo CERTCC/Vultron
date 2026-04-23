@@ -11,52 +11,6 @@ This plan tracks forward-looking work against `specs/*` and
 priority. Section order here groups related work by execution context and MUST
 NOT override `plan/PRIORITIES.md` when the two differ.
 
-## PRIORITY-360 — BT Composability Refactoring
-
-**Reference**: `plan/PRIORITIES.md` PRIORITY 360; IDEA-26041703
-
-Can proceed in parallel with PRIORITY-347.
-
-Audit of `vultron/core/behaviors/` identified three composability violations
-per `specs/behavior-tree-node-design.md` BTND-02-001 and BTND-03-001:
-
-- [ ] **P360-FIX-1**: Extract `UpdateActorOutbox` duplicate from
-  `report/nodes.py` and `case/nodes.py` into a shared node in
-  `vultron/core/behaviors/helpers.py`.
-  - Both implementations are nearly identical (append `activity_id` to
-    actor outbox, call `record_outbox_item`, log the result).
-  - Acceptance criterion: One shared `UpdateActorOutbox` in `helpers.py`;
-    both domain modules import from `helpers`; all existing tests pass.
-  - Per BTND-04-001 (shared module ownership), BTND-02-001 (extract
-    duplicates).
-
-- [ ] **P360-FIX-2**: Extract a shared lower-level participant-creation
-  helper from `CreateInitialVendorParticipant` (`case/nodes.py:408`) and
-  `CreateCaseParticipantNode` (`case/nodes.py:791`).
-  - The two nodes have overlapping but non-identical semantics
-    (`initial_rm_state` vs fixed `RM.ACCEPTED`; `advance_to_accepted`
-    option; `AddParticipantToCaseActivity` emission). Do NOT simply
-    replace one with the other.
-  - Extract a shared `_create_and_attach_participant()` helper function
-    (not a BT node) that handles the DataLayer writes; keep both node
-    classes as thin wrappers that add their distinct semantics on top.
-  - Acceptance criterion: Both nodes use the shared helper; no
-    duplication of DataLayer write logic; all tests pass.
-  - Per BTND-02-001 (semantic-preserving consolidation).
-
-- [ ] **P360-FIX-3**: Fix hidden blackboard reads in `RecordCaseCreationEvents`
-  (`case/nodes.py:574`) and any other nodes with undeclared blackboard
-  access.
-  - All blackboard keys read in `update()` or `initialise()` MUST be
-    declared via `register_key()` in `setup()`.
-  - Audit all nodes in `vultron/core/behaviors/` for this pattern.
-  - Acceptance criterion: Every `self.blackboard.get(key)` call is
-    preceded by a matching `register_key()` in the same node's `setup()`
-    method; py_trees blackboard validation passes without warnings.
-  - Per BTND-03-001, BTND-03-002.
-
----
-
 ## PRIORITY-350 — Maintenance and Tooling
 
 **Reference**: `plan/PRIORITIES.md` PRIORITY 350
