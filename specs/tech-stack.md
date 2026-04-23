@@ -90,6 +90,17 @@ This specification defines the normative technology constraints and implementati
   MUST run in CI (without `--exit-zero`) and MUST pass with zero errors on
   every commit to `main` and on every pull request targeting `main`.
   - IMPL-TS-07-004 supersedes CS-01-003
+- `IMPL-TS-07-007` (MUST) All functions and methods MUST have cyclomatic
+  complexity (CC) ≤ 15. Enforced via the bundled `flake8-mccabe` plugin
+  (`max-complexity = 15` in `.flake8`) as part of the flake8 CI gate and
+  pre-commit hook. CC is measured using the McCabe algorithm as implemented
+  by `flake8-mccabe`.
+  - IMPL-TS-07-007 refines IMPL-TS-07-004
+- `IMPL-TS-07-008` (SHOULD) All functions and methods SHOULD have cyclomatic
+  complexity ≤ 10, the generally accepted upper bound for maintainable code.
+  This requirement SHOULD be upgraded to MUST once all CC violations above 10
+  are resolved (see `plan/IMPLEMENTATION_PLAN.md` CC-2).
+  - IMPL-TS-07-008 refines IMPL-TS-07-007
 - `IMPL-TS-07-005` The CI pipeline MUST run tests (`pytest`), formatting
   (`black --check`), and all three linters (`flake8`, `mypy`, `pyright`) as
   separate parallel jobs. The build job MUST only execute when all parallel

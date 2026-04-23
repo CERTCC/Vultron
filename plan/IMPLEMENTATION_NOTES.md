@@ -791,3 +791,145 @@ steps toward remediation are identified.
     be `max_acceptable_tlp_level: TLPLevel` on the actor profile or
     embargo policy record.
   - **Condition**: Same as `story_2022_072`.
+
+---
+
+### 2026-04-23 CC-ENFORCEMENT — Cyclomatic Complexity Gate Design
+
+Source: structured design interview (grill-me session). Tasks tracked in
+`plan/IMPLEMENTATION_PLAN.md` CC-1 and CC-2. Priority captured in
+`plan/PRIORITIES.md` Priority 450.
+
+#### Design decisions
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Tooling | `flake8-mccabe` (bundled) | Already in flake8 7.3.0; zero new deps |
+| Threshold model | Single hard threshold | Warn tier adds complexity without enforcement value |
+| Initial gate | CC=15 | 5 violations at CC>15 — fixable before gate lands |
+| Final target | CC=10 | Accepted upper bound for maintainable functions |
+| Scope | `vultron/` and `test/` | Uniform standard; high-CC test fixtures are bugs too |
+| CI integration | Existing `lint-flake8` job | Free — just add `max-complexity` to `.flake8` |
+| Pre-commit | Add `flake8` hook | Gives immediate developer feedback |
+| Refactor target | CC≤10 for all tasks | Phase 1 refactors go to final target; no revisiting |
+
+Ruff (`C901`) was considered and rejected — `flake8-mccabe` is already
+present and Ruff is not in the stack. Radon + pytest two-tier model was
+considered and rejected — single hard threshold with progressive tightening
+achieves the same outcome without new dependencies or pytest complexity.
+
+#### Configuration changes (CC-1.6)
+
+**`.flake8`** — add under `[flake8]`:
+
+```ini
+max-complexity = 15
+```
+
+Lower to `10` in CC-2.2.
+
+**`.pre-commit-config.yaml`** — add new hook entry:
+
+```yaml
+- repo: https://github.com/PyCQA/flake8
+  rev: 7.3.0
+  hooks:
+    - id: flake8
+      args: ["--max-complexity=15", "--select=C901,E,W,F"]
+```
+
+Update `--max-complexity` to `10` when CC-2.2 lands.
+
+**`.github/skills/run-linters/SKILL.md`** — add a note that flake8 now
+enforces a cyclomatic complexity gate (`max-complexity = 15`, tightening
+to `10` after CC-2).
+
+#### Phase 1 violation inventory (CC>15 — must reach CC≤10 before CC-1.6)
+
+| CC | File | Function | Line |
+|---|---|---|---|
+| 34 | `vultron/wire/as2/extractor.py` | `extract_intent` | 445 |
+| 18 | `vultron/wire/as2/rehydration.py` | `rehydrate` | 43 |
+| 17 | `vultron/scripts/ontology2md.py` | `thing2md` | 33 |
+| 17 | `test/core/behaviors/test_performance.py` | `mock_datalayer` | 45 |
+| 16 | `vultron/core/case_states/make_doc.py` | `print_model` | 77 |
+
+**`extract_intent` refactoring approach (CC=34):** This function is the core
+semantic extraction dispatcher in `extractor.py`. It contains a large
+conditional chain over (activity type × object type) combinations. The
+function already has `SEMANTICS_ACTIVITY_PATTERNS` as an ordered pattern
+list; `extract_intent` likely re-implements or augments that dispatch
+imperatively. Recommended approach:
+
+1. Audit whether `extract_intent` duplicates logic already in
+   `find_matching_semantics()` / `ActivityPattern.match()`.
+2. Extract per-type sub-dispatchers (e.g., `_extract_create_intent`,
+   `_extract_offer_intent`) — each becomes a short, focused function.
+3. Replace the top-level conditional with a dict keyed on `as_type` that
+   delegates to the appropriate sub-dispatcher.
+4. Verify that all existing pattern-matching tests still pass.
+
+**`mock_datalayer` refactoring approach (CC=17):** A test fixture with 17
+branches is hard to trust. Consider splitting into smaller, composable
+fixtures (one per capability area: reads, writes, case lookups, actor
+lookups) and composing them in a `conftest.py` fixture factory.
+
+#### Phase 2 violation inventory (CC 11–15 — must reach CC≤10 before CC-2.2)
+
+18 functions. Ordered by CC descending:
+
+| CC | File | Function | Line |
+|---|---|---|---|
+| 15 | `vultron/core/use_cases/received/embargo.py` | `AcceptInviteToEmbargoOnCaseReceivedUseCase.execute` | 271 |
+| 15 | `vultron/core/behaviors/report/nodes.py` | `CreateCaseActivity.update` | 496 |
+| 14 | `vultron/core/use_cases/received/report.py` | `SubmitReportReceivedUseCase.execute` | 74 |
+| 13 | `vultron/wire/as2/extractor.py` | `ActivityPattern.match` | 58 |
+| 13 | `vultron/demo/scenario/two_actor_demo.py` | `verify_vendor_case_state` | 581 |
+| 13 | `vultron/demo/scenario/multi_vendor_demo.py` | `verify_multi_vendor_case_state` | 364 |
+| 13 | `vultron/core/use_cases/triggers/embargo.py` | `SvcAcceptEmbargoUseCase.execute` | 336 |
+| 13 | `vultron/core/case_states/validations.py` | `is_valid_transition` | 232 |
+| 13 | `vultron/core/behaviors/case/nodes.py` | `CreateCaseParticipantNode.update` | 877 |
+| 13 | `vultron/core/behaviors/case/nodes.py` | `InitializeDefaultEmbargoNode.update` | 732 |
+| 12 | `vultron/demo/scenario/three_actor_demo.py` | `verify_case_actor_case_state` | 417 |
+| 12 | `vultron/core/use_cases/triggers/embargo.py` | `SvcRejectEmbargoUseCase.execute` | 571 |
+| 12 | `vultron/core/behaviors/case/nodes.py` | `CreateInitialVendorParticipant.update` | 519 |
+| 12 | `vultron/adapters/driving/fastapi/routers/actors.py` | `post_actor_inbox` | 366 |
+| 11 | `vultron/demo/scenario/two_actor_demo.py` | `find_case_for_offer` | 528 |
+| 11 | `vultron/core/use_cases/received/status.py` | `AddCaseStatusToCaseReceivedUseCase.execute` | 52 |
+| 11 | `vultron/core/use_cases/received/embargo.py` | `RemoveEmbargoEventFromCaseReceivedUseCase.execute` | 115 |
+| 11 | `vultron/adapters/driving/fastapi/main.py` | `main` | 85 |
+
+**Pattern observations for Phase 2:**
+
+- **`execute()` methods in use cases** (embargo, report, status): High CC
+  often indicates missing BT subtree decomposition. Per `AGENTS.md`, all
+  protocol-significant branching MUST live in the BT, not in `execute()`.
+  Reducing CC here may also fix BT-06-001 compliance gaps.
+- **`verify_*` functions in demo scenarios**: These enumerate state machine
+  assertions. Consider extracting per-state-machine helpers
+  (`verify_rm_state`, `verify_em_state`, `verify_cs_state`) and composing
+  them, or using a table-driven assertion loop.
+- **`is_valid_transition` (CC=13)**: State machine validity checkers benefit
+  from lookup tables (set or dict of valid `(from, to)` pairs) rather than
+  nested conditionals.
+- **`ActivityPattern.match` (CC=13)**: After CC-1.1 refactors
+  `extract_intent`, revisit whether `match` complexity can also be reduced
+  via the same dispatch-table approach.
+- **`post_actor_inbox` (CC=12)**: High CC in a FastAPI router handler
+  violates the "routers delegate immediately" rule. Extract the branching
+  logic into a helper in the adapter layer.
+
+#### Verification command
+
+```bash
+# Check current violation count at a given threshold
+uv run flake8 vultron/ test/ --max-complexity=10 --select=C901
+
+# Check only Phase 1 targets
+uv run flake8 vultron/wire/as2/extractor.py \
+              vultron/wire/as2/rehydration.py \
+              vultron/scripts/ontology2md.py \
+              vultron/core/case_states/make_doc.py \
+              test/core/behaviors/test_performance.py \
+              --max-complexity=10 --select=C901
+```

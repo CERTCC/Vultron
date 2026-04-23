@@ -10,6 +10,33 @@ relative order. Completed priorities should be moved to
 `plan/PRIORITY_HISTORY.md` (append-only archive) to keep `plan/PRIORITIES.md`
 focused on pending and in-progress work.
 
+## Priority 450: Cyclomatic Complexity Enforcement
+
+Cyclomatic complexity (CC) is treated as a policy boundary, not just a
+measurement. High CC correlates with harder-to-test, harder-to-maintain
+code and is a leading indicator of defects.
+
+The project currently has 23 functions exceeding CC=10, including one at
+CC=34. `flake8-mccabe` (already bundled in the project's flake8 7.3.0
+install) provides the enforcement mechanism with zero new dependencies.
+The gate integrates into the existing `lint-flake8` CI job.
+
+Enforcement is two-phase to avoid a big-bang refactor:
+
+- **Phase 1** (CC-1): Reduce the 5 worst offenders (CC>15) to CC≤10, then
+  activate a `max-complexity = 15` gate in `.flake8`. This immediately
+  blocks future regressions at a reachable bar.
+- **Phase 2** (CC-2): Reduce the remaining 18 functions (CC 11–15) to
+  CC≤10, then tighten the gate to `max-complexity = 10` — the generally
+  accepted upper bound for maintainable functions.
+
+Each refactoring task explicitly targets CC≤10 (the final goal) so no
+function needs to be revisited when the threshold drops in Phase 2.
+
+See `plan/IMPLEMENTATION_PLAN.md` CC-1 and CC-2 for the task breakdown, and
+`plan/IMPLEMENTATION_NOTES.md` CC-ENFORCEMENT for the full violation
+inventory, per-function refactoring notes, and configuration details.
+
 ## Priority 500: Re-implement "fuzzer" nodes from the original simulator
 
 As we originally built out the `py_trees` implementation, we replaced
