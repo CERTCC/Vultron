@@ -634,3 +634,160 @@ signature that Python 3.14 removed. There is no Pydantic update available
 that resolves this. Revisit when Pydantic releases Python 3.14-compatible
 builds. Until then, `requires-python = ">=3.12"` and docker base image
 `python:3.13-slim-bookworm` are unchanged.
+
+---
+
+### 2026-04-23 DOCS-3 — User Stories with Insufficient Specification Coverage
+
+Source: `notes/user-stories-trace.md` traceability review.
+
+The following 14 user stories have no mapped requirements or only partial
+coverage in `specs/`. For each story, the gap is described and concrete
+steps toward remediation are identified.
+
+#### Bug Bounty Stories (Out-of-Scope for Current Protocol)
+
+- **story_2022_055** — "As a Participant, state that I paid or received a bounty"
+  - **Gap**: No spec coverage. Bug bounty payment state is not modelled in
+    the Vultron Protocol.
+  - **Remediation**: Requires a new activity type (e.g.,
+    `BountyPaymentActivity`) in `vultron-as2-mapping.md` and a corresponding
+    state field in the case participant model. Also requires a new requirement
+    section in `case-management.md` or a new `bug-bounty.md` spec.
+  - **Condition**: Bug bounty features must be explicitly elevated to
+    in-scope. This is currently `:material-block-helper:` (out-of-scope) in
+    the user story table.
+
+- **story_2022_056** — "As a Participant, ask if another Participant paid a reporter"
+  - **Gap**: No spec coverage. No query activity type for bounty status.
+  - **Remediation**: Same as `story_2022_055`; a bounty query activity
+    type and a corresponding use case would be required.
+  - **Condition**: Same as `story_2022_055`.
+
+- **story_2022_057** — "As a Participant, ask a reporter if they were paid"
+  - **Gap**: No spec coverage. Similar to `story_2022_056` but
+    reporter-targeted.
+  - **Remediation**: Same as `story_2022_055` / `story_2022_056`.
+  - **Condition**: Same as `story_2022_055`.
+
+- **story_2022_084** — "As a vendor, reward the reporter by paying a bounty"
+  - **Gap**: No spec coverage. Entirely out-of-scope in the current
+    Vultron Protocol.
+  - **Remediation**: Would require defining bounty payment as a
+    protocol-level event, including payer/payee actors, amounts, and
+    acknowledgment activities. No existing spec provides a foundation.
+  - **Condition**: Out-of-scope; explicit prioritization decision required
+    to expand protocol scope.
+
+- **story_2022_085** — "As a reporter, be rewarded with a bounty"
+  - **Gap**: No spec coverage. Recipient side of bounty payment.
+  - **Remediation**: Same as `story_2022_084`.
+  - **Condition**: Same as `story_2022_084`.
+
+#### Bug Bounty Story with Partial Coverage
+
+- **story_2022_011** — "As a Participant, provide bug bounty program info"
+  - **Gap**: Only `EP-01-001` (actor profile MAY include `embargo_policy`
+    field) is mapped as a loose proxy. No requirement defines actor profile
+    fields for bug bounty program name, URL, or payout range.
+  - **Remediation**: Add a new section to `embargo-policy.md` (or a
+    separate `bug-bounty.md`) defining optional bug bounty fields on the
+    actor profile: at minimum `bounty_program_url` and `bounty_max_payout`.
+  - **Condition**: Bug bounty feature must be moved to in-scope and
+    prioritized above Priority 3000.
+
+#### Privacy and Anonymity Stories with Partial Coverage
+
+- **story_2022_024** — "As a Finder/Reporter, constrain communication for anonymity"
+  - **Gap**: Only `VP-08-017` (MAY delay notifying potential Participants)
+    is mapped. No spec covers pseudonymous reporting, reporter identity
+    stripping, or coordinator-mediated anonymous submission.
+  - **Remediation**: Add requirements to `handler-protocol.md` or a new
+    `privacy.md` spec covering: (a) coordinator-mediated anonymous
+    submission where the coordinator does not forward reporter identity,
+    (b) actor alias/pseudonym support in the wire vocabulary, and
+    (c) the CaseActor's obligation not to expose the reporter's identity
+    without consent.
+  - **Condition**: Requires identity/authentication spec expansion and
+    a prioritization decision on privacy features. Upstream dependency on
+    `encryption.md` PROD_ONLY requirements.
+
+- **story_2022_033** — "As a Participant, request anonymity in a case"
+  - **Gap**: Only `VP-08-017` is mapped as a loose proxy. No spec defines
+    how a participant opts into case anonymity, how the CaseActor
+    handles it, or how other participants are notified.
+  - **Remediation**: Add requirements defining a case anonymity opt-in
+    mechanism, likely as a new `CaseParticipant.anonymous` flag with
+    associated handler logic in `case-management.md`. Define how
+    announcements to other participants omit the anonymous participant's
+    real identity.
+  - **Condition**: Same as `story_2022_024`.
+
+#### Trust and Reputation Stories with Partial Coverage
+
+- **story_2022_095** — "As a Participant, provide evidence of reputation to others"
+  - **Gap**: Only `VP-05-013` (consider others' compliance history) and
+    `EP-01-001` (policy as reputation proxy) are mapped. No spec defines
+    how actors publish reputation attestations, what format they take,
+    or how recipients verify them.
+  - **Remediation**: Add requirements (potentially in `embargo-policy.md`
+    or a new `trust.md` spec) defining: (a) a machine-readable compliance
+    history format on the actor profile, (b) how attestations reference
+    past case IDs without leaking case contents, and (c) optional
+    third-party endorsement activity type.
+  - **Condition**: Reputation features must be prioritized; may depend on
+    decentralized identity mechanisms currently deferred as PROD_ONLY.
+
+- **story_2022_096** — "As a Participant, record/log trust/reputation of others"
+  - **Gap**: Only `VP-05-013` and `VP-08-010` are mapped. No spec
+    defines a local trust/reputation log data model, persistence
+    requirements, or how logged reputation feeds into case engagement
+    decisions.
+  - **Remediation**: Add requirements to `datalayer.md` for a
+    per-actor reputation record (keyed by actor URI), and to
+    `case-management.md` specifying that CaseActors SHOULD update
+    reputation records after each case where embargo compliance can be
+    assessed.
+  - **Condition**: Same as `story_2022_095`.
+
+#### TLP (Traffic Light Protocol) Stories with Partial Coverage
+
+- **story_2022_070** — "As a Participant, convey how information I provide can be used"
+  - **Gap**: Only embargo-related constraints (`VP-05-006`, `VP-16-001`)
+    are mapped. No spec defines TLP marking on activities or objects, nor
+    how recipients are expected to enforce handling restrictions.
+  - **Remediation**: Add a new `tlp.md` spec (or extend
+    `vocabulary-model.md`) defining: (a) a `tlp` field on
+    `as_Object`-derived types carrying one of
+    `WHITE | GREEN | AMBER | RED`, (b) wire serialisation rules, and
+    (c) recipient obligations for each TLP level.
+  - **Condition**: TLP integration must be prioritised. Upstream
+    dependency on wire vocabulary extension mechanism in
+    `vocabulary-model.md`.
+
+- **story_2022_071** — "As a Participant, convey information use while obeying TLP"
+  - **Gap**: Same as `story_2022_070` plus enforcement requirements.
+    No spec covers how a recipient enforces TLP restrictions when
+    forwarding or storing received information.
+  - **Remediation**: Same as `story_2022_070`; add enforcement
+    requirements (e.g., a handler MUST NOT forward a TLP:RED message
+    outside the originating case) to the proposed `tlp.md` spec.
+  - **Condition**: Same as `story_2022_070`.
+
+- **story_2022_072** — "As a Participant, convey what restricted info I will accept"
+  - **Gap**: Only `EP-01-002` (embargo policy required fields) and
+    `VP-05-007` (smallest-set restriction) are mapped as proxies. No spec
+    defines policy fields for acceptable TLP levels.
+  - **Remediation**: Add optional `acceptable_tlp_levels` field to the
+    embargo policy record in `embargo-policy.md`, or add equivalent fields
+    to the proposed `tlp.md` spec.
+  - **Condition**: Builds on `story_2022_070` remediation; TLP spec must
+    exist first.
+
+- **story_2022_073** — "As a Participant, convey TLP restriction level I will accept"
+  - **Gap**: Only `EP-01-003` (optional embargo policy fields) is mapped.
+    No spec defines how an actor declares its maximum acceptable TLP level.
+  - **Remediation**: Same as `story_2022_072`; the specific field would
+    be `max_acceptable_tlp_level: TLPLevel` on the actor profile or
+    embargo policy record.
+  - **Condition**: Same as `story_2022_072`.

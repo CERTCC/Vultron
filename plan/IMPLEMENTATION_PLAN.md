@@ -11,16 +11,6 @@ This plan tracks forward-looking work against `specs/*` and
 priority. Section order here groups related work by execution context and MUST
 NOT override `plan/PRIORITIES.md` when the two differ.
 
-## PRIORITY-350 — Maintenance and Tooling
-
-**Reference**: `plan/PRIORITIES.md` PRIORITY 350
-
-- [ ] **DOCS-3**: Update `notes/user-stories-trace.md` (the traceability
-  matrix) to map every user story in `docs/topics/user_stories` to the
-  exact implementing requirements in `specs/`. Add a mapping for each story
-  and mark stories lacking requirement coverage. Add a new section in
-  `plan/IMPLEMENTATION_NOTES.md` listing stories with insufficient coverage.
-
 ---
 
 ## Deferred (Per PRIORITIES.md)
