@@ -7,6 +7,12 @@ Handler functions may orchestrate business logic using behavior trees (BTs) for 
 **Source**: ADR-0002 (Use Behavior Trees), ADR-0007 (Behavior Dispatcher),
 ADR-0008 (py_trees integration)
 
+**Node construction patterns**: See `notes/bt-design-patterns.md` for
+idiomatic guidance on PPA structure, implicit sequences, safety guards,
+memory nodes, and granularity — derived from Colledanchise & Ögren
+(arXiv:1709.00084). Formal requirements: `specs/behavior-tree-node-design.md`
+BTND-06-001 through BTND-06-007.
+
 **Note**: BT integration is **optional**. Simple handlers may use procedural
 logic. Complex workflows (report validation, case creation, embargo management)
 SHOULD use BTs for clarity and maintainability.
