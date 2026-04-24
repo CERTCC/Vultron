@@ -50,7 +50,8 @@ Reach shared understanding before writing anything.
 
 ### 5. Write the spec file
 
-Create `specs/<topic>.md` following `specs/meta-specifications.md` conventions:
+Create or modify `specs/<topic>.md` following `specs/meta-specifications.md` 
+conventions:
 
 - Use a `FILE_PREFIX-SECTION_#-###` ID scheme (e.g., `CFG-01-001`)
 - Group requirements by category with RFC 2119 keywords on every line
@@ -59,7 +60,7 @@ Create `specs/<topic>.md` following `specs/meta-specifications.md` conventions:
 
 ### 6. Write the notes file
 
-Create `notes/<topic>.md` with implementation guidance:
+Create or modify `notes/<topic>.md` with implementation guidance:
 
 - Decision table (question → decision → rationale)
 - Key design patterns and code examples
