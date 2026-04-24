@@ -48,6 +48,7 @@ Load additional files only when the task touches the relevant area. See the
 | Wire vocabulary | `vocabulary-model.md` |
 | Response generation / outbox | `response-format.md`, `outbox.md` |
 | Synchronization | `sync-log-replication.md` |
+| Participant case replica lifecycle | `participant-case-replica.md` |
 | Embargo / duration | `embargo-policy.md`, `duration.md` |
 | Embargo default semantics | `embargo-policy.md`, `notes/embargo-default-semantics.md` |
 | Configuration | `configuration.md` |
@@ -180,6 +181,10 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 - **`sync-log-replication.md`** - Append-only case event log, replication
   transport, conflict handling, per-peer state, and retry semantics
   (SYNC-01 through SYNC-07)
+- **`participant-case-replica.md`** - Participant case replica lifecycle:
+  bootstrap via `Announce(VulnerabilityCase)`, single-writer update authority,
+  case-context routing, reporter case discovery, and unknown-context handling
+  (PCR-01 through PCR-07)
 
 ### Demo and Tooling
 
@@ -313,6 +318,7 @@ is reserved for `testability.md`).
 | `SE` | `semantic-extraction.md` |
 | `SM` | `state-machine.md` |
 | `SL` | `structured-logging.md` |
+| `PCR` | `participant-case-replica.md` |
 | `SYNC` | `sync-log-replication.md` |
 | `TB` | `testability.md` |
 | `TRACE` | `traceability.md` |
