@@ -107,6 +107,47 @@ composability pattern described in `notes/bt-reusability.md`.
 
 ---
 
+## Actor Configuration for Participant Nodes
+
+- `BTND-05-001` The `CVDRoles` enum MUST include a `CASE_OWNER` flag value
+  representing the actor who owns and manages a `VulnerabilityCase`.
+  - **Rationale**: Case ownership is a protocol-significant relationship
+    distinct from the CVD roles (VENDOR, COORDINATOR, etc.). When a vendor
+    or coordinator receives a report and creates a case, they are both the
+    receiving CVD actor (VENDOR or COORDINATOR) and the case owner.
+    Representing this explicitly avoids hardcoding the assumption that the
+    case creator is always a vendor.
+  - **Refactor note**: The `CVDRoles` Flag enum SHOULD eventually be
+    refactored to a `list[CVDRoles]` using a StrEnum, so that participant
+    role assignments read as plain strings in persisted records (e.g.,
+    `["vendor", "case_owner"]` instead of a bitmask). Capture as a follow-on
+    task when adding `CASE_OWNER`.
+
+- `BTND-05-002` `CreateInitialVendorParticipant` MUST be replaced by a
+  `CreateCaseOwnerParticipant` node that:
+  - Sources the local actor's CVD roles from
+    `ActorConfig.default_case_roles` (see `CFG-07-002`), rather than
+    hardcoding `CVDRoles.VENDOR`.
+  - Always includes `CVDRoles.CASE_OWNER` in the participant's roles
+    (appending it if not already present in the configured list).
+  - Retains all RM-state seeding logic from `CreateInitialVendorParticipant`
+    (deterministic status record reuse from report-phase, initial RM state
+    parameterization).
+  - **Rationale**: "Vendor" is a demo-specific assumption. In the general
+    protocol a coordinator, deployer, or other role may equally receive a
+    report and become the case owner. The node MUST NOT know or care which
+    CVD role the actor plays — only that they are the case owner.
+  - `BTND-05-002 refines BTND-01-001`
+
+- `BTND-05-003` The `CreateFinderParticipantNode` backward-compatibility alias
+  (currently `CreateFinderParticipantNode = CreateCaseParticipantNode`) MUST
+  be removed. All call sites MUST use `CreateCaseParticipantNode` directly
+  with an explicit `roles` parameter.
+  - **Rationale**: Alias names carry the old "finder-specific" framing and
+    mislead readers about the node's actual generality.
+
+---
+
 ## Verification
 
 ### BTND-01-001, BTND-01-002, BTND-01-003
@@ -141,6 +182,33 @@ composability pattern described in `notes/bt-reusability.md`.
   other sibling domain module; shared nodes are imported from
   `vultron.core.behaviors.helpers` or another neutral module.
 
+### BTND-05-001
+
+- Code review: `CVDRoles` in `vultron/core/states/roles.py` contains a
+  `CASE_OWNER` member.
+- Unit test: `CVDRoles.CASE_OWNER` is usable as a flag value (can be
+  combined with VENDOR, COORDINATOR, etc.).
+
+### BTND-05-002
+
+- Code review: `CreateCaseOwnerParticipant` exists in
+  `vultron/core/behaviors/case/nodes.py`; `CreateInitialVendorParticipant`
+  is removed.
+- Code review: `CreateCaseOwnerParticipant.__init__` reads roles from an
+  `ActorConfig` object (or equivalent) rather than hardcoding `CVDRoles.VENDOR`.
+- Code review: `CVDRoles.CASE_OWNER` is always present in the participant
+  record created by `CreateCaseOwnerParticipant`.
+- Unit test: Instantiating `CreateCaseOwnerParticipant` with an
+  `ActorConfig` whose `default_case_roles` is `[CVDRoles.COORDINATOR]`
+  yields a participant with roles `COORDINATOR | CASE_OWNER`.
+
+### BTND-05-003
+
+- Code review: No file in `vultron/` contains
+  `CreateFinderParticipantNode`.
+- Unit test: `from vultron.core.behaviors.case.nodes import
+  CreateFinderParticipantNode` raises `ImportError`.
+
 ## Related
 
 - **Design notes**: `notes/bt-reusability.md` — fractal composability pattern,
@@ -149,3 +217,5 @@ composability pattern described in `notes/bt-reusability.md`.
   through BT-06-006, DataLayer integration, actor isolation
 - **Object IDs / blackboard keys**: `specs/object-ids.md` OID-01-*
 - **Architecture layering**: `specs/architecture.md` ARCH-04-001
+- **Actor configuration**: `specs/configuration.md` CFG-07-001 through
+  CFG-07-004

@@ -124,3 +124,34 @@ are out of scope for `AppConfig`.
   values for the same field.
 - `CFG-06-005` Tests MUST verify that the application starts successfully with
   all defaults (no file, no env vars set).
+
+---
+
+## Actor Configuration
+
+- `CFG-07-001` A neutral `ActorConfig` Pydantic model MUST be defined
+  outside the demo layer (e.g., in `vultron/core/models/` or
+  `vultron/config.py`) so it can be used by BT nodes, API adapters, and CLI
+  entry points without importing from `vultron/demo/`.
+  - **Rationale**: `LocalActorConfig` (in `vultron/demo/seed_config.py`) is
+    demo scaffolding. BT nodes that need actor role information MUST NOT
+    import from the demo layer (BTND-04-002). A neutral `ActorConfig`
+    provides the same information without the layering violation.
+
+- `CFG-07-002` `ActorConfig` MUST include a `default_case_roles` field of
+  type `list[CVDRoles]`, defaulting to an empty list, representing the CVD
+  roles the local actor assumes when creating or owning a
+  `VulnerabilityCase`.
+  - **Examples**: A vendor actor sets `default_case_roles: [CVDRoles.VENDOR]`;
+    a coordinator sets `[CVDRoles.COORDINATOR]`; a vendor-coordinator sets
+    `[CVDRoles.VENDOR, CVDRoles.COORDINATOR]`.
+
+- `CFG-07-003` `LocalActorConfig` in `vultron/demo/seed_config.py` SHOULD
+  compose or extend `ActorConfig` so that the seed actor configuration
+  includes CVD role defaults without duplicating the field definition.
+
+- `CFG-07-004` BT nodes that create a case-owner participant record for the
+  local actor MUST source the actor's CVD roles from
+  `ActorConfig.default_case_roles`, not from a hardcoded constant.
+  - **Cross-reference**: `BTND-05-002` specifies the corresponding BT node
+    requirement.

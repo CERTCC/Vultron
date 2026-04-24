@@ -76,8 +76,9 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   (ARCH-01 through ARCH-08)
 - **`configuration.md`** - Unified YAML + Pydantic configuration management:
   `AppConfig` structure, `get_config()` / `reload_config()` API, env var
-  naming conventions, `SeedConfig` alignment, testing patterns
-  (CFG-01 through CFG-06)
+  naming conventions, `SeedConfig` alignment, `ActorConfig` abstraction with
+  `default_case_roles`, testing patterns
+  (CFG-01 through CFG-07)
 - **`vultron-protocol-spec.md`** - Requirements extracted from Vultron
   Protocol documentation: participant state tracking, RM/EM/CS messaging,
   model interactions, and implementation guidance
@@ -113,8 +114,9 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 **Behavior Tree Integration** (optional for complex workflows):
 
 - **`behavior-tree-integration.md`** - BT execution model, bridge layer, DataLayer integration
-- **`behavior-tree-node-design.md`** - BT node parameterization, composability, reuse, and
-  blackboard interface contracts (BTND-01 through BTND-04)
+- **`behavior-tree-node-design.md`** - BT node parameterization, composability, reuse,
+  blackboard interface contracts, actor-config-driven roles, `CreateCaseOwnerParticipant`
+  node design, and `CVDRoles.CASE_OWNER` requirement (BTND-01 through BTND-05)
 - **`triggerable-behaviors.md`** - Trigger API for actor-initiated behaviors (PRIORITY 30):
   endpoint format, RM/EM candidate behaviors, request/response schema,
   BT integration, per-actor DataLayer dependency, outbox activity requirement,

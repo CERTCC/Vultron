@@ -37,21 +37,6 @@ toward single process actors. A future production implementation might look
 a lot more like a distributed system with separate services and message
 queues with workers that handle individual use cases etc.
 
-## IDEA-26041702 Generalize behavior nodes to avoid overfitting to the demo
-
-There should not be a `CreateFinderParticipantNode` behavior. This is
-overfitting the codebase to the demo. There should be a more general
-`CreateCaseParticipantNode` behavior that can be used to create any type of
-participant node. This is generally true of any behavior node that
-explicitly references a specific role or type of participant. So in the BT
-that creates a case from a report Offer, the participant is the
-attributed_to Actor of the Offer(Report) with the role of reporter (we don't
-actually know who the finder is at that point, we only know that they
-reported it to us so they are the reporter). But for reuse purposes, the
-same create participant node would be used for creating the case
-creator/owner participant node first, and so the actor identity and the role
-(s) would be parameters to the node, not hardcoded in the node itself.
-
 ## IDEA-26041703 Concern about behavior tree integration into design
 
 The situation described in IDEA-26041702 is an example of a general concern

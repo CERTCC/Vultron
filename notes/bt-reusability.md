@@ -412,6 +412,68 @@ class SomeNode(py_trees.behaviour.Behaviour):
 **Rationale**: Nodes imported by demo scripts should remain reusable outside
 demo contexts (e.g., API handlers, CLI commands, future MCP agents).
 
+### ActorConfig-Driven Roles
+
+The local actor's default CVD roles MUST be sourced from `ActorConfig`
+rather than hardcoded in BT nodes. This decouples the protocol logic from
+demo assumptions (e.g., "the receiver is always a vendor").
+
+**Pattern:**
+
+```python
+from vultron.core.models.actor_config import ActorConfig
+from vultron.core.states.roles import CVDRoles
+
+class CreateCaseOwnerParticipant(DataLayerAction):
+    """Creates the case-owner participant for the local actor.
+    
+    Sources CVD roles from ActorConfig rather than hardcoding.
+    Always includes CVDRoles.CASE_OWNER in the assigned roles.
+    """
+    
+    def __init__(
+        self,
+        actor_config: ActorConfig,
+        report_id: str | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.actor_config = actor_config
+        self.report_id = report_id
+    
+    def update(self) -> Status:
+        roles = list(self.actor_config.default_case_roles)
+        if CVDRoles.CASE_OWNER not in roles:
+            roles.append(CVDRoles.CASE_OWNER)
+        
+        participant = VultronParticipant(
+            attributed_to=self.actor_id,
+            case_roles=roles,  # ← from config, not hardcoded
+            ...
+        )
+        ...
+```
+
+**Why this matters:**
+
+| Old approach | New approach |
+|---|---|
+| `case_roles=[CVDRoles.VENDOR]` hardcoded | `roles = actor_config.default_case_roles` |
+| Breaks for coordinator-run nodes | Works for any CVD actor type |
+| Must write a new node per role | One node, parameterized by config |
+
+**ActorConfig placement:**
+
+`ActorConfig` is a neutral Pydantic model in `vultron/core/models/` (or
+`vultron/config.py`) — **not** inside `vultron/demo/`. This ensures BT
+nodes can import it without violating the no-demo-layer-imports rule
+(BTND-04-002, CFG-07-001).
+
+**See also:**
+
+- `specs/behavior-tree-node-design.md` BTND-05-001 through BTND-05-003
+- `specs/configuration.md` CFG-07-001 through CFG-07-004
+
 ---
 
 ## Composability Patterns

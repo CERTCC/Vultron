@@ -312,3 +312,23 @@ have the demo just use that with its specific object types or needs.
 **Processed**: 2026-04-24 — design decisions captured in
 `specs/triggerable-behaviors.md` (TRIG-08 through TRIG-10) and
 `notes/trigger-classification.md`.
+
+## IDEA-26041702 Generalize behavior nodes to avoid overfitting to the demo
+
+There should not be a `CreateFinderParticipantNode` behavior. This is
+overfitting the codebase to the demo. There should be a more general
+`CreateCaseParticipantNode` behavior that can be used to create any type of
+participant node. This is generally true of any behavior node that
+explicitly references a specific role or type of participant. So in the BT
+that creates a case from a report Offer, the participant is the
+attributed_to Actor of the Offer(Report) with the role of reporter (we don't
+actually know who the finder is at that point, we only know that they
+reported it to us so they are the reporter). But for reuse purposes, the
+same create participant node would be used for creating the case
+creator/owner participant node first, and so the actor identity and the role
+(s) would be parameters to the node, not hardcoded in the node itself.
+
+**Processed**: 2026-04-24 — design decisions captured in
+`specs/behavior-tree-node-design.md` (BTND-05-001 through BTND-05-003) and
+`specs/configuration.md` (CFG-07-001 through CFG-07-004); implementation
+guidance updated in `notes/bt-reusability.md`.
