@@ -41,8 +41,8 @@
 #                       other without discovery.  The ID is stable across
 #                       container restarts because it is derived from the
 #                       service hostname (not a random UUID).
-#   VULTRON_SEED_CONFIG Path inside the container to a JSON seed config file
-#                       (docker/seed-configs/seed-<role>.json).  Used by
+#   VULTRON_SEED_CONFIG Path inside the container to a YAML seed config file
+#                       (docker/seed-configs/seed-<role>.yaml).  Used by
 #                       `vultron-demo seed` to register peer actors in the
 #                       local DataLayer.
 #
@@ -105,7 +105,7 @@ services:
       # so peer containers can pre-register this actor without discovery.
       - VULTRON_ACTOR_ID=http://finder:7999/api/v2/actors/finder
       # Seed config: registers local actor + peers on first seed run.
-      - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-finder.json
+      - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-finder.yaml
       - LOG_LEVEL=INFO
     volumes:
       - finder-data:/app/data
@@ -124,7 +124,7 @@ services:
       - VULTRON_BASE_URL=http://vendor:7999/api/v2/
       - VULTRON_DB_URL=sqlite:////app/data/mydb.sqlite
       - VULTRON_ACTOR_ID=http://vendor:7999/api/v2/actors/vendor
-      - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-vendor.json
+      - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-vendor.yaml
       - LOG_LEVEL=INFO
     volumes:
       - vendor-data:/app/data
@@ -140,7 +140,7 @@ services:
       - VULTRON_BASE_URL=http://coordinator:7999/api/v2/
       - VULTRON_DB_URL=sqlite:////app/data/mydb.sqlite
       - VULTRON_ACTOR_ID=http://coordinator:7999/api/v2/actors/coordinator
-      - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-coordinator.json
+      - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-coordinator.yaml
       - LOG_LEVEL=INFO
     volumes:
       - coordinator-data:/app/data
@@ -168,7 +168,7 @@ services:
       - VULTRON_BASE_URL=http://case-actor:7999/api/v2/
       - VULTRON_DB_URL=sqlite:////app/data/mydb.sqlite
       - VULTRON_ACTOR_ID=http://case-actor:7999/api/v2/actors/case-actor
-      - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-case-actor.json
+      - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-case-actor.yaml
       - LOG_LEVEL=INFO
     volumes:
       - case-actor-data:/app/data
@@ -188,7 +188,7 @@ services:
       - VULTRON_BASE_URL=http://vendor2:7999/api/v2/
       - VULTRON_DB_URL=sqlite:////app/data/mydb.sqlite
       - VULTRON_ACTOR_ID=http://vendor2:7999/api/v2/actors/vendor2
-      - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-vendor2.json
+      - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-vendor2.yaml
       - LOG_LEVEL=INFO
     volumes:
       - vendor2-data:/app/data

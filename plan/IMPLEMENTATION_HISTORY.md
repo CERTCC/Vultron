@@ -7965,3 +7965,84 @@ Implemented all three composability fixes identified by the prior audit:
     activity on blackboard.
 - All 1812 unit tests pass; all four linters (Black, flake8, mypy, pyright)
   clean.
+
+---
+
+## TOOLS-1 + CONFIG-1 — Python 3.14 Evaluation + YAML Seed Config (2026-04-23)
+
+### TOOLS-1: Python 3.14 Compatibility Evaluation
+
+**Result**: Tests fail on Python 3.14.0rc2.
+
+**Root cause**: `pydantic==2.13.3` is incompatible with Python 3.14's
+changed `typing._eval_type()` internal API. The error:
+
+```text
+TypeError: _eval_type() got an unexpected keyword argument 'prefer_fwd_module'
+Unable to evaluate type annotation 'ClassVar[MetaData]'.
+```
+
+This is a Pydantic/Python 3.14 compatibility issue — `pyproject.toml`
+and Docker base images remain at `>=3.12` / `python:3.13-slim-bookworm`
+until Pydantic releases Python 3.14 support. Task complete (evaluation
+done; conditional update not triggered).
+
+### CONFIG-1: YAML Seed Configuration
+
+Replaced JSON-based actor seed configuration with YAML throughout.
+
+**Changes**:
+
+- `pyproject.toml`: Added `pyyaml>=6.0` to production dependencies.
+- `vultron/demo/seed_config.py`: Replaced `json.load()` with
+  `yaml.safe_load()`; updated module docstring and `SeedConfig` example.
+- `vultron/demo/cli.py`: Updated `--config` help text to say "YAML".
+- `docker/seed-configs/`: Converted all 5 seed configs from JSON to YAML
+  (`seed-finder.yaml`, `seed-vendor.yaml`, `seed-coordinator.yaml`,
+  `seed-case-actor.yaml`, `seed-vendor2.yaml`); deleted old `.json` files.
+- `docker/docker-compose-multi-actor.yml`: Updated `VULTRON_SEED_CONFIG`
+  references to point to `.yaml` files.
+- `test/demo/test_seed_config.py`: Replaced `json.dumps()` with
+  `yaml.dump()` in all file-based test fixtures.
+- `test/demo/test_multi_actor_seed.py`: Updated all `.json` filename
+  references to `.yaml`.
+- `vultron/demo/utils.py`: Fixed pre-existing pyright regression introduced
+  by updated `types-requests` stubs — changed `**kwargs: object` to
+  `**kwargs: Any` in `DataLayerClient.call()`.
+
+### Test results
+
+1812 passed, 12 skipped, 5633 subtests passed. All four linters clean.
+
+---
+
+## DOCS-3 — User Story Traceability Matrix (COMPLETE 2026-04-23)
+
+**Goal**: Ensure `notes/user-stories-trace.md` maps every user story in
+`docs/topics/user_stories/` to exact implementing requirements in `specs/`,
+marks stories lacking coverage, and documents gaps in
+`plan/IMPLEMENTATION_NOTES.md`.
+
+**Outcome**: Verified all 111 user stories (story_2022_001 through
+story_2022_111) are present in the traceability matrix with mapped
+requirements. 14 stories have no or only partial spec coverage; each is
+already marked in the trace with a "No mapped requirements" or "No further
+mapped requirements" note. Added a new dated section in
+`plan/IMPLEMENTATION_NOTES.md` (2026-04-23 DOCS-3) documenting all 14
+gaps with specific technical details and concrete remediation steps per
+TRACE-02-002.
+
+**Stories with no spec coverage (5)**: story_2022_055, story_2022_056,
+story_2022_057, story_2022_084, story_2022_085 (bug bounty stories,
+out-of-scope for current protocol).
+
+**Stories with partial spec coverage (9)**: story_2022_011 (bug bounty
+program info), story_2022_024 and story_2022_033 (anonymity/privacy),
+story_2022_095 and story_2022_096 (reputation/trust),
+story_2022_070–073 (TLP traffic-light-protocol).
+
+### Files modified
+
+- `plan/IMPLEMENTATION_NOTES.md`: Added DOCS-3 gap analysis section.
+- `plan/IMPLEMENTATION_PLAN.md`: Removed completed DOCS-3 task.
+- `plan/IMPLEMENTATION_HISTORY.md`: Added this completion entry.

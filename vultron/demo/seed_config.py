@@ -15,7 +15,7 @@
 
 """Seed configuration for bootstrapping actor records in the DataLayer.
 
-Supports loading actor seed data from environment variables or a JSON config
+Supports loading actor seed data from environment variables or a YAML config
 file.  Used by the ``vultron-demo seed`` CLI sub-command (D5-1-G2).
 
 Environment variables
@@ -30,14 +30,14 @@ Environment variables
     Optional full URI for the local actor.  When absent the server derives
     one from ``VULTRON_BASE_URL``.
 ``VULTRON_SEED_CONFIG``
-    Path to a JSON file that overrides the individual env-var values above
+    Path to a YAML file that overrides the individual env-var values above
     (see ``SeedConfig`` for the expected schema).
 """
 
-import json
 import os
 from typing import Literal, cast
 
+import yaml
 from pydantic import BaseModel, Field
 
 #: Valid ActivityStreams actor type strings accepted by the seed command.
@@ -85,17 +85,17 @@ class PeerActorConfig(BaseModel):
 class SeedConfig(BaseModel):
     """Complete seed configuration: one local actor plus zero or more peers.
 
-    Can be loaded from a JSON file whose top-level keys are ``local_actor``
+    Can be loaded from a YAML file whose top-level keys are ``local_actor``
     and ``peers``::
 
-        {
-          "local_actor": {"name": "Finder", "actor_type": "Person",
-                          "id": "http://finder:7999/api/v2/actors/finder-uuid"},
-          "peers": [
-            {"name": "Vendor", "actor_type": "Organization",
-             "id": "http://vendor:7999/api/v2/actors/vendor-uuid"}
-          ]
-        }
+        local_actor:
+          name: Finder
+          actor_type: Person
+          id: http://finder:7999/api/v2/actors/finder-uuid
+        peers:
+          - name: Vendor
+            actor_type: Organization
+            id: http://vendor:7999/api/v2/actors/vendor-uuid
     """
 
     local_actor: LocalActorConfig
@@ -137,17 +137,17 @@ class SeedConfig(BaseModel):
 
     @classmethod
     def from_file(cls, path: str) -> "SeedConfig":
-        """Load a SeedConfig from a JSON file.
+        """Load a SeedConfig from a YAML file.
 
         Args:
-            path: Filesystem path to the JSON seed config file.
+            path: Filesystem path to the YAML seed config file.
 
         Raises:
             FileNotFoundError: If ``path`` does not exist.
-            ValueError: If the JSON content does not match the expected schema.
+            ValueError: If the YAML content does not match the expected schema.
         """
         with open(path) as fh:
-            data = json.load(fh)
+            data = yaml.safe_load(fh)
         return cls.model_validate(data)
 
     @classmethod
@@ -161,11 +161,11 @@ class SeedConfig(BaseModel):
         """Load a SeedConfig from a JSON file or environment variables.
 
         If ``config_path`` is given (or ``VULTRON_SEED_CONFIG`` env var is
-        set), the JSON file takes precedence.  Otherwise, configuration is
+        set), the YAML file takes precedence.  Otherwise, configuration is
         assembled from env vars and any explicit keyword arguments.
 
         Args:
-            config_path: Path to JSON seed config file.
+            config_path: Path to YAML seed config file.
             actor_name: Local actor display name (env var fallback).
             actor_type: Local actor type string (env var fallback).
             actor_id: Optional local actor URI (env var fallback).
