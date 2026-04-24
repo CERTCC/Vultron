@@ -201,6 +201,82 @@ to 10. Scope: `vultron/` and `test/`.
 
 ---
 
+## AF-0 — Activity Factory Functions
+
+**Spec**: `specs/activity-factories.md` (AF-01 through AF-08)
+**Notes**: `notes/activity-factories.md`
+
+Introduce a `vultron/wire/as2/factories/` package as the sole public
+construction API for outbound Vultron protocol activities. Vultron activity
+subclasses in `vocab/activities/` become private implementation details used
+only inside factory functions.
+
+**Acceptance criteria:**
+
+- `vultron/wire/as2/factories/` package exists with domain modules
+  (`report.py`, `case.py`, `embargo.py`, `case_participant.py`, `actor.py`,
+  `sync.py`) and `errors.py`
+- All factory functions return plain AS2 base types; ValidationError is
+  wrapped in `VultronActivityConstructionError`
+- `test/architecture/test_activity_factory_imports.py` passes (no imports of
+  `vultron.wire.as2.vocab.activities` outside allowed paths)
+- All demo, trigger service, and test call sites migrated to factory functions
+- Unused TypeAliases `OfferRef` and `RmInviteToCaseRef` removed;
+  `EmProposeEmbargoRef` renamed to `_EmProposeEmbargoRef`
+- All linters and tests pass
+
+- [ ] AF-0.1 Create `vultron/wire/as2/factories/errors.py` with
+  `VultronActivityConstructionError(VultronError)`
+- [ ] AF-0.2 Create `factories/report.py` with factory functions for all six
+  report activity classes; update `factories/__init__.py`
+- [ ] AF-0.3 Create `factories/case.py` with factory functions for all sixteen
+  case activity classes; update `factories/__init__.py`
+- [ ] AF-0.4 Create `factories/embargo.py` with factory functions for all
+  eight embargo activity classes; update `factories/__init__.py`
+- [ ] AF-0.5 Create `factories/case_participant.py` with factory functions for
+  all five case-participant activity classes; update `factories/__init__.py`
+- [ ] AF-0.6 Create `factories/actor.py` and `factories/sync.py` with factory
+  functions for remaining activity classes; update `factories/__init__.py`
+- [ ] AF-0.7 Create `test/architecture/__init__.py` and
+  `test/architecture/test_activity_factory_imports.py` (import boundary test)
+- [ ] AF-0.8 Migrate all call sites in demo scripts to factory functions
+- [ ] AF-0.9 Migrate all call sites in trigger use-case modules and adapters
+  to factory functions
+- [ ] AF-0.10 Migrate all call sites in test files to factory functions
+- [ ] AF-0.11 Remove unused `OfferRef` and `RmInviteToCaseRef` TypeAliases;
+  rename `EmProposeEmbargoRef` → `_EmProposeEmbargoRef`
+- [ ] AF-0.12 Mark internal Vultron activity subclasses as private (prefix
+  with `_` or add `__all__` exclusion) in `vocab/activities/` modules
+- [ ] AF-0.13 Add factory functions entry to AGENTS.md quick reference and
+  Common Pitfalls
+
+---
+
+## ARCH-VIO-01 — Fix `from_core()` calls in core use cases (architecture violation)
+
+**Background**: `vultron/core/use_cases/received/sync.py` and
+`vultron/core/use_cases/triggers/sync.py` call `from_core()` on wire objects
+(`CaseLogEntry.from_core(entry)`). This violates ARCH-03-001 — core modules
+MUST NOT import from the wire layer. See `notes/activity-factories.md` for
+the full analysis.
+
+**The fix**: Move domain→wire translation into a driven adapter or outbox
+port adapter. Core use cases should pass domain objects to the adapter; the
+adapter calls factory functions (or `from_core()`) to produce wire-format
+objects.
+
+**Dependencies**: AF-0 complete (factories exist before fixing the violation).
+
+- [ ] ARCH-VIO-01.1 Define a driven port interface for domain→wire activity
+  translation (in `vultron/core/ports/`)
+- [ ] ARCH-VIO-01.2 Implement the adapter in
+  `vultron/adapters/driven/activity_translator.py` using factory functions
+- [ ] ARCH-VIO-01.3 Replace `from_core()` calls in `sync.py` use cases with
+  the new driven adapter injection
+- [ ] ARCH-VIO-01.4 Update tests; verify no core module imports wire types
+
+---
+
 ## Deferred (Per PRIORITIES.md)
 
 - USE-CASE-01 **`CloseCaseUseCase` wire-type construction** — Replace direct

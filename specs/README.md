@@ -46,6 +46,7 @@ Load additional files only when the task touches the relevant area. See the
 | Case / state management | `case-management.md`, `state-machine.md`, `case-log-processing.md` |
 | Protocol conformance | `vultron-protocol-spec.md`, `vultron-as2-mapping.md` |
 | Wire vocabulary | `vocabulary-model.md` |
+| Activity factory functions | `activity-factories.md` |
 | Response generation / outbox | `response-format.md`, `outbox.md` |
 | Synchronization | `sync-log-replication.md` |
 | Participant case replica lifecycle | `participant-case-replica.md` |
@@ -107,6 +108,11 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 - **`vocabulary-model.md`** - AS2 vocabulary registration, base model configuration
   (`alias_generator`, `validate_by_name`, `validate_by_alias`), type inference, Literal
   type narrowing, and the rehydration contract (`rehydrate(obj, dl)`) (VM-01 through VM-07)
+
+- **`activity-factories.md`** - Factory function pattern for constructing outbound
+  Vultron protocol activities; module structure under `vultron/wire/as2/factories/`,
+  import boundary enforcement, error handling, TypeAlias cleanup, and migration
+  requirements (AF-01 through AF-08)
 
 **Semantic–Wire Mapping**:
 
@@ -336,6 +342,7 @@ is reserved for `testability.md`).
 | `PCR` | `participant-case-replica.md` |
 | `SYNC` | `sync-log-replication.md` |
 | `TB` | `testability.md` |
+| `AF` | `activity-factories.md` |
 | `TRACE` | `traceability.md` |
 | `TRIG` | `triggerable-behaviors.md` |
 | `UC-ORG` | `use-case-organization.md` |

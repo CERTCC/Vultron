@@ -1,35 +1,5 @@
 # Project Ideas
 
-## IDEA-26042001 The Vultron-specific activities might make more sense as factory functions
-
-Something I've observed in watching agents coding the implementation is that
-often they get hung up on things like RmSubmitReportActivity as if it's a
-full-blown class instead of just a convenience wrapper around an AS2 "Offer"
-that happens to require a VulnerabilityReport as the object. I wonder if
-maybe this "everything is a subclass" approach is actually making things
-more complicated than necessary. For example, you could have something like
-a factory method that:
-
-```python
-def rm_submit_report_activity(report: VulnerabilityReport, to: ActorID, 
-                              **kwargs: dict) -> 
-    as_Offer:
-    return as_Offer(
-        object_=report,
-        to=[to],
-        # other necessary fields and defaults
-        **kwargs,
-    )
-```
-
-This might completely eliminate the confusion around these
-Vultron-customized activity types that are not really full-blown extensions
-of AS2 activities but just convenience wrappers to create bog standard AS2
-activities with the right fields and type hints for our use cases. This
-might help us to also be able to specify the patterns to use in the semantic
-extraction process as well. And it could even further decouple the core
-logic from the AS2 message details.
-
 ## IDEA-26042401 Priorities should be decoupled from the implementation plan
 
 I don't like it when tasks are added to @IMPLEMENTATION_PLAN.md with the
