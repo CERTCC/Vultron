@@ -1,3 +1,22 @@
+---
+title: "Trigger Classification: Demo vs General-Purpose"
+status: active
+description: >
+  Classification of demo vs general-purpose triggers; trigger routing, naming
+  conventions, and configuration guidance.
+related_specs:
+  - specs/triggerable-behaviors.md
+  - specs/configuration.md
+related_notes:
+  - notes/protocol-event-cascades.md
+  - notes/triggerable-behaviors.md
+relevant_packages:
+  - fastapi
+  - vultron/adapters/driving/fastapi
+  - vultron/config
+  - vultron/core/use_cases/triggers
+---
+
 # Trigger Classification: Demo vs General-Purpose
 
 **Cross-references**: `specs/triggerable-behaviors.md` (TRIG-08, TRIG-09,

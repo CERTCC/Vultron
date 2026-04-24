@@ -1,3 +1,11 @@
+---
+title: Mermaid Sequence Diagram Reference
+status: active
+description: >
+  Mermaid sequence diagram syntax reference for documenting Vultron protocol
+  interactions.
+---
+
 # Mermaid Sequence Diagram Reference
 
 A sequence diagram is an interaction diagram that shows how processes

@@ -1,3 +1,24 @@
+---
+title: Codebase Structure Notes
+status: active
+description: >
+  Overview of the Vultron codebase structure, module organization, and
+  hexagonal architecture layout.
+related_specs:
+  - specs/prototype-shortcuts.md
+related_notes:
+  - notes/bt-integration.md
+  - notes/domain-model-separation.md
+relevant_packages:
+  - fastapi
+  - py_trees
+  - vultron/core
+  - vultron/bt
+  - vultron/adapters
+  - vultron/wire/as2
+  - vultron/demo
+---
+
 # Codebase Structure Notes
 
 ## Top-Level Module Reorganization Status

@@ -1,3 +1,19 @@
+---
+title: Documentation Strategy Notes
+status: active
+description: >
+  Documentation chronology and strategy for interpreting conflicting
+  documentation generations in Vultron.
+related_notes:
+  - notes/bt-integration.md
+  - notes/case-state-model.md
+relevant_packages:
+  - vultron/bt
+  - vultron/core
+  - vultron/demo
+  - vultron/wire/as2
+---
+
 # Documentation Strategy Notes
 
 ## Documentation Chronology and Trust Levels

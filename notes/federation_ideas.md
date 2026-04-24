@@ -1,3 +1,16 @@
+---
+title: Federation Design Ideas
+status: draft
+description: >
+  Exploratory federation architecture ideas for Vultron captured from design
+  discussion; input for future ADRs.
+relevant_packages:
+  - pydantic
+  - rdflib
+  - vultron/wire/as2
+  - vultron/adapters
+---
+
 # Federation Design Ideas
 
 > Captured from architecture discussion. Intended as input to design specs and

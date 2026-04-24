@@ -1,3 +1,18 @@
+---
+title: Sync Log Replication — Design Notes
+status: active
+description: "Design notes for sync log replication: append-only case activity log synchronization between actors."
+related_specs:
+  - specs/sync-log-replication.md
+  - specs/case-log-processing.md
+related_notes:
+  - notes/case-log-authority.md
+  - notes/case-state-model.md
+relevant_packages:
+  - vultron/core/behaviors
+  - vultron/wire/as2
+---
+
 # Sync Log Replication — Design Notes
 
 **Relates to**: `specs/sync-log-replication.md`, `plan/IMPLEMENTATION_PLAN.md`

@@ -1,3 +1,17 @@
+---
+title: Activity Factory Functions — Implementation Notes
+status: active
+description: >
+  Factory functions as the public construction API for outbound Vultron
+  activity messages; replaces direct subclass instantiation.
+related_specs:
+  - specs/activity-factories.md
+relevant_packages:
+  - pydantic
+  - vultron/wire/as2
+  - vultron/core/use_cases
+---
+
 # Activity Factory Functions — Implementation Notes
 
 ## Summary

@@ -1,3 +1,18 @@
+---
+title: Stub Objects and Selective Disclosure
+status: active
+description: >
+  Design notes for lightweight stub object representations in Vultron wire
+  messages; not yet implemented.
+related_specs:
+  - specs/stub-objects.md
+  - specs/message-validation.md
+related_notes:
+  - notes/datalayer-design.md
+relevant_packages:
+  - vultron/wire/as2
+---
+
 # Stub Objects and Selective Disclosure
 
 Design notes for lightweight object representations in Vultron wire messages.

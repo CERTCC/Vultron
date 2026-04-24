@@ -1,3 +1,11 @@
+---
+title: Docker Build Notes
+status: active
+description: >
+  Observations and guidance for Vultron Docker image optimization and docker-
+  compose configuration.
+---
+
 # Docker Build Notes
 
 ## Project-Specific Build Context Observations

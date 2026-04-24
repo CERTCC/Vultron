@@ -1,3 +1,18 @@
+---
+title: Embargo Default Semantics — Implementation Notes
+status: active
+description: >
+  Design decisions for embargo policy EP-04 requirements; default embargo
+  duration and expiry semantics.
+related_specs:
+  - specs/case-management.md
+  - specs/embargo-policy.md
+relevant_packages:
+  - transitions
+  - vultron/bt/embargo_management
+  - vultron/core/use_cases/triggers
+---
+
 # Embargo Default Semantics — Implementation Notes
 
 Design decisions, implementation patterns, and known gaps for

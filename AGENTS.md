@@ -1467,6 +1467,24 @@ Use `markdownlint-cli2` for linting markdown. The default config
 All other directories (`specs/`, `notes/`, `docs/`, `plan/`) are linted
 by the default config.
 
+### Notes frontmatter maintenance (NF-06-001, NF-06-002)
+
+Every `notes/*.md` file (except `notes/README.md`) MUST contain a YAML
+frontmatter block at the top of the file with at least `title` and `status`
+fields. Valid `status` values are `active`, `draft`, `superseded`, and
+`archived`. When `status` is `superseded`, a `superseded_by` field is also
+required.
+
+When modifying any `notes/*.md` file, review and update its frontmatter —
+in particular `status`, `related_specs`, and `related_notes` — to reflect
+any changes in scope or relationships.
+
+A pre-commit hook (`validate-notes-frontmatter`) and a pytest test
+(`test/metadata/test_notes_frontmatter.py`) enforce that every notes file
+has valid frontmatter. The schema is defined in
+`vultron/metadata/notes/schema.py` and the loader in
+`vultron/metadata/notes/loader.py`.
+
 ### Docs links must be relative
 
 Markdown links in `docs/` MUST be relative to the current file and MUST NOT
