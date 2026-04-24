@@ -1,3 +1,15 @@
+---
+title: Demo Review — 2026-04-20
+status: archived
+description: >
+  Point-in-time demo review from 2026-04-20; log analysis and findings from
+  the demonstration run.
+related_specs:
+  - specs/architecture.md
+relevant_packages:
+  - transitions
+---
+
 # Demo Review — 2026-04-20
 
 Log files analysed:

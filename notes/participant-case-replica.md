@@ -1,3 +1,15 @@
+---
+title: Participant Case Replica — Implementation Notes
+status: active
+description: >
+  Design notes for participant case replicas: per-actor case copies and
+  synchronization model.
+related_specs:
+  - specs/participant-case-replica.md
+  - specs/case-management.md
+  - specs/sync-log-replication.md
+---
+
 # Participant Case Replica — Implementation Notes
 
 **Relates to**: `specs/participant-case-replica.md`

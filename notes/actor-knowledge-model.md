@@ -1,3 +1,16 @@
+---
+title: Actor Knowledge Model — Implementation Notes
+status: active
+description: >
+  Design decisions and implementation guidance for the Actor Knowledge Model
+  (IDEA-26041601/02).
+related_specs:
+  - specs/actor-knowledge-model.md
+  - specs/testability.md
+relevant_packages:
+  - fastapi
+---
+
 # Actor Knowledge Model — Implementation Notes
 
 ## Overview

@@ -1,3 +1,17 @@
+---
+title: Participant Embargo Consent State Machine
+status: active
+description: >
+  Design decisions for tracking per-participant embargo acceptance; consent
+  state machine and implementation patterns.
+related_specs:
+  - specs/case-management.md
+related_notes:
+  - notes/stub-objects.md
+relevant_packages:
+  - transitions
+---
+
 # Participant Embargo Consent State Machine
 
 **Status**: Design decision — not yet implemented

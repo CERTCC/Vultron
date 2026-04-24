@@ -1,3 +1,19 @@
+---
+title: Behavior Tree Integration Design Notes
+status: active
+description: >
+  BT design decisions, py_trees patterns, simulation-to-prototype translation
+  strategy, subtree map, and anti-patterns to avoid.
+related_specs:
+  - specs/behavior-tree-integration.md
+related_notes:
+  - notes/bt-fuzzer-nodes.md
+  - notes/protocol-event-cascades.md
+  - notes/use-case-behavior-trees.md
+relevant_packages:
+  - py_trees
+---
+
 # Behavior Tree Integration Design Notes
 
 ## Architecture Overview

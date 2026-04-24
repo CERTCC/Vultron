@@ -1,3 +1,15 @@
+---
+title: Configuration Management — Implementation Notes
+status: active
+description: Design decisions for YAML-backed Pydantic configuration loading in Vultron.
+related_specs:
+  - specs/configuration.md
+relevant_packages:
+  - fastapi
+  - pydantic
+  - yaml
+---
+
 # Configuration Management — Implementation Notes
 
 ## Background

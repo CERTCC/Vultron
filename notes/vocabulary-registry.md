@@ -1,3 +1,15 @@
+---
+title: Vocabulary Registry Design
+status: active
+description: >
+  Design notes for the Vultron wire vocabulary registry: AS2 type-to-class
+  mapping and dynamic deserialization.
+related_specs:
+  - specs/vocabulary-model.md
+related_notes:
+  - notes/activitystreams-semantics.md
+---
+
 # Vocabulary Registry Design
 
 ## Overview

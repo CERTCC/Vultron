@@ -1,3 +1,13 @@
+---
+title: Plan / History Management Contract
+status: active
+description: >
+  Authoritative rules for managing IMPLEMENTATION_PLAN.md (forward roadmap)
+  and IMPLEMENTATION_HISTORY.md (append-only log).
+related_specs:
+  - specs/project-documentation.md
+---
+
 # Plan / History Management Contract
 
 This document defines the authoritative rules for managing

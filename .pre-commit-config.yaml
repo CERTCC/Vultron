@@ -16,3 +16,10 @@ repos:
         args: ["--fix", "--config", ".markdownlint-cli2.yaml", "**/*.md"]
         files: \.(md|markdown)$
 
+      - id: validate-notes-frontmatter
+        name: Validate notes frontmatter
+        entry: uv run python -c "from vultron.metadata.notes.loader import load_notes_registry; load_notes_registry()"
+        language: system
+        files: ^notes/.*\.md$
+        exclude: ^notes/README\.md$
+        pass_filenames: false

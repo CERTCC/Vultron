@@ -1,3 +1,19 @@
+---
+title: ActivityStreams Semantics in Vultron
+status: active
+description: >
+  Activities as state-change statements, not commands; inbound/outbound
+  semantics, Accept/Reject object rules, and rehydration.
+related_specs:
+  - specs/semantic-extraction.md
+  - specs/response-format.md
+  - specs/case-management.md
+related_notes:
+  - notes/bt-integration.md
+relevant_packages:
+  - pydantic
+---
+
 # ActivityStreams Semantics in Vultron
 
 ## Activities Are State-Change Notifications, Not Commands

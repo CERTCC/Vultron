@@ -27,6 +27,11 @@ config:
   # Allow duplicate headings as long as they don't share the same parent section
   "MD024":
     siblings_only: true
+  # 025 Single title / single H1
+  # Disable front_matter_title so that YAML frontmatter 'title:' does not
+  # count as an H1, allowing both frontmatter title and a body # heading.
+  "MD025":
+    front_matter_title: ""
   # 051 Link fragments should be valid
   # Disabled because conversion from TeX to markdown produces invalid links
   # We might eventually be able to re-enable this one.

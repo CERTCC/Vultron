@@ -1,3 +1,22 @@
+---
+title: "Triggerable Behaviors: Design Notes"
+status: active
+description: >
+  Design notes for triggerable behaviors: API endpoints, CLI commands, BT
+  integration, and behavior routing patterns.
+related_specs:
+  - specs/triggerable-behaviors.md
+  - specs/behavior-tree-integration.md
+  - specs/code-style.md
+related_notes:
+  - notes/bt-fuzzer-nodes.md
+  - notes/bt-integration.md
+  - notes/do-work-behaviors.md
+  - notes/domain-model-separation.md
+relevant_packages:
+  - transitions
+---
+
 # Triggerable Behaviors: Design Notes
 
 **Cross-references**: `plan/PRIORITIES.md` PRIORITY 30,

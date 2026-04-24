@@ -1,3 +1,18 @@
+---
+title: Behavior Tree Composability Design Notes
+status: active
+description: >
+  Vultron's fractal composability principle for behavior trees; concrete
+  patterns for composing behavioral subtrees.
+related_specs:
+  - specs/bt-composability.md
+related_notes:
+  - notes/bt-integration.md
+  - notes/bt-reusability.md
+relevant_packages:
+  - py_trees
+---
+
 # Behavior Tree Composability Design Notes
 
 ## Overview

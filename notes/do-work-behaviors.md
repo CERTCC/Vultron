@@ -1,3 +1,17 @@
+---
+title: "Do-Work Behaviors: Scope and Implementation Notes"
+status: active
+description: >
+  Scope boundaries for 'do work' behaviors in the Vultron prototype;
+  identifies which behaviors are unimplemented stubs.
+related_specs:
+  - specs/behavior-tree-integration.md
+  - specs/case-management.md
+  - specs/triggerable-behaviors.md
+relevant_packages:
+  - transitions
+---
+
 # Do-Work Behaviors: Scope and Implementation Notes
 
 This note documents the scope boundaries for "do work" behaviors in the

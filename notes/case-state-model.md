@@ -1,3 +1,18 @@
+---
+title: Case State Model Notes
+status: active
+description: >
+  CVD case state model: six binary dimensions (RM/EM/CS), CaseStatus append-
+  only history, and CaseEvent trusted timestamps.
+related_specs:
+  - specs/case-management.md
+related_notes:
+  - notes/activitystreams-semantics.md
+  - notes/protocol-event-cascades.md
+relevant_packages:
+  - transitions
+---
+
 # Case State Model Notes
 
 ## The Six-Dimensional Case State Model

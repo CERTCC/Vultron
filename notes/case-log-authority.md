@@ -1,3 +1,19 @@
+---
+title: Case Log Authority and Assertion Recording
+status: active
+description: >
+  Authority model for the case activity log: trusted timestamps, assertion
+  recording, and authority chain.
+related_specs:
+  - specs/case-log-processing.md
+  - specs/case-management.md
+  - specs/sync-log-replication.md
+related_notes:
+  - notes/activitystreams-semantics.md
+  - notes/case-state-model.md
+  - notes/sync-log-replication.md
+---
+
 # Case Log Authority and Assertion Recording
 
 **Relates to**: `specs/case-log-processing.md`,

@@ -1,3 +1,11 @@
+---
+title: Future Demo Ideas
+status: draft
+description: >
+  Speculative future demo scenarios and multi-actor workflow ideas for the
+  Vultron prototype.
+---
+
 # Future Demo Ideas
 
 ## Two-Actor Demo: Finder, Vendor coordinate in separate containers

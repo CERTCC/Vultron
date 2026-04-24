@@ -1,3 +1,21 @@
+---
+title: "Domain Model Separation: Wire, Domain, and Persistence"
+status: active
+description: >
+  Analysis of wire/domain/persistence model coupling in VulnerabilityCase and
+  recommended separation path.
+related_specs:
+  - specs/architecture.md
+  - specs/case-management.md
+  - specs/datalayer.md
+related_notes:
+  - notes/activitystreams-semantics.md
+  - notes/case-state-model.md
+  - notes/datalayer-design.md
+relevant_packages:
+  - pydantic
+---
+
 # Domain Model Separation: Wire, Domain, and Persistence
 
 ## The Problem

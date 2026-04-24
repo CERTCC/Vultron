@@ -1,3 +1,18 @@
+---
+title: Use Cases, Domain Logic, and Behavior Trees
+status: active
+description: >
+  Clarifies the relationship between use cases, domain logic, and behavior
+  trees; documents where each concern belongs.
+related_specs:
+  - specs/code-style.md
+related_notes:
+  - notes/bt-integration.md
+  - notes/domain-model-separation.md
+relevant_packages:
+  - transitions
+---
+
 # Use Cases, Domain Logic, and Behavior Trees
 
 This note clarifies the relationship between **use cases**, **domain logic**,
