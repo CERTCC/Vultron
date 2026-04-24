@@ -48,6 +48,7 @@ Load additional files only when the task touches the relevant area. See the
 | Response generation / outbox | `response-format.md`, `outbox.md` |
 | Synchronization | `sync-log-replication.md` |
 | Embargo / duration | `embargo-policy.md`, `duration.md` |
+| Embargo default semantics | `embargo-policy.md`, `notes/embargo-default-semantics.md` |
 | Configuration | `configuration.md` |
 | Demo / CLI | `demo-cli.md`, `multi-actor-demo.md` |
 | Observability | `observability.md` |
@@ -184,7 +185,10 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 ### Actor Profiles and Policies
 
-- **`embargo-policy.md`** - Actor embargo policy record format and API
+- **`embargo-policy.md`** - Actor embargo policy record format, API, and
+  default embargo semantics: tacit acceptance rule, PROPOSE+ACCEPT atomic
+  transition, shortest-embargo-wins at case creation
+  (EP-01 through EP-04)
 - **`duration.md`** - Canonical ISO 8601 duration format for embargo
   policy fields: restricted grammar, validation rules, Pydantic mapping
   (DUR-01 through DUR-07)

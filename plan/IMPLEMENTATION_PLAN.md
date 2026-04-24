@@ -13,6 +13,43 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 
 ---
 
+---
+
+## Priority 300: Protocol Correctness — Default Embargo State
+
+**Source**: `plan/IDEAS.md` IDEA-26041002; spec: `specs/embargo-policy.md` EP-04
+
+When a receiver applies their published default embargo at case creation and
+the reporter submitted no explicit counter-proposal, the resulting
+`CaseStatus.em_state` MUST be `EM.ACTIVE` (not `EM.PROPOSED`). The current
+implementation sets `EM.PROPOSED`, leaving the case in a false limbo state.
+
+### EMDEFAULT-1 — Update `InitializeDefaultEmbargoNode` to produce `EM.ACTIVE`
+
+**Acceptance criteria:**
+
+- After `InitializeDefaultEmbargoNode` runs, `case.current_status.em_state`
+  is `EM.ACTIVE`.
+- The intermediate `EM.PROPOSED` state is never persisted.
+- All tests pass.
+
+**Implementation notes** (see `notes/embargo-default-semantics.md`):
+
+1. In `vultron/core/behaviors/case/nodes.py`
+   `InitializeDefaultEmbargoNode.update()`, replace the direct assignment
+   `stored_case.current_status.em_state = EM.PROPOSED` with an atomic
+   PROPOSE+ACCEPT sequence using `create_em_machine()` and `EMAdapter`.
+2. Update tests in
+   `test/core/behaviors/case/test_receive_report_case_tree.py` that assert
+   `EM.PROPOSED` to assert `EM.ACTIVE`.
+3. Check all demo-level integration tests for `EM.PROPOSED` assertions after
+   default-embargo initialization and update them.
+
+- [ ] EMDEFAULT-1: Update `InitializeDefaultEmbargoNode` + tests + demo
+  assertions (EP-04-001, EP-04-002)
+
+---
+
 ## Priority 450: Cyclomatic Complexity Enforcement
 
 `flake8-mccabe` is already bundled in the project's flake8 install. The

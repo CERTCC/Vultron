@@ -90,6 +90,45 @@ Coordination", "Prior Art and References (Embargo Policy)")
 - `PROD_ONLY` Unit test: Compatibility check returns `True` when proposed
   duration is within range, `False` otherwise
 
+## Default Embargo Semantics (MUST)
+
+- `EP-04-001` When a receiver applies their published default embargo at case
+  creation and the sender submitted no explicit embargo proposal, the initial
+  `CaseStatus.em_state` MUST be set to `EM.ACTIVE`, not `EM.PROPOSED`. The
+  sender's report submission without a counter-proposal constitutes tacit
+  acceptance of the receiver's default embargo.
+  - EP-04-001 implements the "Receiver Has Default Embargo, Sender Implies
+    Acceptance" rule from `docs/topics/process_models/em/defaults.md`
+  - EP-04-001 refines DUR-07-003 and CM-12-004
+- `EP-04-002` The implementation MUST apply both the PROPOSE and ACCEPT state
+  machine triggers atomically within `InitializeDefaultEmbargoNode`. The
+  intermediate `EM.PROPOSED` state MUST NOT be persisted or observable
+  externally.
+  - Rationale: the EM state machine has no direct NONE→ACTIVE transition;
+    the PROPOSE+ACCEPT sequence is the correct protocol path without
+    changing the state machine definition.
+- `EP-04-003` When both the sender and receiver have an applicable embargo
+  proposal at case creation (sender proposes a duration and receiver has a
+  default), the shorter of the two MUST be made active immediately
+  (`em_state = EM.ACTIVE`) and the longer SHOULD be registered as a pending
+  revision (`em_state = EM.REVISE`).
+  - EP-04-003 implements the "shortest embargo wins" principle from
+    `docs/topics/process_models/em/defaults.md`
+- `EP-04-004` EP-04-003 is contingent on a sender-proposal mechanism being
+  available. Until such a mechanism exists, only the no-sender-proposal case
+  (EP-04-001) applies at case creation.
+  - See `notes/embargo-default-semantics.md` for the known gap and design
+    paths for the missing mechanism.
+
+### EP-04 Verification
+
+- Unit test: After `InitializeDefaultEmbargoNode` runs, `case.current_status.em_state`
+  is `EM.ACTIVE` (not `EM.PROPOSED`)
+- Unit test: The intermediate `EM.PROPOSED` state is never persisted to the
+  DataLayer during default embargo initialization
+- Unit test: Demo final-state assertions use `EM.ACTIVE`, not `EM.PROPOSED`,
+  for the default-embargo case
+
 ## Related
 
 - **Case Management**: `specs/case-management.md`
@@ -97,3 +136,4 @@ Coordination", "Prior Art and References (Embargo Policy)")
 - **Agentic Readiness**: `specs/agentic-readiness.md`
 - **Object IDs**: `specs/object-ids.md`
 - **Duration Format**: `specs/duration.md` (ISO 8601 duration string format)
+- **EM Process Model**: `docs/topics/process_models/em/defaults.md`

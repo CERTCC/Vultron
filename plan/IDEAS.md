@@ -62,20 +62,6 @@ there's only one Case Actor per case operated by the case creator/owner.
 local copy of the case object and are not directly writing to their own copy
 either but routing their updates through the Case Actor too).
 
-## IDEA-26041002 Default embargo should result in `EM.ACTIVE` not `EM.PROPOSED`
-
-Contrary to what was implemented in `D5-7-EMSTATE-1`, when a default embargo
-is applied to a newly created case, the resulting embargo state should be
-`EM.ACTIVE`, not `EM.PROPOSED`. The rationale for this is that if the
-reporter did not request otherwise, then the submission of the report signals
-the reporter tacitly accepting the receiver's default embargo. So when a
-case is created and a default embargo is applied, the embargo can be
-considered to be active immediately. The reporter can always propose a
-revision later if desired, but we don't want to leave the case in a limbo
-state of `EM.PROPOSED`, which would imply that *no embargo exists* until the
-reporter explicitly accepts the default embargo. See  
-`docs/topics/process_models/em/defaults.md` for more discussion.
-
 ## IDEA-26041003 Differentiate between "demo" triggers and "normal" triggers
 
 Some of the triggerable behaviors we have implemented only exist because we

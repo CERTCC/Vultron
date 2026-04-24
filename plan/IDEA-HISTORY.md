@@ -152,3 +152,22 @@ bugs, not closed ones.
 **Processed**: 2026-04-23 — design decisions captured in
 `specs/bugfix-workflow.md` (BFW-04-001 through BFW-04-004) and
 `notes/bugfix-workflow.md`.
+
+## IDEA-26041002 Default embargo should result in `EM.ACTIVE` not `EM.PROPOSED`
+
+Contrary to what was implemented in `D5-7-EMSTATE-1`, when a default embargo
+is applied to a newly created case, the resulting embargo state should be
+`EM.ACTIVE`, not `EM.PROPOSED`. The rationale for this is that if the
+reporter did not request otherwise, then the submission of the report signals
+the reporter tacitly accepting the receiver's default embargo. So when a
+case is created and a default embargo is applied, the embargo can be
+considered to be active immediately. The reporter can always propose a
+revision later if desired, but we don't want to leave the case in a limbo
+state of `EM.PROPOSED`, which would imply that *no embargo exists* until the
+reporter explicitly accepts the default embargo. See
+`docs/topics/process_models/em/defaults.md` for more discussion.
+
+**Processed**: 2026-04-24 — design decisions captured in
+`specs/embargo-policy.md` (EP-04-001 through EP-04-004) and
+`notes/embargo-default-semantics.md`. Implementation task added to
+`plan/IMPLEMENTATION_PLAN.md` as EMDEFAULT-1.

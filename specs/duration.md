@@ -158,7 +158,9 @@ Durations may be combined with RFC 3339 timestamps to form intervals.
     (RM.RECEIVED), not at validation (RM.VALID)
   - DUR-07-002 is-refined-by CM-12-004
 - `DUR-07-003` When a default embargo duration is applied at case creation,
-  this application MUST be logged at INFO level to ensure visibility in logs
+  this application MUST be logged at INFO level to ensure visibility in logs.
+  The resulting `CaseStatus.em_state` MUST be `EM.ACTIVE` (not `EM.PROPOSED`);
+  see `specs/embargo-policy.md` EP-04-001.
 - `DUR-07-004` An embargo end time MUST be established before the case
   transitions to RM.VALID
   - If the default embargo was not initialized at receipt (DUR-07-002),
