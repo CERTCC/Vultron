@@ -238,6 +238,15 @@ size (≤ 20 tasks), failure modes, and entry formats.
 adding to IMPLEMENTATION_HISTORY.md, or auditing PLAN for stale completed
 items.
 
+**`plan-organization.md`**
+Conventions for `plan/IMPLEMENTATION_PLAN.md` section structure and
+`plan/PRIORITIES.md` coupling: `TASK-FOO` section IDs, dot-notation task IDs,
+`TASK-` namespace to avoid spec-prefix collisions, migration examples, and
+guidance for choosing a new `TASK-FOO` identifier.
+**Load when**: adding a new section to IMPLEMENTATION_PLAN.md, assigning
+or changing priorities, auditing plan sections for old priority-heading or
+dash-notation task IDs.
+
 ---
 
 ## Documentation and Traceability

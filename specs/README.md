@@ -59,7 +59,7 @@ Load additional files only when the task touches the relevant area. See the
 | Security / CI | `ci-security.md`, `encryption.md` |
 | Agentic API | `agentic-readiness.md` |
 | Documentation work | `diataxis-requirements.md`, `project-documentation.md`, `traceability.md` |
-| Writing/updating specs | `meta-specifications.md` |
+| Plan organization / priorities | `project-documentation.md`, `notes/plan-organization.md` |
 | Bugfix skill / bug lifecycle | `bugfix-workflow.md` |
 
 ---
@@ -254,7 +254,9 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 ### Project and Agent Guidance
 
 - **`project-documentation.md`** - Documentation file structure and purpose;
-  includes append-only history write protocol (PD-05) for `plan/*HISTORY.md`
+  includes append-only history write protocol (PD-05) for `plan/*HISTORY.md`,
+  and plan section organization rules (PD-06): `TASK-FOO` heading format,
+  dot-notation task IDs, priority/plan decoupling
 - **`prototype-shortcuts.md`** - Permissible shortcuts for the prototype stage,
   including performance testing deferral (PROTO-07) and backward-compatibility
   / change-completeness policy (PROTO-08)

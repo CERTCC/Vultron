@@ -471,3 +471,37 @@ how agents write new entries to them.
 > `tail` provides the safety check without requiring pre-append reads.
 
 **Source**: IDEA-26042201, IDEA-26042301
+
+---
+
+## Plan Section Organization (MUST/SHOULD)
+
+**Source**: IDEA-26042401
+
+- `PD-06-001` `plan/IMPLEMENTATION_PLAN.md` section headings MUST use the
+  format `## TASK-FOO — Short description`, where `FOO` is a short
+  topic-specific identifier. Priority numbers MUST NOT appear in section
+  headings.
+- `PD-06-002` The `TASK-` prefix is a namespace reserved for
+  `plan/IMPLEMENTATION_PLAN.md` section identifiers. `TASK-FOO` topic
+  identifiers MUST NOT conflict with any spec prefix listed in the prefix
+  registry in `specs/README.md`.
+  - Using a `TASK-` namespace prefix makes every plan section ID visually and
+    structurally distinct from any spec requirement ID at a glance, with no
+    need to consult the registry.
+- `PD-06-003` Individual task items within a `TASK-FOO` section MUST be
+  identified using dot notation: `FOO.1`, `FOO.2`, `FOO.2.3.1a` (dots only,
+  no dashes). This structurally distinguishes plan task IDs from spec
+  requirement IDs (`PREFIX-NN-NNN`, which use dashes).
+- `PD-06-004` Priority ordering is the sole responsibility of
+  `plan/PRIORITIES.md`. `plan/IMPLEMENTATION_PLAN.md` MUST NOT encode
+  priority information in section headings or rely on section order to imply
+  priority.
+- `PD-06-005` (SHOULD) `plan/PRIORITIES.md` entries SHOULD reference the
+  relevant `TASK-FOO` identifiers or section names to link priority
+  assignments to implementation work. No rigid format is required because
+  PRIORITIES.md is primarily human-edited; a brief reference to the section
+  name or topic ID is sufficient.
+- `PD-06-006` When priorities change, only `plan/PRIORITIES.md` needs to be
+  updated. `plan/IMPLEMENTATION_PLAN.md` section identifiers, headings, and
+  task IDs MUST NOT change when priorities change.
