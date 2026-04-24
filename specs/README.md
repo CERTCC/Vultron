@@ -60,6 +60,7 @@ Load additional files only when the task touches the relevant area. See the
 | Agentic API | `agentic-readiness.md` |
 | Documentation work | `diataxis-requirements.md`, `project-documentation.md`, `traceability.md` |
 | Plan organization / priorities | `project-documentation.md`, `notes/plan-organization.md` |
+| Notes frontmatter / metadata tooling | `notes-frontmatter.md` |
 | Bugfix skill / bug lifecycle | `bugfix-workflow.md` |
 
 ---
@@ -265,6 +266,11 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   (Phase 2b), user engagement, issue escalation to `plan/BUGS.md`, and bug
   lifecycle archiving to `plan/IMPLEMENTATION_HISTORY.md`
   (BFW-01 through BFW-04)
+- **`notes-frontmatter.md`** - YAML frontmatter schema for `notes/*.md` files:
+  required fields (`title`, `status`), optional relationship fields, Pydantic
+  loader in `vultron/metadata/notes/`, validation enforcement (pytest +
+  pre-commit), migration requirements, and future registry/query tool notes
+  (NF-01 through NF-07)
 
 ---
 
@@ -332,6 +338,7 @@ is reserved for `testability.md`).
 | `IE` | `inbox-endpoint.md` |
 | `IMPL-TS` | `tech-stack.md` |
 | `MV` | `message-validation.md` |
+| `NF` | `notes-frontmatter.md` |
 | `OB` | `observability.md` |
 | `OID` | `object-ids.md` |
 | `OX` | `outbox.md` |
