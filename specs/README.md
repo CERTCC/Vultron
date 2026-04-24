@@ -42,7 +42,7 @@ Load additional files only when the task touches the relevant area. See the
 | Inter-actor communication / knowledge model | `actor-knowledge-model.md` |
 | DataLayer adapter | `datalayer.md` |
 | Handler pipeline | `inbox-endpoint.md`, `message-validation.md`, `semantic-extraction.md`, `dispatch-routing.md` |
-| Behavior Trees | `behavior-tree-integration.md`, `behavior-tree-node-design.md`, `triggerable-behaviors.md` |
+| Behavior Trees | `behavior-tree-integration.md`, `behavior-tree-node-design.md`, `triggerable-behaviors.md`, `notes/trigger-classification.md` |
 | Case / state management | `case-management.md`, `state-machine.md`, `case-log-processing.md` |
 | Protocol conformance | `vultron-protocol-spec.md`, `vultron-as2-mapping.md` |
 | Wire vocabulary | `vocabulary-model.md` |
@@ -117,7 +117,10 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   blackboard interface contracts (BTND-01 through BTND-04)
 - **`triggerable-behaviors.md`** - Trigger API for actor-initiated behaviors (PRIORITY 30):
   endpoint format, RM/EM candidate behaviors, request/response schema,
-  BT integration, per-actor DataLayer dependency, outbox activity requirement
+  BT integration, per-actor DataLayer dependency, outbox activity requirement,
+  trigger classification (general vs demo-only), `RunMode` StrEnum,
+  demo endpoint prefix, `add-object-to-case` generalization
+  (TRIG-01 through TRIG-10)
 
 - **`actor-knowledge-model.md`** - Actor Knowledge Model: DataLayer isolation
   invariant, Actor knowledge boundaries, full-inline-object rule, stub-object

@@ -1,18 +1,5 @@
 # Project Ideas
 
-## IDEA-26041003 Differentiate between "demo" triggers and "normal" triggers
-
-Some of the triggerable behaviors we have implemented only exist because we
-need them to initiate events for the demos. They are not general purpose
-triggers that we would expect to be used in the normal course of operations.
-For example, an "Add(Note) to case" trigger is really specific to our demo.
-But an "Add(object) to case" might be a more general trigger that could be
-used for other purposes in the future. So when we are adding specific
-triggers for demo purposes, we should consider whether they are exclusively
-demo-centric triggers or if there is a generalized version that would be
-worth implementing. If so, we should implement the generalized one, and
-have the demo just use that with its specific object types or needs.
-
 ## IDEA-26041701 Clarification of intended control flow
 
 Vultron is inherently designed to be an event-driven system. Messages arrive
