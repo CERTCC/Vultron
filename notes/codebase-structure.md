@@ -380,7 +380,7 @@ another with import path changes), the following approach works reliably:
 - **No shims = immediate confidence.** Without compatibility re-exports, a
   clean test run proves all callers were updated. Any missed import site
   causes an `ImportError` immediately rather than silently passing through a
-  shim.
+  shim. See `specs/prototype-shortcuts.md` PROTO-08-001, PROTO-08-002.
 - **Find all callers first.** Use `grep -r "from old.path\|import old.path"`
   across `vultron/` and `test/` to get the complete call-site list before
   starting.

@@ -8046,3 +8046,27 @@ story_2022_070–073 (TLP traffic-light-protocol).
 - `plan/IMPLEMENTATION_NOTES.md`: Added DOCS-3 gap analysis section.
 - `plan/IMPLEMENTATION_PLAN.md`: Removed completed DOCS-3 task.
 - `plan/IMPLEMENTATION_HISTORY.md`: Added this completion entry.
+
+## BUG-26042204 — three-actor demo never activates case embargo after owner-gated accept flow (FIXED 2026-04-22)
+
+**Symptoms**: The three-actor demo integration test failed with
+`AssertionError: Expected ACTIVE embargo state, found PROPOSED` because the
+coordinator-owned case never had its embargo accepted.
+
+**Root cause**: After the owner-gated embargo-accept change,
+`SvcAcceptEmbargoUseCase` only advances the authoritative case EM state when
+the triggering actor is the case owner. The demo scenario only had the finder
+and vendor call `accept-embargo`; the coordinator/owner never did. Non-owner
+accepts recorded participant consent without changing
+`case.current_status.em_state`, leaving the case in `EM.PROPOSED`.
+
+**Fix**: Updated `vultron/demo/scenario/three_actor_demo.py` so the
+coordinator-owned CaseActor accepts the embargo proposal before the other
+participants record their acceptance. Final-state verification now requires
+all three actors — including the coordinator owner — to have accepted.
+
+**Components changed**:
+
+- `vultron/demo/scenario/three_actor_demo.py`
+- `vultron/core/use_cases/triggers/embargo.py`
+- `test/demo/test_three_actor_demo.py`

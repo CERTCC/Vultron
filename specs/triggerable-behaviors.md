@@ -12,11 +12,13 @@ them; a complete implementation requires both reactive and triggerable sides.
 
 **Source**: `plan/PRIORITIES.md` (Priority 30),
 `notes/triggerable-behaviors.md` (design notes),
+`notes/trigger-classification.md` (classification decisions),
 `docs/topics/behavior_logic/` (reference behavior tree docs)
 
 **Cross-references**: `behavior-tree-integration.md` (BT-08),
 `case-management.md` (CM-01), `handler-protocol.md` (HP-00-001),
-`outbox.md` (OX-02-001), `agentic-readiness.md` (AR-04, AR-08)
+`outbox.md` (OX-02-001), `agentic-readiness.md` (AR-04, AR-08),
+`configuration.md` (CFG-04)
 
 ---
 
@@ -94,8 +96,8 @@ them; a complete implementation requires both reactive and triggerable sides.
   | `behavior-name`        | BT reference           | Description |
   |------------------------|------------------------|-------------|
   | `create-case`          | `rm_case_bt.md`        | Actor creates a new VulnerabilityCase and notifies the CaseActor |
-  | `add-report-to-case`   | `rm_case_bt.md`        | Actor links an existing VulnerabilityReport to a VulnerabilityCase |
-  | `add-note-to-case`     | `add_note_bt.md`       | Actor adds a Note to a case and broadcasts it to all participants |
+  | `add-report-to-case`   | `rm_case_bt.md`        | Actor links an existing VulnerabilityReport to a VulnerabilityCase (delegates to `add-object-to-case` after type validation) |
+  | `add-object-to-case`   | `add_note_bt.md`       | Actor adds any AS2 object to a case and broadcasts it to all participants |
   | `submit-report`        | `rm_submit_bt.md`      | Actor (finder) creates and offers a VulnerabilityReport to a vendor |
 
 ---
@@ -114,6 +116,27 @@ them; a complete implementation requires both reactive and triggerable sides.
   **Note**: The `suggest-actor-to-case` → `invite-actor-to-case` → `accept-case-invite`
   sequence is a concrete example of a protocol event cascade. See
   `notes/protocol-event-cascades.md` for the full 4-step cascade description.
+
+---
+
+## Demo-Only Trigger Behaviors
+
+- `TRIG-02-006` The following behaviors exist only to support demo and
+  prototype scenarios. They are exposed under the `/demo/` URL prefix
+  (see TRIG-09-001) and MUST NOT be mounted in production mode
+  (see TRIG-09-002):
+
+  | `behavior-name`      | Generalizes from         | Description |
+  |----------------------|--------------------------|-------------|
+  | `add-note-to-case`   | `add-object-to-case`     | Demo-specific shortcut: adds a Note to a case (type pre-selected for demo convenience) |
+  | `sync-log-entry`     | *(cascade — no general trigger)* | Manually commits a SYNC log entry; in a real system this cascades automatically from state-changing operations |
+
+  **Rationale**: Demo-only triggers are behaviors that an autonomous actor
+  with a working BT would never need to have externally driven. They exist
+  because demos must puppeteer actors to demonstrate the protocol; they are
+  not legitimate external stimuli or explicit actor decisions. See
+  `notes/trigger-classification.md` for the full classification rationale
+  and audit results.
 
 ---
 
@@ -141,7 +164,7 @@ them; a complete implementation requires both reactive and triggerable sides.
     uses `report_id` directly.
   - Case-scoped behaviors (`engage-case`, `defer-case`, `propose-embargo`,
     `accept-embargo`, `reject-embargo`, `propose-embargo-revision`,
-    `terminate-embargo`, `add-note-to-case`, `add-report-to-case`,
+    `terminate-embargo`, `add-object-to-case`, `add-report-to-case`,
     `create-case`, `invite-actor-to-case`, `suggest-actor-to-case`,
     `notify-actor`, `assign-cve-id`, `identify-participants`):
     MUST include `case_id`
@@ -215,6 +238,89 @@ them; a complete implementation requires both reactive and triggerable sides.
 
 ---
 
+## Trigger Classification
+
+- `TRIG-08-001` The application MUST define a `RunMode` StrEnum with at
+  least two values: `PROTOTYPE` and `PROD`
+  - The enum MUST use `StrEnum` so comparisons are string-safe and do not
+    rely on bare string matching
+  - `RunMode` MUST be importable from a neutral shared module
+    (e.g., `vultron/enums.py` or `vultron/config.py`)
+- `TRIG-08-002` A trigger is **general-purpose** if it represents either
+  a legitimate external stimulus (e.g., a finder submitting a report) or
+  an intentional actor decision that a human operator or agentic client
+  might initiate (e.g., validating a report, proposing an embargo).
+  A trigger is **demo-only** if the only reason it exists is to let a demo
+  script puppeteer an actor through a step the actor's own BT would handle
+  autonomously in a real deployment.
+  - This distinction is captured in `notes/trigger-classification.md`
+    (decision table and audit results)
+- `TRIG-08-003` General-purpose triggers MUST be exposed under the path
+  prefix `/actors/{actor_id}/trigger/{behavior-name}` (TRIG-01-001)
+- `TRIG-08-004` Demo-only triggers MUST be exposed under the path prefix
+  `/actors/{actor_id}/demo/{behavior-name}` (see TRIG-09-001)
+- `TRIG-08-005` `RunMode` MUST be stored as `ServerConfig.run_mode` within
+  `AppConfig` (CFG-04-001) with a default of `RunMode.PROTOTYPE`
+  - The environment variable override is `VULTRON_SERVER__RUN_MODE`
+    (CFG-03-001, CFG-03-002)
+  - TRIG-08-005 depends-on CFG-04-001
+
+---
+
+## Demo Trigger Endpoints
+
+- `TRIG-09-001` Demo-only trigger endpoints MUST use the URL path pattern
+  `POST /actors/{actor_id}/demo/{behavior-name}`
+  - This prefix is distinct from the general-purpose `/trigger/` prefix
+    so that the distinction is visible in logs, API clients, and OpenAPI
+    documentation
+- `TRIG-09-002` The demo router MUST be conditionally mounted: it MUST be
+  included in the FastAPI application only when
+  `get_config().server.run_mode == RunMode.PROTOTYPE`
+- `TRIG-09-003` When `run_mode == RunMode.PROD`, any request to a path
+  under `/demo/` MUST return HTTP 404 (the routes are not mounted; no
+  custom error message is required)
+  - TRIG-09-003 depends-on TRIG-09-002
+- `TRIG-09-004` Demo trigger endpoints MUST share the same per-actor
+  DataLayer injection pattern as general-purpose trigger endpoints
+  (TRIG-06-001, TRIG-06-002)
+- `TRIG-09-005` Demo trigger endpoints MUST use an OpenAPI tag that
+  visually distinguishes them from general-purpose triggers in the Swagger
+  UI (e.g., `tags=["Demo Triggers"]` vs `tags=["Triggers"]`)
+
+---
+
+## Generalized Object Triggers and Type-Specific Wrappers
+
+- `TRIG-10-001` The system MUST expose an `add-object-to-case` general
+  trigger at `POST /actors/{actor_id}/trigger/add-object-to-case` that
+  accepts any valid AS2 object type as the `object` in its request body
+  - **Rationale**: Adding content to a case is a legitimate operator action
+    regardless of object type; a Note is the most common use but not the
+    only one
+- `TRIG-10-002` Type-specific convenience triggers (e.g., `add-report-to-case`)
+  MUST delegate to the corresponding general trigger after performing
+  type-specific validation
+  - Example: `add-report-to-case` validates that the referenced object is
+    a `VulnerabilityReport`, then delegates to the `add-object-to-case`
+    use-case implementation
+  - This avoids duplicating case-add logic across multiple endpoints
+- `TRIG-10-003` `add-note-to-case` MUST NOT be exposed as a general
+  `/trigger/` endpoint; it MUST be moved to `/demo/add-note-to-case` as
+  a demo-only convenience wrapper around `add-object-to-case`
+  - TRIG-10-003 refines TRIG-08-004
+- `TRIG-10-004` `sync-log-entry` MUST NOT be exposed as a general
+  `/trigger/` endpoint; it MUST be moved to `/demo/sync-log-entry`
+  - **Rationale**: In a correct implementation, SYNC log entries are
+    committed automatically as a cascade effect of every state-changing
+    operation. An explicit trigger exists only to let the demo script inject
+    entries manually. A future production "force-sync" recovery operation
+    would require a protocol-level mechanism for a peer to advertise its
+    current log tail hash before entries are replayed (SYNC-03-004)
+  - TRIG-10-004 refines TRIG-08-004
+
+---
+
 ## Verification
 
 ### TRIG-01-001, TRIG-01-002, TRIG-01-003, TRIG-01-004 Verification
@@ -263,18 +369,52 @@ them; a complete implementation requires both reactive and triggerable sides.
 - Integration test: After successful trigger, actor outbox contains the
   resulting activity
 
+### TRIG-08-001, TRIG-08-002, TRIG-08-003, TRIG-08-004, TRIG-08-005 Verification
+
+- Code review: `RunMode` is a `StrEnum` importable from a neutral module
+- Unit test: `AppConfig().server.run_mode` defaults to `RunMode.PROTOTYPE`
+- Unit test: `VULTRON_SERVER__RUN_MODE=prod` yields `RunMode.PROD`
+- Code review: General-purpose trigger routers use `/trigger/` prefix;
+  demo-only trigger routers use `/demo/` prefix
+
+### TRIG-09-001, TRIG-09-002, TRIG-09-003, TRIG-09-004, TRIG-09-005 Verification
+
+- Unit test: With `run_mode == PROD`, `POST /actors/{id}/demo/add-note-to-case`
+  returns HTTP 404
+- Unit test: With `run_mode == PROTOTYPE`, the demo router is mounted and
+  demo endpoints return HTTP 202
+- Code review: Demo trigger endpoints inject DataLayer via the same
+  dependency as general trigger endpoints
+- Code review: Demo trigger endpoints carry `tags=["Demo Triggers"]`
+  in the OpenAPI metadata
+
+### TRIG-10-001, TRIG-10-002, TRIG-10-003, TRIG-10-004 Verification
+
+- Integration test: `POST /actors/{id}/trigger/add-object-to-case` with
+  a Note object succeeds
+- Integration test: `POST /actors/{id}/trigger/add-report-to-case`
+  delegates to `add-object-to-case` logic and succeeds
+- Unit test: `POST /actors/{id}/trigger/add-note-to-case` returns HTTP 404
+  (endpoint does not exist under `/trigger/`)
+- Unit test: `POST /actors/{id}/trigger/sync-log-entry` returns HTTP 404
+  (endpoint does not exist under `/trigger/`)
+
 ---
 
 ## Related
 
 - **Design Notes**: `notes/triggerable-behaviors.md` (open questions,
   endpoint sketch, candidate behavior table)
+- **Classification Notes**: `notes/trigger-classification.md` (decision
+  table, RunMode config, wrapper pattern, audit results)
 - **Behavior Trees**: `specs/behavior-tree-integration.md` (BT-08 CLI,
   BT-09 actor isolation)
 - **Actor Isolation**: `specs/case-management.md` (CM-01)
 - **Handler Protocol**: `specs/handler-protocol.md` (HP-00-001)
 - **Outbox**: `specs/outbox.md` (OX-02-001)
 - **Agentic Readiness**: `specs/agentic-readiness.md` (AR-04, AR-08)
+- **Configuration**: `specs/configuration.md` (CFG-04)
+- **Sync Log Replication**: `specs/sync-log-replication.md` (SYNC-03-004)
 - **Prototype Shortcuts**: `specs/prototype-shortcuts.md` (PROD_ONLY deferral)
 - **Implementation**: `plan/IMPLEMENTATION_PLAN.md` Phase PRIORITY-30
   (P30-1 through P30-6)

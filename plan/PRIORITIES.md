@@ -33,9 +33,9 @@ Enforcement is two-phase to avoid a big-bang refactor:
 Each refactoring task explicitly targets CC≤10 (the final goal) so no
 function needs to be revisited when the threshold drops in Phase 2.
 
-See `plan/IMPLEMENTATION_PLAN.md` CC-1 and CC-2 for the task breakdown, and
-`plan/IMPLEMENTATION_NOTES.md` CC-ENFORCEMENT for the full violation
-inventory, per-function refactoring notes, and configuration details.
+See `plan/IMPLEMENTATION_PLAN.md` `TASK-CC` for the task breakdown (CC.1 and
+CC.2), and `plan/IMPLEMENTATION_NOTES.md` CC-ENFORCEMENT for the full
+violation inventory, per-function refactoring notes, and configuration details.
 
 ## Priority 500: Re-implement "fuzzer" nodes from the original simulator
 

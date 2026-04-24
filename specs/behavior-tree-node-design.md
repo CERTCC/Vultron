@@ -107,6 +107,138 @@ composability pattern described in `notes/bt-reusability.md`.
 
 ---
 
+## Actor Configuration for Participant Nodes
+
+- `BTND-05-001` The `CVDRoles` enum MUST include a `CASE_OWNER` flag value
+  representing the actor who owns and manages a `VulnerabilityCase`.
+  - **Rationale**: Case ownership is a protocol-significant relationship
+    distinct from the CVD roles (VENDOR, COORDINATOR, etc.). When a vendor
+    or coordinator receives a report and creates a case, they are both the
+    receiving CVD actor (VENDOR or COORDINATOR) and the case owner.
+    Representing this explicitly avoids hardcoding the assumption that the
+    case creator is always a vendor.
+  - **Refactor note**: The `CVDRoles` Flag enum SHOULD eventually be
+    refactored to a `list[CVDRoles]` using a StrEnum, so that participant
+    role assignments read as plain strings in persisted records (e.g.,
+    `["vendor", "case_owner"]` instead of a bitmask). Capture as a follow-on
+    task when adding `CASE_OWNER`.
+
+- `BTND-05-002` `CreateInitialVendorParticipant` MUST be replaced by a
+  `CreateCaseOwnerParticipant` node that:
+  - Sources the local actor's CVD roles from
+    `ActorConfig.default_case_roles` (see `CFG-07-002`), rather than
+    hardcoding `CVDRoles.VENDOR`.
+  - Always includes `CVDRoles.CASE_OWNER` in the participant's roles
+    (appending it if not already present in the configured list).
+  - Retains all RM-state seeding logic from `CreateInitialVendorParticipant`
+    (deterministic status record reuse from report-phase, initial RM state
+    parameterization).
+  - **Rationale**: "Vendor" is a demo-specific assumption. In the general
+    protocol a coordinator, deployer, or other role may equally receive a
+    report and become the case owner. The node MUST NOT know or care which
+    CVD role the actor plays — only that they are the case owner.
+  - `BTND-05-002 refines BTND-01-001`
+
+- `BTND-05-003` The `CreateFinderParticipantNode` backward-compatibility alias
+  (currently `CreateFinderParticipantNode = CreateCaseParticipantNode`) MUST
+  be removed. All call sites MUST use `CreateCaseParticipantNode` directly
+  with an explicit `roles` parameter.
+  - **Rationale**: Alias names carry the old "finder-specific" framing and
+    mislead readers about the node's actual generality.
+
+---
+
+## Idiomatic BT Construction Patterns
+
+The following requirements operationalize the design patterns documented in
+`notes/bt-design-patterns.md`. That file provides detailed explanations,
+worked examples, and guidance on when each pattern applies. Agents SHOULD
+read it before designing or reviewing BT nodes.
+
+- `BTND-06-001` (**SHOULD**) Stateful BT nodes SHOULD use the **implicit
+  sequence** pattern: a Fallback whose first child checks whether the goal
+  is already achieved (the postcondition), and whose remaining children
+  perform the work only when the goal has not yet been reached.
+  - **Rationale**: Automatically makes nodes idempotent and reactive.
+    Re-ticking a satisfied node costs only a cheap condition check. This
+    is the dominant pattern throughout `vultron/bt/`.
+  - **Example**: `Fallback(GoalAlreadyDone, Sequence(Precondition, Action))`
+  - **See**: `notes/bt-design-patterns.md` Pattern 1
+  - `BTND-06-001 refines BT-06-003, BT-06-004`
+
+- `BTND-06-002` (**SHOULD**) When a Sequence contains multiple actions, each
+  action that may already be complete SHOULD be paired with its success
+  condition via a Fallback, making the **explicit success condition** visible
+  in the tree.
+  - **Rationale**: Improves readability and correctness. Readers can
+    determine the success criterion of each step from the tree alone,
+    without reading action implementations.
+  - **Example**: `Sequence(Fallback(DoorUnlocked, UnlockDoor), Fallback(DoorOpen, OpenDoor), PassThrough)`
+  - **See**: `notes/bt-design-patterns.md` Pattern 2
+  - `BTND-06-002 refines BT-06-004`
+
+- `BTND-06-003` (**SHOULD**) Every BT node that performs a protocol state
+  transition (RM/EM/CS state machine update, emitting an AS2 activity, or
+  creating/updating a domain object) SHOULD follow the
+  **PPA (Postcondition–Precondition–Action)** structure:
+  `Fallback(Postcondition, Sequence(Precondition1, …, PreconditionN, Action))`.
+  - **Rationale**: PPA is the canonical "unit cell" of idiomatic BT design.
+    It makes the node's contract (what it requires and what it guarantees)
+    explicit and machine-readable from the tree structure.
+  - **See**: `notes/bt-design-patterns.md` Pattern 3
+  - `BTND-06-003 refines BT-06-004, BTND-06-001`
+
+- `BTND-06-004` (**MAY**) Multi-step workflows where each step has its own
+  preconditions that may need to be achieved MAY be constructed using
+  **back-chaining**: start with the goal condition, find the PPA whose
+  postcondition matches, and recursively substitute failing preconditions
+  with their own PPAs.
+  - **Rationale**: Back-chaining produces fully reactive, goal-directed
+    trees where intermediate states are automatically recovered on failure.
+  - **Caveat**: Do not back-chain into preconditions that can only be
+    achieved by external parties or human-in-the-loop decisions — model
+    these as terminal Failure leaves.
+  - **See**: `notes/bt-design-patterns.md` Pattern 4
+  - `BTND-06-004 refines BT-06-002`
+
+- `BTND-06-005` (**SHOULD**) Before any irreversible or protocol-significant
+  action, a **safety guard condition** MUST be the first child of the
+  enclosing Sequence, so that the action is skipped when the guard fails.
+  - **Rationale**: Prevents unsafe state transitions when the world changes
+    between ticks. In a multi-party protocol, another actor may change
+    shared state at any time.
+  - **Hysteresis**: When a guard threshold may cause chattering (rapid
+    switching), pair entry and exit conditions with different thresholds
+    (e.g., enter recharge at 20%, exit at 100%).
+  - **See**: `notes/bt-design-patterns.md` Pattern 5
+  - `BTND-06-005 refines BT-06-003, BT-06-004`
+
+- `BTND-06-006` (**MAY**) Memory composites (`memory=True` in py_trees)
+  MAY be used **only** in contexts that are fully deterministic and
+  non-reactive: no external actor can undo a child's outcome between ticks,
+  and the agent operates in a closed-loop, human-supervised environment.
+  - **Default for Vultron**: Use `memory=False` for all composites. Vultron
+    operates in a multi-party, open-world context where another party may
+    change shared state at any time. Memory nodes would silently skip
+    re-checking preconditions that may have been invalidated.
+  - **See**: `notes/bt-design-patterns.md` Pattern 6
+  - `BTND-06-006 refines BT-06-003`
+
+- `BTND-06-007` (**SHOULD**) Use the following **granularity guidelines**
+  when deciding whether a behavior should be a leaf node or a subtree:
+  - **Leaf when**: the sub-parts are always used together in exactly this
+    combination, the operation is atomic from the protocol's perspective,
+    and no reactivity within the operation is needed.
+  - **Subtree when**: sub-parts are reusable elsewhere, intermediate states
+    are protocol-observable, or `update()` contains more than one logical
+    check or state update (per BT-06-004).
+  - State-machine condition checks, state transitions, and message emission
+    nodes are always leaves. Composed workflows are always subtrees.
+  - **See**: `notes/bt-design-patterns.md` Pattern 7
+  - `BTND-06-007 refines BT-06-004`
+
+---
+
 ## Verification
 
 ### BTND-01-001, BTND-01-002, BTND-01-003
@@ -141,11 +273,85 @@ composability pattern described in `notes/bt-reusability.md`.
   other sibling domain module; shared nodes are imported from
   `vultron.core.behaviors.helpers` or another neutral module.
 
+### BTND-05-001
+
+- Code review: `CVDRoles` in `vultron/core/states/roles.py` contains a
+  `CASE_OWNER` member.
+- Unit test: `CVDRoles.CASE_OWNER` is usable as a flag value (can be
+  combined with VENDOR, COORDINATOR, etc.).
+
+### BTND-05-002
+
+- Code review: `CreateCaseOwnerParticipant` exists in
+  `vultron/core/behaviors/case/nodes.py`; `CreateInitialVendorParticipant`
+  is removed.
+- Code review: `CreateCaseOwnerParticipant.__init__` reads roles from an
+  `ActorConfig` object (or equivalent) rather than hardcoding `CVDRoles.VENDOR`.
+- Code review: `CVDRoles.CASE_OWNER` is always present in the participant
+  record created by `CreateCaseOwnerParticipant`.
+- Unit test: Instantiating `CreateCaseOwnerParticipant` with an
+  `ActorConfig` whose `default_case_roles` is `[CVDRoles.COORDINATOR]`
+  yields a participant with roles `COORDINATOR | CASE_OWNER`.
+
+### BTND-05-003
+
+- Code review: No file in `vultron/` contains
+  `CreateFinderParticipantNode`.
+- Unit test: `from vultron.core.behaviors.case.nodes import
+  CreateFinderParticipantNode` raises `ImportError`.
+
+### BTND-06-001
+
+- Code review: New stateful BT nodes in `vultron/core/behaviors/` use a
+  Fallback (Selector) whose first child is a postcondition check; the
+  work-performing children follow only if the check fails.
+- Code review: No stateful node omits the postcondition check and proceeds
+  directly to a Sequence of actions.
+
+### BTND-06-002
+
+- Code review: Sequences with multiple actions that may be individually
+  pre-satisfied pair each such action with its success condition via a
+  Fallback child.
+
+### BTND-06-003
+
+- Code review: Each node implementing a state machine transition or AS2
+  activity emission wraps the action in `Fallback(postcondition,
+  Sequence(precondition(s), action))`.
+
+### BTND-06-005
+
+- Code review: Every Sequence containing a protocol-significant action has
+  a condition node as its first child that guards against unsafe or
+  invalid states.
+- Code review: No action node that performs an irreversible state transition
+  (e.g., embargo exit, disclosure) is placed as the first child of a
+  Sequence without a safety guard.
+
+### BTND-06-006
+
+- Code review: All `py_trees.composites.Sequence` and
+  `py_trees.composites.Selector` instantiations in
+  `vultron/core/behaviors/` use `memory=False` unless a code comment
+  explicitly justifies the deviation.
+
+### BTND-06-007
+
+- Code review: `update()` methods on leaf nodes contain exactly one logical
+  check or one state update — not a compound workflow. Nodes with compound
+  logic are refactored into subtrees.
+
 ## Related
 
+- **Design patterns**: `notes/bt-design-patterns.md` — PPA, implicit
+  sequences, back-chaining, safety guards, memory-node caveats, granularity
+  guidelines (Colledanchise & Ögren)
 - **Design notes**: `notes/bt-reusability.md` — fractal composability pattern,
   trunkless branch model, and anti-pattern reference
 - **BT execution model**: `specs/behavior-tree-integration.md` — BT-06-001
   through BT-06-006, DataLayer integration, actor isolation
 - **Object IDs / blackboard keys**: `specs/object-ids.md` OID-01-*
 - **Architecture layering**: `specs/architecture.md` ARCH-04-001
+- **Actor configuration**: `specs/configuration.md` CFG-07-001 through
+  CFG-07-004

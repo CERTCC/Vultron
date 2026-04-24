@@ -39,21 +39,28 @@ Load additional files only when the task touches the relevant area. See the
 
 | Topic | Files to add |
 |-------|-------------|
+| Inter-actor communication / knowledge model | `actor-knowledge-model.md` |
 | DataLayer adapter | `datalayer.md` |
 | Handler pipeline | `inbox-endpoint.md`, `message-validation.md`, `semantic-extraction.md`, `dispatch-routing.md` |
-| Behavior Trees | `behavior-tree-integration.md`, `behavior-tree-node-design.md`, `triggerable-behaviors.md` |
+| Behavior Trees | `behavior-tree-integration.md`, `behavior-tree-node-design.md`, `bt-composability.md`, `triggerable-behaviors.md`, `notes/trigger-classification.md` |
 | Case / state management | `case-management.md`, `state-machine.md`, `case-log-processing.md` |
 | Protocol conformance | `vultron-protocol-spec.md`, `vultron-as2-mapping.md` |
 | Wire vocabulary | `vocabulary-model.md` |
+| Activity factory functions | `activity-factories.md` |
 | Response generation / outbox | `response-format.md`, `outbox.md` |
 | Synchronization | `sync-log-replication.md` |
+| Participant case replica lifecycle | `participant-case-replica.md` |
 | Embargo / duration | `embargo-policy.md`, `duration.md` |
+| Embargo default semantics | `embargo-policy.md`, `notes/embargo-default-semantics.md` |
+| Configuration | `configuration.md` |
 | Demo / CLI | `demo-cli.md`, `multi-actor-demo.md` |
+| Event-driven control flow / cascade model | `event-driven-control-flow.md`, `notes/event-driven-control-flow.md` |
 | Observability | `observability.md` |
 | Security / CI | `ci-security.md`, `encryption.md` |
 | Agentic API | `agentic-readiness.md` |
 | Documentation work | `diataxis-requirements.md`, `project-documentation.md`, `traceability.md` |
-| Writing/updating specs | `meta-specifications.md` |
+| Plan organization / priorities | `project-documentation.md`, `notes/plan-organization.md` |
+| Bugfix skill / bug lifecycle | `bugfix-workflow.md` |
 
 ---
 
@@ -69,6 +76,15 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   separation rules, SemanticIntent placement, extractor isolation, adapter
   injection, connector plugins, wire replaceability, review checklist
   (ARCH-01 through ARCH-08)
+- **`configuration.md`** - Unified YAML + Pydantic configuration management:
+  `AppConfig` structure, `get_config()` / `reload_config()` API, env var
+  naming conventions, `SeedConfig` alignment, `ActorConfig` abstraction with
+  `default_case_roles`, testing patterns
+  (CFG-01 through CFG-07)
+- **`event-driven-control-flow.md`** - Event-driven processing model: primary
+  event and cascade definitions, cascade chain, external decision nodes,
+  BT-as-cascade-mechanism requirements, and demo script constraints
+  (EDF-01 through EDF-05)
 - **`vultron-protocol-spec.md`** - Requirements extracted from Vultron
   Protocol documentation: participant state tracking, RM/EM/CS messaging,
   model interactions, and implementation guidance
@@ -93,6 +109,11 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   (`alias_generator`, `validate_by_name`, `validate_by_alias`), type inference, Literal
   type narrowing, and the rehydration contract (`rehydrate(obj, dl)`) (VM-01 through VM-07)
 
+- **`activity-factories.md`** - Factory function pattern for constructing outbound
+  Vultron protocol activities; module structure under `vultron/wire/as2/factories/`,
+  import boundary enforcement, error handling, TypeAlias cleanup, and migration
+  requirements (AF-01 through AF-08)
+
 **Semantic–Wire Mapping**:
 
 - **`vultron-as2-mapping.md`** - Authoritative mapping from each `MessageSemantics`
@@ -104,11 +125,23 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 **Behavior Tree Integration** (optional for complex workflows):
 
 - **`behavior-tree-integration.md`** - BT execution model, bridge layer, DataLayer integration
-- **`behavior-tree-node-design.md`** - BT node parameterization, composability, reuse, and
-  blackboard interface contracts (BTND-01 through BTND-04)
+- **`behavior-tree-node-design.md`** - BT node parameterization, composability, reuse,
+  blackboard interface contracts, actor-config-driven roles, `CreateCaseOwnerParticipant`
+  node design, and `CVDRoles.CASE_OWNER` requirement (BTND-01 through BTND-05)
+- **`bt-composability.md`** - Simulator reference workflow (lookup before implementing),
+  pre-definition requirement (core/behaviors/ as structure home), BT idioms over
+  procedural code, and fractal composability principle at all depths
+  (BTC-01 through BTC-04)
 - **`triggerable-behaviors.md`** - Trigger API for actor-initiated behaviors (PRIORITY 30):
   endpoint format, RM/EM candidate behaviors, request/response schema,
-  BT integration, per-actor DataLayer dependency, outbox activity requirement
+  BT integration, per-actor DataLayer dependency, outbox activity requirement,
+  trigger classification (general vs demo-only), `RunMode` StrEnum,
+  demo endpoint prefix, `add-object-to-case` generalization
+  (TRIG-01 through TRIG-10)
+
+- **`actor-knowledge-model.md`** - Actor Knowledge Model: DataLayer isolation
+  invariant, Actor knowledge boundaries, full-inline-object rule, stub-object
+  exception, future object-tracking optimization (AKM-01 through AKM-04)
 
 ### Case and Actor Management
 
@@ -158,7 +191,8 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 **Future Implementation**:
 
 - **`response-format.md`** - ActivityStreams response generation (Accept, Reject, etc.)
-- **`outbox.md`** - Actor outbox structure and delivery
+- **`outbox.md`** - Actor outbox structure, delivery, and addressing
+  (OX-01 through OX-08)
 
 ### Synchronization
 
@@ -167,6 +201,10 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 - **`sync-log-replication.md`** - Append-only case event log, replication
   transport, conflict handling, per-peer state, and retry semantics
   (SYNC-01 through SYNC-07)
+- **`participant-case-replica.md`** - Participant case replica lifecycle:
+  bootstrap via `Announce(VulnerabilityCase)`, single-writer update authority,
+  case-context routing, reporter case discovery, and unknown-context handling
+  (PCR-01 through PCR-07)
 
 ### Demo and Tooling
 
@@ -177,7 +215,10 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 ### Actor Profiles and Policies
 
-- **`embargo-policy.md`** - Actor embargo policy record format and API
+- **`embargo-policy.md`** - Actor embargo policy record format, API, and
+  default embargo semantics: tacit acceptance rule, PROPOSE+ACCEPT atomic
+  transition, shortest-embargo-wins at case creation
+  (EP-01 through EP-04)
 - **`duration.md`** - Canonical ISO 8601 duration format for embargo
   policy fields: restricted grammar, validation rules, Pydantic mapping
   (DUR-01 through DUR-07)
@@ -212,11 +253,18 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 ### Project and Agent Guidance
 
-- **`project-documentation.md`** - Documentation file structure and purpose
+- **`project-documentation.md`** - Documentation file structure and purpose;
+  includes append-only history write protocol (PD-05) for `plan/*HISTORY.md`,
+  and plan section organization rules (PD-06): `TASK-FOO` heading format,
+  dot-notation task IDs, priority/plan decoupling
 - **`prototype-shortcuts.md`** - Permissible shortcuts for the prototype stage,
-  including domain model separation deferral (PROTO-06) and performance
-  testing deferral (PROTO-07)
+  including performance testing deferral (PROTO-07) and backward-compatibility
+  / change-completeness policy (PROTO-08)
 - **`agentic-readiness.md`** - API and CLI requirements for automated agent integration
+- **`bugfix-workflow.md`** - Bugfix skill requirements: root-cause depth analysis
+  (Phase 2b), user engagement, issue escalation to `plan/BUGS.md`, and bug
+  lifecycle archiving to `plan/IMPLEMENTATION_HISTORY.md`
+  (BFW-01 through BFW-04)
 
 ---
 
@@ -264,8 +312,10 @@ is reserved for `testability.md`).
 | Prefix | Specification file |
 |--------|--------------------|
 | `ARCH` | `architecture.md` |
+| `AKM` | `actor-knowledge-model.md` |
 | `AR` | `agentic-readiness.md` |
 | `BT` | `behavior-tree-integration.md` |
+| `BTC` | `bt-composability.md` |
 | `BTND` | `behavior-tree-node-design.md` |
 | `CI-SEC` | `ci-security.md` |
 | `CLP` | `case-log-processing.md` |
@@ -291,8 +341,10 @@ is reserved for `testability.md`).
 | `SE` | `semantic-extraction.md` |
 | `SM` | `state-machine.md` |
 | `SL` | `structured-logging.md` |
+| `PCR` | `participant-case-replica.md` |
 | `SYNC` | `sync-log-replication.md` |
 | `TB` | `testability.md` |
+| `AF` | `activity-factories.md` |
 | `TRACE` | `traceability.md` |
 | `TRIG` | `triggerable-behaviors.md` |
 | `UC-ORG` | `use-case-organization.md` |
@@ -321,6 +373,10 @@ Some requirements carry special tags to indicate scope or applicability:
 
 Some specifications consolidate requirements from multiple sources to create a single source of truth:
 
+- **`actor-knowledge-model.md`** consolidates Actor isolation and inline-object
+  requirements from `case-management.md` (CM-01-001) and
+  `message-validation.md` (MV-09-001); it is the authoritative basis for
+  both.
 - **`http-protocol.md`** consolidates HTTP requirements from `inbox-endpoint.md`,
   `message-validation.md`, `error-handling.md`, and `agentic-readiness.md`
 - **`structured-logging.md`** consolidates logging requirements from `observability.md`,

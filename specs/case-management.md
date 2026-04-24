@@ -9,7 +9,8 @@ the distinction between participant-specific and participant-agnostic state.
 **Source**: `plan/PRIORITIES.md` (Priority 100, 200), `notes/case-state-model.md`,
 `notes/bt-integration.md`, ActivityPub specification
 **Cross-references**: `behavior-tree-integration.md` (BT-09, BT-10),
-`handler-protocol.md` (HP-00-001, HP-00-002)
+`handler-protocol.md` (HP-00-001, HP-00-002),
+`actor-knowledge-model.md` (AKM-01-001, AKM-01-002)
 
 ---
 
@@ -531,6 +532,8 @@ proto-case is a case object that exists but has not yet been validated
 - `CM-12-004` (SHOULD) A default embargo SHOULD be initialized at case
   creation (RM.RECEIVED)
   - CM-12-004 refines DUR-07-002 (which now applies at case receipt)
+  - When applied, the resulting `CaseStatus.em_state` MUST be `EM.ACTIVE`,
+    not `EM.PROPOSED` — see `specs/embargo-policy.md` EP-04-001
   - If no embargo is initialized at receipt, one MUST exist before the
     case transitions to RM.VALID (see DUR-07-004)
 - `CM-12-005` (MUST) `InvalidateReportReceivedUseCase`,
