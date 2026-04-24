@@ -75,52 +75,6 @@ demo-centric triggers or if there is a generalized version that would be
 worth implementing. If so, we should implement the generalized one, and
 have the demo just use that with its specific object types or needs.
 
-## IDEA-26041601 Recurring problem: Actors assuming that everyone knows what they know
-
-There appears to be a structural problem in the way that inter-Actor
-communication is happening in the codebase right now (as of commit  
-70c28e544335f83d41aa17d332b59ed23c20958e). We've seen this in a few recent
-bugs, including BUG-26041601 but that was not the first time it happened.
-The root cause is that Actors are sending activities to other Actors using
-object references instead of full objects when the receiver has no such
-object in their system. Actors should not assume knowledge of objects that
-they have in their system when communicating with other Actors. We saw this
-with report submission. We saw this with case log distribution. And now
-we're seeing with other things. It causes our semantic extraction and
-therefore message routing to fail because Activities wind up with
-'object=None' and fail to rehydrate properly. We need to
-find all instances of this pattern in the codebase and fix them. There may
-be a solution in tracking CaseLogEntries and what objects are known to have
-been shared up to a particular log hash item. That would keep down on
-duplicative object transmission, but that might be a lot of bookkeeping
-compared to a simple rule like "always include the full object in an
-activity when sending to another Actor". I'm not sure whether anything
-beyond that is premature optimization or not.
-
-## IDEA-26041602 Clarification on Actor knowledge assumptions in specs
-
-`vultron/errors.py` contains the following docstring:
-
-```text
-    Outbound initiating activities (Create, Offer, Invite, Announce, Add,
-    Remove, etc.) MUST carry a fully inline typed object so that recipients
-    can determine the semantic type without a round-trip to the sender's
-    DataLayer.  See specs/message-validation.md MV-09-001, MV-09-002.
-```
-
-What concerns me is the phrase "without a round-trip to the sender's
-DataLayer". The concern is that Actors will *never* have access to each
-others' datalayers, and this is not a possibility. This comment could be
-read as saying that sometimes Actors can access each others' datalayers, but
-that we are just avoiding doing that here for efficiency reasons. The
-reality is that Actors will never have access to each others' datalayers.
-This might just be a misguided statement in a docstring, or it might be an
-indication of a deeper misunderstanding in the specs or codebase about how
-Actors are supposed to interact with each other. We need to review the specs and
-codebase to ensure that there is a clear and consistent understanding that
-Actors do not, will not, must not have access to each others' datalayers, and
-that inter-Actor comms always happens at the wire AS2 activity level.
-
 ## IDEA-26041701 Clarification of intended control flow
 
 Vultron is inherently designed to be an event-driven system. Messages arrive

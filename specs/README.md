@@ -39,6 +39,7 @@ Load additional files only when the task touches the relevant area. See the
 
 | Topic | Files to add |
 |-------|-------------|
+| Inter-actor communication / knowledge model | `actor-knowledge-model.md` |
 | DataLayer adapter | `datalayer.md` |
 | Handler pipeline | `inbox-endpoint.md`, `message-validation.md`, `semantic-extraction.md`, `dispatch-routing.md` |
 | Behavior Trees | `behavior-tree-integration.md`, `behavior-tree-node-design.md`, `triggerable-behaviors.md` |
@@ -116,6 +117,10 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 - **`triggerable-behaviors.md`** - Trigger API for actor-initiated behaviors (PRIORITY 30):
   endpoint format, RM/EM candidate behaviors, request/response schema,
   BT integration, per-actor DataLayer dependency, outbox activity requirement
+
+- **`actor-knowledge-model.md`** - Actor Knowledge Model: DataLayer isolation
+  invariant, Actor knowledge boundaries, full-inline-object rule, stub-object
+  exception, future object-tracking optimization (AKM-01 through AKM-04)
 
 ### Case and Actor Management
 
@@ -280,6 +285,7 @@ is reserved for `testability.md`).
 | Prefix | Specification file |
 |--------|--------------------|
 | `ARCH` | `architecture.md` |
+| `AKM` | `actor-knowledge-model.md` |
 | `AR` | `agentic-readiness.md` |
 | `BT` | `behavior-tree-integration.md` |
 | `BTND` | `behavior-tree-node-design.md` |
@@ -337,6 +343,10 @@ Some requirements carry special tags to indicate scope or applicability:
 
 Some specifications consolidate requirements from multiple sources to create a single source of truth:
 
+- **`actor-knowledge-model.md`** consolidates Actor isolation and inline-object
+  requirements from `case-management.md` (CM-01-001) and
+  `message-validation.md` (MV-09-001); it is the authoritative basis for
+  both.
 - **`http-protocol.md`** consolidates HTTP requirements from `inbox-endpoint.md`,
   `message-validation.md`, `error-handling.md`, and `agentic-readiness.md`
 - **`structured-logging.md`** consolidates logging requirements from `observability.md`,

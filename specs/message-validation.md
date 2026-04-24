@@ -10,6 +10,7 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 
 - **HTTP-level validation** (Content-Type, size limits) consolidated in `specs/http-protocol.md` (HTTP-01, HTTP-02)
 - This spec focuses on **ActivityStreams structure and semantic validation**
+- **Full inline object rule** (MV-09-001): authoritative basis in `specs/actor-knowledge-model.md` (AKM-02-001, AKM-03-001)
 
 ---
 

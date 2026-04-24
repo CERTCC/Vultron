@@ -9,7 +9,8 @@ the distinction between participant-specific and participant-agnostic state.
 **Source**: `plan/PRIORITIES.md` (Priority 100, 200), `notes/case-state-model.md`,
 `notes/bt-integration.md`, ActivityPub specification
 **Cross-references**: `behavior-tree-integration.md` (BT-09, BT-10),
-`handler-protocol.md` (HP-00-001, HP-00-002)
+`handler-protocol.md` (HP-00-001, HP-00-002),
+`actor-knowledge-model.md` (AKM-01-001, AKM-01-002)
 
 ---
 
