@@ -53,6 +53,7 @@ Load additional files only when the task touches the relevant area. See the
 | Embargo default semantics | `embargo-policy.md`, `notes/embargo-default-semantics.md` |
 | Configuration | `configuration.md` |
 | Demo / CLI | `demo-cli.md`, `multi-actor-demo.md` |
+| Event-driven control flow / cascade model | `event-driven-control-flow.md`, `notes/event-driven-control-flow.md` |
 | Observability | `observability.md` |
 | Security / CI | `ci-security.md`, `encryption.md` |
 | Agentic API | `agentic-readiness.md` |
@@ -79,6 +80,10 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   naming conventions, `SeedConfig` alignment, `ActorConfig` abstraction with
   `default_case_roles`, testing patterns
   (CFG-01 through CFG-07)
+- **`event-driven-control-flow.md`** - Event-driven processing model: primary
+  event and cascade definitions, cascade chain, external decision nodes,
+  BT-as-cascade-mechanism requirements, and demo script constraints
+  (EDF-01 through EDF-05)
 - **`vultron-protocol-spec.md`** - Requirements extracted from Vultron
   Protocol documentation: participant state tracking, RM/EM/CS messaging,
   model interactions, and implementation guidance

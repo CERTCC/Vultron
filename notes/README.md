@@ -133,6 +133,18 @@ consequences, identified gaps in BT automation and activity addressing
 BT or outbox effects should be triggered, or debugging a demo that requires
 manual intermediate steps.
 
+**`event-driven-control-flow.md`**
+Conceptual actor model: actors as workers consuming from a message queue
+(inbox), running behavior trees, and emitting to an outbound queue (outbox).
+Explains the queue/worker mental model as a *reasoning tool* (not an
+implementation requirement), the role of external decision nodes as cascade
+stopping points, their lineage from BT simulation fuzzer nodes, and their
+future potential as UI or LLM integration seams.
+**Load when**: reasoning about why a demo or use case should or should not
+manually trigger intermediate steps, designing the boundary between automated
+cascades and external decision nodes, or evaluating where UI or LLM agent
+integration fits in the protocol flow.
+
 **`do-work-behaviors.md`**
 Scope analysis of "do work" BT behaviors: out-of-scope, not-implementable, and
 partially-implementable items. Documents the embargo policy prior art and the

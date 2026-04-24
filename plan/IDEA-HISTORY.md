@@ -332,3 +332,44 @@ creator/owner participant node first, and so the actor identity and the role
 `specs/behavior-tree-node-design.md` (BTND-05-001 through BTND-05-003) and
 `specs/configuration.md` (CFG-07-001 through CFG-07-004); implementation
 guidance updated in `notes/bt-reusability.md`.
+
+## IDEA-26041701 Clarification of intended control flow
+
+Vultron is inherently designed to be an event-driven system. Messages arrive
+and are processed into events that trigger behaviors. The same goes for core
+interactions outbound from the system. When a message is added to the outbox,
+it should be the outbox's job to process and deliver the message, not the
+core's job to trigger it. When a demo injects an event into an actor to kick
+off a demo, the actors behaviors should be responsible for processing that
+event and generating the next steps, not relying on the demo script to
+trigger events (except for events where the demo is explicitly simulating an
+external stimulus that might be expected in real life, like a report
+submission, or a case participant actor discovering that there is a public
+exploit for the vulnerability and reporting that information as a status
+update to the case, etc.). Demos are intended to show that the protocol AND
+the behaviors behind the protocol are working together to produce the expected
+outcomes. If the demo script is doing too much work to trigger events, then
+the demo is not really demonstrating the protocol and behaviors, it's just
+demonstrating that a demo script can pull the strings to make the system dance.
+We need the demos to kick things off then get out of the way so that we can
+see the system working as intended. Basically most processes in Vultron
+should look like "on event do" rather than "upstream controls flow by
+manipulating downstream events directly".
+
+Extending this further, conceptually it looks like queues, sometimes topics,
+and workers/processors that hang off of them, even if we don't have actual
+queues or topics or workers implemented in the codebase. A different
+implementation (or possible future
+refactor) of Vultron might have a core that looks a lot more like a message
+broker with queues and workers consuming from those queues. Some of that intent
+is already present in the thinking that went into the design of the system
+even though we are not implementing it that way in the prototype. So we
+should preserve that intent in the way we write the code and structure the
+interactions between components in the architecture. The prototype is geared
+toward single process actors. A future production implementation might look
+a lot more like a distributed system with separate services and message
+queues with workers that handle individual use cases etc.
+
+**Processed**: 2026-04-24 — design decisions captured in
+`specs/event-driven-control-flow.md` (EDF-01 through EDF-05) and
+`notes/event-driven-control-flow.md`.
