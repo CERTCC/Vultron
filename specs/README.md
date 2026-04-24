@@ -42,7 +42,7 @@ Load additional files only when the task touches the relevant area. See the
 | Inter-actor communication / knowledge model | `actor-knowledge-model.md` |
 | DataLayer adapter | `datalayer.md` |
 | Handler pipeline | `inbox-endpoint.md`, `message-validation.md`, `semantic-extraction.md`, `dispatch-routing.md` |
-| Behavior Trees | `behavior-tree-integration.md`, `behavior-tree-node-design.md`, `triggerable-behaviors.md`, `notes/trigger-classification.md` |
+| Behavior Trees | `behavior-tree-integration.md`, `behavior-tree-node-design.md`, `bt-composability.md`, `triggerable-behaviors.md`, `notes/trigger-classification.md` |
 | Case / state management | `case-management.md`, `state-machine.md`, `case-log-processing.md` |
 | Protocol conformance | `vultron-protocol-spec.md`, `vultron-as2-mapping.md` |
 | Wire vocabulary | `vocabulary-model.md` |
@@ -122,6 +122,10 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 - **`behavior-tree-node-design.md`** - BT node parameterization, composability, reuse,
   blackboard interface contracts, actor-config-driven roles, `CreateCaseOwnerParticipant`
   node design, and `CVDRoles.CASE_OWNER` requirement (BTND-01 through BTND-05)
+- **`bt-composability.md`** - Simulator reference workflow (lookup before implementing),
+  pre-definition requirement (core/behaviors/ as structure home), BT idioms over
+  procedural code, and fractal composability principle at all depths
+  (BTC-01 through BTC-04)
 - **`triggerable-behaviors.md`** - Trigger API for actor-initiated behaviors (PRIORITY 30):
   endpoint format, RM/EM candidate behaviors, request/response schema,
   BT integration, per-actor DataLayer dependency, outbox activity requirement,
@@ -303,6 +307,7 @@ is reserved for `testability.md`).
 | `AKM` | `actor-knowledge-model.md` |
 | `AR` | `agentic-readiness.md` |
 | `BT` | `behavior-tree-integration.md` |
+| `BTC` | `bt-composability.md` |
 | `BTND` | `behavior-tree-node-design.md` |
 | `CI-SEC` | `ci-security.md` |
 | `CLP` | `case-log-processing.md` |

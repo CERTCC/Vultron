@@ -89,6 +89,8 @@ SHOULD use BTs for clarity and maintainability.
     (in a note or ADR). Undocumented divergence is a bug.
   - **Implementation guide**: `notes/bt-integration.md` — subtree
     map, trunk-removed branches model, implementation guidance
+  - **Composability workflow**: `specs/bt-composability.md` BTC-01 —
+    simulator-first lookup procedure and class-name navigation guide
 - `BT-06-003` BT nodes SHOULD be deterministic
   - **Definition**: Given same input state, node always returns same result
   - No random number generation, no time-dependent behavior (e.g., timeouts,

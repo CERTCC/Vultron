@@ -613,8 +613,11 @@ Before adding a new BT node or subtree, check:
 
 ## Related Reading
 
+- `notes/bt-composability.md` — Fractal pattern in depth, "trunkless branch"
+  clarification, simulator navigation guide, and BT idiom examples
 - `notes/bt-integration.md` — Architecture decisions and design rationale
 - `notes/vultron-bt.txt` — Canonical simulation BT structure (reference)
 - `notes/use-case-behavior-trees.md` — Use-case orchestration patterns
+- `specs/bt-composability.md` — Formal composability requirements (BTC-01 through BTC-04)
 - `specs/behavior-tree-integration.md` — Formal requirements (BT-06-*)
-- `specs/behavior-tree-node-design.md` — Node design specification (BTND-01 through BTND-04)
+- `specs/behavior-tree-node-design.md` — Node design specification (BTND-01 through BTND-05)
