@@ -50,7 +50,92 @@ implementation sets `EM.PROPOSED`, leaving the case in a false limbo state.
 
 ---
 
-## Priority 450: Cyclomatic Complexity Enforcement
+## Priority 360: Generalize Participant BT Nodes (BTND-05)
+
+**Source**: `specs/behavior-tree-node-design.md` BTND-05-001 through
+BTND-05-003; `specs/configuration.md` CFG-07-001 through CFG-07-004;
+`notes/bt-reusability.md` "ActorConfig-Driven Roles" section.
+
+Replace the demo-specific hardcoded participant node (`CreateInitialVendorParticipant`)
+with a generalized `CreateCaseOwnerParticipant` driven by actor configuration,
+introduce `CVDRoles.CASE_OWNER`, and remove the `CreateFinderParticipantNode`
+backward-compat alias.
+
+### BTND5-1 — Add `CVDRoles.CASE_OWNER` to the roles enum
+
+**Acceptance criteria:**
+
+- `CVDRoles.CASE_OWNER` exists in `vultron/core/states/roles.py` as a Flag
+  value combinable with VENDOR, COORDINATOR, etc.
+- All existing CVDRoles-based tests pass.
+
+- [ ] BTND5-1: Add `CASE_OWNER` flag to `CVDRoles` (BTND-05-001)
+
+### BTND5-2 — Replace `CreateInitialVendorParticipant` with `CreateCaseOwnerParticipant`
+
+**Blocked by BTND5-1.**
+
+**Acceptance criteria:**
+
+- `CreateCaseOwnerParticipant` exists in
+  `vultron/core/behaviors/case/nodes.py`; `CreateInitialVendorParticipant` is
+  removed.
+- Node reads the actor's CVD roles from an `ActorConfig.default_case_roles`
+  constructor parameter (no hardcoded `CVDRoles.VENDOR`).
+- `CVDRoles.CASE_OWNER` is always included in the created participant's roles
+  (appended if not already present).
+- All RM-state seeding logic from `CreateInitialVendorParticipant` is
+  preserved.
+- Unit test: `ActorConfig(default_case_roles=[CVDRoles.COORDINATOR])` →
+  participant roles include `COORDINATOR | CASE_OWNER`.
+
+- [ ] BTND5-2a: Implement `ActorConfig` neutral model with `default_case_roles`
+  (CFG-07-001, CFG-07-002)
+- [ ] BTND5-2b: Implement `CreateCaseOwnerParticipant` + remove
+  `CreateInitialVendorParticipant` (BTND-05-002)
+- [ ] BTND5-2c: Update `LocalActorConfig` to compose `ActorConfig`
+  (CFG-07-003)
+- [ ] BTND5-2d: Update all call sites in BT trees to use
+  `CreateCaseOwnerParticipant` (CFG-07-004)
+
+### BTND5-3 — Remove `CreateFinderParticipantNode` alias
+
+**Blocked by BTND5-2.**
+
+**Acceptance criteria:**
+
+- `CreateFinderParticipantNode` does not appear anywhere in `vultron/`.
+- `from vultron.core.behaviors.case.nodes import CreateFinderParticipantNode`
+  raises `ImportError`.
+
+- [ ] BTND5-3: Remove alias + update any remaining call sites (BTND-05-003)
+
+### BTND5-4 — Refactor `CVDRoles` from Flag to `list[StrEnum]`
+
+**Blocked by BTND5-1. Low urgency — schedule after BTND5-3 is complete.**
+
+`CVDRoles` is currently a `Flag` enum (bitmask). Participant records persisted
+with flag values are not human-readable. Refactoring to a `list[CVDRoles]`
+backed by a `StrEnum` makes persisted records legible (e.g.,
+`["vendor", "case_owner"]`) and eliminates bitmask arithmetic at call sites.
+
+**Acceptance criteria:**
+
+- `CVDRoles` is a `StrEnum` (or equivalent) in
+  `vultron/core/states/roles.py`.
+- `VultronParticipant.case_roles` is typed `list[CVDRoles]`.
+- Persisted participant records store role names as strings, not integers.
+- All existing tests pass; no bitmask (`|`, `&`) operators remain in
+  non-test code referencing `CVDRoles`.
+- Existing combination aliases (`FINDER_REPORTER`, etc.) are replaced by
+  documented `list` constants or removed.
+
+**References**: BTND-05-001 "Refactor note"; `notes/bt-reusability.md`
+"ActorConfig-Driven Roles".
+
+- [ ] BTND5-4: Refactor `CVDRoles` Flag → StrEnum + migrate all call sites
+
+---
 
 `flake8-mccabe` is already bundled in the project's flake8 install. The
 gate integrates into the existing `lint-flake8` CI job and pre-commit
