@@ -10,6 +10,9 @@ related_notes:
   - notes/bt-integration.md
   - notes/bt-reusability.md
   - notes/protocol-event-cascades.md
+relevant_packages:
+  - vultron/bt
+  - vultron/core
 ---
 
 # Event-Driven Control Flow Design Notes

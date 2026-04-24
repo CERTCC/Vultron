@@ -11,6 +11,9 @@ related_specs:
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/bt-integration.md
+relevant_packages:
+  - vultron/core/use_cases
+  - vultron/core/behaviors
 ---
 
 # Protocol Event Cascades

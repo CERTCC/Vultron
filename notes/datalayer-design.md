@@ -8,6 +8,9 @@ related_specs:
   - specs/datalayer.md
 related_notes:
   - notes/domain-model-separation.md
+relevant_packages:
+  - vultron/adapters/driven
+  - vultron/core/ports
 ---
 
 # DataLayer Design Notes

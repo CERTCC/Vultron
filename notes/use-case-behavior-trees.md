@@ -11,6 +11,8 @@ related_notes:
   - notes/domain-model-separation.md
 relevant_packages:
   - transitions
+  - vultron/core/use_cases
+  - vultron/core/behaviors
 ---
 
 # Use Cases, Domain Logic, and Behavior Trees

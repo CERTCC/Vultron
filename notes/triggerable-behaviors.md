@@ -1,9 +1,7 @@
 ---
 title: "Triggerable Behaviors: Design Notes"
 status: active
-description: >
-  Design notes for triggerable behaviors: API endpoints, CLI commands, BT
-  integration, and behavior routing patterns.
+description: "Design notes for triggerable behaviors: API endpoints, CLI commands, BT integration, and behavior routing patterns."
 related_specs:
   - specs/triggerable-behaviors.md
   - specs/behavior-tree-integration.md
@@ -15,6 +13,9 @@ related_notes:
   - notes/domain-model-separation.md
 relevant_packages:
   - transitions
+  - vultron/adapters/driving/fastapi
+  - vultron/core/use_cases/triggers
+  - vultron/bt
 ---
 
 # Triggerable Behaviors: Design Notes

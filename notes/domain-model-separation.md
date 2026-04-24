@@ -14,6 +14,9 @@ related_notes:
   - notes/datalayer-design.md
 relevant_packages:
   - pydantic
+  - vultron/wire/as2
+  - vultron/core/models
+  - vultron/adapters
 ---
 
 # Domain Model Separation: Wire, Domain, and Persistence

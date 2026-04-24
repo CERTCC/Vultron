@@ -8,6 +8,9 @@ relevant_packages:
   - fastapi
   - pydantic
   - yaml
+  - vultron/config
+  - vultron/adapters
+  - vultron/core
 ---
 
 # Configuration Management — Implementation Notes

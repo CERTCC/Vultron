@@ -8,6 +8,10 @@ related_specs:
   - specs/behavior-tree-integration.md
 related_notes:
   - notes/bt-integration.md
+relevant_packages:
+  - vultron/bt/report_management
+  - vultron/bt/embargo_management
+  - vultron/bt/messaging
 ---
 
 # Vultron BT Fuzzer Nodes: External Dependency Touchpoints

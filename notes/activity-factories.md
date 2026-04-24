@@ -8,6 +8,8 @@ related_specs:
   - specs/activity-factories.md
 relevant_packages:
   - pydantic
+  - vultron/wire/as2
+  - vultron/core/use_cases
 ---
 
 # Activity Factory Functions — Implementation Notes

@@ -12,6 +12,9 @@ related_notes:
   - notes/use-case-behavior-trees.md
 relevant_packages:
   - py_trees
+  - vultron/bt
+  - vultron/core/behaviors
+  - vultron/core/use_cases
 ---
 
 # Behavior Tree Integration Design Notes

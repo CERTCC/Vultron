@@ -10,6 +10,8 @@ related_specs:
   - specs/triggerable-behaviors.md
 relevant_packages:
   - transitions
+  - vultron/bt
+  - vultron/wire/as2
 ---
 
 # Do-Work Behaviors: Scope and Implementation Notes

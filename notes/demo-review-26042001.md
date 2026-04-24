@@ -8,6 +8,7 @@ related_specs:
   - specs/architecture.md
 relevant_packages:
   - transitions
+  - vultron/demo
 ---
 
 # Demo Review — 2026-04-20

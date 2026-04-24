@@ -7,6 +7,8 @@ description: >
 relevant_packages:
   - pydantic
   - rdflib
+  - vultron/wire/as2
+  - vultron/adapters
 ---
 
 # Federation Design Ideas

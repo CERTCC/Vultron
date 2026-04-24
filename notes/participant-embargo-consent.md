@@ -10,6 +10,8 @@ related_notes:
   - notes/stub-objects.md
 relevant_packages:
   - transitions
+  - vultron/bt/embargo_management
+  - vultron/core/use_cases
 ---
 
 # Participant Embargo Consent State Machine

@@ -12,6 +12,9 @@ related_notes:
   - notes/triggerable-behaviors.md
 relevant_packages:
   - fastapi
+  - vultron/adapters/driving/fastapi
+  - vultron/config
+  - vultron/core/use_cases/triggers
 ---
 
 # Trigger Classification: Demo vs General-Purpose

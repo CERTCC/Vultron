@@ -9,6 +9,8 @@ related_specs:
   - specs/embargo-policy.md
 relevant_packages:
   - transitions
+  - vultron/bt/embargo_management
+  - vultron/core/use_cases/triggers
 ---
 
 # Embargo Default Semantics — Implementation Notes

@@ -9,6 +9,8 @@ related_specs:
   - specs/message-validation.md
 related_notes:
   - notes/datalayer-design.md
+relevant_packages:
+  - vultron/wire/as2
 ---
 
 # Stub Objects and Selective Disclosure

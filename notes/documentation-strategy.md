@@ -7,6 +7,11 @@ description: >
 related_notes:
   - notes/bt-integration.md
   - notes/case-state-model.md
+relevant_packages:
+  - vultron/bt
+  - vultron/core
+  - vultron/demo
+  - vultron/wire/as2
 ---
 
 # Documentation Strategy Notes

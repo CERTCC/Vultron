@@ -12,6 +12,8 @@ related_notes:
   - notes/bt-integration.md
 relevant_packages:
   - pydantic
+  - vultron/wire/as2
+  - vultron/core/models/events
 ---
 
 # ActivityStreams Semantics in Vultron

@@ -37,8 +37,12 @@ parallel but separate concern; this spec covers the notes side only. A shared
 - `NF-01-007` The optional `related_notes` field, when present, MUST be a
   non-empty list of non-empty strings naming related notes files.
 - `NF-01-008` The optional `relevant_packages` field, when present, MUST be a
-  non-empty list of non-empty strings naming relevant Python packages
-  (e.g., `["py_trees", "pydantic"]`).
+  non-empty list of non-empty strings naming packages relevant to the note's
+  topic. Each entry is either:
+  - An external PyPI package name (e.g., `py_trees`, `pydantic`), or
+  - An internal Vultron subpackage path using forward slashes
+    (e.g., `vultron/core/behaviors`, `vultron/wire/as2`).
+  Both forms MAY appear in the same list.
 
 ## Pydantic Schema Module (MUST)
 

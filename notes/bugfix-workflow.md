@@ -1,7 +1,9 @@
 ---
 title: Bugfix Workflow — Implementation Notes
 status: active
-description: Design decisions and implementation patterns for the test-first bugfix workflow.
+description: >
+  Design decisions and implementation patterns for the test-first bugfix
+  workflow.
 related_specs:
   - specs/bugfix-workflow.md
 ---

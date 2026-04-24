@@ -9,6 +9,9 @@ related_specs:
   - specs/testability.md
 relevant_packages:
   - fastapi
+  - vultron/core/behaviors
+  - vultron/core/use_cases
+  - vultron/adapters/driving/fastapi
 ---
 
 # Actor Knowledge Model — Implementation Notes

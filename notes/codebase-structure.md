@@ -12,6 +12,11 @@ related_notes:
 relevant_packages:
   - fastapi
   - py_trees
+  - vultron/core
+  - vultron/bt
+  - vultron/adapters
+  - vultron/wire/as2
+  - vultron/demo
 ---
 
 # Codebase Structure Notes

@@ -11,6 +11,8 @@ related_notes:
   - notes/bt-reusability.md
 relevant_packages:
   - py_trees
+  - vultron/bt
+  - vultron/core/behaviors
 ---
 
 # Behavior Tree Composability Design Notes

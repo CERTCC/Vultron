@@ -1,9 +1,7 @@
 ---
 title: Case State Model Notes
 status: active
-description: >
-  CVD case state model: six binary dimensions (RM/EM/CS), CaseStatus append-
-  only history, and CaseEvent trusted timestamps.
+description: "CVD case state model: six binary dimensions (RM/EM/CS), CaseStatus append- only history, and CaseEvent trusted timestamps."
 related_specs:
   - specs/case-management.md
 related_notes:
@@ -11,6 +9,9 @@ related_notes:
   - notes/protocol-event-cascades.md
 relevant_packages:
   - transitions
+  - vultron/bt/embargo_management
+  - vultron/bt/report_management
+  - vultron/core/case_states
 ---
 
 # Case State Model Notes

@@ -9,6 +9,7 @@ related_specs:
 relevant_packages:
   - pydantic
   - python-frontmatter
+  - vultron/metadata/notes
 ---
 
 # Notes Frontmatter Design
@@ -120,6 +121,8 @@ related_notes:
   - notes/bt-composability.md
 relevant_packages:
   - py_trees
+  - vultron/core/behaviors
+  - vultron/bt
 ---
 ```
 

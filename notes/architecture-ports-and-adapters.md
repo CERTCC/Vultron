@@ -1,15 +1,16 @@
 ---
 title: Architecture Spec
 status: active
-description: >
-  Hexagonal Architecture (Ports and Adapters): core domain isolation, layer
-  rules, adapter patterns, and violation inventory.
+description: "Hexagonal Architecture (Ports and Adapters): core domain isolation, layer rules, adapter patterns, and violation inventory."
 related_notes:
   - notes/federation_ideas.md
 relevant_packages:
   - fastapi
   - pydantic
   - rdflib
+  - vultron/core
+  - vultron/adapters
+  - vultron/wire/as2
 ---
 
 # Architecture Spec

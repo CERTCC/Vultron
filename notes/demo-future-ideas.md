@@ -4,6 +4,8 @@ status: draft
 description: >
   Speculative future demo scenarios and multi-actor workflow ideas for the
   Vultron prototype.
+relevant_packages:
+  - vultron/demo
 ---
 
 # Future Demo Ideas

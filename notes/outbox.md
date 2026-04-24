@@ -6,6 +6,7 @@ related_specs:
   - specs/outbox.md
 relevant_packages:
   - fastapi
+  - vultron/adapters/driving/fastapi
 ---
 
 # Outbox Notes
