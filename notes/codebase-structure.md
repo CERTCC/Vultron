@@ -310,6 +310,24 @@ base64url encoding).
 
 ---
 
+### Actor ID Normalization: Full URIs Everywhere
+
+(DR-09, 2026-04-20)
+
+Actor IDs MUST be full URIs everywhere in the system. They MUST be normalized
+to a full URI at the point the actor ID is first established (actor creation,
+seed load, session context). No function downstream of that point should ever
+receive or handle a short UUID as an actor ID.
+
+**Why this matters**: Short-UUID actor IDs break semantic routing, outbox
+addressing, and trust boundary checks. They also cause non-deterministic
+failures where the same actor appears under two different IDs in the DataLayer.
+
+**Audit**: Search for short-UUID actor ID assignment in
+`vultron/demo/`, `vultron/adapters/`, and `vultron/core/` seeding code.
+
+---
+
 ## Test Directory Layout (TECHDEBT-11, resolved)
 
 After P60-1 and P60-2 (package relocations), the test directories

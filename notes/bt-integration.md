@@ -639,3 +639,37 @@ def create_validate_and_prioritize_tree(report_id, offer_id):
 
 The full behavior — validate then prioritize (engage or defer) — is visible
 by reading the tree. No domain logic lives in `execute()`.
+
+---
+
+### BT Failure Reason Propagation
+
+(DR-12, 2026-04-20)
+
+When a BT returns `Status.FAILURE`, log messages MUST include a human-readable
+reason indicating *which* node failed and *why*. Add a `get_failure_reason()`
+utility in `vultron/core/behaviors/bridge.py`:
+
+```python
+def get_failure_reason(tree) -> str:
+    """Walk the tree depth-first; return the first FAILURE node's
+    feedback_message (or class name if no message is set)."""
+    for node in tree.root.iterate():
+        if node.status == py_trees.common.Status.FAILURE:
+            return node.feedback_message or type(node).__name__
+    return "unknown failure"
+```
+
+Apply to all BT-failure log messages (e.g., `EngageCaseBT`, `ValidateReportBT`,
+etc.):
+
+```python
+if bt.root.status == Status.FAILURE:
+    reason = get_failure_reason(bt)
+    logger.error("BT failed: %s (reason: %s)", bt.root.name, reason)
+```
+
+**Why this matters**: Without this utility, BT failures produce generic "BT
+failed" log lines that require re-running the scenario to diagnose. The
+`feedback_message` is set by failing nodes in py_trees and is the canonical
+source of diagnostic information.

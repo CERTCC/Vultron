@@ -29,10 +29,13 @@ boundaries, or investigating an import-layering violation.
 **`datalayer-design.md`**
 DataLayer design decisions: auto-rehydration contract (`dl.read()` / `dl.list()`
 must return fully typed domain objects), storage record evaluation, vocabulary
-registry entanglement analysis. The authoritative reference for the DL-REHYDRATE
-implementation task.
+registry entanglement analysis, and SQLModel/SQLite adapter design
+(`VultronObjectRecord` single-table polymorphic design, actor scoping via
+`actor_id` column, `sqlite:///:memory:` test isolation). The authoritative
+reference for the DL-REHYDRATE implementation task.
 **Load when**: implementing or modifying the DataLayer adapter, debugging typed
-object round-trips, or working on DL-REHYDRATE.
+object round-trips, evaluating a future backend swap, or working on
+DL-REHYDRATE.
 
 **`domain-model-separation.md`**
 Analysis of the current coupling between wire format (ActivityStreams), domain
@@ -43,16 +46,38 @@ post-P75-2 architectural findings.
 **Load when**: refactoring `VulnerabilityCase` or related models, evaluating
 DataLayer backends, or planning domain/wire layer decoupling.
 
-**`datalayer-sqlite-design.md`**
-Design notes for the SQLModel/SQLite DataLayer adapter (Priority 325):
-storage schema (`VultronObjectRecord` single-table polymorphic design),
-actor scoping via `actor_id` column, object serialization/deserialization
-(vocabulary registry dependency), test isolation via `sqlite:///:memory:`,
-connection URL patterns, and migration notes (env var rename, TECHDEBT-32c,
-`db_record.py` reuse). Supersedes the TinyDB-specific isolation analysis in
-`domain-model-separation.md`.
-**Load when**: implementing or modifying `datalayer_sqlite.py`, debugging
-DataLayer persistence, or evaluating a future backend swap.
+**`activity-factories.md`**
+Factory functions as the public construction API for outbound Vultron protocol
+activities. Documents the `vultron/wire/as2/factories/` package design: module
+layout, factory function signatures, `VultronActivityConstructionError`, and
+migration path from direct subclass instantiation. See also
+`specs/activity-factories.yaml` (TASK-AF).
+**Load when**: implementing outbound activity construction, migrating call
+sites away from direct `vocab/activities/` subclass instantiation, or
+debugging `ValidationError` during activity construction.
+
+**`outbox.md`**
+Outbox addressing requirements: `to:` field enforcement, `VultronOutboxToFieldMissingError`
+exception design, `cc`/`bto`/`bcc` warning policy, and implementation details
+for `handle_outbox_item()`. Source: `specs/outbox.yaml` OX-08-001 through
+OX-08-004.
+**Load when**: implementing or modifying outbox delivery logic, adding a new
+outbound activity type, or debugging missing-`to:` errors.
+
+**`actor-knowledge-model.md`**
+Design decisions and implementation guidance for the Actor Knowledge Model
+(AKM): how actors track knowledge about other actors, case participants, and
+embargo state. References `specs/actor-knowledge-model.yaml` (AKM-01 through
+AKM-08).
+**Load when**: implementing actor knowledge queries, designing inter-actor
+trust or awareness logic, or working on AKM spec requirements.
+
+**`configuration.md`**
+Design decisions for YAML-backed Pydantic configuration loading in Vultron:
+`ActorConfig` neutral model, `LocalActorConfig` composition, default embargo
+policy injection, and configuration file resolution order.
+**Load when**: implementing or modifying actor configuration loading,
+designing config-driven BT node behavior, or working on CFG-07-* requirements.
 
 **`use-case-behavior-trees.md`**
 Conceptual layering from Driver → Dispatcher → Use Case → BT → Domain Model.
@@ -145,6 +170,28 @@ manually trigger intermediate steps, designing the boundary between automated
 cascades and external decision nodes, or evaluating where UI or LLM agent
 integration fits in the protocol flow.
 
+**`bt-composability.md`**
+Vultron's fractal composability principle for behavior trees: concrete patterns
+for composing behavioural subtrees, the "trunkless branch" model applied at
+the composability layer, and guidance for building reusable BT building blocks.
+Operationalises `specs/bt-composability.yaml` (BTC-01 through BTC-04).
+**Load when**: designing composable BT subtrees, auditing BT compositions for
+violations, or working on BTC spec requirements.
+
+**`bt-design-patterns.md`**
+Idiomatic BT construction patterns from Colledanchise & Ögren applied to the
+Vultron simulation and prototype implementations: factory methods, node
+naming, status semantics, and anti-patterns.
+**Load when**: implementing new BT nodes or subtrees, reviewing existing nodes
+for idiom conformance, or learning the canonical BT construction style.
+
+**`embargo-default-semantics.md`**
+Design decisions for `specs/embargo-policy.yaml` EP-04: default embargo state
+(MUST produce `EM.ACTIVE`, not `EM.PROPOSED`), atomic PROPOSE+ACCEPT sequence,
+and default embargo duration semantics.
+**Load when**: implementing or debugging `InitializeDefaultEmbargoNode`, or
+working on EP-04-001/EP-04-002 requirements (TASK-EMDEFAULT).
+
 **`do-work-behaviors.md`**
 Scope analysis of "do work" BT behaviors: out-of-scope, not-implementable, and
 partially-implementable items. Documents the embargo policy prior art and the
@@ -181,6 +228,23 @@ in activity `context`, implementation phases (SYNC-1–4), system invariants,
 and open questions for the replicated case event log.
 **Load when**: designing multi-actor case synchronization, evaluating the
 hash-chain log approach, or scoping the SYNC-1–4 implementation phases.
+
+**`participant-case-replica.md`**
+Design notes for participant case replicas: per-actor case copies, the
+synchronisation model between `CaseActor` and participant actors, and the
+relationship to SYNC-1/SYNC-2 implementation phases.
+**Load when**: implementing participant-side case replica handling, working on
+`specs/participant-case-replica.yaml` (PCR) requirements, or designing the
+`Announce(CaseLogEntry)` inbound handler.
+
+**`participant-embargo-consent.md`**
+Design decisions for per-participant embargo acceptance tracking: a 5-state
+consent machine (`NO_EMBARGO → INVITED → SIGNATORY / DECLINED / LAPSED`),
+embargo meta-protocol delivery to `DECLINED`/`LAPSED` participants, and the
+`Accept(Invite(case))` → implicit consent rule. Not yet implemented.
+**Load when**: implementing per-participant EM state tracking, working on the
+embargo consent state machine in `vultron/core/states/`, or debugging
+`embargo_adherence` field semantics.
 
 ---
 
@@ -225,6 +289,21 @@ Describes what each scenario would demonstrate and open design questions.
 **Load when**: designing new demo scripts or extending the existing demo suite
 beyond the current two-actor scenario.
 
+**`demo-review-26042001.md`** *(archived)*
+Point-in-time demo review from 2026-04-20: log analysis and root-cause
+findings from the multi-actor, three-actor, and multi-vendor demo runs.
+Architectural decisions captured here are superseded by individual notes files
+and `plan/IMPLEMENTATION_NOTES.md` REVIEW-26042001.
+**Load when**: reviewing the historical context for the 2026-04-20
+architectural decisions (DR-01 through DR-14).
+
+**`trigger-classification.md`**
+Classification of demo-specific vs general-purpose triggers: trigger routing
+rules, naming conventions, and `ActorConfig`-driven trigger dispatch guidance.
+**Load when**: implementing a new trigger endpoint, deciding whether a trigger
+is demo-specific or protocol-general, or working on trigger routing in
+`vultron/adapters/driving/fastapi/routers/`.
+
 ---
 
 ## Project Management and Planning
@@ -246,6 +325,22 @@ guidance for choosing a new `TASK-FOO` identifier.
 **Load when**: adding a new section to IMPLEMENTATION_PLAN.md, assigning
 or changing priorities, auditing plan sections for old priority-heading or
 dash-notation task IDs.
+
+**`append-only-file-handling.md`**
+Canonical procedure for writing to `plan/*HISTORY.md` append-only files:
+decision table, the `touch`/`cat >>` append procedure, and prohibited patterns
+(existence-check decision trees, full-file reads before appending, inserting
+mid-file). Formal requirements: `specs/project-documentation.yaml`
+PD-05-001 through PD-05-005.
+**Load when**: appending to any `*HISTORY.md` file or debugging a history-file
+write that went wrong.
+
+**`bugfix-workflow.md`**
+Design decisions and implementation patterns for the test-first bugfix
+workflow: the structured interview → failing-test → fix → verify cycle.
+Operationalises `specs/bugfix-workflow.yaml` (BFW).
+**Load when**: following the BUGFIX skill workflow, implementing bugfix
+tooling, or working on BFW spec requirements.
 
 ---
 
@@ -272,6 +367,20 @@ Communication, Publication, Bug Bounty, Prioritization).
 **Load when**: verifying requirement coverage for a user story, identifying
 gaps between user stories and spec requirements, or reviewing story-to-spec
 traceability.
+
+**`notes-frontmatter.md`**
+Design decisions for YAML frontmatter schema in `notes/*.md` files: required
+fields (`title`, `status`), valid `status` values, `superseded_by` rule, schema
+Pydantic model, loader, pre-commit hook, and migration checklist.
+**Load when**: adding frontmatter to a new notes file, modifying the frontmatter
+schema, or debugging `validate-notes-frontmatter` pre-commit failures.
+
+**`spec-registry.md`**
+Design notes for the spec registry: converting `specs/*.md` files to
+structured YAML governed by Pydantic models in `vultron/metadata/specs/`,
+mirroring the `vultron/metadata/notes/` pattern.
+**Load when**: adding a new spec YAML file, modifying the spec registry schema,
+or debugging `spec-dump` output issues.
 
 ---
 
