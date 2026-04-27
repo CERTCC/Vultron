@@ -271,19 +271,27 @@ def main() -> None:
         python -m vultron.metadata.specs.render --format md specs/
         python -m vultron.metadata.specs.render --format json specs/
         python -m vultron.metadata.specs.render --format yaml specs/
+        python -m vultron.metadata.specs.render --format llm-json specs/
+        python -m vultron.metadata.specs.render --format llm-json --topic CM specs/
     """
     import sys
 
     fmt = "md"
+    topic = None
     args = sys.argv[1:]
     if "--format" in args:
         idx = args.index("--format")
         fmt = args[idx + 1]
         args = args[:idx] + args[idx + 2 :]
+    if "--topic" in args:
+        idx = args.index("--topic")
+        topic = args[idx + 1]
+        args = args[:idx] + args[idx + 2 :]
 
     if not args:
         print(
-            f"Usage: {sys.argv[0]} [--format md|json|yaml] <spec_dir>",
+            f"Usage: {sys.argv[0]} [--format md|json|yaml|llm-json]"
+            " [--topic FILEID] <spec_dir>",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -297,6 +305,10 @@ def main() -> None:
         for sf in registry.files:
             print(export_yaml(sf))
             print("---")
+    elif fmt == "llm-json":
+        from vultron.metadata.specs.llm_export import to_llm_json
+
+        print(to_llm_json(registry, topic=topic))
     else:
         print(render_registry_markdown(registry))
 

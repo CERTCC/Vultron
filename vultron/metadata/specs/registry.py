@@ -7,9 +7,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import networkx as nx
 from pydantic import BaseModel, PrivateAttr
 
 from vultron.metadata.specs.schema import (
+    BehavioralSpec,
     Scope,
     Spec,
     SpecFile,
@@ -65,6 +67,7 @@ class SpecRegistry(BaseModel):
     _spec_context: dict[SpecIdStr, tuple[SpecGroup, SpecFile]] = PrivateAttr(
         default_factory=dict
     )
+    _graph: nx.DiGraph = PrivateAttr(default_factory=nx.DiGraph)
 
     def model_post_init(self, __context: object) -> None:
         for file in self.files:
@@ -73,6 +76,60 @@ class SpecRegistry(BaseModel):
                 for spec in group.specs:
                     self._register_spec(spec)
                     self._spec_context[spec.id] = (group, file)
+
+        # Build the requirements graph after all specs are indexed.
+        self._build_graph()
+
+    def _build_graph(self) -> None:
+        """Populate ``_graph`` with spec nodes and relationship edges."""
+        g = self._graph
+        for spec_id, spec in self._index.items():
+            group, file = self._spec_context[spec_id]
+            spec_type = (
+                "behavioral"
+                if isinstance(spec, BehavioralSpec)
+                else "statement"
+            )
+            g.add_node(
+                spec_id,
+                priority=spec.priority.value,
+                kind=effective_kind(spec, group, file).value,
+                scope=[s.value for s in effective_scope(spec, group, file)],
+                file_id=file.id,
+                group_id=group.id,
+                type=spec_type,
+                statement=spec.statement,
+            )
+
+        for spec_id, spec in self._index.items():
+            for rel in spec.relationships or []:
+                note = rel.note if rel.note else None
+                g.add_edge(
+                    spec_id,
+                    rel.spec_id,
+                    rel_type=rel.rel_type.value,
+                    note=note,
+                )
+
+    @property
+    def graph(self) -> nx.DiGraph:
+        """The requirements graph (specs as nodes, relationships as edges)."""
+        return self._graph
+
+    def subgraph_for_topic(self, file_id: str) -> nx.DiGraph:
+        """Return the subgraph containing only specs from file *file_id*."""
+        nodes = [
+            n
+            for n, d in self._graph.nodes(data=True)
+            if d.get("file_id") == file_id
+        ]
+        return self._graph.subgraph(nodes).copy()
+
+    def transitive_deps(self, spec_id: SpecIdStr) -> set[str]:
+        """Return all spec IDs reachable from *spec_id* via outgoing edges."""
+        if spec_id not in self._graph:
+            return set()
+        return set(nx.descendants(self._graph, spec_id))
 
     def _register_spec(self, spec: Spec) -> None:
         if spec.id in self._index:
