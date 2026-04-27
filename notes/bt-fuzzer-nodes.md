@@ -5,7 +5,7 @@ description: >
   Catalog of all fuzzer (stub) BT nodes in the Vultron simulation; external
   dependency touchpoints for prototype implementation.
 related_specs:
-  - specs/behavior-tree-integration.md
+  - specs/behavior-tree-integration.yaml
 related_notes:
   - notes/bt-integration.md
 relevant_packages:
@@ -1589,7 +1589,7 @@ from unexpected or malformed inbound protocol messages.
   node listed here is an integration point where a real behavior subtree
   will replace the stub. The canonical-bt-reference maps these points to
   their use-case BT targets.
-- `specs/behavior-tree-integration.md` BT-06-001 — all protocol-significant
+- `specs/behavior-tree-integration.yaml` BT-06-001 — all protocol-significant
   behaviors must be BT nodes or subtrees; fuzzer stubs are placeholders
   until the real subtree is implemented
 - `notes/bt-integration.md` — BT design decisions and composability model

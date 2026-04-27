@@ -9,9 +9,9 @@ case audit logging, recorded-history projection, and replication-facing
 **Source**: `wip_notes/intent-event.md`,
 `notes/activitystreams-semantics.md`, `notes/case-state-model.md`,
 `notes/sync-log-replication.md`
-**Cross-references**: `specs/case-management.md`,
-`specs/sync-log-replication.md`, `specs/outbox.md`,
-`specs/message-validation.md`, `specs/idempotency.md`
+**Cross-references**: `specs/case-management.yaml`,
+`specs/sync-log-replication.yaml`, `specs/outbox.yaml`,
+`specs/message-validation.yaml`, `specs/idempotency.yaml`
 **Note**: This specification governs case- and proto-case-scoped assertion
 recording. Transport-layer handling for malformed or unrouteable traffic that
 cannot be attached to a report or case remains out of scope here.

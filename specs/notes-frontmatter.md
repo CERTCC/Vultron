@@ -28,12 +28,12 @@ parallel but separate concern; this spec covers the notes side only. A shared
     `archived_notes/`.
 - `NF-01-004` When `status` is `superseded`, a `superseded_by` field MUST be
   present and MUST contain a non-empty string identifying the replacement
-  file path (e.g., `notes/new-topic.md` or `specs/new-spec.md`).
+  file path (e.g., `notes/new-topic.md` or `specs/new-spec.yaml`).
 - `NF-01-005` The optional `description` field, when present, MUST be a
   non-empty string summarising the file's purpose for tooling and agents.
 - `NF-01-006` The optional `related_specs` field, when present, MUST be a
   non-empty list of non-empty strings naming related specification files
-  (e.g., `["specs/behavior-tree-integration.md"]`).
+  (e.g., `["specs/behavior-tree-integration.yaml"]`).
 - `NF-01-007` The optional `related_notes` field, when present, MUST be a
   non-empty list of non-empty strings naming related notes files.
 - `NF-01-008` The optional `relevant_packages` field, when present, MUST be a

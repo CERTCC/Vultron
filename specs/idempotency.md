@@ -76,11 +76,11 @@ The system must handle duplicate activity submissions gracefully, ensuring repea
 
 ## Related
 
-- **HTTP Protocol**: `specs/http-protocol.md` (status codes)
-- **Message Validation**: `specs/message-validation.md` (activity structure)
-- **Handler Protocol**: `specs/handler-protocol.md` (handler idempotency patterns)
-- **Structured Logging**: `specs/structured-logging.md` (duplicate logging)
-- **Inbox Endpoint**: `specs/inbox-endpoint.md` (endpoint behavior)
+- **HTTP Protocol**: `specs/http-protocol.yaml` (status codes)
+- **Message Validation**: `specs/message-validation.yaml` (activity structure)
+- **Handler Protocol**: `specs/handler-protocol.yaml` (handler idempotency patterns)
+- **Structured Logging**: `specs/structured-logging.yaml` (duplicate logging)
+- **Inbox Endpoint**: `specs/inbox-endpoint.yaml` (endpoint behavior)
 
 ## Implementation
 

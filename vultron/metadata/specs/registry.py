@@ -1,6 +1,6 @@
 """SpecRegistry and loader for ``specs/*.yaml`` files.
 
-Loader requirements: specs/spec-registry.md SR-03.
+Loader requirements: specs/spec-registry.yaml SR-03.
 """
 
 from __future__ import annotations

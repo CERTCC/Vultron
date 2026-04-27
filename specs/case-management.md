@@ -403,7 +403,7 @@ the distinction between participant-specific and participant-agnostic state.
     SHOULD NOT require domain logic changes, and vice versa
 - `CM-08-002` Domain objects MUST NOT directly inherit from
   ActivityStreams base types; explicit `from_core()` / `to_core()` translation
-  methods MUST be provided at the wire boundary (see `specs/architecture.md`
+  methods MUST be provided at the wire boundary (see `specs/architecture.yaml`
   ARCH-12-001 through ARCH-12-007 and `notes/domain-model-separation.md`)
   - **Current state**: Domain objects (`VulnerabilityCase`, `VultronReport`,
     `VultronCaseLogEntry`, etc.) are already pure Pydantic `BaseModel` —
@@ -533,7 +533,7 @@ proto-case is a case object that exists but has not yet been validated
   creation (RM.RECEIVED)
   - CM-12-004 refines DUR-07-002 (which now applies at case receipt)
   - When applied, the resulting `CaseStatus.em_state` MUST be `EM.ACTIVE`,
-    not `EM.PROPOSED` — see `specs/embargo-policy.md` EP-04-001
+    not `EM.PROPOSED` — see `specs/embargo-policy.yaml` EP-04-001
   - If no embargo is initialized at receipt, one MUST exist before the
     case transitions to RM.VALID (see DUR-07-004)
 - `CM-12-005` (MUST) `InvalidateReportReceivedUseCase`,
@@ -561,9 +561,9 @@ proto-case is a case object that exists but has not yet been validated
 
 ## Related
 
-- **Behavior Tree Integration**: `specs/behavior-tree-integration.md`
+- **Behavior Tree Integration**: `specs/behavior-tree-integration.yaml`
   (BT-09 actor isolation, BT-10 CaseActor creation)
-- **Handler Protocol**: `specs/handler-protocol.md` (HP-00-001, HP-00-002)
+- **Handler Protocol**: `specs/handler-protocol.yaml` (HP-00-001, HP-00-002)
 - **Case State Model**: `notes/case-state-model.md` (VFD/PXA hypercube,
   participant-specific vs agnostic detail)
 - **Domain Model Separation**: `notes/domain-model-separation.md` (wire/domain/
@@ -576,12 +576,12 @@ proto-case is a case object that exists but has not yet been validated
   documentation for case, embargo, participant management)
 - **Priorities**: `plan/PRIORITIES.md` (Priority 100: Actor independence,
   Priority 200: CaseActor as source of truth)
-- **Agentic Readiness**: `specs/agentic-readiness.md` (AR-07-001, AR-07-002)
-- **Object IDs**: `specs/object-ids.md`
+- **Agentic Readiness**: `specs/agentic-readiness.yaml` (AR-07-001, AR-07-002)
+- **Object IDs**: `specs/object-ids.yaml`
 - **Do Work Behaviors**: `notes/do-work-behaviors.md`
 - **Protocol Event Cascades**: `notes/protocol-event-cascades.md`
   (cascading automation design principle, identified gaps in BT
   automation and activity addressing)
-- **Encryption**: `specs/encryption.md`
+- **Encryption**: `specs/encryption.yaml`
 - **Implementation**: `vultron/wire/as2/vocab/objects/vulnerability_case.py`
 - **Implementation**: `vultron/wire/as2/vocab/objects/case_status.py`

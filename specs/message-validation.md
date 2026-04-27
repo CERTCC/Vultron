@@ -8,9 +8,9 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 
 **Note**:
 
-- **HTTP-level validation** (Content-Type, size limits) consolidated in `specs/http-protocol.md` (HTTP-01, HTTP-02)
+- **HTTP-level validation** (Content-Type, size limits) consolidated in `specs/http-protocol.yaml` (HTTP-01, HTTP-02)
 - This spec focuses on **ActivityStreams structure and semantic validation**
-- **Full inline object rule** (MV-09-001): authoritative basis in `specs/actor-knowledge-model.md` (AKM-02-001, AKM-03-001)
+- **Full inline object rule** (MV-09-001): authoritative basis in `specs/actor-knowledge-model.yaml` (AKM-02-001, AKM-03-001)
 
 ---
 
@@ -23,7 +23,7 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
   - MAY have an `object` field containing the activity target
 - `MV-01-005` Pattern-matching implementation MUST be defensive:
   - If a pattern expects an object type (or an actor base class), the match algorithm MUST handle both subclassed object types and URI string references without raising exceptions.
-  - When activity data includes string references, the inbox handler SHOULD attempt rehydration prior to pattern matching; if rehydration is not possible, the system MUST log a warning and return MessageSemantics.UNKNOWN (see `specs/semantic-extraction.md`).
+  - When activity data includes string references, the inbox handler SHOULD attempt rehydration prior to pattern matching; if rehydration is not possible, the system MUST log a warning and return MessageSemantics.UNKNOWN (see `specs/semantic-extraction.yaml`).
 
 ## Schema Validation
 
@@ -220,8 +220,8 @@ scenarios.
 
 ## Related
 
-- **HTTP Protocol**: `specs/http-protocol.md` (Content-Type validation MV-06-001, size limits MV-07-001 consolidated as HTTP-01, HTTP-02)
-- **Idempotency**: `specs/inbox-endpoint.md` IE-10-001, `specs/handler-protocol.md` HP-07-001
+- **HTTP Protocol**: `specs/http-protocol.yaml` (Content-Type validation MV-06-001, size limits MV-07-001 consolidated as HTTP-01, HTTP-02)
+- **Idempotency**: `specs/inbox-endpoint.yaml` IE-10-001, `specs/handler-protocol.yaml` HP-07-001
 - **Implementation**: `vultron/wire/as2/parser.py` (`parse_activity()`)
 - **Implementation**: `vultron/wire/as2/vocab/activities/` (Pydantic models)
 - **Tests**: `test/adapters/driving/fastapi/routers/test_actors.py`

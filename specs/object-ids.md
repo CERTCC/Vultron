@@ -91,9 +91,9 @@ Should Be URL-Like, Not Bare UUIDs"), `plan/IMPLEMENTATION_PLAN.md`
 
 ## Related
 
-- **Case Management**: `specs/case-management.md`
-- **Handler Protocol**: `specs/handler-protocol.md`
-- **BT Integration**: `specs/behavior-tree-integration.md` (BT-03-003)
+- **Case Management**: `specs/case-management.yaml`
+- **Handler Protocol**: `specs/handler-protocol.yaml`
+- **BT Integration**: `specs/behavior-tree-integration.yaml` (BT-03-003)
 - **Domain Model**: `notes/domain-model-separation.md`
 - **Codebase Structure**: `notes/codebase-structure.md`
 - **Implementation Plan**: `plan/IMPLEMENTATION_PLAN.md` (TECHDEBT-3)

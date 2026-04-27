@@ -3,7 +3,7 @@ title: Outbox Notes
 status: active
 description: Implementation guidance for outbox addressing requirements.
 related_specs:
-  - specs/outbox.md
+  - specs/outbox.yaml
 relevant_packages:
   - fastapi
   - vultron/adapters/driving/fastapi
@@ -13,7 +13,7 @@ relevant_packages:
 
 Implementation guidance for outbox addressing requirements.
 
-**Spec**: `specs/outbox.md` OX-08-001 through OX-08-004  
+**Spec**: `specs/outbox.yaml` OX-08-001 through OX-08-004  
 **Source idea**: IDEA-26041001
 
 ---
@@ -52,7 +52,7 @@ class VultronOutboxToFieldMissingError(VultronError):
 
     All Vultron protocol exchanges are direct messages.  Every outbound
     activity MUST address at least one recipient via ``to:``.
-    See specs/outbox.md OX-08-001, OX-08-002.
+    See specs/outbox.yaml OX-08-001, OX-08-002.
     """
 
     def __init__(
@@ -162,7 +162,7 @@ emitter.emit.assert_called_once()
 
 ## Related
 
-- `specs/outbox.md` — OX-08-* requirements
+- `specs/outbox.yaml` — OX-08-* requirements
 - `vultron/adapters/driving/fastapi/outbox_handler.py` — enforcement point
 - `vultron/errors.py` — exception hierarchy
 - `test/adapters/driving/fastapi/test_outbox.py` — test location

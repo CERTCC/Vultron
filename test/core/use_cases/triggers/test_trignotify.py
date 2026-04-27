@@ -17,7 +17,7 @@
 Tests for D5-7-TRIGNOTIFY-1: verify that trigger use cases populate the
 ``to`` field in outbound activities.
 
-Spec: specs/outbox.md OX-03-001; specs/case-management.md CM-06.
+Spec: specs/outbox.yaml OX-03-001; specs/case-management.yaml CM-06.
 """
 
 import pytest

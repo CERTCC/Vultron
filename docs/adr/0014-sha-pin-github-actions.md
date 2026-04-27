@@ -2,7 +2,7 @@
 status: accepted
 date: 2026-03-30
 deciders: ahouseholder
-consulted: specs/ci-security.md
+consulted: specs/ci-security.yaml
 informed: plan/IMPLEMENTATION_PLAN.md
 ---
 
@@ -84,7 +84,7 @@ execution.
 
 ## More Information
 
-- `specs/ci-security.md` — full requirement set (CISEC-01-001 through
+- `specs/ci-security.yaml` — full requirement set (CISEC-01-001 through
   CISEC-04-002)
 - `.github/dependabot.yml` — Dependabot configuration
 - `test/ci/test_workflow_sha_pinning.py` — automated enforcement test

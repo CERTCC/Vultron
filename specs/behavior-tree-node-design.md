@@ -10,7 +10,7 @@ composability pattern described in `notes/bt-reusability.md`.
 
 **Note**: This spec addresses *how* BT nodes are designed and structured. The
 *when-to-use BTs* and *execution model* requirements live in
-`specs/behavior-tree-integration.md`.
+`specs/behavior-tree-integration.yaml`.
 
 ---
 
@@ -349,9 +349,9 @@ read it before designing or reviewing BT nodes.
   guidelines (Colledanchise & Ögren)
 - **Design notes**: `notes/bt-reusability.md` — fractal composability pattern,
   trunkless branch model, and anti-pattern reference
-- **BT execution model**: `specs/behavior-tree-integration.md` — BT-06-001
+- **BT execution model**: `specs/behavior-tree-integration.yaml` — BT-06-001
   through BT-06-006, DataLayer integration, actor isolation
-- **Object IDs / blackboard keys**: `specs/object-ids.md` OID-01-*
-- **Architecture layering**: `specs/architecture.md` ARCH-04-001
-- **Actor configuration**: `specs/configuration.md` CFG-07-001 through
+- **Object IDs / blackboard keys**: `specs/object-ids.yaml` OID-01-*
+- **Architecture layering**: `specs/architecture.yaml` ARCH-04-001
+- **Actor configuration**: `specs/configuration.yaml` CFG-07-001 through
   CFG-07-004

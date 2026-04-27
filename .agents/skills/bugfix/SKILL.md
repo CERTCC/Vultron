@@ -70,7 +70,7 @@ before locking in scope:
   `plan/BUGS.md` (see Constraints). Confirm the narrowed scope before
   proceeding.
 
-See `specs/bugfix-workflow.md` BFW-02-001 through BFW-02-004 and
+See `specs/bugfix-workflow.yaml` BFW-02-001 through BFW-02-004 and
 `notes/bugfix-workflow.md` for question templates and escalation patterns.
 
 **Do not proceed to Phase 3 until Phase 2b scope is confirmed.**
@@ -97,7 +97,7 @@ starting at step 3 ("Verify Before Changes"):
      `plan/IMPLEMENTATION_HISTORY.md` using the template in
      `notes/bugfix-workflow.md`.
    - Remove the bug's entry entirely from `plan/BUGS.md`. Do not leave a
-     tombstone, `FIXED` marker, or closed-notice — see `specs/bugfix-workflow.md`
+     tombstone, `FIXED` marker, or closed-notice — see `specs/bugfix-workflow.yaml`
      BFW-04-002.
    - If any other bugs in `plan/BUGS.md` are already marked fixed, archive and
      remove them opportunistically (BFW-04-004).

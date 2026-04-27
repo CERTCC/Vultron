@@ -1,7 +1,7 @@
 # Architectural Review: Ports and Adapters Adherence
 
 Review against `notes/architecture-ports-and-adapters.md` and
-`specs/architecture.md`.
+`specs/architecture.yaml`.
 
 > **Status (2026-03-11, updated):** The original 12 violations (V-01 through
 > V-12) were claimed as fully remediated through ARCH-1.1–ARCH-1.4 and

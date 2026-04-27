@@ -5,9 +5,9 @@ description: >
   Event-driven causal model for protocol cascades; primary events, their
   automated downstream consequences, and gap inventory.
 related_specs:
-  - specs/behavior-tree-integration.md
-  - specs/case-management.md
-  - specs/triggerable-behaviors.md
+  - specs/behavior-tree-integration.yaml
+  - specs/case-management.yaml
+  - specs/triggerable-behaviors.yaml
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/bt-integration.md
@@ -92,7 +92,7 @@ after the BT finishes, it:
 2. Creates a gap between the canonical protocol model and the implementation
 3. Breaks explainability — an observer reading the BT does not see the full
    causal chain
-4. Violates BT-06-005 and BT-06-006 in `specs/behavior-tree-integration.md`
+4. Violates BT-06-005 and BT-06-006 in `specs/behavior-tree-integration.yaml`
 
 ### Correct Approach for Each Gap
 
@@ -176,11 +176,11 @@ trigger. The demo-runner calls only Step 1.
 
 - `notes/bt-integration.md` (subtree map, trunk-removed branches
   model, anti-pattern examples)
-- `specs/behavior-tree-integration.md` BT-06-001, BT-06-005, BT-06-006
+- `specs/behavior-tree-integration.yaml` BT-06-001, BT-06-005, BT-06-006
   (cascade-as-subtree requirement)
-- `specs/case-management.md` CM-06 (case update broadcast), CM-11
+- `specs/case-management.yaml` CM-06 (case update broadcast), CM-11
   (invitation acceptance lifecycle)
-- `specs/triggerable-behaviors.md` TRIG-02-005, TRIG-07-001
-- `specs/multi-actor-demo.md` DEMOMA-05-001 (demos MUST use triggers)
+- `specs/triggerable-behaviors.yaml` TRIG-02-005, TRIG-07-001
+- `specs/multi-actor-demo.yaml` DEMOMA-05-001 (demos MUST use triggers)
 - `notes/activitystreams-semantics.md` (state-change notification model)
 - `notes/bt-integration.md` (BT design decisions)

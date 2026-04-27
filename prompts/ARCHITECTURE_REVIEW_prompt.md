@@ -1,6 +1,6 @@
 You are reviewing this codebase for adherence to the architecture described in
 `notes/architecture-ports-and-adapters.md`, as refined in
-`specs/architecture.md`. Additional notes from a previous review are found
+`specs/architecture.yaml`. Additional notes from a previous review are found
 in `archived_notes/architecture-review.md`. Read those document in full
 before examining any code. Use it as your ground truth throughout.
 
@@ -104,7 +104,7 @@ For each violation:
 
 - File and function/line
 - Which rule it breaks (by number, from
-  `notes/architecture-ports-and-adapters.md` and `specs/architecture.md`)
+  `notes/architecture-ports-and-adapters.md` and `specs/architecture.yaml`)
 - Severity: Critical (core depends on wire format or framework), Major (logic in
   wrong layer), Minor (convention or organisation)
 - One sentence explaining why it is a violation

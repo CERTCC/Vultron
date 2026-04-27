@@ -49,7 +49,7 @@ notification.  If the two activities were queued in the opposite order, the
 reporter would receive an ``Add(CaseParticipant)`` for a case it has not yet
 seen, triggering "case not found" warnings on the reporter side.
 
-Per specs/case-management.md CM-12 (ADR-0015) and
+Per specs/case-management.yaml CM-12 (ADR-0015) and
 docs/adr/0015-create-case-at-report-receipt.md.
 """
 

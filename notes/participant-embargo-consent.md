@@ -5,7 +5,7 @@ description: >
   Design decisions for tracking per-participant embargo acceptance; consent
   state machine and implementation patterns.
 related_specs:
-  - specs/case-management.md
+  - specs/case-management.yaml
 related_notes:
   - notes/stub-objects.md
 relevant_packages:
@@ -18,7 +18,7 @@ relevant_packages:
 
 **Status**: Design decision — not yet implemented
 **Source**: `notes/demo-review-26042001.md` + architectural review 2026-04-20
-**See also**: `specs/case-management.md` CM-03-008, CM-04-003; `notes/stub-objects.md`
+**See also**: `specs/case-management.yaml` CM-03-008, CM-04-003; `notes/stub-objects.md`
 
 ---
 

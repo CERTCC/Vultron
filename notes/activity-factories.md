@@ -5,7 +5,7 @@ description: >
   Factory functions as the public construction API for outbound Vultron
   activity messages; replaces direct subclass instantiation.
 related_specs:
-  - specs/activity-factories.md
+  - specs/activity-factories.yaml
 relevant_packages:
   - pydantic
   - vultron/wire/as2
@@ -21,7 +21,7 @@ as the public construction API for outbound protocol messages. The internal
 Vultron subclasses (e.g. `RmSubmitReportActivity`) remain as private Pydantic
 validators inside the factory modules; they are not part of the public API.
 
-**Spec**: `specs/activity-factories.md` (AF-01 through AF-08)
+**Spec**: `specs/activity-factories.yaml` (AF-01 through AF-08)
 
 ---
 

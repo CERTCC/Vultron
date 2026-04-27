@@ -20,7 +20,7 @@ This module provides condition and action nodes for the report validation
 workflow, implementing the logic from the validate_report handler as a
 composable behavior tree.
 
-Per specs/behavior-tree-integration.md BT-07 and BT-10 requirements.
+Per specs/behavior-tree-integration.yaml BT-07 and BT-10 requirements.
 """
 
 import logging
@@ -864,7 +864,7 @@ class EvaluateCasePriority(DataLayerCondition):
     as opposed to the receive-side nodes above which record a decision already
     made by the sending actor.
 
-    See specs/prototype-shortcuts.md PROTO-05-001 for SSVC deferral policy.
+    See specs/prototype-shortcuts.yaml PROTO-05-001 for SSVC deferral policy.
     """
 
     def __init__(self, case_id: str, name: str | None = None):
@@ -901,7 +901,7 @@ class EmitEngageCaseActivity(DataLayerAction):
     Phase 1: Always called after EvaluateCasePriority returns SUCCESS.
     Future: May be gated by an SSVC policy node (IDEA-26041004).
 
-    Per specs/behavior-tree-integration.md BT-06-005.
+    Per specs/behavior-tree-integration.yaml BT-06-005.
     """
 
     def __init__(self, case_id: str, actor_id: str, name: str | None = None):
@@ -989,7 +989,7 @@ class EmitDeferCaseActivity(DataLayerAction):
     Called when EvaluateCasePriority returns FAILURE (defer path in
     PrioritizeBT).
 
-    Per specs/behavior-tree-integration.md BT-06-006.
+    Per specs/behavior-tree-integration.yaml BT-06-006.
     """
 
     def __init__(self, case_id: str, actor_id: str, name: str | None = None):

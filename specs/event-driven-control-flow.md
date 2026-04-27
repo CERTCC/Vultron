@@ -9,8 +9,8 @@ integration tests.
 
 **Source**: IDEA-26041701 (Clarification of intended control flow)
 
-**See also**: `specs/behavior-tree-integration.md` (BT cascade mechanism),
-`specs/outbox.md` (outbox delivery), `notes/event-driven-control-flow.md`
+**See also**: `specs/behavior-tree-integration.yaml` (BT cascade mechanism),
+`specs/outbox.yaml` (outbox delivery), `notes/event-driven-control-flow.md`
 (conceptual actor model and design rationale),
 `notes/protocol-event-cascades.md` (concrete cascade gap inventory)
 
@@ -59,7 +59,7 @@ integration tests.
 
 - `EDF-03-001` All cascade steps that do not require external input MUST be
   implemented as BT subtrees within the handling actor's BT execution context.
-  - See `specs/behavior-tree-integration.md` BT-06-001 through BT-06-006.
+  - See `specs/behavior-tree-integration.yaml` BT-06-001 through BT-06-006.
 - `EDF-03-002` Outbox emissions that are part of a cascade MUST be implemented
   as BT leaf-node actions (e.g., `EmitXxxNode`); they MUST NOT be procedural
   calls made after `BTBridge.execute_with_setup()` returns.

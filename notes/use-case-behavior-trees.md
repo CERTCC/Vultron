@@ -5,7 +5,7 @@ description: >
   Clarifies the relationship between use cases, domain logic, and behavior
   trees; documents where each concern belongs.
 related_specs:
-  - specs/code-style.md
+  - specs/code-style.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/domain-model-separation.md
@@ -420,7 +420,7 @@ a `Received` suffix: `CreateReportReceivedUseCase`. Trigger use cases
 (actor-initiated actions) SHOULD carry a `Svc` prefix: `SvcEngageCaseUseCase`.
 This mirrors the `FooReceivedEvent` / `FooTriggerEvent` convention for domain
 events (CS-10-002) and makes the origin unambiguous at a glance. See
-`specs/code-style.md` CS-12-002 and TECHDEBT-21.
+`specs/code-style.yaml` CS-12-002 and TECHDEBT-21.
 
 ### UseCaseRequest Envelope (Future Direction)
 

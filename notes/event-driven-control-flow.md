@@ -5,7 +5,7 @@ description: >
   Conceptual model for event-driven control flow in Vultron; actor reaction
   patterns and design rationale.
 related_specs:
-  - specs/event-driven-control-flow.md
+  - specs/event-driven-control-flow.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/bt-reusability.md
@@ -25,7 +25,7 @@ captures the conceptual model behind that design, the rationale for key
 decisions, and guidance for understanding where the system should (and should
 not) do work automatically.
 
-**Formal requirements**: `specs/event-driven-control-flow.md` (EDF-01
+**Formal requirements**: `specs/event-driven-control-flow.yaml` (EDF-01
 through EDF-05)
 
 **Related notes**: `notes/protocol-event-cascades.md` (concrete cascade gap
@@ -60,7 +60,7 @@ while running:
 
 Peer actors receive the emitted messages in their own inboxes and run their
 own BTs in response, potentially emitting further messages — forming the
-full **cascade chain** described in `specs/event-driven-control-flow.md`
+full **cascade chain** described in `specs/event-driven-control-flow.yaml`
 EDF-01-003.
 
 ### This Is a Conceptual Model, Not an Implementation Requirement

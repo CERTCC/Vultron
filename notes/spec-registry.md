@@ -2,8 +2,8 @@
 title: Spec Registry Design
 status: active
 related_specs:
-  - specs/spec-registry.md
-  - specs/notes-frontmatter.md
+  - specs/spec-registry.yaml
+  - specs/notes-frontmatter.yaml
 related_notes:
   - notes/append-only-file-handling.md
 relevant_packages:
@@ -454,7 +454,7 @@ groups:
    a script into the YAML structure.
 2. Run `python -m vultron.metadata.specs.lint specs/` — fix all errors.
 3. Delete the `.md` source file.
-4. Keep `specs/README.md` and `specs/meta-specifications.md` as Markdown.
+4. Keep `specs/README.md` and `specs/meta-specifications.yaml` as Markdown.
 
 The migration is expected to require human review of each file; a migration
 script is a starting point, not a complete solution.

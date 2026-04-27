@@ -126,9 +126,9 @@ CLI structure, demo isolation, Docker packaging, and test requirements.
 
 ## Related
 
-- **Tech Stack**: `specs/tech-stack.md`
-- **Testability**: `specs/testability.md`
-- **Prototype Shortcuts**: `specs/prototype-shortcuts.md`
+- **Tech Stack**: `specs/tech-stack.yaml`
+- **Testability**: `specs/testability.yaml`
+- **Prototype Shortcuts**: `specs/prototype-shortcuts.yaml`
 - **Priorities**: `plan/PRIORITIES.md` (PRIORITY 10 DEMO-4)
 - **Codebase Structure**: `notes/codebase-structure.md` (TECHDEBT-2)
 - **Implementation Plan**: `plan/IMPLEMENTATION_PLAN.md` (TECHDEBT-2)

@@ -19,7 +19,7 @@ Report validation behavior tree composition.
 This module composes the report validation workflow as a behavior tree,
 integrating condition, action, and policy nodes from the nodes module.
 
-Per specs/behavior-tree-integration.md BT-06 requirements.
+Per specs/behavior-tree-integration.yaml BT-06 requirements.
 
 Structure:
 

@@ -1,7 +1,7 @@
 """Spec registry for ``specs/*.yaml`` structured requirement files.
 
-Schema requirements: specs/spec-registry.md SR-02, SR-03.
-Pytest integration: specs/spec-registry.md SR-05.
+Schema requirements: specs/spec-registry.yaml SR-02, SR-03.
+Pytest integration: specs/spec-registry.yaml SR-05.
 """
 
 import warnings

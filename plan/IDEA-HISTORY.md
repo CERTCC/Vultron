@@ -20,7 +20,7 @@ for different components, and modularity in how we define and validate
 config for different adapters or features.
 
 **Processed**: 2026-04-23 — design decisions captured in
-`specs/configuration.md` (CFG-01 through CFG-06) and
+`specs/configuration.yaml` (CFG-01 through CFG-06) and
 `notes/configuration.md`.
 
 ---
@@ -35,7 +35,7 @@ compatibility (but obviously do not break the code in a way that prevents
 you from testing your changes).
 
 **Processed**: 2026-04-23 — design decisions captured in
-`specs/prototype-shortcuts.md` (PROTO-08-001 through PROTO-08-004).
+`specs/prototype-shortcuts.yaml` (PROTO-08-001 through PROTO-08-004).
 
 ---
 
@@ -51,7 +51,7 @@ explicit principle in the specs. Compatibility shims are technical debt that
 we do not want to take on right now.
 
 **Processed**: 2026-04-23 — folded into IDEA-26040903 processing; design
-decisions captured in `specs/prototype-shortcuts.md` (PROTO-08-001 through
+decisions captured in `specs/prototype-shortcuts.yaml` (PROTO-08-001 through
 PROTO-08-004).
 
 ---
@@ -69,7 +69,7 @@ with a `to:` field can be posted an outbox, and this should be on the outbox
 port itself as an acceptance criteria that raises an exception when violated.
 
 **Processed**: 2026-04-23 — design decisions captured in
-`specs/outbox.md` (OX-08-001 through OX-08-004) and `notes/outbox.md`.
+`specs/outbox.yaml` (OX-08-001 through OX-08-004) and `notes/outbox.md`.
 
 ---
 
@@ -87,7 +87,7 @@ handle append-only files. The agent should not be trying to parse the file and
 figure out where to insert the new entry, it should just be adding it to the end.
 
 **Processed**: 2026-04-23 — design decisions captured in
-`specs/project-documentation.md` (PD-05-001 through PD-05-005) and
+`specs/project-documentation.yaml` (PD-05-001 through PD-05-005) and
 `notes/append-only-file-handling.md`.
 
 ---
@@ -112,7 +112,7 @@ Check if IDEA-HISTORY.md exists (shell)
 ```
 
 **Processed**: 2026-04-23 — design decisions captured in
-`specs/project-documentation.md` (PD-05-001 through PD-05-005) and
+`specs/project-documentation.yaml` (PD-05-001 through PD-05-005) and
 `notes/append-only-file-handling.md`.
 
 ## IDEA-26041704 Bugfix skill prematurely locks in on simple fixes
@@ -137,7 +137,7 @@ the work into new tasks in the implementation plan and/or capturing
 additional bugs.
 
 **Processed**: 2026-04-23 — design decisions captured in
-`specs/bugfix-workflow.md` (BFW-01 through BFW-04) and
+`specs/bugfix-workflow.yaml` (BFW-01 through BFW-04) and
 `notes/bugfix-workflow.md`.
 
 ## IDEA-26042202 bugfix skill should move fixed bugs out of BUGS.md
@@ -150,7 +150,7 @@ than leaving a tombstone or summary behind. BUGS.md should only contain open
 bugs, not closed ones.
 
 **Processed**: 2026-04-23 — design decisions captured in
-`specs/bugfix-workflow.md` (BFW-04-001 through BFW-04-004) and
+`specs/bugfix-workflow.yaml` (BFW-04-001 through BFW-04-004) and
 `notes/bugfix-workflow.md`.
 
 ## IDEA-26041002 Default embargo should result in `EM.ACTIVE` not `EM.PROPOSED`
@@ -168,7 +168,7 @@ reporter explicitly accepts the default embargo. See
 `docs/topics/process_models/em/defaults.md` for more discussion.
 
 **Processed**: 2026-04-24 — design decisions captured in
-`specs/embargo-policy.md` (EP-04-001 through EP-04-004) and
+`specs/embargo-policy.yaml` (EP-04-001 through EP-04-004) and
 `notes/embargo-default-semantics.md`. Implementation task added to
 `plan/IMPLEMENTATION_PLAN.md` as EMDEFAULT-1.
 
@@ -195,7 +195,7 @@ activity when sending to another Actor". I'm not sure whether anything
 beyond that is premature optimization or not.
 
 **Processed**: 2026-04-24 — design decisions captured in
-`specs/actor-knowledge-model.md` (AKM-01 through AKM-04) and
+`specs/actor-knowledge-model.yaml` (AKM-01 through AKM-04) and
 `notes/actor-knowledge-model.md`. Code audit and violation fixes deferred
 to a follow-on implementation task.
 
@@ -207,7 +207,7 @@ to a follow-on implementation task.
     Outbound initiating activities (Create, Offer, Invite, Announce, Add,
     Remove, etc.) MUST carry a fully inline typed object so that recipients
     can determine the semantic type without a round-trip to the sender's
-    DataLayer.  See specs/message-validation.md MV-09-001, MV-09-002.
+    DataLayer.  See specs/message-validation.yaml MV-09-001, MV-09-002.
 ```
 
 What concerns me is the phrase "without a round-trip to the sender's
@@ -224,7 +224,7 @@ Actors do not, will not, must not have access to each others' datalayers, and
 that inter-Actor comms always happens at the wire AS2 activity level.
 
 **Processed**: 2026-04-24 — design decisions captured in
-`specs/actor-knowledge-model.md` (AKM-01 through AKM-04) and
+`specs/actor-knowledge-model.yaml` (AKM-01 through AKM-04) and
 `notes/actor-knowledge-model.md`. The misleading docstring in
 `vultron/errors.py` was corrected in the same commit.
 
@@ -293,7 +293,7 @@ local copy of the case object and are not directly writing to their own copy
 either but routing their updates through the Case Actor too).
 
 **Processed**: 2026-04-24 — design decisions captured in
-`specs/participant-case-replica.md` (PCR-01 through PCR-07) and
+`specs/participant-case-replica.yaml` (PCR-01 through PCR-07) and
 `notes/participant-case-replica.md`.
 
 ## IDEA-26041003 Differentiate between "demo" triggers and "normal" triggers
@@ -310,7 +310,7 @@ worth implementing. If so, we should implement the generalized one, and
 have the demo just use that with its specific object types or needs.
 
 **Processed**: 2026-04-24 — design decisions captured in
-`specs/triggerable-behaviors.md` (TRIG-08 through TRIG-10) and
+`specs/triggerable-behaviors.yaml` (TRIG-08 through TRIG-10) and
 `notes/trigger-classification.md`.
 
 ## IDEA-26041702 Generalize behavior nodes to avoid overfitting to the demo
@@ -329,8 +329,8 @@ creator/owner participant node first, and so the actor identity and the role
 (s) would be parameters to the node, not hardcoded in the node itself.
 
 **Processed**: 2026-04-24 — design decisions captured in
-`specs/behavior-tree-node-design.md` (BTND-05-001 through BTND-05-003) and
-`specs/configuration.md` (CFG-07-001 through CFG-07-004); implementation
+`specs/behavior-tree-node-design.yaml` (BTND-05-001 through BTND-05-003) and
+`specs/configuration.yaml` (CFG-07-001 through CFG-07-004); implementation
 guidance updated in `notes/bt-reusability.md`.
 
 ## IDEA-26041701 Clarification of intended control flow
@@ -371,7 +371,7 @@ a lot more like a distributed system with separate services and message
 queues with workers that handle individual use cases etc.
 
 **Processed**: 2026-04-24 — design decisions captured in
-`specs/event-driven-control-flow.md` (EDF-01 through EDF-05) and
+`specs/event-driven-control-flow.yaml` (EDF-01 through EDF-05) and
 `notes/event-driven-control-flow.md`.
 
 ## IDEA-26041703 Concern about behavior tree integration into design
@@ -408,7 +408,7 @@ incorporate the use of behavior trees to capture process logic as a core
 principle of how we build out the system.
 
 **Processed**: 2026-04-24 — design decisions captured in
-`specs/bt-composability.md` (BTC-01 through BTC-04) and
+`specs/bt-composability.yaml` (BTC-01 through BTC-04) and
 `notes/bt-composability.md`.
 
 ## IDEA-26042001 The Vultron-specific activities might make more sense as factory functions
@@ -442,7 +442,7 @@ extraction process as well. And it could even further decouple the core
 logic from the AS2 message details.
 
 **Processed**: 2026-04-24 — design decisions captured in
-`specs/activity-factories.md` (AF-01 through AF-08) and
+`specs/activity-factories.yaml` (AF-01 through AF-08) and
 `notes/activity-factories.md`.
 
 ---
@@ -466,7 +466,7 @@ to revise lots of tasks and headings in both files when priorities change
 instead of just modifying the PRIORITIES.md file to reflect the new priority order.
 
 **Processed**: 2026-04-24 — design decisions captured in
-`specs/project-documentation.md` (PD-06-001 through PD-06-006) and
+`specs/project-documentation.yaml` (PD-06-001 through PD-06-006) and
 `notes/plan-organization.md`. Existing `plan/IMPLEMENTATION_PLAN.md` sections
 migrated to `TASK-FOO` headings and dot-notation task IDs in the same commit.
 
@@ -492,7 +492,7 @@ to easily dump "all the notes and specs relevant to topic X" for an agent to
 use when reasoning about a topic or task.
 
 **Processed**: 2026-04-24 — design decisions captured in
-`specs/notes-frontmatter.md` (NF-01 through NF-07) and `notes/notes-frontmatter.md`.
+`specs/notes-frontmatter.yaml` (NF-01 through NF-07) and `notes/notes-frontmatter.md`.
 
 ## IDEA-26042402 Convert spec.md files to YAML governed by a pydantic dataclass schema
 
@@ -522,4 +522,4 @@ Requirements checks could be made into pre-commit hooks and part of the
 pytest suite so we get errors when structure is invalid.
 
 **Processed**: 2026-04-27 — design decisions captured in
-`specs/spec-registry.md` (SR-01 through SR-08) and `notes/spec-registry.md`.
+`specs/spec-registry.yaml` (SR-01 through SR-08) and `notes/spec-registry.md`.

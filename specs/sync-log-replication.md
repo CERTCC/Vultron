@@ -8,9 +8,9 @@ for distributed case state synchronization across Participant Actors.
 
 **Source**: `plan/IMPLEMENTATION_PLAN.md` PRIORITY-400 (SYNC-1 through
 SYNC-4), `plan/IMPLEMENTATION_NOTES.md` (2026-03-26 SYNC design notes)
-**Cross-references**: `specs/case-management.md`,
-`specs/case-log-processing.md`, `specs/outbox.md`,
-`specs/idempotency.md`
+**Cross-references**: `specs/case-management.yaml`,
+`specs/case-log-processing.yaml`, `specs/outbox.yaml`,
+`specs/idempotency.yaml`
 **Note**: Before implementing SYNC-1, create
 `notes/sync-log-replication.md` capturing the RAFT-inspired design notes.
 A `notes/` file is the appropriate place for design approach details; this
@@ -23,7 +23,7 @@ spec captures the normative requirements.
 - `SYNC-01-001` The canonical recorded case log MUST be append-only; log
   entries MUST be immutable once appended
   - Broader local case audit history MAY exist outside the replicated chain;
-    see `specs/case-log-processing.md`
+    see `specs/case-log-processing.yaml`
 - `SYNC-01-002` Each log entry MUST carry a monotonically increasing index
   scoped to its case
   - `CaseLogEntry` MUST include `log_index` as a named field so that all
@@ -183,4 +183,4 @@ CaseActor configuration (permanent leader, immediate commit, no election).
 Multi-node CaseActor cluster semantics (Raft leader election, majority-quorum
 commit) are deferred to a future phase and MUST NOT be implicitly assumed by
 implementations in the current scope. See `notes/sync-log-replication.md`
-and `specs/case-log-processing.md` for the full architectural rationale.
+and `specs/case-log-processing.yaml` for the full architectural rationale.

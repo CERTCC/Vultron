@@ -17,8 +17,8 @@
 Tests for the sync trigger endpoint
 (POST /actors/{actor_id}/trigger/sync-log-entry).
 
-Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.md
-and SYNC-02-002, SYNC-02-003 from specs/sync-log-replication.md.
+Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml
+and SYNC-02-002, SYNC-02-003 from specs/sync-log-replication.yaml.
 """
 
 import pytest

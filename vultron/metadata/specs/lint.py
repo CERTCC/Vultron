@@ -1,6 +1,6 @@
 """Spec registry linter.
 
-Linter requirements: specs/spec-registry.md SR-04.
+Linter requirements: specs/spec-registry.yaml SR-04.
 
 Usage::
 

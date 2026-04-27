@@ -85,6 +85,6 @@ Justification:
 - `vultron/behaviors/bridge.py`: `BTBridge` adapter class
 - `vultron/behaviors/helpers.py`: DataLayer-aware base node classes
 - `vultron/behaviors/report/`: Report validation BT implementation
-- `specs/behavior-tree-integration.md`: BT integration requirements
+- `specs/behavior-tree-integration.yaml`: BT integration requirements
 - Related ADRs: ADR-0002 (BT rationale), ADR-0003 (custom engine retained
   for simulation), ADR-0007 (dispatcher architecture)

@@ -17,7 +17,7 @@
 Tests for the embargo trigger endpoints
 (POST /actors/{actor_id}/trigger/{propose,accept,reject,terminate,propose-revision}-embargo).
 
-Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.md.
+Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
 """
 
 import pytest

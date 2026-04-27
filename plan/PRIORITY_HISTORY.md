@@ -191,7 +191,7 @@ Deliverables:
 - `notes/bt-reusability.md` — durable design note capturing the fractal
   composability pattern, the "trunkless branch" intent, and anti-patterns
   to avoid.
-- `specs/behavior-tree-node-design.md` — formal requirements for BT node
+- `specs/behavior-tree-node-design.yaml` — formal requirements for BT node
   parameterization, composability, and reuse (e.g., nodes MUST NOT hard-code
   actor roles; roles/identities MUST be constructor parameters; reusable
   subtrees MUST be composed rather than duplicated).

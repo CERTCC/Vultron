@@ -25,7 +25,7 @@ wraps an Actor within a case and carries its own RM state via
 CaseParticipant.participant_status[].rm_state. The trees here update that
 state when an actor notifies us they have engaged or deferred the case.
 
-Per specs/behavior-tree-integration.md BT-06 requirements.
+Per specs/behavior-tree-integration.yaml BT-06 requirements.
 
 Structure:
 
@@ -150,7 +150,7 @@ def create_prioritize_subtree(
              ├─ EmitDeferCaseActivity     # emit RmDeferCaseActivity
              └─ TransitionParticipantRMtoDeferred   # RM → DEFERRED
 
-    Per specs/behavior-tree-integration.md BT-06-005, BT-06-006.
+    Per specs/behavior-tree-integration.yaml BT-06-005, BT-06-006.
     This is the SSVC evaluator connection point (IDEA-26041004).
 
     Args:

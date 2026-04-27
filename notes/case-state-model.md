@@ -3,7 +3,7 @@ title: Case State Model Notes
 status: active
 description: "CVD case state model: six binary dimensions (RM/EM/CS), CaseStatus append- only history, and CaseEvent trusted timestamps."
 related_specs:
-  - specs/case-management.md
+  - specs/case-management.yaml
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/protocol-event-cascades.md
@@ -248,7 +248,7 @@ formal state model and ensures future persistence guards stay consistent across
 code paths.
 
 See `archived_notes/state-machine-findings.md` OPP-06 and
-`specs/case-management.md` `CM-04-005`.
+`specs/case-management.yaml` `CM-04-005`.
 
 ### Key Reference Documents
 
@@ -341,7 +341,7 @@ change.
 a partial-rename state that is harder to reason about.
 
 **Cross-reference**: `AGENTS.md` "case_status Field Is a List (Rename
-Pending)"; `specs/case-management.md` CM-03-006.
+Pending)"; `specs/case-management.yaml` CM-03-006.
 
 ---
 
@@ -387,7 +387,7 @@ never copied from the incoming activity's own timestamp fields. This is
 the invariant that makes the CaseActor the sole trusted source of event
 ordering within a case.
 
-**Cross-reference**: `specs/case-management.md` CM-02-009, CM-10-002;
+**Cross-reference**: `specs/case-management.yaml` CM-02-009, CM-10-002;
 `plan/IMPLEMENTATION_PLAN.md` SC-PRE-1, TECHDEBT-10.
 
 ---
@@ -443,7 +443,7 @@ duplicate `add_participant()` calls. Recommend raise for correctness;
 handlers should guard with an existence check before calling
 `add_participant()` to keep idempotency logic explicit.
 
-**Cross-reference**: `specs/case-management.md` CM-10-002, CM-10-001;
+**Cross-reference**: `specs/case-management.yaml` CM-10-002, CM-10-001;
 `plan/IMPLEMENTATION_PLAN.md` SC-PRE-2; `AGENTS.md` "Cases should have
 participant-to-actor and vice versa indexes".
 
@@ -529,7 +529,7 @@ records are created with `context` pointing to the `VulnerabilityCase` ID
 from the start.
 
 **See also**: `docs/adr/0015-create-case-at-report-receipt.md`;
-`specs/case-management.md` CM-12; `notes/protocol-event-cascades.md`
+`specs/case-management.yaml` CM-12; `notes/protocol-event-cascades.md`
 
 ---
 
@@ -552,15 +552,15 @@ case is created at the first opportunity). If pre-case events were recorded
 via a separate mechanism (e.g., a flat `ReportStatus`), those MAY be
 backfilled into the case log at case creation time.
 
-**See**: `specs/case-management.md` CM-12; `notes/activitystreams-semantics.md`
+**See**: `specs/case-management.yaml` CM-12; `notes/activitystreams-semantics.md`
 for the case activity log constraints.
 
 ---
 
 ## Multi-Vendor Case State Action Rules
 
-When implementing the case state action rules (see `specs/agentic-readiness.md`
-and `specs/case-management.md`), the rules must distinguish two perspectives:
+When implementing the case state action rules (see `specs/agentic-readiness.yaml`
+and `specs/case-management.yaml`), the rules must distinguish two perspectives:
 
 1. **Participant-specific rules**: Evaluated against a single participant's
    RM/VFD state (applies to each vendor independently).
@@ -574,6 +574,6 @@ and `specs/case-management.md`), the rules must distinguish two perspectives:
 need to be formally specified. A cognitive agent delegating the judgment
 call is an alternative to fixed heuristics.
 
-**See**: `specs/agentic-readiness.md` and `specs/case-management.md` for
+**See**: `specs/agentic-readiness.yaml` and `specs/case-management.yaml` for
 the CVD action rules; `notes/bt-fuzzer-nodes.md` for related external
 touchpoints.

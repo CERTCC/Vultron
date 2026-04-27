@@ -8,8 +8,8 @@ The Vultron inbox handler must handle various error conditions gracefully, provi
 
 **Note**:
 
-- **Error logging** requirements consolidated in `specs/structured-logging.md` (SL-03-001)
-- **HTTP status codes** consolidated in `specs/http-protocol.md` (HTTP-03-001)
+- **Error logging** requirements consolidated in `specs/structured-logging.yaml` (SL-03-001)
+- **HTTP status codes** consolidated in `specs/http-protocol.yaml` (HTTP-03-001)
 
 ---
 

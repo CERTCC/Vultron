@@ -203,7 +203,7 @@ module. Migration from `.md` to `.yaml` is a one-time lossless conversion.
   with zero errors.
 - `SR-08-003` After migration, the `specs/*.md` files MUST be deleted; the
   YAML files are the sole source of truth.
-- `SR-08-004` `specs/README.md` and `specs/meta-specifications.md` MUST be
+- `SR-08-004` `specs/README.md` and `specs/meta-specifications.yaml` MUST be
   retained as Markdown (they are documentation, not requirement files).
 - `SR-08-005` All in-project skills, prompts, and agent instructions that
   reference `specs/*.md` files by path or extension MUST be updated to use

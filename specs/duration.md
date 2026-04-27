@@ -8,8 +8,8 @@ in JSON (e.g., embargo policy records, embargo initialization at case
 creation).
 
 **Source**: `wip_notes/duration-spec.md`
-**Cross-references**: `specs/embargo-policy.md` (EP-01-002, EP-01-003),
-`specs/code-style.md` CS-13-005 (datetime wire format)
+**Cross-references**: `specs/embargo-policy.yaml` (EP-01-002, EP-01-003),
+`specs/code-style.yaml` CS-13-005 (datetime wire format)
 
 ---
 
@@ -160,7 +160,7 @@ Durations may be combined with RFC 3339 timestamps to form intervals.
 - `DUR-07-003` When a default embargo duration is applied at case creation,
   this application MUST be logged at INFO level to ensure visibility in logs.
   The resulting `CaseStatus.em_state` MUST be `EM.ACTIVE` (not `EM.PROPOSED`);
-  see `specs/embargo-policy.md` EP-04-001.
+  see `specs/embargo-policy.yaml` EP-04-001.
 - `DUR-07-004` An embargo end time MUST be established before the case
   transitions to RM.VALID
   - If the default embargo was not initialized at receipt (DUR-07-002),
@@ -200,6 +200,6 @@ Durations may be combined with RFC 3339 timestamps to form intervals.
 
 ## Related
 
-- **Embargo Policy**: `specs/embargo-policy.md` (uses duration fields)
-- **Datetime Format**: `specs/code-style.md` CS-13-005 (RFC 3339 wire format)
-- **Technology Stack**: `specs/tech-stack.md` IMPLTS-02-003 (isodate library)
+- **Embargo Policy**: `specs/embargo-policy.yaml` (uses duration fields)
+- **Datetime Format**: `specs/code-style.yaml` CS-13-005 (RFC 3339 wire format)
+- **Technology Stack**: `specs/tech-stack.yaml` IMPLTS-02-003 (isodate library)

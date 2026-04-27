@@ -7,8 +7,8 @@ registry synchronization, test mirroring, and documentation of the
 trigger → received → sync information flow pattern.
 
 **Source**: `plan/IMPLEMENTATION_PLAN.md` REORG-1
-**Cross-references**: `specs/code-style.md` CS-12-002,
-`specs/handler-protocol.md`
+**Cross-references**: `specs/code-style.yaml` CS-12-002,
+`specs/handler-protocol.yaml`
 
 ---
 

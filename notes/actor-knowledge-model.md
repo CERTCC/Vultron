@@ -5,8 +5,8 @@ description: >
   Design decisions and implementation guidance for the Actor Knowledge Model
   (IDEA-26041601/02).
 related_specs:
-  - specs/actor-knowledge-model.md
-  - specs/testability.md
+  - specs/actor-knowledge-model.yaml
+  - specs/testability.yaml
 relevant_packages:
   - fastapi
   - vultron/core/behaviors
@@ -18,7 +18,7 @@ relevant_packages:
 
 ## Overview
 
-These notes accompany `specs/actor-knowledge-model.md`. They record the design
+These notes accompany `specs/actor-knowledge-model.yaml`. They record the design
 decisions made when formalizing IDEA-26041601 and IDEA-26041602, and provide
 implementation guidance for enforcing the Actor Knowledge Model in new and
 existing code.
@@ -206,7 +206,7 @@ The corrected version (see commit):
   expansion as a backward-compatibility bridge. New code MUST NOT rely on
   this expansion path.
 - Test fixtures that construct activities MUST use full domain objects, not
-  string IDs, as `object_` values. See `specs/testability.md` TB-05-004.
+  string IDs, as `object_` values. See `specs/testability.yaml` TB-05-004.
 
 ---
 

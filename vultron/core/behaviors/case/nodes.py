@@ -20,7 +20,7 @@ Provides condition and action nodes for the create_case workflow,
 implementing idempotency guards, persistence, and outbox management
 for VulnerabilityCase creation.
 
-Per specs/behavior-tree-integration.md BT-07 and specs/case-management.md
+Per specs/behavior-tree-integration.yaml BT-07 and specs/case-management.yaml
 CM-02 requirements.
 """
 
@@ -77,7 +77,7 @@ class CheckCaseAlreadyExists(DataLayerCondition):
     Returns SUCCESS if the case already exists (idempotency early exit).
     Returns FAILURE if the case does not exist (proceed with creation).
 
-    Per specs/idempotency.md ID-04-004.
+    Per specs/idempotency.yaml ID-04-004.
     """
 
     def __init__(self, case_id: str, name: str | None = None):
@@ -131,7 +131,7 @@ class CheckCaseExistsForReport(DataLayerCondition):
     report already exists with participants. Returns SUCCESS if so (idempotency
     early exit), FAILURE otherwise.
 
-    Per specs/idempotency.md ID-04-004.
+    Per specs/idempotency.yaml ID-04-004.
     """
 
     def __init__(self, report_id: str, name: str | None = None):
@@ -222,7 +222,7 @@ class PersistCase(DataLayerAction):
     Creates the case record in DataLayer and stores the case_id in the
     blackboard for subsequent nodes.
 
-    Per specs/case-management.md CM-02-001.
+    Per specs/case-management.yaml CM-02-001.
     """
 
     def __init__(self, case_obj: VultronCase, name: str | None = None):
@@ -261,7 +261,7 @@ class CreateCaseActorNode(DataLayerAction):
     The CaseActor is an ActivityStreams Service that manages case
     communications (inbox/outbox).
 
-    Per specs/case-management.md CM-02-001.
+    Per specs/case-management.yaml CM-02-001.
     """
 
     def __init__(self, case_id: str, actor_id: str, name: str | None = None):
@@ -387,7 +387,7 @@ class SetCaseAttributedTo(DataLayerAction):
     Must run before PersistCase so the stored case already carries the
     vendor/coordinator owner reference.
 
-    Per specs/case-management.md CM-02-008.
+    Per specs/case-management.yaml CM-02-008.
     """
 
     def __init__(self, case_obj: VultronCase, name: str | None = None):
@@ -493,7 +493,7 @@ class CreateInitialVendorParticipant(DataLayerAction):
     Must run after the case exists in the DataLayer (``PersistCase`` or
     ``CreateCaseNode``).
 
-    Per specs/case-management.md CM-02-008 (SHOULD).
+    Per specs/case-management.yaml CM-02-008 (SHOULD).
     """
 
     def __init__(
@@ -625,7 +625,7 @@ class RecordCaseCreationEvents(DataLayerAction):
     Must run after PersistCase so the case exists in the DataLayer.
     Reads ``case_id`` and optionally ``activity`` from the blackboard.
 
-    Per specs/case-management.md CM-02-009.
+    Per specs/case-management.yaml CM-02-009.
     """
 
     def __init__(self, case_obj: VultronCase, name: str | None = None):
@@ -716,7 +716,7 @@ class InitializeDefaultEmbargoNode(DataLayerAction):
 
     Must run after CreateCaseNode so case_id is available in the blackboard.
 
-    Per specs/case-management.md CM-02, OX-03-001, and
+    Per specs/case-management.yaml CM-02, OX-03-001, and
     notes/protocol-event-cascades.md D5-6-EMBARGORCP.
     """
 
@@ -1016,7 +1016,7 @@ class CommitCaseLogEntryNode(DataLayerAction):
     blackboard key (the inbound :class:`~vultron.core.models.events.base.VultronEvent`
     placed there by :class:`~vultron.core.behaviors.bridge.BTBridge`).
 
-    Per specs/sync-log-replication.md SYNC-02-002, SYNC-02-003.
+    Per specs/sync-log-replication.yaml SYNC-02-002, SYNC-02-003.
     """
 
     def __init__(

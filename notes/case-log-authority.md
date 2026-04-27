@@ -3,9 +3,9 @@ title: Case Log Authority and Assertion Recording
 status: active
 description: "Authority model for the case activity log: trusted timestamps, assertion recording, and authority chain."
 related_specs:
-  - specs/case-log-processing.md
-  - specs/case-management.md
-  - specs/sync-log-replication.md
+  - specs/case-log-processing.yaml
+  - specs/case-management.yaml
+  - specs/sync-log-replication.yaml
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/case-state-model.md
@@ -17,8 +17,8 @@ relevant_packages:
 
 # Case Log Authority and Assertion Recording
 
-**Relates to**: `specs/case-log-processing.md`,
-`specs/case-management.md`, `specs/sync-log-replication.md`,
+**Relates to**: `specs/case-log-processing.yaml`,
+`specs/case-management.yaml`, `specs/sync-log-replication.yaml`,
 `notes/activitystreams-semantics.md`, `notes/case-state-model.md`,
 `notes/sync-log-replication.md`
 
@@ -213,4 +213,4 @@ This framing has several practical consequences:
   report-to-case transition rather than being split into two unrelated logs.
 
 This note should be treated as the durable design explanation. Normative
-requirements belong in `specs/case-log-processing.md`.
+requirements belong in `specs/case-log-processing.yaml`.

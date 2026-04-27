@@ -80,11 +80,11 @@ implemented in the prototype.
 
 ## Related
 
-- **Inbox Endpoint**: `specs/inbox-endpoint.md`
-- **Semantic Extraction**: `specs/semantic-extraction.md`
-- **HTTP Protocol**: `specs/http-protocol.md`
-- **Error Handling**: `specs/error-handling.md`
-- **Prototype Shortcuts**: `specs/prototype-shortcuts.md` (PROTO-01-001)
-- **Case Management**: `specs/case-management.md`
+- **Inbox Endpoint**: `specs/inbox-endpoint.yaml`
+- **Semantic Extraction**: `specs/semantic-extraction.yaml`
+- **HTTP Protocol**: `specs/http-protocol.yaml`
+- **Error Handling**: `specs/error-handling.yaml`
+- **Prototype Shortcuts**: `specs/prototype-shortcuts.yaml` (PROTO-01-001)
+- **Case Management**: `specs/case-management.yaml`
 - **ActivityPub publicKey**: <https://docs.joinmastodon.org/spec/activitypub/#publicKey>
 - **Mastodon security spec**: <https://docs.joinmastodon.org/spec/security/>

@@ -192,12 +192,12 @@ Driving Adapters) for the architecture context.
 
 ## Related
 
-- **Error Handling**: `specs/error-handling.md` (EH-05-001)
-- **HTTP Protocol**: `specs/http-protocol.md` (HTTP-03-001, HTTP-05-001,
+- **Error Handling**: `specs/error-handling.yaml` (EH-05-001)
+- **HTTP Protocol**: `specs/http-protocol.yaml` (HTTP-03-001, HTTP-05-001,
   HTTP-07-004) — includes request correlation ID requirements
-- **Structured Logging**: `specs/structured-logging.md` (SL-02-001)
-- **Observability**: `specs/observability.md` (health check endpoints)
-- **Prototype Shortcuts**: `specs/prototype-shortcuts.md` (PROD_ONLY deferral)
-- **Case Management**: `specs/case-management.md` (CM-07-001 through CM-07-003)
+- **Structured Logging**: `specs/structured-logging.yaml` (SL-02-001)
+- **Observability**: `specs/observability.yaml` (health check endpoints)
+- **Prototype Shortcuts**: `specs/prototype-shortcuts.yaml` (PROD_ONLY deferral)
+- **Case Management**: `specs/case-management.yaml` (CM-07-001 through CM-07-003)
 - **Priorities**: `plan/PRIORITIES.md` (Priority 1000)
 - **Implementation**: `pyproject.toml` (CLI entry points)

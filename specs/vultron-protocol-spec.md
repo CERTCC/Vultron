@@ -816,7 +816,7 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   - VP-15-001 is-implemented-by MV-02-001
 - `VP-15-002` `PROD_ONLY` Vultron Protocol implementations SHOULD use common
   API patterns (e.g., REST, WebSockets) for inter-participant communication
-  - **See also**: `specs/http-protocol.md`
+  - **See also**: `specs/http-protocol.yaml`
 - `VP-15-003` `PROD_ONLY` Vultron Protocol implementations SHOULD use
   transport-layer encryption to protect sensitive data in transit
   - VP-15-003 is-implemented-by ENC-01-001

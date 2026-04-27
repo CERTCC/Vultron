@@ -5,8 +5,8 @@ description: >
   Classification of demo vs general-purpose triggers; trigger routing, naming
   conventions, and configuration guidance.
 related_specs:
-  - specs/triggerable-behaviors.md
-  - specs/configuration.md
+  - specs/triggerable-behaviors.yaml
+  - specs/configuration.yaml
 related_notes:
   - notes/protocol-event-cascades.md
   - notes/triggerable-behaviors.md
@@ -19,8 +19,8 @@ relevant_packages:
 
 # Trigger Classification: Demo vs General-Purpose
 
-**Cross-references**: `specs/triggerable-behaviors.md` (TRIG-08, TRIG-09,
-TRIG-10), `specs/configuration.md` (CFG-04), `notes/triggerable-behaviors.md`,
+**Cross-references**: `specs/triggerable-behaviors.yaml` (TRIG-08, TRIG-09,
+TRIG-10), `specs/configuration.yaml` (CFG-04), `notes/triggerable-behaviors.md`,
 `notes/protocol-event-cascades.md`
 
 ---

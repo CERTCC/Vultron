@@ -5,7 +5,7 @@ description: >
   Design decisions for YAML frontmatter schema in notes/*.md files; schema,
   loader, migration checklist, and pre-commit hook.
 related_specs:
-  - specs/notes-frontmatter.md
+  - specs/notes-frontmatter.yaml
 relevant_packages:
   - pydantic
   - python-frontmatter
@@ -114,8 +114,8 @@ description: >
   BT design decisions, py_trees patterns, simulation-to-prototype
   translation strategy, and anti-patterns to avoid.
 related_specs:
-  - specs/behavior-tree-integration.md
-  - specs/behavior-tree-node-design.md
+  - specs/behavior-tree-integration.yaml
+  - specs/behavior-tree-node-design.yaml
 related_notes:
   - notes/bt-reusability.md
   - notes/bt-composability.md

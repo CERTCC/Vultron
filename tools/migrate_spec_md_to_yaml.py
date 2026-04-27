@@ -3,7 +3,7 @@
 
 Usage::
 
-    python tools/migrate_spec_md_to_yaml.py specs/handler-protocol.md
+    python tools/migrate_spec_md_to_yaml.py specs/handler-protocol.yaml
     python tools/migrate_spec_md_to_yaml.py specs/  # all .md files
 
 The script parses the markdown spec format and outputs a YAML file

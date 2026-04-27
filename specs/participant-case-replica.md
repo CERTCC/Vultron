@@ -10,11 +10,11 @@ and unknown-context handling.
 **Source**: `plan/IDEAS.md` IDEA-260402-02
 
 **Cross-references**:
-`specs/case-management.md` CM-01-001, CM-02-002, CM-02-010,
+`specs/case-management.yaml` CM-01-001, CM-02-002, CM-02-010,
 CM-06-001, CM-06-002;
-`specs/sync-log-replication.md` SYNC-02-001, SYNC-02-003;
-`specs/actor-knowledge-model.md` AKM-01-001, AKM-01-002, AKM-02-001;
-`specs/response-format.md`
+`specs/sync-log-replication.yaml` SYNC-02-001, SYNC-02-003;
+`specs/actor-knowledge-model.yaml` AKM-01-001, AKM-01-002, AKM-02-001;
+`specs/response-format.yaml`
 
 **Relationship to sync-log-replication.md**: This spec governs the
 *participant replica lifecycle* (bootstrap, authority, routing). The SYNC

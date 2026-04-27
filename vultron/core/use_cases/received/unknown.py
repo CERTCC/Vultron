@@ -30,7 +30,7 @@ class UnresolvableObjectUseCase:
     """Stores a dead-letter record for activities whose object_ URI could not
     be resolved after rehydration.
 
-    See ``specs/semantic-extraction.md`` SE-04-002, SE-04-003.
+    See ``specs/semantic-extraction.yaml`` SE-04-002, SE-04-003.
     """
 
     def __init__(

@@ -17,7 +17,7 @@ to yaml data structures backed by pydantic validation.
 
 Includes all TASK-SR items in plan/IMPLEMENTATION_PLAN.md
 
-See specs/spec-registry.md and notes/spec-registry.md for background.
+See specs/spec-registry.yaml and notes/spec-registry.md for background.
 
 While we intend for priority 460 to be a single PR, we do not expect it to
 be a single commit. It's likely that it will take multiple task iterations
@@ -115,7 +115,7 @@ failover process.
 
 The project is currently in prototype development mode, therefore requirements
 that are marked as `PROD_ONLY` are temporarily a lower priority than other
-requirements. See `specs/prototype-shortcuts.md` for the prototype-stage
+requirements. See `specs/prototype-shortcuts.yaml` for the prototype-stage
 deferral policy.
 
 USE-CASE-01

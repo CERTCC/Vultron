@@ -279,7 +279,7 @@ type before semantic extraction can assign it a domain meaning.
 - **Base model**: `vultron/wire/as2/vocab/base/base.py`
 - **Rehydration**: `vultron/wire/as2/rehydration.py`
 - **Record helpers**: `vultron/adapters/driven/db_record.py`
-- **Semantic extraction**: `specs/semantic-extraction.md`
-- **Architecture**: `specs/architecture.md` (ARCH-03-001)
-- **Object IDs**: `specs/object-ids.md` (OID-01-001)
-- **Code style**: `specs/code-style.md` (CS-07-001)
+- **Semantic extraction**: `specs/semantic-extraction.yaml`
+- **Architecture**: `specs/architecture.yaml` (ARCH-03-001)
+- **Object IDs**: `specs/object-ids.yaml` (OID-01-001)
+- **Code style**: `specs/code-style.yaml` (CS-07-001)

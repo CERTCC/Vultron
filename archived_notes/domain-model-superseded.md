@@ -53,7 +53,7 @@ MongoDB switch. See the per-actor isolation options below.
 > See `notes/datalayer-sqlite-design.md` for the current design.
 
 All actors currently share a singleton `TinyDbDataLayer` backed by a single
-`plan/mydb.json` file. This violates `specs/case-management.md` CM-01-001
+`plan/mydb.json` file. This violates `specs/case-management.yaml` CM-01-001
 (actor isolation) even though demo scripts manually sequence activities to
 simulate isolation.
 

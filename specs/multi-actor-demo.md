@@ -7,8 +7,8 @@ actor isolation, acceptance testing, and reproducibility.
 
 **Source**: `plan/IMPLEMENTATION_PLAN.md` D5-1 through D5-5,
 `plan/PRIORITIES.md` PRIORITY 300
-**Cross-references**: `specs/demo-cli.md`, `specs/tech-stack.md`,
-`specs/case-management.md`, `specs/observability.md`
+**Cross-references**: `specs/demo-cli.yaml`, `specs/tech-stack.yaml`,
+`specs/case-management.yaml`, `specs/observability.yaml`
 
 ---
 

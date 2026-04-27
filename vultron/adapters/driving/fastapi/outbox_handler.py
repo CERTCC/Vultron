@@ -17,7 +17,7 @@ Provides an outbox handler for Vultron Actors.
 
 Implements OX-1.1 (local/remote delivery via HTTP POST), OX-1.2
 (background delivery after inbox processing), and partial OX-1.3
-(delivery failures are isolated per-recipient) from ``specs/outbox.md``.
+(delivery failures are isolated per-recipient) from ``specs/outbox.yaml``.
 
 OX-1.3 idempotency is enforced at the receiving inbox endpoint
 (``POST /actors/{id}/inbox/``) rather than at delivery time, because actors

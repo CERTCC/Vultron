@@ -1,6 +1,6 @@
 """CI security tests — verify GitHub Actions SHA pinning.
 
-Implements CISEC-01-001 and CISEC-01-002 from specs/ci-security.md:
+Implements CISEC-01-001 and CISEC-01-002 from specs/ci-security.yaml:
 - Every `uses:` line in .github/workflows/*.yml MUST reference a full
   40-character commit SHA (not a mutable tag or branch name).
 - Every SHA-pinned line MUST carry an inline human-readable version comment

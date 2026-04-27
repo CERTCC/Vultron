@@ -1,6 +1,6 @@
 """Pydantic schema for ``specs/*.yaml`` structured requirement files.
 
-Schema requirements: specs/spec-registry.md SR-02.
+Schema requirements: specs/spec-registry.yaml SR-02.
 
 Design principle: YAML is the authoritative data source.  The schema
 validates what is present but does **not** silently inject defaults for

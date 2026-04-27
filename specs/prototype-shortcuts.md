@@ -112,7 +112,7 @@ compatibility is not a constraint.
      (VulnerabilityCase, VultronReport, etc.) are already pure Pydantic
      BaseModel with no AS2 inheritance. The remaining wire/domain translation
      boundary work is now tracked as a production requirement in
-     specs/architecture.md (ARCH-12-001 through ARCH-12-007) and as
+     specs/architecture.yaml (ARCH-12-001 through ARCH-12-007) and as
      implementation task WIRE-TRANS-01 in plan/IMPLEMENTATION_PLAN.md. -->
 
 ## Performance Testing

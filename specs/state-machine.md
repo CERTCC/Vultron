@@ -17,7 +17,7 @@ each vendor's fix deployment status is independent.
 
 **Source**: `vultron/core/states/`, `archived_notes/state-machine-findings.md`,
 `docs/adr/0013-unify-rm-state-tracking.md`,
-`specs/vultron-protocol-spec.md`
+`specs/vultron-protocol-spec.yaml`
 
 **Cross-references**: `case-management.md` CM-03 (per-participant state
 tracking), `behavior-tree-integration.md` BT-06 (BT-driven transitions),
@@ -232,9 +232,9 @@ tracking), `behavior-tree-integration.md` BT-06 (BT-driven transitions),
 - **Common utilities**: `vultron/core/states/common.py`
 - **Domain models**: `vultron/core/models/case_status.py`,
   `vultron/core/models/participant_status.py`
-- **Case management**: `specs/case-management.md` (CM-03)
-- **Handler protocol**: `specs/handler-protocol.md` (HP-00, HP-07)
-- **BT integration**: `specs/behavior-tree-integration.md` (BT-06)
-- **Protocol spec**: `specs/vultron-protocol-spec.md` (VP-01 through VP-13)
+- **Case management**: `specs/case-management.yaml` (CM-03)
+- **Handler protocol**: `specs/handler-protocol.yaml` (HP-00, HP-07)
+- **BT integration**: `specs/behavior-tree-integration.yaml` (BT-06)
+- **Protocol spec**: `specs/vultron-protocol-spec.yaml` (VP-01 through VP-13)
 - **Design notes**: `archived_notes/state-machine-findings.md`
 - **ADR**: `docs/adr/0013-unify-rm-state-tracking.md`

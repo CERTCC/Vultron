@@ -19,7 +19,7 @@ BT nodes for the note workflow.
 Provides ``SaveNoteNode`` and ``AttachNoteToCaseNode``, composed by
 ``create_note_tree`` into the ``CreateNoteBT`` behavior tree.
 
-Per specs/case-management.md CM-06.
+Per specs/case-management.yaml CM-06.
 """
 
 import logging
@@ -69,7 +69,7 @@ class AttachNoteToCaseNode(DataLayerAction):
     succeeds without writing.  If *case_id* is ``None``, the node
     succeeds immediately (the note has no associated case).
 
-    Per specs/case-management.md CM-06.
+    Per specs/case-management.yaml CM-06.
     """
 
     def __init__(

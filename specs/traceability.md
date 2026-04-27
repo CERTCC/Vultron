@@ -6,7 +6,7 @@ Requirements for maintaining the traceability matrix that maps user stories
 to specification requirements.
 
 **Source**: `plan/IMPLEMENTATION_PLAN.md` DOCS-3
-**Cross-references**: `specs/project-documentation.md`,
+**Cross-references**: `specs/project-documentation.yaml`,
 `docs/topics/user_stories/`
 
 ---

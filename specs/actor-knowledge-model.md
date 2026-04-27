@@ -10,11 +10,11 @@ activities. DataLayer access is private and non-shareable; all inter-Actor
 communication occurs exclusively through the AS2 wire protocol.
 
 **Source**: `plan/IDEAS.md` IDEA-26041601, IDEA-26041602  
-**Consolidates**: `specs/case-management.md` CM-01-001 (actor isolation),
-`specs/message-validation.md` MV-09-001 (full inline object requirement)  
-**Cross-references**: `specs/message-validation.md` MV-09-001 through MV-10-004,
-`specs/case-management.md` CM-01-001, `specs/outbox.md` OX-07-002,
-`specs/multi-actor-demo.md` DEMOMA-00-001
+**Consolidates**: `specs/case-management.yaml` CM-01-001 (actor isolation),
+`specs/message-validation.yaml` MV-09-001 (full inline object requirement)  
+**Cross-references**: `specs/message-validation.yaml` MV-09-001 through MV-10-004,
+`specs/case-management.yaml` CM-01-001, `specs/outbox.yaml` OX-07-002,
+`specs/multi-actor-demo.yaml` DEMOMA-00-001
 
 ---
 

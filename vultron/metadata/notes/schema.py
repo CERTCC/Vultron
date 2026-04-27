@@ -1,6 +1,6 @@
 """Pydantic schema for notes/*.md YAML frontmatter.
 
-Schema requirements: specs/notes-frontmatter.md NF-01, NF-02.
+Schema requirements: specs/notes-frontmatter.yaml NF-01, NF-02.
 """
 
 from __future__ import annotations

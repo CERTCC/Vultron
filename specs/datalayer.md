@@ -2,7 +2,7 @@
 
 **Spec ID prefix**: DL  
 **Status**: Draft  
-**See also**: `notes/datalayer-design.md`, `specs/architecture.md` ARCH-03
+**See also**: `notes/datalayer-design.md`, `specs/architecture.yaml` ARCH-03
 
 ---
 

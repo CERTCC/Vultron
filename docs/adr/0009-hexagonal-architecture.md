@@ -205,7 +205,7 @@ in `plan/IMPLEMENTATION_PLAN.md`:
   file layout target, code patterns, and review checklist.
 - `archived_notes/architecture-review.md` — full violation inventory (V-01 to V-12)
   and remediation plans (R-01 to R-06).
-- `specs/architecture.md` — testable requirements derived from this decision
+- `specs/architecture.yaml` — testable requirements derived from this decision
   (ARCH-01-001 through ARCH-03-001 and beyond).
 - `plan/PRIORITIES.md` — PRIORITY 50 (hexagonal architecture starting with
   triggers.py), PRIORITY 60 (continue package relocation).

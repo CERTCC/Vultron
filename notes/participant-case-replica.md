@@ -3,9 +3,9 @@ title: Participant Case Replica — Implementation Notes
 status: active
 description: "Design notes for participant case replicas: per-actor case copies and synchronization model."
 related_specs:
-  - specs/participant-case-replica.md
-  - specs/case-management.md
-  - specs/sync-log-replication.md
+  - specs/participant-case-replica.yaml
+  - specs/case-management.yaml
+  - specs/sync-log-replication.yaml
 relevant_packages:
   - vultron/core/behaviors/case
   - vultron/core/models
@@ -14,10 +14,10 @@ relevant_packages:
 
 # Participant Case Replica — Implementation Notes
 
-**Relates to**: `specs/participant-case-replica.md`
+**Relates to**: `specs/participant-case-replica.yaml`
 
-**Cross-references**: `specs/case-management.md`,
-`specs/sync-log-replication.md`, `specs/actor-knowledge-model.md`
+**Cross-references**: `specs/case-management.yaml`,
+`specs/sync-log-replication.yaml`, `specs/actor-knowledge-model.yaml`
 
 ---
 

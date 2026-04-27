@@ -5,9 +5,9 @@ description: >
   Activities as state-change statements, not commands; inbound/outbound
   semantics, Accept/Reject object rules, and rehydration.
 related_specs:
-  - specs/semantic-extraction.md
-  - specs/response-format.md
-  - specs/case-management.md
+  - specs/semantic-extraction.yaml
+  - specs/response-format.yaml
+  - specs/case-management.yaml
 related_notes:
   - notes/bt-integration.md
 relevant_packages:
@@ -119,7 +119,7 @@ For example, when responding to an Offer of a VulnerabilityReport:
 This allows other actors to understand the relationship between the response
 and the original offer.
 
-**References**: `specs/response-format.md` RF-02-003, RF-03-003, RF-04-003,
+**References**: `specs/response-format.yaml` RF-02-003, RF-03-003, RF-04-003,
 RF-08-001.
 
 ---
@@ -197,7 +197,7 @@ activity = rehydrate(activity)
 semantic = find_matching_semantics(activity)
 ```
 
-**References**: `specs/semantic-extraction.md` SE-01-002,
+**References**: `specs/semantic-extraction.yaml` SE-01-002,
 `vultron/wire/as2/rehydration.py`.
 
 ---
@@ -306,8 +306,8 @@ accept = RmAcceptInviteToCase(actor=actor.id_, object_=invite)
 This applies to all `Accept`/`Reject`/`TentativeReject` responses to
 `Invite`/`Offer` activities.
 
-**Cross-reference**: `specs/response-format.md` RF-02-003, RF-03-003,
-RF-04-003, RF-08-001; `specs/datalayer.md` DL-01-001.
+**Cross-reference**: `specs/response-format.yaml` RF-02-003, RF-03-003,
+RF-04-003, RF-08-001; `specs/datalayer.yaml` DL-01-001.
 
 ---
 
@@ -363,13 +363,13 @@ conflicting state divergence.
 
 **Authentication note** (`PROD_ONLY`): In production, participants MUST
 authenticate that a case update originated from the CaseActor before
-treating it as authoritative (see `specs/case-management.md` CM-06-002,
+treating it as authoritative (see `specs/case-management.yaml` CM-06-002,
 CM-06-004).
 
 **Current status**: The CaseActor broadcast is implemented in
 `vultron/core/use_cases/received/case.py` (`UpdateCaseReceivedUseCase`)
 via `_broadcast_case_update()`, which fans out updates to all case
-participants (see `specs/case-management.md` CM-06-001, CM-06-002;
+participants (see `specs/case-management.yaml` CM-06-001, CM-06-002;
 completed in PRIORITY-200 CA-2, 2026-03-25).
 
-**Cross-reference**: `specs/case-management.md` CM-02-002, CM-06.
+**Cross-reference**: `specs/case-management.yaml` CM-02-002, CM-06.

@@ -295,7 +295,7 @@ def extract_id_segment(url: str) -> str:
     fields (e.g., `in_reply_to`) without explicit per-field alias
     declarations
   - Subclasses that override `model_config` MUST extend the parent config
-    to preserve these settings; see `specs/vocabulary-model.md` VM-02-001
+    to preserve these settings; see `specs/vocabulary-model.yaml` VM-02-001
 - `CS-14-002` (MUST) Core/domain-layer Pydantic models (classes in
   `vultron/core/models/`) MUST set `populate_by_name=True` in their
   `model_config`

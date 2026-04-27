@@ -5,7 +5,7 @@ description: >
   Point-in-time demo review from 2026-04-20; log analysis and findings from
   the demonstration run.
 related_specs:
-  - specs/architecture.md
+  - specs/architecture.yaml
 relevant_packages:
   - transitions
   - vultron/demo
@@ -135,7 +135,7 @@ and the use case raises a plain `ValueError` rather than a domain-typed error.
    incorrect.
 2. **`ValidateReportReceivedEvent` validates too late.** The use case raises
    `ValueError` inside `execute()` rather than at event construction time,
-   bypassing the fail-fast invariant (see `specs/architecture.md` ARCH-10-001).
+   bypassing the fail-fast invariant (see `specs/architecture.yaml` ARCH-10-001).
 
 ---
 

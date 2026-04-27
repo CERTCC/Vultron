@@ -17,7 +17,7 @@
 Tests for the report trigger endpoints
 (POST /actors/{actor_id}/trigger/{validate,invalidate,reject,close}-report).
 
-Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.md.
+Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
 """
 
 import pytest

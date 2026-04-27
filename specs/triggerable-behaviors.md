@@ -407,15 +407,15 @@ them; a complete implementation requires both reactive and triggerable sides.
   endpoint sketch, candidate behavior table)
 - **Classification Notes**: `notes/trigger-classification.md` (decision
   table, RunMode config, wrapper pattern, audit results)
-- **Behavior Trees**: `specs/behavior-tree-integration.md` (BT-08 CLI,
+- **Behavior Trees**: `specs/behavior-tree-integration.yaml` (BT-08 CLI,
   BT-09 actor isolation)
-- **Actor Isolation**: `specs/case-management.md` (CM-01)
-- **Handler Protocol**: `specs/handler-protocol.md` (HP-00-001)
-- **Outbox**: `specs/outbox.md` (OX-02-001)
-- **Agentic Readiness**: `specs/agentic-readiness.md` (AR-04, AR-08)
-- **Configuration**: `specs/configuration.md` (CFG-04)
-- **Sync Log Replication**: `specs/sync-log-replication.md` (SYNC-03-004)
-- **Prototype Shortcuts**: `specs/prototype-shortcuts.md` (PROD_ONLY deferral)
+- **Actor Isolation**: `specs/case-management.yaml` (CM-01)
+- **Handler Protocol**: `specs/handler-protocol.yaml` (HP-00-001)
+- **Outbox**: `specs/outbox.yaml` (OX-02-001)
+- **Agentic Readiness**: `specs/agentic-readiness.yaml` (AR-04, AR-08)
+- **Configuration**: `specs/configuration.yaml` (CFG-04)
+- **Sync Log Replication**: `specs/sync-log-replication.yaml` (SYNC-03-004)
+- **Prototype Shortcuts**: `specs/prototype-shortcuts.yaml` (PROD_ONLY deferral)
 - **Implementation**: `plan/IMPLEMENTATION_PLAN.md` Phase PRIORITY-30
   (P30-1 through P30-6)
 - **Priorities**: `plan/PRIORITIES.md` PRIORITY 30

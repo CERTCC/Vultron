@@ -19,7 +19,7 @@ DataLayer-aware behavior tree helper nodes.
 This module provides base classes and common nodes for BT implementations that
 interact with the DataLayer for persistent state access.
 
-Per specs/behavior-tree-integration.md:
+Per specs/behavior-tree-integration.yaml:
 - BT-07-001: BT nodes interact with DataLayer via Protocol interface
 - BT-07-002: BT nodes use type-safe DataLayer wrappers
 - BT-07-003: State transitions logged via DataLayer integration helpers

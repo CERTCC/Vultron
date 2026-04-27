@@ -14,9 +14,9 @@ that applies at every depth.
 
 **Cross-references**:
 
-- `specs/behavior-tree-integration.md` BT-06-001 through BT-06-006 — when
+- `specs/behavior-tree-integration.yaml` BT-06-001 through BT-06-006 — when
   to use BTs, protocol-significant behavior, cascade rules
-- `specs/behavior-tree-node-design.md` BTND-01 through BTND-05 — node
+- `specs/behavior-tree-node-design.yaml` BTND-01 through BTND-05 — node
   parameterization, composability, module ownership
 - `notes/bt-composability.md` — implementation guidance, examples, and
   the fractal pattern in depth
@@ -220,11 +220,11 @@ that applies at every depth.
 - **Design notes**: `notes/bt-composability.md` — fractal pattern in depth,
   "trunkless branch" clarification, simulator navigation guide, and BT idiom
   examples
-- **BT node design**: `specs/behavior-tree-node-design.md` BTND-01 through
+- **BT node design**: `specs/behavior-tree-node-design.yaml` BTND-01 through
   BTND-05 — parameterization, module ownership, blackboard contracts
-- **BT execution model**: `specs/behavior-tree-integration.md` BT-06-001
+- **BT execution model**: `specs/behavior-tree-integration.yaml` BT-06-001
   through BT-06-006 — when BTs are required, cascade rules
-- **Event-driven cascade model**: `specs/event-driven-control-flow.md` —
+- **Event-driven cascade model**: `specs/event-driven-control-flow.yaml` —
   cascade chain and BT-as-cascade-mechanism requirements
 - **Canonical tree reference**: `notes/vultron-bt.txt`,
   `vultron/bt/behaviors.py` (simulator source)

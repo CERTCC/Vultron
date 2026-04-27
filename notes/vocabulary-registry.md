@@ -3,7 +3,7 @@ title: Vocabulary Registry Design
 status: active
 description: "Design notes for the Vultron wire vocabulary registry: AS2 type-to-class mapping and dynamic deserialization."
 related_specs:
-  - specs/vocabulary-model.md
+  - specs/vocabulary-model.yaml
 related_notes:
   - notes/activitystreams-semantics.md
 relevant_packages:
@@ -22,7 +22,7 @@ class to instantiate.
 
 This note captures the design decisions made for the VOCAB-REG-1 refactor.
 
-**Cross-references**: `specs/vocabulary-model.md` VM-01,
+**Cross-references**: `specs/vocabulary-model.yaml` VM-01,
 `vultron/wire/as2/vocab/base/registry.py`
 
 ---
@@ -156,7 +156,7 @@ the `item_type` parameter is removed (no callers use it).
 
 ## Related
 
-- `specs/vocabulary-model.md` — normative requirements (VM-01 through VM-03)
+- `specs/vocabulary-model.yaml` — normative requirements (VM-01 through VM-03)
 - `vultron/wire/as2/vocab/base/registry.py` — implementation
 - `vultron/wire/as2/vocab/base/base.py` — `as_Base` class
 - `notes/activitystreams-semantics.md` — AS2 type model

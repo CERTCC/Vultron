@@ -6,7 +6,7 @@ Brief requirements for organizing project documentation according to the
 Diátaxis framework.
 
 **Source**: wip_notes/diataxis requirements.md  
-**Note**: Conforms to specs/meta-specifications.md
+**Note**: Conforms to specs/meta-specifications.yaml
 
 ---
 

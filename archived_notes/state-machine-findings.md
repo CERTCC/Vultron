@@ -149,7 +149,7 @@ the EM machine. This produces a state the machine considers unreachable from
 `VulnerabilityCase.set_embargo()` (in `vultron.wire`) directly assigns
 `em_state = EM.ACTIVE`. Core use cases that call `case.set_embargo()` rely on
 the wire layer to do the state transition, violating the hexagonal architecture
-boundary (see `specs/architecture.md` ARCH-09).
+boundary (see `specs/architecture.yaml` ARCH-09).
 
 ### P-03: No guard on `SvcTerminateEmbargoUseCase`
 
@@ -489,13 +489,13 @@ to follow the same pattern.
 
 ## 8. Spec Alignment Notes
 
-- **CM-04-001 through CM-04-004** (`specs/case-management.md`): require that
+- **CM-04-001 through CM-04-004** (`specs/case-management.yaml`): require that
   state transitions update the correct persisted fields. The machines make these
   constraints machine-checkable rather than relying on code review.
-- **ARCH-09** (`specs/architecture.md`): core MUST NOT import from the wire
+- **ARCH-09** (`specs/architecture.yaml`): core MUST NOT import from the wire
   layer. Problem P-02 / OPP-03 is a violation because the core use case relies
   on `VulnerabilityCase.set_embargo()` (wire layer) to change EM state.
-- **AR-02-002** (`specs/agentic-readiness.md`): all valid states and transitions
+- **AR-02-002** (`specs/agentic-readiness.yaml`): all valid states and transitions
   MUST be documented. The `transitions` machines satisfy this requirement once
   they are the authoritative runtime behaviour (not just documentation).
 

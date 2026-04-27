@@ -34,4 +34,4 @@ before archiving.
 - When archiving, open items MUST be rescued to `plan/IMPLEMENTATION_PLAN.md`
   before the file is moved.
 - This README MUST be updated whenever a file is moved here.
-- See `specs/project-documentation.md` for the full maintenance policy.
+- See `specs/project-documentation.yaml` for the full maintenance policy.

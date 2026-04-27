@@ -131,9 +131,9 @@ Coordination", "Prior Art and References (Embargo Policy)")
 
 ## Related
 
-- **Case Management**: `specs/case-management.md`
-- **Response Format**: `specs/response-format.md`
-- **Agentic Readiness**: `specs/agentic-readiness.md`
-- **Object IDs**: `specs/object-ids.md`
-- **Duration Format**: `specs/duration.md` (ISO 8601 duration string format)
+- **Case Management**: `specs/case-management.yaml`
+- **Response Format**: `specs/response-format.yaml`
+- **Agentic Readiness**: `specs/agentic-readiness.yaml`
+- **Object IDs**: `specs/object-ids.yaml`
+- **Duration Format**: `specs/duration.yaml` (ISO 8601 duration string format)
 - **EM Process Model**: `docs/topics/process_models/em/defaults.md`

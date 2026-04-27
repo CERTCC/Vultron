@@ -3,7 +3,7 @@
 Provides a markdown renderer, a JSON exporter, and a YAML exporter for
 agent/human consumption.
 
-Context generation requirements: specs/spec-registry.md SR-07.
+Context generation requirements: specs/spec-registry.yaml SR-07.
 
 Usage::
 

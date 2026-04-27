@@ -10,7 +10,7 @@ Observability enables operators to understand system behavior, diagnose issues, 
 
 - **Minimal scope**: Only 2 active requirements (health checks); most
   observability concerns consolidated elsewhere
-- **Logging requirements**: Consolidated in `specs/structured-logging.md`
+- **Logging requirements**: Consolidated in `specs/structured-logging.yaml`
   (supersedes OB-01 through OB-04, OB-06)
 - **Metrics and distributed tracing**: Deferred to future implementation
 
@@ -35,8 +35,8 @@ Observability enables operators to understand system behavior, diagnose issues, 
 
 ## Related
 
-- **Logging Requirements**: `specs/structured-logging.md` (authoritative for log format, levels, correlation)
-- **Error Handling**: `specs/error-handling.md`
-- **HTTP Protocol**: `specs/http-protocol.md`
+- **Logging Requirements**: `specs/structured-logging.yaml` (authoritative for log format, levels, correlation)
+- **Error Handling**: `specs/error-handling.yaml`
+- **HTTP Protocol**: `specs/http-protocol.yaml`
 - **Implementation**: `vultron/adapters/driving/fastapi/routers/health.py`
 - **Tests**: `test/adapters/driving/fastapi/routers/test_health.py`

@@ -207,6 +207,6 @@ import point for activity construction outside the wire vocabulary layer.
 - **Error class**: `vultron/wire/as2/factories/errors.py`
 - **Boundary test**: `test/architecture/test_activity_factory_imports.py`
 - **Notes**: `notes/activity-factories.md`
-- **Wire vocabulary spec**: `specs/vocabulary-model.md`
-- **Architecture spec**: `specs/architecture.md` (ARCH-03-001)
-- **Code style**: `specs/code-style.md` (CS-05-001)
+- **Wire vocabulary spec**: `specs/vocabulary-model.yaml`
+- **Architecture spec**: `specs/architecture.yaml` (ARCH-03-001)
+- **Code style**: `specs/code-style.yaml` (CS-05-001)
