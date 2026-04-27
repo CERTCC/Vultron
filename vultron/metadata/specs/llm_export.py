@@ -45,7 +45,7 @@ def _spec_record(
     """Build a flat, inheritance-resolved dict for a single spec."""
     rec: dict[str, Any] = {
         "id": spec.id,
-        "file": file.id,
+        "topic": file.id,
         "group": group.id,
         "group_title": group.title,
         "type": (
@@ -104,7 +104,7 @@ def _step_record(s: object) -> dict[str, Any]:
     return d
 
 
-def _file_record(file: SpecFile) -> dict[str, str]:
+def _topic_record(file: SpecFile) -> dict[str, str]:
     return {
         "id": file.id,
         "title": file.title,
@@ -151,7 +151,7 @@ def to_llm_json(
 
     requirements: list[dict[str, Any]] = []
     edges: list[dict[str, str]] = []
-    file_ids_seen: set[str] = set()
+    topic_ids_seen: set[str] = set()
 
     for spec_id, spec in registry.all_specs.items():
         group, file = registry._spec_context[spec_id]
@@ -176,7 +176,7 @@ def to_llm_json(
             continue
 
         requirements.append(_spec_record(spec, group, file))
-        file_ids_seen.add(file.id)
+        topic_ids_seen.add(file.id)
 
         # Collect edges for the centralized array.
         for rel in spec.relationships or []:
@@ -190,12 +190,12 @@ def to_llm_json(
             edges.append(edge)
 
     # Build lightweight file metadata for included files.
-    files_meta = [
-        _file_record(f) for f in registry.files if f.id in file_ids_seen
+    topics_meta = [
+        _topic_record(f) for f in registry.files if f.id in topic_ids_seen
     ]
 
     result: dict[str, Any] = {
-        "files": files_meta,
+        "topics": topics_meta,
         "requirements": requirements,
         "edges": edges,
     }

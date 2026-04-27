@@ -47,15 +47,18 @@ The JSON has three top-level arrays:
 
 ```json
 {
-  "files": [...],
+  "topics": [...],
   "requirements": [...],
   "edges": [...]
 }
 ```
 
-### `files`
+### `topics`
 
-One entry per spec file. Fields: `id`, `title`, `version`, `kind`, `scope`.
+One entry per spec topic (source file). Fields: `id`, `title`, `version`, `kind`.
+Use this lookup table to resolve the short `topic` field on each requirement
+to a human-readable title. **Do not open the source YAML files** — all
+requirement content is already in the `requirements` array.
 
 ### `requirements`
 
@@ -64,7 +67,7 @@ One entry per requirement (statement or behavioral). Key fields:
 | Field | Meaning |
 |---|---|
 | `id` | Unique requirement ID (e.g. `ARCH-01-001`) |
-| `file_id` | Parent spec file ID (e.g. `ARCH`) |
+| `topic` | Parent spec topic ID (e.g. `ARCH`) |
 | `group_id` | Group within the file (e.g. `ARCH-01`) |
 | `group_title` | Human-readable group name |
 | `priority` | `MUST`, `SHOULD`, or `MAY` |

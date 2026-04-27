@@ -198,16 +198,16 @@ class TestLlmExport:
     def test_all_specs(self, graph_registry):
         raw = to_llm_json(graph_registry)
         data = json.loads(raw)
-        assert len(data["files"]) == 2
+        assert len(data["topics"]) == 2
         assert len(data["requirements"]) == 4
         assert len(data["edges"]) == 3
 
     def test_topic_filter(self, graph_registry):
         data = json.loads(to_llm_json(graph_registry, topic="GA"))
-        assert len(data["files"]) == 1
-        assert data["files"][0]["id"] == "GA"
+        assert len(data["topics"]) == 1
+        assert data["topics"][0]["id"] == "GA"
         assert len(data["requirements"]) == 3
-        assert all(r["file"] == "GA" for r in data["requirements"])
+        assert all(r["topic"] == "GA" for r in data["requirements"])
 
     def test_spec_ids_filter(self, graph_registry):
         data = json.loads(to_llm_json(graph_registry, spec_ids=["GA-01-001"]))
@@ -258,7 +258,7 @@ class TestLlmExport:
     def test_spec_record_shape(self, graph_registry):
         data = json.loads(to_llm_json(graph_registry, topic="GA"))
         spec = next(r for r in data["requirements"] if r["id"] == "GA-01-002")
-        assert spec["file"] == "GA"
+        assert spec["topic"] == "GA"
         assert spec["group"] == "GA-01"
         assert spec["group_title"] == "Group A1"
         assert spec["type"] in ("statement", "behavioral")
@@ -288,6 +288,6 @@ class TestLlmExport:
 
     def test_empty_result(self, graph_registry):
         data = json.loads(to_llm_json(graph_registry, topic="NONEXISTENT"))
-        assert data["files"] == []
+        assert data["topics"] == []
         assert data["requirements"] == []
         assert data["edges"] == []
