@@ -8188,3 +8188,65 @@ SR.6.3 (linter validation)
 - SR.6.4: Update skills/prompts/agent instructions for .yaml paths
 - SR.6.5: Update README.md/AGENTS.md references
 - SR.6.6: Delete original .md requirement files
+
+---
+
+## SR.6.3 (continued) — Schema Strictness and YAML Export
+
+**Completed**: 2026-04-27  
+**Commit**: `05c1c6da` `feat(specs): enforce schema strictness, inheritance, YAML export`
+
+- Removed all silent Pydantic defaults; YAML is the authoritative data source
+- Added non-empty-if-present validators for all list fields
+- Made kind/scope required at SpecFile level, optional at group/spec for
+  inheritance overrides (file→group→spec, full-replace semantics)
+- Added effective_kind/scope/tags resolution in registry.py
+- Added export_yaml() for round-trip YAML serialization
+- Re-migrated all specs/*.yaml with kind/scope at file level
+- Comprehensive test coverage for validation and inheritance
+
+## SR.6 (new) — NetworkX Graph and LLM-Optimized Export
+
+**Completed**: 2026-04-27  
+**Commit**: `2b6a3605` `feat(specs): add networkx graph and LLM-optimized export`
+
+- Added networkx DiGraph to SpecRegistry built eagerly in model_post_init
+  - Spec nodes with lightweight attrs (priority, kind, scope, file_id,
+    group_id, type, statement)
+  - Explicit relationships as directed edges with rel_type and note
+  - subgraph_for_topic() and transitive_deps() helper methods
+- New vultron/metadata/specs/llm_export.py with to_llm_json() producing
+  flat, inheritance-resolved JSON: {files, requirements, edges}
+  - Filters: topic, spec_ids, include_deps, kind, scope, tags, priority
+  - Denormalized group/file provenance on each spec record
+  - Both inline relationships and centralized edges array
+- Added --format llm-json and --topic to render.py CLI
+- 27 new tests in test/metadata/specs/test_llm_export.py
+
+## SR.6.4 — Update All specs/*.md References
+
+**Completed**: 2026-04-27  
+**Commit**: `24775658` `refactor(specs): update all specs/*.md references to specs/*.yaml`
+
+- Bulk renamed specs/*.md → specs/*.yaml references across 148 files
+- Updated AGENTS.md, notes, docs/adr, archived_notes, plan, prompts,
+  skills, and Python source/test files
+
+## SR.6.5 — Update specs/README.md for YAML Format
+
+**Completed**: 2026-04-27  
+**Commit**: `382b75cf` `docs(specs): update README.md for YAML format and LLM export`
+
+- Updated overview to describe YAML format with Pydantic validation
+- Added LLM-optimized export guide to Agent Loading Guide
+- Updated bare spec filename refs from .md to .yaml in prefix table
+- Updated PROD_ONLY tag description for YAML scope semantics
+
+## SR.6.6 — Delete Original specs/*.md Files
+
+**Completed**: 2026-04-27  
+**Commit**: `561039bd` `chore(specs): delete migrated specs/*.md files`
+
+- Deleted 48 original markdown spec files fully replaced by YAML
+- Retained: README.md (index), meta-specifications.md (style guide),
+  datalayer.md (non-standard format, pending manual migration)

@@ -279,31 +279,7 @@ objects.
 
 ## TASK-SR — Spec Registry (YAML + Pydantic)
 
-**Source**: `specs/spec-registry.yaml` SR-01 through SR-08; `notes/spec-registry.md`  
-**Goal**: Convert all `specs/*.md` requirement files to `specs/*.yaml`,
-validate them with a Pydantic schema in `vultron/metadata/specs/`, and
-provide linting, pytest integration, a pre-commit hook, and context
-generation tooling. Stub modules already exist; this task completes the
-implementation.
-
-SR.1–SR.6.3 complete (see `plan/IMPLEMENTATION_HISTORY.md`).
-
-### SR.6 — Migration (remaining)
-
-**Order matters**: do not delete `.md` files until YAML is validated and
-tooling is confirmed working. The `.md` files are the safety net during
-migration.
-
-- [ ] SR.6.4 Update all in-project skills, prompts, and agent instructions
-  that reference `specs/*.md` to use `specs/*.yaml` instead (or the
-  context-generation tool output) so dev agents do not break
-  - Files to audit: `.github/skills/*/SKILL.md`, `prompts/`,
-    `AGENTS.md`, `specs/README.md`, any Copilot instructions that
-    mention `specs/` file paths by extension
-- [ ] SR.6.5 Update `specs/README.md` and `AGENTS.md` references to reflect
-  that specs are now `.yaml`; update the Agent Loading Guide if needed
-- [ ] SR.6.6 **Only after SR.6.3–SR.6.5 are complete and verified**: delete
-  the original `specs/*.md` requirement files
+SR.1–SR.6 complete (see `plan/IMPLEMENTATION_HISTORY.md`).
 
 ---
 
