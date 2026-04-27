@@ -209,8 +209,11 @@ groups:
   - id: SR-04-003
     priority: MUST
     statement: >-
-      The linter MUST be invokable as a CLI command: `python -m vultron.metadata.specs.lint
-      specs/`.
+      The linter MUST be invokable as a CLI command via the `spec-lint` console
+      entry point (`uv run spec-lint`) and via `python -m
+      vultron.metadata.specs.lint [spec_dir]`. Both invocations MUST produce
+      identical output. When `spec_dir` is omitted from the module invocation,
+      it defaults to `specs/` relative to the current working directory.
   - id: SR-04-004
     priority: MUST
     statement: >-

@@ -69,6 +69,7 @@ vultrabot="vultron.scripts.vultrabot:main"
 vultron-demo="vultron.demo.cli:main"
 spec-dump="vultron.metadata.specs.render:main_llm_json"
 spec-dump-llm-json="vultron.metadata.specs.render:main_llm_json"
+spec-lint="vultron.metadata.specs.lint:main"
 
 
 [project.urls]

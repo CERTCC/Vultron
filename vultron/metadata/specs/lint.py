@@ -98,12 +98,20 @@ def lint(spec_dir: Path) -> int:
 
 
 def main() -> None:
-    """CLI entry point: ``python -m vultron.metadata.specs.lint specs/``
-    (SR-04-003)."""
-    if len(sys.argv) < 2:
-        print(f"Usage: {sys.argv[0]} <spec_dir>", file=sys.stderr)
+    """CLI entry point: ``uv run spec-lint`` or
+    ``python -m vultron.metadata.specs.lint [spec_dir]`` (SR-04-003).
+
+    ``spec_dir`` defaults to ``specs/`` relative to the current working
+    directory so that ``uv run spec-lint`` from the repository root
+    behaves identically to the pre-commit hook.
+    """
+    spec_dir = Path(sys.argv[1]) if len(sys.argv) >= 2 else Path("specs")
+    if not spec_dir.is_dir():
+        print(
+            f"[FATAL] spec_dir '{spec_dir}' not found or not a directory",
+            file=sys.stderr,
+        )
         sys.exit(2)
-    spec_dir = Path(sys.argv[1])
     sys.exit(lint(spec_dir))
 
 
