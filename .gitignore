@@ -152,3 +152,8 @@ catalog-*.xml
 devlogs
 .codebase-scan.txt
 /demologs/
+
+# claude stuff
+.devcontainer
+.claude
+.claudeignore
