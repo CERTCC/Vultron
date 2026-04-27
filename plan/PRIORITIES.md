@@ -10,7 +10,16 @@ relative order. Completed priorities should be moved to
 `plan/PRIORITY_HISTORY.md` (append-only archive) to keep `plan/PRIORITIES.md`
 focused on pending and in-progress work.
 
-## Priority 450: Cyclomatic Complexity Enforcement
+## Priority 460: Specs as data structures
+
+This priority is about converting specs from markdown formatting conventions
+to yaml data structures backed by pydantic validation.
+
+Includes all TASK-SR items in plan/IMPLEMENTATION_PLAN.md
+
+See specs/spec-registry.md and notes/spec-registry.md for background.
+
+## Priority 475: Cyclomatic Complexity Enforcement
 
 Cyclomatic complexity (CC) is treated as a policy boundary, not just a
 measurement. High CC correlates with harder-to-test, harder-to-maintain
