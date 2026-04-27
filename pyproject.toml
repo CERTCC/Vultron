@@ -114,10 +114,12 @@ testpaths = [
     "test",
 ]
 filterwarnings = [
+    "always::vultron.metadata.specs.UnknownSpecIdWarning",
     "error",
 ]
 markers = [
     "integration: marks tests as integration tests (exercise the full HTTP stack; deselected by default)",
+    "spec(spec_id): mark test as verifying a specific spec requirement ID",
 ]
 
 [tool.uv.workspace]

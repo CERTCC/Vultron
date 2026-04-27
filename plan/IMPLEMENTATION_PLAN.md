@@ -286,47 +286,7 @@ provide linting, pytest integration, a pre-commit hook, and context
 generation tooling. Stub modules already exist; this task completes the
 implementation.
 
-All sub-tasks form a single PR deliverable (one coherent feature unit).
-
-### SR.1 — Complete Pydantic schema and registry loader
-
-- [ ] SR.1.1 Verify `vultron/metadata/specs/schema.py` types are correct
-  (discriminated union resolution, `Spec = BehavioralSpec | StatementSpec`
-  ordering, `SpecIdStr` pattern)
-- [ ] SR.1.2 Verify `vultron/metadata/specs/registry.py` `load_registry()`
-  round-trips a minimal YAML fixture without errors
-- [ ] SR.1.3 Add `test/metadata/specs/test_schema.py` covering: valid
-  `StatementSpec`, valid `BehavioralSpec`, duplicate-ID error, invalid ID
-  pattern
-
-### SR.2 — Linter
-
-- [ ] SR.2.1 Implement and test hard-error checks in `lint.py`: duplicate
-  IDs, dangling relationships, group/file prefix mismatch
-- [ ] SR.2.2 Implement and test advisory-warning checks: `testable: false`
-  without steps, rationale > 500 chars, missing tags
-- [ ] SR.2.3 Verify `lint_suppress` field suppresses specific warnings
-- [ ] SR.2.4 Add `test/metadata/specs/test_lint.py`
-
-### SR.3 — Pytest marker integration
-
-- [ ] SR.3.1 Register `spec` marker in top-level `conftest.py`
-- [ ] SR.3.2 Implement `pytest_collection_modifyitems` warning for unknown
-  spec IDs (non-blocking)
-- [ ] SR.3.3 Add test verifying the warning is emitted for an unknown ID
-
-### SR.4 — Pre-commit hook
-
-- [ ] SR.4.1 Add `spec-lint` hook to `.pre-commit-config.yaml`
-  (`pass_filenames: false`, fires on `specs/*.yaml`)
-
-### SR.5 — Context generation tool
-
-- [ ] SR.5.1 Verify `render.py` markdown output matches
-  `meta-specifications.md` style
-- [ ] SR.5.2 Verify `export_json()` filtering by `kind`, `scope`, `tags`,
-  `priority`
-- [ ] SR.5.3 Add `test/metadata/specs/test_render.py`
+SR.1–SR.5 complete (see `plan/IMPLEMENTATION_HISTORY.md`).
 
 ### SR.6 — Migration
 
