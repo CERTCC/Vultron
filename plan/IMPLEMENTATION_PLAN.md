@@ -277,6 +277,83 @@ objects.
 
 ---
 
+## TASK-SR — Spec Registry (YAML + Pydantic)
+
+**Source**: `specs/spec-registry.md` SR-01 through SR-08; `notes/spec-registry.md`  
+**Goal**: Convert all `specs/*.md` requirement files to `specs/*.yaml`,
+validate them with a Pydantic schema in `vultron/metadata/specs/`, and
+provide linting, pytest integration, a pre-commit hook, and context
+generation tooling. Stub modules already exist; this task completes the
+implementation.
+
+All sub-tasks form a single PR deliverable (one coherent feature unit).
+
+### SR.1 — Complete Pydantic schema and registry loader
+
+- [ ] SR.1.1 Verify `vultron/metadata/specs/schema.py` types are correct
+  (discriminated union resolution, `Spec = BehavioralSpec | StatementSpec`
+  ordering, `SpecIdStr` pattern)
+- [ ] SR.1.2 Verify `vultron/metadata/specs/registry.py` `load_registry()`
+  round-trips a minimal YAML fixture without errors
+- [ ] SR.1.3 Add `test/metadata/specs/test_schema.py` covering: valid
+  `StatementSpec`, valid `BehavioralSpec`, duplicate-ID error, invalid ID
+  pattern
+
+### SR.2 — Linter
+
+- [ ] SR.2.1 Implement and test hard-error checks in `lint.py`: duplicate
+  IDs, dangling relationships, group/file prefix mismatch
+- [ ] SR.2.2 Implement and test advisory-warning checks: `testable: false`
+  without steps, rationale > 500 chars, missing tags
+- [ ] SR.2.3 Verify `lint_suppress` field suppresses specific warnings
+- [ ] SR.2.4 Add `test/metadata/specs/test_lint.py`
+
+### SR.3 — Pytest marker integration
+
+- [ ] SR.3.1 Register `spec` marker in top-level `conftest.py`
+- [ ] SR.3.2 Implement `pytest_collection_modifyitems` warning for unknown
+  spec IDs (non-blocking)
+- [ ] SR.3.3 Add test verifying the warning is emitted for an unknown ID
+
+### SR.4 — Pre-commit hook
+
+- [ ] SR.4.1 Add `spec-lint` hook to `.pre-commit-config.yaml`
+  (`pass_filenames: false`, fires on `specs/*.yaml`)
+
+### SR.5 — Context generation tool
+
+- [ ] SR.5.1 Verify `render.py` markdown output matches
+  `meta-specifications.md` style
+- [ ] SR.5.2 Verify `export_json()` filtering by `kind`, `scope`, `tags`,
+  `priority`
+- [ ] SR.5.3 Add `test/metadata/specs/test_render.py`
+
+### SR.6 — Migration
+
+**Order matters**: do not delete `.md` files until YAML is validated and
+tooling is confirmed working. The `.md` files are the safety net during
+migration.
+
+- [ ] SR.6.1 Write a migration script (`tools/migrate_spec_md_to_yaml.py`)
+  that converts a single `specs/*.md` file to YAML as a starting point
+- [ ] SR.6.2 Migrate all `specs/*.md` files (except `README.md` and
+  `meta-specifications.md`) to `specs/*.yaml` — keep `.md` files in place
+  during this step
+- [ ] SR.6.3 Run `python -m vultron.metadata.specs.lint specs/` — must be
+  zero errors before proceeding
+- [ ] SR.6.4 Update all in-project skills, prompts, and agent instructions
+  that reference `specs/*.md` to use `specs/*.yaml` instead (or the
+  context-generation tool output) so dev agents do not break
+  - Files to audit: `.github/skills/*/SKILL.md`, `prompts/`,
+    `AGENTS.md`, `specs/README.md`, any Copilot instructions that
+    mention `specs/` file paths by extension
+- [ ] SR.6.5 Update `specs/README.md` and `AGENTS.md` references to reflect
+  that specs are now `.yaml`; update the Agent Loading Guide if needed
+- [ ] SR.6.6 **Only after SR.6.3–SR.6.5 are complete and verified**: delete
+  the original `specs/*.md` requirement files
+
+---
+
 ## Deferred (Per PRIORITIES.md)
 
 - USE-CASE-01 **`CloseCaseUseCase` wire-type construction** — Replace direct

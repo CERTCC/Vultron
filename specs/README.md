@@ -61,6 +61,7 @@ Load additional files only when the task touches the relevant area. See the
 | Documentation work | `diataxis-requirements.md`, `project-documentation.md`, `traceability.md` |
 | Plan organization / priorities | `project-documentation.md`, `notes/plan-organization.md` |
 | Notes frontmatter / metadata tooling | `notes-frontmatter.md` |
+| Spec registry / YAML requirement files | `spec-registry.md` |
 | Bugfix skill / bug lifecycle | `bugfix-workflow.md` |
 
 ---
@@ -271,6 +272,11 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   loader in `vultron/metadata/notes/`, validation enforcement (pytest +
   pre-commit), migration requirements, and future registry/query tool notes
   (NF-01 through NF-07)
+- **`spec-registry.md`** - YAML spec registry: converting `specs/*.md` to
+  `specs/*.yaml` governed by Pydantic models in `vultron/metadata/specs/`;
+  StrEnum vocabularies, discriminated union spec models, registry loader,
+  linter, pytest marker integration, pre-commit hook, and context generation
+  tool (SR-01 through SR-08)
 
 ---
 
@@ -339,6 +345,7 @@ is reserved for `testability.md`).
 | `IMPL-TS` | `tech-stack.md` |
 | `MV` | `message-validation.md` |
 | `NF` | `notes-frontmatter.md` |
+| `SR` | `spec-registry.md` |
 | `OB` | `observability.md` |
 | `OID` | `object-ids.md` |
 | `OX` | `outbox.md` |
