@@ -19,6 +19,10 @@ Includes all TASK-SR items in plan/IMPLEMENTATION_PLAN.md
 
 See specs/spec-registry.md and notes/spec-registry.md for background.
 
+While we intend for priority 460 to be a single PR, we do not expect it to
+be a single commit. It's likely that it will take multiple task iterations
+to complete.
+
 ## Priority 475: Cyclomatic Complexity Enforcement
 
 Cyclomatic complexity (CC) is treated as a policy boundary, not just a
