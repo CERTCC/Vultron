@@ -62,36 +62,32 @@ requirement content is already in the `requirements` array.
 
 ### `requirements`
 
-One entry per requirement (statement or behavioral). Key fields:
+One entry per requirement. Key fields:
 
 | Field | Meaning |
 |---|---|
 | `id` | Unique requirement ID (e.g. `ARCH-01-001`) |
 | `topic` | Parent spec topic ID (e.g. `ARCH`) |
-| `group_id` | Group within the file (e.g. `ARCH-01`) |
+| `group` | Group within the file (e.g. `ARCH-01`) |
 | `group_title` | Human-readable group name |
-| `priority` | `MUST`, `SHOULD`, or `MAY` |
+| `priority` | `MUST`, `MUST_NOT`, `SHOULD`, `SHOULD_NOT`, or `MAY` |
 | `statement` | The normative requirement text |
-| `kind` | `implementation`, `behavioral`, `documentation`, `testing` |
+| `kind` | `domain`, `general`, `implementation`, `language`, or `pattern` |
 | `scope` | List: `prototype`, `production`, or both |
-| `tags` | Optional topic labels |
-| `type` | `statement` or `behavioral` |
-| `relationships` | Inline list of `{type, target, note}` edges from this spec |
-| `testable` | `true` if the requirement has a verification path |
+| `type` | Always `behavioral` |
+| `relationships` | Optional inline list of `{rel_type, spec_id, note?}` edges |
 | `rationale` | Optional explanatory text |
-| `verification` | Optional verification criteria |
-
-Behavioral specs additionally have: `preconditions`, `steps`, `postconditions`.
 
 ### `edges`
 
 Centralized list of all relationships across all files:
 
 ```json
-{"from": "ARCH-01-001", "type": "depends_on", "to": "CS-01-001", "note": "..."}
+{"from": "ARCH-01-001", "rel_type": "depends_on", "to": "CS-01-001"}
 ```
 
-Edge types include: `depends_on`, `relates_to`, `implements`, `contradicts`.
+Edge `rel_type` values: `constrains`, `depends_on`, `derives_from`,
+`implements`, `refines`.
 
 ## Cross-Cutting Constraints
 
