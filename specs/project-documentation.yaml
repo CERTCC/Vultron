@@ -1,0 +1,166 @@
+id: PD
+title: Project Documentation Structure
+description: >-
+  This specification defines the purpose, scope, and maintenance requirements for key project
+  documentation files that guide AI agents and human developers.
+version: 1.0.0
+groups:
+- id: PD-02
+  title: Documentation Files Overview
+  specs:
+  - id: PD-02-001
+    priority: MUST
+    statement: >-
+      Completed task history MUST be stored exclusively in the append-only `plan/IMPLEMENTATION_HISTORY.md`
+      archive.
+  - id: PD-02-002
+    priority: MUST
+    statement: >-
+      *(superseded)* — The tombstone one-liner format is **abolished**. See PD-02-003 through
+      PD-02-006 for the replacement rules.
+  - id: PD-02-003
+    priority: MUST_NOT
+    statement: >-
+      **Core Invariant**: A task in DONE state MUST NOT exist in PLAN in any form — not as
+      a checked item, not as a tombstone, not as a one-liner summary.
+  - id: PD-02-004
+    priority: MUST_NOT
+    statement: >-
+      **Atomic Completion**: Completing a task is a two-phase atomic operation: (1) append
+      the completed task record to `plan/IMPLEMENTATION_HISTORY.md`, then (2) delete the task
+      from `plan/IMPLEMENTATION_PLAN.md`. Both steps MUST happen together — a task MUST NOT
+      remain in PLAN after its HISTORY entry is written.
+  - id: PD-02-005
+    priority: MUST
+    statement: >-
+      **No Tombstones**: Completed tasks MUST be removed entirely from `plan/IMPLEMENTATION_PLAN.md`.
+      No tombstone entries, ~~strikethrough~~ items, `[x]` checkboxes, or "→ see HISTORY"
+      one-liners are permitted.
+  - id: PD-02-006
+    priority: SHOULD
+    statement: >-
+      **Bounded Plan**: `plan/IMPLEMENTATION_PLAN.md` SHOULD contain no more than 20 active
+      tasks at any time. When new work is identified, either add it as a pending task (removing
+      a lower-priority item if needed) or queue it externally.
+- id: PD-01
+  title: File Size Guidelines
+  specs:
+  - id: PD-01-001
+    priority: SHOULD
+    statement: >-
+      Large modules with multiple responsibilities SHOULD be refactored into smaller cohesive
+      modules
+- id: PD-04
+  title: Documentation Currency
+  specs:
+  - id: PD-03-001
+    priority: MUST
+    statement: >-
+      `notes/*.md` files MUST be updated when implementation phases they describe are completed
+  - id: PD-03-002
+    priority: SHOULD
+    statement: >-
+      `notes/*.md` files that are purely historical and contain no durable design guidance
+      SHOULD be archived in `docs/archived_notes/` with a brief rationale, rather than deleted
+  - id: PD-03-003
+    priority: MUST
+    statement: >-
+      Module paths referenced in `notes/` MUST be updated to reflect canonical current locations
+      whenever those paths change
+- id: PD-06
+  title: Documentation Build Validation
+  specs:
+  - id: PD-04-001
+    priority: MUST
+    statement: >-
+      `mkdocs build --strict` MUST pass without warnings before any changes to `docs/` directory
+      files are staged for commit
+  - id: PD-04-002
+    priority: MUST
+    statement: >-
+      Validation MUST occur after markdown linting (via `.github/skills/format-markdown/SKILL.md`)
+      and before test runs, in the build-and-test workflow documented in `.github/skills/build-docs/SKILL.md`
+  - id: PD-04-003
+    priority: SHOULD
+    statement: >-
+      Agents SHOULD run `uv run mkdocs build --strict` locally when modifying `docs/` files
+      to catch issues before staging for commit, reducing CI failures and improving development
+      velocity
+- id: PD-07
+  title: Append-Only History Write Protocol
+  specs:
+  - id: PD-05-001
+    priority: MUST
+    statement: >-
+      Agents MUST append new entries exclusively to the **end** of `plan/*HISTORY.md` files.
+      Inserting content at an arbitrary line number, a specific section heading, or anywhere
+      other than the very end of the file is **prohibited**.
+  - id: PD-05-002
+    priority: MUST_NOT
+    statement: >-
+      Agents MUST NOT perform a conditional existence check (e.g., `ls`, `test -f`, `os.path.exists`)
+      before appending. Instead, agents MUST unconditionally ensure the file exists using
+      a simple guard (e.g., `touch plan/HISTORY.md`), then proceed directly to the append
+      step. The prohibited pattern is the `ls → if not found: create; if found: append` decision
+      tree.
+  - id: PD-05-003
+    priority: MUST_NOT
+    statement: >-
+      Agents MUST NOT read the full content of an append-only file in order to append a new
+      entry. Only the final lines need to be inspected (using `view_range` with the tail of
+      the file) to locate the exact end-of-file position.
+  - id: PD-05-004
+    priority: MUST
+    statement: >-
+      Agents MUST use the following canonical append procedure: 1. Ensure the file exists:
+      `touch <file>` (no-op if already present). 2. Write the new entry to a temporary file,
+      then append that file to the target using `bash("cat /tmp/entry.md >> plan/HISTORY.md")`
+      — or use Python `open(file, 'a')` for content that contains shell-special characters.
+      Do NOT use the `edit` tool for appending, because `edit` requires a unique `old_str`
+      anchor that is not guaranteed in files with repeated structural patterns. 3. Verify
+      the entry was written correctly: read the tail with `bash("tail -30 <file>")` to confirm
+      the content appears as expected.
+  - id: PD-05-005
+    priority: MUST_NOT
+    statement: >-
+      Agents MUST NOT edit, reorder, or remove any existing entry from a `plan/*HISTORY.md`
+      file. Once written, a history entry is permanent.
+- id: PD-08
+  title: Plan Section Organization (MUST/SHOULD)
+  specs:
+  - id: PD-06-001
+    priority: MUST_NOT
+    statement: >-
+      `plan/IMPLEMENTATION_PLAN.md` section headings MUST use the format `## TASK-FOO — Short
+      description`, where `FOO` is a short topic-specific identifier. Priority numbers MUST
+      NOT appear in section headings.
+  - id: PD-06-002
+    priority: MUST_NOT
+    statement: >-
+      The `TASK-` prefix is a namespace reserved for `plan/IMPLEMENTATION_PLAN.md` section
+      identifiers. `TASK-FOO` topic identifiers MUST NOT conflict with any spec prefix listed
+      in the prefix registry in `specs/README.md`.
+  - id: PD-06-003
+    priority: MUST
+    statement: >-
+      Individual task items within a `TASK-FOO` section MUST be identified using dot notation:
+      `FOO.1`, `FOO.2`, `FOO.2.3.1a` (dots only, no dashes). This structurally distinguishes
+      plan task IDs from spec requirement IDs (`PREFIX-NN-NNN`, which use dashes).
+  - id: PD-06-004
+    priority: MUST_NOT
+    statement: >-
+      Priority ordering is the sole responsibility of `plan/PRIORITIES.md`. `plan/IMPLEMENTATION_PLAN.md`
+      MUST NOT encode priority information in section headings or rely on section order to
+      imply priority.
+  - id: PD-06-005
+    priority: SHOULD
+    statement: >-
+      `plan/PRIORITIES.md` entries SHOULD reference the relevant `TASK-FOO` identifiers or
+      section names to link priority assignments to implementation work. No rigid format is
+      required because PRIORITIES.md is primarily human-edited; a brief reference to the section
+      name or topic ID is sufficient.
+  - id: PD-06-006
+    priority: MUST_NOT
+    statement: >-
+      When priorities change, only `plan/PRIORITIES.md` needs to be updated. `plan/IMPLEMENTATION_PLAN.md`
+      section identifiers, headings, and task IDs MUST NOT change when priorities change.

@@ -1,0 +1,39 @@
+id: TRACE
+title: Specification Traceability
+description: >-
+  Requirements for maintaining the traceability matrix that maps user stories to specification
+  requirements. `docs/topics/user_stories/`
+version: 1.0.0
+groups:
+- id: TRACE-01
+  title: Traceability Matrix
+  specs:
+  - id: TRACE-01-001
+    priority: MUST
+    statement: >-
+      A traceability file MUST exist at `notes/user-stories-trace.md` mapping each user story
+      in `docs/topics/user_stories/` to the implementing specification(s) and specific requirement
+      ID(s)
+  - id: TRACE-01-002
+    priority: MUST
+    statement: >-
+      User stories without specification coverage MUST be flagged with an explicit note indicating
+      they lack coverage
+  - id: TRACE-01-003
+    priority: MUST
+    statement: >-
+      The traceability matrix MUST be updated when new specifications are added or existing
+      requirements are significantly changed in a way that affects story coverage
+- id: TRACE-02
+  title: Maintenance
+  specs:
+  - id: TRACE-02-001
+    priority: SHOULD
+    statement: >-
+      The traceability matrix SHOULD be reviewed and updated as part of any spec-authoring
+      or user-story-authoring activity
+  - id: TRACE-02-002
+    priority: SHOULD
+    statement: >-
+      Stories with insufficient spec coverage SHOULD be documented in `plan/IMPLEMENTATION_NOTES.md`
+      with specific technical details describing the gap and concrete steps toward remediation

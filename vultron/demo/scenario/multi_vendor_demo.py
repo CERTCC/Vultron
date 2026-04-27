@@ -37,7 +37,7 @@ Workflow (five containers: finder, vendor, coordinator, vendor2, case-actor):
     having accepted it.
 
 This corresponds to Scenario 3 in ``specs/multi-actor-demo.md``
-(DEMO-MA-04-001) and the MultiParty Demo described in
+(DEMOMA-04-001) and the MultiParty Demo described in
 ``notes/demo-future-ideas.md``.
 """
 

@@ -1,0 +1,161 @@
+id: SM
+title: State Machine
+description: >-
+  Requirements governing how the RM (Report Management), EM (Embargo Management), and CS (CVD
+  Case State: VFD and PXA axes) protocol state machines are defined, represented, and executed
+  at runtime. The Vultron protocol operates three interacting state machines, each tracking
+  a distinct aspect of the coordinated vulnerability disclosure lifecycle. Each participant
+  maintains its own RM state; the CaseActor maintains EM and Case State (CS) shared across
+  all participants. Within the CS axes, the EM state and the PXA (Public eXploit/Attack) axis
+  are shared across all participants via the CaseActor; the VFD (Vendor Fix Deployed) axis
+  is maintained strictly per-participant, since each vendor's fix deployment status is independent.
+  `docs/adr/0013-unify-rm-state-tracking.md`, `specs/vultron-protocol-spec.md` tracking),
+  `behavior-tree-integration.md` BT-06 (BT-driven transitions), `handler-protocol.md` HP-00
+  (activities as state-change notifications), `vultron-protocol-spec.md` VP-01 through VP-13
+version: 1.0.0
+groups:
+- id: SM-01
+  title: State Enum Design
+  specs:
+  - id: SM-01-001
+    priority: MUST
+    statement: >-
+      All protocol state axes (RM, EM, VFD, PXA) MUST be defined using Python `StrEnum`
+  - id: SM-01-002
+    priority: SHOULD
+    statement: >-
+      State enums SHOULD provide both a full descriptive name and a short single-character
+      alias for each state
+  - id: SM-01-003
+    priority: MUST
+    statement: State enum values are the authoritative definition of valid states
+- id: SM-02
+  title: State Machine Definitions
+  specs:
+  - id: SM-02-001
+    priority: SHOULD
+    statement: >-
+      Each state axis SHOULD have a corresponding `create_*_machine()` factory function that
+      produces a `transitions` library `Machine` instance for the axis
+  - id: SM-02-002
+    priority: MUST_NOT
+    statement: >-
+      `create_*_machine()` factory functions MUST NOT be called for runtime state changes
+      in production use-case or handler code
+    relationships:
+    - rel_type: constrains
+      spec_id: SM-02-001
+  - id: SM-02-003
+    priority: SHOULD
+    statement: >-
+      Trigger names for `transitions` library machines SHOULD be defined as a companion `StrEnum`
+      (e.g., `EM_Trigger`) using `auto()` so that trigger strings remain stable and are not
+      inlined as string literals scattered across the codebase
+- id: SM-03
+  title: Transition Definitions
+  specs:
+  - id: SM-03-001
+    priority: SHOULD
+    statement: >-
+      Each state transition SHOULD be expressed as a typed `TransitionBase` subclass with
+      `trigger`, `source`, and `dest` fields typed to the appropriate enums
+  - id: SM-03-002
+    priority: SHOULD
+    statement: >-
+      Transition definitions SHOULD be stored as a module-level list in the same module that
+      defines the state enum
+  - id: SM-03-003
+    priority: MUST
+    statement: >-
+      Transitions SHOULD be exhaustive: every valid (source → dest) pair that the protocol
+      describes MUST have a corresponding transition entry
+- id: SM-04
+  title: Runtime State Changes
+  specs:
+  - id: SM-04-001
+    priority: MUST
+    statement: >-
+      Runtime state changes MUST be guarded by an explicit precondition check before the state
+      value is written
+  - id: SM-04-002
+    priority: MUST
+    statement: >-
+      State-changing handlers MUST be idempotent with respect to repeated application of the
+      same transition
+    relationships:
+    - rel_type: implements
+      spec_id: HP-07-001
+      note: handler-protocol.md
+- id: SM-05
+  title: State History
+  specs:
+  - id: SM-05-001
+    priority: MUST
+    statement: >-
+      Persisted state for both case-level and participant-level axes MUST use an append-only
+      history list
+  - id: SM-05-002
+    priority: MUST
+    statement: >-
+      The `current_status` property (or equivalent) MUST return the single most-recently-timestamped
+      entry from the history list
+    relationships:
+    - rel_type: implements
+      spec_id: CM-03-006
+      note: case-management.md
+  - id: SM-05-003
+    priority: MUST
+    statement: >-
+      Status history entries MUST record a trusted server-side timestamp (`received_at` or
+      `updated`) set via `now_utc()` at write time
+    relationships:
+    - rel_type: implements
+      spec_id: CM-02-009
+      note: case-management.md
+  - id: SM-05-004
+    priority: SHOULD
+    statement: >-
+      The case state log SHOULD store references (IDs) to entries in the main case history
+      log rather than duplicating full record content
+- id: SM-06
+  title: In-Memory (Transient) State
+  specs:
+  - id: SM-06-001
+    priority: SHOULD
+    statement: >-
+      Transient state used only during a single request (e.g., for tracking report status
+      during validation processing) SHOULD be clearly separated from persisted state
+  - id: SM-06-002
+    priority: MUST
+    statement: >-
+      Transient RM status for reports (e.g., `ReportStatus` in the in-memory `STATUS` dict)
+      MUST be replaced by persisted participant-level state once a report is associated with
+      a case and a `CaseParticipant` record exists
+- id: SM-07
+  title: State Subsets and Guards
+  specs:
+  - id: SM-07-001
+    priority: SHOULD
+    statement: >-
+      Commonly used groups of states that define validity zones for transitions SHOULD be
+      defined as module-level constants (tuples or frozensets) in the same module as the state
+      enum
+  - id: SM-07-002
+    priority: MUST
+    statement: >-
+      State subset constants MUST be derived from enum values, not raw strings, to prevent
+      silent mismatches when enum values change
+- id: SM-08
+  title: Wire and DataLayer Compatibility
+  specs:
+  - id: SM-08-001
+    priority: MUST
+    statement: >-
+      State enum values MUST be stored and transmitted as their string value (not as Python
+      enum names or as integers)
+  - id: SM-08-002
+    priority: MUST
+    statement: >-
+      When deserializing state values from the DataLayer or from wire payloads, the receiving
+      Pydantic model MUST declare the state field with the `StrEnum` type so that Pydantic
+      coerces the incoming string to the correct enum member

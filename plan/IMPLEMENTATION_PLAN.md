@@ -196,7 +196,7 @@ to 10. Scope: `vultron/` and `test/`.
 - [ ] CC.2.1 Reduce all 18 CC 11–15 functions to CC≤10 (see
   `plan/IMPLEMENTATION_NOTES.md` CC-ENFORCEMENT for the full list)
 - [ ] CC.2.2 Lower `max-complexity` from 15 to 10 in `.flake8`
-- [ ] CC.2.3 Upgrade `IMPL-TS-07-008` from SHOULD to MUST in
+- [ ] CC.2.3 Upgrade `IMPLTS-07-008` from SHOULD to MUST in
   `specs/tech-stack.md` now that all CC violations above 10 are resolved
 
 ---
@@ -286,21 +286,14 @@ provide linting, pytest integration, a pre-commit hook, and context
 generation tooling. Stub modules already exist; this task completes the
 implementation.
 
-SR.1–SR.5 complete (see `plan/IMPLEMENTATION_HISTORY.md`).
+SR.1–SR.6.3 complete (see `plan/IMPLEMENTATION_HISTORY.md`).
 
-### SR.6 — Migration
+### SR.6 — Migration (remaining)
 
 **Order matters**: do not delete `.md` files until YAML is validated and
 tooling is confirmed working. The `.md` files are the safety net during
 migration.
 
-- [ ] SR.6.1 Write a migration script (`tools/migrate_spec_md_to_yaml.py`)
-  that converts a single `specs/*.md` file to YAML as a starting point
-- [ ] SR.6.2 Migrate all `specs/*.md` files (except `README.md` and
-  `meta-specifications.md`) to `specs/*.yaml` — keep `.md` files in place
-  during this step
-- [ ] SR.6.3 Run `python -m vultron.metadata.specs.lint specs/` — must be
-  zero errors before proceeding
 - [ ] SR.6.4 Update all in-project skills, prompts, and agent instructions
   that reference `specs/*.md` to use `specs/*.yaml` instead (or the
   context-generation tool output) so dev agents do not break

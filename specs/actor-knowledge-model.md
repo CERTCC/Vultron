@@ -14,7 +14,7 @@ communication occurs exclusively through the AS2 wire protocol.
 `specs/message-validation.md` MV-09-001 (full inline object requirement)  
 **Cross-references**: `specs/message-validation.md` MV-09-001 through MV-10-004,
 `specs/case-management.md` CM-01-001, `specs/outbox.md` OX-07-002,
-`specs/multi-actor-demo.md` DEMO-MA-00-001
+`specs/multi-actor-demo.md` DEMOMA-00-001
 
 ---
 
@@ -30,7 +30,7 @@ communication occurs exclusively through the AS2 wire protocol.
   - All inter-Actor coordination MUST pass through the ActivityStreams inbox/outbox
     API.
   - Cross-reference: CM-01-001 implements this principle.
-  - Cross-reference: DEMO-MA-00-001 restates this for multi-actor demo scenarios.
+  - Cross-reference: DEMOMA-00-001 restates this for multi-actor demo scenarios.
 
 - `AKM-01-002` Actors that are co-located on the same server or within the same
   process MUST still interact via the wire protocol and MUST NOT communicate via
@@ -98,7 +98,7 @@ communication occurs exclusively through the AS2 wire protocol.
 - Code review: Confirm no handler, use case, or adapter imports or calls a
   DataLayer belonging to a different actor.
 - Architecture test: Verify that actor containers in multi-actor demos use
-  logically isolated DataLayer instances (DEMO-MA-01-001).
+  logically isolated DataLayer instances (DEMOMA-01-001).
 - Code review: `vultron/core/` and `vultron/wire/` have no imports from
   other actors' DataLayer instances.
 

@@ -202,4 +202,4 @@ Durations may be combined with RFC 3339 timestamps to form intervals.
 
 - **Embargo Policy**: `specs/embargo-policy.md` (uses duration fields)
 - **Datetime Format**: `specs/code-style.md` CS-13-005 (RFC 3339 wire format)
-- **Technology Stack**: `specs/tech-stack.md` IMPL-TS-02-003 (isodate library)
+- **Technology Stack**: `specs/tech-stack.md` IMPLTS-02-003 (isodate library)

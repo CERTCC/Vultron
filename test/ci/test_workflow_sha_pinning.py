@@ -1,6 +1,6 @@
 """CI security tests — verify GitHub Actions SHA pinning.
 
-Implements CI-SEC-01-001 and CI-SEC-01-002 from specs/ci-security.md:
+Implements CISEC-01-001 and CISEC-01-002 from specs/ci-security.md:
 - Every `uses:` line in .github/workflows/*.yml MUST reference a full
   40-character commit SHA (not a mutable tag or branch name).
 - Every SHA-pinned line MUST carry an inline human-readable version comment
@@ -65,7 +65,7 @@ def test_workflow_files_exist(workflow_files: list[Path]) -> None:
 
 @pytest.mark.parametrize("wf,lineno,line", _uses_params())
 def test_uses_pinned_to_sha(wf: Path, lineno: int, line: str) -> None:
-    """CI-SEC-01-001: every ``uses:`` value MUST be pinned to a 40-char SHA.
+    """CISEC-01-001: every ``uses:`` value MUST be pinned to a 40-char SHA.
 
     Mutable references (version tags, branch names) are not allowed.
     """
@@ -85,7 +85,7 @@ def test_uses_pinned_to_sha(wf: Path, lineno: int, line: str) -> None:
 
 @pytest.mark.parametrize("wf,lineno,line", _uses_params())
 def test_uses_has_version_comment(wf: Path, lineno: int, line: str) -> None:
-    """CI-SEC-01-002: every SHA-pinned ``uses:`` line MUST carry a version comment.
+    """CISEC-01-002: every SHA-pinned ``uses:`` line MUST carry a version comment.
 
     The comment (e.g., ``# v4.1.0``) makes the pin human-readable for code
     review without decoding the SHA.

@@ -1,0 +1,68 @@
+id: AKM
+title: Actor Knowledge Model
+description: >-
+  This specification defines the **Actor Knowledge Model** — the principle that a Vultron
+  Actor's knowledge of the world is strictly bounded by the ActivityStreams 2.0 activities
+  it has received. Actors MUST NOT assume recipients have objects that have not been explicitly
+  included in prior activities. DataLayer access is private and non-shareable; all inter-Actor
+  communication occurs exclusively through the AS2 wire protocol. **Consolidates**: `specs/case-management.md`
+  CM-01-001 (actor isolation), `specs/message-validation.md` MV-09-001 (full inline object
+  requirement) `specs/case-management.md` CM-01-001, `specs/outbox.md` OX-07-002, `specs/multi-actor-demo.md`
+  DEMOMA-00-001
+version: 1.0.0
+groups:
+- id: AKM-01
+  title: DataLayer Isolation (MUST)
+  specs:
+  - id: AKM-01-001
+    priority: MUST_NOT
+    statement: >-
+      Each Actor's DataLayer is private to that Actor and MUST NOT be accessible to any other
+      Actor.
+  - id: AKM-01-002
+    priority: MUST_NOT
+    statement: >-
+      Actors that are co-located on the same server or within the same process MUST still
+      interact via the wire protocol and MUST NOT communicate via direct DataLayer access
+      or in-process calls bypassing the inbox/outbox API.
+- id: AKM-02
+  title: Knowledge Boundaries (MUST)
+  specs:
+  - id: AKM-02-001
+    priority: MUST_NOT
+    statement: >-
+      An Actor MUST NOT assume that a recipient has knowledge of any object that has not been
+      explicitly included in a prior activity sent to that recipient.
+  - id: AKM-02-002
+    priority: MUST_NOT
+    statement: >-
+      Actors MUST NOT use object references in place of full inline objects when the recipient
+      cannot be expected to have the referenced object in its own DataLayer.
+  - id: AKM-02-003
+    priority: MUST
+    statement: >-
+      The sole exception to the full-inline-object rule is the `target` field of an `Invite`
+      activity in selective-disclosure scenarios.
+- id: AKM-03
+  title: Outbound Activity Object Integrity (MUST)
+  specs:
+  - id: AKM-03-001
+    priority: MUST
+    statement: >-
+      Outbound initiating activities (Create, Offer, Invite, Announce, Add, Remove, Update,
+      Join, Ignore, Leave) MUST carry the `object` field as a fully inline typed domain object.
+  - id: AKM-03-002
+    priority: MUST
+    statement: >-
+      The outbox handler MUST enforce object integrity at delivery time as a last-resort runtime
+      guard.
+- id: AKM-04
+  title: 'Future: Known-Object Tracking (MAY)'
+  specs:
+  - id: AKM-04-001
+    priority: MAY
+    statement: >-
+      A future implementation MAY track which objects have been shared with each participant
+      (e.g., via `CaseLogEntry` hash-chain records) to avoid redundant full-object transmission.
+    scope:
+    - production

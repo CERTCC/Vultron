@@ -1,0 +1,172 @@
+id: HP
+title: Handler Protocol
+description: >-
+  Handler use-case classes process `VultronEvent` domain objects and implement protocol business
+  logic. All handlers follow a common contract defined by the `UseCase` Protocol.
+version: 1.0.0
+groups:
+- id: HP-00
+  title: Protocol Semantics
+  specs:
+  - id: HP-00-001
+    priority: MUST
+    statement: >-
+      Handlers MUST interpret received activities as assertions about the sender's state,
+      not as commands to perform work
+  - id: HP-00-002
+    priority: MUST
+    statement: >-
+      Handlers MUST update local RM/EM/CS state to reflect the state transition asserted by
+      the received activity
+- id: HP-01
+  title: Handler Signature
+  specs:
+  - id: HP-01-001
+    priority: MUST
+    statement: >-
+      All handler use-case classes MUST accept `(dl: DataLayer, request: VultronEvent)` as
+      `__init__` parameters, and their `execute()` method MUST take no arguments
+  - id: HP-01-002
+    priority: MAY
+    statement: Handler use-case `execute` methods MAY return None or HandlerResult
+- id: HP-02
+  title: Semantic Verification
+  specs:
+  - id: HP-02-001
+    priority: MUST
+    statement: All handlers MUST have semantic type verification before execution
+    relationships:
+    - rel_type: depends_on
+      spec_id: DR-01-003
+  - id: HP-02-002
+    priority: MUST
+    statement: >-
+      The verification mechanism MUST check that the activity's semantic type matches the
+      handler's expected type
+    rationale: Prevents routing errors where wrong handler processes an activity
+    relationships:
+    - rel_type: refines
+      spec_id: DR-01-003
+- id: HP-03
+  title: Handler Registration
+  specs:
+  - id: HP-03-001
+    priority: MUST
+    statement: All handlers MUST be discoverable via a handler registry mechanism
+    relationships:
+    - rel_type: derives_from
+      spec_id: DR-02-001
+  - id: HP-03-002
+    priority: MUST
+    statement: Registry keys MUST match handler semantic verification types
+    relationships:
+    - rel_type: refines
+      spec_id: DR-02-002
+- id: HP-04
+  title: Payload Access
+  specs:
+  - id: HP-04-001
+    priority: MUST
+    statement: Handlers MUST access activity data via `dispatchable.payload`
+    rationale: Encapsulation; payload may be validated/transformed by dispatcher
+  - id: HP-04-002
+    priority: MUST
+    statement: Handlers MUST use schema validation for type-safe payload access
+- id: HP-05
+  title: Error Handling
+  specs:
+  - id: HP-05-001
+    priority: MUST
+    statement: Handlers MUST raise exceptions for unrecoverable errors
+  - id: HP-05-002
+    priority: MUST
+    statement: Handlers MUST log expected errors without raising exceptions
+- id: HP-06
+  title: Logging
+  specs:
+  - id: HP-06-001
+    priority: MUST
+    statement: Handlers MUST log entry at DEBUG level with handler name
+  - id: HP-06-002
+    priority: MUST
+    statement: Handlers MUST log state transitions at INFO level with before/after states
+  - id: HP-06-003
+    priority: MUST
+    statement: Handlers MUST log errors at ERROR level with full context
+    relationships:
+    - rel_type: depends_on
+      spec_id: SL-03-001
+    - rel_type: depends_on
+      spec_id: SL-04-001
+- id: HP-07
+  title: Idempotency
+  specs:
+  - id: HP-07-001
+    priority: SHOULD
+    statement: Handlers SHOULD be idempotent to support retries
+    relationships:
+    - rel_type: depends_on
+      spec_id: ID-04-001
+- id: HP-08
+  title: Execution Timeout
+  specs:
+  - id: HP-07-002
+    priority: MUST
+    statement: Handlers MUST complete execution within 30 seconds
+    rationale: Prevents indefinite blocking of background task queue
+    scope:
+    - production
+  - id: HP-07-003
+    priority: MUST
+    statement: Long-running operations MUST be broken into async subtasks
+    scope:
+    - production
+- id: HP-09
+  title: Data Model Persistence
+  specs:
+  - id: HP-08-001
+    priority: MUST
+    statement: >-
+      Handlers MUST use helper functions when persisting Pydantic models to the data layer
+  - id: HP-08-002
+    priority: MUST
+    statement: Handlers MUST call `DataLayer.update()` with all required parameters
+  - id: HP-08-003
+    priority: MUST_NOT
+    statement: >-
+      Pydantic validators MUST NOT overwrite existing field values during deserialization
+  - id: HP-08-004
+    priority: MUST
+    statement: The DataLayer and handlers MUST treat object IDs as opaque URI strings
+  - id: HP-08-005
+    priority: MUST
+    statement: >-
+      Handlers that add status updates MUST append full status objects (not bare ID strings)
+      to the case/participant status history lists
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-03-006
+  - id: HP-08-006
+    priority: MUST
+    statement: >-
+      The `AddNoteToCase` handler MUST persist a Note object and append its ID as a `as_NoteRef`
+      to `VulnerabilityCase.notes`.
+    rationale: >-
+      Ensures notes are fully persisted and linked to cases, consistent with the case management
+      data model
+- id: HP-10
+  title: Offer Recipient Addressing
+  specs:
+  - id: HP-09-001
+    priority: MUST
+    statement: >-
+      Handlers processing an inbound `Offer` activity MUST determine case-creation eligibility
+      from the `to` field only
+  - id: HP-09-002
+    priority: MUST_NOT
+    statement: >-
+      The `target` field MUST NOT be used to determine case-creation eligibility for `Offer`
+      activities
+    relationships:
+    - rel_type: depends_on
+      spec_id: VAM-01-008

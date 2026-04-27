@@ -1,0 +1,112 @@
+id: IE
+title: Inbox Endpoint
+description: >-
+  The inbox endpoint is the primary entry point for actor-to-actor communication in Vultron.
+  It receives ActivityStreams activities via HTTP POST, validates them, and queues them for
+  asynchronous processing.
+version: 1.0.0
+groups:
+- id: IE-02
+  title: Endpoint Configuration
+  specs:
+  - id: IE-02-001
+    priority: MUST
+    statement: The endpoint URL MUST be discoverable from actor profile
+    rationale: Allow flexibility for different deployment contexts
+  - id: IE-02-002
+    priority: MUST
+    statement: The endpoint MUST accept POST requests only
+  - id: IE-02-003
+    priority: MUST
+    statement: The endpoint MUST reject non-POST requests with HTTP 405
+    relationships:
+    - rel_type: depends_on
+      spec_id: HTTP-03-001
+- id: IE-03
+  title: Request Handling
+  specs:
+  - id: IE-03-001
+    priority: MUST
+    statement: The endpoint MUST validate Content-Type header
+    relationships:
+    - rel_type: depends_on
+      spec_id: HTTP-01-001
+  - id: IE-03-002
+    priority: MUST
+    statement: The endpoint MUST enforce request size limits
+    relationships:
+    - rel_type: depends_on
+      spec_id: HTTP-02-001
+- id: IE-04
+  title: Activity Validation
+  specs:
+  - id: IE-04-001
+    priority: MUST
+    statement: The endpoint MUST validate activity structure via schema validation
+  - id: IE-04-002
+    priority: MUST
+    statement: The endpoint MUST return HTTP 422 for validation failures
+    relationships:
+    - rel_type: depends_on
+      spec_id: HTTP-03-001
+- id: IE-05
+  title: Response Timing
+  specs:
+  - id: IE-05-001
+    priority: MUST
+    statement: The endpoint MUST return HTTP 202 within 100ms
+    relationships:
+    - rel_type: depends_on
+      spec_id: HTTP-06-001
+  - id: IE-05-002
+    priority: MUST_NOT
+    statement: The endpoint MUST NOT block on handler execution
+- id: IE-06
+  title: Asynchronous Processing
+  specs:
+  - id: IE-06-001
+    priority: MUST
+    statement: The endpoint MUST queue activities for background processing
+  - id: IE-06-002
+    priority: MUST
+    statement: Background processing MUST be isolated from HTTP request/response cycle
+- id: IE-07
+  title: Error Responses
+  specs:
+  - id: IE-07-001
+    priority: MUST
+    statement: The endpoint MUST return appropriate HTTP status codes
+    relationships:
+    - rel_type: depends_on
+      spec_id: HTTP-03-001
+- id: IE-08
+  title: Response Format
+  specs:
+  - id: IE-08-001
+    priority: MUST
+    statement: 'Response body MUST be JSON with fields: `status`, `activity_id`, `message`'
+    relationships:
+    - rel_type: depends_on
+      spec_id: EH-05-001
+- id: IE-09
+  title: Logging
+  specs:
+  - id: IE-09-001
+    priority: MUST
+    statement: The endpoint MUST log all requests at INFO level
+    relationships:
+    - rel_type: depends_on
+      spec_id: SL-01-001
+    - rel_type: depends_on
+      spec_id: SL-02-001
+    - rel_type: depends_on
+      spec_id: SL-03-001
+- id: IE-10
+  title: Idempotency
+  specs:
+  - id: IE-10-001
+    priority: SHOULD
+    statement: The endpoint SHOULD implement early duplicate detection at HTTP layer
+    relationships:
+    - rel_type: depends_on
+      spec_id: ID-05-002

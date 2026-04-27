@@ -181,6 +181,6 @@ trigger. The demo-runner calls only Step 1.
 - `specs/case-management.md` CM-06 (case update broadcast), CM-11
   (invitation acceptance lifecycle)
 - `specs/triggerable-behaviors.md` TRIG-02-005, TRIG-07-001
-- `specs/multi-actor-demo.md` DEMO-MA-05-001 (demos MUST use triggers)
+- `specs/multi-actor-demo.md` DEMOMA-05-001 (demos MUST use triggers)
 - `notes/activitystreams-semantics.md` (state-change notification model)
 - `notes/bt-integration.md` (BT design decisions)

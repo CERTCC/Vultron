@@ -1,0 +1,300 @@
+id: TRIG
+title: Triggerable Behaviors
+description: >-
+  Requirements for the trigger API that allows an actor to initiate protocol behaviors based
+  on their own internal state, rather than reacting to an inbound ActivityStreams message.
+  Triggerable behaviors are the **outgoing counterpart** to the inbound handler pipeline.
+  The full CVD protocol cannot be demonstrated without them; a complete implementation requires
+  both reactive and triggerable sides. `notes/triggerable-behaviors.md` (design notes), `notes/trigger-classification.md`
+  (classification decisions), `docs/topics/behavior_logic/` (reference behavior tree docs)
+  `case-management.md` (CM-01), `handler-protocol.md` (HP-00-001), `outbox.md` (OX-02-001),
+  `agentic-readiness.md` (AR-04, AR-08), `configuration.md` (CFG-04)
+version: 1.0.0
+groups:
+- id: TRIG-01
+  title: Endpoint Format
+  specs:
+  - id: TRIG-01-001
+    priority: MUST
+    statement: >-
+      The system MUST expose trigger endpoints using the path pattern `POST /actors/{actor_id}/trigger/{behavior-name}`
+  - id: TRIG-01-002
+    priority: MUST
+    statement: Trigger endpoints MUST return HTTP 202 on successful acceptance
+    relationships:
+    - rel_type: depends_on
+      spec_id: HTTP-01-003
+  - id: TRIG-01-003
+    priority: MUST
+    statement: >-
+      Trigger endpoints MUST return a structured error response when the actor, case, or report
+      referenced in the request body cannot be resolved
+    relationships:
+    - rel_type: depends_on
+      spec_id: EH-05-001
+  - id: TRIG-01-004
+    priority: MUST_NOT
+    statement: >-
+      Trigger endpoint processing MUST NOT block the HTTP response; long-running behavior
+      execution MUST run as a background task
+    relationships:
+    - rel_type: depends_on
+      spec_id: IE-03-001
+  - id: TRIG-01-005
+    priority: MUST
+    statement: >-
+      Trigger endpoints MUST be synchronous from the caller's perspective: the response MUST
+      be returned only after the triggered behavior completes (or fails)
+    rationale: >-
+      Unlike inbound message handlers (which are intentionally asynchronous because they react
+      to remote actors), triggerable behaviors are initiated locally and the caller expects
+      an immediate result
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-01-004
+      note: >-
+        the no-block constraint applies to HTTP I/O machinery, not to the behavior execution
+        itself
+- id: TRIG-02
+  title: Candidate RM Behaviors
+  specs:
+  - id: TRIG-02-001
+    priority: SHOULD
+    statement: >-
+      The following RM behaviors SHOULD be individually triggerable via the trigger API:
+- id: TRIG-03
+  title: Candidate EM Behaviors
+  specs:
+  - id: TRIG-02-002
+    priority: SHOULD
+    statement: >-
+      The following EM behaviors SHOULD be individually triggerable via the trigger API:
+- id: TRIG-04
+  title: Candidate Case Management Behaviors
+  specs:
+  - id: TRIG-02-004
+    priority: SHOULD
+    statement: >-
+      The following case management behaviors SHOULD be individually triggerable via the trigger
+      API:
+- id: TRIG-05
+  title: Candidate Participant Management Behaviors
+  specs:
+  - id: TRIG-02-005
+    priority: SHOULD
+    statement: >-
+      The following participant management behaviors SHOULD be individually triggerable via
+      the trigger API:
+- id: TRIG-06
+  title: Demo-Only Trigger Behaviors
+  specs:
+  - id: TRIG-02-006
+    priority: MUST_NOT
+    statement: >-
+      The following behaviors exist only to support demo and prototype scenarios. They are
+      exposed under the `/demo/` URL prefix (see TRIG-09-001) and MUST NOT be mounted in production
+      mode (see TRIG-09-002):
+- id: TRIG-07
+  title: Additional Candidate Behaviors
+  specs:
+  - id: TRIG-02-003
+    priority: MAY
+    statement: >-
+      The following additional behaviors MAY be individually triggerable via the trigger API
+      in a later phase:
+- id: TRIG-08
+  title: Request Body
+  specs:
+  - id: TRIG-03-001
+    priority: MUST
+    statement: >-
+      The trigger endpoint request body MUST be a JSON object containing sufficient context
+      to identify the target report or case:
+  - id: TRIG-03-002
+    priority: MUST
+    statement: Unknown fields in the request body MUST be ignored (forward-compatibility)
+  - id: TRIG-03-003
+    priority: SHOULD
+    statement: >-
+      The trigger endpoint request body SHOULD support an optional `note` field containing
+      free-text content that will be embedded in the outgoing ActivityStreams activity (e.g.,
+      rationale for embargo proposal, reason for deferral)
+  - id: TRIG-03-004
+    priority: MUST
+    statement: >-
+      The `reject-report` trigger request body MUST include a `note` field (reason required);
+      the `note` value SHOULD be non-empty
+    rationale: >-
+      Hard-close decisions are irreversible and warrant documented justification for audit
+      purposes
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-03-003
+    - rel_type: depends_on
+      spec_id: CS-08-001
+- id: TRIG-09
+  title: Response Body
+  specs:
+  - id: TRIG-04-001
+    priority: SHOULD
+    statement: >-
+      A successful trigger response SHOULD include the resulting ActivityStreams activity
+      in the response body under an `activity` key:
+  - id: TRIG-04-002
+    priority: MAY
+    statement: >-
+      When a trigger initiates a long-running behavior, the response MAY return a job object
+      per `AR-04-001` instead of the activity directly
+    scope:
+    - production
+    relationships:
+    - rel_type: depends_on
+      spec_id: AR-04-001
+- id: TRIG-10
+  title: BT Integration
+  specs:
+  - id: TRIG-05-001
+    priority: SHOULD
+    statement: >-
+      Trigger endpoint implementations SHOULD reuse existing BT trees rather than duplicating
+      behavior logic
+  - id: TRIG-05-002
+    priority: SHOULD
+    statement: >-
+      The trigger endpoint SHOULD invoke the BT tree via the bridge layer (`vultron/core/behaviors/bridge.py`)
+      using the same pattern as existing BT-using handlers
+    relationships:
+    - rel_type: depends_on
+      spec_id: BT-05-001
+- id: TRIG-11
+  title: Per-Actor DataLayer
+  specs:
+  - id: TRIG-06-001
+    priority: MUST
+    statement: >-
+      Trigger endpoints MUST resolve the correct per-actor DataLayer instance using the `actor_id`
+      path parameter
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-01-001
+  - id: TRIG-06-002
+    priority: MUST
+    statement: >-
+      Trigger endpoint implementations MUST accept the DataLayer instance via dependency injection
+      to allow per-actor isolation to be retrofitted without changing endpoint contracts
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-01-001
+- id: TRIG-12
+  title: Outbox Activity
+  specs:
+  - id: TRIG-07-001
+    priority: MUST
+    statement: >-
+      A successfully executed trigger MUST produce an outgoing ActivityStreams activity added
+      to the actor's outbox
+    relationships:
+    - rel_type: depends_on
+      spec_id: OX-02-001
+- id: TRIG-13
+  title: Trigger Classification
+  specs:
+  - id: TRIG-08-001
+    priority: MUST
+    statement: >-
+      The application MUST define a `RunMode` StrEnum with at least two values: `PROTOTYPE`
+      and `PROD`
+  - id: TRIG-08-002
+    priority: MUST
+    statement: >-
+      A trigger is **general-purpose** if it represents either a legitimate external stimulus
+      (e.g., a finder submitting a report) or an intentional actor decision that a human operator
+      or agentic client might initiate (e.g., validating a report, proposing an embargo).
+      A trigger is **demo-only** if the only reason it exists is to let a demo script puppeteer
+      an actor through a step the actor's own BT would handle autonomously in a real deployment.
+  - id: TRIG-08-003
+    priority: MUST
+    statement: >-
+      General-purpose triggers MUST be exposed under the path prefix `/actors/{actor_id}/trigger/{behavior-name}`
+      (TRIG-01-001)
+  - id: TRIG-08-004
+    priority: MUST
+    statement: >-
+      Demo-only triggers MUST be exposed under the path prefix `/actors/{actor_id}/demo/{behavior-name}`
+      (see TRIG-09-001)
+  - id: TRIG-08-005
+    priority: MUST
+    statement: >-
+      `RunMode` MUST be stored as `ServerConfig.run_mode` within `AppConfig` (CFG-04-001)
+      with a default of `RunMode.PROTOTYPE`
+    relationships:
+    - rel_type: depends_on
+      spec_id: CFG-04-001
+- id: TRIG-14
+  title: Demo Trigger Endpoints
+  specs:
+  - id: TRIG-09-001
+    priority: MUST
+    statement: >-
+      Demo-only trigger endpoints MUST use the URL path pattern `POST /actors/{actor_id}/demo/{behavior-name}`
+  - id: TRIG-09-002
+    priority: MUST
+    statement: >-
+      The demo router MUST be conditionally mounted: it MUST be included in the FastAPI application
+      only when `get_config().server.run_mode == RunMode.PROTOTYPE`
+  - id: TRIG-09-003
+    priority: MUST
+    statement: >-
+      When `run_mode == RunMode.PROD`, any request to a path under `/demo/` MUST return HTTP
+      404 (the routes are not mounted; no custom error message is required)
+    relationships:
+    - rel_type: depends_on
+      spec_id: TRIG-09-002
+  - id: TRIG-09-004
+    priority: MUST
+    statement: >-
+      Demo trigger endpoints MUST share the same per-actor DataLayer injection pattern as
+      general-purpose trigger endpoints (TRIG-06-001, TRIG-06-002)
+  - id: TRIG-09-005
+    priority: MUST
+    statement: >-
+      Demo trigger endpoints MUST use an OpenAPI tag that visually distinguishes them from
+      general-purpose triggers in the Swagger UI (e.g., `tags=["Demo Triggers"]` vs `tags=["Triggers"]`)
+- id: TRIG-15
+  title: Generalized Object Triggers and Type-Specific Wrappers
+  specs:
+  - id: TRIG-10-001
+    priority: MUST
+    statement: >-
+      The system MUST expose an `add-object-to-case` general trigger at `POST /actors/{actor_id}/trigger/add-object-to-case`
+      that accepts any valid AS2 object type as the `object` in its request body
+    rationale: >-
+      Adding content to a case is a legitimate operator action regardless of object type;
+      a Note is the most common use but not the only one
+  - id: TRIG-10-002
+    priority: MUST
+    statement: >-
+      Type-specific convenience triggers (e.g., `add-report-to-case`) MUST delegate to the
+      corresponding general trigger after performing type-specific validation
+  - id: TRIG-10-003
+    priority: MUST_NOT
+    statement: >-
+      `add-note-to-case` MUST NOT be exposed as a general `/trigger/` endpoint; it MUST be
+      moved to `/demo/add-note-to-case` as a demo-only convenience wrapper around `add-object-to-case`
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-08-004
+  - id: TRIG-10-004
+    priority: MUST_NOT
+    statement: >-
+      `sync-log-entry` MUST NOT be exposed as a general `/trigger/` endpoint; it MUST be moved
+      to `/demo/sync-log-entry`
+    rationale: >-
+      In a correct implementation, SYNC log entries are committed automatically as a cascade
+      effect of every state-changing operation. An explicit trigger exists only to let the
+      demo script inject entries manually. A future production "force-sync" recovery operation
+      would require a protocol-level mechanism for a peer to advertise its current log tail
+      hash before entries are replayed (SYNC-03-004)
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-08-004

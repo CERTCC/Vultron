@@ -1,0 +1,8 @@
+id: DATALAYE
+title: DataLayer Port Requirements
+description: >-
+  The `DataLayer` protocol (`vultron/core/ports/datalayer.py`) is the driven port through
+  which core domain logic accesses persistence. This spec defines the behavioural contract
+  that all DataLayer adapter implementations MUST satisfy.
+version: 1.0.0
+groups: []

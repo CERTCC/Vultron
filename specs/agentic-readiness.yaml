@@ -1,0 +1,202 @@
+id: AR
+title: Agentic Readiness
+description: >-
+  Requirements for API and CLI design that enable reliable interaction by automated agents
+  and AI systems. Ensures consistent, machine-parseable interfaces that support agentic workflows.
+  `structured-logging.md`, `observability.md`
+version: 1.0.0
+groups:
+- id: AR-01
+  title: API Discoverability
+  specs:
+  - id: AR-01-001
+    priority: MUST
+    statement: The API MUST expose a machine-readable OpenAPI JSON schema at `/openapi.json`
+  - id: AR-01-002
+    priority: MUST
+    statement: >-
+      The API MUST expose rendered documentation UI at `/docs` and `/redoc` in development
+      environments
+  - id: AR-01-003
+    priority: MUST
+    statement: >-
+      Every endpoint MUST have a unique, stable `operationId` following the `{resource}_{action}`
+      naming convention
+  - id: AR-01-004
+    priority: MUST
+    statement: >-
+      All possible HTTP response codes for each endpoint MUST be declared in the OpenAPI spec
+      with typed response models
+    scope:
+    - production
+- id: AR-02
+  title: State and Workflow Transitions
+  specs:
+  - id: AR-02-001
+    priority: SHOULD
+    statement: >-
+      Resources with a `status` field SHOULD include a `next_allowed_actions` list identifying
+      valid state transitions from the current state
+    scope:
+    - production
+  - id: AR-02-002
+    priority: MUST
+    statement: >-
+      All valid states and state transitions for state machine resources MUST be documented
+  - id: AR-02-003
+    priority: MUST
+    statement: >-
+      Endpoints with prerequisites MUST return a structured error using the `error` field
+      value `"PreconditionFailedError"` when invoked out of sequence
+    scope:
+    - production
+    relationships:
+    - rel_type: depends_on
+      spec_id: EH-05-001
+- id: AR-03
+  title: Stable Error Types
+  specs:
+  - id: AR-03-001
+    priority: MUST
+    statement: >-
+      The API MUST use the `error` field (per `error-handling.md` EH-05-001) as a stable,
+      machine-parseable error type identifier
+    relationships:
+    - rel_type: depends_on
+      spec_id: EH-05-001
+- id: AR-04
+  title: Long-Running Operations
+  specs:
+  - id: AR-04-001
+    priority: SHOULD
+    statement: >-
+      Long-running operations SHOULD return a job or task object immediately with a stable
+      `id` and `status` field
+    scope:
+    - production
+  - id: AR-04-002
+    priority: SHOULD
+    statement: >-
+      A separate polling endpoint or webhook mechanism SHOULD be available to report operation
+      completion
+    scope:
+    - production
+- id: AR-05
+  title: Pagination
+  specs:
+  - id: AR-05-001
+    priority: SHOULD
+    statement: >-
+      Collection endpoints SHOULD expose `limit` and `offset` (or `cursor`) query parameters
+      with documented defaults and maximums
+- id: AR-06
+  title: Bulk Operations
+  specs:
+  - id: AR-06-001
+    priority: MAY
+    statement: >-
+      Resources that agents may need to create, update, or delete in quantity MAY expose batch
+      endpoints (e.g., `POST /v1/items/batch`)
+    scope:
+    - production
+- id: AR-10
+  title: Actor Discovery Profile
+  specs:
+  - id: AR-10-001
+    priority: MUST
+    statement: >-
+      The API MUST expose `GET /actors/{actor_id}/profile` returning an ActivityStreams actor
+      profile document for actor discovery and federation
+  - id: AR-10-002
+    priority: MUST
+    statement: The profile endpoint MUST return HTTP 404 when the actor is not found
+  - id: AR-10-003
+    priority: MUST
+    statement: >-
+      The profile endpoint MUST support both full actor URI and short actor ID (e.g., `vendorco`)
+      as the `actor_id` path parameter
+- id: AR-07
+  title: CVD Action Rules API
+  specs:
+  - id: AR-07-001
+    priority: SHOULD
+    statement: >-
+      The system SHOULD expose an endpoint that returns the set of valid CVD actions available
+      to a participant given current case state and their role
+  - id: AR-07-002
+    priority: MUST
+    statement: 'The action rules response MUST be a machine-parseable JSON object that includes:'
+  - id: AR-07-003
+    priority: MUST
+    statement: The action rules endpoint MUST be reflected in the OpenAPI schema per AR-01-001
+    scope:
+    - production
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-07-001
+    - rel_type: depends_on
+      spec_id: CM-07-002
+    - rel_type: depends_on
+      spec_id: CM-07-003
+- id: AR-08
+  title: CLI Interface
+  specs:
+  - id: AR-08-001
+    priority: MUST
+    statement: >-
+      The CLI MUST be installable as a Python package entry point defined in `pyproject.toml`
+    scope:
+    - production
+  - id: AR-08-002
+    priority: MUST
+    statement: >-
+      Every CLI command MUST support a structured JSON output mode (e.g., `--output json`)
+      emitting machine-parseable JSON to stdout
+    scope:
+    - production
+  - id: AR-08-003
+    priority: MUST
+    statement: >-
+      CLI commands MUST exit with code `0` on success, `1` on handled error, and `2` on usage
+      or argument error
+    scope:
+    - production
+  - id: AR-08-004
+    priority: MUST
+    statement: >-
+      CLI commands wrapping API calls MUST surface the `error` field and `request_id` from
+      API error responses in their JSON error output
+    scope:
+    - production
+  - id: AR-08-005
+    priority: SHOULD
+    statement: >-
+      Long-running CLI commands SHOULD support `--wait` / `--no-wait` flags; `--no-wait` returns
+      the job object immediately
+    scope:
+    - production
+- id: AR-09
+  title: MCP Server Adapter
+  specs:
+  - id: AR-09-001
+    priority: MAY
+    statement: >-
+      A local MCP server adapter MAY be provided at `vultron/adapters/driving/mcp_server.py`,
+      exposing Vultron use cases as MCP tools
+  - id: AR-09-002
+    priority: MUST
+    statement: >-
+      Each MCP tool MUST map 1:1 to a domain use case in `vultron/core/use_cases/`, with no
+      business logic in the adapter itself
+  - id: AR-09-003
+    priority: MUST
+    statement: >-
+      The MCP server MUST authenticate tool calls using the same actor identity model as the
+      HTTP inbox
+    scope:
+    - production
+  - id: AR-09-004
+    priority: MUST
+    statement: >-
+      MCP tool responses MUST use the same structured JSON format as CLI `--output json` responses,
+      enabling consistent AI agent parsing

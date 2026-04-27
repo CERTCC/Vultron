@@ -1,0 +1,136 @@
+id: EP
+title: Embargo Policy
+description: >-
+  Requirements for a standardized embargo policy record associated with an Actor profile.
+  Allows actors to declare their default embargo preferences so that coordinators can evaluate
+  compatibility before proposing an embargo or inviting an actor to a case. Coordination",
+  "Prior Art and References (Embargo Policy)") `agentic-readiness.md`, `duration.md` (duration
+  string format)
+version: 1.0.0
+groups:
+- id: EP-01
+  title: Policy Record Format
+  specs:
+  - id: EP-01-001
+    priority: MAY
+    statement: >-
+      An Actor profile MAY include a `embargo_policy` field containing a structured embargo
+      policy record
+  - id: EP-01-002
+    priority: MUST
+    statement: 'The embargo policy record MUST include the following fields:'
+    relationships:
+    - rel_type: implements
+      spec_id: VP-05-001
+    - rel_type: implements
+      spec_id: VP-07-001
+    - rel_type: implements
+      spec_id: VP-07-002
+    - rel_type: depends_on
+      spec_id: DUR-01-001
+      note: ISO 8601 duration format
+  - id: EP-01-003
+    priority: SHOULD
+    statement: 'The embargo policy record SHOULD include the following fields:'
+    relationships:
+    - rel_type: implements
+      spec_id: VP-05-001
+    - rel_type: implements
+      spec_id: VP-07-006
+    - rel_type: depends_on
+      spec_id: DUR-01-001
+      note: ISO 8601 duration format
+  - id: EP-01-004
+    priority: MUST
+    statement: >-
+      The embargo policy record MUST be serializable as a Pydantic model and persisted in
+      the DataLayer
+  - id: EP-01-005
+    priority: MUST
+    statement: The embargo policy record MUST use full-URI IDs for `actor_id`
+    relationships:
+    - rel_type: depends_on
+      spec_id: OID-01-001
+- id: EP-02
+  title: API Endpoint
+  specs:
+  - id: EP-02-001
+    priority: SHOULD
+    statement: >-
+      Each Actor SHOULD expose its embargo policy at `GET /actors/{actor_id}/embargo-policy`
+    scope:
+    - production
+  - id: EP-02-002
+    priority: MUST
+    statement: >-
+      The policy endpoint MUST be machine-readable (returns JSON) and MUST be listed in the
+      Actor's ActivityPub profile under a well-known key (e.g., `vultron:embargoPolicy`)
+    scope:
+    - production
+- id: EP-03
+  title: Policy Compatibility Evaluation
+  specs:
+  - id: EP-03-001
+    priority: SHOULD
+    statement: >-
+      Before proposing an embargo or inviting an actor to join an existing embargo, the CaseActor
+      SHOULD retrieve and evaluate the target actor's embargo policy for compatibility with
+      the proposed embargo terms
+    scope:
+    - production
+    relationships:
+    - rel_type: implements
+      spec_id: VP-07-001
+    - rel_type: implements
+      spec_id: VP-07-006
+    - rel_type: implements
+      spec_id: VP-07-007
+  - id: EP-03-002
+    priority: MUST
+    statement: >-
+      Compatibility evaluation MUST check that the proposed duration falls within the target
+      actor's `minimum_duration`–`maximum_duration` range, if declared
+    scope:
+    - production
+    relationships:
+    - rel_type: implements
+      spec_id: VP-07-003
+    - rel_type: implements
+      spec_id: VP-07-004
+    - rel_type: implements
+      spec_id: VP-07-005
+    - rel_type: depends_on
+      spec_id: DUR-01-001
+    - rel_type: depends_on
+      spec_id: DUR-04-001
+- id: EP-04
+  title: Default Embargo Semantics (MUST)
+  specs:
+  - id: EP-04-001
+    priority: MUST
+    statement: >-
+      When a receiver applies their published default embargo at case creation and the sender
+      submitted no explicit embargo proposal, the initial `CaseStatus.em_state` MUST be set
+      to `EM.ACTIVE`, not `EM.PROPOSED`. The sender's report submission without a counter-proposal
+      constitutes tacit acceptance of the receiver's default embargo.
+    relationships:
+    - rel_type: refines
+      spec_id: DUR-07-003
+  - id: EP-04-002
+    priority: MUST_NOT
+    statement: >-
+      The implementation MUST apply both the PROPOSE and ACCEPT state machine triggers atomically
+      within `InitializeDefaultEmbargoNode`. The intermediate `EM.PROPOSED` state MUST NOT
+      be persisted or observable externally.
+  - id: EP-04-003
+    priority: MUST
+    statement: >-
+      When both the sender and receiver have an applicable embargo proposal at case creation
+      (sender proposes a duration and receiver has a default), the shorter of the two MUST
+      be made active immediately (`em_state = EM.ACTIVE`) and the longer SHOULD be registered
+      as a pending revision (`em_state = EM.REVISE`).
+  - id: EP-04-004
+    priority: MUST
+    statement: >-
+      EP-04-003 is contingent on a sender-proposal mechanism being available. Until such a
+      mechanism exists, only the no-sender-proposal case (EP-04-001) applies at case creation.

@@ -1,0 +1,77 @@
+id: ID
+title: Idempotency
+description: >-
+  The system must handle duplicate activity submissions gracefully, ensuring repeated identical
+  requests produce the same outcome without unintended side effects. **Consolidates**: `inbox-endpoint.md`
+  IE-10-001, `message-validation.md` MV-08-001, `handler-protocol.md` HP-07-001
+version: 1.0.0
+groups:
+- id: ID-01
+  title: Activity ID Uniqueness
+  specs:
+  - id: ID-01-001
+    priority: MUST
+    statement: All activities MUST have globally unique `id` field (URI)
+  - id: ID-01-002
+    priority: MUST
+    statement: Activity IDs MUST remain stable (same activity = same ID)
+- id: ID-02
+  title: Duplicate Detection
+  specs:
+  - id: ID-02-001
+    priority: MUST
+    statement: System MUST detect duplicate activity submissions by ID
+  - id: ID-02-002
+    priority: SHOULD
+    statement: System SHOULD track processed activity IDs in DataLayer
+  - id: ID-02-003
+    priority: MUST
+    statement: Detection MUST occur before handler business logic execution
+- id: ID-03
+  title: Idempotent Response
+  specs:
+  - id: ID-03-001
+    priority: MUST
+    statement: Duplicate submissions MUST return same HTTP status as original
+  - id: ID-03-002
+    priority: MUST_NOT
+    statement: Duplicate detection MUST NOT delay response beyond 100ms
+  - id: ID-03-003
+    priority: SHOULD
+    statement: System SHOULD log duplicate submissions at WARNING level
+    relationships:
+    - rel_type: depends_on
+      spec_id: SL-03-001
+- id: ID-04
+  title: Handler Idempotency
+  specs:
+  - id: ID-04-001
+    priority: SHOULD
+    statement: Handlers SHOULD be idempotent (same input → same output)
+  - id: ID-04-002
+    priority: SHOULD
+    statement: Handlers SHOULD check existing state before state transitions
+    relationships:
+    - rel_type: implements
+      spec_id: VP-03-013
+  - id: ID-04-003
+    priority: SHOULD
+    statement: Handlers SHOULD log attempted re-execution at INFO level
+  - id: ID-04-004
+    priority: MUST
+    statement: State-changing handlers MUST be idempotent
+    rationale: >-
+      Duplicate processing of state-change messages causes data corruption; SHOULD-level idempotency
+      is insufficient for state machines
+- id: ID-05
+  title: Implementation Strategy
+  specs:
+  - id: ID-05-001
+    priority: SHOULD
+    statement: Validation layer SHOULD reject exact duplicates (same ID, same content)
+  - id: ID-05-002
+    priority: MAY
+    statement: HTTP layer MAY implement early duplicate filtering for performance
+  - id: ID-05-003
+    priority: SHOULD
+    statement: Handlers provide final idempotency guarantee via state checks

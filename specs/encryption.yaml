@@ -1,0 +1,101 @@
+id: ENC
+title: Encryption
+description: >-
+  Requirements for encrypted messaging and actor key management using ActivityPub extension
+  conventions. Ensures that sensitive vulnerability information can be protected in transit
+  between actors. implemented in the prototype. `case-management.md`, `inbox-endpoint.md`,
+  `semantic-extraction.md`
+version: 1.0.0
+groups:
+- id: ENC-01
+  title: Key Management
+  specs:
+  - id: ENC-01-001
+    priority: MUST
+    statement: Each CaseActor MUST generate an asymmetric key pair at instantiation
+    scope:
+    - production
+    relationships:
+    - rel_type: implements
+      spec_id: VP-15-003
+  - id: ENC-01-002
+    priority: MUST
+    statement: >-
+      The CaseActor MUST publish its public key in its ActivityPub actor profile using the
+      `publicKey` property per ActivityPub HTTP Signatures conventions
+    scope:
+    - production
+  - id: ENC-01-003
+    priority: MUST
+    statement: >-
+      The CaseActor MUST share its public key with each case participant when they are added
+      to the case
+    scope:
+    - production
+  - id: ENC-01-004
+    priority: MUST_NOT
+    statement: >-
+      Private keys MUST be stored securely and MUST NOT be logged or included in API responses
+    scope:
+    - production
+- id: ENC-02
+  title: Message Encryption
+  specs:
+  - id: ENC-02-001
+    priority: MAY
+    statement: >-
+      Case participants MAY encrypt messages sent to the CaseActor using the CaseActor's published
+      public key
+    scope:
+    - production
+    relationships:
+    - rel_type: implements
+      spec_id: VP-15-003
+    - rel_type: implements
+      spec_id: VP-15-004
+  - id: ENC-02-002
+    priority: SHOULD
+    statement: >-
+      When sending messages to case participants, the CaseActor SHOULD encrypt each outbound
+      message to the recipient's public key individually (one encrypted payload per recipient)
+    scope:
+    - production
+    relationships:
+    - rel_type: implements
+      spec_id: VP-15-004
+- id: ENC-03
+  title: Decryption Pipeline
+  specs:
+  - id: ENC-03-001
+    priority: MUST
+    statement: >-
+      Decryption of inbound encrypted activities MUST occur in the inbox handler before the
+      activity is passed to semantic extraction or dispatch
+    scope:
+    - production
+    relationships:
+    - rel_type: depends_on
+      spec_id: IE-04-001
+    - rel_type: depends_on
+      spec_id: SE-01-001
+    - rel_type: implements
+      spec_id: VP-15-003
+  - id: ENC-03-002
+    priority: MUST
+    statement: >-
+      If decryption fails, the inbox handler MUST return HTTP 400 with a structured error
+      indicating decryption failure
+    scope:
+    - production
+    relationships:
+    - rel_type: depends_on
+      spec_id: EH-05-001
+    - rel_type: depends_on
+      spec_id: HTTP-03-001
+  - id: ENC-03-003
+    priority: MUST_NOT
+    statement: >-
+      The decryption layer MUST be separate from semantic extraction logic; the two concerns
+      MUST NOT be mixed
+    scope:
+    - production

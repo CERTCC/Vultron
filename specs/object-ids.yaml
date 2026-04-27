@@ -1,0 +1,88 @@
+id: OID
+title: Object ID
+description: >-
+  Requirements for the format and handling of object identifiers throughout the Vultron system.
+  Establishes full-URI IDs as the canonical form for all ActivityStreams objects and DataLayer
+  records. Should Be URL-Like, Not Bare UUIDs"), `plan/IMPLEMENTATION_PLAN.md` (TECHDEBT-3)
+  `behavior-tree-integration.md`
+version: 1.0.0
+groups:
+- id: OID-01
+  title: ID Format
+  specs:
+  - id: OID-01-001
+    priority: MUST
+    statement: All ActivityStreams object IDs (`as_id`) MUST use full URI form
+    relationships:
+    - rel_type: implements
+      spec_id: VP-16-002
+    - rel_type: implements
+      spec_id: VP-16-003
+  - id: OID-01-002
+    priority: MUST
+    statement: IDs MUST be globally unique within the system
+  - id: OID-01-003
+    priority: MUST
+    statement: >-
+      The canonical base URI for locally created objects MUST be configurable via an environment
+      variable (`VULTRON_BASE_URL` or equivalent)
+  - id: OID-01-004
+    priority: MUST
+    statement: >-
+      Helper functions for constructing full-URI IDs from UUIDs MUST be provided in a shared
+      utility module (e.g., `vultron.as_vocab.utils.make_id`)
+  - id: OID-01-005
+    priority: MUST
+    statement: >-
+      Actor IDs MUST be normalized to full URI form at the point of first establishment —
+      actor creation, seed data loading, or session initialization
+    relationships:
+    - rel_type: depends_on
+      spec_id: OID-01-003
+- id: OID-02
+  title: DataLayer Handling
+  specs:
+  - id: OID-02-001
+    priority: MUST
+    statement: >-
+      The DataLayer MUST store and retrieve objects using their full-URI `as_id` as the primary
+      key
+  - id: OID-02-002
+    priority: MUST
+    statement: >-
+      `object_to_record()` MUST preserve the full-URI `as_id` when serializing objects to
+      the DataLayer
+  - id: OID-02-003
+    priority: MUST
+    statement: >-
+      `record_to_object()` MUST reconstruct objects using the full-URI `as_id` stored in the
+      record
+  - id: OID-02-004
+    priority: MUST_NOT
+    statement: >-
+      DataLayer lookups MUST accept full-URI IDs; bare UUIDs MUST NOT be accepted as valid
+      lookup keys
+- id: OID-03
+  title: Blackboard Key Handling
+  specs:
+  - id: OID-03-001
+    priority: MUST_NOT
+    statement: >-
+      Behavior Tree blackboard keys derived from object IDs MUST NOT use the raw full URI
+      as the key
+    relationships:
+    - rel_type: refines
+      spec_id: BT-03-003
+- id: OID-04
+  title: ADR Requirement
+  specs:
+  - id: OID-04-001
+    priority: MUST
+    statement: >-
+      An Architecture Decision Record MUST be created at `docs/adr/ADR-XXXX-standardize-object-ids.md`
+      before migrating existing data
+  - id: OID-04-002
+    priority: MUST
+    statement: >-
+      Any migration of existing bare-UUID records MUST be accompanied by a migration script
+      or documented manual steps

@@ -220,6 +220,6 @@ module. Migration from `.md` to `.yaml` is a one-time lossless conversion.
 
 ## Migration (SHOULD)
 
-- `SR-08-005` A migration script SHOULD be provided to convert a single
+- `SR-08-007` A migration script SHOULD be provided to convert a single
   `specs/*.md` file to the YAML format as a starting point; manual review
   and cleanup is expected.

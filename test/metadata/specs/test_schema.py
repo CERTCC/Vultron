@@ -140,6 +140,25 @@ def test_statement_spec_empty_rationale_rejected():
         )
 
 
+def test_statement_spec_rationale_none_allowed():
+    spec = StatementSpec(
+        id="AB-01-001",
+        priority=RFC2119Priority.MUST,
+        statement="AB-01-001 MUST satisfy this",
+    )
+    assert spec.rationale is None
+
+
+def test_statement_spec_rationale_omitted_allowed():
+    spec = StatementSpec(
+        id="AB-01-001",
+        priority=RFC2119Priority.MUST,
+        statement="AB-01-001 MUST satisfy this",
+        rationale=None,
+    )
+    assert spec.rationale is None
+
+
 # ---------------------------------------------------------------------------
 # BehavioralSpec
 # ---------------------------------------------------------------------------

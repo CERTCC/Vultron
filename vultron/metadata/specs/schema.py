@@ -110,7 +110,7 @@ class StatementSpec(BaseModel):
     id: SpecIdStr
     priority: RFC2119Priority
     statement: NonEmptyStr
-    rationale: NonEmptyStr
+    rationale: NonEmptyStr | None = None
     testable: bool = True
     kind: SpecKind = SpecKind.GENERAL
     scope: list[Scope] = [Scope.PRODUCTION]

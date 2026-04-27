@@ -1,0 +1,65 @@
+id: UCORG
+title: Use-Case Organization
+description: >-
+  Requirements for the physical package layout of `vultron/core/use_cases/`, registry synchronization,
+  test mirroring, and documentation of the trigger → received → sync information flow pattern.
+  `specs/handler-protocol.md`
+version: 1.0.0
+groups:
+- id: UCORG-01
+  title: Package Layout
+  specs:
+  - id: UCORG-01-001
+    priority: MUST
+    statement: >-
+      Use-case classes that process inbound received messages MUST reside under `vultron/core/use_cases/received/`
+    relationships:
+    - rel_type: implements
+      spec_id: CS-12-002
+      note: code-style.md
+  - id: UCORG-01-002
+    priority: MUST
+    statement: >-
+      Trigger use-case classes that implement actor-initiated behaviors MUST reside under
+      `vultron/core/use_cases/triggers/`
+    relationships:
+    - rel_type: implements
+      spec_id: CS-12-002
+      note: code-style.md
+  - id: UCORG-01-003
+    priority: MUST_NOT
+    statement: >-
+      The `vultron/core/use_cases/` package root MUST contain only `__init__.py` and `use_case_map.py`;
+      use-case implementations MUST NOT be placed at the root level
+- id: UCORG-02
+  title: Registry Synchronization
+  specs:
+  - id: UCORG-02-001
+    priority: MUST
+    statement: >-
+      Any relocation or rename of a use-case class MUST update `USE_CASE_MAP` in `vultron/core/use_cases/use_case_map.py`
+      in the same commit
+  - id: UCORG-02-002
+    priority: MUST
+    statement: >-
+      A dispatch coverage test MUST verify that every `MessageSemantics` value registered
+      in `USE_CASE_MAP` resolves to a callable class and that dispatch succeeds for a representative
+      event
+- id: UCORG-03
+  title: Test Layout
+  specs:
+  - id: UCORG-03-001
+    priority: MUST
+    statement: 'Tests MUST mirror the source layout:'
+    relationships:
+    - rel_type: refines
+      spec_id: TB-04-001
+      note: testability.md
+- id: UCORG-04
+  title: Information Flow Documentation
+  specs:
+  - id: UCORG-04-001
+    priority: SHOULD
+    statement: >-
+      The trigger → received → sync information flow pattern SHOULD be documented in `notes/`
+      and summarized in a `README.md` under `vultron/core/use_cases/`

@@ -1,0 +1,152 @@
+id: RF
+title: Response Format
+description: >-
+  The Vultron protocol uses ActivityStreams activities for both requests and responses. When
+  handlers process inbound activities, they generate response activities (Accept, Reject,
+  Update, etc.) sent to the originating actor or other participants.
+version: 1.0.0
+groups:
+- id: RF-01
+  title: Response Activity Structure
+  specs:
+  - id: RF-01-001
+    priority: MUST
+    statement: Response activities MUST conform to ActivityStreams 2.0
+- id: RF-02
+  title: Accept Response
+  specs:
+  - id: RF-02-001
+    priority: MUST
+    statement: Accept responses MUST use `Accept` activity type
+    relationships:
+    - rel_type: implements
+      spec_id: VP-06-004
+  - id: RF-02-002
+    priority: MUST
+    statement: >-
+      Accept responses MUST include `object` field referencing accepted activity or object
+  - id: RF-02-003
+    priority: MUST
+    statement: >-
+      Accepting an Offer of an object MUST reference the Offer activity in the `object` field
+      of the Accept response
+  - id: RF-02-004
+    priority: MUST
+    statement: >-
+      When accepting an offered object, the `object` field of the `Accept` activity MUST reference
+      the Offer activity itself (e.g., `OfferCaseOwnershipTransfer`, `RecommendActor`), not
+      the underlying object being offered. The Offer activity MUST be passed as an inline
+      typed object (e.g., `RmSubmitReportActivity`, `EmProposeEmbargoActivity`), not as a
+      bare string ID — bare string IDs are rejected at construction time
+  - id: RF-02-005
+    priority: MUST
+    statement: >-
+      When accepting an Invite, the `object` field of the `Accept` activity MUST reference
+      the Invite activity itself as a full inline typed object (e.g., `RmInviteToCaseActivity`,
+      `EmInviteToEmbargoOnCaseActivity`), not the case, embargo, or any other domain object
+    relationships:
+    - rel_type: refines
+      spec_id: RF-02-002
+- id: RF-03
+  title: Reject Response
+  specs:
+  - id: RF-03-001
+    priority: MUST
+    statement: Reject responses MUST use `Reject` activity type
+    relationships:
+    - rel_type: implements
+      spec_id: VP-06-004
+  - id: RF-03-002
+    priority: SHOULD
+    statement: Reject responses SHOULD include reason in `content` field
+  - id: RF-03-003
+    priority: MUST
+    statement: >-
+      Rejecting an Offer of an object MUST reference the Offer activity in the `object` field
+      of the Reject response
+  - id: RF-03-004
+    priority: MUST
+    statement: >-
+      When rejecting an offered object, the `object` field of the `Reject` activity MUST reference
+      the Offer activity itself, not the underlying object being offered. The Offer activity
+      MUST be passed as an inline typed object, not as a bare string ID — bare string IDs
+      are rejected at construction time
+- id: RF-04
+  title: TentativeReject Response
+  specs:
+  - id: RF-04-001
+    priority: MUST
+    statement: TentativeReject responses MUST use `TentativeReject` activity type
+    relationships:
+    - rel_type: implements
+      spec_id: VP-06-004
+  - id: RF-04-002
+    priority: SHOULD
+    statement: TentativeReject responses SHOULD include reason in `content` field
+  - id: RF-04-003
+    priority: MUST
+    statement: >-
+      Tentatively Rejecting an Offer of an object MUST reference the Offer activity in the
+      `object` field of the TentativeReject response
+  - id: RF-04-004
+    priority: MUST
+    statement: >-
+      When tentatively rejecting an offered object, the `object` field of the `Tentative Reject`
+      activity MUST reference the Offer activity itself, not the underlying object being offered.
+      The Offer activity MUST be passed as an inline typed object, not as a bare string ID
+      — bare string IDs are rejected at construction time
+- id: RF-05
+  title: Error Response
+  specs:
+  - id: RF-05-001
+    priority: SHOULD
+    statement: Error responses SHOULD use ActivityStreams error extensions
+    relationships:
+    - rel_type: implements
+      spec_id: VP-03-010
+    - rel_type: implements
+      spec_id: VP-03-011
+    - rel_type: implements
+      spec_id: VP-11-005
+- id: RF-06
+  title: Response Delivery
+  specs:
+  - id: RF-06-001
+    priority: MUST
+    statement: Response activities MUST be delivered to the relevant actors' inboxes
+  - id: RF-06-002
+    priority: MUST
+    statement: >-
+      Response activities MUST be addressed to the INITIATING actor's inbox, not to the inbox
+      that received the original activity
+    rationale: >-
+      Activities are state-change assertions; the initiator must receive the response to update
+      their model of the case state
+- id: RF-07
+  title: Response Timing
+  specs:
+  - id: RF-07-001
+    priority: MUST_NOT
+    statement: Response generation MUST NOT delay inbox acknowledgment
+- id: RF-08
+  title: Response Correlation
+  specs:
+  - id: RF-08-001
+    priority: MUST
+    statement: Response activities MUST include `inReplyTo` field
+    relationships:
+    - rel_type: implements
+      spec_id: VP-03-009
+    - rel_type: implements
+      spec_id: VP-11-004
+    - rel_type: implements
+      spec_id: VP-11-005
+- id: RF-09
+  title: Idempotent Responses
+  specs:
+  - id: RF-09-001
+    priority: MUST
+    statement: Response generation MUST be idempotent
+    relationships:
+    - rel_type: depends_on
+      spec_id: ID-02-001

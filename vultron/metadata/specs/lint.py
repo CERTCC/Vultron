@@ -76,7 +76,8 @@ def lint(spec_dir: Path) -> int:
             )
 
         if (
-            len(spec.rationale) > _RATIONALE_WARN_CHARS
+            spec.rationale
+            and len(spec.rationale) > _RATIONALE_WARN_CHARS
             and LintWarningCode.RATIONALE_TOO_LONG not in suppressed
         ):
             warnings.append(

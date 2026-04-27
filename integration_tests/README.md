@@ -45,7 +45,7 @@ docker compose -f docker/docker-compose.yml logs api-dev
 docker compose -f docker/docker-compose.yml logs demo
 ```
 
-## Multi-Actor Demo Integration Tests (DEMO-MA-03-001)
+## Multi-Actor Demo Integration Tests (DEMOMA-03-001)
 
 `integration_tests/demo/run_multi_actor_integration_test.sh` starts all
 actor services defined in `docker/docker-compose-multi-actor.yml`, waits for
@@ -124,7 +124,7 @@ Use `docker compose port <service> 7999` or `docker ps` to discover the
 dynamically assigned host port when running with ephemeral defaults.
 
 Named Docker volumes are removed on exit so each run starts from a clean
-baseline (DEMO-MA-01-003).
+baseline (DEMOMA-01-003).
 
 ## Notes
 

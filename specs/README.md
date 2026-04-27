@@ -213,7 +213,7 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 - **`demo-cli.md`** - Unified demo CLI: Click-based entry point, demo isolation, Docker,
   unit and integration test requirements
 - **`multi-actor-demo.md`** - Multi-actor demo scenarios: Docker Compose orchestration,
-  actor isolation, acceptance tests, scenario coverage (DEMO-MA-01 through DEMO-MA-04)
+  actor isolation, acceptance tests, scenario coverage (DEMOMA-01 through DEMOMA-04)
 
 ### Actor Profiles and Policies
 
@@ -228,7 +228,7 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 ### Security
 
 - **`ci-security.md`** - GitHub Actions security: SHA pinning, secrets
-  management, artifact integrity (CI-SEC-01 through CI-SEC-04)
+  management, artifact integrity (CISEC-01 through CISEC-04)
 - **`encryption.md`** - ActivityPub encryption and key management (`PROD_ONLY`)
 
 ### Code Standards
@@ -239,11 +239,11 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   (`FooActivity` vs `FooEvent`, CS-10-002), type annotation strictness
   (no `Any`, CS-11-001), domain-centric class naming (CS-12-001)
 - **`tech-stack.md`** - Normative technology constraints: runtime, persistence,
-  tooling, code quality tooling (including pyright gradual adoption, IMPL-TS-*),
-  and Python runtime upgrade policy (IMPL-TS-01-007)
+  tooling, code quality tooling (including pyright gradual adoption, IMPLTS-*),
+  and Python runtime upgrade policy (IMPLTS-01-007)
 - **`use-case-organization.md`** - Package layout for `vultron/core/use_cases/`
   (received/ vs triggers/), registry synchronization, test mirroring, and
-  information flow documentation (UC-ORG-01 through UC-ORG-04)
+  information flow documentation (UCORG-01 through UCORG-04)
 - **`meta-specifications.md`** - How to write and maintain specifications
 
 ### Documentation Content and Organization
@@ -329,12 +329,12 @@ is reserved for `testability.md`).
 | `BT` | `behavior-tree-integration.md` |
 | `BTC` | `bt-composability.md` |
 | `BTND` | `behavior-tree-node-design.md` |
-| `CI-SEC` | `ci-security.md` |
+| `CISEC` | `ci-security.md` |
 | `CLP` | `case-log-processing.md` |
 | `CM` | `case-management.md` |
 | `CS` | `code-style.md` |
 | `DC` | `demo-cli.md` |
-| `DEMO-MA` | `multi-actor-demo.md` |
+| `DEMOMA` | `multi-actor-demo.md` |
 | `DF` | `diataxis-requirements.md` |
 | `DL` | `datalayer.md` |
 | `EH` | `error-handling.md` |
@@ -342,7 +342,7 @@ is reserved for `testability.md`).
 | `HP` | `handler-protocol.md` |
 | `HTTP` | `http-protocol.md` |
 | `IE` | `inbox-endpoint.md` |
-| `IMPL-TS` | `tech-stack.md` |
+| `IMPLTS` | `tech-stack.md` |
 | `MV` | `message-validation.md` |
 | `NF` | `notes-frontmatter.md` |
 | `SR` | `spec-registry.md` |
@@ -361,7 +361,7 @@ is reserved for `testability.md`).
 | `AF` | `activity-factories.md` |
 | `TRACE` | `traceability.md` |
 | `TRIG` | `triggerable-behaviors.md` |
-| `UC-ORG` | `use-case-organization.md` |
+| `UCORG` | `use-case-organization.md` |
 | `VAM` | `vultron-as2-mapping.md` |
 | `VM` | `vocabulary-model.md` |
 

@@ -8,7 +8,7 @@ Defines code formatting and import organization standards for Python code.
 **Note**: Applies to all Python source files and documentation code blocks  
 **Consolidation note**: CI/CD enforcement requirements (pre-commit hooks,
 CI pipeline pass criteria, parallel jobs) are consolidated in
-`tech-stack.md` (IMPL-TS-07-001 through IMPL-TS-07-006). This file covers
+`tech-stack.md` (IMPLTS-07-001 through IMPLTS-07-006). This file covers
 formatting conventions and coding style standards only.
 
 ---
@@ -18,7 +18,7 @@ formatting conventions and coding style standards only.
 - `CS-01-001` Code MUST follow PEP 8 style guidelines
   - **Implementation**: Black formatter MUST be used for consistency
   - **Settings**: Default Black settings (88 character line length, etc.)
-  - CS-01-001 refines IMPL-TS-07-001
+  - CS-01-001 refines IMPLTS-07-001
 
 ## Docstring Standards
 
@@ -333,7 +333,7 @@ def extract_id_segment(url: str) -> str:
 
 ## No Compatibility Shims
 
-- `CS-13-001` (MUST) When a module, function, variable, or symbol is
+- `CS-15-001` (MUST) When a module, function, variable, or symbol is
   refactored or replaced, the old symbol MUST be deleted. Compatibility
   aliases, re-exports, and shims that exist solely to avoid updating call
   sites are prohibited.

@@ -881,7 +881,7 @@ incoming activity.
 
 ## TECHDEBT-8 — Pyright gradual static type checking (2026-03-10)
 
-**Task**: Configure pyright for gradual static type checking (IMPL-TS-07-002).
+**Task**: Configure pyright for gradual static type checking (IMPLTS-07-002).
 
 **Implementation**:
 
@@ -3418,7 +3418,7 @@ warnings surfaced by this change.
 **What was done**:
 
 - Added `filterwarnings = ["error"]` to `[tool.pytest.ini_options]` in
-  `pyproject.toml` (per `specs/tech-stack.md` IMPL-TS-07-006).
+  `pyproject.toml` (per `specs/tech-stack.md` IMPLTS-07-006).
 - Fixed `ResourceWarning: unclosed file 'mydb.json'` in
   `vultron/adapters/driven/datalayer_tinydb.py`:
   - Added `TinyDbDataLayer.close()` method that calls `self._db.close()` to
@@ -3532,7 +3532,7 @@ Three grouped PRIORITY-250 tasks completed in one commit:
 ## REORG-1 — Reorganize `vultron/core/use_cases/` (COMPLETE 2026-03-30)
 
 Reorganized `vultron/core/use_cases/` into clearer sub-packages per
-`specs/use-case-organization.md` UC-ORG-01-001 through UC-ORG-04-001.
+`specs/use-case-organization.md` UCORG-01-001 through UCORG-04-001.
 
 **Source moves (via `git mv`):**
 
@@ -3579,13 +3579,13 @@ documenting the trigger→received→sync information flow.
   SHA-pinning policy (all `uses:` references must be pinned to a 40-char commit
   SHA with an inline human-readable version comment), the use of Dependabot as
   the primary maintenance mechanism, and the automated test as the continuous
-  enforcement mechanism. References CI-SEC-04-001.
+  enforcement mechanism. References CISEC-04-001.
 - Added ADR-0014 to `docs/adr/index.md`.
 - Created `test/ci/__init__.py` and `test/ci/test_workflow_sha_pinning.py`:
   53 parametrised pytest tests covering every `uses:` line across all 6
   `.github/workflows/*.yml` files. Tests verify:
-  - CI-SEC-01-001: reference is pinned to a full 40-hex-character SHA
-  - CI-SEC-01-002: SHA line carries an inline version comment (e.g., `# v4.1.0`)
+  - CISEC-01-001: reference is pinned to a full 40-hex-character SHA
+  - CISEC-01-002: SHA line carries an inline version comment (e.g., `# v4.1.0`)
 
 **Tests:** 1080 passed (+53 new), 5581 subtests passed.
 
@@ -3794,14 +3794,14 @@ spec files, following the `ID-1 relationship ID-2` convention from
 
 ### code-style.md ↔ tech-stack.md
 
-- `CS-01-001 refines IMPL-TS-07-001` / reverse: code style requirement
+- `CS-01-001 refines IMPLTS-07-001` / reverse: code style requirement
   refines the authoritative Black tooling requirement.
-- `CS-01-002 derives-from IMPL-TS-07-005` / reverse: CI formatting-check
+- `CS-01-002 derives-from IMPLTS-07-005` / reverse: CI formatting-check
   requirement derives from the parallel-jobs CI requirement.
-- `CS-01-003 duplicates IMPL-TS-07-001/004/005` (and reverses): developer
+- `CS-01-003 duplicates IMPLTS-07-001/004/005` (and reverses): developer
   enforcement summary in code-style duplicates canonical tool requirements
   in tech-stack.
-- `CS-01-006 duplicates IMPL-TS-07-002/003` (and reverses): static type
+- `CS-01-006 duplicates IMPLTS-07-002/003` (and reverses): static type
   enforcement in code-style duplicates canonical per-tool requirements in
   tech-stack.
 
@@ -3834,12 +3834,12 @@ canonical and superseded items.
 **`tech-stack.md` vs `code-style.md`** (canonical: `tech-stack.md` for
 enforcement; `code-style.md` for style conventions):
 
-- `CS-01-002` deprecated and superseded by `IMPL-TS-07-005`
-- `CS-01-003` deprecated and superseded by `IMPL-TS-07-001`, `IMPL-TS-07-004`,
-  `IMPL-TS-07-005`
-- `CS-01-006` deprecated and superseded by `IMPL-TS-07-002`, `IMPL-TS-07-003`
+- `CS-01-002` deprecated and superseded by `IMPLTS-07-005`
+- `CS-01-003` deprecated and superseded by `IMPLTS-07-001`, `IMPLTS-07-004`,
+  `IMPLTS-07-005`
+- `CS-01-006` deprecated and superseded by `IMPLTS-07-002`, `IMPLTS-07-003`
 - Added consolidation note to `code-style.md` header
-- `IMPL-TS-07-001–005` updated with `supersedes` relationships (replacing
+- `IMPLTS-07-001–005` updated with `supersedes` relationships (replacing
   `is-duplicated-by`)
 
 **`dispatch-routing.md` vs `handler-protocol.md`** (canonical: dispatch-routing
@@ -4009,7 +4009,7 @@ env var support to the DataLayer.
   Each actor service has a unique `VULTRON_BASE_URL`, named volume at
   `/app/data/mydb.json`, healthcheck at `/api/v2/health/ready`, and
   `vultron-network` membership. `demo-runner` uses `condition: service_healthy`
-  dependencies on all three actor services (DEMO-MA-02-001 through 02-003).
+  dependencies on all three actor services (DEMOMA-02-001 through 02-003).
 - `vultron/adapters/driven/datalayer_tinydb.py`: Added `import os` and
   `_DEFAULT_DB_PATH: str = os.environ.get("VULTRON_DB_PATH", "mydb.json")`
   module-level constant; changed `get_datalayer()` `db_path` parameter default
@@ -4405,10 +4405,10 @@ automated acceptance test. The script:
 4. Starts the full `docker-compose-multi-actor.yml` stack with
    `--abort-on-container-exit --exit-code-from demo-runner`.  The
    `demo-runner` service already declares `condition: service_healthy` on
-   all actor services (DEMO-MA-02-002), so it only starts once every actor
+   all actor services (DEMOMA-02-002), so it only starts once every actor
    passes `/health/ready`.
 5. Removes all volumes on exit (`down --volumes`) so each run begins from
-   a clean, deterministic baseline (DEMO-MA-01-003).
+   a clean, deterministic baseline (DEMOMA-01-003).
 6. Uses `PROJECT_NAME=vultron-it` to isolate the test stack from a running
    development stack.
 
@@ -4426,8 +4426,8 @@ add an "Automated multi-actor integration tests (D5-5)" section linking to
 the new script and Makefile targets.
 
 The existing `docker-compose-multi-actor.yml` already satisfies the Docker
-Compose configuration requirements for all three scenarios (DEMO-MA-02-001
-through DEMO-MA-02-003) — no separate compose files were needed.
+Compose configuration requirements for all three scenarios (DEMOMA-02-001
+through DEMOMA-02-003) — no separate compose files were needed.
 
 ### Validation
 
@@ -4439,9 +4439,9 @@ a structural reference confirming the pattern.
 
 ### Specs satisfied
 
-- DEMO-MA-03-001: each scenario runnable via single command ✅
-- DEMO-MA-03-003: reproducible runs (volumes reset on each run) ✅
-- DEMO-MA-04-001: scenarios reuse the single `docker-compose-multi-actor.yml` ✅
+- DEMOMA-03-001: each scenario runnable via single command ✅
+- DEMOMA-03-003: reproducible runs (volumes reset on each run) ✅
+- DEMOMA-04-001: scenarios reuse the single `docker-compose-multi-actor.yml` ✅
 
 ---
 
@@ -6387,7 +6387,7 @@ transformations semantically lossless. Total savings ~18 KB (~5% of corpus).
   `**Implemented**:` annotation on ARCH-12-002, and entire "Remediation Status"
   section. Added pointer to `notes/architecture-review.md`.
 - `specs/code-style.md`: Removed superseded requirements CS-01-002, CS-01-003,
-  CS-01-006 (superseded by `tech-stack.md` IMPL-TS-07-*). Trimmed verbose Rationale
+  CS-01-006 (superseded by `tech-stack.md` IMPLTS-07-*). Trimmed verbose Rationale
   blocks to single sentences. Removed NAMING-1 commit reference from CS-07-003.
 - `specs/behavior-tree-integration.md`: Condensed multi-line Rationale blocks
   for BT-06-001 and BT-06-004.
@@ -7335,13 +7335,13 @@ implemented in PRIORITY-347:
   and added an `invite_id` requirement for `accept-case-invite`. Expanded
   TRIG-02-003 Verification to cover the new requirement IDs.
 
-- `specs/multi-actor-demo.md`: Added DEMO-MA-05-001 and DEMO-MA-05-002
+- `specs/multi-actor-demo.md`: Added DEMOMA-05-001 and DEMOMA-05-002
   requiring that all actor-initiated actions in scenario demos MUST be driven
   through the trigger API, not by direct inbox injection.
 
 - `notes/protocol-event-cascades.md`: Added a concrete 4-step
   suggest→invite→accept→record cascade example (with implementation
-  requirements referencing TRIG-02-005 and DEMO-MA-05-001).
+  requirements referencing TRIG-02-005 and DEMOMA-05-001).
 
 ---
 
@@ -8128,3 +8128,63 @@ mypy and pyright: zero errors.
 ### Deferred
 
 SR.6 (migration of ~49 `specs/*.md` files) deferred to next build run.
+
+---
+
+## SR.6.1–SR.6.3 — Spec Migration to YAML (Priority 460)
+
+**Completed**: SR.6.1 (migration script), SR.6.2 (migrate all specs),
+SR.6.3 (linter validation)
+
+### What was done
+
+1. **Schema change**: Made `rationale` optional (`NonEmptyStr | None = None`)
+   in `StatementSpec` since many existing specs lack rationale text. Updated
+   lint.py guard and added tests.
+
+2. **Migration script** (`tools/migrate_spec_md_to_yaml.py`): Parses
+   `specs/*.md` requirement files and outputs `specs/*.yaml` with:
+   - Multi-line statement support (continuation lines)
+   - Relationship extraction (refines, derives-from, supersedes, etc.)
+   - Sub-bullet text collection (rationale, implementation notes)
+   - Dash-prefix ID transformation (CI-SEC→CISEC, DEMO-MA→DEMOMA,
+     UC-ORG→UCORG, IMPL-TS→IMPLTS)
+
+3. **Migration run**: All 51 spec .md files successfully converted to YAML.
+
+4. **Duplicate ID fixes**: Found and fixed two duplicate IDs in source
+   markdown:
+   - `CS-13-001` in code-style.md → second instance renumbered to CS-15-001
+   - `SR-08-005` in spec-registry.md → second instance renumbered to
+     SR-08-007
+
+5. **Dash-prefix ID rename** (project-wide): Renamed all references in .py
+   and .md files:
+   - CI-SEC → CISEC (test/ci/, docs/adr/, specs/)
+   - DEMO-MA → DEMOMA (integration_tests/, vultron/demo/, specs/, notes/)
+   - UC-ORG → UCORG (specs/)
+   - IMPL-TS → IMPLTS (specs/, plan/)
+
+6. **Linter passes** with exit 0. Remaining WARN (no tags) and ERROR
+   (broken cross-refs to deprecated CS-01-002/003/006, ADR-00, IDEM-01-001)
+   are pre-existing data issues, not migration bugs.
+
+### Files created
+
+- `tools/migrate_spec_md_to_yaml.py`
+- All `specs/*.yaml` files (51 files)
+
+### Files modified
+
+- `vultron/metadata/specs/schema.py` (rationale optional)
+- `vultron/metadata/specs/lint.py` (None guard for rationale)
+- `test/metadata/specs/test_schema.py` (rationale None tests)
+- `specs/code-style.md` (CS-13-001 → CS-15-001 dedup + IMPLTS rename)
+- `specs/spec-registry.md` (SR-08-005 → SR-08-007 dedup)
+- Multiple .py and .md files (dash-prefix ID renames)
+
+### Remaining SR.6 tasks
+
+- SR.6.4: Update skills/prompts/agent instructions for .yaml paths
+- SR.6.5: Update README.md/AGENTS.md references
+- SR.6.6: Delete original .md requirement files

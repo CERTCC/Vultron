@@ -1,0 +1,256 @@
+id: VAM
+title: Vultron Semantic–AS2 Mapping
+description: >-
+  This specification defines the authoritative mapping from each Vultron semantic message
+  type (`MessageSemantics` enum value) to its ActivityStreams 2.0 (AS2) wire representation.
+  It is the single source of truth for how Vultron domain semantics are encoded as AS2 activity
+  structures, and is a key part of maintaining the hexagonal architecture: core domain logic
+  and case-state machines depend only on `MessageSemantics` values; transport and representation
+  concerns (AS2 pattern matching, JSON-LD serialization, and wire encoding) are isolated to
+  the wire layer. If a future transport other than AS2 is adopted, a new mapping document
+  of this form MUST be produced, and `vultron/wire/as2/extractor.py` MUST remain the sole
+  implementation location for the AS2 mapping. `SEMANTICS_ACTIVITY_PATTERNS`), `vultron/core/models/events/base.py`
+  (`MessageSemantics` enum), `notes/activitystreams-semantics.md` **Notation used in this
+  document**: - `Verb(Object)` — an AS2 activity of type `Verb` whose `object` field is of
+  type `Object` - `Verb(Object)[field=Type]` — the activity additionally requires `field`
+  to be of type `Type` (e.g., `target=VulnerabilityCase`) - `Verb(Verb2(Object)[…])` — a nested
+  pattern: the outer activity's `object` field is itself an activity matching the inner pattern;
+  the inner pattern is matched against the rehydrated `object` field - AS2 core types are
+  rendered in `CamelCase` without a namespace prefix (e.g., `Note`, `Event`, `Actor`) - Vultron
+  domain types are prefixed implicitly by the Vultron namespace (e.g., `VulnerabilityReport`,
+  `VulnerabilityCase`, `CaseParticipant`, `CaseStatus`, `ParticipantStatus`)
+version: 1.0.0
+groups:
+- id: VAM-01
+  title: General Mapping Conventions
+  specs:
+  - id: VAM-01-001
+    priority: MUST
+    statement: >-
+      Every `MessageSemantics` enum value except `UNKNOWN` MUST have exactly one entry in
+      `SEMANTICS_ACTIVITY_PATTERNS` that defines its AS2 wire representation
+  - id: VAM-01-002
+    priority: MUST_NOT
+    statement: >-
+      The AS2 activity patterns defined in this document MUST be implemented in `vultron/wire/as2/extractor.py`
+      as `ActivityPattern` objects and MUST NOT be duplicated in any other module
+  - id: VAM-01-003
+    priority: MUST
+    statement: >-
+      Pattern entries in `SEMANTICS_ACTIVITY_PATTERNS` MUST be ordered from most-specific
+      to least-specific so that `find_matching_semantics()` returns the correct semantic for
+      overlapping patterns
+  - id: VAM-01-004
+    priority: MUST_NOT
+    statement: >-
+      An AS2 activity MUST be rehydrated (URI string references expanded to full objects via
+      the DataLayer) before pattern matching; pattern matching MUST NOT rely on unhydrated
+      string fields for type discrimination
+  - id: VAM-01-005
+    priority: MUST
+    statement: >-
+      When a pattern specifies a nested activity as the `object` field, the outer activity's
+      `object` MUST be a fully rehydrated AS2 activity object matching the inner `ActivityPattern`
+  - id: VAM-01-006
+    priority: MUST
+    statement: >-
+      Pattern matching MUST be conservative when a non-`object_` field is a non-rehydratable
+      URI string: such a field MUST be treated as matching any expected type rather than failing
+      the match
+    rationale: >-
+      Peripheral reference fields (`actor`, `target`, `context`, etc.) do not drive semantic
+      dispatch; conservatively matching them avoids false negatives when the DataLayer cannot
+      expand every reference
+  - id: VAM-01-009
+    priority: MUST
+    statement: >-
+      If the `object_` field of an activity remains a bare string URI after rehydration (i.e.,
+      the DataLayer does not have a record for that URI), `find_matching_semantics()` MUST
+      return `MessageSemantics.UNKNOWN`
+    rationale: >-
+      Semantic dispatch depends on the object type. A bare string in `object_` makes the object
+      type unknowable; proceeding as if the pattern matches would route the activity to the
+      wrong handler
+  - id: VAM-01-007
+    priority: MUST
+    statement: >-
+      `MessageSemantics.UNKNOWN` MUST be returned when no registered pattern matches the incoming
+      activity
+  - id: VAM-01-008
+    priority: MUST
+    statement: >-
+      Inbound activities represent state-change notifications, not commands; the AS2 activity
+      type used for each semantic MUST reflect the completed state transition, not a requested
+      action
+- id: VAM-02
+  title: Report Management Messages
+  specs:
+  - id: VAM-02-001
+    priority: MUST
+    statement: '`CREATE_REPORT` MUST be represented as `Create(VulnerabilityReport)`'
+  - id: VAM-02-002
+    priority: MUST
+    statement: '`SUBMIT_REPORT` MUST be represented as `Offer(VulnerabilityReport)`'
+  - id: VAM-02-003
+    priority: MUST
+    statement: '`ACK_REPORT` MUST be represented as `Read(Offer(VulnerabilityReport))`'
+  - id: VAM-02-004
+    priority: MUST
+    statement: '`VALIDATE_REPORT` MUST be represented as `Accept(Offer(VulnerabilityReport))`'
+  - id: VAM-02-005
+    priority: MUST
+    statement: >-
+      `INVALIDATE_REPORT` MUST be represented as `TentativeReject(Offer(VulnerabilityReport))`
+  - id: VAM-02-006
+    priority: MUST
+    statement: '`CLOSE_REPORT` MUST be represented as `Reject(Offer(VulnerabilityReport))`'
+- id: VAM-03
+  title: Case Management Messages
+  specs:
+  - id: VAM-03-001
+    priority: MUST
+    statement: '`CREATE_CASE` MUST be represented as `Create(VulnerabilityCase)`'
+  - id: VAM-03-002
+    priority: MUST
+    statement: '`UPDATE_CASE` MUST be represented as `Update(VulnerabilityCase)`'
+  - id: VAM-03-003
+    priority: MUST
+    statement: '`ENGAGE_CASE` MUST be represented as `Join(VulnerabilityCase)`'
+  - id: VAM-03-004
+    priority: MUST
+    statement: '`DEFER_CASE` MUST be represented as `Ignore(VulnerabilityCase)`'
+  - id: VAM-03-005
+    priority: MUST
+    statement: >-
+      `ADD_REPORT_TO_CASE` MUST be represented as `Add(VulnerabilityReport)[target=VulnerabilityCase]`
+  - id: VAM-03-006
+    priority: MUST
+    statement: '`CLOSE_CASE` MUST be represented as `Leave(VulnerabilityCase)`'
+- id: VAM-04
+  title: Actor Suggestion and Invitation Messages
+  specs:
+  - id: VAM-04-001
+    priority: MUST
+    statement: >-
+      `SUGGEST_ACTOR_TO_CASE` MUST be represented as `Offer(Actor)[target=VulnerabilityCase]`
+  - id: VAM-04-002
+    priority: MUST
+    statement: >-
+      `ACCEPT_SUGGEST_ACTOR_TO_CASE` MUST be represented as `Accept(Offer(Actor)[target=VulnerabilityCase])`
+  - id: VAM-04-003
+    priority: MUST
+    statement: >-
+      `REJECT_SUGGEST_ACTOR_TO_CASE` MUST be represented as `Reject(Offer(Actor)[target=VulnerabilityCase])`
+  - id: VAM-04-004
+    priority: MUST
+    statement: '`INVITE_ACTOR_TO_CASE` MUST be represented as `Invite[target=VulnerabilityCase]`'
+  - id: VAM-04-005
+    priority: MUST
+    statement: >-
+      `ACCEPT_INVITE_ACTOR_TO_CASE` MUST be represented as `Accept(Invite[target=VulnerabilityCase])`
+  - id: VAM-04-006
+    priority: MUST
+    statement: >-
+      `REJECT_INVITE_ACTOR_TO_CASE` MUST be represented as `Reject(Invite[target=VulnerabilityCase])`
+  - id: VAM-04-007
+    priority: MUST
+    statement: >-
+      `OFFER_CASE_OWNERSHIP_TRANSFER` MUST be represented as `Offer(VulnerabilityCase)`
+  - id: VAM-04-008
+    priority: MUST
+    statement: >-
+      `ACCEPT_CASE_OWNERSHIP_TRANSFER` MUST be represented as `Accept(Offer(VulnerabilityCase))`
+  - id: VAM-04-009
+    priority: MUST
+    statement: >-
+      `REJECT_CASE_OWNERSHIP_TRANSFER` MUST be represented as `Reject(Offer(VulnerabilityCase))`
+- id: VAM-05
+  title: Embargo Management Messages
+  specs:
+  - id: VAM-05-001
+    priority: MUST
+    statement: >-
+      `CREATE_EMBARGO_EVENT` MUST be represented as `Create(Event)[context=VulnerabilityCase]`
+  - id: VAM-05-002
+    priority: MUST
+    statement: >-
+      `ADD_EMBARGO_EVENT_TO_CASE` MUST be represented as `Add(Event)[target=VulnerabilityCase]`
+  - id: VAM-05-003
+    priority: MUST
+    statement: '`REMOVE_EMBARGO_EVENT_FROM_CASE` MUST be represented as `Remove(Event)`'
+  - id: VAM-05-004
+    priority: MUST
+    statement: >-
+      `ANNOUNCE_EMBARGO_EVENT_TO_CASE` MUST be represented as `Announce(Event)[context=VulnerabilityCase]`
+  - id: VAM-05-005
+    priority: MUST
+    statement: >-
+      `INVITE_TO_EMBARGO_ON_CASE` MUST be represented as `Invite(Event)[context=VulnerabilityCase]`
+  - id: VAM-05-006
+    priority: MUST
+    statement: >-
+      `ACCEPT_INVITE_TO_EMBARGO_ON_CASE` MUST be represented as `Accept(Invite(Event)[context=VulnerabilityCase])`
+  - id: VAM-05-007
+    priority: MUST
+    statement: >-
+      `REJECT_INVITE_TO_EMBARGO_ON_CASE` MUST be represented as `Reject(Invite(Event)[context=VulnerabilityCase])`
+- id: VAM-06
+  title: Case Participant Management Messages
+  specs:
+  - id: VAM-06-001
+    priority: MUST
+    statement: >-
+      `CREATE_CASE_PARTICIPANT` MUST be represented as `Create(CaseParticipant)[context=VulnerabilityCase]`
+  - id: VAM-06-002
+    priority: MUST
+    statement: >-
+      `ADD_CASE_PARTICIPANT_TO_CASE` MUST be represented as `Add(CaseParticipant)[target=VulnerabilityCase]`
+  - id: VAM-06-003
+    priority: MUST
+    statement: >-
+      `REMOVE_CASE_PARTICIPANT_FROM_CASE` MUST be represented as `Remove(CaseParticipant)[target=VulnerabilityCase]`
+- id: VAM-07
+  title: Note Management Messages
+  specs:
+  - id: VAM-07-001
+    priority: MUST
+    statement: '`CREATE_NOTE` MUST be represented as `Create(Note)`'
+  - id: VAM-07-002
+    priority: MUST
+    statement: '`ADD_NOTE_TO_CASE` MUST be represented as `Add(Note)[target=VulnerabilityCase]`'
+  - id: VAM-07-003
+    priority: MUST
+    statement: >-
+      `REMOVE_NOTE_FROM_CASE` MUST be represented as `Remove(Note)[target=VulnerabilityCase]`
+- id: VAM-08
+  title: Status Tracking Messages
+  specs:
+  - id: VAM-08-001
+    priority: MUST
+    statement: >-
+      `CREATE_CASE_STATUS` MUST be represented as `Create(CaseStatus)[context=VulnerabilityCase]`
+  - id: VAM-08-002
+    priority: MUST
+    statement: >-
+      `ADD_CASE_STATUS_TO_CASE` MUST be represented as `Add(CaseStatus)[target=VulnerabilityCase]`
+  - id: VAM-08-003
+    priority: MUST
+    statement: '`CREATE_PARTICIPANT_STATUS` MUST be represented as `Create(ParticipantStatus)`'
+  - id: VAM-08-004
+    priority: MUST
+    statement: >-
+      `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` MUST be represented as `Add(ParticipantStatus)[target=CaseParticipant]`
+- id: VAM-09
+  title: Unrecognized Activities
+  specs:
+  - id: VAM-09-001
+    priority: MUST
+    statement: >-
+      An inbound AS2 activity that does not match any registered pattern MUST be assigned
+      `MessageSemantics.UNKNOWN`
+  - id: VAM-09-002
+    priority: MUST_NOT
+    statement: >-
+      `MessageSemantics.UNKNOWN` MUST NOT have an entry in `SEMANTICS_ACTIVITY_PATTERNS`;
+      the fallback is implemented by `find_matching_semantics()` returning `UNKNOWN` when
+      the pattern loop exhausts all entries without a match
