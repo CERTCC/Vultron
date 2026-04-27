@@ -21,7 +21,7 @@ This module provides policy classes for:
 2. Case prioritization: whether to engage (RM.ACCEPTED) or defer (RM.DEFERRED)
    a case after it has been created from a validated report.
 
-Per specs/behavior-tree-integration.md, policies are pluggable and extensible.
+Per specs/behavior-tree-integration.yaml, policies are pluggable and extensible.
 Phase 1 provides stub always-accept policies as prototype simplifications.
 
 Extension Points:
@@ -143,7 +143,7 @@ class PrioritizationPolicy:
     deferred (RM.DEFERRED). Subclasses implement specific decision logic.
 
     Future: Plug in SSVC (Stakeholder-Specific Vulnerability Categorization)
-    or other priority frameworks here. See specs/prototype-shortcuts.md
+    or other priority frameworks here. See specs/prototype-shortcuts.yaml
     PROTO-05-001 for the deferral policy on SSVC integration.
     """
 

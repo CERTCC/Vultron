@@ -19,7 +19,7 @@ activity classes (MV-09-001).
 Each initiating activity class must reject a bare string URI or an as_Link
 as object_ and accept only the correct inline domain object type.
 
-Spec: specs/message-validation.md MV-09-001
+Spec: specs/message-validation.yaml MV-09-001
 """
 
 import asyncio

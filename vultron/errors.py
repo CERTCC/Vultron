@@ -61,8 +61,8 @@ class VultronOutboxObjectIntegrityError(VultronError):
     Outbound initiating activities (Create, Offer, Invite, Announce, Add,
     Remove, etc.) MUST carry a fully inline typed object so that recipients
     can determine the semantic type — because the recipient has no access to
-    the sender's DataLayer.  See specs/actor-knowledge-model.md AKM-03-001,
-    specs/message-validation.md MV-09-001, MV-09-002.
+    the sender's DataLayer.  See specs/actor-knowledge-model.yaml AKM-03-001,
+    specs/message-validation.yaml MV-09-001, MV-09-002.
     """
 
     def __init__(

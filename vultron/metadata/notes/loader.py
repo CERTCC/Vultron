@@ -1,6 +1,6 @@
 """Loader for the notes/*.md frontmatter registry.
 
-Loader requirements: specs/notes-frontmatter.md NF-03.
+Loader requirements: specs/notes-frontmatter.yaml NF-03.
 """
 
 from __future__ import annotations

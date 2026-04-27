@@ -5,13 +5,13 @@ description: >
   Implementation guidance for agents writing to plan/*HISTORY.md append-only
   files; canonical append procedure and prohibited patterns.
 related_specs:
-  - specs/project-documentation.md
+  - specs/project-documentation.yaml
 ---
 
 # Append-Only History File Handling
 
 Implementation guidance for agents writing to `plan/*HISTORY.md` files.
-Formal requirements: `specs/project-documentation.md` PD-05-001 through
+Formal requirements: `specs/project-documentation.yaml` PD-05-001 through
 PD-05-005.
 
 ---
@@ -21,7 +21,7 @@ PD-05-005.
 | Question | Decision | Rationale |
 |---|---|---|
 | Which files are covered? | `plan/IMPLEMENTATION_HISTORY.md`, `plan/IDEA-HISTORY.md`, `plan/PRIORITY_HISTORY.md` | These are the only append-only log files in `plan/` |
-| Where do new rules live? | Extended `specs/project-documentation.md` (PD-05 section) | Natural extension of existing PD-02 append-only rules |
+| Where do new rules live? | Extended `specs/project-documentation.yaml` (PD-05 section) | Natural extension of existing PD-02 append-only rules |
 | Canonical write tool? | `view_range(tail)` + `edit` + `tail` verification | Avoids shell escaping pitfalls; verification catches corruption |
 | Existence guard pattern? | `touch <file>` then append unconditionally | `touch` is a safe idempotent no-op; avoids ls→branch decision tree |
 | Full-file read before appending? | **Prohibited** | Wastes tokens; creates opportunity to insert at wrong location |

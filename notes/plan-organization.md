@@ -5,7 +5,7 @@ description: >
   Topic-based plan organization with decoupled priorities;
   IMPLEMENTATION_PLAN.md vs PRIORITIES.md separation rationale.
 related_specs:
-  - specs/project-documentation.md
+  - specs/project-documentation.yaml
 ---
 
 # Plan Organization: Topic-Based Sections with Decoupled Priorities
@@ -16,7 +16,7 @@ related_specs:
 controls ordering. The two files are kept deliberately separate so that
 reprioritization does not require renaming tasks or sections.
 
-**Formal requirements**: `specs/project-documentation.md` PD-06-001 through
+**Formal requirements**: `specs/project-documentation.yaml` PD-06-001 through
 PD-06-006.
 
 ---

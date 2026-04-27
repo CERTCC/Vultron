@@ -19,8 +19,8 @@ Tests for case creation behavior tree composition (BT-3.1).
 Verifies that CreateCaseBT correctly orchestrates case persistence,
 CaseActor creation, and outbox update. Also verifies idempotency.
 
-Per specs/behavior-tree-integration.md BT-06, specs/case-management.md
-CM-02, and specs/idempotency.md ID-04-004.
+Per specs/behavior-tree-integration.yaml BT-06, specs/case-management.yaml
+CM-02, and specs/idempotency.yaml ID-04-004.
 """
 
 import pytest

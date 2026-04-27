@@ -1,0 +1,151 @@
+id: EDF
+title: Event-Driven Control Flow
+description: >-
+  This specification defines the event-driven processing model for Vultron actors: how primary
+  events enter the system, how cascading consequences are produced automatically, and what
+  constraints apply to demo scripts and integration tests. **See also**: `specs/behavior-tree-integration.md`
+  (BT cascade mechanism), `specs/outbox.md` (outbox delivery), `notes/event-driven-control-flow.md`
+  (conceptual actor model and design rationale), `notes/protocol-event-cascades.md` (concrete
+  cascade gap inventory)
+version: 1.0.0
+kind: pattern
+scope:
+- prototype
+- production
+groups:
+- id: EDF-01
+  title: Definitions
+  specs:
+  - id: EDF-01-001
+    priority: MUST
+    statement: >-
+      A **primary event** is an externally supplied stimulus or an actor-initiated decision:
+      a message delivered to an actor's inbox, or a trigger invocation representing an actor
+      choosing to begin an action.
+  - id: EDF-01-002
+    priority: MUST
+    statement: >-
+      A **cascade** is an automatic, BT-driven consequence that occurs within a single actor's
+      execution context as a result of processing a primary event or an earlier cascade step.
+  - id: EDF-01-003
+    priority: MUST
+    statement: >-
+      A **cascade chain** is the full sequence of causally connected steps that flows from
+      one primary event: within-actor cascade → outbox emission → delivery to peer inbox →
+      peer's own cascade → and so on.
+  - id: EDF-01-004
+    priority: MUST
+    statement: >-
+      An **external decision node** is a BT node that cannot complete autonomously: it requires
+      input from an actor, a user interface, or an external system before it can return `SUCCESS`
+      or `FAILURE`.
+- id: EDF-02
+  title: Event-Driven Processing
+  specs:
+  - id: EDF-02-001
+    priority: MUST
+    statement: >-
+      Every protocol-significant action in Vultron MUST be triggered by an event, not by direct
+      procedural calls from upstream code.
+  - id: EDF-02-002
+    priority: MUST
+    statement: >-
+      The system MUST follow an "on event, do" model: business logic is invoked in response
+      to events; events are not invoked by business logic.
+  - id: EDF-02-003
+    priority: MUST_NOT
+    statement: >-
+      The inbox MUST be the sole entry point for inbound activity processing; handlers MUST
+      NOT be invoked directly by callers that bypass the inbox dispatch pipeline.
+  - id: EDF-02-004
+    priority: MUST_NOT
+    statement: >-
+      The outbox MUST be the sole exit point for outbound activity delivery; handlers MUST
+      NOT deliver activities directly to peer actors.
+- id: EDF-03
+  title: Cascade Implementation
+  kind: domain
+  specs:
+  - id: EDF-03-001
+    priority: MUST
+    statement: >-
+      All cascade steps that do not require external input MUST be implemented as BT subtrees
+      within the handling actor's BT execution context.
+  - id: EDF-03-002
+    priority: MUST_NOT
+    statement: >-
+      Outbox emissions that are part of a cascade MUST be implemented as BT leaf-node actions
+      (e.g., `EmitXxxNode`); they MUST NOT be procedural calls made after `BTBridge.execute_with_setup()`
+      returns.
+  - id: EDF-03-003
+    priority: MUST
+    statement: >-
+      A use case's `execute()` method MUST contain only infrastructure glue: BT instantiation,
+      blackboard setup, bridge execution, status check, and output extraction.
+  - id: EDF-03-004
+    priority: MUST
+    statement: >-
+      The cascading consequence of a primary event MUST be fully determined by BT execution
+      with no required intermediate trigger steps, except at explicit external decision nodes
+      (see EDF-04).
+  - id: EDF-03-005
+    priority: MUST_NOT
+    statement: >-
+      Cascade logic MUST NOT be duplicated between actors; each actor's BT handles its own
+      local cascade, triggered by receipt of the peer's outgoing activity.
+- id: EDF-04
+  title: External Decision Nodes
+  specs:
+  - id: EDF-04-001
+    priority: MUST
+    statement: >-
+      When a cascade reaches a point where the actor cannot proceed autonomously, the stopping
+      point MUST be represented as an explicit external decision node in the BT.
+  - id: EDF-04-002
+    priority: MUST_NOT
+    statement: >-
+      An external decision node MUST return `py_trees.common.Status.RUNNING` while awaiting
+      input; it MUST NOT silently succeed or fail, and MUST NOT be modeled as an absence of
+      code.
+  - id: EDF-04-003
+    priority: MUST
+    statement: >-
+      The arrival of the required external input (a trigger invocation, an inbox message,
+      or a UI response) MUST cause the external decision node to re-evaluate and return `SUCCESS`
+      or `FAILURE` on the next BT tick.
+  - id: EDF-04-004
+    priority: MUST
+    statement: >-
+      Trigger endpoints that correspond to external decision node resolutions MUST be documented
+      as such; their role is to supply the missing input, not to choreograph a cascade that
+      should be automatic.
+- id: EDF-05
+  title: Demo Constraints
+  kind: implementation
+  specs:
+  - id: EDF-05-001
+    priority: MUST
+    statement: Demo scripts MUST inject only primary events into the system.
+  - id: EDF-05-002
+    priority: MUST_NOT
+    statement: >-
+      Demo scripts MUST NOT trigger intermediate cascade steps manually; all cascade steps
+      that are not external decision nodes MUST complete automatically as a result of the
+      primary event.
+  - id: EDF-05-003
+    priority: MUST
+    statement: >-
+      Demo scripts MUST verify correctness by observing externally visible system state (e.g.,
+      DataLayer contents, activities queued in the outbox) after the primary event and its
+      cascades have settled.
+  - id: EDF-05-004
+    priority: MUST_NOT
+    statement: >-
+      Demo scripts MUST NOT assert on internal BT execution state (e.g., node status, blackboard
+      values) as a substitute for observing external system state.
+  - id: EDF-05-005
+    priority: SHOULD
+    statement: >-
+      A demo that must manually trigger intermediate steps to reach its expected final state
+      SHOULD be treated as evidence of a cascade automation gap that requires a BT fix, not
+      as correct demo behavior.

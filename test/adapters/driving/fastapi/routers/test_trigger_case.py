@@ -17,7 +17,7 @@
 Tests for the case trigger endpoints
 (POST /actors/{actor_id}/trigger/{engage,defer}-case).
 
-Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.md.
+Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
 """
 
 import pytest

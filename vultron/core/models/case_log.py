@@ -24,8 +24,8 @@ This module provides:
 
 Design follows the single-writer CaseActor architecture described in
 ``notes/sync-log-replication.md`` and the requirements in
-``specs/sync-log-replication.md`` (SYNC-01) and
-``specs/case-log-processing.md`` (CLP-01 through CLP-05).
+``specs/sync-log-replication.yaml`` (SYNC-01) and
+``specs/case-log-processing.yaml`` (CLP-01 through CLP-05).
 
 Hash chain:
 
@@ -44,7 +44,7 @@ Append-only enforcement:
 - :class:`CaseEventLog` rejects any attempt to modify or remove existing
   entries.  New entries are appended via :meth:`CaseEventLog.append`.
 
-Per ``specs/sync-log-replication.md`` SYNC-01, SYNC-07, ``specs/case-log-processing.md``
+Per ``specs/sync-log-replication.yaml`` SYNC-01, SYNC-07, ``specs/case-log-processing.yaml``
 CLP-02 through CLP-05, and ``notes/sync-log-replication.md``.
 """
 

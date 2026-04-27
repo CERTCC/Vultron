@@ -1,0 +1,148 @@
+id: CLP
+title: Case Log Processing
+description: >-
+  Requirements for participant assertions, CaseActor canonicalization, local case audit logging,
+  recorded-history projection, and replication-facing `CaseLogEntry` objects. `notes/activitystreams-semantics.md`,
+  `notes/case-state-model.md`, `notes/sync-log-replication.md` `specs/sync-log-replication.md`,
+  `specs/outbox.md`, `specs/message-validation.md`, `specs/idempotency.md` recording. Transport-layer
+  handling for malformed or unrouteable traffic that cannot be attached to a report or case
+  remains out of scope here.
+version: 1.0.0
+kind: domain
+scope:
+- prototype
+- production
+groups:
+- id: CLP-01
+  title: Assertion Intake
+  specs:
+  - id: CLP-01-001
+    priority: MUST
+    statement: >-
+      Non-CaseActor activities that participate in a report, proto-case, or case workflow
+      MUST be treated as participant assertions awaiting CaseActor processing
+  - id: CLP-01-002
+    priority: MUST_NOT
+    statement: >-
+      The protocol MUST NOT require a separate "asserted mode" marker on ordinary participant
+      activities for case/proto-case flows
+  - id: CLP-01-003
+    priority: MUST
+    statement: >-
+      The CaseActor MUST be the only actor that emits canonical case-history entries used
+      by replicas
+  - id: CLP-01-004
+    priority: MUST_NOT
+    statement: >-
+      Participant replicas MUST NOT project shared case state directly from peer assertions
+- id: CLP-02
+  title: Canonical `CaseLogEntry`
+  specs:
+  - id: CLP-02-001
+    priority: MUST
+    statement: >-
+      For each case-resolvable assertion processed at the case layer, the CaseActor MUST append
+      a canonical `CaseLogEntry`
+  - id: CLP-02-002
+    priority: MUST
+    statement: >-
+      `CaseLogEntry` MUST be a canonical content object distinct from any transport envelope
+      used to replicate it
+  - id: CLP-02-003
+    priority: MUST
+    statement: >-
+      `CaseLogEntry` MUST include the asserted activity payload, or a normalized immutable
+      snapshot of it, sufficient for deterministic replay
+  - id: CLP-02-004
+    priority: MUST
+    statement: >-
+      `CaseLogEntry` MUST include a disposition field with at least `recorded` and `rejected`
+  - id: CLP-02-005
+    priority: SHOULD
+    statement: >-
+      Rejected `CaseLogEntry` objects SHOULD include a machine-readable reason code and MAY
+      include human-readable detail
+  - id: CLP-02-006
+    priority: MUST_NOT
+    statement: >-
+      `CaseLogEntry` MUST include a `log_index` field corresponding to SYNC-01-002; this field
+      MUST be set by the CaseActor's single authoritative write path and MUST NOT be assigned
+      by external parties
+  - id: CLP-02-007
+    priority: MUST
+    statement: >-
+      `CaseLogEntry` MAY include an optional `term` field reserved for Raft cluster use; in
+      single-node deployments this field SHOULD be omitted or set to `null`; in multi-node
+      CaseActor cluster deployments this field MUST be populated with the current Raft term
+      at time of append
+- id: CLP-03
+  title: Audit Scope and Continuity
+  specs:
+  - id: CLP-03-001
+    priority: MUST
+    statement: >-
+      Only assertions that can be resolved to a specific report, proto-case, or case MUST
+      be appended to the case audit log
+  - id: CLP-03-002
+    priority: MUST
+    statement: >-
+      Malformed, unauthenticated, or otherwise unrouteable inbound messages that cannot be
+      attached to a report or case MUST be handled outside the case audit log
+  - id: CLP-03-003
+    priority: MUST
+    statement: >-
+      The assertion-recording model MUST support continuity from report receipt through the
+      case lifecycle so that all history — including the proto-case stage (RM.RECEIVED / RM.INVALID)
+      — is captured in the case audit log
+- id: CLP-04
+  title: Recorded Projection and Replication
+  specs:
+  - id: CLP-04-001
+    priority: MUST
+    statement: >-
+      The authoritative recorded history of a case MUST be a filtered projection of `CaseLogEntry`
+      objects whose disposition is `recorded`
+  - id: CLP-04-002
+    priority: MUST
+    statement: >-
+      Case-state reconstruction MUST use only the recorded projection and MUST ignore rejected
+      entries
+  - id: CLP-04-003
+    priority: MUST
+    statement: >-
+      Replicated hash chains, Merkle proofs, and replay state MUST be computed over recorded
+      `CaseLogEntry` objects only
+  - id: CLP-04-004
+    priority: MUST
+    statement: >-
+      CaseActor fan-out replication MUST deliver the canonical `CaseLogEntry` content, wrapped
+      in an ActivityStreams transport envelope such as `Announce`
+  - id: CLP-04-005
+    priority: SHOULD
+    statement: >-
+      When a participant includes log-position context with an assertion, it SHOULD use the
+      sender's last accepted canonical hash or position from the recorded projection
+  - id: CLP-04-006
+    priority: MUST
+    statement: >-
+      The canonical recorded log is the authoritative source of truth for case participant
+      membership and case state
+- id: CLP-05
+  title: Rejection Handling
+  specs:
+  - id: CLP-05-001
+    priority: SHOULD
+    statement: >-
+      CaseActor rejection outcomes SHOULD be sent directly to the asserting participant rather
+      than broadcast to all participants
+  - id: CLP-05-002
+    priority: MUST_NOT
+    statement: >-
+      Normal case-update fan-out MUST NOT replicate rejected `CaseLogEntry` objects to all
+      case participants
+  - id: CLP-05-003
+    priority: SHOULD
+    statement: >-
+      The system SHOULD provide a convenient way to retrieve the recorded-only history projection
+      without requiring consumers to manually filter rejected entries from the broader audit
+      log

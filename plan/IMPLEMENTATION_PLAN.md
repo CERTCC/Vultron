@@ -8,14 +8,14 @@ This plan tracks forward-looking work against `specs/*` and
 **Completed tasks**: see `plan/IMPLEMENTATION_HISTORY.md` (append-only archive).
 
 **Priority ordering**: `plan/PRIORITIES.md` is authoritative for project
-priority. Sections here are organized by topic (see `specs/project-documentation.md`
+priority. Sections here are organized by topic (see `specs/project-documentation.yaml`
 PD-06). Do not infer priority from section order.
 
 ---
 
 ## TASK-EMDEFAULT — Default Embargo State
 
-**Source**: `plan/IDEAS.md` IDEA-26041002; spec: `specs/embargo-policy.md` EP-04
+**Source**: `plan/IDEAS.md` IDEA-26041002; spec: `specs/embargo-policy.yaml` EP-04
 
 When a receiver applies their published default embargo at case creation and
 the reporter submitted no explicit counter-proposal, the resulting
@@ -50,8 +50,8 @@ implementation sets `EM.PROPOSED`, leaving the case in a false limbo state.
 
 ## TASK-BTND5 — Generalize Participant BT Nodes
 
-**Source**: `specs/behavior-tree-node-design.md` BTND-05-001 through
-BTND-05-003; `specs/configuration.md` CFG-07-001 through CFG-07-004;
+**Source**: `specs/behavior-tree-node-design.yaml` BTND-05-001 through
+BTND-05-003; `specs/configuration.yaml` CFG-07-001 through CFG-07-004;
 `notes/bt-reusability.md` "ActorConfig-Driven Roles" section.
 
 Replace the demo-specific hardcoded participant node (`CreateInitialVendorParticipant`)
@@ -196,14 +196,14 @@ to 10. Scope: `vultron/` and `test/`.
 - [ ] CC.2.1 Reduce all 18 CC 11–15 functions to CC≤10 (see
   `plan/IMPLEMENTATION_NOTES.md` CC-ENFORCEMENT for the full list)
 - [ ] CC.2.2 Lower `max-complexity` from 15 to 10 in `.flake8`
-- [ ] CC.2.3 Upgrade `IMPL-TS-07-008` from SHOULD to MUST in
-  `specs/tech-stack.md` now that all CC violations above 10 are resolved
+- [ ] CC.2.3 Upgrade `IMPLTS-07-008` from SHOULD to MUST in
+  `specs/tech-stack.yaml` now that all CC violations above 10 are resolved
 
 ---
 
 ## TASK-AF — Activity Factory Functions
 
-**Spec**: `specs/activity-factories.md` (AF-01 through AF-08)
+**Spec**: `specs/activity-factories.yaml` (AF-01 through AF-08)
 **Notes**: `notes/activity-factories.md`
 
 Introduce a `vultron/wire/as2/factories/` package as the sole public
@@ -274,6 +274,12 @@ objects.
 - [ ] ARCHVIO.3 Replace `from_core()` calls in `sync.py` use cases with
   the new driven adapter injection
 - [ ] ARCHVIO.4 Update tests; verify no core module imports wire types
+
+---
+
+## TASK-SR — Spec Registry (YAML + Pydantic)
+
+SR.1–SR.6 complete (see `plan/IMPLEMENTATION_HISTORY.md`).
 
 ---
 

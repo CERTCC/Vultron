@@ -1,7 +1,7 @@
 """
 Tests for CaseEvent model and VulnerabilityCase.events field (SC-PRE-1).
 
-References: specs/case-management.md CM-02-009, CM-10-002.
+References: specs/case-management.yaml CM-02-009, CM-10-002.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.

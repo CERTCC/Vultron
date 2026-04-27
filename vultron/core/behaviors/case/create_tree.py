@@ -19,7 +19,7 @@ Case creation behavior tree composition.
 Composes the create_case workflow as a behavior tree with idempotency
 guard, validation, persistence, CaseActor setup, and outbox update.
 
-Per specs/behavior-tree-integration.md BT-06 and specs/case-management.md
+Per specs/behavior-tree-integration.yaml BT-06 and specs/case-management.yaml
 CM-02 requirements.
 
 Structure:

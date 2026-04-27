@@ -5,9 +5,9 @@ description: >
   Scope boundaries for 'do work' behaviors in the Vultron prototype;
   identifies which behaviors are unimplemented stubs.
 related_specs:
-  - specs/behavior-tree-integration.md
-  - specs/case-management.md
-  - specs/triggerable-behaviors.md
+  - specs/behavior-tree-integration.yaml
+  - specs/case-management.yaml
+  - specs/triggerable-behaviors.yaml
 relevant_packages:
   - transitions
   - vultron/bt
@@ -20,7 +20,7 @@ This note documents the scope boundaries for "do work" behaviors in the
 Vultron prototype and identifies which behaviors are automatable, partially
 automatable, or entirely out of scope for the system.
 
-**Cross-references**: `specs/case-management.md` (CM-05-*),
+**Cross-references**: `specs/case-management.yaml` (CM-05-*),
 `docs/topics/behavior_logic/`
 
 ---
@@ -106,7 +106,7 @@ sub-tree. This will also clarify which behaviors can be triggered
 programmatically and which require external input or human confirmation.
 
 **Design Decision**: For PRIORITY 30, focus implementation effort on the
-RM/EM-related triggerable behaviors defined in `specs/triggerable-behaviors.md`.
+RM/EM-related triggerable behaviors defined in `specs/triggerable-behaviors.yaml`.
 Treat `assign-cve-id`, `notify-actor`, and `identify-participants` as
 later-phase behaviors (MAY in TRIG-02-003); represent them and any other
 non-implemented sub-behaviors as named placeholder nodes in the BTs.
@@ -139,7 +139,7 @@ application-level action that:
 3. Stores a note on the case with the metadata
 
 See `docs/topics/behavior_logic/publication_bt.md` and
-`specs/case-management.md` CM-05-004 and CM-05-005.
+`specs/case-management.yaml` CM-05-004 and CM-05-005.
 
 ---
 
@@ -157,7 +157,7 @@ It is not fully automatable but is well-supported by flows such as:
 A key underspecified area is **embargo policy compatibility evaluation**:
 before inviting an actor to an embargo, the system should evaluate whether
 the actor's declared policy (minimum/maximum duration, preferences) is
-compatible with the proposed embargo terms. See `specs/embargo-policy.md`
+compatible with the proposed embargo terms. See `specs/embargo-policy.yaml`
 for the specification of the embargo policy record format, and the "Prior Art"
 section below for external references.
 
@@ -175,12 +175,12 @@ The following prior work is relevant to a standardized embargo policy record:
 - **disclose.io DIOTerms**: <https://github.com/disclose/dioterms/>
   — core disclosure terms vocabulary
 - **SSVC** (Stakeholder-Specific Vulnerability Categorization): used for
-  prioritization decisions (`specs/prototype-shortcuts.md` PROTO-05-001);
+  prioritization decisions (`specs/prototype-shortcuts.yaml` PROTO-05-001);
   relevant to engage/defer decisions that precede embargo negotiation
 
 ### Future Work: VulnerabilityDisclosurePolicy Wrapper Object
 
-The current `EmbargoPolicy` model (`specs/embargo-policy.md` EP-01) captures
+The current `EmbargoPolicy` model (`specs/embargo-policy.yaml` EP-01) captures
 embargo-specific preferences. The longer-term goal is a broader
 `VulnerabilityDisclosurePolicy` object that contains `embargo_policy` as a
 sub-field — analogous to the relationship between `security.txt` (contact
@@ -205,7 +205,7 @@ when a formal spec is drafted.
 directly or define a new Vultron-specific schema. DIOSTS is the preferred
 basis if Vultron aims for interoperability with the broader security community.
 
-**Cross-reference**: `specs/embargo-policy.md` EP-01; `vultron/wire/as2/vocab/
+**Cross-reference**: `specs/embargo-policy.yaml` EP-01; `vultron/wire/as2/vocab/
 objects/vultron_actor.py` (`VultronActorMixin.embargo_policy`).
 
 ---
@@ -214,7 +214,7 @@ objects/vultron_actor.py` (`VultronActorMixin.embargo_policy`).
 
 | Topic | Specification |
 |---|---|
-| Object model (Reports, Cases, CaseReferences, Vulnerability records) | `specs/case-management.md` CM-05-* |
-| Embargo policy format | `specs/embargo-policy.md` |
-| Do-work BT node guide | `specs/behavior-tree-integration.md` BT-* |
-| Case prioritization stub | `specs/prototype-shortcuts.md` PROTO-05-001 |
+| Object model (Reports, Cases, CaseReferences, Vulnerability records) | `specs/case-management.yaml` CM-05-* |
+| Embargo policy format | `specs/embargo-policy.yaml` |
+| Do-work BT node guide | `specs/behavior-tree-integration.yaml` BT-* |
+| Case prioritization stub | `specs/prototype-shortcuts.yaml` PROTO-05-001 |

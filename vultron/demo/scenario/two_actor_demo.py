@@ -48,7 +48,7 @@ Workflow
    two participants and two case notes.
 
 References: ``notes/multi-actor-architecture.md`` §4 G5,
-``specs/multi-actor-demo.md`` DEMO-MA-03-001 through DEMO-MA-04-002.
+``specs/multi-actor-demo.yaml`` DEMOMA-03-001 through DEMOMA-04-002.
 """
 
 import logging

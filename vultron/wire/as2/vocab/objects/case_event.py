@@ -43,7 +43,7 @@ class CaseEvent(BaseModel):
         received_at: Server-generated TZ-aware UTC timestamp set at receipt;
             defaults to the current UTC time.
 
-    Per specs/case-management.md CM-02-009, CM-10-002;
+    Per specs/case-management.yaml CM-02-009, CM-10-002;
     plan/IMPLEMENTATION_PLAN.md SC-PRE-1.
     """
 

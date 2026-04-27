@@ -10,7 +10,7 @@ relative order. Completed priorities should be moved to
 `plan/PRIORITY_HISTORY.md` (append-only archive) to keep `plan/PRIORITIES.md`
 focused on pending and in-progress work.
 
-## Priority 450: Cyclomatic Complexity Enforcement
+## Priority 475: Cyclomatic Complexity Enforcement
 
 Cyclomatic complexity (CC) is treated as a policy boundary, not just a
 measurement. High CC correlates with harder-to-test, harder-to-maintain
@@ -102,7 +102,7 @@ failover process.
 
 The project is currently in prototype development mode, therefore requirements
 that are marked as `PROD_ONLY` are temporarily a lower priority than other
-requirements. See `specs/prototype-shortcuts.md` for the prototype-stage
+requirements. See `specs/prototype-shortcuts.yaml` for the prototype-stage
 deferral policy.
 
 USE-CASE-01

@@ -53,7 +53,7 @@ MUST return `MessageSemantics.UNKNOWN` immediately when `object_` is a bare
 string after rehydration. It MUST NOT continue matching typed-object patterns
 against a string reference.
 
-**General rule** (formal requirement to add to `specs/semantic-extraction.md`):
+**General rule** (formal requirement to add to `specs/semantic-extraction.yaml`):
 Every `ActivityPattern` MUST discriminate on at minimum `(Activity type, Object
 type)`. No pattern may match on Activity type alone. For nested activities (e.g.
 `Accept(Invite(...))`), the pattern MUST also check the nested object type where
@@ -174,7 +174,7 @@ receive or handle a short UUID.
 - Recipient-side: stubs MUST NOT overwrite a full object already in the
   DataLayer. If the DataLayer already has a full `VulnerabilityCase` for that
   id, the stub is discarded.
-- A new `specs/stub-objects.md` (or section in `specs/message-validation.md`)
+- A new `specs/stub-objects.yaml` (or section in `specs/message-validation.yaml`)
   MUST formally define when stubs are permitted.
 
 **Connection to MV-09-001**: Stub objects are a controlled exception to the
@@ -224,7 +224,7 @@ meaning for `Offer(Report)` — it is misuse of the AS2 `target` field.
   case.
 - Receiving actor not in `to` or `cc` → log WARNING (why did this arrive?).
 
-**Add to `specs/handler-protocol.md`**: document the `to`-only case-creation
+**Add to `specs/handler-protocol.yaml`**: document the `to`-only case-creation
 rule as a formal requirement.
 
 ---
@@ -239,7 +239,7 @@ change; IDEA-26041703 is tracked as a separate future task in
 
 This analysis has been folded into **PRIORITY-347** in `IMPLEMENTATION_PLAN.md`
 (after P-345 DL-REHYDRATE). IDEA-26041703 becomes a subsequent priority block
-with `notes/bt-reusability.md` and `specs/behavior-tree-node-design.md` as
+with `notes/bt-reusability.md` and `specs/behavior-tree-node-design.yaml` as
 deliverables.
 
 **Context**: BUG-26041701 started as a narrow bug (bare-string `object_` in

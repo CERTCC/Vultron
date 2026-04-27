@@ -5,7 +5,7 @@ description: >
   BT design decisions, py_trees patterns, simulation-to-prototype translation
   strategy, subtree map, and anti-patterns to avoid.
 related_specs:
-  - specs/behavior-tree-integration.md
+  - specs/behavior-tree-integration.yaml
 related_notes:
   - notes/bt-fuzzer-nodes.md
   - notes/protocol-event-cascades.md
@@ -25,7 +25,7 @@ Use-case functions in `vultron/core/use_cases/` orchestrate complex workflows
 using the `py_trees` behavior tree library via the bridge layer in
 `vultron/core/behaviors/`. All protocol-significant behaviors MUST be
 implemented as BT nodes or subtrees. See
-`specs/behavior-tree-integration.md` BT-06-001.
+`specs/behavior-tree-integration.yaml` BT-06-001.
 
 **Key boundary**: `vultron/bt/` is the simulation BT engine (custom, do NOT
 modify or reuse for prototype handlers). `vultron/core/behaviors/` uses
@@ -118,7 +118,7 @@ boundary. One CaseActor per VulnerabilityCase (1:1 relationship).
 ### 7. CLI Invocation Support (MAY)
 
 BTs can be invoked independently via CLI for testing and AI agent
-integration. See `BT-08-*` in `specs/behavior-tree-integration.md`.
+integration. See `BT-08-*` in `specs/behavior-tree-integration.yaml`.
 
 ---
 
@@ -168,7 +168,7 @@ BT nodes or subtrees. This includes:
 
 The BT is the domain documentation. If a behavior is not in the tree, it is
 invisible to analysis, audit, and explainability tools. See BT-06-001,
-BT-06-005, BT-06-006 in `specs/behavior-tree-integration.md`.
+BT-06-005, BT-06-006 in `specs/behavior-tree-integration.yaml`.
 
 ### Post-BT Procedural Cascade Anti-Pattern
 
@@ -406,7 +406,7 @@ workflow support with pause/resume is a future consideration.
 - `notes/bt-integration.md` — canonical subtree map, trunk-removed
   branches model, anti-pattern examples (merged from former
   `canonical-bt-reference.md`)
-- `specs/behavior-tree-integration.md` — formal BT requirements
+- `specs/behavior-tree-integration.yaml` — formal BT requirements
   (BT-06-001 through BT-06-006 especially)
 - `notes/bt-fuzzer-nodes.md` — fuzzer node catalog and replacement patterns
 - `notes/use-case-behavior-trees.md` — use-case/BT conceptual layering

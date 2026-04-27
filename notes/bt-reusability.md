@@ -5,9 +5,9 @@ description: >
   Design patterns for composable, reusable BT nodes and subtrees; vocabulary
   for reusability and concrete anti-patterns.
 related_specs:
-  - specs/behavior-tree-integration.md
-  - specs/behavior-tree-node-design.md
-  - specs/bt-composability.md
+  - specs/behavior-tree-integration.yaml
+  - specs/behavior-tree-node-design.yaml
+  - specs/bt-composability.yaml
 related_notes:
   - notes/bt-composability.md
   - notes/bt-integration.md
@@ -31,8 +31,8 @@ to avoid.
 
 - `notes/bt-integration.md` — Architecture decisions and design rationale
 - `notes/vultron-bt.txt` — Canonical simulation BT structure (reference)
-- `specs/behavior-tree-integration.md` — Formal requirements (BT-06-*)
-- `specs/behavior-tree-node-design.md` — Node design specification (BTND-01 through BTND-04)
+- `specs/behavior-tree-integration.yaml` — Formal requirements (BT-06-*)
+- `specs/behavior-tree-node-design.yaml` — Node design specification (BTND-01 through BTND-04)
 
 ---
 
@@ -491,8 +491,8 @@ nodes can import it without violating the no-demo-layer-imports rule
 
 **See also:**
 
-- `specs/behavior-tree-node-design.md` BTND-05-001 through BTND-05-003
-- `specs/configuration.md` CFG-07-001 through CFG-07-004
+- `specs/behavior-tree-node-design.yaml` BTND-05-001 through BTND-05-003
+- `specs/configuration.yaml` CFG-07-001 through CFG-07-004
 
 ---
 
@@ -638,6 +638,6 @@ Before adding a new BT node or subtree, check:
 - `notes/bt-integration.md` — Architecture decisions and design rationale
 - `notes/vultron-bt.txt` — Canonical simulation BT structure (reference)
 - `notes/use-case-behavior-trees.md` — Use-case orchestration patterns
-- `specs/bt-composability.md` — Formal composability requirements (BTC-01 through BTC-04)
-- `specs/behavior-tree-integration.md` — Formal requirements (BT-06-*)
-- `specs/behavior-tree-node-design.md` — Node design specification (BTND-01 through BTND-05)
+- `specs/bt-composability.yaml` — Formal composability requirements (BTC-01 through BTC-04)
+- `specs/behavior-tree-integration.yaml` — Formal requirements (BT-06-*)
+- `specs/behavior-tree-node-design.yaml` — Node design specification (BTND-01 through BTND-05)

@@ -26,7 +26,7 @@ Structure:
     ├─ SaveNoteNode          # Upsert note into DataLayer (idempotent)
     └─ AttachNoteToCaseNode  # Attach note to case if case_id present (idempotent)
 
-Per specs/case-management.md CM-06.
+Per specs/case-management.yaml CM-06.
 """
 
 import logging

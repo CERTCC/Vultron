@@ -23,7 +23,7 @@ the local actor:
 3. Emits an ``AcceptActorRecommendationActivity`` to the recommender's outbox.
 4. Emits an ``RmInviteToCaseActivity`` to the suggested actor's outbox.
 
-Per specs/case-management.md CM-08 and specs/behavior-tree-integration.md.
+Per specs/case-management.yaml CM-08 and specs/behavior-tree-integration.yaml.
 """
 
 import logging

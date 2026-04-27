@@ -19,7 +19,7 @@ Tests for report validation behavior tree composition.
 Verifies that the ValidateReportBT composite tree correctly orchestrates
 the validation workflow using the nodes from nodes.py.
 
-Per specs/behavior-tree-integration.md BT-06 and testability.md requirements.
+Per specs/behavior-tree-integration.yaml BT-06 and testability.yaml requirements.
 """
 
 import pytest

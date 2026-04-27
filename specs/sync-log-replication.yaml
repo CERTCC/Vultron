@@ -1,0 +1,208 @@
+id: SYNC
+title: Case Event Log Synchronization
+description: >-
+  Requirements for the append-only canonical recorded case log, replication transport, conflict
+  handling, per-peer state tracking, and retry semantics for distributed case state synchronization
+  across Participant Actors. SYNC-4), `plan/IMPLEMENTATION_NOTES.md` (2026-03-26 SYNC design
+  notes) `specs/case-log-processing.md`, `specs/outbox.md`, `specs/idempotency.md` `notes/sync-log-replication.md`
+  capturing the RAFT-inspired design notes. A `notes/` file is the appropriate place for design
+  approach details; this spec captures the normative requirements.
+version: 1.0.0
+kind: domain
+scope:
+- prototype
+- production
+groups:
+- id: SYNC-01
+  title: Append-Only Log
+  specs:
+  - id: SYNC-01-001
+    priority: MUST
+    statement: >-
+      The canonical recorded case log MUST be append-only; log entries MUST be immutable once
+      appended
+  - id: SYNC-01-002
+    priority: MUST
+    statement: Each log entry MUST carry a monotonically increasing index scoped to its case
+  - id: SYNC-01-003
+    priority: MUST
+    statement: >-
+      Each log entry MUST include a cryptographic hash of its own content and MUST reference
+      the hash of its immediate predecessor, forming a forward-linked hash chain (Merkle chain
+      style)
+  - id: SYNC-01-004
+    priority: MUST
+    statement: >-
+      Canonical recorded log entries MUST be written through the CaseActor's single authoritative
+      write path
+  - id: SYNC-01-005
+    priority: MUST
+    statement: >-
+      The hash-chain log entry format MUST be designed to be forward-compatible with a future
+      Merkle Tree implementation
+- id: SYNC-02
+  title: Replication Transport
+  specs:
+  - id: SYNC-02-001
+    priority: MUST
+    statement: >-
+      Log replication between CaseActor and Participant Actors MUST use ActivityStreams `Announce`
+      activities as the transport envelope for canonical recorded log content
+  - id: SYNC-02-002
+    priority: MUST
+    statement: >-
+      Each replication message MUST identify the sender, target recipient, the log entry hash,
+      and the predecessor hash
+  - id: SYNC-02-003
+    priority: MUST
+    statement: >-
+      Replication MUST originate from the replication leader (initially the CaseActor) and
+      be sent to each Participant Actor individually
+  - id: SYNC-02-004
+    priority: MUST_NOT
+    statement: >-
+      Each `Announce(CaseLogEntry)` activity MUST embed the full inline `CaseLogEntry` object
+      in its `object` field; a URI-only reference MUST NOT be used, because the recipient
+      needs all entry fields (including `prev_log_hash` and `entry_hash`) to validate the
+      hash chain without an additional round-trip to the sender's DataLayer
+- id: SYNC-03
+  title: Conflict Handling
+  specs:
+  - id: SYNC-03-001
+    priority: MUST
+    statement: >-
+      A receiver MUST reject a replication message whose predecessor hash does not match the
+      receiver's current log tail hash
+  - id: SYNC-03-002
+    priority: MUST
+    statement: >-
+      On receiving a rejection, the sender MUST retry replication starting from the entry
+      following the last accepted hash reported by the receiver
+  - id: SYNC-03-003
+    priority: MUST_NOT
+    statement: >-
+      Replication MUST be idempotent: repeated delivery of the same log entry MUST NOT produce
+      duplicate entries in the receiver's log
+    relationships:
+    - rel_type: implements
+      spec_id: ID-02-001
+      note: idempotency.md
+- id: SYNC-04
+  title: Log State in Context
+  specs:
+  - id: SYNC-03-004
+    priority: SHOULD
+    statement: >-
+      When a Participant Actor sends any message to the CaseActor, it SHOULD include the hash
+      of its last accepted canonical recorded log entry as a parameter in the activity's context
+      field
+- id: SYNC-05
+  title: Per-Peer Replication State
+  specs:
+  - id: SYNC-04-001
+    priority: MUST
+    statement: >-
+      The replication leader MUST track per-peer state including at minimum the last acknowledged
+      log entry hash for each peer
+  - id: SYNC-04-002
+    priority: MUST
+    statement: >-
+      Per-peer replication state MUST be persisted via the DataLayer so that it survives a
+      leader restart
+- id: SYNC-06
+  title: Retry and Backoff
+  specs:
+  - id: SYNC-05-001
+    priority: SHOULD
+    statement: >-
+      The replication sender SHOULD implement retry with exponential backoff on delivery failure
+  - id: SYNC-05-002
+    priority: MUST
+    statement: >-
+      Retry and backoff parameters SHOULD be configurable; default values MUST be documented
+- id: SYNC-07
+  title: Leadership and Ownership
+  specs:
+  - id: SYNC-06-001
+    priority: SHOULD
+    statement: Replication leadership SHOULD be treated as distinct from case ownership
+  - id: SYNC-06-002
+    priority: SHOULD
+    statement: >-
+      The conditions under which replication leadership changes SHOULD be documented in `notes/sync-log-replication.md`
+  - id: SYNC-06-003
+    priority: MUST
+    statement: >-
+      The SYNC-1 through SYNC-4 phases implement a **single-node CaseActor configuration**
+      — a degenerate Raft cluster of one. A single-node CaseActor is always the leader and
+      always has write authority; no election is needed.
+  - id: SYNC-06-004
+    priority: MUST
+    statement: >-
+      A future multi-node CaseActor cluster (Phase 3) provides high-availability write authority
+      via Raft consensus. This is a distinct replication tier from participant replication:
+- id: SYNC-09
+  title: Commit Discipline
+  specs:
+  - id: SYNC-09-001
+    priority: MUST
+    statement: >-
+      A log entry is **committed** when it has been durably appended to the authoritative
+      log and is safe to apply to the case state machine
+  - id: SYNC-09-002
+    priority: MUST
+    statement: >-
+      External Vultron messages (activities sent to Participant Actors or other protocol participants)
+      MUST only be emitted after the associated `CaseLogEntry` is committed
+  - id: SYNC-09-003
+    priority: MUST
+    statement: >-
+      The CaseActor's behavior tree execution MUST be gated on holding leadership role; in
+      single-node this is always satisfied; in multi-node this MUST be checked against the
+      Raft leader state
+- id: SYNC-08
+  title: Testing
+  specs:
+  - id: SYNC-07-001
+    priority: MUST
+    statement: >-
+      Unit tests MUST cover append-only semantics: entries are immutable, hashes are unique,
+      and predecessor hash references are set correctly
+  - id: SYNC-07-002
+    priority: MUST
+    statement: >-
+      Integration tests MUST cover the full single-peer replication cycle: leader appends
+      an entry, sends an `Announce` activity, and the receiver validates the predecessor hash
+      and appends the entry
+  - id: SYNC-07-003
+    priority: MUST
+    statement: >-
+      Tests MUST cover conflict and idempotency scenarios: mismatched predecessor hash, duplicate
+      delivery, and leader retry after rejection
+- id: SYNC-10
+  title: System Invariants
+  specs:
+  - id: SYNC-08-001
+    priority: MUST
+    statement: >-
+      Append-only integrity: log entries MUST be immutable once committed and MUST be uniquely
+      identified by their content hash
+  - id: SYNC-08-002
+    priority: MUST
+    statement: >-
+      Deterministic projection: given an identical canonical recorded log prefix, all compliant
+      implementations MUST derive identical state
+  - id: SYNC-08-003
+    priority: MUST_NOT
+    statement: >-
+      Idempotent replay: reprocessing any canonical recorded log prefix (including duplicates)
+      MUST NOT change the resulting state
+  - id: SYNC-08-004
+    priority: MUST_NOT
+    statement: >-
+      Monotonic visibility: participants MUST NOT regress their acknowledged log position
+  - id: SYNC-08-005
+    priority: MUST
+    statement: >-
+      Reject-on-divergence: entries that do not extend the current hash chain MUST be rejected
+      and MUST trigger resynchronization

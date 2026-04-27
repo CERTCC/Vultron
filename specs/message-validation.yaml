@@ -1,0 +1,139 @@
+id: MV
+title: Message Validation
+description: >-
+  The inbox handler validates ActivityStreams 2.0 activities before processing to ensure protocol
+  conformance and required field presence. Invalid activities are rejected with appropriate
+  error responses. - **HTTP-level validation** (Content-Type, size limits) consolidated in
+  `specs/http-protocol.md` (HTTP-01, HTTP-02) - This spec focuses on **ActivityStreams structure
+  and semantic validation** - **Full inline object rule** (MV-09-001): authoritative basis
+  in `specs/actor-knowledge-model.md` (AKM-02-001, AKM-03-001)
+version: 1.0.0
+kind: domain
+scope:
+- prototype
+- production
+groups:
+- id: MV-01
+  title: Activity Structure Validation
+  specs:
+  - id: MV-01-001
+    priority: MUST
+    statement: Incoming payloads MUST conform to ActivityStreams 2.0 structure
+  - id: MV-01-005
+    priority: MUST
+    statement: 'Pattern-matching implementation MUST be defensive:'
+- id: MV-02
+  title: Schema Validation
+  kind: language
+  specs:
+  - id: MV-02-001
+    priority: MUST
+    statement: The system MUST use Pydantic models to validate activities
+    relationships:
+    - rel_type: implements
+      spec_id: VP-15-001
+  - id: MV-02-002
+    priority: MUST
+    statement: The system MUST reject activities that fail Pydantic validation with HTTP 422
+  - id: MV-02-003
+    priority: MUST
+    statement: Validation error responses MUST include detailed error information
+  - id: MV-02-004
+    priority: MUST
+    statement: The system MUST log validation failures at WARNING level
+- id: MV-03
+  title: Required Field Validation
+  specs:
+  - id: MV-03-001
+    priority: MUST
+    statement: The system MUST validate required fields based on activity type
+- id: MV-04
+  title: Object Type Validation
+  specs:
+  - id: MV-04-001
+    priority: MUST
+    statement: The system MUST validate that object types are recognized Vultron types
+  - id: MV-04-002
+    priority: SHOULD
+    statement: >-
+      For Create-style activities that create sub-objects (e.g., `CreateParticipant`), the
+      activity `name` field SHOULD be a descriptive human-readable string identifying the
+      actor, created object ID, and context (case ID)
+- id: MV-05
+  title: URI Validation
+  specs:
+  - id: MV-05-001
+    priority: MUST
+    statement: The system MUST validate that ID and reference fields contain valid URIs
+  - id: MV-05-002
+    priority: MUST
+    statement: The system MUST treat ActivityStreams object IDs as opaque URIs
+- id: MV-09
+  title: Outbound Activity Object Integrity
+  specs:
+  - id: MV-09-001
+    priority: MUST
+    statement: >-
+      Outbound initiating activities (Create, Offer, Invite, Announce, Add, Remove, Update,
+      Join, Ignore, Leave) MUST carry the `object` field as a fully inline typed domain object
+      — bare string URIs and `as_Link` references are NOT permitted in outbound activities.
+  - id: MV-09-002
+    priority: MUST
+    statement: >-
+      The outbox handler MUST raise `VultronOutboxObjectIntegrityError` and abort delivery
+      if an outbound activity's `object_` field is a bare string or `as_Link` after any DataLayer
+      expansion attempt.
+  - id: MV-09-003
+    priority: MUST
+    statement: >-
+      Vultron activity classes where semantic dispatch depends on the `object_` type MUST
+      require `object_` at construction time — no `None` default is permitted.  An omitted
+      or `None` `object_` renders the activity semantically meaningless because `ActivityPattern._match_field`
+      returns `False` for `None`, causing every pattern that inspects `object_.type` to fail,
+      which forces dispatch to `UNKNOWN`.
+- id: MV-10
+  title: Stub Objects
+  specs:
+  - id: MV-10-001
+    priority: MUST
+    statement: >-
+      Stub objects MUST carry at minimum an `id` field (full URI) and a `type` field; they
+      MAY carry a `summary` field for human-readable context
+  - id: MV-10-002
+    priority: MUST
+    statement: 'Stub objects are ONLY permitted in the following field positions:'
+  - id: MV-10-003
+    priority: MUST_NOT
+    statement: The DataLayer MUST NOT overwrite a full domain object with a stub object
+    rationale: >-
+      A recipient may receive a stub for an object they already have in full; discarding preserves
+      data completeness
+  - id: MV-10-004
+    priority: MUST_NOT
+    statement: Inbound stubs MUST NOT be used to create new domain records
+  - id: MV-10-005
+    priority: MUST
+    statement: >-
+      A participant MUST satisfy BOTH of the following conditions before the case owner delivers
+      full case details to them: 1. `ParticipantStatus.rm_state == ACCEPTED` (participant
+      accepted the case invitation) 2. `ParticipantStatus.embargo_adherence == True` (participant
+      is a signatory to the active embargo), OR there is no active embargo (`CaseStatus.em_state
+      == NONE`)
+  - id: MV-10-006
+    priority: MUST
+    statement: >-
+      When a participant `Accept`s an `Invite(case)` and the case has an active embargo (`CaseStatus.em_state
+      == ACTIVE`), the acceptance MUST imply consent to the active embargo, transitioning
+      that participant's consent state to `SIGNATORY`
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-03-008
+- id: MV-08
+  title: Duplicate Detection
+  specs:
+  - id: MV-08-001
+    priority: SHOULD
+    statement: The system SHOULD detect duplicate activity submissions during validation
+    relationships:
+    - rel_type: depends_on
+      spec_id: ID-02-001

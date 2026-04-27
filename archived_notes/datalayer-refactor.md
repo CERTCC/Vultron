@@ -156,7 +156,7 @@ provide a core-level factory port.
 
 ## References
 
-- `specs/code-style.md` CS-05-001 (no core imports from adapter)
+- `specs/code-style.yaml` CS-05-001 (no core imports from adapter)
 - `docs/adr/0009-hexagonal-architecture.md`
 - `docs/adr/0012-per-actor-datalayer-isolation.md`
 - `vultron/core/ports/datalayer.py` — `DataLayer` Protocol and

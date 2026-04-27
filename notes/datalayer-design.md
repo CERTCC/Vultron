@@ -5,7 +5,7 @@ description: >
   Design guidance for the DataLayer port and its adapters; auto-rehydration
   contract, storage record evaluation.
 related_specs:
-  - specs/datalayer.md
+  - specs/datalayer.yaml
 related_notes:
   - notes/domain-model-separation.md
 relevant_packages:
@@ -71,7 +71,7 @@ coercion code in use cases MUST be removed. Search targets:
 
 **Implementation task**: `DL-REHYDRATE` in `plan/IMPLEMENTATION_PLAN.md`.
 
-**Spec**: `specs/datalayer.md` DL-01-001 through DL-01-004.
+**Spec**: `specs/datalayer.yaml` DL-01-001 through DL-01-004.
 
 ---
 

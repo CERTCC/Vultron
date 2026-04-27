@@ -22,7 +22,7 @@ Covers:
 - CreateInitialVendorParticipant and CreateCaseParticipantNode use of helper
 - RecordCaseCreationEvents blackboard key contract (P360-FIX-3)
 
-Per specs/behavior-tree-node-design.md BTND-02-001, BTND-03-001, BTND-04-001.
+Per specs/behavior-tree-node-design.yaml BTND-02-001, BTND-03-001, BTND-04-001.
 """
 
 import logging

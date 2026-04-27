@@ -17,7 +17,7 @@ to define Vultron terms such as ``embargoPolicy`` under a Vultron namespace
 (e.g., ``https://vultron.sei.cmu.edu/ns#``).  That wiring is deferred to a
 later milestone; see ``plan/IMPLEMENTATION_NOTES.md`` for details.
 
-Per ``specs/embargo-policy.md`` EP-01-001.
+Per ``specs/embargo-policy.yaml`` EP-01-001.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.

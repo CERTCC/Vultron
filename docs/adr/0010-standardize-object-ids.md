@@ -18,7 +18,7 @@ have an `id` field. The `generate_new_id()` utility in
 `vultron/wire/as2/vocab/base/utils.py` currently returns a bare UUID-4 string
 (e.g., `2196cbb2-fb6f-407c-b473-1ed8ae806578`) as the default `as_id` for
 new objects. The AS2 specification and the Vultron object-IDs spec
-(`specs/object-ids.md` OID-01-001) require that `id` values be full URI
+(`specs/object-ids.yaml` OID-01-001) require that `id` values be full URI
 identifiers. Bare UUIDs are not valid AS2 identifiers and will cause
 interoperability problems once federation is implemented.
 
@@ -108,11 +108,11 @@ because:
 
 - Good: no code changes required.
 - Bad: violates AS2 spec; blocks federation.
-- Bad: violates `specs/object-ids.md` OID-01-001.
+- Bad: violates `specs/object-ids.yaml` OID-01-001.
 
 ## More Information
 
-- `specs/object-ids.md` — normative requirements OID-01 through OID-04.
+- `specs/object-ids.yaml` — normative requirements OID-01 through OID-04.
 - `notes/codebase-structure.md` — "Technical Debt: Object IDs Should Be
   URL-Like, Not Bare UUIDs" section.
 - `plan/IMPLEMENTATION_PLAN.md` — TECHDEBT-3.

@@ -1,6 +1,6 @@
 """Tests for vultron.metadata.notes schema and loader.
 
-Validation test requirement: specs/notes-frontmatter.md NF-04-001.
+Validation test requirement: specs/notes-frontmatter.yaml NF-04-001.
 """
 
 import pytest
@@ -24,13 +24,13 @@ class TestNotesFrontmatterSchema:
                 "title": "Full Note",
                 "status": "active",
                 "description": "A description.",
-                "related_specs": ["specs/some-spec.md"],
+                "related_specs": ["specs/some-spec.yaml"],
                 "related_notes": ["notes/other.md"],
                 "relevant_packages": ["pydantic"],
             }
         )
         assert nf.description == "A description."
-        assert nf.related_specs == ["specs/some-spec.md"]
+        assert nf.related_specs == ["specs/some-spec.yaml"]
 
     def test_superseded_status_requires_superseded_by(self):
         with pytest.raises(ValidationError, match="superseded_by"):

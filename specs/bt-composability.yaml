@@ -1,0 +1,156 @@
+id: BTC
+title: Behavior Tree Composability
+description: >-
+  Requirements for implementing Vultron's behavioral logic as composable, reusable BT structures
+  using the simulator as the canonical blueprint. These requirements address the *workflow*
+  of BT composition: how to use the simulator reference, where structures must live, when
+  to use BT composite idioms instead of procedural code, and the fractal composability principle
+  that applies at every depth. - `specs/behavior-tree-integration.md` BT-06-001 through BT-06-006
+  — when to use BTs, protocol-significant behavior, cascade rules - `specs/behavior-tree-node-design.md`
+  BTND-01 through BTND-05 — node parameterization, composability, module ownership - `notes/bt-composability.md`
+  — implementation guidance, examples, and the fractal pattern in depth
+version: 1.0.0
+kind: pattern
+scope:
+- prototype
+- production
+groups:
+- id: BTC-01
+  title: Simulator Reference Workflow
+  kind: domain
+  specs:
+  - id: BTC-01-001
+    priority: MUST
+    statement: >-
+      Before implementing any BT node or subtree in `vultron/core/behaviors/`, a developer
+      MUST search `notes/vultron-bt.txt` to locate the corresponding node in the canonical
+      simulation tree.
+    rationale: >-
+      The canonical tree is the normative definition of Vultron's domain behavior. Implementing
+      without consulting it risks inventing structures that contradict the protocol design.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-002
+  - id: BTC-01-002
+    priority: MUST
+    statement: >-
+      After locating a node in `notes/vultron-bt.txt`, a developer MUST examine the corresponding
+      class in `vultron/bt/` to understand the node's children, structure, and composites.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-002
+  - id: BTC-01-003
+    priority: MUST
+    statement: >-
+      If a corresponding simulator class does NOT exist for the behavior being implemented,
+      the developer MUST document the divergence with a brief rationale comment before proceeding.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-002
+- id: BTC-02
+  title: BT Structure Pre-Definition
+  specs:
+  - id: BTC-02-001
+    priority: MUST
+    statement: >-
+      All BT composite structures used by use cases in `vultron/core/use_cases/` MUST be pre-defined
+      as named classes or factory composites in `vultron/core/behaviors/` before use.
+    rationale: >-
+      Business logic lives in `core/behaviors/`. If use cases construct trees ad-hoc, the
+      business logic migrates into use cases and becomes invisible to analysis of the behavior
+      layer.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-001
+  - id: BTC-02-002
+    priority: MUST_NOT
+    statement: >-
+      Use cases MUST NOT construct ad-hoc BT composite trees inline. Inline construction means
+      calling `py_trees.composites.Sequence(children=[ NodeA(), NodeB(), ...])` or equivalent
+      directly inside a use case's `execute()` method.
+    relationships:
+    - rel_type: refines
+      spec_id: BTC-02-001
+  - id: BTC-02-003
+    priority: MUST
+    statement: 'Use cases MUST follow the instantiate-then-invoke pattern when using BTs:'
+    relationships:
+    - rel_type: refines
+      spec_id: BTC-02-002
+- id: BTC-03
+  title: BT Idioms Over Procedural Code
+  kind: language
+  specs:
+  - id: BTC-03-001
+    priority: MUST
+    statement: >-
+      Behavioral logic that belongs inside a BT MUST be expressed using BT composite idioms
+      (Sequence, Selector/Fallback, Decorator) rather than procedural `if`/`else` chains.
+    rationale: >-
+      BT idioms make logic auditable, extractable, and explainable by anyone who can read
+      the tree structure, without reading implementation code. Procedural logic inside `update()`
+      is opaque.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-001
+  - id: BTC-03-002
+    priority: MUST
+    statement: >-
+      Precondition-then-action logic MUST be modeled as a Sequence where leading children
+      are Condition nodes and trailing children are Action nodes.
+    relationships:
+    - rel_type: refines
+      spec_id: BTC-03-001
+  - id: BTC-03-003
+    priority: MUST
+    statement: >-
+      Try-A-or-else-B fallback logic MUST be modeled as a Selector (Fallback) composite with
+      A and B as children.
+    relationships:
+    - rel_type: refines
+      spec_id: BTC-03-001
+  - id: BTC-03-004
+    priority: SHOULD
+    statement: >-
+      When a leaf node in the canonical simulator BT requires complex implementation logic,
+      that logic SHOULD be expanded into a subtree using BT composite idioms rather than procedural
+      code in a single `update()` method.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-004
+- id: BTC-04
+  title: Fractal Composability
+  specs:
+  - id: BTC-04-001
+    priority: MUST
+    statement: >-
+      The compose-and-reuse principle MUST apply at every depth level of the behavior tree
+      — from single-purpose leaf nodes up to use-case entry trees.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-02-002
+  - id: BTC-04-002
+    priority: MUST
+    statement: >-
+      When the canonical simulation tree shows the same named behavior appearing at two or
+      more locations, that behavior MUST be implemented as a single reusable class in `vultron/core/behaviors/`,
+      instantiated separately at each use site.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-02-001
+  - id: BTC-04-003
+    priority: MUST
+    statement: >-
+      The "trunk-removed branches" model means extracting reusable subtrees at *the appropriate
+      depth for the behavior*, not uniformly at the top level.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-002
+  - id: BTC-04-004
+    priority: SHOULD
+    statement: >-
+      Every pre-defined BT class in `vultron/core/behaviors/` SHOULD be usable both as a standalone
+      use-case entry point AND as a composable child of a larger BT.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-02-002

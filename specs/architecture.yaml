@@ -1,0 +1,189 @@
+id: ARCH
+title: Architecture
+description: >-
+  Defines the architectural constraints for the Vultron codebase. The system follows **Hexagonal
+  Architecture** (Ports and Adapters): the core domain is isolated from all external systems.
+  External systems interact with the core through defined **ports**, via thin **adapters**.
+  `archived_notes/architecture-review.md` prevention), `notes/domain-model-separation.md`
+  (wire/domain/persistence separation), `archived_notes/architecture-review.md` (violation
+  inventory and remediation history), `docs/adr/0009-hexagonal-architecture.md` (decision
+  rationale)
+version: 1.0.0
+kind: pattern
+scope:
+- prototype
+- production
+groups:
+- id: ARCH-01
+  title: Layer Separation
+  specs:
+  - id: ARCH-01-001
+    priority: MUST_NOT
+    statement: >-
+      The `core/` package (or equivalent domain layer) MUST NOT import from `wire/`, `adapters/`,
+      or any external framework
+    rationale: Keeps domain logic replaceable without touching the wire or transport layer
+    relationships:
+    - rel_type: derives_from
+      spec_id: CS-05-001
+  - id: ARCH-01-002
+    priority: MUST
+    statement: Core functions MUST accept and return domain types only
+  - id: ARCH-01-003
+    priority: MUST_NOT
+    statement: >-
+      The `wire/` layer (AS2 parser, semantic extractor) MUST NOT contain handler logic, case
+      management, or journal management
+    rationale: >-
+      Wire format concerns are structurally distinct from domain concerns; mixing them prevents
+      future wire format substitution
+- id: ARCH-02
+  title: SemanticIntent Enum
+  kind: domain
+  specs:
+  - id: ARCH-02-001
+    priority: MUST
+    statement: >-
+      The `MessageSemantics` enum (`SemanticIntent`) MUST be defined in the domain layer,
+      not in the wire layer
+- id: ARCH-03
+  title: Semantic Extractor
+  kind: domain
+  specs:
+  - id: ARCH-03-001
+    priority: MUST
+    statement: >-
+      AS2 vocabulary MUST be mapped to domain concepts in exactly one location: the semantic
+      extractor
+    rationale: Isolates the single seam where wire format changes are absorbed
+- id: ARCH-04
+  title: Driven Adapter Injection
+  specs:
+  - id: ARCH-04-001
+    priority: MUST
+    statement: >-
+      Driven adapters (persistence, delivery queue, DNS resolver, HTTP delivery) MUST be injected
+      into core services via port interfaces
+    rationale: >-
+      Enables testing core logic with in-memory ports and swapping production backends without
+      touching domain code
+- id: ARCH-05
+  title: Connector Plugins
+  kind: language
+  specs:
+  - id: ARCH-05-001
+    priority: MUST_NOT
+    statement: >-
+      Connector plugins (tracker integrations) MUST be discovered via Python entry points
+      (`importlib.metadata`); the core MUST NOT import them directly
+  - id: ARCH-05-002
+    priority: MUST
+    statement: >-
+      Connector plugins MUST translate only — no case handling logic, authorization, or journal
+      management belongs in a connector
+- id: ARCH-06
+  title: Wire Layer Replaceability
+  specs:
+  - id: ARCH-06-001
+    priority: SHOULD
+    statement: >-
+      The wire layer (`wire/as2/`) SHOULD be replaceable as a unit without touching the core
+      or adapter layers
+- id: ARCH-07
+  title: Handler Isolation
+  specs:
+  - id: ARCH-07-001
+    priority: MUST_NOT
+    statement: Handler functions MUST NOT re-invoke semantic extraction
+- id: ARCH-08
+  title: Driving Adapter Boundary
+  specs:
+  - id: ARCH-08-001
+    priority: MUST
+    statement: >-
+      Driving adapters (HTTP inbox, CLI, MCP server) MUST invoke the wire pipeline before
+      calling into the core
+    rationale: >-
+      Any driving adapter that needs to ingest AS2 can reuse the wire pipeline; there is no
+      duplication
+- id: ARCH-12
+  title: Wire-Domain Translation Boundary
+  kind: implementation
+  specs:
+  - id: ARCH-12-001
+    priority: MUST
+    statement: >-
+      The wire-layer `VultronObject` base class in `vultron/wire/as2/vocab/objects/base.py`
+      MUST be renamed `VultronAS2Object`; all reference sites MUST be updated accordingly.
+      The core domain `VultronObject` (in `vultron/core/models/base.py`) retains its name
+      — only the wire base is renamed.
+    rationale: >-
+      Two classes named `VultronObject` in different packages causes confusion in search,
+      type-checking, and code completion.
+  - id: ARCH-12-002
+    priority: MUST
+    statement: >-
+      Every concrete subclass of `VultronAS2Object` MUST implement a `from_core(cls, core_obj:
+      <DomainType>) -> "<WireType>"` classmethod that converts a core domain object to its
+      wire representation. `VultronAS2Object` MUST provide a base stub that raises `NotImplementedError`
+      so that unimplemented subclasses fail loudly at runtime.
+  - id: ARCH-12-003
+    priority: MUST
+    statement: >-
+      Every concrete subclass of `VultronAS2Object` MUST implement a `to_core(self) -> <DomainType>`
+      instance method that converts a wire object back to its core domain representation.
+      `VultronAS2Object` MUST provide a base stub that raises `NotImplementedError`.
+  - id: ARCH-12-004
+    priority: MUST
+    statement: >-
+      `VultronAS2Object` MUST define a `_field_map: ClassVar[dict[str, str]] = {}` class variable
+      as a transitional escape hatch for field name mismatches between domain and wire types.
+      `from_core()` and `to_core()` MUST apply `_field_map` key substitutions before calling
+      `model_validate()`. The goal is for `_field_map` to be empty on all subclasses once
+      domain and wire field names are aligned.
+  - id: ARCH-12-005
+    priority: MUST
+    statement: >-
+      Wire activity base classes MUST provide a generic `from_core(cls, domain_activity)`
+      classmethod that maps grammatical AS2 fields (`actor`, `object_`, `target`, `context`,
+      `in_reply_to`) by calling `WireType.from_core()` on any field value that is a `VultronObject`
+      instance, and passing URI strings through unchanged. Subclasses MUST narrow the `domain_activity`
+      type annotation to their specific domain activity counterpart.
+  - id: ARCH-12-006
+    priority: MUST
+    statement: >-
+      `vultron/wire/as2/serializer.py` MUST be removed. All standalone `domain_xxx_to_wire()`
+      functions in that module MUST be migrated to `from_core()` classmethods on the corresponding
+      wire types. No compatibility shims or re-exports are permitted.
+  - id: ARCH-12-007
+    priority: MUST
+    statement: >-
+      The default `from_core()` / `to_core()` implementation for concrete wire types MAY use
+      a JSON round-trip (`cls.model_validate(core_obj.model_dump(mode="json"))`) as its body.
+      Where field names differ, the `_field_map` escape hatch (ARCH-12-004) MUST be used rather
+      than bespoke field-by-field mapping logic.
+  - id: ARCH-09-001
+    priority: MUST
+    statement: >-
+      Core domain models MUST be as rich as or richer than their wire-layer counterparts
+    rationale: >-
+      A thinner core model forces piecemeal additions as handlers are implemented, causing
+      boundary leakage and implementation drift
+- id: ARCH-10
+  title: Fail-Fast Domain Objects
+  specs:
+  - id: ARCH-10-001
+    priority: MUST
+    statement: >-
+      Domain events and domain models MUST validate required fields at construction time and
+      fail immediately if required invariants are not satisfied
+    rationale: >-
+      Late validation masks missing data and makes debugging harder; fail-fast ensures errors
+      surface at the point of construction
+- id: ARCH-11
+  title: Port Inbound/Outbound Discrimination
+  specs:
+  - id: ARCH-11-001
+    priority: SHOULD
+    statement: >-
+      Core ports SHOULD be organized into inbound (driving) and outbound (driven) categories

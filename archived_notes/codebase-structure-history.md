@@ -77,7 +77,7 @@ The `ActivityEmitter` port stub, delivery queue, and outbox delivery loop
 are now in place. `actor_io.py` (the old placeholder) was deleted in
 VCR-014.
 
-**Reference**: `specs/outbox.md`; `plan/IMPLEMENTATION_HISTORY.md` Phase
+**Reference**: `specs/outbox.yaml`; `plan/IMPLEMENTATION_HISTORY.md` Phase
 OX-1.0–1.4 and VCR-014.
 
 ---

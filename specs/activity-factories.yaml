@@ -1,0 +1,150 @@
+id: AF
+title: Activity Factory Functions
+description: >-
+  Requirements governing the factory function API for constructing outbound Vultron protocol
+  activities. Factory functions replace direct instantiation of Vultron activity subclasses
+  as the public construction API and are the sole import point for activity construction outside
+  the wire vocabulary layer. `vocabulary-model.md` VM-01 through VM-05 (vocabulary registration),
+  `code-style.md` CS-05-001 (layer separation), `error-handling.md`
+version: 1.0.0
+kind: domain
+scope:
+- prototype
+- production
+groups:
+- id: AF-01
+  title: Purpose and Scope
+  specs:
+  - id: AF-01-001
+    priority: MUST
+    statement: >-
+      Factory functions MUST be the sole public construction API for outbound Vultron protocol
+      activities
+  - id: AF-01-002
+    priority: MUST
+    statement: >-
+      Factory functions MUST return plain AS2 base types (e.g. `as_Offer`, `as_Accept`, `as_Create`)
+      rather than Vultron activity subclasses
+  - id: AF-01-003
+    priority: MUST
+    statement: >-
+      Factory function signatures MUST declare explicit, domain-typed parameters for all protocol-significant
+      fields
+  - id: AF-01-004
+    priority: SHOULD
+    statement: >-
+      Factory functions SHOULD accept `**kwargs` for optional AS2 fields that are not protocol-significant,
+      forwarding them to the underlying AS2 constructor
+- id: AF-02
+  title: Module Structure
+  specs:
+  - id: AF-02-001
+    priority: MUST
+    statement: >-
+      All factory functions MUST live in the `vultron/wire/as2/factories/` package — a sibling
+      of `vultron/wire/as2/vocab/`
+  - id: AF-02-002
+    priority: MUST
+    statement: >-
+      The `factories/` package MUST be organized into one module per protocol domain, mirroring
+      the existing `vocab/activities/` modules:
+  - id: AF-02-003
+    priority: MUST
+    statement: >-
+      `factories/__init__.py` MUST re-export every factory function from all domain modules
+      so callers can use a single `from vultron.wire.as2.factories import ...` import
+  - id: AF-02-004
+    priority: MUST
+    statement: >-
+      `VultronActivityConstructionError` MUST be defined in `vultron/wire/as2/factories/errors.py`
+      and imported into `factories/__init__.py`
+- id: AF-03
+  title: Function Naming
+  specs:
+  - id: AF-03-001
+    priority: MUST
+    statement: >-
+      Factory function names MUST be the snake_case equivalent of the corresponding Vultron
+      activity class name
+- id: AF-04
+  title: Error Handling
+  specs:
+  - id: AF-04-001
+    priority: MUST
+    statement: >-
+      Every factory function MUST wrap Pydantic `ValidationError` in `VultronActivityConstructionError`
+  - id: AF-04-002
+    priority: MUST
+    statement: >-
+      `VultronActivityConstructionError` MUST be defined in `vultron/wire/as2/factories/errors.py`
+      and re-exported from `vultron/wire/as2/factories/__init__.py`
+  - id: AF-04-003
+    priority: SHOULD
+    statement: >-
+      Factory functions SHOULD log a `WARNING` before raising `VultronActivityConstructionError`
+      so that construction failures are observable without requiring callers to catch the
+      exception
+- id: AF-05
+  title: Internal Vocabulary Classes
+  specs:
+  - id: AF-05-001
+    priority: MUST
+    statement: >-
+      Vultron activity subclasses in `vultron/wire/as2/vocab/activities/` MUST NOT be imported
+      by any module outside that package or `vultron/wire/as2/factories/`
+  - id: AF-05-002
+    priority: MUST
+    statement: >-
+      Inside each factory function the corresponding internal class MUST be instantiated first;
+      the result is returned typed as the plain AS2 base type
+  - id: AF-05-003
+    priority: SHOULD
+    statement: >-
+      Internal Vultron activity classes SHOULD be prefixed with `_` or otherwise marked as
+      private once factory functions exist for them, to signal that they are implementation
+      details
+- id: AF-06
+  title: Import Boundary Enforcement
+  specs:
+  - id: AF-06-001
+    priority: MUST
+    statement: >-
+      A pytest test in `test/architecture/` MUST verify that no Python source file outside
+      `vultron/wire/as2/vocab/activities/` and `vultron/wire/as2/factories/` contains an import
+      from `vultron.wire.as2.vocab.activities`
+  - id: AF-06-002
+    priority: MUST
+    statement: >-
+      The `test/architecture/` package MUST be a proper pytest package (`__init__.py` present)
+      so that future architectural enforcement tests can be added alongside it
+- id: AF-07
+  title: TypeAlias Cleanup
+  specs:
+  - id: AF-07-001
+    priority: MUST
+    statement: The unused `OfferRef` TypeAlias in `vocab/activities/report.py` MUST be removed
+  - id: AF-07-002
+    priority: MUST
+    statement: >-
+      The unused `RmInviteToCaseRef` TypeAlias in `vocab/activities/case.py` MUST be removed
+  - id: AF-07-003
+    priority: SHOULD
+    statement: >-
+      The `EmProposeEmbargoRef` TypeAlias in `vocab/activities/embargo.py` SHOULD be renamed
+      to `_EmProposeEmbargoRef` (private prefix) since it is used only within `embargo.py`
+      and is not intended as a public export
+- id: AF-08
+  title: Migration
+  specs:
+  - id: AF-08-001
+    priority: MUST
+    statement: >-
+      All call sites outside `vultron/wire/as2/vocab/activities/` and `vultron/wire/as2/factories/`
+      that directly instantiate a Vultron activity subclass MUST be migrated to use the corresponding
+      factory function
+  - id: AF-08-002
+    priority: SHOULD
+    statement: >-
+      Migration of `from_core()` call sites in `vultron/core/use_cases/` to use driven adapter
+      translation instead of calling wire-layer methods directly is a **separate tracked task**
+      and MUST NOT be conflated with factory function migration

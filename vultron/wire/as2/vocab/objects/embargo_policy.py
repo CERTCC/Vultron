@@ -79,8 +79,8 @@ class EmbargoPolicy(VultronAS2Object):
         notes: Free-text description of the Actor's embargo preferences
             (optional).
 
-    Per specs/embargo-policy.md EP-01-001 through EP-01-004 and
-    specs/duration.md DUR-01-001, DUR-05-001, DUR-05-002.
+    Per specs/embargo-policy.yaml EP-01-001 through EP-01-004 and
+    specs/duration.yaml DUR-01-001, DUR-05-001, DUR-05-002.
     """
 
     type_: VO_type = Field(
@@ -124,7 +124,7 @@ class EmbargoPolicy(VultronAS2Object):
     def _parse_iso8601_duration(cls, value: Any) -> timedelta | None:
         """Accept ISO 8601 duration strings or timedelta; reject calendar units.
 
-        Per specs/duration.md DUR-04-001, DUR-04-002, DUR-05-001.
+        Per specs/duration.yaml DUR-04-001, DUR-04-002, DUR-05-001.
         """
         return _parse_duration(value)
 
@@ -137,7 +137,7 @@ class EmbargoPolicy(VultronAS2Object):
     def _serialize_duration(self, value: timedelta | None) -> str | None:
         """Serialize timedelta to ISO 8601 duration string.
 
-        Per specs/duration.md DUR-05-002.
+        Per specs/duration.yaml DUR-05-002.
         """
         if value is None:
             return None

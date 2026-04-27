@@ -5,7 +5,7 @@ description: >
   Vultron's fractal composability principle for behavior trees; concrete
   patterns for composing behavioral subtrees.
 related_specs:
-  - specs/bt-composability.md
+  - specs/bt-composability.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/bt-reusability.md
@@ -24,7 +24,7 @@ trees: what it means in practice, how to use the simulator as a blueprint,
 and the concrete patterns agents should follow when implementing behavioral
 logic in `vultron/core/behaviors/`.
 
-**Formal requirements**: `specs/bt-composability.md` (BTC-01 through BTC-04).
+**Formal requirements**: `specs/bt-composability.yaml` (BTC-01 through BTC-04).
 
 **See also**:
 
@@ -340,7 +340,7 @@ This keeps each child node simple and testable in isolation.
 
 ## Related Reading
 
-- `specs/bt-composability.md` — formal BTC-01 through BTC-04 requirements
+- `specs/bt-composability.yaml` — formal BTC-01 through BTC-04 requirements
 - `notes/bt-reusability.md` — anti-patterns and node design checklist
 - `notes/bt-integration.md` — design decisions, trunk-removed branches model
 - `notes/vultron-bt.txt` — canonical simulation BT structure (full dump)

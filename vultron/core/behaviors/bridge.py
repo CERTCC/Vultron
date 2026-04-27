@@ -26,13 +26,13 @@ behavior tree execution. It provides:
 5. Leadership guard port (SYNC-09-003): single-node always returns True;
    seam for future multi-node Raft leader check.
 
-Per specs/behavior-tree-integration.md:
+Per specs/behavior-tree-integration.yaml:
 - BT-05-001: Provides BT execution bridge for handler-to-BT invocation
 - BT-05-002: Sets up py_trees context with DataLayer access
 - BT-05-003: Populates blackboard with activity and actor state
 - BT-05-004: Executes tree and returns execution result
 
-Per specs/sync-log-replication.md:
+Per specs/sync-log-replication.yaml:
 - SYNC-09-003: Leadership role-check port; always True in single-node.
 """
 

@@ -20,7 +20,7 @@ Verifies that ReceiveReportCaseBT correctly orchestrates case creation,
 embargo initialization, participant creation, and outbox notification at
 the RM.RECEIVED stage (ADR-0015).
 
-Per specs/case-management.md CM-12 and specs/behavior-tree-integration.md
+Per specs/case-management.yaml CM-12 and specs/behavior-tree-integration.yaml
 BT-06.
 """
 
@@ -401,7 +401,7 @@ def test_tree_sets_em_state_proposed_after_embargo_init(
     vendor_received_status,
 ):
     """After embargo initialization, the case's current EM state MUST be
-    PROPOSED, not NONE (D5-7-EMSTATE-1, specs/case-management.md CM-12-004).
+    PROPOSED, not NONE (D5-7-EMSTATE-1, specs/case-management.yaml CM-12-004).
     """
     from vultron.core.states.em import EM
 

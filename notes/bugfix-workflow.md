@@ -5,13 +5,13 @@ description: >
   Design decisions and implementation patterns for the test-first bugfix
   workflow.
 related_specs:
-  - specs/bugfix-workflow.md
+  - specs/bugfix-workflow.yaml
 ---
 
 # Bugfix Workflow — Implementation Notes
 
 Design decisions, implementation patterns, and examples for the bugfix skill
-requirements in `specs/bugfix-workflow.md`.
+requirements in `specs/bugfix-workflow.yaml`.
 
 ---
 

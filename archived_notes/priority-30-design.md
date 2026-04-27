@@ -62,12 +62,12 @@ Response options:
 - HTTP 202 with no body (simplest, acceptable for prototype)
 
 **Recommendation**: Return the resulting activity for simple single-step
-behaviors; defer job tracking to production (see `specs/agentic-readiness.md`
+behaviors; defer job tracking to production (see `specs/agentic-readiness.yaml`
 AR-04-001 `PROD_ONLY`).
 
 ### 3. Relationship to CLI Interface
 
-`specs/behavior-tree-integration.md` BT-08-001 (MAY) permits a CLI interface
+`specs/behavior-tree-integration.yaml` BT-08-001 (MAY) permits a CLI interface
 for BT execution. The HTTP trigger API and the CLI could share the same
 underlying invocation logic. Design the endpoint contract first; the CLI
 wraps it.

@@ -3,7 +3,7 @@
 Health check endpoints for the Vultron API.
 
 Implements OB-05-001 (/health/live) and OB-05-002 (/health/ready)
-from specs/observability.md.
+from specs/observability.yaml.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.

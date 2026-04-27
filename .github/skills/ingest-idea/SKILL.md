@@ -50,7 +50,7 @@ Reach shared understanding before writing anything.
 
 ### 5. Write the spec file
 
-Create or modify `specs/<topic>.md` following `specs/meta-specifications.md` 
+Create or modify `specs/<topic>.md` following `specs/meta-specifications.yaml` 
 conventions:
 
 - Use a `FILE_PREFIX-SECTION_#-###` ID scheme (e.g., `CFG-01-001`)

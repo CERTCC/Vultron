@@ -1,0 +1,202 @@
+id: IMPLTS
+title: Vultron Project Technology Stack
+description: >-
+  This specification defines the normative technology constraints and implementation requirements
+  for the Vultron prototype implementation.
+version: 1.0.0
+kind: language
+scope:
+- prototype
+- production
+groups:
+- id: IMPLTS-01
+  title: Runtime and Language
+  specs:
+  - id: IMPLTS-01-001
+    priority: MUST
+    statement: The implementation MUST use Python 3.12 or later.
+  - id: IMPLTS-01-007
+    priority: MUST
+    statement: >-
+      Before updating the `requires-python` floor in `pyproject.toml`, the full test suite
+      MUST pass on the target Python version in CI, and all static type checks (`mypy`, `pyright`)
+      and linters MUST pass under the new runtime
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-01-001
+  - id: IMPLTS-01-002
+    priority: MUST
+    statement: The backend API MUST be implemented using FastAPI.
+  - id: IMPLTS-01-003
+    priority: MUST
+    statement: The backend API MUST expose an OpenAPI specification.
+  - id: IMPLTS-01-004
+    priority: MUST
+    statement: The system MUST use Pydantic for data validation and data modeling.
+  - id: IMPLTS-01-005
+    priority: MUST
+    statement: >-
+      The application MUST use Python’s standard logging framework for structured logging.
+  - id: IMPLTS-01-006
+    priority: MUST
+    statement: The behavior tree engine MUST be implemented using py_trees.
+- id: IMPLTS-02
+  title: Persistence and Data
+  specs:
+  - id: IMPLTS-02-001
+    priority: MUST
+    statement: The prototype MUST use SQLModel/SQLite for lightweight local persistence.
+  - id: IMPLTS-02-002
+    priority: MUST
+    statement: The system MUST support SQLite-based storage for demo and local development
+      use.
+  - id: IMPLTS-02-003
+    priority: MUST
+    statement: The system MUST support ISO 8601 date/time parsing and formatting using isodate.
+  - id: IMPLTS-02-004
+    priority: MUST
+    statement: The system MUST support graph construction and analysis using networkx.
+- id: IMPLTS-03
+  title: Interfaces and Tooling
+  specs:
+  - id: IMPLTS-03-001
+    priority: MUST
+    statement: Command line interfaces MUST be implemented using `click`.
+  - id: IMPLTS-03-002
+    priority: MUST
+    statement: The system MUST support HTTP interactions with external services using requests.
+  - id: IMPLTS-03-003
+    priority: MUST
+    statement: The project MUST include automated tests implemented using `pytest`.
+  - id: IMPLTS-03-004
+    priority: MUST
+    statement: The project MUST support task automation using `make`.
+- id: IMPLTS-04
+  title: Documentation and Visualization
+  specs:
+  - id: IMPLTS-04-001
+    priority: SHOULD
+    statement: The project SHOULD generate static documentation using MkDocs.
+  - id: IMPLTS-04-002
+    priority: SHOULD
+    statement: The documentation SHOULD use `mkdocstrings` for API reference generation.
+  - id: IMPLTS-04-003
+    priority: SHOULD
+    statement: The documentation theme SHOULD use Material for MkDocs.
+  - id: IMPLTS-04-004
+    priority: SHOULD
+    statement: >-
+      The documentation SHOULD support Mermaid diagrams for behavior trees, state machines,
+      and process diagrams.
+- id: IMPLTS-05
+  title: Containerization and Deployment
+  specs:
+  - id: IMPLTS-05-001
+    priority: SHOULD
+    statement: The system SHOULD support containerization using Docker.
+  - id: IMPLTS-05-002
+    priority: SHOULD
+    statement: Multi-container demo environments SHOULD be orchestrated using `docker-compose`.
+  - id: IMPLTS-05-003
+    priority: MUST
+    statement: The project MUST use GitHub Actions for CI/CD.
+  - id: IMPLTS-05-004
+    priority: MUST
+    statement: CI workflows MUST include automated testing.
+  - id: IMPLTS-05-005
+    priority: SHOULD
+    statement: >-
+      CI workflows SHOULD support static site generation and deployment to GitHub Pages.
+  - id: IMPLTS-05-006
+    priority: SHOULD
+    statement: Static documentation SHOULD be hosted via GitHub Pages.
+  - id: IMPLTS-05-007
+    priority: MUST
+    statement: Source code MUST be hosted in GitHub using git for version control.
+- id: IMPLTS-07
+  title: Code Quality Tooling
+  specs:
+  - id: IMPLTS-07-001
+    priority: MUST
+    statement: >-
+      The project MUST use Black for code formatting; Black MUST be enforced via pre-commit
+      hooks AND in the CI pipeline.
+    relationships:
+    - rel_type: implements
+      spec_id: CS-01-001
+  - id: IMPLTS-07-002
+    priority: MUST
+    statement: >-
+      The project MUST use pyright for static type checking; pyright MUST run in CI and MUST
+      pass with zero errors on every commit to `main` and on every pull request targeting
+      `main`.
+    relationships:
+    - rel_type: implements
+      spec_id: CS-11-001
+  - id: IMPLTS-07-003
+    priority: MUST
+    statement: >-
+      The project MUST use mypy for static type checking; mypy MUST run in CI and MUST pass
+      with zero errors on every commit to `main` and on every pull request targeting `main`.
+    relationships:
+    - rel_type: implements
+      spec_id: CS-11-001
+  - id: IMPLTS-07-004
+    priority: MUST
+    statement: >-
+      The project MUST use flake8 for PEP 8 linting; flake8 MUST run in CI (without `--exit-zero`)
+      and MUST pass with zero errors on every commit to `main` and on every pull request targeting
+      `main`.
+    relationships:
+    - rel_type: implements
+      spec_id: CS-01-001
+  - id: IMPLTS-07-007
+    priority: MUST
+    statement: >-
+      All functions and methods MUST have cyclomatic complexity (CC) ≤ 15. Enforced via the
+      bundled `flake8-mccabe` plugin (`max-complexity = 15` in `.flake8`) as part of the flake8
+      CI gate and pre-commit hook. CC is measured using the McCabe algorithm as implemented
+      by `flake8-mccabe`.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-004
+  - id: IMPLTS-07-008
+    priority: SHOULD
+    statement: >-
+      All functions and methods SHOULD have cyclomatic complexity ≤ 10, the generally accepted
+      upper bound for maintainable code. This requirement SHOULD be upgraded to MUST once
+      all CC violations above 10 are resolved (see `plan/IMPLEMENTATION_PLAN.md` CC-2).
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-007
+  - id: IMPLTS-07-005
+    priority: MUST
+    statement: >-
+      The CI pipeline MUST run tests (`pytest`), formatting (`black --check`), and all three
+      linters (`flake8`, `mypy`, `pyright`) as separate parallel jobs. The build job MUST
+      only execute when all parallel jobs pass.
+    rationale: >-
+      Parallel execution surfaces all failures simultaneously, reducing fix-cycle time and
+      preserving the known-clean codebase baseline.
+  - id: IMPLTS-07-006
+    priority: MUST
+    statement: >-
+      The pytest configuration in `[tool.pytest.ini_options]` MUST include `filterwarnings
+      = ["error"]` so that test-suite warnings are treated as errors and cannot accumulate
+      as silent technical debt. Existing warnings MUST be resolved before this setting is
+      activated; new warnings MUST NOT be introduced after it is active.
+- id: IMPLTS-06
+  title: Optional and Prototype Extensions
+  specs:
+  - id: IMPLTS-06-001
+    priority: MAY
+    statement: The system MAY provide interactive demo interfaces using Streamlit.
+  - id: IMPLTS-06-002
+    priority: MAY
+    statement: The project MAY use uv for Python environment and dependency management.
+  - id: IMPLTS-06-003
+    priority: MAY
+    statement: The system MAY use rdflib and owlready2 for RDF and OWL ontology support.
+  - id: IMPLTS-06-004
+    priority: MAY
+    statement: The system MAY use numpy and pandas for data manipulation and analysis.

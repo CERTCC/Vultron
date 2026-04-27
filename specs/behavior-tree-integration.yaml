@@ -1,0 +1,235 @@
+id: BT
+title: Behavior Tree Integration
+description: >-
+  Handler functions may orchestrate business logic using behavior trees (BTs) for complex
+  workflows. BTs provide hierarchical, composable process modeling with explicit preconditions
+  and state transitions. ADR-0008 (py_trees integration) **Node construction patterns**: See
+  `notes/bt-design-patterns.md` for idiomatic guidance on PPA structure, implicit sequences,
+  safety guards, memory nodes, and granularity — derived from Colledanchise & Ögren (arXiv:1709.00084).
+  Formal requirements: `specs/behavior-tree-node-design.md` BTND-06-001 through BTND-06-007.
+  logic. Complex workflows (report validation, case creation, embargo management) SHOULD use
+  BTs for clarity and maintainability.
+version: 1.0.0
+kind: pattern
+scope:
+- prototype
+- production
+groups:
+- id: BT-01
+  title: BT Execution Model
+  specs:
+  - id: BT-01-001
+    priority: MUST
+    statement: BT execution MUST be event-driven, triggered by handler invocation
+  - id: BT-01-002
+    priority: MUST
+    statement: BTs MUST execute to completion (or max iterations) per invocation
+  - id: BT-01-003
+    priority: MUST_NOT
+    statement: BT execution MUST NOT use continuous tick-based polling loops
+  - id: BT-01-004
+    priority: MUST
+    statement: BTs MUST be single-shot executions within handler context
+- id: BT-02
+  title: BT Library
+  kind: language
+  specs:
+  - id: BT-02-001
+    priority: MUST
+    statement: >-
+      Prototype handlers MUST implement BT execution using industry- standard BT library
+    rationale: Mature libraries provide visualization, debugging, and standard BT semantics
+  - id: BT-02-002
+    priority: MUST
+    statement: Simulation code in `vultron/bt/` MUST remain unchanged
+- id: BT-03
+  title: State Management
+  kind: domain
+  specs:
+  - id: BT-03-001
+    priority: MUST
+    statement: BTs MUST use DataLayer as persistent state store
+  - id: BT-03-002
+    priority: MUST_NOT
+    statement: BTs MUST NOT maintain separate blackboard persistence
+  - id: BT-03-003
+    priority: MAY
+    statement: BT blackboard MAY cache DataLayer state during execution
+  - id: BT-03-004
+    priority: MUST
+    statement: State changes MUST be committed to DataLayer on successful execution
+- id: BT-04
+  title: Handler Integration
+  specs:
+  - id: BT-04-001
+    priority: MUST
+    statement: Handler protocol MUST be preserved (decorator, signature, registration)
+  - id: BT-04-002
+    priority: MAY
+    statement: Handlers MAY invoke BTs via bridge layer
+  - id: BT-04-003
+    priority: MUST
+    statement: Handlers MUST remain synchronous (BT execution within handler)
+  - id: BT-04-004
+    priority: MUST
+    statement: BT execution errors MUST propagate to handler error handling
+- id: BT-05
+  title: BT Bridge Layer
+  kind: language
+  specs:
+  - id: BT-05-001
+    priority: SHOULD
+    statement: System SHOULD provide BT execution bridge for handler-to-BT invocation
+  - id: BT-05-002
+    priority: SHOULD
+    statement: Bridge SHOULD set up py_trees context with DataLayer access
+  - id: BT-05-003
+    priority: SHOULD
+    statement: Bridge SHOULD populate blackboard with activity and actor state
+  - id: BT-05-004
+    priority: SHOULD
+    statement: Bridge SHOULD execute tree and return execution result
+- id: BT-06
+  title: Workflow-Specific Trees
+  kind: domain
+  specs:
+  - id: BT-06-001
+    priority: MUST
+    statement: >-
+      All protocol-significant behavior MUST be implemented as BT nodes or subtrees. There
+      is no "simple enough to skip" threshold.
+    rationale: >-
+      The BT is the domain documentation; behaviors outside the tree are invisible to analysis,
+      audit, and explainability.
+  - id: BT-06-002
+    priority: MUST
+    statement: >-
+      Prototype use-case BTs MUST correspond to identifiable subtrees of the canonical CVD
+      protocol BT
+  - id: BT-06-003
+    priority: SHOULD
+    statement: BT nodes SHOULD be deterministic
+  - id: BT-06-004
+    priority: MUST
+    statement: >-
+      Individual BT nodes MUST be simple and focused on a single concern (e.g., a single exception
+      check or a single boolean condition)
+    rationale: >-
+      Surfacing logic in the tree makes the process auditable without reading implementation
+      code; if it is not in the tree it cannot be reasoned about from the tree alone.
+  - id: BT-06-005
+    priority: MUST
+    statement: >-
+      Cascades from a parent subtree to a child subtree in the canonical BT MUST be expressed
+      as BT subtrees within the use case's BT — not as procedural calls in `execute()` after
+      `bt.run()` returns.
+  - id: BT-06-006
+    priority: MUST_NOT
+    statement: >-
+      Protocol-observable actions and state transitions MUST NOT be performed as procedural
+      code outside the BT.
+- id: BT-07
+  title: DataLayer Integration
+  kind: domain
+  specs:
+  - id: BT-07-001
+    priority: MUST
+    statement: BT nodes MUST interact with DataLayer via Protocol interface
+  - id: BT-07-002
+    priority: MUST
+    statement: BT nodes MUST use type-safe DataLayer operations
+  - id: BT-07-003
+    priority: MUST
+    statement: State transitions MUST be logged at the appropriate level
+    relationships:
+    - rel_type: depends_on
+      spec_id: SL-03-001
+    - rel_type: depends_on
+      spec_id: SL-04-001
+- id: BT-08
+  title: Command-Line Execution
+  specs:
+  - id: BT-08-001
+    priority: MAY
+    statement: System MAY provide CLI interface for BT execution
+  - id: BT-08-002
+    priority: SHOULD
+    statement: CLI SHOULD support invoking specific trees with test data
+  - id: BT-08-003
+    priority: SHOULD
+    statement: CLI SHOULD log BT execution visualization
+- id: BT-09
+  title: Actor Isolation
+  kind: domain
+  specs:
+  - id: BT-09-001
+    priority: MUST
+    statement: Each actor MUST have isolated BT execution context
+  - id: BT-09-002
+    priority: MUST_NOT
+    statement: Actor blackboards MUST NOT share state
+  - id: BT-09-003
+    priority: MUST
+    statement: Actor interaction MUST occur only via protocol messages
+- id: BT-10
+  title: CaseActor Management
+  kind: domain
+  specs:
+  - id: BT-10-001
+    priority: MUST
+    statement: Report validation MUST trigger VulnerabilityCase creation
+    relationships:
+    - rel_type: implements
+      spec_id: VP-02-015
+    - rel_type: implements
+      spec_id: VP-02-020
+  - id: BT-10-002
+    priority: MUST
+    statement: Case creation MUST create corresponding CaseActor (Service)
+  - id: BT-10-003
+    priority: MUST
+    statement: CaseActor MUST manage case-related message processing
+  - id: BT-10-004
+    priority: MUST
+    statement: CaseActor MUST enforce case-level authorization
+    scope:
+    - production
+  - id: BT-10-005
+    priority: SHOULD
+    statement: >-
+      When an actor accepts a case invitation, the system SHOULD automatically advance the
+      accepting actor's RM state to ACCEPTED via BT or use-case execution
+    relationships:
+    - rel_type: implements
+      spec_id: CM-11-001
+- id: BT-12
+  title: VFD/PXA State Machine Usage
+  kind: domain
+  specs:
+  - id: BT-12-001
+    priority: MUST
+    statement: >-
+      When implementing VFD (vendor fix deployed) or PXA (public exploit/attack) state transitions,
+      new code MUST use `create_vfd_machine()` and `create_pxa_machine()` (defined in `vultron/core/states/cs.py`)
+      as the authoritative source of valid transition sequences. Hand-rolled transition logic
+      for these state dimensions MUST NOT be introduced.
+    rationale: >-
+      Ensures the `transitions` machines remain the normative definition of valid VFD/PXA
+      state progressions as new features are added, preventing divergence between the machines
+      and the implementation.
+- id: BT-11
+  title: Concurrency
+  kind: domain
+  specs:
+  - id: BT-11-001
+    priority: MUST
+    statement: Prototype MUST process messages sequentially (FIFO order)
+    rationale: Eliminates race conditions in prototype phase
+  - id: BT-11-002
+    priority: MUST_NOT
+    statement: Sequential processing MUST NOT block HTTP response (BackgroundTasks)
+  - id: BT-11-003
+    priority: MAY
+    statement: Future optimizations MAY introduce resource-level locking
+    scope:
+    - production

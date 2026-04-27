@@ -20,7 +20,7 @@ Verifies that the node calls ``commit_log_entry_trigger`` with the correct
 arguments when a case_id is available, and returns SUCCESS silently when
 no case_id is present.
 
-Per specs/sync-log-replication.md SYNC-02-002, SYNC-02-003.
+Per specs/sync-log-replication.yaml SYNC-02-002, SYNC-02-003.
 """
 
 from unittest.mock import patch

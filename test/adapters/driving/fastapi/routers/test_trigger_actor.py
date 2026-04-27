@@ -17,7 +17,7 @@
 Tests for the actor trigger endpoints
 (POST /actors/{actor_id}/trigger/{suggest-actor-to-case,accept-case-invite}).
 
-Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.md.
+Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
 """
 
 import pytest

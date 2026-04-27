@@ -5,8 +5,8 @@ description: >
   Design decisions for embargo policy EP-04 requirements; default embargo
   duration and expiry semantics.
 related_specs:
-  - specs/case-management.md
-  - specs/embargo-policy.md
+  - specs/case-management.yaml
+  - specs/embargo-policy.yaml
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
@@ -16,7 +16,7 @@ relevant_packages:
 # Embargo Default Semantics — Implementation Notes
 
 Design decisions, implementation patterns, and known gaps for
-`specs/embargo-policy.md` EP-04 requirements.
+`specs/embargo-policy.yaml` EP-04 requirements.
 
 ---
 
@@ -108,7 +108,7 @@ The rules specified in EP-04 derive directly from
 
 ## Cross-references
 
-- `specs/embargo-policy.md` EP-04-001 through EP-04-004
-- `specs/case-management.md` CM-12-004 (default embargo at case creation)
-- `specs/duration.md` DUR-07-003 (default embargo logging)
+- `specs/embargo-policy.yaml` EP-04-001 through EP-04-004
+- `specs/case-management.yaml` CM-12-004 (default embargo at case creation)
+- `specs/duration.yaml` DUR-07-003 (default embargo logging)
 - `docs/topics/process_models/em/defaults.md` (authoritative protocol source)

@@ -1,0 +1,162 @@
+id: NF
+title: Notes Frontmatter
+description: >-
+  This specification defines requirements for YAML frontmatter in `notes/*.md` files: the
+  required schema, a Pydantic-based loader in `vultron/metadata/`, validation enforcement,
+  and migration requirements. parallel but separate concern; this spec covers the notes side
+  only. A shared `vultron/metadata/base.py` holds common vocabulary.
+version: 1.0.0
+kind: implementation
+scope:
+- prototype
+- production
+groups:
+- id: NF-01
+  title: Frontmatter Schema (MUST)
+  specs:
+  - id: NF-01-001
+    priority: MUST
+    statement: >-
+      Every `notes/*.md` file (except `notes/README.md`) MUST contain a YAML frontmatter block
+      delimited by `---` at the top of the file.
+  - id: NF-01-002
+    priority: MUST
+    statement: >-
+      The frontmatter MUST include a `title` field whose value is a non-empty string matching
+      the file's `# H1` heading.
+  - id: NF-01-003
+    priority: MUST
+    statement: >-
+      The frontmatter MUST include a `status` field whose value is one of: `active`, `draft`,
+      `superseded`, `archived`.
+  - id: NF-01-004
+    priority: MUST
+    statement: >-
+      When `status` is `superseded`, a `superseded_by` field MUST be present and MUST contain
+      a non-empty string identifying the replacement file path (e.g., `notes/new-topic.md`
+      or `specs/new-spec.md`).
+  - id: NF-01-005
+    priority: MUST
+    statement: >-
+      The optional `description` field, when present, MUST be a non-empty string summarising
+      the file's purpose for tooling and agents.
+  - id: NF-01-006
+    priority: MUST
+    statement: >-
+      The optional `related_specs` field, when present, MUST be a non-empty list of non-empty
+      strings naming related specification files (e.g., `["specs/behavior-tree-integration.md"]`).
+  - id: NF-01-007
+    priority: MUST
+    statement: >-
+      The optional `related_notes` field, when present, MUST be a non-empty list of non-empty
+      strings naming related notes files.
+  - id: NF-01-008
+    priority: MUST
+    statement: >-
+      The optional `relevant_packages` field, when present, MUST be a non-empty list of non-empty
+      strings naming packages relevant to the note's topic. Each entry is either:
+- id: NF-02
+  title: Pydantic Schema Module (MUST)
+  specs:
+  - id: NF-02-001
+    priority: MUST
+    statement: >-
+      The `vultron/metadata/notes/` subpackage MUST define a Pydantic model (`NotesFrontmatter`)
+      that validates the frontmatter schema described in NF-01.
+  - id: NF-02-002
+    priority: MUST
+    statement: >-
+      `NotesFrontmatter` MUST use a `StrEnum` for the `status` field vocabulary (`NoteStatus`).
+  - id: NF-02-003
+    priority: MUST
+    statement: >-
+      Shared base vocabulary (e.g., common `StrEnum` base classes or type aliases) MUST live
+      in `vultron/metadata/base.py` and be importable by both `metadata/notes/` and the future
+      `metadata/specs/` subpackage.
+  - id: NF-02-004
+    priority: MUST_NOT
+    statement: >-
+      The `vultron/metadata/` package MUST NOT import from `vultron/core/`, `vultron/wire/`,
+      or `vultron/adapters/`; it is a standalone tooling layer with no dependency on application
+      code.
+- id: NF-03
+  title: Loader (MUST)
+  specs:
+  - id: NF-03-001
+    priority: MUST
+    statement: >-
+      The `vultron/metadata/notes/` subpackage MUST provide a loader that discovers and parses
+      all `notes/*.md` files relative to the repository root.
+  - id: NF-03-002
+    priority: MUST
+    statement: The loader MUST skip `notes/README.md`.
+  - id: NF-03-003
+    priority: MUST
+    statement: >-
+      The loader MUST parse each file's YAML frontmatter block and validate it against `NotesFrontmatter`,
+      raising a `ValueError` (or equivalent) on schema violations.
+  - id: NF-03-004
+    priority: MUST
+    statement: >-
+      The loader MUST return a registry mapping file path to validated `NotesFrontmatter`
+      instance.
+  - id: NF-03-005
+    priority: SHOULD
+    statement: >-
+      The loader SHOULD resolve the repository root by searching upward from the current working
+      directory for a `pyproject.toml` file, so it works correctly regardless of where it
+      is called from.
+- id: NF-04
+  title: Validation Enforcement (MUST)
+  specs:
+  - id: NF-04-001
+    priority: MUST
+    statement: >-
+      A pytest test MUST load all `notes/*.md` files via the loader and assert that every
+      file parses without validation errors.
+  - id: NF-04-002
+    priority: MUST
+    statement: >-
+      A pre-commit hook MUST validate the frontmatter of any changed `notes/*.md` file before
+      the commit is accepted.
+- id: NF-05
+  title: Migration (MUST)
+  specs:
+  - id: NF-05-001
+    priority: MUST
+    statement: >-
+      All existing `notes/*.md` files (except `notes/README.md`) MUST have compliant YAML
+      frontmatter added as part of the initial implementation of this spec.
+  - id: NF-05-002
+    priority: MUST
+    statement: >-
+      The `status` field added during migration MUST accurately reflect the current state
+      of each file's content.
+- id: NF-06
+  title: Maintenance (SHOULD)
+  specs:
+  - id: NF-06-001
+    priority: SHOULD
+    statement: >-
+      When modifying any `notes/*.md` file, the author SHOULD review and update its frontmatter
+      — in particular `status`, `related_specs`, and `related_notes` — to reflect any changes
+      in scope or relationships.
+  - id: NF-06-002
+    priority: MUST
+    statement: >-
+      `AGENTS.md` MUST document the frontmatter maintenance rule so that AI coding agents
+      apply it consistently.
+- id: NF-07
+  title: 'Future: Registry and Query Tool (MAY)'
+  specs:
+  - id: NF-07-001
+    priority: MAY
+    statement: >-
+      A query/dump tool MAY be built (in a later task) that accepts a topic keyword and returns
+      all notes (and eventually specs) whose frontmatter indicates relevance to that topic.
+  - id: NF-07-002
+    priority: MAY
+    statement: >-
+      The `notes/README.md` index MAY be generated from the notes registry in a later task,
+      replacing the manually-maintained summaries with content derived from `description`
+      frontmatter fields.

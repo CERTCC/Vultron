@@ -1,0 +1,159 @@
+id: TB
+title: Testability
+description: >-
+  The Vultron inbox handler must be thoroughly testable at unit, integration, and system levels.
+  Testability enables confidence in correctness, supports refactoring, and documents expected
+  behavior.
+version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
+groups:
+- id: TB-01
+  title: Testing Framework
+  kind: language
+  specs:
+  - id: TB-01-001
+    priority: MUST
+    statement: The system MUST use pytest as the testing framework
+  - id: TB-01-002
+    priority: MUST
+    statement: Test configuration MUST be defined in `pyproject.toml`
+- id: TB-02
+  title: Test Coverage
+  specs:
+  - id: TB-02-001
+    priority: MUST
+    statement: Unit tests MUST achieve 80%+ line coverage
+  - id: TB-02-002
+    priority: MUST
+    statement: Critical paths MUST achieve 100% line coverage
+- id: TB-03
+  title: Integration Test Coverage
+  kind: domain
+  specs:
+  - id: TB-03-001
+    priority: MUST
+    statement: Integration tests MUST cover inbox POST → handler invocation flow
+  - id: TB-03-002
+    priority: MUST
+    statement: Integration tests MUST cover validation → error response flow
+  - id: TB-03-003
+    priority: MUST
+    statement: Integration tests MUST verify async processing behavior
+- id: TB-04
+  title: Test Organization
+  specs:
+  - id: TB-04-001
+    priority: MUST
+    statement: Test structure MUST mirror source code structure
+  - id: TB-04-002
+    priority: MUST
+    statement: Test files MUST use descriptive names starting with `test_`
+  - id: TB-04-003
+    priority: MUST
+    statement: >-
+      Unit and integration tests MUST be in separate directories or marked with pytest markers
+- id: TB-05
+  title: Test Data Management
+  specs:
+  - id: TB-05-001
+    priority: MUST
+    statement: The system MUST provide reusable test fixtures
+  - id: TB-05-002
+    priority: MUST
+    statement: Test data MUST be generated via factories, not hardcoded
+  - id: TB-05-003
+    priority: MUST
+    statement: Test fixtures MUST be defined in `conftest.py` files
+  - id: TB-05-004
+    priority: MUST
+    statement: Tests MUST use proper domain objects, not simplified mock data
+    rationale: >-
+      Tests with string IDs can pass while production code fails; proper objects exercise
+      actual validation and serialization
+  - id: TB-05-005
+    priority: MUST
+    statement: Test semantic types MUST match the activity structure being tested
+    rationale: >-
+      Semantic type validation is enforced by the `USE_CASE_MAP` key lookup at dispatch time;
+      mismatched tests bypass actual code paths
+- id: TB-06
+  title: Test Isolation
+  specs:
+  - id: TB-06-001
+    priority: MUST
+    statement: Tests MUST be independent and runnable in any order
+  - id: TB-06-002
+    priority: MUST
+    statement: Tests MUST use test database or mocked database
+  - id: TB-06-003
+    priority: MUST
+    statement: Test state MUST be reset between tests
+  - id: TB-06-004
+    priority: MUST
+    statement: Test fixtures MUST clean up created data after test completion
+    rationale: Prevents test database bloat and ensures isolation
+  - id: TB-06-005
+    priority: MUST
+    statement: Behavior Tree tests MUST clear the py_trees blackboard between tests
+    rationale: >-
+      py_trees blackboard is a global singleton; without clearing, state from one test leaks
+      into subsequent tests
+  - id: TB-06-006
+    priority: MUST
+    statement: All tests MUST be deterministic and produce the same result on every run
+    rationale: >-
+      Flaky tests erode confidence in the test suite, mask real failures, and slow development.
+      A flaky test MUST be fixed or removed; it MUST NOT be left in the suite.
+- id: TB-07
+  title: Mocking and Stubbing
+  specs:
+  - id: TB-07-001
+    priority: MUST
+    statement: External services MUST be mocked in unit tests
+  - id: TB-07-002
+    priority: MUST
+    statement: Database access MUST be stubbed in unit tests
+  - id: TB-07-003
+    priority: MAY
+    statement: Integration tests MAY use real database with test data
+- id: TB-08
+  title: Test Documentation
+  specs:
+  - id: TB-08-001
+    priority: MUST
+    statement: Tests MUST use descriptive names explaining what is tested
+  - id: TB-08-002
+    priority: SHOULD
+    statement: Complex tests SHOULD include docstrings
+  - id: TB-08-003
+    priority: SHOULD
+    statement: Tests SHOULD serve as usage examples
+- id: TB-09
+  title: Test Maintainability
+  specs:
+  - id: TB-09-001
+    priority: MUST
+    statement: Tests MUST be kept simple and readable
+  - id: TB-09-002
+    priority: SHOULD
+    statement: Test duplication SHOULD be avoided via fixtures and helpers
+  - id: TB-09-003
+    priority: MUST
+    statement: Tests MUST be refactored along with production code
+- id: TB-10
+  title: Architecture Boundary Tests
+  kind: pattern
+  specs:
+  - id: TB-10-001
+    priority: SHOULD
+    statement: >-
+      Once the `core` and `wire` packages are fully separated (see `specs/architecture.md`
+      and `archived_notes/architecture-review.md`), architecture boundary tests SHOULD be
+      added to enforce layer separation rules
+    rationale: >-
+      Automated boundary tests catch accidental cross-layer imports earlier than code review.
+    scope:
+    - production

@@ -160,7 +160,7 @@ Example:
 
 ```markdown
 ~~Original idea text~~
-→ captured in specs/foo.md
+→ captured in specs/foo.yaml
 ```
 
 Rules:

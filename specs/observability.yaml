@@ -1,0 +1,24 @@
+id: OB
+title: Observability
+description: >-
+  Observability enables operators to understand system behavior, diagnose issues, and monitor
+  health. This specification focuses on **health check endpoints** and high-level observability
+  architecture. **Status**: - **Minimal scope**: Only 2 active requirements (health checks);
+  most observability concerns consolidated elsewhere - **Logging requirements**: Consolidated
+  in `specs/structured-logging.md` (supersedes OB-01 through OB-04, OB-06) - **Metrics and
+  distributed tracing**: Deferred to future implementation
+version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
+groups:
+- id: OB-05
+  title: Health Checks
+  specs:
+  - id: OB-05-001
+    priority: MUST
+    statement: The system MUST provide liveness endpoint at `/health/live`
+  - id: OB-05-002
+    priority: MUST
+    statement: The system MUST provide readiness endpoint at `/health/ready`

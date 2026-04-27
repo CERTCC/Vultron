@@ -17,7 +17,7 @@ Domain objects (`VulnerabilityCase`, `VultronReport`, `VultronCaseLogEntry`,
 `BaseModel` — they do NOT inherit from AS2 types. This was accomplished during
 the ARCH-1.x and ARCH-CLEANUP refactor phases. `PROTO-06-001` (which permitted
 the prototype to use direct AS2 inheritance) has been removed from
-`specs/prototype-shortcuts.md` because its structural concern is resolved.
+`specs/prototype-shortcuts.yaml` because its structural concern is resolved.
 
 The naming collision that still causes confusion: there are **two classes
 named `VultronObject`**:
@@ -84,7 +84,7 @@ core never needs to know about wire internals.
    instead of importing and constructing wire objects directly, closing the
    remaining ARCH-01-001 violations.
 
-The formal requirements are in `specs/architecture.md` (ARCH-12-001 through
+The formal requirements are in `specs/architecture.yaml` (ARCH-12-001 through
 ARCH-12-007). The implementation task is WIRE-TRANS-01 in
 `plan/IMPLEMENTATION_PLAN.md`.
 

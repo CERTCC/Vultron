@@ -1,0 +1,201 @@
+id: DF
+title: Diátaxis documentation requirements
+description: >-
+  Brief requirements for organizing project documentation according to the Diátaxis framework.
+version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
+groups:
+- id: DF-01
+  title: General architecture
+  specs:
+  - id: DF-01-001
+    priority: SHOULD
+    statement: >-
+      Organize the main documentation into the four Diátaxis categories: Tutorials, How-to
+      guides, Reference, and Explanation.
+  - id: DF-01-002
+    priority: MUST
+    statement: >-
+      Ensure each documentation page maps to exactly one of the four user needs (Learning,
+      Goals, Information, or Understanding).
+  - id: DF-01-003
+    priority: SHOULD_NOT
+    statement: >-
+      Combine multiple Diátaxis content types within a single page or section; where a combined
+      view is temporarily unavoidable, clearly separate the parts and link to full pages of
+      the appropriate type.
+  - id: DF-01-004
+    priority: SHOULD
+    statement: >-
+      Use hyperlinks to connect related but distinct content types instead of embedding cross-type
+      content.
+  - id: DF-01-005
+    priority: SHOULD
+    statement: >-
+      Write documentation in Markdown and prepare it for the MkDocs site defined by `mkdocs.yml`.
+- id: DF-02
+  title: Documentation maintenance
+  specs:
+  - id: DF-02-001
+    priority: SHOULD
+    statement: >-
+      Build the documentation architecture iteratively from the inside-out by improving pages
+      until their Diátaxis category is clear.
+  - id: DF-02-002
+    priority: SHOULD
+    statement: >-
+      Maintain navigation structure to avoid link breakage when moving or renaming files.
+- id: DF-03
+  title: Tutorials
+  specs:
+  - id: DF-03-001
+    priority: MUST
+    statement: >-
+      Author tutorials as practical lessons that help learners acquire new skills through
+      guided, hands-on experience.
+  - id: DF-03-002
+    priority: MUST
+    statement: Require that each tutorial is an activity where the learner learns by doing.
+  - id: DF-03-003
+    priority: MUST
+    statement: >-
+      Ensure tutorials produce visible results early and often to maintain learner confidence.
+  - id: DF-03-004
+    priority: MUST
+    statement: >-
+      Use first-person plural ("we") in the tutorial narrative to establish tutor/learner
+      rapport.
+  - id: DF-03-005
+    priority: MUST_NOT
+    statement: >-
+      Forbid alternative learning paths within a single tutorial's primary flow; present a
+      single prescribed learning path.
+  - id: DF-03-006
+    priority: MUST_NOT
+    statement: >-
+      Exclude in-depth explanations and theoretical discussions from the body of tutorials;
+      link to explanatory pages for background.
+  - id: DF-03-007
+    priority: MUST
+    statement: >-
+      Require every tutorial step to produce a comprehensible result that gives immediate
+      feedback.
+  - id: DF-03-008
+    priority: MUST
+    statement: >-
+      State at the start of each tutorial exactly what the learner will have accomplished.
+  - id: DF-03-009
+    priority: MUST
+    statement: >-
+      Point out specific signs or changes the learner should notice during the tutorial.
+  - id: DF-03-010
+    priority: SHOULD
+    statement: >-
+      provide explicit links to the related Reference and Explanation pages (prerequisites,
+      background, deeper rationale). Keep these resources out of the tutorial body.
+- id: DF-04
+  title: How-to guides
+  specs:
+  - id: DF-04-001
+    priority: MUST
+    statement: >-
+      Present how-to guides as goal-oriented directions that resolve a specific real-world
+      task or problem.
+  - id: DF-04-002
+    priority: MUST
+    statement: >-
+      Assume the reader is a competent user with required basic skills; surface prerequisites
+      explicitly rather than embedding lessons.
+  - id: DF-04-003
+    priority: MUST
+    statement: >-
+      Require how-to titles to state exactly what the guide shows the user how to do (e.g.,
+      start with "How to ...").
+  - id: DF-04-004
+    priority: MUST
+    statement: Use conditional imperatives (e.g., "If you want X, do Y") when appropriate.
+  - id: DF-04-005
+    priority: MUST_NOT
+    statement: >-
+      Exclude pedagogical teaching, background history, and extended lessons from how-to bodies.
+  - id: DF-04-006
+    priority: SHOULD
+    statement: >-
+      Prefer concise branching ("if this, then that") to prepare users for real-world complexity.
+  - id: DF-04-007
+    priority: MUST
+    statement: Omit unnecessary steps that do not contribute directly to the specified goal.
+  - id: DF-04-008
+    priority: SHOULD
+    statement: >-
+      provide a short "Prerequisites" or "Starting points" section (or link to one) that handles
+      different starting states and messy real-world setups instead of embedding multiple
+      alternative flows.
+- id: DF-05
+  title: Reference
+  specs:
+  - id: DF-05-001
+    priority: MUST
+    statement: Produce reference material that is neutral, objective, and technical in tone.
+  - id: DF-05-002
+    priority: MUST
+    statement: >-
+      Structure reference content to mirror the physical or logical architecture of the system
+      or code being described.
+  - id: DF-05-003
+    priority: MUST
+    statement: Keep reference content dry and free from instruction, discussion, or opinion.
+  - id: DF-05-004
+    priority: MUST
+    statement: State facts about behaviors, commands, parameters, versions, and limitations.
+  - id: DF-05-005
+    priority: MUST
+    statement: >-
+      Use consistent, standard patterns and formatting in reference documents to make information
+      easy to find.
+  - id: DF-05-006
+    priority: MAY
+    statement: >-
+      Allow brief code examples in reference material only to illustrate usage, not to provide
+      step-by-step instruction.
+- id: DF-06
+  title: Explanation
+  specs:
+  - id: DF-06-001
+    priority: MUST
+    statement: >-
+      Provide explanatory material that focuses on understanding and context for a topic.
+  - id: DF-06-002
+    priority: MUST
+    statement: >-
+      Address "Why?" questions by discussing history, design decisions, or technical constraints.
+  - id: DF-06-003
+    priority: MAY
+    statement: >-
+      Permit opinion, perspective, and weighing of approaches in explanatory documents.
+  - id: DF-06-004
+    priority: MUST_NOT
+    statement: >-
+      Exclude practical instructions and dry technical descriptions that belong in Tutorials,
+      How-to, or Reference.
+  - id: DF-06-005
+    priority: SHOULD
+    statement: Prefer titles that can be read as "About X" for explanatory topics.
+  - id: DF-06-006
+    priority: MUST
+    statement: Weave connections to related topics to build a web of understanding.
+- id: DF-08
+  title: File metadata
+  specs:
+  - id: DF-08-001
+    priority: SHOULD
+    statement: >-
+      Name Diátaxis specification files using snake_case and concise topic descriptors.
+  - id: DF-08-002
+    priority: SHOULD
+    statement: >-
+      Place cross-reference sources only in the header metadata and use inline links for cross-spec
+      references.

@@ -1,0 +1,128 @@
+id: DUR
+title: Duration
+description: >-
+  Requirements for a canonical representation of **time durations independent of start/end
+  timestamps**. Applicable wherever a duration must be exchanged in JSON (e.g., embargo policy
+  records, embargo initialization at case creation). `specs/code-style.md` CS-13-005 (datetime
+  wire format)
+version: 1.0.0
+kind: domain
+scope:
+- prototype
+- production
+groups:
+- id: DUR-01
+  title: Representation Format
+  specs:
+  - id: DUR-01-001
+    priority: MUST
+    statement: >-
+      Durations MUST be represented as ISO 8601 duration strings using the `P[n]DT[n]H[n]M[n]S`
+      format
+  - id: DUR-01-002
+    priority: MUST
+    statement: Duration strings MUST be serialized as JSON strings, not as numbers
+  - id: DUR-01-003
+    priority: MUST
+    statement: >-
+      Durations represent **absolute elapsed time**, not calendar-relative intervals; `P1D`
+      means exactly 86400 seconds, with no DST or calendar adjustment implied
+- id: DUR-02
+  title: Allowed Grammar (Restricted ISO 8601 Subset)
+  specs:
+  - id: DUR-02-001
+    priority: MUST
+    statement: 'Only the following units are permitted in duration strings:'
+  - id: DUR-02-002
+    priority: MUST_NOT
+    statement: >-
+      The following units MUST NOT appear in Vultron duration strings because they introduce
+      calendar ambiguity:
+- id: DUR-03
+  title: Canonical Form
+  specs:
+  - id: DUR-03-001
+    priority: SHOULD
+    statement: >-
+      Duration strings SHOULD be normalized to a canonical form: prefer the largest unit without
+      remainder
+  - id: DUR-03-002
+    priority: SHOULD
+    statement: >-
+      Embargo policy durations SHOULD use only integer day units when possible; mixed day/time
+      representations SHOULD be avoided
+  - id: DUR-03-003
+    priority: SHOULD_NOT
+    statement: >-
+      `P0D` SHOULD NOT be used to express a zero-length duration; prefer `PT0S` for explicitness
+- id: DUR-04
+  title: Validation Requirements
+  specs:
+  - id: DUR-04-001
+    priority: MUST
+    statement: >-
+      Implementations MUST reject duration strings containing disallowed units: `Y`, date-part
+      `M`, `W`
+  - id: DUR-04-002
+    priority: MUST
+    statement: Implementations MUST reject malformed ISO 8601 duration strings
+  - id: DUR-04-003
+    priority: MUST
+    statement: Implementations MUST reject empty duration strings (`"P"` or `"PT"`)
+  - id: DUR-04-004
+    priority: MUST
+    statement: A valid duration MUST contain at least one component
+- id: DUR-05
+  title: Python / Pydantic v2 Mapping
+  specs:
+  - id: DUR-05-001
+    priority: SHOULD
+    statement: >-
+      Duration fields SHOULD use `datetime.timedelta` as the internal Python representation
+  - id: DUR-05-002
+    priority: MUST
+    statement: >-
+      Duration fields MUST serialize to ISO 8601 duration strings at the JSON wire layer;
+      the internal `timedelta` MUST NOT be serialized as a plain number
+- id: DUR-06
+  title: Interval Composition
+  specs:
+  - id: DUR-06-001
+    priority: MUST
+    statement: >-
+      A duration-only embargo policy field MUST be interpreted as a relative offset from a
+      context-specific anchor (typically case creation time)
+  - id: DUR-06-002
+    priority: MUST
+    statement: When combined with a start timestamp, the end time is `end = start + duration`
+  - id: DUR-06-003
+    priority: MUST
+    statement: >-
+      Timestamps used in interval composition MUST conform to RFC 3339 (UTC recommended);
+      local timezone arithmetic is NOT RECOMMENDED
+- id: DUR-07
+  title: Embargo Duration Semantics
+  specs:
+  - id: DUR-07-001
+    priority: MUST
+    statement: >-
+      Specific embargo end times on cases MUST be declared as event intervals with unambiguous
+      start and end timestamps, not as durations alone
+  - id: DUR-07-002
+    priority: SHOULD
+    statement: >-
+      At case creation (RM.RECEIVED), if no embargo end time is established, the case creation
+      process SHOULD apply the actor's default embargo duration (from the actor profile) to
+      the case creation timestamp to establish the initial embargo end time
+  - id: DUR-07-003
+    priority: MUST
+    statement: >-
+      When a default embargo duration is applied at case creation, this application MUST be
+      logged at INFO level to ensure visibility in logs. The resulting `CaseStatus.em_state`
+      MUST be `EM.ACTIVE` (not `EM.PROPOSED`); see `specs/embargo-policy.md` EP-04-001.
+  - id: DUR-07-004
+    priority: MUST
+    statement: An embargo end time MUST be established before the case transitions to RM.VALID
+    relationships:
+    - rel_type: depends_on
+      spec_id: DUR-07-002

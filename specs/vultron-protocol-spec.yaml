@@ -1,0 +1,988 @@
+id: VP
+title: Vultron Protocol
+description: >-
+  Requirements extracted from the Vultron Protocol documentation covering participant state
+  tracking, Report Management (RM), Embargo Management (EM), CVD Case State (CS) messaging,
+  model interactions, and implementation guidance. **Sources**: `docs/reference/formal_protocol/states.md`,
+  `docs/reference/formal_protocol/messages.md`, `docs/reference/formal_protocol/transitions.md`,
+  `docs/topics/process_models/rm/index.md`, `docs/topics/process_models/em/index.md`, `docs/topics/process_models/em/principles.md`,
+  `docs/topics/process_models/em/negotiating.md`, `docs/topics/process_models/em/defaults.md`,
+  `docs/topics/process_models/em/working_with_others.md`, `docs/topics/process_models/em/early_termination.md`,
+  `docs/topics/process_models/em/split_merge.md`, `docs/topics/process_models/model_interactions/rm_em.md`,
+  `docs/topics/process_models/model_interactions/rm_em_cs.md`, `docs/topics/process_models/cs/transitions.md`,
+  `docs/reference/ssvc_crosswalk.md`, `docs/howto/general_implementation.md`, `docs/howto/em_icalendar.md`
+version: 1.0.0
+kind: domain
+scope:
+- prototype
+- production
+groups:
+- id: VP-01
+  title: Participant State Tracking
+  specs:
+  - id: VP-01-001
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD track the state of other Participants in a case to inform their
+      own decision making
+  - id: VP-01-002
+    priority: SHOULD
+    statement: Participants SHOULD track the RM states of the other Participants in the case
+  - id: VP-01-003
+    priority: MUST_NOT
+    statement: >-
+      Adequate operation of the protocol MUST NOT depend on perfect information across all
+      Participants
+- id: VP-02
+  title: 'Report Management (RM): Receiving Reports'
+  specs:
+  - id: VP-02-001
+    priority: MUST
+    statement: >-
+      Coordinators MUST have a clearly defined and publicly available mechanism for receiving
+      reports
+  - id: VP-02-002
+    priority: MUST
+    statement: Participants MUST prioritize Valid cases
+  - id: VP-02-003
+    priority: MUST
+    statement: Participants initiating CVD with others MUST do so from the Accepted state
+  - id: VP-02-004
+    priority: MUST_NOT
+    statement: Participants MUST NOT close cases or reports from the Valid state
+  - id: VP-02-005
+    priority: SHOULD
+    statement: >-
+      Vendors SHOULD have a clearly defined and publicly available mechanism for receiving
+      reports
+  - id: VP-02-006
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD subject each Received report to a validation process resulting in
+      a valid or invalid designation
+  - id: VP-02-007
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD have a clearly defined process for validating reports in the Received
+      state
+  - id: VP-02-008
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD have a clearly defined process for transitioning reports from the
+      Received state to the Valid or Invalid states
+  - id: VP-02-009
+    priority: SHOULD
+    statement: Participants SHOULD proceed only after validating the reports they receive
+  - id: VP-02-010
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD transition all valid reports to the Valid state and all invalid
+      reports to the Invalid state
+  - id: VP-02-011
+    priority: SHOULD
+    statement: >-
+      Once a Vendor confirms that a reported vulnerability affects one or more of their products
+      or services, the Vendor SHOULD designate the report as Valid
+  - id: VP-02-012
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD temporarily hold reports that they cannot validate pending additional
+      information
+  - id: VP-02-013
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD provide Reporters an opportunity to update their report with additional
+      information before closing it
+  - id: VP-02-014
+    priority: SHOULD
+    statement: >-
+      For Valid reports, the Participant SHOULD perform a prioritization evaluation to decide
+      whether to accept or defer the report
+  - id: VP-02-015
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD create a case from reports entering the Valid state to track the
+      report's progress through the CVD process
+  - id: VP-02-016
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD have a bias toward accepting rather than deferring Valid cases up
+      to their work capacity limits
+  - id: VP-02-017
+    priority: SHOULD
+    statement: >-
+      Reports SHOULD exit the Deferred state when work is resumed (to Accepted) or when the
+      Participant has determined no further action will be taken (to Closed)
+  - id: VP-02-018
+    priority: SHOULD
+    statement: >-
+      Reports SHOULD be moved to the Closed state once a Participant has completed all outstanding
+      work tasks and is fairly sure they will not pursue further action
+  - id: VP-02-019
+    priority: SHOULD
+    statement: >-
+      CVD Participants SHOULD announce their RM state transitions to the other Participants
+      in a case
+  - id: VP-02-020
+    priority: SHOULD
+    statement: Participants SHOULD create a case for all Valid reports
+  - id: VP-02-021
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD act in accordance with their own policy and process when deciding
+      when to transition RM states
+  - id: VP-02-022
+    priority: SHOULD_NOT
+    statement: Participants SHOULD NOT mark duplicate reports as invalid
+  - id: VP-02-023
+    priority: SHOULD
+    statement: >-
+      Duplicate reports SHOULD pass through the Valid state, although they MAY be subsequently
+      deferred in favor of the original
+  - id: VP-02-024
+    priority: SHOULD
+    statement: >-
+      Vendors SHOULD communicate their prioritization choices when making either a defer or
+      accept transition out of the Valid, Deferred, or Accepted states
+  - id: VP-02-025
+    priority: MAY
+    statement: >-
+      Participants MAY perform a more technical report validation process before exiting the
+      Received state
+  - id: VP-02-026
+    priority: MAY
+    statement: Participants MAY create a case object to track any report in the Received state
+  - id: VP-02-027
+    priority: MAY
+    statement: >-
+      Participants MAY set a timer to move reports from Invalid to Closed after a set period
+      of inactivity
+  - id: VP-02-028
+    priority: MAY
+    statement: >-
+      Participants MAY choose to perform a shallow technical analysis on Valid reports to
+      prioritize further effort
+  - id: VP-02-029
+    priority: MAY
+    statement: >-
+      A report MAY enter and exit the Accepted state a number of times as a Participant resumes
+      or pauses work
+  - id: VP-02-030
+    priority: MAY
+    statement: >-
+      A report MAY enter and exit the Deferred state a number of times as a Participant pauses
+      or resumes work
+  - id: VP-02-031
+    priority: MAY
+    statement: >-
+      CVD Participants MAY set a policy timer on reports in the Deferred state to ensure they
+      are moved to Closed after a set period of inactivity
+  - id: VP-02-032
+    priority: MAY
+    statement: Participants MAY create a case for Invalid reports
+  - id: VP-02-033
+    priority: MAY
+    statement: >-
+      Participants MAY periodically revalidate Invalid reports to determine if they have become
+      Valid
+  - id: VP-02-034
+    priority: MAY
+    statement: Participants MAY re-prioritize Accepted or Deferred cases
+  - id: VP-02-035
+    priority: MAY
+    statement: Participants MAY close Accepted or Deferred cases or Invalid reports
+- id: VP-03
+  title: RM Messaging
+  specs:
+  - id: VP-03-001
+    priority: MUST
+    statement: >-
+      Participants MUST be in RM Accepted to send a Report Submission ($RS$) message to someone
+      else
+  - id: VP-03-002
+    priority: MUST
+    statement: >-
+      Vendor Recipients receiving a new Report Submission MUST transition their CVD Case State
+      to Vendor Aware ($q^{cs} \xrightarrow{\mathbf{V}} Vfd\cdots$)
+  - id: VP-03-003
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD send $RI$ when the report validation process ends in an invalid
+      determination
+  - id: VP-03-004
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD send $RV$ when the report validation process ends in a valid determination
+  - id: VP-03-005
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD send $RD$ when the report prioritization process ends in a deferred
+      decision
+  - id: VP-03-006
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD send $RA$ when the report prioritization process ends in an accept
+      decision
+  - id: VP-03-007
+    priority: SHOULD
+    statement: Participants SHOULD send $RC$ when the report is closed
+  - id: VP-03-008
+    priority: SHOULD
+    statement: Participants SHOULD send $RE$ regardless of state when any error is encountered
+  - id: VP-03-009
+    priority: SHOULD
+    statement: >-
+      Recipients SHOULD send $RK$ in acknowledgment of any $R*$ message except $RK$ itself
+  - id: VP-03-010
+    priority: SHOULD
+    statement: >-
+      Recipients who receive an $R*$ message (other than $RS$) while in RM Start ($q^{rm}
+      \in S$) SHOULD respond with both $RE$ to signal the error and $GI$ to find out what
+      the sender expected
+  - id: VP-03-011
+    priority: SHOULD
+    statement: >-
+      Recipients SHOULD acknowledge $RE$ messages ($RK$) and inquire ($GI$) as to the nature
+      of the error
+  - id: VP-03-012
+    priority: SHOULD
+    statement: >-
+      Participants whose state changes in the RM, EM, or CVD Case State Models SHOULD send
+      a message to other Participants for each transition
+  - id: VP-03-013
+    priority: MAY
+    statement: Recipients MAY ignore messages received on Closed cases
+- id: VP-04
+  title: Embargo Management (EM) Process
+  specs:
+  - id: VP-04-001
+    priority: MUST
+    statement: Accepted embargoes MUST eventually terminate
+  - id: VP-04-002
+    priority: MUST
+    statement: A CVD case SHALL NOT have more than one active embargo at a time
+  - id: VP-04-003
+    priority: MAY
+    statement: An embargo MAY be proposed
+  - id: VP-04-004
+    priority: MAY
+    statement: Once proposed, an embargo MAY be accepted or rejected
+  - id: VP-04-005
+    priority: MAY
+    statement: >-
+      Once accepted, revisions MAY be proposed, which MAY in turn be accepted or rejected
+- id: VP-05
+  title: Embargo Principles
+  specs:
+  - id: VP-05-001
+    priority: MUST
+    statement: An embargo SHALL specify an unambiguous date and time as its endpoint
+  - id: VP-05-002
+    priority: MUST
+    statement: >-
+      An embargo SHALL NOT be used to indefinitely delay publication of vulnerability information,
+      whether through repeated extension or by setting a long-range endpoint
+  - id: VP-05-003
+    priority: MUST
+    statement: An embargo SHALL begin at the moment it is accepted
+  - id: VP-05-004
+    priority: MUST
+    statement: >-
+      Adding Participants to an existing embargo SHALL NOT constitute release or publication
+      so long as those Participants accept the terms of the embargo
+  - id: VP-05-005
+    priority: MUST
+    statement: Embargo termination SHALL NOT be construed as an obligation to publish
+  - id: VP-05-006
+    priority: SHOULD_NOT
+    statement: >-
+      Embargo Participants SHOULD NOT knowingly release information about an embargoed case
+      until all proposed embargoes have been explicitly rejected, no proposed embargo has
+      been explicitly accepted in a timely manner, the expiration date/time of an accepted
+      embargo has passed, or an accepted embargo has been terminated prior to expiration
+  - id: VP-05-007
+    priority: SHOULD
+    statement: >-
+      Embargo participation SHOULD be limited to the smallest possible set of individuals
+      and organizations needed to adequately address the vulnerability report
+  - id: VP-05-008
+    priority: SHOULD
+    statement: >-
+      Embargo duration SHOULD be limited to the shortest duration possible to adequately address
+      the vulnerability report
+  - id: VP-05-009
+    priority: SHOULD
+    statement: Embargoes SHOULD be of short duration, from a few days to a few months
+  - id: VP-05-010
+    priority: SHOULD
+    statement: >-
+      Participants stopping work on a case SHOULD notify remaining Participants of their intent
+      to adhere to or disregard any existing embargo associated with the case
+  - id: VP-05-011
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD continue to comply with any active embargoes to which they have
+      been a party, even if they stop work on the case
+  - id: VP-05-012
+    priority: SHOULD
+    statement: >-
+      Participants who leave an Active embargo SHOULD be removed by the remaining Participants
+      from further communication about the case
+  - id: VP-05-013
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD consider other Participants' history of cooperation when evaluating
+      the terms of a proposed embargo
+  - id: VP-05-014
+    priority: SHOULD_NOT
+    statement: >-
+      Participants SHOULD NOT publish information about the vulnerability when there is an
+      active embargo
+  - id: VP-05-015
+    priority: MAY
+    statement: >-
+      Additional Participants MAY be added to an existing embargo upon accepting the terms
+      of that embargo
+  - id: VP-05-016
+    priority: MAY
+    statement: >-
+      Participants MAY propose a new embargo or revision to an existing embargo at any time
+      within the constraints outlined in the Negotiating Embargoes guidance
+  - id: VP-05-017
+    priority: MAY
+    statement: Participants MAY reject proposed embargo terms for any reason
+  - id: VP-05-018
+    priority: MAY
+    statement: Participants in an embargo MAY exit the embargo at any time
+  - id: VP-05-019
+    priority: MAY
+    statement: >-
+      A Participant's refusal to accept embargo terms MAY result in that Participant being
+      left out of the CVD case entirely
+  - id: VP-05-020
+    priority: MAY
+    statement: >-
+      Participants MAY publish information about the vulnerability when there is no active
+      embargo
+- id: VP-06
+  title: Embargo Negotiation
+  specs:
+  - id: VP-06-001
+    priority: MUST_NOT
+    statement: >-
+      CVD Participants MUST NOT propose or accept a new embargo negotiation when information
+      about the vulnerability is already known to the public ($q^{cs} \in \cdots P \cdots$),
+      an exploit is publicly available ($q^{cs} \in \cdots X \cdot$), or the vulnerability
+      is being actively exploited ($q^{cs} \in \cdots A$)
+  - id: VP-06-002
+    priority: SHOULD_NOT
+    statement: >-
+      CVD Participants SHOULD NOT propose or accept a new embargo when the fix for a vulnerability
+      has already been deployed ($q^{cs} \in VFDpxa$)
+  - id: VP-06-003
+    priority: SHOULD
+    statement: Receivers SHOULD accept any embargo proposed by Reporters
+  - id: VP-06-004
+    priority: SHOULD_NOT
+    statement: >-
+      Participants SHOULD explicitly accept or reject embargo proposals in a timely manner;
+      embargo agreement or rejection SHOULD NOT be tacit
+  - id: VP-06-005
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD make reasonable attempts to retry embargo negotiations when prior
+      proposals have been rejected or otherwise failed to achieve acceptance
+  - id: VP-06-006
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD remain flexible in adjusting embargo terms as the case evolves
+  - id: VP-06-007
+    priority: MUST
+    statement: >-
+      Submitting a report when an embargo proposal is pending ($q^{em} \in P$) SHALL be construed
+      as the Sender's acceptance of the proposed terms
+  - id: VP-06-008
+    priority: SHOULD
+    statement: >-
+      CVD Participants MAY propose or accept a new embargo when the fix for a vulnerability
+      is ready but has neither been made public nor deployed ($q^{cs} \in VFdpxa$); such an
+      embargo SHOULD be brief and used only to allow Participants to prepare for timely publication
+      or deployment
+  - id: VP-06-009
+    priority: MAY
+    statement: >-
+      CVD Participants MAY propose or accept an embargo in all other case states ($q^{cs}
+      \in \cdots pxa$)
+  - id: VP-06-010
+    priority: MAY
+    statement: Participants MAY accept or reject any proposed embargo as they see fit
+  - id: VP-06-011
+    priority: MAY
+    statement: Receivers MAY propose embargo terms they find more favorable
+  - id: VP-06-012
+    priority: MAY
+    statement: Participants MAY withdraw their own unaccepted Proposed embargo
+  - id: VP-06-013
+    priority: MAY
+    statement: >-
+      Participants MAY interpret another Participant's failure to respond to an embargo proposal
+      in a timely manner as a rejection of that proposal
+  - id: VP-06-014
+    priority: MAY
+    statement: >-
+      In the absence of an explicit accept or reject response from a Receiver in a timely
+      manner, the Sender MAY proceed consistent with an EM state of None ($q^{em} \in N$)
+  - id: VP-06-015
+    priority: MAY
+    statement: >-
+      In a case where the embargo state is None and for which an embargo has been proposed
+      and either explicitly or tacitly rejected, Participants MAY take any action they choose
+      with the report, including immediate publication
+  - id: VP-06-016
+    priority: MAY
+    statement: >-
+      Participants MAY withhold a report from a Recipient until an initial embargo has been
+      accepted
+  - id: VP-06-017
+    priority: MAY
+    statement: >-
+      Participants MAY use short embargo periods to cover their report validation process
+      and subsequently revise the embargo terms pending the outcome of their validation or
+      prioritization processes
+- id: VP-07
+  title: Embargo Default Policies
+  specs:
+  - id: VP-07-001
+    priority: MUST
+    statement: >-
+      If neither Sender nor Receiver proposes an embargo and no policy defaults apply, no
+      embargo SHALL exist
+  - id: VP-07-002
+    priority: MUST
+    statement: >-
+      A Receiver's default embargo specified in its vulnerability disclosure policy SHALL
+      be treated as an initial embargo proposal
+  - id: VP-07-003
+    priority: MUST
+    statement: >-
+      If the Receiver has declared a default embargo in its vulnerability disclosure policy
+      and the Sender proposes nothing to the contrary, the Receiver's default embargo SHALL
+      be considered as an accepted proposal
+  - id: VP-07-004
+    priority: MUST
+    statement: >-
+      If the Sender proposes an embargo longer than the Receiver's default, the Receiver's
+      default SHALL be taken as accepted and the Sender's proposal taken as a proposed revision
+  - id: VP-07-005
+    priority: MUST
+    statement: >-
+      If the Sender proposes an embargo shorter than the Receiver's default, the Sender's
+      proposal SHALL be taken as accepted and the Receiver's default taken as a proposed revision
+  - id: VP-07-006
+    priority: SHOULD
+    statement: >-
+      Report Recipients SHOULD post a default embargo period as part of their Vulnerability
+      Disclosure Policy to set expectations with potential Reporters
+  - id: VP-07-007
+    priority: SHOULD
+    statement: >-
+      If the Sender proposes an embargo and the Receiver has no default embargo specified
+      by policy, the Receiver SHOULD accept the Sender's proposal
+  - id: VP-07-008
+    priority: SHOULD
+    statement: >-
+      When two or more embargo proposals are open and no embargo has yet been accepted ($q^{em}
+      \in P$), Participants SHOULD accept the shortest one and propose the remainder as revisions
+  - id: VP-07-009
+    priority: SHOULD
+    statement: >-
+      When two or more embargo revisions are open and an embargo is active ($q^{em} \in R$),
+      Participants SHOULD accept or reject them individually in earliest-to-latest expiration
+      order
+  - id: VP-07-010
+    priority: MAY
+    statement: >-
+      Participants MAY include a default embargo period as part of a published Vulnerability
+      Disclosure Policy
+  - id: VP-07-011
+    priority: MAY
+    statement: >-
+      When the Receiver has no default, the Receiver MAY propose a revision after accepting
+      the Sender's proposal
+  - id: VP-07-012
+    priority: MAY
+    statement: >-
+      When the Sender proposes longer than the Receiver's default, the Receiver MAY accept
+      or reject the proposed extension
+  - id: VP-07-013
+    priority: MAY
+    statement: >-
+      When the Sender proposes shorter than the Receiver's default, the Sender MAY accept
+      or reject the Receiver's proposed revision
+- id: VP-08
+  title: Multi-Party Coordination
+  specs:
+  - id: VP-08-001
+    priority: MUST
+    statement: >-
+      When inviting a new Participant to a case with an existing embargo, the inviting Participant
+      SHALL propose the existing embargo to the invited Participant
+  - id: VP-08-002
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD attempt to establish an embargo as early in the process of handling
+      the case as possible
+  - id: VP-08-003
+    priority: SHOULD
+    statement: Participants SHOULD follow consensus agreement to decide embargo terms
+  - id: VP-08-004
+    priority: SHOULD
+    statement: All known Vendors of affected software SHOULD be included as Participants
+  - id: VP-08-005
+    priority: SHOULD
+    statement: >-
+      A newly invited Participant to a case with an existing embargo SHOULD accept the existing
+      embargo
+  - id: VP-08-006
+    priority: SHOULD_NOT
+    statement: >-
+      The inviting Participant SHOULD NOT share the vulnerability report with a newly invited
+      Participant unless the new Participant has accepted the existing embargo
+  - id: VP-08-007
+    priority: SHOULD
+    statement: >-
+      Participants with short default embargo policies SHOULD consider accepting longer embargoes
+      in MPCVD cases
+  - id: VP-08-008
+    priority: SHOULD
+    statement: >-
+      Potential Participants with a longer default policy than an existing case SHOULD accept
+      the embargo terms offered
+  - id: VP-08-009
+    priority: SHOULD
+    statement: >-
+      Participants in a case with an existing embargo SHOULD notify Vendors with a longer
+      default embargo policy
+  - id: VP-08-010
+    priority: SHOULD
+    statement: >-
+      Participants known to leak or provide vulnerability information to adversaries as a
+      matter of policy or historical fact SHOULD be treated similar to Participants with brief
+      disclosure policies
+  - id: VP-08-011
+    priority: MAY
+    statement: >-
+      When consensus fails to reach agreement on embargo terms, Participants MAY appoint a
+      case lead to resolve conflicts
+  - id: VP-08-012
+    priority: MAY
+    statement: >-
+      Participants MAY engage a third-party Coordinator to act as a neutral case lead to resolve
+      conflicts between Participants
+  - id: VP-08-013
+    priority: MAY
+    statement: Third-party Coordinators MAY be included as Participants
+  - id: VP-08-014
+    priority: MAY
+    statement: Other parties MAY be included as Participants when necessary and appropriate
+  - id: VP-08-015
+    priority: MAY
+    statement: >-
+      The inviting Participant MAY interpret a potential Participant's default embargo policy
+      in accordance with default acceptance strategies
+  - id: VP-08-016
+    priority: MAY
+    statement: >-
+      A newly invited Participant MAY propose a revision after accepting the existing embargo
+  - id: VP-08-017
+    priority: MAY
+    statement: >-
+      Participants in an MPCVD case MAY delay notifying potential Participants with short
+      default embargo policies until their policy aligns with the agreed embargo
+  - id: VP-08-018
+    priority: MAY
+    statement: >-
+      After accepting an existing embargo, newly invited Participants with a longer default
+      policy MAY propose a revision to accommodate their preferences
+  - id: VP-08-019
+    priority: MAY
+    statement: >-
+      Existing Participants MAY accept or reject a proposed revision from a newly invited
+      Participant
+  - id: VP-08-020
+    priority: MAY
+    statement: >-
+      Participants in a case with an existing embargo MAY choose to extend the embargo to
+      accommodate a newly added Participant
+  - id: VP-08-021
+    priority: MAY
+    statement: >-
+      Participants MAY decline to participate in future CVD cases involving parties with a
+      history of violating previous embargoes
+- id: VP-09
+  title: Embargo Early Termination
+  specs:
+  - id: VP-09-001
+    priority: MUST
+    statement: >-
+      Embargoes SHALL terminate immediately when information about the vulnerability becomes
+      public ($q^{cs} \in \{\cdots P \cdots, \cdots X \cdot\}$)
+  - id: VP-09-002
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD be prepared with contingency plans in the event of early embargo
+      termination
+  - id: VP-09-003
+    priority: SHOULD
+    statement: >-
+      Embargoes SHOULD terminate early when there is evidence that the vulnerability is being
+      actively exploited by adversaries ($q^{cs} \in \{\cdots A\}$)
+  - id: VP-09-004
+    priority: SHOULD
+    statement: >-
+      Embargoes SHOULD terminate early when there is evidence that adversaries possess exploit
+      code for the vulnerability
+  - id: VP-09-005
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD consider the software supply chain when determining an appropriate
+      quorum of Vendors for release
+  - id: VP-09-006
+    priority: MAY
+    statement: >-
+      Embargoes MAY terminate early when there is evidence that adversaries are aware of the
+      technical details of the vulnerability
+  - id: VP-09-007
+    priority: MAY
+    statement: >-
+      Embargoes MAY terminate early when a quorum of Vendor Participants is prepared to release
+      fixes ($q^{cs} \in VF\cdots$), even if some Vendors remain unprepared
+- id: VP-10
+  title: Embargo Case Splits and Merges
+  specs:
+  - id: VP-10-001
+    priority: MUST
+    statement: >-
+      If no new embargo has been proposed or agreement has not been reached following a case
+      merge, the earliest of the previously accepted embargo dates SHALL be adopted for the
+      merged case
+  - id: VP-10-002
+    priority: MUST
+    statement: >-
+      If an earlier embargo date is needed for a child case following a case split, consideration
+      SHALL be given to the impact that ending the embargo on that case will have on the other
+      child cases retaining a later embargo date
+  - id: VP-10-003
+    priority: MUST
+    statement: >-
+      Participants in a child case SHALL communicate any subsequently agreed changes from
+      the inherited embargo to the Participants of the other child cases
+  - id: VP-10-004
+    priority: SHOULD
+    statement: >-
+      A new embargo SHOULD be proposed when any two or more CVD cases are to be merged and
+      multiple parties have agreed to different embargo terms prior to the merger
+  - id: VP-10-005
+    priority: SHOULD
+    statement: >-
+      When a case is split into two or more parts, any existing embargo SHOULD transfer to
+      the new cases
+  - id: VP-10-006
+    priority: SHOULD
+    statement: >-
+      If any of the new cases need to renegotiate the embargo inherited from the parent case,
+      any new embargo SHOULD be later than the inherited embargo
+  - id: VP-10-007
+    priority: MAY
+    statement: Participants MAY propose revisions to the embargo on a merged case as usual
+  - id: VP-10-008
+    priority: MAY
+    statement: >-
+      Participants approaching a case split MAY engage a Coordinator to act as a trusted third
+      party to help resolve and coordinate embargo dependencies for the new cases
+- id: VP-11
+  title: EM Messaging
+  specs:
+  - id: VP-11-001
+    priority: MUST
+    statement: >-
+      Participants SHALL NOT negotiate embargoes where the vulnerability or its exploit is
+      public or attacks are known to have occurred
+  - id: VP-11-002
+    priority: MUST
+    statement: >-
+      If information about the vulnerability or an exploit has been made public, Participants
+      SHALL terminate the embargo ($q^{cs} \in \{\cdots P \cdots, \cdots X \cdot\}$)
+  - id: VP-11-003
+    priority: MUST
+    statement: >-
+      Participants SHALL initiate embargo termination upon becoming aware of publicly available
+      information about the vulnerability or its exploit code
+  - id: VP-11-004
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD send $EK$ in acknowledgment of any other $E*$ message except $EK$
+      itself
+  - id: VP-11-005
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD acknowledge ($EK$) and inquire ($GI$) about the nature of any error
+      reported by an incoming $EE$ message
+  - id: VP-11-006
+    priority: SHOULD
+    statement: >-
+      If attacks are known to have occurred, Participants SHOULD terminate the embargo ($q^{cs}
+      \in \cdots A$)
+  - id: VP-11-007
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD initiate embargo termination upon becoming aware of attacks against
+      an otherwise unpublished vulnerability
+  - id: VP-11-008
+    priority: SHOULD
+    statement: >-
+      If early embargo termination is desired but the termination date/time is in the future,
+      this SHOULD be achieved through an Embargo Revision Proposal and additional communication
+  - id: VP-11-009
+    priority: MAY
+    statement: >-
+      Participants MAY begin embargo negotiations before sending the report itself in an $RS$
+      message; therefore it is not an error for an $E*$ message to arrive while the Recipient
+      is unaware of the report ($q^{rm} \in S$)
+  - id: VP-11-010
+    priority: MAY
+    statement: Participants MAY reject any embargo proposals or revisions for any reason
+- id: VP-12
+  title: CVD Case State (CS) Messaging
+  specs:
+  - id: VP-12-001
+    priority: SHOULD
+    statement: >-
+      Vendor Awareness ($CV$) messages SHOULD be sent only by Participants with direct knowledge
+      of the notification (i.e., either the Participant who sent the report to the Vendor
+      or the Vendor upon receipt of the report)
+  - id: VP-12-002
+    priority: SHOULD
+    statement: >-
+      Once attacks have been observed, fix development SHOULD accelerate, the embargo teardown
+      process SHOULD begin, and publication and deployment SHOULD follow as soon as is practical
+- id: VP-13
+  title: RM-EM Interactions
+  specs:
+  - id: VP-13-001
+    priority: SHOULD
+    statement: >-
+      The EM process SHOULD begin when a recipient is in RM Received ($q^{rm} \in R$) whenever
+      possible
+  - id: VP-13-002
+    priority: SHOULD_NOT
+    statement: >-
+      Embargo Management SHOULD NOT begin in an inactive RM state ($q^{rm} \in \{I, D, C\}$)
+  - id: VP-13-003
+    priority: SHOULD_NOT
+    statement: >-
+      Embargo Management SHOULD NOT begin with a proposal from a Participant in RM Invalid
+      ($q^{rm} \in I$)
+  - id: VP-13-004
+    priority: SHOULD_NOT
+    statement: >-
+      Embargo Management SHOULD NOT proceed from EM Proposed to EM Accepted when RM is Invalid
+      or Closed ($q^{rm} \in \{I, C\}$)
+  - id: VP-13-005
+    priority: SHOULD_NOT
+    statement: >-
+      Participants SHOULD NOT close reports ($q^{rm} \in \{I,D,A\} \xrightarrow{c} C$) while
+      an embargo is active ($q^{em} \in \{A, R\}$)
+  - id: VP-13-006
+    priority: SHOULD
+    statement: >-
+      Reports with no further tasks SHOULD be held in Deferred or Invalid ($q^{rm} \in \{D,
+      I\}$) until the embargo has terminated ($q^{em} \in X$)
+  - id: VP-13-007
+    priority: SHOULD
+    statement: >-
+      Participants who choose to close a report while an embargo remains in force SHOULD communicate
+      their intent to either continue to adhere to the embargo or terminate their compliance
+      with it
+  - id: VP-13-008
+    priority: SHOULD
+    statement: >-
+      Any changes to a Participant's intention to adhere to an active embargo SHOULD be communicated
+      clearly in addition to any necessary RM or EM state change notifications
+  - id: VP-13-009
+    priority: MUST
+    statement: >-
+      A Participant's closure or deferral ($q^{rm} \in \{C, D\}$) of a report while an embargo
+      remains active ($q^{em} \in \{A, R\}$) and while other Participants remain engaged SHALL
+      NOT automatically terminate the embargo
+  - id: VP-13-010
+    priority: MAY
+    statement: >-
+      The EM process MAY begin prior to the report being sent to a potential Participant ($q^{rm}
+      \in S$)
+  - id: VP-13-011
+    priority: MAY
+    statement: >-
+      Embargo Management MAY begin in any of the active RM states ($q^{rm} \in \{R, V, A\}$)
+  - id: VP-13-012
+    priority: MAY
+    statement: >-
+      Embargo Management MAY run in parallel to validation ($q^{rm} \in \{R,I\} \xrightarrow{\{v,i\}}
+      \{V,I\}$) and prioritization ($q^{rm} \in V \xrightarrow{\{a,d\}} \{A,D\}$) activities
+  - id: VP-13-013
+    priority: MAY
+    statement: >-
+      EM revision proposals and acceptance or rejection of those proposals MAY occur during
+      any of the valid yet unclosed RM states ($q^{rm} \in \{V, A, D\}$)
+  - id: VP-13-014
+    priority: MAY
+    statement: >-
+      Outstanding embargo negotiations ($q^{em} \in P$) MAY continue in RM Invalid ($q^{rm}
+      \in I$) if additional information may be forthcoming to promote the report from Invalid
+      to Valid
+  - id: VP-13-015
+    priority: MAY
+    statement: >-
+      Embargo Management MAY proceed from EM Proposed to EM Accepted when RM is neither Invalid
+      nor Closed ($q^{rm} \in \{R, V, A, D\}$)
+  - id: VP-13-016
+    priority: MAY
+    statement: >-
+      Embargo Management MAY proceed from EM Proposed to EM None ($q^{em} \in P \xrightarrow{r}
+      N$) when RM is Invalid or Closed
+  - id: VP-13-017
+    priority: MAY
+    statement: >-
+      Participants MAY choose to terminate their compliance with an embargo at any time
+  - id: VP-13-018
+    priority: MAY
+    statement: >-
+      Upon receipt of a Participant's notification of intent to end their compliance with
+      an embargo, other Participants MAY choose to terminate the embargo
+- id: VP-14
+  title: RM-EM-CS Interactions
+  specs:
+  - id: VP-14-001
+    priority: MUST
+    statement: >-
+      Once Public Awareness has happened ($q^{cs} \in \cdots P \cdots$), new embargoes SHALL
+      NOT be sought and any existing embargo SHALL terminate
+  - id: VP-14-002
+    priority: MUST
+    statement: >-
+      Once Exploit Publication has occurred ($q^{cs} \in \cdots X \cdot$), new embargoes SHALL
+      NOT be sought and any existing embargo SHALL terminate
+  - id: VP-14-003
+    priority: MUST
+    statement: >-
+      Once Attacks have been observed ($q^{cs} \in \cdots A$), new embargoes SHALL NOT be
+      sought
+  - id: VP-14-004
+    priority: MUST
+    statement: >-
+      Participants MUST treat attacks as an event that could occur at any time and adapt their
+      process as needed in light of available information
+  - id: VP-14-005
+    priority: SHOULD
+    statement: >-
+      Once a case has reached Vendor Aware ($q^{cs} \in Vfdpxa$) for at least one Vendor,
+      if the EM process has not started, it SHOULD begin as soon as possible
+  - id: VP-14-006
+    priority: SHOULD
+    statement: >-
+      Any proposed embargo SHOULD be decided (accept or reject) soon after the first Vendor
+      is notified
+  - id: VP-14-007
+    priority: SHOULD_NOT
+    statement: >-
+      Once a case has reached Fix Ready ($q^{cs} \in VF\cdot pxa$), new embargo negotiations
+      SHOULD NOT start and proposed but not-yet-agreed-to embargoes SHOULD be rejected
+  - id: VP-14-008
+    priority: SHOULD
+    statement: >-
+      Existing embargoes ($q^{em} \in \{Active, Revise\}$) when Fix Ready is reached SHOULD
+      prepare to terminate soon
+  - id: VP-14-009
+    priority: SHOULD
+    statement: >-
+      Participants SHOULD accept reasonable extension proposals to allow trailing Vendors
+      to catch up before publication when possible
+  - id: VP-14-010
+    priority: SHOULD_NOT
+    statement: >-
+      By the time a fix has been deployed ($q^{cs} \in VFD\cdots$), new embargoes SHOULD NOT
+      be sought and any existing embargo SHOULD terminate
+  - id: VP-14-011
+    priority: SHOULD
+    statement: >-
+      Exploit Publishers who are Participants in pre-public CVD cases ($q^{cs} \in \cdots
+      p \cdots$) SHOULD comply with the protocol, especially when they also fulfill other
+      roles (e.g., Finder, Reporter, Coordinator, Vendor)
+  - id: VP-14-012
+    priority: SHOULD_NOT
+    statement: >-
+      Exploit Publishers SHOULD NOT release exploit code while an embargo is active ($q^{em}
+      \in \{A, R\}$)
+  - id: VP-14-013
+    priority: SHOULD
+    statement: >-
+      Once Attacks have been observed ($q^{cs} \in \cdots A$), any existing embargo SHOULD
+      terminate
+  - id: VP-14-014
+    priority: MAY
+    statement: >-
+      In MPCVD cases where some Vendors reach Fix Ready before others, Participants MAY propose
+      an embargo extension to allow trailing Vendors to catch up before publication
+- id: VP-15
+  title: Implementation Guidance
+  specs:
+  - id: VP-15-001
+    priority: SHOULD
+    statement: >-
+      Vultron Protocol messages SHOULD use well-defined format specifications (e.g., JSON
+      Schema, protobuf, XSD)
+  - id: VP-15-002
+    priority: SHOULD
+    statement: >-
+      Vultron Protocol implementations SHOULD use common API patterns (e.g., REST, WebSockets)
+      for inter-participant communication
+    scope:
+    - production
+  - id: VP-15-003
+    priority: SHOULD
+    statement: >-
+      Vultron Protocol implementations SHOULD use transport-layer encryption to protect sensitive
+      data in transit
+    scope:
+    - production
+  - id: VP-15-004
+    priority: MAY
+    statement: >-
+      Vultron Protocol implementations MAY use end-to-end encryption to protect sensitive
+      data in transit
+    scope:
+    - production
+  - id: VP-15-005
+    priority: MAY
+    statement: >-
+      Vultron Protocol implementations MAY use encryption to protect sensitive data at rest
+    scope:
+    - production
+- id: VP-16
+  title: Embargo Representation Privacy
+  specs:
+  - id: VP-16-001
+    priority: MUST_NOT
+    statement: >-
+      Vulnerability details MUST NOT appear in embargo representation data (e.g., embargo
+      scheduling or notification messages)
+  - id: VP-16-002
+    priority: SHOULD
+    statement: >-
+      A case or vulnerability identifier SHOULD appear in embargo representation data along
+      with an indication that it relates to an embargo expiration
+  - id: VP-16-003
+    priority: SHOULD_NOT
+    statement: >-
+      Case or vulnerability identifiers SHOULD NOT carry any information that reveals potentially
+      sensitive details about the vulnerability

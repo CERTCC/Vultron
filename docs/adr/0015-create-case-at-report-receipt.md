@@ -156,7 +156,7 @@ This decision is validated by:
 - **Supersedes**: FINDER-PART-1 task in `plan/IMPLEMENTATION_PLAN.md`
 - **Refines**: `notes/case-state-model.md` (proto-case / caterpillar–butterfly
   metaphor)
-- **Updates**: `specs/case-management.md` (new CM-12 requirements)
-- **Updates**: `specs/duration.md` (DUR-07-002 timing, new DUR-07-004)
+- **Updates**: `specs/case-management.yaml` (new CM-12 requirements)
+- **Updates**: `specs/duration.yaml` (DUR-07-002 timing, new DUR-07-004)
 - **Updates**: `notes/protocol-event-cascades.md` (cascade list)
 - **Source idea**: IDEA-260408-01 in `plan/IDEAS.md`

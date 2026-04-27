@@ -23,3 +23,10 @@ repos:
         files: ^notes/.*\.md$
         exclude: ^notes/README\.md$
         pass_filenames: false
+
+      - id: spec-lint
+        name: Spec registry linter
+        entry: uv run python -m vultron.metadata.specs.lint specs/
+        language: system
+        files: ^specs/.*\.yaml$
+        pass_filenames: false

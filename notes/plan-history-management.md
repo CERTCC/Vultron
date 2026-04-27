@@ -5,7 +5,7 @@ description: >
   Authoritative rules for managing IMPLEMENTATION_PLAN.md (forward roadmap)
   and IMPLEMENTATION_HISTORY.md (append-only log).
 related_specs:
-  - specs/project-documentation.md
+  - specs/project-documentation.yaml
 ---
 
 # Plan / History Management Contract
@@ -14,7 +14,7 @@ This document defines the authoritative rules for managing
 `plan/IMPLEMENTATION_PLAN.md` (PLAN) and `plan/IMPLEMENTATION_HISTORY.md`
 (HISTORY) in the Vultron project.
 
-Formal requirements are in `specs/project-documentation.md` (PD-02-001
+Formal requirements are in `specs/project-documentation.yaml` (PD-02-001
 through PD-02-006). This file explains the **rationale**, provides the
 **operational rules**, and documents the **failure modes to avoid**.
 

@@ -67,6 +67,9 @@ vultrabot_robot="vultron.bt.base.demo.robot:main"
 vultrabot_cvd="vultron.demo.vultrabot:main"
 vultrabot="vultron.scripts.vultrabot:main"
 vultron-demo="vultron.demo.cli:main"
+spec-dump="vultron.metadata.specs.render:main_llm_json"
+spec-dump-llm-json="vultron.metadata.specs.render:main_llm_json"
+spec-lint="vultron.metadata.specs.lint:main"
 
 
 [project.urls]
@@ -114,10 +117,12 @@ testpaths = [
     "test",
 ]
 filterwarnings = [
+    "always::vultron.metadata.specs.UnknownSpecIdWarning",
     "error",
 ]
 markers = [
     "integration: marks tests as integration tests (exercise the full HTTP stack; deselected by default)",
+    "spec(spec_id): mark test as verifying a specific spec requirement ID",
 ]
 
 [tool.uv.workspace]

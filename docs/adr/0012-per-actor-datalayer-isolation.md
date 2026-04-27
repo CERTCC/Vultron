@@ -11,7 +11,7 @@ informed: plan/IMPLEMENTATION_PLAN.md
 ## Context and Problem Statement
 
 All actors currently share a singleton `TinyDbDataLayer` backed by a single
-`plan/mydb.json` file. This violates `specs/case-management.md` CM-01-001
+`plan/mydb.json` file. This violates `specs/case-management.yaml` CM-01-001
 (actor isolation): Actor A can read and mutate Actor B's records.
 
 PRIORITY 100 requires each actor to have an isolated data store so that
@@ -226,6 +226,6 @@ clear and avoids implementing delivery against a still-changing DataLayer.
 - `notes/architecture-ports-and-adapters.md` — "Dispatch vs Emit Terminology"
   and port/adapter separation rationale.
 - `plan/IMPLEMENTATION_PLAN.md` — ACT-1, ACT-2, ACT-3, VCR-014, OX-1.1–OX-1.4.
-- `specs/case-management.md` — CM-01-001 (actor isolation requirement).
+- `specs/case-management.yaml` — CM-01-001 (actor isolation requirement).
 - `vultron/core/ports/emitter.py` — `ActivityEmitter` Protocol (OX-1.0).
 - `vultron/adapters/driven/delivery_queue.py` — stub emitter adapter.

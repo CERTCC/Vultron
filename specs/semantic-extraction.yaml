@@ -1,0 +1,111 @@
+id: SE
+title: Semantic Extraction
+description: >-
+  The inbox handler extracts semantic meaning from ActivityStreams activities by matching
+  activity type and object type patterns. This semantic type determines which handler function
+  processes the activity.
+version: 1.0.0
+kind: domain
+scope:
+- prototype
+- production
+groups:
+- id: SE-01
+  title: Pattern Matching
+  specs:
+  - id: SE-01-001
+    priority: MUST
+    statement: The system MUST match activities using activity type and object type patterns
+  - id: SE-01-002
+    priority: MUST
+    statement: >-
+      The semantic extraction algorithm MUST handle both fully expanded objects and URI string
+      references defensively
+  - id: SE-01-003
+    priority: MUST
+    statement: 'If rehydration fails for any nested object, the system MUST:'
+  - id: SE-01-004
+    priority: MUST
+    statement: >-
+      Pattern matching MUST support type/subclass matching semantics for actor/object classes
+    relationships:
+    - rel_type: depends_on
+      spec_id: SE-01-002
+- id: SE-02
+  title: Semantic Type Assignment
+  specs:
+  - id: SE-02-001
+    priority: MUST
+    statement: >-
+      The system MUST assign MessageSemantics enum value via `find_matching_semantics()`
+  - id: SE-02-002
+    priority: MUST
+    statement: The function MUST return the first matching semantic type
+  - id: SE-02-003
+    priority: MUST
+    statement: The function MUST return MessageSemantics.UNKNOWN if no patterns match
+- id: SE-03
+  title: Pattern Registry
+  specs:
+  - id: SE-03-001
+    priority: MUST
+    statement: >-
+      SEMANTICS_ACTIVITY_PATTERNS MUST contain patterns for all supported MessageSemantics
+      values except UNKNOWN
+  - id: SE-03-002
+    priority: MUST
+    statement: Pattern registry MUST be ordered from most specific to least specific
+  - id: SE-03-003
+    priority: MUST
+    statement: >-
+      Every `ActivityPattern` entry in `SEMANTICS_ACTIVITY_PATTERNS` MUST discriminate on
+      at minimum both Activity type AND Object type
+    rationale: >-
+      A pattern without an object-type constraint would match every activity of that verb
+      type regardless of payload, causing misrouting when multiple semantics share an outer
+      Activity type
+- id: SE-04
+  title: Unrecognized Activity Handling
+  specs:
+  - id: SE-04-001
+    priority: MUST
+    statement: The system MUST log unrecognized activities at WARNING level
+  - id: SE-04-002
+    priority: MUST
+    statement: >-
+      The system MUST distinguish two causes of `MessageSemantics.UNKNOWN`: 1. **No pattern
+      match**: No registered `ActivityPattern` matched the activity structure → raise `VultronApiHandlerMissingSemanticError`
+      2. **Unresolvable `object_`**: `object_` remains a bare string URI after rehydration
+      (per VAM-01-009) → do NOT raise an error; instead log a WARNING, store the activity
+      in a dead-letter record, and return silently
+    rationale: >-
+      An unresolvable `object_` URI is not a programming error; it is a data completeness
+      issue that may resolve later. Treating it as a 5xx error would cause unnecessary noise
+      and fail legitimate protocol flows.
+  - id: SE-04-003
+    priority: MUST
+    statement: >-
+      Dead-letter records for unresolvable-object_ activities MUST include: the full activity
+      JSON, the unresolvable URI, the actor ID, and a timestamp. They MUST be stored in a
+      DataLayer collection accessible for administrative review and retry.
+  - id: SE-04-004
+    priority: MUST
+    statement: >-
+      For any future synchronous processing path (non-background), UNKNOWN due to unresolvable
+      `object_` MUST return HTTP 422 with an explanatory error body identifying the unresolvable
+      URI
+- id: SE-05
+  title: Pattern Validation
+  specs:
+  - id: SE-05-001
+    priority: MUST
+    statement: All patterns MUST have corresponding MessageSemantics enum value
+  - id: SE-05-002
+    priority: MUST
+    statement: All patterns MUST have corresponding use-case class in USE_CASE_MAP
+    relationships:
+    - rel_type: derives_from
+      spec_id: DR-02-002
+  - id: SE-05-003
+    priority: MUST
+    statement: All patterns MUST have unit test coverage

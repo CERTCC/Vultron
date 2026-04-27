@@ -191,7 +191,7 @@ Deliverables:
 - `notes/bt-reusability.md` — durable design note capturing the fractal
   composability pattern, the "trunkless branch" intent, and anti-patterns
   to avoid.
-- `specs/behavior-tree-node-design.md` — formal requirements for BT node
+- `specs/behavior-tree-node-design.yaml` — formal requirements for BT node
   parameterization, composability, and reuse (e.g., nodes MUST NOT hard-code
   actor roles; roles/identities MUST be constructor parameters; reusable
   subtrees MUST be composed rather than duplicated).
@@ -207,3 +207,25 @@ Can begin in parallel with P-347.
 > the demo replication story. OUTBOX-MON-1 was also moved from Priority
 > 350 to Priority 330 as a hard SYNC prerequisite. See Priority 330 for
 > the full task list and sequencing.
+
+---
+
+## Priority 460: Specs as data structures (COMPLETED 2026-04-27)
+
+This priority converted specs from markdown formatting conventions to
+YAML data structures backed by Pydantic validation.
+
+Included all TASK-SR items (SR.1–SR.6) in plan/IMPLEMENTATION_PLAN.md.
+
+See specs/spec-registry.yaml, notes/spec-registry.md, and
+plan/IMPLEMENTATION_HISTORY.md for background and completion details.
+
+Key deliverables:
+
+- Pydantic schema (vultron/metadata/specs/schema.py) with strict
+  validation and no silent defaults
+- Registry loader with networkx graph and inheritance resolution
+- Linter, pytest marker, pre-commit hook
+- LLM-optimized export (to_llm_json) with flat requirements/edges format
+- All 48 specs/*.md files migrated to specs/*.yaml and deleted
+- 148 files updated with .md→.yaml references

@@ -1,0 +1,69 @@
+id: CISEC
+title: CI Security
+description: >-
+  Requirements for securing CI/CD workflows and GitHub Actions usage in the Vultron project.
+  `.github/workflows/`
+version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
+groups:
+- id: CISEC-01
+  title: Action Version Pinning
+  specs:
+  - id: CISEC-01-001
+    priority: MUST
+    statement: >-
+      All `uses:` references in `.github/workflows/*.yml` MUST be pinned to a specific commit
+      SHA rather than a version tag or branch name
+  - id: CISEC-01-002
+    priority: MUST
+    statement: >-
+      Each SHA-pinned `uses:` reference MUST carry an inline comment identifying the corresponding
+      human-readable version tag (e.g., `# v4.1.0`) to aid maintainability
+- id: CISEC-02
+  title: Secrets Management
+  specs:
+  - id: CISEC-02-001
+    priority: MUST_NOT
+    statement: >-
+      Workflow secrets and tokens MUST be stored in GitHub Secrets and MUST NOT appear in
+      repository files
+  - id: CISEC-02-002
+    priority: MUST
+    statement: >-
+      The minimal set of permissions required MUST be declared explicitly via `permissions:`
+      at the job or workflow level
+- id: CISEC-03
+  title: Automated Pin Verification
+  specs:
+  - id: CISEC-01-003
+    priority: SHOULD
+    statement: >-
+      A CI verification test SHOULD confirm that all `uses:` lines in `.github/workflows/*.yml`
+      reference a SHA hash rather than a mutable version tag or branch name, and that each
+      SHA line carries the human-readable version comment required by CISEC-01-002
+- id: CISEC-04
+  title: Artifact Integrity
+  specs:
+  - id: CISEC-03-001
+    priority: MUST
+    statement: >-
+      CI workflows that download third-party artifacts or tools MUST verify signatures or
+      checksums before using them
+    rationale: Prevents supply-chain attacks via compromised artifacts
+- id: CISEC-05
+  title: Maintenance
+  specs:
+  - id: CISEC-04-001
+    priority: SHOULD
+    statement: >-
+      SHA pins SHOULD be reviewed and updated on a documented periodic cadence, at minimum
+      when a security advisory is issued for the pinned action or when a new minor version
+      is released
+  - id: CISEC-04-002
+    priority: MUST
+    statement: >-
+      When adding a new workflow step or action, the SHA pin and version annotation MUST be
+      included before the step is merged to `main`

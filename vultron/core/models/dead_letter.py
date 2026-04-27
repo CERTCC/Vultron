@@ -5,7 +5,7 @@ rehydration, the activity is stored as a ``DeadLetterRecord`` rather than
 raising an error.  Records are stored in the DataLayer for administrative
 review and retry.
 
-See ``specs/semantic-extraction.md`` SE-04-003.
+See ``specs/semantic-extraction.yaml`` SE-04-003.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.

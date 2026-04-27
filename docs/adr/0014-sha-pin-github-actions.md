@@ -2,7 +2,7 @@
 status: accepted
 date: 2026-03-30
 deciders: ahouseholder
-consulted: specs/ci-security.md
+consulted: specs/ci-security.yaml
 informed: plan/IMPLEMENTATION_PLAN.md
 ---
 
@@ -59,11 +59,11 @@ at every CI run that no unpinned `uses:` line is accidentally introduced.
   released, so pins do not become stale without manual tracking.
 - **Good**: Inline version comments preserve human-readable context for
   code review.
-- **Good**: The automated test (`CI-SEC-01-003`) catches any regression
+- **Good**: The automated test (`CISEC-01-003`) catches any regression
   before it reaches `main`.
 - **Neutral**: SHA-only references are harder to read without the version
   comment, mitigated by the mandatory comment requirement
-  (`CI-SEC-01-002`).
+  (`CISEC-01-002`).
 - **Bad**: Dependabot may open PRs for patch and minor releases that have
   not been security-reviewed; reviewer discretion is required when merging
   pin-bump PRs.
@@ -75,16 +75,16 @@ Compliance is verified continuously by
 
 1. Discovers all `.github/workflows/*.yml` files.
 2. For each `uses:` line, asserts that the referenced version is a full
-   40-character hexadecimal SHA (CI-SEC-01-001).
+   40-character hexadecimal SHA (CISEC-01-001).
 3. For each SHA line, asserts that an inline `# <version>` comment is
-   present (CI-SEC-01-002).
+   present (CISEC-01-002).
 
 This test runs as part of the standard `pytest` suite in every CI pipeline
 execution.
 
 ## More Information
 
-- `specs/ci-security.md` — full requirement set (CI-SEC-01-001 through
-  CI-SEC-04-002)
+- `specs/ci-security.yaml` — full requirement set (CISEC-01-001 through
+  CISEC-04-002)
 - `.github/dependabot.yml` — Dependabot configuration
 - `test/ci/test_workflow_sha_pinning.py` — automated enforcement test

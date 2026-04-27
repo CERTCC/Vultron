@@ -1,0 +1,118 @@
+id: DEMOMA
+title: Multi-Actor Demo
+description: >-
+  Requirements for multi-actor demo scenarios, Docker Compose orchestration, actor isolation,
+  acceptance testing, and reproducibility. `plan/PRIORITIES.md` PRIORITY 300 `specs/case-management.md`,
+  `specs/observability.md`
+version: 1.0.0
+kind: implementation
+scope:
+- prototype
+- production
+groups:
+- id: DEMOMA-00
+  title: Cross-Actor Communication
+  specs:
+  - id: DEMOMA-00-001
+    priority: MUST
+    statement: >-
+      Cross-actor communication MUST occur exclusively via HTTP using the ActivityStreams
+      inbox endpoint
+- id: DEMOMA-01
+  title: Actor Isolation
+  specs:
+  - id: DEMOMA-01-001
+    priority: MUST
+    statement: >-
+      Each actor in a multi-actor demo MUST run in a separate container with its own DataLayer
+      instance
+  - id: DEMOMA-01-002
+    priority: MUST
+    statement: >-
+      Each actor container MUST expose the actor's identity via its `/actors/{actor_id}` profile
+      endpoint so that other containers can discover it at startup
+  - id: DEMOMA-01-003
+    priority: MUST
+    statement: >-
+      Demo startup MUST automatically reset all actor state to a known clean baseline before
+      the scenario executes, without requiring manual user intervention
+- id: DEMOMA-02
+  title: Container Orchestration
+  specs:
+  - id: DEMOMA-02-001
+    priority: MUST
+    statement: >-
+      Docker Compose configurations for multi-actor demos MUST include a `healthcheck` for
+      each actor service that probes the `/health/ready` endpoint
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-05-002
+      note: tech-stack.md
+    - rel_type: depends_on
+      spec_id: OB-05-002
+      note: observability.md
+  - id: DEMOMA-02-002
+    priority: MUST
+    statement: >-
+      Dependent services (e.g., a demo orchestration container) MUST use `condition: service_healthy`
+      for all actor service dependencies
+  - id: DEMOMA-02-003
+    priority: MUST
+    statement: >-
+      Port mappings, network names, and required environment variables MUST be documented
+      in the `docker-compose.yml` file or an accompanying `README.md`
+- id: DEMOMA-03
+  title: Acceptance Tests
+  specs:
+  - id: DEMOMA-03-001
+    priority: MUST
+    statement: >-
+      Each multi-actor demo scenario MUST include an acceptance test that validates the end-to-end
+      workflow deterministically
+  - id: DEMOMA-03-002
+    priority: MUST
+    statement: >-
+      Acceptance tests MUST assert final state for each actor (e.g., correct RM/EM/CS state,
+      expected case log entries)
+  - id: DEMOMA-03-003
+    priority: MUST
+    statement: >-
+      Acceptance tests MUST be reproducible: the same test on the same codebase MUST produce
+      the same result on successive runs
+- id: DEMOMA-04
+  title: Scenario Coverage
+  specs:
+  - id: DEMOMA-04-001
+    priority: SHOULD
+    statement: 'Multi-actor demo scenarios SHOULD be implemented progressively:'
+  - id: DEMOMA-04-002
+    priority: SHOULD
+    statement: >-
+      Each scenario SHOULD include a summary of the expected CVD workflow steps and the expected
+      final RM/EM/CS state for each actor
+- id: DEMOMA-05
+  title: Demo Trigger Protocol
+  specs:
+  - id: DEMOMA-05-001
+    priority: MUST
+    statement: >-
+      All actor-initiated actions in scenario demos MUST be driven through the trigger API
+      (`POST /actors/{actor_id}/trigger/{behavior-name}`), not by direct inbox injection or
+      other mechanisms that bypass the actor's own protocol logic
+    rationale: >-
+      Using trigger endpoints ensures that the demo exercises the same code paths that a real
+      actor would use, including BT execution, outbox queuing, and downstream cascading behaviors.
+      Direct inbox injection spoofs protocol messages and does not validate that the initiating
+      actor's behavior is correctly implemented.
+    relationships:
+    - rel_type: depends_on
+      spec_id: TRIG-01-001
+      note: trigger endpoint format
+  - id: DEMOMA-05-002
+    priority: MUST_NOT
+    statement: >-
+      Scenario demo scripts MUST NOT construct and POST raw ActivityStreams JSON directly
+      to an actor's inbox as a substitute for calling that actor's trigger endpoint
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-00-001

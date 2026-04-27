@@ -19,7 +19,7 @@ actors router registered in
 ``vultron/adapters/driving/fastapi/routers/actors.py``.
 
 Spec: notes/multi-actor-architecture.md §4 G6,
-      specs/multi-actor-demo.md DEMO-MA-01-002.
+      specs/multi-actor-demo.yaml DEMOMA-01-002.
 """
 
 from urllib.parse import urlparse

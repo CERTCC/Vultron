@@ -10,7 +10,7 @@ this repository.
 - `notes/` — durable design insights (BT integration, ActivityStreams
   semantics). These files are committed to version control and are the
   authoritative source for design decisions.
-- `specs/project-documentation.md` — documentation structure guidance.
+- `specs/project-documentation.yaml` — documentation structure guidance.
 
 Agents MUST follow these rules when generating, modifying, or reviewing code.
 
@@ -21,8 +21,11 @@ Agents MUST follow these rules when generating, modifying, or reviewing code.
 A short, actionable checklist for AI coding agents who need to be productive
 quickly in this repo.
 
-- Read this file and the `specs/` folder first; specs contain testable
-  requirements (MUST/SHOULD/MAY).
+- **Load specs first**: run `uv run spec-dump` (or invoke the
+  `load-specs` skill) to get all requirements as flat, inheritance-resolved
+  JSON. Do **not** read raw `specs/*.yaml` files — those are for authoring
+  only. See `.github/skills/load-specs/SKILL.md` for the output format and
+  field definitions.
 - Key architecture: FastAPI inbox → AS2 parser
   (`vultron/wire/as2/parser.py`) → semantic extraction
   (`vultron/wire/as2/extractor.py`) → behavior dispatcher
@@ -165,7 +168,7 @@ explicit approval from the maintainers.
 - Pydantic models are the canonical schema for data exchange
 - Side effects (I/O, persistence, network) MUST be isolated from pure logic
 - **Core modules MUST NOT import from application layer modules** (see
-  `specs/code-style.md` CS-05-001)
+  `specs/code-style.yaml` CS-05-001)
   - Core: `vultron/core/`, `vultron/behavior_dispatcher.py`
   - Wire layer: `vultron/wire/`
   - Application layer: `vultron/api/v2/*`
@@ -224,7 +227,7 @@ adding patterns to `SEMANTICS_ACTIVITY_PATTERNS` in
 `vultron/wire/as2/extractor.py`, place more specific patterns before general
 ones.
 
-See `specs/dispatch-routing.md`, `specs/semantic-extraction.md`,
+See `specs/dispatch-routing.yaml`, `specs/semantic-extraction.yaml`,
 `docs/adr/0007-use-behavior-dispatcher.md`, and
 `docs/adr/0009-hexagonal-architecture.md` for complete architecture details.
 
@@ -247,7 +250,7 @@ and domain types. Rules:
 
 See `notes/architecture-ports-and-adapters.md` for the full architecture
 specification and code patterns. See `archived_notes/architecture-review.md` for the violation inventory (V-01 to V-12).
-See `specs/architecture.md` for formal requirements (ARCH-01 to ARCH-08) and
+See `specs/architecture.yaml` for formal requirements (ARCH-01 to ARCH-08) and
 `docs/adr/0009-hexagonal-architecture.md` for the decision rationale.
 
 ### Protocol Activity Model
@@ -275,7 +278,7 @@ or Invite MUST:
   time
 - Set `inReplyTo` to the ID of the Offer/Invite activity
 
-See `specs/response-format.md` RF-02-003, RF-03-003, RF-04-003, RF-08-001.
+See `specs/response-format.yaml` RF-02-003, RF-03-003, RF-04-003, RF-08-001.
 See `notes/activitystreams-semantics.md` for detailed discussion.
 
 ---
@@ -309,7 +312,7 @@ class CreateReportReceivedUseCase:
         ...
 ```
 
-Reference: `specs/handler-protocol.md` for complete requirements and
+Reference: `specs/handler-protocol.yaml` for complete requirements and
 verification criteria.
 
 ### Registry Pattern
@@ -366,7 +369,7 @@ This allows duck typing and flexible testing without inheritance requirements.
 
 Inbox handlers MUST:
 
-- Return HTTP 202 within 100ms (per `specs/inbox-endpoint.md`)
+- Return HTTP 202 within 100ms (per `specs/inbox-endpoint.yaml`)
 - Queue activities via FastAPI BackgroundTasks
 - Never block endpoint on handler execution
 
@@ -401,7 +404,7 @@ HTTP error responses use structured format:
 }
 ```
 
-See `specs/error-handling.md` for complete error hierarchy and response format.
+See `specs/error-handling.yaml` for complete error hierarchy and response format.
 
 ---
 
@@ -443,14 +446,14 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
   required fields at construction and fail immediately on missing invariants.
   Fields that are required for a specific event subtype MUST NOT be typed
   as `X | None` in that subtype. Subclasses SHOULD narrow optional parent
-  fields to required. See `specs/architecture.md` ARCH-10-001.
+  fields to required. See `specs/architecture.yaml` ARCH-10-001.
 - **Optional string fields MUST follow "if present, then non-empty"**:
   `Optional[str]` fields MUST reject empty strings. Use the shared
   `NonEmptyString` or `OptionalNonEmptyString` type alias from
   `vultron/wire/as2/vocab/base/` when it exists (CS-08-002), or a field
   validator that raises `ValueError` for `""` if the type alias is not yet
   available. This pattern also applies to JSON Schemas derived from Pydantic
-  models (`minLength: 1`). See `specs/code-style.md` CS-08-001, CS-08-002.
+  models (`minLength: 1`). See `specs/code-style.yaml` CS-08-001, CS-08-002.
   **Do NOT** add a new per-field `@field_validator` stub for empty-string
   rejection; instead, use or extend the shared type alias.
 
@@ -492,8 +495,8 @@ reduces diff noise. 88 characters aligns with Python's Black formatter width.
 - Log state transitions at INFO level
 - Log errors at ERROR level with full context
 
-See `specs/structured-logging.md` for complete logging requirements
-(consolidates `specs/observability.md` logging sections).
+See `specs/structured-logging.yaml` for complete logging requirements
+(consolidates `specs/observability.yaml` logging sections).
 
 ---
 
@@ -502,37 +505,40 @@ See `specs/structured-logging.md` for complete logging requirements
 This project uses formal specifications in `specs/` directory defining testable
 requirements.
 
+### Loading Specifications
+
+**Always run `uv run spec-dump` before any implementation or design task.**
+This produces flat, inheritance-resolved JSON covering all 48 spec files. Raw
+`specs/*.yaml` files are for authoring and linting only — do not read them
+directly. See `.github/skills/load-specs/SKILL.md` for field definitions and
+usage guidance.
+
 ### Working with Specifications
 
-- Each spec file defines requirements with unique IDs (e.g., `HP-01-001`)
-- Requirements use RFC 2119 keywords in section headers (MUST, SHOULD, MAY)
+- Each spec defines requirements with unique IDs (e.g., `HP-01-001`)
+- Requirements use RFC 2119 keywords: MUST, SHOULD, MAY
 - Each requirement has verification criteria
 - Implementation changes SHOULD reference relevant requirement IDs
-- **Some specifications consolidate requirements from multiple sources**:
-  - `http-protocol.md` consolidates HTTP-related requirements from
-    inbox-endpoint, message-validation, error-handling
-  - `structured-logging.md` consolidates logging requirements from
-    observability, error-handling, inbox-endpoint
-  - Check spec file headers for "Consolidates:" notes indicating superseded
-    requirements
+- Some specs consolidate requirements from multiple sources; check the `tags`
+  field and `edges` array for cross-references
 
 ### Key Specifications
 
 See `specs/README.md` for the full index organized by topic. Key groups:
 
-- **Cross-cutting**: `http-protocol.md`, `structured-logging.md`,
-  `idempotency.md`, `error-handling.md`
-- **Handler pipeline**: `inbox-endpoint.md`, `message-validation.md`,
-  `semantic-extraction.md`, `dispatch-routing.md`, `handler-protocol.md`
-- **Quality**: `testability.md`, `observability.md`, `code-style.md`
-- **BT integration**: `behavior-tree-integration.md`
+- **Cross-cutting**: `http-protocol.yaml`, `structured-logging.yaml`,
+  `idempotency.yaml`, `error-handling.yaml`
+- **Handler pipeline**: `inbox-endpoint.yaml`, `message-validation.yaml`,
+  `semantic-extraction.yaml`, `dispatch-routing.yaml`, `handler-protocol.yaml`
+- **Quality**: `testability.yaml`, `observability.yaml`, `code-style.yaml`
+- **BT integration**: `behavior-tree-integration.yaml`
 
-**Note**: Some specs consolidate requirements from multiple sources; check file
-headers for cross-references. Consolidated specs take precedence.
+Always load cross-cutting specs (`ARCH`, `CS`, `TB`, `HP`, `SL`, `EH`) even
+when working on a narrow feature — they impose constraints on all code.
 
 ### Test Coverage Requirements
 
-- **80%+ line coverage overall** (per `specs/testability.md`)
+- **80%+ line coverage overall** (per `specs/testability.yaml`)
 - **100% coverage for critical paths**: message validation, semantic
   extraction, dispatch routing, error handling
 - Test structure mirrors source structure
@@ -553,7 +559,7 @@ headers for cross-references. Consolidated specs take precedence.
 
 ### Coverage Requirements (MUST)
 
-Per `specs/testability.md`:
+Per `specs/testability.yaml`:
 
 - 80%+ line coverage overall
 - 100% coverage for critical paths:
@@ -576,7 +582,7 @@ Per `specs/testability.md`:
 
 ### Test Data Quality (MUST)
 
-Per `specs/testability.md` TB-05-004 and TB-05-005:
+Per `specs/testability.yaml` TB-05-004 and TB-05-005:
 
 **Domain Objects Over Primitives**:
 
@@ -611,7 +617,7 @@ When implementing handler business logic, tests MUST verify:
 - Error conditions handled appropriately
 - Idempotency (same input → same result)
 
-See `specs/handler-protocol.md` verification section for complete requirements.
+See `specs/handler-protocol.yaml` verification section for complete requirements.
 
 If a change touches the datalayer, include repository-level tests that verify
 behavior across backends (in-memory / tinydb) where reasonable.
@@ -659,7 +665,7 @@ behavior across backends (in-memory / tinydb) where reasonable.
 - **Triggers**: `vultron/adapters/driving/fastapi/routers/trigger_report.py`,
   `trigger_case.py`, `trigger_embargo.py` - Triggerable behavior endpoints
   (`POST /actors/{id}/trigger/{behavior-name}`); see
-  `specs/triggerable-behaviors.md`
+  `specs/triggerable-behaviors.yaml`
 - **Trigger Use Cases**: `vultron/core/use_cases/triggers/` - Trigger use-case
   implementations invoked by FastAPI, CLI, and MCP adapters
 - **Errors**: `vultron/errors.py`,
@@ -719,7 +725,8 @@ criteria.
 When making non-trivial changes, agents SHOULD:
 
 1. Briefly state assumptions
-2. Consult relevant specifications in `specs/` for requirements
+2. Load specifications with `uv run spec-dump` (see `load-specs` skill) and
+   consult requirements relevant to the change
 3. Review `notes/` directory for durable design insights
 4. Describe the intended change
 5. Apply the minimal diff required
@@ -796,9 +803,9 @@ git add -A && git commit -m "Same message"
 
 If requirements appear to conflict:
 
-1. Check **cross-references** for clarification
-2. Consolidated specs (http-protocol.md, structured-logging.md) take precedence
-   over older inline requirements
+1. Check **cross-references** in the `edges` array from `uv run spec-dump`
+2. Consolidated specs (`http-protocol.yaml`, `structured-logging.yaml`) take
+   precedence over older inline requirements
 3. MUST requirements override SHOULD/MAY
 4. Ask for clarification rather than guessing
 
@@ -878,7 +885,7 @@ cannot be resolved by reorganization.
 5. **Before adding imports, trace the chain**: `python -c "import
    vultron.MODULE"`
 
-See `specs/code-style.md` CS-05-* for requirements.
+See `specs/code-style.yaml` CS-05-* for requirements.
 
 ### Pattern Matching with ActivityStreams
 
@@ -908,7 +915,7 @@ return pattern == getattr(field, "type_", None)
 **Architecture**: The `inbox_handler.py` rehydrates activities before
 dispatching, so handlers receive fully expanded objects.
 
-See `specs/semantic-extraction.md` SE-01-002 and
+See `specs/semantic-extraction.yaml` SE-01-002 and
 `vultron/wire/as2/rehydration.py` for details.
 
 ### Test Data Quality
@@ -928,7 +935,7 @@ activity = as_Create(actor="https://example.org/alice", object=report)  # Good: 
 event = CreateReportReceivedEvent(semantic_type=MessageSemantics.CREATE_REPORT, ...)  # Good: matches structure
 ```
 
-See `specs/testability.md` TB-05-004, TB-05-005 for requirements.
+See `specs/testability.yaml` TB-05-004, TB-05-005 for requirements.
 
 ### All Protocol-Significant Behavior MUST Be in the BT
 
@@ -937,7 +944,7 @@ See `specs/testability.md` TB-05-004, TB-05-005 for requirements.
 All protocol-observable actions and state transitions MUST be implemented as
 BT nodes or subtrees. This includes emitting activities, transitioning
 RM/EM/CS state, creating/updating domain objects, and cascading to downstream
-behaviors. See `specs/behavior-tree-integration.md` BT-06-001 and
+behaviors. See `specs/behavior-tree-integration.yaml` BT-06-001 and
 `notes/bt-integration.md` for the trunk-removed branches model and
 subtree composition guidance.
 
@@ -949,14 +956,14 @@ blackboard. Nothing domain-significant lives outside the tree.
 **Trigger behavior logic belongs outside the API router**: Triggerable
 behavior implementations MUST live in separate modules that can be called
 from both API endpoints and CLI commands. API routers handle only request
-parsing, validation, and response formatting. See `specs/architecture.md`
+parsing, validation, and response formatting. See `specs/architecture.yaml`
 ARCH-08-001.
 
 **Reuse request/response models before creating new ones**: Before adding a
 new Pydantic request or response model to a router, check whether an existing
 model can be reused or subclassed. If two models are structurally identical,
 define one and reuse it. If a new model adds one field to an existing model,
-subclass the existing model. See `specs/code-style.md` CS-09-002.
+subclass the existing model. See `specs/code-style.yaml` CS-09-002.
 
 **`EvaluateCasePriority` is outgoing-only**: This BT node (in
 `vultron/core/behaviors/report/nodes.py`) is for the **local actor deciding** to
@@ -964,7 +971,7 @@ engage or defer a case. Receive-side trees (`EngageCaseBT`, `DeferCaseBT`)
 do **not** use it — they only record the **sender's already-made decision** by
 updating the sender's `CaseParticipant.participant_status[].rm_state`.
 
-See `specs/behavior-tree-integration.md` for formal BT requirements,
+See `specs/behavior-tree-integration.yaml` for formal BT requirements,
 `notes/bt-integration.md` for design decisions, and
 `notes/bt-integration.md` for the canonical subtree map.
 
@@ -1022,7 +1029,7 @@ blackboard setup from event, `bt.run()`, status check, output extraction.
 Nothing else.
 
 **Formal requirements**: BT-06-001, BT-06-005, BT-06-006 in
-`specs/behavior-tree-integration.md`. Canonical subtree reference:
+`specs/behavior-tree-integration.yaml`. Canonical subtree reference:
 `notes/bt-integration.md`.
 
 ### py_trees Blackboard Global State
@@ -1074,7 +1081,7 @@ bb.set(f"object_{id_segment}", report)  # e.g., "object_abc123"
 `case_def456`). Nodes must register READ/WRITE access in `setup()` before
 accessing the blackboard in `update()`.
 
-See `specs/behavior-tree-integration.md` BT-03-003.
+See `specs/behavior-tree-integration.yaml` BT-03-003.
 
 ### Health Check Readiness Gap
 
@@ -1082,7 +1089,7 @@ See `specs/behavior-tree-integration.md` BT-03-003.
 `vultron/adapters/driving/fastapi/routers/health.py` currently returns
 `{"status": "ok"}` unconditionally. It does **not** check DataLayer
 connectivity as required by
-`specs/observability.md` OB-05-002.
+`specs/observability.yaml` OB-05-002.
 
 **When implementing readiness**: Add a DataLayer read probe (e.g., attempt a
 simple `dl.list()` call) and return HTTP 503 if it fails.
@@ -1165,7 +1172,7 @@ types, or use explicit `Union[Type1, Type2, ...]` if types are known.
 **Verification**: Test API serialization completeness, not just database
 storage. Check that all expected fields appear in JSON responses.
 
-See `specs/http-protocol.md` HTTP-08-001 for guidance.
+See `specs/http-protocol.yaml` HTTP-08-001 for guidance.
 
 ### Idempotency Responsibility Chain
 
@@ -1323,7 +1330,7 @@ parameter to enforce the invariant.
 ordering within a case. Using participant-supplied timestamps would allow
 different actor copies of a case to disagree on ordering.
 
-See `specs/case-management.md` CM-02-009; `notes/case-state-model.md`
+See `specs/case-management.yaml` CM-02-009; `notes/case-state-model.md`
 "CaseEvent Model for Trusted Timestamps".
 
 ---
@@ -1522,7 +1529,7 @@ for the durable pattern and `test/demo/test_demo_context_managers.py`.
 `plan/IMPLEMENTATION_PLAN.md` is the forward-looking roadmap (target < 400
 lines). Completed phase details and historical implementation notes belong
 in `plan/IMPLEMENTATION_HISTORY.md` (append-only; create if absent). See
-`specs/project-documentation.md` `PD-02-001`.
+`specs/project-documentation.yaml` `PD-02-001`.
 
 ### `plan/*HISTORY.md` files are append-only
 
@@ -1550,5 +1557,5 @@ added at the **end** of the file. Past entries MUST NOT be edited or removed.
 - Inserting new content at a specific line or before an existing section
   heading instead of at the end
 
-See `specs/project-documentation.md` PD-05-001 through PD-05-005 and
+See `specs/project-documentation.yaml` PD-05-001 through PD-05-005 and
 `notes/append-only-file-handling.md` for full guidance.

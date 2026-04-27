@@ -36,8 +36,8 @@ Workflow (five containers: finder, vendor, coordinator, vendor2, case-actor):
     is the case owner, and the embargo is ACTIVE with all participants
     having accepted it.
 
-This corresponds to Scenario 3 in ``specs/multi-actor-demo.md``
-(DEMO-MA-04-001) and the MultiParty Demo described in
+This corresponds to Scenario 3 in ``specs/multi-actor-demo.yaml``
+(DEMOMA-04-001) and the MultiParty Demo described in
 ``notes/demo-future-ideas.md``.
 """
 

@@ -1,0 +1,494 @@
+id: CM
+title: Case Management
+description: >-
+  Requirements for VulnerabilityCase lifecycle management, CaseActor responsibilities, and
+  the RM/EM/CS/VFD state model. Covers actor isolation at the protocol level and the distinction
+  between participant-specific and participant-agnostic state. `notes/bt-integration.md`,
+  ActivityPub specification `handler-protocol.md` (HP-00-001, HP-00-002), `actor-knowledge-model.md`
+  (AKM-01-001, AKM-01-002)
+version: 1.0.0
+kind: domain
+scope:
+- prototype
+- production
+groups:
+- id: CM-01
+  title: Actor Isolation
+  specs:
+  - id: CM-01-001
+    priority: MUST
+    statement: Each actor MUST have an isolated protocol state domain
+  - id: CM-01-002
+    priority: MUST
+    statement: Each actor's RM state MUST be maintained independently per case
+- id: CM-02
+  title: CaseActor Lifecycle
+  specs:
+  - id: CM-02-001
+    priority: MUST
+    statement: Each VulnerabilityCase MUST have exactly one associated CaseActor
+  - id: CM-02-002
+    priority: MUST
+    statement: CaseActor MUST be the authoritative source of truth for case state
+  - id: CM-02-003
+    priority: MUST
+    statement: CaseActor MUST persist until the associated VulnerabilityCase is closed
+  - id: CM-02-004
+    priority: MUST
+    statement: CaseActor MUST know the case owner
+  - id: CM-02-005
+    priority: MUST
+    statement: CaseActor MUST restrict certain activities to the case owner
+    scope:
+    - production
+  - id: CM-02-006
+    priority: MUST
+    statement: CaseActor MUST enforce case-level authorization for all case mutations
+    scope:
+    - production
+  - id: CM-02-007
+    priority: MUST
+    statement: >-
+      `VulnerabilityCase` MUST include a `notes: list[as_NoteRef]` field to record case-scoped
+      notes created via `AddNoteToCase` activities
+  - id: CM-02-008
+    priority: MUST
+    statement: >-
+      When a `VulnerabilityCase` is created from an originating `VulnerabilityReport` Offer,
+      the vendor (case recipient / owner) MUST be recorded as the initial primary participant
+  - id: CM-02-009
+    priority: MUST
+    statement: >-
+      The CaseActor MUST apply its own trusted timestamp to every state-changing event it
+      receives, regardless of any timestamp supplied by the sending participant
+    rationale: >-
+      The CaseActor's clock is the only trusted source of time for event ordering within a
+      case; using participant-supplied timestamps would allow different copies of a case (held
+      by different actors) to disagree on event order, undermining auditability and the single-source-of-truth
+      guarantee
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-02-002
+  - id: CM-02-010
+    priority: MUST
+    statement: >-
+      The CaseActor and the case owner (named actor) MUST have distinct actor identities —
+      each with their own actor ID — even when co-located on the same server
+    rationale: >-
+      Enforcing distinct identities ensures that all case-state transitions pass through the
+      wire protocol regardless of deployment topology, preserving audit integrity and enabling
+      future separation onto independent containers without protocol changes
+    relationships:
+    - rel_type: refines
+      spec_id: CM-01-001
+    - rel_type: depends_on
+      spec_id: CM-02-001
+- id: CM-03
+  title: Case State Model
+  specs:
+  - id: CM-03-001
+    priority: MUST
+    statement: >-
+      The system MUST implement the three interacting state machines: RM (Report Management),
+      EM (Embargo Management), and CS (Case State)
+    relationships:
+    - rel_type: implements
+      spec_id: VP-01-001
+    - rel_type: implements
+      spec_id: VP-13-001
+    - rel_type: implements
+      spec_id: VP-14-001
+  - id: CM-03-002
+    priority: MUST
+    statement: RM state MUST be participant-specific
+    relationships:
+    - rel_type: implements
+      spec_id: VP-01-002
+    - rel_type: implements
+      spec_id: VP-02-002
+    - rel_type: implements
+      spec_id: VP-03-001
+  - id: CM-03-003
+    priority: MUST
+    statement: >-
+      A shared EM state MUST be tracked at the case level in `CaseStatus.em_state` to represent
+      the collective embargo agreement
+    relationships:
+    - rel_type: implements
+      spec_id: VP-04-002
+    - rel_type: implements
+      spec_id: VP-13-009
+    - rel_type: implements
+      spec_id: VP-14-001
+  - id: CM-03-008
+    priority: MUST
+    statement: >-
+      Each `CaseParticipant` MUST track their own embargo consent state via the `ParticipantStatus.embargo_adherence`
+      field
+    relationships:
+    - rel_type: implements
+      spec_id: VP-04-002
+  - id: CM-03-004
+    priority: MUST
+    statement: CS (PXA sub-state) MUST be participant-agnostic (shared per case)
+  - id: CM-03-005
+    priority: MUST
+    statement: VFD (Vendor Fix Deployment) state MUST be participant-specific
+  - id: CM-03-006
+    priority: MUST
+    statement: >-
+      Collection fields that hold status histories MUST be pluralized and documented as history
+      collections
+  - id: CM-03-007
+    priority: MUST
+    statement: >-
+      RM state transitions MUST use the established protocol activity types without introducing
+      new activity types for reverse transitions
+    rationale: >-
+      Keeps the RM symbol set minimal and produces clean audit histories; `Undo` conflates
+      historical negation with a new forward transition
+    relationships:
+    - rel_type: implements
+      spec_id: VP-02-004
+- id: CM-04
+  title: State Transition Correctness
+  specs:
+  - id: CM-04-001
+    priority: MUST
+    statement: >-
+      Handlers processing RM state transitions MUST update `ParticipantStatus.rm_state` for
+      the sending actor's CaseParticipant
+    relationships:
+    - rel_type: implements
+      spec_id: VP-02-002
+    - rel_type: implements
+      spec_id: VP-02-003
+    - rel_type: implements
+      spec_id: VP-03-001
+    - rel_type: implements
+      spec_id: VP-13-005
+  - id: CM-04-002
+    priority: MUST
+    statement: >-
+      Handlers processing VFD state transitions MUST update `ParticipantStatus.vfd_state`
+      for the sending actor's CaseParticipant
+  - id: CM-04-003
+    priority: MUST
+    statement: >-
+      Handlers processing EM state transitions MUST update the appropriate EM state field
+      based on who is accepting and the current state:
+    relationships:
+    - rel_type: implements
+      spec_id: VP-06-001
+    - rel_type: implements
+      spec_id: VP-09-001
+    - rel_type: implements
+      spec_id: VP-11-001
+    - rel_type: implements
+      spec_id: VP-11-002
+    - rel_type: implements
+      spec_id: VP-14-001
+    - rel_type: implements
+      spec_id: VP-14-002
+    - rel_type: depends_on
+      spec_id: CM-03-008
+  - id: CM-04-004
+    priority: MUST
+    statement: >-
+      Handlers processing PXA state transitions (public disclosure, exploit publication, attack
+      observation) MUST update `CaseStatus.pxa_state`
+    relationships:
+    - rel_type: implements
+      spec_id: VP-03-002
+    - rel_type: implements
+      spec_id: VP-14-003
+    - rel_type: implements
+      spec_id: VP-14-004
+  - id: CM-04-005
+    priority: MUST
+    statement: >-
+      Handlers that implement VFD or PXA transitions MUST validate the requested transition
+      against the authoritative current state before persisting it
+  - id: CM-04-006
+    priority: MUST_NOT
+    statement: >-
+      State transition handlers MUST NOT mix participant-specific and participant-agnostic
+      state updates incorrectly
+    relationships:
+    - rel_type: implements
+      spec_id: VP-13-009
+    - rel_type: depends_on
+      spec_id: CM-03-008
+- id: CM-05
+  title: Object Model Relationships
+  specs:
+  - id: CM-05-001
+    priority: MUST
+    statement: >-
+      The system MUST distinguish the following domain objects as separate, non-interchangeable
+      types:
+  - id: CM-05-002
+    priority: MUST_NOT
+    statement: >-
+      A `VulnerabilityCase` MUST reference at least one `VulnerabilityReport`; a case with
+      zero reports MUST NOT exist
+    relationships:
+    - rel_type: implements
+      spec_id: VP-02-015
+    - rel_type: implements
+      spec_id: VP-02-020
+  - id: CM-05-003
+    priority: SHOULD
+    statement: >-
+      A `VulnerabilityCase` SHOULD reference at least one `VulnerabilityRecord` before closure;
+      cases with no associated record at closure SHOULD log a warning
+  - id: CM-05-004
+    priority: MAY
+    statement: A `VulnerabilityCase` MAY have zero or more associated `CaseReference` objects
+  - id: CM-05-005
+    priority: MUST
+    statement: >-
+      `CaseReference` objects MUST include at minimum a `url` field; SHOULD include a `name`
+      field (human-readable title); MAY include a `tags` field (array of one or more type
+      descriptors, e.g., `"patch"`, `"vendor-advisory"`, `"third-party-advisory"`, `"exploit"`,
+      `"release-notes"`)
+  - id: CM-05-006
+    priority: MAY
+    statement: >-
+      One report MAY describe multiple vulnerabilities; one case MAY group multiple reports
+      (e.g., when overlapping participants are involved)
+  - id: CM-05-007
+    priority: MAY
+    statement: >-
+      Multiple `CaseReference` objects MAY arise from a single case (e.g., coordinated simultaneous
+      disclosure by multiple vendors)
+  - id: CM-05-008
+    priority: MUST_NOT
+    statement: >-
+      `VulnerabilityRecord` identifiers MUST be treated as opaque strings; the system MUST
+      NOT restrict identifier values to CVE ID format or any other specific namespace
+    rationale: >-
+      Different organizations use different identifier namespaces (CVE, CERT/CC VU#, vendor-assigned
+      IDs, etc.); requiring a specific format excludes valid records and prevents multi-namespace
+      support
+  - id: CM-05-009
+    priority: SHOULD
+    statement: >-
+      A `VulnerabilityRecord` SHOULD support a list of alias identifiers from different namespaces
+      for the same vulnerability
+    rationale: >-
+      Multiple IDs from different namespaces may refer to the same underlying vulnerability
+      (e.g., a CVE ID and a CERT/CC VU# ID)
+  - id: CM-05-010
+    priority: MUST
+    statement: >-
+      When a `VulnerabilityRecord` is a `CVERecord` (i.e., it carries a CVE ID), its data
+      MUST conform to the CVE JSON schema (<https://github.com/CVEProject/cve-schema>)
+- id: CM-06
+  title: Case Update Broadcast
+  specs:
+  - id: CM-06-001
+    priority: MUST
+    statement: >-
+      When the CaseActor updates canonical case state, it MUST notify all current case participants
+    relationships:
+    - rel_type: implements
+      spec_id: VP-02-019
+    - rel_type: implements
+      spec_id: VP-03-012
+    - rel_type: implements
+      spec_id: VP-08-001
+  - id: CM-06-002
+    priority: MUST
+    statement: >-
+      Participants receiving a case update notification MUST treat the update as authoritative
+      only when it originates from the CaseActor
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-02-002
+  - id: CM-06-003
+    priority: MUST
+    statement: >-
+      Case update notifications MUST include the updated CaseActor URL so participants can
+      fetch the current case state if needed
+    scope:
+    - production
+  - id: CM-06-004
+    priority: MUST
+    statement: >-
+      Participants MUST authenticate case update notifications before accepting them as authoritative
+    scope:
+    - production
+  - id: CM-06-005
+    priority: MUST
+    statement: >-
+      When a note is added to a case, the CaseActor MUST broadcast the note to all case participants
+      (excluding the note author)
+    relationships:
+    - rel_type: depends_on
+      spec_id: OX-03-001
+    - rel_type: depends_on
+      spec_id: CM-02-001
+- id: CM-07
+  title: CVD Action Rules API
+  specs:
+  - id: CM-07-001
+    priority: SHOULD
+    statement: >-
+      The system SHOULD expose an endpoint that returns the set of valid actions available
+      to a case participant given the current case state and their role
+    relationships:
+    - rel_type: refines
+      spec_id: AR-07-001
+    - rel_type: refines
+      spec_id: AR-07-002
+  - id: CM-07-002
+    priority: MUST
+    statement: >-
+      The action rules response MUST include the participant's role and the current RM, EM,
+      CS, and VFD states relevant to that participant
+  - id: CM-07-003
+    priority: MUST
+    statement: >-
+      The action rules response MUST list valid next actions as structured objects including
+      the action name and any required parameters
+- id: CM-08
+  title: Domain Model Architecture
+  specs:
+  - id: CM-08-001
+    priority: SHOULD
+    statement: >-
+      The system SHOULD maintain a clear separation between the wire representation, domain
+      model, and persistence model for CVD objects
+  - id: CM-08-002
+    priority: MUST_NOT
+    statement: >-
+      Domain objects MUST NOT directly inherit from ActivityStreams base types; explicit `from_core()`
+      / `to_core()` translation methods MUST be provided at the wire boundary (see `specs/architecture.md`
+      ARCH-12-001 through ARCH-12-007 and `notes/domain-model-separation.md`)
+- id: CM-09
+  title: Redacted Case View
+  specs:
+  - id: CM-09-001
+    priority: SHOULD
+    statement: >-
+      The system SHOULD support a `RedactedVulnerabilityCase` type for sharing case information
+      with invited-but-not-yet-accepted participants
+    scope:
+    - production
+  - id: CM-09-002
+    priority: MUST
+    statement: >-
+      The ID of a `RedactedVulnerabilityCase` MUST be cryptographically unrelated to the full
+      `VulnerabilityCase` ID
+    rationale: >-
+      Prevents an attacker who obtains a redacted case ID from inferring the full case ID
+    scope:
+    - production
+  - id: CM-09-003
+    priority: MUST
+    statement: Each invitee MUST receive a distinct `RedactedVulnerabilityCase` ID
+    rationale: >-
+      Prevents cross-correlation of redacted IDs to infer participant list size or identities
+    scope:
+    - production
+  - id: CM-09-004
+    priority: MAY
+    statement: >-
+      For the prototype, the `Invite` activity MAY reference the case by full case ID only,
+      deferring the redacted view to a later phase
+- id: CM-10
+  title: Per-Participant Embargo Acceptance
+  specs:
+  - id: CM-10-001
+    priority: MUST
+    statement: >-
+      `CaseParticipant` MUST track which embargo(es) a participant has explicitly accepted
+    relationships:
+    - rel_type: implements
+      spec_id: VP-05-001
+  - id: CM-10-002
+    priority: MUST
+    statement: >-
+      Embargo acceptances MUST be timestamped by the CaseActor at the time of receipt, not
+      using the participant's claimed timestamp
+    rationale: >-
+      The CaseActor applies the only trusted timestamp; the participant's reported time cannot
+      be verified
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-02-002
+    - rel_type: implements
+      spec_id: CM-02-009
+  - id: CM-10-003
+    priority: SHOULD
+    statement: >-
+      The `CaseParticipant` model SHOULD include an `accepted_embargo_ids: list[str]` field
+      recording the IDs of `EmbargoEvent` objects the participant has explicitly accepted
+  - id: CM-10-004
+    priority: MUST
+    statement: >-
+      Before sharing case updates with a participant, the system MUST verify that the participant
+      has accepted the current active embargo
+- id: CM-11
+  title: CM-11 Invitation Acceptance Lifecycle
+  specs:
+  - id: CM-11-001
+    priority: MUST
+    statement: >-
+      When an actor accepts a case invitation, the accepting actor's RM state MUST advance
+      to ACCEPTED
+    relationships:
+    - rel_type: implements
+      spec_id: VP-03-012
+    - rel_type: depends_on
+      spec_id: CM-03-001
+  - id: CM-11-002
+    priority: SHOULD
+    statement: >-
+      After auto-engagement (CM-11-001), the accepting actor SHOULD emit an `RmEngageCaseActivity`
+      to notify the case owner
+    relationships:
+    - rel_type: depends_on
+      spec_id: OX-02-001
+- id: CM-12
+  title: CM-12 Case Creation Timing
+  specs:
+  - id: CM-12-001
+    priority: MUST
+    statement: >-
+      A `VulnerabilityCase` MUST be created when an `Offer(Report)` activity is received by
+      the vendor actor
+  - id: CM-12-002
+    priority: MUST
+    statement: >-
+      At case creation, the system MUST create two initial `VultronParticipant` records:
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-03-001
+    - rel_type: depends_on
+      spec_id: CM-02-008
+  - id: CM-12-003
+    priority: MUST
+    statement: >-
+      When a case is created from an `Offer(Report)`, the case owner MUST queue a `Create(Case)`
+      activity to notify the reporter that a case has been opened
+    relationships:
+    - rel_type: depends_on
+      spec_id: OX-02-001
+  - id: CM-12-004
+    priority: SHOULD
+    statement: A default embargo SHOULD be initialized at case creation (RM.RECEIVED)
+    relationships:
+    - rel_type: refines
+      spec_id: DUR-07-002
+      note: which now applies at case receipt
+  - id: CM-12-005
+    priority: MUST
+    statement: >-
+      `InvalidateReportReceivedUseCase`, `CloseReportReceivedUseCase`, and `ValidateReportReceivedUseCase`
+      MUST dereference the incoming report ID to the associated case ID before delegating
+      to the corresponding case-level use case
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-12-001

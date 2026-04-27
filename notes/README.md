@@ -111,7 +111,7 @@ execution issues.
 Fractal composability pattern for BT nodes and subtrees: the "trunkless branch"
 model, parameterization guidelines, anti-patterns (hard-coded actor roles,
 demo-specific logic in nodes, one-off subtrees, duplicated logic), and a
-composability checklist. Operationalizes `specs/behavior-tree-node-design.md`
+composability checklist. Operationalizes `specs/behavior-tree-node-design.yaml`
 (BTND-01 through BTND-04).
 **Load when**: designing a new BT node or subtree, auditing existing nodes for
 composability violations, or refactoring near-duplicate BT implementations.
@@ -299,7 +299,7 @@ protocol flow diagrams, or looking up a specific Mermaid sequence syntax detail.
 - Cross-reference from `AGENTS.md` where relevant.
 - **Update this README** whenever a file is added to or removed from `notes/`,
   or when a file's scope changes significantly
-  (see `specs/project-documentation.md`).
+  (see `specs/project-documentation.yaml`).
 
 ## Relationship to plan/IMPLEMENTATION_NOTES.md
 

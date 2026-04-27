@@ -6,7 +6,7 @@ Returns the configured ``VULTRON_BASE_URL`` and the list of actor IDs
 registered in the shared DataLayer so that demo scripts and operators
 can confirm container identity at startup.
 
-References: specs/multi-actor-demo.md DEMO-MA-02-001,
+References: specs/multi-actor-demo.yaml DEMOMA-02-001,
 notes/multi-actor-architecture.md §4 G1.
 """
 

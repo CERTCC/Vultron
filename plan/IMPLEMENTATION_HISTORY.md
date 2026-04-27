@@ -58,7 +58,7 @@ All router tests (18/18) fixed after resolving separate data layer instances in 
 - `vultron/behaviors/report/prioritize_tree.py` with
   `create_engage_case_tree` and `create_defer_case_tree`
 - `engage_case` and `defer_case` handlers registered
-- `specs/prototype-shortcuts.md` PROTO-05-001 documented
+- `specs/prototype-shortcuts.yaml` PROTO-05-001 documented
 
 ---
 
@@ -484,7 +484,7 @@ in cleaner BT node names (e.g., `q_rm_in_CLOSED` instead of
 
 ---
 
-`specs/architecture.md` and `notes/architecture-review.md` were added since the
+`specs/architecture.yaml` and `notes/architecture-review.md` were added since the
 last plan refresh. The review identifies 11 violations (V-01 to V-11) and a
 remediation plan (R-01 to R-06). The most impactful violations are:
 
@@ -881,7 +881,7 @@ incoming activity.
 
 ## TECHDEBT-8 — Pyright gradual static type checking (2026-03-10)
 
-**Task**: Configure pyright for gradual static type checking (IMPL-TS-07-002).
+**Task**: Configure pyright for gradual static type checking (IMPLTS-07-002).
 
 **Implementation**:
 
@@ -1398,8 +1398,8 @@ pass-through parameters from all use case functions.
   `VultronParticipantStatus` to serialize as `.name` strings (matching wire
   type serialization), fixing `[0,0,0]` round-trip failures.
 - Test files: Updated for `DispatchEvent` rename.
-- `specs/dispatch-routing.md`, `specs/handler-protocol.md`,
-  `specs/code-style.md`, `specs/architecture.md`, `specs/README.md`,
+- `specs/dispatch-routing.yaml`, `specs/handler-protocol.yaml`,
+  `specs/code-style.yaml`, `specs/architecture.yaml`, `specs/README.md`,
   `AGENTS.md`, `docs/adr/0009-hexagonal-architecture.md`,
   `docs/reference/inbox_handler.md`: Updated `DispatchActivity` → `DispatchEvent`.
 
@@ -1745,7 +1745,7 @@ definition sites (`wire/as2/vocab/base/types.py` and
 `core/models/events/base.py`) and all usage sites (5 wire-layer vocab objects,
 `core/models/events/base.py`). Replaced with the inline `NonEmptyString | None`
 form. Removed the re-export from `core/models/events/__init__.py`. Updated
-`specs/code-style.md` CS-08-002 accordingly.
+`specs/code-style.yaml` CS-08-002 accordingly.
 
 **TECHDEBT-28** — Added `_idempotent_create(dl, type_key, id_key, obj, label,
 activity_id) -> bool` helper to `_helpers.py`. Replaced the repeated
@@ -1951,13 +1951,13 @@ definition file after PREPX-2 removed the handler shim layer.
   `MessageSemantics` imports. `BehaviorHandler` Protocol retained.
 - Removed `InboundPayload = VultronEvent` alias and its `__all__` entry from
   `vultron/core/models/events/__init__.py`. Updated module docstring.
-- Updated `specs/handler-protocol.md`: HP-01-001 now reflects the use-case
+- Updated `specs/handler-protocol.yaml`: HP-01-001 now reflects the use-case
   class interface; HP-02-001 implementation note updated; verification
   criteria updated.
-- Updated `specs/dispatch-routing.md`: Overview and DR-01-002 reflect
+- Updated `specs/dispatch-routing.yaml`: Overview and DR-01-002 reflect
   `VultronEvent` + `DataLayer`; DR-02 verification uses `USE_CASE_MAP`;
   Related section updated to canonical paths.
-- Updated `specs/code-style.md`: docstring example uses a use-case class.
+- Updated `specs/code-style.yaml`: docstring example uses a use-case class.
 - Updated `AGENTS.md`: quickstart example, Use-Case Protocol section,
   Registry Pattern section, Decorator Usage section, Quick Reference
   "Adding a New Message Type", Handler Testing checklist, Key Files Map
@@ -2240,7 +2240,7 @@ successor to `DeliveryQueue`.
 
 Renamed all 9 trigger service functions in
 `vultron/api/v2/backend/trigger_services/` from the `svc_` prefix to the
-`_trigger` suffix, per `specs/code-style.md` CS-12-002 (the `Svc` prefix is
+`_trigger` suffix, per `specs/code-style.yaml` CS-12-002 (the `Svc` prefix is
 reserved for use-case class names only):
 
 - `svc_engage_case` → `engage_case_trigger`
@@ -2271,7 +2271,7 @@ Pure mechanical rename, no behaviour change. 982 tests pass.
 
 **Task**: VCR-025: Evaluate ActivityDispatcher Protocol. VCR-026: Label all
 port files in `core/ports/` as inbound (driving) or outbound (driven) per
-`specs/architecture.md` ARCH-11-001.
+`specs/architecture.yaml` ARCH-11-001.
 
 **VCR-025 evaluation result**: `ActivityDispatcher` in
 `vultron/core/ports/dispatcher.py` is still needed and retained. It is
@@ -2492,7 +2492,7 @@ docker-compose services.
   `test_get_actor_profile_returns_discovery_fields` and
   `test_get_actor_profile_not_found_returns_404`.
 - Added requirements `AR-10-001` through `AR-10-003` and verification criteria
-  to `specs/agentic-readiness.md`.
+  to `specs/agentic-readiness.yaml`.
 
 **Result**: 984 tests pass (2 new tests added).
 
@@ -2586,7 +2586,7 @@ inbox and outbox as URL strings, not embedded OrderedCollection objects.
 
 **What was done**:
 
-- Updated `specs/agentic-readiness.md` AR-10-001 to require `inbox` and
+- Updated `specs/agentic-readiness.yaml` AR-10-001 to require `inbox` and
   `outbox` as string URL links (not embedded collection objects); updated
   the verification section accordingly.
 - Modified `vultron/adapters/driving/fastapi/routers/actors.py`
@@ -2652,7 +2652,7 @@ route decorators across `actors.py`, `datalayer.py`, `examples.py`,
 `datalayer_get_offer`, `examples_validate_case`).
 
 **P90-5** — Added `BT-12 VFD/PXA State Machine Usage` section with requirement
-`BT-12-001` and verification criteria to `specs/behavior-tree-integration.md`.
+`BT-12-001` and verification criteria to `specs/behavior-tree-integration.yaml`.
 Captures OPP-06: any future VFD/PXA state transitions MUST use
 `create_vfd_machine()` / `create_pxa_machine()` rather than hand-rolled logic.
 
@@ -3398,7 +3398,7 @@ actor-first, case-scoped route:
   `test/adapters/driving/fastapi/routers/test_actors.py`: updated unit and
   router coverage to validate the actor/case contract, including 404 behavior
   for unknown cases and actors not participating in the selected case.
-- `specs/case-management.md` and `specs/agentic-readiness.md`: updated to
+- `specs/case-management.yaml` and `specs/agentic-readiness.yaml`: updated to
   document the final actor-first case-scoped endpoint and the internal
   actor→participant resolution behavior.
 
@@ -3418,7 +3418,7 @@ warnings surfaced by this change.
 **What was done**:
 
 - Added `filterwarnings = ["error"]` to `[tool.pytest.ini_options]` in
-  `pyproject.toml` (per `specs/tech-stack.md` IMPL-TS-07-006).
+  `pyproject.toml` (per `specs/tech-stack.yaml` IMPLTS-07-006).
 - Fixed `ResourceWarning: unclosed file 'mydb.json'` in
   `vultron/adapters/driven/datalayer_tinydb.py`:
   - Added `TinyDbDataLayer.close()` method that calls `self._db.close()` to
@@ -3505,7 +3505,7 @@ Three grouped PRIORITY-250 tasks completed in one commit:
 **VSR-ERR-1 — Rename VultronConflictError**:
 
 - Renamed `VultronConflictError` → `VultronInvalidStateTransitionError` in
-  `vultron/errors.py` per `specs/state-machine.md` SM-04-002.
+  `vultron/errors.py` per `specs/state-machine.yaml` SM-04-002.
 - Retained `VultronConflictError` as a deprecated alias.
 - Updated all 5 raise sites in `vultron/core/use_cases/triggers/embargo.py`
   (4 sites) and `triggers/report.py` (1 site) to use the new name.
@@ -3532,7 +3532,7 @@ Three grouped PRIORITY-250 tasks completed in one commit:
 ## REORG-1 — Reorganize `vultron/core/use_cases/` (COMPLETE 2026-03-30)
 
 Reorganized `vultron/core/use_cases/` into clearer sub-packages per
-`specs/use-case-organization.md` UC-ORG-01-001 through UC-ORG-04-001.
+`specs/use-case-organization.yaml` UCORG-01-001 through UCORG-04-001.
 
 **Source moves (via `git mv`):**
 
@@ -3579,13 +3579,13 @@ documenting the trigger→received→sync information flow.
   SHA-pinning policy (all `uses:` references must be pinned to a 40-char commit
   SHA with an inline human-readable version comment), the use of Dependabot as
   the primary maintenance mechanism, and the automated test as the continuous
-  enforcement mechanism. References CI-SEC-04-001.
+  enforcement mechanism. References CISEC-04-001.
 - Added ADR-0014 to `docs/adr/index.md`.
 - Created `test/ci/__init__.py` and `test/ci/test_workflow_sha_pinning.py`:
   53 parametrised pytest tests covering every `uses:` line across all 6
   `.github/workflows/*.yml` files. Tests verify:
-  - CI-SEC-01-001: reference is pinned to a full 40-hex-character SHA
-  - CI-SEC-01-002: SHA line carries an inline version comment (e.g., `# v4.1.0`)
+  - CISEC-01-001: reference is pinned to a full 40-hex-character SHA
+  - CISEC-01-002: SHA line carries an inline version comment (e.g., `# v4.1.0`)
 
 **Tests:** 1080 passed (+53 new), 5581 subtests passed.
 
@@ -3725,7 +3725,7 @@ convention throughout the codebase (both wire layer and core layer).
 - Class names (`as_Activity`, `as_Object`, etc.) are **not** renamed.
 - Pydantic field aliases (`validation_alias`, `serialization_alias`) are
   unchanged — JSON serialization and deserialization behavior is preserved.
-- Updated `specs/code-style.md` CS-07-001 through CS-07-003 to reflect
+- Updated `specs/code-style.yaml` CS-07-001 through CS-07-003 to reflect
   migration complete (MUST-level policy now).
 - Updated `AGENTS.md` naming conventions, pattern-matching example, and
   all pitfall code snippets to use `id_`, `type_`, `object_`.
@@ -3773,7 +3773,7 @@ redundancy.
 
 **Changes**: Added 21 bidirectional cross-reference sub-bullets across 6
 spec files, following the `ID-1 relationship ID-2` convention from
-`specs/meta-specifications.md`.
+`specs/meta-specifications.yaml`.
 
 ### dispatch-routing.md ↔ handler-protocol.md
 
@@ -3794,14 +3794,14 @@ spec files, following the `ID-1 relationship ID-2` convention from
 
 ### code-style.md ↔ tech-stack.md
 
-- `CS-01-001 refines IMPL-TS-07-001` / reverse: code style requirement
+- `CS-01-001 refines IMPLTS-07-001` / reverse: code style requirement
   refines the authoritative Black tooling requirement.
-- `CS-01-002 derives-from IMPL-TS-07-005` / reverse: CI formatting-check
+- `CS-01-002 derives-from IMPLTS-07-005` / reverse: CI formatting-check
   requirement derives from the parallel-jobs CI requirement.
-- `CS-01-003 duplicates IMPL-TS-07-001/004/005` (and reverses): developer
+- `CS-01-003 duplicates IMPLTS-07-001/004/005` (and reverses): developer
   enforcement summary in code-style duplicates canonical tool requirements
   in tech-stack.
-- `CS-01-006 duplicates IMPL-TS-07-002/003` (and reverses): static type
+- `CS-01-006 duplicates IMPLTS-07-002/003` (and reverses): static type
   enforcement in code-style duplicates canonical per-tool requirements in
   tech-stack.
 
@@ -3834,12 +3834,12 @@ canonical and superseded items.
 **`tech-stack.md` vs `code-style.md`** (canonical: `tech-stack.md` for
 enforcement; `code-style.md` for style conventions):
 
-- `CS-01-002` deprecated and superseded by `IMPL-TS-07-005`
-- `CS-01-003` deprecated and superseded by `IMPL-TS-07-001`, `IMPL-TS-07-004`,
-  `IMPL-TS-07-005`
-- `CS-01-006` deprecated and superseded by `IMPL-TS-07-002`, `IMPL-TS-07-003`
+- `CS-01-002` deprecated and superseded by `IMPLTS-07-005`
+- `CS-01-003` deprecated and superseded by `IMPLTS-07-001`, `IMPLTS-07-004`,
+  `IMPLTS-07-005`
+- `CS-01-006` deprecated and superseded by `IMPLTS-07-002`, `IMPLTS-07-003`
 - Added consolidation note to `code-style.md` header
-- `IMPL-TS-07-001–005` updated with `supersedes` relationships (replacing
+- `IMPLTS-07-001–005` updated with `supersedes` relationships (replacing
   `is-duplicated-by`)
 
 **`dispatch-routing.md` vs `handler-protocol.md`** (canonical: dispatch-routing
@@ -4009,7 +4009,7 @@ env var support to the DataLayer.
   Each actor service has a unique `VULTRON_BASE_URL`, named volume at
   `/app/data/mydb.json`, healthcheck at `/api/v2/health/ready`, and
   `vultron-network` membership. `demo-runner` uses `condition: service_healthy`
-  dependencies on all three actor services (DEMO-MA-02-001 through 02-003).
+  dependencies on all three actor services (DEMOMA-02-001 through 02-003).
 - `vultron/adapters/driven/datalayer_tinydb.py`: Added `import os` and
   `_DEFAULT_DB_PATH: str = os.environ.get("VULTRON_DB_PATH", "mydb.json")`
   module-level constant; changed `get_datalayer()` `db_path` parameter default
@@ -4202,7 +4202,7 @@ Finder→Vendor report / validate / engage / invite / accept workflow.
 ### Summary
 
 Implemented the multi-vendor, multi-container demo scenario (Scenario 3 from
-`specs/multi-actor-demo.md`). The demo exercises the full ownership-transfer
+`specs/multi-actor-demo.yaml`). The demo exercises the full ownership-transfer
 protocol with a second vendor.
 
 ### Changes
@@ -4405,10 +4405,10 @@ automated acceptance test. The script:
 4. Starts the full `docker-compose-multi-actor.yml` stack with
    `--abort-on-container-exit --exit-code-from demo-runner`.  The
    `demo-runner` service already declares `condition: service_healthy` on
-   all actor services (DEMO-MA-02-002), so it only starts once every actor
+   all actor services (DEMOMA-02-002), so it only starts once every actor
    passes `/health/ready`.
 5. Removes all volumes on exit (`down --volumes`) so each run begins from
-   a clean, deterministic baseline (DEMO-MA-01-003).
+   a clean, deterministic baseline (DEMOMA-01-003).
 6. Uses `PROJECT_NAME=vultron-it` to isolate the test stack from a running
    development stack.
 
@@ -4426,8 +4426,8 @@ add an "Automated multi-actor integration tests (D5-5)" section linking to
 the new script and Makefile targets.
 
 The existing `docker-compose-multi-actor.yml` already satisfies the Docker
-Compose configuration requirements for all three scenarios (DEMO-MA-02-001
-through DEMO-MA-02-003) — no separate compose files were needed.
+Compose configuration requirements for all three scenarios (DEMOMA-02-001
+through DEMOMA-02-003) — no separate compose files were needed.
 
 ### Validation
 
@@ -4439,9 +4439,9 @@ a structural reference confirming the pattern.
 
 ### Specs satisfied
 
-- DEMO-MA-03-001: each scenario runnable via single command ✅
-- DEMO-MA-03-003: reproducible runs (volumes reset on each run) ✅
-- DEMO-MA-04-001: scenarios reuse the single `docker-compose-multi-actor.yml` ✅
+- DEMOMA-03-001: each scenario runnable via single command ✅
+- DEMOMA-03-003: reproducible runs (volumes reset on each run) ✅
+- DEMOMA-04-001: scenarios reuse the single `docker-compose-multi-actor.yml` ✅
 
 ---
 
@@ -5086,8 +5086,8 @@ dereference a report ID to its associated `VulnerabilityCase`.
 
 **Summary**: Updated `EmbargoPolicy` Pydantic model to use ISO 8601 duration
 strings (e.g. `"P90D"`) at the wire layer, with `datetime.timedelta` as the
-internal representation, per `specs/embargo-policy.md` EP-01-002/003 and
-`specs/duration.md` DUR-01-001, DUR-04-001, DUR-05-001, DUR-05-002.
+internal representation, per `specs/embargo-policy.yaml` EP-01-002/003 and
+`specs/duration.yaml` DUR-01-001, DUR-04-001, DUR-05-001, DUR-05-002.
 
 ### What was done
 
@@ -5677,8 +5677,8 @@ without requiring a manual trigger.
 ## SYNC-1 — Local append-only case event log with indexing (2026-04-11)
 
 **Task**: Implement the core domain models for the canonical case event log
-foundation required by `specs/sync-log-replication.md` SYNC-01 and
-`specs/case-log-processing.md` CLP-01 through CLP-05. Also add the
+foundation required by `specs/sync-log-replication.yaml` SYNC-01 and
+`specs/case-log-processing.yaml` CLP-01 through CLP-05. Also add the
 leadership guard port to `BTBridge` per SYNC-09-003.
 
 **Files created**:
@@ -6186,7 +6186,7 @@ with `AttributeError: 'VultronObject' object has no attribute 'case_id'`.
    activity validation, preserving all subtype-specific fields.
 6. `vultron/core/use_cases/received/sync.py`: Added `isinstance` guard for
    graceful error handling; `_send_rejection` uses `entry.id_` string.
-7. `specs/sync-log-replication.md`: Added `SYNC-02-004` requiring full inline
+7. `specs/sync-log-replication.yaml`: Added `SYNC-02-004` requiring full inline
    `CaseLogEntry` in `Announce` activities.
 
 **Tests added/updated**: `test_inline_case_log_entry_round_trip` in
@@ -6214,11 +6214,11 @@ moves conversion ownership to the wire type:
 ### Architecture Design Session (grill-me on PROTO-06-001)
 
 Extended design conversation established these decisions (captured in
-`specs/architecture.md` ARCH-12-001 through ARCH-12-007):
+`specs/architecture.yaml` ARCH-12-001 through ARCH-12-007):
 
 **Key finding**: Domain objects are already pure Pydantic BaseModel — they do
 NOT inherit from AS2 types. PROTO-06-001's structural concern is resolved.
-PROTO-06-001 removed from `specs/prototype-shortcuts.md`.
+PROTO-06-001 removed from `specs/prototype-shortcuts.yaml`.
 
 **Two VultronObject classes**: `vultron.core.models.base.VultronObject` (domain
 base, pure Pydantic) and `vultron.wire.as2.vocab.objects.base.VultronObject`
@@ -6241,17 +6241,17 @@ base, pure Pydantic) and `vultron.wire.as2.vocab.objects.base.VultronObject`
    unnecessary → closes remaining ARCH-01-001 violations
 
 **Meta-policy decision**: Superseded specs MUST be removed, not deprecated.
-Deprecated specs are agent noise. Added to `specs/meta-specifications.md`.
+Deprecated specs are agent noise. Added to `specs/meta-specifications.yaml`.
 
 **Documentation updates**:
 
-- `specs/architecture.md`: ARCH-12 section added; review checklist and
+- `specs/architecture.yaml`: ARCH-12 section added; review checklist and
   remediation status updated; PROTO-06-001 references removed
-- `specs/prototype-shortcuts.md`: PROTO-06-001 section replaced with removal
+- `specs/prototype-shortcuts.yaml`: PROTO-06-001 section replaced with removal
   comment
-- `specs/case-management.md`: CM-08-002 upgraded from SHOULD to MUST, updated
+- `specs/case-management.yaml`: CM-08-002 upgraded from SHOULD to MUST, updated
   to reflect current clean inheritance status
-- `specs/meta-specifications.md`: "Lifecycle of Superseded Requirements"
+- `specs/meta-specifications.yaml`: "Lifecycle of Superseded Requirements"
   section added
 - `notes/domain-model-separation.md`: "Current Status" completely rewritten
   to reflect 2026-04-15 findings; "Recommended Next Steps" updated to
@@ -6381,17 +6381,17 @@ transformations semantically lossless. Total savings ~18 KB (~5% of corpus).
   Load Contextually by topic). Replaced stale 2026-03-26 Implementation Status
   snapshot with pointer to `plan/IMPLEMENTATION_PLAN.md`.
 
-- `specs/vultron-protocol-spec.md`: Stripped 194 per-requirement `Source: docs/...`
+- `specs/vultron-protocol-spec.yaml`: Stripped 194 per-requirement `Source: docs/...`
   sub-bullets (~11 KB). Header `**Sources**:` block preserves all referenced docs.
-- `specs/architecture.md`: Removed 8 inline `**Current state**:` sub-bullets,
+- `specs/architecture.yaml`: Removed 8 inline `**Current state**:` sub-bullets,
   `**Implemented**:` annotation on ARCH-12-002, and entire "Remediation Status"
   section. Added pointer to `notes/architecture-review.md`.
-- `specs/code-style.md`: Removed superseded requirements CS-01-002, CS-01-003,
-  CS-01-006 (superseded by `tech-stack.md` IMPL-TS-07-*). Trimmed verbose Rationale
+- `specs/code-style.yaml`: Removed superseded requirements CS-01-002, CS-01-003,
+  CS-01-006 (superseded by `tech-stack.md` IMPLTS-07-*). Trimmed verbose Rationale
   blocks to single sentences. Removed NAMING-1 commit reference from CS-07-003.
-- `specs/behavior-tree-integration.md`: Condensed multi-line Rationale blocks
+- `specs/behavior-tree-integration.yaml`: Condensed multi-line Rationale blocks
   for BT-06-001 and BT-06-004.
-- `specs/testability.md`: Condensed multi-line Rationale block for TB-10-001.
+- `specs/testability.yaml`: Condensed multi-line Rationale block for TB-10-001.
 - `AGENTS.md`: Removed `**Last Updated:** 2026-03-20` datestamp, "all remediated
   as of ARCH-CLEANUP" status annotation, and "Handler shims: removed in PREPX-2"
   entry from Key Files Map.
@@ -6487,7 +6487,7 @@ inline-object constraint in the Pydantic model:
 - Fixed remaining `.id_` string IDs in `receive_report_demo.py` (7
   occurrences), `three_actor_demo.py` (2), `multi_vendor_demo.py` (1),
   and `status_updates_demo.py` (1).
-- Updated `specs/response-format.md` RF-02-003/04, RF-03-003/04,
+- Updated `specs/response-format.yaml` RF-02-003/04, RF-03-003/04,
   RF-04-003/04 to require inline typed objects.
 - Reversed "Accept/Reject object field" pitfall in `AGENTS.md` from
   "use ID string" to "use inline typed object"; also updated the
@@ -6524,7 +6524,7 @@ this class of silent dispatch failure.
   `dehydrated_embargo_id`/strip-then-validate pattern with a data-layer
   resolution of `EmbargoEvent` before calling `model_validate`, so the coerced
   `EmProposeEmbargoActivity` always has a valid `object_: EmbargoEvent`
-- `specs/message-validation.md` — added `MV-09-003` requirement and
+- `specs/message-validation.yaml` — added `MV-09-003` requirement and
   verification criteria
 - `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` —
   expanded imports; added `TestNoneObjectRejected` with 74 tests (37 classes ×
@@ -6933,7 +6933,7 @@ layers (core use cases, FastAPI router, MCP server, tests, specs).
 
 **Specs:**
 
-- `specs/triggerable-behaviors.md`: Updated `TRIG-02-002` table to show
+- `specs/triggerable-behaviors.yaml`: Updated `TRIG-02-002` table to show
   `accept-embargo`, `reject-embargo`, and `propose-embargo-revision`; updated
   `TRIG-03-001` case-scoped behaviors list.
 
@@ -7313,7 +7313,7 @@ Key changes:
   signature now takes explicit params; `_PATTERN_SEMANTICS` replaces public dict
 - `vultron/core/use_cases/use_case_map.py` — deleted
 - `vultron/core/models/events/__init__.py` — `EVENT_CLASS_MAP` deleted
-- `specs/code-style.md` — CS-13-001 No Compatibility Shims added
+- `specs/code-style.yaml` — CS-13-001 No Compatibility Shims added
 - `test/test_semantic_registry.py` — new completeness/consistency tests
 
 **Test Result:**
@@ -7327,7 +7327,7 @@ Key changes:
 Updated three documentation files to reflect the full set of trigger endpoints
 implemented in PRIORITY-347:
 
-- `specs/triggerable-behaviors.md`: Added TRIG-02-004 (Case Management
+- `specs/triggerable-behaviors.yaml`: Added TRIG-02-004 (Case Management
   Behaviors: `create-case`, `add-report-to-case`, `add-note-to-case`,
   `submit-report`) and TRIG-02-005 (Participant Management Behaviors:
   `suggest-actor-to-case`, `invite-actor-to-case`, `accept-case-invite`).
@@ -7335,13 +7335,13 @@ implemented in PRIORITY-347:
   and added an `invite_id` requirement for `accept-case-invite`. Expanded
   TRIG-02-003 Verification to cover the new requirement IDs.
 
-- `specs/multi-actor-demo.md`: Added DEMO-MA-05-001 and DEMO-MA-05-002
+- `specs/multi-actor-demo.yaml`: Added DEMOMA-05-001 and DEMOMA-05-002
   requiring that all actor-initiated actions in scenario demos MUST be driven
   through the trigger API, not by direct inbox injection.
 
 - `notes/protocol-event-cascades.md`: Added a concrete 4-step
   suggest→invite→accept→record cascade example (with implementation
-  requirements referencing TRIG-02-005 and DEMO-MA-05-001).
+  requirements referencing TRIG-02-005 and DEMOMA-05-001).
 
 ---
 
@@ -7465,7 +7465,7 @@ was not implemented; trigger-based DL lookup is the canonical pattern.
 
 ## DR-14 — Dead-letter handling for unresolvable `object_` URIs (COMPLETE 2026-05-01)
 
-**Reference**: `specs/semantic-extraction.md` SE-04-002–SE-04-004
+**Reference**: `specs/semantic-extraction.yaml` SE-04-002–SE-04-004
 
 ### What was implemented
 
@@ -7836,7 +7836,7 @@ pattern from `vultron/bt/`, the "trunkless branch" intent, and anti-patterns
 
 - `./mdlint.sh notes/bt-reusability.md` → 0 errors
 - File references canonical structure in `notes/vultron-bt.txt` and formal
-  requirements in `specs/behavior-tree-integration.md`
+  requirements in `specs/behavior-tree-integration.yaml`
 - Ready for use in P360-SPEC (spec writing) and P360-AUDIT (node auditing)
 
 ---
@@ -7849,17 +7849,17 @@ AGENTS.md, and prompts/ following the archival of several notes files.
 **Changes**:
 
 - `notes/canonical-bt-reference.md` → `notes/bt-integration.md` (merged):
-  Updated in `specs/behavior-tree-integration.md`, `notes/protocol-event-cascades.md`,
+  Updated in `specs/behavior-tree-integration.yaml`, `notes/protocol-event-cascades.md`,
   `notes/bt-fuzzer-nodes.md`, `notes/use-case-behavior-trees.md`, `AGENTS.md`.
 
 - `notes/architecture-review.md` → `archived_notes/architecture-review.md`:
-  Updated in `specs/architecture.md`, `specs/testability.md`,
+  Updated in `specs/architecture.yaml`, `specs/testability.yaml`,
   `docs/adr/0009-hexagonal-architecture.md`, `AGENTS.md`,
   `prompts/ARCHITECTURE_REVIEW_prompt.md`.
 
 - `notes/state-machine-findings.md` → `archived_notes/state-machine-findings.md`:
-  Updated in `plan/PRIORITIES.md`, `specs/behavior-tree-integration.md`,
-  `specs/state-machine.md`, `docs/adr/0013-unify-rm-state-tracking.md`,
+  Updated in `plan/PRIORITIES.md`, `specs/behavior-tree-integration.yaml`,
+  `specs/state-machine.yaml`, `docs/adr/0013-unify-rm-state-tracking.md`,
   `notes/case-state-model.md`.
 
 - Updated `archived_notes/datalayer-sqlite-design.md` status header from
@@ -7871,13 +7871,13 @@ AGENTS.md, and prompts/ following the archival of several notes files.
 
 ## P360-SPEC — BT Node Design Spec (COMPLETE 2026-04-23)
 
-**Task**: Create `specs/behavior-tree-node-design.md` (formal requirements for
+**Task**: Create `specs/behavior-tree-node-design.yaml` (formal requirements for
 BT node parameterization and composability) and register `notes/bt-reusability.md`
 in relevant index files.
 
 **Changes**:
 
-- Created `specs/behavior-tree-node-design.md` with formal requirements
+- Created `specs/behavior-tree-node-design.yaml` with formal requirements
   BTND-01 through BTND-04 covering node parameterization, composability and
   reuse, blackboard interface contracts, and module ownership.
 - Updated `specs/README.md`: registered `behavior-tree-node-design.md` in the
@@ -7891,7 +7891,7 @@ in relevant index files.
 ## P360-AUDIT — BT Composability Audit (COMPLETE 2026-04-23)
 
 **Task**: Audit existing BT nodes in `vultron/core/behaviors/` against
-`specs/behavior-tree-node-design.md`; produce a task list of refactoring work.
+`specs/behavior-tree-node-design.yaml`; produce a task list of refactoring work.
 
 **Findings**:
 
@@ -8070,3 +8070,183 @@ all three actors — including the coordinator owner — to have accepted.
 - `vultron/demo/scenario/three_actor_demo.py`
 - `vultron/core/use_cases/triggers/embargo.py`
 - `test/demo/test_three_actor_demo.py`
+
+## TASK-SR SR.1–SR.5 — Spec Registry Tests, Pytest Marker, Pre-commit Hook
+
+**Completed**: 2026-04-27
+
+### Summary
+
+Completed SR.1–SR.5 of TASK-SR (spec registry feature). All stub modules in
+`vultron/metadata/specs/` were already fully implemented; this stage adds
+test coverage, pytest marker integration, and a pre-commit hook.
+
+### Changes
+
+- `vultron/metadata/specs/__init__.py`: Added `UnknownSpecIdWarning(UserWarning)`
+  and `warn_unknown_spec_id(spec_id, registry)` helper; updated `__all__`.
+- `test/metadata/specs/__init__.py`: New package marker (empty).
+- `test/metadata/specs/conftest.py`: Fixtures: `MINIMAL_YAML`, `SECOND_YAML`,
+  `spec_dir`, `multi_spec_dir`, `loaded_registry`.
+- `test/metadata/specs/test_schema.py` (SR.1.3): 27 tests — `SpecIdStr`
+  valid/invalid patterns, `StatementSpec`/`BehavioralSpec` validation,
+  `SpecGroup`/`SpecFile`, duplicate-ID error, `load_registry` round-trips,
+  `get`/`all_specs`/cross-references.
+- `test/metadata/specs/test_lint.py` (SR.2.4): 11 tests — hard errors
+  (duplicate IDs, dangling relationship, prefix mismatch → return 1),
+  advisory warnings (testable-without-steps, rationale-too-long,
+  missing-tags → return 0), `lint_suppress` suppression.
+- `test/metadata/specs/test_render.py` (SR.5.3): 14 tests —
+  `render_markdown`, `export_json` (filter by priority/kind/scope/tags),
+  `render_registry_markdown`.
+- `test/metadata/specs/test_spec_marker.py` (SR.3.3): 4 tests —
+  `UnknownSpecIdWarning` is `UserWarning` subclass, emits for unknown ID,
+  silent for known ID, works with empty registry.
+- `test/conftest.py` (SR.3.1, SR.3.2): Added `pytest_configure` (registers
+  `spec` marker) and `pytest_collection_modifyitems` (warns for unknown IDs;
+  skips silently when no YAML files exist).
+- `pyproject.toml`: Added `spec` marker to `markers` list; added
+  `"always::vultron.metadata.specs.UnknownSpecIdWarning"` before `"error"`
+  in `filterwarnings`.
+- `.pre-commit-config.yaml` (SR.4.1): Added `spec-lint` local hook
+  (`language: system`, `pass_filenames: false`, fires on `specs/*.yaml`).
+
+### Test results
+
+56 new tests pass; full suite: 1878 passed, 12 skipped, 5633 subtests passed.
+mypy and pyright: zero errors.
+
+### Notes
+
+- `pytest_collection_modifyitems` returns early when `registry.files == []`
+  (no YAML yet); SR.6 migration will activate validation automatically.
+- `filterwarnings` ordering: `"always::UnknownSpecIdWarning"` placed BEFORE
+  `"error"` so the specific rule takes precedence (Python prepend semantics).
+- `Spec = Union[BehavioralSpec, StatementSpec]` always parses as
+  `BehavioralSpec`; tests assert on `spec.steps == []` not `isinstance`.
+
+### Deferred
+
+SR.6 (migration of ~49 `specs/*.md` files) deferred to next build run.
+
+---
+
+## SR.6.1–SR.6.3 — Spec Migration to YAML (Priority 460)
+
+**Completed**: SR.6.1 (migration script), SR.6.2 (migrate all specs),
+SR.6.3 (linter validation)
+
+### What was done
+
+1. **Schema change**: Made `rationale` optional (`NonEmptyStr | None = None`)
+   in `StatementSpec` since many existing specs lack rationale text. Updated
+   lint.py guard and added tests.
+
+2. **Migration script** (`tools/migrate_spec_md_to_yaml.py`): Parses
+   `specs/*.md` requirement files and outputs `specs/*.yaml` with:
+   - Multi-line statement support (continuation lines)
+   - Relationship extraction (refines, derives-from, supersedes, etc.)
+   - Sub-bullet text collection (rationale, implementation notes)
+   - Dash-prefix ID transformation (CI-SEC→CISEC, DEMO-MA→DEMOMA,
+     UC-ORG→UCORG, IMPL-TS→IMPLTS)
+
+3. **Migration run**: All 51 spec .md files successfully converted to YAML.
+
+4. **Duplicate ID fixes**: Found and fixed two duplicate IDs in source
+   markdown:
+   - `CS-13-001` in code-style.md → second instance renumbered to CS-15-001
+   - `SR-08-005` in spec-registry.md → second instance renumbered to
+     SR-08-007
+
+5. **Dash-prefix ID rename** (project-wide): Renamed all references in .py
+   and .md files:
+   - CI-SEC → CISEC (test/ci/, docs/adr/, specs/)
+   - DEMO-MA → DEMOMA (integration_tests/, vultron/demo/, specs/, notes/)
+   - UC-ORG → UCORG (specs/)
+   - IMPL-TS → IMPLTS (specs/, plan/)
+
+6. **Linter passes** with exit 0. Remaining WARN (no tags) and ERROR
+   (broken cross-refs to deprecated CS-01-002/003/006, ADR-00, IDEM-01-001)
+   are pre-existing data issues, not migration bugs.
+
+### Files created
+
+- `tools/migrate_spec_md_to_yaml.py`
+- All `specs/*.yaml` files (51 files)
+
+### Files modified
+
+- `vultron/metadata/specs/schema.py` (rationale optional)
+- `vultron/metadata/specs/lint.py` (None guard for rationale)
+- `test/metadata/specs/test_schema.py` (rationale None tests)
+- `specs/code-style.yaml` (CS-13-001 → CS-15-001 dedup + IMPLTS rename)
+- `specs/spec-registry.yaml` (SR-08-005 → SR-08-007 dedup)
+- Multiple .py and .md files (dash-prefix ID renames)
+
+### Remaining SR.6 tasks
+
+- SR.6.4: Update skills/prompts/agent instructions for .yaml paths
+- SR.6.5: Update README.md/AGENTS.md references
+- SR.6.6: Delete original .md requirement files
+
+---
+
+## SR.6.3 (continued) — Schema Strictness and YAML Export
+
+**Completed**: 2026-04-27  
+**Commit**: `05c1c6da` `feat(specs): enforce schema strictness, inheritance, YAML export`
+
+- Removed all silent Pydantic defaults; YAML is the authoritative data source
+- Added non-empty-if-present validators for all list fields
+- Made kind/scope required at SpecFile level, optional at group/spec for
+  inheritance overrides (file→group→spec, full-replace semantics)
+- Added effective_kind/scope/tags resolution in registry.py
+- Added export_yaml() for round-trip YAML serialization
+- Re-migrated all specs/*.yaml with kind/scope at file level
+- Comprehensive test coverage for validation and inheritance
+
+## SR.6 (new) — NetworkX Graph and LLM-Optimized Export
+
+**Completed**: 2026-04-27  
+**Commit**: `2b6a3605` `feat(specs): add networkx graph and LLM-optimized export`
+
+- Added networkx DiGraph to SpecRegistry built eagerly in model_post_init
+  - Spec nodes with lightweight attrs (priority, kind, scope, file_id,
+    group_id, type, statement)
+  - Explicit relationships as directed edges with rel_type and note
+  - subgraph_for_topic() and transitive_deps() helper methods
+- New vultron/metadata/specs/llm_export.py with to_llm_json() producing
+  flat, inheritance-resolved JSON: {files, requirements, edges}
+  - Filters: topic, spec_ids, include_deps, kind, scope, tags, priority
+  - Denormalized group/file provenance on each spec record
+  - Both inline relationships and centralized edges array
+- Added --format llm-json and --topic to render.py CLI
+- 27 new tests in test/metadata/specs/test_llm_export.py
+
+## SR.6.4 — Update All specs/*.md References
+
+**Completed**: 2026-04-27  
+**Commit**: `24775658` `refactor(specs): update all specs/*.md references to specs/*.yaml`
+
+- Bulk renamed specs/*.md → specs/*.yaml references across 148 files
+- Updated AGENTS.md, notes, docs/adr, archived_notes, plan, prompts,
+  skills, and Python source/test files
+
+## SR.6.5 — Update specs/README.md for YAML Format
+
+**Completed**: 2026-04-27  
+**Commit**: `382b75cf` `docs(specs): update README.md for YAML format and LLM export`
+
+- Updated overview to describe YAML format with Pydantic validation
+- Added LLM-optimized export guide to Agent Loading Guide
+- Updated bare spec filename refs from .md to .yaml in prefix table
+- Updated PROD_ONLY tag description for YAML scope semantics
+
+## SR.6.6 — Delete Original specs/*.md Files
+
+**Completed**: 2026-04-27  
+**Commit**: `561039bd` `chore(specs): delete migrated specs/*.md files`
+
+- Deleted 48 original markdown spec files fully replaced by YAML
+- Retained: README.md (index), meta-specifications.md (style guide),
+  datalayer.md (non-standard format, pending manual migration)

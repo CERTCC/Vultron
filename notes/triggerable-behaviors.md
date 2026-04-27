@@ -3,9 +3,9 @@ title: "Triggerable Behaviors: Design Notes"
 status: active
 description: "Design notes for triggerable behaviors: API endpoints, CLI commands, BT integration, and behavior routing patterns."
 related_specs:
-  - specs/triggerable-behaviors.md
-  - specs/behavior-tree-integration.md
-  - specs/code-style.md
+  - specs/triggerable-behaviors.yaml
+  - specs/behavior-tree-integration.yaml
+  - specs/code-style.yaml
 related_notes:
   - notes/bt-fuzzer-nodes.md
   - notes/bt-integration.md
@@ -21,7 +21,7 @@ relevant_packages:
 # Triggerable Behaviors: Design Notes
 
 **Cross-references**: `plan/PRIORITIES.md` PRIORITY 30,
-`specs/behavior-tree-integration.md` BT-08,
+`specs/behavior-tree-integration.yaml` BT-08,
 `docs/topics/behavior_logic/` (reference behavior tree docs),
 `plan/IMPLEMENTATION_PLAN.md` Phase PRIORITY-30
 
@@ -81,7 +81,7 @@ Content-Type: application/json
 }
 ```
 
-The formal spec is `specs/triggerable-behaviors.md` (TRIG-01 through
+The formal spec is `specs/triggerable-behaviors.yaml` (TRIG-01 through
 TRIG-07). See `plan/IMPLEMENTATION_PLAN.md` Phase PRIORITY-30 for
 implementation status.
 
@@ -161,8 +161,8 @@ values need not be strictly binary in a full implementation; intermediate
 confidence levels may be appropriate.
 
 **Design Decision**: The `reject-report` trigger MUST require a `note`
-field (reason is required; resolved — see `specs/triggerable-behaviors.md`
-TB-03-004 and `specs/code-style.md` CS-08-001).
+field (reason is required; resolved — see `specs/triggerable-behaviors.yaml`
+TB-03-004 and `specs/code-style.yaml` CS-08-001).
 The `note` field MUST be present; it SHOULD be non-empty. This decision
 led to a broader schema-validation pattern: optional string fields
 throughout the codebase follow "if present, then non-empty" (CS-08-001).
@@ -250,7 +250,7 @@ engage/defer binary. The "accept" and "defer" placeholder nodes in
 the prototype.
 
 **See also**: `notes/bt-fuzzer-nodes.md` (SSVC-adjacent fuzzer nodes),
-`specs/prototype-shortcuts.md` PROTO-05-001 (prioritization stub policy).
+`specs/prototype-shortcuts.yaml` PROTO-05-001 (prioritization stub policy).
 
 ---
 
@@ -262,7 +262,7 @@ the prototype.
 
 1. **Mechanical evaluation** (automatable): Does the proposed embargo have
    a valid end date? Is the duration within the actor's policy limits?
-   (See `specs/embargo-policy.md`.) Does it follow the practices in
+   (See `specs/embargo-policy.yaml`.) Does it follow the practices in
    `docs/topics/process_models/em/`?
 
 2. **Judgment evaluation** (human-in-the-loop or LLM-assisted): Is the
@@ -279,7 +279,7 @@ judgment layer as a placeholder that always returns SUCCESS.
 stubbed as "apply default embargo policy" (see
 `docs/topics/process_models/em/defaults.md`). The stub SHOULD:
 
-1. Load the actor's `embargo_policy` record (see `specs/embargo-policy.md`).
+1. Load the actor's `embargo_policy` record (see `specs/embargo-policy.yaml`).
 2. Apply the preferred duration as the proposed term.
 3. Log the selection.
 
@@ -342,7 +342,7 @@ Key design constraints:
    system SHOULD verify that either:
    - No embargo is active, or
    - The actor being invited is known to have compatible embargo policy
-     (see `specs/embargo-policy.md`), or
+     (see `specs/embargo-policy.yaml`), or
    - The invitation is constructed to imply embargo acceptance upon
      acceptance of the invitation.
 
@@ -365,7 +365,7 @@ Key design constraints:
 
 **Design Decision**: `VulnerabilityCase` SHOULD support a `RedactedVulnerabilityCase`
 subclass for invited-but-not-yet-accepted participants. (resolved — blocks
-resolved; see `specs/case-management.md` CM-09-*)
+resolved; see `specs/case-management.yaml` CM-09-*)
 
 The preferred design is:
 
@@ -391,8 +391,8 @@ This is a PRIORITY 300 design item. For the prototype, the `Invite`
 activity MAY reference the case by ID only, leaving the invitee to
 request full details upon acceptance.
 
-**Cross-reference**: `specs/case-management.md` CM-09-*,
-`specs/encryption.md`
+**Cross-reference**: `specs/case-management.yaml` CM-09-*,
+`specs/encryption.yaml`
 
 ---
 
@@ -400,7 +400,7 @@ request full details upon acceptance.
 
 **Design Decision**: `CaseParticipant` MUST track which embargo(es) a
 participant has explicitly accepted. (resolved — see
-`specs/case-management.md` CM-10-*)
+`specs/case-management.yaml` CM-10-*)
 
 Cases can have a series of embargoes over time (one active at a time).
 If embargo terms change, participants who accepted a prior embargo may not
@@ -509,7 +509,7 @@ When implementing trigger request models, check existing models first:
 - All request models SHOULD use `model_config = ConfigDict(extra="ignore")`
   for forward-compatibility (TRIG-03-002).
 
-**See also**: `specs/triggerable-behaviors.md`.
+**See also**: `specs/triggerable-behaviors.yaml`.
 
 ---
 
@@ -526,6 +526,6 @@ or equivalent domain functions procedurally after `bridge.execute_with_setup()`
 returns. Cascades from the triggering action to downstream protocol behaviors
 must be expressed as BT child subtrees.
 
-See `specs/behavior-tree-integration.md` BT-06-005 and BT-06-006, and
+See `specs/behavior-tree-integration.yaml` BT-06-005 and BT-06-006, and
 `notes/bt-integration.md` for the subtree composition model (see "Canonical CVD
 Protocol Behavior Tree Reference" section).

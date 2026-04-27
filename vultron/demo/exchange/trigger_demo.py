@@ -20,7 +20,7 @@ Trigger endpoints let an actor *proactively initiate* a CVD protocol behavior
 based on its own internal state, as opposed to reacting to an inbound
 ActivityStreams message.  They are the outgoing counterpart to the inbound
 handler pipeline and are essential for demonstrating the full Vultron Protocol
-(see ``specs/triggerable-behaviors.md`` and ``notes/triggerable-behaviors.md``).
+(see ``specs/triggerable-behaviors.yaml`` and ``notes/triggerable-behaviors.md``).
 
 Two demo workflows are shown:
 

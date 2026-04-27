@@ -5,9 +5,9 @@ description: >
   Analysis of wire/domain/persistence model coupling in VulnerabilityCase and
   recommended separation path.
 related_specs:
-  - specs/architecture.md
-  - specs/case-management.md
-  - specs/datalayer.md
+  - specs/architecture.yaml
+  - specs/case-management.yaml
+  - specs/datalayer.yaml
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/case-state-model.md
@@ -80,7 +80,7 @@ Fields such as `case_status`, `participant_status`, and `notes` SHOULD be
 modeled internally as **append-only sequences of typed events**, each with
 its own identity and timestamp. The current implementation stores these as
 lists; the rename from `case_status` → `case_statuses` (tracked in
-`specs/case-management.md` CM-03-006) is the first step toward making
+`specs/case-management.yaml` CM-03-006) is the first step toward making
 append-only semantics explicit.
 
 ActivityStreams `Collection` then becomes a projection of this log for
@@ -138,7 +138,7 @@ type to the appropriate AS2 activity type.
 ### Naming Convention
 
 Wire-level and domain-level types MUST use distinct suffixes to prevent
-accidental coupling (see `specs/code-style.md` CS-10-002):
+accidental coupling (see `specs/code-style.yaml` CS-10-002):
 
 - Wire layer (`vultron/wire/as2/vocab/activities/`): `FooActivity` — the
   structured AS2 payload the extractor recognizes (e.g., `ReportSubmitActivity`)
@@ -223,16 +223,16 @@ Before implementing the outbound path (domain event → AS2 activity), consider:
   One-to-one is safer for type checking; a table is more compact.
 - **Interplay with the outbox pipeline**: Domain events emitted by handlers
   must eventually become AS2 activities written to the actor outbox. The
-  serializer is the seam between these two concerns (see `specs/outbox.md`).
+  serializer is the seam between these two concerns (see `specs/outbox.yaml`).
 - **ADR**: Consider drafting an ADR for the domain/wire separation decision
   before implementation, to record the rationale. See `docs/adr/_adr-template.md`.
 
 ## Cross-References
 
-- `specs/case-management.md` CM-03-006 — `case_statuses` rename requirement
-- `specs/code-style.md` CS-10-001 — typed Pydantic objects at port/adapter boundaries
-- `specs/code-style.md` CS-10-002 — `FooActivity` vs `FooEvent` naming convention
-- `specs/datalayer.md` — DataLayer port requirements (auto-rehydration, type-safe writes)
+- `specs/case-management.yaml` CM-03-006 — `case_statuses` rename requirement
+- `specs/code-style.yaml` CS-10-001 — typed Pydantic objects at port/adapter boundaries
+- `specs/code-style.yaml` CS-10-002 — `FooActivity` vs `FooEvent` naming convention
+- `specs/datalayer.yaml` — DataLayer port requirements (auto-rehydration, type-safe writes)
 - `notes/datalayer-design.md` — DataLayer design notes (auto-rehydration decision,
   storage record evaluation, vocabulary registry entanglement)
 - `notes/case-state-model.md` — CaseStatus/ParticipantStatus append-only
@@ -334,8 +334,8 @@ fields use domain-appropriate names. Where the AS2 mapping is non-obvious,
 add a comment or alias. New event subtypes introduced for Priority 90 and
 beyond should follow domain naming from the start.
 
-**Reference:** `specs/architecture.md` ARCH-09 (core MUST NOT leak wire
-concerns); `specs/code-style.md` CS-12-001 (domain vocabulary in class names).
+**Reference:** `specs/architecture.yaml` ARCH-09 (core MUST NOT leak wire
+concerns); `specs/code-style.yaml` CS-12-001 (domain vocabulary in class names).
 
 ---
 
@@ -381,7 +381,7 @@ Per-semantic subclasses (already partially in place from P65-3) combined with
 the EventFactory approach give both type safety and domain clarity. See the
 "Discriminated Event Hierarchy" section above for the design blueprint.
 
-**See also**: `specs/semantic-extraction.md`, `specs/code-style.md` CS-10-002
+**See also**: `specs/semantic-extraction.yaml`, `specs/code-style.yaml` CS-10-002
 (`FooActivity` vs `FooEvent` naming), `notes/domain-model-separation.md`
 "Domain Events as the Bridge Between Core and Wire".
 

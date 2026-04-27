@@ -5,8 +5,8 @@ description: >
   Idiomatic BT construction patterns from Colledanchise & Ögren; applies to
   simulation and prototype BT implementations.
 related_specs:
-  - specs/behavior-tree-integration.md
-  - specs/behavior-tree-node-design.md
+  - specs/behavior-tree-integration.yaml
+  - specs/behavior-tree-node-design.yaml
 related_notes:
   - notes/bt-composability.md
   - notes/bt-integration.md
@@ -34,8 +34,8 @@ Efficiency, Safety, and Robustness".
 
 **Formal requirements cross-referenced here**:
 
-- `specs/behavior-tree-node-design.md` — `BTND-06-*`
-- `specs/behavior-tree-integration.md` — `BT-06-003`, `BT-06-004`
+- `specs/behavior-tree-node-design.yaml` — `BTND-06-*`
+- `specs/behavior-tree-integration.yaml` — `BT-06-003`, `BT-06-004`
 
 **See also**:
 
@@ -440,7 +440,7 @@ that may each need to be retried, and the intermediate RM states
 
 ### The BT-06-004 rule
 
-`specs/behavior-tree-integration.md` BT-06-004 states: "Any node that
+`specs/behavior-tree-integration.yaml` BT-06-004 states: "Any node that
 contains complicated business logic is a candidate for refactoring into its
 own sub-tree." Apply this rule proactively: if an `update()` method is
 doing more than one logical check or one state update, it is probably a

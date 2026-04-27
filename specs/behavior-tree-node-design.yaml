@@ -1,0 +1,250 @@
+id: BTND
+title: Behavior Tree Node Design
+description: >-
+  Formal requirements for BT node parameterization, composability, and reuse in `vultron/core/behaviors/`.
+  These requirements operationalize the fractal composability pattern described in `notes/bt-reusability.md`.
+  *when-to-use BTs* and *execution model* requirements live in `specs/behavior-tree-integration.md`.
+version: 1.0.0
+kind: pattern
+scope:
+- prototype
+- production
+groups:
+- id: BTND-01
+  title: Node Parameterization
+  specs:
+  - id: BTND-01-001
+    priority: MUST_NOT
+    statement: >-
+      BT nodes MUST NOT hard-code actor identities, CVD roles, case IDs, or any context that
+      varies by usage site; these values MUST be constructor parameters.
+    rationale: >-
+      Hard-coded context values prevent reuse across actors or scenarios and couple the node
+      to a single workflow.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-004
+  - id: BTND-01-002
+    priority: MUST_NOT
+    statement: >-
+      BT nodes MUST NOT read actor identity, case ID, or CVD role from environment variables,
+      module-level globals, or any implicit ambient context. All variable inputs MUST arrive
+      via constructor parameters or the documented blackboard interface.
+  - id: BTND-01-003
+    priority: MUST
+    statement: >-
+      When a BT node name is derived from a parameterized value (e.g., role or actor ID),
+      the name MUST be constructed from that parameter at instantiation time, not hard-coded
+      as a string literal.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-004
+- id: BTND-02
+  title: Composability and Reuse
+  specs:
+  - id: BTND-02-001
+    priority: MUST
+    statement: >-
+      Logic that appears in two or more BT nodes or subtrees MUST be extracted into a shared,
+      parameterized node or factory function in a neutral shared module (see `BTND-04-001`).
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-004
+  - id: BTND-02-002
+    priority: SHOULD
+    statement: >-
+      Each BT subtree SHOULD be independently triggerable as a use-case entry point AND composable
+      as a child of a larger subtree.
+    rationale: >-
+      This is the "fractal composability" pattern. Subtrees that can only be used one way
+      are candidates for refactoring.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-002
+  - id: BTND-02-003
+    priority: SHOULD
+    statement: >-
+      New BT subtrees SHOULD be verified against `notes/vultron-bt.txt` (the canonical simulation
+      BT structure) to confirm structural correspondence before committing.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-002
+  - id: BTND-02-004
+    priority: SHOULD
+    statement: >-
+      A shared BT node or subtree that models a generic operation (e.g., "create a case participant
+      with any role") SHOULD replace all role-specific one-off variants (e.g., `CreateFinderParticipantNode`,
+      `CreateVendorParticipantNode`) once the shared version is available.
+    rationale: >-
+      Reduces maintenance surface; fixes and improvements apply consistently across all use
+      sites.
+- id: BTND-03
+  title: Blackboard Interface Contracts
+  kind: language
+  specs:
+  - id: BTND-03-001
+    priority: MUST
+    statement: >-
+      Each BT node that reads from or writes to the py_trees blackboard MUST declare all blackboard
+      keys it uses in its `setup()` method via `register_key()`.
+    rationale: >-
+      Undeclared blackboard reads create hidden dependencies that break composability and
+      make tests fragile.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-03-003
+  - id: BTND-03-002
+    priority: MUST_NOT
+    statement: >-
+      A BT node MUST NOT read a blackboard key that was not registered with at least `READ`
+      access in `setup()`.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-03-003
+  - id: BTND-03-003
+    priority: SHOULD
+    statement: >-
+      A BT node's docstring SHOULD document all blackboard keys it reads and writes, including
+      the expected type and the node that produces the value for each READ key.
+- id: BTND-04
+  title: Module Ownership
+  kind: implementation
+  specs:
+  - id: BTND-04-001
+    priority: MUST_NOT
+    statement: >-
+      BT nodes or subtrees that are used by more than one domain module (e.g., by both `case/`
+      and `report/`) MUST be defined in the shared `vultron/core/behaviors/helpers.py` module
+      or a purpose-built shared module within `vultron/core/behaviors/`. Domain-specific modules
+      MUST NOT import BT nodes from sibling domain modules.
+    rationale: >-
+      Cross-domain node imports create tight coupling and circular-import risk. Neutral shared
+      ownership makes the dependency structure explicit.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-04-001
+  - id: BTND-04-002
+    priority: MUST_NOT
+    statement: >-
+      BT nodes MUST NOT import from `vultron/demo/` or any other demo-layer module. Demo-specific
+      context (step descriptions, demo loggers, demo flags) belongs in demo scripts, not in
+      BT nodes.
+- id: BTND-05
+  title: Actor Configuration for Participant Nodes
+  kind: domain
+  specs:
+  - id: BTND-05-001
+    priority: MUST
+    statement: >-
+      The `CVDRoles` enum MUST include a `CASE_OWNER` flag value representing the actor who
+      owns and manages a `VulnerabilityCase`.
+    rationale: >-
+      Case ownership is a protocol-significant relationship distinct from the CVD roles (VENDOR,
+      COORDINATOR, etc.). When a vendor or coordinator receives a report and creates a case,
+      they are both the receiving CVD actor (VENDOR or COORDINATOR) and the case owner. Representing
+      this explicitly avoids hardcoding the assumption that the case creator is always a vendor.
+  - id: BTND-05-002
+    priority: MUST
+    statement: >-
+      `CreateInitialVendorParticipant` MUST be replaced by a `CreateCaseOwnerParticipant`
+      node that:
+    rationale: >-
+      "Vendor" is a demo-specific assumption. In the general protocol a coordinator, deployer,
+      or other role may equally receive a report and become the case owner. The node MUST
+      NOT know or care which CVD role the actor plays — only that they are the case owner.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-01-001
+  - id: BTND-05-003
+    priority: MUST
+    statement: >-
+      The `CreateFinderParticipantNode` backward-compatibility alias (currently `CreateFinderParticipantNode
+      = CreateCaseParticipantNode`) MUST be removed. All call sites MUST use `CreateCaseParticipantNode`
+      directly with an explicit `roles` parameter.
+    rationale: >-
+      Alias names carry the old "finder-specific" framing and mislead readers about the node's
+      actual generality.
+- id: BTND-06
+  title: Idiomatic BT Construction Patterns
+  kind: language
+  specs:
+  - id: BTND-06-001
+    priority: SHOULD
+    statement: >-
+      (**SHOULD**) Stateful BT nodes SHOULD use the **implicit sequence** pattern: a Fallback
+      whose first child checks whether the goal is already achieved (the postcondition), and
+      whose remaining children perform the work only when the goal has not yet been reached.
+    rationale: >-
+      Automatically makes nodes idempotent and reactive. Re-ticking a satisfied node costs
+      only a cheap condition check. This is the dominant pattern throughout `vultron/bt/`.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-003
+  - id: BTND-06-002
+    priority: SHOULD
+    statement: >-
+      (**SHOULD**) When a Sequence contains multiple actions, each action that may already
+      be complete SHOULD be paired with its success condition via a Fallback, making the **explicit
+      success condition** visible in the tree.
+    rationale: >-
+      Improves readability and correctness. Readers can determine the success criterion of
+      each step from the tree alone, without reading action implementations.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-004
+  - id: BTND-06-003
+    priority: SHOULD
+    statement: >-
+      (**SHOULD**) Every BT node that performs a protocol state transition (RM/EM/CS state
+      machine update, emitting an AS2 activity, or creating/updating a domain object) SHOULD
+      follow the **PPA (Postcondition–Precondition–Action)** structure: `Fallback(Postcondition,
+      Sequence(Precondition1, …, PreconditionN, Action))`.
+    rationale: >-
+      PPA is the canonical "unit cell" of idiomatic BT design. It makes the node's contract
+      (what it requires and what it guarantees) explicit and machine-readable from the tree
+      structure.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-004
+  - id: BTND-06-004
+    priority: MAY
+    statement: >-
+      (**MAY**) Multi-step workflows where each step has its own preconditions that may need
+      to be achieved MAY be constructed using **back-chaining**: start with the goal condition,
+      find the PPA whose postcondition matches, and recursively substitute failing preconditions
+      with their own PPAs.
+    rationale: >-
+      Back-chaining produces fully reactive, goal-directed trees where intermediate states
+      are automatically recovered on failure.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-002
+  - id: BTND-06-005
+    priority: MUST
+    statement: >-
+      (**SHOULD**) Before any irreversible or protocol-significant action, a **safety guard
+      condition** MUST be the first child of the enclosing Sequence, so that the action is
+      skipped when the guard fails.
+    rationale: >-
+      Prevents unsafe state transitions when the world changes between ticks. In a multi-party
+      protocol, another actor may change shared state at any time.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-003
+  - id: BTND-06-006
+    priority: MAY
+    statement: >-
+      (**MAY**) Memory composites (`memory=True` in py_trees) MAY be used **only** in contexts
+      that are fully deterministic and non-reactive: no external actor can undo a child's
+      outcome between ticks, and the agent operates in a closed-loop, human-supervised environment.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-003
+  - id: BTND-06-007
+    priority: SHOULD
+    statement: >-
+      (**SHOULD**) Use the following **granularity guidelines** when deciding whether a behavior
+      should be a leaf node or a subtree:
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-004

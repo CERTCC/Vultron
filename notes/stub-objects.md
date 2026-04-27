@@ -5,8 +5,8 @@ description: >
   Design notes for lightweight stub object representations in Vultron wire
   messages; not yet implemented.
 related_specs:
-  - specs/stub-objects.md
-  - specs/message-validation.md
+  - specs/stub-objects.yaml
+  - specs/message-validation.yaml
 related_notes:
   - notes/datalayer-design.md
 relevant_packages:
@@ -24,7 +24,7 @@ direction for future work.
 ## Motivation
 
 Two separate concerns arise from the requirement that outbound Vultron wire
-messages carry **full inline typed objects** (see `specs/message-validation.md`
+messages carry **full inline typed objects** (see `specs/message-validation.yaml`
 MV-09-001):
 
 1. **Verbosity / performance**: Full inline objects can be large. Sending a
@@ -156,12 +156,12 @@ exception is **not yet specified or implemented**.
 
 When stub objects are formally introduced, they will require:
 
-1. A spec requirement in `specs/message-validation.md` (or a new
-   `specs/stub-objects.md`) defining when stubs are permitted.
+1. A spec requirement in `specs/message-validation.yaml` (or a new
+   `specs/stub-objects.yaml`) defining when stubs are permitted.
 2. Pydantic model support for stub representations of Vultron object types.
 3. Recipient-side handling in the inbox handler and use cases.
 4. Semantic extraction support confirming that stubs with `type` fields still
    route correctly.
 
 **See also**: `notes/datalayer-design.md` (auto-rehydration),
-`specs/message-validation.md` MV-09-001.
+`specs/message-validation.yaml` MV-09-001.

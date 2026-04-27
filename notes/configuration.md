@@ -3,7 +3,7 @@ title: Configuration Management — Implementation Notes
 status: active
 description: Design decisions for YAML-backed Pydantic configuration loading in Vultron.
 related_specs:
-  - specs/configuration.md
+  - specs/configuration.yaml
 relevant_packages:
   - fastapi
   - pydantic
@@ -23,7 +23,7 @@ structured objects for type safety. This note captures the design decisions
 and implementation guidance for `vultron/config.py` and the aligned
 `SeedConfig` refactor.
 
-See `specs/configuration.md` for the formal requirements (CFG-01 through
+See `specs/configuration.yaml` for the formal requirements (CFG-01 through
 CFG-06).
 
 ---
