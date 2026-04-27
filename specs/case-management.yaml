@@ -459,9 +459,6 @@ groups:
     statement: >-
       A `VulnerabilityCase` MUST be created when an `Offer(Report)` activity is received by
       the vendor actor
-    relationships:
-    - rel_type: implements
-      spec_id: ADR-00
   - id: CM-12-002
     priority: MUST
     statement: >-

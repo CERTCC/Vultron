@@ -122,8 +122,8 @@ groups:
       The project MUST use Black for code formatting; Black MUST be enforced via pre-commit
       hooks AND in the CI pipeline.
     relationships:
-    - rel_type: supersedes
-      spec_id: CS-01-003
+    - rel_type: implements
+      spec_id: CS-01-001
   - id: IMPLTS-07-002
     priority: MUST
     statement: >-
@@ -131,16 +131,16 @@ groups:
       pass with zero errors on every commit to `main` and on every pull request targeting
       `main`.
     relationships:
-    - rel_type: supersedes
-      spec_id: CS-01-006
+    - rel_type: implements
+      spec_id: CS-11-001
   - id: IMPLTS-07-003
     priority: MUST
     statement: >-
       The project MUST use mypy for static type checking; mypy MUST run in CI and MUST pass
       with zero errors on every commit to `main` and on every pull request targeting `main`.
     relationships:
-    - rel_type: supersedes
-      spec_id: CS-01-006
+    - rel_type: implements
+      spec_id: CS-11-001
   - id: IMPLTS-07-004
     priority: MUST
     statement: >-
@@ -148,8 +148,8 @@ groups:
       and MUST pass with zero errors on every commit to `main` and on every pull request targeting
       `main`.
     relationships:
-    - rel_type: supersedes
-      spec_id: CS-01-003
+    - rel_type: implements
+      spec_id: CS-01-001
   - id: IMPLTS-07-007
     priority: MUST
     statement: >-
@@ -178,11 +178,6 @@ groups:
     rationale: >-
       Parallel execution surfaces all failures simultaneously, reducing fix-cycle time and
       preserving the known-clean codebase baseline.
-    relationships:
-    - rel_type: supersedes
-      spec_id: CS-01-002
-    - rel_type: supersedes
-      spec_id: CS-01-003
   - id: IMPLTS-07-006
     priority: MUST
     statement: >-

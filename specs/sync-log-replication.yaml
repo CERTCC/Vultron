@@ -85,7 +85,7 @@ groups:
       duplicate entries in the receiver's log
     relationships:
     - rel_type: implements
-      spec_id: IDEM-01-001
+      spec_id: ID-02-001
       note: idempotency.md
 - id: SYNC-04
   title: Log State in Context
