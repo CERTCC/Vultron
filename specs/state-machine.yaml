@@ -13,7 +13,7 @@ description: >-
   `behavior-tree-integration.md` BT-06 (BT-driven transitions), `handler-protocol.md` HP-00
   (activities as state-change notifications), `vultron-protocol-spec.md` VP-01 through VP-13
 version: 1.0.0
-kind: general
+kind: language
 scope:
 - prototype
 - production
@@ -75,6 +75,7 @@ groups:
       describes MUST have a corresponding transition entry
 - id: SM-04
   title: Runtime State Changes
+  kind: pattern
   specs:
   - id: SM-04-001
     priority: MUST
@@ -92,6 +93,7 @@ groups:
       note: handler-protocol.md
 - id: SM-05
   title: State History
+  kind: pattern
   specs:
   - id: SM-05-001
     priority: MUST
@@ -123,6 +125,7 @@ groups:
       log rather than duplicating full record content
 - id: SM-06
   title: In-Memory (Transient) State
+  kind: domain
   specs:
   - id: SM-06-001
     priority: SHOULD
@@ -137,6 +140,7 @@ groups:
       a case and a `CaseParticipant` record exists
 - id: SM-07
   title: State Subsets and Guards
+  kind: pattern
   specs:
   - id: SM-07-001
     priority: SHOULD

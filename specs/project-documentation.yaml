@@ -4,13 +4,14 @@ description: >-
   This specification defines the purpose, scope, and maintenance requirements for key project
   documentation files that guide AI agents and human developers.
 version: 1.0.0
-kind: general
+kind: implementation
 scope:
 - prototype
 - production
 groups:
 - id: PD-02
   title: Documentation Files Overview
+  kind: general
   specs:
   - id: PD-02-001
     priority: MUST
@@ -92,6 +93,7 @@ groups:
       velocity
 - id: PD-07
   title: Append-Only History Write Protocol
+  kind: pattern
   specs:
   - id: PD-05-001
     priority: MUST

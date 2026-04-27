@@ -6,7 +6,7 @@ description: >-
   jobs) are consolidated in `tech-stack.md` (IMPLTS-07-001 through IMPLTS-07-006). This file
   covers formatting conventions and coding style standards only.
 version: 1.0.0
-kind: general
+kind: language
 scope:
 - prototype
 - production
@@ -65,6 +65,7 @@ groups:
       the module and using attribute access for clarity.
 - id: CS-05
   title: Circular Import Prevention
+  kind: pattern
   specs:
   - id: CS-05-001
     priority: MUST
@@ -91,6 +92,7 @@ groups:
     statement: Module imports MAY use aliases for clarity or to avoid naming conflicts
 - id: CS-06
   title: Module Size
+  kind: general
   specs:
   - id: CS-06-001
     priority: SHOULD
@@ -99,6 +101,7 @@ groups:
       single-file catchalls
 - id: CS-07
   title: '`as_` Field Prefix Policy'
+  kind: domain
   specs:
   - id: CS-07-001
     priority: MUST_NOT
@@ -143,6 +146,7 @@ groups:
       spec_id: CS-08-001
 - id: CS-09
   title: Code Reuse
+  kind: general
   specs:
   - id: CS-09-001
     priority: SHOULD_NOT
@@ -161,6 +165,7 @@ groups:
       and reduces boilerplate
 - id: CS-10
   title: Port and Adapter Data Exchange
+  kind: pattern
   specs:
   - id: CS-10-001
     priority: MUST
@@ -173,6 +178,7 @@ groups:
       layer crossing.
 - id: CS-11
   title: Domain Event and Wire Activity Naming
+  kind: domain
   specs:
   - id: CS-10-002
     priority: SHOULD
@@ -194,6 +200,7 @@ groups:
       between typed and untyped code
 - id: CS-13
   title: Domain Model Naming
+  kind: domain
   specs:
   - id: CS-12-001
     priority: SHOULD
@@ -206,6 +213,7 @@ groups:
       to explain intent.
 - id: CS-14
   title: Datetime and Timezone Conventions
+  kind: general
   specs:
   - id: CS-13-001
     priority: MUST
@@ -235,6 +243,7 @@ groups:
       UTC offset (`Z` or `+00:00`)
 - id: CS-15
   title: Wire Model Configuration
+  kind: implementation
   specs:
   - id: CS-14-001
     priority: MUST
@@ -257,6 +266,7 @@ groups:
       spec_id: CS-10-002
 - id: CS-16
   title: Use Case Naming
+  kind: domain
   specs:
   - id: CS-12-002
     priority: SHOULD
@@ -270,6 +280,7 @@ groups:
       as local commands.
 - id: CS-17
   title: No Compatibility Shims
+  kind: general
   specs:
   - id: CS-15-001
     priority: MUST

@@ -4,7 +4,7 @@ description: >-
   This specification defines the normative technology constraints and implementation requirements
   for the Vultron prototype implementation.
 version: 1.0.0
-kind: general
+kind: language
 scope:
 - prototype
 - production

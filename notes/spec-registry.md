@@ -95,8 +95,11 @@ class RFC2119Priority(StrEnum):
     MAY        = "MAY"
 
 class SpecKind(StrEnum):
-    GENERAL        = "general"
-    IMPLEMENTATION = "implementation"
+    GENERAL        = "general"         # universal: any project, any language
+    PATTERN        = "pattern"         # arch / framework approach: language-agnostic
+    DOMAIN         = "domain"          # Vultron / CVD: language-agnostic
+    LANGUAGE       = "language"        # Python ecosystem: any Python project
+    IMPLEMENTATION = "implementation"  # this specific codebase
 
 class Scope(StrEnum):
     PROTOTYPE  = "prototype"
@@ -142,6 +145,31 @@ class SpecTag(StrEnum):
     TOOLING        = "tooling"
     WIRE_FORMAT    = "wire-format"
 ```
+
+### SpecKind Portability Tiers
+
+`SpecKind` expresses how transferable a requirement is to other projects or
+languages. Each tier answers a different "which specs do I need?" question:
+
+| Kind | Meaning | Example |
+|---|---|---|
+| `general` | Universal: any project, any language | idempotency, CI security, error context |
+| `pattern` | Architectural approach: language-agnostic, non-CVD | hexagonal arch, BT composability |
+| `domain` | Vultron / CVD protocol: language-agnostic | embargo lifecycle, AS2 semantics |
+| `language` | Python ecosystem: any Python project | pydantic, py_trees API, pytest |
+| `implementation` | This specific codebase: paths, class names, tooling | `vultron/core/` layout, notes schema |
+
+**Portability use cases:**
+
+- Implementing Vultron in Python → all five tiers
+- Implementing Vultron in another language → `general` + `pattern` + `domain`
+- Different domain, same Python / BT / hexagonal stack → `general` + `pattern` + `language`
+- BT / hexagonal wisdom, any language → `general` + `pattern`
+- Universal wisdom only → `general`
+
+`kind` is inheritable: required at `SpecFile` level, optional override at
+`SpecGroup` and individual spec level. Effective kind resolves as
+spec > group > file.
 
 ### ID Constraint
 

@@ -7,7 +7,7 @@ description: >-
   ActivityPub specification `handler-protocol.md` (HP-00-001, HP-00-002), `actor-knowledge-model.md`
   (AKM-01-001, AKM-01-002)
 version: 1.0.0
-kind: general
+kind: domain
 scope:
 - prototype
 - production

@@ -4,7 +4,7 @@ description: >-
   Handler use-case classes process `VultronEvent` domain objects and implement protocol business
   logic. All handlers follow a common contract defined by the `UseCase` Protocol.
 version: 1.0.0
-kind: general
+kind: domain
 scope:
 - prototype
 - production
@@ -78,6 +78,7 @@ groups:
     statement: Handlers MUST use schema validation for type-safe payload access
 - id: HP-05
   title: Error Handling
+  kind: general
   specs:
   - id: HP-05-001
     priority: MUST
@@ -87,6 +88,7 @@ groups:
     statement: Handlers MUST log expected errors without raising exceptions
 - id: HP-06
   title: Logging
+  kind: pattern
   specs:
   - id: HP-06-001
     priority: MUST
@@ -104,6 +106,7 @@ groups:
       spec_id: SL-04-001
 - id: HP-07
   title: Idempotency
+  kind: general
   specs:
   - id: HP-07-001
     priority: SHOULD
@@ -113,6 +116,7 @@ groups:
       spec_id: ID-04-001
 - id: HP-08
   title: Execution Timeout
+  kind: pattern
   specs:
   - id: HP-07-002
     priority: MUST
@@ -127,6 +131,7 @@ groups:
     - production
 - id: HP-09
   title: Data Model Persistence
+  kind: language
   specs:
   - id: HP-08-001
     priority: MUST

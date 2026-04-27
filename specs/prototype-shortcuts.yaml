@@ -5,7 +5,7 @@ description: >-
   development while preserving traceability of production requirements. during the prototype
   stage.
 version: 1.0.0
-kind: general
+kind: implementation
 scope:
 - prototype
 - production

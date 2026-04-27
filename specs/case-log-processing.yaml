@@ -8,7 +8,7 @@ description: >-
   handling for malformed or unrouteable traffic that cannot be attached to a report or case
   remains out of scope here.
 version: 1.0.0
-kind: general
+kind: domain
 scope:
 - prototype
 - production

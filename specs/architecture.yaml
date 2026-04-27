@@ -9,7 +9,7 @@ description: >-
   inventory and remediation history), `docs/adr/0009-hexagonal-architecture.md` (decision
   rationale)
 version: 1.0.0
-kind: general
+kind: pattern
 scope:
 - prototype
 - production
@@ -39,6 +39,7 @@ groups:
       future wire format substitution
 - id: ARCH-02
   title: SemanticIntent Enum
+  kind: domain
   specs:
   - id: ARCH-02-001
     priority: MUST
@@ -47,6 +48,7 @@ groups:
       not in the wire layer
 - id: ARCH-03
   title: Semantic Extractor
+  kind: domain
   specs:
   - id: ARCH-03-001
     priority: MUST
@@ -67,6 +69,7 @@ groups:
       touching domain code
 - id: ARCH-05
   title: Connector Plugins
+  kind: language
   specs:
   - id: ARCH-05-001
     priority: MUST_NOT
@@ -105,6 +108,7 @@ groups:
       duplication
 - id: ARCH-12
   title: Wire-Domain Translation Boundary
+  kind: implementation
   specs:
   - id: ARCH-12-001
     priority: MUST

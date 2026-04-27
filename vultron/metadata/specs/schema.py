@@ -50,10 +50,41 @@ class RelationType(StrEnum):
 
 
 class SpecKind(StrEnum):
-    """Whether a spec is implementation-agnostic or language/framework-specific
-    (SR-02-005)."""
+    """Portability tier for a spec requirement (SR-02-005).
+
+    The five tiers form a portability hierarchy.  Use them to filter which
+    specs apply to your project:
+
+    - ``general``        — Universal: any project, any language.
+                           Examples: idempotency, linter discipline, CI
+                           security.
+    - ``pattern``        — Architectural / framework approach: language-agnostic
+                           and not CVD-specific.
+                           Examples: hexagonal architecture, BT composability,
+                           event-driven dispatch, structured logging format.
+    - ``domain``         — Vultron / CVD protocol: language-agnostic.
+                           Examples: embargo lifecycle, case management, AS2
+                           semantics, MPCVD state machines.
+    - ``language``       — Python ecosystem: any Python project.
+                           Examples: pydantic conventions, py_trees API, pytest,
+                           FastAPI patterns.
+    - ``implementation`` — This specific codebase.
+                           Examples: file paths under ``vultron/``, class names
+                           in ``vultron/core/``, notes frontmatter schema.
+
+    Portability use cases
+    ~~~~~~~~~~~~~~~~~~~~~
+    - Implementing Vultron in Python          → all five tiers
+    - Implementing Vultron in another language → general + pattern + domain
+    - Different domain, Python/BT/hex stack   → general + pattern + language
+    - BT / hexagonal wisdom, any language      → general + pattern
+    - Universal wisdom only                    → general
+    """
 
     GENERAL = "general"
+    PATTERN = "pattern"
+    DOMAIN = "domain"
+    LANGUAGE = "language"
     IMPLEMENTATION = "implementation"
 
 

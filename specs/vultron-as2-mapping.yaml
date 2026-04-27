@@ -20,7 +20,7 @@ description: >-
   domain types are prefixed implicitly by the Vultron namespace (e.g., `VulnerabilityReport`,
   `VulnerabilityCase`, `CaseParticipant`, `CaseStatus`, `ParticipantStatus`)
 version: 1.0.0
-kind: general
+kind: domain
 scope:
 - prototype
 - production

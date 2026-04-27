@@ -5,13 +5,14 @@ description: >-
   negotiation. **Consolidates**: `inbox-endpoint.md` (IE-03, IE-07), `message-validation.md`
   (MV-06, MV-07), `error-handling.md` (EH-06), `agentic-readiness.md` (AR-03-002)
 version: 1.0.0
-kind: general
+kind: pattern
 scope:
 - prototype
 - production
 groups:
 - id: HTTP-01
   title: Content-Type Validation
+  kind: domain
   specs:
   - id: HTTP-01-001
     priority: MUST
@@ -103,6 +104,7 @@ groups:
     - production
 - id: HTTP-08
   title: FastAPI Response Serialization
+  kind: language
   specs:
   - id: HTTP-08-001
     priority: MUST

@@ -5,7 +5,7 @@ description: >-
   use-case class. The dispatcher may execute use cases synchronously (DirectActivityDispatcher)
   or asynchronously (queue-based).
 version: 1.0.0
-kind: general
+kind: domain
 scope:
 - prototype
 - production
@@ -28,6 +28,7 @@ groups:
       semantics-to-use-case mapping
 - id: DR-02
   title: Handler Lookup
+  kind: implementation
   specs:
   - id: DR-02-001
     priority: MUST
@@ -43,6 +44,7 @@ groups:
       spec_id: SE-05-002
 - id: DR-03
   title: Direct Dispatch Implementation
+  kind: implementation
   specs:
   - id: DR-03-001
     priority: MUST

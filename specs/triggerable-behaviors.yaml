@@ -10,13 +10,14 @@ description: >-
   `case-management.md` (CM-01), `handler-protocol.md` (HP-00-001), `outbox.md` (OX-02-001),
   `agentic-readiness.md` (AR-04, AR-08), `configuration.md` (CFG-04)
 version: 1.0.0
-kind: general
+kind: domain
 scope:
 - prototype
 - production
 groups:
 - id: TRIG-01
   title: Endpoint Format
+  kind: language
   specs:
   - id: TRIG-01-001
     priority: MUST
@@ -108,6 +109,7 @@ groups:
       in a later phase:
 - id: TRIG-08
   title: Request Body
+  kind: language
   specs:
   - id: TRIG-03-001
     priority: MUST
@@ -138,6 +140,7 @@ groups:
       spec_id: CS-08-001
 - id: TRIG-09
   title: Response Body
+  kind: language
   specs:
   - id: TRIG-04-001
     priority: SHOULD

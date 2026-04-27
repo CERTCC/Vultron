@@ -5,7 +5,7 @@ description: >-
   test mirroring, and documentation of the trigger → received → sync information flow pattern.
   `specs/handler-protocol.md`
 version: 1.0.0
-kind: general
+kind: implementation
 scope:
 - prototype
 - production

@@ -5,7 +5,7 @@ description: >-
   These requirements operationalize the fractal composability pattern described in `notes/bt-reusability.md`.
   *when-to-use BTs* and *execution model* requirements live in `specs/behavior-tree-integration.md`.
 version: 1.0.0
-kind: general
+kind: pattern
 scope:
 - prototype
 - production
@@ -80,6 +80,7 @@ groups:
       sites.
 - id: BTND-03
   title: Blackboard Interface Contracts
+  kind: language
   specs:
   - id: BTND-03-001
     priority: MUST
@@ -107,6 +108,7 @@ groups:
       the expected type and the node that produces the value for each READ key.
 - id: BTND-04
   title: Module Ownership
+  kind: implementation
   specs:
   - id: BTND-04-001
     priority: MUST_NOT
@@ -129,6 +131,7 @@ groups:
       BT nodes.
 - id: BTND-05
   title: Actor Configuration for Participant Nodes
+  kind: domain
   specs:
   - id: BTND-05-001
     priority: MUST
@@ -163,6 +166,7 @@ groups:
       actual generality.
 - id: BTND-06
   title: Idiomatic BT Construction Patterns
+  kind: language
   specs:
   - id: BTND-06-001
     priority: SHOULD

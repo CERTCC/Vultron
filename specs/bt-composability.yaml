@@ -10,13 +10,14 @@ description: >-
   BTND-01 through BTND-05 — node parameterization, composability, module ownership - `notes/bt-composability.md`
   — implementation guidance, examples, and the fractal pattern in depth
 version: 1.0.0
-kind: general
+kind: pattern
 scope:
 - prototype
 - production
 groups:
 - id: BTC-01
   title: Simulator Reference Workflow
+  kind: domain
   specs:
   - id: BTC-01-001
     priority: MUST
@@ -78,6 +79,7 @@ groups:
       spec_id: BTC-02-002
 - id: BTC-03
   title: BT Idioms Over Procedural Code
+  kind: language
   specs:
   - id: BTC-03-001
     priority: MUST

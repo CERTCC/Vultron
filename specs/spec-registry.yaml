@@ -6,7 +6,7 @@ description: >-
   context-generation tooling. module. Migration from `.md` to `.yaml` is a one-time lossless
   conversion.
 version: 1.0.0
-kind: general
+kind: implementation
 scope:
 - prototype
 - production
@@ -95,7 +95,9 @@ groups:
       `conflicts`, `refines`, `derives_from`, `verifies`, `part_of`, `constrains`.
   - id: SR-02-005
     priority: MUST
-    statement: '`SpecKind` MUST include: `general`, `implementation`.'
+    statement: >-
+      `SpecKind` MUST include all five portability tiers: `general`, `pattern`,
+      `domain`, `language`, `implementation`.
   - id: SR-02-006
     priority: MUST
     statement: '`Scope` MUST include: `prototype`, `production`.'

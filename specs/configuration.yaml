@@ -7,7 +7,7 @@ description: >-
   variable override support. `SeedConfig` demo/seed config. Demo scenario actor URLs (finder,
   vendor, etc.) are out of scope for `AppConfig`.
 version: 1.0.0
-kind: general
+kind: implementation
 scope:
 - prototype
 - production
@@ -49,6 +49,7 @@ groups:
       note: core and neutral modules have no adapter-layer imports
 - id: CFG-02
   title: Config File Format and Loading
+  kind: pattern
   specs:
   - id: CFG-02-001
     priority: MUST
@@ -138,6 +139,7 @@ groups:
       in `SeedConfig`.
 - id: CFG-05
   title: SeedConfig Alignment
+  kind: language
   specs:
   - id: CFG-05-001
     priority: SHOULD
@@ -156,6 +158,7 @@ groups:
       `VULTRON_ACTOR_TYPE`, `VULTRON_ACTOR_ID`, `VULTRON_SEED_CONFIG`).
 - id: CFG-06
   title: Testing
+  kind: language
   specs:
   - id: CFG-06-001
     priority: MUST
@@ -183,6 +186,7 @@ groups:
       no env vars set).
 - id: CFG-07
   title: Actor Configuration
+  kind: domain
   specs:
   - id: CFG-07-001
     priority: MUST

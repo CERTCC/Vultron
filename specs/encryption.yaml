@@ -6,7 +6,7 @@ description: >-
   between actors. implemented in the prototype. `case-management.md`, `inbox-endpoint.md`,
   `semantic-extraction.md`
 version: 1.0.0
-kind: general
+kind: domain
 scope:
 - prototype
 - production

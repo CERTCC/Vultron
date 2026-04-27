@@ -5,7 +5,7 @@ description: >-
   activity type and object type patterns. This semantic type determines which handler function
   processes the activity.
 version: 1.0.0
-kind: general
+kind: domain
 scope:
 - prototype
 - production

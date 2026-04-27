@@ -7,7 +7,7 @@ description: >-
   "Prior Art and References (Embargo Policy)") `agentic-readiness.md`, `duration.md` (duration
   string format)
 version: 1.0.0
-kind: general
+kind: domain
 scope:
 - prototype
 - production

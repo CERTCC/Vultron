@@ -5,7 +5,7 @@ description: >-
   It receives ActivityStreams activities via HTTP POST, validates them, and queues them for
   asynchronous processing.
 version: 1.0.0
-kind: general
+kind: domain
 scope:
 - prototype
 - production
@@ -67,6 +67,7 @@ groups:
     statement: The endpoint MUST NOT block on handler execution
 - id: IE-06
   title: Asynchronous Processing
+  kind: language
   specs:
   - id: IE-06-001
     priority: MUST

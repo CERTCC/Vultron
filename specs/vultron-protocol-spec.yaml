@@ -12,7 +12,7 @@ description: >-
   `docs/topics/process_models/model_interactions/rm_em_cs.md`, `docs/topics/process_models/cs/transitions.md`,
   `docs/reference/ssvc_crosswalk.md`, `docs/howto/general_implementation.md`, `docs/howto/em_icalendar.md`
 version: 1.0.0
-kind: general
+kind: domain
 scope:
 - prototype
 - production

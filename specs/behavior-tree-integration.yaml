@@ -10,7 +10,7 @@ description: >-
   logic. Complex workflows (report validation, case creation, embargo management) SHOULD use
   BTs for clarity and maintainability.
 version: 1.0.0
-kind: general
+kind: pattern
 scope:
 - prototype
 - production
@@ -32,6 +32,7 @@ groups:
     statement: BTs MUST be single-shot executions within handler context
 - id: BT-02
   title: BT Library
+  kind: language
   specs:
   - id: BT-02-001
     priority: MUST
@@ -43,6 +44,7 @@ groups:
     statement: Simulation code in `vultron/bt/` MUST remain unchanged
 - id: BT-03
   title: State Management
+  kind: domain
   specs:
   - id: BT-03-001
     priority: MUST
@@ -73,6 +75,7 @@ groups:
     statement: BT execution errors MUST propagate to handler error handling
 - id: BT-05
   title: BT Bridge Layer
+  kind: language
   specs:
   - id: BT-05-001
     priority: SHOULD
@@ -88,6 +91,7 @@ groups:
     statement: Bridge SHOULD execute tree and return execution result
 - id: BT-06
   title: Workflow-Specific Trees
+  kind: domain
   specs:
   - id: BT-06-001
     priority: MUST
@@ -126,6 +130,7 @@ groups:
       code outside the BT.
 - id: BT-07
   title: DataLayer Integration
+  kind: domain
   specs:
   - id: BT-07-001
     priority: MUST
@@ -155,6 +160,7 @@ groups:
     statement: CLI SHOULD log BT execution visualization
 - id: BT-09
   title: Actor Isolation
+  kind: domain
   specs:
   - id: BT-09-001
     priority: MUST
@@ -167,6 +173,7 @@ groups:
     statement: Actor interaction MUST occur only via protocol messages
 - id: BT-10
   title: CaseActor Management
+  kind: domain
   specs:
   - id: BT-10-001
     priority: MUST
@@ -197,6 +204,7 @@ groups:
       spec_id: CM-11-001
 - id: BT-12
   title: VFD/PXA State Machine Usage
+  kind: domain
   specs:
   - id: BT-12-001
     priority: MUST
@@ -211,6 +219,7 @@ groups:
       and the implementation.
 - id: BT-11
   title: Concurrency
+  kind: domain
   specs:
   - id: BT-11-001
     priority: MUST

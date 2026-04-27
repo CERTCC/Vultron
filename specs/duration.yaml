@@ -6,7 +6,7 @@ description: >-
   records, embargo initialization at case creation). `specs/code-style.md` CS-13-005 (datetime
   wire format)
 version: 1.0.0
-kind: general
+kind: domain
 scope:
 - prototype
 - production

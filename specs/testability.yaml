@@ -12,6 +12,7 @@ scope:
 groups:
 - id: TB-01
   title: Testing Framework
+  kind: language
   specs:
   - id: TB-01-001
     priority: MUST
@@ -30,6 +31,7 @@ groups:
     statement: Critical paths MUST achieve 100% line coverage
 - id: TB-03
   title: Integration Test Coverage
+  kind: domain
   specs:
   - id: TB-03-001
     priority: MUST
@@ -143,6 +145,7 @@ groups:
     statement: Tests MUST be refactored along with production code
 - id: TB-10
   title: Architecture Boundary Tests
+  kind: pattern
   specs:
   - id: TB-10-001
     priority: SHOULD

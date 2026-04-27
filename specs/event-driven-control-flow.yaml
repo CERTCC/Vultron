@@ -8,7 +8,7 @@ description: >-
   (conceptual actor model and design rationale), `notes/protocol-event-cascades.md` (concrete
   cascade gap inventory)
 version: 1.0.0
-kind: general
+kind: pattern
 scope:
 - prototype
 - production
@@ -64,6 +64,7 @@ groups:
       NOT deliver activities directly to peer actors.
 - id: EDF-03
   title: Cascade Implementation
+  kind: domain
   specs:
   - id: EDF-03-001
     priority: MUST
@@ -120,6 +121,7 @@ groups:
       should be automatic.
 - id: EDF-05
   title: Demo Constraints
+  kind: implementation
   specs:
   - id: EDF-05-001
     priority: MUST

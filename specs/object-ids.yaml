@@ -6,7 +6,7 @@ description: >-
   records. Should Be URL-Like, Not Bare UUIDs"), `plan/IMPLEMENTATION_PLAN.md` (TECHDEBT-3)
   `behavior-tree-integration.md`
 version: 1.0.0
-kind: general
+kind: domain
 scope:
 - prototype
 - production
@@ -68,6 +68,7 @@ groups:
       lookup keys
 - id: OID-03
   title: Blackboard Key Handling
+  kind: language
   specs:
   - id: OID-03-001
     priority: MUST_NOT
@@ -79,6 +80,7 @@ groups:
       spec_id: BT-03-003
 - id: OID-04
   title: ADR Requirement
+  kind: implementation
   specs:
   - id: OID-04-001
     priority: MUST

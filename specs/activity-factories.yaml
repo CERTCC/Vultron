@@ -7,7 +7,7 @@ description: >-
   the wire vocabulary layer. `vocabulary-model.md` VM-01 through VM-05 (vocabulary registration),
   `code-style.md` CS-05-001 (layer separation), `error-handling.md`
 version: 1.0.0
-kind: general
+kind: domain
 scope:
 - prototype
 - production
