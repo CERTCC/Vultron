@@ -1,3 +1,11 @@
+---
+title: "Implementation Standards for Technical Documentation: The Diátaxis Framework"
+status: active
+description: >
+  Implementation standards for Vultron technical documentation using the
+  Diátaxis framework.
+---
+
 # Implementation Standards for Technical Documentation: The Diátaxis Framework
 
 ## 1. Executive philosophy — Documentation as a function of user need

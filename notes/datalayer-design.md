@@ -1,3 +1,18 @@
+---
+title: DataLayer Design Notes
+status: active
+description: >
+  Design guidance for the DataLayer port and its adapters; auto-rehydration
+  contract, storage record evaluation.
+related_specs:
+  - specs/datalayer.md
+related_notes:
+  - notes/domain-model-separation.md
+relevant_packages:
+  - vultron/adapters/driven
+  - vultron/core/ports
+---
+
 # DataLayer Design Notes
 
 Design guidance for the `DataLayer` port and its adapters. Covers the

@@ -1,3 +1,11 @@
+---
+title: Encryption implementation notes
+status: draft
+description: >
+  Exploratory notes on encryption options for Vultron using ActivityPub
+  public-key infrastructure.
+---
+
 # Encryption implementation notes
 
 ## Overview

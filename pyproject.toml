@@ -57,6 +57,7 @@ dependencies = [
     "transitions>=0.9.3",
     "sqlmodel>=0.0.38",
     "pyyaml>=6.0",
+    "python-frontmatter>=1.1.0",
 ]
 dynamic = ["version",]
 

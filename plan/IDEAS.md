@@ -26,24 +26,3 @@ reasoning about requirements would be useful to have as well.
 
 Requirements checks could be made into pre-commit hooks and part of the
 pytest suite so we get errors when structure is invalid.
-
-## IDEA-26042403 Add YAML frontmatter to notes/*.md files
-
-Similar to IDEA-26042402, we should add YAML frontmatter to the `notes/*.md`
-files to capture file-level metadata such as related spec files, related
-notes files, relevant packages, etc. We could also note things like whether
-a note is a long-term design idea that will be persistent or a short-term
-implementation note that is ephemeral until the tasks that need it are
-completed, etc. This will improve our ability to harvest obsoleted notes
-into the archive and keep context relevant for active development. We will
-need to consider maintenance of the frontmatter and ensure it gets updated
-whenever the files are modified, so it may require changes to some
-documentation related specs, skills, AGENTS.md, and prompts to ensure that
-the frontmatter is maintained consistently with changes to the notes files.
-
-As with specs, yaml frontmatter means we can make a pydantic based loader
-that can validate them and make the frontmatter testable as well as build a
-graph of the notes and their relationships to each other and to specs. This
-could be part of the same tool that loads the specs, so that we have a way
-to easily dump "all the notes and specs relevant to topic X" for an agent to
-use when reasoning about a topic or task.

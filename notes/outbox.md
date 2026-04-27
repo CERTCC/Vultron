@@ -1,3 +1,14 @@
+---
+title: Outbox Notes
+status: active
+description: Implementation guidance for outbox addressing requirements.
+related_specs:
+  - specs/outbox.md
+relevant_packages:
+  - fastapi
+  - vultron/adapters/driving/fastapi
+---
+
 # Outbox Notes
 
 Implementation guidance for outbox addressing requirements.

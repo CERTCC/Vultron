@@ -1,3 +1,23 @@
+---
+title: Behavior Tree Reusability and Composability Patterns
+status: active
+description: >
+  Design patterns for composable, reusable BT nodes and subtrees; vocabulary
+  for reusability and concrete anti-patterns.
+related_specs:
+  - specs/behavior-tree-integration.md
+  - specs/behavior-tree-node-design.md
+  - specs/bt-composability.md
+related_notes:
+  - notes/bt-composability.md
+  - notes/bt-integration.md
+  - notes/use-case-behavior-trees.md
+relevant_packages:
+  - py_trees
+  - vultron/bt
+  - vultron/core/behaviors
+---
+
 # Behavior Tree Reusability and Composability Patterns
 
 ## Overview

@@ -1,3 +1,13 @@
+---
+title: "Plan Organization: Topic-Based Sections with Decoupled Priorities"
+status: active
+description: >
+  Topic-based plan organization with decoupled priorities;
+  IMPLEMENTATION_PLAN.md vs PRIORITIES.md separation rationale.
+related_specs:
+  - specs/project-documentation.md
+---
+
 # Plan Organization: Topic-Based Sections with Decoupled Priorities
 
 ## Overview

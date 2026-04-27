@@ -1,3 +1,21 @@
+---
+title: Protocol Event Cascades
+status: active
+description: >
+  Event-driven causal model for protocol cascades; primary events, their
+  automated downstream consequences, and gap inventory.
+related_specs:
+  - specs/behavior-tree-integration.md
+  - specs/case-management.md
+  - specs/triggerable-behaviors.md
+related_notes:
+  - notes/activitystreams-semantics.md
+  - notes/bt-integration.md
+relevant_packages:
+  - vultron/core/use_cases
+  - vultron/core/behaviors
+---
+
 # Protocol Event Cascades
 
 ## Overview

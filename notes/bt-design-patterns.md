@@ -1,3 +1,22 @@
+---
+title: Behavior Tree Design Patterns
+status: active
+description: >
+  Idiomatic BT construction patterns from Colledanchise & Ögren; applies to
+  simulation and prototype BT implementations.
+related_specs:
+  - specs/behavior-tree-integration.md
+  - specs/behavior-tree-node-design.md
+related_notes:
+  - notes/bt-composability.md
+  - notes/bt-integration.md
+  - notes/bt-reusability.md
+relevant_packages:
+  - py_trees
+  - vultron/bt
+  - vultron/core/behaviors
+---
+
 # Behavior Tree Design Patterns
 
 ## Overview

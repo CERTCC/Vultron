@@ -1,3 +1,19 @@
+---
+title: "Vultron BT Fuzzer Nodes: External Dependency Touchpoints"
+status: active
+description: >
+  Catalog of all fuzzer (stub) BT nodes in the Vultron simulation; external
+  dependency touchpoints for prototype implementation.
+related_specs:
+  - specs/behavior-tree-integration.md
+related_notes:
+  - notes/bt-integration.md
+relevant_packages:
+  - vultron/bt/report_management
+  - vultron/bt/embargo_management
+  - vultron/bt/messaging
+---
+
 # Vultron BT Fuzzer Nodes: External Dependency Touchpoints
 
 ## Background and Purpose

@@ -1,3 +1,13 @@
+---
+title: Append-Only History File Handling
+status: active
+description: >
+  Implementation guidance for agents writing to plan/*HISTORY.md append-only
+  files; canonical append procedure and prohibited patterns.
+related_specs:
+  - specs/project-documentation.md
+---
+
 # Append-Only History File Handling
 
 Implementation guidance for agents writing to `plan/*HISTORY.md` files.

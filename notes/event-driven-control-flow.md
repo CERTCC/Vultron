@@ -1,3 +1,20 @@
+---
+title: Event-Driven Control Flow Design Notes
+status: active
+description: >
+  Conceptual model for event-driven control flow in Vultron; actor reaction
+  patterns and design rationale.
+related_specs:
+  - specs/event-driven-control-flow.md
+related_notes:
+  - notes/bt-integration.md
+  - notes/bt-reusability.md
+  - notes/protocol-event-cascades.md
+relevant_packages:
+  - vultron/bt
+  - vultron/core
+---
+
 # Event-Driven Control Flow Design Notes
 
 ## Overview

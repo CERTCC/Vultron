@@ -1,3 +1,13 @@
+---
+title: User Story Traceability Matrix
+status: active
+description: >
+  Traceability matrix mapping user stories from docs/topics/user_stories/ to
+  formal requirements in specs/.
+relevant_packages:
+  - transitions
+---
+
 # User Story Traceability Matrix
 
 This document maps user stories from `docs/topics/user_stories/` to formal
