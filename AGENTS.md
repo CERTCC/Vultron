@@ -1448,6 +1448,84 @@ in a Protocol or driving/driven adapter interface, treat it as a code smell
 indicating the abstraction boundary hasn't been properly defined. Define
 explicit domain types for data crossing layer boundaries.
 
+### Activity `name` Field Must Not Use `repr()` or `str()`
+
+**Symptom**: Outbound activities have `name` fields containing Python repr
+output (e.g., `VulnerabilityCase(id_='...')`), which is meaningless to
+recipients.
+
+**Cause**: A BT node constructed the `name` field using `repr(object_)` or
+`str(object_)` rather than semantic content.
+
+**Fix**: Always derive `name` from the object's own attributes:
+
+```python
+# Correct
+activity_name = object_.name or object_.id_
+
+# Wrong
+activity_name = repr(object_)  # Never
+activity_name = str(object_)   # Never
+```
+
+See `notes/activitystreams-semantics.md` "Activity `name` Field" for details.
+
+### Actor IDs Must Always Be Full URIs
+
+**Symptom**: Routing failures, duplicate actors in the DataLayer, or trust
+boundary checks failing because the same actor appears under both a short
+UUID and a full URI.
+
+**Cause**: Actor ID was assigned as a bare UUID (`generate_new_id()` default)
+at creation time or in seeding code, rather than normalized to a full URI
+(e.g., `https://example.org/actors/alice`).
+
+**Fix**: Normalize actor IDs to full URIs at the point of first establishment
+(actor creation, seed load, session context). No downstream function should
+ever receive a short UUID as an actor ID. Audit `vultron/demo/`,
+`vultron/adapters/`, and `vultron/core/` seeding code for bare-UUID assignments.
+
+See `notes/codebase-structure.md` "Actor ID Normalization" for details.
+
+### BT Failure Reason: Use `get_failure_reason()`, Not Generic Error Logs
+
+**Symptom**: BT failure log messages say "BT failed" with no indication of
+which node failed or why, making demo and test failures hard to diagnose.
+
+**Cause**: The BT failure handler logs the root node's name without extracting
+the `feedback_message` from the failing leaf node.
+
+**Fix**: Use `get_failure_reason(tree)` from `vultron/core/behaviors/bridge.py`:
+
+```python
+if bt.root.status == Status.FAILURE:
+    reason = get_failure_reason(bt)
+    logger.error("BT failed: %s (reason: %s)", bt.root.name, reason)
+```
+
+See `notes/bt-integration.md` "BT Failure Reason Propagation" for the
+implementation.
+
+### Dead-Letter vs. No-Pattern: Two Distinct UNKNOWN Failure Modes
+
+**Symptom**: Activities with unresolvable `object_` URIs raise
+`VultronApiHandlerMissingSemanticError` instead of being silently
+dead-lettered.
+
+**Cause**: `find_matching_semantics()` returns `UNKNOWN` for both
+"no matching pattern" and "unresolvable `object_`". The dispatcher treats
+all UNKNOWN as missing-handler errors.
+
+**Fix**: Distinguish the two failure modes at dispatch time:
+
+| Mode | Cause | Action |
+|---|---|---|
+| No matching pattern | No `ActivityPattern` for `(type, object_type)` | Raise `VultronApiHandlerMissingSemanticError` |
+| Unresolvable object | `object_` still bare string after rehydration | Log WARNING, store dead-letter record, return silently |
+
+See `notes/activitystreams-semantics.md` "Dead-Letter Handling" for the
+record schema and `specs/semantic-extraction.yaml` VAM-01-009.
+
 ---
 
 ## Parallelism and Single-Agent Testing

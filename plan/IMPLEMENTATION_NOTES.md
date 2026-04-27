@@ -37,14 +37,14 @@ architecture: adapters translate between domain and wire formats).
 
 #### DR-02 — Activity `name` construction (BT node responsibility)
 
-**Decision**: The `name` field of outbound activities is semantic content
+~~**Decision**: The `name` field of outbound activities is semantic content
 (human-readable label), not a wire-format concern. BT nodes that set `name`
 when constructing activities MUST use `object_.name or object_.id_` — never
 `repr(object_)` or `str(object_)`. The outbound adapter does not sanitize
-semantic content.
-
-**Files to audit**: any BT node in `vultron/core/behaviors/` that constructs
-`Add`, `Invite`, or `Accept` activities with a computed `name` string.
+semantic content.~~
+~~**Files to audit**: any BT node in `vultron/core/behaviors/` that constructs
+`Add`, `Invite`, or `Accept` activities with a computed `name` string.~~
+→ captured in `notes/activitystreams-semantics.md`; pitfall in `AGENTS.md`
 
 #### DR-03 — Semantic extraction: bare-string object_ guard
 
@@ -153,13 +153,13 @@ case.notes`, not `dl.read(note_id) is not None`.
 
 #### DR-09 — Actor ID normalization
 
-**Decision**: Actor IDs MUST be full URIs everywhere in the system. Normalize
+~~**Decision**: Actor IDs MUST be full URIs everywhere in the system. Normalize
 to full URI at the point the actor ID is first established (actor creation,
 seed load, session context). No function downstream of that point should ever
-receive or handle a short UUID.
-
-**Audit**: Search for short-UUID actor ID assignment in
-`vultron/demo/`, `vultron/adapters/`, and `vultron/core/` seeding code.
+receive or handle a short UUID.~~
+~~**Audit**: Search for short-UUID actor ID assignment in
+`vultron/demo/`, `vultron/adapters/`, and `vultron/core/` seeding code.~~
+→ captured in `notes/codebase-structure.md`; pitfall in `AGENTS.md`
 
 #### DR-10 — Stub objects for selective disclosure
 
@@ -195,37 +195,40 @@ this exception explicitly.
 
 #### DR-11 — PersistCase: upsert semantics
 
-**Decision**: `PersistCase` BT node calls `dl.save()` with upsert / idempotent
+~~**Decision**: `PersistCase` BT node calls `dl.save()` with upsert / idempotent
 semantics. Duplicate-key conditions MUST be silently handled. No WARNING log
-for a pre-existing case with the same `id_`.
+for a pre-existing case with the same `id_`.~~
+→ tracked as `plan/IMPLEMENTATION_PLAN.md` TASK-CCDRIFT CCDRIFT.2
 
 #### DR-12 — BT failure reason propagation
 
-**Decision**: Add `get_failure_reason(tree) -> str` utility in
+~~**Decision**: Add `get_failure_reason(tree) -> str` utility in
 `vultron/core/behaviors/bridge.py`. Implementation: walk the behaviour tree
 depth-first; return the first node with `status == Status.FAILURE` and its
 `feedback_message`. If no node has a feedback message, return the failing
-node's class name.
-
-Apply to all BT-failure log messages (e.g., `EngageCaseBT`,
-`ValidateReportBT`, etc.).
+node's class name.~~
+~~Apply to all BT-failure log messages (e.g., `EngageCaseBT`,
+`ValidateReportBT`, etc.).~~
+→ captured in `notes/bt-integration.md`; pitfall in `AGENTS.md`
 
 #### DR-13 — SubmitReportReceivedUseCase: remove vendor/target assumptions
 
-**Decision**: Remove the `vendor_actor_id` / `Offer.target` lookup from
+~~**Decision**: Remove the `vendor_actor_id` / `Offer.target` lookup from
 `SubmitReportReceivedUseCase`. The "vendor" label is a demo convenience; at the
 protocol level all actors are generic. `Offer.target` has no defined semantic
-meaning for `Offer(Report)` — it is misuse of the AS2 `target` field.
+meaning for `Offer(Report)` — it is misuse of the AS2 `target` field.~~
 
-**Correct `to`/`cc` semantics**:
+~~**Correct `to`/`cc` semantics**:~~
 
-- Receiving actor in `Offer.to` → create a case (primary recipient).
-- Receiving actor in `Offer.cc` → informational; log DEBUG; do NOT create a
-  case.
-- Receiving actor not in `to` or `cc` → log WARNING (why did this arrive?).
+~~- Receiving actor in `Offer.to` → create a case (primary recipient).~~
+~~- Receiving actor in `Offer.cc` → informational; log DEBUG; do NOT create a
+  case.~~
+~~- Receiving actor not in `to` or `cc` → log WARNING (why did this arrive?).~~
 
-**Add to `specs/handler-protocol.yaml`**: document the `to`-only case-creation
-rule as a formal requirement.
+~~**Add to `specs/handler-protocol.yaml`**: document the `to`-only case-creation
+rule as a formal requirement.~~
+→ `cc` guard tracked as TASK-CCDRIFT CCDRIFT.1; pitfall in `AGENTS.md`
+(notes/activitystreams-semantics.md)
 
 ---
 
@@ -475,18 +478,18 @@ means, which we're deferring.
 
 #### DR-14 — Dead-Letter Handling for Unresolvable object_ (New)
 
-When `find_matching_semantics()` returns UNKNOWN because `object_` is a bare
+~~When `find_matching_semantics()` returns UNKNOWN because `object_` is a bare
 string URI after rehydration (VAM-01-009), this is NOT the same as UNKNOWN due
-to no registered pattern. The two cases require different handling:
+to no registered pattern. The two cases require different handling:~~
 
-- **UNKNOWN_NO_PATTERN** (no matching `ActivityPattern`): raise
-  `VultronApiHandlerMissingSemanticError` as currently
-- **UNKNOWN_UNRESOLVABLE_OBJECT** (`object_` still bare string after rehydration):
-  log WARNING, store dead-letter record, return silently
+~~- **UNKNOWN_NO_PATTERN** (no matching `ActivityPattern`): raise
+  `VultronApiHandlerMissingSemanticError` as currently~~
+~~- **UNKNOWN_UNRESOLVABLE_OBJECT** (`object_` still bare string after rehydration):
+  log WARNING, store dead-letter record, return silently~~
 
-Dead-letter record schema:
+~~Dead-letter record schema:~~
 
-```json
+~~```json
 {
   "activity_id": "urn:uuid:...",
   "activity_json": {},
@@ -494,10 +497,13 @@ Dead-letter record schema:
   "actor_id": "https://...",
   "received_at": "2026-..."
 }
-```
 
-For future synchronous paths: return HTTP 422 Unprocessable Content with the
-unresolvable URI in the error body.
+```~~
+
+~~For future synchronous paths: return HTTP 422 Unprocessable Content with the
+unresolvable URI in the error body.~~
+→ captured in `notes/activitystreams-semantics.md`; tracked as
+TASK-SEDRIFT SEDRIFT.3; pitfall in `AGENTS.md`
 
 ---
 

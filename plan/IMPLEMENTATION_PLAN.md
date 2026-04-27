@@ -283,6 +283,132 @@ SR.1–SR.6 complete (see `plan/IMPLEMENTATION_HISTORY.md`).
 
 ---
 
+## TASK-SPECMD — Convert Non-YAML Spec Files to YAML + Enforce Format
+
+**Source**: `specs/datalayer.md` and `specs/meta-specifications.md` contain
+real requirements in old Markdown format. All spec content MUST be in YAML
+per the spec-registry pattern.
+
+### SPECMD.1 — Convert `specs/datalayer.md` to `specs/datalayer.yaml`
+
+**Acceptance criteria:**
+
+- `specs/datalayer.yaml` exists with all DL-01-* requirements from
+  `specs/datalayer.md` in the standard YAML schema
+- `specs/datalayer.md` is deleted
+- `uv run spec-dump` includes the new DL-* requirements
+- `notes/datalayer-design.md` cross-references updated if needed
+
+- [ ] SPECMD.1: Convert `specs/datalayer.md` → `specs/datalayer.yaml`
+
+### SPECMD.2 — Convert `specs/meta-specifications.md` to `specs/meta-specifications.yaml`
+
+**Acceptance criteria:**
+
+- `specs/meta-specifications.yaml` exists with atomic, testable requirements
+  extracted from the style guide (e.g., "spec files MUST use RFC 2119
+  keywords", "each requirement MUST have a unique ID")
+- `specs/meta-specifications.md` is deleted
+- `uv run spec-dump` includes the new meta-spec requirements
+
+- [ ] SPECMD.2: Convert `specs/meta-specifications.md` →
+  `specs/meta-specifications.yaml`
+
+### SPECMD.3 — Add test enforcing only `README.md` is `.md` in `specs/`
+
+**Acceptance criteria:**
+
+- `test/metadata/test_specs_format.py` (or equivalent) fails if any `.md`
+  file other than `specs/README.md` exists in `specs/`
+- Test passes after SPECMD.1 and SPECMD.2 are complete
+- CI enforces this going forward
+
+- [ ] SPECMD.3: Add `test/metadata/test_specs_format.py` with
+  `test_no_markdown_in_specs_except_readme`
+
+---
+
+## TASK-SEDRIFT — Fix Semantic Extraction Pattern Gaps
+
+**Source**: `plan/IMPLEMENTATION_NOTES.md` DR-03, DR-07, DR-14.
+
+These requirements derive from the 2026-04-20 architectural review:
+
+- **DR-03**: `find_matching_semantics()` MUST return `UNKNOWN` immediately
+  when `object_` is a bare string after rehydration (SE-03-003 / VAM-01-009).
+- **DR-07**: `InviteActorToCasePattern` must discriminate on object type.
+  Requires subtype-aware matching (e.g., `isinstance(field, as_Actor)`) in
+  `_match_field()` before the object-type check can be added.
+- **DR-14**: Dead-letter handling for `UNKNOWN_UNRESOLVABLE_OBJECT` vs
+  `UNKNOWN_NO_PATTERN` (see `notes/activitystreams-semantics.md`).
+
+### SEDRIFT.1 — Guard bare-string `object_` in `find_matching_semantics()`
+
+**Acceptance criteria:**
+
+- `find_matching_semantics()` returns `MessageSemantics.UNKNOWN` immediately
+  when `activity.object_` is a bare string after rehydration
+- Existing tests pass; new test covers the bare-string guard
+
+- [ ] SEDRIFT.1: Add bare-string guard to `find_matching_semantics()`
+  (SE-03-003, VAM-01-009)
+
+### SEDRIFT.2 — Subtype-aware `_match_field()` for AS2 actor types
+
+**Acceptance criteria:**
+
+- `_match_field()` supports `isinstance` checks in addition to exact
+  `type_` string equality
+- `InviteActorToCasePattern` adds `object_=AOtype.ACTOR` discriminator
+  using the new subtype-aware check
+- Existing tests pass; new test covers `Invite(VultronPerson, target=Case)`
+
+- [ ] SEDRIFT.2: Add subtype-aware matching to `_match_field()` +
+  fix `InviteActorToCasePattern` (SE-03-003)
+
+### SEDRIFT.3 — Dead-letter handling for unresolvable `object_`
+
+**Acceptance criteria:**
+
+- Dispatcher distinguishes `UNKNOWN_UNRESOLVABLE_OBJECT` from
+  `UNKNOWN_NO_PATTERN`
+- Unresolvable-object activities are dead-lettered (log WARNING, store
+  record) rather than raising `VultronApiHandlerMissingSemanticError`
+- Dead-letter record schema matches `notes/activitystreams-semantics.md`
+
+- [ ] SEDRIFT.3: Implement dead-letter handling in dispatcher (VAM-01-009)
+
+---
+
+## TASK-CCDRIFT — Fix cc Addressing Warning + PersistCase Upsert
+
+**Source**: `plan/IMPLEMENTATION_NOTES.md` DR-11, DR-13.
+
+### CCDRIFT.1 — Log WARNING for `cc` recipients in `Offer(Report)` handler
+
+**Acceptance criteria:**
+
+- When the receiving actor is in `cc` (not `to`) of `Offer(Report)`, the
+  handler logs WARNING and discards the activity without creating a case
+- Existing behavior for `to` recipients is unchanged
+- Test covers both `to` (case created) and `cc` (warning, no case) paths
+
+- [ ] CCDRIFT.1: Add `cc` guard to `SubmitReportReceivedUseCase` (HP-*)
+
+### CCDRIFT.2 — PersistCase BT node: silent upsert on duplicate
+
+**Acceptance criteria:**
+
+- `PersistCase.update()` calls `dl.save()` with idempotent upsert semantics
+- Duplicate-key conditions are silently handled; no WARNING log for a
+  pre-existing case with the same `id_`
+- Test covers the duplicate-case scenario
+
+- [ ] CCDRIFT.2: Fix `PersistCase` upsert semantics in
+  `vultron/core/behaviors/case/nodes.py`
+
+---
+
 ## Deferred (Per PRIORITIES.md)
 
 - USE-CASE-01 **`CloseCaseUseCase` wire-type construction** — Replace direct
