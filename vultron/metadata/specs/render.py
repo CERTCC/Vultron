@@ -313,5 +313,39 @@ def main() -> None:
         print(render_registry_markdown(registry))
 
 
+def main_llm_json() -> None:
+    """LLM-optimized spec dump entry point (spec-dump / spec-dump-llm-json).
+
+    Exports all specs as flat, inheritance-resolved JSON for coding agents.
+    Defaults to the ``specs/`` directory relative to the current working
+    directory.
+
+    Usage::
+
+        spec-dump
+        spec-dump specs/
+        spec-dump-llm-json
+
+    Agents should run this at the start of any implementation or design task
+    rather than reading raw YAML files directly.
+    """
+    import sys
+
+    args = sys.argv[1:]
+    spec_dir = Path(args[0]) if args else Path("specs")
+
+    if not spec_dir.is_dir():
+        print(
+            f"Error: spec directory not found: {spec_dir}",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    from vultron.metadata.specs.llm_export import to_llm_json
+
+    registry = load_registry(spec_dir)
+    print(to_llm_json(registry))
+
+
 if __name__ == "__main__":
     main()

@@ -1,4 +1,6 @@
- 1. study @specs to understand the current specifications.
+ 1. Run `uv run spec-dump` (see `.github/skills/load-specs/SKILL.md`) to load
+    all project specifications as flat JSON. Do not read raw `specs/*.yaml`
+    files directly.
  2. Study @plan/IMPLEMENTATION_PLAN.md and @plan/IMPLEMENTATION_NOTES.md to understand current progress.
  3. Study @plan/BT_INTEGRATION.md to understand the intent of the next phase of the project.
  4. Study @docs/topics/behavior_logic to understand the early design intent of the earlier

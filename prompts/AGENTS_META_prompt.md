@@ -1,4 +1,6 @@
-1. Study specs/* to learn the application specifications.
+1. Run `uv run spec-dump` (see `.github/skills/load-specs/SKILL.md`) to load
+   all project specifications as flat JSON. Do not read raw `specs/*.yaml`
+   files directly.
 2. Study plan/IMPLEMENTATION_PLAN.md to understand the current progress.
 3. Study plan/IMPLEMENTATION_NOTES.md to understand any additional insights or observations that may be helpful for implementation.
 4. Study vultron/* to understand the codebase.

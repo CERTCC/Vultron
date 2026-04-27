@@ -1,5 +1,7 @@
 1. Study plans/PRIORITIES.md to understand the current priorities for the project
-2. Study specs/* to learn the application specifications.
+2. Run `uv run spec-dump` (see `.github/skills/load-specs/SKILL.md`) to load
+   all project specifications as flat JSON. Do not read raw `specs/*.yaml`
+   files directly.
 3. Study plans/IMPLEMENTATION_PLAN.md to understand the current progress.
 4. Study notes/*.md to understand lessons learned and insights from previous
    implementation and design efforts.

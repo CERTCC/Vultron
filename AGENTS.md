@@ -21,8 +21,11 @@ Agents MUST follow these rules when generating, modifying, or reviewing code.
 A short, actionable checklist for AI coding agents who need to be productive
 quickly in this repo.
 
-- Read this file and the `specs/` folder first; specs contain testable
-  requirements (MUST/SHOULD/MAY).
+- **Load specs first**: run `uv run spec-dump` (or invoke the
+  `load-specs` skill) to get all requirements as flat, inheritance-resolved
+  JSON. Do **not** read raw `specs/*.yaml` files — those are for authoring
+  only. See `.github/skills/load-specs/SKILL.md` for the output format and
+  field definitions.
 - Key architecture: FastAPI inbox → AS2 parser
   (`vultron/wire/as2/parser.py`) → semantic extraction
   (`vultron/wire/as2/extractor.py`) → behavior dispatcher
@@ -502,33 +505,36 @@ See `specs/structured-logging.yaml` for complete logging requirements
 This project uses formal specifications in `specs/` directory defining testable
 requirements.
 
+### Loading Specifications
+
+**Always run `uv run spec-dump` before any implementation or design task.**
+This produces flat, inheritance-resolved JSON covering all 48 spec files. Raw
+`specs/*.yaml` files are for authoring and linting only — do not read them
+directly. See `.github/skills/load-specs/SKILL.md` for field definitions and
+usage guidance.
+
 ### Working with Specifications
 
-- Each spec file defines requirements with unique IDs (e.g., `HP-01-001`)
-- Requirements use RFC 2119 keywords in section headers (MUST, SHOULD, MAY)
+- Each spec defines requirements with unique IDs (e.g., `HP-01-001`)
+- Requirements use RFC 2119 keywords: MUST, SHOULD, MAY
 - Each requirement has verification criteria
 - Implementation changes SHOULD reference relevant requirement IDs
-- **Some specifications consolidate requirements from multiple sources**:
-  - `http-protocol.md` consolidates HTTP-related requirements from
-    inbox-endpoint, message-validation, error-handling
-  - `structured-logging.md` consolidates logging requirements from
-    observability, error-handling, inbox-endpoint
-  - Check spec file headers for "Consolidates:" notes indicating superseded
-    requirements
+- Some specs consolidate requirements from multiple sources; check the `tags`
+  field and `edges` array for cross-references
 
 ### Key Specifications
 
 See `specs/README.md` for the full index organized by topic. Key groups:
 
-- **Cross-cutting**: `http-protocol.md`, `structured-logging.md`,
-  `idempotency.md`, `error-handling.md`
-- **Handler pipeline**: `inbox-endpoint.md`, `message-validation.md`,
-  `semantic-extraction.md`, `dispatch-routing.md`, `handler-protocol.md`
-- **Quality**: `testability.md`, `observability.md`, `code-style.md`
-- **BT integration**: `behavior-tree-integration.md`
+- **Cross-cutting**: `http-protocol.yaml`, `structured-logging.yaml`,
+  `idempotency.yaml`, `error-handling.yaml`
+- **Handler pipeline**: `inbox-endpoint.yaml`, `message-validation.yaml`,
+  `semantic-extraction.yaml`, `dispatch-routing.yaml`, `handler-protocol.yaml`
+- **Quality**: `testability.yaml`, `observability.yaml`, `code-style.yaml`
+- **BT integration**: `behavior-tree-integration.yaml`
 
-**Note**: Some specs consolidate requirements from multiple sources; check file
-headers for cross-references. Consolidated specs take precedence.
+Always load cross-cutting specs (`ARCH`, `CS`, `TB`, `HP`, `SL`, `EH`) even
+when working on a narrow feature — they impose constraints on all code.
 
 ### Test Coverage Requirements
 
@@ -719,7 +725,8 @@ criteria.
 When making non-trivial changes, agents SHOULD:
 
 1. Briefly state assumptions
-2. Consult relevant specifications in `specs/` for requirements
+2. Load specifications with `uv run spec-dump` (see `load-specs` skill) and
+   consult requirements relevant to the change
 3. Review `notes/` directory for durable design insights
 4. Describe the intended change
 5. Apply the minimal diff required
@@ -796,9 +803,9 @@ git add -A && git commit -m "Same message"
 
 If requirements appear to conflict:
 
-1. Check **cross-references** for clarification
-2. Consolidated specs (http-protocol.md, structured-logging.md) take precedence
-   over older inline requirements
+1. Check **cross-references** in the `edges` array from `uv run spec-dump`
+2. Consolidated specs (`http-protocol.yaml`, `structured-logging.yaml`) take
+   precedence over older inline requirements
 3. MUST requirements override SHOULD/MAY
 4. Ask for clarification rather than guessing
 
