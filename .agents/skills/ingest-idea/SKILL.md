@@ -34,23 +34,20 @@ section (from its `## IDEA-*` heading to the next `## IDEA-*` heading).
 
 ### 3. Explore the codebase
 
-Before interviewing, understand the current state. Search for:
-
-- Existing code that touches the idea's domain (modules, env vars, patterns)
-- Existing specs or notes that overlap with or constrain the idea
-- Any already-implemented partial solutions
+Invoke the `study-project-docs` skill. It loads all specs, reads plan/,
+docs/adr/, notes/, and AGENTS.md, and scans vultron/ and test/.
 
 Answer questions from exploration rather than asking the user where possible.
 
 ### 4. Interview with grill-me
 
 Invoke the `grill-me` skill. Follow its instructions to walk every design
-decision branch one at a time, providing a recommendation for each question.
-Reach shared understanding before writing anything.
+decision branch one at a time using `ask_user`, providing a recommendation
+for each question. Reach shared understanding before writing anything.
 
 ### 5. Write the spec file
 
-Create or modify `specs/<topic>.md` following `specs/meta-specifications.yaml` 
+Create or modify `specs/<topic>.md` following `specs/meta-specifications.yaml`
 conventions:
 
 - Use a `FILE_PREFIX-SECTION_#-###` ID scheme (e.g., `CFG-01-001`)
@@ -89,12 +86,12 @@ Remove the idea section (heading + body) from `plan/IDEAS.md`.
 
 ### 9. Lint markdown
 
-Run `./mdlint.sh` on all new/modified markdown files. Fix any errors before
-proceeding.
+Invoke the `format-markdown` skill on all new/modified markdown files. Fix
+any errors before proceeding.
 
 ### 10. Commit
 
-Stage and commit all new and modified files:
+Invoke the `commit` skill:
 
 ```bash
 git add specs/<topic>.md notes/<topic>.md \

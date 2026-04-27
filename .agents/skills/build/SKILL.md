@@ -16,8 +16,8 @@ validation expectations, and finalize-and-commit behavior.
 
 ## Quick start
 
-1. Read `plan/PRIORITIES.md`, `specs/README.md`, `plan/IMPLEMENTATION_PLAN.md`,
-   `plan/IMPLEMENTATION_NOTES.md`, and relevant `notes/*.md`.
+1. Invoke the `study-project-docs` skill to load all specs and read project
+   context.
 2. Select the highest-priority unchecked task that can be completed in one run.
 3. Verify the current implementation in `vultron/` and `test/` before coding.
 4. Implement only the selected task, then run the required validation.
@@ -32,12 +32,8 @@ validation expectations, and finalize-and-commit behavior.
 
 ### Phase 1 - Review context
 
-1. Study `plan/PRIORITIES.md` for authoritative priority ordering.
-2. Study `specs/*.md` starting with `specs/README.md`.
-3. Study `plan/IMPLEMENTATION_PLAN.md` for current task status.
-4. Study `plan/IMPLEMENTATION_NOTES.md` and relevant `notes/*.md` starting
-   with `notes/README.md`.
-5. Study the relevant implementation and tests under `vultron/` and `test/`.
+Invoke the `study-project-docs` skill. It loads all specs, reads all plan/,
+docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
 
 ### Phase 2 - Select work
 
@@ -75,7 +71,7 @@ validation expectations, and finalize-and-commit behavior.
 
 ### Phase 5 - Validate
 
-1. Run the validation commands required by `AGENTS.md`.
+1. Invoke the `format-code` skill, then `run-linters`, then `run-tests`.
 2. Do not skip or delegate validation.
 3. If incidental bugs are discovered, add them to `plan/BUGS.md` with clear
    reproduction notes and do not pursue them unless they block the current task.
@@ -87,7 +83,7 @@ validation expectations, and finalize-and-commit behavior.
    Do not leave tombstones, `[x]` checkboxes, or one-line summaries — the
    task details belong in HISTORY, not in PLAN.
 3. Record lessons learned or constraints in `plan/IMPLEMENTATION_NOTES.md`.
-4. Stage modified files and commit with a clear, specific message.
+4. Invoke the `commit` skill with a clear, specific message.
 
 ## Constraints
 

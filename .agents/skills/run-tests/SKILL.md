@@ -59,7 +59,7 @@ include `test/demo/` and any tests that require disk I/O or external services.
 uv run pytest --tb=short 2>&1 | tail -5
 ```
 
-2. Read the five-line summary for pass/fail status and short failure traces.
+1. Read the five-line summary for pass/fail status and short failure traces.
 
 ## Constraints / Rules
 
@@ -95,4 +95,3 @@ Using a single, canonical command keeps CI output consistent and makes
 automated tooling and skills (like Copilot skills) reliable. The integration
 test split prevents slow file-backed storage tests from degrading the default
 feedback loop while still providing full coverage when needed.
-

@@ -43,7 +43,7 @@ consistent code style and avoids pre-commit failures.
 uv run black vultron/ test/ && uv run flake8 vultron/ test/
 ```
 
-2. Inspect the output and stage changes if any files were reformatted.
+1. Inspect the output and stage changes if any files were reformatted.
 
 ## Constraints / Rules
 
@@ -62,4 +62,3 @@ uv run black vultron/ test/ && uv run flake8 vultron/ test/
 
 Using Black guarantees consistent formatting across the codebase and prevents
 pre-commit failures during CI and developer commits.
-

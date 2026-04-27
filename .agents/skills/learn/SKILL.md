@@ -21,31 +21,23 @@ writing anything.
 
 ## Quick Start
 
-1. Load specs via `uv run spec-dump` (the `load-specs` skill).
-2. Read context files in `plan/`, `docs/adr/`, `notes/`, and `AGENTS.md`.
-3. Analyze documentation for gaps, ambiguity, redundancy, and drift.
-4. Invoke the `grill-me` skill to align on scope and decisions — before
+1. Invoke the `study-project-docs` skill to load specs and read all context.
+2. Analyze documentation for gaps, ambiguity, redundancy, and drift.
+3. Invoke the `grill-me` skill to align on scope and decisions — before
    writing anything.
-5. Execute documentation updates across `specs/`, `notes/`, `AGENTS.md`,
+4. Execute documentation updates across `specs/`, `notes/`, `AGENTS.md`,
    and `plan/IMPLEMENTATION_PLAN.md`.
-6. Preserve ephemeral insights from `IDEAS.md` and `IMPLEMENTATION_NOTES.md`.
-7. Lint markdown with `./mdlint.sh`, then commit.
+5. Preserve ephemeral insights from `IDEAS.md` and `IMPLEMENTATION_NOTES.md`.
+6. Invoke the `format-markdown` skill, then the `commit` skill.
 
 ## Workflow
 
 ### Phase 1 — Load Specs and Review Context
 
-1. Run `uv run spec-dump` (invoke the `load-specs` skill). Do **not** read raw
-   `specs/*.yaml` files directly.
-2. Read:
-   - `plan/PRIORITIES.md`, `plan/IDEAS.md` (ephemeral),
-     `plan/IMPLEMENTATION_PLAN.md`, `plan/IMPLEMENTATION_HISTORY.md`,
-     `plan/IMPLEMENTATION_NOTES.md` (ephemeral)
-   - `docs/adr/*.md`
-   - `notes/README.md` and relevant `notes/*.md`
-   - `AGENTS.md`
-3. Scan `vultron/` and `test/` to verify assumptions. Do not assert missing
-   functionality without evidence from code search.
+Invoke the `study-project-docs` skill. It runs `load-specs`, reads all plan/,
+docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
+
+Additionally read `plan/IMPLEMENTATION_HISTORY.md` for recent completed work.
 
 > `IDEAS.md` and `IMPLEMENTATION_NOTES.md` are ephemeral. Any critical insight
 > in them **must be preserved elsewhere** before this session ends.
@@ -66,8 +58,8 @@ Cross-check whether items in `PRIORITIES.md`, `IDEAS.md`, or
 
 ### Phase 3 — Interview with Grill-Me
 
-Invoke the `grill-me` skill. Resolve one question at a time with a
-recommended answer before writing anything:
+Invoke the `grill-me` skill. Resolve one question at a time (using `ask_user`)
+with a recommended answer before writing anything:
 
 - Which gaps are most important to address in this run?
 - Which ephemeral insights should be promoted, and to which durable file?
@@ -122,12 +114,12 @@ files from durable docs.
 
 ### Phase 9 — Lint and Commit
 
-1. Run `./mdlint.sh` on all new/modified markdown files. Fix all errors.
+1. Invoke the `format-markdown` skill (`./mdlint.sh`) on all new/modified
+   markdown files. Fix all errors.
 2. If a requirement conflict cannot be resolved, add a note to
    `plan/IMPLEMENTATION_NOTES.md` and **stop before committing**.
-3. Commit markdown-only changes with clear, specific messages. Use multiple
-   commits for thematically distinct changes (e.g., spec refactoring, insights
-   promoted, AGENTS.md updates).
+3. Invoke the `commit` skill. Use multiple commits for thematically distinct
+   changes (e.g., spec refactoring, insights promoted, AGENTS.md updates).
 
 ## Constraints
 

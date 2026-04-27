@@ -15,10 +15,11 @@ and why.
 
 ## Phase 1 — Identify the Bug
 
-1. Open `plan/BUGS.md` and read all open entries.
-2. Select the highest-priority open bug according to the priority ordering in
+1. Invoke the `study-project-docs` skill to load all specs and project context.
+2. Open `plan/BUGS.md` and read all open entries.
+3. Select the highest-priority open bug according to the priority ordering in
    `plan/BUGS.md` (and cross-referenced with `plan/PRIORITIES.md` if present).
-3. Summarise the selected bug for the user:
+4. Summarise the selected bug for the user:
    - Bug ID / title
    - One-sentence description of the observed vs. expected behaviour
    - The file(s) / component(s) most likely involved
@@ -89,21 +90,23 @@ starting at step 3 ("Verify Before Changes"):
 3. **Implement the Fix** — Modify only the code required to resolve the bug.
    Follow all project conventions (formatting, linting, layer rules).
 
-4. **Iterate** — Run validation; refine until all relevant tests pass. Any
-   incidental bugs discovered go into `plan/BUGS.md`; do not pursue them now.
+4. **Iterate** — Invoke `format-code`, then `run-linters`, then `run-tests`;
+   refine until all relevant tests pass. Any incidental bugs discovered go
+   into `plan/BUGS.md`; do not pursue them now.
 
 5. **Finalize**
    - Append a completion summary (bug ID, symptoms, root cause, fix) to
      `plan/IMPLEMENTATION_HISTORY.md` using the template in
      `notes/bugfix-workflow.md`.
    - Remove the bug's entry entirely from `plan/BUGS.md`. Do not leave a
-     tombstone, `FIXED` marker, or closed-notice — see `specs/bugfix-workflow.yaml`
-     BFW-04-002.
-   - If any other bugs in `plan/BUGS.md` are already marked fixed, archive and
-     remove them opportunistically (BFW-04-004).
+     tombstone, `FIXED` marker, or closed-notice — see
+     `specs/bugfix-workflow.yaml` BFW-04-002.
+   - If any other bugs in `plan/BUGS.md` are already marked fixed, archive
+     and remove them opportunistically (BFW-04-004).
    - Capture lessons learned in `plan/IMPLEMENTATION_NOTES.md`.
-   - `git add` and commit with a clear, specific message. Reference any new
-     bugs filed during Phase 2b analysis (e.g., `Also filed: BUG-YYMMDDXX`).
+   - Invoke the `commit` skill with a clear, specific message. Reference any
+     new bugs filed during Phase 2b analysis (e.g.,
+     `Also filed: BUG-YYMMDDXX`).
 
 ## Constraints
 
@@ -116,9 +119,7 @@ starting at step 3 ("Verify Before Changes"):
 - When Phase 2b surfaces additional issues, file each as `BUG-YYMMDDXX` and
   implement only the confirmed-scope fix in the current run.
 - `plan/BUGS.md` MUST contain only open bugs; remove fixed entries entirely.
-- Run `uv run black vultron/ test/ && uv run flake8 vultron/ test/` before
-  committing.
-- Run the full test suite exactly once per validation cycle:
-  `uv run pytest --tb=short 2>&1 | tail -5`
+- Invoke `format-code`, `run-linters`, and `run-tests` before committing
+  (see those skills for exact commands).
 - Each run operates in a fresh context; do not carry forward assumptions from
   previous sessions.

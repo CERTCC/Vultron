@@ -49,20 +49,20 @@ project config (preferred):
 markdownlint-cli2 --fix --config .markdownlint-cli2.yaml "**/*.md"
 ```
 
-2. The wrapper `./mdlint.sh` is available as an alternative but is no longer
+1. The wrapper `./mdlint.sh` is available as an alternative but is no longer
 required by pre-commit (the pre-commit hook invokes `markdownlint-cli2`
 directly). Use the wrapper only if your environment does not have
 `markdownlint-cli2` available on PATH.
 
-3. Inspect the output. The wrapper attempts to auto-fix problems. If linting
+2. Inspect the output. The wrapper attempts to auto-fix problems. If linting
    still reports failures, address them manually and re-run the command.
 
 ## Constraints / Rules
 
- - Prefer invoking `markdownlint-cli2` directly with `--config .markdownlint-cli2.yaml`.
- - The wrapper `./mdlint.sh` remains available as an alternative for legacy
+- Prefer invoking `markdownlint-cli2` directly with `--config .markdownlint-cli2.yaml`.
+- The wrapper `./mdlint.sh` remains available as an alternative for legacy
    environments.
- - Do NOT run markdownlint across generated or dependency directories unless
+- Do NOT run markdownlint across generated or dependency directories unless
    your configuration deliberately includes them. The repository config file
    contains the canonical ignore patterns.
 - Commit any formatting changes produced by the linter before running other
@@ -84,4 +84,3 @@ Centralizing markdown linting through `mdlint.sh` ensures the same config and
 exclusions are used by maintainers, CI, and automation. Including this SKILL
 makes the capability discoverable by agents and documents the canonical
 command for formatting markdown.
-

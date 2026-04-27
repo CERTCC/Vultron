@@ -164,4 +164,5 @@ require an ADR before merging.
 - `specs/` — formal requirements with unique IDs (e.g., `HP-01-001`)
 - `notes/` — durable design insights (architecture, BT integration, AS2 semantics)
 - `docs/adr/` — architecture decision records
-- `.github/skills/format-code-run-tests/SKILL.md` — canonical test/format commands
+- `.agents/skills/format-code/SKILL.md`, `.agents/skills/run-linters/SKILL.md`,
+  `.agents/skills/run-tests/SKILL.md` — canonical format, lint, and test commands

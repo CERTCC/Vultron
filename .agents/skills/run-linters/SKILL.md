@@ -51,11 +51,11 @@ passes.
 uv run black vultron/ test/ && uv run flake8 vultron/ test/ && uv run mypy && uv run pyright
 ```
 
-2. Inspect each tool's output. `black` will reformat files in-place. `flake8`,
+1. Inspect each tool's output. `black` will reformat files in-place. `flake8`,
    `mypy`, and `pyright` will print diagnostics. Fix all reported issues and
    repeat until the suite is clean.
 
-3. Stage only after all four tools exit with code 0.
+2. Stage only after all four tools exit with code 0.
 
 ## Constraints / Rules
 
@@ -81,4 +81,3 @@ workflow and makes it easier for agents and automation to invoke the same set
 of checks maintainers use. All four linters are also enforced by CI, so
 running them locally before committing avoids CI failures and preserves the
 known-clean codebase baseline.
-

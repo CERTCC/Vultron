@@ -57,14 +57,14 @@ still reported and must be fixed.
 .github/scripts/mkdocs-build-strict.sh
 ```
 
-2. Inspect the output. Any broken links, missing anchors, or other real issues
+1. Inspect the output. Any broken links, missing anchors, or other real issues
    are printed as `WARNING` lines to stdout. False-positive warnings from griffe
    decorators are automatically suppressed.
 
-3. Fix all reported real issues in the `docs/` files and re-run the command until
+2. Fix all reported real issues in the `docs/` files and re-run the command until
    it exits with code 0.
 
-4. Stage changes only after the build exits cleanly with zero code.
+3. Stage changes only after the build exits cleanly with zero code.
 
 ## Constraints / Rules
 
@@ -97,6 +97,7 @@ warnings while maintaining strict validation of real documentation issues.
 ## False-Positive Warnings Suppressed
 
 The script automatically suppresses the following false-positive warnings:
+
 - `Inline reference to unknown key petterogren7535` — YouTube handle
 - `Inline reference to unknown key main` — `@main.command` decorator
 - `Inline reference to unknown key v4` — GitHub Actions version reference
@@ -111,4 +112,4 @@ indicate documentation problems.
 
 ## Related Skills
 
-- `.github/skills/format-markdown/SKILL.md` — Lint markdown in docs/ files
+- `.agents/skills/format-markdown/SKILL.md` — Lint markdown in docs/ files

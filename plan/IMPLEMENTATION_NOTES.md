@@ -846,7 +846,7 @@ Lower to `10` in CC-2.2.
 
 Update `--max-complexity` to `10` when CC-2.2 lands.
 
-**`.github/skills/run-linters/SKILL.md`** — add a note that flake8 now
+**`.agents/skills/run-linters/SKILL.md`** — add a note that flake8 now
 enforces a cyclomatic complexity gate (`max-complexity = 15`, tightening
 to `10` after CC-2).
 

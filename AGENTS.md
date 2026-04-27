@@ -24,7 +24,7 @@ quickly in this repo.
 - **Load specs first**: run `uv run spec-dump` (or invoke the
   `load-specs` skill) to get all requirements as flat, inheritance-resolved
   JSON. Do **not** read raw `specs/*.yaml` files — those are for authoring
-  only. See `.github/skills/load-specs/SKILL.md` for the output format and
+  only. See `.agents/skills/load-specs/SKILL.md` for the output format and
   field definitions.
 - Key architecture: FastAPI inbox → AS2 parser
   (`vultron/wire/as2/parser.py`) → semantic extraction
@@ -45,15 +45,15 @@ Checklist (edit → validate → commit):
 
 Essential commands (run in zsh):
 
-See `.github/skills/format-code/SKILL.md`, `.github/skills/run-linters/SKILL.md`,
-`.github/skills/run-tests/SKILL.md`, and `.github/skills/build-docs/SKILL.md` for
+See `.agents/skills/format-code/SKILL.md`, `.agents/skills/run-linters/SKILL.md`,
+`.agents/skills/run-tests/SKILL.md`, and `.agents/skills/build-docs/SKILL.md` for
 the canonical Black, linter, pytest, and mkdocs invocation commands (these files
 contain the exact invocation semantics, environment notes, and examples you must
 follow).
 
 > ⚠️ **STOP — Full test-suite rule (MUST follow)**
 >
-> Follow the instructions in `.github/skills/run-tests/SKILL.md`
+> Follow the instructions in `.agents/skills/run-tests/SKILL.md`
 > for running the test suite exactly once per validation cycle and
 > reading its output. The skill file documents the required single-run
 > invocation and the rationale for the one-run rule.
@@ -152,7 +152,7 @@ the format and examples.
 - **mypy** for static type checking (enforced in CI; MUST pass with zero errors)
 - **pyright** for static type checking (enforced in CI; MUST pass with zero errors)
 - **markdownlint-cli2** for markdown linting (use the repository's
-   `mdlint.sh` wrapper; see `.github/skills/format-markdown/SKILL.md`)
+   `mdlint.sh` wrapper; see `.agents/skills/format-markdown/SKILL.md`)
 
 Agents MUST NOT introduce alternative frameworks or package managers without
 explicit approval from the maintainers.
@@ -510,7 +510,7 @@ requirements.
 **Always run `uv run spec-dump` before any implementation or design task.**
 This produces flat, inheritance-resolved JSON covering all 48 spec files. Raw
 `specs/*.yaml` files are for authoring and linting only — do not read them
-directly. See `.github/skills/load-specs/SKILL.md` for field definitions and
+directly. See `.agents/skills/load-specs/SKILL.md` for field definitions and
 usage guidance.
 
 ### Working with Specifications
@@ -742,11 +742,11 @@ to relevant tests and design notes.
 **BEFORE committing**, agents MUST follow the procedure documented in the
 relevant skills, in this order:
 
-1. `.github/skills/format-code/SKILL.md` — Format Python sources
-2. `.github/skills/run-linters/SKILL.md` — Run all four linters (Black, flake8,
+1. `.agents/skills/format-code/SKILL.md` — Format Python sources
+2. `.agents/skills/run-linters/SKILL.md` — Run all four linters (Black, flake8,
    mypy, pyright)
-3. `.github/skills/run-tests/SKILL.md` — Run the test-suite exactly once
-4. `.github/skills/build-docs/SKILL.md` — Build docs in strict mode (only if
+3. `.agents/skills/run-tests/SKILL.md` — Run the test-suite exactly once
+4. `.agents/skills/build-docs/SKILL.md` — Build docs in strict mode (only if
    `docs/` files were modified)
 5. Commit with message including the Co-authored-by trailer
 
@@ -770,13 +770,13 @@ The skill files contain the exact commands and the required invocation order.
 
 - After editing any Python files, before staging for commit
 - Run `uv run black vultron/ test/ && uv run flake8 vultron/ test/ && uv run mypy && uv run pyright`
-  to check all four linters at once (see `.github/skills/run-linters/SKILL.md`)
+  to check all four linters at once (see `.agents/skills/run-linters/SKILL.md`)
 - Do NOT run `black` on markdown files (use `markdownlint-cli2` for those)
 
 **When to run docs build**:
 
 - After editing any files in `docs/` before staging for commit
-- See `.github/skills/build-docs/SKILL.md` for the exact command and instructions
+- See `.agents/skills/build-docs/SKILL.md` for the exact command and instructions
 - Fix all reported broken links and anchor issues before staging
 - Do not run the docs build if you did not modify any
   `docs/` files
@@ -1535,6 +1535,24 @@ record schema and `specs/semantic-extraction.yaml` VAM-01-009.
 
 ---
 
+## Skill Interaction Rules
+
+When a skill requires user input or asks the user a question:
+
+- **Always use the `ask_user` tool.** Never ask questions in plain text
+  output — plain text questions are easy to miss and produce no structured
+  response.
+- Provide a recommended answer or a `choices` array (with the recommended
+  option first) on every `ask_user` call.
+- The `grill-me` skill is the canonical example: it interviews the user one
+  question at a time using `ask_user`. All skills that include an interview
+  or clarification phase MUST follow the same pattern.
+- When skills compose (e.g., `learn` invokes `grill-me`, `build` invokes
+  `study-project-docs`), the `ask_user` rule applies transitively — each
+  invoked skill must also use `ask_user` for any user-facing questions.
+
+---
+
 ## Governance note for agents
 
 - Agents MAY update `AGENTS.md` to correct or clarify agent rules, but
@@ -1578,7 +1596,7 @@ as possible. For example, a link from `docs/a/b/c/file.md` to
 `docs/a/d/other.md` should be `../../d/other.md`.
 
 **Before committing changes to `docs/`**, validate the build using the
-`.github/skills/build-docs/SKILL.md` skill:
+`.agents/skills/build-docs/SKILL.md` skill:
 
 ```bash
 uv run mkdocs build --strict
@@ -1586,7 +1604,7 @@ uv run mkdocs build --strict
 
 This catches broken anchor links, invalid markdown, and other documentation
 issues. The build MUST pass without warnings before staging changes for commit.
-See `.github/skills/build-docs/SKILL.md` for details.
+See `.agents/skills/build-docs/SKILL.md` for details.
 
 ### Demo script lifecycle logging
 

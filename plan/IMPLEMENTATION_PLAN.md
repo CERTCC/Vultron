@@ -156,7 +156,7 @@ so the CI never goes in broken.
 - All five functions pass `uv run flake8 --max-complexity=10 --select=C901`
 - `.flake8` contains `max-complexity = 15`
 - `.pre-commit-config.yaml` has a `flake8` hook entry
-- `.github/skills/run-linters/SKILL.md` documents the CC gate
+- `.agents/skills/run-linters/SKILL.md` documents the CC gate
 - `lint-flake8` CI job passes with zero C901 warnings
 
 **Dependencies:** none
@@ -175,7 +175,7 @@ so the CI never goes in broken.
   `vultron/core/case_states/make_doc.py:77` (current CC=16)
 - [ ] CC.1.6 Activate CC=15 gate: add `max-complexity = 15` to `.flake8`,
   add `flake8` hook to `.pre-commit-config.yaml`, update
-  `.github/skills/run-linters/SKILL.md`
+  `.agents/skills/run-linters/SKILL.md`
 
 ### CC.2 — Phase 2: Reduce CC 11–15 violations to CC≤10 and tighten gate
 

@@ -8,7 +8,10 @@ shared understanding. Walk down each branch of the design tree, resolving
 dependencies between decisions one-by-one. For each question, provide your
 recommended answer.
 
-Ask the questions one at a time.
+**Ask questions one at a time using the `ask_user` tool.** Never ask questions
+in plain text — always use `ask_user` so the user gets a proper response UI.
+Provide a recommended answer (or a `choices` array with a recommended option
+first) for every question.
 
 If a question can be answered by exploring the codebase, explore the codebase
-instead.
+instead of asking the user.
