@@ -10,6 +10,10 @@ description: >-
   requirement) `specs/case-management.md` CM-01-001, `specs/outbox.md` OX-07-002, `specs/multi-actor-demo.md`
   DEMOMA-00-001
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: AKM-01
   title: DataLayer Isolation (MUST)

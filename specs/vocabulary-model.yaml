@@ -9,6 +9,10 @@ description: >-
   SE-01-002 (rehydration before extraction), `code-style.md` CS-07-001 (as_ prefix policy),
   `object-ids.md` OID-01-001 (full-URI IDs)
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: VM-01
   title: Vocabulary Registration

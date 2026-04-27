@@ -8,6 +8,10 @@ description: >-
   (conceptual actor model and design rationale), `notes/protocol-event-cascades.md` (concrete
   cascade gap inventory)
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: EDF-01
   title: Definitions

@@ -6,6 +6,10 @@ description: >-
   and migration requirements. parallel but separate concern; this spec covers the notes side
   only. A shared `vultron/metadata/base.py` holds common vocabulary.
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: NF-01
   title: Frontmatter Schema (MUST)

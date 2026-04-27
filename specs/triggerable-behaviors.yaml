@@ -10,6 +10,10 @@ description: >-
   `case-management.md` (CM-01), `handler-protocol.md` (HP-00-001), `outbox.md` (OX-02-001),
   `agentic-readiness.md` (AR-04, AR-08), `configuration.md` (CFG-04)
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: TRIG-01
   title: Endpoint Format

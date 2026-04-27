@@ -4,6 +4,10 @@ description: >-
   Requirements for maintaining the traceability matrix that maps user stories to specification
   requirements. `docs/topics/user_stories/`
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: TRACE-01
   title: Traceability Matrix

@@ -33,6 +33,8 @@ def _minimal_spec(spec_id="TST-01-001", priority="MUST", extra=None):
         "title": "Test File",
         "description": "Test spec file",
         "version": "0.1",
+        "kind": "general",
+        "scope": ["production"],
         "groups": [
             {
                 "id": "TST-01",
@@ -98,6 +100,8 @@ def test_lint_prefix_mismatch(tmp_path, capsys):
         "title": "Test File",
         "description": "Prefix mismatch test",
         "version": "0.1",
+        "kind": "general",
+        "scope": ["production"],
         "groups": [
             {
                 "id": "OTHER-01",  # prefix "OTHER" != file id "TST"

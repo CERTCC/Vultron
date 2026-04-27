@@ -4,6 +4,10 @@ description: >-
   Requirements for securing CI/CD workflows and GitHub Actions usage in the Vultron project.
   `.github/workflows/`
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: CISEC-01
   title: Action Version Pinning

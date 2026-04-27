@@ -10,6 +10,10 @@ description: >-
   logic. Complex workflows (report validation, case creation, embargo management) SHOULD use
   BTs for clarity and maintainability.
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: BT-01
   title: BT Execution Model

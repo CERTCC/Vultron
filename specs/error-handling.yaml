@@ -7,6 +7,10 @@ description: >-
   consolidated in `specs/structured-logging.md` (SL-03-001) - **HTTP status codes** consolidated
   in `specs/http-protocol.md` (HTTP-03-001)
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: EH-01
   title: Exception Hierarchy

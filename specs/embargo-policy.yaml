@@ -7,6 +7,10 @@ description: >-
   "Prior Art and References (Embargo Policy)") `agentic-readiness.md`, `duration.md` (duration
   string format)
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: EP-01
   title: Policy Record Format

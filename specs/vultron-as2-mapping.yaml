@@ -20,6 +20,10 @@ description: >-
   domain types are prefixed implicitly by the Vultron namespace (e.g., `VulnerabilityReport`,
   `VulnerabilityCase`, `CaseParticipant`, `CaseStatus`, `ParticipantStatus`)
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: VAM-01
   title: General Mapping Conventions

@@ -28,7 +28,7 @@ PREFIX_RENAMES: dict[str, str] = {
     "IMPL-TS": "IMPLTS",
 }
 
-SKIP_FILES = {"README.md", "meta-specifications.md"}
+SKIP_FILES = {"README.md", "meta-specifications.md", "datalayer.md"}
 
 # Relationship verbs recognized in sub-bullets
 REL_VERBS = {
@@ -388,6 +388,8 @@ def parse_spec_md(path: Path) -> dict:
         "title": title,
         "description": description,
         "version": "1.0.0",
+        "kind": "general",
+        "scope": ["prototype", "production"],
         "groups": groups,
     }
 

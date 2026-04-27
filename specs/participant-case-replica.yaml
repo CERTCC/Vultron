@@ -11,6 +11,10 @@ description: >-
   (hash-chain, per-peer state, `Announce(CaseLogEntry)`). Both must be satisfied simultaneously;
   neither supersedes the other.
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: PCR-01
   title: Replica Identity (No Stub CaseActor)

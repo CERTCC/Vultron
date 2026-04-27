@@ -5,6 +5,10 @@ description: >-
   Testability enables confidence in correctness, supports refactoring, and documents expected
   behavior.
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: TB-01
   title: Testing Framework

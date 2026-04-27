@@ -1,6 +1,7 @@
 """Context generation tool for the spec registry.
 
-Provides a markdown renderer and a JSON exporter for agent/human consumption.
+Provides a markdown renderer, a JSON exporter, and a YAML exporter for
+agent/human consumption.
 
 Context generation requirements: specs/spec-registry.md SR-07.
 
@@ -20,8 +21,25 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from vultron.metadata.specs.registry import SpecRegistry, load_registry
-from vultron.metadata.specs.schema import BehavioralSpec, Spec, SpecFile
+from vultron.metadata.specs.registry import (
+    SpecRegistry,
+    effective_tags,
+    load_registry,
+)
+from vultron.metadata.specs.schema import (
+    BehavioralSpec,
+    Spec,
+    SpecFile,
+    SpecGroup,
+)
+
+try:
+    import yaml
+except ImportError as exc:  # pragma: no cover
+    raise ImportError(
+        "pyyaml is required for YAML export. "
+        "Install it with: pip install pyyaml"
+    ) from exc
 
 
 def _priority_line(spec: Spec) -> str:
@@ -61,18 +79,21 @@ def render_markdown(spec_file: SpecFile) -> str:
                 if spec.preconditions:
                     for pre in spec.preconditions:
                         lines.append(f"  - *Precondition*: {pre.description}")
-                for step in spec.steps:
-                    lines.append(
-                        f"  - *Step {step.order}* [{step.actor}]: {step.action}"
-                    )
-                    if step.expected:
-                        lines.append(f"    - *Expected*: {step.expected}")
+                if spec.steps:
+                    for step in spec.steps:
+                        lines.append(
+                            f"  - *Step {step.order}* [{step.actor}]:"
+                            f" {step.action}"
+                        )
+                        if step.expected:
+                            lines.append(f"    - *Expected*: {step.expected}")
                 if spec.postconditions:
                     for post in spec.postconditions:
                         lines.append(
                             f"  - *Postcondition*: {post.description}"
                         )
-            for rel in spec.relationships:
+            rels = spec.relationships or []
+            for rel in rels:
                 note = f" ({rel.note})" if rel.note else ""
                 lines.append(
                     f"  - {spec.id} {rel.rel_type.value} {rel.spec_id}{note}"
@@ -80,6 +101,120 @@ def render_markdown(spec_file: SpecFile) -> str:
         lines.append("")
 
     return "\n".join(lines)
+
+
+def _spec_to_dict(spec: Spec, group: SpecGroup, file: SpecFile) -> dict:
+    """Serialize a spec to a dict with only authored (non-inherited) fields."""
+    d: dict = {
+        "id": spec.id,
+        "priority": spec.priority.value,
+        "statement": spec.statement,
+    }
+    if spec.rationale is not None:
+        d["rationale"] = spec.rationale
+    if not spec.testable:
+        d["testable"] = False
+    if spec.kind is not None:
+        d["kind"] = spec.kind.value
+    if spec.scope is not None:
+        d["scope"] = [s.value for s in spec.scope]
+    if spec.tags is not None:
+        d["tags"] = [t.value for t in spec.tags]
+    if spec.relationships:
+        d["relationships"] = [_rel_dict(r) for r in spec.relationships]
+    if spec.lint_suppress:
+        d["lint_suppress"] = [lw.value for lw in spec.lint_suppress]
+    if isinstance(spec, BehavioralSpec):
+        if spec.preconditions:
+            d["preconditions"] = [
+                {"description": p.description} for p in spec.preconditions
+            ]
+        if spec.steps:
+            d["steps"] = [_step_dict(s) for s in spec.steps]
+        if spec.postconditions:
+            d["postconditions"] = [
+                {"description": p.description} for p in spec.postconditions
+            ]
+    return d
+
+
+def _rel_dict(r: object) -> dict:
+    d = {
+        "rel_type": r.rel_type.value,  # type: ignore[attr-defined]
+        "spec_id": r.spec_id,  # type: ignore[attr-defined]
+    }
+    if r.note is not None:  # type: ignore[attr-defined]
+        d["note"] = r.note  # type: ignore[attr-defined]
+    return d
+
+
+def _step_dict(s: object) -> dict:
+    d = {
+        "order": s.order,  # type: ignore[attr-defined]
+        "actor": s.actor,  # type: ignore[attr-defined]
+        "action": s.action,  # type: ignore[attr-defined]
+    }
+    if s.expected is not None:  # type: ignore[attr-defined]
+        d["expected"] = s.expected  # type: ignore[attr-defined]
+    return d
+
+
+def _group_to_dict(group: SpecGroup, file: SpecFile) -> dict:
+    """Serialize a group to a dict with only authored fields."""
+    d: dict = {"id": group.id, "title": group.title}
+    if group.description is not None:
+        d["description"] = group.description
+    if group.kind is not None:
+        d["kind"] = group.kind.value
+    if group.scope is not None:
+        d["scope"] = [s.value for s in group.scope]
+    d["specs"] = [_spec_to_dict(s, group, file) for s in group.specs]
+    return d
+
+
+def _file_to_dict(spec_file: SpecFile) -> dict:
+    """Serialize a SpecFile to a dict with only authored fields."""
+    return {
+        "id": spec_file.id,
+        "title": spec_file.title,
+        "description": spec_file.description,
+        "version": spec_file.version,
+        "kind": spec_file.kind.value,
+        "scope": [s.value for s in spec_file.scope],
+        "groups": [_group_to_dict(g, spec_file) for g in spec_file.groups],
+    }
+
+
+class _YamlDumper(yaml.SafeDumper):
+    """Custom YAML dumper with folded block scalars for long strings."""
+
+    pass
+
+
+def _str_representer(dumper: yaml.SafeDumper, data: str) -> yaml.ScalarNode:
+    if "\n" in data or len(data) > 80:
+        return dumper.represent_scalar(
+            "tag:yaml.org,2002:str", data, style=">"
+        )
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data)
+
+
+_YamlDumper.add_representer(str, _str_representer)
+
+
+def export_yaml(spec_file: SpecFile) -> str:
+    """Serialize a single :class:`SpecFile` to authoritative YAML.
+
+    Only authored fields are emitted — inherited defaults are omitted so
+    that the YAML remains the canonical source of truth.
+    """
+    return yaml.dump(
+        _file_to_dict(spec_file),
+        Dumper=_YamlDumper,
+        default_flow_style=False,
+        sort_keys=False,
+        allow_unicode=True,
+    )
 
 
 def export_json(
@@ -105,11 +240,15 @@ def export_json(
     """
     result = {}
     for spec_id, spec in registry.all_specs.items():
-        if kind and spec.kind.value != kind:
+        eff_kind = registry.get_effective_kind(spec_id)
+        eff_scope = registry.get_effective_scope(spec_id)
+        eff_tags = effective_tags(spec)
+
+        if kind and eff_kind.value != kind:
             continue
-        if scope and scope not in [s.value for s in spec.scope]:
+        if scope and scope not in [s.value for s in eff_scope]:
             continue
-        if tags and not all(t in [tg.value for tg in spec.tags] for t in tags):
+        if tags and not all(t in [tg.value for tg in eff_tags] for t in tags):
             continue
         if priority and spec.priority.value != priority:
             continue
@@ -131,6 +270,7 @@ def main() -> None:
 
         python -m vultron.metadata.specs.render --format md specs/
         python -m vultron.metadata.specs.render --format json specs/
+        python -m vultron.metadata.specs.render --format yaml specs/
     """
     import sys
 
@@ -143,7 +283,7 @@ def main() -> None:
 
     if not args:
         print(
-            f"Usage: {sys.argv[0]} [--format md|json] <spec_dir>",
+            f"Usage: {sys.argv[0]} [--format md|json|yaml] <spec_dir>",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -153,6 +293,10 @@ def main() -> None:
 
     if fmt == "json":
         print(export_json(registry))
+    elif fmt == "yaml":
+        for sf in registry.files:
+            print(export_yaml(sf))
+            print("---")
     else:
         print(render_registry_markdown(registry))
 

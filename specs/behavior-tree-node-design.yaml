@@ -5,6 +5,10 @@ description: >-
   These requirements operationalize the fractal composability pattern described in `notes/bt-reusability.md`.
   *when-to-use BTs* and *execution model* requirements live in `specs/behavior-tree-integration.md`.
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: BTND-01
   title: Node Parameterization

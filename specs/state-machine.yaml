@@ -13,6 +13,10 @@ description: >-
   `behavior-tree-integration.md` BT-06 (BT-driven transitions), `handler-protocol.md` HP-00
   (activities as state-change notifications), `vultron-protocol-spec.md` VP-01 through VP-13
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: SM-01
   title: State Enum Design

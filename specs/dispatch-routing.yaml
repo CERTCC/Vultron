@@ -5,6 +5,10 @@ description: >-
   use-case class. The dispatcher may execute use cases synchronously (DirectActivityDispatcher)
   or asynchronously (queue-based).
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: DR-01
   title: Dispatcher Protocol

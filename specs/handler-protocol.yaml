@@ -4,6 +4,10 @@ description: >-
   Handler use-case classes process `VultronEvent` domain objects and implement protocol business
   logic. All handlers follow a common contract defined by the `UseCase` Protocol.
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: HP-00
   title: Protocol Semantics

@@ -10,6 +10,10 @@ description: >-
   BTND-01 through BTND-05 — node parameterization, composability, module ownership - `notes/bt-composability.md`
   — implementation guidance, examples, and the fractal pattern in depth
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: BTC-01
   title: Simulator Reference Workflow

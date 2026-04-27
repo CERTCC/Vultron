@@ -6,6 +6,10 @@ description: >-
   records, embargo initialization at case creation). `specs/code-style.md` CS-13-005 (datetime
   wire format)
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: DUR-01
   title: Representation Format

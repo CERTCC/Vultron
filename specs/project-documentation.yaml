@@ -4,6 +4,10 @@ description: >-
   This specification defines the purpose, scope, and maintenance requirements for key project
   documentation files that guide AI agents and human developers.
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: PD-02
   title: Documentation Files Overview

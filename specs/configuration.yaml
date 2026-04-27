@@ -7,6 +7,10 @@ description: >-
   variable override support. `SeedConfig` demo/seed config. Demo scenario actor URLs (finder,
   vendor, etc.) are out of scope for `AppConfig`.
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: CFG-01
   title: Module Placement and Config API

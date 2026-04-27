@@ -61,7 +61,7 @@ def lint(spec_dir: Path) -> int:
     hard_errors.extend(_check_prefix_consistency(registry))
 
     for spec_id, spec in registry.all_specs.items():
-        suppressed = set(spec.lint_suppress)
+        suppressed = set(spec.lint_suppress or [])
 
         is_behavioral = isinstance(spec, BehavioralSpec) and bool(spec.steps)
 
@@ -85,7 +85,8 @@ def lint(spec_dir: Path) -> int:
                 f"{_RATIONALE_WARN_CHARS} characters"
             )
 
-        if not spec.tags and LintWarningCode.MISSING_TAGS not in suppressed:
+        tags = spec.tags or []
+        if not tags and LintWarningCode.MISSING_TAGS not in suppressed:
             warnings.append(f"[WARN] {spec_id}: no tags defined")
 
     for w in warnings:

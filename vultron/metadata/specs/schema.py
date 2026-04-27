@@ -1,6 +1,12 @@
 """Pydantic schema for ``specs/*.yaml`` structured requirement files.
 
 Schema requirements: specs/spec-registry.md SR-02.
+
+Design principle: YAML is the authoritative data source.  The schema
+validates what is present but does **not** silently inject defaults for
+absent fields.  Inheritable fields (``kind``, ``scope``) are required at
+the file level and optional at group/spec level; effective values are
+resolved by the registry loader, not by Pydantic defaults.
 """
 
 from __future__ import annotations
@@ -8,7 +14,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Annotated, Union
 
-from pydantic import BaseModel, StringConstraints
+from pydantic import BaseModel, StringConstraints, field_validator
 
 from vultron.metadata.base import NonEmptyStr
 
@@ -104,19 +110,39 @@ class Relationship(BaseModel):
     note: str | None = None
 
 
+def _check_nonempty_list(v: list | None, field_name: str) -> list | None:
+    """Shared validator: if present, must be non-empty."""
+    if v is not None and len(v) == 0:
+        raise ValueError(f"{field_name} must be non-empty if present")
+    return v
+
+
 class StatementSpec(BaseModel):
-    """A single normative statement requirement (SR-02-009)."""
+    """A single normative statement requirement (SR-02-009).
+
+    Inheritable fields (``kind``, ``scope``) default to ``None``, meaning
+    "inherit from parent group or file."  The registry loader resolves
+    effective values after loading.
+    """
 
     id: SpecIdStr
     priority: RFC2119Priority
     statement: NonEmptyStr
     rationale: NonEmptyStr | None = None
     testable: bool = True
-    kind: SpecKind = SpecKind.GENERAL
-    scope: list[Scope] = [Scope.PRODUCTION]
-    tags: list[SpecTag] = []
-    relationships: list[Relationship] = []
-    lint_suppress: list[LintWarningCode] = []
+    kind: SpecKind | None = None
+    scope: list[Scope] | None = None
+    tags: list[SpecTag] | None = None
+    relationships: list[Relationship] | None = None
+    lint_suppress: list[LintWarningCode] | None = None
+
+    @field_validator("scope", "tags", "relationships", "lint_suppress")
+    @classmethod
+    def _nonempty_if_present(cls, v: list | None, info: object) -> list | None:
+        if v is not None and len(v) == 0:
+            field_name = getattr(info, "field_name", "list field")
+            raise ValueError(f"{field_name} must be non-empty if present")
+        return v
 
 
 class Precondition(BaseModel):
@@ -143,36 +169,77 @@ class Postcondition(BaseModel):
 class BehavioralSpec(StatementSpec):
     """A spec with structured pre/step/post conditions (SR-02-010)."""
 
-    preconditions: list[Precondition] = []
-    steps: list[BehaviorStep] = []
-    postconditions: list[Postcondition] = []
+    preconditions: list[Precondition] | None = None
+    steps: list[BehaviorStep] | None = None
+    postconditions: list[Postcondition] | None = None
+
+    @field_validator("preconditions", "steps", "postconditions")
+    @classmethod
+    def _nonempty_if_present(cls, v: list | None, info: object) -> list | None:
+        if v is not None and len(v) == 0:
+            field_name = getattr(info, "field_name", "list field")
+            raise ValueError(f"{field_name} must be non-empty if present")
+        return v
 
 
 Spec = Union[BehavioralSpec, StatementSpec]
 
 
 class SpecGroup(BaseModel):
-    """A logical grouping of specs within a file (SR-02-012)."""
+    """A logical grouping of specs within a file (SR-02-012).
+
+    ``kind`` and ``scope`` are optional overrides; when absent, values are
+    inherited from the containing :class:`SpecFile`.
+    """
 
     id: SpecIdStr
     title: NonEmptyStr
-    description: str | None = None
-    kind: SpecKind = SpecKind.GENERAL
-    scope: list[Scope] = [Scope.PRODUCTION]
+    description: NonEmptyStr | None = None
+    kind: SpecKind | None = None
+    scope: list[Scope] | None = None
     specs: list[Spec]
+
+    @field_validator("scope")
+    @classmethod
+    def _nonempty_if_present(cls, v: list | None, info: object) -> list | None:
+        if v is not None and len(v) == 0:
+            field_name = getattr(info, "field_name", "list field")
+            raise ValueError(f"{field_name} must be non-empty if present")
+        return v
+
+    @field_validator("specs")
+    @classmethod
+    def _specs_nonempty(cls, v: list) -> list:
+        if not v:
+            raise ValueError("specs must not be empty")
+        return v
 
 
 class SpecFile(BaseModel):
     """One YAML spec file with its groups and file-level metadata (SR-02-013).
 
-    ``kind`` and ``scope`` serve as defaults; individual specs may override
-    them (SR-02-014).
+    ``kind`` and ``scope`` are required at the file level and serve as
+    defaults for groups and specs that do not override them (SR-02-014).
     """
 
     id: str
     title: NonEmptyStr
     description: NonEmptyStr
     version: NonEmptyStr
-    kind: SpecKind = SpecKind.GENERAL
-    scope: list[Scope] = [Scope.PRODUCTION]
+    kind: SpecKind
+    scope: list[Scope]
     groups: list[SpecGroup]
+
+    @field_validator("scope")
+    @classmethod
+    def _scope_nonempty(cls, v: list) -> list:
+        if not v:
+            raise ValueError("scope must not be empty")
+        return v
+
+    @field_validator("groups")
+    @classmethod
+    def _groups_nonempty(cls, v: list) -> list:
+        if not v:
+            raise ValueError("groups must not be empty")
+        return v

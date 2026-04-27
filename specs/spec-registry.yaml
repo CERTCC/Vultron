@@ -6,6 +6,10 @@ description: >-
   context-generation tooling. module. Migration from `.md` to `.yaml` is a one-time lossless
   conversion.
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: SR-01
   title: YAML File Format (MUST)

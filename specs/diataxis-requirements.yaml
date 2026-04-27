@@ -3,6 +3,10 @@ title: Diátaxis documentation requirements
 description: >-
   Brief requirements for organizing project documentation according to the Diátaxis framework.
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: DF-01
   title: General architecture

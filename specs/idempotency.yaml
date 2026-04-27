@@ -5,6 +5,10 @@ description: >-
   requests produce the same outcome without unintended side effects. **Consolidates**: `inbox-endpoint.md`
   IE-10-001, `message-validation.md` MV-08-001, `handler-protocol.md` HP-07-001
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: ID-01
   title: Activity ID Uniqueness

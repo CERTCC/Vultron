@@ -5,6 +5,10 @@ description: >-
   demo scripts into a single invokable entry point. Covers CLI structure, demo isolation,
   Docker packaging, and test requirements. (PRIORITY 10) `prototype-shortcuts.md`
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: DC-01
   title: CLI Interface

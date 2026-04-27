@@ -5,6 +5,10 @@ description: >-
   negotiation. **Consolidates**: `inbox-endpoint.md` (IE-03, IE-07), `message-validation.md`
   (MV-06, MV-07), `error-handling.md` (EH-06), `agentic-readiness.md` (AR-03-002)
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: HTTP-01
   title: Content-Type Validation

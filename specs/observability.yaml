@@ -8,6 +8,10 @@ description: >-
   in `specs/structured-logging.md` (supersedes OB-01 through OB-04, OB-06) - **Metrics and
   distributed tracing**: Deferred to future implementation
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: OB-05
   title: Health Checks

@@ -5,6 +5,10 @@ description: >-
   audit trail. **Consolidates**: `observability.md` (OB-01, OB-03, OB-04, OB-06), `error-handling.md`
   (EH-04, EH-06), `inbox-endpoint.md` (IE-09)
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: SL-01
   title: Log Format

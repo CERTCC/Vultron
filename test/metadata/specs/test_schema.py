@@ -74,23 +74,24 @@ def test_spec_id_str_invalid(spec_id):
 
 
 # ---------------------------------------------------------------------------
-# StatementSpec
+# StatementSpec — absent optional fields are None
 # ---------------------------------------------------------------------------
 
 
-def test_statement_spec_defaults():
+def test_statement_spec_absent_fields():
+    """Optional fields default to None when not provided."""
     spec = StatementSpec(
         id="AB-01-001",
         priority=RFC2119Priority.MUST,
         statement="AB-01-001 MUST satisfy this",
-        rationale="Because testing",
     )
+    assert spec.rationale is None
     assert spec.testable is True
-    assert spec.kind == SpecKind.GENERAL
-    assert spec.scope == [Scope.PRODUCTION]
-    assert spec.tags == []
-    assert spec.relationships == []
-    assert spec.lint_suppress == []
+    assert spec.kind is None
+    assert spec.scope is None
+    assert spec.tags is None
+    assert spec.relationships is None
+    assert spec.lint_suppress is None
 
 
 def test_statement_spec_full():
@@ -115,9 +116,9 @@ def test_statement_spec_full():
     assert spec.testable is False
     assert spec.kind == SpecKind.IMPLEMENTATION
     assert spec.scope == [Scope.PROTOTYPE]
-    assert len(spec.tags) == 1
-    assert len(spec.relationships) == 1
-    assert len(spec.lint_suppress) == 1
+    assert spec.tags is not None and len(spec.tags) == 1
+    assert spec.relationships is not None and len(spec.relationships) == 1
+    assert spec.lint_suppress is not None and len(spec.lint_suppress) == 1
 
 
 def test_statement_spec_empty_statement_rejected():
@@ -160,6 +161,26 @@ def test_statement_spec_rationale_omitted_allowed():
 
 
 # ---------------------------------------------------------------------------
+# Non-empty-if-present list validation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "field", ["scope", "tags", "relationships", "lint_suppress"]
+)
+def test_empty_list_rejected(field: str) -> None:
+    """Empty lists are rejected — use None for absent."""
+    kwargs: dict = {
+        "id": "AB-01-001",
+        "priority": RFC2119Priority.MUST,
+        "statement": "AB-01-001 MUST pass",
+        field: [],
+    }
+    with pytest.raises(ValidationError, match="non-empty"):
+        StatementSpec(**kwargs)  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
 # BehavioralSpec
 # ---------------------------------------------------------------------------
 
@@ -181,21 +202,32 @@ def test_behavioral_spec_with_steps():
         ],
         postconditions=[Postcondition(description="State updated")],
     )
-    assert len(spec.steps) == 1
+    assert spec.steps is not None and len(spec.steps) == 1
     assert spec.steps[0].order == 1
-    assert len(spec.preconditions) == 1
-    assert len(spec.postconditions) == 1
+    assert spec.preconditions is not None and len(spec.preconditions) == 1
+    assert spec.postconditions is not None and len(spec.postconditions) == 1
 
 
-def test_behavioral_spec_empty_steps_valid():
-    # Steps are optional; an empty BehavioralSpec is still valid
+def test_behavioral_spec_absent_steps_valid():
     spec = BehavioralSpec(
         id="AB-01-001",
         priority=RFC2119Priority.MUST,
         statement="AB-01-001 MUST do something",
         rationale="Because testing",
     )
-    assert spec.steps == []
+    assert spec.steps is None
+
+
+@pytest.mark.parametrize("field", ["preconditions", "steps", "postconditions"])
+def test_behavioral_spec_empty_list_rejected(field: str) -> None:
+    kwargs: dict = {
+        "id": "AB-01-001",
+        "priority": RFC2119Priority.MUST,
+        "statement": "AB-01-001 MUST pass",
+        field: [],
+    }
+    with pytest.raises(ValidationError, match="non-empty"):
+        BehavioralSpec(**kwargs)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
@@ -222,7 +254,69 @@ def test_spec_group_valid():
 
 def test_spec_group_empty_title_rejected():
     with pytest.raises(ValidationError):
-        SpecGroup(id="AB-01", title="", specs=[])
+        SpecGroup(
+            id="AB-01",
+            title="",
+            specs=[
+                StatementSpec(
+                    id="AB-01-001",
+                    priority=RFC2119Priority.MUST,
+                    statement="AB-01-001 MUST exist",
+                )
+            ],
+        )
+
+
+def test_spec_group_empty_specs_rejected():
+    with pytest.raises(ValidationError, match="must not be empty"):
+        SpecGroup(id="AB-01", title="Empty Group", specs=[])
+
+
+def test_spec_group_description_nonempty_if_present():
+    with pytest.raises(ValidationError):
+        SpecGroup(
+            id="AB-01",
+            title="Group",
+            description="",
+            specs=[
+                StatementSpec(
+                    id="AB-01-001",
+                    priority=RFC2119Priority.MUST,
+                    statement="AB-01-001 MUST exist",
+                )
+            ],
+        )
+
+
+def test_spec_group_description_none_allowed():
+    group = SpecGroup(
+        id="AB-01",
+        title="Group",
+        specs=[
+            StatementSpec(
+                id="AB-01-001",
+                priority=RFC2119Priority.MUST,
+                statement="AB-01-001 MUST exist",
+            )
+        ],
+    )
+    assert group.description is None
+
+
+def test_spec_group_empty_scope_rejected():
+    with pytest.raises(ValidationError, match="non-empty"):
+        SpecGroup(
+            id="AB-01",
+            title="Group",
+            scope=[],
+            specs=[
+                StatementSpec(
+                    id="AB-01-001",
+                    priority=RFC2119Priority.MUST,
+                    statement="AB-01-001 MUST exist",
+                )
+            ],
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -236,6 +330,8 @@ def test_spec_file_valid():
         title="Test File",
         description="A test file",
         version="0.1",
+        kind=SpecKind.GENERAL,
+        scope=[Scope.PRODUCTION],
         groups=[
             SpecGroup(
                 id="AB-01",
@@ -255,6 +351,92 @@ def test_spec_file_valid():
     assert len(sf.groups) == 1
 
 
+def test_spec_file_requires_kind():
+    with pytest.raises(ValidationError):
+        SpecFile(  # type: ignore[call-arg]
+            id="AB",
+            title="Test File",
+            description="A test file",
+            version="0.1",
+            scope=[Scope.PRODUCTION],
+            groups=[
+                SpecGroup(
+                    id="AB-01",
+                    title="Group",
+                    specs=[
+                        StatementSpec(
+                            id="AB-01-001",
+                            priority=RFC2119Priority.MUST,
+                            statement="AB-01-001 MUST work",
+                        )
+                    ],
+                )
+            ],
+        )
+
+
+def test_spec_file_requires_scope():
+    with pytest.raises(ValidationError):
+        SpecFile(  # type: ignore[call-arg]
+            id="AB",
+            title="Test File",
+            description="A test file",
+            version="0.1",
+            kind=SpecKind.GENERAL,
+            groups=[
+                SpecGroup(
+                    id="AB-01",
+                    title="Group",
+                    specs=[
+                        StatementSpec(
+                            id="AB-01-001",
+                            priority=RFC2119Priority.MUST,
+                            statement="AB-01-001 MUST work",
+                        )
+                    ],
+                )
+            ],
+        )
+
+
+def test_spec_file_empty_scope_rejected():
+    with pytest.raises(ValidationError, match="must not be empty"):
+        SpecFile(
+            id="AB",
+            title="Test File",
+            description="A test file",
+            version="0.1",
+            kind=SpecKind.GENERAL,
+            scope=[],
+            groups=[
+                SpecGroup(
+                    id="AB-01",
+                    title="Group",
+                    specs=[
+                        StatementSpec(
+                            id="AB-01-001",
+                            priority=RFC2119Priority.MUST,
+                            statement="AB-01-001 MUST work",
+                        )
+                    ],
+                )
+            ],
+        )
+
+
+def test_spec_file_empty_groups_rejected():
+    with pytest.raises(ValidationError, match="must not be empty"):
+        SpecFile(
+            id="AB",
+            title="Test File",
+            description="A test file",
+            version="0.1",
+            kind=SpecKind.GENERAL,
+            scope=[Scope.PRODUCTION],
+            groups=[],
+        )
+
+
 # ---------------------------------------------------------------------------
 # SpecRegistry / load_registry
 # ---------------------------------------------------------------------------
@@ -266,6 +448,8 @@ def test_registry_duplicate_spec_id_raises(tmp_path):
         "title": "Dup File",
         "description": "Duplicate spec IDs",
         "version": "0.1",
+        "kind": "general",
+        "scope": ["production"],
         "groups": [
             {
                 "id": "DUP-01",
@@ -318,3 +502,74 @@ def test_registry_all_specs(spec_dir):
 def test_registry_validate_cross_references_clean(spec_dir):
     registry = load_registry(spec_dir)
     assert registry.validate_cross_references() == []
+
+
+# ---------------------------------------------------------------------------
+# Inheritance resolution
+# ---------------------------------------------------------------------------
+
+
+def test_effective_kind_inherits_from_file(spec_dir):
+    registry = load_registry(spec_dir)
+    assert registry.get_effective_kind("TST-01-001") == SpecKind.GENERAL
+
+
+def test_effective_scope_inherits_from_file(spec_dir):
+    registry = load_registry(spec_dir)
+    assert registry.get_effective_scope("TST-01-001") == [Scope.PRODUCTION]
+
+
+def test_effective_kind_spec_override(tmp_path):
+    data = {
+        "id": "TST",
+        "title": "Test",
+        "description": "Test",
+        "version": "0.1",
+        "kind": "general",
+        "scope": ["production"],
+        "groups": [
+            {
+                "id": "TST-01",
+                "title": "Group",
+                "specs": [
+                    {
+                        "id": "TST-01-001",
+                        "priority": "MUST",
+                        "statement": "TST-01-001 MUST pass",
+                        "kind": "implementation",
+                    }
+                ],
+            }
+        ],
+    }
+    (tmp_path / "test.yaml").write_text(yaml.dump(data))
+    registry = load_registry(tmp_path)
+    assert registry.get_effective_kind("TST-01-001") == SpecKind.IMPLEMENTATION
+
+
+def test_effective_kind_group_override(tmp_path):
+    data = {
+        "id": "TST",
+        "title": "Test",
+        "description": "Test",
+        "version": "0.1",
+        "kind": "general",
+        "scope": ["production"],
+        "groups": [
+            {
+                "id": "TST-01",
+                "title": "Group",
+                "kind": "implementation",
+                "specs": [
+                    {
+                        "id": "TST-01-001",
+                        "priority": "MUST",
+                        "statement": "TST-01-001 MUST pass",
+                    }
+                ],
+            }
+        ],
+    }
+    (tmp_path / "test.yaml").write_text(yaml.dump(data))
+    registry = load_registry(tmp_path)
+    assert registry.get_effective_kind("TST-01-001") == SpecKind.IMPLEMENTATION

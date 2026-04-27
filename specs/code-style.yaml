@@ -6,6 +6,10 @@ description: >-
   jobs) are consolidated in `tech-stack.md` (IMPLTS-07-001 through IMPLTS-07-006). This file
   covers formatting conventions and coding style standards only.
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: CS-01
   title: Code Formatting

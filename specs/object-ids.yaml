@@ -6,6 +6,10 @@ description: >-
   records. Should Be URL-Like, Not Bare UUIDs"), `plan/IMPLEMENTATION_PLAN.md` (TECHDEBT-3)
   `behavior-tree-integration.md`
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: OID-01
   title: ID Format

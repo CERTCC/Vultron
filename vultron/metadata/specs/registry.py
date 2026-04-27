@@ -9,7 +9,15 @@ from pathlib import Path
 
 from pydantic import BaseModel, PrivateAttr
 
-from vultron.metadata.specs.schema import Spec, SpecFile, SpecGroup, SpecIdStr
+from vultron.metadata.specs.schema import (
+    Scope,
+    Spec,
+    SpecFile,
+    SpecGroup,
+    SpecIdStr,
+    SpecKind,
+    SpecTag,
+)
 
 try:
     import yaml
@@ -18,6 +26,31 @@ except ImportError as exc:  # pragma: no cover
         "pyyaml is required for the spec registry loader. "
         "Install it with: pip install pyyaml"
     ) from exc
+
+
+def effective_kind(spec: Spec, group: SpecGroup, file: SpecFile) -> SpecKind:
+    """Resolve the effective ``kind`` for *spec* via inheritance."""
+    if spec.kind is not None:
+        return spec.kind
+    if group.kind is not None:
+        return group.kind
+    return file.kind
+
+
+def effective_scope(
+    spec: Spec, group: SpecGroup, file: SpecFile
+) -> list[Scope]:
+    """Resolve the effective ``scope`` for *spec* via inheritance."""
+    if spec.scope is not None:
+        return spec.scope
+    if group.scope is not None:
+        return group.scope
+    return file.scope
+
+
+def effective_tags(spec: Spec) -> list[SpecTag]:
+    """Return tags for *spec*, defaulting to empty list when absent."""
+    return spec.tags if spec.tags is not None else []
 
 
 class SpecRegistry(BaseModel):
@@ -29,6 +62,9 @@ class SpecRegistry(BaseModel):
     _group_index: dict[SpecIdStr, SpecGroup] = PrivateAttr(
         default_factory=dict
     )
+    _spec_context: dict[SpecIdStr, tuple[SpecGroup, SpecFile]] = PrivateAttr(
+        default_factory=dict
+    )
 
     def model_post_init(self, __context: object) -> None:
         for file in self.files:
@@ -36,6 +72,7 @@ class SpecRegistry(BaseModel):
                 self._register_group(group)
                 for spec in group.specs:
                     self._register_spec(spec)
+                    self._spec_context[spec.id] = (group, file)
 
     def _register_spec(self, spec: Spec) -> None:
         if spec.id in self._index:
@@ -57,12 +94,25 @@ class SpecRegistry(BaseModel):
             raise KeyError(f"Unknown spec ID: {spec_id}")
         return self._index[spec_id]
 
+    def get_effective_kind(self, spec_id: SpecIdStr) -> SpecKind:
+        """Return the resolved ``kind`` for *spec_id* via inheritance."""
+        spec = self.get(spec_id)
+        group, file = self._spec_context[spec_id]
+        return effective_kind(spec, group, file)
+
+    def get_effective_scope(self, spec_id: SpecIdStr) -> list[Scope]:
+        """Return the resolved ``scope`` for *spec_id* via inheritance."""
+        spec = self.get(spec_id)
+        group, file = self._spec_context[spec_id]
+        return effective_scope(spec, group, file)
+
     def validate_cross_references(self) -> list[str]:
         """Return error strings for any dangling relationship targets
         (SR-03-004)."""
         errors = []
         for spec_id, spec in self._index.items():
-            for rel in spec.relationships:
+            rels = spec.relationships or []
+            for rel in rels:
                 if rel.spec_id not in self._index:
                     errors.append(
                         f"{spec_id}: relationship target "

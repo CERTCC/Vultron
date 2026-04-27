@@ -5,6 +5,10 @@ description: >-
   and AI systems. Ensures consistent, machine-parseable interfaces that support agentic workflows.
   `structured-logging.md`, `observability.md`
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: AR-01
   title: API Discoverability

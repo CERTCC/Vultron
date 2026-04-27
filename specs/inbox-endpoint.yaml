@@ -5,6 +5,10 @@ description: >-
   It receives ActivityStreams activities via HTTP POST, validates them, and queues them for
   asynchronous processing.
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: IE-02
   title: Endpoint Configuration

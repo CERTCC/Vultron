@@ -8,6 +8,10 @@ description: >-
   capturing the RAFT-inspired design notes. A `notes/` file is the appropriate place for design
   approach details; this spec captures the normative requirements.
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: SYNC-01
   title: Append-Only Log

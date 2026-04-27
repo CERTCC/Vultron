@@ -5,6 +5,10 @@ description: >-
   of discovered issues, and lifecycle archiving of completed bug fixes. IDEA-26042202 (bug
   archiving)
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: BFW-01
   title: Phase 2 — Clarification (MUST)

@@ -5,6 +5,10 @@ description: >-
   acceptance testing, and reproducibility. `plan/PRIORITIES.md` PRIORITY 300 `specs/case-management.md`,
   `specs/observability.md`
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: DEMOMA-00
   title: Cross-Actor Communication

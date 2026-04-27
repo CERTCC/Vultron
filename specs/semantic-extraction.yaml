@@ -5,6 +5,10 @@ description: >-
   activity type and object type patterns. This semantic type determines which handler function
   processes the activity.
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: SE-01
   title: Pattern Matching

@@ -9,6 +9,10 @@ description: >-
   inventory and remediation history), `docs/adr/0009-hexagonal-architecture.md` (decision
   rationale)
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: ARCH-01
   title: Layer Separation

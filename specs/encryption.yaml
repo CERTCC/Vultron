@@ -6,6 +6,10 @@ description: >-
   between actors. implemented in the prototype. `case-management.md`, `inbox-endpoint.md`,
   `semantic-extraction.md`
 version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
 groups:
 - id: ENC-01
   title: Key Management
