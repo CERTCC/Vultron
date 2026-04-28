@@ -279,48 +279,7 @@ objects.
 
 ## TASK-SPECMD — Convert Non-YAML Spec Files to YAML + Enforce Format
 
-**Source**: `specs/datalayer.md` and `specs/meta-specifications.md` contain
-real requirements in old Markdown format. All spec content MUST be in YAML
-per the spec-registry pattern.
-
-### SPECMD.1 — Convert `specs/datalayer.md` to `specs/datalayer.yaml`
-
-**Acceptance criteria:**
-
-- `specs/datalayer.yaml` exists with all DL-01-* requirements from
-  `specs/datalayer.md` in the standard YAML schema
-- `specs/datalayer.md` is deleted
-- `uv run spec-dump` includes the new DL-* requirements
-- `notes/datalayer-design.md` cross-references updated if needed
-
-- [ ] SPECMD.1: Convert `specs/datalayer.md` → `specs/datalayer.yaml`
-
-### SPECMD.2 — Convert `specs/meta-specifications.md` to `specs/meta-specifications.yaml`
-
-**Acceptance criteria:**
-
-- `specs/meta-specifications.yaml` exists with atomic, testable requirements
-  extracted from the style guide (e.g., "spec files MUST use RFC 2119
-  keywords", "each requirement MUST have a unique ID")
-- `specs/meta-specifications.md` is deleted
-- `uv run spec-dump` includes the new meta-spec requirements
-
-- [ ] SPECMD.2: Convert `specs/meta-specifications.md` →
-  `specs/meta-specifications.yaml`
-
-### SPECMD.3 — Add test enforcing only `README.md` is `.md` in `specs/`
-
-**Acceptance criteria:**
-
-- `test/metadata/test_specs_format.py` (or equivalent) fails if any `.md`
-  file other than `specs/README.md` exists in `specs/`
-- Test passes after SPECMD.1 and SPECMD.2 are complete
-- CI enforces this going forward
-
-- [ ] SPECMD.3: Add `test/metadata/test_specs_format.py` with
-  `test_no_markdown_in_specs_except_readme`
-
----
+**Status: COMPLETE** — commit e6af9cb4
 
 ## TASK-SEDRIFT — Fix Semantic Extraction Pattern Gaps
 
@@ -405,62 +364,7 @@ These requirements derive from the 2026-04-20 architectural review:
 
 ## TASK-SPECIDFIX — Fix Spec ID Prefix Violations
 
-**Source**: `specs/spec-registry.yaml` SR-01-013
-
-The linter (`_check_prefix_consistency` in `vultron/metadata/specs/lint.py`)
-currently enforces that group IDs match the file-level prefix (SR-01-007) but
-does **not** check that spec IDs within a group start with the group ID prefix
-(SR-01-013). A manual audit found 157 violations across 8 spec files where
-group IDs and their contained spec IDs are out of sync (e.g., spec `PD-03-001`
-lives in group `PD-04`).
-
-**Fix strategy**: For each violating file, inspect whether renaming groups
-(to match existing spec IDs) or renaming spec IDs (to match group IDs) causes
-less churn in external references (AGENTS.md, notes/, plan/, cross-references).
-Rename groups where no existing group already owns that ID; rename spec IDs
-otherwise. Propagate all ID renames to every file that references them.
-
-**Affected files** (157 violations total):
-
-- `specs/architecture.yaml` — 1 violation
-- `specs/ci-security.yaml` — 4 violations
-- `specs/code-style.yaml` — 16 violations
-- `specs/handler-protocol.yaml` — 9 violations
-- `specs/project-documentation.yaml` — 15 violations
-- `specs/spec-registry.yaml` — 28 violations
-- `specs/sync-log-replication.yaml` — 16 violations
-- `specs/triggerable-behaviors.yaml` — 22 violations
-
-### SPECIDFIX.1 — Add spec-ID-within-group linter check
-
-**Acceptance criteria:**
-
-- `_check_spec_id_prefix_consistency()` (or equivalent) added to
-  `vultron/metadata/specs/lint.py` raises a hard error when a spec ID does
-  not start with its group ID prefix (SR-01-013)
-- New test in `test/metadata/specs/test_lint.py` covers the failure case
-- `test_real_specs_lint_no_hard_errors` still passes (i.e., violations are
-  fixed before this check is activated, or the check is activated only after
-  SPECIDFIX.2 completes)
-
-- [ ] SPECIDFIX.1: Add `_check_spec_id_prefix_consistency` to lint.py +
-  test
-
-### SPECIDFIX.2 — Rename mismatched IDs in all 8 affected spec files
-
-**Blocked by SPECIDFIX.1 (the new check must exist before we can verify the
-fix).**
-
-**Acceptance criteria:**
-
-- `uv run spec-lint specs/` exits 0 with the SPECIDFIX.1 check active
-- All external references (AGENTS.md, notes/, plan/, spec relationships)
-  updated to use new IDs
-- All existing tests pass
-
-- [ ] SPECIDFIX.2: Fix all 157 violations and propagate ID changes
-
----
+**Status: COMPLETE** — commit e6af9cb4
 
 ## Deferred (Per PRIORITIES.md)
 
