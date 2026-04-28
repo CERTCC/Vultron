@@ -1,8 +1,7 @@
 id: HP
 title: Handler Protocol
-description: >-
-  Handler use-case classes process `VultronEvent` domain objects and implement protocol business
-  logic. All handlers follow a common contract defined by the `UseCase` Protocol.
+description: Handler use-case classes process `VultronEvent` domain objects and implement protocol business logic. All handlers
+  follow a common contract defined by the `UseCase` Protocol.
 version: 1.0.0
 kind: domain
 scope:
@@ -14,22 +13,18 @@ groups:
   specs:
   - id: HP-00-001
     priority: MUST
-    statement: >-
-      Handlers MUST interpret received activities as assertions about the sender's state,
-      not as commands to perform work
+    statement: Handlers MUST interpret received activities as assertions about the sender's state, not as commands to perform
+      work
   - id: HP-00-002
     priority: MUST
-    statement: >-
-      Handlers MUST update local RM/EM/CS state to reflect the state transition asserted by
-      the received activity
+    statement: Handlers MUST update local RM/EM/CS state to reflect the state transition asserted by the received activity
 - id: HP-01
   title: Handler Signature
   specs:
   - id: HP-01-001
     priority: MUST
-    statement: >-
-      All handler use-case classes MUST accept `(dl: DataLayer, request: VultronEvent)` as
-      `__init__` parameters, and their `execute()` method MUST take no arguments
+    statement: 'All handler use-case classes MUST accept `(dl: DataLayer, request: VultronEvent)` as `__init__` parameters,
+      and their `execute()` method MUST take no arguments'
   - id: HP-01-002
     priority: MAY
     statement: Handler use-case `execute` methods MAY return None or HandlerResult
@@ -44,9 +39,7 @@ groups:
       spec_id: DR-01-003
   - id: HP-02-002
     priority: MUST
-    statement: >-
-      The verification mechanism MUST check that the activity's semantic type matches the
-      handler's expected type
+    statement: The verification mechanism MUST check that the activity's semantic type matches the handler's expected type
     rationale: Prevents routing errors where wrong handler processes an activity
     relationships:
     - rel_type: refines
@@ -114,10 +107,6 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: ID-04-001
-- id: HP-08
-  title: Execution Timeout
-  kind: pattern
-  specs:
   - id: HP-07-002
     priority: MUST
     statement: Handlers MUST complete execution within 30 seconds
@@ -129,53 +118,43 @@ groups:
     statement: Long-running operations MUST be broken into async subtasks
     scope:
     - production
-- id: HP-09
+- id: HP-08
   title: Data Model Persistence
   kind: language
   specs:
   - id: HP-08-001
     priority: MUST
-    statement: >-
-      Handlers MUST use helper functions when persisting Pydantic models to the data layer
+    statement: Handlers MUST use helper functions when persisting Pydantic models to the data layer
   - id: HP-08-002
     priority: MUST
     statement: Handlers MUST call `DataLayer.update()` with all required parameters
   - id: HP-08-003
     priority: MUST_NOT
-    statement: >-
-      Pydantic validators MUST NOT overwrite existing field values during deserialization
+    statement: Pydantic validators MUST NOT overwrite existing field values during deserialization
   - id: HP-08-004
     priority: MUST
     statement: The DataLayer and handlers MUST treat object IDs as opaque URI strings
   - id: HP-08-005
     priority: MUST
-    statement: >-
-      Handlers that add status updates MUST append full status objects (not bare ID strings)
-      to the case/participant status history lists
+    statement: Handlers that add status updates MUST append full status objects (not bare ID strings) to the case/participant
+      status history lists
     relationships:
     - rel_type: depends_on
       spec_id: CM-03-006
   - id: HP-08-006
     priority: MUST
-    statement: >-
-      The `AddNoteToCase` handler MUST persist a Note object and append its ID as a `as_NoteRef`
-      to `VulnerabilityCase.notes`.
-    rationale: >-
-      Ensures notes are fully persisted and linked to cases, consistent with the case management
-      data model
-- id: HP-10
+    statement: The `AddNoteToCase` handler MUST persist a Note object and append its ID as a `as_NoteRef` to `VulnerabilityCase.notes`.
+    rationale: Ensures notes are fully persisted and linked to cases, consistent with the case management data model
+- id: HP-09
   title: Offer Recipient Addressing
   specs:
   - id: HP-09-001
     priority: MUST
-    statement: >-
-      Handlers processing an inbound `Offer` activity MUST determine case-creation eligibility
-      from the `to` field only
+    statement: Handlers processing an inbound `Offer` activity MUST determine case-creation eligibility from the `to` field
+      only
   - id: HP-09-002
     priority: MUST_NOT
-    statement: >-
-      The `target` field MUST NOT be used to determine case-creation eligibility for `Offer`
-      activities
+    statement: The `target` field MUST NOT be used to determine case-creation eligibility for `Offer` activities
     relationships:
     - rel_type: depends_on
       spec_id: VAM-01-008
