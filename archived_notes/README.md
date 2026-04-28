@@ -25,6 +25,7 @@ before archiving.
 | `protocol-event-cascade-gaps.md` | 2026-04-17 | "Identified Gaps" (D5-6-AUTOENG, D5-6-NOTECAST, D5-6-EMBARGORCP, D5-6-CASEPROP) and "Anti-Pattern" sections extracted from `notes/protocol-event-cascades.md`; all gaps resolved (PRIORITY-310, PRIORITY-320, PRIORITY-330) | None — all tasks completed |
 | `wire-trans-design.md` | 2026-04-17 | "Current Status" and "Recommended Next Steps" sections extracted from `notes/domain-model-separation.md`; WIRE-TRANS-01–05 fully complete (PRIORITY-340) | None — all tasks completed |
 | `priority-30-design.md` | 2026-04-17 | "Open Design Questions" and "Candidate Behaviors for PRIORITY 30" sections extracted from `notes/triggerable-behaviors.md`; all 10 trigger endpoints implemented (PRIORITY-30) | None — all tasks completed |
+| `append-only-file-handling.md` | 2026-04-28 | Superseded by `specs/history-management.yaml` (HM-01–HM-05) and the `append-history` CLI tool; the manual `cat >>` append procedure is no longer used | None — all requirements captured in HM spec |
 
 ---
 

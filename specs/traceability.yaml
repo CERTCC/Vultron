@@ -39,5 +39,5 @@ groups:
   - id: TRACE-02-002
     priority: SHOULD
     statement: >-
-      Stories with insufficient spec coverage SHOULD be documented in `plan/IMPLEMENTATION_NOTES.md`
+      Stories with insufficient spec coverage SHOULD be documented in `plan/BUILD_LEARNINGS.md`
       with specific technical details describing the gap and concrete steps toward remediation

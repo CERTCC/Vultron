@@ -103,7 +103,7 @@ implementation plan.
 | **Side effects** | Task removed from plan, summary archived via `uv run append-history implementation`; observations and open questions appended to `plan/BUILD_LEARNINGS.md` (triggering `learn` on the next loop) |
 
 `build` is the **lowest-priority** skill — it only runs when no higher-level
-skill is triggered. Its side effects (new `IMPLEMENTATION_NOTES.md` entries)
+skill is triggered. Its side effects (new `plan/BUILD_LEARNINGS.md` entries)
 naturally trigger `learn` on the next loop iteration.
 
 ---

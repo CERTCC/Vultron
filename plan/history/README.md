@@ -16,6 +16,8 @@ plan/history/
       IDEA-XXXXXXXX.md         ← per-entry write-once files
     implementation/
       TASK-XXXXX.md
+    learning/
+      LEARN-XXXXXX.md
     priority/
       PRIORITY-XXXXXX.md
 ```

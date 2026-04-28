@@ -1,7 +1,7 @@
 # Design Insights and Implementation Notes
 
 This directory captures **durable design insights** for the Vultron project.
-Unlike `plan/IMPLEMENTATION_NOTES.md` (which is ephemeral), files here are
+Unlike `plan/BUILD_LEARNINGS.md` (which is ephemeral), files here are
 committed to version control and MUST be kept up to date as the
 implementation evolves.
 
@@ -310,12 +310,11 @@ is demo-specific or protocol-general, or working on trigger routing in
 
 **`plan-history-management.md`**
 Authoritative rules for managing `plan/IMPLEMENTATION_PLAN.md` (PLAN) and
-`plan/IMPLEMENTATION_HISTORY.md` (HISTORY): Core Invariant (no DONE tasks in
-PLAN), No Tombstones rule, atomic two-phase completion protocol, bounded PLAN
-size (≤ 20 tasks), failure modes, and entry formats.
-**Load when**: completing a task and updating PLAN/HISTORY, reviewing or
-adding to IMPLEMENTATION_HISTORY.md, or auditing PLAN for stale completed
-items.
+history entries written to `plan/history/` (HISTORY): Core Invariant (no DONE
+tasks in PLAN), No Tombstones rule, atomic two-phase completion protocol,
+bounded PLAN size (≤ 20 tasks), failure modes, and entry formats.
+**Load when**: completing a task and updating PLAN/HISTORY, reviewing the
+`plan/history/` archive, or auditing PLAN for stale completed items.
 
 **`plan-organization.md`**
 Conventions for `plan/IMPLEMENTATION_PLAN.md` section structure and
@@ -326,14 +325,27 @@ guidance for choosing a new `TASK-FOO` identifier.
 or changing priorities, auditing plan sections for old priority-heading or
 dash-notation task IDs.
 
-**`append-only-file-handling.md`**
-Canonical procedure for writing to `plan/*HISTORY.md` append-only files:
-decision table, the `touch`/`cat >>` append procedure, and prohibited patterns
-(existence-check decision trees, full-file reads before appending, inserting
-mid-file). Formal requirements: `specs/project-documentation.yaml`
-PD-05-001 through PD-05-005.
-**Load when**: appending to any `*HISTORY.md` file or debugging a history-file
-write that went wrong.
+**`history-management.md`**
+Design decisions and implementation guidance for the chunked per-entry history
+file system introduced on 2026-04-28. Covers the `plan/history/YYMM/<type>/`
+directory layout, the `append-history` CLI tool, immutability rules, and
+the migration from monolithic `plan/*HISTORY.md` files.
+**Load when**: using or modifying the `append-history` tool, adding a new
+`HistoryEntryType`, or understanding the `plan/history/` directory structure.
+
+**`work-granularity.md`**
+Design decisions for scoping implementation tasks to approximately one GitHub
+Issue or PR. Decision table for when to split vs. group tasks, guidance on
+coordinating with GitHub Issues, and the `TASK-FOO` ↔ Issue linking convention.
+**Load when**: sizing a new TASK-FOO section, deciding whether to split or
+merge tasks, or setting up GitHub Issue tracking for a planned work item.
+
+**`append-only-file-handling.md`** *(archived — see `archived_notes/`)*
+Superseded by `specs/history-management.yaml` and the `append-history` tool
+(2026-04-28). The manual `cat >>` append procedure it describes is no longer
+used.
+**Load when**: investigating the pre-2026-04-28 history file procedure for
+historical context only.
 
 **`bugfix-workflow.md`**
 Design decisions and implementation patterns for the test-first bugfix
@@ -413,20 +425,21 @@ protocol flow diagrams, or looking up a specific Mermaid sequence syntax detail.
 - Write insights as **durable guidance for future agents** (not status
   reports).
 - When a lesson is learned during implementation, add it here (not just in
-  `plan/IMPLEMENTATION_NOTES.md`).
+  `plan/BUILD_LEARNINGS.md`).
 - Cross-reference from `AGENTS.md` where relevant.
 - **Update this README** whenever a file is added to or removed from `notes/`,
   or when a file's scope changes significantly
   (see `specs/project-documentation.yaml`).
 
-## Relationship to plan/IMPLEMENTATION_NOTES.md
+## Relationship to plan/BUILD_LEARNINGS.md
 
-`plan/IMPLEMENTATION_NOTES.md` is **ephemeral** — it is wiped periodically to
-keep it focused on current work. **Do not reference it from `AGENTS.md`.**
+`plan/BUILD_LEARNINGS.md` is **ephemeral** — it is a queue of raw observations
+from build/bugfix runs, processed and deleted by the `learn` skill.
+**Do not reference it from `AGENTS.md`** or from `notes/` files.
 
 When updating `AGENTS.md`:
 
 - Pull durable technical guidance from `notes/` (this directory), not from
-  `plan/IMPLEMENTATION_NOTES.md`.
-- If `plan/IMPLEMENTATION_NOTES.md` contains insights worth preserving, move
-  them here first, then reference `notes/` from `AGENTS.md`.
+  `plan/BUILD_LEARNINGS.md`.
+- If `plan/BUILD_LEARNINGS.md` contains insights worth preserving, the `learn`
+  skill promotes them here first; only then reference `notes/` from `AGENTS.md`.

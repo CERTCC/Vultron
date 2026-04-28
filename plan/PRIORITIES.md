@@ -34,7 +34,7 @@ Each refactoring task explicitly targets CC≤10 (the final goal) so no
 function needs to be revisited when the threshold drops in Phase 2.
 
 See `plan/IMPLEMENTATION_PLAN.md` `TASK-CC` for the task breakdown (CC.1 and
-CC.2), and `plan/IMPLEMENTATION_NOTES.md` CC-ENFORCEMENT for the full
+CC.2), and `plan/BUILD_LEARNINGS.md` CC-ENFORCEMENT for the full
 violation inventory, per-function refactoring notes, and configuration details.
 
 ## Priority 500: Re-implement "fuzzer" nodes from the original simulator
