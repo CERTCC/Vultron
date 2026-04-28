@@ -92,9 +92,24 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
    EOF
    ```
 
-2. Delete the completed task from `plan/IMPLEMENTATION_PLAN.md` entirely.
-   Do not leave tombstones, `[x]` checkboxes, or one-line summaries — the
-   task details belong in HISTORY, not in PLAN.
+2. Delete the completed task from `plan/IMPLEMENTATION_PLAN.md` **entirely**
+   — the heading, every sub-heading, every line of body text, and the
+   surrounding `---` dividers. Zero lines of the task section must remain.
+
+   **What "entirely" means:** after your edit, searching the plan file for
+   the task ID (e.g. `TASK-SPECMD`) must return no matches.
+
+   The following are all tombstones and are **forbidden**:
+
+   ```markdown
+   ## TASK-FOO — Some Title        ← forbidden: heading left behind
+   **Status: COMPLETE** — abc1234  ← forbidden: one-line status summary
+   - [x] FOO.1: done               ← forbidden: checked checkbox
+   ~~## TASK-FOO — Some Title~~    ← forbidden: strikethrough
+   ```
+
+   The task details belong in `plan/history/` (step 1 above). The plan file
+   is a forward-looking roadmap; completed work has no place in it.
 3. Record **observations, open questions, and constraints** discovered during
    implementation in `plan/BUILD_LEARNINGS.md`. Use a dated header per entry
    (e.g., `### 2026-04-28 LABEL — Short description`). Do **not** write
@@ -110,3 +125,7 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
 - Each run starts in a fresh context.
 - The single-prerequisite exception is narrow and does not authorize broader
   plan edits.
+- **No tombstones**: when a task is deleted from `plan/IMPLEMENTATION_PLAN.md`,
+  every line of it — heading, sub-headings, body, dividers — must be gone.
+  A task ID that still appears anywhere in the plan file after deletion is a
+  tombstone and MUST be removed.
