@@ -170,3 +170,67 @@ groups:
     statement: >-
       When priorities change, only `plan/PRIORITIES.md` needs to be updated. `plan/IMPLEMENTATION_PLAN.md`
       section identifiers, headings, and task IDs MUST NOT change when priorities change.
+- id: PD-09
+  title: Task Granularity and GitHub Issues Coordination
+  kind: general
+  specs:
+  - id: PD-09-001
+    priority: SHOULD
+    statement: >-
+      Each `TASK-FOO` section in `plan/IMPLEMENTATION_PLAN.md` SHOULD be scoped to approximately
+      one GitHub Issue or Pull Request worth of work — a set of changes that can be reviewed
+      and merged in a single PR.
+    rationale: >-
+      This sizing keeps individual plan sections reviewable, linkable, and trackable within the
+      GitHub Issues UI. Sections that span multiple PRs are difficult to close cleanly and
+      obscure progress visibility.
+    tags:
+    - documentation
+  - id: PD-09-002
+    priority: SHOULD
+    statement: >-
+      When a `TASK-FOO` section would require more than one Pull Request to complete, it SHOULD
+      either be split into multiple PR-sized sections or elevated to a parent GitHub Issue with
+      GitHub sub-issues representing each PR-sized chunk.
+    rationale: >-
+      A task that spans multiple PRs cannot be closed atomically. Splitting or elevating
+      preserves the one-PR-per-section invariant without forcing artificial scope reduction.
+    tags:
+    - documentation
+  - id: PD-09-003
+    priority: SHOULD
+    statement: >-
+      Multi-step work items requiring coordinated effort across several `TASK-FOO` sections
+      or external visibility SHOULD have a corresponding GitHub Issue. GitHub sub-issues SHOULD
+      be used to link the parent Issue to the individual `TASK-FOO` sections in
+      `plan/IMPLEMENTATION_PLAN.md`.
+    rationale: >-
+      GitHub sub-issues provide granular traceability within the GitHub UI, making progress
+      visible to collaborators who do not read `plan/IMPLEMENTATION_PLAN.md` directly.
+    tags:
+    - documentation
+  - id: PD-09-004
+    priority: SHOULD
+    statement: >-
+      When a GitHub Issue exists for a `TASK-FOO` section, the section SHOULD include a
+      reference to that issue number (e.g., `GitHub: #123` or `Closes #123`) for traceability
+      between the local plan and the remote issue tracker.
+    rationale: >-
+      Cross-referencing avoids duplication of context and allows navigation between the plan
+      and the issue thread without a manual search. Implementation MUST NOT be blocked on the
+      prior existence of an issue; this is a documentation courtesy, not a gate.
+    tags:
+    - documentation
+  - id: PD-09-005
+    priority: MAY
+    statement: >-
+      During prototype development, `plan/IMPLEMENTATION_PLAN.md` MAY serve as a monolithic
+      registry of all currently identified tasks across all areas. Gradual migration toward the
+      three-tier model (GitHub Issues → `TASK-FOO` sections → individual checklist items) is
+      the target state and does not need to happen all at once.
+    rationale: >-
+      Process viscosity must be minimised. The three-tier model is an aspiration for improved
+      external visibility, not a gating requirement. Requiring a GitHub Issue before starting
+      implementation increases friction without benefit.
+    tags:
+    - documentation

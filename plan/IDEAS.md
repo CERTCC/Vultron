@@ -1,18 +1,3 @@
 # Project Ideas
 
 ID format: IDEA-YYMMDDNN
-
-## IDEA-26042701 Implementation plan groups should be approximately Issue or PR sized
-
-We should be thinking about the groups in implementation plans as being
-approximately the size of an Issue or PR. We're going to need to migrate
-back towards using Github Issues to capture chunky tasks that require
-multiple steps to complete instead of having everything live in a single
-implementation plan markdown file. The implementation plan should become
-more of a tactical task tracking within an implementation phase, whereas we
-could start capturing issues in Github for bigger chunks of work. Issues can
-either have markdown checklists `- [ ] foo` or can use sub-issues to link
-between big chunks and smaller chunks. But even the smaller chunks are not
-necessarily single atomic tasks, so we still need a local-to-the-developer
-implementation plan that will have the right level of granularity to track
-implementation progress.

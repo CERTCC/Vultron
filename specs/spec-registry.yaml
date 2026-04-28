@@ -45,6 +45,21 @@ groups:
     statement: >-
       Group IDs within a file MUST match the file-level prefix (e.g., group `HP-01` must live
       in file with `id: HP`).
+  - id: SR-01-013
+    priority: MUST
+    statement: >-
+      Spec IDs within a group MUST match the group ID prefix (e.g., spec `HP-01-001` must live
+      in group with `id: HP-01`). This extends SR-01-007 to the spec level and ensures that
+      the three-part ID (`FILE-GROUP-SPEC`) is internally consistent.
+    rationale: >-
+      Without this constraint, spec IDs become misleading: a reader seeing `PD-03-001` expects
+      it to be in group `PD-03`, but it may live in group `PD-06`. This breaks navigability and
+      makes ID-based cross-references ambiguous. Note: IDs SR-01-008 through SR-01-012 are
+      taken by pre-existing specs currently residing in the wrong group (TASK-SPECIDFIX tracks
+      the remediation).
+    tags:
+    - documentation
+    - tooling
 - id: SR-02
   title: YAML File Format (SHOULD)
   specs:

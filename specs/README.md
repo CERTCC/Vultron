@@ -88,6 +88,7 @@ Load additional files only when the task touches the relevant area. See the
 | Documentation work | `diataxis-requirements.yaml`, `project-documentation.yaml`, `traceability.yaml` |
 | Build/bugfix workflow / learnings queue | `build-workflow.yaml` |
 | Plan organization / priorities | `project-documentation.yaml`, `notes/plan-organization.md` |
+| Task granularity / GitHub Issues workflow | `project-documentation.yaml`, `notes/work-granularity.md` |
 | History file management / append-history tool | `history-management.yaml` |
 | Notes frontmatter / metadata tooling | `notes-frontmatter.yaml` |
 | Spec registry / YAML requirement files | `spec-registry.yaml` |
@@ -291,8 +292,10 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   (BW-01 through BW-04)
 - **`project-documentation.yaml`** - Documentation file structure and purpose;
   includes append-only history write protocol (PD-05) for `plan/*HISTORY.md`,
-  and plan section organization rules (PD-06): `TASK-FOO` heading format,
-  dot-notation task IDs, priority/plan decoupling
+  plan section organization rules (PD-06): `TASK-FOO` heading format,
+  dot-notation task IDs, priority/plan decoupling; and task granularity /
+  GitHub Issues coordination (PD-09): PR-sized TASK-FOO scoping, three-tier
+  work model, sub-issue linking, and transition guidance
 - **`history-management.yaml`** - Chunked per-entry history file system:
   `plan/history/YYMM/<type>/<entry-id>.md` structure, `HistoryEntryType`
   StrEnum, `append-history` CLI tool (`vultron/metadata/history/`), monthly

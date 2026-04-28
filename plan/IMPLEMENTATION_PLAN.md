@@ -409,6 +409,65 @@ These requirements derive from the 2026-04-20 architectural review:
 
 ---
 
+## TASK-SPECIDFIX — Fix Spec ID Prefix Violations
+
+**Source**: `specs/spec-registry.yaml` SR-01-013
+
+The linter (`_check_prefix_consistency` in `vultron/metadata/specs/lint.py`)
+currently enforces that group IDs match the file-level prefix (SR-01-007) but
+does **not** check that spec IDs within a group start with the group ID prefix
+(SR-01-013). A manual audit found 157 violations across 8 spec files where
+group IDs and their contained spec IDs are out of sync (e.g., spec `PD-03-001`
+lives in group `PD-04`).
+
+**Fix strategy**: For each violating file, inspect whether renaming groups
+(to match existing spec IDs) or renaming spec IDs (to match group IDs) causes
+less churn in external references (AGENTS.md, notes/, plan/, cross-references).
+Rename groups where no existing group already owns that ID; rename spec IDs
+otherwise. Propagate all ID renames to every file that references them.
+
+**Affected files** (157 violations total):
+
+- `specs/architecture.yaml` — 1 violation
+- `specs/ci-security.yaml` — 4 violations
+- `specs/code-style.yaml` — 16 violations
+- `specs/handler-protocol.yaml` — 9 violations
+- `specs/project-documentation.yaml` — 15 violations
+- `specs/spec-registry.yaml` — 28 violations
+- `specs/sync-log-replication.yaml` — 16 violations
+- `specs/triggerable-behaviors.yaml` — 22 violations
+
+### SPECIDFIX.1 — Add spec-ID-within-group linter check
+
+**Acceptance criteria:**
+
+- `_check_spec_id_prefix_consistency()` (or equivalent) added to
+  `vultron/metadata/specs/lint.py` raises a hard error when a spec ID does
+  not start with its group ID prefix (SR-01-013)
+- New test in `test/metadata/specs/test_lint.py` covers the failure case
+- `test_real_specs_lint_no_hard_errors` still passes (i.e., violations are
+  fixed before this check is activated, or the check is activated only after
+  SPECIDFIX.2 completes)
+
+- [ ] SPECIDFIX.1: Add `_check_spec_id_prefix_consistency` to lint.py +
+  test
+
+### SPECIDFIX.2 — Rename mismatched IDs in all 8 affected spec files
+
+**Blocked by SPECIDFIX.1 (the new check must exist before we can verify the
+fix).**
+
+**Acceptance criteria:**
+
+- `uv run spec-lint specs/` exits 0 with the SPECIDFIX.1 check active
+- All external references (AGENTS.md, notes/, plan/, spec relationships)
+  updated to use new IDs
+- All existing tests pass
+
+- [ ] SPECIDFIX.2: Fix all 157 violations and propagate ID changes
+
+---
+
 ## Deferred (Per PRIORITIES.md)
 
 - USE-CASE-01 **`CloseCaseUseCase` wire-type construction** — Replace direct

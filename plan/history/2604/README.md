@@ -4,4 +4,5 @@
 
 | Date | Type | Source | Title |
 |------|------|--------|-------|
+| 2026-04-28 | idea | IDEA-26042701 | Implementation plan groups should be approximately Issue or PR sized |
 | 2026-04-28 | idea | IDEA-26042801 | build skill should be clear on distinction between notes and history |
