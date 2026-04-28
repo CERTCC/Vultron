@@ -74,7 +74,24 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
 
 ### Phase 6 - Finalize
 
-1. Append a completion summary to `plan/IMPLEMENTATION_HISTORY.md`.
+1. Append a completion summary to `plan/history/` using the `append-history`
+   tool:
+
+   ```bash
+   cat <<'EOF' | uv run append-history implementation
+   ---
+   title: <short task title>
+   type: implementation
+   date: <YYYY-MM-DD>
+   source: <TASK-ID>
+   ---
+
+   ## <TASK-ID> — <title>
+
+   <completion summary: what was done, outcome, artifacts>
+   EOF
+   ```
+
 2. Delete the completed task from `plan/IMPLEMENTATION_PLAN.md` entirely.
    Do not leave tombstones, `[x]` checkboxes, or one-line summaries — the
    task details belong in HISTORY, not in PLAN.

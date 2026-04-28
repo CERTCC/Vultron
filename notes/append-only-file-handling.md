@@ -1,14 +1,25 @@
 ---
 title: Append-Only History File Handling
-status: active
+status: superseded
+superseded_by: specs/history-management.yaml
 description: >
   Implementation guidance for agents writing to plan/*HISTORY.md append-only
   files; canonical append procedure and prohibited patterns.
+  Superseded by specs/history-management.yaml (HM-01 through HM-05) and
+  the append-history CLI tool introduced on 2026-04-28.
 related_specs:
   - specs/project-documentation.yaml
+  - specs/history-management.yaml
 ---
 
 # Append-Only History File Handling
+
+> **⚠️ SUPERSEDED** — This document describes the manual append procedure
+> that was used before the `append-history` tool was introduced on
+> 2026-04-28. Use `uv run append-history <type>` instead.
+> See `specs/history-management.yaml` and `notes/history-management.md`.
+
+---
 
 Implementation guidance for agents writing to `plan/*HISTORY.md` files.
 Formal requirements: `specs/project-documentation.yaml` PD-05-001 through

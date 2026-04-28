@@ -1623,35 +1623,53 @@ for the durable pattern and `test/demo/test_demo_context_managers.py`.
 ### Archiving IMPLEMENTATION_PLAN.md
 
 `plan/IMPLEMENTATION_PLAN.md` is the forward-looking roadmap (target < 400
-lines). Completed phase details and historical implementation notes belong
-in `plan/IMPLEMENTATION_HISTORY.md` (append-only; create if absent). See
-`specs/project-documentation.yaml` `PD-02-001`.
+lines). Completed phase details belong in `plan/history/` via the
+`append-history` tool. See `specs/project-documentation.yaml` `PD-02-001`
+and `specs/history-management.yaml` HM-03.
 
-### `plan/*HISTORY.md` files are append-only
+### Writing project history entries
 
-`plan/IMPLEMENTATION_HISTORY.md`, `plan/IDEA-HISTORY.md`, and
-`plan/PRIORITY_HISTORY.md` are **append-only** logs. All new entries MUST be
-added at the **end** of the file. Past entries MUST NOT be edited or removed.
+History entries are stored as individual write-once files under
+`plan/history/YYMM/<type>/<entry-id>.md`. Use the `append-history` CLI tool
+— **never** append directly to any file in `plan/history/`:
 
-**Canonical append procedure** (PD-05-004):
+```bash
+# Archive a completed implementation task
+cat <<'EOF' | uv run append-history implementation
+---
+title: Short task title
+type: implementation
+date: YYYY-MM-DD
+source: TASK-ID
+---
 
-1. Ensure the file exists: `bash("touch <file>")` — safe no-op if already
-   present; creates an empty file if absent. Do NOT run an existence check
-   (`ls`, `test -f`) before this step.
-2. Append using `bash` with `cat >> <file>` (heredoc for simple content) or
-   Python `open(file, 'a')` (for content with shell-special characters). Do
-   NOT use the `edit` tool for appending — `edit` requires a unique `old_str`
-   anchor, which history files cannot guarantee.
-3. Verify: `bash("tail -30 <file>")` to confirm the entry was written
-   correctly.
+## TASK-ID — title
 
-**Prohibited patterns** (both are bugs — fix if you see them):
+Summary of what was done, outcome, and artifacts.
+EOF
 
-- `ls plan/IDEA-HISTORY.md && ... || ...` — existence-check decision tree
-- `view(plan/IMPLEMENTATION_HISTORY.md)` without `view_range` — full-file
-  read before appending
-- Inserting new content at a specific line or before an existing section
-  heading instead of at the end
+# Archive a processed idea
+cat <<'EOF' | uv run append-history idea
+---
+title: Idea short title
+type: idea
+date: YYYY-MM-DD
+source: IDEA-XXXXXXXX
+---
 
-See `specs/project-documentation.yaml` PD-05-001 through PD-05-005 and
-`notes/append-only-file-handling.md` for full guidance.
+## IDEA-XXXXXXXX idea text ...
+
+**Processed**: YYYY-MM-DD — ...
+EOF
+```
+
+The tool automatically determines the monthly directory (`plan/history/YYMM/`)
+from the current date and regenerates the `plan/history/YYMM/README.md` index.
+
+**`plan/history/` is not part of the default agent orientation context.**
+During the `study-project-docs` step, read only `plan/*.md`. Access
+`plan/history/` only when specifically investigating completed work or
+extracting lessons (e.g., via the `learn` skill).
+
+See `specs/history-management.yaml` (HM-01 through HM-05) and
+`notes/history-management.md` for the full specification.

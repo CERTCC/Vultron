@@ -2,26 +2,24 @@
 name: learn
 description: >
   Promote lessons learned from the build process into durable specifications
-  and design notes. Reads IMPLEMENTATION_NOTES and IMPLEMENTATION_HISTORY
-  (internal sources), analyzes gaps, interviews the user with grill-me to
-  align on scope, then writes to specs/, notes/, and AGENTS.md before
-  committing. Use when build execution has produced insights that should be
-  reflected in specs or notes. For external ideas (IDEAS.md), use ingest-idea
-  instead.
+  and design notes. Reads IMPLEMENTATION_NOTES (internal source), analyzes
+  gaps, interviews the user with grill-me to align on scope, then writes to
+  specs/, notes/, and AGENTS.md before committing. Use when build execution
+  has produced insights that should be reflected in specs or notes. For
+  external ideas (IDEAS.md), use ingest-idea instead.
 ---
 
 # Skill: Learn
 
 Integrate lessons learned from build execution into the project's durable
 specification and design documentation. The input is what the build process
-has discovered (`IMPLEMENTATION_NOTES.md`, `IMPLEMENTATION_HISTORY.md`); the
+has discovered (`IMPLEMENTATION_NOTES.md`); the
 output is refined `specs/`, `notes/`, and `AGENTS.md`.
 
 **Constraint**: Modify **markdown files only**. Do not modify code or tests.
 
-**Trigger**: Use this skill when `plan/IMPLEMENTATION_NOTES.md` or
-`plan/IMPLEMENTATION_HISTORY.md` has grown and those insights should be
-promoted into durable docs.
+**Trigger**: Use this skill when `plan/IMPLEMENTATION_NOTES.md` has grown
+and those insights should be promoted into durable docs.
 
 > For new external ideas from `plan/IDEAS.md`, use `ingest-idea` instead.
 
@@ -41,9 +39,7 @@ promoted into durable docs.
 1. Read `plan/IMPLEMENTATION_NOTES.md` — open questions, observations, and
    lessons from recent build runs (ephemeral; must be promoted before it's
    lost).
-2. Read `plan/IMPLEMENTATION_HISTORY.md` — completed tasks and their recorded
-   lessons, for additional context.
-3. Invoke the `study-project-docs` skill for full context: specs JSON,
+2. Invoke the `study-project-docs` skill for full context: specs JSON,
    plan files, docs/adr/, notes/, AGENTS.md, and a code scan.
 
 > `IMPLEMENTATION_NOTES.md` is ephemeral. Any critical insight in it **must
@@ -59,8 +55,9 @@ durable docs:
 3. Redundant or contradictory requirements across spec files.
 4. Agent guidance patterns that keep recurring in `IMPLEMENTATION_NOTES.md`
    but are not yet in `AGENTS.md`.
-5. Architectural insights from `IMPLEMENTATION_HISTORY.md` not yet in
-   `notes/`.
+5. Recent completed-task insights — when needed, read relevant monthly index
+   files in `plan/history/` (e.g., `plan/history/YYMM/README.md`) to identify
+   which history entries contain architectural lessons, then open those files.
 
 ### Phase 3 — Interview with Grill-Me
 

@@ -23,13 +23,18 @@ output. Do **not** read raw `specs/*.yaml` files directly.
 
 ### Step 2 — Read plan context
 
-Read all of the following in parallel:
+Read all of the following in parallel (do **not** recurse into `plan/history/`):
 
 - `plan/PRIORITIES.md` — authoritative priority ordering
 - `plan/IMPLEMENTATION_PLAN.md` — current task status
 - `plan/IMPLEMENTATION_NOTES.md` — design notes and constraints (ephemeral)
 - `plan/IDEAS.md` — raw ideas (ephemeral)
 - `plan/BUGS.md` — open bugs (if it exists)
+
+> **`plan/history/` is excluded from this step.** It is an archive of
+> completed work, not active planning context. Read it only when specifically
+> investigating historical changes or extracting lessons from prior
+> implementation phases (e.g., during the `learn` skill).
 
 ### Step 3 — Read design documentation
 

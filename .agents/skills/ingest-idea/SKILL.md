@@ -3,9 +3,9 @@ name: ingest-idea
 description: >
   Process a raw design idea from plan/IDEAS.md into formal specs and
   implementation notes, then archive the idea and commit. Runs a structured
-  interview (grill-me), writes specs/<topic>.md and notes/<topic>.md, moves
-  the idea to plan/IDEA-HISTORY.md, updates specs/README.md, lints, and
-  commits. Use when the user says "ingest idea", references an IDEA ID, or
+  interview (grill-me), writes specs/<topic>.md and notes/<topic>.md, archives
+  the idea via `uv run append-history idea`, updates specs/README.md, lints,
+  and commits. Use when the user says "ingest idea", references an IDEA ID, or
   wants to convert a plan/IDEAS.md entry into spec and notes files.
 ---
 
@@ -74,12 +74,25 @@ Add the new spec to both:
 
 ### 8. Archive the idea
 
-Append the full original idea text to `plan/IDEA-HISTORY.md` (create the file
-if it does not exist) with a `**Processed**:` line at the end:
+Build the entry content — the full original idea text with a `**Processed**:`
+line at the end — and pipe it to `uv run append-history idea`:
 
-```markdown
+```bash
+cat <<'ENDOFENTRY' | uv run append-history idea
+---
+title: <short idea title>
+type: idea
+date: YYYY-MM-DD
+source: IDEA-<ID>
+---
+
+## IDEA-<ID> <short title>
+
+<full original idea text here>
+
 **Processed**: YYYY-MM-DD — design decisions captured in
 `specs/<topic>.md` (ID-01 through ID-NN) and `notes/<topic>.md`.
+ENDOFENTRY
 ```
 
 Remove the idea section (heading + body) from `plan/IDEAS.md`.
@@ -95,13 +108,13 @@ Invoke the `commit` skill:
 
 ```bash
 git add specs/<topic>.md notes/<topic>.md \
-        plan/IDEAS.md plan/IDEA-HISTORY.md \
+        plan/IDEAS.md \
         specs/README.md
 git commit -m "ingest IDEA-<ID>: <short title>
 
 - Add specs/<topic>.md (ID-01 through ID-NN)
 - Add notes/<topic>.md with implementation guidance
-- Archive IDEA-<ID> to plan/IDEA-HISTORY.md
+- Archive IDEA-<ID> via append-history idea
 
 Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
 ```
@@ -115,8 +128,8 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
 - [ ] `specs/<topic>.md` created with correct ID scheme
 - [ ] `notes/<topic>.md` created with decision table + examples
 - [ ] `specs/README.md` updated (both tables)
-- [ ] `plan/IDEA-HISTORY.md` updated with full original text + Processed note
-- [ ] Idea removed from `plan/IDEAS.md`
+- [ ] `plan/IDEAS.md` — idea section removed
+- [ ] Idea archived via `uv run append-history idea`
 - [ ] Markdown lint clean
 - [ ] Git commit done
 
@@ -126,4 +139,5 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
   (e.g., `configuration.md`, `actor-discovery.md`)
 - **ID prefix**: derive from the topic abbreviation (e.g., `CFG`, `AD`)
 - **Notes file name**: same as spec file name, in `notes/` instead of `specs/`
-- **IDEA-HISTORY.md**: append-only; new entries go at the **end**
+- **History archiving**: use `uv run append-history idea` to archive processed
+  ideas — do not append directly to any `plan/history/*.md` file
