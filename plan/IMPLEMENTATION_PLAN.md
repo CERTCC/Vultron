@@ -300,6 +300,159 @@ objects.
 
 ---
 
+## TASK-CFG — Unified Configuration System
+
+**Source**: `specs/configuration.yaml` CFG-01 through CFG-07;
+`notes/configuration.md`
+
+Introduce `vultron/config.py` as the single unified configuration API for the
+application. This neutral module (no adapter or wire imports) provides
+`AppConfig`, `ServerConfig`, `DatabaseConfig`, `RunMode(StrEnum)`,
+`get_config()`, and `reload_config()`. Env-var override uses `VULTRON_` prefix
+with `__` nesting. Also refactor `SeedConfig`/`LocalActorConfig` in
+`vultron/demo/seed_config.py` to `pydantic-settings` `BaseSettings`.
+
+**Acceptance criteria:**
+
+- `vultron/config.py` exports `AppConfig`, `ServerConfig`, `DatabaseConfig`,
+  `RunMode`, `get_config()`, `reload_config()`.
+- `RunMode` is a `StrEnum` with at minimum `PROTOTYPE` and `PROD` values.
+- `ServerConfig.run_mode` defaults to `RunMode.PROTOTYPE`.
+- All `os.environ.get()` calls for Vultron config replaced by `get_config()`
+  access or `Depends(get_config)` in FastAPI endpoints.
+- `SeedConfig` and `LocalActorConfig` in `vultron/demo/seed_config.py`
+  refactored to use `pydantic-settings`.
+- Tests: `test/test_config.py` covers defaults, env-var override, and
+  `reload_config()` invalidation.
+
+- [ ] CFG.1 Create `vultron/config.py` with `AppConfig`, `ServerConfig`,
+  `DatabaseConfig`, `RunMode`, `get_config()`, `reload_config()` using
+  `pydantic-settings` and YAML source (CFG-01-001 through CFG-04-007)
+- [ ] CFG.2 Refactor `vultron/demo/seed_config.py` `SeedConfig` and
+  `LocalActorConfig` to `BaseSettings`; preserve existing public API
+  (CFG-05-001 through CFG-05-003)
+- [ ] CFG.3 Replace all `os.environ.get()` config reads in adapter and demo
+  code with `get_config()` (CFG-01-004)
+- [ ] CFG.4 Add `test/test_config.py` unit tests for defaults, env-var
+  override, and YAML loading (CFG-06-001 through CFG-06-005)
+
+---
+
+## TASK-TRIGCLASS — Trigger Classification and Demo Route Separation
+
+**Source**: `specs/triggerable-behaviors.yaml` TRIG-08, TRIG-09, TRIG-10;
+`notes/trigger-classification.md`
+
+**Blocked by TASK-CFG** (needs `RunMode` enum and `get_config()`).
+
+Introduce a formal classification of trigger endpoints into *general-purpose*
+and *demo-only* categories, with separate URL prefixes and conditional router
+mounting based on `RunMode`.
+
+### TRIGCLASS.1 — Create the demo trigger router
+
+**Acceptance criteria:**
+
+- `vultron/adapters/driving/fastapi/routers/demo_triggers.py` exists with
+  `tags=["Demo Triggers"]` and path prefix `/actors/{actor_id}/demo/`.
+- `add-note-to-case` moved from `trigger_case.py` to `demo_triggers.py` at
+  `POST /actors/{actor_id}/demo/add-note-to-case` (TRIG-10-003).
+- `sync-log-entry` moved from `trigger_sync.py` to `demo_triggers.py` at
+  `POST /actors/{actor_id}/demo/sync-log-entry` (TRIG-10-004).
+- Demo router is conditionally mounted in `v2_router.py` only when
+  `get_config().server.run_mode == RunMode.PROTOTYPE` (TRIG-09-002).
+
+- [ ] TRIGCLASS.1a: Create `demo_triggers.py` router; move `add-note-to-case`
+  and `sync-log-entry` (TRIG-09-001, TRIG-10-003, TRIG-10-004)
+- [ ] TRIGCLASS.1b: Conditionally mount demo router in `v2_router.py` based
+  on `RunMode` (TRIG-09-002, TRIG-09-003)
+- [ ] TRIGCLASS.1c: Add OpenAPI tags to distinguish demo vs general triggers
+  (TRIG-09-005)
+
+### TRIGCLASS.2 — Add `add-object-to-case` general trigger
+
+**Acceptance criteria:**
+
+- `POST /actors/{actor_id}/trigger/add-object-to-case` exists in
+  `trigger_case.py`; accepts any valid AS2 object type as `object` in the
+  request body (TRIG-10-001).
+- `add-report-to-case` delegates to `add-object-to-case` after type-specific
+  validation (TRIG-10-002).
+- Unit tests cover both endpoints.
+
+- [ ] TRIGCLASS.2: Implement `add-object-to-case` trigger; update
+  `add-report-to-case` to delegate to it (TRIG-10-001, TRIG-10-002)
+
+---
+
+## TASK-OUTBOX-TO — Outbox `to:` Field Enforcement
+
+**Source**: `specs/outbox.yaml` OX-08-001, OX-08-002, OX-08-004;
+`notes/outbox.md`
+
+All outbound Vultron activities are direct messages and MUST have a non-empty
+`to:` field. Enforce this at `handle_outbox_item` so no activity can leave the
+outbox without an addressee.
+
+**Acceptance criteria:**
+
+- `VultronOutboxToFieldMissingError(VultronError)` exists in `vultron/errors.py`
+  with `activity_id` and `activity_type` attributes.
+- `handle_outbox_item` in `vultron/adapters/driving/fastapi/outbox_handler.py`
+  raises `VultronOutboxToFieldMissingError` when `to:` is absent or an empty
+  list; logs `WARNING` when `cc`/`bto`/`bcc` are non-empty.
+- Existing `VultronOutboxObjectIntegrityError` check is unmodified.
+- Unit tests cover the missing-`to:` raise and the `cc`/`bto`/`bcc` warning
+  branches.
+
+- [ ] OUTBOX-TO.1 Add `VultronOutboxToFieldMissingError` to `vultron/errors.py`
+  (OX-08-001, OX-08-002)
+- [ ] OUTBOX-TO.2 Add `to:` presence check and `cc`/`bto`/`bcc` warning to
+  `handle_outbox_item` (OX-08-001, OX-08-002, OX-08-004)
+- [ ] OUTBOX-TO.3 Add unit tests for both branches
+
+---
+
+## TASK-DL-REHYDRATE — DataLayer Auto-Rehydration on Read
+
+**Source**: `specs/datalayer.yaml` DL-01-001 through DL-01-004, DL-02-001;
+`notes/datalayer-design.md`
+
+**Note**: Shares implementation context with TASK-ARCHVIO — once auto-rehydration
+is in the adapter, the manual coercion that ARCHVIO.3 removes becomes visible.
+These tasks may be batched into a single PR.
+
+`dl.read()` and `dl.list(type_key)` MUST return fully rehydrated, typed
+domain objects. Currently the SQLite/TinyDB adapters return dehydrated records
+requiring manual `model_validate` coercion in use cases.
+
+**Acceptance criteria:**
+
+- `DataLayer` port has a `list(type_key: str) -> Iterable[PersistableModel]`
+  method (DL-01-002).
+- `dl.read(id)` returns a fully rehydrated typed object; bare string
+  references in nested fields (`object_`, `target`, `origin`) are expanded
+  (DL-01-001, DL-01-003).
+- Core use cases contain no `model_validate(dl.read(...))`, no
+  `record_to_object()`, and no `isinstance(result, Document)` checks
+  (DL-01-004).
+- `dl.save(obj)` upserts by `id_`: saving the same object twice produces the
+  same stored state (DL-02-002).
+- All existing tests pass.
+
+- [ ] DL-REHYDRATE.1 Add `list(type_key)` to `DataLayer` Protocol and both
+  adapter implementations (DL-01-002)
+- [ ] DL-REHYDRATE.2 Implement auto-rehydration in `datalayer_sqlite.py`
+  `read()` and `list()` (DL-01-001, DL-01-003)
+- [ ] DL-REHYDRATE.3 Implement auto-rehydration in `datalayer_tinydb.py`
+  `read()` and `list()` (DL-01-001, DL-01-003)
+- [ ] DL-REHYDRATE.4 Remove manual `model_validate` / `record_to_object()`
+  coercion from all core use cases (DL-01-004)
+- [ ] DL-REHYDRATE.5 Add tests confirming auto-rehydration and upsert
+  idempotency
+
+---
+
 ## Deferred (Per PRIORITIES.md)
 
 - USE-CASE-01 **`CloseCaseUseCase` wire-type construction** — Replace direct
@@ -315,10 +468,13 @@ objects.
   protocol foundation is stable
 - FUZZ-00 **Fuzzer node re-implementation** (Priority 500) — see
   `notes/bt-fuzzer-nodes.md`
-- IDEA-260402-02 **Per-participant case replica management** — Each Participant
-  Actor maintains their own copy of the case object, synchronised from the
-  CaseActor via `Announce(CaseLogEntry)` replication. SYNC-1 through SYNC-4
-  implement the CaseActor side; the participant-side case replica handler
-  (routing inbound `Announce` to the correct local case copy) is part of
-  SYNC-2 scope. See `plan/IDEAS.md` IDEA-260402-02 and
-  `notes/sync-log-replication.md` for the design.
+- SYNC-1–SYNC-4 **Per-participant case replica / sync-log replication** —
+  Each Participant Actor maintains their own copy of the case object,
+  synchronised from the CaseActor via `Announce(CaseLogEntry)` replication.
+  See `specs/sync-log-replication.yaml` and `notes/sync-log-replication.md`.
+  Defer until the outbox delivery pipeline (OX-03, OX-04) is stable.
+- DEMOMA **Multi-actor demo infrastructure** — Docker Compose healthchecks per
+  actor, per-actor isolation, acceptance tests asserting RM/EM/CS end-state.
+  See `specs/multi-actor-demo.yaml` DEMOMA-01 through DEMOMA-05 and
+  `notes/demo-review-26042001.md`. Defer until TASK-TRIGCLASS and
+  TASK-DL-REHYDRATE are complete.
