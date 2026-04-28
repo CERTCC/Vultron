@@ -1,6 +1,7 @@
 id: MS
 title: Meta-Specification Style Guide
-description: Normative rules for authoring specification files in this project. Converted from specs/meta-specifications.md.
+description: Normative rules for authoring specification files in this project. Covers file structure, requirement format,
+  IDs, writing rules, cross-references, lifecycle, and quality criteria.
 version: 1.0.0
 kind: general
 scope:
@@ -18,31 +19,28 @@ groups:
     - documentation
   - id: MS-01-002
     priority: MUST
-    statement: Requirements MUST be grouped by category and priority within each spec file.
-    rationale: Grouping improves scannability and traceability.
-    tags:
-    - documentation
-  - id: MS-01-003
-    priority: MUST
-    statement: Each spec file MUST have a single divider (`---`) between the file header and the requirements groups.
-    rationale: Consistent structure enables automated parsing.
+    statement: Requirements MUST be grouped by category within each spec file; each group MUST address a single, cohesive
+      area of concern.
+    rationale: Grouping by category improves navigation and traceability.
     tags:
     - documentation
 - id: MS-02
   title: Priority Levels
   specs:
   - id: MS-02-001
-    priority: MUST
-    statement: Each requirement statement MUST include an RFC 2119 strength keyword inline (MUST, MUST NOT, SHOULD, SHOULD
-      NOT, MAY).
-    rationale: Inline keywords enable automated extraction and filtering.
+    priority: SHOULD
+    statement: Requirement statements SHOULD include the applicable RFC 2119 strength keyword inline (e.g., 'The system MUST…')
+      for human readability, in addition to the `priority:` field.
+    rationale: The `priority:` field is the authoritative record of requirement strength; inline keywords aid readability
+      but are advisory.
     tags:
     - documentation
   - id: MS-02-002
     priority: MUST
-    statement: 'Strength keywords MUST be drawn from the RFC 2119 vocabulary: MUST, SHALL, MUST NOT, SHALL NOT, SHOULD, SHOULD
-      NOT, MAY, OPTIONAL.'
-    rationale: Standardized vocabulary ensures unambiguous interpretation.
+    statement: 'Each spec entry MUST have a `priority:` field whose value is one of the RFC 2119 vocabulary keywords: MUST,
+      MUST NOT, SHOULD, SHOULD NOT, or MAY.'
+    rationale: The `priority:` field is the machine-readable record of requirement strength. The Pydantic schema enum is the
+      implementation of this normative requirement, not its source.
     tags:
     - documentation
 - id: MS-03
@@ -50,21 +48,15 @@ groups:
   specs:
   - id: MS-03-001
     priority: MUST
-    statement: Each requirement MUST be expressed as a single bullet point containing one imperative sentence.
-    rationale: Atomic requirements are independently testable.
+    statement: Each spec entry MUST contain exactly one normative statement; compound or multi-condition requirements MUST
+      be split into separate entries.
+    rationale: Atomic requirements are independently testable and traceable.
     tags:
     - documentation
   - id: MS-03-002
     priority: MUST
     statement: Every requirement MUST have a unique ID.
     rationale: IDs enable stable cross-referencing.
-    tags:
-    - documentation
-  - id: MS-03-003
-    priority: SHOULD
-    statement: Sub-bullets SHOULD be used only for constraints, thresholds, exceptions, or conditional applicability; nesting
-      SHOULD be limited to 2-3 levels.
-    rationale: Shallow nesting keeps requirements scannable.
     tags:
     - documentation
 - id: MS-04
@@ -132,29 +124,15 @@ groups:
     rationale: Declarative requirements avoid constraining implementation unnecessarily.
     tags:
     - documentation
-- id: MS-06
-  title: Organization Patterns
-  specs:
-  - id: MS-06-001
-    priority: SHOULD
-    statement: Requirements SHOULD be grouped by domain concern first, then by priority (MUST before SHOULD before MAY).
-    rationale: Domain grouping makes related requirements easy to find.
-    tags:
-    - documentation
 - id: MS-07
   title: Cross-References and Sources
   specs:
   - id: MS-07-001
     priority: MUST
-    statement: Cross-references between specs MUST use the format `ID-1 relationship-type ID-2` where relationship-type is
-      one of the defined relationship vocabulary terms.
-    rationale: Structured cross-references enable automated graph analysis.
-    tags:
-    - documentation
-  - id: MS-07-002
-    priority: MUST
-    statement: Cross-references MUST be placed as a sub-bullet of the requirement that bears the relationship.
-    rationale: Co-location with the requirement makes traceability obvious.
+    statement: Cross-references between spec entries MUST use the `relationships:` list with a `rel_type` field (one of the
+      defined vocabulary terms) and a `spec_id` field referencing the target requirement ID.
+    rationale: Structured cross-references in the `relationships:` field enable automated graph analysis and linting of dangling
+      references.
     tags:
     - documentation
   - id: MS-07-003
@@ -227,7 +205,8 @@ groups:
     - documentation
   - id: MS-10-004
     priority: SHOULD
-    statement: Spec files SHOULD minimize formatting overhead so that adding or updating requirements requires minimal boilerplate.
-    rationale: Low overhead encourages keeping specs current.
+    statement: Spec entries SHOULD require only `id`, `priority`, and `statement` to be complete; optional fields (`rationale`,
+      `tags`, `relationships`) SHOULD be added only when they provide clear value, not by default.
+    rationale: Requiring optional fields on every entry creates boilerplate that discourages keeping specs current.
     tags:
     - documentation
