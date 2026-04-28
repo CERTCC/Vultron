@@ -277,10 +277,6 @@ objects.
 
 ---
 
-## TASK-SPECMD — Convert Non-YAML Spec Files to YAML + Enforce Format
-
-**Status: COMPLETE** — commit e6af9cb4
-
 ## TASK-SEDRIFT — Fix Semantic Extraction Pattern Gaps
 
 **Source**: `plan/BUILD_LEARNINGS.md` DR-03, DR-07, DR-14.
@@ -361,10 +357,6 @@ These requirements derive from the 2026-04-20 architectural review:
   `vultron/core/behaviors/case/nodes.py`
 
 ---
-
-## TASK-SPECIDFIX — Fix Spec ID Prefix Violations
-
-**Status: COMPLETE** — commit e6af9cb4
 
 ## Deferred (Per PRIORITIES.md)
 
