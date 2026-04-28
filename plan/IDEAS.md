@@ -17,24 +17,38 @@ necessarily single atomic tasks, so we still need a local-to-the-developer
 implementation plan that will have the right level of granularity to track
 implementation progress.
 
-## IDEA-26042702 "History" files should be chunked by time to avoid unlimited growth
+## IDEA-26042801 `build` skill should be clear on distinction between "notes" and "history"
 
-We have a number of `*HISTORY.md` files (implementation, ideas, priorities)
-that are append-only and will grow indefinitely over time. We should consider
-chunking these files by time (e.g., monthly) to avoid having the latest one
-become too large to easily navigate. An agent that needs to review history
-will most often be looking at recent history, so if the current month is always
-the one that is being appended to, it will be more manageable. We could
-develop a tool that agents can use to do something like `append-history`
-with arguments for which history type (ideas, implementation, priorities)
-and it could just use a date command like `date +"%y%m"` to generate the
-filename suffix `IDEA-HISTORY-YYMM.md` and then append the text to that file.
-The append part can be fully automated so that the agent doesn't have to
-worry about which file to append to, or where in the file to insert, it just
-knows to call the tool command we give it with the text to append (piping it
-in, passing it as an argument, HERE files, etc. whatever make sense to
-implement to make it easy for the agent to use and get it right the first time.)
-History files should probably belong in their own folder (e.g., `plan/history/`)
-instead of being in the `plan/` folder, since they are not really part of
-the active planning process, but are more like a record of what has happened
-over time.
+The `build` skill has sometimes resulted in updates to
+`plan/IMPLEMENTATION_NOTES.md` that are largely just status updates that are
+better suited for the `plan/IMPLEMENTATION_HISTORY.md` file. The difference
+in intent is that `IMPLEMENTATION_HISTORY.md` is for "what was done" whereas
+`IMPLEMENTATION_NOTES.md` is for "what was learned". The `build` skill should
+be clear on this distinction and should aim to put information in the right
+place. If it's a status update or summary of what was done, it should go in the
+history file. If it's an insight, learning, or lesson that could inform future
+work, it should go in the notes file. This will help keep the notes file
+focused on actionable knowledge that can be extracted and applied, while the
+history file serves as a chronological record of implementation progress.
+
+Perhaps consider changing name from `IMPLEMENTATION_NOTES.md` to `IMPLEMENTATION_LEARNINGS.md`
+or `BUILD_LEARNINGS.md` to make the distinction clear in the name itself.
+Also we should do a similar "migrate to history" process for whatever this
+file ends up being called to move processed items (e.g., during `learn`
+skill) from the `LEARNINGS` file into the appropriate `HISTORY` file, to keep
+the learnings file focused on unprocessed insights that have not yet been
+digested into durable specs or notes.
+
+Also clarify that when updating the implementation plan, any "things you
+should know when implementing" should go into `notes/` files instead of the
+learnings file so that learnings are a focused channel for build to send
+information back upstream.
+
+A change like this will need to touch multiple files since we refer to the
+`IMPLEMENTATION_NOTES.md` in a lot of docs and skills. We should make sure
+to update all of them as part of any resulting change. Possibly also need to
+update either `specs/` or `notes/` files that address which files are
+intended for which use too.
+
+Also note that IDEA-26042702 has relevant implications for managing history
+files over time that will matter here as well.

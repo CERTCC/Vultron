@@ -87,6 +87,7 @@ Load additional files only when the task touches the relevant area. See the
 | Agentic API | `agentic-readiness.yaml` |
 | Documentation work | `diataxis-requirements.yaml`, `project-documentation.yaml`, `traceability.yaml` |
 | Plan organization / priorities | `project-documentation.yaml`, `notes/plan-organization.md` |
+| History file management / append-history tool | `history-management.yaml` |
 | Notes frontmatter / metadata tooling | `notes-frontmatter.yaml` |
 | Spec registry / YAML requirement files | `spec-registry.yaml` |
 | Bugfix skill / bug lifecycle | `bugfix-workflow.yaml` |
@@ -286,6 +287,11 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   includes append-only history write protocol (PD-05) for `plan/*HISTORY.md`,
   and plan section organization rules (PD-06): `TASK-FOO` heading format,
   dot-notation task IDs, priority/plan decoupling
+- **`history-management.yaml`** - Chunked per-entry history file system:
+  `plan/history/YYMM/<type>/<entry-id>.md` structure, `HistoryEntryType`
+  StrEnum, `append-history` CLI tool (`vultron/metadata/history/`), monthly
+  README generation, legacy file migration, and agent context boundary rules
+  (HM-01 through HM-05)
 - **`prototype-shortcuts.yaml`** - Permissible shortcuts for the prototype stage,
   including performance testing deferral (PROTO-07) and backward-compatibility
   / change-completeness policy (PROTO-08)
