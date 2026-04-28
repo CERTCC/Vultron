@@ -6,17 +6,9 @@ Priority numbers are ascending, so lower numbers are higher priority.
 The scale is not linear, it's just intended to provide a rough ordering and
 allow for space between to add new priorities in the future if needed. The
 priority numbers themselves do not have any inherent meaning beyond their
-relative order. Completed priorities should be moved to
-`plan/PRIORITY_HISTORY.md` (append-only archive) to keep `plan/PRIORITIES.md`
-focused on pending and in-progress work.
-
-## Priority 470
-
-Fixing specs as part of the `skills-upgrade` branch.
-
-Includes:
-TASK-SPECMD
-TASK-SPECIDFIX
+relative order. Completed priorities should be archived via `uv run append-history priority`
+(writes to `plan/history/YYMM/priority/`) and then removed from this file to keep
+`plan/PRIORITIES.md` focused on pending and in-progress work.
 
 ## Priority 475: Cyclomatic Complexity Enforcement
 
