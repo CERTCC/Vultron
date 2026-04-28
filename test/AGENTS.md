@@ -124,6 +124,17 @@ Per `specs/testability.yaml` TB-05-004 and TB-05-005:
 can pass even when handlers expect full objects. Tests with mismatched semantics
 don't exercise the actual code paths.
 
+```python
+# ❌ Anti-pattern
+activity = as_Create(actor="alice", object="report-1")
+event = CreateReportReceivedEvent(semantic_type=MessageSemantics.UNKNOWN, ...)
+
+# ✅ Best practice
+report = VulnerabilityReport(name="TEST-001", content="...")
+activity = as_Create(actor="https://example.org/alice", object=report)
+event = CreateReportReceivedEvent(semantic_type=MessageSemantics.CREATE_REPORT, ...)
+```
+
 ### Handler Testing (MUST)
 
 When implementing handler business logic, tests MUST verify:
@@ -142,35 +153,10 @@ behavior across backends (in-memory / tinydb) where reasonable.
 
 ---
 
----
-
 ## Parallelism and Single-Agent Testing
 
 - Agents may use parallel subagents for complex tasks, but the testing step must
   only ever use a single agent instance to ensure consistency.
-
----
-
----
-
-### Test Data Quality
-
-**Anti-pattern**:
-
-```python
-activity = as_Create(actor="alice", object="report-1")  # Bad: strings
-event = CreateReportReceivedEvent(semantic_type=MessageSemantics.UNKNOWN, ...)  # Bad: wrong semantic
-```
-
-**Best practice**:
-
-```python
-report = VulnerabilityReport(name="TEST-001", content="...")  # Good: proper object
-activity = as_Create(actor="https://example.org/alice", object=report)  # Good: full structure
-event = CreateReportReceivedEvent(semantic_type=MessageSemantics.CREATE_REPORT, ...)  # Good: matches structure
-```
-
-See `specs/testability.yaml` TB-05-004, TB-05-005 for requirements.
 
 ---
 
@@ -192,8 +178,6 @@ from finalizers (`__del__`) running after pytest exits and are invisible to
 unclosed resources and are still bugs even if they do not cause test
 failures. File them in `plan/BUGS.md` if not already tracked and fix them
 by explicitly closing resources in fixtures.
-
----
 
 ---
 
