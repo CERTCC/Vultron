@@ -3,19 +3,14 @@ name: learn
 description: >
   Refine, create, and organize specification and design documentation so
   repository docs are concise, consistent, testable, and aligned with current
-  priorities. Follows the LEARN workflow: loads specs via spec-dump, analyzes
-  gaps, interviews the user with grill-me to align on scope, then writes to
-  specs/, notes/, AGENTS.md, and plan/IMPLEMENTATION_PLAN.md before committing.
-  Use when the user asks to run the LEARN workflow, audit documentation,
-  promote ephemeral notes to durable docs, or align specs with current code.
+  priorities. Loads specs and context, analyzes gaps, interviews the user with
+  grill-me to align on scope, then writes to specs/, notes/, AGENTS.md, and
+  plan/IMPLEMENTATION_PLAN.md before committing. Use when the user asks to
+  audit documentation, promote ephemeral notes to durable docs, or align
+  specs with current code.
 ---
 
 # Skill: Learn
-
-This skill wraps `@.github/prompts/LEARN.md` as a reusable workflow skill. It
-preserves the prompt's review, analysis, gap-capture, and commit behavior, and
-inserts a grill-me interview phase to align on scope and decisions before
-writing anything.
 
 **Constraint**: Modify **markdown files only**. Do not modify code or tests.
 

@@ -1,17 +1,16 @@
 ---
 name: bugfix
 description: >
-  Fix a bug using test-first development. Invokes the BUGFIX.md prompt
-  workflow but gates implementation on confirmed shared understanding with
-  the user. Use when the user asks to fix a bug or run the bugfix workflow.
+  Fix a bug using test-first development. Gates implementation on confirmed
+  shared understanding with the user — no code is written until both the agent
+  and the user agree on what bug is being fixed and why. Use when the user
+  asks to fix a bug.
 ---
 
-# Skill: Bugfix (with clarification gate)
+# Skill: Bugfix
 
-This skill wraps the project's `@.github/prompts/BUGFIX.md` workflow and adds
-a mandatory clarification step before any code is written. No implementation
-work begins until both the agent and the user agree on what bug is being fixed
-and why.
+No implementation work begins until both the agent and the user agree on what
+bug is being fixed and why.
 
 ## Phase 1 — Identify the Bug
 
@@ -76,10 +75,9 @@ See `specs/bugfix-workflow.yaml` BFW-02-001 through BFW-02-004 and
 
 **Do not proceed to Phase 3 until Phase 2b scope is confirmed.**
 
-## Phase 3 — Implement (follows BUGFIX.md)
+## Phase 3 — Implement
 
-Once shared understanding is confirmed, follow `@.github/prompts/BUGFIX.md`
-starting at step 3 ("Verify Before Changes"):
+Once shared understanding is confirmed:
 
 1. **Verify Before Changes** — Search `vultron/` and `test/` to confirm the
    bug exists as understood. Do not assume; confirm via code search.

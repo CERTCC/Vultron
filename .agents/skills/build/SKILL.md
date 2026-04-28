@@ -1,18 +1,14 @@
 ---
 name: build
 description: >
-  Completes the highest-priority pending implementation task by following the
-  repository's BUILD workflow from task selection through validation,
-  plan-history updates, and commit. Use when the user asks to continue planned
-  implementation work, run the BUILD workflow, or turn the next prioritized
-  item in the implementation plan into a completed changeset.
+  Completes the highest-priority pending implementation task: loads project
+  context, selects the next task, implements it, validates, updates plan
+  history, and commits. Use when the user asks to continue planned
+  implementation work or turn the next prioritized item in the implementation
+  plan into a completed changeset.
 ---
 
 # Skill: Build
-
-This skill wraps `@.github/prompts/BUILD.md` as a reusable workflow skill. It
-preserves the prompt's task-selection rules, prerequisite guardrails,
-validation expectations, and finalize-and-commit behavior.
 
 ## Quick start
 
