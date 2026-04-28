@@ -342,6 +342,15 @@ Operationalises `specs/bugfix-workflow.yaml` (BFW).
 **Load when**: following the BUGFIX skill workflow, implementing bugfix
 tooling, or working on BFW spec requirements.
 
+**`agentic-workflow.md`**
+The four-skill agentic development pipeline: `ingest-idea`, `learn`,
+`update-plan`, and `build`. Documents the inputs, outputs, and trigger
+conditions for each skill, and the priority-interrupt loop that governs
+execution order (design > learn > plan > build). Includes a Mermaid
+flowchart and future BT automation notes.
+**Load when**: understanding or evolving the agent skill pipeline, automating
+the development loop, or deciding which skill to run next.
+
 ---
 
 ## Documentation and Traceability
