@@ -5,6 +5,7 @@ description: Handler use-case classes process `VultronEvent` domain objects and 
 version: 1.0.0
 kind: domain
 scope:
+
 - prototype
 - production
 groups:
@@ -158,3 +159,19 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: VAM-01-008
+- id: HP-10
+  title: Unsupported Addressing Fields
+  specs:
+  - id: HP-10-001
+    priority: MUST
+    statement: >-
+      When a receiving actor finds itself in the `cc` field of an inbound `Offer(Report)`
+      activity, the handler MUST log a WARNING and discard the activity without creating
+      a case
+    rationale: >-
+      `cc` addressing has no defined handler semantics in the current protocol version.
+      Implementing an "informational receive" use case for `cc` recipients would require
+      defining what "informational only" means, which is deferred. Deliberate simplification.
+    relationships:
+    - rel_type: refines
+      spec_id: HP-09-001

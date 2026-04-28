@@ -313,6 +313,16 @@ provides unique ID constraints. Report handlers (`create_report`,
 - **Actor IDs Must Always Be Full URIs** — see [notes/codebase-structure.md](notes/codebase-structure.md)
 - **BT Failure Reason: Use `get_failure_reason()`, Not Generic Error Logs** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Dead-Letter vs. No-Pattern: Two Distinct UNKNOWN Failure Modes** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
+- **Accept.object_ Must Be the Invite Activity, Not the Case Object** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
+- **Actor ID Normalization in Trigger Paths: Resolve Path Params Before Outbox** — see [notes/codebase-structure.md](notes/codebase-structure.md)
+- **Trigger-Side Embargo Ownership Gate (Owner vs. Participant)** — see [notes/participant-embargo-consent.md](notes/participant-embargo-consent.md)
+- **Note Attachment Idempotency: Check `case.notes`, Not DataLayer Existence** — see [notes/bt-integration.md](notes/bt-integration.md)
+- **Transitive Activity `object_` Contract at Base Type** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
+- **Base-Typed Serialization Drops Subtype Fields: Use `serialize_as_any=True`** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
+- **Invite Response Parsing Requires Recursive Rehydration** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
+- **Scenario Demos Must Puppeteer via Trigger Endpoints, Not Spoof Inboxes** — see [notes/event-driven-control-flow.md](notes/event-driven-control-flow.md)
+- **Role Taxonomies Must Not Leak Into Parameter Names** — When renaming a role concept (e.g., "finder" → "reporter"), search adapter and demo layers as well as core. Demo helpers often mirror public parameter names; leaving them behind creates naming inconsistency. See `notes/bugfix-workflow.md`.
+- **Close Bugs With Evidence, Not Assumption** — see [notes/bt-integration.md](notes/bt-integration.md)
 
 > **Parallelism and Single-Agent Testing** has moved to `test/AGENTS.md`.
 >

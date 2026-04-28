@@ -673,3 +673,54 @@ if bt.root.status == Status.FAILURE:
 failed" log lines that require re-running the scenario to diagnose. The
 `feedback_message` is set by failing nodes in py_trees and is the canonical
 source of diagnostic information.
+
+---
+
+### AttachNoteToCase Idempotency: Check Attachment, Not Existence
+
+(DR-08, 2026-04-20)
+
+`AttachNoteToCaseNode.update()` MUST check whether the note is already
+**attached to the case** for idempotency — NOT whether the note object exists
+in the DataLayer.
+
+```python
+# WRONG — note may exist in DataLayer without being attached to the case
+if dl.read(note.id_) is not None:
+    return Status.SUCCESS  # false idempotency
+
+# CORRECT — check the case's note reference list
+case = dl.read(case_id)
+if note.id_ in case.notes:
+    return Status.SUCCESS  # truly idempotent
+case.notes.append(note.id_)
+dl.save(case)
+return Status.SUCCESS
+```
+
+**Why this matters**: The DataLayer stores notes as top-level objects
+independently of their attachment to a case. A note can be created and
+persisted without ever being added to `case.notes`. Checking `dl.read(note_id)
+is not None` would falsely skip re-attachment if the note was stored by another
+path but never linked.
+
+---
+
+### Closing Bugs with Concrete Evidence
+
+(BUG-26041701 closure, 2026-04-22)
+
+When a backlog bug may already be fixed by unrelated work, close it with
+**concrete evidence** rather than forcing a redundant follow-up patch:
+
+1. **Code search**: confirm that the triggering condition is no longer possible
+   (e.g., search for the pattern that caused the original bug and verify it's
+   gone).
+2. **Regression test**: add or verify a test that would fail if the bug
+   recurred.
+3. **Document the fix points**: note which commits/layers addressed each aspect
+   of the root cause.
+
+**Anti-pattern**: Treating "I can't reproduce it" as sufficient closure — the
+fix may be coincidental and fragile. Concrete evidence ensures it won't
+silently regress.

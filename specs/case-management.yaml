@@ -9,6 +9,7 @@ description: >-
 version: 1.0.0
 kind: domain
 scope:
+
 - prototype
 - production
 groups:
@@ -492,3 +493,69 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-12-001
+- id: CM-13
+  title: Embargo Acceptance Ownership
+  specs:
+  - id: CM-13-001
+    priority: MUST
+    statement: >-
+      When processing an `Accept(Invite(EmbargoEvent))` or embargo-accept trigger, the
+      handler MUST determine whether the accepting actor is the case owner
+      (`VulnerabilityCase.attributed_to == actor_id`) and apply the correct state
+      transitions accordingly
+    rationale: >-
+      The case owner's acceptance is the authoritative signal for advancing the shared
+      EM state. Non-owner participants update only their own consent state.
+  - id: CM-13-002
+    priority: MUST
+    statement: >-
+      If the accepting actor is the case owner, the handler MUST transition the shared
+      `CaseStatus.em_state` to `ACTIVE`
+  - id: CM-13-003
+    priority: MUST
+    statement: >-
+      If the accepting actor is NOT the case owner, the handler MUST update only that
+      participant's own `ParticipantStatus.embargo_adherence` consent state to `SIGNATORY`;
+      it MUST NOT advance the shared EM state
+    rationale: >-
+      Non-owner participants do not hold a pocket veto; their individual acceptance does
+      not constitute case-level embargo activation
+  - id: CM-13-004
+    priority: MUST
+    statement: >-
+      If `VulnerabilityCase.attributed_to` is `None` (legacy or single-actor case), the
+      handler MUST treat the triggering actor as the case owner for the purposes of EM
+      state transitions
+    rationale: >-
+      Backward compatibility with cases created before the `attributed_to` field was
+      introduced; prevents single-actor embargo triggers from silently failing
+  - id: CM-13-005
+    priority: MUST
+    statement: >-
+      Embargo accept/reject handlers MUST be idempotent: if the participant's consent
+      state is already `SIGNATORY` (for accept) or `DECLINED` (for reject), the handler
+      MUST succeed silently without re-running state machine transitions or emitting
+      invalid-transition warnings
+  - id: CM-13-006
+    priority: MUST
+    statement: >-
+      When a case is created with a default embargo that reaches `EM.ACTIVE` at creation
+      time, the case owner MUST be initialized as a `SIGNATORY` in the same BT node or an
+      immediately following sibling node in the same BT subtree
+    rationale: >-
+      The case creator is the case owner by default; seeding them as a signatory prevents
+      the case owner from being locked out of their own active embargo until a separate
+      accept step occurs. The consent state must be set via the PEC state machine
+      (not by direct field assignment) to preserve state machine invariants.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-12-004
+  - id: CM-13-007
+    priority: MUST
+    statement: >-
+      Note attachment idempotency MUST be checked by testing whether the note's `id_` is
+      present in `VulnerabilityCase.notes`, NOT by testing whether the note object exists
+      in the DataLayer
+    rationale: >-
+      A note may be stored in the DataLayer by one path and never attached to `case.notes`
+      by another path. Checking DataLayer existence produces false idempotency.

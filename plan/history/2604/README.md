@@ -5,6 +5,35 @@
 | Date | Type | Source | Title |
 |------|------|--------|-------|
 | 2025-07-11 | implementation | TASK-SPECMD, TASK-SPECIDFIX | TASK-SPECMD + TASK-SPECIDFIX |
+| 2026-04-17 | learning | BUG-26041701 | BUG-26041701 design scope expansion - demo spoofing vs puppeteering |
+| 2026-04-20 | learning | REVIEW-26042001-DR-02 | DR-02 Activity name construction |
+| 2026-04-20 | learning | REVIEW-26042001-DR-03 | DR-03 Semantic extraction bare-string object_ guard |
+| 2026-04-20 | learning | REVIEW-26042001-DR-04 | DR-04 Fail-fast for required event fields |
+| 2026-04-20 | learning | REVIEW-26042001-DR-05 | DR-05 Accept.object_ must carry the original Invite |
+| 2026-04-20 | learning | REVIEW-26042001-DR-06 | DR-06 Multi-party embargo per-participant EM state |
+| 2026-04-20 | learning | REVIEW-26042001-DR-07 | DR-07 ActivityPattern discrimination requirement |
+| 2026-04-20 | learning | REVIEW-26042001-DR-08 | DR-08 AttachNoteToCaseNode idempotency |
+| 2026-04-20 | learning | REVIEW-26042001-DR-09 | DR-09 Actor ID normalization |
+| 2026-04-20 | learning | REVIEW-26042001-DR-10 | DR-10 Stub objects for selective disclosure |
+| 2026-04-20 | learning | REVIEW-26042001-DR-11 | DR-11 PersistCase upsert semantics |
+| 2026-04-20 | learning | REVIEW-26042001-DR-12 | DR-12 BT failure reason propagation |
+| 2026-04-20 | learning | REVIEW-26042001-DR-13 | DR-13 SubmitReportReceivedUseCase remove vendor/target assumptions |
+| 2026-04-20 | learning | REVIEW-26042001-DR-14 | DR-14 Dead-letter handling for unresolvable object_ |
+| 2026-04-20 | learning | REVIEW-26042001-supplement-DR-06 | DR-06 Update Per-Participant Embargo Consent State Machine |
+| 2026-04-20 | learning | REVIEW-26042001-supplement-DR-07 | DR-07 Update InviteActorToCasePattern missing object_ + subtype constraint |
+| 2026-04-20 | learning | REVIEW-26042001-supplement-DR-13 | DR-13 Update cc addressing not supported |
+| 2026-04-20 | learning | REVIEW-26042001 | DR-01 Outbox reference-field dehydration |
+| 2026-04-22 | learning | BUG-26041701-closure | BUG-26041701 closure verification meta-lesson |
+| 2026-04-22 | learning | BUG-26041801 | BUG-26041801 Reporter terminology at report receipt |
+| 2026-04-22 | learning | BUG-26041802 | BUG-26041802 Transitive activity object contract |
+| 2026-04-22 | learning | BUG-26042101 | BUG-26042101 Trigger-side embargo ownership gate |
+| 2026-04-22 | learning | BUG-26042201 | BUG-26042201 Base-typed activity serialization drops inline subtype fields |
+| 2026-04-22 | learning | BUG-26042202 | BUG-26042202 Case triggers must normalize actor IDs before outbox updates |
+| 2026-04-22 | learning | BUG-26042203 | BUG-26042203 Invite response parsing lessons |
+| 2026-04-22 | learning | BUG-26042204 | BUG-26042204 Available embargo at case creation |
+| 2026-04-23 | learning | CC-ENFORCEMENT | CC-ENFORCEMENT Cyclomatic Complexity Gate Design |
+| 2026-04-23 | learning | DOCS-3 | DOCS-3 User stories with insufficient specification coverage |
+| 2026-04-23 | learning | TOOLS-1 | TOOLS-1 Python 3.14 deferred |
 | 2026-04-28 | idea | IDEA-26042701 | Implementation plan groups should be approximately Issue or PR sized |
 | 2026-04-28 | idea | IDEA-26042801 | build skill should be clear on distinction between notes and history |
 | 2026-04-28 | priority | Priority 470 | Priority 470 — Skills-upgrade spec tasks complete |
