@@ -1,68 +1,78 @@
 ---
 name: learn
 description: >
-  Refine, create, and organize specification and design documentation so
-  repository docs are concise, consistent, testable, and aligned with current
-  priorities. Loads specs and context, analyzes gaps, interviews the user with
-  grill-me to align on scope, then writes to specs/, notes/, AGENTS.md, and
-  plan/IMPLEMENTATION_PLAN.md before committing. Use when the user asks to
-  audit documentation, promote ephemeral notes to durable docs, or align
-  specs with current code.
+  Promote lessons learned from the build process into durable specifications
+  and design notes. Reads IMPLEMENTATION_NOTES and IMPLEMENTATION_HISTORY
+  (internal sources), analyzes gaps, interviews the user with grill-me to
+  align on scope, then writes to specs/, notes/, and AGENTS.md before
+  committing. Use when build execution has produced insights that should be
+  reflected in specs or notes. For external ideas (IDEAS.md), use ingest-idea
+  instead.
 ---
 
 # Skill: Learn
 
+Integrate lessons learned from build execution into the project's durable
+specification and design documentation. The input is what the build process
+has discovered (`IMPLEMENTATION_NOTES.md`, `IMPLEMENTATION_HISTORY.md`); the
+output is refined `specs/`, `notes/`, and `AGENTS.md`.
+
 **Constraint**: Modify **markdown files only**. Do not modify code or tests.
+
+**Trigger**: Use this skill when `plan/IMPLEMENTATION_NOTES.md` or
+`plan/IMPLEMENTATION_HISTORY.md` has grown and those insights should be
+promoted into durable docs.
+
+> For new external ideas from `plan/IDEAS.md`, use `ingest-idea` instead.
 
 ## Quick Start
 
-1. Invoke the `study-project-docs` skill to load specs and read all context.
-2. Analyze documentation for gaps, ambiguity, redundancy, and drift.
-3. Invoke the `grill-me` skill to align on scope and decisions — before
-   writing anything.
-4. Execute documentation updates across `specs/`, `notes/`, `AGENTS.md`,
-   and `plan/IMPLEMENTATION_PLAN.md`.
-5. Preserve ephemeral insights from `IDEAS.md` and `IMPLEMENTATION_NOTES.md`.
-6. Invoke the `format-markdown` skill, then the `commit` skill.
+1. Read `plan/IMPLEMENTATION_NOTES.md` and `plan/IMPLEMENTATION_HISTORY.md`.
+2. Invoke `study-project-docs` for full context (specs, notes, code).
+3. Analyze what the build process has learned vs. what specs and notes capture.
+4. Invoke `grill-me` to align on scope and decisions — before writing anything.
+5. Write to `specs/`, `notes/`, and `AGENTS.md`.
+6. Invoke `format-markdown`, then `commit`.
 
 ## Workflow
 
-### Phase 1 — Load Specs and Review Context
+### Phase 1 — Load Internal Sources and Context
 
-Invoke the `study-project-docs` skill. It runs `load-specs`, reads all plan/,
-docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
+1. Read `plan/IMPLEMENTATION_NOTES.md` — open questions, observations, and
+   lessons from recent build runs (ephemeral; must be promoted before it's
+   lost).
+2. Read `plan/IMPLEMENTATION_HISTORY.md` — completed tasks and their recorded
+   lessons, for additional context.
+3. Invoke the `study-project-docs` skill for full context: specs JSON,
+   plan files, docs/adr/, notes/, AGENTS.md, and a code scan.
 
-Additionally read `plan/IMPLEMENTATION_HISTORY.md` for recent completed work.
+> `IMPLEMENTATION_NOTES.md` is ephemeral. Any critical insight in it **must
+> be promoted** to `specs/` or `notes/` before this session ends.
 
-> `IDEAS.md` and `IMPLEMENTATION_NOTES.md` are ephemeral. Any critical insight
-> in them **must be preserved elsewhere** before this session ends.
+### Phase 2 — Analyze Gaps
 
-### Phase 2 — Analyze Documentation
+Identify what the build process has learned that is not yet captured in
+durable docs:
 
-Identify:
-
-1. Missing requirements (code exists but no spec).
-2. Ambiguous or untestable requirements.
+1. Missing requirements — behavior exists in code but has no spec.
+2. Ambiguous or untestable requirements — reality diverges from what's written.
 3. Redundant or contradictory requirements across spec files.
-4. Drift from current priorities or the actual codebase.
-5. Architectural inconsistencies.
-
-Cross-check whether items in `PRIORITIES.md`, `IDEAS.md`, or
-`IMPLEMENTATION_NOTES.md` are fully reflected in `specs/`, `notes/`, or
-`AGENTS.md`.
+4. Agent guidance patterns that keep recurring in `IMPLEMENTATION_NOTES.md`
+   but are not yet in `AGENTS.md`.
+5. Architectural insights from `IMPLEMENTATION_HISTORY.md` not yet in
+   `notes/`.
 
 ### Phase 3 — Interview with Grill-Me
 
 Invoke the `grill-me` skill. Resolve one question at a time (using `ask_user`)
 with a recommended answer before writing anything:
 
-- Which gaps are most important to address in this run?
-- Which ephemeral insights should be promoted, and to which durable file?
+- Which insights from `IMPLEMENTATION_NOTES.md` are most important to promote?
+- Which gaps are most critical to close in this run?
 - Are there unresolvable conflicts that need a human decision?
 - Does any spec change require code verification first?
 
-Answer questions from codebase exploration where possible; ask the user only
-when the answer cannot be determined from code or existing docs.
+Answer questions from codebase exploration where possible.
 
 ### Phase 4 — Refine Specifications (`specs/`)
 
@@ -70,56 +80,53 @@ when the answer cannot be determined from code or existing docs.
   concise, and verifiable.
 - `specs/` are for *what*, not *how*.
 - Eliminate redundancy; use `PROD_ONLY` tag for production-only requirements.
+- Separate topics of concern into distinct files when a file has grown too
+  broad.
 - Update `specs/README.md` to reflect all file additions, removals, renames,
   and topic reorganizations.
 
 ### Phase 5 — Update Design Notes (`notes/`)
 
-- Capture design insights, tradeoffs, and lessons learned; do not duplicate
-  spec text.
-- Promote critical insights from `IMPLEMENTATION_NOTES.md`.
+- Promote insights, tradeoffs, and lessons from `IMPLEMENTATION_NOTES.md`
+  into the appropriate `notes/*.md` file. Do not duplicate spec text.
 - Mark unresolved items explicitly: `Open Question:` / `Design Decision:`.
 - Update `notes/README.md` when files are added, removed, or reorganized.
 - Every `notes/*.md` (except `notes/README.md`) must have valid YAML
   frontmatter with at least `title` and `status`.
 
-### Phase 6 — Capture Implementation Tasks
+### Phase 6 — Update Agent Guidance (`AGENTS.md`)
 
-Add to `plan/IMPLEMENTATION_PLAN.md` only specific, actionable, testable tasks
-not already tracked. No priority indicators; no design notes or open questions.
+Promote recurring implementation patterns and conventions from
+`IMPLEMENTATION_NOTES.md` into `AGENTS.md`. Keep entries precise, actionable,
+and minimal.
 
-### Phase 7 — Update Agent Guidance (`AGENTS.md`)
+### Phase 7 — Tidy Ephemeral Sources
 
-Add or refine recurring implementation guidance: precise, actionable, and
-minimal. Document patterns, conventions, and process rules useful for future
-agents.
-
-### Phase 8 — Preserve Ephemeral Insights
-
-For items in `IDEAS.md` or `IMPLEMENTATION_NOTES.md` now captured elsewhere,
-apply line-level strikethrough to the original text and add a reference:
+For items in `IMPLEMENTATION_NOTES.md` now fully captured in `specs/`,
+`notes/`, or `AGENTS.md`, apply line-level strikethrough with a reference:
 
 ```markdown
-~~Original idea text~~
-→ captured in specs/foo.yaml
+~~Original note text~~
+→ captured in notes/foo.md
 ```
 
-Do **not** delete the original text. Do **not** reference these ephemeral
-files from durable docs.
+Do **not** delete the original text. Do **not** reference `IMPLEMENTATION_NOTES.md`
+from durable docs.
 
-### Phase 9 — Lint and Commit
+### Phase 8 — Lint and Commit
 
-1. Invoke the `format-markdown` skill (`./mdlint.sh`) on all new/modified
-   markdown files. Fix all errors.
+1. Invoke the `format-markdown` skill on all new/modified markdown files.
+   Fix all errors.
 2. If a requirement conflict cannot be resolved, add a note to
    `plan/IMPLEMENTATION_NOTES.md` and **stop before committing**.
 3. Invoke the `commit` skill. Use multiple commits for thematically distinct
-   changes (e.g., spec refactoring, insights promoted, AGENTS.md updates).
+   changes (e.g., spec refinements, notes promoted, AGENTS.md updates).
 
 ## Constraints
 
 - Do not modify code or tests.
+- Do not process `plan/IDEAS.md` — that is `ingest-idea`'s domain.
 - Do not skip the grill-me phase — it must complete before any writing.
-- Do not reference `IDEAS.md` or `IMPLEMENTATION_NOTES.md` from durable docs.
+- Do not reference `IMPLEMENTATION_NOTES.md` from durable docs.
 - Verify assumptions against the codebase; do not assert absence without
   evidence.
