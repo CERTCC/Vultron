@@ -25,7 +25,7 @@ and those insights should be promoted into durable docs.
 
 ## Quick Start
 
-1. Read `plan/IMPLEMENTATION_NOTES.md` and `plan/IMPLEMENTATION_HISTORY.md`.
+1. Read `plan/IMPLEMENTATION_NOTES.md`.
 2. Invoke `study-project-docs` for full context (specs, notes, code).
 3. Analyze what the build process has learned vs. what specs and notes capture.
 4. Invoke `grill-me` to align on scope and decisions — before writing anything.

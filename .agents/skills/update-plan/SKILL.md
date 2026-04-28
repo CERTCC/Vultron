@@ -40,8 +40,10 @@ periodically to keep the plan aligned with the codebase.
 Invoke the `study-project-docs` skill. It loads all specs, reads all plan/,
 docs/adr/, notes/, AGENTS.md, and scans vultron/ and test/.
 
-Additionally read `plan/IMPLEMENTATION_HISTORY.md` to understand what has
-recently been completed and avoid re-adding finished work.
+To understand what has recently been completed and avoid re-adding finished
+work, read the current month's index at `plan/history/YYMM/README.md` (where
+`YYMM` is the current year-month, e.g. `2604`). Open individual entry files
+only when their titles suggest they contain relevant context.
 
 ### Phase 2 — Gap Analysis
 
@@ -53,7 +55,8 @@ Compare the current `specs/` + `notes/` against `vultron/` and `test/`:
   missing.
 - **Untested behaviors**: implementation exists but no test covers it.
 - **Stale tasks**: `IMPLEMENTATION_PLAN.md` has tasks for things already
-  implemented — these should be moved to `IMPLEMENTATION_HISTORY.md`.
+  implemented — these should be archived via `uv run append-history implementation`
+  and removed from `IMPLEMENTATION_PLAN.md`.
 - **Known bugs**: open entries in `plan/BUGS.md` that block or relate to
   planned work.
 
@@ -71,9 +74,9 @@ Rewrite the plan based on the gap analysis:
   share the same implementation context.
 - Order tasks using `plan/PRIORITIES.md` as authoritative plus dependency
   analysis. Do **not** include explicit priority labels in task descriptions.
-- **Completed tasks MUST be moved** to `plan/IMPLEMENTATION_HISTORY.md` and
-  then deleted from `IMPLEMENTATION_PLAN.md`. Do not leave tombstones, `[x]`
-  checkboxes, or one-line summaries.
+- **Completed tasks MUST be archived** via `uv run append-history implementation`
+  and then deleted from `IMPLEMENTATION_PLAN.md`. Do not leave tombstones,
+  `[x]` checkboxes, or one-line summaries.
 
 ### Phase 4 — Tidy `plan/IMPLEMENTATION_NOTES.md`
 
@@ -97,4 +100,5 @@ specific message (e.g., `plan: gap analysis, add N tasks, move M completed`).
 - Do not modify code, tests, `specs/`, or `notes/`.
 - Do not speculate about missing functionality; verify with code search first.
 - Do not implement anything — that is `build`'s domain.
-- `plan/IMPLEMENTATION_HISTORY.md` is append-only; new entries go at the end.
+- Use `uv run append-history implementation` to archive completed tasks — do
+  not write directly to any file in `plan/history/`.

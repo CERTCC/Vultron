@@ -93,9 +93,9 @@ Once shared understanding is confirmed:
    into `plan/BUGS.md`; do not pursue them now.
 
 5. **Finalize**
-   - Append a completion summary (bug ID, symptoms, root cause, fix) to
-     `plan/IMPLEMENTATION_HISTORY.md` using the template in
-     `notes/bugfix-workflow.md`.
+   - Archive a completion summary (bug ID, symptoms, root cause, fix) using
+     `uv run append-history implementation` (see `notes/bugfix-workflow.md`
+     for the template).
    - Remove the bug's entry entirely from `plan/BUGS.md`. Do not leave a
      tombstone, `FIXED` marker, or closed-notice — see
      `specs/bugfix-workflow.yaml` BFW-04-002.
