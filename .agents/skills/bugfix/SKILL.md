@@ -101,7 +101,7 @@ Once shared understanding is confirmed:
      `specs/bugfix-workflow.yaml` BFW-04-002.
    - If any other bugs in `plan/BUGS.md` are already marked fixed, archive
      and remove them opportunistically (BFW-04-004).
-   - Capture lessons learned in `plan/IMPLEMENTATION_NOTES.md`.
+   - Capture observations, constraints, and open questions in `plan/BUILD_LEARNINGS.md`.
    - Invoke the `commit` skill with a clear, specific message. Reference any
      new bugs filed during Phase 2b analysis (e.g.,
      `Also filed: BUG-YYMMDDXX`).

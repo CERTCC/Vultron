@@ -51,10 +51,10 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
    - it is labeled `auto-added`
    - it includes a short title, one-line justification, and one-line
      acceptance criterion
-   - the rationale is recorded in `plan/IMPLEMENTATION_NOTES.md`
+   - the rationale is recorded in `plan/BUILD_LEARNINGS.md`
    - the commit message is prefixed `plan: add prerequisite`
 4. If more than one prerequisite is required, or the prerequisite change is
-   non-trivial, update `plan/IMPLEMENTATION_NOTES.md` with details and stop.
+   non-trivial, update `plan/BUILD_LEARNINGS.md` with details and stop.
 
 ### Phase 4 - Implement
 
@@ -95,7 +95,11 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
 2. Delete the completed task from `plan/IMPLEMENTATION_PLAN.md` entirely.
    Do not leave tombstones, `[x]` checkboxes, or one-line summaries — the
    task details belong in HISTORY, not in PLAN.
-3. Record lessons learned or constraints in `plan/IMPLEMENTATION_NOTES.md`.
+3. Record **observations, open questions, and constraints** discovered during
+   implementation in `plan/BUILD_LEARNINGS.md`. Use a dated header per entry
+   (e.g., `### 2026-04-28 LABEL — Short description`). Do **not** write
+   completion summaries here — those belong in `uv run append-history
+   implementation` (step 1 above).
 4. Invoke the `commit` skill with a clear, specific message.
 
 ## Constraints

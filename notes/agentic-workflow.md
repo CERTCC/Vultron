@@ -8,6 +8,9 @@ description: >
 related_notes:
   - notes/append-only-file-handling.md
   - notes/bugfix-workflow.md
+related_specs:
+  - specs/build-workflow.yaml
+  - specs/history-management.yaml
 ---
 
 # Agentic Development Workflow
@@ -50,11 +53,11 @@ specifications, design notes, and agent guidance.
 
 | | |
 |---|---|
-| **Trigger** | `plan/IMPLEMENTATION_NOTES.md` has unprocessed insights |
-| **Input** | `plan/IMPLEMENTATION_NOTES.md`, `plan/IMPLEMENTATION_HISTORY.md` |
+| **Trigger** | `plan/BUILD_LEARNINGS.md` has unprocessed insights |
+| **Input** | `plan/BUILD_LEARNINGS.md` |
 | **Process** | Load context → analyze gaps → grill-me interview → write |
 | **Output** | `specs/` (refined), `notes/` (promoted), `AGENTS.md` (updated) |
-| **Side effects** | `IMPLEMENTATION_NOTES.md` entries struck-through once captured |
+| **Side effects** | Processed entries archived via `uv run append-history learning`, then deleted from `BUILD_LEARNINGS.md` |
 
 `learn` is the **second-priority** skill. Build execution produces insights
 that should be reflected in specs before the plan is updated. Running
@@ -76,9 +79,9 @@ task list.
 |---|---|
 | **Trigger** | `specs/` or `notes/` have changed since the last plan update |
 | **Input** | `specs/`, `notes/`, `vultron/`, `test/`, `plan/PRIORITIES.md` |
-| **Process** | Load context → gap analysis → rewrite plan → tidy notes |
-| **Output** | `plan/IMPLEMENTATION_PLAN.md` (rewritten), `plan/IMPLEMENTATION_NOTES.md` (tidied) |
-| **Side effects** | Completed tasks moved to `plan/IMPLEMENTATION_HISTORY.md` |
+| **Process** | Load context → gap analysis → rewrite plan → write observations to `notes/` |
+| **Output** | `plan/IMPLEMENTATION_PLAN.md` (rewritten) |
+| **Side effects** | Completed tasks moved to `plan/history/` via `uv run append-history implementation` |
 
 `update-plan` is the **third-priority** skill. It translates the current
 specs and notes into concrete tasks. Running `build` on a stale plan risks
@@ -97,7 +100,7 @@ implementation plan.
 | **Input** | `plan/IMPLEMENTATION_PLAN.md` (one task), `specs/`, `notes/` |
 | **Process** | Select task → verify → implement → validate → finalize |
 | **Output** | `vultron/` (code), `test/` (tests) |
-| **Side effects** | Task removed from plan, summary appended to `IMPLEMENTATION_HISTORY.md`; lessons added to `IMPLEMENTATION_NOTES.md` (triggering `learn` on the next loop) |
+| **Side effects** | Task removed from plan, summary archived via `uv run append-history implementation`; observations and open questions appended to `plan/BUILD_LEARNINGS.md` (triggering `learn` on the next loop) |
 
 `build` is the **lowest-priority** skill — it only runs when no higher-level
 skill is triggered. Its side effects (new `IMPLEMENTATION_NOTES.md` entries)
@@ -119,9 +122,9 @@ flowchart TD
     CHK_IDEAS -->|Yes| INGEST["🌱 ingest-idea\nIDEAS.md → specs/ + notes/"]
     INGEST --> START
 
-    CHK_IDEAS -->|No| CHK_NOTES{IMPLEMENTATION_NOTES\nhas unprocessed\ninsights?}
+    CHK_IDEAS -->|No| CHK_NOTES{BUILD_LEARNINGS.md\nhas unprocessed\ninsights?}
 
-    CHK_NOTES -->|Yes| LEARN["🧠 learn\nNOTES/HISTORY → specs/ + notes/ + AGENTS.md"]
+    CHK_NOTES -->|Yes| LEARN["🧠 learn\nBUILD_LEARNINGS.md → specs/ + notes/ + AGENTS.md"]
     LEARN --> START
 
     CHK_NOTES -->|No| CHK_SPECS{specs/ or notes/\nchanged since last\nplan update?}
@@ -144,16 +147,57 @@ flowchart TD
 | File | Role | Ephemeral? |
 |---|---|---|
 | `plan/IDEAS.md` | Raw human ideas awaiting ingestion | Yes — processed by `ingest-idea` |
-| `plan/IDEA-HISTORY.md` | Archive of processed ideas | Permanent (append-only) |
+| `plan/history/` | Archive of processed ideas, tasks, learnings | Permanent (append-only, chunked) |
 | `specs/*.yaml` | Authoritative requirements | Permanent |
 | `notes/*.md` | Durable design insights | Permanent |
 | `AGENTS.md` | Agent conventions and patterns | Permanent |
 | `plan/PRIORITIES.md` | Authoritative priority ordering | Permanent |
 | `plan/IMPLEMENTATION_PLAN.md` | Pending + in-progress tasks | Living document |
-| `plan/IMPLEMENTATION_NOTES.md` | Ephemeral build observations | Yes — promoted by `learn` |
-| `plan/IMPLEMENTATION_HISTORY.md` | Completed-task archive | Permanent (append-only) |
+| `plan/BUILD_LEARNINGS.md` | Ephemeral build/bugfix observations | Yes — processed and archived by `learn` |
 | `plan/BUGS.md` | Open bugs | Living document |
 | `vultron/`, `test/` | Implementation | Permanent |
+
+---
+
+## BUILD_LEARNINGS.md Content Policy
+
+`plan/BUILD_LEARNINGS.md` is the **exclusive upstream channel** from
+code-executing skills (`build`, `bugfix`) to the `learn` skill.
+
+### What belongs here
+
+- Observations about unclear or missing spec requirements discovered during
+  implementation (e.g., "The specs don't say what to do when X")
+- Constraints or invariants discovered in the code that aren't documented
+- Open questions raised during implementation that need a decision
+- Patterns that keep recurring and should become `AGENTS.md` guidance
+- Gotchas or pitfalls encountered that should be preserved for future runs
+
+### What does NOT belong here
+
+- Completion summaries ("Task X is done") → use `uv run append-history implementation`
+- Status updates ("I completed Y and Z") → use `uv run append-history implementation`
+- Documentation of finished work → use `append-history` or `notes/`
+- `update-plan` gap-analysis observations → write directly to `notes/*.md`
+
+### Lifecycle
+
+```text
+build/bugfix run
+  → observations appended to plan/BUILD_LEARNINGS.md
+
+learn run
+  → each entry promoted to specs/*.yaml, notes/*.md, or AGENTS.md
+  → each entry archived: uv run append-history learning
+  → each entry deleted from plan/BUILD_LEARNINGS.md
+
+After learn completes:
+  plan/BUILD_LEARNINGS.md contains only unprocessed entries (ideally empty)
+  plan/history/YYMM/learning/*.md contains the archived originals
+```
+
+See `specs/build-workflow.yaml` (BW-01 through BW-04) for the normative
+requirements.
 
 ---
 
@@ -161,10 +205,12 @@ flowchart TD
 
 The pipeline has two natural feedback loops:
 
-1. **Build → Learn**: `build` writes lessons to `IMPLEMENTATION_NOTES.md`.
-   On the next loop, `learn` promotes those lessons to specs and notes.
-   This ensures that what the codebase teaches us is captured before
-   the plan is next updated.
+1. **Build → Learn**: `build` and `bugfix` write observations to
+   `BUILD_LEARNINGS.md`. On the next loop, `learn` promotes those observations
+   to specs, notes, and `AGENTS.md`, archives each entry via
+   `uv run append-history learning`, then deletes the entry from
+   `BUILD_LEARNINGS.md`. This ensures what the codebase teaches us is
+   captured durably before the plan is next updated.
 
 2. **Learn/Ingest → Update-plan**: After `learn` or `ingest-idea` refines
    specs and notes, `update-plan` picks up the changes and translates them
@@ -181,6 +227,9 @@ The pipeline has two natural feedback loops:
 | Why is `update-plan` distinct from `build`? | Plan maintenance is a research task; execution is a coding task | Mixing them produces plans that drift from specs |
 | Why restart the loop after each skill? | Higher-priority skills may be triggered by a lower-priority skill's outputs | Ensures design always precedes planning, planning always precedes building |
 | Why no branching inside skills? | Clean boundaries enable future automation of the loop | A BT or script can inspect file-change signals to trigger the right skill |
+| Why rename `IMPLEMENTATION_NOTES.md` to `BUILD_LEARNINGS.md`? | The old name implied general design notes; the new name signals a specific, focused role: a queue of code-execution observations for `learn` to promote | See `specs/build-workflow.yaml` BW-01-001 |
+| Why not let `build` write directly to `notes/`? | `build`'s job is coding; documentation curation is `learn`'s domain. `BUILD_LEARNINGS.md` is the upstream channel for `build` to communicate observations; `learn` decides what to do with them | BW-01-001, BW-01-002 |
+| Why delete (not strike-through) processed learnings? | `BUILD_LEARNINGS.md` is a queue, not an archive. Processed entries live in `plan/history/` via `append-history learning`. Keeping the queue clean prevents accumulation of stale noise | BW-02-002 |
 
 ---
 
@@ -193,7 +242,7 @@ implementation:
 ```text
 Selector (priority order)
 ├── Sequence: IDEAS.md changed? → ingest-idea
-├── Sequence: IMPLEMENTATION_NOTES.md changed? → learn
+├── Sequence: BUILD_LEARNINGS.md changed? → learn
 ├── Sequence: specs/ or notes/ changed? → update-plan
 └── Sequence: IMPLEMENTATION_PLAN.md has tasks? → build
 ```

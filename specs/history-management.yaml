@@ -70,10 +70,11 @@ groups:
         priority: MUST
         statement: >-
           Valid `type` values MUST be defined as a `StrEnum` named
-          `HistoryEntryType` in `vultron/metadata/history/types.py`. Initial
-          values are `idea`, `implementation`, and `priority`. Adding a new
-          type MUST only require adding a member to this enum; no other code
-          changes are required for the tool to accept the new type.
+          `HistoryEntryType` in `vultron/metadata/history/types.py`. Current
+          values are `idea`, `implementation`, `learning`, and `priority`.
+          Adding a new type MUST only require adding a member to this enum;
+          no other code changes are required for the tool to accept the new
+          type.
       - id: HM-02-003
         priority: MUST
         statement: >-

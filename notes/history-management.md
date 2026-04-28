@@ -216,7 +216,7 @@ then open only the specific files needed.
 IDEA-26042801 (build skill notes vs. history distinction) is closely related.
 The `append-history` tool introduced here is the mechanism by which the `build`
 skill will write *status* entries (what was done) to history, keeping
-`IMPLEMENTATION_NOTES.md` (or its successor) focused on *learnings*. The two
+`BUILD_LEARNINGS.md` focused on observations and learnings. The two
 ideas are designed to be implemented together: this spec provides the
 infrastructure; IDEA-26042801 provides the usage policy for the `build` skill.
 

@@ -141,7 +141,7 @@ backed by a `StrEnum` makes persisted records legible (e.g.,
 gate integrates into the existing `lint-flake8` CI job and pre-commit
 pipeline with no new dependencies. Scope: both `vultron/` and `test/`.
 
-See `plan/IMPLEMENTATION_NOTES.md` section CC-ENFORCEMENT for the full
+See `plan/BUILD_LEARNINGS.md` section CC-ENFORCEMENT for the full
 violation inventory, refactoring guidance, and config change details.
 
 ### CC.1 — Phase 1: Reduce CC>15 violations to CC≤10 and activate CC=15 gate
@@ -182,7 +182,7 @@ so the CI never goes in broken.
 **Blocked by CC.1.**
 
 Refactor the 18 remaining functions at CC 11–15 to CC≤10 (full inventory in
-`plan/IMPLEMENTATION_NOTES.md` CC-ENFORCEMENT), then lower `max-complexity`
+`plan/BUILD_LEARNINGS.md` CC-ENFORCEMENT), then lower `max-complexity`
 to 10. Scope: `vultron/` and `test/`.
 
 **Acceptance criteria:**
@@ -194,7 +194,7 @@ to 10. Scope: `vultron/` and `test/`.
 **Dependencies:** CC.1 complete and CI green.
 
 - [ ] CC.2.1 Reduce all 18 CC 11–15 functions to CC≤10 (see
-  `plan/IMPLEMENTATION_NOTES.md` CC-ENFORCEMENT for the full list)
+  `plan/BUILD_LEARNINGS.md` CC-ENFORCEMENT for the full list)
 - [ ] CC.2.2 Lower `max-complexity` from 15 to 10 in `.flake8`
 - [ ] CC.2.3 Upgrade `IMPLTS-07-008` from SHOULD to MUST in
   `specs/tech-stack.yaml` now that all CC violations above 10 are resolved
@@ -330,7 +330,7 @@ per the spec-registry pattern.
 
 ## TASK-SEDRIFT — Fix Semantic Extraction Pattern Gaps
 
-**Source**: `plan/IMPLEMENTATION_NOTES.md` DR-03, DR-07, DR-14.
+**Source**: `plan/BUILD_LEARNINGS.md` DR-03, DR-07, DR-14.
 
 These requirements derive from the 2026-04-20 architectural review:
 
@@ -382,7 +382,7 @@ These requirements derive from the 2026-04-20 architectural review:
 
 ## TASK-CCDRIFT — Fix cc Addressing Warning + PersistCase Upsert
 
-**Source**: `plan/IMPLEMENTATION_NOTES.md` DR-11, DR-13.
+**Source**: `plan/BUILD_LEARNINGS.md` DR-11, DR-13.
 
 ### CCDRIFT.1 — Log WARNING for `cc` recipients in `Offer(Report)` handler
 

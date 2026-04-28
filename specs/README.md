@@ -86,6 +86,7 @@ Load additional files only when the task touches the relevant area. See the
 | Security / CI | `ci-security.yaml`, `encryption.yaml` |
 | Agentic API | `agentic-readiness.yaml` |
 | Documentation work | `diataxis-requirements.yaml`, `project-documentation.yaml`, `traceability.yaml` |
+| Build/bugfix workflow / learnings queue | `build-workflow.yaml` |
 | Plan organization / priorities | `project-documentation.yaml`, `notes/plan-organization.md` |
 | History file management / append-history tool | `history-management.yaml` |
 | Notes frontmatter / metadata tooling | `notes-frontmatter.yaml` |
@@ -283,6 +284,11 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 ### Project and Agent Guidance
 
+- **`build-workflow.yaml`** - Content policy for `plan/BUILD_LEARNINGS.md`:
+  what belongs in the file, what must not, how the `learn` skill archives
+  processed entries via `uv run append-history learning`, the `learning`
+  history entry type, and skill documentation update requirements
+  (BW-01 through BW-04)
 - **`project-documentation.yaml`** - Documentation file structure and purpose;
   includes append-only history write protocol (PD-05) for `plan/*HISTORY.md`,
   and plan section organization rules (PD-06): `TASK-FOO` heading format,
@@ -362,6 +368,7 @@ is reserved for `testability.yaml`).
 | `BT` | `behavior-tree-integration.yaml` |
 | `BTC` | `bt-composability.yaml` |
 | `BTND` | `behavior-tree-node-design.yaml` |
+| `BW` | `build-workflow.yaml` |
 | `CISEC` | `ci-security.yaml` |
 | `CLP` | `case-log-processing.yaml` |
 | `CM` | `case-management.yaml` |

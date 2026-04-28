@@ -27,7 +27,7 @@ Read all of the following in parallel (do **not** recurse into `plan/history/`):
 
 - `plan/PRIORITIES.md` — authoritative priority ordering
 - `plan/IMPLEMENTATION_PLAN.md` — current task status
-- `plan/IMPLEMENTATION_NOTES.md` — design notes and constraints (ephemeral)
+- `plan/BUILD_LEARNINGS.md` — ephemeral build/bugfix observations (queue for `learn`)
 - `plan/IDEAS.md` — raw ideas (ephemeral)
 - `plan/BUGS.md` — open bugs (if it exists)
 
@@ -52,7 +52,7 @@ search.
 
 ## Notes
 
-- `IDEAS.md` and `IMPLEMENTATION_NOTES.md` are ephemeral. Any critical insight
+- `IDEAS.md` and `BUILD_LEARNINGS.md` are ephemeral queues. Any critical insight
   in them **must be preserved elsewhere** before the session ends.
 - Do not skip this skill for "small" tasks — it ensures constraints from
   cross-cutting specs (`ARCH`, `CS`, `TB`, `HP`, `SL`, `EH`) are always in

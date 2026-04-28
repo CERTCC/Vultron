@@ -139,7 +139,7 @@ Each task in PLAN SHOULD include:
 
 Avoid embedding verbose execution logs, debugging notes, or historical
 commentary in PLAN. That material belongs in HISTORY or
-`plan/IMPLEMENTATION_NOTES.md`.
+`plan/BUILD_LEARNINGS.md`.
 
 ---
 
