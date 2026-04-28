@@ -36,4 +36,6 @@
 | 2026-04-23 | learning | TOOLS-1 | TOOLS-1 Python 3.14 deferred |
 | 2026-04-28 | idea | IDEA-26042701 | Implementation plan groups should be approximately Issue or PR sized |
 | 2026-04-28 | idea | IDEA-26042801 | build skill should be clear on distinction between notes and history |
+| 2026-04-28 | implementation | TASK-CCDRIFT | TASK-CCDRIFT — Fix cc Addressing Warning + PersistCase Upsert |
+| 2026-04-28 | implementation | TASK-SEDRIFT | TASK-SEDRIFT — Fix Semantic Extraction Pattern Gaps |
 | 2026-04-28 | priority | Priority 470 | Priority 470 — Skills-upgrade spec tasks complete |

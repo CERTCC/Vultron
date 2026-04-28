@@ -181,9 +181,32 @@ so the CI never goes in broken.
 
 **Blocked by CC.1.**
 
-Refactor the 18 remaining functions at CC 11–15 to CC≤10 (full inventory in
-`plan/BUILD_LEARNINGS.md` CC-ENFORCEMENT), then lower `max-complexity`
-to 10. Scope: `vultron/` and `test/`.
+Refactor the 21 remaining functions at CC 11–15 to CC≤10, then lower
+`max-complexity` to 10. Scope: `vultron/` and `test/`.
+
+Current violations (CC 11–15):
+
+- `vultron/adapters/driving/fastapi/main.py` `main` CC=11
+- `vultron/adapters/driving/fastapi/routers/actors.py` `post_actor_inbox` CC=12
+- `vultron/core/behaviors/case/nodes.py` `CreateInitialVendorParticipant.update` CC=12
+- `vultron/core/behaviors/case/nodes.py` `InitializeDefaultEmbargoNode.update` CC=13
+- `vultron/core/behaviors/case/nodes.py` `CreateCaseParticipantNode.update` CC=13
+- `vultron/core/behaviors/report/nodes.py` `CreateCaseActivity.update` CC=15
+- `vultron/core/case_states/validations.py` `is_valid_transition` CC=13
+- `vultron/core/use_cases/received/embargo.py` `RemoveEmbargoEventFromCaseReceivedUseCase.execute` CC=11
+- `vultron/core/use_cases/received/embargo.py` `AcceptInviteToEmbargoOnCaseReceivedUseCase.execute` CC=15
+- `vultron/core/use_cases/received/report.py` `SubmitReportReceivedUseCase.execute` CC=14
+- `vultron/core/use_cases/received/status.py` `AddCaseStatusToCaseReceivedUseCase.execute` CC=11
+- `vultron/core/use_cases/triggers/embargo.py` `SvcAcceptEmbargoUseCase.execute` CC=13
+- `vultron/core/use_cases/triggers/embargo.py` `SvcRejectEmbargoUseCase.execute` CC=12
+- `vultron/demo/scenario/multi_vendor_demo.py` `verify_multi_vendor_case_state` CC=13
+- `vultron/demo/scenario/three_actor_demo.py` `verify_case_actor_case_state` CC=12
+- `vultron/demo/scenario/two_actor_demo.py` `find_case_for_offer` CC=11
+- `vultron/demo/scenario/two_actor_demo.py` `verify_vendor_case_state` CC=13
+- `vultron/metadata/specs/llm_export.py` `to_llm_json` CC=13
+- `vultron/metadata/specs/render.py` `render_markdown` CC=14
+- `vultron/metadata/specs/render.py` `_spec_to_dict` CC=12
+- `vultron/wire/as2/extractor.py` `ActivityPattern.match` CC=13
 
 **Acceptance criteria:**
 
@@ -193,8 +216,8 @@ to 10. Scope: `vultron/` and `test/`.
 
 **Dependencies:** CC.1 complete and CI green.
 
-- [ ] CC.2.1 Reduce all 18 CC 11–15 functions to CC≤10 (see
-  `plan/BUILD_LEARNINGS.md` CC-ENFORCEMENT for the full list)
+- [ ] CC.2.1 Reduce all 21 CC 11–15 functions to CC≤10 (see violation
+  list above)
 - [ ] CC.2.2 Lower `max-complexity` from 15 to 10 in `.flake8`
 - [ ] CC.2.3 Upgrade `IMPLTS-07-008` from SHOULD to MUST in
   `specs/tech-stack.yaml` now that all CC violations above 10 are resolved
@@ -274,87 +297,6 @@ objects.
 - [ ] ARCHVIO.3 Replace `from_core()` calls in `sync.py` use cases with
   the new driven adapter injection
 - [ ] ARCHVIO.4 Update tests; verify no core module imports wire types
-
----
-
-## TASK-SEDRIFT — Fix Semantic Extraction Pattern Gaps
-
-**Source**: `plan/BUILD_LEARNINGS.md` DR-03, DR-07, DR-14.
-
-These requirements derive from the 2026-04-20 architectural review:
-
-- **DR-03**: `find_matching_semantics()` MUST return `UNKNOWN` immediately
-  when `object_` is a bare string after rehydration (SE-03-003 / VAM-01-009).
-- **DR-07**: `InviteActorToCasePattern` must discriminate on object type.
-  Requires subtype-aware matching (e.g., `isinstance(field, as_Actor)`) in
-  `_match_field()` before the object-type check can be added.
-- **DR-14**: Dead-letter handling for `UNKNOWN_UNRESOLVABLE_OBJECT` vs
-  `UNKNOWN_NO_PATTERN` (see `notes/activitystreams-semantics.md`).
-
-### SEDRIFT.1 — Guard bare-string `object_` in `find_matching_semantics()`
-
-**Acceptance criteria:**
-
-- `find_matching_semantics()` returns `MessageSemantics.UNKNOWN` immediately
-  when `activity.object_` is a bare string after rehydration
-- Existing tests pass; new test covers the bare-string guard
-
-- [ ] SEDRIFT.1: Add bare-string guard to `find_matching_semantics()`
-  (SE-03-003, VAM-01-009)
-
-### SEDRIFT.2 — Subtype-aware `_match_field()` for AS2 actor types
-
-**Acceptance criteria:**
-
-- `_match_field()` supports `isinstance` checks in addition to exact
-  `type_` string equality
-- `InviteActorToCasePattern` adds `object_=AOtype.ACTOR` discriminator
-  using the new subtype-aware check
-- Existing tests pass; new test covers `Invite(VultronPerson, target=Case)`
-
-- [ ] SEDRIFT.2: Add subtype-aware matching to `_match_field()` +
-  fix `InviteActorToCasePattern` (SE-03-003)
-
-### SEDRIFT.3 — Dead-letter handling for unresolvable `object_`
-
-**Acceptance criteria:**
-
-- Dispatcher distinguishes `UNKNOWN_UNRESOLVABLE_OBJECT` from
-  `UNKNOWN_NO_PATTERN`
-- Unresolvable-object activities are dead-lettered (log WARNING, store
-  record) rather than raising `VultronApiHandlerMissingSemanticError`
-- Dead-letter record schema matches `notes/activitystreams-semantics.md`
-
-- [ ] SEDRIFT.3: Implement dead-letter handling in dispatcher (VAM-01-009)
-
----
-
-## TASK-CCDRIFT — Fix cc Addressing Warning + PersistCase Upsert
-
-**Source**: `plan/BUILD_LEARNINGS.md` DR-11, DR-13.
-
-### CCDRIFT.1 — Log WARNING for `cc` recipients in `Offer(Report)` handler
-
-**Acceptance criteria:**
-
-- When the receiving actor is in `cc` (not `to`) of `Offer(Report)`, the
-  handler logs WARNING and discards the activity without creating a case
-- Existing behavior for `to` recipients is unchanged
-- Test covers both `to` (case created) and `cc` (warning, no case) paths
-
-- [ ] CCDRIFT.1: Add `cc` guard to `SubmitReportReceivedUseCase` (HP-*)
-
-### CCDRIFT.2 — PersistCase BT node: silent upsert on duplicate
-
-**Acceptance criteria:**
-
-- `PersistCase.update()` calls `dl.save()` with idempotent upsert semantics
-- Duplicate-key conditions are silently handled; no WARNING log for a
-  pre-existing case with the same `id_`
-- Test covers the duplicate-case scenario
-
-- [ ] CCDRIFT.2: Fix `PersistCase` upsert semantics in
-  `vultron/core/behaviors/case/nodes.py`
 
 ---
 
