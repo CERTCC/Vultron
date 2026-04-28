@@ -10,6 +10,14 @@ relative order. Completed priorities should be moved to
 `plan/PRIORITY_HISTORY.md` (append-only archive) to keep `plan/PRIORITIES.md`
 focused on pending and in-progress work.
 
+## Priority 470
+
+Fixing specs as part of the `skills-upgrade` branch.
+
+Includes:
+TASK-SPECMD
+TASK-SPECIDFIX
+
 ## Priority 475: Cyclomatic Complexity Enforcement
 
 Cyclomatic complexity (CC) is treated as a policy boundary, not just a

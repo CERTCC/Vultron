@@ -277,12 +277,6 @@ objects.
 
 ---
 
-## TASK-SR — Spec Registry (YAML + Pydantic)
-
-SR.1–SR.6 complete (see `plan/IMPLEMENTATION_HISTORY.md`).
-
----
-
 ## TASK-SPECMD — Convert Non-YAML Spec Files to YAML + Enforce Format
 
 **Source**: `specs/datalayer.md` and `specs/meta-specifications.md` contain
