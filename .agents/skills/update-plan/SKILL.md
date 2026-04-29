@@ -46,6 +46,25 @@ work, read the current month's index at `plan/history/YYMM/README.md` (where
 `YYMM` is the current year-month, e.g. `2604`). Open individual entry files
 only when their titles suggest they contain relevant context.
 
+### Phase 1b — Resolve GitHub Issues
+
+Parse every GitHub issue URL or `#NNN` reference from `plan/PRIORITIES.md`.
+For each referenced issue:
+
+1. Fetch the issue body using `github-mcp-server-issue_read` (`method: get`).
+2. Fetch the issue comments using `github-mcp-server-issue_read`
+   (`method: get_comments`).
+3. Use the combined content (body + comments) as implementation context when
+   writing or updating the corresponding task in `IMPLEMENTATION_PLAN.md`.
+
+When a priority entry has sub-issues, create **one task per sub-issue** and
+include that sub-issue's URL in the task's `**Source**:` field. Include the
+parent issue URL in the priority-level description or as a secondary source
+reference.
+
+> Skip issues that have no corresponding pending work (already closed or
+> already archived in `plan/history/`).
+
 ### Phase 2 — Gap Analysis
 
 Compare the current `specs/` + `notes/` against `vultron/` and `test/`:
@@ -75,6 +94,10 @@ Rewrite the plan based on the gap analysis:
   share the same implementation context.
 - Order tasks using `plan/PRIORITIES.md` as authoritative plus dependency
   analysis. Do **not** include explicit priority labels in task descriptions.
+- Include the GitHub issue URL in each task's `**Source**:` field when the
+  task originates from a GitHub issue (e.g.,
+  `**Source**: https://github.com/CERTCC/Vultron/issues/378`). This allows
+  `build` to fetch fresh issue details at implementation time.
 - **Completed tasks MUST be archived** via `uv run append-history implementation`
   and then deleted from `IMPLEMENTATION_PLAN.md`. Do not leave tombstones,
   `[x]` checkboxes, or one-line summaries.

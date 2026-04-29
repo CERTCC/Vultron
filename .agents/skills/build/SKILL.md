@@ -39,6 +39,12 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
    blockers, dependencies, and whether the work fits in a single run.
 3. Small trivial tasks at the same priority may be grouped when that avoids
    wasteful context switching.
+4. If the selected task's `**Source**:` field contains a GitHub issue URL,
+   fetch that issue's body and comments using `github-mcp-server-issue_read`
+   (`method: get` then `method: get_comments`). Use the combined content as
+   supplementary implementation context throughout Phases 3–5. This ensures
+   the implementation reflects any updates or discussion added to the issue
+   after `update-plan` last ran.
 
 ### Phase 3 - Verify before coding
 
@@ -115,7 +121,16 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
    (e.g., `### 2026-04-28 LABEL — Short description`). Do **not** write
    completion summaries here — those belong in `uv run append-history
    implementation` (step 1 above).
-4. Invoke the `commit` skill with a clear, specific message.
+4. If the completed task has a GitHub issue URL in its `**Source**:` field,
+   post a comment on that issue with the commit SHA and a one-line summary
+   of what was done:
+
+   ```bash
+   gh issue comment <NUMBER> --repo CERTCC/Vultron \
+     --body "Resolved in <SHA>: <one-line summary>"
+   ```
+
+5. Invoke the `commit` skill with a clear, specific message.
 
 ## Constraints
 
