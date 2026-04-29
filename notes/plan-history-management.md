@@ -3,20 +3,22 @@ title: Plan / History Management Contract
 status: active
 description: >
   Authoritative rules for managing IMPLEMENTATION_PLAN.md (forward roadmap)
-  and IMPLEMENTATION_HISTORY.md (append-only log).
+  and the plan/history/ entry files (written via append-history).
 related_specs:
   - specs/project-documentation.yaml
+  - specs/history-management.yaml
 ---
 
 # Plan / History Management Contract
 
 This document defines the authoritative rules for managing
-`plan/IMPLEMENTATION_PLAN.md` (PLAN) and `plan/IMPLEMENTATION_HISTORY.md`
-(HISTORY) in the Vultron project.
+`plan/IMPLEMENTATION_PLAN.md` (PLAN) and history entries written to
+`plan/history/` via `uv run append-history` (HISTORY) in the Vultron project.
 
 Formal requirements are in `specs/project-documentation.yaml` (PD-02-001
-through PD-02-006). This file explains the **rationale**, provides the
-**operational rules**, and documents the **failure modes to avoid**.
+through PD-02-006) and `specs/history-management.yaml` (HM-01 through HM-05).
+This file explains the **rationale**, provides the **operational rules**, and
+documents the **failure modes to avoid**.
 
 ---
 
@@ -137,7 +139,7 @@ Each task in PLAN SHOULD include:
 
 Avoid embedding verbose execution logs, debugging notes, or historical
 commentary in PLAN. That material belongs in HISTORY or
-`plan/IMPLEMENTATION_NOTES.md`.
+`plan/BUILD_LEARNINGS.md`.
 
 ---
 

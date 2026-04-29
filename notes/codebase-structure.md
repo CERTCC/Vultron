@@ -310,6 +310,24 @@ base64url encoding).
 
 ---
 
+### Actor ID Normalization: Full URIs Everywhere
+
+(DR-09, 2026-04-20)
+
+Actor IDs MUST be full URIs everywhere in the system. They MUST be normalized
+to a full URI at the point the actor ID is first established (actor creation,
+seed load, session context). No function downstream of that point should ever
+receive or handle a short UUID as an actor ID.
+
+**Why this matters**: Short-UUID actor IDs break semantic routing, outbox
+addressing, and trust boundary checks. They also cause non-deterministic
+failures where the same actor appears under two different IDs in the DataLayer.
+
+**Audit**: Search for short-UUID actor ID assignment in
+`vultron/demo/`, `vultron/adapters/`, and `vultron/core/` seeding code.
+
+---
+
 ## Test Directory Layout (TECHDEBT-11, resolved)
 
 After P60-1 and P60-2 (package relocations), the test directories
@@ -447,3 +465,112 @@ implement the same interface methods as their wire-layer counterparts (e.g.,
 `record_event()`) so that Protocol guards like `is_case_model()` return
 `True` for both families. Avoid making the Protocol guard depend on the
 concrete wire-layer class.
+
+### FastAPI response_model Filtering
+
+**Symptom**: API endpoints return objects missing subclass-specific fields
+
+**Cause**: FastAPI uses return type annotations as implicit `response_model`,
+restricting JSON serialization to fields defined in the annotated class only.
+
+**Example**:
+
+```python
+# Anti-pattern: Returns only as_Base fields (6 fields)
+def get_object_by_key() -> as_Base:
+    return VulnerabilityCase(...)  # Case-specific fields excluded from response
+
+# Correct: No return type annotation allows full serialization
+def get_object_by_key():  # or use Union types for specific subclasses
+    return VulnerabilityCase(...)  # All fields included in response
+```
+
+**Root Cause**: `as_Base` defines 6 fields; subclasses like `VulnerabilityCase`
+add more. FastAPI's `response_model` filtering excludes fields not in the base
+class model.
+
+**Solution**: Remove return type annotations from endpoints that return multiple
+types, or use explicit `Union[Type1, Type2, ...]` if types are known.
+
+**Verification**: Test API serialization completeness, not just database
+storage. Check that all expected fields appear in JSON responses.
+
+See `specs/http-protocol.yaml` HTTP-08-001 for guidance.
+
+### Health Check Readiness Gap
+
+**Known gap**: The `/health/ready` endpoint in
+`vultron/adapters/driving/fastapi/routers/health.py` currently returns
+`{"status": "ok"}` unconditionally. It does **not** check DataLayer
+connectivity as required by
+`specs/observability.yaml` OB-05-002.
+
+**When implementing readiness**: Add a DataLayer read probe (e.g., attempt a
+simple `dl.list()` call) and return HTTP 503 if it fails.
+
+### Docker Health Check Coordination
+
+**Symptom**: Demo container fails to connect to API server with "Connection
+refused" despite both containers running
+
+**Cause**: Docker Compose `depends_on: service_started` only waits for container
+start, not application readiness
+
+**Solutions**:
+
+1. Add health check to API service in docker-compose.yml:
+
+   ```yaml
+   api-dev:
+     healthcheck:
+       test: ["CMD", "curl", "-f", "http://localhost:7999/health/live"]
+       interval: 2s
+       timeout: 5s
+       retries: 15
+   ```
+
+2. Update dependent service to use `condition: service_healthy`:
+
+   ```yaml
+   demo:
+     depends_on:
+       api-dev:
+         condition: service_healthy
+   ```
+
+3. Implement retry logic in client code (defense in depth):
+
+   ```python
+   def check_server_availability(url, max_retries=30, retry_delay=1.0):
+       for attempt in range(max_retries):
+           try:
+               response = requests.get(url, timeout=2)
+               if response.ok:
+                   return True
+           except RequestException:
+               if attempt < max_retries - 1:
+                   time.sleep(retry_delay)
+       return False
+   ```
+
+The pitfall above is self-contained. The three-layer solution (Docker health
+check, `condition: service_healthy`, and client retry) is the recommended
+pattern for any demo or integration test setup.
+
+### Black Can Invalidate Inline pyright Suppressions on Wrapped Fields
+
+**Symptom**: pyright errors reappear on inherited Pydantic fields after Black
+formats the file, even though suppressions were previously added.
+
+**Cause**: Inline end-of-line `# type: ignore` or `# pyright: ignore`
+suppressions on field assignments are brittle once Black wraps the expression
+across multiple lines — the suppression is now on a different line than the
+field definition.
+
+**Fix**: Use file-level pyright directives
+(`# pyright: reportGeneralTypeIssues=false` at the top of the file) for
+Pydantic inheritance edge cases where an optional base field is intentionally
+narrowed to required in a subclass. Use this sparingly and only when weakening
+runtime constraints would be the alternative.
+
+---

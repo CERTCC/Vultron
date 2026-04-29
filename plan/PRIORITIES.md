@@ -6,9 +6,9 @@ Priority numbers are ascending, so lower numbers are higher priority.
 The scale is not linear, it's just intended to provide a rough ordering and
 allow for space between to add new priorities in the future if needed. The
 priority numbers themselves do not have any inherent meaning beyond their
-relative order. Completed priorities should be moved to
-`plan/PRIORITY_HISTORY.md` (append-only archive) to keep `plan/PRIORITIES.md`
-focused on pending and in-progress work.
+relative order. Completed priorities should be archived via `uv run append-history priority`
+(writes to `plan/history/YYMM/priority/`) and then removed from this file to keep
+`plan/PRIORITIES.md` focused on pending and in-progress work.
 
 ## Priority 475: Cyclomatic Complexity Enforcement
 
@@ -34,7 +34,7 @@ Each refactoring task explicitly targets CC≤10 (the final goal) so no
 function needs to be revisited when the threshold drops in Phase 2.
 
 See `plan/IMPLEMENTATION_PLAN.md` `TASK-CC` for the task breakdown (CC.1 and
-CC.2), and `plan/IMPLEMENTATION_NOTES.md` CC-ENFORCEMENT for the full
+CC.2), and `plan/BUILD_LEARNINGS.md` CC-ENFORCEMENT for the full
 violation inventory, per-function refactoring notes, and configuration details.
 
 ## Priority 500: Re-implement "fuzzer" nodes from the original simulator

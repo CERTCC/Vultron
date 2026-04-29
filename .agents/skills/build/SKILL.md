@@ -1,23 +1,19 @@
 ---
 name: build
 description: >
-  Completes the highest-priority pending implementation task by following the
-  repository's BUILD workflow from task selection through validation,
-  plan-history updates, and commit. Use when the user asks to continue planned
-  implementation work, run the BUILD workflow, or turn the next prioritized
-  item in the implementation plan into a completed changeset.
+  Completes the highest-priority pending implementation task: loads project
+  context, selects the next task, implements it, validates, updates plan
+  history, and commits. Use when the user asks to continue planned
+  implementation work or turn the next prioritized item in the implementation
+  plan into a completed changeset.
 ---
 
 # Skill: Build
 
-This skill wraps `@.github/prompts/BUILD.md` as a reusable workflow skill. It
-preserves the prompt's task-selection rules, prerequisite guardrails,
-validation expectations, and finalize-and-commit behavior.
-
 ## Quick start
 
-1. Read `plan/PRIORITIES.md`, `specs/README.md`, `plan/IMPLEMENTATION_PLAN.md`,
-   `plan/IMPLEMENTATION_NOTES.md`, and relevant `notes/*.md`.
+1. Invoke the `study-project-docs` skill to load all specs and read project
+   context.
 2. Select the highest-priority unchecked task that can be completed in one run.
 3. Verify the current implementation in `vultron/` and `test/` before coding.
 4. Implement only the selected task, then run the required validation.
@@ -32,12 +28,8 @@ validation expectations, and finalize-and-commit behavior.
 
 ### Phase 1 - Review context
 
-1. Study `plan/PRIORITIES.md` for authoritative priority ordering.
-2. Study `specs/*.md` starting with `specs/README.md`.
-3. Study `plan/IMPLEMENTATION_PLAN.md` for current task status.
-4. Study `plan/IMPLEMENTATION_NOTES.md` and relevant `notes/*.md` starting
-   with `notes/README.md`.
-5. Study the relevant implementation and tests under `vultron/` and `test/`.
+Invoke the `study-project-docs` skill. It loads all specs, reads all plan/,
+docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
 
 ### Phase 2 - Select work
 
@@ -59,10 +51,10 @@ validation expectations, and finalize-and-commit behavior.
    - it is labeled `auto-added`
    - it includes a short title, one-line justification, and one-line
      acceptance criterion
-   - the rationale is recorded in `plan/IMPLEMENTATION_NOTES.md`
+   - the rationale is recorded in `plan/BUILD_LEARNINGS.md`
    - the commit message is prefixed `plan: add prerequisite`
 4. If more than one prerequisite is required, or the prerequisite change is
-   non-trivial, update `plan/IMPLEMENTATION_NOTES.md` with details and stop.
+   non-trivial, update `plan/BUILD_LEARNINGS.md` with details and stop.
 
 ### Phase 4 - Implement
 
@@ -75,19 +67,55 @@ validation expectations, and finalize-and-commit behavior.
 
 ### Phase 5 - Validate
 
-1. Run the validation commands required by `AGENTS.md`.
+1. Invoke the `format-code` skill, then `run-linters`, then `run-tests`.
 2. Do not skip or delegate validation.
 3. If incidental bugs are discovered, add them to `plan/BUGS.md` with clear
    reproduction notes and do not pursue them unless they block the current task.
 
 ### Phase 6 - Finalize
 
-1. Append a completion summary to `plan/IMPLEMENTATION_HISTORY.md`.
-2. Delete the completed task from `plan/IMPLEMENTATION_PLAN.md` entirely.
-   Do not leave tombstones, `[x]` checkboxes, or one-line summaries — the
-   task details belong in HISTORY, not in PLAN.
-3. Record lessons learned or constraints in `plan/IMPLEMENTATION_NOTES.md`.
-4. Stage modified files and commit with a clear, specific message.
+1. Append a completion summary to `plan/history/` using the `append-history`
+   tool:
+
+   ```bash
+   cat <<'EOF' | uv run append-history implementation
+   ---
+   title: <short task title>
+   type: implementation
+   date: <YYYY-MM-DD>
+   source: <TASK-ID>
+   ---
+
+   ## <TASK-ID> — <title>
+
+   <completion summary: what was done, outcome, artifacts>
+   EOF
+   ```
+
+2. Delete the completed task from `plan/IMPLEMENTATION_PLAN.md` **entirely**
+   — the heading, every sub-heading, every line of body text, and the
+   surrounding `---` dividers. Zero lines of the task section must remain.
+
+   **What "entirely" means:** after your edit, searching the plan file for
+   the task ID (e.g. `TASK-SPECMD`) must return no matches.
+
+   The following are all tombstones and are **forbidden**:
+
+   ```markdown
+   ## TASK-FOO — Some Title        ← forbidden: heading left behind
+   **Status: COMPLETE** — abc1234  ← forbidden: one-line status summary
+   - [x] FOO.1: done               ← forbidden: checked checkbox
+   ~~## TASK-FOO — Some Title~~    ← forbidden: strikethrough
+   ```
+
+   The task details belong in `plan/history/` (step 1 above). The plan file
+   is a forward-looking roadmap; completed work has no place in it.
+3. Record **observations, open questions, and constraints** discovered during
+   implementation in `plan/BUILD_LEARNINGS.md`. Use a dated header per entry
+   (e.g., `### 2026-04-28 LABEL — Short description`). Do **not** write
+   completion summaries here — those belong in `uv run append-history
+   implementation` (step 1 above).
+4. Invoke the `commit` skill with a clear, specific message.
 
 ## Constraints
 
@@ -97,3 +125,7 @@ validation expectations, and finalize-and-commit behavior.
 - Each run starts in a fresh context.
 - The single-prerequisite exception is narrow and does not authorize broader
   plan edits.
+- **No tombstones**: when a task is deleted from `plan/IMPLEMENTATION_PLAN.md`,
+  every line of it — heading, sub-headings, body, dividers — must be gone.
+  A task ID that still appears anywhere in the plan file after deletion is a
+  tombstone and MUST be removed.

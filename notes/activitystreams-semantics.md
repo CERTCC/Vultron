@@ -373,3 +373,78 @@ participants (see `specs/case-management.yaml` CM-06-001, CM-06-002;
 completed in PRIORITY-200 CA-2, 2026-03-25).
 
 **Cross-reference**: `specs/case-management.yaml` CM-02-002, CM-06.
+
+---
+
+### Activity `name` Field: Use Semantic Content, Not Repr
+
+(DR-02, 2026-04-20)
+
+The `name` field of outbound activities is **semantic content** — a
+human-readable label — not a wire-format concern. BT nodes that construct
+outbound activities with a `name` field MUST derive it from the object's own
+attributes:
+
+```python
+# Correct
+activity_name = object_.name or object_.id_
+
+# Wrong — never use repr() or str()
+activity_name = repr(object_)
+activity_name = str(object_)
+```
+
+The outbound adapter (`outbox_handler.py`) does not sanitize semantic content.
+Audit any BT node in `vultron/core/behaviors/` that constructs `Add`, `Invite`,
+or `Accept` activities with a computed `name` string.
+
+---
+
+### `cc` Addressing Is Not Supported
+
+(DR-13, 2026-04-20)
+
+`cc` addressing has no defined handler semantics in the current protocol
+version. When a receiving actor is in `cc` of an `Offer(Report)` activity:
+
+- Log **WARNING** (not DEBUG): "`cc` addressing is not supported; activity
+  discarded"
+- Discard the activity without creating a case
+
+This is a deliberate simplification. Implementing an "informational receive"
+use case for `cc` recipients would require defining what "informational only"
+means, which is deferred.
+
+See `specs/handler-protocol.yaml` for the `to`-only case-creation rule.
+
+---
+
+### Dead-Letter Handling for Unresolvable `object_` References
+
+(DR-14, 2026-04-20)
+
+When `find_matching_semantics()` returns `UNKNOWN` because `object_` is still
+a bare string URI after rehydration, this is a **different failure mode** from
+UNKNOWN due to no registered pattern. The two cases require different handling:
+
+| Failure mode | Cause | Handler |
+|---|---|---|
+| `UNKNOWN_NO_PATTERN` | No matching `ActivityPattern` | Raise `VultronApiHandlerMissingSemanticError` |
+| `UNKNOWN_UNRESOLVABLE_OBJECT` | `object_` still bare string after rehydration | Log WARNING, store dead-letter record, return silently |
+
+Dead-letter record schema:
+
+```json
+{
+  "activity_id": "urn:uuid:...",
+  "activity_json": {},
+  "unresolvable_uri": "https://...",
+  "actor_id": "https://...",
+  "received_at": "2026-..."
+}
+```
+
+For future synchronous paths: return HTTP 422 Unprocessable Content with the
+unresolvable URI in the error body.
+
+See `specs/semantic-extraction.yaml` VAM-01-009.

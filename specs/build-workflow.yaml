@@ -1,0 +1,151 @@
+id: BW
+title: Build Workflow Learnings Policy
+description: >-
+  Defines the content policy for `plan/BUILD_LEARNINGS.md` — the ephemeral
+  queue used by the `build` and `bugfix` skills to pass implementation
+  observations upstream to the `learn` skill. Covers what belongs in the
+  file, what must not go there, how `learn` processes and archives entries,
+  and the `learning` history entry type that enables this flow.
+  Supersedes the informal usage of `plan/IMPLEMENTATION_NOTES.md`.
+version: 1.0.0
+kind: pattern
+scope:
+  - prototype
+  - production
+groups:
+  - id: BW-01
+    title: BUILD_LEARNINGS.md Content Policy
+    kind: general
+    specs:
+      - id: BW-01-001
+        priority: MUST
+        statement: >-
+          `plan/BUILD_LEARNINGS.md` MUST contain only implementation
+          observations, open questions, constraints, and insights discovered
+          during `build` or `bugfix` execution that are relevant to future
+          implementation work. Completion summaries, "what was done"
+          narratives, and status updates MUST NOT appear in this file.
+        rationale: >-
+          The file is a focused upstream communication channel from executing
+          skills to the `learn` skill. Mixing status updates with actionable
+          insights dilutes the signal and creates noise for `learn` to filter.
+        relationships:
+          - rel_type: depends_on
+            spec_id: PD-02-001
+            note: >-
+              Completion summaries belong in `append-history implementation`,
+              not in BUILD_LEARNINGS.md.
+      - id: BW-01-002
+        priority: MUST_NOT
+        statement: >-
+          The `build` and `bugfix` skills MUST NOT write completion summaries
+          or task-status narratives to `plan/BUILD_LEARNINGS.md`.
+          Completion summaries MUST be archived exclusively via
+          `uv run append-history implementation`.
+        relationships:
+          - rel_type: depends_on
+            spec_id: HM-05-001
+      - id: BW-01-003
+        priority: SHOULD
+        statement: >-
+          Each entry in `plan/BUILD_LEARNINGS.md` SHOULD include a dated
+          header (e.g., `### 2026-04-28 LABEL — Short description`) to make
+          individual entries identifiable for archiving and review.
+      - id: BW-01-004
+        priority: MUST_NOT
+        statement: >-
+          Skills other than `build` and `bugfix` MUST NOT write to
+          `plan/BUILD_LEARNINGS.md`. The `update-plan` skill MUST write
+          observations and open questions directly to appropriate
+          `notes/*.md` files. It MUST NOT use `BUILD_LEARNINGS.md` as an
+          intermediate staging area.
+        rationale: >-
+          `BUILD_LEARNINGS.md` is specifically a channel for code-execution
+          insights flowing from build/bugfix to learn. Gap-analysis
+          observations from `update-plan` are a different signal and belong
+          in notes directly.
+  - id: BW-02
+    title: learn Skill Processing
+    kind: pattern
+    specs:
+      - id: BW-02-001
+        priority: MUST
+        statement: >-
+          When the `learn` skill processes `plan/BUILD_LEARNINGS.md`, each
+          entry MUST be promoted to the appropriate durable destination
+          (`specs/*.yaml`, `notes/*.md`, or `AGENTS.md`) before being
+          archived via `uv run append-history learning`.
+        relationships:
+          - rel_type: depends_on
+            spec_id: HM-02-002
+      - id: BW-02-002
+        priority: MUST
+        statement: >-
+          After archiving an entry, the `learn` skill MUST delete that entry
+          from `plan/BUILD_LEARNINGS.md`. Entries MUST NOT be left in the
+          file after archiving — no strike-through, no tombstone.
+        rationale: >-
+          `BUILD_LEARNINGS.md` is a queue of unprocessed items. The same
+          lifecycle pattern applies here as for `plan/IDEAS.md`: once
+          processed, an entry is removed from the queue and its content
+          lives in the archive and in durable docs.
+      - id: BW-02-003
+        priority: SHOULD
+        statement: >-
+          After a complete `learn` cycle, `plan/BUILD_LEARNINGS.md` SHOULD
+          contain only entries that have not yet been processed. The file
+          SHOULD be empty after every learning that fully drains the queue.
+  - id: BW-03
+    title: learning History Entry Type
+    kind: implementation
+    specs:
+      - id: BW-03-001
+        priority: MUST
+        statement: >-
+          A `learning` entry type MUST be added to `HistoryEntryType` in
+          `vultron/metadata/history/types.py`. The `learn` skill MUST use
+          `uv run append-history learning` to archive each processed entry
+          from `plan/BUILD_LEARNINGS.md`.
+        relationships:
+          - rel_type: refines
+            spec_id: HM-02-002
+      - id: BW-03-002
+        priority: MUST
+        statement: >-
+          History entries of type `learning` MUST follow the same frontmatter
+          and body format as all other `append-history` entry types,
+          including required fields `title`, `type`, `date`, and `source`.
+        relationships:
+          - rel_type: depends_on
+            spec_id: HM-02-001
+  - id: BW-04
+    title: Skill Documentation Updates
+    kind: general
+    specs:
+      - id: BW-04-001
+        priority: MUST
+        statement: >-
+          The `build` skill documentation MUST distinguish between learnings
+          (observations, open questions, constraints to `plan/BUILD_LEARNINGS.md`)
+          and completion summaries (what was done via `uv run append-history
+          implementation`). Both outputs are required; neither may be omitted
+          or combined into a single destination.
+      - id: BW-04-002
+        priority: MUST
+        statement: >-
+          The `learn` skill documentation MUST reference
+          `plan/BUILD_LEARNINGS.md` (not `IMPLEMENTATION_NOTES.md`) as its
+          primary input source, and MUST describe the delete-after-archive
+          lifecycle (not strike-through).
+      - id: BW-04-003
+        priority: MUST_NOT
+        statement: >-
+          The `update-plan` skill MUST NOT instruct agents to write to
+          `plan/BUILD_LEARNINGS.md`. Any tidying step in `update-plan` that
+          previously wrote to `IMPLEMENTATION_NOTES.md` MUST instead direct
+          content to appropriate `notes/*.md` files.
+      - id: BW-04-004
+        priority: MUST
+        statement: >-
+          The `study-project-docs` skill MUST list `plan/BUILD_LEARNINGS.md`
+          (not `IMPLEMENTATION_NOTES.md`) in its Step 2 plan-context reads.

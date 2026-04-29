@@ -36,6 +36,24 @@ def _check_prefix_consistency(registry: SpecRegistry) -> list[str]:
     return errors
 
 
+def _check_spec_id_prefix_consistency(registry: SpecRegistry) -> list[str]:
+    """Verify each spec ID prefix matches the group it lives in (MS-04-004).
+
+    A spec with ID ``HP-07-002`` MUST reside in group ``HP-07``.
+    """
+    errors: list[str] = []
+    for spec_file in registry.files:
+        for group in spec_file.groups:
+            expected_prefix = group.id + "-"
+            for spec in group.specs:
+                if not spec.id.startswith(expected_prefix):
+                    errors.append(
+                        f"Spec '{spec.id}' does not belong in group "
+                        f"'{group.id}' (expected prefix '{expected_prefix}')"
+                    )
+    return errors
+
+
 def lint(spec_dir: Path) -> int:
     """Validate the spec registry in ``spec_dir``.
 
@@ -59,6 +77,7 @@ def lint(spec_dir: Path) -> int:
 
     hard_errors.extend(registry.validate_cross_references())
     hard_errors.extend(_check_prefix_consistency(registry))
+    hard_errors.extend(_check_spec_id_prefix_consistency(registry))
 
     for spec_id, spec in registry.all_specs.items():
         suppressed = set(spec.lint_suppress or [])

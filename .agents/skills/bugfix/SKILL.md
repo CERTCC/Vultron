@@ -1,24 +1,24 @@
 ---
 name: bugfix
 description: >
-  Fix a bug using test-first development. Invokes the BUGFIX.md prompt
-  workflow but gates implementation on confirmed shared understanding with
-  the user. Use when the user asks to fix a bug or run the bugfix workflow.
+  Fix a bug using test-first development. Gates implementation on confirmed
+  shared understanding with the user — no code is written until both the agent
+  and the user agree on what bug is being fixed and why. Use when the user
+  asks to fix a bug.
 ---
 
-# Skill: Bugfix (with clarification gate)
+# Skill: Bugfix
 
-This skill wraps the project's `@.github/prompts/BUGFIX.md` workflow and adds
-a mandatory clarification step before any code is written. No implementation
-work begins until both the agent and the user agree on what bug is being fixed
-and why.
+No implementation work begins until both the agent and the user agree on what
+bug is being fixed and why.
 
 ## Phase 1 — Identify the Bug
 
-1. Open `plan/BUGS.md` and read all open entries.
-2. Select the highest-priority open bug according to the priority ordering in
+1. Invoke the `study-project-docs` skill to load all specs and project context.
+2. Open `plan/BUGS.md` and read all open entries.
+3. Select the highest-priority open bug according to the priority ordering in
    `plan/BUGS.md` (and cross-referenced with `plan/PRIORITIES.md` if present).
-3. Summarise the selected bug for the user:
+4. Summarise the selected bug for the user:
    - Bug ID / title
    - One-sentence description of the observed vs. expected behaviour
    - The file(s) / component(s) most likely involved
@@ -75,10 +75,9 @@ See `specs/bugfix-workflow.yaml` BFW-02-001 through BFW-02-004 and
 
 **Do not proceed to Phase 3 until Phase 2b scope is confirmed.**
 
-## Phase 3 — Implement (follows BUGFIX.md)
+## Phase 3 — Implement
 
-Once shared understanding is confirmed, follow `@.github/prompts/BUGFIX.md`
-starting at step 3 ("Verify Before Changes"):
+Once shared understanding is confirmed:
 
 1. **Verify Before Changes** — Search `vultron/` and `test/` to confirm the
    bug exists as understood. Do not assume; confirm via code search.
@@ -89,21 +88,23 @@ starting at step 3 ("Verify Before Changes"):
 3. **Implement the Fix** — Modify only the code required to resolve the bug.
    Follow all project conventions (formatting, linting, layer rules).
 
-4. **Iterate** — Run validation; refine until all relevant tests pass. Any
-   incidental bugs discovered go into `plan/BUGS.md`; do not pursue them now.
+4. **Iterate** — Invoke `format-code`, then `run-linters`, then `run-tests`;
+   refine until all relevant tests pass. Any incidental bugs discovered go
+   into `plan/BUGS.md`; do not pursue them now.
 
 5. **Finalize**
-   - Append a completion summary (bug ID, symptoms, root cause, fix) to
-     `plan/IMPLEMENTATION_HISTORY.md` using the template in
-     `notes/bugfix-workflow.md`.
+   - Archive a completion summary (bug ID, symptoms, root cause, fix) using
+     `uv run append-history implementation` (see `notes/bugfix-workflow.md`
+     for the template).
    - Remove the bug's entry entirely from `plan/BUGS.md`. Do not leave a
-     tombstone, `FIXED` marker, or closed-notice — see `specs/bugfix-workflow.yaml`
-     BFW-04-002.
-   - If any other bugs in `plan/BUGS.md` are already marked fixed, archive and
-     remove them opportunistically (BFW-04-004).
-   - Capture lessons learned in `plan/IMPLEMENTATION_NOTES.md`.
-   - `git add` and commit with a clear, specific message. Reference any new
-     bugs filed during Phase 2b analysis (e.g., `Also filed: BUG-YYMMDDXX`).
+     tombstone, `FIXED` marker, or closed-notice — see
+     `specs/bugfix-workflow.yaml` BFW-04-002.
+   - If any other bugs in `plan/BUGS.md` are already marked fixed, archive
+     and remove them opportunistically (BFW-04-004).
+   - Capture observations, constraints, and open questions in `plan/BUILD_LEARNINGS.md`.
+   - Invoke the `commit` skill with a clear, specific message. Reference any
+     new bugs filed during Phase 2b analysis (e.g.,
+     `Also filed: BUG-YYMMDDXX`).
 
 ## Constraints
 
@@ -116,9 +117,7 @@ starting at step 3 ("Verify Before Changes"):
 - When Phase 2b surfaces additional issues, file each as `BUG-YYMMDDXX` and
   implement only the confirmed-scope fix in the current run.
 - `plan/BUGS.md` MUST contain only open bugs; remove fixed entries entirely.
-- Run `uv run black vultron/ test/ && uv run flake8 vultron/ test/` before
-  committing.
-- Run the full test suite exactly once per validation cycle:
-  `uv run pytest --tb=short 2>&1 | tail -5`
+- Invoke `format-code`, `run-linters`, and `run-tests` before committing
+  (see those skills for exact commands).
 - Each run operates in a fresh context; do not carry forward assumptions from
   previous sessions.

@@ -1,0 +1,212 @@
+id: MS
+title: Meta-Specification Style Guide
+description: Normative rules for authoring specification files in this project. Covers file structure, requirement format,
+  IDs, writing rules, cross-references, lifecycle, and quality criteria.
+version: 1.0.0
+kind: general
+scope:
+- prototype
+- production
+groups:
+- id: MS-01
+  title: File Structure
+  specs:
+  - id: MS-01-001
+    priority: MUST
+    statement: Each spec file MUST focus on a single topic of concern and be largely independent of other spec files.
+    rationale: Focused files are easier to navigate and maintain.
+    tags:
+    - documentation
+  - id: MS-01-002
+    priority: MUST
+    statement: Requirements MUST be grouped by category within each spec file; each group MUST address a single, cohesive
+      area of concern.
+    rationale: Grouping by category improves navigation and traceability.
+    tags:
+    - documentation
+- id: MS-02
+  title: Priority Levels
+  specs:
+  - id: MS-02-001
+    priority: SHOULD
+    statement: Requirement statements SHOULD include the applicable RFC 2119 strength keyword inline (e.g., 'The system MUST…')
+      for human readability, in addition to the `priority:` field.
+    rationale: The `priority:` field is the authoritative record of requirement strength; inline keywords aid readability
+      but are advisory.
+    tags:
+    - documentation
+  - id: MS-02-002
+    priority: MUST
+    statement: 'Each spec entry MUST have a `priority:` field whose value is one of the RFC 2119 vocabulary keywords: MUST,
+      MUST NOT, SHOULD, SHOULD NOT, or MAY.'
+    rationale: The `priority:` field is the machine-readable record of requirement strength. The Pydantic schema enum is the
+      implementation of this normative requirement, not its source.
+    tags:
+    - documentation
+- id: MS-03
+  title: Requirement Format
+  specs:
+  - id: MS-03-001
+    priority: MUST
+    statement: Each spec entry MUST contain exactly one normative statement; compound or multi-condition requirements MUST
+      be split into separate entries.
+    rationale: Atomic requirements are independently testable and traceable.
+    tags:
+    - documentation
+  - id: MS-03-002
+    priority: MUST
+    statement: Every requirement MUST have a unique ID.
+    rationale: IDs enable stable cross-referencing.
+    tags:
+    - documentation
+- id: MS-04
+  title: Requirement IDs
+  specs:
+  - id: MS-04-001
+    priority: MUST
+    statement: Requirement IDs MUST follow the format `PREFIX-NN-NNN` where PREFIX is the file-level prefix, NN is a two-digit
+      group number, and NNN is a three-digit requirement number.
+    rationale: Consistent format enables automated validation.
+    tags:
+    - documentation
+  - id: MS-04-002
+    priority: MUST
+    statement: Requirement IDs MUST be globally unique across all spec files.
+    rationale: Uniqueness prevents ambiguous cross-references.
+    tags:
+    - documentation
+    relationships:
+    - rel_type: implements
+      spec_id: SR-01-006
+  - id: MS-04-003
+    priority: MUST
+    statement: Requirement IDs MUST be stable; once assigned, an ID MUST NOT be renumbered. Superseded requirements MUST be
+      removed entirely rather than left in place as deprecated.
+    rationale: Stable IDs preserve traceability in git history; deprecated-but-present requirements create confusion for agents.
+    tags:
+    - documentation
+  - id: MS-04-004
+    priority: MUST
+    statement: The group ID prefix of a spec ID MUST match the group it lives in (e.g., spec `HP-01-001` MUST live in group
+      `HP-01`).
+    rationale: Mismatched prefixes break navigability and cross-reference accuracy.
+    tags:
+    - documentation
+    relationships:
+    - rel_type: implements
+      spec_id: SR-01-013
+- id: MS-05
+  title: Writing Rules
+  specs:
+  - id: MS-05-001
+    priority: MUST
+    statement: Requirements MUST be concise; prose explanations MUST NOT appear inline in requirement statements.
+    rationale: Concise statements reduce ambiguity.
+    tags:
+    - documentation
+  - id: MS-05-002
+    priority: MUST
+    statement: Requirements MUST be specific; vague terms such as 'appropriate' or 'robust' MUST NOT be used unless explicitly
+      defined.
+    rationale: Specificity makes requirements testable.
+    tags:
+    - documentation
+  - id: MS-05-003
+    priority: MUST
+    statement: Requirements MUST be testable; measurable acceptance criteria MUST be provided where applicable.
+    rationale: Untestable requirements cannot be verified.
+    tags:
+    - documentation
+  - id: MS-05-004
+    priority: MUST
+    statement: Requirements MUST be declarative; they MUST state what the system must do, not how, unless the how is itself
+      normative.
+    rationale: Declarative requirements avoid constraining implementation unnecessarily.
+    tags:
+    - documentation
+- id: MS-07
+  title: Cross-References and Sources
+  specs:
+  - id: MS-07-001
+    priority: MUST
+    statement: Cross-references between spec entries MUST use the `relationships:` list with a `rel_type` field (one of the
+      defined vocabulary terms) and a `spec_id` field referencing the target requirement ID.
+    rationale: Structured cross-references in the `relationships:` field enable automated graph analysis and linting of dangling
+      references.
+    tags:
+    - documentation
+  - id: MS-07-003
+    priority: SHOULD
+    statement: Cross-references SHOULD be placed in both source and target requirements using the corresponding inverse relationship
+      for bidirectional traceability.
+    rationale: Bidirectional links enable impact analysis from either end.
+    tags:
+    - documentation
+  - id: MS-07-004
+    priority: MUST
+    statement: Source attribution MUST appear only in the file header, not repeated on individual requirements.
+    rationale: Per-requirement sources create maintenance overhead.
+    tags:
+    - documentation
+- id: MS-08
+  title: File Naming
+  specs:
+  - id: MS-08-001
+    priority: MUST
+    statement: Spec files MUST use `kebab-case.yaml` naming; `specs/README.md` is the sole exception and MUST remain Markdown.
+    rationale: Consistent naming enables glob patterns and automated tooling.
+    tags:
+    - documentation
+    relationships:
+    - rel_type: implements
+      spec_id: SR-01-001
+- id: MS-09
+  title: Lifecycle of Requirements
+  specs:
+  - id: MS-09-001
+    priority: MUST
+    statement: Superseded requirements MUST be removed from spec files rather than marked deprecated or left in place with
+      an annotation.
+    rationale: Deprecated-but-present requirements are agent noise and may cause incorrect behaviour.
+    tags:
+    - documentation
+  - id: MS-09-002
+    priority: MUST
+    statement: The removal of a requirement MUST be recorded in the implementation history so there is an audit trail.
+    rationale: Audit trail preserves context for future maintainers.
+    tags:
+    - documentation
+  - id: MS-09-003
+    priority: MUST
+    statement: Cross-references to a removed requirement MUST be updated to point to the replacement requirement.
+    rationale: Dangling cross-references break traceability.
+    tags:
+    - documentation
+- id: MS-10
+  title: Quality Criteria
+  specs:
+  - id: MS-10-001
+    priority: SHOULD
+    statement: Spec files SHOULD be scannable via priority-grouped layout.
+    rationale: Priority grouping lets readers quickly find the most critical requirements.
+    tags:
+    - documentation
+  - id: MS-10-002
+    priority: SHOULD
+    statement: Spec files SHOULD be traceable via stable IDs and bidirectional cross-references.
+    rationale: Traceability supports change impact analysis.
+    tags:
+    - documentation
+  - id: MS-10-003
+    priority: SHOULD
+    statement: Spec files SHOULD be testable with verifiable acceptance criteria per requirement.
+    rationale: Untestable specs cannot be reliably implemented.
+    tags:
+    - documentation
+  - id: MS-10-004
+    priority: SHOULD
+    statement: Spec entries SHOULD require only `id`, `priority`, and `statement` to be complete; optional fields (`rationale`,
+      `tags`, `relationships`) SHOULD be added only when they provide clear value, not by default.
+    rationale: Requiring optional fields on every entry creates boilerplate that discourages keeping specs current.
+    tags:
+    - documentation

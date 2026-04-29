@@ -141,7 +141,7 @@ backed by a `StrEnum` makes persisted records legible (e.g.,
 gate integrates into the existing `lint-flake8` CI job and pre-commit
 pipeline with no new dependencies. Scope: both `vultron/` and `test/`.
 
-See `plan/IMPLEMENTATION_NOTES.md` section CC-ENFORCEMENT for the full
+See `plan/BUILD_LEARNINGS.md` section CC-ENFORCEMENT for the full
 violation inventory, refactoring guidance, and config change details.
 
 ### CC.1 — Phase 1: Reduce CC>15 violations to CC≤10 and activate CC=15 gate
@@ -156,7 +156,7 @@ so the CI never goes in broken.
 - All five functions pass `uv run flake8 --max-complexity=10 --select=C901`
 - `.flake8` contains `max-complexity = 15`
 - `.pre-commit-config.yaml` has a `flake8` hook entry
-- `.github/skills/run-linters/SKILL.md` documents the CC gate
+- `.agents/skills/run-linters/SKILL.md` documents the CC gate
 - `lint-flake8` CI job passes with zero C901 warnings
 
 **Dependencies:** none
@@ -175,14 +175,14 @@ so the CI never goes in broken.
   `vultron/core/case_states/make_doc.py:77` (current CC=16)
 - [ ] CC.1.6 Activate CC=15 gate: add `max-complexity = 15` to `.flake8`,
   add `flake8` hook to `.pre-commit-config.yaml`, update
-  `.github/skills/run-linters/SKILL.md`
+  `.agents/skills/run-linters/SKILL.md`
 
 ### CC.2 — Phase 2: Reduce CC 11–15 violations to CC≤10 and tighten gate
 
 **Blocked by CC.1.**
 
 Refactor the 18 remaining functions at CC 11–15 to CC≤10 (full inventory in
-`plan/IMPLEMENTATION_NOTES.md` CC-ENFORCEMENT), then lower `max-complexity`
+`plan/BUILD_LEARNINGS.md` CC-ENFORCEMENT), then lower `max-complexity`
 to 10. Scope: `vultron/` and `test/`.
 
 **Acceptance criteria:**
@@ -194,7 +194,7 @@ to 10. Scope: `vultron/` and `test/`.
 **Dependencies:** CC.1 complete and CI green.
 
 - [ ] CC.2.1 Reduce all 18 CC 11–15 functions to CC≤10 (see
-  `plan/IMPLEMENTATION_NOTES.md` CC-ENFORCEMENT for the full list)
+  `plan/BUILD_LEARNINGS.md` CC-ENFORCEMENT for the full list)
 - [ ] CC.2.2 Lower `max-complexity` from 15 to 10 in `.flake8`
 - [ ] CC.2.3 Upgrade `IMPLTS-07-008` from SHOULD to MUST in
   `specs/tech-stack.yaml` now that all CC violations above 10 are resolved
@@ -277,9 +277,84 @@ objects.
 
 ---
 
-## TASK-SR — Spec Registry (YAML + Pydantic)
+## TASK-SEDRIFT — Fix Semantic Extraction Pattern Gaps
 
-SR.1–SR.6 complete (see `plan/IMPLEMENTATION_HISTORY.md`).
+**Source**: `plan/BUILD_LEARNINGS.md` DR-03, DR-07, DR-14.
+
+These requirements derive from the 2026-04-20 architectural review:
+
+- **DR-03**: `find_matching_semantics()` MUST return `UNKNOWN` immediately
+  when `object_` is a bare string after rehydration (SE-03-003 / VAM-01-009).
+- **DR-07**: `InviteActorToCasePattern` must discriminate on object type.
+  Requires subtype-aware matching (e.g., `isinstance(field, as_Actor)`) in
+  `_match_field()` before the object-type check can be added.
+- **DR-14**: Dead-letter handling for `UNKNOWN_UNRESOLVABLE_OBJECT` vs
+  `UNKNOWN_NO_PATTERN` (see `notes/activitystreams-semantics.md`).
+
+### SEDRIFT.1 — Guard bare-string `object_` in `find_matching_semantics()`
+
+**Acceptance criteria:**
+
+- `find_matching_semantics()` returns `MessageSemantics.UNKNOWN` immediately
+  when `activity.object_` is a bare string after rehydration
+- Existing tests pass; new test covers the bare-string guard
+
+- [ ] SEDRIFT.1: Add bare-string guard to `find_matching_semantics()`
+  (SE-03-003, VAM-01-009)
+
+### SEDRIFT.2 — Subtype-aware `_match_field()` for AS2 actor types
+
+**Acceptance criteria:**
+
+- `_match_field()` supports `isinstance` checks in addition to exact
+  `type_` string equality
+- `InviteActorToCasePattern` adds `object_=AOtype.ACTOR` discriminator
+  using the new subtype-aware check
+- Existing tests pass; new test covers `Invite(VultronPerson, target=Case)`
+
+- [ ] SEDRIFT.2: Add subtype-aware matching to `_match_field()` +
+  fix `InviteActorToCasePattern` (SE-03-003)
+
+### SEDRIFT.3 — Dead-letter handling for unresolvable `object_`
+
+**Acceptance criteria:**
+
+- Dispatcher distinguishes `UNKNOWN_UNRESOLVABLE_OBJECT` from
+  `UNKNOWN_NO_PATTERN`
+- Unresolvable-object activities are dead-lettered (log WARNING, store
+  record) rather than raising `VultronApiHandlerMissingSemanticError`
+- Dead-letter record schema matches `notes/activitystreams-semantics.md`
+
+- [ ] SEDRIFT.3: Implement dead-letter handling in dispatcher (VAM-01-009)
+
+---
+
+## TASK-CCDRIFT — Fix cc Addressing Warning + PersistCase Upsert
+
+**Source**: `plan/BUILD_LEARNINGS.md` DR-11, DR-13.
+
+### CCDRIFT.1 — Log WARNING for `cc` recipients in `Offer(Report)` handler
+
+**Acceptance criteria:**
+
+- When the receiving actor is in `cc` (not `to`) of `Offer(Report)`, the
+  handler logs WARNING and discards the activity without creating a case
+- Existing behavior for `to` recipients is unchanged
+- Test covers both `to` (case created) and `cc` (warning, no case) paths
+
+- [ ] CCDRIFT.1: Add `cc` guard to `SubmitReportReceivedUseCase` (HP-*)
+
+### CCDRIFT.2 — PersistCase BT node: silent upsert on duplicate
+
+**Acceptance criteria:**
+
+- `PersistCase.update()` calls `dl.save()` with idempotent upsert semantics
+- Duplicate-key conditions are silently handled; no WARNING log for a
+  pre-existing case with the same `id_`
+- Test covers the duplicate-case scenario
+
+- [ ] CCDRIFT.2: Fix `PersistCase` upsert semantics in
+  `vultron/core/behaviors/case/nodes.py`
 
 ---
 

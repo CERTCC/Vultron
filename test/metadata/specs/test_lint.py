@@ -203,3 +203,51 @@ def test_lint_suppress_missing_tags(tmp_path, capsys):
     captured = capsys.readouterr()
     assert result == 0
     assert "no tags" not in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Spec ID vs group prefix check (MS-04-004)
+# ---------------------------------------------------------------------------
+
+
+def test_lint_spec_id_prefix_mismatch(tmp_path, capsys):
+    """A spec with ID TST-01-001 living in group TST-02 must be a hard error."""
+    data = {
+        "id": "TST",
+        "title": "Test File",
+        "description": "Spec ID prefix mismatch test",
+        "version": "0.1",
+        "kind": "general",
+        "scope": ["production"],
+        "groups": [
+            {
+                "id": "TST-02",
+                "title": "Group Two",
+                "specs": [
+                    {
+                        "id": "TST-01-001",  # prefix TST-01 != group TST-02
+                        "priority": "MUST",
+                        "statement": "TST-01-001 MUST be in group TST-01",
+                        "rationale": "Prefix consistency",
+                        "tags": ["testing"],
+                    }
+                ],
+            }
+        ],
+    }
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "TST-01-001" in captured.err
+    assert "TST-02" in captured.err
+
+
+def test_lint_spec_id_prefix_match_passes(tmp_path, capsys):
+    """A spec ID whose prefix matches its group must not produce an error."""
+    data = _minimal_spec("TST-01-001")  # lives in group TST-01 — correct
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "TST-01-001" not in captured.err

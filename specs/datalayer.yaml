@@ -1,0 +1,77 @@
+id: DL
+title: DataLayer Port
+description: Behavioural contract that all DataLayer adapter implementations MUST satisfy. Covers auto-rehydration on read,
+  type-safe write operations, and port isolation.
+version: 1.0.0
+kind: implementation
+scope:
+- prototype
+- production
+groups:
+- id: DL-01
+  title: Auto-Rehydration on Read
+  specs:
+  - id: DL-01-001
+    priority: MUST
+    statement: '`dl.read(id)` MUST return a fully rehydrated, typed domain object: a Pydantic model instance with all dehydrated
+      ID-string fields expanded to their full typed objects; if the object does not exist, `VultronNotFoundError` MUST be
+      raised.'
+    rationale: Core use cases must not contain coercion logic for storage artefacts. See notes/datalayer-design.md 'Auto-Rehydration'.
+    tags:
+    - persistence
+  - id: DL-01-002
+    priority: MUST
+    statement: '`dl.list(type_key)` MUST return an iterable of fully rehydrated, typed domain objects; an empty result MUST
+      be returned (not an error) when no objects of the given type exist.'
+    rationale: Consistent with DL-01-001 rehydration guarantee.
+    tags:
+    - persistence
+  - id: DL-01-003
+    priority: MUST
+    statement: Rehydration MUST cover all fields the adapter dehydrates on write (including `object_`, `target`, `origin`);
+      if a dehydrated field references a missing ID, the adapter MUST log a WARNING and return the ID string as-is.
+    rationale: Preserves partial readability when nested objects are deleted.
+    tags:
+    - persistence
+  - id: DL-01-004
+    priority: MUST
+    statement: Core use cases MUST NOT contain manual coercion of `dl.read()` results; specifically, `model_validate` on a
+      `dl.read()` result, `record_to_object()` calls, and `isinstance(result, Document)` checks are prohibited in `vultron/core/`.
+    rationale: These patterns indicate the adapter is not satisfying its rehydration contract and MUST be fixed in the adapter,
+      not in core.
+    tags:
+    - persistence
+- id: DL-02
+  title: Type-Safe Write Operations
+  specs:
+  - id: DL-02-001
+    priority: MUST
+    statement: '`dl.save(obj)` MUST accept a typed Pydantic domain object directly and handle all serialisation and dehydration
+      internally; core MUST NOT call `object_to_record()` before passing an object to `dl.save()`.'
+    rationale: Keeps serialisation concerns inside the adapter layer.
+    tags:
+    - persistence
+  - id: DL-02-002
+    priority: MUST
+    statement: '`dl.save(obj)` MUST be idempotent with respect to the object''s `id_`: saving the same object twice with the
+      same ID MUST produce the same stored state as saving it once (upsert semantics).'
+    rationale: Idempotent writes prevent duplicate-key errors in retry scenarios.
+    tags:
+    - persistence
+    - idempotency
+- id: DL-03
+  title: Port Isolation
+  specs:
+  - id: DL-03-001
+    priority: MUST
+    statement: The `DataLayer` port (`vultron/core/ports/datalayer.py`) MUST be defined entirely in terms of core domain types
+      and MUST NOT import from `vultron/wire/`, `vultron/adapters/`, or any storage-specific library (SQLModel, TinyDB, etc.).
+    rationale: Enforces hexagonal architecture layer separation (ARCH-01-001).
+    relationships:
+    - rel_type: implements
+      spec_id: ARCH-01-001
+  - id: DL-03-002
+    priority: MUST
+    statement: The DataLayer adapter MUST NOT expose vocabulary registry lookups or AS2 type-name resolution to core; the
+      vocabulary registry is a wire-layer concern and the adapter must maintain its own internal mapping.
+    rationale: Prevents wire-layer types from leaking into the core domain through the persistence port.
