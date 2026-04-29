@@ -71,6 +71,7 @@ spec-dump="vultron.metadata.specs.render:main_llm_json"
 spec-dump-llm-json="vultron.metadata.specs.render:main_llm_json"
 spec-lint="vultron.metadata.specs.lint:main"
 append-history="vultron.metadata.history.cli:main"
+backfill-implementation-history="vultron.metadata.history.backfill_implementation:main"
 
 
 [project.urls]

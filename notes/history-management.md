@@ -36,7 +36,7 @@ tool and the migration from monolithic `plan/*HISTORY.md` files.
 | Top-level static README? | Yes — `plan/history/README.md` explains legacy files and the transition date | Documents the migration boundary for future readers |
 | Legacy file migration? | Move monolithic files to `plan/history/` top level as static archives | Cannot be split retroactively without manual effort; grandfathered content preserved |
 | Tool interface? | `uv run append-history <type>` — stdin by default, `--file <path>` alternative | Matches project tooling (parallel to `spec-dump`); piping is the most common agent use case |
-| Date determination? | Always use current system clock | No agent decision-making about which month file to target |
+| Date determination? | Use current system clock by default; allow a backfill-only override for migration tooling | Normal agents avoid month-selection decisions, while legacy backfill still needs historical placement |
 | Type validation? | `HistoryEntryType` StrEnum in `vultron/metadata/history/types.py` | Adding a new type requires only one line change |
 | Module location? | `vultron/metadata/history/` — sibling of `vultron/metadata/specs/` | Both are project-management metadata tools; co-location signals intent |
 | Agent context boundary? | `plan/history/` is explicitly excluded from default "read plan context" | Prevents agents from spending context tokens on historical archive during orientation |
@@ -120,6 +120,8 @@ append-history <type> [--file <path>]
 - `<type>`: one of `idea`, `implementation`, `priority` (or any future
   `HistoryEntryType` value)
 - Content is read from stdin by default; `--file <path>` reads from a file
+- A backfill-only date override exists for migration tooling but is kept out of
+  normal skill-facing usage guidance
 
 ### Usage Examples
 
@@ -139,6 +141,8 @@ echo "## TASK-FOO completed..." | uv run append-history implementation
 1. Parse `<type>` against `HistoryEntryType`; exit 1 on unknown type.
 2. Read content from stdin or `--file <path>`.
 3. Determine current month: `datetime.date.today().strftime("%y%m")` → `YYMM`.
+   A backfill-only override may supply a historical date when migrating legacy
+   entries.
 4. Parse the content's YAML frontmatter to extract `<entry-id>` (the `source`
    field, falling back to a timestamp-based name if absent).
 5. Create `plan/history/YYMM/<type>/` if missing.

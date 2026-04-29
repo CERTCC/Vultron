@@ -104,6 +104,26 @@ class TestAppendHistoryEntryCreation:
         written_path = Path(result.stdout.strip())
         assert written_path.parent.name == "implementation"
 
+    def test_rejects_existing_target_file(self, fake_repo: Path) -> None:
+        first = _run_append("idea", cwd=fake_repo)
+        assert first.returncode == 0
+        second = _run_append("idea", cwd=fake_repo)
+        assert second.returncode != 0
+        assert "already exists" in second.stderr
+
+    def test_hidden_date_override_targets_historical_month(
+        self, fake_repo: Path
+    ) -> None:
+        result = _run_append(
+            "implementation",
+            content=_IMPL_CONTENT,
+            extra_args=["--date", "2025-12-31"],
+            cwd=fake_repo,
+        )
+        assert result.returncode == 0
+        written_path = Path(result.stdout.strip())
+        assert written_path.parent.parent.name == "2512"
+
 
 class TestAppendHistoryReadmeRegeneration:
     """HM-03-006: README.md regenerated after append."""

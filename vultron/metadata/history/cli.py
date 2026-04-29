@@ -116,7 +116,68 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Read entry content from FILE instead of stdin.",
     )
+    parser.add_argument(
+        "--date",
+        metavar="YYYY-MM-DD",
+        default=None,
+        help=argparse.SUPPRESS,
+    )
     return parser
+
+
+def _parse_iso_date(value: str) -> datetime.date:
+    """Parse an ISO date string for internal backfill callers."""
+    try:
+        return datetime.date.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(
+            f"invalid date '{value}'; expected YYYY-MM-DD"
+        ) from exc
+
+
+def append_history_entry(
+    entry_type: HistoryEntryType,
+    content: str,
+    *,
+    repo_root: Path | None = None,
+    target_date: datetime.date | None = None,
+) -> Path:
+    """Write a history entry and regenerate the monthly README.
+
+    Args:
+        entry_type: Valid history entry type.
+        content: Full markdown content including YAML frontmatter.
+        repo_root: Optional repository root override.
+        target_date: Optional historical date for backfill callers.
+
+    Returns:
+        Path to the written history entry.
+
+    Raises:
+        ValueError: If content is empty.
+        FileExistsError: If the target entry file already exists.
+    """
+    if not content.strip():
+        raise ValueError("entry content is empty")
+
+    resolved_root = _find_repo_root(repo_root)
+    resolved_date = target_date or datetime.date.today()
+    yymm = resolved_date.strftime("%y%m")
+    raw_entry_id = _extract_entry_id(content, entry_type.value)
+    entry_id = _sanitize_entry_id(raw_entry_id)
+
+    entry_dir = resolved_root / "plan" / "history" / yymm / entry_type.value
+    entry_dir.mkdir(parents=True, exist_ok=True)
+
+    entry_file = entry_dir / f"{entry_id}.md"
+    if entry_file.exists():
+        raise FileExistsError(f"history entry already exists: {entry_file}")
+
+    entry_file.write_text(content, encoding="utf-8")
+
+    month_dir = resolved_root / "plan" / "history" / yymm
+    regenerate_readme(month_dir)
+    return entry_file
 
 
 def main() -> None:
@@ -124,7 +185,6 @@ def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
 
-    # Validate type.
     try:
         entry_type = HistoryEntryType(args.entry_type)
     except ValueError:
@@ -136,7 +196,6 @@ def main() -> None:
         )
         sys.exit(1)
 
-    # Read content.
     if args.file:
         file_path = Path(args.file)
         if not file_path.exists():
@@ -146,45 +205,18 @@ def main() -> None:
     else:
         content = sys.stdin.read()
 
-    if not content.strip():
-        print("Error: entry content is empty.", file=sys.stderr)
-        sys.exit(1)
-
-    # Determine paths.
     try:
-        repo_root = _find_repo_root()
-    except FileNotFoundError as exc:
+        target_date = (
+            _parse_iso_date(args.date) if args.date is not None else None
+        )
+        entry_file = append_history_entry(
+            entry_type,
+            content,
+            target_date=target_date,
+        )
+    except (FileExistsError, FileNotFoundError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
-
-    today = datetime.date.today()
-    yymm = today.strftime("%y%m")
-    raw_entry_id = _extract_entry_id(content, entry_type.value)
-
-    try:
-        entry_id = _sanitize_entry_id(raw_entry_id)
-    except ValueError as exc:
-        print(f"Error: invalid entry_id — {exc}", file=sys.stderr)
-        sys.exit(1)
-
-    entry_dir = repo_root / "plan" / "history" / yymm / entry_type.value
-    entry_dir.mkdir(parents=True, exist_ok=True)
-
-    entry_file = entry_dir / f"{entry_id}.md"
-
-    # Write-once: refuse to overwrite an existing history entry (HM-01-005).
-    if entry_file.exists():
-        print(
-            f"Error: history entry already exists and is write-once: {entry_file}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    entry_file.write_text(content, encoding="utf-8")
-
-    # Regenerate the monthly README.
-    month_dir = repo_root / "plan" / "history" / yymm
-    regenerate_readme(month_dir)
 
     print(str(entry_file))
 
