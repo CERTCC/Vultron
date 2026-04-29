@@ -210,7 +210,7 @@ Current violations (CC 11–15):
 
 **Acceptance criteria:**
 
-- All 18 functions pass `uv run flake8 --max-complexity=10 --select=C901`
+- All 21 functions pass `uv run flake8 --max-complexity=10 --select=C901`
 - `.flake8` contains `max-complexity = 10`
 - `lint-flake8` CI job passes with zero C901 warnings
 
@@ -413,43 +413,37 @@ outbox without an addressee.
 
 ---
 
-## TASK-DL-REHYDRATE — DataLayer Auto-Rehydration on Read
+## TASK-DL-REHYDRATE — DataLayer Auto-Rehydration on Read (Residual)
 
-**Source**: `specs/datalayer.yaml` DL-01-001 through DL-01-004, DL-02-001;
-`notes/datalayer-design.md`
+**Source**: `specs/datalayer.yaml` DL-01-002; `notes/datalayer-design.md`
 
-**Note**: Shares implementation context with TASK-ARCHVIO — once auto-rehydration
-is in the adapter, the manual coercion that ARCHVIO.3 removes becomes visible.
-These tasks may be batched into a single PR.
+Auto-rehydration for `dl.read()` was implemented in the SQLite adapter
+(`_from_row` calls `_rehydrate_fields()` + `_coerce_to_semantic_class()`;
+completed 2026-05-20, see `plan/history/IMPLEMENTATION_HISTORY.md`). The
+TinyDB adapter has been removed. DL-01-001, DL-01-003, DL-02-001, DL-02-002
+are satisfied.
 
-`dl.read()` and `dl.list(type_key)` MUST return fully rehydrated, typed
-domain objects. Currently the SQLite/TinyDB adapters return dehydrated records
-requiring manual `model_validate` coercion in use cases.
+**Remaining work**: DL-01-002 requires a `list(type_key)` method returning
+fully rehydrated typed domain objects. The existing `by_type()` returns raw
+`dict[str, dict[str, Any]]` and `all()` returns a mixed union — neither
+satisfies the spec.
 
 **Acceptance criteria:**
 
 - `DataLayer` port has a `list(type_key: str) -> Iterable[PersistableModel]`
-  method (DL-01-002).
-- `dl.read(id)` returns a fully rehydrated typed object; bare string
-  references in nested fields (`object_`, `target`, `origin`) are expanded
-  (DL-01-001, DL-01-003).
-- Core use cases contain no `model_validate(dl.read(...))`, no
-  `record_to_object()`, and no `isinstance(result, Document)` checks
-  (DL-01-004).
-- `dl.save(obj)` upserts by `id_`: saving the same object twice produces the
-  same stored state (DL-02-002).
+  method that returns fully rehydrated, typed domain objects (DL-01-002).
+- SQLite adapter implements `list()` with the same rehydration pipeline as
+  `read()`.
+- All existing `by_type()` / `get_all()` call sites reviewed; migrate where
+  typed results are expected.
 - All existing tests pass.
 
-- [ ] DL-REHYDRATE.1 Add `list(type_key)` to `DataLayer` Protocol and both
-  adapter implementations (DL-01-002)
-- [ ] DL-REHYDRATE.2 Implement auto-rehydration in `datalayer_sqlite.py`
-  `read()` and `list()` (DL-01-001, DL-01-003)
-- [ ] DL-REHYDRATE.3 Implement auto-rehydration in `datalayer_tinydb.py`
-  `read()` and `list()` (DL-01-001, DL-01-003)
-- [ ] DL-REHYDRATE.4 Remove manual `model_validate` / `record_to_object()`
-  coercion from all core use cases (DL-01-004)
-- [ ] DL-REHYDRATE.5 Add tests confirming auto-rehydration and upsert
-  idempotency
+- [ ] DL-REHYDRATE.1 Add `list(type_key)` to `DataLayer` Protocol and
+  SQLite adapter implementation (DL-01-002)
+- [ ] DL-REHYDRATE.4 Review remaining `model_validate` calls in core use
+  cases (`received/sync.py`, `triggers/sync.py`, `triggers/embargo.py`,
+  `triggers/actor.py`); remove any that coerce `dl.read()` output
+  (DL-01-004)
 
 ---
 
@@ -468,13 +462,11 @@ requiring manual `model_validate` coercion in use cases.
   protocol foundation is stable
 - FUZZ-00 **Fuzzer node re-implementation** (Priority 500) — see
   `notes/bt-fuzzer-nodes.md`
-- SYNC-1–SYNC-4 **Per-participant case replica / sync-log replication** —
-  Each Participant Actor maintains their own copy of the case object,
-  synchronised from the CaseActor via `Announce(CaseLogEntry)` replication.
-  See `specs/sync-log-replication.yaml` and `notes/sync-log-replication.md`.
-  Defer until the outbox delivery pipeline (OX-03, OX-04) is stable.
-- DEMOMA **Multi-actor demo infrastructure** — Docker Compose healthchecks per
-  actor, per-actor isolation, acceptance tests asserting RM/EM/CS end-state.
-  See `specs/multi-actor-demo.yaml` DEMOMA-01 through DEMOMA-05 and
-  `notes/demo-review-26042001.md`. Defer until TASK-TRIGCLASS and
-  TASK-DL-REHYDRATE are complete.
+- DEMOMA **Multi-actor demo infrastructure** — Core multi-actor demo
+  infrastructure is substantially complete (Docker Compose, healthchecks,
+  per-actor isolation, trigger-based puppeteering all done; see
+  `plan/history/IMPLEMENTATION_HISTORY.md`). Remaining work tracked in
+  Vultron#387 (demo log issues noted in D5-7-HUMAN sign-off). See
+  `specs/multi-actor-demo.yaml` DEMOMA-01 through DEMOMA-05 and
+  `notes/demo-review-26042001.md`. Defer remaining cleanup until
+  TASK-TRIGCLASS is complete.
