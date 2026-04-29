@@ -1,7 +1,7 @@
 ---
 title: TASK-SPECMD + TASK-SPECIDFIX
 type: implementation
-date: 2025-07-11
+date: 2026-04-28
 source: TASK-SPECMD, TASK-SPECIDFIX
 ---
 

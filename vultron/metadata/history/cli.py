@@ -6,7 +6,7 @@ Usage::
     uv run append-history <type> --file /path/to/entry.md
 
 ``<type>`` must be one of the ``HistoryEntryType`` values
-(``idea``, ``implementation``, ``priority``).
+(``idea``, ``implementation``, ``learning``, ``priority``).
 
 The tool:
 
@@ -40,12 +40,19 @@ def _find_repo_root(start: Path | None = None) -> Path:
     """Return the repository root by searching upward for ``pyproject.toml``.
 
     Works regardless of the caller's working directory.
+
+    Raises:
+        FileNotFoundError: If ``pyproject.toml`` cannot be found in any
+            parent directory, indicating the tool was invoked outside a
+            Vultron repository.
     """
-    current = (start or Path.cwd()).resolve()
-    for parent in [current, *current.parents]:
+    origin = (start or Path.cwd()).resolve()
+    for parent in [origin, *origin.parents]:
         if (parent / "pyproject.toml").exists():
             return parent
-    return current  # fallback: use cwd if pyproject.toml not found
+    raise FileNotFoundError(
+        f"Could not locate repository root (pyproject.toml) starting from {origin}"
+    )
 
 
 def _extract_entry_id(content: str, entry_type: str) -> str:
@@ -63,6 +70,30 @@ def _extract_entry_id(content: str, entry_type: str) -> str:
 
     timestamp = datetime.datetime.now().strftime("%y%m%d%H%M%S")
     return f"{entry_type}-{timestamp}"
+
+
+def _sanitize_entry_id(entry_id: str) -> str:
+    """Validate and sanitize *entry_id* to prevent path traversal.
+
+    Raises:
+        ValueError: If *entry_id* contains path separators or ``..``
+            components that could write outside the intended directory.
+    """
+    if not entry_id:
+        raise ValueError("entry_id must not be empty")
+    # Reject path separators and parent-directory traversal.
+    if "/" in entry_id or "\\" in entry_id:
+        raise ValueError(f"entry_id contains path separators: {entry_id!r}")
+    if ".." in entry_id.split():
+        raise ValueError(f"entry_id contains '..' component: {entry_id!r}")
+    # Verify the resolved filename stays within the intended directory by
+    # checking Path properties (no directory component allowed).
+    p = Path(entry_id)
+    if p.parent != Path("."):
+        raise ValueError(
+            f"entry_id must be a plain filename, not a path: {entry_id!r}"
+        )
+    return entry_id
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -120,15 +151,35 @@ def main() -> None:
         sys.exit(1)
 
     # Determine paths.
-    repo_root = _find_repo_root()
+    try:
+        repo_root = _find_repo_root()
+    except FileNotFoundError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+
     today = datetime.date.today()
     yymm = today.strftime("%y%m")
-    entry_id = _extract_entry_id(content, entry_type.value)
+    raw_entry_id = _extract_entry_id(content, entry_type.value)
+
+    try:
+        entry_id = _sanitize_entry_id(raw_entry_id)
+    except ValueError as exc:
+        print(f"Error: invalid entry_id — {exc}", file=sys.stderr)
+        sys.exit(1)
 
     entry_dir = repo_root / "plan" / "history" / yymm / entry_type.value
     entry_dir.mkdir(parents=True, exist_ok=True)
 
     entry_file = entry_dir / f"{entry_id}.md"
+
+    # Write-once: refuse to overwrite an existing history entry (HM-01-005).
+    if entry_file.exists():
+        print(
+            f"Error: history entry already exists and is write-once: {entry_file}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     entry_file.write_text(content, encoding="utf-8")
 
     # Regenerate the monthly README.

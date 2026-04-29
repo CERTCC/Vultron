@@ -151,7 +151,7 @@ class TestAppendHistoryTypeValidation:
         assert "idea" in result.stderr
 
     @pytest.mark.parametrize(
-        "valid_type", ["idea", "implementation", "priority"]
+        "valid_type", ["idea", "implementation", "learning", "priority"]
     )
     def test_all_valid_types_accepted(
         self, valid_type: str, fake_repo: Path
@@ -195,4 +195,41 @@ class TestAppendHistoryInputModes:
 
     def test_empty_stdin_exits_nonzero(self, fake_repo: Path) -> None:
         result = _run_append("idea", content="", cwd=fake_repo)
+        assert result.returncode != 0
+
+
+class TestAppendHistoryWriteOnce:
+    """HM-01-005: history entries are write-once; overwrite must be rejected."""
+
+    def test_duplicate_write_exits_nonzero(self, fake_repo: Path) -> None:
+        _run_append("idea", cwd=fake_repo)
+        result = _run_append("idea", cwd=fake_repo)
+        assert result.returncode != 0
+
+    def test_duplicate_write_error_message(self, fake_repo: Path) -> None:
+        _run_append("idea", cwd=fake_repo)
+        result = _run_append("idea", cwd=fake_repo)
+        assert "already exists" in result.stderr.lower()
+
+
+class TestAppendHistoryEntryIdSanitization:
+    """Security: entry_id from frontmatter must not allow path traversal."""
+
+    @pytest.mark.parametrize(
+        "bad_source",
+        [
+            "../outside",
+            "../../etc/passwd",
+            "a/b",
+            "a\\b",
+        ],
+    )
+    def test_path_traversal_rejected(
+        self, bad_source: str, fake_repo: Path
+    ) -> None:
+        content = (
+            f"---\ntitle: T\ntype: idea\ndate: 2026-04-28\n"
+            f"source: {bad_source}\n---\n\nBody.\n"
+        )
+        result = _run_append("idea", content=content, cwd=fake_repo)
         assert result.returncode != 0

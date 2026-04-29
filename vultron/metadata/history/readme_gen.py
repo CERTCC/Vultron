@@ -71,7 +71,7 @@ def regenerate_readme(month_dir: Path) -> Path:
             entries.append(meta)
 
     # Sort by date descending, then type ascending for stable ordering.
-    entries.sort(key=lambda e: (e.date, e.entry_type), reverse=False)
+    entries.sort(key=lambda e: (e.date, e.entry_type), reverse=True)
 
     label = _month_label(month_dir.name)
     lines: list[str] = [
@@ -83,8 +83,14 @@ def regenerate_readme(month_dir: Path) -> Path:
         "|------|------|--------|-------|",
     ]
     for entry in entries:
+        # Sanitize cell values: escape pipe chars and strip newlines so the
+        # Markdown table renders correctly regardless of frontmatter content.
+        def _cell(value: str) -> str:
+            return value.replace("\n", " ").replace("|", "\\|")
+
         lines.append(
-            f"| {entry.date} | {entry.entry_type} | {entry.source} | {entry.title} |"
+            f"| {_cell(entry.date)} | {_cell(entry.entry_type)}"
+            f" | {_cell(entry.source)} | {_cell(entry.title)} |"
         )
 
     readme_path.write_text("\n".join(lines) + "\n", encoding="utf-8")

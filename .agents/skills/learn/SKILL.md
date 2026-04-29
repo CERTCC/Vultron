@@ -16,7 +16,8 @@ specification and design documentation. The input is what the build process
 has discovered (`BUILD_LEARNINGS.md`); the
 output is refined `specs/`, `notes/`, and `AGENTS.md`.
 
-**Constraint**: Modify **markdown files only**. Do not modify code or tests.
+**Constraint**: Modify **documentation files only**, including Markdown files
+and YAML spec files in `specs/`. Do not modify code or tests.
 
 **Trigger**: Use this skill when `plan/BUILD_LEARNINGS.md` has unprocessed
 entries that should be promoted into durable docs.
