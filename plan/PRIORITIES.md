@@ -29,6 +29,11 @@ Sub-issues:
 - [#390](https://github.com/CERTCC/Vultron/issues/390) — Users must set env vars before running docker
 - [#391](https://github.com/CERTCC/Vultron/issues/391) — Demo description draws attention to the DataLayer, but logs do not reflect this
 
+**See also**: TASK-EMDEFAULT — Default Embargo State (EP-04): when a receiver
+applies their published default embargo at case creation, `em_state` MUST be
+`EM.ACTIVE` immediately (not `EM.PROPOSED`). Tracked in the implementation
+plan; no GitHub issue yet.
+
 **Note**: If an RFC improvement (#405) would significantly change the solution
 space for a particular bug, defer the bug fix until after that RFC is
 implemented. Don't fix and then immediately refactor away the fix.
@@ -64,11 +69,54 @@ Sub-issues:
 - [#402](https://github.com/CERTCC/Vultron/issues/402) — RFC: Consolidate extractor.py — move find_matching_semantics to semantic_registry
 - [#403](https://github.com/CERTCC/Vultron/issues/403) — RFC: Narrow the DataLayer port — introduce CasePersistence and CaseOutboxPersistence
 
-Resolving these before cyclomatic complexity reduction (Priority 475) enables
+Resolving these before cyclomatic complexity reduction (Priority 480) enables
 cleaner refactors: narrower interfaces and deeper modules reduce CC
 organically.
 
-## Priority 475: Cyclomatic Complexity Enforcement
+Additional implementation-level architecture tasks (no GitHub issues yet):
+
+- **TASK-AF** — Activity Factory Functions: introduce
+  `vultron/wire/as2/factories/` as the sole public construction API for
+  outbound Vultron protocol activities; migrate all call sites; make internal
+  vocab subclasses private.
+- **TASK-ARCHVIO** — Fix ARCH-03-001 violations: core use cases in `sync.py`
+  call `from_core()` on wire objects, violating the hexagonal constraint.
+  Introduce a driven port adapter for domain→wire translation. Depends on
+  TASK-AF.
+- **TASK-BTND5** — Generalize Participant BT Nodes: replace
+  `CreateInitialVendorParticipant` with a config-driven
+  `CreateCaseOwnerParticipant`; add `CVDRoles.CASE_OWNER`; remove the
+  `CreateFinderParticipantNode` alias; refactor `CVDRoles` from `Flag` to
+  `StrEnum`.
+- **TASK-DL-REHYDRATE** — DataLayer auto-rehydration residual: add a typed
+  `list(type_key)` method to the `DataLayer` Protocol and SQLite adapter;
+  remove manual `model_validate()` coercions from use cases.
+
+## Priority 474: Unified Configuration and Trigger Classification
+
+Introduce a single unified configuration API and formally separate demo-only
+trigger endpoints from general-purpose ones. No GitHub issues yet.
+
+- **TASK-CFG**: Introduce `vultron/config.py` with `AppConfig`,
+  `ServerConfig`, `DatabaseConfig`, `RunMode(StrEnum)`, `get_config()`, and
+  `reload_config()`. Replace all `os.environ.get()` calls; refactor
+  `SeedConfig`/`LocalActorConfig` to `pydantic-settings`.
+- **TASK-TRIGCLASS**: Separate demo-only triggers (`add-note-to-case`,
+  `sync-log-entry`) into a dedicated router mounted only when
+  `RunMode.PROTOTYPE`; add a general-purpose `add-object-to-case` trigger.
+  Blocked by TASK-CFG.
+
+## Priority 475: Outbox Integrity Enforcement
+
+All outbound Vultron activities are direct messages and MUST have a non-empty
+`to:` field. Enforce this at `handle_outbox_item` so no activity leaves the
+outbox without an addressee. No GitHub issue yet.
+
+- **TASK-OUTBOX-TO**: Add `VultronOutboxToFieldMissingError` and enforce
+  `to:` presence in `handle_outbox_item`; log `WARNING` when `cc`/`bto`/`bcc`
+  are non-empty.
+
+## Priority 480: Cyclomatic Complexity Enforcement
 
 Cyclomatic complexity (CC) is treated as a policy boundary, not just a
 measurement. High CC correlates with harder-to-test, harder-to-maintain
