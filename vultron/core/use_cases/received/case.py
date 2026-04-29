@@ -101,7 +101,7 @@ class CreateCaseReceivedUseCase:
                 "CreateCaseBT did not succeed for actor '%s' / case '%s': %s",
                 actor_id,
                 case_id,
-                result.feedback_message,
+                BTBridge.get_failure_reason(tree),
             )
 
 
@@ -268,7 +268,7 @@ class EngageCaseReceivedUseCase:
                 "EngageCaseBT did not succeed for actor '%s' / case '%s': %s",
                 actor_id,
                 case_id,
-                result.feedback_message,
+                BTBridge.get_failure_reason(tree),
             )
 
 
@@ -307,7 +307,7 @@ class DeferCaseReceivedUseCase:
                 "DeferCaseBT did not succeed for actor '%s' / case '%s': %s",
                 actor_id,
                 case_id,
-                result.feedback_message,
+                BTBridge.get_failure_reason(tree),
             )
 
 

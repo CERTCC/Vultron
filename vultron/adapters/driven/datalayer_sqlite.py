@@ -259,7 +259,7 @@ class SqliteDataLayer:
                 continue
             nested = self.read(value)
             if nested is None:
-                logger.warning(
+                logger.debug(
                     "Could not rehydrate field %r with id %r on %r;"
                     " keeping string reference.",
                     field_name,
@@ -383,6 +383,7 @@ class SqliteDataLayer:
             )
             session.add(row)
             session.commit()
+        logger.info("DataLayer stored %s '%s'", rec.type_, rec.id_)
 
     def read(
         self, object_id: str, raise_on_missing: bool = False
@@ -510,6 +511,7 @@ class SqliteDataLayer:
             row.data = record.data_
             session.add(row)
             session.commit()
+            logger.info("DataLayer updated %s '%s'", record.type_, id_)
             return True
 
     def save(self, obj: PersistableModel) -> None:
@@ -536,6 +538,7 @@ class SqliteDataLayer:
                 row.data = rec.data_
             session.add(row)
             session.commit()
+        logger.info("DataLayer saved %s '%s'", rec.type_, rec.id_)
 
     def delete(self, table: str, id_: str) -> bool:
         """Delete a record by type and ID.

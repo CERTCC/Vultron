@@ -15,10 +15,22 @@
 import logging
 from typing import cast
 
+import pytest
+
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.base import VultronObject
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.activity import VultronActivity
-from vultron.core.use_cases.received.case import UpdateCaseReceivedUseCase
+from vultron.core.models.events import MessageSemantics
+from vultron.core.models.events.case import (
+    DeferCaseReceivedEvent,
+    EngageCaseReceivedEvent,
+)
+from vultron.core.use_cases.received.case import (
+    DeferCaseReceivedUseCase,
+    EngageCaseReceivedUseCase,
+    UpdateCaseReceivedUseCase,
+)
 from vultron.wire.as2.rehydration import rehydrate as real_rehydrate
 from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
@@ -429,3 +441,94 @@ class TestCaseUseCases:
         broadcast = cast(VultronActivity, broadcast)
         assert broadcast.to is not None
         assert set(broadcast.to) == {alice, bob}
+
+
+class TestEngageDeferCaseBTFailureReason:
+    """Regression tests for BUG-471.6.
+
+    When EngageCaseBT or DeferCaseBT fails (e.g., no participant record
+    exists for the given actor), the WARNING log must include a non-empty
+    failure reason — not a trailing colon with nothing after it.
+    """
+
+    @pytest.fixture
+    def dl(self):
+        return SqliteDataLayer("sqlite:///:memory:")
+
+    @pytest.fixture
+    def actor_id(self):
+        return "https://example.org/actors/vendor"
+
+    @pytest.fixture
+    def case_id(self):
+        return "urn:uuid:338a1bc3-0000-0000-0000-000000000001"
+
+    def _engage_event(
+        self, actor_id: str, case_id: str
+    ) -> EngageCaseReceivedEvent:
+        return EngageCaseReceivedEvent(
+            activity_id="https://example.org/activities/engage-001",
+            actor_id=actor_id,
+            object_=VultronObject(id_=case_id),
+            semantic_type=MessageSemantics.ENGAGE_CASE,
+        )
+
+    def _defer_event(
+        self, actor_id: str, case_id: str
+    ) -> DeferCaseReceivedEvent:
+        return DeferCaseReceivedEvent(
+            activity_id="https://example.org/activities/defer-001",
+            actor_id=actor_id,
+            object_=VultronObject(id_=case_id),
+            semantic_type=MessageSemantics.DEFER_CASE,
+        )
+
+    def test_engage_case_failure_reason_is_nonempty(
+        self, dl, actor_id, case_id, caplog
+    ):
+        """EngageCaseBT WARNING includes a non-empty failure reason.
+
+        When CheckParticipantExists fails (no participant record),
+        the warning must name the failing node, not end with a bare colon.
+        """
+        event = self._engage_event(actor_id, case_id)
+
+        with caplog.at_level(logging.WARNING):
+            EngageCaseReceivedUseCase(dl, event).execute()
+
+        records = [
+            r
+            for r in caplog.records
+            if "EngageCaseBT did not succeed" in r.message
+        ]
+        assert records, "Expected EngageCaseBT warning to be emitted"
+        reason = records[0].message.split(":", maxsplit=3)[-1].strip()
+        assert reason, (
+            "EngageCaseBT warning must include a non-empty failure reason; "
+            f"got: {records[0].message!r}"
+        )
+
+    def test_defer_case_failure_reason_is_nonempty(
+        self, dl, actor_id, case_id, caplog
+    ):
+        """DeferCaseBT WARNING includes a non-empty failure reason.
+
+        When CheckParticipantExists fails (no participant record),
+        the warning must name the failing node, not end with a bare colon.
+        """
+        event = self._defer_event(actor_id, case_id)
+
+        with caplog.at_level(logging.WARNING):
+            DeferCaseReceivedUseCase(dl, event).execute()
+
+        records = [
+            r
+            for r in caplog.records
+            if "DeferCaseBT did not succeed" in r.message
+        ]
+        assert records, "Expected DeferCaseBT warning to be emitted"
+        reason = records[0].message.split(":", maxsplit=3)[-1].strip()
+        assert reason, (
+            "DeferCaseBT warning must include a non-empty failure reason; "
+            f"got: {records[0].message!r}"
+        )
