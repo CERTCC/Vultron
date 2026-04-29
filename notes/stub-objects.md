@@ -150,18 +150,28 @@ field as `None`.
 ## Relationship to Inline Object Requirement
 
 The current requirement (MV-09-001) is that **outbound initiating activities
-MUST carry fully inline typed domain objects**. Stub objects are a planned
-exception to this rule for the selective-disclosure use case, but this
-exception is **not yet specified or implemented**.
+MUST carry fully inline typed domain objects**. Stub objects are a controlled
+exception to this rule for the selective-disclosure use case.
 
-When stub objects are formally introduced, they will require:
+The formal stub object requirements are now specified in
+`specs/message-validation.yaml` MV-10 (Stub Objects), covering:
 
-1. A spec requirement in `specs/message-validation.yaml` (or a new
-   `specs/stub-objects.yaml`) defining when stubs are permitted.
-2. Pydantic model support for stub representations of Vultron object types.
-3. Recipient-side handling in the inbox handler and use cases.
-4. Semantic extraction support confirming that stubs with `type` fields still
-   route correctly.
+- Required fields (`id` + `type`; optional `summary`)
+- Permitted field positions (`target` of `Invite`; `object_` of `Announce`
+  when case content is embargoed)
+- DataLayer anti-overwrite rule (MV-10-003)
+- Prohibition on creating new domain records from stubs (MV-10-004)
+- Full case delivery precondition (MV-10-005)
+- Implied embargo consent when accepting a case invite (MV-10-006)
 
-**See also**: `notes/datalayer-design.md` (auto-rehydration),
-`specs/message-validation.yaml` MV-09-001.
+**Implementation notes (2026-04-21)**:
+
+- `VulnerabilityCaseStub` MUST override the inherited `published` and
+  `updated` defaults from `as_Object`. Otherwise `model_dump(exclude_none=True)`
+  leaks timestamps and violates the "stub carries only id/type(+summary)"
+  selective-disclosure rule.
+- `event.activity` cannot be reduced to ID strings for `AnnounceVulnerabilityCase`
+  handling. `AnnounceVulnerabilityCaseReceivedUseCase` needs the full inline
+  `VulnerabilityCase` on `activity.object_`, so `extract_intent()` must
+  preserve rich `object_` / `target` / `context` values when
+  `include_activity=True`.

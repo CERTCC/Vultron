@@ -5,11 +5,152 @@
 This plan tracks forward-looking work against `specs/*` and
 `plan/PRIORITIES.md`. Contains only pending, in-progress, and blocked tasks.
 
-**Completed tasks**: see `plan/IMPLEMENTATION_HISTORY.md` (append-only archive).
+**Completed tasks**: see `plan/history/IMPLEMENTATION_HISTORY.md`
+(append-only archive).
 
 **Priority ordering**: `plan/PRIORITIES.md` is authoritative for project
 priority. Sections here are organized by topic (see `specs/project-documentation.yaml`
 PD-06). Do not infer priority from section order.
+
+---
+
+## TASK-BUGS-471 — Demo Bug Fixes
+
+**Parent**: <https://github.com/CERTCC/Vultron/issues/387>
+
+Bugs observed in multi-actor demo logs. See PRIORITIES.md Priority 471 for
+the note about deferring a fix when an RFC would significantly change the
+solution space.
+
+### BUG-471.1 — CaseLogEntry Serialization + Hash-Check Timeout
+
+**Source**: <https://github.com/CERTCC/Vultron/issues/378>,
+<https://github.com/CERTCC/Vultron/issues/379>
+
+`AnnounceLogEntryActivity.object_` is typed as base `as_Object`; `model_dump`
+drops `CaseLogEntry` domain fields (`caseId`, `logObjectId`, `eventType`,
+`entryHash`, `prevLogHash`). Fix: type `object_` as `CaseLogEntry` directly
+or add `serialize_as_any=True`. Issue #379 (hash-check timeout) is a symptom
+of #378 and resolves when #378 is fixed.
+
+**Acceptance criteria:**
+
+- `Announce(CaseLogEntry)` received by Finder includes all domain fields.
+- `wait_for_finder_log_entry` no longer times out in the two-actor demo.
+
+- [ ] BUG-471.1: Fix `AnnounceLogEntryActivity.object_` serialization; verify
+  two-actor demo completes without hash-check timeout (SYNC-02-004)
+
+### BUG-471.2 — Accept/Invite Dehydration Strips Nested Domain Fields
+
+**Source**: <https://github.com/CERTCC/Vultron/issues/382>,
+<https://github.com/CERTCC/Vultron/issues/386>
+
+`_dehydrate_data` collapses the typed `Invite` nested in `Accept.object_` to
+base `as_Activity` fields. Coercion to `RmAcceptInviteToCaseActivity` and
+`EmAcceptEmbargoActivity` fails; unresolvable `object_` URIs produce
+dead-letter records (#386). Fix: preserve inline typed activities through the
+dehydration/rehydration round-trip (see `notes/activitystreams-semantics.md`
+on `serialize_as_any`).
+
+**Acceptance criteria:**
+
+- No coercion warnings for `RmAcceptInviteToCaseActivity` or
+  `EmAcceptEmbargoActivity` at receiver.
+- No dead-letter records for `Accept` activities with correctly embedded `object_`.
+
+- [ ] BUG-471.2: Fix `_dehydrate_data` round-trip for nested typed activities;
+  add regression tests for Accept dehydration/rehydration (RF-02-003, RF-03-003)
+
+### BUG-471.3 — Multi-Party Embargo Accept: 409 + PEC Invalid Transition
+
+**Source**: <https://github.com/CERTCC/Vultron/issues/384> (DEMO-BREAKING),
+<https://github.com/CERTCC/Vultron/issues/383>
+
+When `case.owner` is unset, the first `accept-embargo` caller is treated as
+owner and drives `EM PROPOSED → ACTIVE`. Subsequent participants hit 409.
+Fix: distinguish owner-gated EM transitions from per-participant PEC consent.
+Non-owners should update only their own PEC state. Issue #383 (`PEC
+NO_EMBARGO → accept` invalid) resolves once PEC is initialized to `INVITED`
+before `ACCEPT` is fired.
+
+**Note**: TASK-EMDEFAULT addresses the single-actor default embargo path;
+this task addresses multi-party acceptance. Both may need coordination.
+
+**Acceptance criteria:**
+
+- Multi-vendor and three-actor demos complete without 409 on embargo acceptance.
+- Non-owner participants' PEC transitions to SIGNATORY without a shared EM change.
+- No `WARNING: Invalid PEC transition: state='NO_EMBARGO' trigger='accept'`.
+
+- [ ] BUG-471.3: Fix `SvcAcceptEmbargoUseCase` to separate owner-gated EM
+  transition from per-participant PEC consent; regression tests for
+  multi-party embargo acceptance
+
+### BUG-471.4 — actor_id Normalization in add_activity_to_outbox
+
+**Source**: <https://github.com/CERTCC/Vultron/issues/380>
+
+`add_activity_to_outbox` is called with bare UUID in some trigger paths;
+actors are stored under full URI keys so `dl.read(actor_id)` returns None
+and `actor.outbox.items` is never updated. Fix: normalize `actor_id` to
+full URI before calling `add_activity_to_outbox`, following pattern in
+`report.py:143`.
+
+**Acceptance criteria:**
+
+- No `WARNING: add_activity_to_outbox: actor '...' not found` after
+  `create-case` trigger.
+- `actor.outbox.items` is updated after outbound activity creation.
+
+- [ ] BUG-471.4: Normalize `actor_id` to canonical URI in all trigger
+  use-case paths that call `add_activity_to_outbox`
+
+### BUG-471.5 — Spurious Rehydration Warning on Invite Target
+
+**Source**: <https://github.com/CERTCC/Vultron/issues/381>
+
+`_rehydrate_fields` emits `WARNING` when `dl.read()` returns None for the
+Invite `target`. This is expected during the normal INVITE→ANNOUNCE sequence;
+the handler defers correctly. Fix: lower to `DEBUG` for expected-miss cases.
+
+- [ ] BUG-471.5: Lower log level to `DEBUG` for expected rehydration miss on
+  Invite `target` field in `_rehydrate_fields`
+
+### BUG-471.6 — EngageCaseBT Fails Silently on Inbound engage_case
+
+**Source**: <https://github.com/CERTCC/Vultron/issues/385>
+
+`EngageCaseBT` contains `EvaluateCasePriority` (outgoing-only stub). Called
+from the receive-side use case, the BT fails in tick 1 with an empty reason
+string. Fix: remove or replace `EvaluateCasePriority` from the inbound path;
+ensure `get_failure_reason()` is called so the warning message is informative.
+
+**Acceptance criteria:**
+
+- No `WARNING: EngageCaseBT did not succeed for actor '...':` (trailing
+  colon, no reason) in multi-actor demo logs.
+- Inbound engage_case notification correctly updates the sender's participant
+  RM state.
+
+- [ ] BUG-471.6: Fix `EngageCaseBT` inbound path; propagate failure reason
+  via `get_failure_reason()`
+
+### BUG-471.7 — Docker Env Docs + Demo DataLayer Log Visibility
+
+**Source**: <https://github.com/CERTCC/Vultron/issues/390>,
+<https://github.com/CERTCC/Vultron/issues/391>
+
+Issue \#390: `docker/README.md` already has the Required env vars table and
+`.env.example`; add a prominent "Before you start" quick-step so users
+create `.env` before `docker compose up`.
+Issue \#391: Add DataLayer storage `INFO` log lines so the demo step
+descriptions that reference DataLayer storage are verifiable in demo output.
+
+- [ ] BUG-471.7a: Add "Before you start" `.env` setup step to
+  `docker/README.md` (#390)
+- [ ] BUG-471.7b: Add `INFO` DataLayer storage log lines to make demo step
+  descriptions verifiable (#391)
 
 ---
 
@@ -48,6 +189,135 @@ implementation sets `EM.PROPOSED`, leaving the case in a false limbo state.
 
 ---
 
+## TASK-DOCS-472 — LaTeX Fixes and Versioning Updates
+
+**Parent**: <https://github.com/CERTCC/Vultron/issues/404>
+
+Five independent documentation fixes resoluble in a single focused pass.
+
+**Acceptance criteria:**
+
+- All LaTeX in affected pages renders without raw `$\LaTeX$` visible.
+- Versioning page describes CalVer scheme with no SemVer references.
+- `uv run mkdocs build --strict` passes.
+
+- [ ] DOC-472.1: Update `docs/topics/background/versioning/` to describe CalVer
+  **Source**: <https://github.com/CERTCC/Vultron/issues/154>
+- [ ] DOC-472.2: Fix LaTeX in SSVC Crosswalk (`reference/ssvc_crosswalk/`)
+  **Source**: <https://github.com/CERTCC/Vultron/issues/186>,
+  <https://github.com/CERTCC/Vultron/issues/271>
+- [ ] DOC-472.3: Fix LaTeX in Formal Protocol Redux conclusion page
+  **Source**: <https://github.com/CERTCC/Vultron/issues/234>
+- [ ] DOC-472.4: Fix LaTeX in Transitions page
+  **Source**: <https://github.com/CERTCC/Vultron/issues/235>
+
+---
+
+## TASK-RFC-402 — Consolidate find_matching_semantics into semantic_registry
+
+**Source**: <https://github.com/CERTCC/Vultron/issues/402>
+
+`extractor.py` and `semantic_registry.py` maintain two parallel 40-entry
+ordered lists. Move `find_matching_semantics()` to `semantic_registry.py`
+(iterates `SEMANTIC_REGISTRY` directly), delete `_PATTERN_SEMANTICS` and
+`_ACTIVITY_TYPES_WITH_PATTERNS` from `extractor.py`, add `matches_semantics()`
+predicate, and update 3 import sites.
+
+**Acceptance criteria:**
+
+- `_PATTERN_SEMANTICS` does not appear in `extractor.py`.
+- `find_matching_semantics` importable from `vultron.semantic_registry`.
+- `matches_semantics(activity, expected) -> bool` exists in `semantic_registry`.
+- `datalayer_sqlite.py` imports `find_matching_semantics` from `semantic_registry`.
+- All existing tests pass.
+
+- [ ] RFC-402.1: Move `find_matching_semantics` + `_ACTIVITY_TYPES_WITH_PATTERNS`
+  to `semantic_registry`; add `matches_semantics()`; delete `_PATTERN_SEMANTICS`;
+  update 3 import sites
+
+---
+
+## TASK-RFC-403 — Narrow DataLayer Port to CasePersistence
+
+**Source**: <https://github.com/CERTCC/Vultron/issues/403>
+
+`DataLayer` exposes 20+ methods to all core use cases; most callers use 3–6.
+Introduce `CasePersistence` (6-method) and `CaseOutboxPersistence` Protocols
+in `vultron/core/ports/`. `SqliteDataLayer` satisfies both structurally (no
+changes needed). Update all core use-case and BT base-class `dl: DataLayer`
+type annotations to the narrower type. Enables `MagicMock(spec=CasePersistence)`
+in tests instead of 22-method stub classes.
+
+**Acceptance criteria:**
+
+- `vultron/core/ports/case_persistence.py` exists with `CasePersistence` and
+  `CaseOutboxPersistence` Protocols.
+- All `vultron/core/use_cases/**` `__init__(dl:)` params use `CasePersistence`
+  or `CaseOutboxPersistence`.
+- `DataLayerCondition`, `DataLayerAction`, `BTBridge` use `CasePersistence`.
+- All linters and tests pass.
+
+- [ ] RFC-403.1: Create `vultron/core/ports/case_persistence.py`
+- [ ] RFC-403.2: Update `vultron/core/use_cases/**` `dl:` type annotations
+  (~40 one-line changes)
+- [ ] RFC-403.3: Update `vultron/core/behaviors/helpers.py` and `bridge.py`
+
+---
+
+## TASK-RFC-400 — TriggerService Facade
+
+**Source**: <https://github.com/CERTCC/Vultron/issues/400>
+
+The current trigger path has 4 shallow layers; `_trigger_adapter.py` adds no
+logic. Introduce `TriggerService` (core layer) and `TriggerServicePort`
+(inbound port) following the DataLayer pattern. FastAPI routers inject via
+`Depends(get_trigger_service)`. Domain logic becomes directly testable without
+`TestClient`.
+
+**Acceptance criteria:**
+
+- `vultron/core/use_cases/triggers/service.py` has `TriggerService` with all
+  trigger operations as named methods.
+- `vultron/core/ports/trigger_service.py` has `TriggerServicePort` Protocol.
+- `vultron/adapters/driving/fastapi/deps.py` has `get_trigger_service()`.
+- `_trigger_adapter.py` is deleted.
+- Domain-layer tests use `TriggerService(SqliteDataLayer("sqlite:///:memory:"))`.
+- All linters and tests pass.
+
+- [ ] RFC-400.1: Create `TriggerService` class + `TriggerServicePort` Protocol
+- [ ] RFC-400.2: Add `get_trigger_service()` FastAPI dependency
+- [ ] RFC-400.3: Migrate all trigger routers to `Depends(get_trigger_service)`
+- [ ] RFC-400.4: Write domain-layer tests (embargo: propose/accept/terminate;
+  report: validate/create/submit)
+- [ ] RFC-400.5: Delete `_trigger_adapter.py`; replace HTTP tests with smoke tests
+
+---
+
+## TASK-RFC-401 — BTTestScenario Deep-Module Test Harness
+
+**Source**: <https://github.com/CERTCC/Vultron/issues/401>
+
+`test/core/behaviors/report/test_nodes.py` and
+`test/core/behaviors/case/test_nodes.py` bypass the
+`BTBridge.execute_with_setup()` lifecycle via duplicated
+`setup_node_blackboard()` helpers. Introduce `BTTestScenario` in
+`test/core/behaviors/bt_harness.py` as the single correct path for all BT
+tests (leaf nodes and trees alike).
+
+**Acceptance criteria:**
+
+- `test/core/behaviors/bt_harness.py` exists with `BTTestScenario` class and
+  `bt_scenario`, `bt_scenario_factory`, `shared_dl_actors` fixtures.
+- No `setup_node_blackboard()` / direct `node.update()` /
+  `node.blackboard.register_key()` patterns in `test_nodes.py` files.
+- All existing tests pass.
+
+- [ ] RFC-401.1: Create `test/core/behaviors/bt_harness.py`
+- [ ] RFC-401.2: Rewrite `test/core/behaviors/report/test_nodes.py` using harness
+- [ ] RFC-401.3: Rewrite `test/core/behaviors/case/test_nodes.py` using harness
+
+---
+
 ## TASK-BTND5 — Generalize Participant BT Nodes
 
 **Source**: `specs/behavior-tree-node-design.yaml` BTND-05-001 through
@@ -75,15 +345,9 @@ backward-compat alias.
 
 **Acceptance criteria:**
 
-- `CreateCaseOwnerParticipant` exists in
-  `vultron/core/behaviors/case/nodes.py`; `CreateInitialVendorParticipant` is
-  removed.
-- Node reads the actor's CVD roles from an `ActorConfig.default_case_roles`
-  constructor parameter (no hardcoded `CVDRoles.VENDOR`).
-- `CVDRoles.CASE_OWNER` is always included in the created participant's roles
-  (appended if not already present).
-- All RM-state seeding logic from `CreateInitialVendorParticipant` is
-  preserved.
+- `CreateCaseOwnerParticipant` reads CVD roles from `ActorConfig.default_case_roles`
+  (no hardcoded `CVDRoles.VENDOR`); `CVDRoles.CASE_OWNER` always appended.
+- `CreateInitialVendorParticipant` is removed; all RM-state seeding logic preserved.
 - Unit test: `ActorConfig(default_case_roles=[CVDRoles.COORDINATOR])` →
   participant roles include `COORDINATOR | CASE_OWNER`.
 
@@ -100,36 +364,23 @@ backward-compat alias.
 
 **Blocked by BTND5.2.**
 
-**Acceptance criteria:**
-
 - `CreateFinderParticipantNode` does not appear anywhere in `vultron/`.
-- `from vultron.core.behaviors.case.nodes import CreateFinderParticipantNode`
-  raises `ImportError`.
 
 - [ ] BTND5.3: Remove alias + update any remaining call sites (BTND-05-003)
 
 ### BTND5.4 — Refactor `CVDRoles` from Flag to `list[StrEnum]`
 
-**Blocked by BTND5.1. Low urgency — schedule after BTND5.3 is complete.**
+**Blocked by BTND5.1. Low urgency — schedule after BTND5.3.**
 
-`CVDRoles` is currently a `Flag` enum (bitmask). Participant records persisted
-with flag values are not human-readable. Refactoring to a `list[CVDRoles]`
-backed by a `StrEnum` makes persisted records legible (e.g.,
-`["vendor", "case_owner"]`) and eliminates bitmask arithmetic at call sites.
+`CVDRoles` is a `Flag` enum (bitmask); persisted records are not human-readable.
+Refactor to `StrEnum` + `list[CVDRoles]` makes records legible and eliminates
+bitmask arithmetic. See `notes/bt-reusability.md` "ActorConfig-Driven Roles".
 
 **Acceptance criteria:**
 
-- `CVDRoles` is a `StrEnum` (or equivalent) in
-  `vultron/core/states/roles.py`.
-- `VultronParticipant.case_roles` is typed `list[CVDRoles]`.
-- Persisted participant records store role names as strings, not integers.
-- All existing tests pass; no bitmask (`|`, `&`) operators remain in
-  non-test code referencing `CVDRoles`.
-- Existing combination aliases (`FINDER_REPORTER`, etc.) are replaced by
-  documented `list` constants or removed.
-
-**References**: BTND-05-001 "Refactor note"; `notes/bt-reusability.md`
-"ActorConfig-Driven Roles".
+- `CVDRoles` is a `StrEnum`; `VultronParticipant.case_roles` is `list[CVDRoles]`.
+- Persisted records store role names as strings; no bitmask operators in
+  non-test code.
 
 - [ ] BTND5.4: Refactor `CVDRoles` Flag → StrEnum + migrate all call sites
 
@@ -146,10 +397,8 @@ violation inventory, refactoring guidance, and config change details.
 
 ### CC.1 — Phase 1: Reduce CC>15 violations to CC≤10 and activate CC=15 gate
 
-**Prerequisite for CC.2.** Refactor each function below to CC≤10 (the final
-target — do not leave them at an intermediate level that will require a
-revisit). Once all five are green, activate the flake8 gate in the same PR
-so the CI never goes in broken.
+**Prerequisite for CC.2.** Refactor each function to CC≤10 (final target —
+do not leave at an intermediate level). Activate gate in the same PR.
 
 **Acceptance criteria:**
 
@@ -157,47 +406,52 @@ so the CI never goes in broken.
 - `.flake8` contains `max-complexity = 15`
 - `.pre-commit-config.yaml` has a `flake8` hook entry
 - `.agents/skills/run-linters/SKILL.md` documents the CC gate
-- `lint-flake8` CI job passes with zero C901 warnings
 
-**Dependencies:** none
-
-- [ ] CC.1.1 Reduce `extract_intent` to CC≤10 —
-  `vultron/wire/as2/extractor.py:445` (current CC=34). Large conditional
-  dispatch chain over (activity type × object type) pairs. Target: extract
-  per-type helper functions or a dispatch table keyed on type tuples.
-- [ ] CC.1.2 Reduce `rehydrate` to CC≤10 —
-  `vultron/wire/as2/rehydration.py:43` (current CC=18)
-- [ ] CC.1.3 Reduce `thing2md` to CC≤10 —
-  `vultron/scripts/ontology2md.py:33` (current CC=17)
-- [ ] CC.1.4 Reduce `mock_datalayer` to CC≤10 —
-  `test/core/behaviors/test_performance.py:45` (current CC=17)
-- [ ] CC.1.5 Reduce `print_model` to CC≤10 —
-  `vultron/core/case_states/make_doc.py:77` (current CC=16)
-- [ ] CC.1.6 Activate CC=15 gate: add `max-complexity = 15` to `.flake8`,
-  add `flake8` hook to `.pre-commit-config.yaml`, update
-  `.agents/skills/run-linters/SKILL.md`
+- [ ] CC.1.1 Reduce `extract_intent` CC=34 — `vultron/wire/as2/extractor.py:445`
+  (dispatch table keyed on type tuples)
+- [ ] CC.1.2 Reduce `rehydrate` CC=18 — `vultron/wire/as2/rehydration.py:43`
+- [ ] CC.1.3 Reduce `thing2md` CC=17 — `vultron/scripts/ontology2md.py:33`
+- [ ] CC.1.4 Reduce `mock_datalayer` CC=17 — `test/core/behaviors/test_performance.py:45`
+- [ ] CC.1.5 Reduce `print_model` CC=16 — `vultron/core/case_states/make_doc.py:77`
+- [ ] CC.1.6 Activate CC=15 gate in `.flake8`; add pre-commit hook; update
+  run-linters SKILL.md
 
 ### CC.2 — Phase 2: Reduce CC 11–15 violations to CC≤10 and tighten gate
 
 **Blocked by CC.1.**
 
-Refactor the 18 remaining functions at CC 11–15 to CC≤10 (full inventory in
-`plan/BUILD_LEARNINGS.md` CC-ENFORCEMENT), then lower `max-complexity`
-to 10. Scope: `vultron/` and `test/`.
+Current violations (CC 11–15):
+
+- `vultron/adapters/driving/fastapi/main.py` `main` CC=11
+- `vultron/adapters/driving/fastapi/routers/actors.py` `post_actor_inbox` CC=12
+- `vultron/core/behaviors/case/nodes.py` `CreateInitialVendorParticipant.update` CC=12
+- `vultron/core/behaviors/case/nodes.py` `InitializeDefaultEmbargoNode.update` CC=13
+- `vultron/core/behaviors/case/nodes.py` `CreateCaseParticipantNode.update` CC=13
+- `vultron/core/behaviors/report/nodes.py` `CreateCaseActivity.update` CC=15
+- `vultron/core/case_states/validations.py` `is_valid_transition` CC=13
+- `vultron/core/use_cases/received/embargo.py` `RemoveEmbargoEventFromCaseReceivedUseCase.execute` CC=11
+- `vultron/core/use_cases/received/embargo.py` `AcceptInviteToEmbargoOnCaseReceivedUseCase.execute` CC=15
+- `vultron/core/use_cases/received/report.py` `SubmitReportReceivedUseCase.execute` CC=14
+- `vultron/core/use_cases/received/status.py` `AddCaseStatusToCaseReceivedUseCase.execute` CC=11
+- `vultron/core/use_cases/triggers/embargo.py` `SvcAcceptEmbargoUseCase.execute` CC=13
+- `vultron/core/use_cases/triggers/embargo.py` `SvcRejectEmbargoUseCase.execute` CC=12
+- `vultron/demo/scenario/multi_vendor_demo.py` `verify_multi_vendor_case_state` CC=13
+- `vultron/demo/scenario/three_actor_demo.py` `verify_case_actor_case_state` CC=12
+- `vultron/demo/scenario/two_actor_demo.py` `find_case_for_offer` CC=11
+- `vultron/demo/scenario/two_actor_demo.py` `verify_vendor_case_state` CC=13
+- `vultron/metadata/specs/llm_export.py` `to_llm_json` CC=13
+- `vultron/metadata/specs/render.py` `render_markdown` CC=14
+- `vultron/metadata/specs/render.py` `_spec_to_dict` CC=12
+- `vultron/wire/as2/extractor.py` `ActivityPattern.match` CC=13
 
 **Acceptance criteria:**
 
-- All 18 functions pass `uv run flake8 --max-complexity=10 --select=C901`
+- All 21 functions pass `uv run flake8 --max-complexity=10 --select=C901`
 - `.flake8` contains `max-complexity = 10`
-- `lint-flake8` CI job passes with zero C901 warnings
 
-**Dependencies:** CC.1 complete and CI green.
-
-- [ ] CC.2.1 Reduce all 18 CC 11–15 functions to CC≤10 (see
-  `plan/BUILD_LEARNINGS.md` CC-ENFORCEMENT for the full list)
+- [ ] CC.2.1 Reduce all 21 CC 11–15 functions to CC≤10 (see violation list above)
 - [ ] CC.2.2 Lower `max-complexity` from 15 to 10 in `.flake8`
-- [ ] CC.2.3 Upgrade `IMPLTS-07-008` from SHOULD to MUST in
-  `specs/tech-stack.yaml` now that all CC violations above 10 are resolved
+- [ ] CC.2.3 Upgrade `IMPLTS-07-008` from SHOULD to MUST in `specs/tech-stack.yaml`
 
 ---
 
@@ -225,30 +479,18 @@ only inside factory functions.
   `EmProposeEmbargoRef` renamed to `_EmProposeEmbargoRef`
 - All linters and tests pass
 
-- [ ] AF.1 Create `vultron/wire/as2/factories/errors.py` with
-  `VultronActivityConstructionError(VultronError)`
-- [ ] AF.2 Create `factories/report.py` with factory functions for all six
-  report activity classes; update `factories/__init__.py`
-- [ ] AF.3 Create `factories/case.py` with factory functions for all sixteen
-  case activity classes; update `factories/__init__.py`
-- [ ] AF.4 Create `factories/embargo.py` with factory functions for all
-  eight embargo activity classes; update `factories/__init__.py`
-- [ ] AF.5 Create `factories/case_participant.py` with factory functions for
-  all five case-participant activity classes; update `factories/__init__.py`
-- [ ] AF.6 Create `factories/actor.py` and `factories/sync.py` with factory
-  functions for remaining activity classes; update `factories/__init__.py`
-- [ ] AF.7 Create `test/architecture/__init__.py` and
-  `test/architecture/test_activity_factory_imports.py` (import boundary test)
-- [ ] AF.8 Migrate all call sites in demo scripts to factory functions
-- [ ] AF.9 Migrate all call sites in trigger use-case modules and adapters
-  to factory functions
-- [ ] AF.10 Migrate all call sites in test files to factory functions
-- [ ] AF.11 Remove unused `OfferRef` and `RmInviteToCaseRef` TypeAliases;
-  rename `EmProposeEmbargoRef` → `_EmProposeEmbargoRef`
-- [ ] AF.12 Mark internal Vultron activity subclasses as private (prefix
-  with `_` or add `__all__` exclusion) in `vocab/activities/` modules
-- [ ] AF.13 Add factory functions entry to AGENTS.md quick reference and
-  Common Pitfalls
+- [ ] AF.1 Create `factories/errors.py` with `VultronActivityConstructionError`
+- [ ] AF.2 Create `factories/report.py` (6 report activity factory functions)
+- [ ] AF.3 Create `factories/case.py` (16 case activity factory functions)
+- [ ] AF.4 Create `factories/embargo.py` (8 embargo activity factory functions)
+- [ ] AF.5 Create `factories/case_participant.py` (5 functions)
+- [ ] AF.6 Create `factories/actor.py` and `factories/sync.py`
+- [ ] AF.7 Create `test/architecture/test_activity_factory_imports.py`
+- [ ] AF.8–10 Migrate all call sites (demo scripts, trigger use cases, tests)
+- [ ] AF.11 Remove unused `OfferRef`/`RmInviteToCaseRef`; rename
+  `EmProposeEmbargoRef` → `_EmProposeEmbargoRef`
+- [ ] AF.12 Mark internal activity subclasses as private in `vocab/activities/`
+- [ ] AF.13 Update AGENTS.md quick reference
 
 ---
 
@@ -277,84 +519,120 @@ objects.
 
 ---
 
-## TASK-SEDRIFT — Fix Semantic Extraction Pattern Gaps
+## TASK-CFG — Unified Configuration System
 
-**Source**: `plan/BUILD_LEARNINGS.md` DR-03, DR-07, DR-14.
+**Source**: `specs/configuration.yaml` CFG-01 through CFG-07;
+`notes/configuration.md`
 
-These requirements derive from the 2026-04-20 architectural review:
-
-- **DR-03**: `find_matching_semantics()` MUST return `UNKNOWN` immediately
-  when `object_` is a bare string after rehydration (SE-03-003 / VAM-01-009).
-- **DR-07**: `InviteActorToCasePattern` must discriminate on object type.
-  Requires subtype-aware matching (e.g., `isinstance(field, as_Actor)`) in
-  `_match_field()` before the object-type check can be added.
-- **DR-14**: Dead-letter handling for `UNKNOWN_UNRESOLVABLE_OBJECT` vs
-  `UNKNOWN_NO_PATTERN` (see `notes/activitystreams-semantics.md`).
-
-### SEDRIFT.1 — Guard bare-string `object_` in `find_matching_semantics()`
+Introduce `vultron/config.py` with `AppConfig`, `ServerConfig`,
+`DatabaseConfig`, `RunMode(StrEnum)`, `get_config()`, `reload_config()`.
+Refactor `SeedConfig`/`LocalActorConfig` to `pydantic-settings`.
 
 **Acceptance criteria:**
 
-- `find_matching_semantics()` returns `MessageSemantics.UNKNOWN` immediately
-  when `activity.object_` is a bare string after rehydration
-- Existing tests pass; new test covers the bare-string guard
+- `vultron/config.py` exports all above symbols; `RunMode` has `PROTOTYPE`
+  and `PROD` values.
+- All `os.environ.get()` config reads replaced by `get_config()`.
+- `test/test_config.py` covers defaults, env-var override, `reload_config()`.
 
-- [ ] SEDRIFT.1: Add bare-string guard to `find_matching_semantics()`
-  (SE-03-003, VAM-01-009)
-
-### SEDRIFT.2 — Subtype-aware `_match_field()` for AS2 actor types
-
-**Acceptance criteria:**
-
-- `_match_field()` supports `isinstance` checks in addition to exact
-  `type_` string equality
-- `InviteActorToCasePattern` adds `object_=AOtype.ACTOR` discriminator
-  using the new subtype-aware check
-- Existing tests pass; new test covers `Invite(VultronPerson, target=Case)`
-
-- [ ] SEDRIFT.2: Add subtype-aware matching to `_match_field()` +
-  fix `InviteActorToCasePattern` (SE-03-003)
-
-### SEDRIFT.3 — Dead-letter handling for unresolvable `object_`
-
-**Acceptance criteria:**
-
-- Dispatcher distinguishes `UNKNOWN_UNRESOLVABLE_OBJECT` from
-  `UNKNOWN_NO_PATTERN`
-- Unresolvable-object activities are dead-lettered (log WARNING, store
-  record) rather than raising `VultronApiHandlerMissingSemanticError`
-- Dead-letter record schema matches `notes/activitystreams-semantics.md`
-
-- [ ] SEDRIFT.3: Implement dead-letter handling in dispatcher (VAM-01-009)
+- [ ] CFG.1 Create `vultron/config.py` (CFG-01-001 through CFG-04-007)
+- [ ] CFG.2 Refactor `seed_config.py` to `BaseSettings` (CFG-05-001–CFG-05-003)
+- [ ] CFG.3 Replace `os.environ.get()` config reads (CFG-01-004)
+- [ ] CFG.4 Add `test/test_config.py` (CFG-06-001–CFG-06-005)
 
 ---
 
-## TASK-CCDRIFT — Fix cc Addressing Warning + PersistCase Upsert
+## TASK-TRIGCLASS — Trigger Classification and Demo Route Separation
 
-**Source**: `plan/BUILD_LEARNINGS.md` DR-11, DR-13.
+**Source**: `specs/triggerable-behaviors.yaml` TRIG-08, TRIG-09, TRIG-10;
+`notes/trigger-classification.md`
 
-### CCDRIFT.1 — Log WARNING for `cc` recipients in `Offer(Report)` handler
+**Blocked by TASK-CFG** (needs `RunMode` and `get_config()`).
+
+### TRIGCLASS.1 — Create the demo trigger router
+
+- `demo_triggers.py` with `tags=["Demo Triggers"]` at `/actors/{actor_id}/demo/`.
+- `add-note-to-case` and `sync-log-entry` moved from general routers.
+- Router conditionally mounted when `RunMode.PROTOTYPE`.
+
+- [ ] TRIGCLASS.1a: Create `demo_triggers.py`; move `add-note-to-case` and
+  `sync-log-entry` (TRIG-09-001, TRIG-10-003, TRIG-10-004)
+- [ ] TRIGCLASS.1b: Conditionally mount demo router (TRIG-09-002, TRIG-09-003)
+- [ ] TRIGCLASS.1c: Add OpenAPI tags (TRIG-09-005)
+
+### TRIGCLASS.2 — Add `add-object-to-case` general trigger
+
+- `POST /actors/{actor_id}/trigger/add-object-to-case` accepts any valid AS2
+  object type (TRIG-10-001).
+- `add-report-to-case` delegates to it after type-specific validation
+  (TRIG-10-002).
+
+- [ ] TRIGCLASS.2: Implement `add-object-to-case`; update `add-report-to-case`
+
+- [ ] TRIGCLASS.2: Implement `add-object-to-case` trigger; update
+  `add-report-to-case` to delegate to it (TRIG-10-001, TRIG-10-002)
+
+---
+
+## TASK-OUTBOX-TO — Outbox `to:` Field Enforcement
+
+**Source**: `specs/outbox.yaml` OX-08-001, OX-08-002, OX-08-004;
+`notes/outbox.md`
+
+All outbound Vultron activities are direct messages and MUST have a non-empty
+`to:` field. Enforce this at `handle_outbox_item` so no activity can leave the
+outbox without an addressee.
 
 **Acceptance criteria:**
 
-- When the receiving actor is in `cc` (not `to`) of `Offer(Report)`, the
-  handler logs WARNING and discards the activity without creating a case
-- Existing behavior for `to` recipients is unchanged
-- Test covers both `to` (case created) and `cc` (warning, no case) paths
+- `VultronOutboxToFieldMissingError(VultronError)` exists in `vultron/errors.py`
+  with `activity_id` and `activity_type` attributes.
+- `handle_outbox_item` in `vultron/adapters/driving/fastapi/outbox_handler.py`
+  raises `VultronOutboxToFieldMissingError` when `to:` is absent or an empty
+  list; logs `WARNING` when `cc`/`bto`/`bcc` are non-empty.
+- Existing `VultronOutboxObjectIntegrityError` check is unmodified.
+- Unit tests cover the missing-`to:` raise and the `cc`/`bto`/`bcc` warning
+  branches.
 
-- [ ] CCDRIFT.1: Add `cc` guard to `SubmitReportReceivedUseCase` (HP-*)
+- [ ] OUTBOX-TO.1 Add `VultronOutboxToFieldMissingError` to `vultron/errors.py`
+  (OX-08-001, OX-08-002)
+- [ ] OUTBOX-TO.2 Add `to:` presence check and `cc`/`bto`/`bcc` warning to
+  `handle_outbox_item` (OX-08-001, OX-08-002, OX-08-004)
+- [ ] OUTBOX-TO.3 Add unit tests for both branches
 
-### CCDRIFT.2 — PersistCase BT node: silent upsert on duplicate
+---
+
+## TASK-DL-REHYDRATE — DataLayer Auto-Rehydration on Read (Residual)
+
+**Source**: `specs/datalayer.yaml` DL-01-002; `notes/datalayer-design.md`
+
+Auto-rehydration for `dl.read()` was implemented in the SQLite adapter
+(`_from_row` calls `_rehydrate_fields()` + `_coerce_to_semantic_class()`;
+completed 2026-05-20, see `plan/history/IMPLEMENTATION_HISTORY.md`). The
+TinyDB adapter has been removed. DL-01-001, DL-01-003, DL-02-001, DL-02-002
+are satisfied.
+
+**Remaining work**: DL-01-002 requires a `list(type_key)` method returning
+fully rehydrated typed domain objects. The existing `by_type()` returns raw
+`dict[str, dict[str, Any]]` and `all()` returns a mixed union — neither
+satisfies the spec.
 
 **Acceptance criteria:**
 
-- `PersistCase.update()` calls `dl.save()` with idempotent upsert semantics
-- Duplicate-key conditions are silently handled; no WARNING log for a
-  pre-existing case with the same `id_`
-- Test covers the duplicate-case scenario
+- `DataLayer` port has a `list(type_key: str) -> Iterable[PersistableModel]`
+  method that returns fully rehydrated, typed domain objects (DL-01-002).
+- SQLite adapter implements `list()` with the same rehydration pipeline as
+  `read()`.
+- All existing `by_type()` / `get_all()` call sites reviewed; migrate where
+  typed results are expected.
+- All existing tests pass.
 
-- [ ] CCDRIFT.2: Fix `PersistCase` upsert semantics in
-  `vultron/core/behaviors/case/nodes.py`
+- [ ] DL-REHYDRATE.1 Add `list(type_key)` to `DataLayer` Protocol and
+  SQLite adapter implementation (DL-01-002)
+- [ ] DL-REHYDRATE.4 Review remaining `model_validate` calls in core use
+  cases (`received/sync.py`, `triggers/sync.py`, `triggers/embargo.py`,
+  `triggers/actor.py`); remove any that coerce `dl.read()` output
+  (DL-01-004)
 
 ---
 
@@ -373,10 +651,11 @@ These requirements derive from the 2026-04-20 architectural review:
   protocol foundation is stable
 - FUZZ-00 **Fuzzer node re-implementation** (Priority 500) — see
   `notes/bt-fuzzer-nodes.md`
-- IDEA-260402-02 **Per-participant case replica management** — Each Participant
-  Actor maintains their own copy of the case object, synchronised from the
-  CaseActor via `Announce(CaseLogEntry)` replication. SYNC-1 through SYNC-4
-  implement the CaseActor side; the participant-side case replica handler
-  (routing inbound `Announce` to the correct local case copy) is part of
-  SYNC-2 scope. See `plan/IDEAS.md` IDEA-260402-02 and
-  `notes/sync-log-replication.md` for the design.
+- DEMOMA **Multi-actor demo infrastructure** — Core multi-actor demo
+  infrastructure is substantially complete (Docker Compose, healthchecks,
+  per-actor isolation, trigger-based puppeteering all done; see
+  `plan/history/IMPLEMENTATION_HISTORY.md`). Remaining work tracked in
+  Vultron#387 (demo log issues noted in D5-7-HUMAN sign-off). See
+  `specs/multi-actor-demo.yaml` DEMOMA-01 through DEMOMA-05 and
+  `notes/demo-review-26042001.md`. Defer remaining cleanup until
+  TASK-TRIGCLASS is complete.

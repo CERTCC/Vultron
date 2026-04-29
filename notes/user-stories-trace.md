@@ -1089,3 +1089,76 @@ Source specifications: `specs/*.md`
       Reporters an opportunity to update their reports — feedback opportunity.
     - **VP-02-011** (`vultron-protocol-spec.md`): Once a Vendor confirms that a
       reported vulnerability affects a product — fix confirmation context.
+
+---
+
+## Gap Analysis: Stories with Insufficient Specification Coverage
+
+(DOCS-3, 2026-04-23)
+
+The following stories have no mapped requirements or only partial coverage in
+`specs/`. They are recorded here as gap observations, not actionable
+requirements. Each story requires an explicit prioritization decision before
+remediation work begins.
+
+### Bug Bounty Stories (Out-of-Scope for Current Protocol)
+
+These stories require defining bounty payment as a protocol-level event and
+are currently marked out-of-scope. No spec coverage exists.
+
+- **story_2022_055** — "As a Participant, state that I paid or received a bounty"
+  — No spec. Requires new activity type (e.g., `BountyPaymentActivity`) and
+  new case participant model field. Must be explicitly elevated to in-scope.
+- **story_2022_056** — "As a Participant, ask if another Participant paid a reporter"
+  — No spec. Requires bounty query activity type and corresponding use case.
+  Same condition as story_2022_055.
+- **story_2022_057** — "As a Participant, ask a reporter if they were paid"
+  — No spec. Same condition as story_2022_055/056.
+- **story_2022_084** — "As a vendor, reward the reporter by paying a bounty"
+  — No spec. Requires payer/payee actors, amounts, and acknowledgment activities.
+  Explicit prioritization required to expand protocol scope.
+- **story_2022_085** — "As a reporter, be rewarded with a bounty"
+  — No spec. Recipient side of bounty payment. Same condition as story_2022_084.
+- **story_2022_011** — "As a Participant, provide bug bounty program info"
+  — Partial: only `EP-01-001` is mapped as a loose proxy. Needs optional
+  `bounty_program_url` and `bounty_max_payout` fields on the actor profile
+  in `specs/embargo-policy.yaml` or a new `specs/bug-bounty.yaml`.
+
+### Privacy and Anonymity Stories with Partial Coverage
+
+- **story_2022_024** — "As a Finder/Reporter, constrain communication for anonymity"
+  — Partial: only `VP-08-017` is mapped. Needs pseudonymous reporting,
+  coordinator-mediated anonymous submission, and actor alias/pseudonym support
+  in `specs/handler-protocol.yaml` or a new `specs/privacy.yaml`. Upstream
+  dependency on `specs/encryption.yaml` (PROD_ONLY).
+- **story_2022_033** — "As a Participant, request anonymity in a case"
+  — Partial: only `VP-08-017` is mapped. Needs `CaseParticipant.anonymous`
+  flag and associated handler logic in `specs/case-management.yaml`. Same
+  upstream dependency on encryption spec.
+
+### Trust and Reputation Stories with Partial Coverage
+
+- **story_2022_095** — "As a Participant, provide evidence of reputation to others"
+  — Partial: only `VP-05-013` and `EP-01-001` are mapped. Needs machine-readable
+  compliance history format on actor profile. May depend on decentralized
+  identity mechanisms (PROD_ONLY).
+- **story_2022_096** — "As a Participant, record/log trust/reputation of others"
+  — Partial: only `VP-05-013` and `VP-08-010` are mapped. Needs per-actor
+  reputation record in `specs/datalayer.yaml` and case update trigger in
+  `specs/case-management.yaml`. Same dependencies as story_2022_095.
+
+### TLP (Traffic Light Protocol) Stories with Partial Coverage
+
+- **story_2022_070** — "As a Participant, convey how information I provide can be used"
+  — Partial: only embargo-related constraints mapped. Needs `tlp` field on
+  `as_Object`-derived types in `specs/vocabulary-model.yaml` or new
+  `specs/tlp.yaml`. Wire serialization rules and recipient obligations needed.
+- **story_2022_071** — "As a Participant, convey information use while obeying TLP"
+  — Partial: same gap as story_2022_070 plus enforcement requirements.
+  Needs handler MUST NOT forward TLP:RED messages outside originating case.
+- **story_2022_072** — "As a Participant, convey what restricted info I will accept"
+  — Partial: `EP-01-002` and `VP-05-007` are mapped as proxies. Needs
+  `acceptable_tlp_levels` field on embargo policy record. Depends on TLP spec.
+- **story_2022_073** — "As a Participant, convey TLP restriction level I will accept"
+  — Partial: `EP-01-003` is mapped. Needs `max_acceptable_tlp_level: TLPLevel`
+  field on actor profile or embargo policy record. Depends on TLP spec.

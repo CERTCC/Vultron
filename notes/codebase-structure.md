@@ -326,6 +326,24 @@ failures where the same actor appears under two different IDs in the DataLayer.
 **Audit**: Search for short-UUID actor ID assignment in
 `vultron/demo/`, `vultron/adapters/`, and `vultron/core/` seeding code.
 
+### Actor ID Normalization in Trigger Paths
+
+(BUG-26042202, 2026-04-22)
+
+Trigger paths that accept short actor IDs from router path parameters MUST
+overwrite `actor_id` with the resolved `actor.id_` before any outbox mutation.
+
+**Why SQLite hides this bug**: For `urn:uuid:` actor IDs, the SQLite DataLayer
+performs bare-UUID compatibility lookups in `dl.read()`, so a trigger that
+passes a short UUID to the DataLayer may appear to work. The same trigger
+**silently fails** if the actor record uses a URL-form ID (e.g.,
+`https://example.org/actors/alice`).
+
+**Testing guidance**: Regression tests for short-ID trigger normalization MUST
+use URL-form actor records to exercise the missing canonicalization path.
+Asserting both `outbox.items` mutation AND the absence of a warning log is a
+better guard than checking the queued activity alone.
+
 ---
 
 ## Test Directory Layout (TECHDEBT-11, resolved)
@@ -574,3 +592,26 @@ narrowed to required in a subclass. Use this sparingly and only when weakening
 runtime constraints would be the alternative.
 
 ---
+
+## Python 3.14 Compatibility Deferred
+
+(TOOLS-1, 2026-04-23)
+
+Python 3.14.0rc2 is available but the test suite fails with:
+
+```text
+TypeError: _eval_type() got an unexpected keyword argument 'prefer_fwd_module'
+Unable to evaluate type annotation 'ClassVar[MetaData]'
+```
+
+**Root cause**: `pydantic==2.13.3` uses the old `typing._eval_type()` call
+signature that Python 3.14 removed. There is no Pydantic update available
+that resolves this at the time of writing.
+
+**Current constraint**: `requires-python = ">=3.12"` and docker base image
+`python:3.13-slim-bookworm` are unchanged.
+
+**Action when unblocked**: Revisit when Pydantic releases a Python
+3.14-compatible build. Update `requires-python` ceiling and docker base image
+at that point. Check `uv.lock` for any other packages using `typing._eval_type`
+directly.

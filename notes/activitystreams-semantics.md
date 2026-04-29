@@ -448,3 +448,143 @@ For future synchronous paths: return HTTP 422 Unprocessable Content with the
 unresolvable URI in the error body.
 
 See `specs/semantic-extraction.yaml` VAM-01-009.
+
+---
+
+### Accept.object_ Must Carry the Invite Activity, Not the Case Object
+
+(DR-05, 2026-04-20)
+
+When constructing an `Accept(Invite(...))` activity, the `object_` field MUST
+be the original `Invite` activity (retrieved from the BT blackboard), not the
+case or embargo event.
+
+**Wrong pattern** — passing the case or embargo event as `object_`:
+
+```python
+# This produces coercion failures on the receiving end
+accept = RmAcceptInviteToCaseActivity(
+    actor=actor_id,
+    object_=case,          # ← WRONG: must be the Invite activity
+)
+```
+
+**Correct pattern** — stash invite on blackboard; read it back in Accept node:
+
+```python
+# In InviteReceivedUseCase.execute() — store invite on blackboard
+bb.set("invite_activity", invite)
+
+# In AcceptInviteNode.update() — read invite from blackboard
+invite = bb.get("invite_activity")
+accept = RmAcceptInviteToCaseActivity(actor=actor_id, object_=invite)
+```
+
+This ensures that `Accept` activities satisfy the AS2 convention: the
+`object` of an `Accept` is the activity being accepted.
+
+---
+
+### Open Question: Actor Subtype-Aware Pattern Matching
+
+(DR-07 Update, 2026-04-20)
+
+`InviteActorToCasePattern` in `vultron/wire/as2/extractor.py` has no
+`object_` field, violating SE-03-003. The correct structure per AS2 is
+`Invite(object=Actor, target=Case)`.
+
+**Constraint discovered (2026-04-20)**: `AOtype.ACTOR = "Actor"` only matches
+the base `as_Actor` class (`type_="Actor"`). Real AS2 actor subtypes
+(`VultronPerson`, `VultronOrganization`, `CaseActor`) have `type_="Person"`,
+`type_="Organization"`, `type_="Service"` respectively. The pattern matcher
+uses exact string equality, so `object_=AOtype.ACTOR` would NOT match real
+invite objects containing actor subtypes. Adding it breaks existing tests and
+real invite flows.
+
+**Required fix before this can be implemented**: Add subtype-aware matching
+in `_match_field()` (e.g., check `isinstance(activity_field, as_Actor)`) or
+a custom actor-type predicate in `ActivityPattern`.
+
+**Open Question**: What is the right predicate API for ActivityPattern
+subtype matching? Options include:
+
+1. `object_type_predicate = lambda obj: isinstance(obj, as_Actor)` — flexible
+   but non-declarative
+2. A `subtype_of` field on `ActivityPattern` that maps to a class — consistent
+   with the existing `object_type` string field
+
+Until subtype-aware matching is implemented, `InviteActorToCasePattern`
+should remain without an `object_` constraint and this open question tracked
+in the pattern audit.
+
+---
+
+### Transitive Activity `object_` Field: Contract at the Base Type
+
+(BUG-26041802, 2026-04-22)
+
+If a field is semantically required across an entire AS2 activity family, the
+**shared base type** must encode that requirement. Keeping
+`as_TransitiveActivity.object_` optional lets generic constructors drift out
+of sync with the stricter typed subclasses.
+
+**Key lessons:**
+
+- Use a **distinct required-reference alias** (`ActivityStreamRequiredRef`)
+  rather than just changing a `Field(...)` default. `ActivityStreamRef` still
+  includes `None`, so type-level and runtime contracts diverge unless required
+  fields use the stricter alias.
+- Wire/domain translation tests must reflect the stricter contract too:
+  `VultronAS2Activity.from_core()` should reject objectless transitive domain
+  activities rather than silently materializing invalid wire objects.
+- A backlog bug may already be fixed; close it with concrete code-search and
+  regression-test evidence (see also `notes/bugfix-workflow.md`).
+
+---
+
+### Base-Typed Activity Serialization Can Drop Inline Subtype Fields
+
+(BUG-26042201, 2026-04-22)
+
+When a typed AS2 activity stores `object_` through a base reference annotation
+(`as_ObjectRequiredRef`), plain `model_dump()` can serialize the nested value
+as the base `as_Object` shape and silently omit subtype-only fields.
+
+**Fix**: For any adapter path that re-validates or delivers rehydrated
+activities, prefer `model_dump(..., serialize_as_any=True)` so inline typed
+payloads (such as `CaseLogEntry`) survive semantic coercion and HTTP delivery
+intact.
+
+**Regression coverage** MUST hit **both** the persistence boundary AND the
+outbound delivery boundary. A DataLayer round-trip test alone will NOT catch
+the same field loss in the outbox adapter.
+
+---
+
+### Invite Response Parsing: Recursive Rehydration and Stub Expansion
+
+(BUG-26042203, 2026-04-22)
+
+**Lesson 1 — Generic AS2 parsing must recurse into nested inline dicts.**
+
+`Accept(Invite(...))` and `Reject(Invite(...))` contain an `Invite` as their
+`object_`. If the parser only recurses into the outer `object` field and not
+into fields of the nested dict, the `Invite`'s own `actor` and `object_`
+(typically a case stub) are left as raw dicts, breaking `ActivityPattern`
+matching that relies on typed subtype information.
+
+**Lesson 2 — Minimal case dicts must expand to `VulnerabilityCaseStub`.**
+
+Minimal `{"id": "...", "type": "VulnerabilityCase"}` dicts received in
+inbound activities (e.g., as the `object_` of an `Invite`) should be expanded
+as `VulnerabilityCaseStub`, not full `VulnerabilityCase`. This preserves
+selective-disclosure semantics: the invitee has not yet accepted the embargo,
+so they should only see the stub. Expanding to full `VulnerabilityCase` would
+incorrectly materialize fields the invitee has not yet earned access to.
+
+**Lesson 3 — `inReplyTo` belongs on the model, not only on call sites.**
+
+Setting `inReplyTo` directly on invite accept/reject activity models (as a
+constructor parameter with a default that reads the invite ID) is a safer
+invariant than relying on every trigger/demo/example call site to wire the
+original invite ID correctly. Model-level defaults prevent accidental omission.

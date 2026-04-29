@@ -5,7 +5,7 @@ description: >-
   project history files. Replaces the monolithic append-only `plan/*HISTORY.md`
   pattern with per-entry write-once files organized by month and type under
   `plan/history/`, managed by the `append-history` CLI tool.
-version: 1.0.0
+version: 1.1.0
 kind: pattern
 scope:
   - prototype
@@ -116,9 +116,11 @@ groups:
         priority: MUST
         statement: >-
           The tool MUST determine the target month directory using the current
-          system clock (`datetime.date.today()`). No date-override parameter
-          is provided; this eliminates agent decision-making about which file
-          to target.
+          system clock (`datetime.date.today()`) during normal operation. A
+          backfill-only date override MAY exist for migration tooling so legacy
+          entries can be written into historical `YYMM` directories, but normal
+          skill and agent guidance MUST continue to use the default current-date
+          flow and MUST NOT require agents to choose a target month manually.
       - id: HM-03-005
         priority: MUST
         statement: >-

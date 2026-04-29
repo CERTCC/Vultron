@@ -5,6 +5,133 @@
 | Date | Type | Source | Title |
 |------|------|--------|-------|
 | 2025-07-11 | implementation | TASK-SPECMD, TASK-SPECIDFIX | TASK-SPECMD + TASK-SPECIDFIX |
+| 2026-04-01 | implementation | BUG-2026040101 | BUG-2026040101 — Invited case participants do not reach `RM.ACCEPTED` |
+| 2026-04-01 | implementation | BUG-2026040103 | BUG-2026040103 — ResourceWarning: unclosed file for mydb.json (FIXED 2026-04-01) |
+| 2026-04-01 | implementation | BUG-2026040104 | BUG-2026040104 — Multi-actor integration test port conflict (FIXED 2026-04-01) |
+| 2026-04-01 | implementation | D5-3 | D5-3 complete: three-actor demo scenario |
+| 2026-04-01 | implementation | D5-4 | D5-4 — Multi-Vendor Demo with Ownership Transfer (Completed 2026-04-01) |
+| 2026-04-01 | implementation | D5-5 | D5-5 — Multi-Actor Integration Tests (2026-04-01) |
+| 2026-04-01 | implementation | LEGACY-2026-04-01-bug-2026040102-fix-circular-import-in-validate-t | BUG-2026040102 Fix — Circular Import in validate_tree |
+| 2026-04-06 | implementation | D5-6-LOG | D5-6-LOG — Improve process-flow logging across demo containers |
+| 2026-04-06 | implementation | D5-6-STATE | D5-6-STATE: Fix Finder RM State Initialization in SubmitReportReceivedUseCase |
+| 2026-04-06 | implementation | D5-6-STORE | D5-6-STORE: Dehydrate nested AS2 objects before TinyDB storage |
+| 2026-04-06 | implementation | D5-6-WORKFLOW | D5-6-WORKFLOW — Automate complete case creation from validate-report |
+| 2026-04-06 | implementation | PRIORITY-310 | PRIORITY-310 — D5-6-LOG, D5-6-STATE, D5-6-STORE, D5-6-WORKFLOW |
+| 2026-04-07 | implementation | D5-6-DUP | D5-6-DUP — Fix duplicate VulnerabilityReport WARNING (2026-04-07) |
+| 2026-04-07 | implementation | D5-6-LOGCTX | D5-6-LOGCTX — Improve outbox activity log messages with human-readable context (2026-04-07) |
+| 2026-04-07 | implementation | D5-6-TRIGDELIV | D5-6-TRIGDELIV — Fix trigger endpoints to deliver outbox activities (2026-04-07) |
+| 2026-04-08 | implementation | D5-6-AUTOENG | D5-6-AUTOENG — Auto-engage after invitation acceptance (2026-04-08) |
+| 2026-04-08 | implementation | D5-6-DEMOAUDIT | D5-6-DEMOAUDIT — Audit and refactor all demos for protocol compliance (2026-04-07) |
+| 2026-04-08 | implementation | D5-6-EMBARGORCP | D5-6-EMBARGORCP — Remove Redundant Embargo Announce Activity |
+| 2026-04-08 | implementation | EMBARGO-DUR-1 | EMBARGO-DUR-1 — EmbargoPolicy ISO 8601 Duration Fields (2026-04-09) |
+| 2026-04-08 | implementation | IDEA-260408-01-1 | IDEA-260408-01-1 — Add DataLayer report→case lookup (2026-04-08) |
+| 2026-04-08 | implementation | LEGACY-2026-04-08-d5-6-notecast-and-d5-6-caseprop-note-broadcast-c | D5-6-NOTECAST and D5-6-CASEPROP — Note broadcast + case propagation fix |
+| 2026-04-09 | implementation | BUG-2026040901 | BUG-2026040901 — Outbox Delivery Silent Drop in Trigger Routes (FIXED) |
+| 2026-04-09 | implementation | BUG-2026040902 | BUG-2026040902: Fix Pydantic serialization alias bugs in domain models |
+| 2026-04-09 | implementation | IDEA-260408-01-2 | IDEA-260408-01-2 — New BT: `receive_report_case_tree` |
+| 2026-04-09 | implementation | IDEA-260408-01-7 | IDEA-260408-01-7 — Update tests for ADR-0015 case-creation move |
+| 2026-04-09 | implementation | LEGACY-2026-04-09-idea-260408-01-3-idea-260408-01-4-adr-0015-case | IDEA-260408-01-3 + IDEA-260408-01-4: ADR-0015 Case Creation at RM.RECEIVED (completed) |
+| 2026-04-09 | implementation | LEGACY-2026-04-09-idea-260408-01-5-and-idea-260408-01-6-dereferenc | IDEA-260408-01-5 and IDEA-260408-01-6 — Dereference Pattern + Remove Standalone VultronParticipantStatus |
+| 2026-04-10 | implementation | D5-7-AUTOENG-2 | D5-7-AUTOENG-2 — Auto-cascade validate → engage (2026-04-14) |
+| 2026-04-10 | implementation | D5-7-DEMONOTECLEAN-1 | D5-7-DEMONOTECLEAN-1 — Use trigger API for notes in two-actor demo |
+| 2026-04-10 | implementation | D5-7-EMSTATE-1 | D5-7-EMSTATE-1 — Embargo initialization must update CaseStatus EM state |
+| 2026-04-10 | implementation | LEGACY-2026-04-10-d5-7-logclean-1-d5-7-msgorder-1-2026-04-14 | D5-7-LOGCLEAN-1 + D5-7-MSGORDER-1 (2026-04-14) |
+| 2026-04-11 | implementation | OUTBOX-MON-1 | OUTBOX-MON-1 — OutboxMonitor background loop |
+| 2026-04-11 | implementation | SYNC-1 | SYNC-1 — Local append-only case event log with indexing (2026-04-11) |
+| 2026-04-11 | implementation | SYNC-2 | SYNC-2: One-way log replication (Announce(CaseLogEntry)) |
+| 2026-04-12 | implementation | LEGACY-2026-04-12-sync-2-sync-3-one-way-log-replication-and-full-s | SYNC-2 + SYNC-3 — One-way log replication and full sync loop with retry/backoff |
+| 2026-04-13 | implementation | BUG-2026041001 | BUG-2026041001 — Fix slow test suite (>15min → ~13s) |
+| 2026-04-13 | implementation | LEGACY-2026-04-13-sync-trig-1-d5-7-demoreplcheck-1-sync-log-entry | SYNC-TRIG-1 + D5-7-DEMOREPLCHECK-1 — Sync Log Entry Trigger and Finder |
+| 2026-04-14 | implementation | LEGACY-2026-04-14-fix-sqlite-resourcewarning-test-failures-2026-04 | Fix: SQLite ResourceWarning Test Failures (2026-04-14) |
+| 2026-04-14 | implementation | PRIORITY-325 | PRIORITY-325 — TinyDB to SQLModel/SQLite DataLayer Migration (DL-SQLITE-ADR through DL-SQLITE-5) |
+| 2026-04-15 | implementation | BUG-26041501 | BUG-26041501 — Two-actor demo Finder crash on Announce(CaseLogEntry) [2026-04-15] |
+| 2026-04-15 | implementation | LEGACY-2026-04-15-arch-01-001-fix-wire-translation-boundary-design | ARCH-01-001 Fix + Wire Translation Boundary Design [2026-04-15] |
+| 2026-04-15 | implementation | LEGACY-2026-04-15-spec-token-overhead-reduction-6-pass-cleanup | Spec Token-Overhead Reduction (6-pass cleanup) |
+| 2026-04-15 | implementation | LEGACY-2026-04-15-wire-trans-04-wire-trans-05-activity-wire-base-d | WIRE-TRANS-04 + WIRE-TRANS-05 — Activity wire base + delete serializer.py |
+| 2026-04-15 | implementation | WIRE-TRANS-03 | WIRE-TRANS-03 — Concrete wire object/domain conversions |
+| 2026-04-16 | implementation | BUG-26041601 | BUG-26041601 — Fixed ownership-transfer dispatch error in multi-vendor demo |
+| 2026-04-16 | implementation | INLINE-OBJ-A | INLINE-OBJ-A — Inline typed outbound activity objects |
+| 2026-04-17 | implementation | BUG-26041602 | BUG-26041602 — CommitCaseLogEntryNode composable BT node (2026-04-17) |
+| 2026-04-17 | implementation | DL-REHYDRATE | DL-REHYDRATE: DataLayer semantic type recovery |
+| 2026-04-17 | implementation | INLINE-OBJ-B | INLINE-OBJ-B — Accept/Reject inline typed objects (Priority 330) |
+| 2026-04-17 | implementation | INLINE-OBJ-C | INLINE-OBJ-C — Prohibit object_=None on semantic-dispatch classes |
+| 2026-04-17 | implementation | LEGACY-2026-04-17-p347-bugfix-p347-nodegeneral-fix-and-generalize | P347-BUGFIX + P347-NODEGENERAL: Fix and generalize CreateFinderParticipantNode |
+| 2026-04-17 | implementation | VOCAB-REG-1.1 | VOCAB-REG-1.1: Redesign vocabulary registry core mechanics |
+| 2026-04-17 | implementation | VOCAB-REG-1.2 | VOCAB-REG-1.2: Migrate vocabulary classes and update callers |
+| 2026-04-17 | learning | BUG-26041701 | BUG-26041701 design scope expansion - demo spoofing vs puppeteering |
+| 2026-04-18 | implementation | P347-BRIDGE | P347-BRIDGE — Extend outbox expansion bridge |
+| 2026-04-18 | implementation | P347-SUGGESTBT | P347-SUGGESTBT — SuggestActorToCase BT Handler |
+| 2026-04-20 | implementation | DR-13 | DR-13 — `SubmitReportReceivedUseCase`: Remove vendor/target assumptions |
+| 2026-04-20 | implementation | LEGACY-2026-04-20-dr-03-dr-04-semantic-extraction-fix-and-fail-fas | DR-03 / DR-04: Semantic extraction fix and fail-fast validation |
+| 2026-04-20 | implementation | LEGACY-2026-04-20-dr-08-dr-11-dr-12-note-bt-persistcase-upsert-get | DR-08, DR-11, DR-12 — Note BT, PersistCase upsert, get_failure_reason |
+| 2026-04-20 | implementation | LEGACY-2026-04-20-priority-348-dr-01-dr-02-outbox-reference-dehydr | PRIORITY-348 DR-01 + DR-02 — Outbox reference dehydration and activity name fix |
+| 2026-04-20 | implementation | LEGACY-2026-04-20-priority-348-dr-07-activitypattern-actor-subtype | PRIORITY-348 DR-07 — ActivityPattern actor subtype-aware matching |
+| 2026-04-20 | implementation | P347-DEMOORG | P347-DEMOORG — Reorganize demo/ into exchange/ and scenario/ sub-packages |
+| 2026-04-20 | implementation | P347-EMBARGOTRIGGERS | P347-EMBARGOTRIGGERS — Embargo Trigger Rename + Accept/Reject/Revision |
+| 2026-04-20 | implementation | P347-PUPPETEER | P347-PUPPETEER — Demo Trigger-Based Puppeteering |
+| 2026-04-20 | implementation | P347-TRIGGERS | P347-TRIGGERS — New Trigger Endpoints (create-case, add-report-to-case, suggest-actor-to-case, accept-case-invite) |
+| 2026-04-20 | learning | REVIEW-26042001-DR-02 | DR-02 Activity name construction |
+| 2026-04-20 | learning | REVIEW-26042001-DR-03 | DR-03 Semantic extraction bare-string object_ guard |
+| 2026-04-20 | learning | REVIEW-26042001-DR-04 | DR-04 Fail-fast for required event fields |
+| 2026-04-20 | learning | REVIEW-26042001-DR-05 | DR-05 Accept.object_ must carry the original Invite |
+| 2026-04-20 | learning | REVIEW-26042001-DR-06 | DR-06 Multi-party embargo per-participant EM state |
+| 2026-04-20 | learning | REVIEW-26042001-DR-07 | DR-07 ActivityPattern discrimination requirement |
+| 2026-04-20 | learning | REVIEW-26042001-DR-08 | DR-08 AttachNoteToCaseNode idempotency |
+| 2026-04-20 | learning | REVIEW-26042001-DR-09 | DR-09 Actor ID normalization |
+| 2026-04-20 | learning | REVIEW-26042001-DR-10 | DR-10 Stub objects for selective disclosure |
+| 2026-04-20 | learning | REVIEW-26042001-DR-11 | DR-11 PersistCase upsert semantics |
+| 2026-04-20 | learning | REVIEW-26042001-DR-12 | DR-12 BT failure reason propagation |
+| 2026-04-20 | learning | REVIEW-26042001-DR-13 | DR-13 SubmitReportReceivedUseCase remove vendor/target assumptions |
+| 2026-04-20 | learning | REVIEW-26042001-DR-14 | DR-14 Dead-letter handling for unresolvable object_ |
+| 2026-04-20 | learning | REVIEW-26042001-supplement-DR-06 | DR-06 Update Per-Participant Embargo Consent State Machine |
+| 2026-04-20 | learning | REVIEW-26042001-supplement-DR-07 | DR-07 Update InviteActorToCasePattern missing object_ + subtype constraint |
+| 2026-04-20 | learning | REVIEW-26042001-supplement-DR-13 | DR-13 Update cc addressing not supported |
+| 2026-04-20 | learning | REVIEW-26042001 | DR-01 Outbox reference-field dehydration |
+| 2026-04-21 | implementation | DR-05 | DR-05 — Accept.object_ must carry the original Invite |
+| 2026-04-21 | implementation | DR-06 | DR-06 — Per-participant embargo consent state machine |
+| 2026-04-21 | implementation | DR-09 | DR-09 — Actor ID normalization (PRIORITY-348) |
+| 2026-04-21 | implementation | DR-10 | DR-10 — Stub objects for Invite.target selective disclosure |
+| 2026-04-21 | implementation | DR-14 | DR-14 — Dead-letter handling for unresolvable `object_` URIs |
+| 2026-04-21 | implementation | IDEA-26041501 | IDEA-26041501: Consolidated Semantic Dispatch Registry |
+| 2026-04-21 | implementation | P347-SPECS | P347-SPECS — Spec and Notes Updates for Trigger Completeness |
+| 2026-04-21 | implementation | SYNC-4 | SYNC-4 — Multi-peer synchronization with per-peer replication state |
+| 2026-04-22 | implementation | BUG-26041701 | BUG-26041701 — outbound initiating bare-string `object_` bug closure |
+| 2026-04-22 | implementation | BUG-26041801 | BUG-26041801 — report submitter naming uses `finder` where protocol only guarantees `reporter` |
+| 2026-04-22 | implementation | BUG-26041802 | BUG-26041802 — require `object_` on all transitive activities |
+| 2026-04-22 | implementation | BUG-26042101 | BUG-26042101 — multi-party embargo responses no longer re-drive case EM |
+| 2026-04-22 | implementation | BUG-26042201 | BUG-26042201 — Announce log-entry coercion and delivery serialization (2026-04-22) |
+| 2026-04-22 | implementation | LEGACY-2026-04-22-bug-26042202-short-id-case-triggers-now-update-a | BUG-26042202 short-ID case triggers now update actor outboxes |
+| 2026-04-22 | implementation | LEGACY-2026-04-22-bug-26042203-fixed-invite-response-parsing-coerc | BUG-26042203 fixed: invite response parsing/coercion |
+| 2026-04-22 | implementation | LEGACY-2026-04-22-bug-26042204-fixed-three-actor-embargo-activatio | BUG-26042204 fixed: three-actor embargo activation flow |
+| 2026-04-22 | learning | BUG-26041701-closure | BUG-26041701 closure verification meta-lesson |
+| 2026-04-22 | learning | BUG-26041801 | BUG-26041801 Reporter terminology at report receipt |
+| 2026-04-22 | learning | BUG-26041802 | BUG-26041802 Transitive activity object contract |
+| 2026-04-22 | learning | BUG-26042101 | BUG-26042101 Trigger-side embargo ownership gate |
+| 2026-04-22 | learning | BUG-26042201 | BUG-26042201 Base-typed activity serialization drops inline subtype fields |
+| 2026-04-22 | learning | BUG-26042202 | BUG-26042202 Case triggers must normalize actor IDs before outbox updates |
+| 2026-04-22 | learning | BUG-26042203 | BUG-26042203 Invite response parsing lessons |
+| 2026-04-22 | learning | BUG-26042204 | BUG-26042204 Available embargo at case creation |
+| 2026-04-23 | implementation | BUG-26042204 | BUG-26042204 — three-actor demo never activates case embargo after owner-gated accept flow (FIXED 2026-04-22) |
+| 2026-04-23 | implementation | DOCMAINT-2 | DOCMAINT-2 — Fix stale references to archived notes (2026-04-23) |
+| 2026-04-23 | implementation | DOCS-3 | DOCS-3 — User Story Traceability Matrix |
+| 2026-04-23 | implementation | LEGACY-2026-04-23-d5-7-human-sign-off-on-multi-container-demo-2026 | D5-7-HUMAN - sign off on multi-container demo (2026-04-22) |
+| 2026-04-23 | implementation | LEGACY-2026-04-23-tools-1-config-1-python-3-14-evaluation-yaml-see | TOOLS-1 + CONFIG-1 — Python 3.14 Evaluation + YAML Seed Config (2026-04-23) |
+| 2026-04-23 | implementation | P360-AUDIT | P360-AUDIT — BT Composability Audit |
+| 2026-04-23 | implementation | P360-NOTES | P360-NOTES — BT Reusability and Composability Design Notes (2026-04-23) |
+| 2026-04-23 | implementation | P360-SPEC | P360-SPEC — BT Node Design Spec |
+| 2026-04-23 | implementation | PRIORITY-360 | PRIORITY-360 — BT Composability Refactoring (Completed) |
+| 2026-04-23 | learning | CC-ENFORCEMENT | CC-ENFORCEMENT Cyclomatic Complexity Gate Design |
+| 2026-04-23 | learning | DOCS-3 | DOCS-3 User stories with insufficient specification coverage |
+| 2026-04-23 | learning | TOOLS-1 | TOOLS-1 Python 3.14 deferred |
+| 2026-04-27 | implementation | LEGACY-2026-04-27-sr-6-1-sr-6-3-spec-migration-to-yaml-priority-46 | SR.6.1–SR.6.3 — Spec Migration to YAML (Priority 460) |
+| 2026-04-27 | implementation | LEGACY-2026-04-27-sr-6-3-continued-schema-strictness-and-yaml-expo | SR.6.3 (continued) — Schema Strictness and YAML Export |
+| 2026-04-27 | implementation | LEGACY-2026-04-27-sr-6-4-update-all-specs-md-references | SR.6.4 — Update All specs/*.md References |
+| 2026-04-27 | implementation | LEGACY-2026-04-27-sr-6-5-update-specs-readme-md-for-yaml-format | SR.6.5 — Update specs/README.md for YAML Format |
+| 2026-04-27 | implementation | LEGACY-2026-04-27-sr-6-6-delete-original-specs-md-files | SR.6.6 — Delete Original specs/*.md Files |
+| 2026-04-27 | implementation | LEGACY-2026-04-27-sr-6-new-networkx-graph-and-llm-optimized-export | SR.6 (new) — NetworkX Graph and LLM-Optimized Export |
+| 2026-04-27 | implementation | LEGACY-2026-04-27-task-sr-sr-1-sr-5-spec-registry-tests-pytest-mar | TASK-SR SR.1–SR.5 — Spec Registry Tests, Pytest Marker, Pre-commit Hook |
 | 2026-04-28 | idea | IDEA-26042701 | Implementation plan groups should be approximately Issue or PR sized |
 | 2026-04-28 | idea | IDEA-26042801 | build skill should be clear on distinction between notes and history |
+| 2026-04-28 | implementation | TASK-CCDRIFT | TASK-CCDRIFT — Fix cc Addressing Warning + PersistCase Upsert |
+| 2026-04-28 | implementation | TASK-SEDRIFT | TASK-SEDRIFT — Fix Semantic Extraction Pattern Gaps |
 | 2026-04-28 | priority | Priority 470 | Priority 470 — Skills-upgrade spec tasks complete |

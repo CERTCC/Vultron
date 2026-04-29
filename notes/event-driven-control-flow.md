@@ -241,3 +241,84 @@ class SuggestActorReceivedUseCase:
         # tree contains AwaitCaseOwnerDecisionNode that returns RUNNING
         # until the owner responds via trigger or inbox
 ```
+
+---
+
+## Demo Categories: Exchange vs. Scenario
+
+(BUG-26041701, 2026-04-17)
+
+There are two fundamentally different kinds of Vultron demos:
+
+### Exchange Demos (`vultron/demo/exchange/`)
+
+Demonstrate individual protocol message exchanges in isolation. These
+**intentionally** use direct inbox injection ("spoofing") because they show
+protocol fragments, not end-to-end behavior. The sending actor's BT and outbox
+are bypassed by design.
+
+- **Examples**: `receive_report_demo.py`, `suggest_actor_demo.py`
+- **Pattern**: Construct AS2 activity manually → POST to recipient inbox
+- **Purpose**: Unit-level demonstration of a single message exchange
+
+### Scenario Demos (`vultron/demo/scenario/`)
+
+Demonstrate full multi-actor workflows. These MUST use trigger endpoints
+("puppeteering") so the system's own BT and outbox logic is exercised.
+
+- **Examples**: `two_actor_demo.py`, `three_actor_demo.py`,
+  `multi_vendor_demo.py`
+- **Pattern**: Call trigger endpoint on sending actor's container → actor's
+  BT runs → activity added to outbox → outbox handler delivers to recipient
+- **Purpose**: Integration-level demonstration of complete protocol flows
+
+### Why the Distinction Matters
+
+Direct inbox injection ("spoofing") in scenario demos violates the principle
+that all inter-actor communication flows through the AS2 outbox/inbox pipeline.
+It also bypasses the BT, meaning the system's autonomous cascade behavior is
+never exercised. Demos that spoof instead of puppeteer **hide implementation
+gaps** — they look correct while the actual trigger + BT path is broken.
+
+### Correct Participant Invitation Workflow
+
+The recommended protocol sequence for adding a new participant (replacing
+manual invitation spoofing):
+
+```text
+1. Coordinator → trigger suggest-actor-to-case
+       ↓ creates RecommendActorActivity(actor=coordinator, object=invitee, target=case)
+       ↓ added to coordinator outbox → delivered to case_actor inbox
+
+2. Case-actor receives RecommendActorActivity
+       ↓ BT: verify case_actor IS the case owner (attributed_to check)
+       ↓ BT: emit AcceptActorRecommendationActivity(to=[coordinator])
+       ↓ BT: emit RmInviteToCaseActivity(actor=case_actor, object=invitee, target=case, to=[invitee])
+       ↓ both activities added to case_actor outbox → delivered
+
+3. Invitee → trigger accept-case-invite
+       ↓ creates RmAcceptInviteToCaseActivity(actor=invitee, object=invite, to=[case_actor])
+       ↓ added to invitee outbox → delivered to case_actor inbox
+
+4. Case-actor receives RmAcceptInviteToCaseActivity
+       ↓ existing AcceptInviteActorToCaseReceivedUseCase handles this correctly
+```
+
+The case_actor acts **autonomously** — it doesn't need to be told "now send
+an invite." This is modeled as a BT triggered by the receive use case.
+
+### Outbox Expansion Bridge for Transitive Activities
+
+`_dehydrate_data` in `db_record.py` intentionally collapses `object_` dict
+values to ID strings during storage to avoid redundant inline storage. The
+outbox expansion bridge is the correct compensating mechanism: for each
+activity type delivered via outbox, expand bare-string `object_` back to its
+full typed form before wire delivery.
+
+The bridge MUST be extended for all transitive activity types that go through
+the dehydrate/rehydrate cycle. The current set requiring expansion: `"Create"`,
+`"Announce"`, `"Add"`, `"Invite"`, `"Accept"`. Additional types (`"Join"`,
+`"Remove"`) may need the same treatment as they are implemented.
+
+If `dl.read(activity_object)` returns `None` at delivery time, log a warning
+and skip delivery (matching current `Create`/`Announce` behavior).

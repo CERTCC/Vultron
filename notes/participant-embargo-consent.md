@@ -128,6 +128,38 @@ The `AcceptEmbargoReceivedUseCase` MUST:
 5. When shared EM enters `REVISE`: transition all `SIGNATORY` participants
    to `LAPSED` (bulk operation, not per-participant message)
 
+### Trigger-Side Ownership Gate (BUG-26042101, 2026-04-22)
+
+The same owner-vs-participant split applies to **trigger-side** embargo
+responses, not just receive-side handlers:
+
+- **Case owner** (`case.attributed_to == actor_id`): drives shared EM
+  transitions (`EM.ACTIVE`, `EM.EXITED`, etc.)
+- **Non-owner participant**: mutates only their own consent state in
+  `CaseParticipant`; does NOT advance shared EM
+
+**Fallback for legacy cases**: When `case.attributed_to is None` (older
+single-actor fixtures, seed data created before the attribution field was
+introduced), treat the triggering actor as the case owner. Without this
+fallback, existing single-actor embargo triggers silently stop advancing
+the shared EM state.
+
+**Idempotent PEC transitions**: Participant-only accept/reject updates SHOULD
+NOT re-run the PEC machine when the participant is already in the target state
+(`SIGNATORY` / `DECLINED`). Idempotent repeats MUST NOT generate
+invalid-transition warnings.
+
+### Full Case Delivery Precondition
+
+The case owner MUST only send `Announce(VulnerabilityCase)` with full case
+details when a participant satisfies **both**:
+
+1. `rm_state == ACCEPTED` (accepted the case invitation)
+2. `embargo_adherence == True` (is a signatory) OR no active embargo
+
+This check MUST live in the BT subtree for `AcceptInviteActorToCase`, not
+in post-BT procedural code. See `specs/message-validation.yaml` MV-10-005.
+
 ---
 
 ## Open Questions
