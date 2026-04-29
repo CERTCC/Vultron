@@ -10,6 +10,64 @@ relative order. Completed priorities should be archived via `uv run append-histo
 (writes to `plan/history/YYMM/priority/`) and then removed from this file to keep
 `plan/PRIORITIES.md` focused on pending and in-progress work.
 
+## Priority 471: Bug Fixes and Demo Polish
+
+Active bugs in the multiparty demo and related subsystems, tracked under
+parent issue [#387](https://github.com/CERTCC/Vultron/issues/387).
+
+Sub-issues:
+
+- [#378](https://github.com/CERTCC/Vultron/issues/378) — BUG: CaseLogEntry serialized without domain fields in AnnounceLogEntryActivity
+- [#379](https://github.com/CERTCC/Vultron/issues/379) — BUG: Log entry replication hash-check times out in two-actor demo
+- [#380](https://github.com/CERTCC/Vultron/issues/380) — BUG: add_activity_to_outbox fails to find actor stored under full URI when called with bare UUID
+- [#381](https://github.com/CERTCC/Vultron/issues/381) — BUG: Spurious rehydration warning when Invite target case not yet in receiver's DataLayer
+- [#382](https://github.com/CERTCC/Vultron/issues/382) — BUG: Nested Invite object stripped of required fields during dehydration
+- [#383](https://github.com/CERTCC/Vultron/issues/383) — BUG: Invalid PEC state transition `NO_EMBARGO` → accept during embargo activation
+- [#384](https://github.com/CERTCC/Vultron/issues/384) — BUG \[DEMO-BREAKING\]: Second participant accept-embargo returns 409 when EM state already ACTIVE
+- [#385](https://github.com/CERTCC/Vultron/issues/385) — BUG: EngageCaseBT fails silently when processing inbound engage_case notification
+- [#386](https://github.com/CERTCC/Vultron/issues/386) — BUG: Dead-letter record created when Accept references object not yet in receiver's DataLayer
+- [#390](https://github.com/CERTCC/Vultron/issues/390) — Users must set env vars before running docker
+- [#391](https://github.com/CERTCC/Vultron/issues/391) — Demo description draws attention to the DataLayer, but logs do not reflect this
+
+**Note**: If an RFC improvement (#405) would significantly change the solution
+space for a particular bug, defer the bug fix until after that RFC is
+implemented. Don't fix and then immediately refactor away the fix.
+
+## Priority 472: Docs Batch — LaTeX Fixes and Versioning Updates
+
+A batch of small, independent documentation fixes tracked under parent issue
+[#404](https://github.com/CERTCC/Vultron/issues/404).
+
+Sub-issues:
+
+- [#154](https://github.com/CERTCC/Vultron/issues/154) — Update versioning background to reflect CalVer adoption (remove semver references)
+- [#186](https://github.com/CERTCC/Vultron/issues/186) — SSVC crosswalk has some unrendered LaTeX
+- [#234](https://github.com/CERTCC/Vultron/issues/234) — Unrendered LaTeX in Formal Vultron Protocol Redux
+- [#235](https://github.com/CERTCC/Vultron/issues/235) — Unrendered LaTeX in Transitions
+- [#271](https://github.com/CERTCC/Vultron/issues/271) — SSVC Crosswalk page has broken LaTeX
+
+These are all self-contained doc fixes that can be resolved in a single
+focused pass. Higher priority than a full docs refactor or platform migration
+([#294](https://github.com/CERTCC/Vultron/issues/294)) but lower than
+active code bugs.
+
+## Priority 473: Architecture Hardening
+
+RFC-level improvements that deepen module design, reduce coupling, and
+improve testability. Tracked under parent issue
+[#405](https://github.com/CERTCC/Vultron/issues/405).
+
+Sub-issues:
+
+- [#400](https://github.com/CERTCC/Vultron/issues/400) — RFC: Deepen the trigger path — replace 4-layer shallow stack with TriggerService + TriggerServicePort
+- [#401](https://github.com/CERTCC/Vultron/issues/401) — RFC: Deep-module BT test harness — replace duplicated setup_node_blackboard boilerplate with BTTestScenario
+- [#402](https://github.com/CERTCC/Vultron/issues/402) — RFC: Consolidate extractor.py — move find_matching_semantics to semantic_registry
+- [#403](https://github.com/CERTCC/Vultron/issues/403) — RFC: Narrow the DataLayer port — introduce CasePersistence and CaseOutboxPersistence
+
+Resolving these before cyclomatic complexity reduction (Priority 475) enables
+cleaner refactors: narrower interfaces and deeper modules reduce CC
+organically.
+
 ## Priority 475: Cyclomatic Complexity Enforcement
 
 Cyclomatic complexity (CC) is treated as a policy boundary, not just a
@@ -97,6 +155,16 @@ BT-2.2, BT-2.3
 SYNC-4 enables RAFT consensus for the CaseActor process. Before we get here
 we will need to establish how we want to handle the CaseActor scaling and
 failover process.
+
+## Priority 95000: Documentation Enhancements — Crosswalks and Framework Integration
+
+Low-priority documentation work to expand coverage of related frameworks
+and scoring systems. These will be addressed as part of a broader
+documentation refresh, after higher-priority code and architecture work is
+complete.
+
+- [#5](https://github.com/CERTCC/Vultron/issues/5) — Integrate FIRST services frameworks
+- [#6](https://github.com/CERTCC/Vultron/issues/6) — Add CVSSv4 crosswalk
 
 ## Priority 99999: Remaining Requirements and Documentation Updates
 
