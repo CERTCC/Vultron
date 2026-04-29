@@ -84,7 +84,7 @@ def _sanitize_entry_id(entry_id: str) -> str:
     # Reject path separators and parent-directory traversal.
     if "/" in entry_id or "\\" in entry_id:
         raise ValueError(f"entry_id contains path separators: {entry_id!r}")
-    if ".." in entry_id.split():
+    if ".." in entry_id:
         raise ValueError(f"entry_id contains '..' component: {entry_id!r}")
     # Verify the resolved filename stays within the intended directory by
     # checking Path properties (no directory component allowed).
