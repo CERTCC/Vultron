@@ -652,7 +652,7 @@ __all__ = [
 
 
 def extract_event(
-    activity: "as_Activity",  # type annotation — as_Activity imported below
+    activity: as_Activity,
 ) -> VultronEvent:
     """Extract a typed ``VultronEvent`` from an AS2 activity.
 
@@ -698,13 +698,6 @@ def semantics_to_activity_class() -> dict[MessageSemantics, type[as_Activity]]:
         for e in SEMANTIC_REGISTRY
         if e.wire_activity_class is not None
     }
-
-
-# Imported after registry build to avoid hoisting the as_Activity import into
-# the top-level namespace where it would appear to callers as a registry symbol.
-from vultron.wire.as2.vocab.base.objects.activities.base import (  # noqa: E402
-    as_Activity,
-)
 
 
 def find_matching_semantics(activity: as_Activity) -> MessageSemantics:
