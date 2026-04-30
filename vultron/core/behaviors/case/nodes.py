@@ -46,9 +46,7 @@ from vultron.core.models.vultron_types import (
 from vultron.core.states.em import EM, EMAdapter, create_em_machine
 from vultron.core.states.rm import RM
 from vultron.core.states.roles import CVDRoles
-from vultron.wire.as2.vocab.activities.case_participant import (
-    AddParticipantToCaseActivity,
-)
+from vultron.wire.as2.factories import add_participant_to_case_activity
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
@@ -962,10 +960,10 @@ class CreateCaseParticipantNode(DataLayerAction):
             case_participant = CaseParticipant.model_validate(
                 participant.model_dump(by_alias=True)
             )
-            add_notification = AddParticipantToCaseActivity(
-                actor=self.actor_id,
-                object_=case_participant,
+            add_notification = add_participant_to_case_activity(
+                participant=case_participant,
                 target=case_id,
+                actor=self.actor_id,
                 to=[self.participant_actor_id],
             )
             try:

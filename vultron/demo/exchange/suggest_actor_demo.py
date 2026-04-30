@@ -49,22 +49,6 @@ import sys
 from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
-from vultron.wire.as2.vocab.activities.actor import (
-    AcceptActorRecommendationActivity,
-    RecommendActorActivity,
-    RejectActorRecommendationActivity,
-)
-from vultron.wire.as2.vocab.activities.case import (
-    AddReportToCaseActivity,
-    CreateCaseActivity,
-)
-from vultron.wire.as2.vocab.activities.case_participant import (
-    AddParticipantToCaseActivity,
-)
-from vultron.wire.as2.vocab.activities.report import (
-    RmSubmitReportActivity,
-    RmValidateReportActivity,
-)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import (
@@ -87,6 +71,16 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     post_to_inbox_and_wait,
     verify_object_stored,
 )
+from vultron.wire.as2.factories import (
+    accept_actor_recommendation_activity,
+    add_participant_to_case_activity,
+    add_report_to_case_activity,
+    create_case_activity,
+    recommend_actor_activity,
+    reject_actor_recommendation_activity,
+    rm_submit_report_activity,
+    rm_validate_report_activity,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -107,18 +101,16 @@ def _setup_initialized_case(
         content="A remote code execution vulnerability in the web framework.",
         name="Remote Code Execution Vulnerability",
     )
-    report_offer = RmSubmitReportActivity(
-        actor=finder.id_,
-        object_=report,
-        to=[vendor.id_],
+    report_offer = rm_submit_report_activity(
+        report, actor=finder.id_, to=vendor.id_
     )
     post_to_inbox_and_wait(client, vendor.id_, report_offer)
     verify_object_stored(client, report.id_)
 
     offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-    validate_activity = RmValidateReportActivity(
+    validate_activity = rm_validate_report_activity(
+        offer,
         actor=vendor.id_,
-        object_=offer,
         content="Confirmed — remote code execution via unsanitized input.",
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
@@ -128,17 +120,12 @@ def _setup_initialized_case(
         name="RCE Case — Web Framework",
         content="Tracking the RCE vulnerability in the web framework.",
     )
-    create_case_activity = CreateCaseActivity(
-        actor=vendor.id_,
-        object_=case,
-    )
-    post_to_inbox_and_wait(client, vendor.id_, create_case_activity)
+    create_case_act = create_case_activity(case, actor=vendor.id_)
+    post_to_inbox_and_wait(client, vendor.id_, create_case_act)
     verify_object_stored(client, case.id_)
 
-    add_report_activity = AddReportToCaseActivity(
-        actor=vendor.id_,
-        object_=report,
-        target=case.id_,
+    add_report_activity = add_report_to_case_activity(
+        report, actor=vendor.id_, target=case.id_
     )
     post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
 
@@ -154,10 +141,8 @@ def _setup_initialized_case(
     post_to_inbox_and_wait(client, vendor.id_, create_participant_activity)
     verify_object_stored(client, participant.id_)
 
-    add_participant_activity = AddParticipantToCaseActivity(
-        actor=vendor.id_,
-        object_=participant,
-        target=case.id_,
+    add_participant_activity = add_participant_to_case_activity(
+        participant, actor=vendor.id_, target=case.id_
     )
     post_to_inbox_and_wait(client, vendor.id_, add_participant_activity)
 
@@ -192,9 +177,9 @@ def demo_suggest_actor_accept(
     case = _setup_initialized_case(client, finder, vendor)
 
     with demo_step("Step 2: Finder recommends coordinator to vendor"):
-        recommendation = RecommendActorActivity(
+        recommendation = recommend_actor_activity(
+            coordinator,
             actor=finder.id_,
-            object_=coordinator,
             target=case.id_,
             to=[vendor.id_],
             content=(
@@ -208,9 +193,9 @@ def demo_suggest_actor_accept(
             verify_object_stored(client, recommendation.id_)
 
     with demo_step("Step 3: Vendor accepts recommendation"):
-        accept = AcceptActorRecommendationActivity(
+        accept = accept_actor_recommendation_activity(
+            recommendation,
             actor=vendor.id_,
-            object_=recommendation,
             to=[finder.id_],
             content=(
                 f"Accepting your suggestion to invite "
@@ -259,9 +244,9 @@ def demo_suggest_actor_reject(
     initial_count = len(initial_case.case_participants) if initial_case else 0
 
     with demo_step("Step 2: Finder recommends coordinator to vendor"):
-        recommendation = RecommendActorActivity(
+        recommendation = recommend_actor_activity(
+            coordinator,
             actor=finder.id_,
-            object_=coordinator,
             target=case.id_,
             to=[vendor.id_],
             content=(
@@ -275,9 +260,9 @@ def demo_suggest_actor_reject(
             verify_object_stored(client, recommendation.id_)
 
     with demo_step("Step 3: Vendor rejects recommendation"):
-        reject = RejectActorRecommendationActivity(
+        reject = reject_actor_recommendation_activity(
+            recommendation,
             actor=vendor.id_,
-            object_=recommendation,
             to=[finder.id_],
             content=(
                 f"Declining your suggestion to invite "

@@ -31,6 +31,13 @@ from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
 )
 from vultron.errors import VultronInvalidStateTransitionError
+from vultron.wire.as2.factories import (
+    add_embargo_to_case_activity,
+    em_accept_embargo_activity,
+    em_propose_embargo_activity,
+    em_reject_embargo_activity,
+    remove_embargo_from_case_activity,
+)
 
 
 class TestEmbargoUseCases:
@@ -113,14 +120,10 @@ class TestEmbargoUseCases:
     ):
         """add_embargo_event_to_case sets the active embargo on the case (PROPOSED → ACTIVE)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.activities.embargo import (
-            AddEmbargoToCaseActivity,
-        )
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
-        from vultron.core.states.em import EM
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         case = VulnerabilityCase(
@@ -136,10 +139,10 @@ class TestEmbargoUseCases:
         dl.create(case)
         dl.create(embargo)
 
-        activity = AddEmbargoToCaseActivity(
-            actor="https://example.org/users/vendor",
-            object_=embargo,
+        activity = add_embargo_to_case_activity(
+            embargo,
             target=case,
+            actor="https://example.org/users/vendor",
         )
         event = make_payload(activity)
 
@@ -157,14 +160,10 @@ class TestEmbargoUseCases:
         """add_embargo_event_to_case logs WARNING when EM state is not on the standard machine path (state-sync override)."""
         import logging
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.activities.embargo import (
-            AddEmbargoToCaseActivity,
-        )
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
-        from vultron.core.states.em import EM
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         case = VulnerabilityCase(
@@ -179,10 +178,10 @@ class TestEmbargoUseCases:
         dl.create(case)
         dl.create(embargo)
 
-        activity = AddEmbargoToCaseActivity(
-            actor="https://example.org/users/vendor",
-            object_=embargo,
+        activity = add_embargo_to_case_activity(
+            embargo,
             target=case,
+            actor="https://example.org/users/vendor",
         )
         event = make_payload(activity)
 
@@ -201,9 +200,6 @@ class TestEmbargoUseCases:
     ):
         """invite_to_embargo_on_case persists the EmProposeEmbargoActivity activity."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.activities.embargo import (
-            EmProposeEmbargoActivity,
-        )
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -212,11 +208,11 @@ class TestEmbargoUseCases:
             id_="https://example.org/cases/case_em2/embargo_events/e2",
             content="Proposed embargo",
         )
-        proposal = EmProposeEmbargoActivity(
-            id_="https://example.org/cases/case_em2/embargo_proposals/1",
-            actor="https://example.org/users/vendor",
-            object_=embargo,
+        proposal = em_propose_embargo_activity(
+            embargo,
             context="https://example.org/cases/case_em2",
+            actor="https://example.org/users/vendor",
+            id_="https://example.org/cases/case_em2/embargo_proposals/1",
         )
 
         event = make_payload(proposal)
@@ -231,15 +227,10 @@ class TestEmbargoUseCases:
     ):
         """accept_invite_to_embargo_on_case activates the embargo on the case (PROPOSED → ACTIVE)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.activities.embargo import (
-            EmAcceptEmbargoActivity,
-            EmProposeEmbargoActivity,
-        )
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
-        from vultron.core.states.em import EM
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         coordinator_id = "https://example.org/users/coordinator"
@@ -253,11 +244,11 @@ class TestEmbargoUseCases:
             content="Embargo",
         )
         # Use inline objects (not string IDs) so rehydration skips DataLayer lookup
-        proposal = EmProposeEmbargoActivity(
-            id_="https://example.org/cases/case_em3/embargo_proposals/1",
-            actor="https://example.org/users/vendor",
-            object_=embargo,
+        proposal = em_propose_embargo_activity(
+            embargo,
             context=case,
+            actor="https://example.org/users/vendor",
+            id_="https://example.org/cases/case_em3/embargo_proposals/1",
         )
         # Start from PROPOSED — the standard pre-condition for activation.
         case.current_status.em_state = EM.PROPOSED
@@ -265,10 +256,10 @@ class TestEmbargoUseCases:
         dl.create(embargo)
         dl.create(proposal)
 
-        accept = EmAcceptEmbargoActivity(
-            actor=coordinator_id,
-            object_=proposal,
+        accept = em_accept_embargo_activity(
+            proposal,
             context=case,
+            actor=coordinator_id,
         )
         event = make_payload(accept)
 
@@ -286,15 +277,10 @@ class TestEmbargoUseCases:
         """accept_invite_to_embargo_on_case logs WARNING when EM state is not on the standard machine path."""
         import logging
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.activities.embargo import (
-            EmAcceptEmbargoActivity,
-            EmProposeEmbargoActivity,
-        )
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
-        from vultron.core.states.em import EM
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         coordinator_id = "https://example.org/users/coordinator"
@@ -307,21 +293,21 @@ class TestEmbargoUseCases:
             id_="https://example.org/cases/case_em3_warn/embargo_events/e3",
             content="Embargo",
         )
-        proposal = EmProposeEmbargoActivity(
-            id_="https://example.org/cases/case_em3_warn/embargo_proposals/1",
-            actor="https://example.org/users/vendor",
-            object_=embargo,
+        proposal = em_propose_embargo_activity(
+            embargo,
             context=case,
+            actor="https://example.org/users/vendor",
+            id_="https://example.org/cases/case_em3_warn/embargo_proposals/1",
         )
         # Default em_state is NONE — not a valid predecessor for ACTIVE.
         dl.create(case)
         dl.create(embargo)
         dl.create(proposal)
 
-        accept = EmAcceptEmbargoActivity(
-            actor=coordinator_id,
-            object_=proposal,
+        accept = em_accept_embargo_activity(
+            proposal,
             context=case,
+            actor=coordinator_id,
         )
         event = make_payload(accept)
 
@@ -339,10 +325,6 @@ class TestEmbargoUseCases:
     ):
         """accept_invite_to_embargo_on_case records embargo ID in participant.accepted_embargo_ids (CM-10-002, CM-10-003)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.activities.embargo import (
-            EmAcceptEmbargoActivity,
-            EmProposeEmbargoActivity,
-        )
         from vultron.wire.as2.vocab.objects.case_participant import (
             CaseParticipant,
         )
@@ -367,21 +349,21 @@ class TestEmbargoUseCases:
             context=case.id_,
         )
         case.add_participant(participant)
-        proposal = EmProposeEmbargoActivity(
-            id_="https://example.org/cases/case_em5/embargo_proposals/1",
-            actor="https://example.org/users/vendor",
-            object_=embargo,
+        proposal = em_propose_embargo_activity(
+            embargo,
             context=case,
+            actor="https://example.org/users/vendor",
+            id_="https://example.org/cases/case_em5/embargo_proposals/1",
         )
         dl.create(case)
         dl.create(embargo)
         dl.create(participant)
         dl.create(proposal)
 
-        accept = EmAcceptEmbargoActivity(
-            actor=coordinator_id,
-            object_=proposal,
+        accept = em_accept_embargo_activity(
+            proposal,
             context=case,
+            actor=coordinator_id,
         )
         event = make_payload(accept)
 
@@ -397,10 +379,6 @@ class TestEmbargoUseCases:
     ):
         """accept_invite_to_embargo_on_case appends a trusted-timestamp event to case.events (CM-02-009)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.activities.embargo import (
-            EmAcceptEmbargoActivity,
-            EmProposeEmbargoActivity,
-        )
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
@@ -417,20 +395,20 @@ class TestEmbargoUseCases:
             id_="https://example.org/cases/case_em6/embargo_events/e6",
             content="Embargo",
         )
-        proposal = EmProposeEmbargoActivity(
-            id_="https://example.org/cases/case_em6/embargo_proposals/1",
-            actor="https://example.org/users/vendor",
-            object_=embargo,
+        proposal = em_propose_embargo_activity(
+            embargo,
             context=case,
+            actor="https://example.org/users/vendor",
+            id_="https://example.org/cases/case_em6/embargo_proposals/1",
         )
         dl.create(case)
         dl.create(embargo)
         dl.create(proposal)
 
-        accept = EmAcceptEmbargoActivity(
-            actor=coordinator_id,
-            object_=proposal,
+        accept = em_accept_embargo_activity(
+            proposal,
             context=case,
+            actor=coordinator_id,
         )
         event = make_payload(accept)
 
@@ -449,26 +427,22 @@ class TestEmbargoUseCases:
         self, make_payload
     ):
         """reject_invite_to_embargo_on_case logs without raising."""
-        from vultron.wire.as2.vocab.activities.embargo import (
-            EmProposeEmbargoActivity,
-            EmRejectEmbargoActivity,
-        )
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 
         embargo = EmbargoEvent(
             id_="https://example.org/cases/case_em4/embargo_events/e4",
             content="Embargo",
         )
-        proposal = EmProposeEmbargoActivity(
-            id_="https://example.org/cases/case_em4/embargo_proposals/1",
+        proposal = em_propose_embargo_activity(
+            embargo,
+            context="https://example.org/cases/case_em4",
             actor="https://example.org/users/vendor",
-            object_=embargo,
-            context="https://example.org/cases/case_em4",
+            id_="https://example.org/cases/case_em4/embargo_proposals/1",
         )
-        reject = EmRejectEmbargoActivity(
-            actor="https://example.org/users/coordinator",
-            object_=proposal,
+        reject = em_reject_embargo_activity(
+            proposal,
             context="https://example.org/cases/case_em4",
+            actor="https://example.org/users/coordinator",
         )
 
         event = make_payload(reject)
@@ -483,9 +457,6 @@ class TestEmbargoUseCases:
     ):
         """remove_embargo_event removes embargo from proposed_embargoes."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.activities.embargo import (
-            RemoveEmbargoFromCaseActivity,
-        )
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
@@ -504,10 +475,10 @@ class TestEmbargoUseCases:
         case.current_status.em_state = EM.PROPOSED
         dl.create(case)
 
-        activity = RemoveEmbargoFromCaseActivity(
-            actor="https://example.org/users/coord",
-            object_=embargo,
+        activity = remove_embargo_from_case_activity(
+            embargo,
             origin=case,
+            actor="https://example.org/users/coord",
         )
         event = make_payload(activity)
 
@@ -526,9 +497,6 @@ class TestEmbargoUseCases:
     ):
         """remove_embargo_event uses REJECT machine trigger when EM is PROPOSED."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.activities.embargo import (
-            RemoveEmbargoFromCaseActivity,
-        )
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
@@ -547,10 +515,10 @@ class TestEmbargoUseCases:
         case.current_status.em_state = EM.PROPOSED
         dl.create(case)
 
-        activity = RemoveEmbargoFromCaseActivity(
-            actor="https://example.org/users/coord",
-            object_=embargo,
+        activity = remove_embargo_from_case_activity(
+            embargo,
             origin=case,
+            actor="https://example.org/users/coord",
         )
         event = make_payload(activity)
 
@@ -567,9 +535,6 @@ class TestEmbargoUseCases:
     ):
         """remove_embargo_event logs WARNING when EM state is ACTIVE (admin override)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.activities.embargo import (
-            RemoveEmbargoFromCaseActivity,
-        )
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
@@ -588,10 +553,10 @@ class TestEmbargoUseCases:
         case.current_status.em_state = EM.ACTIVE
         dl.create(case)
 
-        activity = RemoveEmbargoFromCaseActivity(
-            actor="https://example.org/users/coord",
-            object_=embargo,
+        activity = remove_embargo_from_case_activity(
+            embargo,
             origin=case,
+            actor="https://example.org/users/coord",
         )
         event = make_payload(activity)
 
@@ -611,9 +576,6 @@ class TestEmbargoUseCases:
         """SvcAcceptEmbargoUseCase raises VultronInvalidStateTransitionError when EM state does not allow ACCEPT."""
         import pytest
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.activities.embargo import (
-            EmProposeEmbargoActivity,
-        )
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
@@ -632,11 +594,11 @@ class TestEmbargoUseCases:
             id_="https://example.org/cases/case_eval_invalid/embargo_events/e1",
             context=case.id_,
         )
-        proposal = EmProposeEmbargoActivity(
-            id_="https://example.org/cases/case_eval_invalid/proposals/p1",
-            actor=actor.id_,
-            object_=embargo,
+        proposal = em_propose_embargo_activity(
+            embargo,
             context=case.id_,
+            actor=actor.id_,
+            id_="https://example.org/cases/case_eval_invalid/proposals/p1",
         )
         # EM state is NONE — ACCEPT transition is not valid from NONE.
         dl.create(

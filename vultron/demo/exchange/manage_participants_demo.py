@@ -44,26 +44,6 @@ import logging
 import sys
 from typing import Callable, Optional, Sequence, Tuple
 
-from vultron.wire.as2.vocab.activities.case import (
-    AddReportToCaseActivity,
-    CreateCaseActivity,
-)
-from vultron.wire.as2.vocab.activities.case_participant import (
-    AddParticipantToCaseActivity,
-    AddStatusToParticipantActivity,
-    CreateParticipantActivity,
-    CreateStatusForParticipantActivity,
-    RemoveParticipantFromCaseActivity,
-)
-from vultron.wire.as2.vocab.activities.case import (
-    RmAcceptInviteToCaseActivity,
-    RmInviteToCaseActivity,
-    RmRejectInviteToCaseActivity,
-)
-from vultron.wire.as2.vocab.activities.report import (
-    RmSubmitReportActivity,
-    RmValidateReportActivity,
-)
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import (
     CoordinatorParticipant,
@@ -89,6 +69,20 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     post_to_inbox_and_wait,
     ref_id,
     verify_object_stored,
+)
+from vultron.wire.as2.factories import (
+    add_participant_to_case_activity,
+    add_report_to_case_activity,
+    add_status_to_participant_activity,
+    create_case_activity,
+    create_participant_activity,
+    create_status_for_participant_activity,
+    remove_participant_from_case_activity,
+    rm_accept_invite_to_case_activity,
+    rm_invite_to_case_activity,
+    rm_reject_invite_to_case_activity,
+    rm_submit_report_activity,
+    rm_validate_report_activity,
 )
 
 logger = logging.getLogger(__name__)
@@ -117,18 +111,16 @@ def _setup_case_with_vendor(
         content="A use-after-free vulnerability in the memory allocator.",
         name="Use-After-Free in Memory Allocator",
     )
-    report_offer = RmSubmitReportActivity(
-        actor=finder.id_,
-        object_=report,
-        to=[vendor.id_],
+    report_offer = rm_submit_report_activity(
+        report, actor=finder.id_, to=vendor.id_
     )
     post_to_inbox_and_wait(client, vendor.id_, report_offer)
     verify_object_stored(client, report.id_)
 
     offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-    validate_activity = RmValidateReportActivity(
+    validate_activity = rm_validate_report_activity(
+        offer,
         actor=vendor.id_,
-        object_=offer,
         content="Confirmed — use-after-free via crafted allocation sequence.",
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
@@ -138,35 +130,26 @@ def _setup_case_with_vendor(
         name="UAF Case — Memory Allocator",
         content="Tracking the use-after-free in the memory allocator.",
     )
-    create_case_activity = CreateCaseActivity(
-        actor=vendor.id_,
-        object_=case,
-    )
-    post_to_inbox_and_wait(client, vendor.id_, create_case_activity)
+    create_case_act = create_case_activity(case, actor=vendor.id_)
+    post_to_inbox_and_wait(client, vendor.id_, create_case_act)
     verify_object_stored(client, case.id_)
 
     vendor_participant = VendorParticipant(
         attributed_to=vendor.id_,
         context=case.id_,
     )
-    create_vendor_participant = CreateParticipantActivity(
-        actor=vendor.id_,
-        object_=vendor_participant,
-        context=case.id_,
+    create_vendor_participant = create_participant_activity(
+        vendor_participant, actor=vendor.id_, context=case.id_
     )
     post_to_inbox_and_wait(client, vendor.id_, create_vendor_participant)
 
-    add_vendor_participant = AddParticipantToCaseActivity(
-        actor=vendor.id_,
-        object_=vendor_participant,
-        target=case.id_,
+    add_vendor_participant = add_participant_to_case_activity(
+        vendor_participant, actor=vendor.id_, target=case.id_
     )
     post_to_inbox_and_wait(client, vendor.id_, add_vendor_participant)
 
-    add_report_activity = AddReportToCaseActivity(
-        actor=vendor.id_,
-        object_=report,
-        target=case.id_,
+    add_report_activity = add_report_to_case_activity(
+        report, actor=vendor.id_, target=case.id_
     )
     post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
 
@@ -206,9 +189,9 @@ def demo_manage_participants_accept(
     case = _setup_case_with_vendor(client, finder, vendor)
 
     with demo_step("Step 2: Vendor invites coordinator to case"):
-        invite = RmInviteToCaseActivity(
+        invite = rm_invite_to_case_activity(
+            coordinator,
             actor=vendor.id_,
-            object_=coordinator,
             target=case.id_,
             to=[coordinator.id_],
             content=f"Inviting you to participate in {case.name}.",
@@ -217,9 +200,9 @@ def demo_manage_participants_accept(
         post_to_inbox_and_wait(client, coordinator.id_, invite)
 
     with demo_step("Step 3: Coordinator accepts invitation"):
-        accept = RmAcceptInviteToCaseActivity(
+        accept = rm_accept_invite_to_case_activity(
+            invite,
             actor=coordinator.id_,
-            object_=invite,
             to=[vendor.id_],
             content=f"Accepting invitation to participate in {case.name}.",
         )
@@ -231,20 +214,16 @@ def demo_manage_participants_accept(
             attributed_to=coordinator.id_,
             context=case.id_,
         )
-        create_participant = CreateParticipantActivity(
-            actor=vendor.id_,
-            object_=coordinator_participant,
-            context=case.id_,
+        create_participant = create_participant_activity(
+            coordinator_participant, actor=vendor.id_, context=case.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, create_participant)
         with demo_check("Coordinator participant stored in data layer"):
             verify_object_stored(client, coordinator_participant.id_)
 
     with demo_step("Step 5: Vendor adds coordinator participant to case"):
-        add_participant = AddParticipantToCaseActivity(
-            actor=vendor.id_,
-            object_=coordinator_participant,
-            target=case.id_,
+        add_participant = add_participant_to_case_activity(
+            coordinator_participant, actor=vendor.id_, target=case.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, add_participant)
         with demo_check("Coordinator in case participant list"):
@@ -271,9 +250,9 @@ def demo_manage_participants_accept(
             vfd_state=CS_vfd.vfd,
             attributed_to=coordinator.id_,
         )
-        create_status = CreateStatusForParticipantActivity(
+        create_status = create_status_for_participant_activity(
+            participant_status,
             actor=coordinator.id_,
-            object_=participant_status,
             target=coordinator_participant.id_,
         )
         post_to_inbox_and_wait(client, coordinator.id_, create_status)
@@ -283,9 +262,9 @@ def demo_manage_participants_accept(
     with demo_step(
         "Step 7: Coordinator adds ParticipantStatus to their participant"
     ):
-        add_status = AddStatusToParticipantActivity(
+        add_status = add_status_to_participant_activity(
+            participant_status,
             actor=coordinator.id_,
-            object_=participant_status,
             target=coordinator_participant.id_,
         )
         post_to_inbox_and_wait(client, coordinator.id_, add_status)
@@ -295,10 +274,8 @@ def demo_manage_participants_accept(
             )
 
     with demo_step("Step 8: Vendor removes coordinator from case"):
-        remove_participant = RemoveParticipantFromCaseActivity(
-            actor=vendor.id_,
-            object_=coordinator_participant,
-            target=case.id_,
+        remove_participant = remove_participant_from_case_activity(
+            coordinator_participant, actor=vendor.id_, target=case.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, remove_participant)
 
@@ -356,9 +333,9 @@ def demo_manage_participants_reject(
     initial_count = len(initial_case.case_participants) if initial_case else 0
 
     with demo_step("Step 2: Vendor invites coordinator to case"):
-        invite = RmInviteToCaseActivity(
+        invite = rm_invite_to_case_activity(
+            coordinator,
             actor=vendor.id_,
-            object_=coordinator,
             target=case.id_,
             to=[coordinator.id_],
             content=f"Inviting you to participate in {case.name}.",
@@ -367,9 +344,9 @@ def demo_manage_participants_reject(
         post_to_inbox_and_wait(client, coordinator.id_, invite)
 
     with demo_step("Step 3: Coordinator rejects invitation"):
-        reject = RmRejectInviteToCaseActivity(
+        reject = rm_reject_invite_to_case_activity(
+            invite,
             actor=coordinator.id_,
-            object_=invite,
             to=[vendor.id_],
             content=f"Declining invitation to participate in {case.name}.",
         )

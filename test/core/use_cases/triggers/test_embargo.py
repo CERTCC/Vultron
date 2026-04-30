@@ -19,7 +19,8 @@ from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
     RejectEmbargoTriggerRequest,
 )
-from vultron.wire.as2.vocab.activities.embargo import EmProposeEmbargoActivity
+from vultron.wire.as2.factories import em_propose_embargo_activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
     CaseParticipant,
@@ -38,16 +39,14 @@ def _persist_actor(dl: SqliteDataLayer, name: str) -> as_Service:
 
 def _build_active_embargo_case(
     dl: SqliteDataLayer, owner_id: str, participant_id: str
-) -> tuple[VulnerabilityCase, EmProposeEmbargoActivity, str]:
+) -> tuple[VulnerabilityCase, as_Invite, str]:
     case = VulnerabilityCase(
         name="Embargo regression case",
         attributed_to=owner_id,
     )
     embargo = EmbargoEvent(context=case.id_)
-    proposal = EmProposeEmbargoActivity(
-        actor=owner_id,
-        object_=embargo,
-        context=case.id_,
+    proposal = em_propose_embargo_activity(
+        embargo, context=case.id_, actor=owner_id
     )
 
     owner_participant = VendorParticipant(

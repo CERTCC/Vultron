@@ -2,7 +2,6 @@ from typing import Any, Dict, cast
 import itertools
 
 import pytest
-from pydantic import ValidationError
 
 from vultron.core.models.events import MessageSemantics
 from vultron.semantic_registry import (
@@ -12,11 +11,13 @@ from vultron.semantic_registry import (
 from vultron.wire.as2.extractor import (
     ActivityPattern,
 )
-from vultron.wire.as2.vocab.activities.case import (
-    OfferCaseOwnershipTransferActivity,
-    RmAcceptInviteToCaseActivity,
-    RmInviteToCaseActivity,
+from vultron.wire.as2.factories import (
+    announce_vulnerability_case_activity,
+    offer_case_ownership_transfer_activity,
+    rm_accept_invite_to_case_activity,
+    rm_invite_to_case_activity,
 )
+from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Accept
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Actor,
@@ -190,10 +191,10 @@ def test_offer_case_ownership_transfer_rejects_string_object():
     both patterns match when the object is opaque.  Enforcing the inline object
     at the model level eliminates the ambiguity at its source.
     """
-    with pytest.raises(ValidationError):
-        OfferCaseOwnershipTransferActivity(
+    with pytest.raises(VultronActivityConstructionError):
+        offer_case_ownership_transfer_activity(
+            "urn:uuid:some-case-id",  # type: ignore[arg-type]  # intentional invalid type — must be rejected by Pydantic
             actor="https://example.org/vendor",
-            object_="urn:uuid:some-case-id",  # type: ignore[arg-type]  # intentional invalid type — must be rejected by Pydantic
         )
 
 
@@ -204,9 +205,9 @@ def test_offer_case_ownership_transfer_with_inline_case_dispatches_correctly():
         id_="https://example.org/cases/urn:uuid:test-case",
         name="TEST-001",
     )
-    offer = OfferCaseOwnershipTransferActivity(
+    offer = offer_case_ownership_transfer_activity(
+        case,
         actor="https://example.org/vendor",
-        object_=case,
     )
     result = find_matching_semantics(offer)
     assert result == MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
@@ -280,11 +281,11 @@ def test_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
     Person, Organization, and Service (the real actor subtypes used in
     production) are correctly identified as INVITE_ACTOR_TO_CASE.
     """
-    invite = RmInviteToCaseActivity(
-        id_="https://example.org/invitations/1",
-        actor=OWNER_URI,
-        object_=actor_obj,
+    invite = rm_invite_to_case_activity(
+        actor_obj,
         target=_make_case(),
+        actor=OWNER_URI,
+        id_="https://example.org/invitations/1",
     )
     result = find_matching_semantics(invite)
     assert result == MessageSemantics.INVITE_ACTOR_TO_CASE, (
@@ -309,15 +310,15 @@ def test_accept_invite_actor_to_case_matches_all_actor_subtypes(actor_obj):
     The nested-pattern check propagates actor subtype-awareness through the
     AcceptInviteActorToCasePattern → InviteActorToCasePattern chain.
     """
-    invite = RmInviteToCaseActivity(
-        id_="https://example.org/invitations/1",
-        actor=OWNER_URI,
-        object_=actor_obj,
+    invite = rm_invite_to_case_activity(
+        actor_obj,
         target=_make_case(),
+        actor=OWNER_URI,
+        id_="https://example.org/invitations/1",
     )
-    accept = RmAcceptInviteToCaseActivity(
+    accept = rm_accept_invite_to_case_activity(
+        invite,
         actor=ACTOR_URI,
-        object_=invite,
     )
     result = find_matching_semantics(accept)
     assert result == MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE, (
@@ -352,16 +353,12 @@ def test_announce_vulnerability_case_pattern_matches():
     DR-10: the pattern must be registered so incoming AnnounceVulnerabilityCase
     activities are routed to AnnounceVulnerabilityCaseReceivedUseCase.
     """
-    from vultron.wire.as2.vocab.activities.case import (
-        AnnounceVulnerabilityCaseActivity,
-    )
-
     case = VulnerabilityCase(
         id_="https://example.org/cases/case-pattern-001", name="Pattern Test"
     )
-    announce = AnnounceVulnerabilityCaseActivity(
+    announce = announce_vulnerability_case_activity(
+        case,
         actor="https://example.org/actors/owner",
-        object_=case,
     )
     result = find_matching_semantics(announce)
     assert (
@@ -399,15 +396,13 @@ def test_rm_invite_rejects_full_vulnerability_case_as_target():
     DR-10 / MV-10-001: only VulnerabilityCaseStub (or a bare URI string) is
     accepted so that full case details are never sent to uninvited parties.
     """
-    from pydantic import ValidationError
-
     actor = as_Actor(id_="https://example.org/actors/alice")
     full_case = VulnerabilityCase(
         id_="https://example.org/cases/c1", name="Full"
     )
-    with pytest.raises(ValidationError):
-        RmInviteToCaseActivity(
-            actor=actor.id_,
-            object_=actor,
+    with pytest.raises(VultronActivityConstructionError):
+        rm_invite_to_case_activity(
+            actor,
             target=cast(Any, full_case),
+            actor=actor.id_,
         )

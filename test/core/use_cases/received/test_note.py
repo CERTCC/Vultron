@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for note-related use-case classes."""
 
-from typing import cast
+from typing import Any, cast
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_actor import VultronCaseActor
@@ -21,7 +21,7 @@ from vultron.core.use_cases.received.note import (
     CreateNoteReceivedUseCase,
     RemoveNoteFromCaseReceivedUseCase,
 )
-from vultron.wire.as2.vocab.activities.case import AddNoteToCaseActivity
+from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
     as_Remove,
@@ -147,10 +147,8 @@ class TestNoteUseCases:
         dl.create(case)
         dl.create(note)
 
-        activity = AddNoteToCaseActivity(
-            actor="https://example.org/users/finder",
-            object_=note,
-            target=case,
+        activity = add_note_to_case_activity(
+            note, target=case, actor="https://example.org/users/finder"
         )
         event = make_payload(activity)
 
@@ -176,10 +174,8 @@ class TestNoteUseCases:
         dl.create(case)
         dl.create(note)
 
-        activity = AddNoteToCaseActivity(
-            actor="https://example.org/users/finder",
-            object_=note,
-            target=case,
+        activity = add_note_to_case_activity(
+            note, target=case, actor="https://example.org/users/finder"
         )
         event = make_payload(activity)
 
@@ -286,10 +282,8 @@ class TestNoteUseCases:
         )
         dl.create(note)
 
-        activity = AddNoteToCaseActivity(
-            actor=author_id,
-            object_=note,
-            target=case,
+        activity = add_note_to_case_activity(
+            note, target=case, actor=author_id
         )
         event = make_payload(activity)
 
@@ -304,7 +298,7 @@ class TestNoteUseCases:
         broadcast_id = refreshed_actor.outbox.items[0]
         broadcast = dl.read(broadcast_id)
         assert broadcast is not None
-        broadcast = cast(AddNoteToCaseActivity, broadcast)
+        broadcast = cast(Any, broadcast)
         assert broadcast.actor == case_actor.id_
         assert broadcast.to is not None
         assert participant_id in broadcast.to
@@ -354,10 +348,8 @@ class TestNoteUseCases:
         )
         dl.create(note)
 
-        activity = AddNoteToCaseActivity(
-            actor=author_id,
-            object_=note,
-            target=case,
+        activity = add_note_to_case_activity(
+            note, target=case, actor=author_id
         )
         event = make_payload(activity)
 
@@ -371,7 +363,7 @@ class TestNoteUseCases:
         broadcast_id = refreshed_actor.outbox.items[0]
         broadcast = dl.read(broadcast_id)
         assert broadcast is not None
-        broadcast = cast(AddNoteToCaseActivity, broadcast)
+        broadcast = cast(Any, broadcast)
         assert broadcast.to is not None
         assert author_id not in broadcast.to
         assert participant_id in broadcast.to
@@ -396,10 +388,8 @@ class TestNoteUseCases:
         )
         dl.create(note)
 
-        activity = AddNoteToCaseActivity(
-            actor=author_id,
-            object_=note,
-            target=case,
+        activity = add_note_to_case_activity(
+            note, target=case, actor=author_id
         )
         event = make_payload(activity)
 

@@ -56,9 +56,7 @@ from vultron.core.models.vultron_types import (
     VultronReport,
 )
 from vultron.core.states.roles import CVDRoles
-from vultron.wire.as2.vocab.activities.case_participant import (
-    AddParticipantToCaseActivity,
-)
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
 from test.core.behaviors.bt_harness import BTTestScenario
 
 # ---------------------------------------------------------------------------
@@ -392,8 +390,7 @@ class TestCreateCaseParticipantNode:
         stored_actor = cast(Any, bt_scenario.dl.read(actor_id))
         outbox_ids = stored_actor.outbox.items if stored_actor else []
         found = any(
-            isinstance(bt_scenario.dl.read(oid), AddParticipantToCaseActivity)
-            for oid in outbox_ids
+            isinstance(bt_scenario.dl.read(oid), as_Add) for oid in outbox_ids
         )
         assert found
 

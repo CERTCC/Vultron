@@ -41,22 +41,6 @@ import logging
 import sys
 from typing import Optional, Sequence, Tuple
 
-from vultron.wire.as2.vocab.activities.case import (
-    AddNoteToCaseActivity,
-    AddReportToCaseActivity,
-    AddStatusToCaseActivity,
-    CreateCaseActivity,
-    CreateCaseStatusActivity,
-)
-from vultron.wire.as2.vocab.activities.case_participant import (
-    AddParticipantToCaseActivity,
-    AddStatusToParticipantActivity,
-    CreateStatusForParticipantActivity,
-)
-from vultron.wire.as2.vocab.activities.report import (
-    RmSubmitReportActivity,
-    RmValidateReportActivity,
-)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
     as_Remove,
@@ -91,6 +75,18 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     ref_id,
     verify_object_stored,
 )
+from vultron.wire.as2.factories import (
+    add_note_to_case_activity,
+    add_participant_to_case_activity,
+    add_report_to_case_activity,
+    add_status_to_case_activity,
+    add_status_to_participant_activity,
+    create_case_activity,
+    create_case_status_activity,
+    create_status_for_participant_activity,
+    rm_submit_report_activity,
+    rm_validate_report_activity,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -117,18 +113,16 @@ def _setup_initialized_case(
         content="A heap buffer overflow in the image parsing library.",
         name="Heap Buffer Overflow in Image Parser",
     )
-    report_offer = RmSubmitReportActivity(
-        actor=finder.id_,
-        object_=report,
-        to=[vendor.id_],
+    report_offer = rm_submit_report_activity(
+        report, actor=finder.id_, to=vendor.id_
     )
     post_to_inbox_and_wait(client, vendor.id_, report_offer)
     verify_object_stored(client, report.id_)
 
     offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-    validate_activity = RmValidateReportActivity(
+    validate_activity = rm_validate_report_activity(
+        offer,
         actor=vendor.id_,
-        object_=offer,
         content="Confirmed — heap buffer overflow via malformed image input.",
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
@@ -138,17 +132,12 @@ def _setup_initialized_case(
         name="Heap Overflow Case — Image Parser",
         content="Tracking the heap buffer overflow in the image parsing library.",
     )
-    create_case_activity = CreateCaseActivity(
-        actor=vendor.id_,
-        object_=case,
-    )
-    post_to_inbox_and_wait(client, vendor.id_, create_case_activity)
+    create_case_act = create_case_activity(case, actor=vendor.id_)
+    post_to_inbox_and_wait(client, vendor.id_, create_case_act)
     verify_object_stored(client, case.id_)
 
-    add_report_activity = AddReportToCaseActivity(
-        actor=vendor.id_,
-        object_=report,
-        target=case.id_,
+    add_report_activity = add_report_to_case_activity(
+        report, actor=vendor.id_, target=case.id_
     )
     post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
 
@@ -164,10 +153,8 @@ def _setup_initialized_case(
     post_to_inbox_and_wait(client, vendor.id_, create_participant_activity)
     verify_object_stored(client, participant.id_)
 
-    add_participant_activity = AddParticipantToCaseActivity(
-        actor=vendor.id_,
-        object_=participant,
-        target=case.id_,
+    add_participant_activity = add_participant_to_case_activity(
+        participant, actor=vendor.id_, target=case.id_
     )
     post_to_inbox_and_wait(client, vendor.id_, add_participant_activity)
 
@@ -215,10 +202,8 @@ def demo_notes_workflow(
             verify_object_stored(client, note.id_)
 
     with demo_step("Step 2: Vendor adds note to case"):
-        add_note_activity = AddNoteToCaseActivity(
-            actor=vendor.id_,
-            object_=note,
-            target=case.id_,
+        add_note_activity = add_note_to_case_activity(
+            note, actor=vendor.id_, target=case.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, add_note_activity)
         with demo_check("Note present in case"):
@@ -279,20 +264,16 @@ def demo_status_workflow(
             em_state=EM.NO_EMBARGO,
             pxa_state=CS_pxa.pxa,
         )
-        create_status_activity = CreateCaseStatusActivity(
-            actor=vendor.id_,
-            object_=case_status,
-            context=case.id_,
+        create_status_activity = create_case_status_activity(
+            case_status, actor=vendor.id_, context=case.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, create_status_activity)
         with demo_check("CaseStatus stored in data layer"):
             verify_object_stored(client, case_status.id_)
 
     with demo_step("Step 2: Vendor adds CaseStatus to case"):
-        add_status_activity = AddStatusToCaseActivity(
-            actor=vendor.id_,
-            object_=case_status,
-            target=case.id_,
+        add_status_activity = add_status_to_case_activity(
+            case_status, actor=vendor.id_, target=case.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, add_status_activity)
         with demo_check("CaseStatus present in case"):
@@ -317,19 +298,16 @@ def demo_status_workflow(
             attributed_to=finder.id_,
             case_status=case_status,
         )
-        create_pstatus_activity = CreateStatusForParticipantActivity(
-            actor=vendor.id_,
-            object_=participant_status,
+        create_pstatus_activity = create_status_for_participant_activity(
+            participant_status, actor=vendor.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, create_pstatus_activity)
         with demo_check("ParticipantStatus stored in data layer"):
             verify_object_stored(client, participant_status.id_)
 
     with demo_step("Step 4: Vendor adds ParticipantStatus to participant"):
-        add_pstatus_activity = AddStatusToParticipantActivity(
-            actor=vendor.id_,
-            object_=participant_status,
-            target=participant.id_,
+        add_pstatus_activity = add_status_to_participant_activity(
+            participant_status, actor=vendor.id_, target=participant.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, add_pstatus_activity)
         with demo_check("Final case state"):

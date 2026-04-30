@@ -46,12 +46,6 @@ import os
 import sys
 
 from vultron.core.states.em import EM
-from vultron.wire.as2.vocab.activities.case import (
-    AcceptCaseOwnershipTransferActivity,
-    AddReportToCaseActivity,
-    CreateCaseActivity,
-    OfferCaseOwnershipTransferActivity,
-)
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
@@ -84,6 +78,11 @@ from vultron.demo.utils import (
     seed_actor,
     verify_object_stored,
 )
+from vultron.wire.as2.factories import (
+    accept_case_ownership_transfer_activity,
+    offer_case_ownership_transfer_activity,
+)
+from vultron.core.models.vultron_types import VultronActivity
 
 logger = logging.getLogger(__name__)
 
@@ -240,7 +239,7 @@ def vendor_creates_case_on_case_actor(
                 "report_id": report.id_,
             },
         )
-    create_case = CreateCaseActivity.model_validate(result["activity"])
+    create_case = VultronActivity.model_validate(result["activity"])
     case = VulnerabilityCase.model_validate(
         create_case.object_.model_dump(by_alias=True)  # type: ignore[union-attr]
     )
@@ -273,7 +272,7 @@ def vendor_adds_report_to_case(
                 "report_id": report.id_,
             },
         )
-    add_report = AddReportToCaseActivity.model_validate(result["activity"])
+    add_report = VultronActivity.model_validate(result["activity"])
     with demo_step("Delivering AddReportToCase activity to CaseActor"):
         post_to_inbox_and_wait(case_actor_client, case_actor.id_, add_report)
     with demo_check("CaseActor stores the AddReportToCase activity"):
@@ -287,18 +286,15 @@ def vendor_offers_case_ownership_to_coordinator(
     vendor: as_Actor,
     coordinator: as_Actor,
     case: VulnerabilityCase,
-) -> OfferCaseOwnershipTransferActivity:
+) -> VultronActivity:
     """Vendor records a case ownership offer and delivers it to Coordinator.
 
     The offer is first posted to the CaseActor container so it can be
     rehydrated later when the Accept arrives.  It is then delivered to the
     Coordinator's inbox.
     """
-    offer = OfferCaseOwnershipTransferActivity(
-        actor=vendor.id_,
-        object_=case,
-        target=coordinator.id_,
-        to=[coordinator.id_],
+    offer = offer_case_ownership_transfer_activity(
+        case, actor=vendor.id_, target=coordinator.id_, to=[coordinator.id_]
     )
 
     # Record the offer on the CaseActor container so that it can be
@@ -323,19 +319,17 @@ def coordinator_accepts_case_ownership(
     case_actor_client: DataLayerClient,
     case_actor: as_Actor,
     coordinator: as_Actor,
-    offer: OfferCaseOwnershipTransferActivity,
+    offer: VultronActivity,
     case: VulnerabilityCase,
-) -> AcceptCaseOwnershipTransferActivity:
+) -> VultronActivity:
     """Coordinator accepts the ownership transfer offer on the CaseActor.
 
     The Accept is posted to the CaseActor's inbox, which rehydrates the Offer,
     extracts the case ID, and updates ``case.attributed_to`` to the
     Coordinator's ID.
     """
-    accept = AcceptCaseOwnershipTransferActivity(
-        actor=coordinator.id_,
-        object_=offer,
-        to=[case_actor.id_],
+    accept = accept_case_ownership_transfer_activity(
+        offer, actor=coordinator.id_, to=[case_actor.id_]
     )
 
     with demo_step(

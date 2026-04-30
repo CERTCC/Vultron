@@ -16,7 +16,7 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.models.protocols import is_case_model
 from vultron.core.use_cases._helpers import _as_id
-from vultron.wire.as2.vocab.activities.case import AddNoteToCaseActivity
+from vultron.wire.as2.factories import add_note_to_case_activity
 
 logger = logging.getLogger(__name__)
 
@@ -143,10 +143,10 @@ class AddNoteToCaseReceivedUseCase:
             )
             return
 
-        broadcast = AddNoteToCaseActivity(
-            actor=case_actor_id,
-            object_=cast(Any, self._dl.read(note_id)),
+        broadcast = add_note_to_case_activity(
+            note=cast(Any, self._dl.read(note_id)),
             target=case_id,
+            actor=case_actor_id,
             to=recipient_ids,
         )
         try:

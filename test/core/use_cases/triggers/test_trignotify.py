@@ -51,14 +51,16 @@ from vultron.core.use_cases.triggers.requests import (
     InvalidateReportTriggerRequest,
     RejectReportTriggerRequest,
 )
-from vultron.wire.as2.vocab.activities.embargo import EmProposeEmbargoActivity
+from vultron.wire.as2.factories import (
+    em_propose_embargo_activity,
+    rm_submit_report_activity,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
-from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
 
 from datetime import datetime, timezone
 
@@ -241,10 +243,8 @@ class TestEmbargoTriggerToField:
         """SvcAcceptEmbargoUseCase queues EmAcceptEmbargoActivity with to."""
         embargo = EmbargoEvent(context=self.case.id_)
         self.dl.create(embargo)
-        proposal = EmProposeEmbargoActivity(
-            actor=self.finder.id_,
-            object_=embargo,
-            context=self.case.id_,
+        proposal = em_propose_embargo_activity(
+            embargo, context=self.case.id_, actor=self.finder.id_
         )
         self.dl.create(proposal)
         self.case.current_status.em_state = EM.PROPOSED
@@ -309,11 +309,10 @@ class TestReportTriggerToField:
         )
         self.dl.create(self.report)
 
-        self.offer = RmSubmitReportActivity(
+        self.offer = rm_submit_report_activity(
+            self.report,
+            self.vendor.id_,
             actor=self.finder.id_,
-            object_=self.report,
-            target=self.vendor.id_,
-            to=[self.vendor.id_],
         )
         self.dl.create(self.offer)
         yield
