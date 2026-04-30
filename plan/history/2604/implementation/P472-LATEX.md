@@ -2,6 +2,7 @@
 title: Fix block-math opening delimiter in conclusion.md (#234, #235)
 date: 2026-04-30
 source: P472-LATEX
+type: implementation
 ---
 
 The opening `$$` delimiter in `docs/reference/formal_protocol/conclusion.md`

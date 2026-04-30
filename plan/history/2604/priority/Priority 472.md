@@ -18,14 +18,15 @@ Fixed in commit `2c116d57`:
 - **#186 / #271** — `ssvc_crosswalk.md`: removed `\label{}` commands and fixed
   an 8-space-indented `pva` equation that was rendering as a `<pre><code>` block.
 - **#234 / #235** — `conclusion.md` / `transitions.md`: LaTeX rendering issues
-  were linked to `\label{}` in `formal_protocol/index.md`; fixing that file
-  (part of the same MathJax document context) resolved rendering on the
-  conclusion and transitions pages indirectly.
+  were addressed by the same docs batch. `conclusion.md` was directly
+  modified to fix the `$$` delimiter issue, and the `\label{}` fix in
+  `formal_protocol/index.md` also helped resolve related MathJax rendering
+  problems affecting the formal protocol pages, including `transitions.md`.
 - Repo-wide `\label{}` sweep also fixed `reasoning_over_histories.md` and
   `em/defaults.md`.
 
-**Note**: `conclusion.md` and `transitions.md` were not directly modified.
-If LaTeX rendering issues resurface on those pages, they should be
+**Note**: `conclusion.md` was directly modified in this PR; `transitions.md`
+was not. If LaTeX rendering issues resurface on either page, they should be
 investigated independently.
 
 ### BUG-386 (#386)
