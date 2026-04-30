@@ -27,6 +27,8 @@ Resolving these before cyclomatic complexity reduction (Priority 480) enables
 cleaner refactors: narrower interfaces and deeper modules reduce CC
 organically.
 
+**See also**: `TASK-RFC-400`, `TASK-RFC-401`, `TASK-RFC-403`
+
 Additional implementation-level architecture tasks (no GitHub issues yet):
 
 - **TASK-AF** — Activity Factory Functions: introduce
