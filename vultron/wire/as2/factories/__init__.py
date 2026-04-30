@@ -28,7 +28,21 @@ factory functions are implemented (AF.2 through AF.6).
 """
 
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
+from vultron.wire.as2.factories.report import (
+    rm_close_report_activity,
+    rm_create_report_activity,
+    rm_invalidate_report_activity,
+    rm_read_report_activity,
+    rm_submit_report_activity,
+    rm_validate_report_activity,
+)
 
 __all__ = [
     "VultronActivityConstructionError",
+    "rm_close_report_activity",
+    "rm_create_report_activity",
+    "rm_invalidate_report_activity",
+    "rm_read_report_activity",
+    "rm_submit_report_activity",
+    "rm_validate_report_activity",
 ]
