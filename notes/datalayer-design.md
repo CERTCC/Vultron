@@ -22,6 +22,63 @@ wire/domain/persistence separation context.
 
 ---
 
+## DataLayer vs. CasePersistence
+
+The repository now distinguishes between two layers of persistence contract:
+
+| Port | Intended callers | Purpose |
+| --- | --- | --- |
+| `DataLayer` | adapters, routers, infrastructure code | Full adapter-level contract, including persistence, queue operations, health/admin helpers, and diagnostics |
+| `CasePersistence` | core use cases and BT nodes | Narrow core-facing persistence/query contract |
+| `CaseOutboxPersistence` | the small subset of core code that also enqueues outbound activities | `CasePersistence` plus outbound enqueue methods only |
+
+### Current boundary
+
+`CasePersistence` is intentionally narrower than `DataLayer`. Its current
+required minimum surface is:
+
+- `create`
+- `read`
+- `get`
+- `save`
+- `by_type`
+- `find_case_by_report_id`
+- `find_actor_by_short_id`
+
+That list is the current minimum contract, not a promise that the surface is
+finished forever. Future additions are allowed only when they preserve the same
+core-facing persistence/query boundary. Queue methods, health checks, admin
+helpers, diagnostics, and low-level storage primitives remain part of the full
+`DataLayer` contract instead.
+
+### Deprecated compatibility methods
+
+`get()` and `by_type()` remain on `CasePersistence` only as compatibility
+methods during the migration away from raw-record access in core. They are now
+deprecated and should be treated as removal targets, not stable design
+endpoints.
+
+For new or refactored core code, prefer:
+
+- `read()` for single-object lookup
+- `list()` for typed collection queries
+- dedicated typed helper methods when a generic query would otherwise expose
+  raw persistence details
+
+The cleanup task is tracked in `plan/IMPLEMENTATION_PLAN.md` as
+`TASK-CP-CLEANUP`.
+
+### CaseOutboxPersistence as a smell marker
+
+`CaseOutboxPersistence` exists for the small amount of core code that must both
+update case state and enqueue outbound activities. That need is sometimes
+legitimate, but it should not become invisible. When a `ReceivedUseCase`
+depends on `CaseOutboxPersistence`, treat that as an architectural smell: the
+handler is mixing inbound processing with outbound broadcast and should be
+reviewed for a cleaner split later.
+
+---
+
 ## Auto-Rehydration: `dl.read()` MUST Return Fully Typed Objects
 
 ### Design Decision (April 2026)
@@ -114,6 +171,10 @@ adapter, not in core. This improves separation of concerns and makes core
 logic easier to test without mocking storage internals.
 
 **See also:** Datalayer Storage Records section below.
+
+This is also why `get()` and `by_type()` are a poor long-term fit for
+`CasePersistence`: they keep raw-record style access available to core when the
+target direction is fully typed domain-object access.
 
 ---
 

@@ -68,6 +68,38 @@ tests (leaf nodes and trees alike).
 
 ---
 
+## TASK-CP-CLEANUP — Remove Deprecated `CasePersistence` Compatibility Methods
+
+**Source**: `specs/datalayer.yaml` DL-04-005;
+`notes/datalayer-design.md`
+
+**Blocked by TASK-DL-REHYDRATE.**
+
+`CasePersistence` currently still exposes `get()` and `by_type()` as
+compatibility methods even though the desired long-term direction is typed
+domain-object access via `read()`, `list()`, and dedicated typed helpers.
+Remove those deprecated raw-record escape hatches once remaining core callers
+have typed replacements.
+
+**Acceptance criteria:**
+
+- `CasePersistence` and `CaseOutboxPersistence` no longer expose `get()` or
+  `by_type()`.
+- Core callers that currently depend on those methods use `read()`, `list()`,
+  or dedicated typed helper methods instead.
+- No core code depends on raw `dict[str, Any]` persistence results through the
+  narrow ports.
+- Specs, notes, and tests are updated consistently.
+
+- [ ] CP-CLEANUP.1: Audit remaining narrow-port `get()` / `by_type()` callers
+  in `vultron/core/` and classify the typed replacement needed
+- [ ] CP-CLEANUP.2: Add any missing typed query/helper methods needed to
+  preserve behavior without raw-record access
+- [ ] CP-CLEANUP.3: Remove deprecated `get()` / `by_type()` from
+  `CasePersistence` / `CaseOutboxPersistence`; update tests and docs
+
+---
+
 ## TASK-BTND5 — Generalize Participant BT Nodes
 
 **Source**: `specs/behavior-tree-node-design.yaml` BTND-05-001 through

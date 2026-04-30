@@ -2,7 +2,7 @@ id: DL
 title: DataLayer Port
 description: Behavioural contract that all DataLayer adapter implementations MUST satisfy. Covers auto-rehydration on read,
   type-safe write operations, and port isolation.
-version: 1.0.0
+version: 1.1.0
 kind: implementation
 scope:
 - prototype
@@ -75,3 +75,43 @@ groups:
     statement: The DataLayer adapter MUST NOT expose vocabulary registry lookups or AS2 type-name resolution to core; the
       vocabulary registry is a wire-layer concern and the adapter must maintain its own internal mapping.
     rationale: Prevents wire-layer types from leaking into the core domain through the persistence port.
+- id: DL-04
+  title: Narrow Core Persistence Ports
+  specs:
+  - id: DL-04-001
+    priority: MUST
+    statement: The `DataLayer` port MUST remain the full adapter-level persistence contract, while core use cases and BT
+      nodes MUST depend on `CasePersistence` or `CaseOutboxPersistence` instead of the full `DataLayer` port unless a
+      documented exception requires the broader interface.
+    rationale: Preserves a complete adapter-facing contract while making narrow, intention-revealing ports the default
+      dependency for core code.
+    relationships:
+    - rel_type: implements
+      spec_id: ARCH-01-001
+  - id: DL-04-002
+    priority: MUST
+    statement: The current required minimum `CasePersistence` surface is `create`, `read`, `get`, `save`, `by_type`,
+      `find_case_by_report_id`, and `find_actor_by_short_id`; future additions MAY be made only when they preserve the
+      same core-facing persistence/query boundary and do not introduce queue, admin, health, or diagnostic
+      responsibilities.
+    rationale: Makes the current narrow-port contract explicit without freezing the interface against future legitimate
+      query helpers.
+  - id: DL-04-003
+    priority: MUST_NOT
+    statement: '`CasePersistence` MUST NOT include inbox queue methods, outbox inspection or drain methods, `ping`,
+      `clear_*`, `update`, `delete`, `get_all`, `all`, `count_all`, or other infrastructure, admin, or diagnostic
+      operations that belong to the full `DataLayer` adapter contract.'
+    rationale: Prevents low-level storage and operational concerns from leaking into core use cases and BT nodes.
+  - id: DL-04-004
+    priority: MUST
+    statement: '`CaseOutboxPersistence` MUST extend `CasePersistence` only with the outbound enqueue methods
+      `record_outbox_item` and `outbox_append`; if a `ReceivedUseCase` depends on `CaseOutboxPersistence`, that
+      dependency MUST be treated as a documented architectural smell rather than normal design.'
+    rationale: Makes outbound side effects explicit and highlights mixed inbound-plus-broadcast handlers for later
+      refactoring.
+  - id: DL-04-005
+    priority: MUST
+    statement: '`get()` and `by_type()` on `CasePersistence` are deprecated compatibility methods; new or refactored core
+      code MUST prefer typed `read()`, `list()`, or dedicated typed helper methods, and migration work MUST remove the
+      deprecated methods once existing call sites have been replaced.'
+    rationale: The narrow port should converge on typed domain-object access rather than preserve raw-record escape hatches.

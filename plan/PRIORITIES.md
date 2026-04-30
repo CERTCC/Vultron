@@ -44,6 +44,9 @@ Additional implementation-level architecture tasks (no GitHub issues yet):
   `CreateCaseOwnerParticipant`; add `CVDRoles.CASE_OWNER`; remove the
   `CreateFinderParticipantNode` alias; refactor `CVDRoles` from `Flag` to
   `StrEnum`.
+- **TASK-CP-CLEANUP** — Remove deprecated `get()` / `by_type()` from
+  `CasePersistence` after migrating core callers to typed `read()` / `list()`
+  or dedicated typed helpers. Blocked by TASK-DL-REHYDRATE.
 - **TASK-DL-REHYDRATE** — DataLayer auto-rehydration residual: add a typed
   `list(type_key)` method to the `DataLayer` Protocol and SQLite adapter;
   remove manual `model_validate()` coercions from use cases.

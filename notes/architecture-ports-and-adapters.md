@@ -605,7 +605,11 @@ Core ports should be discriminated into two categories for clarity:
 
 **Outbound ports (driven)** — core calls out to external systems:
 
-- `DataLayer` Protocol (`core/ports/datalayer.py`) — persistence
+- `DataLayer` Protocol (`core/ports/datalayer.py`) — full adapter-level
+  persistence contract
+- `CasePersistence` / `CaseOutboxPersistence`
+  (`core/ports/case_persistence.py`) — narrower core-facing persistence ports
+  for use cases and BT nodes; see `notes/datalayer-design.md`
 - `ActivityEmitter` Protocol (`core/ports/emitter.py`, to be created in
   OX-1.0) — outbound activity delivery
 
