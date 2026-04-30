@@ -9,7 +9,7 @@ from vultron.core.models.events.status import (
     CreateCaseStatusReceivedEvent,
     CreateParticipantStatusReceivedEvent,
 )
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.cs import is_valid_pxa_transition
 from vultron.core.states.em import is_valid_em_transition
 from vultron.core.states.rm import is_valid_rm_transition
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 class CreateCaseStatusReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: CreateCaseStatusReceivedEvent
+        self, dl: CasePersistence, request: CreateCaseStatusReceivedEvent
     ) -> None:
         self._dl = dl
         self._request: CreateCaseStatusReceivedEvent = request
@@ -44,7 +44,7 @@ class CreateCaseStatusReceivedUseCase:
 
 class AddCaseStatusToCaseReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: AddCaseStatusToCaseReceivedEvent
+        self, dl: CasePersistence, request: AddCaseStatusToCaseReceivedEvent
     ) -> None:
         self._dl = dl
         self._request: AddCaseStatusToCaseReceivedEvent = request
@@ -123,7 +123,9 @@ class AddCaseStatusToCaseReceivedUseCase:
 
 class CreateParticipantStatusReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: CreateParticipantStatusReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: CreateParticipantStatusReceivedEvent,
     ) -> None:
         self._dl = dl
         self._request: CreateParticipantStatusReceivedEvent = request
@@ -143,7 +145,7 @@ class CreateParticipantStatusReceivedUseCase:
 class AddParticipantStatusToParticipantReceivedUseCase:
     def __init__(
         self,
-        dl: DataLayer,
+        dl: CasePersistence,
         request: AddParticipantStatusToParticipantReceivedEvent,
     ) -> None:
         self._dl = dl

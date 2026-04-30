@@ -24,7 +24,7 @@ from vultron.core.case_states.patterns.potential_actions import (
     action as get_actions,
 )
 from vultron.core.models.protocols import CaseModel, ParticipantModel
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.scoring.utils import enum2title
 from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.em import EM
@@ -41,7 +41,7 @@ class ActionRulesRequest(BaseModel):
 
 
 def _resolve_participant_id_from_actor(
-    case: CaseModel, actor_id: str, dl: DataLayer
+    case: CaseModel, actor_id: str, dl: CasePersistence
 ) -> str:
     """Resolve a case-scoped participant ID from an actor ID."""
     participant_id = case.actor_participant_index.get(actor_id)
@@ -83,7 +83,9 @@ class GetActionRulesUseCase:
     Implements: CM-07-001, CM-07-002, CM-07-003, AR-07-001, AR-07-002.
     """
 
-    def __init__(self, dl: DataLayer, request: ActionRulesRequest) -> None:
+    def __init__(
+        self, dl: CasePersistence, request: ActionRulesRequest
+    ) -> None:
         self._dl = dl
         self._request = request
 

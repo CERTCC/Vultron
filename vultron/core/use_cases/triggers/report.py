@@ -33,7 +33,7 @@ from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
 from vultron.core.models.participant_status import VultronParticipantStatus
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
     _report_phase_status_id,
@@ -70,7 +70,7 @@ logger = logging.getLogger(__name__)
 
 
 def _resolve_offer_and_report(
-    offer_id: str, dl: DataLayer
+    offer_id: str, dl: CaseOutboxPersistence
 ) -> tuple["RmSubmitReportActivity", VulnerabilityReport]:
     """Resolve offer and its embedded report; raise domain errors on failure.
 
@@ -96,7 +96,7 @@ def _resolve_offer_and_report(
 
 
 def _report_addressees(
-    report_id: str, actor_id: str, offer, dl: DataLayer
+    report_id: str, actor_id: str, offer, dl: CaseOutboxPersistence
 ) -> list[str] | None:
     """Return the ``to`` recipient list for a report-phase outbound activity.
 
@@ -128,7 +128,7 @@ class SvcValidateReportUseCase:
     """Validate a report offer using the ValidateReportBT behavior tree."""
 
     def __init__(
-        self, dl: DataLayer, request: ValidateReportTriggerRequest
+        self, dl: CaseOutboxPersistence, request: ValidateReportTriggerRequest
     ) -> None:
         self._dl = dl
         self._request: ValidateReportTriggerRequest = request
@@ -186,7 +186,9 @@ class SvcInvalidateReportUseCase:
     """Emit RmInvalidateReportActivity (TentativeReject) for the given offer."""
 
     def __init__(
-        self, dl: DataLayer, request: InvalidateReportTriggerRequest
+        self,
+        dl: CaseOutboxPersistence,
+        request: InvalidateReportTriggerRequest,
     ) -> None:
         self._dl = dl
         self._request: InvalidateReportTriggerRequest = request
@@ -251,7 +253,7 @@ class SvcRejectReportUseCase:
     """Hard-close a report offer by emitting RmCloseReportActivity (Reject)."""
 
     def __init__(
-        self, dl: DataLayer, request: RejectReportTriggerRequest
+        self, dl: CaseOutboxPersistence, request: RejectReportTriggerRequest
     ) -> None:
         self._dl = dl
         self._request: RejectReportTriggerRequest = request
@@ -314,7 +316,7 @@ class SvcCloseReportUseCase:
     """Close a report via the RM lifecycle (RM → C transition)."""
 
     def __init__(
-        self, dl: DataLayer, request: CloseReportTriggerRequest
+        self, dl: CaseOutboxPersistence, request: CloseReportTriggerRequest
     ) -> None:
         self._dl = dl
         self._request: CloseReportTriggerRequest = request
@@ -397,7 +399,7 @@ class SvcSubmitReportUseCase:
     """
 
     def __init__(
-        self, dl: DataLayer, request: SubmitReportTriggerRequest
+        self, dl: CaseOutboxPersistence, request: SubmitReportTriggerRequest
     ) -> None:
         self._dl = dl
         self._request = request

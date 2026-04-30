@@ -26,7 +26,7 @@ CM-02 requirements.
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 
 import isodate  # type: ignore[import-untyped]
 
@@ -55,7 +55,10 @@ from vultron.core.behaviors.helpers import (
     DataLayerCondition,
 )
 from vultron.core.behaviors.helpers import UpdateActorOutbox  # noqa: F401
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import (
+    CasePersistence,
+    CaseOutboxPersistence,
+)
 from vultron.core.use_cases._helpers import (
     _report_phase_status_id,
     update_participant_rm_state,
@@ -408,7 +411,7 @@ class SetCaseAttributedTo(DataLayerAction):
 
 
 def _create_and_attach_participant(
-    dl: DataLayer,
+    dl: CasePersistence,
     participant: "VultronParticipant",
     case_id: str,
     actor_id_for_index: str,
@@ -976,7 +979,7 @@ class CreateCaseParticipantNode(DataLayerAction):
             if has_outbox(actor_obj):
                 actor_obj.outbox.items.append(add_notification.id_)
                 self.datalayer.save(actor_obj)
-            self.datalayer.record_outbox_item(
+            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
                 self.actor_id, add_notification.id_
             )
             self.logger.info(
@@ -1090,7 +1093,7 @@ class CommitCaseLogEntryNode(DataLayerAction):
                 object_id=object_id,
                 event_type=event_type,
                 actor_id=self.actor_id,
-                dl=self.datalayer,
+                dl=cast(CaseOutboxPersistence, self.datalayer),
             )
             self.logger.info(
                 "%s: committed log entry '%s' for case '%s'",

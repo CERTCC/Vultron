@@ -14,33 +14,6 @@ PD-06). Do not infer priority from section order.
 
 ---
 
-## TASK-RFC-403 — Narrow DataLayer Port to CasePersistence
-
-**Source**: <https://github.com/CERTCC/Vultron/issues/403>
-
-`DataLayer` exposes 20+ methods to all core use cases; most callers use 3–6.
-Introduce `CasePersistence` (6-method) and `CaseOutboxPersistence` Protocols
-in `vultron/core/ports/`. `SqliteDataLayer` satisfies both structurally (no
-changes needed). Update all core use-case and BT base-class `dl: DataLayer`
-type annotations to the narrower type. Enables `MagicMock(spec=CasePersistence)`
-in tests instead of 22-method stub classes.
-
-**Acceptance criteria:**
-
-- `vultron/core/ports/case_persistence.py` exists with `CasePersistence` and
-  `CaseOutboxPersistence` Protocols.
-- All `vultron/core/use_cases/**` `__init__(dl:)` params use `CasePersistence`
-  or `CaseOutboxPersistence`.
-- `DataLayerCondition`, `DataLayerAction`, `BTBridge` use `CasePersistence`.
-- All linters and tests pass.
-
-- [ ] RFC-403.1: Create `vultron/core/ports/case_persistence.py`
-- [ ] RFC-403.2: Update `vultron/core/use_cases/**` `dl:` type annotations
-  (~40 one-line changes)
-- [ ] RFC-403.3: Update `vultron/core/behaviors/helpers.py` and `bridge.py`
-
----
-
 ## TASK-RFC-400 — TriggerService Facade
 
 **Source**: <https://github.com/CERTCC/Vultron/issues/400>

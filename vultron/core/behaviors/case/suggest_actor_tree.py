@@ -28,12 +28,14 @@ Per specs/case-management.yaml CM-08 and specs/behavior-tree-integration.yaml.
 
 import logging
 import uuid
+from typing import cast
 
 import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
 from vultron.core.models.protocols import is_case_model
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import _as_id
 from vultron.wire.as2.vocab.activities.actor import (
     AcceptActorRecommendationActivity,
@@ -185,7 +187,7 @@ class EmitAcceptRecommendationNode(DataLayerAction):
             self.datalayer.create(accept)
         except ValueError:
             pass  # idempotent — accept already stored
-        self.datalayer.outbox_append(accept.id_)
+        cast(CaseOutboxPersistence, self.datalayer).outbox_append(accept.id_)
         self.logger.info(
             "%s: queued AcceptActorRecommendation '%s' to outbox for actor '%s'",
             self.name,
@@ -231,7 +233,7 @@ class EmitInviteToCaseNode(DataLayerAction):
             self.datalayer.create(invite)
         except ValueError:
             pass  # idempotent — invite already stored
-        self.datalayer.outbox_append(invite.id_)
+        cast(CaseOutboxPersistence, self.datalayer).outbox_append(invite.id_)
         self.logger.info(
             "%s: queued RmInviteToCase '%s' to outbox for actor '%s'",
             self.name,

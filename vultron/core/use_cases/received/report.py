@@ -11,7 +11,7 @@ from vultron.core.models.events.report import (
     ValidateReportReceivedEvent,
 )
 from vultron.core.models.protocols import is_case_model
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases.received.case import (
     CloseCaseUseCase,
     InvalidateCaseUseCase,
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 class CreateReportReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: CreateReportReceivedEvent
+        self, dl: CasePersistence, request: CreateReportReceivedEvent
     ) -> None:
         self._dl = dl
         self._request: CreateReportReceivedEvent = request
@@ -66,7 +66,7 @@ class CreateReportReceivedUseCase:
 
 class SubmitReportReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: SubmitReportReceivedEvent
+        self, dl: CasePersistence, request: SubmitReportReceivedEvent
     ) -> None:
         self._dl = dl
         self._request: SubmitReportReceivedEvent = request
@@ -187,7 +187,7 @@ class SubmitReportReceivedUseCase:
 
 class ValidateReportReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: ValidateReportReceivedEvent
+        self, dl: CasePersistence, request: ValidateReportReceivedEvent
     ) -> None:
         self._dl = dl
         self._request: ValidateReportReceivedEvent = request
@@ -230,7 +230,7 @@ class ValidateReportReceivedUseCase:
 
 class InvalidateReportReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: InvalidateReportReceivedEvent
+        self, dl: CasePersistence, request: InvalidateReportReceivedEvent
     ) -> None:
         self._dl = dl
         self._request: InvalidateReportReceivedEvent = request
@@ -272,7 +272,9 @@ class InvalidateReportReceivedUseCase:
 
 
 class AckReportReceivedUseCase:
-    def __init__(self, dl: DataLayer, request: AckReportReceivedEvent) -> None:
+    def __init__(
+        self, dl: CasePersistence, request: AckReportReceivedEvent
+    ) -> None:
         self._dl = dl
         self._request: AckReportReceivedEvent = request
 
@@ -302,7 +304,7 @@ class AckReportReceivedUseCase:
 
 class CloseReportReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: CloseReportReceivedEvent
+        self, dl: CasePersistence, request: CloseReportReceivedEvent
     ) -> None:
         self._dl = dl
         self._request: CloseReportReceivedEvent = request

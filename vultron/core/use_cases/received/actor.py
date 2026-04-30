@@ -16,7 +16,10 @@ from vultron.core.models.events.actor import (
 )
 from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.models.protocols import is_case_model
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import (
+    CasePersistence,
+    CaseOutboxPersistence,
+)
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     PEC,
@@ -31,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 class SuggestActorToCaseReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: SuggestActorToCaseReceivedEvent
+        self, dl: CasePersistence, request: SuggestActorToCaseReceivedEvent
     ) -> None:
         self._dl = dl
         self._request: SuggestActorToCaseReceivedEvent = request
@@ -88,7 +91,9 @@ class SuggestActorToCaseReceivedUseCase:
 
 class AcceptSuggestActorToCaseReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: AcceptSuggestActorToCaseReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: AcceptSuggestActorToCaseReceivedEvent,
     ) -> None:
         self._dl = dl
         self._request: AcceptSuggestActorToCaseReceivedEvent = request
@@ -107,7 +112,9 @@ class AcceptSuggestActorToCaseReceivedUseCase:
 
 class RejectSuggestActorToCaseReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: RejectSuggestActorToCaseReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: RejectSuggestActorToCaseReceivedEvent,
     ) -> None:
         self._dl = dl
         self._request: RejectSuggestActorToCaseReceivedEvent = request
@@ -123,7 +130,9 @@ class RejectSuggestActorToCaseReceivedUseCase:
 
 class OfferCaseOwnershipTransferReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: OfferCaseOwnershipTransferReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: OfferCaseOwnershipTransferReceivedEvent,
     ) -> None:
         self._dl = dl
         self._request: OfferCaseOwnershipTransferReceivedEvent = request
@@ -142,7 +151,9 @@ class OfferCaseOwnershipTransferReceivedUseCase:
 
 class AcceptCaseOwnershipTransferReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: AcceptCaseOwnershipTransferReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: AcceptCaseOwnershipTransferReceivedEvent,
     ) -> None:
         self._dl = dl
         self._request: AcceptCaseOwnershipTransferReceivedEvent = request
@@ -186,7 +197,9 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
 
 class RejectCaseOwnershipTransferReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: RejectCaseOwnershipTransferReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: RejectCaseOwnershipTransferReceivedEvent,
     ) -> None:
         self._dl = dl
         self._request: RejectCaseOwnershipTransferReceivedEvent = request
@@ -202,7 +215,7 @@ class RejectCaseOwnershipTransferReceivedUseCase:
 
 class InviteActorToCaseReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: InviteActorToCaseReceivedEvent
+        self, dl: CasePersistence, request: InviteActorToCaseReceivedEvent
     ) -> None:
         self._dl = dl
         self._request: InviteActorToCaseReceivedEvent = request
@@ -231,7 +244,9 @@ class InviteActorToCaseReceivedUseCase:
 
 class AcceptInviteActorToCaseReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: AcceptInviteActorToCaseReceivedEvent
+        self,
+        dl: CaseOutboxPersistence,
+        request: AcceptInviteActorToCaseReceivedEvent,
     ) -> None:
         self._dl = dl
         self._request: AcceptInviteActorToCaseReceivedEvent = request
@@ -372,7 +387,9 @@ class AcceptInviteActorToCaseReceivedUseCase:
 
 class RejectInviteActorToCaseReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: RejectInviteActorToCaseReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: RejectInviteActorToCaseReceivedEvent,
     ) -> None:
         self._dl = dl
         self._request: RejectInviteActorToCaseReceivedEvent = request
@@ -396,7 +413,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
 
     def __init__(
         self,
-        dl: DataLayer,
+        dl: CasePersistence,
         request: AnnounceVulnerabilityCaseReceivedEvent,
     ) -> None:
         self._dl = dl

@@ -22,7 +22,7 @@ No HTTP framework imports permitted here.
 import logging
 
 from vultron.core.models.protocols import is_case_model
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import case_addressees
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,
@@ -48,7 +48,7 @@ class SvcAddNoteToCaseUseCase:
     """
 
     def __init__(
-        self, dl: DataLayer, request: AddNoteToCaseTriggerRequest
+        self, dl: CaseOutboxPersistence, request: AddNoteToCaseTriggerRequest
     ) -> None:
         self._dl = dl
         self._request = request

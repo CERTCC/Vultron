@@ -7,7 +7,7 @@ from vultron.core.models.events.case_participant import (
     CreateCaseParticipantReceivedEvent,
     RemoveCaseParticipantFromCaseReceivedEvent,
 )
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.models.protocols import is_case_model
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class CreateCaseParticipantReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: CreateCaseParticipantReceivedEvent
+        self, dl: CasePersistence, request: CreateCaseParticipantReceivedEvent
     ) -> None:
         self._dl = dl
         self._request: CreateCaseParticipantReceivedEvent = request
@@ -35,7 +35,9 @@ class CreateCaseParticipantReceivedUseCase:
 
 class AddCaseParticipantToCaseReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: AddCaseParticipantToCaseReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: AddCaseParticipantToCaseReceivedEvent,
     ) -> None:
         self._dl = dl
         self._request: AddCaseParticipantToCaseReceivedEvent = request
@@ -84,7 +86,7 @@ class AddCaseParticipantToCaseReceivedUseCase:
 class RemoveCaseParticipantFromCaseReceivedUseCase:
     def __init__(
         self,
-        dl: DataLayer,
+        dl: CasePersistence,
         request: RemoveCaseParticipantFromCaseReceivedEvent,
     ) -> None:
         self._dl = dl

@@ -30,7 +30,10 @@ from vultron.core.models.protocols import (
     is_case_model,
     is_participant_model,
 )
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import (
+    CasePersistence,
+    CaseOutboxPersistence,
+)
 from vultron.core.states.participant_embargo_consent import (
     PEC,
     PEC_Trigger,
@@ -88,7 +91,9 @@ def _coerce_embargo_event(
         ) from exc
 
 
-def _cascade_pec_revise(case: PersistableModel | None, dl: DataLayer) -> None:
+def _cascade_pec_revise(
+    case: PersistableModel | None, dl: CasePersistence
+) -> None:
     """Transition all SIGNATORY participants to LAPSED.
 
     Called when an embargo transitions to REVISE state, meaning the embargo
@@ -108,7 +113,9 @@ def _cascade_pec_revise(case: PersistableModel | None, dl: DataLayer) -> None:
             dl.save(participant)
 
 
-def _cascade_pec_reset(case: PersistableModel | None, dl: DataLayer) -> None:
+def _cascade_pec_reset(
+    case: PersistableModel | None, dl: CasePersistence
+) -> None:
     """Reset all participants' embargo consent state to NO_EMBARGO.
 
     Called when an embargo is terminated or removed.
@@ -143,7 +150,7 @@ def _update_participant_embargo_acceptance(
     case: PersistableModel | None,
     actor_id: str,
     embargo_id: str,
-    dl: DataLayer,
+    dl: CaseOutboxPersistence,
 ) -> None:
     """Persist a participant-level embargo acceptance without re-driving EM."""
     if not is_case_model(case):
@@ -185,7 +192,7 @@ def _update_participant_embargo_rejection(
     case: PersistableModel | None,
     actor_id: str,
     embargo_id: str,
-    dl: DataLayer,
+    dl: CaseOutboxPersistence,
 ) -> None:
     """Persist a participant-level embargo rejection without re-driving EM."""
     if not is_case_model(case):
@@ -226,7 +233,7 @@ class SvcProposeEmbargoUseCase:
     """Propose an embargo on a case."""
 
     def __init__(
-        self, dl: DataLayer, request: ProposeEmbargoTriggerRequest
+        self, dl: CaseOutboxPersistence, request: ProposeEmbargoTriggerRequest
     ) -> None:
         self._dl = dl
         self._request: ProposeEmbargoTriggerRequest = request
@@ -328,7 +335,7 @@ class SvcAcceptEmbargoUseCase:
     """Accept an embargo proposal (accept-embargo)."""
 
     def __init__(
-        self, dl: DataLayer, request: AcceptEmbargoTriggerRequest
+        self, dl: CaseOutboxPersistence, request: AcceptEmbargoTriggerRequest
     ) -> None:
         self._dl = dl
         self._request: AcceptEmbargoTriggerRequest = request
@@ -458,7 +465,9 @@ class SvcTerminateEmbargoUseCase:
     """Terminate the active embargo on a case."""
 
     def __init__(
-        self, dl: DataLayer, request: TerminateEmbargoTriggerRequest
+        self,
+        dl: CaseOutboxPersistence,
+        request: TerminateEmbargoTriggerRequest,
     ) -> None:
         self._dl = dl
         self._request: TerminateEmbargoTriggerRequest = request
@@ -563,7 +572,7 @@ class SvcRejectEmbargoUseCase:
     """
 
     def __init__(
-        self, dl: DataLayer, request: RejectEmbargoTriggerRequest
+        self, dl: CaseOutboxPersistence, request: RejectEmbargoTriggerRequest
     ) -> None:
         self._dl = dl
         self._request: RejectEmbargoTriggerRequest = request
@@ -689,7 +698,7 @@ class SvcProposeEmbargoRevisionUseCase:
 
     def __init__(
         self,
-        dl: DataLayer,
+        dl: CaseOutboxPersistence,
         request: ProposeEmbargoRevisionTriggerRequest,
     ) -> None:
         self._dl = dl

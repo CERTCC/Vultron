@@ -14,7 +14,10 @@ from vultron.core.models.events.case import (
     UpdateCaseReceivedEvent,
 )
 from vultron.core.models.vultron_types import VultronActivity
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import (
+    CasePersistence,
+    CaseOutboxPersistence,
+)
 from vultron.core.models.protocols import (
     CaseModel,
     is_case_model,
@@ -27,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 def _check_participant_embargo_acceptance(
-    case: CaseModel, dl: DataLayer
+    case: CaseModel, dl: CasePersistence
 ) -> set[str]:
     """Check which participants have not accepted the active embargo.
 
@@ -64,7 +67,7 @@ def _check_participant_embargo_acceptance(
 
 class CreateCaseReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: CreateCaseReceivedEvent
+        self, dl: CasePersistence, request: CreateCaseReceivedEvent
     ) -> None:
         self._dl = dl
         self._request: CreateCaseReceivedEvent = request
@@ -107,7 +110,7 @@ class CreateCaseReceivedUseCase:
 
 class UpdateCaseReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: UpdateCaseReceivedEvent
+        self, dl: CaseOutboxPersistence, request: UpdateCaseReceivedEvent
     ) -> None:
         self._dl = dl
         self._request: UpdateCaseReceivedEvent = request
@@ -233,7 +236,7 @@ class UpdateCaseReceivedUseCase:
 
 class EngageCaseReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: EngageCaseReceivedEvent
+        self, dl: CasePersistence, request: EngageCaseReceivedEvent
     ) -> None:
         self._dl = dl
         self._request: EngageCaseReceivedEvent = request
@@ -273,7 +276,9 @@ class EngageCaseReceivedUseCase:
 
 
 class DeferCaseReceivedUseCase:
-    def __init__(self, dl: DataLayer, request: DeferCaseReceivedEvent) -> None:
+    def __init__(
+        self, dl: CasePersistence, request: DeferCaseReceivedEvent
+    ) -> None:
         self._dl = dl
         self._request: DeferCaseReceivedEvent = request
 
@@ -313,7 +318,7 @@ class DeferCaseReceivedUseCase:
 
 class AddReportToCaseReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: AddReportToCaseReceivedEvent
+        self, dl: CasePersistence, request: AddReportToCaseReceivedEvent
     ) -> None:
         self._dl = dl
         self._request: AddReportToCaseReceivedEvent = request
@@ -346,7 +351,9 @@ class AddReportToCaseReceivedUseCase:
 
 
 class CloseCaseReceivedUseCase:
-    def __init__(self, dl: DataLayer, request: CloseCaseReceivedEvent) -> None:
+    def __init__(
+        self, dl: CaseOutboxPersistence, request: CloseCaseReceivedEvent
+    ) -> None:
         self._dl = dl
         self._request: CloseCaseReceivedEvent = request
 
@@ -392,7 +399,9 @@ class InvalidateCaseUseCase:
     report_id to case_id (CM-12-005).
     """
 
-    def __init__(self, dl: DataLayer, case_id: str, actor_id: str) -> None:
+    def __init__(
+        self, dl: CasePersistence, case_id: str, actor_id: str
+    ) -> None:
         self._dl = dl
         self._case_id = case_id
         self._actor_id = actor_id
@@ -422,7 +431,9 @@ class CloseCaseUseCase:
     report_id to case_id (CM-12-005).
     """
 
-    def __init__(self, dl: DataLayer, case_id: str, actor_id: str) -> None:
+    def __init__(
+        self, dl: CasePersistence, case_id: str, actor_id: str
+    ) -> None:
         self._dl = dl
         self._case_id = case_id
         self._actor_id = actor_id
@@ -459,7 +470,7 @@ class ValidateCaseUseCase:
 
     def __init__(
         self,
-        dl: DataLayer,
+        dl: CasePersistence,
         actor_id: str,
         report_id: str,
         offer_id: str,

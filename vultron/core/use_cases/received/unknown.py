@@ -7,7 +7,7 @@ from vultron.core.models.events.unknown import (
     UnknownReceivedEvent,
     UnresolvableObjectReceivedEvent,
 )
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import CasePersistence
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,9 @@ class UnknownUseCase:
     semantic type.
     """
 
-    def __init__(self, dl: DataLayer, request: UnknownReceivedEvent) -> None:
+    def __init__(
+        self, dl: CasePersistence, request: UnknownReceivedEvent
+    ) -> None:
         self._dl = dl
         self._request: UnknownReceivedEvent = request
 
@@ -34,7 +36,7 @@ class UnresolvableObjectUseCase:
     """
 
     def __init__(
-        self, dl: DataLayer, request: UnresolvableObjectReceivedEvent
+        self, dl: CasePersistence, request: UnresolvableObjectReceivedEvent
     ) -> None:
         self._dl = dl
         self._request = request

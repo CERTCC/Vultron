@@ -44,7 +44,7 @@ import py_trees
 from py_trees.common import Status
 from py_trees.display import unicode_tree
 
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import CasePersistence
 
 logger = logging.getLogger(__name__)
 
@@ -86,14 +86,14 @@ class BTBridge:
 
     def __init__(
         self,
-        datalayer: DataLayer,
+        datalayer: CasePersistence,
         is_leader: Callable[[], bool] = _default_is_leader,
     ):
         """
         Initialize BT bridge with DataLayer access and optional leadership guard.
 
         Args:
-            datalayer: DataLayer implementation for persistent state access.
+            datalayer: CasePersistence implementation for persistent state access.
             is_leader: Callable returning True iff this node is the
                 replication leader.  Defaults to a function that always
                 returns True (single-node behaviour).  Per SYNC-09-003.
