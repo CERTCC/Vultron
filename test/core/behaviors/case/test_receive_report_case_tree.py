@@ -389,7 +389,7 @@ def test_tree_creates_default_embargo(
     assert case.active_embargo is not None
 
 
-def test_tree_sets_em_state_proposed_after_embargo_init(
+def test_tree_sets_em_state_active_after_embargo_init(
     datalayer,
     actor,
     reporter_actor,
@@ -401,7 +401,8 @@ def test_tree_sets_em_state_proposed_after_embargo_init(
     vendor_received_status,
 ):
     """After embargo initialization, the case's current EM state MUST be
-    PROPOSED, not NONE (D5-7-EMSTATE-1, specs/case-management.yaml CM-12-004).
+    ACTIVE, not NONE or PROPOSED (EP-04-001, EP-04-002,
+    specs/case-management.yaml CM-12-004).
     """
     from vultron.core.states.em import EM
 
@@ -418,8 +419,8 @@ def test_tree_sets_em_state_proposed_after_embargo_init(
     assert (
         case.current_status.em_state != EM.NONE
     ), f"Expected em_state != NONE after embargo init, got {case.current_status.em_state}"
-    assert case.current_status.em_state == EM.PROPOSED, (
-        f"Expected em_state == PROPOSED after embargo init,"
+    assert case.current_status.em_state == EM.ACTIVE, (
+        f"Expected em_state == ACTIVE after embargo init,"
         f" got {case.current_status.em_state}"
     )
 

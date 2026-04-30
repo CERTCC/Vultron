@@ -10,34 +10,6 @@ relative order. Completed priorities should be archived via `uv run append-histo
 (writes to `plan/history/YYMM/priority/`) and then removed from this file to keep
 `plan/PRIORITIES.md` focused on pending and in-progress work.
 
-## Priority 471: Bug Fixes and Demo Polish
-
-Active bugs in the multiparty demo and related subsystems, tracked under
-parent issue [#387](https://github.com/CERTCC/Vultron/issues/387).
-
-Sub-issues:
-
-- [#378](https://github.com/CERTCC/Vultron/issues/378) — BUG: CaseLogEntry serialized without domain fields in AnnounceLogEntryActivity
-- [#379](https://github.com/CERTCC/Vultron/issues/379) — BUG: Log entry replication hash-check times out in two-actor demo
-- [#380](https://github.com/CERTCC/Vultron/issues/380) — BUG: add_activity_to_outbox fails to find actor stored under full URI when called with bare UUID
-- [#381](https://github.com/CERTCC/Vultron/issues/381) — BUG: Spurious rehydration warning when Invite target case not yet in receiver's DataLayer
-- [#382](https://github.com/CERTCC/Vultron/issues/382) — BUG: Nested Invite object stripped of required fields during dehydration
-- [#383](https://github.com/CERTCC/Vultron/issues/383) — BUG: Invalid PEC state transition `NO_EMBARGO` → accept during embargo activation
-- [#384](https://github.com/CERTCC/Vultron/issues/384) — BUG \[DEMO-BREAKING\]: Second participant accept-embargo returns 409 when EM state already ACTIVE
-- [#385](https://github.com/CERTCC/Vultron/issues/385) — BUG: EngageCaseBT fails silently when processing inbound engage_case notification
-- [#386](https://github.com/CERTCC/Vultron/issues/386) — BUG: Dead-letter record created when Accept references object not yet in receiver's DataLayer
-- [#390](https://github.com/CERTCC/Vultron/issues/390) — Users must set env vars before running docker
-- [#391](https://github.com/CERTCC/Vultron/issues/391) — Demo description draws attention to the DataLayer, but logs do not reflect this
-
-**See also**: TASK-EMDEFAULT — Default Embargo State (EP-04): when a receiver
-applies their published default embargo at case creation, `em_state` MUST be
-`EM.ACTIVE` immediately (not `EM.PROPOSED`). Tracked in the implementation
-plan; no GitHub issue yet.
-
-**Note**: If an RFC improvement (#405) would significantly change the solution
-space for a particular bug, defer the bug fix until after that RFC is
-implemented. Don't fix and then immediately refactor away the fix.
-
 ## Priority 472: Docs Batch — LaTeX Fixes and Versioning Updates
 
 A batch of small, independent documentation fixes tracked under parent issue

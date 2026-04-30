@@ -1,5 +1,17 @@
 # Docker Setup for Vultron
 
+## Before you start
+
+Create a `.env` file from the example before running any `docker compose`
+command:
+
+```bash
+cp docker/.env.example docker/.env
+```
+
+The `.env` file sets the Docker Compose project name and is required for
+container, network, and volume naming to work correctly.
+
 ## Available Services
 
 This docker-compose setup provides the following containerized services:
