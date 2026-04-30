@@ -14,31 +14,6 @@ PD-06). Do not infer priority from section order.
 
 ---
 
-## TASK-RFC-401 — BTTestScenario Deep-Module Test Harness
-
-**Source**: <https://github.com/CERTCC/Vultron/issues/401>
-
-`test/core/behaviors/report/test_nodes.py` and
-`test/core/behaviors/case/test_nodes.py` bypass the
-`BTBridge.execute_with_setup()` lifecycle via duplicated
-`setup_node_blackboard()` helpers. Introduce `BTTestScenario` in
-`test/core/behaviors/bt_harness.py` as the single correct path for all BT
-tests (leaf nodes and trees alike).
-
-**Acceptance criteria:**
-
-- `test/core/behaviors/bt_harness.py` exists with `BTTestScenario` class and
-  `bt_scenario`, `bt_scenario_factory`, `shared_dl_actors` fixtures.
-- No `setup_node_blackboard()` / direct `node.update()` /
-  `node.blackboard.register_key()` patterns in `test_nodes.py` files.
-- All existing tests pass.
-
-- [ ] RFC-401.1: Create `test/core/behaviors/bt_harness.py`
-- [ ] RFC-401.2: Rewrite `test/core/behaviors/report/test_nodes.py` using harness
-- [ ] RFC-401.3: Rewrite `test/core/behaviors/case/test_nodes.py` using harness
-
----
-
 ## TASK-CP-CLEANUP — Remove Deprecated `CasePersistence` Compatibility Methods
 
 **Source**: `specs/datalayer.yaml` DL-04-005;

@@ -7,9 +7,11 @@
 | 2026-04-30 | priority | Priority 472 | Priority 472 — Docs Batch (LaTeX Fixes and Versioning Updates) |
 | 2026-04-30 | implementation | BUG-26043001 | BUG-26043001 — append-history: validate required frontmatter fields |
 | 2026-04-30 | implementation | P472-LATEX | Fix block-math opening delimiter in conclusion.md (#234, #235) |
+| 2026-04-30 | implementation | RFC-400 | RFC-400 TriggerService Facade |
 | 2026-04-30 | implementation | TASK-BUG-386 | BUG-386 — Defer unresolved Accept.object_ references (resolved via sender-side fix) |
 | 2026-04-30 | implementation | TASK-DL-REHYDRATE | DataLayer list_objects() method and model_validate cleanup |
 | 2026-04-30 | implementation | TASK-DOCS-472 | TASK-DOCS-472 — Fix LaTeX Rendering and Versioning Docs |
+| 2026-04-30 | implementation | TASK-RFC-401 | TASK-RFC-401 BTTestScenario deep-module test harness |
 | 2026-04-30 | implementation | TASK-RFC-402 | Consolidate find_matching_semantics into semantic_registry |
 | 2026-04-30 | implementation | TASK-RFC-403 | Introduce CasePersistence and CaseOutboxPersistence narrow Protocols (RFC-403) |
 | 2026-04-29 | priority | Priority 471 | Priority 471: Bug Fixes and Demo Polish — COMPLETE |
@@ -145,4 +147,3 @@
 | 2026-04-01 | implementation | D5-4 | D5-4 — Multi-Vendor Demo with Ownership Transfer (Completed 2026-04-01) |
 | 2026-04-01 | implementation | D5-5 | D5-5 — Multi-Actor Integration Tests (2026-04-01) |
 | 2026-04-01 | implementation | LEGACY-2026-04-01-bug-2026040102-fix-circular-import-in-validate-t | BUG-2026040102 Fix — Circular Import in validate_tree |
-| 2026-04-30 | implementation | RFC-400 | RFC-400 TriggerService Facade |
