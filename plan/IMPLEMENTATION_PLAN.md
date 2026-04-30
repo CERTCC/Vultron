@@ -14,27 +14,34 @@ PD-06). Do not infer priority from section order.
 
 ---
 
-## TASK-DOCS-472 — LaTeX Fixes and Versioning Updates
+## TASK-BUG-386 — Defer unresolved `Accept.object_` references
 
-**Parent**: <https://github.com/CERTCC/Vultron/issues/404>
+**Parent**: <https://github.com/CERTCC/Vultron/issues/387>
 
-Five independent documentation fixes resoluble in a single focused pass.
+**Source**: <https://github.com/CERTCC/Vultron/issues/386>
+
+Current behavior treats an inbound `Accept` whose `object_` URI is not yet
+present in the receiver's DataLayer as
+`MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT` and stores a dead-letter
+record. That leaves the system brittle under out-of-order delivery even though
+this is a normal distributed-systems condition.
 
 **Acceptance criteria:**
 
-- All LaTeX in affected pages renders without raw `$\LaTeX$` visible.
-- Versioning page describes CalVer scheme with no SemVer references.
-- `uv run mkdocs build --strict` passes.
+- An inbound `Accept` with an unresolved `object_` reference is not
+  immediately dead-lettered.
+- The system records enough information to retry or complete processing once
+  the referenced object arrives.
+- The existing inline-object requirement for `Accept` remains enforced when
+  the sender supplies the full object.
+- Regression tests cover out-of-order delivery where `Accept` arrives before
+  the referenced `Invite` or `Offer`.
 
-- [ ] DOC-472.1: Update `docs/topics/background/versioning/` to describe CalVer
-  **Source**: <https://github.com/CERTCC/Vultron/issues/154>
-- [ ] DOC-472.2: Fix LaTeX in SSVC Crosswalk (`reference/ssvc_crosswalk/`)
-  **Source**: <https://github.com/CERTCC/Vultron/issues/186>,
-  <https://github.com/CERTCC/Vultron/issues/271>
-- [ ] DOC-472.3: Fix LaTeX in Formal Protocol Redux conclusion page
-  **Source**: <https://github.com/CERTCC/Vultron/issues/234>
-- [ ] DOC-472.4: Fix LaTeX in Transitions page
-  **Source**: <https://github.com/CERTCC/Vultron/issues/235>
+- [ ] BUG-386.1: Design and implement deferred handling for unresolved
+  `Accept.object_` references instead of immediate dead-lettering
+- [ ] BUG-386.2: Reprocess deferred activities when the referenced object
+  becomes available
+- [ ] BUG-386.3: Add regression coverage for out-of-order `Accept` delivery
 
 ---
 

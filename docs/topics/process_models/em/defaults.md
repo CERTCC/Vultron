@@ -261,7 +261,6 @@ to lengthen it.
     willingness for the embargo to persist on each consecutive day.
     
     $$\begin{aligned}
-        \label{eq:x_i}
         \mathbf{x} = 
             \begin{bmatrix} x_i :
             x_i = 
@@ -271,7 +270,6 @@ to lengthen it.
             \end{cases}
             & \text{for } 0 \leq i < max(n,m)
             \end{bmatrix} \\
-        \label{eq:y_i}
         \mathbf{y} =
             \begin{bmatrix} y_i : 
             y_i = 
@@ -295,7 +293,6 @@ to lengthen it.
     logical *AND* ($\wedge$) of elements from $\mathbf{x}_ and _\mathbf{y}$:
     
     $$\begin{aligned}
-        \label{eq:z_i}
         \mathbf{z} = 
         \begin{bmatrix} z_i : 
             z_i = x_i \land y_i

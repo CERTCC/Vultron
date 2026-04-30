@@ -15,6 +15,12 @@ relative order. Completed priorities should be archived via `uv run append-histo
 A batch of small, independent documentation fixes tracked under parent issue
 [#404](https://github.com/CERTCC/Vultron/issues/404).
 
+Also carried in this top priority block:
+
+- [#386](https://github.com/CERTCC/Vultron/issues/386) — Remaining open
+  Priority 471 follow-up: defer unresolved `Accept.object_` references instead
+  of immediately storing dead-letter records
+
 Sub-issues:
 
 - [#154](https://github.com/CERTCC/Vultron/issues/154) — Update versioning background to reflect CalVer adoption (remove semver references)

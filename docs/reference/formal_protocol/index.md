@@ -20,7 +20,7 @@ a protocol as follows.
 
     A **protocol** with $N$ processes is a quadruple:
 
-    $$\label{eq:protocol}
+    $$
     protocol = 
         \Big \langle 
             { \langle S_i \rangle }^N_{i=1}, 
