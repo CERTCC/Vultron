@@ -13,7 +13,7 @@ from vultron.core.models.protocols import (
     is_case_model,
     is_participant_model,
 )
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.rm import RM
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
@@ -39,7 +39,7 @@ def _as_id(obj: Any) -> str | None:
 
 
 def _idempotent_create(
-    dl: DataLayer,
+    dl: CasePersistence,
     type_key: str | None,
     id_key: str | None,
     obj: Any,
@@ -84,7 +84,7 @@ def _report_phase_status_id(
     return f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, name)}"
 
 
-def resolve_case(case_id: str, dl: DataLayer):
+def resolve_case(case_id: str, dl: CasePersistence):
     """Resolve a VulnerabilityCase by ID; raise domain error if absent or wrong
     type.
 
@@ -103,7 +103,7 @@ def resolve_case(case_id: str, dl: DataLayer):
 
 
 def update_participant_rm_state(
-    case_id: str, actor_id: str, new_rm_state: RM, dl: DataLayer
+    case_id: str, actor_id: str, new_rm_state: RM, dl: CasePersistence
 ) -> bool:
     """Append a new ParticipantStatus with new_rm_state to the actor's
     CaseParticipant in the given case and persist the updated participant.

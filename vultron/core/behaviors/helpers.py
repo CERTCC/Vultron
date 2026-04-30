@@ -26,12 +26,16 @@ Per specs/behavior-tree-integration.yaml:
 """
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
 
 from vultron.core.models.protocols import has_outbox
+from vultron.core.ports.case_persistence import (
+    CasePersistence,
+    CaseOutboxPersistence,
+)
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
 
 logger = logging.getLogger(__name__)
@@ -65,7 +69,7 @@ class DataLayerCondition(py_trees.behaviour.Behaviour):
         self.logger = logging.getLogger(  # type: ignore[assignment]
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )
-        self.datalayer: DataLayer | None = None
+        self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
 
     def setup(self, **kwargs: Any) -> None:
@@ -130,7 +134,7 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
         self.logger = logging.getLogger(  # type: ignore[assignment]
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )
-        self.datalayer: DataLayer | None = None
+        self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
 
     def setup(self, **kwargs: Any) -> None:
@@ -318,8 +322,9 @@ class UpdateObject(DataLayerAction):
                     data_=updated_data,
                 )
 
-            # Persist to DataLayer
-            self.datalayer.update(self.object_id, storable)
+            # Persist to DataLayer; update() is a low-level primitive not in
+            # CasePersistence — cast to the full DataLayer contract here.
+            cast(DataLayer, self.datalayer).update(self.object_id, storable)
 
             self.feedback_message = (
                 f"Updated {self.object_id} with {len(self.updates)} fields"
@@ -476,7 +481,9 @@ class UpdateActorOutbox(DataLayerAction):
             actor_obj.outbox.items.append(activity_id)
             self.datalayer.save(actor_obj)
 
-            self.datalayer.record_outbox_item(self.actor_id, activity_id)
+            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+                self.actor_id, activity_id
+            )
             self.logger.info(
                 "Queued Create(Case '%s') activity '%s' to actor '%s' outbox"
                 " (case creation notification)",

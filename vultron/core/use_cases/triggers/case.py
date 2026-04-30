@@ -23,7 +23,7 @@ import logging
 from typing import Any, cast
 
 from vultron.core.states.rm import RM
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import update_participant_rm_state
 from vultron.core.use_cases._helpers import case_addressees
 from vultron.core.use_cases.triggers._helpers import (
@@ -56,7 +56,7 @@ class SvcEngageCaseUseCase:
     """Engage a case (RM → ACCEPTED)."""
 
     def __init__(
-        self, dl: DataLayer, request: EngageCaseTriggerRequest
+        self, dl: CaseOutboxPersistence, request: EngageCaseTriggerRequest
     ) -> None:
         self._dl = dl
         self._request: EngageCaseTriggerRequest = request
@@ -104,7 +104,7 @@ class SvcDeferCaseUseCase:
     """Defer a case (RM → DEFERRED)."""
 
     def __init__(
-        self, dl: DataLayer, request: DeferCaseTriggerRequest
+        self, dl: CaseOutboxPersistence, request: DeferCaseTriggerRequest
     ) -> None:
         self._dl = dl
         self._request: DeferCaseTriggerRequest = request
@@ -157,7 +157,7 @@ class SvcCreateCaseUseCase:
     """
 
     def __init__(
-        self, dl: DataLayer, request: CreateCaseTriggerRequest
+        self, dl: CaseOutboxPersistence, request: CreateCaseTriggerRequest
     ) -> None:
         self._dl = dl
         self._request = request
@@ -214,7 +214,7 @@ class SvcAddReportToCaseUseCase:
     """
 
     def __init__(
-        self, dl: DataLayer, request: AddReportToCaseTriggerRequest
+        self, dl: CaseOutboxPersistence, request: AddReportToCaseTriggerRequest
     ) -> None:
         self._dl = dl
         self._request = request

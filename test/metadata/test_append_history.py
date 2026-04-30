@@ -86,15 +86,13 @@ class TestAppendHistoryEntryCreation:
         written_path = Path(result.stdout.strip())
         assert "This is a test idea body." in written_path.read_text()
 
-    def test_fallback_id_when_source_absent(self, fake_repo: Path) -> None:
+    def test_missing_source_exits_nonzero(self, fake_repo: Path) -> None:
         content = (
             "---\ntitle: No Source\ntype: idea\ndate: 2026-04-28\n---\n\nBody."
         )
         result = _run_append("idea", content=content, cwd=fake_repo)
-        assert result.returncode == 0
-        written_path = Path(result.stdout.strip())
-        # Falls back to idea-<timestamp>
-        assert written_path.stem.startswith("idea-")
+        assert result.returncode != 0
+        assert "source" in result.stderr.lower()
 
     def test_creates_type_subdirectory(self, fake_repo: Path) -> None:
         result = _run_append(
@@ -253,3 +251,121 @@ class TestAppendHistoryEntryIdSanitization:
         )
         result = _run_append("idea", content=content, cwd=fake_repo)
         assert result.returncode != 0
+
+
+class TestFrontmatterValidation:
+    """append-history rejects entries with missing or invalid frontmatter fields."""
+
+    @pytest.mark.parametrize(
+        "missing_field,content",
+        [
+            (
+                "source",
+                "---\ntitle: T\ntype: idea\ndate: 2026-04-28\n---\n\nBody.\n",
+            ),
+            (
+                "title",
+                "---\ntype: idea\ndate: 2026-04-28\nsource: SRC-1\n---\n\nBody.\n",
+            ),
+            (
+                "date",
+                "---\ntitle: T\ntype: idea\nsource: SRC-2\n---\n\nBody.\n",
+            ),
+            (
+                "type",
+                "---\ntitle: T\ndate: 2026-04-28\nsource: SRC-3\n---\n\nBody.\n",
+            ),
+        ],
+    )
+    def test_missing_required_field_exits_nonzero(
+        self, missing_field: str, content: str, fake_repo: Path
+    ) -> None:
+        result = _run_append("idea", content=content, cwd=fake_repo)
+        assert result.returncode != 0
+        assert missing_field in result.stderr.lower()
+
+    @pytest.mark.parametrize(
+        "field,content",
+        [
+            (
+                "source",
+                "---\ntitle: T\ntype: idea\ndate: 2026-04-28\nsource: '   '\n---\n\nBody.\n",
+            ),
+            (
+                "title",
+                "---\ntitle: '   '\ntype: idea\ndate: 2026-04-28\nsource: SRC-4\n---\n\nBody.\n",
+            ),
+        ],
+    )
+    def test_whitespace_only_field_exits_nonzero(
+        self, field: str, content: str, fake_repo: Path
+    ) -> None:
+        result = _run_append("idea", content=content, cwd=fake_repo)
+        assert result.returncode != 0
+
+    def test_no_frontmatter_block_exits_nonzero(self, fake_repo: Path) -> None:
+        result = _run_append(
+            "idea", content="Just plain text.\n", cwd=fake_repo
+        )
+        assert result.returncode != 0
+
+    def test_frontmatter_type_mismatch_with_cli_arg_exits_nonzero(
+        self, fake_repo: Path
+    ) -> None:
+        content = "---\ntitle: T\ntype: implementation\ndate: 2026-04-28\nsource: SRC-5\n---\n\nBody.\n"
+        result = _run_append("idea", content=content, cwd=fake_repo)
+        assert result.returncode != 0
+        assert "type" in result.stderr.lower()
+
+    def test_invalid_date_format_exits_nonzero(self, fake_repo: Path) -> None:
+        content = "---\ntitle: T\ntype: idea\ndate: not-a-date\nsource: SRC-6\n---\n\nBody.\n"
+        result = _run_append("idea", content=content, cwd=fake_repo)
+        assert result.returncode != 0
+
+
+class TestReadmeGenValidation:
+    """readme_gen raises on malformed existing entry files."""
+
+    def test_missing_field_raises(self, fake_repo: Path) -> None:
+        from vultron.metadata.history.readme_gen import regenerate_readme
+
+        month_dir = fake_repo / "plan" / "history" / "2604"
+        impl_dir = month_dir / "implementation"
+        impl_dir.mkdir(parents=True)
+        bad_entry = impl_dir / "BAD-ENTRY.md"
+        bad_entry.write_text(
+            "---\ntitle: Missing fields\n---\n\nNo type, date, or source.\n"
+        )
+        with pytest.raises((ValueError, Exception)):
+            regenerate_readme(month_dir)
+
+    def test_no_frontmatter_raises(self, fake_repo: Path) -> None:
+        from vultron.metadata.history.readme_gen import regenerate_readme
+
+        month_dir = fake_repo / "plan" / "history" / "2604"
+        impl_dir = month_dir / "implementation"
+        impl_dir.mkdir(parents=True)
+        bad_entry = impl_dir / "NO-FM.md"
+        bad_entry.write_text("Just plain text, no frontmatter at all.\n")
+        with pytest.raises((ValueError, Exception)):
+            regenerate_readme(month_dir)
+
+    def test_rollback_on_existing_malformed_entry(
+        self, fake_repo: Path
+    ) -> None:
+        """Append fails without leaving a new entry file when README regen fails."""
+        import datetime
+
+        yymm = datetime.date.today().strftime("%y%m")
+        month_dir = fake_repo / "plan" / "history" / yymm
+        impl_dir = month_dir / "implementation"
+        impl_dir.mkdir(parents=True)
+        bad_entry = impl_dir / "BAD-PREEXISTING.md"
+        bad_entry.write_text("---\ntitle: Bad\n---\n\nNo type/date/source.\n")
+
+        content = "---\ntitle: New\ntype: implementation\ndate: 2026-04-30\nsource: NEW-ENTRY\n---\n\nBody.\n"
+        result = _run_append("implementation", content=content, cwd=fake_repo)
+
+        assert result.returncode != 0
+        new_file = impl_dir / "NEW-ENTRY.md"
+        assert not new_file.exists(), "new entry file should be rolled back"

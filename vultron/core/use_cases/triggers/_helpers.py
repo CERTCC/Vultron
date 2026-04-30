@@ -30,13 +30,16 @@ from vultron.core.models.protocols import (
     is_participant_model,
 )
 from vultron.core.states.rm import RM
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import (
+    CasePersistence,
+    CaseOutboxPersistence,
+)
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
 
 
-def resolve_actor(actor_id: str, dl: DataLayer):
+def resolve_actor(actor_id: str, dl: CasePersistence):
     """Resolve actor by full ID or short ID; raise VultronNotFoundError if absent."""
     actor = dl.read(actor_id)
     if actor is None:
@@ -46,7 +49,7 @@ def resolve_actor(actor_id: str, dl: DataLayer):
     return actor
 
 
-def resolve_case(case_id: str, dl: DataLayer) -> CaseModel:
+def resolve_case(case_id: str, dl: CasePersistence) -> CaseModel:
     """Resolve a VulnerabilityCase by ID; raise domain error if absent or wrong type."""
     case_raw = dl.read(case_id)
     if case_raw is None:
@@ -59,7 +62,7 @@ def resolve_case(case_id: str, dl: DataLayer) -> CaseModel:
 
 
 def update_participant_rm_state(
-    case_id: str, actor_id: str, new_rm_state: RM, dl: DataLayer
+    case_id: str, actor_id: str, new_rm_state: RM, dl: CasePersistence
 ) -> bool:
     """
     Append a new ParticipantStatus with new_rm_state to the actor's
@@ -147,7 +150,7 @@ def outbox_ids(actor) -> set[str]:
 
 
 def add_activity_to_outbox(
-    actor_id: str, activity_id: str, dl: DataLayer
+    actor_id: str, activity_id: str, dl: CaseOutboxPersistence
 ) -> None:
     """Append an activity ID to an actor's outbox and queue it for delivery.
 
@@ -186,7 +189,7 @@ def add_activity_to_outbox(
     )
 
 
-def find_embargo_proposal(case_id: str, dl: DataLayer):
+def find_embargo_proposal(case_id: str, dl: CasePersistence):
     """
     Find the first stored EmProposeEmbargoActivity for the given case.
 

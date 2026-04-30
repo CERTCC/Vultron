@@ -27,12 +27,17 @@ from vultron.core.models.events.sync import (
     RejectLogEntryReceivedEvent,
 )
 from vultron.core.models.replication_state import VultronReplicationState
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import (
+    CasePersistence,
+    CaseOutboxPersistence,
+)
 
 logger = logging.getLogger(__name__)
 
 
-def _reconstruct_tail_hash(case_id: str, dl: DataLayer) -> tuple[str, int]:
+def _reconstruct_tail_hash(
+    case_id: str, dl: CasePersistence
+) -> tuple[str, int]:
     """Return the hash and index of the last accepted log entry for *case_id*.
 
     Queries all :class:`~vultron.core.models.case_log_entry.VultronCaseLogEntry`
@@ -61,7 +66,7 @@ def _reconstruct_tail_hash(case_id: str, dl: DataLayer) -> tuple[str, int]:
     return last.entry_hash, last.log_index
 
 
-def _find_local_actor_id(dl: DataLayer) -> str | None:
+def _find_local_actor_id(dl: CasePersistence) -> str | None:
     """Find the local actor's ID from the DataLayer.
 
     Looks for actor records (Service, Person, Organization) in the
@@ -78,7 +83,7 @@ def _update_replication_state(
     case_id: str,
     peer_id: str,
     last_acknowledged_hash: str,
-    dl: DataLayer,
+    dl: CasePersistence,
 ) -> None:
     """Upsert the :class:`VultronReplicationState` for *peer_id* in *case_id*.
 
@@ -131,7 +136,7 @@ class AnnounceLogEntryReceivedUseCase:
 
     def __init__(
         self,
-        dl: DataLayer,
+        dl: CaseOutboxPersistence,
         request: AnnounceLogEntryReceivedEvent,
     ) -> None:
         self._dl = dl
@@ -252,7 +257,7 @@ class RejectLogEntryReceivedUseCase:
 
     def __init__(
         self,
-        dl: DataLayer,
+        dl: CaseOutboxPersistence,
         request: RejectLogEntryReceivedEvent,
     ) -> None:
         self._dl = dl

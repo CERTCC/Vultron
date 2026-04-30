@@ -10,7 +10,10 @@ from vultron.core.models.events.note import (
     CreateNoteReceivedEvent,
     RemoveNoteFromCaseReceivedEvent,
 )
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import (
+    CasePersistence,
+    CaseOutboxPersistence,
+)
 from vultron.core.models.protocols import is_case_model
 from vultron.core.use_cases._helpers import _as_id
 from vultron.wire.as2.vocab.activities.case import AddNoteToCaseActivity
@@ -20,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class CreateNoteReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: CreateNoteReceivedEvent
+        self, dl: CasePersistence, request: CreateNoteReceivedEvent
     ) -> None:
         self._dl = dl
         self._request: CreateNoteReceivedEvent = request
@@ -60,7 +63,7 @@ class CreateNoteReceivedUseCase:
 
 class AddNoteToCaseReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: AddNoteToCaseReceivedEvent
+        self, dl: CaseOutboxPersistence, request: AddNoteToCaseReceivedEvent
     ) -> None:
         self._dl = dl
         self._request: AddNoteToCaseReceivedEvent = request
@@ -175,7 +178,7 @@ class AddNoteToCaseReceivedUseCase:
 
 class RemoveNoteFromCaseReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: RemoveNoteFromCaseReceivedEvent
+        self, dl: CasePersistence, request: RemoveNoteFromCaseReceivedEvent
     ) -> None:
         self._dl = dl
         self._request: RemoveNoteFromCaseReceivedEvent = request

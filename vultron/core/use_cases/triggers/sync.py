@@ -29,7 +29,9 @@ from typing import Any
 from vultron.core.models.case_log import CaseLogEntry
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
 from vultron.core.models.protocols import is_case_model
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import (
+    CaseOutboxPersistence,
+)
 from vultron.core.use_cases._helpers import case_addressees
 from vultron.core.use_cases.received.sync import _reconstruct_tail_hash
 from vultron.core.use_cases.triggers._helpers import add_activity_to_outbox
@@ -67,7 +69,7 @@ def _fan_out_log_entry(
     case_id: str,
     entry: VultronCaseLogEntry,
     actor_id: str,
-    dl: DataLayer,
+    dl: CaseOutboxPersistence,
 ) -> None:
     """Create one ``Announce(CaseLogEntry)`` per peer and queue for delivery.
 
@@ -117,7 +119,7 @@ def commit_log_entry_trigger(
     object_id: str,
     event_type: str,
     actor_id: str,
-    dl: DataLayer,
+    dl: CaseOutboxPersistence,
     payload_snapshot: dict[str, Any] | None = None,
     term: int | None = None,
     reason_code: str | None = None,
@@ -137,7 +139,7 @@ def commit_log_entry_trigger(
         object_id: URI of the asserted activity or primary object.
         event_type: Short machine-readable event descriptor.
         actor_id: URI of the CaseActor performing the commit.
-        dl: DataLayer instance for persistence and outbox access.
+        dl: CaseOutboxPersistence instance for persistence and outbox access.
         payload_snapshot: Optional normalised payload snapshot.
         term: Optional Raft cluster term (single-node → ``None``).
         reason_code: Required when *disposition* is ``"rejected"``.
@@ -189,7 +191,7 @@ def replay_missing_entries_trigger(
     peer_id: str,
     from_hash: str,
     case_actor_id: str,
-    dl: DataLayer,
+    dl: CaseOutboxPersistence,
 ) -> int:
     """Replay all log entries after *from_hash* to a specific peer.
 
@@ -206,7 +208,7 @@ def replay_missing_entries_trigger(
         peer_id: URI of the participant who needs the missing entries.
         from_hash: ``entry_hash`` of the last entry acknowledged by *peer_id*.
         case_actor_id: URI of the CaseActor sending the announcements.
-        dl: DataLayer instance for persistence and outbox access.
+        dl: CaseOutboxPersistence instance for persistence and outbox access.
 
     Returns:
         The number of entries replayed (i.e. queued for delivery).

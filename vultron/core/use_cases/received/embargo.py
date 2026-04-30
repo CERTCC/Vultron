@@ -24,7 +24,7 @@ from vultron.core.models.events.embargo import (
     RejectInviteToEmbargoOnCaseReceivedEvent,
     RemoveEmbargoEventFromCaseReceivedEvent,
 )
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 from vultron.core.models.protocols import (
     is_case_model,
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 class CreateEmbargoEventReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: CreateEmbargoEventReceivedEvent
+        self, dl: CasePersistence, request: CreateEmbargoEventReceivedEvent
     ) -> None:
         self._dl = dl
         self._request: CreateEmbargoEventReceivedEvent = request
@@ -55,7 +55,7 @@ class CreateEmbargoEventReceivedUseCase:
 
 class AddEmbargoEventToCaseReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: AddEmbargoEventToCaseReceivedEvent
+        self, dl: CasePersistence, request: AddEmbargoEventToCaseReceivedEvent
     ) -> None:
         self._dl = dl
         self._request: AddEmbargoEventToCaseReceivedEvent = request
@@ -107,7 +107,9 @@ class AddEmbargoEventToCaseReceivedUseCase:
 
 class RemoveEmbargoEventFromCaseReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: RemoveEmbargoEventFromCaseReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: RemoveEmbargoEventFromCaseReceivedEvent,
     ) -> None:
         self._dl = dl
         self._request: RemoveEmbargoEventFromCaseReceivedEvent = request
@@ -196,7 +198,9 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
 
 class AnnounceEmbargoEventToCaseReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: AnnounceEmbargoEventToCaseReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: AnnounceEmbargoEventToCaseReceivedEvent,
     ) -> None:
         self._dl = dl
         self._request: AnnounceEmbargoEventToCaseReceivedEvent = request
@@ -212,7 +216,7 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
 
 class InviteToEmbargoOnCaseReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: InviteToEmbargoOnCaseReceivedEvent
+        self, dl: CasePersistence, request: InviteToEmbargoOnCaseReceivedEvent
     ) -> None:
         self._dl = dl
         self._request: InviteToEmbargoOnCaseReceivedEvent = request
@@ -263,7 +267,9 @@ class InviteToEmbargoOnCaseReceivedUseCase:
 
 class AcceptInviteToEmbargoOnCaseReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: AcceptInviteToEmbargoOnCaseReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: AcceptInviteToEmbargoOnCaseReceivedEvent,
     ) -> None:
         self._dl = dl
         self._request: AcceptInviteToEmbargoOnCaseReceivedEvent = request
@@ -389,7 +395,9 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
 
 class RejectInviteToEmbargoOnCaseReceivedUseCase:
     def __init__(
-        self, dl: DataLayer, request: RejectInviteToEmbargoOnCaseReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: RejectInviteToEmbargoOnCaseReceivedEvent,
     ) -> None:
         self._dl = dl
         self._request: RejectInviteToEmbargoOnCaseReceivedEvent = request

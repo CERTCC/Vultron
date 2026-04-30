@@ -5,10 +5,12 @@ import pytest
 from pydantic import ValidationError
 
 from vultron.core.models.events import MessageSemantics
-from vultron.semantic_registry import SEMANTIC_REGISTRY
+from vultron.semantic_registry import (
+    SEMANTIC_REGISTRY,
+    find_matching_semantics,
+)
 from vultron.wire.as2.extractor import (
     ActivityPattern,
-    find_matching_semantics,
 )
 from vultron.wire.as2.vocab.activities.case import (
     OfferCaseOwnershipTransferActivity,

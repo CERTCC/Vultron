@@ -44,6 +44,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerCondition,
 )
 from vultron.core.behaviors.helpers import UpdateActorOutbox  # noqa: F401
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
@@ -964,7 +965,9 @@ class EmitEngageCaseActivity(DataLayerAction):
                     self.actor_id,
                 )
 
-            self.datalayer.record_outbox_item(self.actor_id, activity.id_)
+            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+                self.actor_id, activity.id_
+            )
             self.logger.info(
                 "Actor '%s' emitted RmEngageCaseActivity for case '%s'",
                 self.actor_id,
@@ -1052,7 +1055,9 @@ class EmitDeferCaseActivity(DataLayerAction):
                     self.actor_id,
                 )
 
-            self.datalayer.record_outbox_item(self.actor_id, activity.id_)
+            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+                self.actor_id, activity.id_
+            )
             self.logger.info(
                 "Actor '%s' emitted RmDeferCaseActivity for case '%s'",
                 self.actor_id,
