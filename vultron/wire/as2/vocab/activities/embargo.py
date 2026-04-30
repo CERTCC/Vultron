@@ -52,7 +52,7 @@ class EmProposeEmbargoActivity(as_Invite):
     context: VulnerabilityCaseRef = None
 
 
-EmProposeEmbargoRef: TypeAlias = ActivityStreamRef[EmProposeEmbargoActivity]
+_EmProposeEmbargoRef: TypeAlias = ActivityStreamRef[EmProposeEmbargoActivity]
 
 
 class EmAcceptEmbargoActivity(as_Accept):
@@ -114,7 +114,7 @@ class ActivateEmbargoActivity(as_Add):
         default=..., validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
-    in_reply_to: EmProposeEmbargoRef = None
+    in_reply_to: _EmProposeEmbargoRef = None
 
 
 class AddEmbargoToCaseActivity(as_Add):
