@@ -11,6 +11,14 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Accept,
+    as_Create,
+    as_Offer,
+    as_Read,
+    as_Reject,
+    as_TentativeReject,
+)
 from vultron.wire.as2.vocab.examples._base import _FINDER, _REPORT, _VENDOR
 from vultron.wire.as2.factories import (
     rm_close_report_activity,
@@ -20,10 +28,9 @@ from vultron.wire.as2.factories import (
     rm_submit_report_activity,
     rm_validate_report_activity,
 )
-from vultron.core.models.vultron_types import VultronActivity
 
 
-def create_report() -> VultronActivity:
+def create_report() -> as_Create:
     """
     In this example, a finder creates a vulnerability report.
 
@@ -34,7 +41,7 @@ def create_report() -> VultronActivity:
     return activity
 
 
-def submit_report(verbose=False) -> VultronActivity:
+def submit_report(verbose=False) -> as_Offer:
     if verbose:
         activity = rm_submit_report_activity(
             _REPORT, actor=_FINDER, to=_VENDOR
@@ -47,7 +54,7 @@ def submit_report(verbose=False) -> VultronActivity:
     return activity
 
 
-def read_report() -> VultronActivity:
+def read_report() -> as_Read:
     # TODO this should probably change to Read(Offer(Report)) to match the other activities
     activity = rm_read_report_activity(
         _REPORT,
@@ -57,7 +64,7 @@ def read_report() -> VultronActivity:
     return activity
 
 
-def validate_report(verbose: bool = False) -> VultronActivity:
+def validate_report(verbose: bool = False) -> as_Accept:
     _offer = submit_report(verbose=verbose)
     # Note: you accept the Offer activity that contains the Report, not the Report itself
 
@@ -76,7 +83,7 @@ def validate_report(verbose: bool = False) -> VultronActivity:
     return activity
 
 
-def invalidate_report(verbose: bool = False) -> VultronActivity:
+def invalidate_report(verbose: bool = False) -> as_TentativeReject:
     _offer = submit_report(verbose=verbose)
     # Note: you tentative reject the Offer activity that contains the Report, not the Report itself
 
@@ -95,7 +102,7 @@ def invalidate_report(verbose: bool = False) -> VultronActivity:
     return activity
 
 
-def close_report(verbose: bool = False) -> VultronActivity:
+def close_report(verbose: bool = False) -> as_Reject:
     # Note: you reject the Offer activity that contains the Report, not the Report itself
     _offer = submit_report(verbose=verbose)
     if verbose:

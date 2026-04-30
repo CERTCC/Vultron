@@ -11,7 +11,18 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Undo
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Undo,
+    as_Accept,
+    as_Add,
+    as_Create,
+    as_Ignore,
+    as_Join,
+    as_Leave,
+    as_Offer,
+    as_Reject,
+    as_Update,
+)
 from vultron.wire.as2.vocab.examples._base import (
     _COORDINATOR,
     _REPORT,
@@ -32,10 +43,9 @@ from vultron.wire.as2.factories import (
     rm_engage_case_activity,
     update_case_activity,
 )
-from vultron.core.models.vultron_types import VultronActivity
 
 
-def create_case() -> VultronActivity:
+def create_case() -> as_Create:
     _case = case()
     _case.add_report(_REPORT.id_)
     participant = VendorParticipant(
@@ -52,7 +62,7 @@ def create_case() -> VultronActivity:
     return activity
 
 
-def add_report_to_case() -> VultronActivity:
+def add_report_to_case() -> as_Add:
     _vendor = vendor()
     _report = gen_report()
     _case = case()
@@ -66,7 +76,7 @@ def add_report_to_case() -> VultronActivity:
     return activity
 
 
-def engage_case() -> VultronActivity:
+def engage_case() -> as_Join:
     _vendor = vendor()
     _case = case()
 
@@ -76,7 +86,7 @@ def engage_case() -> VultronActivity:
     return activity
 
 
-def close_case() -> VultronActivity:
+def close_case() -> as_Leave:
     _vendor = vendor()
     _case = case()
 
@@ -86,7 +96,7 @@ def close_case() -> VultronActivity:
     return activity
 
 
-def defer_case() -> VultronActivity:
+def defer_case() -> as_Ignore:
     _vendor = vendor()
     _case = case()
 
@@ -110,7 +120,7 @@ def reengage_case() -> as_Undo:
     return activity
 
 
-def offer_case_ownership_transfer() -> VultronActivity:
+def offer_case_ownership_transfer() -> as_Offer:
     _vendor = vendor()
     _case = case()
     _coordinator = _COORDINATOR
@@ -123,7 +133,7 @@ def offer_case_ownership_transfer() -> VultronActivity:
     return _activity
 
 
-def accept_case_ownership_transfer() -> VultronActivity:
+def accept_case_ownership_transfer() -> as_Accept:
     _case = case()
     _coordinator = _COORDINATOR
     _offer = offer_case_ownership_transfer()
@@ -135,7 +145,7 @@ def accept_case_ownership_transfer() -> VultronActivity:
     return _activity
 
 
-def reject_case_ownership_transfer() -> VultronActivity:
+def reject_case_ownership_transfer() -> as_Reject:
     _case = case()
     _coordinator = _COORDINATOR
     _offer = offer_case_ownership_transfer()
@@ -147,7 +157,7 @@ def reject_case_ownership_transfer() -> VultronActivity:
     return _activity
 
 
-def update_case() -> VultronActivity:
+def update_case() -> as_Update:
     _case = case()
     _vendor = vendor()
 

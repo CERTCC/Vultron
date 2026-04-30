@@ -56,6 +56,7 @@ from typing import Callable, Optional, Sequence, Tuple
 # Vultron imports
 from vultron.adapters.utils import parse_id
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -82,13 +83,12 @@ from vultron.wire.as2.factories import (
     rm_submit_report_activity,
     rm_validate_report_activity,
 )
-from vultron.core.models.vultron_types import VultronActivity
 
 logger = logging.getLogger(__name__)
 
 
-def make_submit_offer(finder, vendor, report) -> VultronActivity:
-    """Build an ``VultronActivity`` offer from the finder to the vendor."""
+def make_submit_offer(finder, vendor, report) -> as_Offer:
+    """Build an ``as_Offer`` offer from the finder to the vendor."""
     offer = rm_submit_report_activity(
         report, actor=finder.id_, target=vendor.id_, to=vendor.id_
     )

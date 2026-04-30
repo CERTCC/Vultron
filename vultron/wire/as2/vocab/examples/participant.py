@@ -11,7 +11,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Accept,
+    as_Add,
+    as_Create,
+    as_Invite,
+    as_Reject,
+)
 from vultron.wire.as2.vocab.examples._base import (
     _COORDINATOR,
     case,
@@ -37,10 +43,9 @@ from vultron.wire.as2.factories import (
     rm_invite_to_case_activity,
     rm_reject_invite_to_case_activity,
 )
-from vultron.core.models.vultron_types import VultronActivity
 
 
-def add_vendor_participant_to_case() -> VultronActivity:
+def add_vendor_participant_to_case() -> as_Add:
     _vendor = vendor()
     _case = case()
 
@@ -69,7 +74,7 @@ def add_vendor_participant_to_case() -> VultronActivity:
     return activity
 
 
-def add_finder_participant_to_case() -> VultronActivity:
+def add_finder_participant_to_case() -> as_Add:
     _vendor = vendor()
     _case = case()
 
@@ -91,7 +96,7 @@ def add_finder_participant_to_case() -> VultronActivity:
     return activity
 
 
-def add_coordinator_participant_to_case() -> VultronActivity:
+def add_coordinator_participant_to_case() -> as_Add:
     _vendor = vendor()
     _case = case()
 
@@ -113,7 +118,7 @@ def add_coordinator_participant_to_case() -> VultronActivity:
     return activity
 
 
-def rm_invite_to_case() -> VultronActivity:
+def rm_invite_to_case() -> as_Invite:
     _vendor = vendor()
     _coordinator = _COORDINATOR
     _case = case()
@@ -128,7 +133,7 @@ def rm_invite_to_case() -> VultronActivity:
     return _activity
 
 
-def accept_invite_to_case() -> VultronActivity:
+def accept_invite_to_case() -> as_Accept:
     _vendor = vendor()
     _coordinator = _COORDINATOR
     _case = case()
@@ -142,7 +147,7 @@ def accept_invite_to_case() -> VultronActivity:
     return _activity
 
 
-def reject_invite_to_case() -> VultronActivity:
+def reject_invite_to_case() -> as_Reject:
     _vendor = vendor()
     _coordinator = _COORDINATOR
     _case = case()

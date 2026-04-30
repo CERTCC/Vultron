@@ -41,7 +41,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.core.models.vultron_types import VultronActivity
 
 logger = logging.getLogger(__name__)
 
@@ -321,7 +320,7 @@ def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
 
 def get_offer_from_datalayer(
     client: DataLayerClient, vendor_id: str, offer_id: str
-) -> VultronActivity:
+) -> as_Offer:
     """Retrieve a specific Offer from a vendor's DataLayer store.
 
     Args:
@@ -330,7 +329,7 @@ def get_offer_from_datalayer(
         offer_id: ID of the offer to retrieve.
 
     Returns:
-        The retrieved offer coerced to :class:`VultronActivity`.
+        The retrieved offer as :class:`as_Offer`.
     """
     vendor_obj_id = parse_id(vendor_id)["object_id"]
     offer_obj_id = parse_id(offer_id)["object_id"]
@@ -338,9 +337,8 @@ def get_offer_from_datalayer(
         f"/datalayer/Actors/{vendor_obj_id}/Offers/{offer_obj_id}"
     )
     raw = as_Offer(**offer_data)
-    offer = VultronActivity.model_validate(raw.model_dump(by_alias=True))
-    logger.info(f"Retrieved Offer: {logfmt(offer)}")
-    return offer
+    logger.info(f"Retrieved Offer: {logfmt(raw)}")
+    return raw
 
 
 def log_case_state(

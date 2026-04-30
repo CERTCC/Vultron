@@ -11,6 +11,10 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Add,
+    as_Create,
+)
 from vultron.wire.as2.vocab.examples._base import case, vendor
 from vultron.wire.as2.vocab.objects.case_status import (
     CaseStatus,
@@ -25,7 +29,6 @@ from vultron.wire.as2.factories import (
     create_case_status_activity,
     create_status_for_participant_activity,
 )
-from vultron.core.models.vultron_types import VultronActivity
 
 
 def case_status() -> CaseStatus:
@@ -49,7 +52,7 @@ def create_case_status():
     return activity
 
 
-def add_status_to_case() -> VultronActivity:
+def add_status_to_case() -> as_Add:
     _vendor = vendor()
     _case = case()
     _status = case_status()
@@ -71,7 +74,7 @@ def participant_status() -> ParticipantStatus:
     return status
 
 
-def create_participant_status() -> VultronActivity:
+def create_participant_status() -> as_Create:
     pstatus = participant_status()
     _vendor = vendor()
 
@@ -81,7 +84,7 @@ def create_participant_status() -> VultronActivity:
     return activity
 
 
-def add_status_to_participant() -> VultronActivity:
+def add_status_to_participant() -> as_Add:
     _vendor = vendor()
     pstatus = participant_status()
 

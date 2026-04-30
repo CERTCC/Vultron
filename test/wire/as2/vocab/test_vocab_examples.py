@@ -46,6 +46,9 @@ from vultron.wire.as2.vocab.base.objects.actors import (
 )
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event, as_Note
+from vultron.wire.as2.vocab.activities.embargo import (
+    ChoosePreferredEmbargoActivity,
+)
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
     CaseStatus,
@@ -744,6 +747,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertIn(case.id_, activity.context)
 
         # one_of is a list, is non-empty, and contains embargo events
+        assert isinstance(activity, ChoosePreferredEmbargoActivity)
         assert activity.one_of is not None
         self.assertIsInstance(activity.one_of, Sequence)
         self.assertGreaterEqual(len(activity.one_of), 1)

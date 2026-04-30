@@ -11,6 +11,11 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Accept,
+    as_Offer,
+    as_Reject,
+)
 from vultron.wire.as2.vocab.examples._base import (
     _COORDINATOR,
     case,
@@ -22,10 +27,9 @@ from vultron.wire.as2.factories import (
     recommend_actor_activity,
     reject_actor_recommendation_activity,
 )
-from vultron.core.models.vultron_types import VultronActivity
 
 
-def recommend_actor() -> VultronActivity:
+def recommend_actor() -> as_Offer:
     _case = case()
     _finder = finder()
     _vendor = vendor()
@@ -41,7 +45,7 @@ def recommend_actor() -> VultronActivity:
     return _activity
 
 
-def accept_actor_recommendation() -> VultronActivity:
+def accept_actor_recommendation() -> as_Accept:
     _vendor = vendor()
     _coordinator = _COORDINATOR
     _finder = finder()
@@ -59,7 +63,7 @@ def accept_actor_recommendation() -> VultronActivity:
     return _activity
 
 
-def reject_actor_recommendation() -> VultronActivity:
+def reject_actor_recommendation() -> as_Reject:
     _vendor = vendor()
     _coordinator = _COORDINATOR
     _finder = finder()

@@ -13,6 +13,17 @@
 
 from datetime import datetime, timedelta
 
+from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
+    as_Question,
+)
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Accept,
+    as_Add,
+    as_Announce,
+    as_Invite,
+    as_Reject,
+    as_Remove,
+)
 from vultron.wire.as2.vocab.examples._base import (
     _COORDINATOR,
     case,
@@ -29,7 +40,6 @@ from vultron.wire.as2.factories import (
     em_reject_embargo_activity,
     remove_embargo_from_case_activity,
 )
-from vultron.core.models.vultron_types import VultronActivity
 
 
 def embargo_event(days: int = 90) -> EmbargoEvent:
@@ -57,7 +67,7 @@ def embargo_event(days: int = 90) -> EmbargoEvent:
     return event
 
 
-def propose_embargo() -> VultronActivity:
+def propose_embargo() -> as_Invite:
     embargo = embargo_event()
     _case = case()
     _vendor = vendor()
@@ -73,7 +83,7 @@ def propose_embargo() -> VultronActivity:
 
 
 # TODO this seems less like an API call and more like a poll
-def choose_preferred_embargo() -> VultronActivity:
+def choose_preferred_embargo() -> as_Question:
     embargo_list = [
         embargo_event(90),
         embargo_event(45),
@@ -92,7 +102,7 @@ def choose_preferred_embargo() -> VultronActivity:
     return activity
 
 
-def accept_embargo() -> VultronActivity:
+def accept_embargo() -> as_Accept:
     proposal = propose_embargo()
     _vendor = vendor()
     activity = em_accept_embargo_activity(
@@ -104,7 +114,7 @@ def accept_embargo() -> VultronActivity:
     return activity
 
 
-def reject_embargo() -> VultronActivity:
+def reject_embargo() -> as_Reject:
     proposal = propose_embargo()
     _vendor = vendor()
     activity = em_reject_embargo_activity(
@@ -116,7 +126,7 @@ def reject_embargo() -> VultronActivity:
     return activity
 
 
-def add_embargo_to_case() -> VultronActivity:
+def add_embargo_to_case() -> as_Add:
     _case = case()
     _vendor = vendor()
     activity = add_embargo_to_case_activity(
@@ -128,11 +138,11 @@ def add_embargo_to_case() -> VultronActivity:
     return activity
 
 
-def activate_embargo() -> VultronActivity:
+def activate_embargo() -> as_Add:
     _case = case()
     _vendor = vendor()
     activity = activate_embargo_activity(
-        propose_embargo().object_,
+        embargo_event(),
         actor=_vendor.id_,
         target=_case.id_,
         in_reply_to=propose_embargo().id_,
@@ -141,7 +151,7 @@ def activate_embargo() -> VultronActivity:
     return activity
 
 
-def announce_embargo() -> VultronActivity:
+def announce_embargo() -> as_Announce:
     _vendor = vendor()
     _case = case()
 
@@ -154,7 +164,7 @@ def announce_embargo() -> VultronActivity:
     return activity
 
 
-def remove_embargo() -> VultronActivity:
+def remove_embargo() -> as_Remove:
     _vendor = vendor()
     _case = case()
     activity = remove_embargo_from_case_activity(
