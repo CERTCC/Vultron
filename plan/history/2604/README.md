@@ -4,6 +4,7 @@
 
 | Date | Type | Source | Title |
 |------|------|--------|-------|
+| 2026-04-29 | priority | PRIORITIES.md | Priority 471: Bug Fixes and Demo Polish — COMPLETE |
 | 2026-04-29 | implementation | TASK-BUGS-471 | Bug Fixes: BUG-471.5, BUG-471.6, BUG-471.7a, BUG-471.7b |
 | 2026-04-28 | priority | Priority 470 | Priority 470 — Skills-upgrade spec tasks complete |
 | 2026-04-28 | implementation | TASK-CCDRIFT | TASK-CCDRIFT — Fix cc Addressing Warning + PersistCase Upsert |

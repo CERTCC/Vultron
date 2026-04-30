@@ -43,7 +43,7 @@ from vultron.core.models.vultron_types import (
     VultronCreateCaseActivity,
     VultronParticipant,
 )
-from vultron.core.states.em import EM
+from vultron.core.states.em import EM, EMAdapter, create_em_machine
 from vultron.core.states.rm import RM
 from vultron.core.states.roles import CVDRoles
 from vultron.wire.as2.vocab.activities.case_participant import (
@@ -806,7 +806,15 @@ class InitializeDefaultEmbargoNode(DataLayerAction):
 
             if stored_case.active_embargo is None:
                 stored_case.active_embargo = embargo.id_
-                stored_case.current_status.em_state = EM.PROPOSED
+                # Apply PROPOSE + ACCEPT atomically so em_state lands at
+                # EM.ACTIVE immediately (EP-04-001, EP-04-002).  The
+                # intermediate PROPOSED state is never persisted externally.
+                em_machine = create_em_machine()
+                em_adapter = EMAdapter(EM.NONE)
+                em_machine.add_model(em_adapter, initial=EM.NONE)
+                getattr(em_adapter, "propose")()  # NONE → PROPOSED
+                getattr(em_adapter, "accept")()  # PROPOSED → ACTIVE
+                stored_case.current_status.em_state = EM(em_adapter.state)
                 stored_case.record_event(embargo.id_, "embargo_initialized")
                 self.datalayer.save(stored_case)
                 self.logger.info(
@@ -814,7 +822,7 @@ class InitializeDefaultEmbargoNode(DataLayerAction):
                     " (em_state: %s)",
                     embargo.id_,
                     case_id,
-                    EM.PROPOSED,
+                    stored_case.current_status.em_state,
                 )
 
             # Participants learn about the embargo from VulnerabilityCase.active_embargo
