@@ -44,3 +44,34 @@ is either missing or duplicated across callers. The fallback-to-default pattern
 (`metadata.get("source", "")`) makes it impossible to distinguish "absent field"
 from "empty field". A Pydantic model with `ValidationError` on missing fields is
 the single source of truth and forces callers to handle the error path explicitly.
+
+### 2026-04-30 AF.8-10 — Factory return types are wire types, not domain models
+
+After migrating call sites in `vocab/examples/` and `demo/` from internal
+activity classes to factory functions, 91 mypy/pyright type errors emerged.
+Root cause: factory functions return base AS2 wire types (`as_Offer`,
+`as_Create`, etc.) from `vultron.wire.as2.vocab.base.*`, but the migrated
+code had `-> VultronActivity` return type annotations. `VultronActivity` is
+a domain model (`vultron/core/models/`); it is NOT a supertype of `as_Offer`.
+
+Key patterns and fixes:
+
+- `vocab/examples/*.py`: change `-> VultronActivity` to the specific AS2 base
+  type that the factory returns (e.g., `-> as_Offer`, `-> as_Accept`). Chain
+  calls between example functions (e.g., `submit_report()` passed to
+  `rm_validate_report_activity()`) require the specific AS2 type, not
+  `as_Activity`, since factory parameters are typed precisely.
+- `demo/utils.py#get_offer_from_datalayer`: was wrapping `as_Offer(**data)`
+  in `VultronActivity.model_validate(...)`. Remove the wrapping; return the
+  `as_Offer` directly. This fixes all exchange demo files that passed the
+  offer to `rm_validate_report_activity(offer: as_Offer)`.
+- Demo scenario files: trigger endpoint responses should be parsed as
+  `as_Activity.model_validate(...)` (or a specific subtype), not
+  `VultronActivity.model_validate(...)`.
+- When the parsed activity's `.object_` field is needed, parse it as the
+  specific transitive type (e.g., `as_Create`, `as_Invite`) since
+  `as_Activity` (base class) doesn't have `object_`; only transitive subtypes do.
+- Pyright `[attr-defined]` errors on subtype-only attributes (e.g.,
+  `ChoosePreferredEmbargoActivity.one_of` not on `as_Question`) are fixed
+  with a runtime `isinstance` assertion for type narrowing, not
+  `# type: ignore`.

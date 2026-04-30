@@ -214,7 +214,7 @@ only inside factory functions.
 - [x] AF.5 Create `factories/case_participant.py` (5 functions)
 - [x] AF.6 Create `factories/actor.py` and `factories/sync.py`
 - [x] AF.7 Create `test/architecture/test_activity_factory_imports.py`
-- [ ] AF.8–10 Migrate all call sites (demo scripts, trigger use cases, tests)
+- [x] AF.8–10 Migrate all call sites (demo scripts, trigger use cases, tests)
 - [x] AF.11 Remove unused `OfferRef`/`RmInviteToCaseRef`; rename
   `EmProposeEmbargoRef` → `_EmProposeEmbargoRef`
 - [ ] AF.12 Mark internal activity subclasses as private in `vocab/activities/`

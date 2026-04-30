@@ -42,6 +42,7 @@ import logging
 import sys
 from typing import Callable, Optional, Sequence, Tuple
 
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -61,7 +62,6 @@ from vultron.demo.utils import (
 from vultron.wire.as2.factories import (
     rm_submit_report_activity,
 )
-from vultron.core.models.vultron_types import VultronActivity
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ def _submit_report(
     vendor: as_Actor,
     name: str,
     content: str,
-) -> Tuple[VulnerabilityReport, VultronActivity]:
+) -> Tuple[VulnerabilityReport, as_Offer]:
     """Finder submits a vulnerability report to the vendor's inbox.
 
     Returns the ``(report, offer)`` pair after verifying both are stored.

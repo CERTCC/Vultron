@@ -62,6 +62,7 @@ from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import (
     CaseParticipant,
@@ -87,7 +88,6 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
 from vultron.wire.as2.factories import (
     rm_submit_report_activity,
 )
-from vultron.core.models.vultron_types import VultronActivity
 
 logger = logging.getLogger(__name__)
 
@@ -240,7 +240,7 @@ def finder_submits_report(
     finder: as_Actor,
     vendor: as_Actor,
     finder_client: Optional[DataLayerClient] = None,
-) -> Tuple[VulnerabilityReport, VultronActivity]:
+) -> Tuple[VulnerabilityReport, as_Offer]:
     """Finder creates a vulnerability report and submits it to the Vendor's inbox.
 
     When ``finder_client`` is provided (e.g. in a multi-container Docker demo),
@@ -285,7 +285,7 @@ def finder_submits_report(
                 },
             )
         offer_dict = result.get("offer", {})
-        offer = VultronActivity.model_validate(offer_dict)
+        offer = as_Offer.model_validate(offer_dict)
         report_raw = offer.object_
         if isinstance(report_raw, str):
             report = VulnerabilityReport(
