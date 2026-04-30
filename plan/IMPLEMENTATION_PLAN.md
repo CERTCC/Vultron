@@ -352,40 +352,6 @@ outbox without an addressee.
 
 ---
 
-## TASK-DL-REHYDRATE — DataLayer Auto-Rehydration on Read (Residual)
-
-**Source**: `specs/datalayer.yaml` DL-01-002; `notes/datalayer-design.md`
-
-Auto-rehydration for `dl.read()` was implemented in the SQLite adapter
-(`_from_row` calls `_rehydrate_fields()` + `_coerce_to_semantic_class()`;
-completed 2026-05-20, see `plan/history/IMPLEMENTATION_HISTORY.md`). The
-TinyDB adapter has been removed. DL-01-001, DL-01-003, DL-02-001, DL-02-002
-are satisfied.
-
-**Remaining work**: DL-01-002 requires a `list(type_key)` method returning
-fully rehydrated typed domain objects. The existing `by_type()` returns raw
-`dict[str, dict[str, Any]]` and `all()` returns a mixed union — neither
-satisfies the spec.
-
-**Acceptance criteria:**
-
-- `DataLayer` port has a `list(type_key: str) -> Iterable[PersistableModel]`
-  method that returns fully rehydrated, typed domain objects (DL-01-002).
-- SQLite adapter implements `list()` with the same rehydration pipeline as
-  `read()`.
-- All existing `by_type()` / `get_all()` call sites reviewed; migrate where
-  typed results are expected.
-- All existing tests pass.
-
-- [ ] DL-REHYDRATE.1 Add `list(type_key)` to `DataLayer` Protocol and
-  SQLite adapter implementation (DL-01-002)
-- [ ] DL-REHYDRATE.4 Review remaining `model_validate` calls in core use
-  cases (`received/sync.py`, `triggers/sync.py`, `triggers/embargo.py`,
-  `triggers/actor.py`); remove any that coerce `dl.read()` output
-  (DL-01-004)
-
----
-
 ## Deferred (Per PRIORITIES.md)
 
 - USE-CASE-01 **`CloseCaseUseCase` wire-type construction** — Replace direct

@@ -7,6 +7,7 @@
 | 2026-04-30 | priority | Priority 472 | Priority 472 — Docs Batch (LaTeX Fixes and Versioning Updates) |
 | 2026-04-30 | implementation | P472-LATEX | Fix block-math opening delimiter in conclusion.md (#234, #235) |
 | 2026-04-30 | implementation | TASK-BUG-386 | BUG-386 — Defer unresolved Accept.object_ references (resolved via sender-side fix) |
+| 2026-04-30 | implementation | TASK-DL-REHYDRATE | DataLayer list_objects() method and model_validate cleanup |
 | 2026-04-30 | implementation | TASK-DOCS-472 | TASK-DOCS-472 — Fix LaTeX Rendering and Versioning Docs |
 | 2026-04-30 | implementation | TASK-RFC-402 | Consolidate find_matching_semantics into semantic_registry |
 | 2026-04-29 | priority | Priority 471 | Priority 471: Bug Fixes and Demo Polish — COMPLETE |
