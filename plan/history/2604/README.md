@@ -145,3 +145,4 @@
 | 2026-04-01 | implementation | D5-4 | D5-4 — Multi-Vendor Demo with Ownership Transfer (Completed 2026-04-01) |
 | 2026-04-01 | implementation | D5-5 | D5-5 — Multi-Actor Integration Tests (2026-04-01) |
 | 2026-04-01 | implementation | LEGACY-2026-04-01-bug-2026040102-fix-circular-import-in-validate-t | BUG-2026040102 Fix — Circular Import in validate_tree |
+| 2025-07-14 | implementation | RFC-400 | RFC-400 TriggerService Facade |

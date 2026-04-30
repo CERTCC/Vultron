@@ -14,35 +14,6 @@ PD-06). Do not infer priority from section order.
 
 ---
 
-## TASK-RFC-400 — TriggerService Facade
-
-**Source**: <https://github.com/CERTCC/Vultron/issues/400>
-
-The current trigger path has 4 shallow layers; `_trigger_adapter.py` adds no
-logic. Introduce `TriggerService` (core layer) and `TriggerServicePort`
-(inbound port) following the DataLayer pattern. FastAPI routers inject via
-`Depends(get_trigger_service)`. Domain logic becomes directly testable without
-`TestClient`.
-
-**Acceptance criteria:**
-
-- `vultron/core/use_cases/triggers/service.py` has `TriggerService` with all
-  trigger operations as named methods.
-- `vultron/core/ports/trigger_service.py` has `TriggerServicePort` Protocol.
-- `vultron/adapters/driving/fastapi/deps.py` has `get_trigger_service()`.
-- `_trigger_adapter.py` is deleted.
-- Domain-layer tests use `TriggerService(SqliteDataLayer("sqlite:///:memory:"))`.
-- All linters and tests pass.
-
-- [ ] RFC-400.1: Create `TriggerService` class + `TriggerServicePort` Protocol
-- [ ] RFC-400.2: Add `get_trigger_service()` FastAPI dependency
-- [ ] RFC-400.3: Migrate all trigger routers to `Depends(get_trigger_service)`
-- [ ] RFC-400.4: Write domain-layer tests (embargo: propose/accept/terminate;
-  report: validate/create/submit)
-- [ ] RFC-400.5: Delete `_trigger_adapter.py`; replace HTTP tests with smoke tests
-
----
-
 ## TASK-RFC-401 — BTTestScenario Deep-Module Test Harness
 
 **Source**: <https://github.com/CERTCC/Vultron/issues/401>
