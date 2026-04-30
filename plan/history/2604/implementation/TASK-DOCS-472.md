@@ -1,3 +1,10 @@
+---
+title: TASK-DOCS-472 — Fix LaTeX Rendering and Versioning Docs
+type: implementation
+date: 2026-04-30
+source: TASK-DOCS-472
+---
+
 # TASK-DOCS-472: Fix LaTeX Rendering and Versioning Docs
 
 ## Summary
@@ -27,6 +34,14 @@ Fixed 8-space indented `$$` block inside an admonition (line 194). In
 Python-Markdown, admonition content requires 4 spaces of indent; 8 spaces
 creates a literal code block instead of a math block. Fixed by reducing
 to 4 spaces with `$$` on its own line.
+
+### Block-math delimiter fix in conclusion.md
+
+The opening `$$` delimiter was fused directly to the LaTeX content
+(`$${protocol}_{MPCVD} =`), and the closing `$$` was similarly fused to the
+last content line. Fixed by putting both delimiters on their own lines inside
+the admonition block (see also P472-LATEX.md). Directly resolves issues #234
+and #235 in addition to the indirect `\label{}` fix.
 
 ### versioning.md rewrite
 
