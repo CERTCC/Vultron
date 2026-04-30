@@ -35,3 +35,12 @@ with `list` resolving to the method (a function), producing `TypeError:
 suppresses mypy — it does NOT prevent the runtime error. Fix: rename the method
 to avoid collision (e.g., `list_objects`). This affects any method that shares
 a name with a Python built-in type (`dict`, `set`, `tuple`, etc.).
+
+### 2026-04-30 BUG-26043001 — append-history: always use a Pydantic model for structured file formats
+
+When a CLI tool writes structured files (frontmatter, YAML, JSON), define a
+Pydantic model for the structure upfront. Without it, required-field validation
+is either missing or duplicated across callers. The fallback-to-default pattern
+(`metadata.get("source", "")`) makes it impossible to distinguish "absent field"
+from "empty field". A Pydantic model with `ValidationError` on missing fields is
+the single source of truth and forces callers to handle the error path explicitly.

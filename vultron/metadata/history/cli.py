@@ -31,7 +31,9 @@ import sys
 from pathlib import Path
 
 import frontmatter
+from pydantic import ValidationError
 
+from vultron.metadata.history.models import HistoryEntryFrontmatter
 from vultron.metadata.history.readme_gen import regenerate_readme
 from vultron.metadata.history.types import HistoryEntryType
 
@@ -55,21 +57,33 @@ def _find_repo_root(start: Path | None = None) -> Path:
     )
 
 
-def _extract_entry_id(content: str, entry_type: str) -> str:
-    """Extract the ``source`` field from YAML frontmatter as the entry ID.
+def _validate_frontmatter(content: str) -> HistoryEntryFrontmatter:
+    """Parse and validate YAML frontmatter from *content*.
 
-    Falls back to ``<type>-<YYMMDDHHMMSS>`` if ``source`` is absent or empty.
+    Raises:
+        ValueError: If the frontmatter is malformed, missing, or fails
+            required-field validation (HM-02-001).
     """
     try:
         post = frontmatter.loads(content)
-        source = str(post.metadata.get("source", "")).strip()
-        if source:
-            return source
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as exc:  # noqa: BLE001
+        raise ValueError(f"malformed YAML frontmatter: {exc}") from exc
 
-    timestamp = datetime.datetime.now().strftime("%y%m%d%H%M%S")
-    return f"{entry_type}-{timestamp}"
+    if not post.metadata:
+        raise ValueError(
+            "missing frontmatter block: entry must begin with a YAML "
+            "frontmatter block containing title, type, date, and source"
+        )
+
+    try:
+        return HistoryEntryFrontmatter.model_validate(post.metadata)
+    except ValidationError as exc:
+        # Collect field names for a concise, actionable error message.
+        missing = [e["loc"][0] for e in exc.errors() if e["loc"]]
+        fields = ", ".join(str(f) for f in missing) if missing else str(exc)
+        raise ValueError(
+            f"invalid history frontmatter: missing or invalid field(s): {fields}"
+        ) from exc
 
 
 def _sanitize_entry_id(entry_id: str) -> str:
@@ -154,17 +168,24 @@ def append_history_entry(
         Path to the written history entry.
 
     Raises:
-        ValueError: If content is empty.
+        ValueError: If content is empty, frontmatter is invalid, or the
+            frontmatter ``type`` field does not match *entry_type*.
         FileExistsError: If the target entry file already exists.
     """
     if not content.strip():
         raise ValueError("entry content is empty")
 
+    validated = _validate_frontmatter(content)
+    if validated.type != entry_type:
+        raise ValueError(
+            f"type mismatch: CLI argument is '{entry_type}' but frontmatter "
+            f"'type' field is '{validated.type}'"
+        )
+
     resolved_root = _find_repo_root(repo_root)
     resolved_date = target_date or datetime.date.today()
     yymm = resolved_date.strftime("%y%m")
-    raw_entry_id = _extract_entry_id(content, entry_type.value)
-    entry_id = _sanitize_entry_id(raw_entry_id)
+    entry_id = _sanitize_entry_id(validated.source)
 
     entry_dir = resolved_root / "plan" / "history" / yymm / entry_type.value
     entry_dir.mkdir(parents=True, exist_ok=True)
@@ -176,7 +197,13 @@ def append_history_entry(
     entry_file.write_text(content, encoding="utf-8")
 
     month_dir = resolved_root / "plan" / "history" / yymm
-    regenerate_readme(month_dir)
+    try:
+        regenerate_readme(month_dir)
+    except Exception as exc:
+        entry_file.unlink(missing_ok=True)
+        raise ValueError(
+            f"README generation failed; entry rolled back: {exc}"
+        ) from exc
     return entry_file
 
 

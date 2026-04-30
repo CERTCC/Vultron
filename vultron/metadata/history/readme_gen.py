@@ -13,6 +13,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import frontmatter
+from pydantic import ValidationError
+
+from vultron.metadata.history.models import HistoryEntryFrontmatter
 
 
 @dataclass
@@ -27,17 +30,38 @@ class _EntryMeta:
 
 
 def _parse_entry(path: Path) -> _EntryMeta:
-    """Read YAML frontmatter from a history entry file."""
+    """Read and validate YAML frontmatter from a history entry file.
+
+    Raises:
+        ValueError: If the frontmatter is malformed, missing, or fails
+            required-field validation (HM-02-001).
+    """
     try:
         post = frontmatter.load(str(path))
-    except Exception:  # noqa: BLE001  # malformed frontmatter → skip
-        return _EntryMeta(path=path)
+    except Exception as exc:  # noqa: BLE001
+        raise ValueError(f"{path}: malformed YAML frontmatter: {exc}") from exc
+
+    if not post.metadata:
+        raise ValueError(
+            f"{path}: missing frontmatter block — entry must begin with a "
+            "YAML frontmatter block containing title, type, date, and source"
+        )
+
+    try:
+        meta = HistoryEntryFrontmatter.model_validate(post.metadata)
+    except ValidationError as exc:
+        missing = [e["loc"][0] for e in exc.errors() if e["loc"]]
+        fields = ", ".join(str(f) for f in missing) if missing else str(exc)
+        raise ValueError(
+            f"{path}: invalid history frontmatter: missing or invalid "
+            f"field(s): {fields}"
+        ) from exc
 
     return _EntryMeta(
-        title=str(post.metadata.get("title", "")),
-        entry_type=str(post.metadata.get("type", "")),
-        date=str(post.metadata.get("date", "")),
-        source=str(post.metadata.get("source", "")),
+        title=meta.title,
+        entry_type=meta.type.value,
+        date=meta.date.isoformat(),
+        source=meta.source,
         path=path,
     )
 
@@ -67,8 +91,7 @@ def regenerate_readme(month_dir: Path) -> Path:
         if md_file.name == "README.md":
             continue
         meta = _parse_entry(md_file)
-        if meta.title or meta.source:
-            entries.append(meta)
+        entries.append(meta)
 
     # Sort by date descending, then type ascending for stable ordering.
     entries.sort(key=lambda e: (e.date, e.entry_type), reverse=True)
