@@ -14,30 +14,6 @@ PD-06). Do not infer priority from section order.
 
 ---
 
-## TASK-RFC-402 — Consolidate find_matching_semantics into semantic_registry
-
-**Source**: <https://github.com/CERTCC/Vultron/issues/402>
-
-`extractor.py` and `semantic_registry.py` maintain two parallel 40-entry
-ordered lists. Move `find_matching_semantics()` to `semantic_registry.py`
-(iterates `SEMANTIC_REGISTRY` directly), delete `_PATTERN_SEMANTICS` and
-`_ACTIVITY_TYPES_WITH_PATTERNS` from `extractor.py`, add `matches_semantics()`
-predicate, and update 3 import sites.
-
-**Acceptance criteria:**
-
-- `_PATTERN_SEMANTICS` does not appear in `extractor.py`.
-- `find_matching_semantics` importable from `vultron.semantic_registry`.
-- `matches_semantics(activity, expected) -> bool` exists in `semantic_registry`.
-- `datalayer_sqlite.py` imports `find_matching_semantics` from `semantic_registry`.
-- All existing tests pass.
-
-- [ ] RFC-402.1: Move `find_matching_semantics` + `_ACTIVITY_TYPES_WITH_PATTERNS`
-  to `semantic_registry`; add `matches_semantics()`; delete `_PATTERN_SEMANTICS`;
-  update 3 import sites
-
----
-
 ## TASK-RFC-403 — Narrow DataLayer Port to CasePersistence
 
 **Source**: <https://github.com/CERTCC/Vultron/issues/403>

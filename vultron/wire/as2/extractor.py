@@ -5,8 +5,8 @@ location where AS2 vocabulary is translated to domain concepts (ARCH-03-001).
 This is stage 3 of the inbound pipeline: typed AS2 activity → MessageSemantics.
 
 Consolidates ActivityPattern definitions (formerly in vultron/activity_patterns.py)
-and the SEMANTICS_ACTIVITY_PATTERNS mapping + find_matching_semantics function
-(formerly in vultron/semantic_map.py) into a single extractor module.
+into a single module.  Pattern-to-semantics matching lives in
+``vultron.semantic_registry``, which iterates ``SEMANTIC_REGISTRY`` directly.
 """
 
 from datetime import datetime
@@ -336,112 +336,6 @@ AddParticipantStatusToParticipantPattern = ActivityPattern(
 )
 
 
-# ---------------------------------------------------------------------------
-# Pattern → semantics ordered lookup list (private).
-# The order of entries matters: find_matching_semantics returns the first match.
-# Specific patterns must appear before general ones that could also match.
-# ---------------------------------------------------------------------------
-
-_PATTERN_SEMANTICS: list[tuple[ActivityPattern, MessageSemantics]] = [
-    (CreateReportPattern, MessageSemantics.CREATE_REPORT),
-    (ReportSubmissionPattern, MessageSemantics.SUBMIT_REPORT),
-    (AckReportPattern, MessageSemantics.ACK_REPORT),
-    (ValidateReportPattern, MessageSemantics.VALIDATE_REPORT),
-    (InvalidateReportPattern, MessageSemantics.INVALIDATE_REPORT),
-    (CloseReportPattern, MessageSemantics.CLOSE_REPORT),
-    (CreateCaseActivityPattern, MessageSemantics.CREATE_CASE),
-    (UpdateCaseActivityPattern, MessageSemantics.UPDATE_CASE),
-    (EngageCasePattern, MessageSemantics.ENGAGE_CASE),
-    (DeferCasePattern, MessageSemantics.DEFER_CASE),
-    (AddReportToCaseActivityPattern, MessageSemantics.ADD_REPORT_TO_CASE),
-    (SuggestActorToCasePattern, MessageSemantics.SUGGEST_ACTOR_TO_CASE),
-    (
-        AcceptSuggestActorToCasePattern,
-        MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE,
-    ),
-    (
-        RejectSuggestActorToCasePattern,
-        MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE,
-    ),
-    (
-        OfferCaseOwnershipTransferActivityPattern,
-        MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER,
-    ),
-    (
-        AcceptCaseOwnershipTransferActivityPattern,
-        MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
-    ),
-    (
-        RejectCaseOwnershipTransferActivityPattern,
-        MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER,
-    ),
-    (InviteActorToCasePattern, MessageSemantics.INVITE_ACTOR_TO_CASE),
-    (
-        AcceptInviteActorToCasePattern,
-        MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
-    ),
-    (
-        RejectInviteActorToCasePattern,
-        MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE,
-    ),
-    (CreateEmbargoEventPattern, MessageSemantics.CREATE_EMBARGO_EVENT),
-    (AddEmbargoEventToCasePattern, MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE),
-    (
-        RemoveEmbargoEventFromCasePattern,
-        MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
-    ),
-    (
-        AnnounceEmbargoEventToCasePattern,
-        MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE,
-    ),
-    (InviteToEmbargoOnCasePattern, MessageSemantics.INVITE_TO_EMBARGO_ON_CASE),
-    (
-        AcceptInviteToEmbargoOnCasePattern,
-        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
-    ),
-    (
-        RejectInviteToEmbargoOnCasePattern,
-        MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
-    ),
-    (CloseCasePattern, MessageSemantics.CLOSE_CASE),
-    (AnnounceLogEntryPattern, MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY),
-    (
-        AnnounceVulnerabilityCasePattern,
-        MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
-    ),
-    (RejectLogEntryPattern, MessageSemantics.REJECT_CASE_LOG_ENTRY),
-    (CreateCaseParticipantPattern, MessageSemantics.CREATE_CASE_PARTICIPANT),
-    (
-        AddCaseParticipantToCasePattern,
-        MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE,
-    ),
-    (
-        RemoveCaseParticipantFromCasePattern,
-        MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE,
-    ),
-    (CreateNotePattern, MessageSemantics.CREATE_NOTE),
-    (AddNoteToCaseActivityPattern, MessageSemantics.ADD_NOTE_TO_CASE),
-    (RemoveNoteFromCasePattern, MessageSemantics.REMOVE_NOTE_FROM_CASE),
-    (CreateCaseStatusActivityPattern, MessageSemantics.CREATE_CASE_STATUS),
-    (AddCaseStatusToCasePattern, MessageSemantics.ADD_CASE_STATUS_TO_CASE),
-    (
-        CreateParticipantStatusPattern,
-        MessageSemantics.CREATE_PARTICIPANT_STATUS,
-    ),
-    (
-        AddParticipantStatusToParticipantPattern,
-        MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
-    ),
-]
-
-# Frozenset of activity type strings that have at least one registered pattern.
-# Used by find_matching_semantics() to distinguish "known type with unresolvable
-# object_" from "genuinely unknown activity type".
-_ACTIVITY_TYPES_WITH_PATTERNS: frozenset[str] = frozenset(
-    str(pattern.activity_) for pattern, _ in _PATTERN_SEMANTICS
-)
-
-
 def extract_intent(
     activity: as_Activity,
     semantics: MessageSemantics,
@@ -720,33 +614,3 @@ def extract_intent(
         in_reply_to=_get_id(getattr(activity, "in_reply_to", None)),
         **extra_kwargs,
     )
-
-
-def find_matching_semantics(activity: as_Activity) -> MessageSemantics:
-    """Find the MessageSemantics for the given AS2 activity.
-
-    Iterates ``_PATTERN_SEMANTICS`` in order and returns the first match.
-    Returns ``MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`` when no pattern
-    matches, the activity type is registered (has patterns), and ``object_``
-    is still a bare string URI (rehydration did not resolve it).
-    Returns ``MessageSemantics.UNKNOWN`` when the activity type is not
-    registered at all.
-
-    Note:
-        Pattern ordering matters when patterns overlap. More specific patterns
-        must appear before more general ones.
-
-    Args:
-        activity: The AS2 activity to classify.
-
-    Returns:
-        The matching MessageSemantics value, or MessageSemantics.UNKNOWN.
-    """
-    for pattern, semantics in _PATTERN_SEMANTICS:
-        if pattern.match(activity):
-            return semantics
-    obj = getattr(activity, "object_", None)
-    activity_type = str(activity.type_) if activity.type_ else ""
-    if isinstance(obj, str) and activity_type in _ACTIVITY_TYPES_WITH_PATTERNS:
-        return MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
-    return MessageSemantics.UNKNOWN

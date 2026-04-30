@@ -52,10 +52,8 @@ from vultron.adapters.utils import _URN_UUID_PREFIX, _UUID_RE
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
 from vultron.semantic_registry import (
-    semantics_to_activity_class as _semantics_to_activity_class,
-)
-from vultron.wire.as2.extractor import (
     find_matching_semantics,
+    semantics_to_activity_class as _semantics_to_activity_class,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary

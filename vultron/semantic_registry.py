@@ -23,7 +23,7 @@ code.  ``extractor.py`` must NOT import from this module (it provides the
 Public API
 ----------
 ``SEMANTIC_REGISTRY`` — ordered list of ``SemanticEntry`` values
-``find_matching_semantics(activity)`` — re-exported from ``extractor``
+``find_matching_semantics(activity)`` — iterates ``SEMANTIC_REGISTRY`` directly
 ``extract_event(activity)`` — convenience wrapper: pattern-match + extract
 ``lookup_entry(semantics)`` — O(1) entry lookup by ``MessageSemantics``
 """
@@ -616,6 +616,15 @@ _ENTRY_MAP: dict[MessageSemantics, SemanticEntry] = {
     e.semantics: e for e in SEMANTIC_REGISTRY
 }
 
+# Frozenset of activity type strings that have at least one registered pattern.
+# Used by find_matching_semantics() to distinguish "known type with unresolvable
+# object_" from "genuinely unknown activity type".
+_ACTIVITY_TYPES_WITH_PATTERNS: frozenset[str] = frozenset(
+    str(e.pattern.activity_)
+    for e in SEMANTIC_REGISTRY
+    if e.pattern is not None
+)
+
 
 def lookup_entry(semantics: MessageSemantics) -> SemanticEntry:
     """Return the ``SemanticEntry`` for *semantics*.
@@ -626,14 +635,6 @@ def lookup_entry(semantics: MessageSemantics) -> SemanticEntry:
     return _ENTRY_MAP.get(semantics, _ENTRY_MAP[MessageSemantics.UNKNOWN])
 
 
-# ---------------------------------------------------------------------------
-# Re-export find_matching_semantics from the wire layer for callers that only
-# need pattern matching without the full registry.
-# ---------------------------------------------------------------------------
-
-from vultron.wire.as2.extractor import (  # noqa: E402  (after registry build)
-    find_matching_semantics,
-)
 from vultron.wire.as2.extractor import (  # noqa: E402
     extract_intent as _extract_intent,
 )
@@ -643,6 +644,7 @@ __all__ = [
     "SEMANTIC_REGISTRY",
     "lookup_entry",
     "find_matching_semantics",
+    "matches_semantics",
     "extract_event",
     "use_case_map",
     "semantics_to_activity_class",
@@ -703,3 +705,51 @@ def semantics_to_activity_class() -> dict[MessageSemantics, type[as_Activity]]:
 from vultron.wire.as2.vocab.base.objects.activities.base import (  # noqa: E402
     as_Activity,
 )
+
+
+def find_matching_semantics(activity: as_Activity) -> MessageSemantics:
+    """Find the MessageSemantics for the given AS2 activity.
+
+    Iterates ``SEMANTIC_REGISTRY`` in order and returns the first match.
+    Returns ``MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`` when no pattern
+    matches, the activity type is registered (has patterns), and ``object_``
+    is still a bare string URI (rehydration did not resolve it).
+    Returns ``MessageSemantics.UNKNOWN`` when the activity type is not
+    registered at all.
+
+    ``SEMANTIC_REGISTRY`` is the single source of truth for pattern-match order;
+    more specific patterns must appear before general ones.
+
+    Args:
+        activity: The AS2 activity to classify.
+
+    Returns:
+        The matching MessageSemantics value, or MessageSemantics.UNKNOWN.
+    """
+    for entry in SEMANTIC_REGISTRY:
+        if entry.pattern is not None and entry.pattern.match(activity):
+            return entry.semantics
+    obj = getattr(activity, "object_", None)
+    activity_type = str(activity.type_) if activity.type_ else ""
+    if isinstance(obj, str) and activity_type in _ACTIVITY_TYPES_WITH_PATTERNS:
+        return MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
+    return MessageSemantics.UNKNOWN
+
+
+def matches_semantics(
+    activity: as_Activity,
+    expected: MessageSemantics,
+) -> bool:
+    """Return True if *activity* matches the *expected* MessageSemantics.
+
+    Convenience predicate for test authors — eliminates the need to import
+    named ``*Pattern`` constants just to assert semantic identity.
+
+    Args:
+        activity: The AS2 activity to classify.
+        expected: The expected ``MessageSemantics`` value.
+
+    Returns:
+        True when ``find_matching_semantics(activity) == expected``.
+    """
+    return find_matching_semantics(activity) == expected

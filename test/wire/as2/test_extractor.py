@@ -6,9 +6,12 @@ from typing import Any, cast
 from vultron.core.models.events import MessageSemantics
 from vultron.wire.as2.extractor import (
     ActivityPattern,
+)
+from vultron.semantic_registry import (
+    SEMANTIC_REGISTRY,
+    extract_event,
     find_matching_semantics,
 )
-from vultron.semantic_registry import SEMANTIC_REGISTRY, extract_event
 
 
 def test_find_matching_semantics_returns_unknown_for_unmatched_activity():
