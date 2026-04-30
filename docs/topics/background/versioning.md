@@ -7,27 +7,30 @@
 
 {% include-markdown "../../includes/curr_ver.md" %}
 
-While we have not yet mapped out a future release schedule, in
-anticipation of future revisions, we have chosen a semantic versioning
-scheme for the Vultron Protocol. Specifically, Vultron Protocol versions will be
-assigned according to the format `MAJOR.MINOR.MICRO`, where
+Vultron Protocol versions follow [Calendar Versioning (CalVer)](https://calver.org/)
+using the format `YYYY.M.Patch`, where:
 
-- `MAJOR` represents the zero-indexed major version for the release.
+- `YYYY` is the four-digit year of the most recent non-patch release.
 
-- `MINOR` represents a zero-indexed counter for minor releases that
-    maintain compatibility with their MAJOR version.
+- `M` is the month of the most recent non-patch release,
+    with no zero padding (e.g., `1`, `2`, `3`, ..., `12`).
 
-- `MICRO` represents an optional zero-indexed micro-version (patch)
-    counter for versions that update a MINOR version.
+- `Patch` is the patch number for that release.
+    For the first (or only) release in a given month, the patch number
+    starts at `0` and is normally omitted, so `2024.4.0` and `2024.4`
+    denote the same version.
 
-Trailing zero values may be omitted (e.g., `3.1` and `3.1.0` denote the
-same version, similarly `5` and `5.0`). It may be useful at some point
-to use pre-release tags such as `-alpha`, `-beta`, `-rc` (with optional
-zero-indexed counters as needed), but we reserve that decision until
-their necessity becomes clear. The same goes for build-specific tags;
-while we do not currently have a use for them, we do not rule out their
-future use.
+Version increments work as follows:
 
-Because of the early nature of the current protocol, as of this writing,
-no backward compatibility commitments are made or implied within the `0.x` versions.
-We anticipate this commitment will change as we get closer to a major release.
+- **Significant releases** use the current year and month, with the patch
+    number starting at `0` (normally omitted).
+    Example: the first significant release in April 2024 is `2024.4`.
+
+- **Patch releases** increment the patch number from the most recent
+    non-patch release, even if the patch is published in a later month or year.
+    Example: the third small update to `2024.4` is `2024.4.3`, even if it
+    is released in May 2024 or later.
+
+Because we are still in the early stages of the project, no backward
+compatibility commitments are made or implied at this time.
+We anticipate this will change as the protocol matures.

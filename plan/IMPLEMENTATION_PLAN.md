@@ -14,30 +14,6 @@ PD-06). Do not infer priority from section order.
 
 ---
 
-## TASK-DOCS-472 — LaTeX Fixes and Versioning Updates
-
-**Parent**: <https://github.com/CERTCC/Vultron/issues/404>
-
-Five independent documentation fixes resoluble in a single focused pass.
-
-**Acceptance criteria:**
-
-- All LaTeX in affected pages renders without raw `$\LaTeX$` visible.
-- Versioning page describes CalVer scheme with no SemVer references.
-- `uv run mkdocs build --strict` passes.
-
-- [ ] DOC-472.1: Update `docs/topics/background/versioning/` to describe CalVer
-  **Source**: <https://github.com/CERTCC/Vultron/issues/154>
-- [ ] DOC-472.2: Fix LaTeX in SSVC Crosswalk (`reference/ssvc_crosswalk/`)
-  **Source**: <https://github.com/CERTCC/Vultron/issues/186>,
-  <https://github.com/CERTCC/Vultron/issues/271>
-- [ ] DOC-472.3: Fix LaTeX in Formal Protocol Redux conclusion page
-  **Source**: <https://github.com/CERTCC/Vultron/issues/234>
-- [ ] DOC-472.4: Fix LaTeX in Transitions page
-  **Source**: <https://github.com/CERTCC/Vultron/issues/235>
-
----
-
 ## TASK-RFC-402 — Consolidate find_matching_semantics into semantic_registry
 
 **Source**: <https://github.com/CERTCC/Vultron/issues/402>

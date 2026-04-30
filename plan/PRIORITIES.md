@@ -10,24 +10,6 @@ relative order. Completed priorities should be archived via `uv run append-histo
 (writes to `plan/history/YYMM/priority/`) and then removed from this file to keep
 `plan/PRIORITIES.md` focused on pending and in-progress work.
 
-## Priority 472: Docs Batch — LaTeX Fixes and Versioning Updates
-
-A batch of small, independent documentation fixes tracked under parent issue
-[#404](https://github.com/CERTCC/Vultron/issues/404).
-
-Sub-issues:
-
-- [#154](https://github.com/CERTCC/Vultron/issues/154) — Update versioning background to reflect CalVer adoption (remove semver references)
-- [#186](https://github.com/CERTCC/Vultron/issues/186) — SSVC crosswalk has some unrendered LaTeX
-- [#234](https://github.com/CERTCC/Vultron/issues/234) — Unrendered LaTeX in Formal Vultron Protocol Redux
-- [#235](https://github.com/CERTCC/Vultron/issues/235) — Unrendered LaTeX in Transitions
-- [#271](https://github.com/CERTCC/Vultron/issues/271) — SSVC Crosswalk page has broken LaTeX
-
-These are all self-contained doc fixes that can be resolved in a single
-focused pass. Higher priority than a full docs refactor or platform migration
-([#294](https://github.com/CERTCC/Vultron/issues/294)) but lower than
-active code bugs.
-
 ## Priority 473: Architecture Hardening
 
 RFC-level improvements that deepen module design, reduce coupling, and

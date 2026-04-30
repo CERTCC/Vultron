@@ -22,8 +22,9 @@ history, which we denote as $f_h$.
     in the history $h$. We are only concerned with histories that meet our
     sequence constraints, namely $h \in \mathcal{H}$.
     
-    $$\label{eq:history_freq}
-        f_h = \prod_{i=0}^{5} p(\sigma_{i+1}|h_i) %\textrm{ where } \sigma_i \in h \textrm{ and } h \in H$$
+    $$
+        f_h = \prod_{i=0}^{5} p(\sigma_{i+1}|h_i)
+    $$
 
 The [Possible Histories table](./possible_histories.md) displays the value of $f_h$ for each history.
 Having an expected frequency ($f_h$) for each history $h$ will

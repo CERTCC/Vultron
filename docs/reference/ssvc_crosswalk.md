@@ -19,7 +19,7 @@ the *Deployer Tree*.
 
 !!! note "SSVC *Supplier Tree* Mapping to RM States"
 
-    $$\label{eq:ssvc_supplier_tree_output}
+    $$
     q^{rm} \in
     \begin{cases}
         \xrightarrow{d} D & \text{when } SSVC(Supplier~Tree) = Defer \\
@@ -34,7 +34,7 @@ the *Deployer Tree*.
 
 !!! note "SSVC *Deployer Tree* Mapping to RM States"
 
-    $$\label{eq:ssvc_deployer_tree_output}
+    $$
     q^{rm} \in
     \begin{cases}
         \xrightarrow{d} D & \text{when } SSVC(Deployer~Tree) = Defer \\
@@ -75,7 +75,7 @@ Similar to the *Supplier Tree* mapping above, the mapping here is simple, as sho
 
 !!! note "SSVC *Coordinator Triage Tree* Mapped to RM States"
 
-    $$\label{eq:ssvc_coordinator_triage_tree_output}
+    $$
     q^{rm} \in
     \begin{cases}
         \xrightarrow{d} D & \text{when } SSVC(Coord.~Triage~Tree) = Decline \\
@@ -191,7 +191,8 @@ already be public.
 
 !!! note "SSVC *Public Value Added* Decision Point Mapped to CS States"
 
-        $$ SSVC(pva) = 
+    $$
+    SSVC(pva) = 
         \begin{cases}
             Precedence & \iff q^{cs} \in \cdot\cdot\cdot p\cdot\cdot \\
             Ampliative & \iff q^{cs} \in VFdp\cdot\cdot \textrm{ or } q^{cs} \in \cdot\cdot dP\cdot\cdot \\
@@ -264,7 +265,6 @@ We begin by noting the equivalence of the *Fix-Ready* value with the similarly n
 !!! note "SSVC *Supplier Involvement* Decision Point Mapped to CS States"
 
     $$\begin{aligned}
-    \label{eq:ssvc_supplier_involvement_fr}
         SSVC(supp.~inv.) = Fix~Ready \iff q^{cs} \in VF \cdot\cdot\cdot\cdot
     \end{aligned}$$
 
@@ -273,7 +273,6 @@ The Vendor RM states map onto these values as formalized below and shown in the 
 !!! note "SSVC Supplier Involvement Decision Point Mapped to Vendor RM States"
 
     $$\begin{aligned}
-    \label{eq:ssvc_supplier_involvement}
     SSVC(supp.~inv.) = 
     \begin{cases}
         \begin{cases}
