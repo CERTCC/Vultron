@@ -29,6 +29,8 @@ Spec coverage:
 - OX-03-002/003: Delivery occurs after handler; MUST NOT block HTTP response.
 - OX-1.1: Delivery via async HTTP POST to recipient inbox URLs.
 - OX-1.3: Idempotency enforced at inbox endpoint (not delivery side).
+- OX-08-001/002/003: `to:` field MUST be non-empty; raises VultronOutboxToFieldMissingError.
+- OX-08-004: `cc`/`bto`/`bcc` presence logs a WARNING.
 """
 
 import asyncio
@@ -40,7 +42,10 @@ import pytest
 
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 from vultron.core.models.activity import VultronActivity
-from vultron.errors import VultronOutboxObjectIntegrityError
+from vultron.errors import (
+    VultronOutboxObjectIntegrityError,
+    VultronOutboxToFieldMissingError,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -715,3 +720,138 @@ def test_handle_outbox_item_preserves_inline_case_log_entry_fields():
     assert emitted_activity.object_["caseId"] == entry.case_id
     assert emitted_activity.object_["logObjectId"] == entry.log_object_id
     assert emitted_activity.object_["eventType"] == entry.event_type
+
+
+# ---------------------------------------------------------------------------
+# handle_outbox_item — to: field enforcement (OX-08)
+# ---------------------------------------------------------------------------
+
+
+def _make_vultron_activity(
+    to=None, cc=None, bto=None, bcc=None, activity_type="Offer"
+) -> VultronActivity:
+    """Build a VultronActivity with the given addressing fields."""
+    act = VultronActivity(
+        id_="urn:test:act-to-check",
+        type_=activity_type,
+        actor="https://example.org/actors/sender",
+        to=to,
+        cc=cc,
+        bto=bto,
+        bcc=bcc,
+    )
+    return act
+
+
+def test_handle_outbox_item_raises_when_to_is_none():
+    """handle_outbox_item raises VultronOutboxToFieldMissingError when to is None (OX-08-003)."""
+    activity = _make_vultron_activity(to=None)
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = activity
+    mock_emitter = AsyncMock()
+
+    with pytest.raises(VultronOutboxToFieldMissingError) as exc_info:
+        asyncio.run(
+            oh.handle_outbox_item(
+                "actor-abc", activity.id_, mock_dl, mock_emitter
+            )
+        )
+
+    assert exc_info.value.activity_id == activity.id_
+    assert exc_info.value.activity_type == "Offer"
+    mock_emitter.emit.assert_not_called()
+
+
+def test_handle_outbox_item_raises_when_to_is_empty_list():
+    """handle_outbox_item raises VultronOutboxToFieldMissingError when to is [] (OX-08-002)."""
+    activity = _make_vultron_activity(to=[])
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = activity
+    mock_emitter = AsyncMock()
+
+    with pytest.raises(VultronOutboxToFieldMissingError) as exc_info:
+        asyncio.run(
+            oh.handle_outbox_item(
+                "actor-abc", activity.id_, mock_dl, mock_emitter
+            )
+        )
+
+    assert exc_info.value.activity_id == activity.id_
+    assert exc_info.value.activity_type == "Offer"
+    mock_emitter.emit.assert_not_called()
+
+
+@pytest.mark.parametrize("addr_field", ["cc", "bto", "bcc"])
+def test_handle_outbox_item_warns_when_non_standard_addr_field_present(
+    addr_field, caplog
+):
+    """handle_outbox_item logs WARNING when cc/bto/bcc set, but still delivers (OX-08-004)."""
+    recipient = "https://example.org/actors/alice"
+    other = "https://example.org/actors/charlie"
+    if addr_field == "cc":
+        activity = VultronActivity(
+            id_="urn:test:act-warn",
+            type_="Create",
+            actor="https://example.org/actors/sender",
+            to=[recipient],
+            cc=[other],
+        )
+    elif addr_field == "bto":
+        activity = VultronActivity(
+            id_="urn:test:act-warn",
+            type_="Create",
+            actor="https://example.org/actors/sender",
+            to=[recipient],
+            bto=[other],
+        )
+    else:
+        activity = VultronActivity(
+            id_="urn:test:act-warn",
+            type_="Create",
+            actor="https://example.org/actors/sender",
+            to=[recipient],
+            bcc=[other],
+        )
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = activity
+    mock_emitter = AsyncMock()
+
+    with caplog.at_level("WARNING"):
+        asyncio.run(
+            oh.handle_outbox_item(
+                "actor-abc", activity.id_, mock_dl, mock_emitter
+            )
+        )
+
+    assert any(
+        addr_field in r.message for r in caplog.records
+    ), f"Expected WARNING mentioning '{addr_field}'"
+    mock_emitter.emit.assert_called_once()
+
+
+def test_handle_outbox_item_no_warning_when_only_to_set(caplog):
+    """handle_outbox_item logs no cc/bto/bcc WARNING when only to: is set."""
+    recipient = "https://example.org/actors/alice"
+    activity = VultronActivity(
+        id_="urn:test:act-no-warn",
+        type_="Create",
+        actor="https://example.org/actors/sender",
+        to=[recipient],
+    )
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = activity
+    mock_emitter = AsyncMock()
+
+    with caplog.at_level("WARNING"):
+        asyncio.run(
+            oh.handle_outbox_item(
+                "actor-abc", activity.id_, mock_dl, mock_emitter
+            )
+        )
+
+    warning_texts = [
+        r.message for r in caplog.records if r.levelname == "WARNING"
+    ]
+    assert not any(
+        any(f in msg for f in ("cc", "bto", "bcc")) for msg in warning_texts
+    )

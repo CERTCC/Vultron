@@ -65,7 +65,7 @@ backward-compat alias.
   value combinable with VENDOR, COORDINATOR, etc.
 - All existing CVDRoles-based tests pass.
 
-- [ ] BTND5.1: Add `CASE_OWNER` flag to `CVDRoles` (BTND-05-001)
+- [x] BTND5.1: Add `CASE_OWNER` flag to `CVDRoles` (BTND-05-001)
 
 ### BTND5.2 — Replace `CreateInitialVendorParticipant` with `CreateCaseOwnerParticipant`
 
@@ -207,7 +207,7 @@ only inside factory functions.
   `EmProposeEmbargoRef` renamed to `_EmProposeEmbargoRef`
 - All linters and tests pass
 
-- [ ] AF.1 Create `factories/errors.py` with `VultronActivityConstructionError`
+- [x] AF.1 Create `factories/errors.py` with `VultronActivityConstructionError`
 - [ ] AF.2 Create `factories/report.py` (6 report activity factory functions)
 - [ ] AF.3 Create `factories/case.py` (16 case activity factory functions)
 - [ ] AF.4 Create `factories/embargo.py` (8 embargo activity factory functions)
@@ -299,34 +299,6 @@ Refactor `SeedConfig`/`LocalActorConfig` to `pydantic-settings`.
 
 - [ ] TRIGCLASS.2: Implement `add-object-to-case` trigger; update
   `add-report-to-case` to delegate to it (TRIG-10-001, TRIG-10-002)
-
----
-
-## TASK-OUTBOX-TO — Outbox `to:` Field Enforcement
-
-**Source**: `specs/outbox.yaml` OX-08-001, OX-08-002, OX-08-004;
-`notes/outbox.md`
-
-All outbound Vultron activities are direct messages and MUST have a non-empty
-`to:` field. Enforce this at `handle_outbox_item` so no activity can leave the
-outbox without an addressee.
-
-**Acceptance criteria:**
-
-- `VultronOutboxToFieldMissingError(VultronError)` exists in `vultron/errors.py`
-  with `activity_id` and `activity_type` attributes.
-- `handle_outbox_item` in `vultron/adapters/driving/fastapi/outbox_handler.py`
-  raises `VultronOutboxToFieldMissingError` when `to:` is absent or an empty
-  list; logs `WARNING` when `cc`/`bto`/`bcc` are non-empty.
-- Existing `VultronOutboxObjectIntegrityError` check is unmodified.
-- Unit tests cover the missing-`to:` raise and the `cc`/`bto`/`bcc` warning
-  branches.
-
-- [ ] OUTBOX-TO.1 Add `VultronOutboxToFieldMissingError` to `vultron/errors.py`
-  (OX-08-001, OX-08-002)
-- [ ] OUTBOX-TO.2 Add `to:` presence check and `cc`/`bto`/`bcc` warning to
-  `handle_outbox_item` (OX-08-001, OX-08-002, OX-08-004)
-- [ ] OUTBOX-TO.3 Add unit tests for both branches
 
 ---
 

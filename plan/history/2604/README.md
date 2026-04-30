@@ -8,9 +8,12 @@
 | 2026-04-30 | implementation | BUG-26043001 | BUG-26043001 — append-history: validate required frontmatter fields |
 | 2026-04-30 | implementation | P472-LATEX | Fix block-math opening delimiter in conclusion.md (#234, #235) |
 | 2026-04-30 | implementation | RFC-400 | RFC-400 TriggerService Facade |
+| 2026-04-30 | implementation | TASK-AF | TASK-AF.1: Create factories/errors.py |
+| 2026-04-30 | implementation | TASK-BTND5 | TASK-BTND5.1: Add CVDRoles.CASE_OWNER |
 | 2026-04-30 | implementation | TASK-BUG-386 | BUG-386 — Defer unresolved Accept.object_ references (resolved via sender-side fix) |
 | 2026-04-30 | implementation | TASK-DL-REHYDRATE | DataLayer list_objects() method and model_validate cleanup |
 | 2026-04-30 | implementation | TASK-DOCS-472 | TASK-DOCS-472 — Fix LaTeX Rendering and Versioning Docs |
+| 2026-04-30 | implementation | TASK-OUTBOX-TO | TASK-OUTBOX-TO: Outbox to: Field Enforcement |
 | 2026-04-30 | implementation | TASK-RFC-401 | TASK-RFC-401 BTTestScenario deep-module test harness |
 | 2026-04-30 | implementation | TASK-RFC-402 | Consolidate find_matching_semantics into semantic_registry |
 | 2026-04-30 | implementation | TASK-RFC-403 | Introduce CasePersistence and CaseOutboxPersistence narrow Protocols (RFC-403) |

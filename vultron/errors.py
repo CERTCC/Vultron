@@ -54,6 +54,25 @@ class VultronApiHandlerNotFoundError(VultronError, KeyError):
     """Raised when no handler is found for a given activity type."""
 
 
+class VultronOutboxToFieldMissingError(VultronError):
+    """Raised when an outbound activity lacks a non-empty ``to:`` field.
+
+    All Vultron protocol exchanges are direct messages.  Every outbound
+    activity MUST address at least one recipient via ``to:``.
+    See specs/outbox.yaml OX-08-001, OX-08-002, OX-08-003.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        activity_id: str | None = None,
+        activity_type: str | None = None,
+    ):
+        self.activity_id = activity_id
+        self.activity_type = activity_type
+        super().__init__(message)
+
+
 class VultronOutboxObjectIntegrityError(VultronError):
     """Raised when an outbound activity's object_ is a bare string URI or
     Link reference instead of the required inline domain object.
