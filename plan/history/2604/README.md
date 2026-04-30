@@ -5,10 +5,12 @@
 | Date | Type | Source | Title |
 |------|------|--------|-------|
 | 2026-04-30 | priority | Priority 472 | Priority 472 — Docs Batch (LaTeX Fixes and Versioning Updates) |
+| 2026-04-30 | implementation | BUG-26043001 | BUG-26043001 — append-history: validate required frontmatter fields |
 | 2026-04-30 | implementation | P472-LATEX | Fix block-math opening delimiter in conclusion.md (#234, #235) |
 | 2026-04-30 | implementation | TASK-BUG-386 | BUG-386 — Defer unresolved Accept.object_ references (resolved via sender-side fix) |
 | 2026-04-30 | implementation | TASK-DOCS-472 | TASK-DOCS-472 — Fix LaTeX Rendering and Versioning Docs |
 | 2026-04-30 | implementation | TASK-RFC-402 | Consolidate find_matching_semantics into semantic_registry |
+| 2026-04-30 | implementation | TASK-RFC-403 | Introduce CasePersistence and CaseOutboxPersistence narrow Protocols (RFC-403) |
 | 2026-04-29 | priority | Priority 471 | Priority 471: Bug Fixes and Demo Polish — COMPLETE |
 | 2026-04-29 | implementation | TASK-BUGS-471 | Bug Fixes: BUG-471.5, BUG-471.6, BUG-471.7a, BUG-471.7b |
 | 2026-04-28 | priority | Priority 470 | Priority 470 — Skills-upgrade spec tasks complete |

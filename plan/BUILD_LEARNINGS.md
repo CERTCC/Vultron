@@ -24,3 +24,23 @@ receiver-side dead-letter path (`UnresolvableObjectUseCase`) remains in place
 for non-compliant or legacy senders; it was not changed. If a future need arises
 to auto-retry deferred activities, implement a `DeferredActivityRecord` model
 and a dispatcher post-hook (see issue #386 description for design sketch).
+
+### 2026-04-30 TASK-DL-REHYDRATE — Do not name a method `list` in a Python class
+
+Defining `def list(self, ...)` on a class causes Python to shadow the built-in
+`list` type in the class body scope. Any annotation `list[str]` that appears
+AFTER the `def list(...)` definition is evaluated at class-body execution time
+with `list` resolving to the method (a function), producing `TypeError:
+'function' object is not subscriptable`. `# type: ignore[valid-type]` only
+suppresses mypy — it does NOT prevent the runtime error. Fix: rename the method
+to avoid collision (e.g., `list_objects`). This affects any method that shares
+a name with a Python built-in type (`dict`, `set`, `tuple`, etc.).
+
+### 2026-04-30 BUG-26043001 — append-history: always use a Pydantic model for structured file formats
+
+When a CLI tool writes structured files (frontmatter, YAML, JSON), define a
+Pydantic model for the structure upfront. Without it, required-field validation
+is either missing or duplicated across callers. The fallback-to-default pattern
+(`metadata.get("source", "")`) makes it impossible to distinguish "absent field"
+from "empty field". A Pydantic model with `ValidationError` on missing fields is
+the single source of truth and forces callers to handle the error path explicitly.
