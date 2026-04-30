@@ -249,8 +249,8 @@ class SqliteDataLayer:
         ``origin``, ``result``, ``instrument``) are dehydrated to ID strings
         by the storage layer.  This method resolves each string ID via
         ``self.read()`` and replaces it with the full domain object.  If a
-        referenced object is not found the string is kept and a warning is
-        logged.
+        referenced object is not found the string is kept and a DEBUG message
+        is logged.
         """
         updates: dict[str, object] = {}
         for field_name in _AS_OBJECT_REF_FIELDS:

@@ -2,7 +2,7 @@
 title: "Priority 471: Bug Fixes and Demo Polish — COMPLETE"
 type: priority
 date: 2026-04-29
-source: PRIORITIES.md
+source: Priority 471
 ---
 
 ## Priority 471: Bug Fixes and Demo Polish

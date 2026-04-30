@@ -502,7 +502,7 @@ class TestEngageDeferCaseBTFailureReason:
             if "EngageCaseBT did not succeed" in r.message
         ]
         assert records, "Expected EngageCaseBT warning to be emitted"
-        reason = records[0].message.split(":", maxsplit=3)[-1].strip()
+        reason = records[0].message.rsplit(":", 1)[-1].strip()
         assert reason, (
             "EngageCaseBT warning must include a non-empty failure reason; "
             f"got: {records[0].message!r}"
@@ -527,7 +527,7 @@ class TestEngageDeferCaseBTFailureReason:
             if "DeferCaseBT did not succeed" in r.message
         ]
         assert records, "Expected DeferCaseBT warning to be emitted"
-        reason = records[0].message.split(":", maxsplit=3)[-1].strip()
+        reason = records[0].message.rsplit(":", 1)[-1].strip()
         assert reason, (
             "DeferCaseBT warning must include a non-empty failure reason; "
             f"got: {records[0].message!r}"
