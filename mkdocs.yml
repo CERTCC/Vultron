@@ -127,6 +127,7 @@ nav:
       - General Notes: 'howto/general_implementation.md'
   - Reference:
     - 'reference/index.md'
+    - Ubiquitous Language: 'reference/glossary.md'
     - Formal Protocol:
       - 'reference/formal_protocol/index.md'
       - States: 'reference/formal_protocol/states.md'
