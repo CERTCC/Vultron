@@ -39,3 +39,14 @@ without being told what time to use -- the `append-history` command itself
 can be the timestamper-of-record for new entries, reducing the chance that
 agents will create entries with inconsistent timestamps. This should be
 enforced in specs and tooling as needed.
+
+## IDEA-26043003 `append-history` should use command line parameters for frontmatter
+
+Instead of having to generate a markdown file with frontmatter to use as
+input for the `append-history` command, it would be preferable for
+`append-history` to just have a fixed set of required and optional command
+line parameters that it uses to construct a `HistoryEntryFrontmatter` object
+internally, then it can prepend the yaml frontmatter to the provided text
+block and create the new history entry. This would reduce trial and error
+when agents guess at what the yaml frontmatter is supposed to look like.
+Related to both IDEA-26043001 and IDEA-26043002.
