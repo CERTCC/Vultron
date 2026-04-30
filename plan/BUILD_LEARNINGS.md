@@ -15,20 +15,6 @@ node's `feedback_message` is always `""`. Use `BTBridge.get_failure_reason(tree)
 Apply this pattern consistently wherever `result.feedback_message` is logged
 after a BT failure — not just for EngageCaseBT.
 
-### 2026-04-30 P472-LATEX — #234/#235 (conclusion.md / transitions.md) not directly patched
-
-Commit `2c116d57` claims to close #234 (unrendered LaTeX in `conclusion.md`)
-and #235 (unrendered LaTeX in `transitions.md`) but neither file was modified.
-The rationale is that the `\label{}` removal from `formal_protocol/index.md`
-(same MathJax context) resolved the rendering indirectly. Neither file
-contains `\label{}` commands. If LaTeX rendering issues resurface on those
-pages, investigate:
-
-1. Whether MathJax version or config changed.
-2. Whether any `$$…$$` block inside an admonition needs explicit blank-line
-   separation (pymdownx.arithmatex `generic: true` quirk).
-3. Whether the 4-space vs 8-space indentation rule applies.
-
 ### 2026-04-30 P472-BUG386 — Closed via sender-side inline-object fix
 
 TASK-BUG-386 (deferred handling for unresolvable `Accept.object_` URIs) was

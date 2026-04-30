@@ -13,13 +13,15 @@ Recapping the definitions given in the [introduction](index.md), we have:
 
 !!! note "Formal Protocol Definition"
 
-    $${protocol}_{MPCVD} = 
-        \Big \langle 
-            { \langle S_i \rangle }^N_{i=1}, 
+    $$
+    {protocol}_{MPCVD} =
+        \Big \langle
+            { \langle S_i \rangle }^N_{i=1},
             { \langle o_i \rangle }^N_{i=1},
             { \langle M_{i,j} \rangle}^N_{i,j=1},
             { succ }
-        \Big \rangle$$
+        \Big \rangle
+    $$
 
 where
 
