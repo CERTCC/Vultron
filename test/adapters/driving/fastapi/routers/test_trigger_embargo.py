@@ -25,10 +25,15 @@ from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.adapters.driving.fastapi.routers.trigger_embargo import _actor_dl
+from vultron.adapters.driving.fastapi.deps import (
+    get_canonical_actor_dl,
+    get_trigger_dl,
+    get_trigger_service,
+)
 from vultron.adapters.driving.fastapi.routers import (
     trigger_embargo as trigger_embargo_router,
 )
+from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.wire.as2.vocab.activities.embargo import EmProposeEmbargoActivity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
@@ -83,7 +88,9 @@ def dl(actor_and_dl):
 def client_triggers(dl):
     app = FastAPI()
     app.include_router(trigger_embargo_router.router)
-    app.dependency_overrides[_actor_dl] = lambda: dl
+    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(dl)
+    app.dependency_overrides[get_trigger_dl] = lambda: dl
+    app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
@@ -947,21 +954,16 @@ class TestTriggerEmbargoOutboxScheduling:
     """D5-6-TRIGDELIV: embargo trigger endpoints must schedule outbox_handler."""
 
     def test_propose_embargo_schedules_outbox_handler(
-        self, client_triggers, actor, case_without_participant
+        self, client_triggers, dl, actor, case_without_participant
     ):
         """propose-embargo schedules outbox delivery after execution."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
 
-        mock_dl = MagicMock()
         with patch(
             "vultron.adapters.driving.fastapi.routers"
             ".trigger_embargo.outbox_handler",
             new_callable=AsyncMock,
-        ) as mock_outbox, patch(
-            "vultron.adapters.driving.fastapi.routers"
-            ".trigger_embargo.get_datalayer",
-            return_value=mock_dl,
-        ):
+        ) as mock_outbox:
             resp = client_triggers.post(
                 f"/actors/{actor.id_}/trigger/propose-embargo",
                 json={
@@ -972,25 +974,21 @@ class TestTriggerEmbargoOutboxScheduling:
         assert resp.status_code == status.HTTP_202_ACCEPTED
         mock_outbox.assert_called_once()
         assert mock_outbox.call_args.args[0] == actor.id_
-        assert mock_outbox.call_args.args[1] is mock_dl
+        assert mock_outbox.call_args.args[1] is dl
+        assert mock_outbox.call_args.args[2] is dl
 
     def test_accept_embargo_schedules_outbox_handler(
-        self, client_triggers, actor, case_with_proposal
+        self, client_triggers, dl, actor, case_with_proposal
     ):
         """accept-embargo schedules outbox delivery after execution."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
 
         case_obj, proposal, _ = case_with_proposal
-        mock_dl = MagicMock()
         with patch(
             "vultron.adapters.driving.fastapi.routers"
             ".trigger_embargo.outbox_handler",
             new_callable=AsyncMock,
-        ) as mock_outbox, patch(
-            "vultron.adapters.driving.fastapi.routers"
-            ".trigger_embargo.get_datalayer",
-            return_value=mock_dl,
-        ):
+        ) as mock_outbox:
             resp = client_triggers.post(
                 f"/actors/{actor.id_}/trigger/accept-embargo",
                 json={
@@ -1001,24 +999,21 @@ class TestTriggerEmbargoOutboxScheduling:
         assert resp.status_code == status.HTTP_202_ACCEPTED
         mock_outbox.assert_called_once()
         assert mock_outbox.call_args.args[0] == actor.id_
+        assert mock_outbox.call_args.args[1] is dl
+        assert mock_outbox.call_args.args[2] is dl
 
     def test_terminate_embargo_schedules_outbox_handler(
-        self, client_triggers, actor, case_with_embargo
+        self, client_triggers, dl, actor, case_with_embargo
     ):
         """terminate-embargo schedules outbox delivery after execution."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
 
         case_obj, _ = case_with_embargo
-        mock_dl = MagicMock()
         with patch(
             "vultron.adapters.driving.fastapi.routers"
             ".trigger_embargo.outbox_handler",
             new_callable=AsyncMock,
-        ) as mock_outbox, patch(
-            "vultron.adapters.driving.fastapi.routers"
-            ".trigger_embargo.get_datalayer",
-            return_value=mock_dl,
-        ):
+        ) as mock_outbox:
             resp = client_triggers.post(
                 f"/actors/{actor.id_}/trigger/terminate-embargo",
                 json={"case_id": case_obj.id_},
@@ -1026,3 +1021,5 @@ class TestTriggerEmbargoOutboxScheduling:
         assert resp.status_code == status.HTTP_202_ACCEPTED
         mock_outbox.assert_called_once()
         assert mock_outbox.call_args.args[0] == actor.id_
+        assert mock_outbox.call_args.args[1] is dl
+        assert mock_outbox.call_args.args[2] is dl

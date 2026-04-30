@@ -173,17 +173,11 @@ class SvcAcceptCaseInviteUseCase:
             )
 
         if not isinstance(raw_invite, RmInviteToCaseActivity):
-            try:
-                invite = RmInviteToCaseActivity.model_validate(
-                    raw_invite.model_dump(by_alias=True)
-                )
-            except Exception as exc:
-                raise VultronValidationError(
-                    f"'{self._request.invite_id}' cannot be coerced to"
-                    " RmInviteToCaseActivity"
-                ) from exc
-        else:
-            invite = raw_invite
+            raise VultronValidationError(
+                f"'{self._request.invite_id}' is not an"
+                " RmInviteToCaseActivity"
+            )
+        invite = raw_invite
 
         activity = RmAcceptInviteToCaseActivity(
             actor=actor_id,

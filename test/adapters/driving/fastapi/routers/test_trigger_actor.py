@@ -27,10 +27,12 @@ from fastapi.testclient import TestClient
 from vultron.adapters.driving.fastapi.routers import (
     trigger_actor as trigger_actor_router,
 )
-from vultron.adapters.driving.fastapi.routers.trigger_actor import (
-    _actor_dl,
-    _canonical_actor_dl,
+from vultron.adapters.driving.fastapi.deps import (
+    get_canonical_actor_dl,
+    get_trigger_dl,
+    get_trigger_service,
 )
+from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.wire.as2.vocab.activities.case import RmInviteToCaseActivity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -84,8 +86,9 @@ def dl(actor_and_dl):
 def client_triggers(dl):
     app = FastAPI()
     app.include_router(trigger_actor_router.router)
-    app.dependency_overrides[_actor_dl] = lambda: dl
-    app.dependency_overrides[_canonical_actor_dl] = lambda: dl
+    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(dl)
+    app.dependency_overrides[get_trigger_dl] = lambda: dl
+    app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}

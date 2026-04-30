@@ -705,6 +705,43 @@ class SqliteDataLayer:
             results[row.id_] = row.data
         return results
 
+    def list_objects(self, type_key: str) -> list[PersistableModel]:
+        """Return fully rehydrated domain objects of the given type.
+
+        Unlike :meth:`by_type` (which returns raw ``{id_: data_dict}``
+        mappings), this method applies the full ``_from_row`` pipeline
+        (vocabulary reconstruction → field rehydration →
+        semantic-class coercion) and returns typed domain objects.
+
+        Rows that cannot be reconstructed are silently skipped with a
+        ``DEBUG`` log entry.
+
+        Args:
+            type_key: Object type string (e.g. ``"VulnerabilityCase"``).
+
+        Returns:
+            List of rehydrated domain objects of the requested type.
+        """
+        with Session(self._engine) as session:
+            stmt = self._scoped(
+                select(VultronObjectRecord).where(
+                    VultronObjectRecord.type_ == type_key
+                )
+            )
+            rows = session.exec(stmt).all()
+        results: list[PersistableModel] = []
+        for row in rows:
+            obj = self._from_row(row)
+            if obj is None:
+                logger.debug(
+                    "list_objects(%r): could not reconstruct row id=%r — skipping",
+                    type_key,
+                    row.id_,
+                )
+                continue
+            results.append(obj)
+        return results
+
     def find_actor_by_short_id(self, short_id: str) -> PersistableModel | None:
         """Find an actor by the last path segment of its URI.
 

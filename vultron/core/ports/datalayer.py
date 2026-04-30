@@ -29,6 +29,7 @@ No adapter-layer types (``Record``, ``TinyDB``, etc.) appear here.
 See also: ``notes/architecture-ports-and-adapters.md`` "Core Port Taxonomy".
 """
 
+from collections.abc import Iterable
 from typing import Any, Protocol
 
 from pydantic import BaseModel
@@ -116,3 +117,5 @@ class DataLayer(Protocol):
     def find_case_by_report_id(
         self, report_id: str
     ) -> PersistableModel | None: ...
+
+    def list_objects(self, type_key: str) -> Iterable[PersistableModel]: ...

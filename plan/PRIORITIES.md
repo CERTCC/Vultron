@@ -44,9 +44,12 @@ Additional implementation-level architecture tasks (no GitHub issues yet):
   `CreateCaseOwnerParticipant`; add `CVDRoles.CASE_OWNER`; remove the
   `CreateFinderParticipantNode` alias; refactor `CVDRoles` from `Flag` to
   `StrEnum`.
-- **TASK-DL-REHYDRATE** — DataLayer auto-rehydration residual: add a typed
-  `list(type_key)` method to the `DataLayer` Protocol and SQLite adapter;
-  remove manual `model_validate()` coercions from use cases.
+- **TASK-CP-CLEANUP** — Remove deprecated `get()` / `by_type()` from
+  `CasePersistence` after migrating core callers to typed `read()` / `list()`
+  or dedicated typed helpers. Blocked by TASK-DL-REHYDRATE.
+- **TASK-DL-REHYDRATE** — DataLayer auto-rehydration residual: use the typed
+  `list_objects(type_key)` method on the `DataLayer` Protocol and SQLite
+  adapter; remove manual `model_validate()` coercions from use cases.
 
 ## Priority 474: Unified Configuration and Trigger Classification
 

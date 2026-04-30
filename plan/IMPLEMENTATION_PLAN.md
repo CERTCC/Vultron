@@ -14,35 +14,6 @@ PD-06). Do not infer priority from section order.
 
 ---
 
-## TASK-RFC-400 — TriggerService Facade
-
-**Source**: <https://github.com/CERTCC/Vultron/issues/400>
-
-The current trigger path has 4 shallow layers; `_trigger_adapter.py` adds no
-logic. Introduce `TriggerService` (core layer) and `TriggerServicePort`
-(inbound port) following the DataLayer pattern. FastAPI routers inject via
-`Depends(get_trigger_service)`. Domain logic becomes directly testable without
-`TestClient`.
-
-**Acceptance criteria:**
-
-- `vultron/core/use_cases/triggers/service.py` has `TriggerService` with all
-  trigger operations as named methods.
-- `vultron/core/ports/trigger_service.py` has `TriggerServicePort` Protocol.
-- `vultron/adapters/driving/fastapi/deps.py` has `get_trigger_service()`.
-- `_trigger_adapter.py` is deleted.
-- Domain-layer tests use `TriggerService(SqliteDataLayer("sqlite:///:memory:"))`.
-- All linters and tests pass.
-
-- [ ] RFC-400.1: Create `TriggerService` class + `TriggerServicePort` Protocol
-- [ ] RFC-400.2: Add `get_trigger_service()` FastAPI dependency
-- [ ] RFC-400.3: Migrate all trigger routers to `Depends(get_trigger_service)`
-- [ ] RFC-400.4: Write domain-layer tests (embargo: propose/accept/terminate;
-  report: validate/create/submit)
-- [ ] RFC-400.5: Delete `_trigger_adapter.py`; replace HTTP tests with smoke tests
-
----
-
 ## TASK-RFC-401 — BTTestScenario Deep-Module Test Harness
 
 **Source**: <https://github.com/CERTCC/Vultron/issues/401>
@@ -65,6 +36,38 @@ tests (leaf nodes and trees alike).
 - [ ] RFC-401.1: Create `test/core/behaviors/bt_harness.py`
 - [ ] RFC-401.2: Rewrite `test/core/behaviors/report/test_nodes.py` using harness
 - [ ] RFC-401.3: Rewrite `test/core/behaviors/case/test_nodes.py` using harness
+
+---
+
+## TASK-CP-CLEANUP — Remove Deprecated `CasePersistence` Compatibility Methods
+
+**Source**: `specs/datalayer.yaml` DL-04-005;
+`notes/datalayer-design.md`
+
+**Blocked by TASK-DL-REHYDRATE.**
+
+`CasePersistence` currently still exposes `get()` and `by_type()` as
+compatibility methods even though the desired long-term direction is typed
+domain-object access via `read()`, `list()`, and dedicated typed helpers.
+Remove those deprecated raw-record escape hatches once remaining core callers
+have typed replacements.
+
+**Acceptance criteria:**
+
+- `CasePersistence` and `CaseOutboxPersistence` no longer expose `get()` or
+  `by_type()`.
+- Core callers that currently depend on those methods use `read()`, `list()`,
+  or dedicated typed helper methods instead.
+- No core code depends on raw `dict[str, Any]` persistence results through the
+  narrow ports.
+- Specs, notes, and tests are updated consistently.
+
+- [ ] CP-CLEANUP.1: Audit remaining narrow-port `get()` / `by_type()` callers
+  in `vultron/core/` and classify the typed replacement needed
+- [ ] CP-CLEANUP.2: Add any missing typed query/helper methods needed to
+  preserve behavior without raw-record access
+- [ ] CP-CLEANUP.3: Remove deprecated `get()` / `by_type()` from
+  `CasePersistence` / `CaseOutboxPersistence`; update tests and docs
 
 ---
 
@@ -349,40 +352,6 @@ outbox without an addressee.
 - [ ] OUTBOX-TO.2 Add `to:` presence check and `cc`/`bto`/`bcc` warning to
   `handle_outbox_item` (OX-08-001, OX-08-002, OX-08-004)
 - [ ] OUTBOX-TO.3 Add unit tests for both branches
-
----
-
-## TASK-DL-REHYDRATE — DataLayer Auto-Rehydration on Read (Residual)
-
-**Source**: `specs/datalayer.yaml` DL-01-002; `notes/datalayer-design.md`
-
-Auto-rehydration for `dl.read()` was implemented in the SQLite adapter
-(`_from_row` calls `_rehydrate_fields()` + `_coerce_to_semantic_class()`;
-completed 2026-05-20, see `plan/history/IMPLEMENTATION_HISTORY.md`). The
-TinyDB adapter has been removed. DL-01-001, DL-01-003, DL-02-001, DL-02-002
-are satisfied.
-
-**Remaining work**: DL-01-002 requires a `list(type_key)` method returning
-fully rehydrated typed domain objects. The existing `by_type()` returns raw
-`dict[str, dict[str, Any]]` and `all()` returns a mixed union — neither
-satisfies the spec.
-
-**Acceptance criteria:**
-
-- `DataLayer` port has a `list(type_key: str) -> Iterable[PersistableModel]`
-  method that returns fully rehydrated, typed domain objects (DL-01-002).
-- SQLite adapter implements `list()` with the same rehydration pipeline as
-  `read()`.
-- All existing `by_type()` / `get_all()` call sites reviewed; migrate where
-  typed results are expected.
-- All existing tests pass.
-
-- [ ] DL-REHYDRATE.1 Add `list(type_key)` to `DataLayer` Protocol and
-  SQLite adapter implementation (DL-01-002)
-- [ ] DL-REHYDRATE.4 Review remaining `model_validate` calls in core use
-  cases (`received/sync.py`, `triggers/sync.py`, `triggers/embargo.py`,
-  `triggers/actor.py`); remove any that coerce `dl.read()` output
-  (DL-01-004)
 
 ---
 
