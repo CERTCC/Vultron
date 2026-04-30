@@ -734,7 +734,7 @@ class SqliteDataLayer:
             obj = self._from_row(row)
             if obj is None:
                 logger.debug(
-                    "list(%r): could not reconstruct row id=%r — skipping",
+                    "list_objects(%r): could not reconstruct row id=%r — skipping",
                     type_key,
                     row.id_,
                 )

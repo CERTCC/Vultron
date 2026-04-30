@@ -61,7 +61,7 @@ endpoints.
 For new or refactored core code, prefer:
 
 - `read()` for single-object lookup
-- `list()` for typed collection queries
+- `list_objects()` for typed collection queries
 - dedicated typed helper methods when a generic query would otherwise expose
   raw persistence details
 
@@ -83,7 +83,8 @@ reviewed for a cleaner split later.
 
 ### Design Decision (April 2026)
 
-The DataLayer port MUST guarantee that `dl.read(id)` and `dl.list(type_key)`
+The DataLayer port MUST guarantee that `dl.read(id)` and
+`dl.list_objects(type_key)`
 always return **fully rehydrated, typed domain objects** — never raw storage
 records, untyped dicts, or objects with dehydrated string references in nested
 fields.

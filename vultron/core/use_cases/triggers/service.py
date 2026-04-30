@@ -34,7 +34,6 @@ No HTTP framework imports permitted in this module.
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime
 from typing import Any, cast
 
@@ -88,8 +87,6 @@ from vultron.core.use_cases.triggers.requests import (
     ValidateReportTriggerRequest,
 )
 from vultron.core.use_cases.triggers.sync import commit_log_entry_trigger
-
-logger = logging.getLogger(__name__)
 
 
 class TriggerService:
