@@ -55,11 +55,14 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Report Management (RM)** | State machine tracking a Report's lifecycle: START → RECEIVED → ACCEPTED → PUBLISHED → CLOSED, with branching to invalid or closed states | Report workflow |
-| **Embargo Management (EM)** | State machine tracking an Embargo's lifecycle: NONE → PROPOSED → ACCEPTED → APPROVED (active) → EXPIRED or REVOKED | Embargo workflow |
+| **Report Management (RM)** | Per-participant state machine tracking a Report's lifecycle: Start → Received → {Invalid \| Valid} → {Accepted \| Deferred} → Closed; independent for each participant | Report workflow, report state |
+| **Embargo Management (EM)** | Global (per-case) state machine tracking embargo coordination: None → Proposed ↔ Active ↔ Revise → eXited; exactly one active embargo per case | Embargo workflow, embargo state |
+| **Case State (CS)** | Hybrid state model tracking both participant-specific vendor fix path (vfd→Vfd→VFd→VFD) and participant-agnostic public state (pxa combinations); 40 total states | Vulnerability state, case lattice |
 | **Case Status** | A snapshot of RM, EM, and CS state at a specific moment, with a timestamp and attribution | State record |
 | **Participant Status** | A snapshot of a Participant's RM state and embargo consent, recording their role and commitment at a specific moment | Status record |
 | **State Transition** | A move from one valid state to another in the RM, EM, or CS machine; always forward (events cannot be undone) | State change, event |
+| **Communicating Hierarchical State Machine** | The formal protocol architecture: N independent processes (Participants) coordinating state transitions through message passing | Protocol model, message-driven coordination |
+| **Composite State** | A Participant's complete state, represented as a 3-tuple: (q^cs, q^rm, q^em) | Participant state, actor state |
 
 ---
 
@@ -80,8 +83,11 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
 | **Semantic Type** (or **MessageSemantics**) | The classification of an Activity's meaning (e.g., `CreateReport`, `AcceptEmbargoOnCase`, `ProposeEmbargo`); determines how it is processed | Activity type, message type |
+| **Message Type** | One of 29 formal protocol message categories: RM messages (RS, RI, RV, RD, RA, RC, RK, RE), EM messages (EP, ER, EA, EV, EJ, EC, ET, EK, EE), CS messages (CV, CF, CD, CP, CX, CA, CK, CE), or General (GI, GK, GE) | Protocol message category |
+| **State-Change Notification** | The core protocol principle: every participant state transition SHOULD generate a message to inform other participants; implements "Avoid Surprise" | Status announcement, state broadcast |
 | **Inbox** | The protocol endpoint where an Actor receives incoming Activities from other parties | Receiver, endpoint |
 | **Outbox** | The protocol channel through which an Actor broadcasts Activities to other known parties | Sender, distribution |
+| **Precondition** | The required state(s) that must be true before a message can be sent or a state transition is valid (e.g., Participant must be in RM Accepted to send RS) | State requirement, prerequisite |
 
 ---
 
@@ -207,10 +213,106 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
 
 ---
 
+---
+
+## Formal Protocol Concepts
+
+| Term | Definition | Aliases to avoid |
+|------|-----------|-----------------|
+| **Deterministic Finite Automaton (DFA)** | A mathematical model representing a state machine with finite states, an initial state, final states, input symbols (transitions), and transition functions; the formal foundation for RM, EM, and CS models | State machine, FSM |
+| **Process** | In protocol formalism, an independent entity (Participant) maintaining its own state and communicating with other processes via messages | Actor, participant |
+| **Global State** | The complete system state comprising all N participants' composite states plus all messages in flight between them | System state, protocol state |
+| **Message Queue** (or **Channel**) | A FIFO buffer from Participant i to Participant j containing ordered messages; denoted C_ij in formal notation | Message buffer, transport channel |
+| **Reachable State** | A state logically possible for a Participant given protocol constraints (not all 1,400 theoretical states are reachable) | Valid state, achievable state |
+| **Unreachable State** | A state impossible due to protocol constraints (e.g., RM Start/Closed states make EM and CS irrelevant) | Invalid state, forbidden state |
+| **Ordering Preference** | One of 12 formally-defined preferences for CVD outcomes (e.g., D ≺ P: Fix Deployed Before Public Awareness); guides protocol design | Success metric, outcome goal |
+| **Avoid Surprise** | Core CVD principle embedded in protocol: participants whose state changes SHOULD send messages to other participants to minimize surprise | Transparency principle, communication imperative |
+
+---
+
+## RM Model Details
+
+| Term | Definition | Aliases to avoid |
+|------|-----------|-----------------|
+| **Report Submission (RS)** | The only RM message that directly triggers a state change in receiver (from S → R); all other RM messages announce sender's state | Initial RM message |
+| **Report Received (R)** | Initial RM state when a Report arrives; recipient must validate before transitioning to Invalid or Valid | Received state, intake state |
+| **Report Valid (V)** | RM state indicating validation passed; next decision is whether to Accept or Defer | Validated state, prioritization state |
+| **Report Accepted (A)** | RM state indicating work accepted; prerequisite for sending RS to other parties | In-progress state, active state |
+| **Report Deferred (D)** | RM state indicating work deferred (parking lot); can transition back to Accepted if priorities change | Parked state, backlog state |
+| **Report Closed (C)** | Final RM state; recipient may ignore all messages on closed reports (no further coordination) | Terminal state, archive state |
+
+---
+
+## EM Model Details
+
+| Term | Definition | Aliases to avoid |
+|------|-----------|-----------------|
+| **Embargo None (N)** | EM initial state; no embargo currently in effect or agreed to | Initial state, no-embargo state |
+| **Embargo Proposed (P)** | EM state indicating one or more embargo proposals under negotiation | Pending state, negotiation state |
+| **Embargo Active (A)** | EM state indicating embargo is in effect across all participants; only one per case | Effective state, in-force state |
+| **Embargo Revise (R)** | EM state indicating active embargo with revision proposal pending; active embargo remains in force until revision accepted | Renegotiation state, revision-pending state |
+| **Embargo eXited (X)** | EM terminal state after embargo terminates (by expiration, early termination, or public disclosure) | Expired state, terminated state |
+| **Embargo Proposal (EP)** | EM message type proposing embargo terms (e.g., expiration date) | Embargo offer |
+| **Embargo Termination (ET)** | EM message type terminating embargo immediately; has immediate effect regardless of other pending messages | Embargo end, embargo expiration |
+| **Embargo Grammar** | Regular expression `(p*r)*(pa(p*r)*(pa)?t)?` describing all valid EM state transition sequences | DFA language, EM language |
+
+---
+
+## CS Model Details
+
+| Term | Definition | Aliases to avoid |
+|------|-----------|-----------------|
+| **Vendor Fix Path** | Participant-specific CS submodel tracking vendor awareness (v/V), fix readiness (f/F), fix deployment (d/D); one path per Vendor | Vendor progression, fix progression |
+| **Public State** | Participant-agnostic CS submodel tracking public awareness (p/P), exploit public (x/X), attacks observed (a/A); shared across all participants | Global state, pxa state |
+| **Vendor Awareness (V)** | CS event: transition from vendor unaware (v) to vendor aware (V); typically triggered by Report Submission | V event, vendor notification |
+| **Fix Readiness (F)** | CS event: transition from fix not ready (f) to fix ready (F); indicates vendor has completed fix development | F event, fix development complete |
+| **Fix Deployed (D)** | CS event: transition from fix not deployed (d) to fix deployed (D); indicates vendor/deployer has applied fix | D event, fix application |
+| **Public Awareness (P)** | CS event: transition from public unaware (p) to public aware (P); indicates vulnerability known outside immediate parties | P event, disclosure |
+| **Exploit Public (X)** | CS event: transition from exploit not public (x) to exploit public (X); indicates exploit code publicly available | X event, exploit disclosure |
+| **Attacks Observed (A)** | CS event: transition from attacks not observed (a) to attacks observed (A); indicates active exploitation in the wild | A event, active attack |
+| **vfd·· notation** | Compact notation for CS states where lowercase/uppercase in each position represents specific substate (v=vendor unaware, V=aware, f=fix not ready, F=ready, etc.) | State shorthand, state code |
+| **pxa notation** | Public state substates abbreviated as p/P (public aware), x/X (exploit public), a/A (attacks observed) | Public substate |
+| **Ephemeral State** | CS constraint: exploit public without vulnerability public (···pX·) cannot exist; immediately resolves to ···PX· | Transient state, immediate transition |
+
+---
+
 ## Relationships
 
+**Protocol Structure:**
+
+- A **Communicating Hierarchical State Machine** consists of N independent **Processes** (Participants) coordinating via message passing.
+- Each **Process** maintains a **Composite State** = (**Case State** + **RM State** + **EM State**).
+- The **Global State** includes all **Composite States** plus message queues (**Channels**) between processes.
+
+**State Transitions:**
+
+- RM transitions are mostly independent; only **Report Submission (RS)** directly changes receiver RM state.
+- EM transitions are global; exactly one **EM State** per case affects all participants.
+- CS transitions are hybrid: **Vendor Fix Path** is per-Vendor; **Public State** is global.
+
+**Message Protocol:**
+
+- **State-Change Notification**: each state transition SHOULD emit a **Message Type** to other participants.
+- RM messages: RS is unique (triggers receiver state); others announce sender status (RI, RV, RD, RA, RC).
+- EM messages: all trigger global EM state updates (EP, EA, ER, EV, EC, EJ, ET).
+- CS messages: announce **CS Events** (CV, CF, CD, CP, CX, CA).
+- All valid messages receive acknowledgments (RK, EK, CK, GK); errors generate (RE, EE, CE, GE).
+
+**Constraints:**
+
+- **Precondition**: Participant must be in RM Accepted (A) to send RS.
+- **Single Embargo**: exactly one **Embargo Active (A)** per case.
+- **Public Embargo Boundary**: no EM negotiation when **Public Awareness (P)** or **Exploit Public (X)** or **Attacks Observed (A)** occur.
+- **Reachable States**: many of 1,400 theoretical **Composite States** are **Unreachable** due to constraints.
+
+**Success Metrics:**
+
+- 12 **Ordering Preferences** define CVD success; **Embargo Active** is primary mechanism for achieving top preferences (D ≺ P, F ≺ P).
+
+**Architecture Integration:**
+
 - A **Port** is implemented by one or more **Adapters**.
-- **Inbound Activities** are matched by **ActivityPatterns** to extract **MessageSemantics**.
+- **Inbound Activities** are matched by **ActivityPatterns** to extract **MessageSemantics** (formal protocol **Message Type**).
 - **Outbound Activities** are constructed by **Factory Functions** (not by core calling `from_core()`).
 - A **TASK** may be blocked by another **TASK** via a **Blocker**.
 - A **TASK** contains one or more **Subtasks** with **Acceptance Criteria**.
@@ -223,55 +325,90 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
 
 ## Flagged Ambiguities
 
-1. **"Activity" direction** — The term **Activity** is used for both **Inbound** and **Outbound**. Both
-   follow the same ActivityStreams 2.0 format, but the context (inbox vs. outbox, received vs.
-   constructed) determines meaning. Recommendation: always qualify as "inbound **Activity**" or
-   "outbound **Activity**" when direction matters.
+1. **"State" (multiple meanings)**:
+   - The **Case State (CS)** — the 40-state lattice combining **Vendor Fix Path** (vfd, Vfd, VFd, VFD, ∅) and **Public State** (pxa combinations).
+   - An **EM State** — a single Embargo Management state (None, Proposed, Active, Revise, eXited).
+   - An **RM State** — a single Report Management state (Start, Received, Invalid, Valid, Accepted, Deferred, Closed).
+   - A **Composite State** — a participant's complete state tuple (q^cs, q^rm, q^em).
+   - A **Case Status** — a snapshot of all three machine states at one moment.
+   - **Recommendation**: Always qualify: "Case State lattice," "EM State," "RM State," "Composite State," or "Case Status."
 
-2. **"Factory" scope** — The term **Factory** can mean:
+2. **"Message" vs. "Activity" vs. "Message Type"**:
+   - A **Message Type** is a formal protocol category (e.g., RS, EP, CV) from the 29-message set.
+   - An **Activity** is the ActivityStreams 2.0 JSON wire format carrying a **Message Type**.
+   - A **State-Change Notification** is the abstract principle that every transition should generate a message.
+   - **Recommendation**: Use "Message Type" for protocol formalism; "Activity" for wire transport; "Semantic Type" for the extracted intent.
+
+3. **"Participant" vs. "Actor" vs. "Process"**:
+   - An **Actor** is any URI-identified federated peer (federation concept).
+   - A **Participant** is an **Actor** actively engaged in a specific **Case**.
+   - A **Process** is a formal state machine in the mathematical protocol specification.
+   - **Recommendation**: Use "Actor" for federation; "Participant" for case-specific engagement; "Process" for formal protocol math.
+
+4. **"Reachable" vs. "Valid"**:
+   - **Reachable** = logically possible given protocol constraints (state might not occur in practice but conforms to rules).
+   - **Valid** = permissible per protocol rules (state satisfies all constraints).
+   - **Unreachable** = impossible due to hard constraints (violates protocol rules).
+   - **Recommendation**: Use "Reachable State" for logical possibility; "Valid Transition" for rule compliance.
+
+5. **"CS Event" vs. "Message Type"**:
+   - A **CS Event** (V, F, D, P, X, A) is a formal state transition in the **Case State** lattice.
+   - A **Message Type** (CV, CF, CD, CP, CX, CA) is the protocol message announcing that event.
+   - Not all **CS Events** are announced (e.g., a Vendor may internally transition Vfd→VFd without sending CF).
+   - **Recommendation**: Use "CS Event" for state transitions; "Message Type" for protocol announcements.
+
+6. **"Activity" direction** — The term **Activity** is used for both **Inbound** and **Outbound**. Both follow the same ActivityStreams 2.0 format, but the context (inbox vs. outbox, received vs. constructed) determines meaning.
+   - **Recommendation**: Always qualify as "inbound **Activity**" or "outbound **Activity**" when direction matters.
+
+7. **"Factory" scope** — The term **Factory** can mean:
    - The set of **Factory Functions** in the `vultron/wire/as2/factories/` package (the public API)
    - A single **Factory Function** (e.g., `create_report()`)
-   - Never use "factory" to mean "the place where activities are made" — always say **Factory
-     Function** or **factories package**.
+   - Never use "factory" to mean "the place where activities are made" — always say **Factory Function** or **factories package**.
 
-3. **"Port" (hexagonal vs. TCP)** — In this domain, **Port** always means a hexagonal architecture
-   interface contract, never a TCP port. No TCP concepts are in scope.
+8. **"Port" (hexagonal vs. TCP)** — In this domain, **Port** always means a hexagonal architecture interface contract, never a TCP port. No TCP concepts are in scope.
 
-4. **"Deprecated" methods** — `get()` and `by_type()` on **DataLayer** are called "deprecated" but
-   still exist in the codebase. This means they are marked for removal and are being gradually
-   replaced by **Narrow Ports** (**CasePersistence**, **CaseOutboxPersistence**) and **Rehydration**.
-   "Deprecated" ≠ "removed yet."
+9. **"Deprecated" methods** — `get()` and `by_type()` on **DataLayer** are called "deprecated" but still exist in the codebase. This means they are marked for removal and are being gradually replaced by **Narrow Ports** (**CasePersistence**, **CaseOutboxPersistence**) and **Rehydration**. "Deprecated" ≠ "removed yet."
 
-5. **"Narrow" vs. "broad" ports** — A **Narrow Port** is small, typed, domain-specific (e.g.,
-   `CasePersistence` with `read_by_id()`, `list_by_status()`). A broad port is generic and
-   untyped (e.g., `DataLayer` with `get(table, id)`, `by_type(type)`). The goal is to replace
-   broad ports with **Narrow Ports** to improve type safety and reduce coupling.
+10. **"Narrow" vs. "broad" ports** — A **Narrow Port** is small, typed, domain-specific (e.g., `CasePersistence` with `read_by_id()`, `list_by_status()`). A broad port is generic and untyped (e.g., `DataLayer` with `get(table, id)`, `by_type(type)`). The goal is to replace broad ports with **Narrow Ports** to improve type safety and reduce coupling.
 
-6. **"State" (multiple meanings)**:
-   - The **Case State (CS)** — the six-dimensional VfDpxa lattice model (64 possible states)
-   - A **Case Status** — a snapshot of CS, RM, and EM at one moment
-   - An RM or EM state — a specific state machine location
-   - **Recommendation**: Use "Case State" for the lattice; "Case Status" for a snapshot; "RM state" or "EM state" for a specific location.
+11. **"Report" vs. "Case"**:
+    - A **Report** is a one-time vulnerability notification from a **Reporter**.
+    - A **Case** is the ongoing coordination container with state machines (RM, EM, CS) and participants.
+    - Multiple **Reports** may consolidate into one **Case**; one **Report** may split into multiple **Cases**.
+    - **Recommendation**: "Report" = inbound notification; "Case" = coordination entity with state machines.
 
-7. **"Participant" vs. "Actor"**:
-   - An **Actor** is any URI-identified federated peer (a role in the protocol).
-   - A **Participant** is an Actor actively engaged in a specific **Case**.
-   - A **Reporter** is both an **Actor** (in general) and might be a **Participant** (in a specific Case).
-   - **Recommendation**: Use "Actor" when discussing federation; use "Participant" when discussing a specific Case.
+12. **"Embargo" vs. "Embargo Consent"**:
+    - An **Embargo** is a shared agreement (one per **Case**) that all parties will not disclose until a certain date.
+    - **Embargo Consent** is each **Participant**'s individual acceptance or rejection of that embargo.
+    - **Recommendation**: If discussing terms/dates, say "Embargo"; if discussing one party's stance, say "Embargo Consent".
 
-8. **"Report" vs. "Case"**:
-   - A **Report** is a one-time vulnerability notification from a **Reporter**.
-   - A **Case** is the ongoing coordination container that may span multiple **Reports** (if consolidated) or multiple **Cases** (if split).
-   - **Recommendation**: "Report" = inbound vulnerability notification; "Case" = coordination event with state machines and participants.
-
-9. **"Embargo" vs. "Embargo Consent"**:
-   - An **Embargo** is a shared agreement (one per **Case**) that all parties will not disclose until a certain date.
-   - **Embargo Consent** is each **Participant**'s individual acceptance or rejection of that embargo.
-   - **Recommendation**: If discussing terms, say "Embargo"; if discussing one party's stance, say "Embargo Consent".
+---
 
 ---
 
 ## Example Dialogues
+
+### Formal Protocol Structure Example
+
+> **Protocol Designer:** "OK, so in the formal model, we have N processes. What exactly is a process?"
+>
+> **Formal Spec Expert:** "Each **Participant** in a **Case** runs one **Process**. A **Process** maintains a **Composite State** — that's a 3-tuple: (**Case State**, **RM State**, **EM State**)."
+>
+> **Protocol Designer:** "So if a **Vendor** is in the case, they're one **Process**?"
+>
+> **Formal Spec Expert:** "Exactly. The **Vendor** runs their own RM state machine, tracks the shared EM state, and maintains their part of the **Case State** (**Vendor Fix Path**). Meanwhile, a **Coordinator** in the same **Case** is another **Process** with their own RM state and the same EM state."
+>
+> **Protocol Designer:** "And they coordinate through **Message Types**?"
+>
+> **Formal Spec Expert:** "Yes. When a **Vendor** transitions their RM from Valid to Accepted, they send an **RA** (Report Accepted) **Message Type**. That **Activity** carries the **RA** and is transmitted via the wire protocol. The **Coordinator** receives it and updates their model of the **Vendor**'s **RM State**."
+>
+> **Protocol Designer:** "But that doesn't change the **Coordinator**'s own RM state?"
+>
+> **Formal Spec Expert:** "Correct. The **RA** message is an announcement — 'I accepted the report.' It doesn't command the receiver to do anything. Only **Report Submission (RS)** directly changes receiver RM state."
+>
+> **Protocol Designer:** "What about **CS Events** — if the **Vendor** completes a fix, do they have to send a message?"
+>
+> **Formal Spec Expert:** "Not technically. The **Vendor** internal transitions from Vfd to VFd is a **CS Event** (F). But per the protocol, they SHOULD announce it by sending a **CF (Fix Readiness)** message. However, the message and the state transition are distinct — one doesn't require the other formally."
 
 ### Architecture Example
 
@@ -340,10 +477,12 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
 
 ## Metadata
 
-- **Source:** Vultron codebase, CERT/CC CVD research publications, architecture audit
+- **Source:** Vultron codebase, CERT/CC CVD research publications, architecture audit, formal protocol specification
 - **Last Updated:** 2026-04-30
-- **Domains:** CVD protocol, hexagonal architecture, activity pattern matching, persistence abstraction, behavior tree orchestration, state machine design
+- **Domains:** Formal MPCVD protocol, CVD process models (RM/EM/CS), communicating state machines, hexagonal architecture, activity pattern matching, persistence abstraction, behavior tree orchestration
 - **Related References:**
   - [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513) (CMU/SEI-2021-SR-021)
   - [Designing Vultron: A Protocol for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=887198)
   - CERT Guide to Coordinated Vulnerability Disclosure (v2.0)
+  - `docs/topics/process_models/` — detailed RM, EM, CS models
+  - `docs/reference/formal_protocol/` — formal protocol specification
