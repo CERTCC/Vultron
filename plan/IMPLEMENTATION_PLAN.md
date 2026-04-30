@@ -208,7 +208,7 @@ only inside factory functions.
 - All linters and tests pass
 
 - [x] AF.1 Create `factories/errors.py` with `VultronActivityConstructionError`
-- [ ] AF.2 Create `factories/report.py` (6 report activity factory functions)
+- [x] AF.2 Create `factories/report.py` (6 report activity factory functions)
 - [ ] AF.3 Create `factories/case.py` (16 case activity factory functions)
 - [ ] AF.4 Create `factories/embargo.py` (8 embargo activity factory functions)
 - [ ] AF.5 Create `factories/case_participant.py` (5 functions)
