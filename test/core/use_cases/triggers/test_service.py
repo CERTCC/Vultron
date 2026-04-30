@@ -13,13 +13,11 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""
-Service-layer unit tests for trigger service functions.
+"""Service-layer unit tests for ``TriggerService``.
 
-Tests call service functions directly (no HTTP layer) to verify domain
-logic independently of the router layer.  Each service function accepts
-a DataLayer instance as an argument rather than resolving it via
-FastAPI's dependency injection.
+Tests call :class:`~vultron.core.use_cases.triggers.service.TriggerService`
+directly (no HTTP layer) to verify domain behavior independently of the
+FastAPI adapter layer.
 """
 
 from datetime import datetime, timezone
