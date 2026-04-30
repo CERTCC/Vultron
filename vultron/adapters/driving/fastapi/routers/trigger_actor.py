@@ -22,9 +22,9 @@ All domain logic lives in vultron.core.use_cases.triggers.actor.
 
 from fastapi import APIRouter, BackgroundTasks, Depends, status
 
-from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
+    get_trigger_dl,
     get_trigger_service,
 )
 from vultron.adapters.driving.fastapi.errors import domain_error_translation
@@ -56,6 +56,7 @@ def trigger_suggest_actor_to_case(
     body: SuggestActorToCaseRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
@@ -71,9 +72,7 @@ def trigger_suggest_actor_to_case(
             case_id=body.case_id,
             suggested_actor_id=body.suggested_actor_id,
         )
-    background_tasks.add_task(
-        outbox_handler, actor_id, actor_dl, get_datalayer()
-    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
 
 
@@ -93,6 +92,7 @@ def trigger_accept_case_invite(
     body: AcceptCaseInviteRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
@@ -107,9 +107,7 @@ def trigger_accept_case_invite(
             actor_id=actor_id,
             invite_id=body.invite_id,
         )
-    background_tasks.add_task(
-        outbox_handler, actor_id, actor_dl, get_datalayer()
-    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
 
 
@@ -128,6 +126,7 @@ def trigger_invite_actor_to_case(
     body: InviteActorToCaseRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
@@ -143,7 +142,5 @@ def trigger_invite_actor_to_case(
             case_id=body.case_id,
             invitee_id=body.invitee_id,
         )
-    background_tasks.add_task(
-        outbox_handler, actor_id, actor_dl, get_datalayer()
-    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result

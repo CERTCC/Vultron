@@ -26,6 +26,7 @@ from fastapi.testclient import TestClient
 
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
+    get_trigger_dl,
     get_trigger_service,
 )
 from vultron.adapters.driving.fastapi.routers import (
@@ -85,6 +86,7 @@ def client_triggers(dl):
     app = FastAPI()
     app.include_router(trigger_case_router.router)
     app.dependency_overrides[get_trigger_service] = lambda: TriggerService(dl)
+    app.dependency_overrides[get_trigger_dl] = lambda: dl
     app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
     client = TestClient(app)
     yield client

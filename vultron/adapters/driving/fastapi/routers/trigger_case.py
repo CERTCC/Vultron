@@ -22,9 +22,9 @@ All domain logic lives in vultron.core.use_cases.triggers.case.
 
 from fastapi import APIRouter, BackgroundTasks, Depends, status
 
-from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
+    get_trigger_dl,
     get_trigger_service,
 )
 from vultron.adapters.driving.fastapi.errors import domain_error_translation
@@ -58,6 +58,7 @@ def trigger_engage_case(
     body: CaseTriggerRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
@@ -69,9 +70,7 @@ def trigger_engage_case(
     """
     with domain_error_translation():
         result = svc.engage_case(actor_id, body.case_id)
-    background_tasks.add_task(
-        outbox_handler, actor_id, actor_dl, get_datalayer()
-    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
 
 
@@ -92,6 +91,7 @@ def trigger_defer_case(
     body: CaseTriggerRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
@@ -103,9 +103,7 @@ def trigger_defer_case(
     """
     with domain_error_translation():
         result = svc.defer_case(actor_id, body.case_id)
-    background_tasks.add_task(
-        outbox_handler, actor_id, actor_dl, get_datalayer()
-    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
 
 
@@ -126,6 +124,7 @@ def trigger_add_note_to_case(
     body: AddNoteToCaseRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
@@ -143,9 +142,7 @@ def trigger_add_note_to_case(
             note_content=body.note_content,
             in_reply_to=body.in_reply_to,
         )
-    background_tasks.add_task(
-        outbox_handler, actor_id, actor_dl, get_datalayer()
-    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
 
 
@@ -166,6 +163,7 @@ def trigger_create_case(
     body: CreateCaseRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
@@ -182,9 +180,7 @@ def trigger_create_case(
             content=body.content,
             report_id=body.report_id,
         )
-    background_tasks.add_task(
-        outbox_handler, actor_id, actor_dl, get_datalayer()
-    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
 
 
@@ -203,6 +199,7 @@ def trigger_add_report_to_case(
     body: AddReportToCaseRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
@@ -218,7 +215,5 @@ def trigger_add_report_to_case(
             case_id=body.case_id,
             report_id=body.report_id,
         )
-    background_tasks.add_task(
-        outbox_handler, actor_id, actor_dl, get_datalayer()
-    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result

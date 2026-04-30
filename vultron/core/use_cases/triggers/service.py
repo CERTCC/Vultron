@@ -36,9 +36,10 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptCaseInviteUseCase,
@@ -386,7 +387,7 @@ class TriggerService:
             object_id=object_id,
             event_type=event_type,
             actor_id=actor_id,
-            dl=self._dl,  # type: ignore[arg-type]
+            dl=cast(CaseOutboxPersistence, self._dl),
             payload_snapshot=payload_snapshot,
             term=term,
             reason_code=reason_code,

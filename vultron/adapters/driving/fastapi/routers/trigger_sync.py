@@ -25,7 +25,6 @@ Spec: SYNC-02-002, SYNC-02-003.
 
 from fastapi import APIRouter, BackgroundTasks, Depends, status
 
-from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
     get_trigger_dl,
@@ -84,9 +83,7 @@ def trigger_sync_log_entry(
             event_type=body.event_type,
             actor_id=canonical_actor_id,
         )
-    background_tasks.add_task(
-        outbox_handler, actor_id, actor_dl, get_datalayer()
-    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return {
         "log_entry_id": entry.id_,
         "entry_hash": entry.entry_hash,

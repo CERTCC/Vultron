@@ -22,9 +22,9 @@ All domain logic lives in vultron.core.use_cases.triggers.embargo.
 
 from fastapi import APIRouter, BackgroundTasks, Depends, status
 
-from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
+    get_trigger_dl,
     get_trigger_service,
 )
 from vultron.adapters.driving.fastapi.errors import domain_error_translation
@@ -60,6 +60,7 @@ def trigger_propose_embargo(
     body: ProposeEmbargoRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
@@ -73,9 +74,7 @@ def trigger_propose_embargo(
         result = svc.propose_embargo(
             actor_id, body.case_id, body.end_time, body.note
         )
-    background_tasks.add_task(
-        outbox_handler, actor_id, actor_dl, get_datalayer()
-    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
 
 
@@ -97,6 +96,7 @@ def trigger_accept_embargo(
     body: AcceptEmbargoRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
@@ -108,9 +108,7 @@ def trigger_accept_embargo(
     """
     with domain_error_translation():
         result = svc.accept_embargo(actor_id, body.case_id, body.proposal_id)
-    background_tasks.add_task(
-        outbox_handler, actor_id, actor_dl, get_datalayer()
-    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
 
 
@@ -132,6 +130,7 @@ def trigger_reject_embargo(
     body: RejectEmbargoRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
@@ -143,9 +142,7 @@ def trigger_reject_embargo(
     """
     with domain_error_translation():
         result = svc.reject_embargo(actor_id, body.case_id, body.proposal_id)
-    background_tasks.add_task(
-        outbox_handler, actor_id, actor_dl, get_datalayer()
-    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
 
 
@@ -169,6 +166,7 @@ def trigger_propose_embargo_revision(
     body: ProposeEmbargoRevisionRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
@@ -182,9 +180,7 @@ def trigger_propose_embargo_revision(
         result = svc.propose_embargo_revision(
             actor_id, body.case_id, body.end_time, body.note
         )
-    background_tasks.add_task(
-        outbox_handler, actor_id, actor_dl, get_datalayer()
-    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
 
 
@@ -207,6 +203,7 @@ def trigger_terminate_embargo(
     body: TerminateEmbargoRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
@@ -218,7 +215,5 @@ def trigger_terminate_embargo(
     """
     with domain_error_translation():
         result = svc.terminate_embargo(actor_id, body.case_id)
-    background_tasks.add_task(
-        outbox_handler, actor_id, actor_dl, get_datalayer()
-    )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
