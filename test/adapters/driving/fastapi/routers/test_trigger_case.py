@@ -24,13 +24,14 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
-from vultron.adapters.driving.fastapi.routers.trigger_case import (
-    _actor_dl,
-    _canonical_actor_dl,
+from vultron.adapters.driving.fastapi.deps import (
+    get_canonical_actor_dl,
+    get_trigger_service,
 )
 from vultron.adapters.driving.fastapi.routers import (
     trigger_case as trigger_case_router,
 )
+from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.adapters.utils import parse_id
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -83,8 +84,8 @@ def dl(actor_and_dl):
 def client_triggers(dl):
     app = FastAPI()
     app.include_router(trigger_case_router.router)
-    app.dependency_overrides[_actor_dl] = lambda: dl
-    app.dependency_overrides[_canonical_actor_dl] = lambda: dl
+    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(dl)
+    app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
@@ -490,7 +491,7 @@ class TestTriggerCaseOutboxCanonicalId:
         """outbox_handler receives the canonical-URI-keyed DataLayer.
 
         When the URL uses a short UUID (last path segment of actor.id_),
-        _canonical_actor_dl must resolve to the full URI so that
+        get_canonical_actor_dl must resolve to the full URI so that
         outbox_handler reads from the same table as record_outbox_item.
         """
         from fastapi import FastAPI
@@ -498,12 +499,18 @@ class TestTriggerCaseOutboxCanonicalId:
 
         short_uuid = actor.id_.rstrip("/").rsplit("/", 1)[-1]
 
-        # Fresh app WITHOUT overriding _canonical_actor_dl so the real
-        # dependency resolves the canonical URI via the real DataLayer.
+        # Fresh app — override get_trigger_service and get_trigger_dl but NOT
+        # get_canonical_actor_dl so the real dependency resolves the canonical
+        # URI via the real DataLayer.
+        from vultron.adapters.driving.fastapi.deps import get_trigger_dl
+
         app = FastAPI()
         app.include_router(trigger_case_router.router)
-        app.dependency_overrides[_actor_dl] = lambda: dl
-        # _canonical_actor_dl intentionally NOT overridden.
+        app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
+            dl
+        )
+        app.dependency_overrides[get_trigger_dl] = lambda: dl
+        # get_canonical_actor_dl intentionally NOT overridden.
 
         captured_dl_arg = []
 

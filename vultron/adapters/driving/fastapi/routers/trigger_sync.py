@@ -23,30 +23,21 @@ returns response.  All domain logic lives in
 Spec: SYNC-02-002, SYNC-02-003.
 """
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Path, status
+from fastapi import APIRouter, BackgroundTasks, Depends, status
 
 from vultron.adapters.driven.datalayer import get_datalayer
+from vultron.adapters.driving.fastapi.deps import (
+    get_canonical_actor_dl,
+    get_trigger_dl,
+    get_trigger_service,
+)
+from vultron.adapters.driving.fastapi.errors import domain_error_translation
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.trigger_models import SyncLogEntryRequest
 from vultron.core.ports.datalayer import DataLayer
-from vultron.core.use_cases.triggers.sync import commit_log_entry_trigger
+from vultron.core.ports.trigger_service import TriggerServicePort
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
-
-
-def _actor_dl(actor_id: str = Path(...)) -> DataLayer:  # noqa: ARG001
-    """FastAPI dependency: return the shared DataLayer for sync trigger use cases."""
-    return get_datalayer()
-
-
-def _canonical_actor_dl(
-    actor_id: str = Path(...),
-    dl: DataLayer = Depends(_actor_dl),
-) -> DataLayer:
-    """FastAPI dependency: actor-scoped DataLayer keyed by the canonical URI."""
-    actor = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
-    canonical_id = actor.id_ if actor and hasattr(actor, "id_") else actor_id
-    return get_datalayer(canonical_id)
 
 
 @router.post(
@@ -66,13 +57,14 @@ def trigger_sync_log_entry(
     actor_id: str,
     body: SyncLogEntryRequest,
     background_tasks: BackgroundTasks,
-    dl: DataLayer = Depends(_actor_dl),
-    actor_dl: DataLayer = Depends(_canonical_actor_dl),
+    svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """Commit a case log entry and fan it out to all case participants.
 
     Resolves *actor_id* to the canonical URI, then delegates to
-    :func:`~vultron.core.use_cases.triggers.sync.commit_log_entry_trigger`.
+    :meth:`~vultron.core.use_cases.triggers.service.TriggerService.commit_log_entry`.
     Schedules the outbox background task so queued
     ``Announce(CaseLogEntry)`` activities are delivered immediately.
 
@@ -85,14 +77,16 @@ def trigger_sync_log_entry(
         actor.id_ if actor and hasattr(actor, "id_") else actor_id
     )
 
-    entry = commit_log_entry_trigger(
-        case_id=body.case_id,
-        object_id=body.object_id,
-        event_type=body.event_type,
-        actor_id=canonical_actor_id,
-        dl=dl,
+    with domain_error_translation():
+        entry = svc.commit_log_entry(
+            case_id=body.case_id,
+            object_id=body.object_id,
+            event_type=body.event_type,
+            actor_id=canonical_actor_id,
+        )
+    background_tasks.add_task(
+        outbox_handler, actor_id, actor_dl, get_datalayer()
     )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return {
         "log_entry_id": entry.id_,
         "entry_hash": entry.entry_hash,

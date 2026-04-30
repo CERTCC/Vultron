@@ -20,15 +20,14 @@ Thin wrapper: validates request → calls adapter → returns response.
 All domain logic lives in vultron.core.use_cases.triggers.case.
 """
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Path, status
+from fastapi import APIRouter, BackgroundTasks, Depends, status
 
-from vultron.adapters.driving.fastapi._trigger_adapter import (
-    add_note_to_case_trigger,
-    add_report_to_case_trigger,
-    create_case_trigger,
-    defer_case_trigger,
-    engage_case_trigger,
+from vultron.adapters.driven.datalayer import get_datalayer
+from vultron.adapters.driving.fastapi.deps import (
+    get_canonical_actor_dl,
+    get_trigger_service,
 )
+from vultron.adapters.driving.fastapi.errors import domain_error_translation
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.trigger_models import (
     AddNoteToCaseRequest,
@@ -37,37 +36,9 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     CreateCaseRequest,
 )
 from vultron.core.ports.datalayer import DataLayer
-from vultron.adapters.driven.datalayer import get_datalayer
+from vultron.core.ports.trigger_service import TriggerServicePort
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
-
-
-def _actor_dl(actor_id: str = Path(...)) -> DataLayer:  # noqa: ARG001
-    """FastAPI dependency: return the shared DataLayer for trigger use cases.
-
-    Operational data (actors, offers, reports, cases) is stored in the shared
-    DataLayer.  The ``actor_id`` path parameter is accepted but unused so that
-    ``app.dependency_overrides[_actor_dl]`` works in tests (ADR-0012).
-    """
-    return get_datalayer()
-
-
-def _canonical_actor_dl(
-    actor_id: str = Path(...),
-    dl: DataLayer = Depends(_actor_dl),
-) -> DataLayer:
-    """FastAPI dependency: actor-scoped DataLayer keyed by the canonical URI.
-
-    Resolves *actor_id* (which may be a short UUID from the URL path) to the
-    actor's full canonical URI via the shared DataLayer, then returns the
-    actor-scoped DataLayer instance keyed by that URI.  This ensures that
-    ``outbox_handler`` reads from the same ``{canonical_uri}_outbox`` table
-    that ``record_outbox_item`` wrote to during use-case execution
-    (BUG-2026040901).
-    """
-    actor = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
-    canonical_id = actor.id_ if actor and hasattr(actor, "id_") else actor_id
-    return get_datalayer(canonical_id)
 
 
 @router.post(
@@ -86,8 +57,8 @@ def trigger_engage_case(
     actor_id: str,
     body: CaseTriggerRequest,
     background_tasks: BackgroundTasks,
-    dl: DataLayer = Depends(_actor_dl),
-    actor_dl: DataLayer = Depends(_canonical_actor_dl),
+    svc: TriggerServicePort = Depends(get_trigger_service),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the engage-case behavior for the given actor.
@@ -96,8 +67,11 @@ def trigger_engage_case(
         TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    result = engage_case_trigger(actor_id, body.case_id, dl)
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    with domain_error_translation():
+        result = svc.engage_case(actor_id, body.case_id)
+    background_tasks.add_task(
+        outbox_handler, actor_id, actor_dl, get_datalayer()
+    )
     return result
 
 
@@ -117,8 +91,8 @@ def trigger_defer_case(
     actor_id: str,
     body: CaseTriggerRequest,
     background_tasks: BackgroundTasks,
-    dl: DataLayer = Depends(_actor_dl),
-    actor_dl: DataLayer = Depends(_canonical_actor_dl),
+    svc: TriggerServicePort = Depends(get_trigger_service),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the defer-case behavior for the given actor.
@@ -127,8 +101,11 @@ def trigger_defer_case(
         TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    result = defer_case_trigger(actor_id, body.case_id, dl)
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    with domain_error_translation():
+        result = svc.defer_case(actor_id, body.case_id)
+    background_tasks.add_task(
+        outbox_handler, actor_id, actor_dl, get_datalayer()
+    )
     return result
 
 
@@ -148,8 +125,8 @@ def trigger_add_note_to_case(
     actor_id: str,
     body: AddNoteToCaseRequest,
     background_tasks: BackgroundTasks,
-    dl: DataLayer = Depends(_actor_dl),
-    actor_dl: DataLayer = Depends(_canonical_actor_dl),
+    svc: TriggerServicePort = Depends(get_trigger_service),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the add-note-to-case behavior for the given actor.
@@ -158,15 +135,17 @@ def trigger_add_note_to_case(
         TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
         TB-04-001, TB-06-001, TB-06-002
     """
-    result = add_note_to_case_trigger(
-        actor_id=actor_id,
-        case_id=body.case_id,
-        note_name=body.note_name,
-        note_content=body.note_content,
-        in_reply_to=body.in_reply_to,
-        dl=dl,
+    with domain_error_translation():
+        result = svc.add_note_to_case(
+            actor_id=actor_id,
+            case_id=body.case_id,
+            note_name=body.note_name,
+            note_content=body.note_content,
+            in_reply_to=body.in_reply_to,
+        )
+    background_tasks.add_task(
+        outbox_handler, actor_id, actor_dl, get_datalayer()
     )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
 
 
@@ -186,8 +165,8 @@ def trigger_create_case(
     actor_id: str,
     body: CreateCaseRequest,
     background_tasks: BackgroundTasks,
-    dl: DataLayer = Depends(_actor_dl),
-    actor_dl: DataLayer = Depends(_canonical_actor_dl),
+    svc: TriggerServicePort = Depends(get_trigger_service),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the create-case behavior for the given actor.
@@ -196,14 +175,16 @@ def trigger_create_case(
         TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
         TB-04-001
     """
-    result = create_case_trigger(
-        actor_id=actor_id,
-        name=body.name,
-        content=body.content,
-        report_id=body.report_id,
-        dl=dl,
+    with domain_error_translation():
+        result = svc.create_case(
+            actor_id=actor_id,
+            name=body.name,
+            content=body.content,
+            report_id=body.report_id,
+        )
+    background_tasks.add_task(
+        outbox_handler, actor_id, actor_dl, get_datalayer()
     )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
 
 
@@ -221,8 +202,8 @@ def trigger_add_report_to_case(
     actor_id: str,
     body: AddReportToCaseRequest,
     background_tasks: BackgroundTasks,
-    dl: DataLayer = Depends(_actor_dl),
-    actor_dl: DataLayer = Depends(_canonical_actor_dl),
+    svc: TriggerServicePort = Depends(get_trigger_service),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the add-report-to-case behavior for the given actor.
@@ -231,11 +212,13 @@ def trigger_add_report_to_case(
         TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
         TB-04-001
     """
-    result = add_report_to_case_trigger(
-        actor_id=actor_id,
-        case_id=body.case_id,
-        report_id=body.report_id,
-        dl=dl,
+    with domain_error_translation():
+        result = svc.add_report_to_case(
+            actor_id=actor_id,
+            case_id=body.case_id,
+            report_id=body.report_id,
+        )
+    background_tasks.add_task(
+        outbox_handler, actor_id, actor_dl, get_datalayer()
     )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result

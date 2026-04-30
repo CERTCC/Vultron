@@ -26,10 +26,14 @@ from fastapi.testclient import TestClient
 
 from vultron.core.models.participant_status import VultronParticipantStatus
 from vultron.core.use_cases._helpers import _report_phase_status_id
-from vultron.adapters.driving.fastapi.routers.trigger_report import _actor_dl
+from vultron.adapters.driving.fastapi.deps import (
+    get_canonical_actor_dl,
+    get_trigger_service,
+)
 from vultron.adapters.driving.fastapi.routers import (
     trigger_report as trigger_report_router,
 )
+from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -83,7 +87,8 @@ def dl(actor_and_dl):
 def client_triggers(dl):
     app = FastAPI()
     app.include_router(trigger_report_router.router)
-    app.dependency_overrides[_actor_dl] = lambda: dl
+    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(dl)
+    app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
@@ -264,21 +269,18 @@ def test_trigger_validate_report_with_note_returns_202(
 def test_trigger_validate_report_uses_injected_datalayer(
     dl, actor, offer, received_report
 ):
-    """TB-06-001, TB-06-002: DataLayer is resolved from Depends(_actor_dl)."""
-    from vultron.adapters.driving.fastapi.routers.trigger_report import (
-        _actor_dl as gdl,
-    )
-
+    """TB-06-001, TB-06-002: TriggerService is resolved from Depends(get_trigger_service)."""
     app = FastAPI()
     app.include_router(trigger_report_router.router)
 
     call_log = []
 
-    def tracking_dl():
+    def tracking_service():
         call_log.append("called")
-        return dl
+        return TriggerService(dl)
 
-    app.dependency_overrides[gdl] = tracking_dl
+    app.dependency_overrides[get_trigger_service] = tracking_service
+    app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
     client = TestClient(app)
     client.post(
         f"/actors/{actor.id_}/trigger/validate-report",
@@ -286,7 +288,7 @@ def test_trigger_validate_report_uses_injected_datalayer(
     )
     app.dependency_overrides = {}
 
-    assert len(call_log) >= 1, "get_datalayer was not called"
+    assert len(call_log) >= 1, "get_trigger_service was not called"
 
 
 def test_trigger_validate_report_transitions_rm_to_valid(
@@ -861,7 +863,7 @@ class TestTriggerReportOutboxScheduling:
         assert resp.status_code == status.HTTP_202_ACCEPTED
         mock_outbox.assert_called_once()
         assert mock_outbox.call_args.args[0] == actor.id_
-        assert mock_outbox.call_args.args[1] is mock_dl
+        assert mock_outbox.call_args.args[2] is mock_dl
 
     def test_invalidate_report_schedules_outbox_handler(
         self, client_triggers, actor, offer
