@@ -14,37 +14,6 @@ PD-06). Do not infer priority from section order.
 
 ---
 
-## TASK-BUG-386 — Defer unresolved `Accept.object_` references
-
-**Parent**: <https://github.com/CERTCC/Vultron/issues/387>
-
-**Source**: <https://github.com/CERTCC/Vultron/issues/386>
-
-Current behavior treats an inbound `Accept` whose `object_` URI is not yet
-present in the receiver's DataLayer as
-`MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT` and stores a dead-letter
-record. That leaves the system brittle under out-of-order delivery even though
-this is a normal distributed-systems condition.
-
-**Acceptance criteria:**
-
-- An inbound `Accept` with an unresolved `object_` reference is not
-  immediately dead-lettered.
-- The system records enough information to retry or complete processing once
-  the referenced object arrives.
-- The existing inline-object requirement for `Accept` remains enforced when
-  the sender supplies the full object.
-- Regression tests cover out-of-order delivery where `Accept` arrives before
-  the referenced `Invite` or `Offer`.
-
-- [ ] BUG-386.1: Design and implement deferred handling for unresolved
-  `Accept.object_` references instead of immediate dead-lettering
-- [ ] BUG-386.2: Reprocess deferred activities when the referenced object
-  becomes available
-- [ ] BUG-386.3: Add regression coverage for out-of-order `Accept` delivery
-
----
-
 ## TASK-RFC-402 — Consolidate find_matching_semantics into semantic_registry
 
 **Source**: <https://github.com/CERTCC/Vultron/issues/402>
