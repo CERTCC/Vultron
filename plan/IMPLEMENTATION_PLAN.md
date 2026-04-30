@@ -209,10 +209,10 @@ only inside factory functions.
 
 - [x] AF.1 Create `factories/errors.py` with `VultronActivityConstructionError`
 - [x] AF.2 Create `factories/report.py` (6 report activity factory functions)
-- [ ] AF.3 Create `factories/case.py` (16 case activity factory functions)
-- [ ] AF.4 Create `factories/embargo.py` (8 embargo activity factory functions)
-- [ ] AF.5 Create `factories/case_participant.py` (5 functions)
-- [ ] AF.6 Create `factories/actor.py` and `factories/sync.py`
+- [x] AF.3 Create `factories/case.py` (16 case activity factory functions)
+- [x] AF.4 Create `factories/embargo.py` (8 embargo activity factory functions)
+- [x] AF.5 Create `factories/case_participant.py` (5 functions)
+- [x] AF.6 Create `factories/actor.py` and `factories/sync.py`
 - [ ] AF.7 Create `test/architecture/test_activity_factory_imports.py`
 - [ ] AF.8–10 Migrate all call sites (demo scripts, trigger use cases, tests)
 - [ ] AF.11 Remove unused `OfferRef`/`RmInviteToCaseRef`; rename

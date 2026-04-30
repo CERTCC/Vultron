@@ -9,6 +9,7 @@
 | 2026-04-30 | implementation | P472-LATEX | Fix block-math opening delimiter in conclusion.md (#234, #235) |
 | 2026-04-30 | implementation | RFC-400 | RFC-400 TriggerService Facade |
 | 2026-04-30 | implementation | TASK-AF-2 | AF.2 — Create factories/report.py with 6 report factory functions |
+| 2026-04-30 | implementation | TASK-AF-3to6 | AF.3–AF.6 — Case, Embargo, Participant, Actor, Sync factory modules |
 | 2026-04-30 | implementation | TASK-AF | TASK-AF.1: Create factories/errors.py |
 | 2026-04-30 | implementation | TASK-BTND5 | TASK-BTND5.1: Add CVDRoles.CASE_OWNER |
 | 2026-04-30 | implementation | TASK-BUG-386 | BUG-386 — Defer unresolved Accept.object_ references (resolved via sender-side fix) |
