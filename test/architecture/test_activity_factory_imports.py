@@ -65,18 +65,14 @@ ALLOWED_PREFIXES: tuple[str, ...] = (
     "vultron/wire/as2/factories/",
     "test/wire/as2/vocab/",
     "test/architecture/",
+    "vultron/semantic_registry.py",
 )
 
 # ---------------------------------------------------------------------------
 # Known pre-existing violations  (AF.8–10 migration debt)
 # ---------------------------------------------------------------------------
-# Remove entries as each call site is migrated to vultron.wire.as2.factories.
-KNOWN_VIOLATIONS: frozenset[str] = frozenset(
-    {
-        # --- vultron/ source violations ---
-        "vultron/semantic_registry.py",
-    }
-)
+# All call sites have been migrated to vultron.wire.as2.factories.
+KNOWN_VIOLATIONS: frozenset[str] = frozenset()
 
 
 def _imports_from_vocab_activities(source_path: Path) -> bool:
