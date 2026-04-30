@@ -32,10 +32,12 @@ from vultron.core.use_cases.received.case import (
     UpdateCaseReceivedUseCase,
 )
 from vultron.wire.as2.rehydration import rehydrate as real_rehydrate
-from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.factories import (
+    update_case_activity,
+)
 
 
 class TestCaseUseCases:
@@ -60,10 +62,7 @@ class TestCaseUseCases:
             content="New content",
             attributed_to=owner_id,
         )
-        activity = UpdateCaseActivity(
-            actor=owner_id,
-            object_=updated_case,
-        )
+        activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity)
 
         def _mock_rehydrate_applies(obj, **kwargs):
@@ -104,10 +103,7 @@ class TestCaseUseCases:
             name="Hijacked Name",
             attributed_to=owner_id,
         )
-        activity = UpdateCaseActivity(
-            actor=non_owner_id,
-            object_=updated_case,
-        )
+        activity = update_case_activity(updated_case, actor=non_owner_id)
         event = make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
@@ -135,10 +131,7 @@ class TestCaseUseCases:
             name="Updated",
             attributed_to=owner_id,
         )
-        activity = UpdateCaseActivity(
-            actor=owner_id,
-            object_=updated_case,
-        )
+        activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity)
 
         def _mock_rehydrate_idempotent(obj, **kwargs):
@@ -191,7 +184,7 @@ class TestCaseUseCases:
             name="Updated",
             attributed_to=owner_id,
         )
-        activity = UpdateCaseActivity(actor=owner_id, object_=updated_case)
+        activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
@@ -234,7 +227,7 @@ class TestCaseUseCases:
             name="Updated",
             attributed_to=owner_id,
         )
-        activity = UpdateCaseActivity(actor=owner_id, object_=updated_case)
+        activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
@@ -272,7 +265,7 @@ class TestCaseUseCases:
             name="Updated",
             attributed_to=owner_id,
         )
-        activity = UpdateCaseActivity(actor=owner_id, object_=updated_case)
+        activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
@@ -314,7 +307,7 @@ class TestCaseUseCases:
         updated_case = VulnerabilityCase(
             id_=case_id, name="Updated", attributed_to=owner_id
         )
-        activity = UpdateCaseActivity(actor=owner_id, object_=updated_case)
+        activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity)
 
         UpdateCaseReceivedUseCase(dl, event).execute()
@@ -352,7 +345,7 @@ class TestCaseUseCases:
         updated_case = VulnerabilityCase(
             id_=case_id, name="Updated", attributed_to=owner_id
         )
-        activity = UpdateCaseActivity(actor=owner_id, object_=updated_case)
+        activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity)
 
         # Should not raise
@@ -385,7 +378,7 @@ class TestCaseUseCases:
         updated_case = VulnerabilityCase(
             id_=case_id, name="Updated", attributed_to=owner_id
         )
-        activity = UpdateCaseActivity(actor=owner_id, object_=updated_case)
+        activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity)
 
         UpdateCaseReceivedUseCase(dl, event).execute()
@@ -427,7 +420,7 @@ class TestCaseUseCases:
         updated_case = VulnerabilityCase(
             id_=case_id, name="Updated", attributed_to=owner_id
         )
-        activity = UpdateCaseActivity(actor=owner_id, object_=updated_case)
+        activity = update_case_activity(updated_case, actor=owner_id)
         event = make_payload(activity)
 
         UpdateCaseReceivedUseCase(dl, event).execute()

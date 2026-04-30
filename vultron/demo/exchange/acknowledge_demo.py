@@ -49,12 +49,6 @@ from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
 from vultron.adapters.utils import parse_id
-from vultron.wire.as2.vocab.activities.report import (
-    RmInvalidateReportActivity,
-    RmReadReportActivity,
-    RmSubmitReportActivity,
-    RmValidateReportActivity,
-)
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
@@ -69,6 +63,12 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     logfmt,
     post_to_inbox_and_wait,
     verify_object_stored,
+)
+from vultron.wire.as2.factories import (
+    rm_invalidate_report_activity,
+    rm_read_report_activity,
+    rm_submit_report_activity,
+    rm_validate_report_activity,
 )
 
 logger = logging.getLogger(__name__)
@@ -146,10 +146,8 @@ def demo_acknowledge_only(
             name="Network Parser Integer Overflow",
         )
         logger.info(f"Created report: {logfmt(report)}")
-        offer = RmSubmitReportActivity(
-            actor=finder.id_,
-            object_=report,
-            to=[vendor.id_],
+        offer = rm_submit_report_activity(
+            report, actor=finder.id_, to=vendor.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, offer)
         with demo_check("Report offer and report stored"):
@@ -159,9 +157,9 @@ def demo_acknowledge_only(
     with demo_step(
         "Step 2: Vendor acknowledges report (RmReadReportActivity to own inbox)"
     ):
-        ack = RmReadReportActivity(
+        ack = rm_read_report_activity(
+            report,
             actor=vendor.id_,
-            object_=report,
             content="We have received your report and will review it shortly.",
         )
         post_to_inbox_and_wait(client, vendor.id_, ack)
@@ -169,9 +167,9 @@ def demo_acknowledge_only(
             verify_object_stored(client=client, obj_id=ack.id_)
 
     with demo_step("Step 3: Vendor notifies finder of acknowledgement"):
-        ack_to_finder = RmReadReportActivity(
+        ack_to_finder = rm_read_report_activity(
+            report,
             actor=vendor.id_,
-            object_=report,
             to=[finder.id_],
             content="We have received your report and will review it shortly.",
         )
@@ -212,10 +210,8 @@ def demo_acknowledge_then_validate(
             name="Admin Login SQL Injection",
         )
         logger.info(f"Created report: {logfmt(report)}")
-        offer = RmSubmitReportActivity(
-            actor=finder.id_,
-            object_=report,
-            to=[vendor.id_],
+        offer = rm_submit_report_activity(
+            report, actor=finder.id_, to=vendor.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, offer)
         with demo_check("Report offer and report stored"):
@@ -225,10 +221,8 @@ def demo_acknowledge_then_validate(
     with demo_step(
         "Step 2: Vendor acknowledges report (RmReadReportActivity)"
     ):
-        ack = RmReadReportActivity(
-            actor=vendor.id_,
-            object_=report,
-            content="Report received — under review.",
+        ack = rm_read_report_activity(
+            report, actor=vendor.id_, content="Report received — under review."
         )
         post_to_inbox_and_wait(client, vendor.id_, ack)
         with demo_check("RmReadReportActivity activity stored"):
@@ -237,9 +231,9 @@ def demo_acknowledge_then_validate(
     with demo_step(
         "Step 3: Vendor validates report (RmValidateReportActivity)"
     ):
-        validate = RmValidateReportActivity(
+        validate = rm_validate_report_activity(
+            offer,
             actor=vendor.id_,
-            object_=offer,
             content="Confirmed SQL injection. Creating a case.",
         )
         post_to_inbox_and_wait(client, vendor.id_, validate)
@@ -247,9 +241,9 @@ def demo_acknowledge_then_validate(
             verify_object_stored(client=client, obj_id=validate.id_)
 
     with demo_step("Step 4: Vendor notifies finder of validation"):
-        validate_to_finder = RmValidateReportActivity(
+        validate_to_finder = rm_validate_report_activity(
+            offer,
             actor=vendor.id_,
-            object_=offer,
             to=[finder.id_],
             content="Your report has been validated. A case has been created.",
         )
@@ -295,10 +289,8 @@ def demo_acknowledge_then_invalidate(
             name="Empty Form Submission Crash",
         )
         logger.info(f"Created report: {logfmt(report)}")
-        offer = RmSubmitReportActivity(
-            actor=finder.id_,
-            object_=report,
-            to=[vendor.id_],
+        offer = rm_submit_report_activity(
+            report, actor=finder.id_, to=vendor.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, offer)
         with demo_check("Report offer and report stored"):
@@ -308,10 +300,8 @@ def demo_acknowledge_then_invalidate(
     with demo_step(
         "Step 2: Vendor acknowledges report (RmReadReportActivity)"
     ):
-        ack = RmReadReportActivity(
-            actor=vendor.id_,
-            object_=report,
-            content="Report received — under review.",
+        ack = rm_read_report_activity(
+            report, actor=vendor.id_, content="Report received — under review."
         )
         post_to_inbox_and_wait(client, vendor.id_, ack)
         with demo_check("RmReadReportActivity activity stored"):
@@ -320,9 +310,9 @@ def demo_acknowledge_then_invalidate(
     with demo_step(
         "Step 3: Vendor invalidates report (RmInvalidateReportActivity)"
     ):
-        invalidate = RmInvalidateReportActivity(
+        invalidate = rm_invalidate_report_activity(
+            offer,
             actor=vendor.id_,
-            object_=offer,
             content=(
                 "This is a UX defect, not a security vulnerability. "
                 "Holding for further review."
@@ -333,9 +323,9 @@ def demo_acknowledge_then_invalidate(
             verify_object_stored(client=client, obj_id=invalidate.id_)
 
     with demo_step("Step 4: Vendor notifies finder of invalidation"):
-        invalidate_to_finder = RmInvalidateReportActivity(
+        invalidate_to_finder = rm_invalidate_report_activity(
+            offer,
             actor=vendor.id_,
-            object_=offer,
             to=[finder.id_],
             content=(
                 "After review, this does not appear to be a security vulnerability."

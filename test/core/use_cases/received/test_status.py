@@ -22,13 +22,11 @@ from vultron.core.use_cases.received.status import (
     CreateCaseStatusReceivedUseCase,
     CreateParticipantStatusReceivedUseCase,
 )
-from vultron.wire.as2.vocab.activities.case import (
-    AddStatusToCaseActivity,
-    CreateCaseStatusActivity,
-)
-from vultron.wire.as2.vocab.activities.case_participant import (
-    AddStatusToParticipantActivity,
-    CreateStatusForParticipantActivity,
+from vultron.wire.as2.factories import (
+    add_status_to_case_activity,
+    add_status_to_participant_activity,
+    create_case_status_activity,
+    create_status_for_participant_activity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
@@ -54,10 +52,8 @@ class TestStatusUseCases:
             id_="https://example.org/cases/case_cs1/statuses/s1",
             context=case.id_,
         )
-        activity = CreateCaseStatusActivity(
-            actor="https://example.org/users/vendor",
-            object_=status,
-            context=case.id_,
+        activity = create_case_status_activity(
+            status, actor="https://example.org/users/vendor", context=case.id_
         )
 
         event = make_payload(activity)
@@ -81,10 +77,8 @@ class TestStatusUseCases:
         )
         dl.create(status)
 
-        activity = CreateCaseStatusActivity(
-            actor="https://example.org/users/vendor",
-            object_=status,
-            context=case.id_,
+        activity = create_case_status_activity(
+            status, actor="https://example.org/users/vendor", context=case.id_
         )
         event = make_payload(activity)
 
@@ -109,10 +103,8 @@ class TestStatusUseCases:
         dl.create(case)
         dl.create(status)
 
-        activity = AddStatusToCaseActivity(
-            actor="https://example.org/users/vendor",
-            object_=status,
-            target=case,
+        activity = add_status_to_case_activity(
+            status, target=case, actor="https://example.org/users/vendor"
         )
         event = make_payload(activity)
 
@@ -151,10 +143,8 @@ class TestStatusUseCases:
         )
         dl.create(bad_status)
 
-        activity = AddStatusToCaseActivity(
-            actor="https://example.org/users/vendor",
-            object_=bad_status,
-            target=case,
+        activity = add_status_to_case_activity(
+            bad_status, target=case, actor="https://example.org/users/vendor"
         )
         event = make_payload(activity)
 
@@ -193,10 +183,8 @@ class TestStatusUseCases:
         )
         dl.create(good_status)
 
-        activity = AddStatusToCaseActivity(
-            actor="https://example.org/users/vendor",
-            object_=good_status,
-            target=case,
+        activity = add_status_to_case_activity(
+            good_status, target=case, actor="https://example.org/users/vendor"
         )
         event = make_payload(activity)
 
@@ -222,10 +210,8 @@ class TestStatusUseCases:
             id_="https://example.org/cases/case_ps1",
             name="PS Case 1",
         )
-        activity = CreateStatusForParticipantActivity(
-            actor="https://example.org/users/vendor",
-            object_=pstatus,
-            context=case_ps1,
+        activity = create_status_for_participant_activity(
+            pstatus, actor="https://example.org/users/vendor", context=case_ps1
         )
 
         event = make_payload(activity)
@@ -256,10 +242,10 @@ class TestStatusUseCases:
         dl.create(participant)
         dl.create(pstatus)
 
-        activity = AddStatusToParticipantActivity(
-            actor="https://example.org/users/vendor",
-            object_=pstatus,
+        activity = add_status_to_participant_activity(
+            pstatus,
             target=participant,
+            actor="https://example.org/users/vendor",
             context=case_ps2,
         )
         event = make_payload(activity)

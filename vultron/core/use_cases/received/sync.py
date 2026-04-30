@@ -31,6 +31,7 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
 )
+from vultron.wire.as2.factories import reject_log_entry_activity
 
 logger = logging.getLogger(__name__)
 
@@ -218,18 +219,15 @@ class AnnounceLogEntryReceivedUseCase:
 
         Spec: SYNC-03-001.
         """
-        from vultron.wire.as2.vocab.activities.sync import (
-            RejectLogEntryActivity,
-        )
         from vultron.wire.as2.vocab.objects.case_log_entry import CaseLogEntry
 
         local_actor_id = _find_local_actor_id(self._dl) or "unknown"
         wire_entry = CaseLogEntry.from_core(entry)
-        reject = RejectLogEntryActivity(
-            actor=local_actor_id,
-            object_=wire_entry,
-            to=[case_actor_id],
+        reject = reject_log_entry_activity(
+            entry=wire_entry,
             context=tail_hash,
+            actor=local_actor_id,
+            to=[case_actor_id],
         )
         self._dl.save(reject)
         self._dl.outbox_append(reject.id_)

@@ -61,9 +61,6 @@ from vultron.adapters.utils import parse_id
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.wire.as2.vocab.activities.report import (
-    RmSubmitReportActivity,
-)
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import (
@@ -87,6 +84,10 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     seed_actor,
     verify_object_stored,
 )
+from vultron.wire.as2.factories import (
+    rm_submit_report_activity,
+)
+from vultron.core.models.vultron_types import VultronActivity
 
 logger = logging.getLogger(__name__)
 
@@ -239,7 +240,7 @@ def finder_submits_report(
     finder: as_Actor,
     vendor: as_Actor,
     finder_client: Optional[DataLayerClient] = None,
-) -> Tuple[VulnerabilityReport, RmSubmitReportActivity]:
+) -> Tuple[VulnerabilityReport, VultronActivity]:
     """Finder creates a vulnerability report and submits it to the Vendor's inbox.
 
     When ``finder_client`` is provided (e.g. in a multi-container Docker demo),
@@ -284,7 +285,7 @@ def finder_submits_report(
                 },
             )
         offer_dict = result.get("offer", {})
-        offer = RmSubmitReportActivity.model_validate(offer_dict)
+        offer = VultronActivity.model_validate(offer_dict)
         report_raw = offer.object_
         if isinstance(report_raw, str):
             report = VulnerabilityReport(
@@ -318,11 +319,8 @@ def finder_submits_report(
                 "issue to execute arbitrary code with elevated privileges."
             ),
         )
-        offer = RmSubmitReportActivity(
-            actor=finder.id_,
-            object_=report,
-            target=vendor.id_,
-            to=[vendor.id_],
+        offer = rm_submit_report_activity(
+            report, actor=finder.id_, target=vendor.id_, to=vendor.id_
         )
         with demo_step(
             "Finder submits vulnerability report to Vendor's inbox"
@@ -346,7 +344,7 @@ def vendor_validates_report(
     Args:
         vendor_client: Client connected to the Vendor container.
         vendor: Vendor ``as_Actor``.
-        offer_id: Full URI of the ``RmSubmitReportActivity`` offer to validate.
+        offer_id: Full URI of the ``VultronActivity`` offer to validate.
 
     Returns:
         Response dict from the trigger endpoint (contains the validate activity).
@@ -533,7 +531,7 @@ def find_case_for_offer(
 
     Args:
         vendor_client: Client connected to the Vendor container.
-        offer_id: Full URI of the ``RmSubmitReportActivity`` offer.
+        offer_id: Full URI of the ``VultronActivity`` offer.
 
     Returns:
         The matching ``VulnerabilityCase``, or ``None`` if not found.

@@ -32,7 +32,7 @@ from vultron.core.use_cases.triggers._helpers import (
 from vultron.core.use_cases.triggers.requests import (
     AddNoteToCaseTriggerRequest,
 )
-from vultron.wire.as2.vocab.activities.case import AddNoteToCaseActivity
+from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
@@ -103,10 +103,10 @@ class SvcAddNoteToCaseUseCase:
             object_=note,
             to=addressees,
         )
-        add_note_activity = AddNoteToCaseActivity(
-            actor=actor_id,
-            object_=note,
+        add_note_activity = add_note_to_case_activity(
+            note=note,
             target=case_id,
+            actor=actor_id,
             to=addressees,
         )
 

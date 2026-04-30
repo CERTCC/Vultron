@@ -54,9 +54,9 @@ from vultron.core.use_cases._helpers import (
     case_addressees,
     update_participant_rm_state,
 )
-from vultron.wire.as2.vocab.activities.case import (
-    RmDeferCaseActivity,
-    RmEngageCaseActivity,
+from vultron.wire.as2.factories import (
+    rm_defer_case_activity,
+    rm_engage_case_activity,
 )
 
 logger = logging.getLogger(__name__)
@@ -939,9 +939,9 @@ class EmitEngageCaseActivity(DataLayerAction):
                 if recipients:
                     addressees = recipients
 
-            activity = RmEngageCaseActivity(
+            activity = rm_engage_case_activity(
+                case=cast(Any, case),
                 actor=self.actor_id,
-                object_=cast(Any, case),
                 to=addressees,
             )
 
@@ -1029,9 +1029,9 @@ class EmitDeferCaseActivity(DataLayerAction):
                 if recipients:
                     addressees = recipients
 
-            activity = RmDeferCaseActivity(
+            activity = rm_defer_case_activity(
+                case=cast(Any, case),
                 actor=self.actor_id,
-                object_=cast(Any, case),
                 to=addressees,
             )
 

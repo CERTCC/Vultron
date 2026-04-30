@@ -20,9 +20,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.use_cases.received.actor import (
     AnnounceVulnerabilityCaseReceivedUseCase,
 )
-from vultron.wire.as2.vocab.activities.case import (
-    AnnounceVulnerabilityCaseActivity,
-)
+from vultron.wire.as2.factories import announce_vulnerability_case_activity
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 _OWNER_ID = "https://example.org/actors/owner"
@@ -42,10 +40,7 @@ def case():
 
 @pytest.fixture()
 def announce_activity(case):
-    return AnnounceVulnerabilityCaseActivity(
-        actor=_OWNER_ID,
-        object_=case,
-    )
+    return announce_vulnerability_case_activity(case, actor=_OWNER_ID)
 
 
 @pytest.fixture()
@@ -94,19 +89,19 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
 
     def test_non_case_object_skips_gracefully(self, dl, make_payload):
         """No-op when the activity object_ is not a VulnerabilityCase."""
-        from vultron.wire.as2.vocab.activities.case import (
-            AnnounceVulnerabilityCaseActivity,
+        from vultron.wire.as2.factories import (
+            announce_vulnerability_case_activity,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
             VulnerabilityReport,
         )
 
         # Build an Announce that wraps a non-case object; we can't use the typed
-        # AnnounceVulnerabilityCaseActivity here because it requires VulnerabilityCase,
+        # factory here because it requires VulnerabilityCase,
         # so we inject via model_copy to simulate a malformed incoming payload.
         good_case = VulnerabilityCase(id_=_CASE_ID2, name="Placeholder")
-        announce = AnnounceVulnerabilityCaseActivity(
-            actor=_OWNER_ID, object_=good_case
+        announce = announce_vulnerability_case_activity(
+            good_case, actor=_OWNER_ID
         )
         event = make_payload(announce)
 

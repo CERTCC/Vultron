@@ -682,7 +682,7 @@ def test_handle_outbox_item_preserves_inline_case_log_entry_fields():
     """Announce(CaseLogEntry) delivery keeps full inline log-entry fields."""
     from vultron.core.models.case_log import GENESIS_HASH, CaseLogEntry
     from vultron.core.use_cases.triggers.sync import _to_persistable_entry
-    from vultron.wire.as2.vocab.activities.sync import AnnounceLogEntryActivity
+    from vultron.wire.as2.factories import announce_log_entry_activity
     from vultron.wire.as2.vocab.objects.case_log_entry import (
         CaseLogEntry as WireCaseLogEntry,
     )
@@ -697,9 +697,9 @@ def test_handle_outbox_item_preserves_inline_case_log_entry_fields():
         prev_log_hash=GENESIS_HASH,
     )
     entry = _to_persistable_entry(chain_entry)
-    activity = AnnounceLogEntryActivity(
+    activity = announce_log_entry_activity(
+        WireCaseLogEntry.from_core(entry),
         actor="https://example.org/actors/case-actor",
-        object_=WireCaseLogEntry.from_core(entry),
         to=[recipient],
     )
 

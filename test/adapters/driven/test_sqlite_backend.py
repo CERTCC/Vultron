@@ -24,6 +24,18 @@ import pytest
 
 from vultron.adapters.driven.db_record import Record
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.wire.as2.factories import (
+    announce_log_entry_activity,
+    em_propose_embargo_activity,
+    rm_invite_to_case_activity,
+    rm_submit_report_activity,
+)
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Accept,
+    as_Announce,
+    as_Invite,
+    as_Offer,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -373,7 +385,6 @@ def test_outbox_pop_empty_returns_none(dl):
 
 def test_activity_with_nested_object_stores_id_reference_not_inline_copy(dl):
     """Storing an activity with a nested object writes only the nested ID."""
-    from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
         VulnerabilityReport,
     )
@@ -383,9 +394,10 @@ def test_activity_with_nested_object_stores_id_reference_not_inline_copy(dl):
         content="A critical vulnerability",
         attributed_to="https://example.org/finder",
     )
-    offer = RmSubmitReportActivity(
+    offer = rm_submit_report_activity(
+        report,
+        "https://example.org/finder",
         actor="https://example.org/finder",
-        object_=report,
     )
 
     dl.create(report)
@@ -401,7 +413,6 @@ def test_activity_with_nested_object_stores_id_reference_not_inline_copy(dl):
 
 
 def test_activity_nested_object_retrievable_separately_after_dehydration(dl):
-    from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
         VulnerabilityReport,
     )
@@ -411,9 +422,10 @@ def test_activity_nested_object_retrievable_separately_after_dehydration(dl):
         content="Another vulnerability",
         attributed_to="https://example.org/finder",
     )
-    offer = RmSubmitReportActivity(
+    offer = rm_submit_report_activity(
+        report,
+        "https://example.org/finder",
         actor="https://example.org/finder",
-        object_=report,
     )
 
     dl.create(report)
@@ -430,7 +442,6 @@ def test_reading_activity_back_yields_expanded_nested_object(dl):
     Previously ``dl.read()`` returned a string ID for the nested ``object_``
     field; after the rehydration pipeline the full typed object is returned.
     """
-    from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
         VulnerabilityReport,
     )
@@ -440,9 +451,10 @@ def test_reading_activity_back_yields_expanded_nested_object(dl):
         content="Yet another vulnerability",
         attributed_to="https://example.org/finder",
     )
-    offer = RmSubmitReportActivity(
+    offer = rm_submit_report_activity(
+        report,
+        "https://example.org/finder",
         actor="https://example.org/finder",
-        object_=report,
     )
 
     dl.create(report)
@@ -457,7 +469,6 @@ def test_reading_activity_back_yields_expanded_nested_object(dl):
 
 def test_rehydration_restores_nested_object_from_datalayer(dl):
     from vultron.wire.as2.rehydration import rehydrate
-    from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
         VulnerabilityReport,
     )
@@ -467,9 +478,10 @@ def test_rehydration_restores_nested_object_from_datalayer(dl):
         content="One more vulnerability",
         attributed_to="https://example.org/finder",
     )
-    offer = RmSubmitReportActivity(
+    offer = rm_submit_report_activity(
+        report,
+        "https://example.org/finder",
         actor="https://example.org/finder",
-        object_=report,
     )
 
     dl.create(report)
@@ -485,7 +497,6 @@ def test_rehydration_restores_nested_object_from_datalayer(dl):
 
 def test_rehydration_does_not_mutate_stored_record(dl):
     from vultron.wire.as2.rehydration import rehydrate
-    from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
         VulnerabilityReport,
     )
@@ -495,9 +506,10 @@ def test_rehydration_does_not_mutate_stored_record(dl):
         content="Final vulnerability",
         attributed_to="https://example.org/finder",
     )
-    offer = RmSubmitReportActivity(
+    offer = rm_submit_report_activity(
+        report,
+        "https://example.org/finder",
         actor="https://example.org/finder",
-        object_=report,
     )
 
     dl.create(report)
@@ -652,38 +664,36 @@ class TestRehydrateFields:
 
     def test_offer_object_field_expanded_to_vulnerability_report(self, dl):
         """RmSubmitReportActivity.object_ is a VulnerabilityReport after read."""
-        from vultron.wire.as2.vocab.activities.report import (
-            RmSubmitReportActivity,
-        )
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
             VulnerabilityReport,
         )
 
         report = VulnerabilityReport(name="CVE-TEST-001", content="Test body")
-        offer = RmSubmitReportActivity(
-            actor="https://alice.example.org", object_=report
+        offer = rm_submit_report_activity(
+            report,
+            "https://alice.example.org",
+            actor="https://alice.example.org",
         )
         dl.save(report)
         dl.save(offer)
 
         result = dl.read(offer.id_)
 
-        assert isinstance(result, RmSubmitReportActivity)
+        assert isinstance(result, as_Offer)
         assert isinstance(result.object_, VulnerabilityReport)  # type: ignore[union-attr]
         assert result.object_.name == "CVE-TEST-001"  # type: ignore[union-attr]
 
     def test_missing_nested_object_keeps_string(self, dl):
         """When a referenced object is not in the DB, the string ID is kept."""
-        from vultron.wire.as2.vocab.activities.report import (
-            RmSubmitReportActivity,
-        )
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
             VulnerabilityReport,
         )
 
         report = VulnerabilityReport(name="CVE-MISSING", content="Body")
-        offer = RmSubmitReportActivity(
-            actor="https://alice.example.org", object_=report
+        offer = rm_submit_report_activity(
+            report,
+            "https://alice.example.org",
+            actor="https://alice.example.org",
         )
         # Save offer but NOT the report — reference is dangling
         dl.save(offer)
@@ -700,16 +710,15 @@ class TestCoerceToSemanticClass:
 
     def test_rm_submit_report_round_trip_returns_specific_class(self, dl):
         """dl.read returns RmSubmitReportActivity, not generic as_Offer."""
-        from vultron.wire.as2.vocab.activities.report import (
-            RmSubmitReportActivity,
-        )
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
             VulnerabilityReport,
         )
 
         report = VulnerabilityReport(name="CVE-ROUND-TRIP", content="Body")
-        offer = RmSubmitReportActivity(
-            actor="https://alice.example.org", object_=report
+        offer = rm_submit_report_activity(
+            report,
+            "https://alice.example.org",
+            actor="https://alice.example.org",
         )
         dl.save(report)
         dl.save(offer)
@@ -720,9 +729,6 @@ class TestCoerceToSemanticClass:
 
     def test_em_propose_embargo_round_trip_returns_specific_class(self, dl):
         """dl.read returns EmProposeEmbargoActivity with EmbargoEvent object_."""
-        from vultron.wire.as2.vocab.activities.embargo import (
-            EmProposeEmbargoActivity,
-        )
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
@@ -730,10 +736,10 @@ class TestCoerceToSemanticClass:
 
         case = VulnerabilityCase()
         embargo = EmbargoEvent(context=case.id_)
-        proposal = EmProposeEmbargoActivity(
-            actor="https://alice.example.org",
-            object_=embargo,
+        proposal = em_propose_embargo_activity(
+            embargo,
             context=case.id_,
+            actor="https://alice.example.org",
         )
         dl.save(case)
         dl.save(embargo)
@@ -751,13 +757,6 @@ class TestCoerceToSemanticClass:
         from typing import cast
 
         from vultron.wire.as2.parser import parse_activity
-        from vultron.wire.as2.vocab.activities.case import (
-            RmAcceptInviteToCaseActivity,
-            RmInviteToCaseActivity,
-        )
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Accept,
-        )
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
         parsed = cast(
@@ -800,8 +799,8 @@ class TestCoerceToSemanticClass:
 
         result = dl.read(parsed.id_)
 
-        assert isinstance(result, RmAcceptInviteToCaseActivity)
-        assert isinstance(result.object_, RmInviteToCaseActivity)
+        assert isinstance(result, as_Accept)
+        assert isinstance(result.object_, as_Invite)
         assert result.object_.id_ == "urn:uuid:invite-roundtrip-1"
         assert result.in_reply_to == "urn:uuid:invite-roundtrip-1"
 
@@ -809,9 +808,6 @@ class TestCoerceToSemanticClass:
         """dl.read returns AnnounceLogEntryActivity with CaseLogEntry object_."""
         from vultron.core.models.case_log import GENESIS_HASH, CaseLogEntry
         from vultron.core.use_cases.triggers.sync import _to_persistable_entry
-        from vultron.wire.as2.vocab.activities.sync import (
-            AnnounceLogEntryActivity,
-        )
         from vultron.wire.as2.vocab.objects.case_log_entry import (
             CaseLogEntry as WireCaseLogEntry,
         )
@@ -825,20 +821,19 @@ class TestCoerceToSemanticClass:
             prev_log_hash=GENESIS_HASH,
         )
         entry = _to_persistable_entry(chain_entry)
-        announce = AnnounceLogEntryActivity(
+        announce = announce_log_entry_activity(
+            WireCaseLogEntry.from_core(entry),
             actor="https://example.org/actors/case-actor",
-            object_=WireCaseLogEntry.from_core(entry),
-            to=["https://example.org/actors/participant"],
         )
         dl.save(entry)
         dl.save(announce)
 
         result = dl.read(announce.id_)
 
-        assert isinstance(result, AnnounceLogEntryActivity)
-        assert isinstance(result.object_, WireCaseLogEntry)
-        assert result.object_.case_id == entry.case_id
-        assert result.object_.log_object_id == entry.log_object_id
+        assert isinstance(result, as_Announce)
+        assert isinstance(result.object_, WireCaseLogEntry)  # type: ignore[union-attr]
+        assert result.object_.case_id == entry.case_id  # type: ignore[union-attr]
+        assert result.object_.log_object_id == entry.log_object_id  # type: ignore[union-attr]
 
     def test_non_activity_object_not_coerced(self, dl):
         """Non-activity objects (e.g. VulnerabilityReport) are returned as-is."""
@@ -916,9 +911,6 @@ class TestListMethod:
 
     def test_list_returns_semantic_class_for_activities(self, dl):
         """list() applies semantic coercion so activities get their subtype."""
-        from vultron.wire.as2.vocab.activities.case import (
-            RmInviteToCaseActivity,
-        )
         from vultron.wire.as2.vocab.base.objects.actors import as_Service
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCaseStub,
@@ -927,11 +919,10 @@ class TestListMethod:
         actor = as_Service(name="Coordinator")
         invitee = as_Service(name="Vendor")
         stub = VulnerabilityCaseStub(id_="https://example.org/cases/list-test")
-        invite = RmInviteToCaseActivity(
-            actor=actor.id_,
-            object_=invitee,
+        invite = rm_invite_to_case_activity(
+            invitee,
             target=stub,
-            to=[invitee.id_],
+            actor=actor.id_,
         )
         dl.save(actor)
         dl.save(invitee)
@@ -940,4 +931,4 @@ class TestListMethod:
         results = dl.list_objects("Invite")
 
         assert len(results) == 1
-        assert isinstance(results[0], RmInviteToCaseActivity)
+        assert isinstance(results[0], as_Invite)

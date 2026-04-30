@@ -11,14 +11,6 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.wire.as2.vocab.activities.case import (
-    AddStatusToCaseActivity,
-    CreateCaseStatusActivity,
-)
-from vultron.wire.as2.vocab.activities.case_participant import (
-    AddStatusToParticipantActivity,
-    CreateStatusForParticipantActivity,
-)
 from vultron.wire.as2.vocab.examples._base import case, vendor
 from vultron.wire.as2.vocab.objects.case_status import (
     CaseStatus,
@@ -27,6 +19,13 @@ from vultron.wire.as2.vocab.objects.case_status import (
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.wire.as2.factories import (
+    add_status_to_case_activity,
+    add_status_to_participant_activity,
+    create_case_status_activity,
+    create_status_for_participant_activity,
+)
+from vultron.core.models.vultron_types import VultronActivity
 
 
 def case_status() -> CaseStatus:
@@ -44,22 +43,18 @@ def create_case_status():
     status = case_status()
     _case = case()
 
-    activity = CreateCaseStatusActivity(
-        actor=actor.id_,
-        object_=status,
-        context=_case.id_,
+    activity = create_case_status_activity(
+        status, actor=actor.id_, context=_case.id_
     )
     return activity
 
 
-def add_status_to_case() -> AddStatusToCaseActivity:
+def add_status_to_case() -> VultronActivity:
     _vendor = vendor()
     _case = case()
     _status = case_status()
-    activity = AddStatusToCaseActivity(
-        actor=_vendor.id_,
-        object_=_status,
-        target=_case.id_,
+    activity = add_status_to_case_activity(
+        _status, actor=_vendor.id_, target=_case.id_
     )
     return activity
 
@@ -76,24 +71,23 @@ def participant_status() -> ParticipantStatus:
     return status
 
 
-def create_participant_status() -> CreateStatusForParticipantActivity:
+def create_participant_status() -> VultronActivity:
     pstatus = participant_status()
     _vendor = vendor()
 
-    activity = CreateStatusForParticipantActivity(
-        actor=_vendor.id_,
-        object_=pstatus,
+    activity = create_status_for_participant_activity(
+        pstatus, actor=_vendor.id_
     )
     return activity
 
 
-def add_status_to_participant() -> AddStatusToParticipantActivity:
+def add_status_to_participant() -> VultronActivity:
     _vendor = vendor()
     pstatus = participant_status()
 
-    activity = AddStatusToParticipantActivity(
+    activity = add_status_to_participant_activity(
+        pstatus,
         actor=_vendor.id_,
-        object_=pstatus,
         target="https://vultron.example/cases/1/participants/vendor",
     )
     return activity

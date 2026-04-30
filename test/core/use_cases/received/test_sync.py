@@ -29,7 +29,7 @@ from typing import cast
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.parser import parse_activity
-from vultron.wire.as2.vocab.activities.sync import AnnounceLogEntryActivity
+from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_log_entry import (
     CaseLogEntry as WireCaseLogEntry,
 )
@@ -98,10 +98,7 @@ class TestAnnounceLogEntryReceivedUseCase:
         wire_entry = WireCaseLogEntry.model_validate(
             entry.model_dump(mode="json")
         )
-        activity = AnnounceLogEntryActivity(
-            actor=ACTOR_URI,
-            object_=wire_entry,
-        )
+        activity = announce_log_entry_activity(wire_entry, actor=ACTOR_URI)
         return cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
 
     def test_inline_case_log_entry_round_trip(self, first_entry):

@@ -33,7 +33,7 @@ from vultron.adapters.driving.fastapi.deps import (
     get_trigger_service,
 )
 from vultron.core.use_cases.triggers.service import TriggerService
-from vultron.wire.as2.vocab.activities.case import RmInviteToCaseActivity
+from vultron.wire.as2.factories import rm_invite_to_case_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCase,
@@ -113,10 +113,10 @@ def case_obj(dl, actor):
 @pytest.fixture
 def invite(dl, actor, case_obj, other_actor):
     """Create and persist an RmInviteToCaseActivity for accept-case-invite tests."""
-    invite_activity = RmInviteToCaseActivity(
-        actor=actor.id_,
-        object_=other_actor,
+    invite_activity = rm_invite_to_case_activity(
+        other_actor,
         target=VulnerabilityCaseStub(id_=case_obj.id_),
+        actor=actor.id_,
     )
     dl.create(invite_activity)
     return invite_activity

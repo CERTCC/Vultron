@@ -57,11 +57,12 @@ from vultron.errors import (
     VultronNotFoundError,
     VultronValidationError,
 )
-from vultron.wire.as2.vocab.activities.report import (
-    RmCloseReportActivity,
-    RmInvalidateReportActivity,
-    RmSubmitReportActivity,
+from vultron.wire.as2.factories import (
+    rm_close_report_activity,
+    rm_invalidate_report_activity,
+    rm_submit_report_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
@@ -71,7 +72,7 @@ logger = logging.getLogger(__name__)
 
 def _resolve_offer_and_report(
     offer_id: str, dl: CaseOutboxPersistence
-) -> tuple["RmSubmitReportActivity", VulnerabilityReport]:
+) -> tuple[as_Offer, VulnerabilityReport]:
     """Resolve offer and its embedded report; raise domain errors on failure.
 
     After the DataLayer rehydration pipeline, ``dl.read(offer_id)`` returns an
@@ -81,7 +82,7 @@ def _resolve_offer_and_report(
     offer = dl.read(offer_id)
     if offer is None:
         raise VultronNotFoundError("Offer", offer_id)
-    if not isinstance(offer, RmSubmitReportActivity):
+    if not isinstance(offer, as_Offer):
         raise VultronValidationError(
             f"Expected RmSubmitReportActivity for offer '{offer_id}', "
             f"got {type(offer).__name__}."
@@ -204,9 +205,9 @@ class SvcInvalidateReportUseCase:
 
         offer, report = _resolve_offer_and_report(offer_id, dl)
 
-        invalidate_activity = RmInvalidateReportActivity(
+        invalidate_activity = rm_invalidate_report_activity(
+            offer=offer,
             actor=actor_id,
-            object_=offer,
             to=_report_addressees(report.id_, actor_id, offer, dl),
         )
 
@@ -270,9 +271,9 @@ class SvcRejectReportUseCase:
 
         offer, report = _resolve_offer_and_report(offer_id, dl)
 
-        reject_activity = RmCloseReportActivity(
+        reject_activity = rm_close_report_activity(
+            offer=offer,
             actor=actor_id,
-            object_=offer,
             to=_report_addressees(report.id_, actor_id, offer, dl),
         )
 
@@ -348,9 +349,9 @@ class SvcCloseReportUseCase:
                 f"Report '{report.id_}' is already CLOSED."
             )
 
-        close_activity = RmCloseReportActivity(
+        close_activity = rm_close_report_activity(
+            offer=offer,
             actor=actor_id,
-            object_=offer,
             to=_report_addressees(report.id_, actor_id, offer, dl),
         )
 
@@ -429,11 +430,11 @@ class SvcSubmitReportUseCase:
             report.id_,
         )
 
-        offer = RmSubmitReportActivity(
+        offer = rm_submit_report_activity(
+            report=report,
+            to=request.recipient_id,
             actor=actor_id,
-            object_=report,
             target=request.recipient_id,
-            to=[request.recipient_id],
         )
         try:
             dl.create(offer)
