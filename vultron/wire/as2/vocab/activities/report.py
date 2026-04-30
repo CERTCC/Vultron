@@ -16,11 +16,8 @@ This module contains extensions to the ActivityStreams Vocabulary for Vultron ac
 VulnerabilityReports.
 """
 
-from typing import TypeAlias
-
 from pydantic import Field
 
-from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Create,
@@ -32,8 +29,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
-
-OfferRef: TypeAlias = ActivityStreamRef[as_Offer]
 
 
 class RmCreateReportActivity(as_Create):

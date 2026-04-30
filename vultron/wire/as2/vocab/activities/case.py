@@ -16,11 +16,8 @@ Custom Activity Streams Activities for VulnerabilityCase objects.
 Each activity should have a VulnerabilityCase object as either its target or object.
 """
 
-from typing import TypeAlias
-
 from pydantic import Field, model_validator
 
-from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
@@ -234,9 +231,6 @@ class RmInviteToCaseActivity(as_Invite):
         ..., validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseStub | str | None = None
-
-
-RmInviteToCaseRef: TypeAlias = ActivityStreamRef[RmInviteToCaseActivity]
 
 
 class RmAcceptInviteToCaseActivity(as_Accept):
