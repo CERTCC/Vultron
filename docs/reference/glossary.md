@@ -141,8 +141,11 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
 |------|-----------|-----------------|
 | **BT** | A Behavior Tree; a state machine implementation using py_trees that orchestrates domain logic and protocol events | State machine, tree, orchestrator |
 | **Node** | A component in a **BT** that extends `Behavior` and implements a single domain action (e.g., create a participant, attach a note) | Action, task |
-| **Blackboard** | Global shared state storage for **BT** nodes to read/write data during execution | Shared memory, context |
+| **Blackboard** | Global shared state storage for **BT** nodes to read/write data during execution; keys use `{noun}_{id_segment}` format to avoid py_trees path parsing issues | Shared memory, context |
 | **BTTestScenario** | A deep-module test harness that eliminates boilerplate setup; allows BT node tests to be written without repeating blackboard initialization | Test fixture, test helper |
+| **Trunk-Removed Branches Model** | The prototype BT architecture that mirrors the canonical simulation BT structure by exposing individual subtrees as event-driven use cases triggered by incoming **Activities**, rather than a continuous-tick monolithic root tree | Branched event model, handler-first BTs |
+| **Protocol-Significant Behavior** | Any action that affects protocol-observable state (emitting an **Activity**, transitioning RM/EM/CS, cascading consequences); MUST be implemented as BT nodes/subtrees, never as procedural code outside the tree | Domain logic, tree-resident behavior |
+| **Cascading Consequences** | Automated downstream behaviors triggered by primary protocol events via BT subtrees; examples include submit-report → case creation → participant setup → embargo initialization → notifications (anti-pattern: post-BT procedural calls) | Event cascade, automation chain |
 
 ## Domain Model — CVD Coordination
 
