@@ -20,6 +20,8 @@ Tests for the report trigger endpoints
 Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
@@ -41,6 +43,32 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
 from vultron.core.states.rm import RM
+
+# ---------------------------------------------------------------------------
+# Module-level outbox suppression
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _no_outbox_delivery():
+    """Suppress real outbox delivery for every test in this module.
+
+    ``outbox_handler`` uses HTTP with exponential-backoff retries.  When
+    tests run with non-existent recipient URLs the retry sleeps add ~3.5 s
+    per test.  Patching to a no-op ``AsyncMock`` eliminates that overhead
+    while keeping the scheduler logic testable.
+
+    Tests in ``TestTriggerReportOutboxScheduling`` that need a trackable mock
+    use ``unittest.mock.patch`` as a context manager inside the test body,
+    which overrides this fixture's patch for the duration of that context.
+    """
+    with patch(
+        "vultron.adapters.driving.fastapi.routers"
+        ".trigger_report.outbox_handler",
+        new_callable=AsyncMock,
+    ):
+        yield
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -826,8 +854,6 @@ class TestTriggerReportOutboxScheduling:
 
     def _make_patches(self):
         """Return a context manager that mocks outbox_handler."""
-        from unittest.mock import AsyncMock, patch
-
         return patch(
             "vultron.adapters.driving.fastapi.routers"
             ".trigger_report.outbox_handler",
