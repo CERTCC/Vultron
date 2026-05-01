@@ -1,7 +1,7 @@
 ---
 title: 'D5-6-STORE: Dehydrate nested AS2 objects before TinyDB storage'
 type: implementation
-date: '2026-04-06'
+timestamp: '2026-04-06T00:00:00+00:00'
 source: D5-6-STORE
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 4598

@@ -1,7 +1,7 @@
 ---
 title: "TECHDEBT-35 \u2014 VultronEvent rich-object architectural fix"
 type: implementation
-date: '2026-03-24'
+timestamp: '2026-03-24T00:00:00+00:00'
 source: TECHDEBT-35
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 3019

@@ -2,7 +2,7 @@
 title: "TECHDEBT-32 / TECHDEBT-32b \u2014 DataLayer boundary audit and core\
   \ adapter import removal"
 type: implementation
-date: '2026-03-24'
+timestamp: '2026-03-24T00:00:00+00:00'
 source: LEGACY-2026-03-24-techdebt-32-techdebt-32b-datalayer-boundary-audi
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 2869

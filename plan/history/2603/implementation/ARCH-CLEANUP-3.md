@@ -1,7 +1,7 @@
 ---
 title: 'ARCH-CLEANUP-3 complete: isinstance AS2 checks replaced (V-11, V-12)'
 type: implementation
-date: '2026-03-10'
+timestamp: '2026-03-10T00:00:00+00:00'
 source: ARCH-CLEANUP-3
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 625

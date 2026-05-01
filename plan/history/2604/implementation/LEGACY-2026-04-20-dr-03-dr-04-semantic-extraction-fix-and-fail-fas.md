@@ -1,7 +1,7 @@
 ---
 title: 'DR-03 / DR-04: Semantic extraction fix and fail-fast validation'
 type: implementation
-date: '2026-04-20'
+timestamp: '2026-04-20T00:00:00+00:00'
 source: LEGACY-2026-04-20-dr-03-dr-04-semantic-extraction-fix-and-fail-fas
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 7035

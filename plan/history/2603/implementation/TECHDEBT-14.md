@@ -1,7 +1,7 @@
 ---
 title: "TECHDEBT-14 \u2014 Split vultron_types.py into per-type modules"
 type: implementation
-date: '2026-03-13'
+timestamp: '2026-03-13T00:00:00+00:00'
 source: TECHDEBT-14
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 1410

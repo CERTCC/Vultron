@@ -1,7 +1,7 @@
 ---
 title: "DOCS-3 \u2014 User Story Traceability Matrix"
 type: implementation
-date: '2026-04-23'
+timestamp: '2026-04-23T00:00:00+00:00'
 source: DOCS-3
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 8019

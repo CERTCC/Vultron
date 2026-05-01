@@ -1,7 +1,7 @@
 ---
 title: "0 & 0A \u2014 Report Demo"
 type: implementation
-date: '2026-02-24'
+timestamp: '2026-02-24T00:00:00+00:00'
 source: LEGACY-2026-02-24-0-0a-report-demo
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 8

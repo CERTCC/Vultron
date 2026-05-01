@@ -1,7 +1,7 @@
 ---
 title: "P347-BRIDGE \u2014 Extend outbox expansion bridge"
 type: implementation
-date: '2026-04-18'
+timestamp: '2026-04-18T00:00:00+00:00'
 source: P347-BRIDGE
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 6762

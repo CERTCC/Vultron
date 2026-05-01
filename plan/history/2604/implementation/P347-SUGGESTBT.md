@@ -1,7 +1,7 @@
 ---
 title: "P347-SUGGESTBT \u2014 SuggestActorToCase BT Handler"
 type: implementation
-date: '2026-04-18'
+timestamp: '2026-04-18T00:00:00+00:00'
 source: P347-SUGGESTBT
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 6787

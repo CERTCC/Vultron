@@ -1,7 +1,7 @@
 ---
 title: "SR.6.6 \u2014 Delete Original specs/*.md Files"
 type: implementation
-date: '2026-04-27'
+timestamp: '2026-04-27T00:00:00+00:00'
 source: LEGACY-2026-04-27-sr-6-6-delete-original-specs-md-files
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 8245

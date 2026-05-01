@@ -1,7 +1,7 @@
 ---
 title: VSR-ERR-1 + SM-GUARD-1 + BUG-FLAKY-1 (2026-03-30)
 type: implementation
-date: '2026-03-30'
+timestamp: '2026-03-30T00:00:00+00:00'
 source: LEGACY-2026-03-30-vsr-err-1-sm-guard-1-bug-flaky-1-2026-03-30
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 3497

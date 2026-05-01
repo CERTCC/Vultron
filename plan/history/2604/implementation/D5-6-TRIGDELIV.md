@@ -2,7 +2,7 @@
 title: "D5-6-TRIGDELIV \u2014 Fix trigger endpoints to deliver outbox activities\
   \ (2026-04-07)"
 type: implementation
-date: '2026-04-07'
+timestamp: '2026-04-07T00:00:00+00:00'
 source: D5-6-TRIGDELIV
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 4806

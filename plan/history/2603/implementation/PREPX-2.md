@@ -1,7 +1,7 @@
 ---
 title: "PREPX-2 \u2014 Remove handlers shim layer (2026-03-18)"
 type: implementation
-date: '2026-03-18'
+timestamp: '2026-03-18T00:00:00+00:00'
 source: PREPX-2
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 1894

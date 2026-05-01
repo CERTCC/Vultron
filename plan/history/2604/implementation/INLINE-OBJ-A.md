@@ -1,7 +1,7 @@
 ---
 title: "INLINE-OBJ-A \u2014 Inline typed outbound activity objects"
 type: implementation
-date: '2026-04-16'
+timestamp: '2026-04-16T00:00:00+00:00'
 source: INLINE-OBJ-A
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 6447

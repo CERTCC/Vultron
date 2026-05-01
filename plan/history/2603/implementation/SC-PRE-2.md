@@ -1,7 +1,7 @@
 ---
 title: 'SC-PRE-2 complete: actor_participant_index'
 type: implementation
-date: '2026-03-11'
+timestamp: '2026-03-11T00:00:00+00:00'
 source: SC-PRE-2
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 367

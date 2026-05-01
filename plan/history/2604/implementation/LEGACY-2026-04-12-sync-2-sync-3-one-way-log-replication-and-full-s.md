@@ -2,7 +2,7 @@
 title: "SYNC-2 + SYNC-3 \u2014 One-way log replication and full sync loop\
   \ with retry/backoff"
 type: implementation
-date: '2026-04-12'
+timestamp: '2026-04-12T00:00:00+00:00'
 source: LEGACY-2026-04-12-sync-2-sync-3-one-way-log-replication-and-full-s
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 5798

@@ -1,7 +1,7 @@
 ---
 title: "TECHDEBT-24 (remaining) \u2014 Remove wire-layer import from `core/use_cases/case.py`"
 type: implementation
-date: '2026-03-16'
+timestamp: '2026-03-16T00:00:00+00:00'
 source: TECHDEBT-24
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 1677

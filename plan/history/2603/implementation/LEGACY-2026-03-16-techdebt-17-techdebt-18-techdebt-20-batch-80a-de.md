@@ -2,7 +2,7 @@
 title: "TECHDEBT-17, TECHDEBT-18, TECHDEBT-20 \u2014 Batch 80a: Dead code\
   \ removal (2026-03-16)"
 type: implementation
-date: '2026-03-16'
+timestamp: '2026-03-16T00:00:00+00:00'
 source: LEGACY-2026-03-16-techdebt-17-techdebt-18-techdebt-20-batch-80a-de
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 1598

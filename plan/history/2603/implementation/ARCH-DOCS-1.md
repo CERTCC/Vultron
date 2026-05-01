@@ -2,7 +2,7 @@
 title: "ARCH-DOCS-1 \u2014 Update architecture-review.md violation status\
   \ markers"
 type: implementation
-date: '2026-03-11'
+timestamp: '2026-03-11T00:00:00+00:00'
 source: ARCH-DOCS-1
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 1122

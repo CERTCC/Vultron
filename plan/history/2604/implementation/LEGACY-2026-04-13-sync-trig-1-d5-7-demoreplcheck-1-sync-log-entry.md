@@ -2,7 +2,7 @@
 title: "SYNC-TRIG-1 + D5-7-DEMOREPLCHECK-1 \u2014 Sync Log Entry Trigger and\
   \ Finder"
 type: implementation
-date: '2026-04-13'
+timestamp: '2026-04-13T00:00:00+00:00'
 source: LEGACY-2026-04-13-sync-trig-1-d5-7-demoreplcheck-1-sync-log-entry
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 5895

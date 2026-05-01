@@ -1,7 +1,7 @@
 ---
 title: P30-4 `close-report` vs `reject-report` distinction
 type: implementation
-date: '2026-03-11'
+timestamp: '2026-03-11T00:00:00+00:00'
 source: LEGACY-2026-03-11-p30-4-close-report-vs-reject-report-distinction
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 447

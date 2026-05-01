@@ -2,7 +2,7 @@
 title: "D5-6-LOGCTX \u2014 Improve outbox activity log messages with human-readable\
   \ context (2026-04-07)"
 type: implementation
-date: '2026-04-07'
+timestamp: '2026-04-07T00:00:00+00:00'
 source: D5-6-LOGCTX
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 4839

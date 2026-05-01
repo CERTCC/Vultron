@@ -1,7 +1,7 @@
 ---
 title: "DOCS-2 \u2014 Fix broken inline code examples in `docs/` (2026-03-18)"
 type: implementation
-date: '2026-03-18'
+timestamp: '2026-03-18T00:00:00+00:00'
 source: DOCS-2
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 2143

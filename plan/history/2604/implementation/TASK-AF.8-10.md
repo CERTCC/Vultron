@@ -1,7 +1,7 @@
 ---
 title: "TASK-AF.8-10 — Factory call-site type annotation fixes"
 type: implementation
-date: '2026-04-30'
+timestamp: '2026-04-30T00:00:00+00:00'
 source: TASK-AF.8-10
 ---
 

@@ -1,7 +1,7 @@
 ---
 title: "DEMO-3.10\u20133.15 \u2014 Manage Embargo + Manage Participants Demos"
 type: implementation
-date: '2026-02-26'
+timestamp: '2026-02-26T00:00:00+00:00'
 source: LEGACY-2026-02-26-demo-3-10-3-15-manage-embargo-manage-participant
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 154

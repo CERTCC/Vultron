@@ -1,7 +1,7 @@
 ---
 title: "BUG-2026040102 Fix \u2014 Circular Import in validate_tree"
 type: implementation
-date: '2026-04-01'
+timestamp: '2026-04-01T00:00:00+00:00'
 source: LEGACY-2026-04-01-bug-2026040102-fix-circular-import-in-validate-t
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 4255

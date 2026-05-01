@@ -1,7 +1,7 @@
 ---
 title: "SR.6 (new) \u2014 NetworkX Graph and LLM-Optimized Export"
 type: implementation
-date: '2026-04-27'
+timestamp: '2026-04-27T00:00:00+00:00'
 source: LEGACY-2026-04-27-sr-6-new-networkx-graph-and-llm-optimized-export
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 8208

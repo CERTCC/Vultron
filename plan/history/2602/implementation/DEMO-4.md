@@ -1,7 +1,7 @@
 ---
 title: "DEMO-4 \u2014 Unified Demo CLI"
 type: implementation
-date: '2026-02-27'
+timestamp: '2026-02-27T00:00:00+00:00'
 source: DEMO-4
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 167

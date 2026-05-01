@@ -2,7 +2,7 @@
 title: "Batch 80e \u2014 TECHDEBT-23 + TECHDEBT-25 + TECHDEBT-26 + TECHDEBT-28\
   \ (2026-03-16)"
 type: implementation
-date: '2026-03-16'
+timestamp: '2026-03-16T00:00:00+00:00'
 source: LEGACY-2026-03-16-batch-80e-techdebt-23-techdebt-25-techdebt-26-te
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 1725

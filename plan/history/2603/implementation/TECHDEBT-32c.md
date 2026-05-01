@@ -1,7 +1,7 @@
 ---
 title: "TECHDEBT-32c \u2014 Remove get_datalayer fallback from wire/as2/rehydration.py"
 type: implementation
-date: '2026-03-24'
+timestamp: '2026-03-24T00:00:00+00:00'
 source: TECHDEBT-32c
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 2914

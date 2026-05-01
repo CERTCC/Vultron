@@ -1,7 +1,7 @@
 ---
 title: "0.5 \u2014 Test Infrastructure Fix"
 type: implementation
-date: '2026-02-24'
+timestamp: '2026-02-24T00:00:00+00:00'
 source: LEGACY-2026-02-24-0-5-test-infrastructure-fix
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 22

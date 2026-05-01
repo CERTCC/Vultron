@@ -1,7 +1,6 @@
-"""Tests for HistoryEntryFrontmatter Pydantic model.
+"""Tests for NewHistoryEntry and HistoryEntryFrontmatter Pydantic models.
 
-Covers: HM-02-001, HM-06-002 through HM-06-005 required-field contract,
-mutual exclusivity, UTC normalisation, and legacy date→timestamp conversion.
+Covers: HM-02-001, HM-06-001 through HM-06-005.
 """
 
 from __future__ import annotations
@@ -16,8 +15,60 @@ from vultron.metadata.history.types import HistoryEntryType
 _UTC = datetime.timezone.utc
 
 
+class TestNewHistoryEntry:
+    """NewHistoryEntry (write model) self-timestamps and validates."""
+
+    @pytest.fixture()
+    def model_cls(self):  # type: ignore[no-untyped-def]
+        from vultron.metadata.history.models import NewHistoryEntry
+
+        return NewHistoryEntry
+
+    def test_auto_timestamps_to_utc_now(self, model_cls) -> None:  # type: ignore[no-untyped-def]
+        """HM-06-001: model is the timestamper-of-record; no explicit timestamp needed."""
+        before = datetime.datetime.now(_UTC)
+        entry = model_cls(title="T", type=HistoryEntryType.idea, source="SRC")
+        after = datetime.datetime.now(_UTC)
+        assert before <= entry.timestamp <= after
+        assert entry.timestamp.tzinfo == _UTC
+
+    def test_explicit_timestamp_override_accepted(self, model_cls) -> None:  # type: ignore[no-untyped-def]
+        """Backfill callers may supply a timestamp explicitly (HM-07-002)."""
+        ts = datetime.datetime(2026, 1, 15, 10, 30, 0, tzinfo=_UTC)
+        entry = model_cls(
+            title="T", type=HistoryEntryType.idea, source="SRC", timestamp=ts
+        )
+        assert entry.timestamp == ts
+
+    def test_naive_timestamp_rejected(self, model_cls) -> None:  # type: ignore[no-untyped-def]
+        with pytest.raises(ValidationError):
+            model_cls(
+                title="T",
+                type=HistoryEntryType.idea,
+                source="SRC",
+                timestamp=datetime.datetime(2026, 4, 28, 12, 0, 0),
+            )
+
+    def test_offset_timestamp_normalised_to_utc(self, model_cls) -> None:  # type: ignore[no-untyped-def]
+        plus_two = datetime.timezone(datetime.timedelta(hours=2))
+        ts = datetime.datetime(2026, 4, 28, 14, 0, 0, tzinfo=plus_two)
+        entry = model_cls(
+            title="T", type=HistoryEntryType.idea, source="SRC", timestamp=ts
+        )
+        assert entry.timestamp.tzinfo == _UTC
+        assert entry.timestamp.hour == 12
+
+    def test_missing_title_rejected(self, model_cls) -> None:  # type: ignore[no-untyped-def]
+        with pytest.raises(ValidationError):
+            model_cls(type=HistoryEntryType.idea, source="SRC")
+
+    def test_empty_source_rejected(self, model_cls) -> None:  # type: ignore[no-untyped-def]
+        with pytest.raises(ValidationError):
+            model_cls(title="T", type=HistoryEntryType.idea, source="")
+
+
 class TestHistoryEntryFrontmatter:
-    """HistoryEntryFrontmatter validates required frontmatter fields."""
+    """HistoryEntryFrontmatter (read model) requires timestamp; fails loudly."""
 
     @pytest.fixture()
     def model_cls(self):  # type: ignore[no-untyped-def]
@@ -38,39 +89,23 @@ class TestHistoryEntryFrontmatter:
         assert m.source == "IDEA-001"
         assert m.timestamp == ts
 
-    def test_legacy_date_converted_to_timestamp(self, model_cls) -> None:  # type: ignore[no-untyped-def]
-        """date: field is normalised to timestamp: midnight UTC (HM-06-003)."""
-        m = model_cls.model_validate(
-            {
-                "title": "T",
-                "type": "idea",
-                "date": "2026-04-28",
-                "source": "IDEA-002",
-            }
-        )
-        assert m.timestamp is not None
-        assert m.timestamp == datetime.datetime(
-            2026, 4, 28, 0, 0, 0, tzinfo=_UTC
-        )
+    def test_missing_timestamp_rejected(self, model_cls) -> None:  # type: ignore[no-untyped-def]
+        """HM-06-002: missing timestamp must fail loudly."""
+        with pytest.raises(ValidationError):
+            model_cls.model_validate(
+                {"title": "T", "type": "idea", "source": "IDEA-004"}
+            )
 
-    def test_both_date_and_timestamp_rejected(self, model_cls) -> None:  # type: ignore[no-untyped-def]
-        """HM-06-002: supplying both date and timestamp must fail."""
+    def test_legacy_date_field_rejected(self, model_cls) -> None:  # type: ignore[no-untyped-def]
+        """date: field is no longer supported; all entries must use timestamp:."""
         with pytest.raises(ValidationError):
             model_cls.model_validate(
                 {
                     "title": "T",
                     "type": "idea",
                     "date": "2026-04-28",
-                    "timestamp": "2026-04-28T12:00:00+00:00",
-                    "source": "IDEA-003",
+                    "source": "SRC",
                 }
-            )
-
-    def test_neither_date_nor_timestamp_rejected(self, model_cls) -> None:  # type: ignore[no-untyped-def]
-        """HM-06-002: providing neither date nor timestamp must fail."""
-        with pytest.raises(ValidationError):
-            model_cls.model_validate(
-                {"title": "T", "type": "idea", "source": "IDEA-004"}
             )
 
     def test_naive_timestamp_rejected(self, model_cls) -> None:  # type: ignore[no-untyped-def]
@@ -97,7 +132,6 @@ class TestHistoryEntryFrontmatter:
                 "source": "IDEA-006",
             }
         )
-        assert m.timestamp is not None
         assert m.timestamp.tzinfo == _UTC
         assert m.timestamp.hour == 12  # 14:00+02:00 → 12:00 UTC
 

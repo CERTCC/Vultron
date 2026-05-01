@@ -1,7 +1,7 @@
 ---
 title: "DR-08, DR-11, DR-12 \u2014 Note BT, PersistCase upsert, get_failure_reason"
 type: implementation
-date: '2026-04-20'
+timestamp: '2026-04-20T00:00:00+00:00'
 source: LEGACY-2026-04-20-dr-08-dr-11-dr-12-note-bt-persistcase-upsert-get
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 7149

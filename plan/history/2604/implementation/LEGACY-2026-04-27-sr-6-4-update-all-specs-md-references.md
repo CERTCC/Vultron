@@ -1,7 +1,7 @@
 ---
 title: "SR.6.4 \u2014 Update All specs/*.md References"
 type: implementation
-date: '2026-04-27'
+timestamp: '2026-04-27T00:00:00+00:00'
 source: LEGACY-2026-04-27-sr-6-4-update-all-specs-md-references
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 8226

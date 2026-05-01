@@ -2,7 +2,7 @@
 title: "SYNC-4 \u2014 Multi-peer synchronization with per-peer replication\
   \ state"
 type: implementation
-date: '2026-04-21'
+timestamp: '2026-04-21T00:00:00+00:00'
 source: SYNC-4
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 7403

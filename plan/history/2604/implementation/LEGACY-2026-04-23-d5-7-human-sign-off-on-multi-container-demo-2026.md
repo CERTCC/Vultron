@@ -1,7 +1,7 @@
 ---
 title: D5-7-HUMAN - sign off on multi-container demo (2026-04-22)
 type: implementation
-date: '2026-04-23'
+timestamp: '2026-04-23T00:00:00+00:00'
 source: LEGACY-2026-04-23-d5-7-human-sign-off-on-multi-container-demo-2026
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 7790

@@ -1,7 +1,7 @@
 ---
 title: 'P347-BUGFIX + P347-NODEGENERAL: Fix and generalize CreateFinderParticipantNode'
 type: implementation
-date: '2026-04-17'
+timestamp: '2026-04-17T00:00:00+00:00'
 source: LEGACY-2026-04-17-p347-bugfix-p347-nodegeneral-fix-and-generalize
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 6717

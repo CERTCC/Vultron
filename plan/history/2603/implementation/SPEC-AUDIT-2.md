@@ -1,7 +1,7 @@
 ---
 title: "SPEC-AUDIT-2 \u2014 RFC 2119 strength keyword migration (2026-03-30)"
 type: implementation
-date: '2026-03-31'
+timestamp: '2026-03-31T00:00:00+00:00'
 source: SPEC-AUDIT-2
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 3737

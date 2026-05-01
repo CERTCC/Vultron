@@ -2,7 +2,7 @@
 title: "OB-05-002, AR-01-003, P90-5 \u2014 Health readiness probe, operation\
   \ IDs, OPP-06 spec"
 type: implementation
-date: '2026-03-23'
+timestamp: '2026-03-23T00:00:00+00:00'
 source: LEGACY-2026-03-23-ob-05-002-ar-01-003-p90-5-health-readiness-probe
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 2632

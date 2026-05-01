@@ -1,7 +1,7 @@
 ---
 title: "P347-PUPPETEER \u2014 Demo Trigger-Based Puppeteering"
 type: implementation
-date: '2026-04-20'
+timestamp: '2026-04-20T00:00:00+00:00'
 source: P347-PUPPETEER
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 6982

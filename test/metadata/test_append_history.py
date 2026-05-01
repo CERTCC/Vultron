@@ -374,10 +374,29 @@ class TestTimestampSupport:
         )
         assert result.returncode != 0
 
-    def test_legacy_date_entry_readable_by_readme_gen(
+    def test_timestamp_entry_readable_by_readme_gen(
         self, fake_repo: Path
     ) -> None:
-        """Existing entries with date: field must be readable (HM-06-003)."""
+        """Entries with timestamp: field are read correctly (HM-06-002)."""
+        from vultron.metadata.history.readme_gen import regenerate_readme
+
+        month_dir = fake_repo / "plan" / "history" / "2604"
+        idea_dir = month_dir / "idea"
+        idea_dir.mkdir(parents=True)
+        entry = idea_dir / "TS-001.md"
+        entry.write_text(
+            "---\ntitle: New\ntype: idea\ntimestamp: '2026-04-01T00:00:00+00:00'\nsource: TS-001\n---\n\nEntry body.\n"
+        )
+        readme = regenerate_readme(month_dir)
+        assert readme.exists()
+        text = readme.read_text()
+        assert "TS-001" in text
+        assert "Time (UTC)" in text
+
+    def test_legacy_date_entry_rejected_by_readme_gen(
+        self, fake_repo: Path
+    ) -> None:
+        """Entries with only date: field fail clearly — date: is no longer supported."""
         from vultron.metadata.history.readme_gen import regenerate_readme
 
         month_dir = fake_repo / "plan" / "history" / "2604"
@@ -387,10 +406,8 @@ class TestTimestampSupport:
         legacy.write_text(
             "---\ntitle: Legacy\ntype: idea\ndate: 2026-04-01\nsource: LEGACY-001\n---\n\nOld entry.\n"
         )
-        readme = regenerate_readme(month_dir)
-        assert readme.exists()
-        assert "LEGACY-001" in readme.read_text()
-        assert "Time (UTC)" in readme.read_text()
+        with pytest.raises(ValueError, match="timestamp"):
+            regenerate_readme(month_dir)
 
 
 class TestFrontmatterValidation:

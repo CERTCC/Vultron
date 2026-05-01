@@ -1,7 +1,7 @@
 ---
 title: "PREPX-1 \u2014 Fix BT status string comparisons (2026-03-18)"
 type: implementation
-date: '2026-03-18'
+timestamp: '2026-03-18T00:00:00+00:00'
 source: PREPX-1
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 1880

@@ -1,7 +1,7 @@
 ---
 title: "P360-NOTES \u2014 BT Reusability and Composability Design Notes (2026-04-23)"
 type: implementation
-date: '2026-04-23'
+timestamp: '2026-04-23T00:00:00+00:00'
 source: P360-NOTES
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 7799

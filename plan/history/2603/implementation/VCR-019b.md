@@ -2,7 +2,7 @@
 title: "VCR-019b \u2014 Move RM, EM, CVDRoles enums to `vultron/core/states/`\
   \ (2026-03-19)"
 type: implementation
-date: '2026-03-18'
+timestamp: '2026-03-18T00:00:00+00:00'
 source: VCR-019b
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 2180

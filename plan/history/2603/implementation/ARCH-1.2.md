@@ -2,7 +2,7 @@
 title: 'ARCH-1.2 complete: InboundPayload introduced; AS2 type removed from
   DispatchActivity'
 type: implementation
-date: '2026-03-09'
+timestamp: '2026-03-09T00:00:00+00:00'
 source: ARCH-1.2
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 750

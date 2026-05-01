@@ -35,7 +35,10 @@ from pathlib import Path
 import yaml
 from pydantic import ValidationError
 
-from vultron.metadata.history.models import HistoryEntryFrontmatter
+from vultron.metadata.history.models import (
+    HistoryEntryFrontmatter,
+    NewHistoryEntry,
+)
 from vultron.metadata.history.readme_gen import regenerate_readme
 from vultron.metadata.history.types import HistoryEntryType
 
@@ -133,33 +136,30 @@ def _build_content(
 ) -> str:
     """Construct the full entry markdown (frontmatter + body).
 
+    Uses :class:`NewHistoryEntry` as the timestamper-of-record: if
+    *timestamp* is ``None`` the model self-timestamps to UTC now
+    (HM-06-001, HM-07-002).  Pass *timestamp* only for backfill overrides.
+
     The frontmatter ``timestamp`` is serialised as a quoted ISO 8601 string
     so that YAML parsers treat it as a string rather than a native datetime
     (ensuring round-trip fidelity of the UTC offset, HM-06-001).
 
-    Args:
-        entry_type: History entry type.
-        title: Human-readable summary for the frontmatter.
-        source: Originating task/idea identifier for the frontmatter.
-        body: Markdown body text (no frontmatter).
-        timestamp: UTC timestamp; defaults to ``datetime.now(UTC)`` when
-            *None*.
-
     Returns:
         Full markdown string beginning with a YAML frontmatter block.
     """
-    ts = timestamp or datetime.datetime.now(_UTC)
-    if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=_UTC)
+    if timestamp is not None:
+        entry = NewHistoryEntry(
+            type=entry_type, title=title, source=source, timestamp=timestamp
+        )
     else:
-        ts = ts.astimezone(_UTC)
+        entry = NewHistoryEntry(type=entry_type, title=title, source=source)
 
     fm = {
-        "title": title,
-        "type": str(entry_type.value),
-        "source": source,
+        "title": entry.title,
+        "type": str(entry.type.value),
+        "source": entry.source,
         # Store as a plain string so YAML parsers don't strip the tz offset.
-        "timestamp": ts.isoformat(),
+        "timestamp": entry.timestamp.isoformat(),
     }
     fm_yaml = yaml.safe_dump(fm, default_flow_style=False, allow_unicode=True)
     sep = "\n" if body and not body.startswith("\n") else ""
@@ -327,10 +327,11 @@ def main() -> None:
         content = _build_content(
             entry_type, args.title, args.source, body, timestamp
         )
-        # Future-date check: enforce on the timestamp that will be written
-        # (HM-06-004). Existing entries are not re-validated here.
-        effective_ts = timestamp or datetime.datetime.now(_UTC)
-        _check_timestamp_not_future(effective_ts)
+        # Future-date check only for explicit --timestamp overrides (HM-06-004).
+        # Auto-generated timestamps from NewHistoryEntry.default_factory are
+        # always "now" and cannot be in the future.
+        if timestamp is not None:
+            _check_timestamp_not_future(timestamp)
         target_date = timestamp.date() if timestamp is not None else None
         entry_file = append_history_entry(
             entry_type,

@@ -1,7 +1,7 @@
 ---
 title: D5-7-LOGCLEAN-1 + D5-7-MSGORDER-1 (2026-04-14)
 type: implementation
-date: '2026-04-10'
+timestamp: '2026-04-10T00:00:00+00:00'
 source: LEGACY-2026-04-10-d5-7-logclean-1-d5-7-msgorder-1-2026-04-14
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 5410

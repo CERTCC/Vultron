@@ -62,8 +62,7 @@ def _parse_entry(path: Path) -> _EntryMeta:
             f"field(s): {fields}"
         ) from exc
 
-    # timestamp is always set after model validation (HM-06-003).
-    assert meta.timestamp is not None  # noqa: S101
+    # timestamp is required on HistoryEntryFrontmatter (HM-06-002).
     return _EntryMeta(
         title=meta.title,
         entry_type=meta.type.value,

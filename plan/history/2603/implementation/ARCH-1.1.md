@@ -1,7 +1,7 @@
 ---
 title: 'ARCH-1.1 complete: MessageSemantics moved to vultron/core/models/events.py'
 type: implementation
-date: '2026-03-09'
+timestamp: '2026-03-09T00:00:00+00:00'
 source: ARCH-1.1
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 737

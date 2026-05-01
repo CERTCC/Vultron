@@ -1,7 +1,7 @@
 ---
 title: 'CA-1 + CA-3: CaseActor broadcast on case update (CM-06-001/CM-06-002)'
 type: implementation
-date: '2026-03-25'
+timestamp: '2026-03-25T00:00:00+00:00'
 source: LEGACY-2026-03-25-ca-1-ca-3-caseactor-broadcast-on-case-update-cm
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 3283

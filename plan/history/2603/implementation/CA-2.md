@@ -1,7 +1,7 @@
 ---
 title: 'CA-2: Action Rules Endpoint (PRIORITY-200)'
 type: implementation
-date: '2026-03-25'
+timestamp: '2026-03-25T00:00:00+00:00'
 source: CA-2
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 3354

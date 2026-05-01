@@ -2,7 +2,7 @@
 title: "TECHDEBT-30 \u2014 Domain-specific property getters on core event\
   \ interfaces"
 type: implementation
-date: '2026-03-23'
+timestamp: '2026-03-23T00:00:00+00:00'
 source: TECHDEBT-30
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 2782

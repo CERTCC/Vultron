@@ -1,7 +1,7 @@
 ---
 title: "SPEC-COMPLIANCE-3 partial \u2014 SC-3.1 + SC-PRE-1"
 type: implementation
-date: '2026-03-09'
+timestamp: '2026-03-09T00:00:00+00:00'
 source: SPEC-COMPLIANCE-3
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 289

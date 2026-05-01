@@ -1,7 +1,7 @@
 ---
 title: "D5-6-EMBARGORCP \u2014 Remove Redundant Embargo Announce Activity"
 type: implementation
-date: '2026-04-08'
+timestamp: '2026-04-08T00:00:00+00:00'
 source: D5-6-EMBARGORCP
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 5008

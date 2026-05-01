@@ -2,7 +2,7 @@
 title: "D5-7-DEMONOTECLEAN-1 \u2014 Use trigger API for notes in two-actor\
   \ demo"
 type: implementation
-date: '2026-04-10'
+timestamp: '2026-04-10T00:00:00+00:00'
 source: D5-7-DEMONOTECLEAN-1
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 5539

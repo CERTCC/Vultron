@@ -1,7 +1,7 @@
 ---
 title: "OX-1.0 \u2014 ActivityEmitter port stub (2026-03-19)"
 type: implementation
-date: '2026-03-19'
+timestamp: '2026-03-19T00:00:00+00:00'
 source: OX-1.0
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 2501

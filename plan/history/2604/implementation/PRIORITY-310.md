@@ -1,7 +1,7 @@
 ---
 title: "PRIORITY-310 \u2014 D5-6-LOG, D5-6-STATE, D5-6-STORE, D5-6-WORKFLOW"
 type: implementation
-date: '2026-04-06'
+timestamp: '2026-04-06T00:00:00+00:00'
 source: PRIORITY-310
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 4722

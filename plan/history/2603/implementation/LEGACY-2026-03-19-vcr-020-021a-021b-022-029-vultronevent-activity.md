@@ -2,7 +2,7 @@
 title: "VCR-020/021a/021b/022/029 \u2014 VultronEvent activity field and docstring\
   \ cleanup (2026-03-19)"
 type: implementation
-date: '2026-03-19'
+timestamp: '2026-03-19T00:00:00+00:00'
 source: LEGACY-2026-03-19-vcr-020-021a-021b-022-029-vultronevent-activity
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 2344

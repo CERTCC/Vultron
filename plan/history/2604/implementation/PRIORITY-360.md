@@ -1,7 +1,7 @@
 ---
 title: "PRIORITY-360 \u2014 BT Composability Refactoring (Completed)"
 type: implementation
-date: '2026-04-23'
+timestamp: '2026-04-23T00:00:00+00:00'
 source: PRIORITY-360
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 7915

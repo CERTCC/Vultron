@@ -1,7 +1,7 @@
 ---
 title: "OUTBOX-MON-1 \u2014 OutboxMonitor background loop"
 type: implementation
-date: '2026-04-11'
+timestamp: '2026-04-11T00:00:00+00:00'
 source: OUTBOX-MON-1
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 5631

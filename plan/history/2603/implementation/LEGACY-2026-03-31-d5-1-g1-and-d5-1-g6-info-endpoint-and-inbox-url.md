@@ -2,7 +2,7 @@
 title: "D5-1-G1 and D5-1-G6 \u2014 Info Endpoint and Inbox URL Derivation\
   \ Test (2026-03-31)"
 type: implementation
-date: '2026-03-31'
+timestamp: '2026-03-31T00:00:00+00:00'
 source: LEGACY-2026-03-31-d5-1-g1-and-d5-1-g6-info-endpoint-and-inbox-url
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 3953

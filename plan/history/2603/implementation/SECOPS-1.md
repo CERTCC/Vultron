@@ -2,7 +2,7 @@
 title: "SECOPS-1 \u2014 CI Security: ADR + Automated SHA-Pin Verification\
   \ Test (2026-03-30)"
 type: implementation
-date: '2026-03-30'
+timestamp: '2026-03-30T00:00:00+00:00'
 source: SECOPS-1
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 3572

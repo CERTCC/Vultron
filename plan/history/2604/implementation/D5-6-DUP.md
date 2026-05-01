@@ -1,7 +1,7 @@
 ---
 title: "D5-6-DUP \u2014 Fix duplicate VulnerabilityReport WARNING (2026-04-07)"
 type: implementation
-date: '2026-04-07'
+timestamp: '2026-04-07T00:00:00+00:00'
 source: D5-6-DUP
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 4782

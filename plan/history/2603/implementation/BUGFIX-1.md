@@ -1,7 +1,7 @@
 ---
 title: "BUGFIX-1 \u2014 Pytest Logging Noise"
 type: implementation
-date: '2026-03-09'
+timestamp: '2026-03-09T00:00:00+00:00'
 source: BUGFIX-1
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 197

@@ -1,7 +1,7 @@
 ---
 title: 'SYNC-2: One-way log replication (Announce(CaseLogEntry))'
 type: implementation
-date: '2026-04-11'
+timestamp: '2026-04-11T00:00:00+00:00'
 source: SYNC-2
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 5745

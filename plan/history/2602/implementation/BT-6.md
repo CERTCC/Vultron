@@ -1,7 +1,7 @@
 ---
 title: "BT-6 \u2014 Status Updates + Notes Handlers"
 type: implementation
-date: '2026-02-24'
+timestamp: '2026-02-24T00:00:00+00:00'
 source: BT-6
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 99
