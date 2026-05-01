@@ -38,7 +38,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 
-class CreateParticipantActivity(as_Create):
+class _CreateParticipantActivity(as_Create):
     """Create a new CaseParticipant"""
 
     object_: CaseParticipant = Field(
@@ -76,7 +76,7 @@ class CreateParticipantActivity(as_Create):
         return self
 
 
-class CreateStatusForParticipantActivity(as_Create):
+class _CreateStatusForParticipantActivity(as_Create):
     """Create a new CaseStatus for a CaseParticipant"""
 
     object_: ParticipantStatus = Field(
@@ -86,7 +86,7 @@ class CreateStatusForParticipantActivity(as_Create):
 
 
 # add CaseStatus to CaseParticipant
-class AddStatusToParticipantActivity(as_Add):
+class _AddStatusToParticipantActivity(as_Add):
     """Add a CaseStatus to a CaseParticipant
     object_: CaseStatus
     target: CaseParticipant
@@ -98,7 +98,7 @@ class AddStatusToParticipantActivity(as_Add):
     target: CaseParticipantRef = None
 
 
-class AddParticipantToCaseActivity(as_Add):
+class _AddParticipantToCaseActivity(as_Add):
     """Add a CaseParticipant to a VulnerabilityCase
     object_: CaseParticipant
     target: VulnerabilityCase
@@ -110,7 +110,7 @@ class AddParticipantToCaseActivity(as_Add):
     target: VulnerabilityCaseRef = None
 
 
-class RemoveParticipantFromCaseActivity(as_Remove):
+class _RemoveParticipantFromCaseActivity(as_Remove):
     """Remove a CaseParticipant from a VulnerabilityCase.
     This should only be performed by the case owner.
     object_: CaseParticipant

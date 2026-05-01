@@ -24,54 +24,54 @@ import pytest
 from pydantic import ValidationError
 
 from vultron.wire.as2.vocab.activities.actor import (
-    AcceptActorRecommendationActivity,
-    RecommendActorActivity,
-    RejectActorRecommendationActivity,
+    _AcceptActorRecommendationActivity,
+    _RecommendActorActivity,
+    _RejectActorRecommendationActivity,
 )
 from vultron.wire.as2.vocab.activities.case import (
-    AcceptCaseOwnershipTransferActivity,
-    AddNoteToCaseActivity,
-    AddReportToCaseActivity,
-    AddStatusToCaseActivity,
-    CreateCaseActivity,
-    CreateCaseStatusActivity,
-    OfferCaseOwnershipTransferActivity,
-    RejectCaseOwnershipTransferActivity,
-    RmAcceptInviteToCaseActivity,
-    RmCloseCaseActivity,
-    RmDeferCaseActivity,
-    RmEngageCaseActivity,
-    RmInviteToCaseActivity,
-    RmRejectInviteToCaseActivity,
-    UpdateCaseActivity,
+    _AcceptCaseOwnershipTransferActivity,
+    _AddNoteToCaseActivity,
+    _AddReportToCaseActivity,
+    _AddStatusToCaseActivity,
+    _CreateCaseActivity,
+    _CreateCaseStatusActivity,
+    _OfferCaseOwnershipTransferActivity,
+    _RejectCaseOwnershipTransferActivity,
+    _RmAcceptInviteToCaseActivity,
+    _RmCloseCaseActivity,
+    _RmDeferCaseActivity,
+    _RmEngageCaseActivity,
+    _RmInviteToCaseActivity,
+    _RmRejectInviteToCaseActivity,
+    _UpdateCaseActivity,
 )
 from vultron.wire.as2.vocab.activities.case_participant import (
-    AddParticipantToCaseActivity,
-    AddStatusToParticipantActivity,
-    CreateParticipantActivity,
-    CreateStatusForParticipantActivity,
-    RemoveParticipantFromCaseActivity,
+    _AddParticipantToCaseActivity,
+    _AddStatusToParticipantActivity,
+    _CreateParticipantActivity,
+    _CreateStatusForParticipantActivity,
+    _RemoveParticipantFromCaseActivity,
 )
 from vultron.wire.as2.vocab.activities.embargo import (
-    ActivateEmbargoActivity,
-    AddEmbargoToCaseActivity,
-    AnnounceEmbargoActivity,
-    EmAcceptEmbargoActivity,
-    EmProposeEmbargoActivity,
-    EmRejectEmbargoActivity,
-    RemoveEmbargoFromCaseActivity,
+    _ActivateEmbargoActivity,
+    _AddEmbargoToCaseActivity,
+    _AnnounceEmbargoActivity,
+    _EmAcceptEmbargoActivity,
+    _EmProposeEmbargoActivity,
+    _EmRejectEmbargoActivity,
+    _RemoveEmbargoFromCaseActivity,
 )
 from vultron.wire.as2.vocab.activities.report import (
-    RmCloseReportActivity,
-    RmCreateReportActivity,
-    RmInvalidateReportActivity,
-    RmReadReportActivity,
-    RmSubmitReportActivity,
-    RmValidateReportActivity,
+    _RmCloseReportActivity,
+    _RmCreateReportActivity,
+    _RmInvalidateReportActivity,
+    _RmReadReportActivity,
+    _RmSubmitReportActivity,
+    _RmValidateReportActivity,
 )
 from vultron.wire.as2.vocab.activities.sync import (
-    AnnounceLogEntryActivity,
-    RejectLogEntryActivity,
+    _AnnounceLogEntryActivity,
+    _RejectLogEntryActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -132,16 +132,18 @@ _LOG_ENTRY = CaseLogEntry(
     event_type="CREATE_REPORT",
 )
 
-_SUBMIT = RmSubmitReportActivity(actor=_ACTOR, object_=_REPORT)
+_SUBMIT = _RmSubmitReportActivity(actor=_ACTOR, object_=_REPORT)
 _STUB = VulnerabilityCaseStub(id_=_CASE.id_)
-_INVITE = RmInviteToCaseActivity(actor=_ACTOR, object_=_ACTOR, target=_STUB)
-_PROPOSE = EmProposeEmbargoActivity(
+_INVITE = _RmInviteToCaseActivity(actor=_ACTOR, object_=_ACTOR, target=_STUB)
+_PROPOSE = _EmProposeEmbargoActivity(
     actor=_ACTOR,
     object_=EmbargoEvent(name="Embargo Event"),
     context=_CASE.id_,
 )
-_RECOMMEND = RecommendActorActivity(actor=_ACTOR, object_=_ACTOR, target=_CASE)
-_OFFER_TRANSFER = OfferCaseOwnershipTransferActivity(
+_RECOMMEND = _RecommendActorActivity(
+    actor=_ACTOR, object_=_ACTOR, target=_CASE
+)
+_OFFER_TRANSFER = _OfferCaseOwnershipTransferActivity(
     actor=_ACTOR, object_=_CASE
 )
 _GENERIC_TRANSITIVE_CLASSES = (
@@ -182,104 +184,104 @@ class TestBareStringObjectRejected(unittest.TestCase):
             cls(actor=_ACTOR.id_, object_=fake_id)
 
     def test_accept_actor_recommendation_rejects_string(self):
-        self._assert_string_rejected(AcceptActorRecommendationActivity)
+        self._assert_string_rejected(_AcceptActorRecommendationActivity)
 
     def test_reject_actor_recommendation_rejects_string(self):
-        self._assert_string_rejected(RejectActorRecommendationActivity)
+        self._assert_string_rejected(_RejectActorRecommendationActivity)
 
     def test_accept_case_ownership_transfer_rejects_string(self):
-        self._assert_string_rejected(AcceptCaseOwnershipTransferActivity)
+        self._assert_string_rejected(_AcceptCaseOwnershipTransferActivity)
 
     def test_reject_case_ownership_transfer_rejects_string(self):
-        self._assert_string_rejected(RejectCaseOwnershipTransferActivity)
+        self._assert_string_rejected(_RejectCaseOwnershipTransferActivity)
 
     def test_rm_accept_invite_rejects_string(self):
-        self._assert_string_rejected(RmAcceptInviteToCaseActivity)
+        self._assert_string_rejected(_RmAcceptInviteToCaseActivity)
 
     def test_rm_reject_invite_rejects_string(self):
-        self._assert_string_rejected(RmRejectInviteToCaseActivity)
+        self._assert_string_rejected(_RmRejectInviteToCaseActivity)
 
     def test_em_accept_embargo_rejects_string(self):
-        self._assert_string_rejected(EmAcceptEmbargoActivity)
+        self._assert_string_rejected(_EmAcceptEmbargoActivity)
 
     def test_em_reject_embargo_rejects_string(self):
-        self._assert_string_rejected(EmRejectEmbargoActivity)
+        self._assert_string_rejected(_EmRejectEmbargoActivity)
 
     def test_rm_validate_report_rejects_string(self):
-        self._assert_string_rejected(RmValidateReportActivity)
+        self._assert_string_rejected(_RmValidateReportActivity)
 
     def test_rm_invalidate_report_rejects_string(self):
-        self._assert_string_rejected(RmInvalidateReportActivity)
+        self._assert_string_rejected(_RmInvalidateReportActivity)
 
     def test_rm_close_report_rejects_string(self):
-        self._assert_string_rejected(RmCloseReportActivity)
+        self._assert_string_rejected(_RmCloseReportActivity)
 
     def test_reject_log_entry_rejects_string(self):
-        self._assert_string_rejected(RejectLogEntryActivity)
+        self._assert_string_rejected(_RejectLogEntryActivity)
 
 
 class TestInlineTypedObjectAccepted(unittest.TestCase):
     """Inline typed objects must be accepted at construction time (INLINE-OBJ-B)."""
 
     def test_accept_actor_recommendation_accepts_typed(self):
-        obj = AcceptActorRecommendationActivity(
+        obj = _AcceptActorRecommendationActivity(
             actor=_ACTOR.id_, object_=_RECOMMEND
         )
-        assert isinstance(obj.object_, RecommendActorActivity)
+        assert isinstance(obj.object_, _RecommendActorActivity)
 
     def test_reject_actor_recommendation_accepts_typed(self):
-        obj = RejectActorRecommendationActivity(
+        obj = _RejectActorRecommendationActivity(
             actor=_ACTOR.id_, object_=_RECOMMEND
         )
-        assert isinstance(obj.object_, RecommendActorActivity)
+        assert isinstance(obj.object_, _RecommendActorActivity)
 
     def test_accept_case_ownership_transfer_accepts_typed(self):
-        obj = AcceptCaseOwnershipTransferActivity(
+        obj = _AcceptCaseOwnershipTransferActivity(
             actor=_ACTOR.id_, object_=_OFFER_TRANSFER
         )
-        assert isinstance(obj.object_, OfferCaseOwnershipTransferActivity)
+        assert isinstance(obj.object_, _OfferCaseOwnershipTransferActivity)
 
     def test_reject_case_ownership_transfer_accepts_typed(self):
-        obj = RejectCaseOwnershipTransferActivity(
+        obj = _RejectCaseOwnershipTransferActivity(
             actor=_ACTOR.id_, object_=_OFFER_TRANSFER
         )
-        assert isinstance(obj.object_, OfferCaseOwnershipTransferActivity)
+        assert isinstance(obj.object_, _OfferCaseOwnershipTransferActivity)
 
     def test_rm_accept_invite_accepts_typed(self):
-        obj = RmAcceptInviteToCaseActivity(actor=_ACTOR.id_, object_=_INVITE)
-        assert isinstance(obj.object_, RmInviteToCaseActivity)
+        obj = _RmAcceptInviteToCaseActivity(actor=_ACTOR.id_, object_=_INVITE)
+        assert isinstance(obj.object_, _RmInviteToCaseActivity)
 
     def test_rm_reject_invite_accepts_typed(self):
-        obj = RmRejectInviteToCaseActivity(actor=_ACTOR.id_, object_=_INVITE)
-        assert isinstance(obj.object_, RmInviteToCaseActivity)
+        obj = _RmRejectInviteToCaseActivity(actor=_ACTOR.id_, object_=_INVITE)
+        assert isinstance(obj.object_, _RmInviteToCaseActivity)
 
     def test_em_accept_embargo_accepts_typed(self):
-        obj = EmAcceptEmbargoActivity(actor=_ACTOR.id_, object_=_PROPOSE)
-        assert isinstance(obj.object_, EmProposeEmbargoActivity)
+        obj = _EmAcceptEmbargoActivity(actor=_ACTOR.id_, object_=_PROPOSE)
+        assert isinstance(obj.object_, _EmProposeEmbargoActivity)
 
     def test_em_reject_embargo_accepts_typed(self):
-        obj = EmRejectEmbargoActivity(actor=_ACTOR.id_, object_=_PROPOSE)
-        assert isinstance(obj.object_, EmProposeEmbargoActivity)
+        obj = _EmRejectEmbargoActivity(actor=_ACTOR.id_, object_=_PROPOSE)
+        assert isinstance(obj.object_, _EmProposeEmbargoActivity)
 
     def test_rm_validate_report_accepts_typed(self):
-        obj = RmValidateReportActivity(actor=_ACTOR.id_, object_=_SUBMIT)
-        assert isinstance(obj.object_, RmSubmitReportActivity)
+        obj = _RmValidateReportActivity(actor=_ACTOR.id_, object_=_SUBMIT)
+        assert isinstance(obj.object_, _RmSubmitReportActivity)
 
     def test_rm_invalidate_report_accepts_typed(self):
-        obj = RmInvalidateReportActivity(actor=_ACTOR.id_, object_=_SUBMIT)
-        assert isinstance(obj.object_, RmSubmitReportActivity)
+        obj = _RmInvalidateReportActivity(actor=_ACTOR.id_, object_=_SUBMIT)
+        assert isinstance(obj.object_, _RmSubmitReportActivity)
 
     def test_rm_close_report_accepts_typed(self):
-        obj = RmCloseReportActivity(actor=_ACTOR.id_, object_=_SUBMIT)
-        assert isinstance(obj.object_, RmSubmitReportActivity)
+        obj = _RmCloseReportActivity(actor=_ACTOR.id_, object_=_SUBMIT)
+        assert isinstance(obj.object_, _RmSubmitReportActivity)
 
     def test_reject_log_entry_accepts_typed(self):
-        obj = RejectLogEntryActivity(actor=_ACTOR.id_, object_=_LOG_ENTRY)
+        obj = _RejectLogEntryActivity(actor=_ACTOR.id_, object_=_LOG_ENTRY)
         assert isinstance(obj.object_, CaseLogEntry)
 
     def test_announce_log_entry_still_accepts_typed(self):
-        """AnnounceLogEntryActivity should still accept a CaseLogEntry."""
-        obj = AnnounceLogEntryActivity(actor=_ACTOR.id_, object_=_LOG_ENTRY)
+        """_AnnounceLogEntryActivity should still accept a CaseLogEntry."""
+        obj = _AnnounceLogEntryActivity(actor=_ACTOR.id_, object_=_LOG_ENTRY)
         assert isinstance(obj.object_, CaseLogEntry)
 
 
@@ -302,236 +304,236 @@ class TestNoneObjectRejected(unittest.TestCase):
     # --- report.py (6 classes) ---
 
     def test_rm_create_report_rejects_none(self):
-        self._assert_none_rejected(RmCreateReportActivity)
+        self._assert_none_rejected(_RmCreateReportActivity)
 
     def test_rm_create_report_rejects_missing(self):
-        self._assert_missing_rejected(RmCreateReportActivity)
+        self._assert_missing_rejected(_RmCreateReportActivity)
 
     def test_rm_submit_report_rejects_none(self):
-        self._assert_none_rejected(RmSubmitReportActivity)
+        self._assert_none_rejected(_RmSubmitReportActivity)
 
     def test_rm_submit_report_rejects_missing(self):
-        self._assert_missing_rejected(RmSubmitReportActivity)
+        self._assert_missing_rejected(_RmSubmitReportActivity)
 
     def test_rm_read_report_rejects_none(self):
-        self._assert_none_rejected(RmReadReportActivity)
+        self._assert_none_rejected(_RmReadReportActivity)
 
     def test_rm_read_report_rejects_missing(self):
-        self._assert_missing_rejected(RmReadReportActivity)
+        self._assert_missing_rejected(_RmReadReportActivity)
 
     def test_rm_validate_report_rejects_none(self):
-        self._assert_none_rejected(RmValidateReportActivity)
+        self._assert_none_rejected(_RmValidateReportActivity)
 
     def test_rm_validate_report_rejects_missing(self):
-        self._assert_missing_rejected(RmValidateReportActivity)
+        self._assert_missing_rejected(_RmValidateReportActivity)
 
     def test_rm_invalidate_report_rejects_none(self):
-        self._assert_none_rejected(RmInvalidateReportActivity)
+        self._assert_none_rejected(_RmInvalidateReportActivity)
 
     def test_rm_invalidate_report_rejects_missing(self):
-        self._assert_missing_rejected(RmInvalidateReportActivity)
+        self._assert_missing_rejected(_RmInvalidateReportActivity)
 
     def test_rm_close_report_rejects_none(self):
-        self._assert_none_rejected(RmCloseReportActivity)
+        self._assert_none_rejected(_RmCloseReportActivity)
 
     def test_rm_close_report_rejects_missing(self):
-        self._assert_missing_rejected(RmCloseReportActivity)
+        self._assert_missing_rejected(_RmCloseReportActivity)
 
-    # --- case.py (14 classes, not RmInviteToCaseActivity) ---
+    # --- case.py (14 classes, not _RmInviteToCaseActivity) ---
 
     def test_add_report_to_case_rejects_none(self):
-        self._assert_none_rejected(AddReportToCaseActivity)
+        self._assert_none_rejected(_AddReportToCaseActivity)
 
     def test_add_report_to_case_rejects_missing(self):
-        self._assert_missing_rejected(AddReportToCaseActivity)
+        self._assert_missing_rejected(_AddReportToCaseActivity)
 
     def test_add_status_to_case_rejects_none(self):
-        self._assert_none_rejected(AddStatusToCaseActivity)
+        self._assert_none_rejected(_AddStatusToCaseActivity)
 
     def test_add_status_to_case_rejects_missing(self):
-        self._assert_missing_rejected(AddStatusToCaseActivity)
+        self._assert_missing_rejected(_AddStatusToCaseActivity)
 
     def test_create_case_rejects_none(self):
-        self._assert_none_rejected(CreateCaseActivity)
+        self._assert_none_rejected(_CreateCaseActivity)
 
     def test_create_case_rejects_missing(self):
-        self._assert_missing_rejected(CreateCaseActivity)
+        self._assert_missing_rejected(_CreateCaseActivity)
 
     def test_create_case_status_rejects_none(self):
-        self._assert_none_rejected(CreateCaseStatusActivity)
+        self._assert_none_rejected(_CreateCaseStatusActivity)
 
     def test_create_case_status_rejects_missing(self):
-        self._assert_missing_rejected(CreateCaseStatusActivity)
+        self._assert_missing_rejected(_CreateCaseStatusActivity)
 
     def test_add_note_to_case_rejects_none(self):
-        self._assert_none_rejected(AddNoteToCaseActivity)
+        self._assert_none_rejected(_AddNoteToCaseActivity)
 
     def test_add_note_to_case_rejects_missing(self):
-        self._assert_missing_rejected(AddNoteToCaseActivity)
+        self._assert_missing_rejected(_AddNoteToCaseActivity)
 
     def test_update_case_rejects_none(self):
-        self._assert_none_rejected(UpdateCaseActivity)
+        self._assert_none_rejected(_UpdateCaseActivity)
 
     def test_update_case_rejects_missing(self):
-        self._assert_missing_rejected(UpdateCaseActivity)
+        self._assert_missing_rejected(_UpdateCaseActivity)
 
     def test_rm_engage_case_rejects_none(self):
-        self._assert_none_rejected(RmEngageCaseActivity)
+        self._assert_none_rejected(_RmEngageCaseActivity)
 
     def test_rm_engage_case_rejects_missing(self):
-        self._assert_missing_rejected(RmEngageCaseActivity)
+        self._assert_missing_rejected(_RmEngageCaseActivity)
 
     def test_rm_defer_case_rejects_none(self):
-        self._assert_none_rejected(RmDeferCaseActivity)
+        self._assert_none_rejected(_RmDeferCaseActivity)
 
     def test_rm_defer_case_rejects_missing(self):
-        self._assert_missing_rejected(RmDeferCaseActivity)
+        self._assert_missing_rejected(_RmDeferCaseActivity)
 
     def test_rm_close_case_rejects_none(self):
-        self._assert_none_rejected(RmCloseCaseActivity)
+        self._assert_none_rejected(_RmCloseCaseActivity)
 
     def test_rm_close_case_rejects_missing(self):
-        self._assert_missing_rejected(RmCloseCaseActivity)
+        self._assert_missing_rejected(_RmCloseCaseActivity)
 
     def test_offer_case_ownership_transfer_rejects_none(self):
-        self._assert_none_rejected(OfferCaseOwnershipTransferActivity)
+        self._assert_none_rejected(_OfferCaseOwnershipTransferActivity)
 
     def test_offer_case_ownership_transfer_rejects_missing(self):
-        self._assert_missing_rejected(OfferCaseOwnershipTransferActivity)
+        self._assert_missing_rejected(_OfferCaseOwnershipTransferActivity)
 
     def test_accept_case_ownership_transfer_rejects_none(self):
-        self._assert_none_rejected(AcceptCaseOwnershipTransferActivity)
+        self._assert_none_rejected(_AcceptCaseOwnershipTransferActivity)
 
     def test_accept_case_ownership_transfer_rejects_missing(self):
-        self._assert_missing_rejected(AcceptCaseOwnershipTransferActivity)
+        self._assert_missing_rejected(_AcceptCaseOwnershipTransferActivity)
 
     def test_reject_case_ownership_transfer_rejects_none(self):
-        self._assert_none_rejected(RejectCaseOwnershipTransferActivity)
+        self._assert_none_rejected(_RejectCaseOwnershipTransferActivity)
 
     def test_reject_case_ownership_transfer_rejects_missing(self):
-        self._assert_missing_rejected(RejectCaseOwnershipTransferActivity)
+        self._assert_missing_rejected(_RejectCaseOwnershipTransferActivity)
 
     def test_rm_accept_invite_rejects_none(self):
-        self._assert_none_rejected(RmAcceptInviteToCaseActivity)
+        self._assert_none_rejected(_RmAcceptInviteToCaseActivity)
 
     def test_rm_accept_invite_rejects_missing(self):
-        self._assert_missing_rejected(RmAcceptInviteToCaseActivity)
+        self._assert_missing_rejected(_RmAcceptInviteToCaseActivity)
 
     def test_rm_reject_invite_rejects_none(self):
-        self._assert_none_rejected(RmRejectInviteToCaseActivity)
+        self._assert_none_rejected(_RmRejectInviteToCaseActivity)
 
     def test_rm_reject_invite_rejects_missing(self):
-        self._assert_missing_rejected(RmRejectInviteToCaseActivity)
+        self._assert_missing_rejected(_RmRejectInviteToCaseActivity)
 
     # --- actor.py (3 classes) ---
 
     def test_recommend_actor_rejects_none(self):
-        self._assert_none_rejected(RecommendActorActivity)
+        self._assert_none_rejected(_RecommendActorActivity)
 
     def test_recommend_actor_rejects_missing(self):
-        self._assert_missing_rejected(RecommendActorActivity)
+        self._assert_missing_rejected(_RecommendActorActivity)
 
     def test_accept_actor_recommendation_rejects_none(self):
-        self._assert_none_rejected(AcceptActorRecommendationActivity)
+        self._assert_none_rejected(_AcceptActorRecommendationActivity)
 
     def test_accept_actor_recommendation_rejects_missing(self):
-        self._assert_missing_rejected(AcceptActorRecommendationActivity)
+        self._assert_missing_rejected(_AcceptActorRecommendationActivity)
 
     def test_reject_actor_recommendation_rejects_none(self):
-        self._assert_none_rejected(RejectActorRecommendationActivity)
+        self._assert_none_rejected(_RejectActorRecommendationActivity)
 
     def test_reject_actor_recommendation_rejects_missing(self):
-        self._assert_missing_rejected(RejectActorRecommendationActivity)
+        self._assert_missing_rejected(_RejectActorRecommendationActivity)
 
     # --- embargo.py (7 classes) ---
 
     def test_em_propose_embargo_rejects_none(self):
-        self._assert_none_rejected(EmProposeEmbargoActivity)
+        self._assert_none_rejected(_EmProposeEmbargoActivity)
 
     def test_em_propose_embargo_rejects_missing(self):
-        self._assert_missing_rejected(EmProposeEmbargoActivity)
+        self._assert_missing_rejected(_EmProposeEmbargoActivity)
 
     def test_em_accept_embargo_rejects_none(self):
-        self._assert_none_rejected(EmAcceptEmbargoActivity)
+        self._assert_none_rejected(_EmAcceptEmbargoActivity)
 
     def test_em_accept_embargo_rejects_missing(self):
-        self._assert_missing_rejected(EmAcceptEmbargoActivity)
+        self._assert_missing_rejected(_EmAcceptEmbargoActivity)
 
     def test_em_reject_embargo_rejects_none(self):
-        self._assert_none_rejected(EmRejectEmbargoActivity)
+        self._assert_none_rejected(_EmRejectEmbargoActivity)
 
     def test_em_reject_embargo_rejects_missing(self):
-        self._assert_missing_rejected(EmRejectEmbargoActivity)
+        self._assert_missing_rejected(_EmRejectEmbargoActivity)
 
     def test_activate_embargo_rejects_none(self):
-        self._assert_none_rejected(ActivateEmbargoActivity)
+        self._assert_none_rejected(_ActivateEmbargoActivity)
 
     def test_activate_embargo_rejects_missing(self):
-        self._assert_missing_rejected(ActivateEmbargoActivity)
+        self._assert_missing_rejected(_ActivateEmbargoActivity)
 
     def test_add_embargo_to_case_rejects_none(self):
-        self._assert_none_rejected(AddEmbargoToCaseActivity)
+        self._assert_none_rejected(_AddEmbargoToCaseActivity)
 
     def test_add_embargo_to_case_rejects_missing(self):
-        self._assert_missing_rejected(AddEmbargoToCaseActivity)
+        self._assert_missing_rejected(_AddEmbargoToCaseActivity)
 
     def test_announce_embargo_rejects_none(self):
-        self._assert_none_rejected(AnnounceEmbargoActivity)
+        self._assert_none_rejected(_AnnounceEmbargoActivity)
 
     def test_announce_embargo_rejects_missing(self):
-        self._assert_missing_rejected(AnnounceEmbargoActivity)
+        self._assert_missing_rejected(_AnnounceEmbargoActivity)
 
     def test_remove_embargo_from_case_rejects_none(self):
-        self._assert_none_rejected(RemoveEmbargoFromCaseActivity)
+        self._assert_none_rejected(_RemoveEmbargoFromCaseActivity)
 
     def test_remove_embargo_from_case_rejects_missing(self):
-        self._assert_missing_rejected(RemoveEmbargoFromCaseActivity)
+        self._assert_missing_rejected(_RemoveEmbargoFromCaseActivity)
 
     # --- case_participant.py (5 classes) ---
 
     def test_create_participant_rejects_none(self):
-        self._assert_none_rejected(CreateParticipantActivity)
+        self._assert_none_rejected(_CreateParticipantActivity)
 
     def test_create_participant_rejects_missing(self):
-        self._assert_missing_rejected(CreateParticipantActivity)
+        self._assert_missing_rejected(_CreateParticipantActivity)
 
     def test_create_status_for_participant_rejects_none(self):
-        self._assert_none_rejected(CreateStatusForParticipantActivity)
+        self._assert_none_rejected(_CreateStatusForParticipantActivity)
 
     def test_create_status_for_participant_rejects_missing(self):
-        self._assert_missing_rejected(CreateStatusForParticipantActivity)
+        self._assert_missing_rejected(_CreateStatusForParticipantActivity)
 
     def test_add_status_to_participant_rejects_none(self):
-        self._assert_none_rejected(AddStatusToParticipantActivity)
+        self._assert_none_rejected(_AddStatusToParticipantActivity)
 
     def test_add_status_to_participant_rejects_missing(self):
-        self._assert_missing_rejected(AddStatusToParticipantActivity)
+        self._assert_missing_rejected(_AddStatusToParticipantActivity)
 
     def test_add_participant_to_case_rejects_none(self):
-        self._assert_none_rejected(AddParticipantToCaseActivity)
+        self._assert_none_rejected(_AddParticipantToCaseActivity)
 
     def test_add_participant_to_case_rejects_missing(self):
-        self._assert_missing_rejected(AddParticipantToCaseActivity)
+        self._assert_missing_rejected(_AddParticipantToCaseActivity)
 
     def test_remove_participant_from_case_rejects_none(self):
-        self._assert_none_rejected(RemoveParticipantFromCaseActivity)
+        self._assert_none_rejected(_RemoveParticipantFromCaseActivity)
 
     def test_remove_participant_from_case_rejects_missing(self):
-        self._assert_missing_rejected(RemoveParticipantFromCaseActivity)
+        self._assert_missing_rejected(_RemoveParticipantFromCaseActivity)
 
     # --- sync.py (2 classes) ---
 
     def test_announce_log_entry_rejects_none(self):
-        self._assert_none_rejected(AnnounceLogEntryActivity)
+        self._assert_none_rejected(_AnnounceLogEntryActivity)
 
     def test_announce_log_entry_rejects_missing(self):
-        self._assert_missing_rejected(AnnounceLogEntryActivity)
+        self._assert_missing_rejected(_AnnounceLogEntryActivity)
 
     def test_reject_log_entry_rejects_none(self):
-        self._assert_none_rejected(RejectLogEntryActivity)
+        self._assert_none_rejected(_RejectLogEntryActivity)
 
     def test_reject_log_entry_rejects_missing(self):
-        self._assert_missing_rejected(RejectLogEntryActivity)
+        self._assert_missing_rejected(_RejectLogEntryActivity)
 
 
 class TestGenericTransitiveActivitiesRequireObject(unittest.TestCase):
@@ -556,10 +558,10 @@ class TestGenericTransitiveActivitiesRequireObject(unittest.TestCase):
                 self._assert_missing_rejected(cls)
 
     def test_rm_invite_to_case_rejects_none(self):
-        self._assert_none_rejected(RmInviteToCaseActivity, target=_STUB)
+        self._assert_none_rejected(_RmInviteToCaseActivity, target=_STUB)
 
     def test_rm_invite_to_case_rejects_missing(self):
-        self._assert_missing_rejected(RmInviteToCaseActivity, target=_STUB)
+        self._assert_missing_rejected(_RmInviteToCaseActivity, target=_STUB)
 
 
 if __name__ == "__main__":

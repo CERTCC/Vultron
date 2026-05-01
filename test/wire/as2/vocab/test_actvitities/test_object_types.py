@@ -84,9 +84,11 @@ def _participant_status() -> ParticipantStatus:
 
 
 class TestRmCreateReportActivity:
-    from vultron.wire.as2.vocab.activities.report import RmCreateReportActivity
+    from vultron.wire.as2.vocab.activities.report import (
+        _RmCreateReportActivity,
+    )
 
-    cls = RmCreateReportActivity
+    cls = _RmCreateReportActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -99,9 +101,11 @@ class TestRmCreateReportActivity:
 
 
 class TestRmSubmitReportActivity:
-    from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
+    from vultron.wire.as2.vocab.activities.report import (
+        _RmSubmitReportActivity,
+    )
 
-    cls = RmSubmitReportActivity
+    cls = _RmSubmitReportActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -114,9 +118,9 @@ class TestRmSubmitReportActivity:
 
 
 class TestRmReadReportActivity:
-    from vultron.wire.as2.vocab.activities.report import RmReadReportActivity
+    from vultron.wire.as2.vocab.activities.report import _RmReadReportActivity
 
-    cls = RmReadReportActivity
+    cls = _RmReadReportActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -134,9 +138,9 @@ class TestRmReadReportActivity:
 
 
 class TestAddReportToCaseActivity:
-    from vultron.wire.as2.vocab.activities.case import AddReportToCaseActivity
+    from vultron.wire.as2.vocab.activities.case import _AddReportToCaseActivity
 
-    cls = AddReportToCaseActivity
+    cls = _AddReportToCaseActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -149,9 +153,9 @@ class TestAddReportToCaseActivity:
 
 
 class TestAddStatusToCaseActivity:
-    from vultron.wire.as2.vocab.activities.case import AddStatusToCaseActivity
+    from vultron.wire.as2.vocab.activities.case import _AddStatusToCaseActivity
 
-    cls = AddStatusToCaseActivity
+    cls = _AddStatusToCaseActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -164,9 +168,9 @@ class TestAddStatusToCaseActivity:
 
 
 class TestCreateCaseActivity:
-    from vultron.wire.as2.vocab.activities.case import CreateCaseActivity
+    from vultron.wire.as2.vocab.activities.case import _CreateCaseActivity
 
-    cls = CreateCaseActivity
+    cls = _CreateCaseActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -179,9 +183,11 @@ class TestCreateCaseActivity:
 
 
 class TestCreateCaseStatusActivity:
-    from vultron.wire.as2.vocab.activities.case import CreateCaseStatusActivity
+    from vultron.wire.as2.vocab.activities.case import (
+        _CreateCaseStatusActivity,
+    )
 
-    cls = CreateCaseStatusActivity
+    cls = _CreateCaseStatusActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -194,9 +200,9 @@ class TestCreateCaseStatusActivity:
 
 
 class TestAddNoteToCaseActivity:
-    from vultron.wire.as2.vocab.activities.case import AddNoteToCaseActivity
+    from vultron.wire.as2.vocab.activities.case import _AddNoteToCaseActivity
 
-    cls = AddNoteToCaseActivity
+    cls = _AddNoteToCaseActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -209,9 +215,9 @@ class TestAddNoteToCaseActivity:
 
 
 class TestUpdateCaseActivity:
-    from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
+    from vultron.wire.as2.vocab.activities.case import _UpdateCaseActivity
 
-    cls = UpdateCaseActivity
+    cls = _UpdateCaseActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -224,9 +230,9 @@ class TestUpdateCaseActivity:
 
 
 class TestRmEngageCaseActivity:
-    from vultron.wire.as2.vocab.activities.case import RmEngageCaseActivity
+    from vultron.wire.as2.vocab.activities.case import _RmEngageCaseActivity
 
-    cls = RmEngageCaseActivity
+    cls = _RmEngageCaseActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -239,9 +245,9 @@ class TestRmEngageCaseActivity:
 
 
 class TestRmDeferCaseActivity:
-    from vultron.wire.as2.vocab.activities.case import RmDeferCaseActivity
+    from vultron.wire.as2.vocab.activities.case import _RmDeferCaseActivity
 
-    cls = RmDeferCaseActivity
+    cls = _RmDeferCaseActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -254,9 +260,9 @@ class TestRmDeferCaseActivity:
 
 
 class TestRmCloseCaseActivity:
-    from vultron.wire.as2.vocab.activities.case import RmCloseCaseActivity
+    from vultron.wire.as2.vocab.activities.case import _RmCloseCaseActivity
 
-    cls = RmCloseCaseActivity
+    cls = _RmCloseCaseActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -269,9 +275,9 @@ class TestRmCloseCaseActivity:
 
 
 class TestRmInviteToCaseActivity:
-    from vultron.wire.as2.vocab.activities.case import RmInviteToCaseActivity
+    from vultron.wire.as2.vocab.activities.case import _RmInviteToCaseActivity
 
-    cls = RmInviteToCaseActivity
+    cls = _RmInviteToCaseActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -290,10 +296,10 @@ class TestRmInviteToCaseActivity:
 
 class TestEmProposeEmbargoActivity:
     from vultron.wire.as2.vocab.activities.embargo import (
-        EmProposeEmbargoActivity,
+        _EmProposeEmbargoActivity,
     )
 
-    cls = EmProposeEmbargoActivity
+    cls = _EmProposeEmbargoActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -307,10 +313,10 @@ class TestEmProposeEmbargoActivity:
 
 class TestActivateEmbargoActivity:
     from vultron.wire.as2.vocab.activities.embargo import (
-        ActivateEmbargoActivity,
+        _ActivateEmbargoActivity,
     )
 
-    cls = ActivateEmbargoActivity
+    cls = _ActivateEmbargoActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -324,10 +330,10 @@ class TestActivateEmbargoActivity:
 
 class TestAddEmbargoToCaseActivity:
     from vultron.wire.as2.vocab.activities.embargo import (
-        AddEmbargoToCaseActivity,
+        _AddEmbargoToCaseActivity,
     )
 
-    cls = AddEmbargoToCaseActivity
+    cls = _AddEmbargoToCaseActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -341,10 +347,10 @@ class TestAddEmbargoToCaseActivity:
 
 class TestAnnounceEmbargoActivity:
     from vultron.wire.as2.vocab.activities.embargo import (
-        AnnounceEmbargoActivity,
+        _AnnounceEmbargoActivity,
     )
 
-    cls = AnnounceEmbargoActivity
+    cls = _AnnounceEmbargoActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -358,10 +364,10 @@ class TestAnnounceEmbargoActivity:
 
 class TestRemoveEmbargoFromCaseActivity:
     from vultron.wire.as2.vocab.activities.embargo import (
-        RemoveEmbargoFromCaseActivity,
+        _RemoveEmbargoFromCaseActivity,
     )
 
-    cls = RemoveEmbargoFromCaseActivity
+    cls = _RemoveEmbargoFromCaseActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -379,9 +385,9 @@ class TestRemoveEmbargoFromCaseActivity:
 
 
 class TestRecommendActorActivity:
-    from vultron.wire.as2.vocab.activities.actor import RecommendActorActivity
+    from vultron.wire.as2.vocab.activities.actor import _RecommendActorActivity
 
-    cls = RecommendActorActivity
+    cls = _RecommendActorActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -400,10 +406,10 @@ class TestRecommendActorActivity:
 
 class TestCreateParticipantActivity:
     from vultron.wire.as2.vocab.activities.case_participant import (
-        CreateParticipantActivity,
+        _CreateParticipantActivity,
     )
 
-    cls = CreateParticipantActivity
+    cls = _CreateParticipantActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -417,10 +423,10 @@ class TestCreateParticipantActivity:
 
 class TestCreateStatusForParticipantActivity:
     from vultron.wire.as2.vocab.activities.case_participant import (
-        CreateStatusForParticipantActivity,
+        _CreateStatusForParticipantActivity,
     )
 
-    cls = CreateStatusForParticipantActivity
+    cls = _CreateStatusForParticipantActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -434,10 +440,10 @@ class TestCreateStatusForParticipantActivity:
 
 class TestAddStatusToParticipantActivity:
     from vultron.wire.as2.vocab.activities.case_participant import (
-        AddStatusToParticipantActivity,
+        _AddStatusToParticipantActivity,
     )
 
-    cls = AddStatusToParticipantActivity
+    cls = _AddStatusToParticipantActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -451,10 +457,10 @@ class TestAddStatusToParticipantActivity:
 
 class TestAddParticipantToCaseActivity:
     from vultron.wire.as2.vocab.activities.case_participant import (
-        AddParticipantToCaseActivity,
+        _AddParticipantToCaseActivity,
     )
 
-    cls = AddParticipantToCaseActivity
+    cls = _AddParticipantToCaseActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -468,10 +474,10 @@ class TestAddParticipantToCaseActivity:
 
 class TestRemoveParticipantFromCaseActivity:
     from vultron.wire.as2.vocab.activities.case_participant import (
-        RemoveParticipantFromCaseActivity,
+        _RemoveParticipantFromCaseActivity,
     )
 
-    cls = RemoveParticipantFromCaseActivity
+    cls = _RemoveParticipantFromCaseActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)
@@ -489,10 +495,12 @@ class TestRemoveParticipantFromCaseActivity:
 
 
 class TestAnnounceLogEntryActivity:
-    from vultron.wire.as2.vocab.activities.sync import AnnounceLogEntryActivity
+    from vultron.wire.as2.vocab.activities.sync import (
+        _AnnounceLogEntryActivity,
+    )
     from vultron.wire.as2.vocab.objects.case_log_entry import CaseLogEntry
 
-    cls = AnnounceLogEntryActivity
+    cls = _AnnounceLogEntryActivity
 
     def test_rejects_string(self):
         _assert_rejects_string(self.cls)

@@ -29,14 +29,14 @@ from pydantic import ValidationError
 
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.embargo import (
-    ActivateEmbargoActivity,
-    AddEmbargoToCaseActivity,
-    AnnounceEmbargoActivity,
-    ChoosePreferredEmbargoActivity,
-    EmAcceptEmbargoActivity,
-    EmProposeEmbargoActivity,
-    EmRejectEmbargoActivity,
-    RemoveEmbargoFromCaseActivity,
+    _ActivateEmbargoActivity,
+    _AddEmbargoToCaseActivity,
+    _AnnounceEmbargoActivity,
+    _ChoosePreferredEmbargoActivity,
+    _EmAcceptEmbargoActivity,
+    _EmProposeEmbargoActivity,
+    _EmRejectEmbargoActivity,
+    _RemoveEmbargoFromCaseActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
     as_Question,
@@ -83,7 +83,7 @@ def em_propose_embargo_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return EmProposeEmbargoActivity(
+        return _EmProposeEmbargoActivity(
             object_=embargo, context=context, **kwargs
         )
     except ValidationError as exc:
@@ -100,7 +100,7 @@ def em_accept_embargo_activity(
     context: VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Accept:
-    """Build an Accept(EmProposeEmbargoActivity) — the EA/EC message.
+    """Build an Accept(_EmProposeEmbargoActivity) — the EA/EC message.
 
     Per ActivityStreams convention the actor accepts the proposal
     activity itself, not the ``EmbargoEvent`` being proposed.
@@ -109,7 +109,7 @@ def em_accept_embargo_activity(
     fail validation.
 
     Args:
-        proposal: The ``EmProposeEmbargoActivity`` being accepted.
+        proposal: The ``_EmProposeEmbargoActivity`` being accepted.
         context: The ``VulnerabilityCase`` (or its URI) for which the
             embargo was proposed.
         **kwargs: Optional AS2 fields forwarded to the constructor
@@ -122,8 +122,8 @@ def em_accept_embargo_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return EmAcceptEmbargoActivity(
-            object_=cast(EmProposeEmbargoActivity, proposal),
+        return _EmAcceptEmbargoActivity(
+            object_=cast(_EmProposeEmbargoActivity, proposal),
             context=context,
             **kwargs,
         )
@@ -141,7 +141,7 @@ def em_reject_embargo_activity(
     context: VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Reject:
-    """Build a Reject(EmProposeEmbargoActivity) — the ER/EJ message.
+    """Build a Reject(_EmProposeEmbargoActivity) — the ER/EJ message.
 
     Per ActivityStreams convention the actor rejects the proposal
     activity itself, not the ``EmbargoEvent`` being proposed.
@@ -150,7 +150,7 @@ def em_reject_embargo_activity(
     fail validation.
 
     Args:
-        proposal: The ``EmProposeEmbargoActivity`` being rejected.
+        proposal: The ``_EmProposeEmbargoActivity`` being rejected.
         context: The ``VulnerabilityCase`` (or its URI) for which the
             embargo was proposed.
         **kwargs: Optional AS2 fields forwarded to the constructor
@@ -163,8 +163,8 @@ def em_reject_embargo_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return EmRejectEmbargoActivity(
-            object_=cast(EmProposeEmbargoActivity, proposal),
+        return _EmRejectEmbargoActivity(
+            object_=cast(_EmProposeEmbargoActivity, proposal),
             context=context,
             **kwargs,
         )
@@ -205,7 +205,7 @@ def choose_preferred_embargo_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return ChoosePreferredEmbargoActivity(
+        return _ChoosePreferredEmbargoActivity(
             any_of=any_of, one_of=one_of, **kwargs
         )
     except ValidationError as exc:
@@ -220,7 +220,7 @@ def choose_preferred_embargo_activity(
 def activate_embargo_activity(
     embargo: EmbargoEvent,
     target: VulnerabilityCaseRef | None = None,
-    in_reply_to: EmProposeEmbargoActivity | str | None = None,
+    in_reply_to: _EmProposeEmbargoActivity | str | None = None,
     **kwargs,
 ) -> as_Add:
     """Build an Add(EmbargoEvent) — activates the embargo on the case.
@@ -233,7 +233,7 @@ def activate_embargo_activity(
         embargo: The ``EmbargoEvent`` being activated.
         target: The ``VulnerabilityCase`` (or its URI) for which the
             embargo is activated.
-        in_reply_to: The ``EmProposeEmbargoActivity`` (or its URI)
+        in_reply_to: The ``_EmProposeEmbargoActivity`` (or its URI)
             that proposed this embargo.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
@@ -245,7 +245,7 @@ def activate_embargo_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return ActivateEmbargoActivity(
+        return _ActivateEmbargoActivity(
             object_=embargo,
             target=target,
             in_reply_to=in_reply_to,
@@ -283,7 +283,7 @@ def add_embargo_to_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return AddEmbargoToCaseActivity(
+        return _AddEmbargoToCaseActivity(
             object_=embargo, target=target, **kwargs
         )
     except ValidationError as exc:
@@ -316,7 +316,7 @@ def announce_embargo_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return AnnounceEmbargoActivity(
+        return _AnnounceEmbargoActivity(
             object_=embargo, context=context, **kwargs
         )
     except ValidationError as exc:
@@ -354,7 +354,7 @@ def remove_embargo_from_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return RemoveEmbargoFromCaseActivity(
+        return _RemoveEmbargoFromCaseActivity(
             object_=embargo, origin=origin, **kwargs
         )
     except ValidationError as exc:

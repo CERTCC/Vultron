@@ -183,45 +183,6 @@ Current violations (CC 11–15):
 
 ---
 
-## TASK-AF — Activity Factory Functions
-
-**Spec**: `specs/activity-factories.yaml` (AF-01 through AF-08)
-**Notes**: `notes/activity-factories.md`
-
-Introduce a `vultron/wire/as2/factories/` package as the sole public
-construction API for outbound Vultron protocol activities. Vultron activity
-subclasses in `vocab/activities/` become private implementation details used
-only inside factory functions.
-
-**Acceptance criteria:**
-
-- `vultron/wire/as2/factories/` package exists with domain modules
-  (`report.py`, `case.py`, `embargo.py`, `case_participant.py`, `actor.py`,
-  `sync.py`) and `errors.py`
-- All factory functions return plain AS2 base types; ValidationError is
-  wrapped in `VultronActivityConstructionError`
-- `test/architecture/test_activity_factory_imports.py` passes (no imports of
-  `vultron.wire.as2.vocab.activities` outside allowed paths)
-- All demo, trigger service, and test call sites migrated to factory functions
-- Unused TypeAliases `OfferRef` and `RmInviteToCaseRef` removed;
-  `EmProposeEmbargoRef` renamed to `_EmProposeEmbargoRef`
-- All linters and tests pass
-
-- [x] AF.1 Create `factories/errors.py` with `VultronActivityConstructionError`
-- [x] AF.2 Create `factories/report.py` (6 report activity factory functions)
-- [x] AF.3 Create `factories/case.py` (16 case activity factory functions)
-- [x] AF.4 Create `factories/embargo.py` (8 embargo activity factory functions)
-- [x] AF.5 Create `factories/case_participant.py` (5 functions)
-- [x] AF.6 Create `factories/actor.py` and `factories/sync.py`
-- [x] AF.7 Create `test/architecture/test_activity_factory_imports.py`
-- [x] AF.8–10 Migrate all call sites (demo scripts, trigger use cases, tests)
-- [x] AF.11 Remove unused `OfferRef`/`RmInviteToCaseRef`; rename
-  `EmProposeEmbargoRef` → `_EmProposeEmbargoRef`
-- [ ] AF.12 Mark internal activity subclasses as private in `vocab/activities/`
-- [x] AF.13 Update AGENTS.md quick reference
-
----
-
 ## TASK-ARCHVIO — Fix `from_core()` Calls in Core Use Cases
 
 **Background**: `vultron/core/use_cases/received/sync.py` and

@@ -41,13 +41,13 @@ ACTOR_CLASSES = [
 
 class MyTestCase(unittest.TestCase):
     def test_recommend_actor(self):
-        cls = actor.RecommendActorActivity
+        cls = actor._RecommendActorActivity
         expect_class = as_Offer
         expect_type = "Offer"
         self._test_base_actor_activity(cls, expect_class, expect_type)
 
     def test_accept_actor_recommendation(self):
-        cls = actor.AcceptActorRecommendationActivity
+        cls = actor._AcceptActorRecommendationActivity
         expect_class = as_Accept
         expect_type = "Accept"
         self._test_accept_reject_actor_recommendation(
@@ -55,7 +55,7 @@ class MyTestCase(unittest.TestCase):
         )
 
     def test_reject_actor_recommendation(self):
-        cls = actor.RejectActorRecommendationActivity
+        cls = actor._RejectActorRecommendationActivity
         expect_class = as_Reject
         expect_type = "Reject"
         self._test_accept_reject_actor_recommendation(
@@ -71,7 +71,7 @@ class MyTestCase(unittest.TestCase):
         for actor_class in ACTOR_CLASSES:
             _actor = actor_class(name=actor_class.__name__)
             _case = VulnerabilityCase(name=f"{actor_class.__name__} Case")
-            _recommendation = actor.RecommendActorActivity(
+            _recommendation = actor._RecommendActorActivity(
                 actor=_actor, object_=_actor, target=_case
             )
             _object = cls(actor=_actor, object_=_recommendation, target=_case)
@@ -82,7 +82,7 @@ class MyTestCase(unittest.TestCase):
             self.assertIsInstance(_object, cls)
             # check the _object of the activity is a RecommendActor
             self.assertIsInstance(
-                _object.object_, actor.RecommendActorActivity
+                _object.object_, actor._RecommendActorActivity
             )
             # check the target of the activity is correct instance
             self.assertEqual(_object.target, _case)

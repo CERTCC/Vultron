@@ -11,7 +11,7 @@ Design note
 -----------
 Not every vocab module contributes new type_ names to the registry.
 Some modules define only "semantic alias" classes — subclasses that inherit
-their parent's type_ value without overriding it (e.g. RmCreateReportActivity
+their parent's type_ value without overriding it (e.g. _RmCreateReportActivity
 inherits type_="Create" from as_Create).  These are NOT registered separately
 because the vocabulary is keyed by type_ value, not class name.  Testing that
 every single module contributes a registry entry would be wrong.
