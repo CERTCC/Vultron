@@ -1,7 +1,8 @@
 ---
 title: "TASK-OUTBOX-TO: Outbox to: Field Enforcement"
 type: implementation
-date: 2026-04-30
+timestamp: '2026-04-30T19:55:29+00:00'
+
 source: TASK-OUTBOX-TO
 ---
 

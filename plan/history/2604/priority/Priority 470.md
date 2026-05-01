@@ -1,7 +1,8 @@
 ---
 title: Priority 470 — Skills-upgrade spec tasks complete
 type: priority
-date: 2026-04-28
+timestamp: '2026-04-28T22:10:43+00:00'
+
 source: Priority 470
 ---
 

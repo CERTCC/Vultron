@@ -1,7 +1,8 @@
 ---
 title: BUG-26041701 closure verification meta-lesson
 type: learning
-date: 2026-04-22
+timestamp: '2026-04-22T00:00:00+00:00'
+
 source: BUG-26041701-closure
 ---
 

@@ -84,13 +84,9 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
    tool:
 
    ```bash
-   cat <<'EOF' | uv run append-history implementation
-   ---
-   title: <short task title>
-   type: implementation
-   date: <YYYY-MM-DD>
-   source: <TASK-ID>
-   ---
+   cat <<'EOF' | uv run append-history implementation \
+       --title "<short task title>" \
+       --source "<TASK-ID>"
 
    ## <TASK-ID> — <title>
 

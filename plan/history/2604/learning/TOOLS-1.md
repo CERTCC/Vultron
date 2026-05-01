@@ -1,7 +1,8 @@
 ---
 title: TOOLS-1 Python 3.14 deferred
 type: learning
-date: 2026-04-23
+timestamp: '2026-04-23T00:00:00+00:00'
+
 source: TOOLS-1
 ---
 

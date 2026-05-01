@@ -1,7 +1,8 @@
 ---
 title: DR-06 Update Per-Participant Embargo Consent State Machine
 type: learning
-date: 2026-04-20
+timestamp: '2026-04-20T00:00:00+00:00'
+
 source: REVIEW-26042001-supplement-DR-06
 ---
 

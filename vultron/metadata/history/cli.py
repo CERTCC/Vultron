@@ -2,8 +2,8 @@
 
 Usage::
 
-    uv run append-history <type>           # reads content from stdin
-    uv run append-history <type> --file /path/to/entry.md
+    uv run append-history <type> --title "..." --source "..."
+    uv run append-history <type> --title "..." --source "..." --file /path/to/body.md
 
 ``<type>`` must be one of the ``HistoryEntryType`` values
 (``idea``, ``implementation``, ``learning``, ``priority``).
@@ -11,16 +11,18 @@ Usage::
 The tool:
 
 1. Parses ``<type>`` against ``HistoryEntryType``; exits 1 on unknown type.
-2. Reads entry content from stdin or ``--file <path>``.
-3. Determines the current month: ``datetime.date.today()`` → ``YYMM``.
-4. Extracts ``<entry-id>`` from the content's YAML frontmatter ``source``
-   field; falls back to ``<type>-<YYMMDDHHMMSS>`` if absent.
+2. Reads body text from stdin or ``--file <path>``.
+3. Constructs a YAML frontmatter block from ``--title``, ``--source``, the
+   entry type, and an auto-generated UTC timestamp (HM-07-001).
+4. Validates the constructed frontmatter via ``HistoryEntryFrontmatter``
+   (includes future-date and tz-aware checks, HM-06-004, HM-06-005).
 5. Creates ``plan/history/YYMM/<type>/`` if missing.
-6. Writes content to ``plan/history/YYMM/<type>/<entry-id>.md``.
+6. Writes content (frontmatter + body) to
+   ``plan/history/YYMM/<type>/<entry-id>.md``.
 7. Regenerates ``plan/history/YYMM/README.md``.
 8. Prints the written file path to stdout.
 
-See ``specs/history-management.yaml`` HM-03.
+See ``specs/history-management.yaml`` HM-03, HM-06, HM-07.
 """
 
 from __future__ import annotations
@@ -30,12 +32,14 @@ import datetime
 import sys
 from pathlib import Path
 
-import frontmatter
+import yaml
 from pydantic import ValidationError
 
 from vultron.metadata.history.models import HistoryEntryFrontmatter
 from vultron.metadata.history.readme_gen import regenerate_readme
 from vultron.metadata.history.types import HistoryEntryType
+
+_UTC = datetime.timezone.utc
 
 
 def _find_repo_root(start: Path | None = None) -> Path:
@@ -62,23 +66,24 @@ def _validate_frontmatter(content: str) -> HistoryEntryFrontmatter:
 
     Raises:
         ValueError: If the frontmatter is malformed, missing, or fails
-            required-field validation (HM-02-001).
+            required-field validation (HM-02-001, HM-06-002).
     """
+    import frontmatter as _fm
+
     try:
-        post = frontmatter.loads(content)
+        post = _fm.loads(content)
     except Exception as exc:  # noqa: BLE001
         raise ValueError(f"malformed YAML frontmatter: {exc}") from exc
 
     if not post.metadata:
         raise ValueError(
             "missing frontmatter block: entry must begin with a YAML "
-            "frontmatter block containing title, type, date, and source"
+            "frontmatter block containing title, type, timestamp, and source"
         )
 
     try:
         return HistoryEntryFrontmatter.model_validate(post.metadata)
     except ValidationError as exc:
-        # Collect field names for a concise, actionable error message.
         missing = [e["loc"][0] for e in exc.errors() if e["loc"]]
         fields = ", ".join(str(f) for f in missing) if missing else str(exc)
         raise ValueError(
@@ -95,13 +100,10 @@ def _sanitize_entry_id(entry_id: str) -> str:
     """
     if not entry_id:
         raise ValueError("entry_id must not be empty")
-    # Reject path separators and parent-directory traversal.
     if "/" in entry_id or "\\" in entry_id:
         raise ValueError(f"entry_id contains path separators: {entry_id!r}")
     if ".." in entry_id:
         raise ValueError(f"entry_id contains '..' component: {entry_id!r}")
-    # Verify the resolved filename stays within the intended directory by
-    # checking Path properties (no directory component allowed).
     p = Path(entry_id)
     if p.parent != Path("."):
         raise ValueError(
@@ -110,13 +112,67 @@ def _sanitize_entry_id(entry_id: str) -> str:
     return entry_id
 
 
+def _check_timestamp_not_future(ts: datetime.datetime) -> None:
+    """Raise ValueError if *ts* is more than 60 seconds in the future (HM-06-004)."""
+    now = datetime.datetime.now(_UTC)
+    tolerance = datetime.timedelta(seconds=60)
+    if ts > now + tolerance:
+        raise ValueError(
+            f"timestamp {ts.isoformat()} is in the future "
+            f"(current UTC time: {now.isoformat()}); "
+            "new history entries must not have future timestamps"
+        )
+
+
+def _build_content(
+    entry_type: HistoryEntryType,
+    title: str,
+    source: str,
+    body: str,
+    timestamp: datetime.datetime | None = None,
+) -> str:
+    """Construct the full entry markdown (frontmatter + body).
+
+    The frontmatter ``timestamp`` is serialised as a quoted ISO 8601 string
+    so that YAML parsers treat it as a string rather than a native datetime
+    (ensuring round-trip fidelity of the UTC offset, HM-06-001).
+
+    Args:
+        entry_type: History entry type.
+        title: Human-readable summary for the frontmatter.
+        source: Originating task/idea identifier for the frontmatter.
+        body: Markdown body text (no frontmatter).
+        timestamp: UTC timestamp; defaults to ``datetime.now(UTC)`` when
+            *None*.
+
+    Returns:
+        Full markdown string beginning with a YAML frontmatter block.
+    """
+    ts = timestamp or datetime.datetime.now(_UTC)
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=_UTC)
+    else:
+        ts = ts.astimezone(_UTC)
+
+    fm = {
+        "title": title,
+        "type": str(entry_type.value),
+        "source": source,
+        # Store as a plain string so YAML parsers don't strip the tz offset.
+        "timestamp": ts.isoformat(),
+    }
+    fm_yaml = yaml.safe_dump(fm, default_flow_style=False, allow_unicode=True)
+    sep = "\n" if body and not body.startswith("\n") else ""
+    return f"---\n{fm_yaml}---\n{sep}{body}"
+
+
 def _build_parser() -> argparse.ArgumentParser:
     valid_types = ", ".join(t.value for t in HistoryEntryType)
     parser = argparse.ArgumentParser(
         prog="append-history",
         description=(
             "Append a write-once entry to the project history archive under "
-            "plan/history/. Content is read from stdin by default."
+            "plan/history/. Body text is read from stdin by default."
         ),
     )
     parser.add_argument(
@@ -125,28 +181,47 @@ def _build_parser() -> argparse.ArgumentParser:
         help=f"History entry type. One of: {valid_types}",
     )
     parser.add_argument(
+        "--title",
+        required=True,
+        metavar="TEXT",
+        help="Human-readable summary for the entry frontmatter.",
+    )
+    parser.add_argument(
+        "--source",
+        required=True,
+        metavar="ID",
+        help="Originating identifier (e.g. IDEA-26043001, TASK-FOO).",
+    )
+    parser.add_argument(
         "--file",
         metavar="PATH",
         default=None,
-        help="Read entry content from FILE instead of stdin.",
+        help="Read body text from FILE instead of stdin.",
     )
     parser.add_argument(
-        "--date",
-        metavar="YYYY-MM-DD",
+        "--timestamp",
+        metavar="DATETIME",
         default=None,
-        help=argparse.SUPPRESS,
+        help=argparse.SUPPRESS,  # backfill only
     )
     return parser
 
 
-def _parse_iso_date(value: str) -> datetime.date:
-    """Parse an ISO date string for internal backfill callers."""
+def _parse_iso_datetime(value: str) -> datetime.datetime:
+    """Parse an ISO 8601 datetime string for the hidden ``--timestamp`` flag."""
     try:
-        return datetime.date.fromisoformat(value)
+        dt = datetime.datetime.fromisoformat(value)
     except ValueError as exc:
         raise ValueError(
-            f"invalid date '{value}'; expected YYYY-MM-DD"
+            f"invalid datetime '{value}'; expected ISO 8601 with UTC offset "
+            "(e.g. 2026-05-01T15:30:00+00:00)"
         ) from exc
+    if dt.tzinfo is None:
+        raise ValueError(
+            f"datetime '{value}' has no timezone; provide a UTC offset "
+            "(e.g. +00:00)"
+        )
+    return dt.astimezone(_UTC)
 
 
 def append_history_entry(
@@ -162,7 +237,8 @@ def append_history_entry(
         entry_type: Valid history entry type.
         content: Full markdown content including YAML frontmatter.
         repo_root: Optional repository root override.
-        target_date: Optional historical date for backfill callers.
+        target_date: Optional historical date for backfill callers (controls
+            the ``YYMM`` directory; defaults to today).
 
     Returns:
         Path to the written history entry.
@@ -228,14 +304,34 @@ def main() -> None:
         if not file_path.exists():
             print(f"Error: file not found: {file_path}", file=sys.stderr)
             sys.exit(1)
-        content = file_path.read_text(encoding="utf-8")
+        body = file_path.read_text(encoding="utf-8")
     else:
-        content = sys.stdin.read()
+        body = sys.stdin.read()
+
+    if not body.strip():
+        print(
+            "Error: body text is empty; provide content via stdin or --file",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    timestamp: datetime.datetime | None = None
+    if args.timestamp is not None:
+        try:
+            timestamp = _parse_iso_datetime(args.timestamp)
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
 
     try:
-        target_date = (
-            _parse_iso_date(args.date) if args.date is not None else None
+        content = _build_content(
+            entry_type, args.title, args.source, body, timestamp
         )
+        # Future-date check: enforce on the timestamp that will be written
+        # (HM-06-004). Existing entries are not re-validated here.
+        effective_ts = timestamp or datetime.datetime.now(_UTC)
+        _check_timestamp_not_future(effective_ts)
+        target_date = timestamp.date() if timestamp is not None else None
         entry_file = append_history_entry(
             entry_type,
             content,

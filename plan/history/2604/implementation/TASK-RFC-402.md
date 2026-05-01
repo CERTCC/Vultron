@@ -1,7 +1,8 @@
 ---
 title: Consolidate find_matching_semantics into semantic_registry
 type: implementation
-date: 2026-04-30
+timestamp: '2026-04-30T14:39:05+00:00'
+
 source: TASK-RFC-402
 ---
 

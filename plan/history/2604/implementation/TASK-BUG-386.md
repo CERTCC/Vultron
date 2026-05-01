@@ -1,7 +1,8 @@
 ---
 title: BUG-386 — Defer unresolved Accept.object_ references (resolved via sender-side fix)
 type: implementation
-date: 2026-04-30
+timestamp: '2026-04-30T14:07:31+00:00'
+
 source: TASK-BUG-386
 ---
 

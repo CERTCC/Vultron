@@ -1,7 +1,8 @@
 ---
 title: "AF.2 — Create factories/report.py with 6 report factory functions"
 type: implementation
-date: 2026-04-30
+timestamp: '2026-04-30T20:14:18+00:00'
+
 source: TASK-AF-2
 ---
 

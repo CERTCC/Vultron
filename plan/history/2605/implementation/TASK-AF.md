@@ -1,7 +1,8 @@
 ---
 title: "AF.12 — Mark internal activity subclasses as private"
 type: implementation
-date: 2026-05-01
+timestamp: '2026-05-01T18:56:45+00:00'
+
 source: TASK-AF
 ---
 

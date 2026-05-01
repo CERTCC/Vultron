@@ -1,7 +1,8 @@
 ---
 title: TASK-DOCS-472 — Fix LaTeX Rendering and Versioning Docs
 type: implementation
-date: 2026-04-30
+timestamp: '2026-04-30T13:50:04+00:00'
+
 source: TASK-DOCS-472
 ---
 

@@ -109,13 +109,9 @@ For each entry in `plan/BUILD_LEARNINGS.md` that has been fully promoted to
 1. Archive the entry via `uv run append-history learning`:
 
    ```bash
-   cat <<'EOF' | uv run append-history learning
-   ---
-   title: <short observation title>
-   type: learning
-   date: <YYYY-MM-DD>
-   source: <label from the entry header, e.g. LABEL>
-   ---
+   cat <<'EOF' | uv run append-history learning \
+       --title "<short observation title>" \
+       --source "<label from the entry header, e.g. LABEL>"
 
    <full original entry text here>
 

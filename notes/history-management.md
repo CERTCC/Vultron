@@ -35,8 +35,11 @@ tool and the migration from monolithic `plan/*HISTORY.md` files.
 | Month-level navigation? | Auto-generated `plan/history/YYMM/README.md` rebuilt by the tool on every append | Agents can read one file for the month's summary instead of opening every entry |
 | Top-level static README? | Yes — `plan/history/README.md` explains legacy files and the transition date | Documents the migration boundary for future readers |
 | Legacy file migration? | Move monolithic files to `plan/history/` top level as static archives | Cannot be split retroactively without manual effort; grandfathered content preserved |
-| Tool interface? | `uv run append-history <type>` — stdin by default, `--file <path>` alternative | Matches project tooling (parallel to `spec-dump`); piping is the most common agent use case |
-| Date determination? | Use current system clock by default; allow a backfill-only override for migration tooling | Normal agents avoid month-selection decisions, while legacy backfill still needs historical placement |
+| Tool interface? | `uv run append-history <type>` — `--title` and `--source` required; body via stdin or `--file <path>` | Frontmatter is built by the tool; agents provide only body content and named params |
+| Date determination? | Use current system clock (UTC) by default; allow a backfill-only override for migration tooling | Normal agents avoid month-selection decisions, while legacy backfill still needs historical placement |
+| Timestamp field? | `timestamp: datetime (UTC ISO 8601)` replaces legacy `date: date`; legacy entries are converted automatically by model validator | Enables sub-day ordering and reliable sorting in README tables |
+| Future-date rejection? | Enforced in CLI write path only (60-second tolerance); reading existing entries is never blocked | Some entries have source-assertion dates in the future; the model must remain readable |
+| README sorting? | Sort by `timestamp` descending; add "Time (UTC)" column (HH:MM) alongside "Date" column | Timestamp-level sort enables more precise ordering within a month |
 | Type validation? | `HistoryEntryType` StrEnum in `vultron/metadata/history/types.py` | Adding a new type requires only one line change |
 | Module location? | `vultron/metadata/history/` — sibling of `vultron/metadata/specs/` | Both are project-management metadata tools; co-location signals intent |
 | Agent context boundary? | `plan/history/` is explicitly excluded from default "read plan context" | Prevents agents from spending context tokens on historical archive during orientation |
@@ -77,7 +80,7 @@ Each entry file has a YAML frontmatter block followed by a Markdown body:
 ---
 title: "Chunked history files (IDEA-26042702)"
 type: idea
-date: 2026-04-28
+timestamp: '2026-04-28T00:00:00+00:00'
 source: IDEA-26042702
 ---
 
@@ -114,42 +117,54 @@ append-history = "vultron.metadata.history.cli:main"
 ### CLI Signature
 
 ```text
-append-history <type> [--file <path>]
+append-history <type> --title <title> --source <source> [--file <path>]
 ```
 
 - `<type>`: one of `idea`, `implementation`, `priority` (or any future
   `HistoryEntryType` value)
-- Content is read from stdin by default; `--file <path>` reads from a file
-- A backfill-only date override exists for migration tooling but is kept out of
-  normal skill-facing usage guidance
+- `--title`: required; short human-readable title for the entry
+- `--source`: required; the ID or label this entry archives (e.g., `IDEA-26043001`)
+- Body text is read from stdin by default; `--file <path>` reads from a file
+- The tool builds the frontmatter block; agents supply only body content and
+  named parameters
+- A backfill-only `--timestamp` override exists for migration tooling but is
+  kept out of normal skill-facing usage guidance
 
 ### Usage Examples
 
 ```bash
 # From stdin (most common agent use case)
-cat /tmp/entry.md | uv run append-history idea
+cat /tmp/body.md | uv run append-history idea \
+    --title "Short title" \
+    --source "IDEA-26042702"
 
 # From file
-uv run append-history implementation --file /tmp/task-summary.md
+uv run append-history implementation \
+    --title "TASK-FOO completed" \
+    --source "TASK-FOO" \
+    --file /tmp/task-summary.md
 
 # Inline (short entries)
-echo "## TASK-FOO completed..." | uv run append-history implementation
+echo "Summary text..." | uv run append-history implementation \
+    --title "TASK-FOO completed" \
+    --source "TASK-FOO"
 ```
 
 ### Behaviour Sequence
 
 1. Parse `<type>` against `HistoryEntryType`; exit 1 on unknown type.
-2. Read content from stdin or `--file <path>`.
-3. Determine current month: `datetime.date.today().strftime("%y%m")` → `YYMM`.
-   A backfill-only override may supply a historical date when migrating legacy
-   entries.
-4. Parse the content's YAML frontmatter to extract `<entry-id>` (the `source`
-   field, falling back to a timestamp-based name if absent).
-5. Create `plan/history/YYMM/<type>/` if missing.
-6. Write content to `plan/history/YYMM/<type>/<entry-id>.md`.
-7. Regenerate `plan/history/YYMM/README.md` from all entry frontmatter in
+2. Read `--title` and `--source` from CLI arguments (required).
+3. Read body text from stdin or `--file <path>`; exit 1 if body is empty.
+4. Check the current timestamp is not more than 60 seconds in the future;
+   exit 1 if it is.
+5. Build frontmatter from `title`, `type`, `source`, and current UTC timestamp.
+6. Determine current month: `datetime.datetime.now(UTC).strftime("%y%m")` → `YYMM`.
+   A backfill-only `--timestamp` override may supply a historical datetime.
+7. Write combined frontmatter + body to
+   `plan/history/YYMM/<type>/<entry-id>.md`.
+8. Regenerate `plan/history/YYMM/README.md` from all entry frontmatter in
    that month's directory.
-8. Print the written file path to stdout.
+9. Print the written file path to stdout.
 
 ---
 
@@ -160,13 +175,13 @@ The `plan/history/YYMM/README.md` is a summary table:
 ```markdown
 # History: April 2026
 
-| Date | Type | Source | Title |
-|------|------|--------|-------|
-| 2026-04-28 | idea | IDEA-26042702 | "History" files should be chunked… |
-| 2026-04-27 | implementation | TASK-BTND5 | Generalize Participant BT Nodes |
+| Date | Time (UTC) | Type | Source | Title |
+|------|------------|------|--------|-------|
+| 2026-04-28 | 12:30 | idea | IDEA-26042702 | "History" files should be chunked… |
+| 2026-04-27 | 09:15 | implementation | TASK-BTND5 | Generalize Participant BT Nodes |
 ```
 
-Sorted by date descending, then type. Generated by scanning
+Sorted by `timestamp` descending. Generated by scanning
 `plan/history/YYMM/**/*.md` (excluding `README.md`) and reading frontmatter.
 
 ---

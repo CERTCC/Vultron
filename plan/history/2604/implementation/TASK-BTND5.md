@@ -1,7 +1,8 @@
 ---
 title: "TASK-BTND5.1: Add CVDRoles.CASE_OWNER"
 type: implementation
-date: 2026-04-30
+timestamp: '2026-04-30T19:55:29+00:00'
+
 source: TASK-BTND5
 ---
 

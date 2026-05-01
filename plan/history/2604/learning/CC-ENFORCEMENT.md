@@ -1,7 +1,8 @@
 ---
 title: CC-ENFORCEMENT Cyclomatic Complexity Gate Design
 type: learning
-date: 2026-04-23
+timestamp: '2026-04-23T00:00:00+00:00'
+
 source: CC-ENFORCEMENT
 ---
 

@@ -1,7 +1,8 @@
 ---
 title: "TASK-AF.1: Create factories/errors.py"
 type: implementation
-date: 2026-04-30
+timestamp: '2026-04-30T19:55:29+00:00'
+
 source: TASK-AF
 ---
 

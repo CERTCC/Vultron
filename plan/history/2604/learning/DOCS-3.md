@@ -1,7 +1,8 @@
 ---
 title: DOCS-3 User stories with insufficient specification coverage
 type: learning
-date: 2026-04-23
+timestamp: '2026-04-23T00:00:00+00:00'
+
 source: DOCS-3
 ---
 

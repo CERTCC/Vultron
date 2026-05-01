@@ -74,17 +74,14 @@ Add the new spec to both:
 
 ### 8. Archive the idea
 
-Build the entry content — the full original idea text with a `**Processed**:`
-line at the end — and pipe it to `uv run append-history idea`:
+Build the entry body — the full original idea text with a `**Processed**`
+line at the end — and pipe it to `uv run append-history idea` with
+`--title` and `--source` flags:
 
 ```bash
-cat <<'ENDOFENTRY' | uv run append-history idea
----
-title: <short idea title>
-type: idea
-date: YYYY-MM-DD
-source: IDEA-<ID>
----
+cat <<'ENDOFENTRY' | uv run append-history idea \
+    --title "<short idea title>" \
+    --source "IDEA-<ID>"
 
 ## IDEA-<ID> <short title>
 

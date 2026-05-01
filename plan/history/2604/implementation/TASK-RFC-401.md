@@ -1,7 +1,8 @@
 ---
 title: TASK-RFC-401 BTTestScenario deep-module test harness
 type: implementation
-date: 2026-04-30
+timestamp: '2026-04-30T19:06:09+00:00'
+
 source: TASK-RFC-401
 ---
 

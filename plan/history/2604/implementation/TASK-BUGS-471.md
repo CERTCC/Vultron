@@ -1,7 +1,8 @@
 ---
 title: "Bug Fixes: BUG-471.5, BUG-471.6, BUG-471.7a, BUG-471.7b"
 type: implementation
-date: 2026-04-29
+timestamp: '2026-04-29T16:35:42+00:00'
+
 source: TASK-BUGS-471
 ---
 

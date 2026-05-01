@@ -1,7 +1,8 @@
 ---
 title: TASK-SEDRIFT — Fix Semantic Extraction Pattern Gaps
 type: implementation
-date: 2026-04-28
+timestamp: '2026-04-28T22:54:41+00:00'
+
 source: TASK-SEDRIFT
 ---
 
