@@ -237,8 +237,9 @@ async def handle_outbox_item(
     if _to_empty:
         raise VultronOutboxToFieldMissingError(
             f"Outbound {activity_type} activity '{activity_id}' has no"
-            " `to:` field. All outbound Vultron activities MUST address"
-            " at least one recipient via `to:` (OX-08-001).",
+            " `to:` field or has an empty `to:` list. All outbound"
+            " Vultron activities MUST address at least one recipient via"
+            " `to:` (OX-08-001).",
             activity_id=activity_id,
             activity_type=activity_type,
         )
