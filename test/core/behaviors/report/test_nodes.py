@@ -15,18 +15,22 @@
 
 """
 Tests for report validation behavior tree nodes.
+
+Uses BTTestScenario (from ``test.core.behaviors.bt_harness``) as the single
+execution path; no direct ``node.update()`` / ``node.blackboard.register_key()``
+calls appear here.
+
+Per GitHub issue #401 and specs/behavior-tree-node-design.yaml.
 """
 
-import py_trees
 import pytest
-from py_trees.blackboard import Client as BlackboardClient
-from py_trees.common import Status
+from py_trees.composites import Sequence
+from typing import cast, Any
 
+from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.participant_status import VultronParticipantStatus
 from vultron.core.use_cases._helpers import _report_phase_status_id
-from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.vultron_types import (
-    VultronCaseActor,
     VultronOffer,
     VultronReport,
 )
@@ -42,67 +46,40 @@ from vultron.core.behaviors.report.nodes import (
     UpdateActorOutbox,
 )
 from vultron.core.states.rm import RM
+from test.core.behaviors.bt_harness import BTTestScenario
+
+# ============================================================================
+# Fixtures
+# ============================================================================
 
 
 @pytest.fixture
-def datalayer():
-    """In-memory DataLayer for testing."""
-    return SqliteDataLayer("sqlite:///:memory:")
+def actor(bt_scenario: BTTestScenario) -> VultronCaseActor:
+    """Create a test actor and persist it in the scenario DataLayer."""
+    obj = VultronCaseActor(name="Test Actor")
+    bt_scenario.dl.create(obj)
+    return obj
 
 
 @pytest.fixture
-def actor(datalayer):
-    """Create test actor."""
-    actor = VultronCaseActor(
-        name="Test Actor",
-    )
-    datalayer.create(actor)
-    return actor
-
-
-@pytest.fixture
-def report(datalayer):
-    """Create test report."""
-    report = VultronReport(
+def report(bt_scenario: BTTestScenario) -> VultronReport:
+    """Create a test report and persist it in the scenario DataLayer."""
+    obj = VultronReport(
         name="TEST-001",
         content="Test vulnerability report",
     )
-    datalayer.create(report)
-    return report
+    bt_scenario.dl.create(obj)
+    return obj
 
 
 @pytest.fixture
-def offer(datalayer, report, actor):
-    """Create test offer activity."""
-    offer = VultronOffer(actor=actor.id_, object_=report.id_)
-    datalayer.create(offer)
-    return offer
-
-
-@pytest.fixture
-def blackboard_client(datalayer, actor):
-    """Set up blackboard with DataLayer and actor_id."""
-    client = BlackboardClient(name="TestClient")
-    client.register_key(key="datalayer", access=py_trees.common.Access.WRITE)
-    client.register_key(key="actor_id", access=py_trees.common.Access.WRITE)
-    client.datalayer = datalayer
-    client.actor_id = actor.id_
-    return client
-
-
-def setup_node_blackboard(node, datalayer, actor_id):
-    """Helper to set up node with blackboard."""
-    node.setup()
-    # Register and set blackboard keys with WRITE access
-    node.blackboard.register_key(
-        key="datalayer", access=py_trees.common.Access.WRITE
-    )
-    node.blackboard.register_key(
-        key="actor_id", access=py_trees.common.Access.WRITE
-    )
-    node.blackboard.datalayer = datalayer
-    node.blackboard.actor_id = actor_id
-    node.initialise()
+def offer(
+    bt_scenario: BTTestScenario, report: VultronReport, actor: VultronCaseActor
+) -> VultronOffer:
+    """Create a test offer and persist it in the scenario DataLayer."""
+    obj = VultronOffer(actor=actor.id_, object_=report.id_)
+    bt_scenario.dl.create(obj)
+    return obj
 
 
 # ============================================================================
@@ -110,7 +87,9 @@ def setup_node_blackboard(node, datalayer, actor_id):
 # ============================================================================
 
 
-def test_check_rm_state_valid_when_valid(datalayer, actor, report):
+def test_check_rm_state_valid_when_valid(
+    bt_scenario: BTTestScenario, actor: VultronCaseActor, report: VultronReport
+) -> None:
     """CheckRMStateValid returns SUCCESS when report is VALID."""
     status = VultronParticipantStatus(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.VALID.value),
@@ -118,16 +97,17 @@ def test_check_rm_state_valid_when_valid(datalayer, actor, report):
         attributed_to=actor.id_,
         rm_state=RM.VALID,
     )
-    datalayer.create(status)
+    bt_scenario.seed(status)
 
-    node = CheckRMStateValid(report_id=report.id_)
-    setup_node_blackboard(node, datalayer, actor.id_)
+    result = bt_scenario.run(
+        CheckRMStateValid(report_id=report.id_), actor_id=actor.id_
+    )
+    bt_scenario.assert_success(result)
 
-    result = node.update()
-    assert result == Status.SUCCESS
 
-
-def test_check_rm_state_valid_when_received(datalayer, actor, report):
+def test_check_rm_state_valid_when_received(
+    bt_scenario: BTTestScenario, actor: VultronCaseActor, report: VultronReport
+) -> None:
     """CheckRMStateValid returns FAILURE when report is RECEIVED (no VALID record)."""
     status = VultronParticipantStatus(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.RECEIVED.value),
@@ -135,27 +115,27 @@ def test_check_rm_state_valid_when_received(datalayer, actor, report):
         attributed_to=actor.id_,
         rm_state=RM.RECEIVED,
     )
-    datalayer.create(status)
+    bt_scenario.seed(status)
 
-    node = CheckRMStateValid(report_id=report.id_)
-    setup_node_blackboard(node, datalayer, actor.id_)
+    result = bt_scenario.run(
+        CheckRMStateValid(report_id=report.id_), actor_id=actor.id_
+    )
+    bt_scenario.assert_failure(result)
 
-    result = node.update()
-    assert result == Status.FAILURE
 
-
-def test_check_rm_state_valid_when_no_status(datalayer, actor, report):
+def test_check_rm_state_valid_when_no_status(
+    bt_scenario: BTTestScenario, actor: VultronCaseActor, report: VultronReport
+) -> None:
     """CheckRMStateValid returns FAILURE when no status exists."""
-    node = CheckRMStateValid(report_id=report.id_)
-    setup_node_blackboard(node, datalayer, actor.id_)
-
-    result = node.update()
-    assert result == Status.FAILURE
+    result = bt_scenario.run(
+        CheckRMStateValid(report_id=report.id_), actor_id=actor.id_
+    )
+    bt_scenario.assert_failure(result)
 
 
 def test_check_rm_state_received_or_invalid_when_received(
-    datalayer, actor, report
-):
+    bt_scenario: BTTestScenario, actor: VultronCaseActor, report: VultronReport
+) -> None:
     """CheckRMStateReceivedOrInvalid returns SUCCESS when RECEIVED."""
     status = VultronParticipantStatus(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.RECEIVED.value),
@@ -163,18 +143,17 @@ def test_check_rm_state_received_or_invalid_when_received(
         attributed_to=actor.id_,
         rm_state=RM.RECEIVED,
     )
-    datalayer.create(status)
+    bt_scenario.seed(status)
 
-    node = CheckRMStateReceivedOrInvalid(report_id=report.id_)
-    setup_node_blackboard(node, datalayer, actor.id_)
-
-    result = node.update()
-    assert result == Status.SUCCESS
+    result = bt_scenario.run(
+        CheckRMStateReceivedOrInvalid(report_id=report.id_), actor_id=actor.id_
+    )
+    bt_scenario.assert_success(result)
 
 
 def test_check_rm_state_received_or_invalid_when_invalid(
-    datalayer, actor, report
-):
+    bt_scenario: BTTestScenario, actor: VultronCaseActor, report: VultronReport
+) -> None:
     """CheckRMStateReceivedOrInvalid returns SUCCESS when INVALID."""
     status = VultronParticipantStatus(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.INVALID.value),
@@ -182,18 +161,17 @@ def test_check_rm_state_received_or_invalid_when_invalid(
         attributed_to=actor.id_,
         rm_state=RM.INVALID,
     )
-    datalayer.create(status)
+    bt_scenario.seed(status)
 
-    node = CheckRMStateReceivedOrInvalid(report_id=report.id_)
-    setup_node_blackboard(node, datalayer, actor.id_)
-
-    result = node.update()
-    assert result == Status.SUCCESS
+    result = bt_scenario.run(
+        CheckRMStateReceivedOrInvalid(report_id=report.id_), actor_id=actor.id_
+    )
+    bt_scenario.assert_success(result)
 
 
 def test_check_rm_state_received_or_invalid_when_valid(
-    datalayer, actor, report
-):
+    bt_scenario: BTTestScenario, actor: VultronCaseActor, report: VultronReport
+) -> None:
     """CheckRMStateReceivedOrInvalid returns FAILURE when VALID."""
     status = VultronParticipantStatus(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.VALID.value),
@@ -201,24 +179,22 @@ def test_check_rm_state_received_or_invalid_when_valid(
         attributed_to=actor.id_,
         rm_state=RM.VALID,
     )
-    datalayer.create(status)
+    bt_scenario.seed(status)
 
-    node = CheckRMStateReceivedOrInvalid(report_id=report.id_)
-    setup_node_blackboard(node, datalayer, actor.id_)
-
-    result = node.update()
-    assert result == Status.FAILURE
+    result = bt_scenario.run(
+        CheckRMStateReceivedOrInvalid(report_id=report.id_), actor_id=actor.id_
+    )
+    bt_scenario.assert_failure(result)
 
 
 def test_check_rm_state_received_or_invalid_when_no_status(
-    datalayer, actor, report
-):
+    bt_scenario: BTTestScenario, actor: VultronCaseActor, report: VultronReport
+) -> None:
     """CheckRMStateReceivedOrInvalid returns SUCCESS when no status (default RECEIVED)."""
-    node = CheckRMStateReceivedOrInvalid(report_id=report.id_)
-    setup_node_blackboard(node, datalayer, actor.id_)
-
-    result = node.update()
-    assert result == Status.SUCCESS
+    result = bt_scenario.run(
+        CheckRMStateReceivedOrInvalid(report_id=report.id_), actor_id=actor.id_
+    )
+    bt_scenario.assert_success(result)
 
 
 # ============================================================================
@@ -226,108 +202,101 @@ def test_check_rm_state_received_or_invalid_when_no_status(
 # ============================================================================
 
 
-def test_transition_rm_to_valid(datalayer, actor, report, offer):
+def test_transition_rm_to_valid(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+) -> None:
     """TransitionRMtoValid updates statuses correctly."""
-    node = TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_)
-    setup_node_blackboard(node, datalayer, actor.id_)
-
-    result = node.update()
-    assert result == Status.SUCCESS
-
-    valid_id = _report_phase_status_id(actor.id_, report.id_, RM.VALID.value)
-    assert datalayer.get("ParticipantStatus", valid_id) is not None
-
-
-def test_transition_rm_to_invalid(datalayer, actor, report, offer):
-    """TransitionRMtoInvalid updates report status to INVALID in DataLayer."""
-    node = TransitionRMtoInvalid(report_id=report.id_, offer_id=offer.id_)
-    setup_node_blackboard(node, datalayer, actor.id_)
-
-    result = node.update()
-    assert result == Status.SUCCESS
-
-    invalid_id = _report_phase_status_id(
-        actor.id_, report.id_, RM.INVALID.value
+    result = bt_scenario.run(
+        TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
+        actor_id=actor.id_,
     )
-    assert datalayer.get("ParticipantStatus", invalid_id) is not None
+    bt_scenario.assert_success(result)
+    bt_scenario.assert_rm_state(report.id_, RM.VALID, actor_id=actor.id_)
 
 
-def test_create_case_node(datalayer, actor, report):
-    """CreateCaseNode creates VulnerabilityCase and stores case_id."""
-    node = CreateCaseNode(report_id=report.id_)
-    setup_node_blackboard(node, datalayer, actor.id_)
-
-    result = node.update()
-    assert result == Status.SUCCESS
-
-    # Verify case_id in blackboard
-    case_id = node.blackboard.get("case_id")
-    assert case_id is not None
-
-    # Verify case exists in DataLayer
-    case_obj = datalayer.read(case_id, raise_on_missing=True)
-    assert case_obj.name == f"Case for Report {report.id_}"
-    assert case_obj.attributed_to == actor.id_
+def test_transition_rm_to_invalid(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+) -> None:
+    """TransitionRMtoInvalid updates report status to INVALID in DataLayer."""
+    result = bt_scenario.run(
+        TransitionRMtoInvalid(report_id=report.id_, offer_id=offer.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_success(result)
+    bt_scenario.assert_rm_state(report.id_, RM.INVALID, actor_id=actor.id_)
 
 
-def test_create_case_node_idempotency(datalayer, actor, report):
+def test_create_case_node(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+) -> None:
+    """CreateCaseNode creates a VulnerabilityCase in the DataLayer."""
+    result = bt_scenario.run(
+        CreateCaseNode(report_id=report.id_), actor_id=actor.id_
+    )
+    bt_scenario.assert_success(result)
+    bt_scenario.assert_case_count(1)
+
+    case = bt_scenario.assert_case_exists()
+    assert case.name == f"Case for Report {report.id_}"
+    assert case.attributed_to == actor.id_
+
+
+def test_create_case_node_idempotency(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+) -> None:
     """CreateCaseNode handles duplicate case creation gracefully."""
-    node = CreateCaseNode(report_id=report.id_)
-    setup_node_blackboard(node, datalayer, actor.id_)
+    result1 = bt_scenario.run(
+        CreateCaseNode(report_id=report.id_), actor_id=actor.id_
+    )
+    bt_scenario.assert_success(result1)
 
-    # First creation
-    result1 = node.update()
-    assert result1 == Status.SUCCESS
-
-    # Second creation (should log warning but still succeed)
-    result2 = node.update()
-    assert result2 == Status.SUCCESS
+    result2 = bt_scenario.run(
+        CreateCaseNode(report_id=report.id_), actor_id=actor.id_
+    )
+    bt_scenario.assert_success(result2)
 
 
-def test_create_case_activity(datalayer, actor, report, offer):
+def test_create_case_activity(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+) -> None:
     """CreateCaseActivity creates activity with recipients and embedded case."""
-    # Add a finder actor whose ID will be collected as an addressee.
-    from vultron.core.models.case_actor import VultronCaseActor
-
     finder = VultronCaseActor(name="Finder Actor")
-    datalayer.create(finder)
+    bt_scenario.dl.create(finder)
 
     # Set report.attributed_to so the finder appears in the addressees list.
     report.attributed_to = finder.id_
-    datalayer.save(report)
+    bt_scenario.dl.save(report)
 
-    # First create case to populate case_id in blackboard
-    case_node = CreateCaseNode(report_id=report.id_)
-    setup_node_blackboard(case_node, datalayer, actor.id_)
-    case_node.update()
-
-    # Create activity node
-    activity_node = CreateCaseActivity(
-        report_id=report.id_, offer_id=offer.id_
+    chain = Sequence(
+        "CreateAndNotify",
+        memory=True,
+        children=[
+            CreateCaseNode(report_id=report.id_),
+            CreateCaseActivity(report_id=report.id_, offer_id=offer.id_),
+        ],
     )
-    activity_node.blackboard = (
-        case_node.blackboard
-    )  # Reuse blackboard with case_id
-    activity_node.initialise()
+    result = bt_scenario.run(chain, actor_id=actor.id_)
+    bt_scenario.assert_success(result)
 
-    result = activity_node.update()
-    assert result == Status.SUCCESS
-
-    # Verify activity_id in blackboard
-    activity_id = activity_node.blackboard.get("activity_id")
-    assert activity_id is not None
-
-    # VultronCreateCaseActivity (type_="Create") cannot be round-tripped via
-    # datalayer.read() because the "Create" wire class is not imported in the
-    # test environment.  Use by_type("Create") to get the raw stored data dict.
-    create_activities = datalayer.by_type("Create")
-    assert (
-        activity_id in create_activities
-    ), f"Expected Create activity {activity_id!r} in DataLayer"
+    create_activities = bt_scenario.dl.by_type("Create")
+    assert len(create_activities) == 1, "Expected exactly one Create activity"
+    activity_id = next(iter(create_activities))
     activity_data = create_activities[activity_id]
-    assert activity_data.get("type_") == "Create"
 
-    # Verify the activity carries recipients (to field) excluding the sender.
+    assert activity_data.get("type_") == "Create"
     assert activity_data.get(
         "to"
     ), "CreateCaseActivity should have 'to' recipients"
@@ -337,70 +306,62 @@ def test_create_case_activity(datalayer, actor, report, offer):
     assert (
         finder.id_ in activity_data["to"]
     ), "Finder (report.attributed_to) should be in 'to' recipients"
-
-    # object_ is dehydrated to the case ID string at storage time; re-expansion
-    # to the full case happens in outbox_handler at delivery time.
     assert isinstance(
         activity_data.get("object_"), str
     ), "CreateCaseActivity object_ should be stored as the case ID string"
 
 
-def test_create_case_activity_missing_case_id(datalayer, actor, report, offer):
-    """CreateCaseActivity fails if case_id not in blackboard."""
-    node = CreateCaseActivity(report_id=report.id_, offer_id=offer.id_)
-    setup_node_blackboard(node, datalayer, actor.id_)
-    # Register case_id with WRITE access for testing
-    node.blackboard.register_key(
-        key="case_id", access=py_trees.common.Access.WRITE
+def test_create_case_activity_missing_case_id(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+) -> None:
+    """CreateCaseActivity fails if no preceding CreateCaseNode set case_id."""
+    result = bt_scenario.run(
+        CreateCaseActivity(report_id=report.id_, offer_id=offer.id_),
+        actor_id=actor.id_,
     )
-    # Explicitly set case_id to None to test error handling
-    node.blackboard.set("case_id", None, overwrite=True)
-
-    result = node.update()
-    assert result == Status.FAILURE
+    bt_scenario.assert_failure(result)
 
 
-def test_update_actor_outbox(datalayer, actor, report, offer):
+def test_update_actor_outbox(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+) -> None:
     """UpdateActorOutbox appends activity to actor's outbox."""
-    # First create case and activity to populate blackboard
-    case_node = CreateCaseNode(report_id=report.id_)
-    setup_node_blackboard(case_node, datalayer, actor.id_)
-    case_node.update()
-
-    activity_node = CreateCaseActivity(
-        report_id=report.id_, offer_id=offer.id_
+    chain = Sequence(
+        "CreateAndPost",
+        memory=True,
+        children=[
+            CreateCaseNode(report_id=report.id_),
+            CreateCaseActivity(report_id=report.id_, offer_id=offer.id_),
+            UpdateActorOutbox(),
+        ],
     )
-    activity_node.blackboard = case_node.blackboard
-    activity_node.initialise()
-    activity_node.update()
+    result = bt_scenario.run(chain, actor_id=actor.id_)
+    bt_scenario.assert_success(result)
 
-    # Update outbox
-    outbox_node = UpdateActorOutbox()
-    outbox_node.blackboard = activity_node.blackboard
-    outbox_node.initialise()
-
-    result = outbox_node.update()
-    assert result == Status.SUCCESS
-
-    # Verify activity in actor's outbox
-    updated_actor = datalayer.read(actor.id_, raise_on_missing=True)
-    activity_id = outbox_node.blackboard.get("activity_id")
+    updated_actor = cast(
+        Any, bt_scenario.dl.read(actor.id_, raise_on_missing=True)
+    )
+    create_activities = bt_scenario.dl.by_type("Create")
+    assert (
+        create_activities
+    ), "Expected at least one Create activity in DataLayer"
+    activity_id = next(iter(create_activities))
     assert activity_id in updated_actor.outbox.items
 
 
-def test_update_actor_outbox_missing_activity_id(datalayer, actor):
-    """UpdateActorOutbox fails if activity_id not in blackboard."""
-    node = UpdateActorOutbox()
-    setup_node_blackboard(node, datalayer, actor.id_)
-    # Register activity_id with WRITE access for testing
-    node.blackboard.register_key(
-        key="activity_id", access=py_trees.common.Access.WRITE
-    )
-    # Explicitly set activity_id to None to test error handling
-    node.blackboard.set("activity_id", None, overwrite=True)
-
-    result = node.update()
-    assert result == Status.FAILURE
+def test_update_actor_outbox_missing_activity_id(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+) -> None:
+    """UpdateActorOutbox fails if no preceding node set activity_id."""
+    result = bt_scenario.run(UpdateActorOutbox(), actor_id=actor.id_)
+    bt_scenario.assert_failure(result)
 
 
 # ============================================================================
@@ -408,22 +369,28 @@ def test_update_actor_outbox_missing_activity_id(datalayer, actor):
 # ============================================================================
 
 
-def test_evaluate_report_credibility(datalayer, actor, report):
+def test_evaluate_report_credibility(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+) -> None:
     """EvaluateReportCredibility always returns SUCCESS (stub)."""
-    node = EvaluateReportCredibility(report_id=report.id_)
-    setup_node_blackboard(node, datalayer, actor.id_)
+    result = bt_scenario.run(
+        EvaluateReportCredibility(report_id=report.id_), actor_id=actor.id_
+    )
+    bt_scenario.assert_success(result)
 
-    result = node.update()
-    assert result == Status.SUCCESS
 
-
-def test_evaluate_report_validity(datalayer, actor, report):
+def test_evaluate_report_validity(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+) -> None:
     """EvaluateReportValidity always returns SUCCESS (stub)."""
-    node = EvaluateReportValidity(report_id=report.id_)
-    setup_node_blackboard(node, datalayer, actor.id_)
-
-    result = node.update()
-    assert result == Status.SUCCESS
+    result = bt_scenario.run(
+        EvaluateReportValidity(report_id=report.id_), actor_id=actor.id_
+    )
+    bt_scenario.assert_success(result)
 
 
 # ============================================================================
@@ -431,57 +398,64 @@ def test_evaluate_report_validity(datalayer, actor, report):
 # ============================================================================
 
 
-def test_full_validation_workflow(datalayer, actor, report, offer):
+def test_full_validation_workflow(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+) -> None:
     """Test full validation workflow using all nodes in sequence."""
     # 1. Check if already valid (should fail initially)
-    check_valid = CheckRMStateValid(report_id=report.id_)
-    setup_node_blackboard(check_valid, datalayer, actor.id_)
-    assert check_valid.update() == Status.FAILURE
+    bt_scenario.assert_failure(
+        bt_scenario.run(
+            CheckRMStateValid(report_id=report.id_), actor_id=actor.id_
+        )
+    )
 
-    # 2. Check preconditions (should succeed)
-    check_precond = CheckRMStateReceivedOrInvalid(report_id=report.id_)
-    setup_node_blackboard(check_precond, datalayer, actor.id_)
-    assert check_precond.update() == Status.SUCCESS
+    # 2. Check preconditions (should succeed — no status = default RECEIVED)
+    bt_scenario.assert_success(
+        bt_scenario.run(
+            CheckRMStateReceivedOrInvalid(report_id=report.id_),
+            actor_id=actor.id_,
+        )
+    )
 
     # 3. Evaluate credibility (stub: always succeeds)
-    eval_cred = EvaluateReportCredibility(report_id=report.id_)
-    setup_node_blackboard(eval_cred, datalayer, actor.id_)
-    assert eval_cred.update() == Status.SUCCESS
+    bt_scenario.assert_success(
+        bt_scenario.run(
+            EvaluateReportCredibility(report_id=report.id_), actor_id=actor.id_
+        )
+    )
 
     # 4. Evaluate validity (stub: always succeeds)
-    eval_valid = EvaluateReportValidity(report_id=report.id_)
-    setup_node_blackboard(eval_valid, datalayer, actor.id_)
-    assert eval_valid.update() == Status.SUCCESS
+    bt_scenario.assert_success(
+        bt_scenario.run(
+            EvaluateReportValidity(report_id=report.id_), actor_id=actor.id_
+        )
+    )
 
     # 5. Transition to VALID
-    transition = TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_)
-    setup_node_blackboard(transition, datalayer, actor.id_)
-    assert transition.update() == Status.SUCCESS
-
-    # 6. Create case
-    create_case = CreateCaseNode(report_id=report.id_)
-    create_case.blackboard = transition.blackboard
-    create_case.initialise()
-    assert create_case.update() == Status.SUCCESS
-
-    # 7. Create activity
-    create_activity = CreateCaseActivity(
-        report_id=report.id_, offer_id=offer.id_
+    bt_scenario.assert_success(
+        bt_scenario.run(
+            TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
+            actor_id=actor.id_,
+        )
     )
-    create_activity.blackboard = create_case.blackboard
-    create_activity.initialise()
-    assert create_activity.update() == Status.SUCCESS
 
-    # 8. Update outbox
-    update_outbox = UpdateActorOutbox()
-    update_outbox.blackboard = create_activity.blackboard
-    update_outbox.initialise()
-    assert update_outbox.update() == Status.SUCCESS
+    # 6. Create case, activity, update outbox — share blackboard via Sequence
+    actions = Sequence(
+        "ValidationActions",
+        memory=True,
+        children=[
+            CreateCaseNode(report_id=report.id_),
+            CreateCaseActivity(report_id=report.id_, offer_id=offer.id_),
+            UpdateActorOutbox(),
+        ],
+    )
+    bt_scenario.assert_success(bt_scenario.run(actions, actor_id=actor.id_))
 
-    # 9. Verify final state
-    check_valid_final = CheckRMStateValid(report_id=report.id_)
-    setup_node_blackboard(check_valid_final, datalayer, actor.id_)
-    assert check_valid_final.update() == Status.SUCCESS
+    # 7. Verify final state
+    bt_scenario.assert_rm_state(report.id_, RM.VALID, actor_id=actor.id_)
 
 
 # ============================================================================
@@ -490,56 +464,49 @@ def test_full_validation_workflow(datalayer, actor, report, offer):
 
 
 def test_update_actor_outbox_logs_create_activity_type(
-    datalayer, actor, report, offer, caplog
-):
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """UpdateActorOutbox MUST log 'Create' activity type (D5-6-LOGCTX)."""
-    case_node = CreateCaseNode(report_id=report.id_)
-    setup_node_blackboard(case_node, datalayer, actor.id_)
-    case_node.update()
-
-    activity_node = CreateCaseActivity(
-        report_id=report.id_, offer_id=offer.id_
+    chain = Sequence(
+        "CreateAndPost",
+        memory=True,
+        children=[
+            CreateCaseNode(report_id=report.id_),
+            CreateCaseActivity(report_id=report.id_, offer_id=offer.id_),
+            UpdateActorOutbox(),
+        ],
     )
-    activity_node.blackboard = case_node.blackboard
-    activity_node.initialise()
-    activity_node.update()
-
-    outbox_node = UpdateActorOutbox()
-    outbox_node.blackboard = activity_node.blackboard
-    outbox_node.initialise()
-
     with caplog.at_level("INFO"):
-        outbox_node.update()
+        bt_scenario.run(chain, actor_id=actor.id_)
 
     assert "Create" in caplog.text
 
 
 def test_update_actor_outbox_logs_case_id_in_message(
-    datalayer, actor, report, offer, caplog
-):
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """UpdateActorOutbox MUST log the case ID in the outbox message (D5-6-LOGCTX)."""
-    case_node = CreateCaseNode(report_id=report.id_)
-    setup_node_blackboard(case_node, datalayer, actor.id_)
-    case_node.update()
-
-    # Capture case_id from blackboard
-    case_node.blackboard.register_key(
-        key="case_id", access=py_trees.common.Access.READ
+    chain = Sequence(
+        "CreateAndPost",
+        memory=True,
+        children=[
+            CreateCaseNode(report_id=report.id_),
+            CreateCaseActivity(report_id=report.id_, offer_id=offer.id_),
+            UpdateActorOutbox(),
+        ],
     )
-    case_id = case_node.blackboard.get("case_id")
-
-    activity_node = CreateCaseActivity(
-        report_id=report.id_, offer_id=offer.id_
-    )
-    activity_node.blackboard = case_node.blackboard
-    activity_node.initialise()
-    activity_node.update()
-
-    outbox_node = UpdateActorOutbox()
-    outbox_node.blackboard = activity_node.blackboard
-    outbox_node.initialise()
-
     with caplog.at_level("INFO"):
-        outbox_node.update()
+        bt_scenario.run(chain, actor_id=actor.id_)
 
+    cases = bt_scenario.dl.by_type("VulnerabilityCase")
+    assert cases, "Expected VulnerabilityCase to be created"
+    case_id = next(iter(cases))
     assert case_id in caplog.text

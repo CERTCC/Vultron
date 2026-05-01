@@ -35,6 +35,7 @@ class CVDRoles(Flag):
     DEPLOYER = auto()
     COORDINATOR = auto()
     OTHER = auto()
+    CASE_OWNER = auto()
 
     # shorthand
     F = FINDER

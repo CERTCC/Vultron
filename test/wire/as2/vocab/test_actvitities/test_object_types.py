@@ -536,6 +536,7 @@ def test_handle_outbox_item_raises_on_bare_string_object(caplog):
     activity = VultronActivity(
         type_="Create",
         actor=ACTOR_ID,
+        to=[ACTOR_ID],
         object_=_STR_URI,
     )
 

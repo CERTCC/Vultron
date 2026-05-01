@@ -31,7 +31,10 @@ from vultron.adapters.driven.delivery_queue import DeliveryQueueAdapter
 from vultron.core.models.activity import VultronActivity
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.emitter import ActivityEmitter
-from vultron.errors import VultronOutboxObjectIntegrityError
+from vultron.errors import (
+    VultronOutboxObjectIntegrityError,
+    VultronOutboxToFieldMissingError,
+)
 from vultron.wire.as2.vocab.base.links import as_Link
 
 logger = logging.getLogger(__name__)
@@ -225,6 +228,34 @@ async def handle_outbox_item(
 
     activity_type = getattr(outbound_activity, "type_", "Activity")
     activity_object = getattr(outbound_activity, "object_", None)
+
+    # Validate to: field (OX-08-001, OX-08-002, OX-08-003)
+    to_field = getattr(outbound_activity, "to", None)
+    _to_empty = to_field is None or (
+        isinstance(to_field, list) and len(to_field) == 0
+    )
+    if _to_empty:
+        raise VultronOutboxToFieldMissingError(
+            f"Outbound {activity_type} activity '{activity_id}' has no"
+            " `to:` field or has an empty `to:` list. All outbound"
+            " Vultron activities MUST address at least one recipient via"
+            " `to:` (OX-08-001).",
+            activity_id=activity_id,
+            activity_type=activity_type,
+        )
+
+    # Warn if cc/bto/bcc are set (OX-08-004)
+    for _addr_field in ("cc", "bto", "bcc"):
+        _val = getattr(outbound_activity, _addr_field, None)
+        if _val is not None and _val != []:
+            logger.warning(
+                "Outbound %s activity '%s' has `%s:` set."
+                " Vultron direct messages should only use `to:` for"
+                " addressing (OX-08-004).",
+                activity_type,
+                activity_id,
+                _addr_field,
+            )
 
     # For initiating activity types, expand an ID-string object_ to the full
     # domain object so the recipient inbox endpoint can store it separately
