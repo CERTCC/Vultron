@@ -65,6 +65,7 @@ from vultron.wire.as2.factories.embargo import (
 )
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.factories.report import (
+    parse_submit_report_offer,
     rm_close_report_activity,
     rm_create_report_activity,
     rm_invalidate_report_activity,
@@ -117,6 +118,7 @@ __all__ = [
     "em_reject_embargo_activity",
     "remove_embargo_from_case_activity",
     # report
+    "parse_submit_report_offer",
     "rm_close_report_activity",
     "rm_create_report_activity",
     "rm_invalidate_report_activity",

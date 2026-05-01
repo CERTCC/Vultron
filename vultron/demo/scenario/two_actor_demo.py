@@ -86,6 +86,7 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     verify_object_stored,
 )
 from vultron.wire.as2.factories import (
+    parse_submit_report_offer,
     rm_submit_report_activity,
 )
 
@@ -285,23 +286,7 @@ def finder_submits_report(
                 },
             )
         offer_dict = result.get("offer", {})
-        offer = as_Offer.model_validate(offer_dict)
-        report_raw = offer.object_
-        if isinstance(report_raw, str):
-            report = VulnerabilityReport(
-                id_=report_raw,
-                name=report_name,
-                content=report_content,
-            )
-        elif isinstance(report_raw, VulnerabilityReport):
-            report = report_raw
-        else:
-            # as_Link or None — fall back to a minimal VulnerabilityReport
-            # using the data we know (the trigger always embeds the full object).
-            report = VulnerabilityReport(
-                name=report_name,
-                content=report_content,
-            )
+        report, offer = parse_submit_report_offer(offer_dict)
         # Deliver the offer from the Finder to the Vendor's inbox.
         # Per ADR-0012 (per-actor DataLayer isolation) the trigger stores the
         # offer only in the Finder's namespace; the Vendor must receive it

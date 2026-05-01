@@ -27,6 +27,7 @@ import pytest
 
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
+    parse_submit_report_offer,
     rm_close_report_activity,
     rm_create_report_activity,
     rm_invalidate_report_activity,
@@ -42,6 +43,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
     as_TentativeReject,
 )
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.base.objects.actors import as_Person
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
@@ -229,13 +231,23 @@ def test_rm_validate_report_kwargs_actor_forwarded(sample_offer, sample_actor):
 
 
 @pytest.mark.spec("AF-04-001")
-def test_rm_validate_report_plain_offer_raises(sample_report, sample_actor):
-    """A plain as_Offer (not from rm_submit_report_activity) must fail."""
-    plain_offer = as_Offer(
-        actor=None, object_=sample_report  # wrong inner object type
+def test_rm_validate_report_plain_offer_with_report_succeeds(
+    sample_report, sample_actor
+):
+    """A plain as_Offer carrying a VulnerabilityReport is coerced and accepted."""
+    plain_offer = as_Offer(actor=None, object_=sample_report)
+    result = rm_validate_report_activity(offer=plain_offer, actor=sample_actor)
+    assert isinstance(result, as_Accept)
+
+
+@pytest.mark.spec("AF-04-001")
+def test_rm_validate_report_malformed_offer_raises(sample_actor):
+    """An offer whose object_ is not a VulnerabilityReport must still fail."""
+    malformed_offer = as_Offer(
+        actor=None, object_=as_Note(name="not a report")
     )
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        rm_validate_report_activity(offer=plain_offer, actor=sample_actor)
+        rm_validate_report_activity(offer=malformed_offer, actor=sample_actor)
     assert exc_info.value.__cause__ is not None
 
 
@@ -272,12 +284,27 @@ def test_rm_invalidate_report_kwargs_actor_forwarded(
 
 
 @pytest.mark.spec("AF-04-001")
-def test_rm_invalidate_report_plain_offer_raises(sample_report, sample_actor):
-    plain_offer = as_Offer(
-        actor=None, object_=sample_report  # wrong inner object type
+def test_rm_invalidate_report_plain_offer_with_report_succeeds(
+    sample_report, sample_actor
+):
+    """A plain as_Offer carrying a VulnerabilityReport is coerced and accepted."""
+    plain_offer = as_Offer(actor=None, object_=sample_report)
+    result = rm_invalidate_report_activity(
+        offer=plain_offer, actor=sample_actor
+    )
+    assert isinstance(result, as_TentativeReject)
+
+
+@pytest.mark.spec("AF-04-001")
+def test_rm_invalidate_report_malformed_offer_raises(sample_actor):
+    """An offer whose object_ is not a VulnerabilityReport must still fail."""
+    malformed_offer = as_Offer(
+        actor=None, object_=as_Note(name="not a report")
     )
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        rm_invalidate_report_activity(offer=plain_offer, actor=sample_actor)
+        rm_invalidate_report_activity(
+            offer=malformed_offer, actor=sample_actor
+        )
     assert exc_info.value.__cause__ is not None
 
 
@@ -304,13 +331,60 @@ def test_rm_close_report_kwargs_actor_forwarded(sample_offer, sample_actor):
 
 
 @pytest.mark.spec("AF-04-001")
-def test_rm_close_report_plain_offer_raises(sample_report, sample_actor):
-    plain_offer = as_Offer(
-        actor=None, object_=sample_report  # wrong inner object type
+def test_rm_close_report_plain_offer_with_report_succeeds(
+    sample_report, sample_actor
+):
+    """A plain as_Offer carrying a VulnerabilityReport is coerced and accepted."""
+    plain_offer = as_Offer(actor=None, object_=sample_report)
+    result = rm_close_report_activity(offer=plain_offer, actor=sample_actor)
+    assert isinstance(result, as_Reject)
+
+
+@pytest.mark.spec("AF-04-001")
+def test_rm_close_report_malformed_offer_raises(sample_actor):
+    """An offer whose object_ is not a VulnerabilityReport must still fail."""
+    malformed_offer = as_Offer(
+        actor=None, object_=as_Note(name="not a report")
     )
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        rm_close_report_activity(offer=plain_offer, actor=sample_actor)
+        rm_close_report_activity(offer=malformed_offer, actor=sample_actor)
     assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# parse_submit_report_offer (AF-04-002, AF-04-001)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-04-002")
+def test_parse_submit_report_offer_from_dict(sample_report, sample_actor):
+    """parse_submit_report_offer accepts a raw dict and returns (report, offer)."""
+    offer = rm_submit_report_activity(
+        report=sample_report, to=_ACTOR_URI, actor=sample_actor
+    )
+    offer_dict = offer.model_dump(by_alias=True)
+    report_out, offer_out = parse_submit_report_offer(offer_dict)
+    assert isinstance(report_out, VulnerabilityReport)
+    assert report_out.id_ == sample_report.id_
+
+
+@pytest.mark.spec("AF-04-002")
+def test_parse_submit_report_offer_from_plain_offer(
+    sample_report, sample_actor
+):
+    """parse_submit_report_offer coerces a plain as_Offer correctly."""
+    plain_offer = as_Offer(actor=None, object_=sample_report)
+    report_out, offer_out = parse_submit_report_offer(plain_offer)
+    assert isinstance(report_out, VulnerabilityReport)
+    assert report_out.id_ == sample_report.id_
+
+
+@pytest.mark.spec("AF-04-001")
+def test_parse_submit_report_offer_malformed_raises():
+    """parse_submit_report_offer raises for an offer with no valid report."""
+    bad_dict = {"type": "Offer", "object": {"type": "Note", "name": "bad"}}
+    with pytest.raises(VultronActivityConstructionError):
+        parse_submit_report_offer(bad_dict)
 
 
 # ---------------------------------------------------------------------------
@@ -322,6 +396,7 @@ def test_rm_close_report_plain_offer_raises(sample_report, sample_actor):
 def test_all_report_factories_importable_from_package():
     """All report factory functions must be importable from the factories package."""
     from vultron.wire.as2.factories import (  # noqa: F401
+        parse_submit_report_offer,
         rm_close_report_activity,
         rm_create_report_activity,
         rm_invalidate_report_activity,

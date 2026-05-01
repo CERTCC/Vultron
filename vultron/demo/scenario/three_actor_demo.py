@@ -59,6 +59,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
     as_Invite,
     as_Offer,
+    as_TransitiveActivity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
@@ -270,7 +271,7 @@ def coordinator_adds_report_to_case(
                 "report_id": report.id_,
             },
         )
-    add_report = as_Activity.model_validate(result["activity"])
+    add_report = as_TransitiveActivity.model_validate(result["activity"])
     with demo_step("Delivering AddReportToCase activity to CaseActor"):
         post_to_inbox_and_wait(case_actor_client, case_actor.id_, add_report)
     with demo_check("CaseActor stores the AddReportToCase activity"):
@@ -297,7 +298,7 @@ def coordinator_invites_actor(
                 "invitee_id": recipient.id_,
             },
         )
-    invite = as_Activity.model_validate(result["activity"])
+    invite = as_TransitiveActivity.model_validate(result["activity"])
 
     if (
         case_actor_client is not None
@@ -334,7 +335,7 @@ def actor_accepts_case_invite(
             behavior="accept-case-invite",
             body={"invite_id": invite.id_},
         )
-    accept = as_Activity.model_validate(result["activity"])
+    accept = as_TransitiveActivity.model_validate(result["activity"])
     with demo_step("Delivering accept activity to CaseActor"):
         post_to_inbox_and_wait(case_actor_client, case_actor.id_, accept)
     with demo_check("Accept activity is stored in the CaseActor DataLayer"):
