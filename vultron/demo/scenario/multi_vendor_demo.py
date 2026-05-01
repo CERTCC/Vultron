@@ -46,11 +46,11 @@ import os
 import sys
 
 from vultron.core.states.em import EM
-from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Create,
     as_Offer,
+    as_TransitiveActivity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
@@ -277,7 +277,7 @@ def vendor_adds_report_to_case(
                 "report_id": report.id_,
             },
         )
-    add_report = as_Activity.model_validate(result["activity"])
+    add_report = as_TransitiveActivity.model_validate(result["activity"])
     with demo_step("Delivering AddReportToCase activity to CaseActor"):
         post_to_inbox_and_wait(case_actor_client, case_actor.id_, add_report)
     with demo_check("CaseActor stores the AddReportToCase activity"):

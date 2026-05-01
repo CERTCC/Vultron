@@ -23,8 +23,6 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001, AF-02-001, AF-03-001
 through AF-03-006.
 """
 
-from typing import cast
-
 from pydantic import ValidationError
 
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
@@ -136,9 +134,11 @@ def rm_validate_report_activity(
     """Build an Accept(Offer) — the RV message when no case exists.
 
     Signals that the submission offer was reviewed and the report is valid.
-    The ``offer`` MUST be the inline typed ``as_Offer`` returned by
-    :func:`rm_submit_report_activity`; a plain ``as_Offer`` will fail
-    Pydantic validation and raise :exc:`VultronActivityConstructionError`.
+    The ``offer`` argument may be an ``RmSubmitReportActivity`` (the typed
+    subclass returned by :func:`rm_submit_report_activity`) or a plain
+    ``as_Offer`` recovered from the datalayer.  Plain offers are coerced
+    to ``RmSubmitReportActivity`` at runtime; offers whose ``object_`` is
+    not a valid ``VulnerabilityReport`` will still fail validation.
 
     Args:
         offer: The ``RmSubmitReportActivity`` offer being accepted.
@@ -152,9 +152,11 @@ def rm_validate_report_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return RmValidateReportActivity(
-            object_=cast(RmSubmitReportActivity, offer), **kwargs
-        )
+        if not isinstance(offer, RmSubmitReportActivity):
+            offer = RmSubmitReportActivity.model_validate(
+                offer.model_dump(by_alias=True)
+            )
+        return RmValidateReportActivity(object_=offer, **kwargs)
     except ValidationError as exc:
         raise VultronActivityConstructionError(
             "rm_validate_report_activity: invalid arguments"
@@ -168,9 +170,11 @@ def rm_invalidate_report_activity(
     """Build a TentativeReject(Offer) — the RI message when no case exists.
 
     Signals that the submission offer was reviewed and the report is invalid.
-    The ``offer`` MUST be the inline typed ``as_Offer`` returned by
-    :func:`rm_submit_report_activity`; a plain ``as_Offer`` will fail
-    Pydantic validation and raise :exc:`VultronActivityConstructionError`.
+    The ``offer`` argument may be an ``RmSubmitReportActivity`` (the typed
+    subclass returned by :func:`rm_submit_report_activity`) or a plain
+    ``as_Offer`` recovered from the datalayer.  Plain offers are coerced
+    to ``RmSubmitReportActivity`` at runtime; offers whose ``object_`` is
+    not a valid ``VulnerabilityReport`` will still fail validation.
 
     Args:
         offer: The ``RmSubmitReportActivity`` offer being tentatively rejected.
@@ -184,9 +188,11 @@ def rm_invalidate_report_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return RmInvalidateReportActivity(
-            object_=cast(RmSubmitReportActivity, offer), **kwargs
-        )
+        if not isinstance(offer, RmSubmitReportActivity):
+            offer = RmSubmitReportActivity.model_validate(
+                offer.model_dump(by_alias=True)
+            )
+        return RmInvalidateReportActivity(object_=offer, **kwargs)
     except ValidationError as exc:
         raise VultronActivityConstructionError(
             "rm_invalidate_report_activity: invalid arguments"
@@ -202,9 +208,11 @@ def rm_close_report_activity(
     Closes the report permanently.  Can only be emitted when the report is
     in the ``RM.INVALID`` state; anything past that will have an associated
     ``VulnerabilityCase`` and closure falls to ``rm_close_case_activity``.
-    The ``offer`` MUST be the inline typed ``as_Offer`` returned by
-    :func:`rm_submit_report_activity`; a plain ``as_Offer`` will fail
-    Pydantic validation and raise :exc:`VultronActivityConstructionError`.
+    The ``offer`` argument may be an ``RmSubmitReportActivity`` (the typed
+    subclass returned by :func:`rm_submit_report_activity`) or a plain
+    ``as_Offer`` recovered from the datalayer.  Plain offers are coerced
+    to ``RmSubmitReportActivity`` at runtime; offers whose ``object_`` is
+    not a valid ``VulnerabilityReport`` will still fail validation.
 
     Args:
         offer: The ``RmSubmitReportActivity`` offer being closed.
@@ -218,10 +226,53 @@ def rm_close_report_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return RmCloseReportActivity(
-            object_=cast(RmSubmitReportActivity, offer), **kwargs
-        )
+        if not isinstance(offer, RmSubmitReportActivity):
+            offer = RmSubmitReportActivity.model_validate(
+                offer.model_dump(by_alias=True)
+            )
+        return RmCloseReportActivity(object_=offer, **kwargs)
     except ValidationError as exc:
         raise VultronActivityConstructionError(
             "rm_close_report_activity: invalid arguments"
+        ) from exc
+
+
+def parse_submit_report_offer(
+    offer_data: dict | as_Offer,
+) -> tuple[VulnerabilityReport, as_Offer]:
+    """Parse a submit-report offer from wire data into its component parts.
+
+    Accepts either a raw dict (e.g. from a trigger endpoint JSON response)
+    or an ``as_Offer`` instance and coerces it to ``RmSubmitReportActivity``
+    so the embedded ``VulnerabilityReport`` — including its stable ID — is
+    preserved.  This is the correct way for the demo and adapter layers to
+    extract the report from a trigger response without importing internal
+    activity subclasses directly.
+
+    Args:
+        offer_data: A dict representation of the submit-report offer, or an
+            existing ``as_Offer`` instance.
+
+    Returns:
+        A ``(report, offer)`` tuple where *report* is the
+        ``VulnerabilityReport`` embedded in the offer and *offer* is the
+        coerced ``RmSubmitReportActivity`` suitable for inbox delivery.
+
+    Raises:
+        VultronActivityConstructionError: If the data cannot be validated as
+            a submit-report offer containing a ``VulnerabilityReport``.
+    """
+    try:
+        if isinstance(offer_data, dict):
+            coerced = RmSubmitReportActivity.model_validate(offer_data)
+        elif isinstance(offer_data, RmSubmitReportActivity):
+            coerced = offer_data
+        else:
+            coerced = RmSubmitReportActivity.model_validate(
+                offer_data.model_dump(by_alias=True)
+            )
+        return coerced.object_, coerced
+    except (ValidationError, AttributeError) as exc:
+        raise VultronActivityConstructionError(
+            "parse_submit_report_offer: invalid offer data"
         ) from exc
