@@ -97,17 +97,30 @@ def _imports_from_vocab_activities(source_path: Path) -> bool:
     return False
 
 
+_SCAN_ROOTS: tuple[str, ...] = ("vultron", "test")
+
+
 def _collect_violations() -> frozenset[str]:
-    """Return repo-relative paths of files that violate the boundary rule."""
+    """Return repo-relative paths of files that violate the boundary rule.
+
+    Only ``vultron/`` and ``test/`` are scanned — the only directories that
+    can meaningfully import from the internal vocab activities layer.  This
+    avoids traversing ``.venv/``, ``site/``, ``node_modules/``, and other
+    non-source trees that would make the scan unnecessarily slow.
+    """
     violations: set[str] = set()
-    for py_file in REPO_ROOT.rglob("*.py"):
-        if "__pycache__" in py_file.parts:
+    for root_name in _SCAN_ROOTS:
+        scan_root = REPO_ROOT / root_name
+        if not scan_root.is_dir():
             continue
-        rel = py_file.relative_to(REPO_ROOT).as_posix()
-        if any(rel.startswith(prefix) for prefix in ALLOWED_PREFIXES):
-            continue
-        if _imports_from_vocab_activities(py_file):
-            violations.add(rel)
+        for py_file in scan_root.rglob("*.py"):
+            if "__pycache__" in py_file.parts:
+                continue
+            rel = py_file.relative_to(REPO_ROOT).as_posix()
+            if any(rel.startswith(prefix) for prefix in ALLOWED_PREFIXES):
+                continue
+            if _imports_from_vocab_activities(py_file):
+                violations.add(rel)
     return frozenset(violations)
 
 

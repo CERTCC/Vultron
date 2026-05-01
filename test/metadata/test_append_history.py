@@ -6,9 +6,11 @@ type validation, stdin mode, --file mode).
 
 from __future__ import annotations
 
-import subprocess
-import sys
+import dataclasses
+import io
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -44,21 +46,53 @@ def fake_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
+@dataclasses.dataclass
+class _RunResult:
+    returncode: int
+    stdout: str
+    stderr: str
+
+
 def _run_append(
     entry_type: str,
     content: str = _VALID_CONTENT,
     extra_args: list[str] | None = None,
     cwd: Path | None = None,
-) -> subprocess.CompletedProcess[str]:
-    cmd = [sys.executable, "-m", "vultron.metadata.history.cli", entry_type]
+) -> _RunResult:
+    """Run append-history CLI logic in-process, returning a result object.
+
+    Replaces the subprocess-based approach to eliminate per-test Python
+    startup overhead (~0.2-0.4 s per invocation).  The ``cwd`` parameter is
+    accepted for interface compatibility but ignored: callers use the
+    ``fake_repo`` fixture which applies ``monkeypatch.chdir`` before
+    ``_run_append`` is called, so ``Path.cwd()`` is already the desired
+    directory.
+    """
+    from vultron.metadata.history.cli import main  # local import avoids leak
+
+    cmd = ["append-history", entry_type]
     if extra_args:
         cmd.extend(extra_args)
-    return subprocess.run(
-        cmd,
-        input=content,
-        text=True,
-        capture_output=True,
-        cwd=str(cwd) if cwd else None,
+
+    stdout_buf = io.StringIO()
+    stderr_buf = io.StringIO()
+    exit_code = 0
+
+    try:
+        with (
+            patch("sys.argv", cmd),
+            patch("sys.stdin", io.StringIO(content or "")),
+            redirect_stdout(stdout_buf),
+            redirect_stderr(stderr_buf),
+        ):
+            main()
+    except SystemExit as exc:
+        exit_code = exc.code if isinstance(exc.code, int) else 1
+
+    return _RunResult(
+        returncode=exit_code,
+        stdout=stdout_buf.getvalue(),
+        stderr=stderr_buf.getvalue(),
     )
 
 
