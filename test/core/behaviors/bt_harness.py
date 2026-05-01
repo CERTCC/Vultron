@@ -262,7 +262,13 @@ class BTTestScenario:
             len(cases) == 1
         ), f"Expected exactly 1 VulnerabilityCase in DataLayer, found {len(cases)}"
         case_id = next(iter(cases))
-        return self.dl.read(case_id)
+        case = self.dl.read(case_id)
+        assert case is not None, (
+            "Expected VulnerabilityCase id "
+            f"{case_id!r} from DataLayer.by_type('VulnerabilityCase') "
+            "to be readable, but DataLayer.read() returned None"
+        )
+        return cast(Any, case)
 
     def assert_note_attached_to_case(self, note_id: str, case_id: str) -> None:
         """Assert that ``note_id`` appears in the case's notes list.
