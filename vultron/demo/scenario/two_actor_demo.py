@@ -329,7 +329,7 @@ def vendor_validates_report(
     Args:
         vendor_client: Client connected to the Vendor container.
         vendor: Vendor ``as_Actor``.
-        offer_id: Full URI of the ``VultronActivity`` offer to validate.
+        offer_id: Full URI of the submit-report ``as_Offer`` to validate.
 
     Returns:
         Response dict from the trigger endpoint (contains the validate activity).

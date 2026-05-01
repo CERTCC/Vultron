@@ -217,7 +217,7 @@ in `vultron.wire.as2.factories`. Code outside
 `vultron/wire/as2/vocab/activities/` and `vultron/wire/as2/factories/` MUST
 NOT import internal activity subclasses (e.g., `RmCreateReportActivity`)
 directly. Use the corresponding factory function instead (e.g.,
-`create_report_activity()`). This boundary is enforced by
+`rm_create_report_activity()`). This boundary is enforced by
 `test/architecture/test_activity_factory_imports.py`.
 
 ## Change Protocol

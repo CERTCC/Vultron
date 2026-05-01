@@ -17,9 +17,9 @@
 Demonstrates the workflow for receiving and processing vulnerability reports via the Vultron API.
 
 This demo script showcases three different outcomes when processing vulnerability reports:
-1. Validate Report: VultronActivity (Accept) - creates a case
-2. Invalidate Report: VultronActivity (TentativeReject) - holds for reconsideration
-3. Invalidate and Close Report: VultronActivity + VultronActivity - rejects and closes
+1. Validate Report: ``as_Accept`` - creates a case
+2. Invalidate Report: ``as_TentativeReject`` - holds for reconsideration
+3. Invalidate and Close Report: ``as_TentativeReject`` + ``as_Ignore`` - rejects and closes
 
 This demo uses direct inbox-to-inbox communication between actors, per the Vultron prototype
 design (see docs/reference/inbox_handler.md). Actors post activities directly to each other's

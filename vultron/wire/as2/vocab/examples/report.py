@@ -35,7 +35,7 @@ def create_report() -> as_Create:
     In this example, a finder creates a vulnerability report.
 
     Example:
-          >>> VultronActivity(actor=finder.id_, id_=gen_report)
+          >>> rm_create_report_activity(_REPORT, actor=finder.id_)
     """
     activity = rm_create_report_activity(_REPORT, actor=_FINDER.id_)
     return activity
