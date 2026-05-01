@@ -39,6 +39,7 @@ from vultron.wire.as2.factories import (
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
 )
+from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -180,10 +181,16 @@ class SvcAcceptCaseInviteUseCase:
             )
         invite = raw_invite
 
-        activity = rm_accept_invite_to_case_activity(
-            invite=invite,
-            actor=actor_id,
-        )
+        try:
+            activity = rm_accept_invite_to_case_activity(
+                invite=invite,
+                actor=actor_id,
+            )
+        except VultronActivityConstructionError as exc:
+            raise VultronValidationError(
+                f"'{self._request.invite_id}' is not a valid"
+                " RmInviteToCaseActivity"
+            ) from exc
         self._dl.create(activity)
 
         add_activity_to_outbox(actor_id, activity.id_, self._dl)

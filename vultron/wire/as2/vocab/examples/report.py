@@ -35,7 +35,7 @@ def create_report() -> as_Create:
     In this example, a finder creates a vulnerability report.
 
     Example:
-          >>> rm_create_report_activity(_REPORT, actor=finder.id_)
+          >>> rm_create_report_activity(_REPORT, actor=_FINDER.id_)
     """
     activity = rm_create_report_activity(_REPORT, actor=_FINDER.id_)
     return activity

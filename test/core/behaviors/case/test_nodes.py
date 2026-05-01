@@ -57,6 +57,7 @@ from vultron.core.models.vultron_types import (
 )
 from vultron.core.states.roles import CVDRoles
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from test.core.behaviors.bt_harness import BTTestScenario
 
 # ---------------------------------------------------------------------------
@@ -389,10 +390,17 @@ class TestCreateCaseParticipantNode:
 
         stored_actor = cast(Any, bt_scenario.dl.read(actor_id))
         outbox_ids = stored_actor.outbox.items if stored_actor else []
-        found = any(
-            isinstance(bt_scenario.dl.read(oid), as_Add) for oid in outbox_ids
+        add_activities = [
+            bt_scenario.dl.read(oid)
+            for oid in outbox_ids
+            if isinstance(bt_scenario.dl.read(oid), as_Add)
+        ]
+        assert any(
+            act.type_ == "Add"
+            and isinstance(act.object_, CaseParticipant)
+            and getattr(act.target, "id_", act.target) == case_obj.id_
+            for act in add_activities
         )
-        assert found
 
     def test_does_not_record_participant_added_event_for_vendor(
         self,
