@@ -663,7 +663,7 @@ class TestRehydrateFields:
     """_rehydrate_fields expands dehydrated string IDs back to typed objects."""
 
     def test_offer_object_field_expanded_to_vulnerability_report(self, dl):
-        """RmSubmitReportActivity.object_ is a VulnerabilityReport after read."""
+        """_RmSubmitReportActivity.object_ is a VulnerabilityReport after read."""
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
             VulnerabilityReport,
         )
@@ -709,7 +709,7 @@ class TestCoerceToSemanticClass:
     """_coerce_to_semantic_class promotes base-vocab activities to subtypes."""
 
     def test_rm_submit_report_round_trip_returns_specific_class(self, dl):
-        """dl.read returns RmSubmitReportActivity, not generic as_Offer."""
+        """dl.read returns _RmSubmitReportActivity, not generic as_Offer."""
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
             VulnerabilityReport,
         )
@@ -725,10 +725,10 @@ class TestCoerceToSemanticClass:
 
         result = dl.read(offer.id_)
 
-        assert type(result).__name__ == "RmSubmitReportActivity"
+        assert type(result).__name__ == "_RmSubmitReportActivity"
 
     def test_em_propose_embargo_round_trip_returns_specific_class(self, dl):
-        """dl.read returns EmProposeEmbargoActivity with EmbargoEvent object_."""
+        """dl.read returns _EmProposeEmbargoActivity with EmbargoEvent object_."""
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
@@ -747,7 +747,7 @@ class TestCoerceToSemanticClass:
 
         result = dl.read(proposal.id_)
 
-        assert type(result).__name__ == "EmProposeEmbargoActivity"
+        assert type(result).__name__ == "_EmProposeEmbargoActivity"
         assert isinstance(result.object_, EmbargoEvent)  # type: ignore[union-attr]
 
     def test_accept_invite_round_trip_returns_specific_class_from_generic_parse(

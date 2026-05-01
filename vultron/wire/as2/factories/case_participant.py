@@ -28,11 +28,11 @@ from pydantic import ValidationError
 
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.case_participant import (
-    AddParticipantToCaseActivity,
-    AddStatusToParticipantActivity,
-    CreateParticipantActivity,
-    CreateStatusForParticipantActivity,
-    RemoveParticipantFromCaseActivity,
+    _AddParticipantToCaseActivity,
+    _AddStatusToParticipantActivity,
+    _CreateParticipantActivity,
+    _CreateStatusForParticipantActivity,
+    _RemoveParticipantFromCaseActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Add,
@@ -75,7 +75,7 @@ def create_participant_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return CreateParticipantActivity(
+        return _CreateParticipantActivity(
             object_=participant, target=target, **kwargs
         )
     except ValidationError as exc:
@@ -108,7 +108,7 @@ def create_status_for_participant_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return CreateStatusForParticipantActivity(
+        return _CreateStatusForParticipantActivity(
             object_=status, target=target, **kwargs
         )
     except ValidationError as exc:
@@ -142,7 +142,7 @@ def add_status_to_participant_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return AddStatusToParticipantActivity(
+        return _AddStatusToParticipantActivity(
             object_=status, target=target, **kwargs
         )
     except ValidationError as exc:
@@ -175,7 +175,7 @@ def add_participant_to_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return AddParticipantToCaseActivity(
+        return _AddParticipantToCaseActivity(
             object_=participant, target=target, **kwargs
         )
     except ValidationError as exc:
@@ -210,7 +210,7 @@ def remove_participant_from_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return RemoveParticipantFromCaseActivity(
+        return _RemoveParticipantFromCaseActivity(
             object_=participant, target=target, **kwargs
         )
     except ValidationError as exc:

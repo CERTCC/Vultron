@@ -29,9 +29,9 @@ from pydantic import ValidationError
 
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.actor import (
-    AcceptActorRecommendationActivity,
-    RecommendActorActivity,
-    RejectActorRecommendationActivity,
+    _AcceptActorRecommendationActivity,
+    _RecommendActorActivity,
+    _RejectActorRecommendationActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -72,7 +72,7 @@ def recommend_actor_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return RecommendActorActivity(
+        return _RecommendActorActivity(
             object_=recommended, target=target, **kwargs
         )
     except ValidationError as exc:
@@ -87,7 +87,7 @@ def accept_actor_recommendation_activity(
     target: VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Accept:
-    """Build an Accept(RecommendActorActivity).
+    """Build an Accept(_RecommendActorActivity).
 
     Accepts a recommendation to add an actor to the case.  The
     ``offer`` MUST be the value returned by
@@ -97,7 +97,7 @@ def accept_actor_recommendation_activity(
     targeted at the recommended actor.
 
     Args:
-        offer: The ``RecommendActorActivity`` being accepted.
+        offer: The ``_RecommendActorActivity`` being accepted.
         target: The ``VulnerabilityCase`` (or its URI) for which the
             recommendation was made.
         **kwargs: Optional AS2 fields forwarded to the constructor
@@ -110,8 +110,8 @@ def accept_actor_recommendation_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return AcceptActorRecommendationActivity(
-            object_=cast(RecommendActorActivity, offer),
+        return _AcceptActorRecommendationActivity(
+            object_=cast(_RecommendActorActivity, offer),
             target=target,
             **kwargs,
         )
@@ -130,7 +130,7 @@ def reject_actor_recommendation_activity(
     target: VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Reject:
-    """Build a Reject(RecommendActorActivity).
+    """Build a Reject(_RecommendActorActivity).
 
     Rejects a recommendation to add an actor to the case.  The
     ``offer`` MUST be the value returned by
@@ -138,7 +138,7 @@ def reject_actor_recommendation_activity(
     validation.
 
     Args:
-        offer: The ``RecommendActorActivity`` being rejected.
+        offer: The ``_RecommendActorActivity`` being rejected.
         target: The ``VulnerabilityCase`` (or its URI) for which the
             recommendation was made.
         **kwargs: Optional AS2 fields forwarded to the constructor
@@ -151,8 +151,8 @@ def reject_actor_recommendation_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return RejectActorRecommendationActivity(
-            object_=cast(RecommendActorActivity, offer),
+        return _RejectActorRecommendationActivity(
+            object_=cast(_RecommendActorActivity, offer),
             target=target,
             **kwargs,
         )

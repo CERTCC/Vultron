@@ -29,22 +29,22 @@ from pydantic import ValidationError
 
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.case import (
-    AcceptCaseOwnershipTransferActivity,
-    AddNoteToCaseActivity,
-    AddReportToCaseActivity,
-    AddStatusToCaseActivity,
-    AnnounceVulnerabilityCaseActivity,
-    CreateCaseActivity,
-    CreateCaseStatusActivity,
-    OfferCaseOwnershipTransferActivity,
-    RejectCaseOwnershipTransferActivity,
-    RmAcceptInviteToCaseActivity,
-    RmCloseCaseActivity,
-    RmDeferCaseActivity,
-    RmEngageCaseActivity,
-    RmInviteToCaseActivity,
-    RmRejectInviteToCaseActivity,
-    UpdateCaseActivity,
+    _AcceptCaseOwnershipTransferActivity,
+    _AddNoteToCaseActivity,
+    _AddReportToCaseActivity,
+    _AddStatusToCaseActivity,
+    _AnnounceVulnerabilityCaseActivity,
+    _CreateCaseActivity,
+    _CreateCaseStatusActivity,
+    _OfferCaseOwnershipTransferActivity,
+    _RejectCaseOwnershipTransferActivity,
+    _RmAcceptInviteToCaseActivity,
+    _RmCloseCaseActivity,
+    _RmDeferCaseActivity,
+    _RmEngageCaseActivity,
+    _RmInviteToCaseActivity,
+    _RmRejectInviteToCaseActivity,
+    _UpdateCaseActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -96,7 +96,9 @@ def add_report_to_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return AddReportToCaseActivity(object_=report, target=target, **kwargs)
+        return _AddReportToCaseActivity(
+            object_=report, target=target, **kwargs
+        )
     except ValidationError as exc:
         logger.warning(
             "add_report_to_case_activity: invalid arguments: %s", exc
@@ -127,7 +129,9 @@ def add_status_to_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return AddStatusToCaseActivity(object_=status, target=target, **kwargs)
+        return _AddStatusToCaseActivity(
+            object_=status, target=target, **kwargs
+        )
     except ValidationError as exc:
         logger.warning(
             "add_status_to_case_activity: invalid arguments: %s", exc
@@ -155,7 +159,7 @@ def create_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return CreateCaseActivity(object_=case, **kwargs)
+        return _CreateCaseActivity(object_=case, **kwargs)
     except ValidationError as exc:
         logger.warning("create_case_activity: invalid arguments: %s", exc)
         raise VultronActivityConstructionError(
@@ -181,7 +185,7 @@ def create_case_status_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return CreateCaseStatusActivity(object_=status, **kwargs)
+        return _CreateCaseStatusActivity(object_=status, **kwargs)
     except ValidationError as exc:
         logger.warning(
             "create_case_status_activity: invalid arguments: %s", exc
@@ -212,7 +216,7 @@ def add_note_to_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return AddNoteToCaseActivity(object_=note, target=target, **kwargs)
+        return _AddNoteToCaseActivity(object_=note, target=target, **kwargs)
     except ValidationError as exc:
         logger.warning("add_note_to_case_activity: invalid arguments: %s", exc)
         raise VultronActivityConstructionError(
@@ -238,7 +242,7 @@ def update_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return UpdateCaseActivity(object_=case, **kwargs)
+        return _UpdateCaseActivity(object_=case, **kwargs)
     except ValidationError as exc:
         logger.warning("update_case_activity: invalid arguments: %s", exc)
         raise VultronActivityConstructionError(
@@ -267,7 +271,7 @@ def rm_engage_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return RmEngageCaseActivity(object_=case, **kwargs)
+        return _RmEngageCaseActivity(object_=case, **kwargs)
     except ValidationError as exc:
         logger.warning("rm_engage_case_activity: invalid arguments: %s", exc)
         raise VultronActivityConstructionError(
@@ -296,7 +300,7 @@ def rm_defer_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return RmDeferCaseActivity(object_=case, **kwargs)
+        return _RmDeferCaseActivity(object_=case, **kwargs)
     except ValidationError as exc:
         logger.warning("rm_defer_case_activity: invalid arguments: %s", exc)
         raise VultronActivityConstructionError(
@@ -324,7 +328,7 @@ def rm_close_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return RmCloseCaseActivity(object_=case, **kwargs)
+        return _RmCloseCaseActivity(object_=case, **kwargs)
     except ValidationError as exc:
         logger.warning("rm_close_case_activity: invalid arguments: %s", exc)
         raise VultronActivityConstructionError(
@@ -356,7 +360,7 @@ def offer_case_ownership_transfer_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return OfferCaseOwnershipTransferActivity(
+        return _OfferCaseOwnershipTransferActivity(
             object_=case, target=target, **kwargs
         )
     except ValidationError as exc:
@@ -373,16 +377,16 @@ def accept_case_ownership_transfer_activity(
     offer: as_Offer,
     **kwargs,
 ) -> as_Accept:
-    """Build an Accept(OfferCaseOwnershipTransferActivity).
+    """Build an Accept(_OfferCaseOwnershipTransferActivity).
 
-    The ``offer`` MUST be an ``OfferCaseOwnershipTransferActivity``
+    The ``offer`` MUST be an ``_OfferCaseOwnershipTransferActivity``
     (i.e., the value returned by
     :func:`offer_case_ownership_transfer_activity`).  A plain
     ``as_Offer`` will fail Pydantic validation and raise
     :exc:`VultronActivityConstructionError`.
 
     Args:
-        offer: The ``OfferCaseOwnershipTransferActivity`` being accepted.
+        offer: The ``_OfferCaseOwnershipTransferActivity`` being accepted.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
 
@@ -393,8 +397,8 @@ def accept_case_ownership_transfer_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return AcceptCaseOwnershipTransferActivity(
-            object_=cast(OfferCaseOwnershipTransferActivity, offer),
+        return _AcceptCaseOwnershipTransferActivity(
+            object_=cast(_OfferCaseOwnershipTransferActivity, offer),
             **kwargs,
         )
     except ValidationError as exc:
@@ -411,16 +415,16 @@ def reject_case_ownership_transfer_activity(
     offer: as_Offer,
     **kwargs,
 ) -> as_Reject:
-    """Build a Reject(OfferCaseOwnershipTransferActivity).
+    """Build a Reject(_OfferCaseOwnershipTransferActivity).
 
-    The ``offer`` MUST be an ``OfferCaseOwnershipTransferActivity``
+    The ``offer`` MUST be an ``_OfferCaseOwnershipTransferActivity``
     (i.e., the value returned by
     :func:`offer_case_ownership_transfer_activity`).  A plain
     ``as_Offer`` will fail Pydantic validation and raise
     :exc:`VultronActivityConstructionError`.
 
     Args:
-        offer: The ``OfferCaseOwnershipTransferActivity`` being rejected.
+        offer: The ``_OfferCaseOwnershipTransferActivity`` being rejected.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
 
@@ -431,8 +435,8 @@ def reject_case_ownership_transfer_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return RejectCaseOwnershipTransferActivity(
-            object_=cast(OfferCaseOwnershipTransferActivity, offer),
+        return _RejectCaseOwnershipTransferActivity(
+            object_=cast(_OfferCaseOwnershipTransferActivity, offer),
             **kwargs,
         )
     except ValidationError as exc:
@@ -469,7 +473,9 @@ def rm_invite_to_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return RmInviteToCaseActivity(object_=invitee, target=target, **kwargs)
+        return _RmInviteToCaseActivity(
+            object_=invitee, target=target, **kwargs
+        )
     except ValidationError as exc:
         logger.warning(
             "rm_invite_to_case_activity: invalid arguments: %s", exc
@@ -483,7 +489,7 @@ def rm_accept_invite_to_case_activity(
     invite: as_Invite,
     **kwargs,
 ) -> as_Accept:
-    """Build an Accept(RmInviteToCaseActivity) — the RV message.
+    """Build an Accept(_RmInviteToCaseActivity) — the RV message.
 
     Accepts a case invitation.  The internal class automatically sets
     ``in_reply_to`` to the invite's ``id_`` if not provided.
@@ -492,7 +498,7 @@ def rm_accept_invite_to_case_activity(
     not carry a ``VulnerabilityCase`` target will fail validation.
 
     Args:
-        invite: The ``RmInviteToCaseActivity`` being accepted.
+        invite: The ``_RmInviteToCaseActivity`` being accepted.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``in_reply_to``).
 
@@ -503,8 +509,8 @@ def rm_accept_invite_to_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return RmAcceptInviteToCaseActivity(
-            object_=cast(RmInviteToCaseActivity, invite),
+        return _RmAcceptInviteToCaseActivity(
+            object_=cast(_RmInviteToCaseActivity, invite),
             **kwargs,
         )
     except ValidationError as exc:
@@ -520,7 +526,7 @@ def rm_reject_invite_to_case_activity(
     invite: as_Invite,
     **kwargs,
 ) -> as_Reject:
-    """Build a Reject(RmInviteToCaseActivity) — the RI message.
+    """Build a Reject(_RmInviteToCaseActivity) — the RI message.
 
     Rejects a case invitation.  The internal class automatically sets
     ``in_reply_to`` to the invite's ``id_`` if not provided.
@@ -529,7 +535,7 @@ def rm_reject_invite_to_case_activity(
     validation.
 
     Args:
-        invite: The ``RmInviteToCaseActivity`` being rejected.
+        invite: The ``_RmInviteToCaseActivity`` being rejected.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``in_reply_to``).
 
@@ -540,8 +546,8 @@ def rm_reject_invite_to_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return RmRejectInviteToCaseActivity(
-            object_=cast(RmInviteToCaseActivity, invite),
+        return _RmRejectInviteToCaseActivity(
+            object_=cast(_RmInviteToCaseActivity, invite),
             **kwargs,
         )
     except ValidationError as exc:
@@ -575,7 +581,7 @@ def announce_vulnerability_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return AnnounceVulnerabilityCaseActivity(object_=case, **kwargs)
+        return _AnnounceVulnerabilityCaseActivity(object_=case, **kwargs)
     except ValidationError as exc:
         logger.warning(
             "announce_vulnerability_case_activity: invalid arguments: %s", exc

@@ -7,3 +7,4 @@
 | 2026-05-26 | implementation | BUG-26052601 | BUG-26052601: Factory cast() does not coerce at runtime |
 | 2026-05-26 | implementation | BUG-26052602 | BUG-26052602: finder_submits_report loses VulnerabilityReport ID |
 | 2026-05-01 | implementation | BUG-26050101 | BUG-26050101: Slow tests — factory import scan + subprocess + outbox retry |
+| 2026-05-01 | implementation | TASK-AF | AF.12 — Mark internal activity subclasses as private |

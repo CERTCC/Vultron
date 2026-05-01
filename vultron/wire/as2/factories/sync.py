@@ -30,8 +30,8 @@ from pydantic import ValidationError
 
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.sync import (
-    AnnounceLogEntryActivity,
-    RejectLogEntryActivity,
+    _AnnounceLogEntryActivity,
+    _RejectLogEntryActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Announce,
@@ -63,7 +63,7 @@ def announce_log_entry_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return AnnounceLogEntryActivity(object_=entry, **kwargs)
+        return _AnnounceLogEntryActivity(object_=entry, **kwargs)
     except ValidationError as exc:
         logger.warning(
             "announce_log_entry_activity: invalid arguments: %s", exc
@@ -99,7 +99,9 @@ def reject_log_entry_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return RejectLogEntryActivity(object_=entry, context=context, **kwargs)
+        return _RejectLogEntryActivity(
+            object_=entry, context=context, **kwargs
+        )
     except ValidationError as exc:
         logger.warning("reject_log_entry_activity: invalid arguments: %s", exc)
         raise VultronActivityConstructionError(
