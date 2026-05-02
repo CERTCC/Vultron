@@ -390,11 +390,11 @@ class TestCreateCaseParticipantNode:
 
         stored_actor = cast(Any, bt_scenario.dl.read(actor_id))
         outbox_ids = stored_actor.outbox.items if stored_actor else []
-        add_activities = [
-            bt_scenario.dl.read(oid)
-            for oid in outbox_ids
-            if isinstance(bt_scenario.dl.read(oid), as_Add)
-        ]
+        add_activities: list[as_Add] = []
+        for oid in outbox_ids:
+            obj = bt_scenario.dl.read(oid)
+            if isinstance(obj, as_Add):
+                add_activities.append(obj)
         assert any(
             act.type_ == "Add"
             and isinstance(act.object_, CaseParticipant)
