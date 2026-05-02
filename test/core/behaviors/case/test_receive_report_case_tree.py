@@ -259,7 +259,7 @@ def test_tree_creates_case(
     assert report.id_ in report_refs
 
 
-def test_tree_creates_vendor_participant_at_rm_received(
+def test_tree_creates_case_owner_participant_at_rm_received(
     datalayer,
     actor,
     reporter_actor,
@@ -270,7 +270,7 @@ def test_tree_creates_vendor_participant_at_rm_received(
     reporter_accepted_status,
     vendor_received_status,
 ):
-    """Tree creates a vendor (receiver) participant at RM.RECEIVED."""
+    """Tree creates a case-owner participant at RM.RECEIVED (BTND-05-002)."""
     from vultron.core.states.roles import CVDRoles
 
     tree = create_receive_report_case_tree(
@@ -283,7 +283,7 @@ def test_tree_creates_vendor_participant_at_rm_received(
     case = datalayer.find_case_by_report_id(report.id_)
     assert case is not None
 
-    found_vendor = False
+    found_owner = False
     for p_ref in case.case_participants:
         p_id = p_ref if isinstance(p_ref, str) else p_ref.id_
         participant = datalayer.read(p_id)
@@ -298,18 +298,18 @@ def test_tree_creates_vendor_participant_at_rm_received(
         if p_actor_id != actor.id_:
             continue
         roles = participant.case_roles
-        if CVDRoles.VENDOR not in roles:
+        if CVDRoles.CASE_OWNER not in roles:
             continue
         statuses = participant.participant_statuses
-        assert statuses, "Vendor participant has no status history"
+        assert statuses, "Case-owner participant has no status history"
         latest = statuses[-1]
         rm = getattr(latest, "rm_state", None)
         assert (
             rm == RM.RECEIVED
-        ), f"Expected vendor rm_state=RM.RECEIVED, got {rm}"
-        found_vendor = True
+        ), f"Expected case-owner rm_state=RM.RECEIVED, got {rm}"
+        found_owner = True
 
-    assert found_vendor, "No vendor (VENDOR-role) participant found in case"
+    assert found_owner, "No case-owner participant found in case"
 
 
 def test_tree_creates_finder_participant_at_rm_accepted(
@@ -677,7 +677,7 @@ def test_vendor_participant_reuses_existing_received_status(
         break
 
 
-def test_vendor_participant_created_without_pre_existing_status(
+def test_case_owner_participant_created_without_pre_existing_status(
     datalayer,
     actor,
     reporter_actor,
@@ -687,8 +687,8 @@ def test_vendor_participant_created_without_pre_existing_status(
     bridge,
     reporter_accepted_status,
 ):
-    """Vendor participant is created with fresh RM.RECEIVED when no prior status."""
-    # No vendor_received_status fixture — vendor has no prior status record
+    """Case-owner participant is created with fresh RM.RECEIVED when no prior status."""
+    # No vendor_received_status fixture — owner has no prior status record
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
@@ -715,7 +715,7 @@ def test_vendor_participant_created_without_pre_existing_status(
         )
         if p_actor_id != actor.id_:
             continue
-        if CVDRoles.VENDOR not in participant.case_roles:
+        if CVDRoles.CASE_OWNER not in participant.case_roles:
             continue
         statuses = participant.participant_statuses
         assert statuses

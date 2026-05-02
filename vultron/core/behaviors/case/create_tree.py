@@ -31,7 +31,7 @@ Structure:
        ├─ SetCaseAttributedTo          # Set attributed_to to actor_id (CM-02-008)
        ├─ PersistCase                  # Save VulnerabilityCase to DataLayer
        ├─ RecordCaseCreationEvents     # Backfill offer_received + case_created events (CM-02-009)
-       ├─ CreateInitialVendorParticipant  # Add vendor as initial participant (CM-02-008)
+       ├─ CreateCaseOwnerParticipant   # Add case owner as initial participant (CM-02-008)
        ├─ CreateCaseActorNode          # Create CaseActor service (CM-02-001)
        ├─ EmitCreateCaseActivity       # Generate CreateCaseActivity activity
        ├─ UpdateActorOutbox            # Append activity to actor outbox
@@ -42,12 +42,13 @@ import logging
 
 import py_trees
 
+from vultron.core.models.actor_config import ActorConfig
 from vultron.core.models.vultron_types import VultronCase
 from vultron.core.behaviors.case.nodes import (
     CheckCaseAlreadyExists,
     CommitCaseLogEntryNode,
     CreateCaseActorNode,
-    CreateInitialVendorParticipant,
+    CreateCaseOwnerParticipant,
     EmitCreateCaseActivity,
     PersistCase,
     RecordCaseCreationEvents,
@@ -62,6 +63,7 @@ logger = logging.getLogger(__name__)
 def create_create_case_tree(
     case_obj: VultronCase,
     actor_id: str,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """
     Create behavior tree for the create_case workflow.
@@ -77,6 +79,10 @@ def create_create_case_tree(
         case_obj: Case domain object extracted from the inbound
                   Create activity payload
         actor_id: ID of the receiving actor (case owner)
+        actor_config: Optional actor configuration carrying CVD-role
+                      defaults.  When ``None`` the case-owner participant
+                      receives only the ``CVDRoles.CASE_OWNER`` role
+                      (CFG-07-002, CFG-07-004).
 
     Returns:
         Root node of the create_case behavior tree (Selector)
@@ -91,7 +97,9 @@ def create_create_case_tree(
             SetCaseAttributedTo(case_obj=case_obj),
             PersistCase(case_obj=case_obj),
             RecordCaseCreationEvents(case_obj=case_obj),
-            CreateInitialVendorParticipant(case_obj=case_obj),
+            CreateCaseOwnerParticipant(
+                case_obj=case_obj, actor_config=actor_config
+            ),
             CreateCaseActorNode(case_id=case_id, actor_id=actor_id),
             EmitCreateCaseActivity(),
             UpdateActorOutbox(),

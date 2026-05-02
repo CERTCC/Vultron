@@ -36,14 +36,14 @@ Structure:
     └─ ReceiveReportCaseFlow (Sequence)
        ├─ CreateCaseNode                 # Create VulnerabilityCase; write case_id
        ├─ InitializeDefaultEmbargoNode   # Create default embargo
-       ├─ CreateInitialVendorParticipant # Receiver participant (RM.RECEIVED)
+       ├─ CreateCaseOwnerParticipant     # Receiver participant (RM.RECEIVED)
        ├─ CreateCaseActivity             # Queue Create(Case) BEFORE reporter add
        ├─ UpdateActorOutbox              # Flush Create(Case) to outbox
-       ├─ CreateFinderParticipantNode    # Reporter participant (RM.ACCEPTED)
+       ├─ CreateCaseParticipantNode      # Reporter participant (RM.ACCEPTED)
        └─ CommitCaseLogEntryNode         # Log entry → Announce fan-out (SYNC-02-002)
 
 Note: ``CreateCaseActivity`` and ``UpdateActorOutbox`` are intentionally placed
-*before* ``CreateFinderParticipantNode``.  This ensures that the reporter
+*before* ``CreateCaseParticipantNode``.  This ensures that the reporter
 receives the ``Create(Case)`` notification before the ``Add(CaseParticipant)``
 notification.  If the two activities were queued in the opposite order, the
 reporter would receive an ``Add(CaseParticipant)`` for a case it has not yet
@@ -60,8 +60,8 @@ import py_trees
 from vultron.core.behaviors.case.nodes import (
     CheckCaseExistsForReport,
     CommitCaseLogEntryNode,
+    CreateCaseOwnerParticipant,
     CreateCaseParticipantNode,
-    CreateInitialVendorParticipant,
     InitializeDefaultEmbargoNode,
     UpdateActorOutbox,
 )
@@ -69,6 +69,7 @@ from vultron.core.behaviors.report.nodes import (
     CreateCaseActivity,
     CreateCaseNode,
 )
+from vultron.core.models.actor_config import ActorConfig
 from vultron.core.states.rm import RM
 from vultron.core.states.roles import CVDRoles
 
@@ -79,25 +80,27 @@ def create_receive_report_case_tree(
     report_id: str,
     offer_id: str,
     reporter_actor_id: str,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """
     Create behavior tree for case creation at report receipt.
 
     Given a ``VulnerabilityReport`` ID, the ID of the ``Offer`` activity
-    that delivered it, and the reporter's actor ID, builds and returns a
-    behavior tree that:
+    that delivered it, the reporter's actor ID, and an optional actor
+    configuration, builds and returns a behavior tree that:
 
     - Creates a ``VulnerabilityCase`` linked to the report.
     - Creates a default embargo and attaches it to the case.
-    - Creates a ``VultronParticipant`` for the receiving actor (vendor) at
-      ``rm_state=RM.RECEIVED``.
+    - Creates a ``VultronParticipant`` for the receiving actor (case owner)
+      at ``rm_state=RM.RECEIVED``, with roles from
+      ``actor_config.default_case_roles`` plus ``CVDRoles.CASE_OWNER``.
     - Creates a ``VultronParticipant`` for the reporting actor (reporter) at
       ``rm_state=RM.ACCEPTED`` (reusing the report-phase status if present).
     - Queues a ``Create(Case)`` activity to the actor's outbox so the reporter
       receives a copy of the case.
     - Queues an ``Add(CaseParticipant)`` activity for the reporter so
-      downstream
-      actors are notified with a fully typed object (satisfying MV-09-001).
+      downstream actors are notified with a fully typed object (satisfying
+      MV-09-001).
 
     The root is a ``Selector`` so that if a fully-initialised case already
     exists for this report the tree succeeds immediately (idempotency).
@@ -109,6 +112,10 @@ def create_receive_report_case_tree(
         reporter_actor_id: Actor ID of the party who submitted the report.
             Passed as a constructor argument so the BT node is not coupled to
             the DataLayer offer lookup.
+        actor_config: Optional actor configuration carrying CVD-role
+                      defaults for the receiving actor.  When ``None`` the
+                      case-owner participant receives only the
+                      ``CVDRoles.CASE_OWNER`` role (CFG-07-002, CFG-07-004).
 
     Returns:
         Root node of the receive-report case-creation behavior tree.
@@ -134,9 +141,10 @@ def create_receive_report_case_tree(
         children=[
             CreateCaseNode(report_id=report_id),
             InitializeDefaultEmbargoNode(),
-            CreateInitialVendorParticipant(
+            CreateCaseOwnerParticipant(
                 report_id=report_id,
                 initial_rm_state=RM.RECEIVED,
+                actor_config=actor_config,
             ),
             # Create(Case) MUST be queued before Add(CaseParticipant) so that
             # the reporter actor receives the case notification first

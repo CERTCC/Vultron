@@ -19,7 +19,7 @@ Tests for case behavior tree nodes (P360-FIX-1, P360-FIX-2, P360-FIX-3).
 Covers:
 - UpdateActorOutbox re-export via case.nodes and report.nodes (P360-FIX-1)
 - _create_and_attach_participant shared helper (P360-FIX-2)
-- CreateInitialVendorParticipant and CreateCaseParticipantNode use of helper
+- CreateCaseOwnerParticipant and CreateCaseParticipantNode use of helper
 - RecordCaseCreationEvents blackboard key contract (P360-FIX-3)
 
 Uses BTTestScenario (from ``test.core.behaviors.bt_harness``) as the single
@@ -37,8 +37,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from vultron.core.behaviors.case.nodes import (
+    CreateCaseOwnerParticipant,
     CreateCaseParticipantNode,
-    CreateInitialVendorParticipant,
     RecordCaseCreationEvents,
     UpdateActorOutbox,
     _create_and_attach_participant,
@@ -260,14 +260,14 @@ class TestCreateAndAttachParticipant:
 
 
 # ---------------------------------------------------------------------------
-# P360-FIX-2: CreateInitialVendorParticipant uses shared helper
+# P360-FIX-2: CreateCaseOwnerParticipant uses shared helper
 # ---------------------------------------------------------------------------
 
 
-class TestCreateInitialVendorParticipant:
-    """CreateInitialVendorParticipant preserves semantics after refactor."""
+class TestCreateCaseOwnerParticipant:
+    """CreateCaseOwnerParticipant preserves semantics after refactor (BTND-05-002)."""
 
-    def test_creates_and_attaches_vendor_participant(
+    def test_creates_and_attaches_case_owner_participant(
         self,
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
@@ -275,7 +275,7 @@ class TestCreateInitialVendorParticipant:
         actor_id: str,
     ) -> None:
         result = bt_scenario.run(
-            CreateInitialVendorParticipant(),
+            CreateCaseOwnerParticipant(),
             actor_id=actor_id,
             case_id=case_obj.id_,
         )
@@ -291,14 +291,14 @@ class TestCreateInitialVendorParticipant:
     ) -> None:
         """Running twice does not error."""
         result1 = bt_scenario.run(
-            CreateInitialVendorParticipant(),
+            CreateCaseOwnerParticipant(),
             actor_id=actor_id,
             case_id=case_obj.id_,
         )
         bt_scenario.assert_success(result1)
 
         result2 = bt_scenario.run(
-            CreateInitialVendorParticipant(),
+            CreateCaseOwnerParticipant(),
             actor_id=actor_id,
             case_id=case_obj.id_,
         )
@@ -311,11 +311,78 @@ class TestCreateInitialVendorParticipant:
         actor_id: str,
     ) -> None:
         result = bt_scenario.run(
-            CreateInitialVendorParticipant(),
+            CreateCaseOwnerParticipant(),
             actor_id=actor_id,
             case_id="https://example.org/cases/missing",
         )
         bt_scenario.assert_failure(result)
+
+    def test_default_role_is_case_owner(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        case_obj: VultronCase,
+        actor_id: str,
+    ) -> None:
+        """Default (no actor_config) assigns only CASE_OWNER role (CFG-07-002)."""
+        from typing import cast, Any
+
+        bt_scenario.run(
+            CreateCaseOwnerParticipant(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+        )
+        stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
+        for p_ref in stored_case.case_participants:
+            p_id = p_ref if isinstance(p_ref, str) else p_ref.id_
+            participant = cast(Any, bt_scenario.dl.read(p_id))
+            if participant is None:
+                continue
+            p_actor = participant.attributed_to
+            p_actor_id = (
+                p_actor
+                if isinstance(p_actor, str)
+                else getattr(p_actor, "id_", p_actor)
+            )
+            if p_actor_id == actor_id:
+                assert CVDRoles.CASE_OWNER in participant.case_roles
+                return
+        pytest.fail("No case-owner participant found")
+
+    def test_config_roles_combined_with_case_owner(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        case_obj: VultronCase,
+        actor_id: str,
+    ) -> None:
+        """config roles + CASE_OWNER appear in participant roles (CFG-07-004)."""
+        from typing import cast, Any
+        from vultron.core.models.actor_config import ActorConfig
+
+        config = ActorConfig(default_case_roles=[CVDRoles.COORDINATOR])
+        bt_scenario.run(
+            CreateCaseOwnerParticipant(actor_config=config),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+        )
+        stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
+        for p_ref in stored_case.case_participants:
+            p_id = p_ref if isinstance(p_ref, str) else p_ref.id_
+            participant = cast(Any, bt_scenario.dl.read(p_id))
+            if participant is None:
+                continue
+            p_actor = participant.attributed_to
+            p_actor_id = (
+                p_actor
+                if isinstance(p_actor, str)
+                else getattr(p_actor, "id_", p_actor)
+            )
+            if p_actor_id == actor_id:
+                assert CVDRoles.CASE_OWNER in participant.case_roles
+                assert CVDRoles.COORDINATOR in participant.case_roles
+                return
+        pytest.fail("No participant found for actor")
 
 
 # ---------------------------------------------------------------------------
@@ -402,16 +469,16 @@ class TestCreateCaseParticipantNode:
             for act in add_activities
         )
 
-    def test_does_not_record_participant_added_event_for_vendor(
+    def test_does_not_record_participant_added_event_for_case_owner(
         self,
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
         case_obj: VultronCase,
         actor_id: str,
     ) -> None:
-        """CreateInitialVendorParticipant does NOT record 'participant_added'."""
+        """CreateCaseOwnerParticipant does NOT record 'participant_added'."""
         bt_scenario.run(
-            CreateInitialVendorParticipant(),
+            CreateCaseOwnerParticipant(),
             actor_id=actor_id,
             case_id=case_obj.id_,
         )

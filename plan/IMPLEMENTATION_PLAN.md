@@ -46,63 +46,15 @@ have typed replacements.
 
 ---
 
-## TASK-BTND5 — Generalize Participant BT Nodes
+## TASK-BTND5-4 — Refactor `CVDRoles` from Flag to `list[StrEnum]`
 
 **Source**: `specs/behavior-tree-node-design.yaml` BTND-05-001 through
-BTND-05-003; `specs/configuration.yaml` CFG-07-001 through CFG-07-004;
-`notes/bt-reusability.md` "ActorConfig-Driven Roles" section.
+BTND-05-003; `notes/bt-reusability.md` "ActorConfig-Driven Roles" section.
 
-Replace the demo-specific hardcoded participant node (`CreateInitialVendorParticipant`)
-with a generalized `CreateCaseOwnerParticipant` driven by actor configuration,
-introduce `CVDRoles.CASE_OWNER`, and remove the `CreateFinderParticipantNode`
-backward-compat alias.
-
-### BTND5.1 — Add `CVDRoles.CASE_OWNER` to the roles enum
-
-**Acceptance criteria:**
-
-- `CVDRoles.CASE_OWNER` exists in `vultron/core/states/roles.py` as a Flag
-  value combinable with VENDOR, COORDINATOR, etc.
-- All existing CVDRoles-based tests pass.
-
-- [x] BTND5.1: Add `CASE_OWNER` flag to `CVDRoles` (BTND-05-001)
-
-### BTND5.2 — Replace `CreateInitialVendorParticipant` with `CreateCaseOwnerParticipant`
-
-**Blocked by BTND5.1.**
-
-**Acceptance criteria:**
-
-- `CreateCaseOwnerParticipant` reads CVD roles from `ActorConfig.default_case_roles`
-  (no hardcoded `CVDRoles.VENDOR`); `CVDRoles.CASE_OWNER` always appended.
-- `CreateInitialVendorParticipant` is removed; all RM-state seeding logic preserved.
-- Unit test: `ActorConfig(default_case_roles=[CVDRoles.COORDINATOR])` →
-  participant roles include `COORDINATOR | CASE_OWNER`.
-
-- [ ] BTND5.2a: Implement `ActorConfig` neutral model with `default_case_roles`
-  (CFG-07-001, CFG-07-002)
-- [ ] BTND5.2b: Implement `CreateCaseOwnerParticipant` + remove
-  `CreateInitialVendorParticipant` (BTND-05-002)
-- [ ] BTND5.2c: Update `LocalActorConfig` to compose `ActorConfig`
-  (CFG-07-003)
-- [ ] BTND5.2d: Update all call sites in BT trees to use
-  `CreateCaseOwnerParticipant` (CFG-07-004)
-
-### BTND5.3 — Remove `CreateFinderParticipantNode` alias
-
-**Blocked by BTND5.2.**
-
-- `CreateFinderParticipantNode` does not appear anywhere in `vultron/`.
-
-- [ ] BTND5.3: Remove alias + update any remaining call sites (BTND-05-003)
-
-### BTND5.4 — Refactor `CVDRoles` from Flag to `list[StrEnum]`
-
-**Blocked by BTND5.1. Low urgency — schedule after BTND5.3.**
-
-`CVDRoles` is a `Flag` enum (bitmask); persisted records are not human-readable.
-Refactor to `StrEnum` + `list[CVDRoles]` makes records legible and eliminates
-bitmask arithmetic. See `notes/bt-reusability.md` "ActorConfig-Driven Roles".
+`CVDRoles` is a `Flag` enum (bitmask); persisted records are not
+human-readable. Refactor to `StrEnum` + `list[CVDRoles]` makes records
+legible and eliminates bitmask arithmetic. See `notes/bt-reusability.md`
+"ActorConfig-Driven Roles".
 
 **Acceptance criteria:**
 
