@@ -28,7 +28,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 
-class RecommendActorActivity(as_Offer):
+class _RecommendActorActivity(as_Offer):
     """The actor is recommending another actor to a case."""
 
     object_: as_Actor = Field(
@@ -37,33 +37,33 @@ class RecommendActorActivity(as_Offer):
     target: VulnerabilityCaseRef = None
 
 
-class AcceptActorRecommendationActivity(as_Accept):
+class _AcceptActorRecommendationActivity(as_Accept):
     """The case owner is accepting a recommendation to add an actor to the case.
 
-    - object_: the RecommendActorActivity offer being accepted (inline typed
+    - object_: the _RecommendActorActivity offer being accepted (inline typed
       object required — bare string IDs are rejected at construction time)
-    Should be followed by an RmInviteToCaseActivity activity targeted at the recommended actor.
+    Should be followed by an _RmInviteToCaseActivity activity targeted at the recommended actor.
     """
 
-    object_: RecommendActorActivity = Field(
+    object_: _RecommendActorActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
 
 
-class RejectActorRecommendationActivity(as_Reject):
+class _RejectActorRecommendationActivity(as_Reject):
     """The case owner is rejecting a recommendation to add an actor to the case.
 
-    - object_: the RecommendActorActivity offer being rejected (inline typed
+    - object_: the _RecommendActorActivity offer being rejected (inline typed
       object required — bare string IDs are rejected at construction time)
     """
 
-    object_: RecommendActorActivity = Field(
+    object_: _RecommendActorActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
 
 
 # NOTE: Old non-suffixed names were removed intentionally. Use the
-# RecommendActorActivity / AcceptActorRecommendationActivity /
-# RejectActorRecommendationActivity class names.
+# _RecommendActorActivity / _AcceptActorRecommendationActivity /
+# _RejectActorRecommendationActivity class names.

@@ -46,6 +46,9 @@ from vultron.wire.as2.vocab.base.objects.actors import (
 )
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event, as_Note
+from vultron.wire.as2.vocab.activities.embargo import (
+    _ChoosePreferredEmbargoActivity,
+)
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
     CaseStatus,
@@ -487,12 +490,12 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.id_)
         self.assertEqual(activity.context, case.id_)
 
-        # object_ is now the RecommendActorActivity offer, not the coordinator ID
+        # object_ is now the _RecommendActorActivity offer, not the coordinator ID
         from vultron.wire.as2.vocab.activities.actor import (
-            RecommendActorActivity,
+            _RecommendActorActivity,
         )
 
-        self.assertIsInstance(activity.object_, RecommendActorActivity)
+        self.assertIsInstance(activity.object_, _RecommendActorActivity)
         self.assertEqual(activity.target, case.id_)
         self.assertEqual(activity.to, finder.id_)
 
@@ -509,12 +512,12 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.id_)
         self.assertEqual(activity.context, case.id_)
 
-        # object_ is now the RecommendActorActivity offer, not the coordinator ID
+        # object_ is now the _RecommendActorActivity offer, not the coordinator ID
         from vultron.wire.as2.vocab.activities.actor import (
-            RecommendActorActivity,
+            _RecommendActorActivity,
         )
 
-        self.assertIsInstance(activity.object_, RecommendActorActivity)
+        self.assertIsInstance(activity.object_, _RecommendActorActivity)
         self.assertEqual(activity.target, case.id_)
         self.assertEqual(activity.to, finder.id_)
 
@@ -744,6 +747,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertIn(case.id_, activity.context)
 
         # one_of is a list, is non-empty, and contains embargo events
+        assert isinstance(activity, _ChoosePreferredEmbargoActivity)
         assert activity.one_of is not None
         self.assertIsInstance(activity.one_of, Sequence)
         self.assertGreaterEqual(len(activity.one_of), 1)

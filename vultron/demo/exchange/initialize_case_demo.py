@@ -47,17 +47,6 @@ import sys
 from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
-from vultron.wire.as2.vocab.activities.case import (
-    AddReportToCaseActivity,
-    CreateCaseActivity,
-)
-from vultron.wire.as2.vocab.activities.case_participant import (
-    AddParticipantToCaseActivity,
-)
-from vultron.wire.as2.vocab.activities.report import (
-    RmSubmitReportActivity,
-    RmValidateReportActivity,
-)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.objects.case_participant import (
     FinderReporterParticipant,
@@ -81,6 +70,13 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     post_to_inbox_and_wait,
     ref_id,
     verify_object_stored,
+)
+from vultron.wire.as2.factories import (
+    add_participant_to_case_activity,
+    add_report_to_case_activity,
+    create_case_activity,
+    rm_submit_report_activity,
+    rm_validate_report_activity,
 )
 
 logger = logging.getLogger(__name__)
@@ -118,10 +114,8 @@ def demo_initialize_case(
             name="Remote Code Execution Vulnerability",
         )
         logger.info(f"Created report: {logfmt(report)}")
-        report_offer = RmSubmitReportActivity(
-            actor=finder.id_,
-            object_=report,
-            to=[vendor.id_],
+        report_offer = rm_submit_report_activity(
+            report, actor=finder.id_, to=vendor.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, report_offer)
         with demo_check("Report stored in data layer"):
@@ -129,9 +123,9 @@ def demo_initialize_case(
 
     with demo_step("Step 2: Vendor validates report"):
         offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-        validate_activity = RmValidateReportActivity(
+        validate_activity = rm_validate_report_activity(
+            offer,
             actor=vendor.id_,
-            object_=offer,
             content="Confirmed — remote code execution via unsanitized input.",
         )
         post_to_inbox_and_wait(client, vendor.id_, validate_activity)
@@ -143,11 +137,8 @@ def demo_initialize_case(
             content="Tracking the RCE vulnerability in the web framework.",
         )
         logger.info(f"Created case object: {logfmt(case)}")
-        create_case_activity = CreateCaseActivity(
-            actor=vendor.id_,
-            object_=case,
-        )
-        post_to_inbox_and_wait(client, vendor.id_, create_case_activity)
+        create_case_act = create_case_activity(case, actor=vendor.id_)
+        post_to_inbox_and_wait(client, vendor.id_, create_case_act)
         with demo_check("Case stored in data layer"):
             verify_object_stored(client, case.id_)
         with demo_check("Case state after CreateCaseActivity"):
@@ -172,10 +163,8 @@ def demo_initialize_case(
         with demo_check("Vendor participant stored"):
             verify_object_stored(client, vendor_participant.id_)
 
-        add_vendor_participant_activity = AddParticipantToCaseActivity(
-            actor=vendor.id_,
-            object_=vendor_participant,
-            target=case.id_,
+        add_vendor_participant_activity = add_participant_to_case_activity(
+            vendor_participant, actor=vendor.id_, target=case.id_
         )
         post_to_inbox_and_wait(
             client, vendor.id_, add_vendor_participant_activity
@@ -194,10 +183,8 @@ def demo_initialize_case(
         logger.info("Vendor added as participant to case")
 
     with demo_step("Step 5: Vendor links report to case"):
-        add_report_activity = AddReportToCaseActivity(
-            actor=vendor.id_,
-            object_=report,
-            target=case.id_,
+        add_report_activity = add_report_to_case_activity(
+            report, actor=vendor.id_, target=case.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
         with demo_check("Report linked to case"):
@@ -228,10 +215,8 @@ def demo_initialize_case(
             verify_object_stored(client, participant.id_)
 
     with demo_step("Step 7: Vendor adds finder participant to case"):
-        add_participant_activity = AddParticipantToCaseActivity(
-            actor=vendor.id_,
-            object_=participant,
-            target=case.id_,
+        add_participant_activity = add_participant_to_case_activity(
+            participant, actor=vendor.id_, target=case.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, add_participant_activity)
         with demo_check("Finder participant in case participant list"):

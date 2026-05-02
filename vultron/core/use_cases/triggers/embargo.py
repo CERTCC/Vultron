@@ -58,12 +58,13 @@ from vultron.errors import (
     VultronNotFoundError,
     VultronValidationError,
 )
-from vultron.wire.as2.vocab.activities.embargo import (
-    AnnounceEmbargoActivity,
-    EmAcceptEmbargoActivity,
-    EmProposeEmbargoActivity,
-    EmRejectEmbargoActivity,
+from vultron.wire.as2.factories import (
+    announce_embargo_activity,
+    em_accept_embargo_activity,
+    em_propose_embargo_activity,
+    em_reject_embargo_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 
 logger = logging.getLogger(__name__)
@@ -284,10 +285,10 @@ class SvcProposeEmbargoUseCase:
         except ValueError:
             logger.warning("EmbargoEvent '%s' already exists", embargo.id_)
 
-        proposal = EmProposeEmbargoActivity(
-            actor=actor_id,
-            object_=embargo,
+        proposal = em_propose_embargo_activity(
+            embargo=embargo,
             context=case.id_,
+            actor=actor_id,
             to=case_addressees(case, actor_id) or None,
         )
 
@@ -295,7 +296,7 @@ class SvcProposeEmbargoUseCase:
             dl.create(proposal)
         except ValueError:
             logger.warning(
-                "EmProposeEmbargoActivity '%s' already exists", proposal.id_
+                "em_propose_embargo_activity '%s' already exists", proposal.id_
             )
 
         case.current_status.em_state = new_em_state
@@ -365,7 +366,7 @@ class SvcAcceptEmbargoUseCase:
                     f"(pending for case '{case.id_}')",
                 )
 
-        if not isinstance(proposal, EmProposeEmbargoActivity):
+        if not isinstance(proposal, as_Invite):
             raise VultronValidationError(
                 f"Expected an EmProposeEmbargoActivity (embargo proposal), got "
                 f"{type(proposal).__name__}."
@@ -383,10 +384,10 @@ class SvcAcceptEmbargoUseCase:
                 f"Could not resolve EmbargoEvent '{embargo_id}'."
             )
 
-        accept = EmAcceptEmbargoActivity(
-            actor=actor_id,
-            object_=proposal,
+        accept = em_accept_embargo_activity(
+            proposal=proposal,
             context=case.id_,
+            actor=actor_id,
             to=case_addressees(case, actor_id) or None,
         )
 
@@ -394,7 +395,7 @@ class SvcAcceptEmbargoUseCase:
             dl.create(accept)
         except ValueError:
             logger.warning(
-                "EmAcceptEmbargoActivity '%s' already exists", accept.id_
+                "em_accept_embargo_activity '%s' already exists", accept.id_
             )
 
         em_state = case.current_status.em_state
@@ -526,10 +527,10 @@ class SvcTerminateEmbargoUseCase:
 
         embargo = _coerce_embargo_event(dl.read(embargo_id), embargo_id)
 
-        announce = AnnounceEmbargoActivity(
-            actor=actor_id,
-            object_=embargo,
+        announce = announce_embargo_activity(
+            embargo=embargo,
             context=case.id_,
+            actor=actor_id,
             to=case_addressees(case, actor_id) or None,
         )
 
@@ -537,7 +538,7 @@ class SvcTerminateEmbargoUseCase:
             dl.create(announce)
         except ValueError:
             logger.warning(
-                "AnnounceEmbargoActivity '%s' already exists", announce.id_
+                "announce_embargo_activity '%s' already exists", announce.id_
             )
 
         case.current_status.em_state = EM(adapter.state)
@@ -602,7 +603,7 @@ class SvcRejectEmbargoUseCase:
                     f"(pending for case '{case.id_}')",
                 )
 
-        if not isinstance(proposal, EmProposeEmbargoActivity):
+        if not isinstance(proposal, as_Invite):
             raise VultronValidationError(
                 f"Expected an EmProposeEmbargoActivity (embargo proposal), got "
                 f"{type(proposal).__name__}."
@@ -643,10 +644,10 @@ class SvcRejectEmbargoUseCase:
         else:
             new_em_state = em_state
 
-        reject = EmRejectEmbargoActivity(
-            actor=actor_id,
-            object_=proposal,
+        reject = em_reject_embargo_activity(
+            proposal=proposal,
             context=case.id_,
+            actor=actor_id,
             to=case_addressees(case, actor_id) or None,
         )
 
@@ -654,7 +655,7 @@ class SvcRejectEmbargoUseCase:
             dl.create(reject)
         except ValueError:
             logger.warning(
-                "EmRejectEmbargoActivity '%s' already exists", reject.id_
+                "em_reject_embargo_activity '%s' already exists", reject.id_
             )
 
         _update_participant_embargo_rejection(case, actor_id, embargo_id, dl)
@@ -757,10 +758,10 @@ class SvcProposeEmbargoRevisionUseCase:
         except ValueError:
             logger.warning("EmbargoEvent '%s' already exists", embargo.id_)
 
-        proposal = EmProposeEmbargoActivity(
-            actor=actor_id,
-            object_=embargo,
+        proposal = em_propose_embargo_activity(
+            embargo=embargo,
             context=case.id_,
+            actor=actor_id,
             to=case_addressees(case, actor_id) or None,
         )
 
@@ -768,7 +769,7 @@ class SvcProposeEmbargoRevisionUseCase:
             dl.create(proposal)
         except ValueError:
             logger.warning(
-                "EmProposeEmbargoActivity '%s' already exists", proposal.id_
+                "em_propose_embargo_activity '%s' already exists", proposal.id_
             )
 
         case.current_status.em_state = new_em_state

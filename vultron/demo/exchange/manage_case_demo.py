@@ -57,22 +57,6 @@ import sys
 from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
-from vultron.wire.as2.vocab.activities.case import (
-    AddReportToCaseActivity,
-    CreateCaseActivity,
-    RmCloseCaseActivity,
-    RmDeferCaseActivity,
-    RmEngageCaseActivity,
-)
-from vultron.wire.as2.vocab.activities.case_participant import (
-    AddParticipantToCaseActivity,
-)
-from vultron.wire.as2.vocab.activities.report import (
-    RmCloseReportActivity,
-    RmInvalidateReportActivity,
-    RmSubmitReportActivity,
-    RmValidateReportActivity,
-)
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import VendorParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
@@ -92,6 +76,18 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     post_to_inbox_and_wait,
     ref_id,
     verify_object_stored,
+)
+from vultron.wire.as2.factories import (
+    add_participant_to_case_activity,
+    add_report_to_case_activity,
+    create_case_activity,
+    rm_close_case_activity,
+    rm_close_report_activity,
+    rm_defer_case_activity,
+    rm_engage_case_activity,
+    rm_invalidate_report_activity,
+    rm_submit_report_activity,
+    rm_validate_report_activity,
 )
 
 logger = logging.getLogger(__name__)
@@ -117,18 +113,14 @@ def setup_report_and_case(
         content=report_content,
         name=report_name,
     )
-    report_offer = RmSubmitReportActivity(
-        actor=finder.id_,
-        object_=report,
-        to=[vendor.id_],
+    report_offer = rm_submit_report_activity(
+        report, actor=finder.id_, to=vendor.id_
     )
     post_to_inbox_and_wait(client, vendor.id_, report_offer)
 
     offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-    validate_activity = RmValidateReportActivity(
-        actor=vendor.id_,
-        object_=offer,
-        content="Confirmed — vulnerability verified.",
+    validate_activity = rm_validate_report_activity(
+        offer, actor=vendor.id_, content="Confirmed — vulnerability verified."
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
@@ -137,11 +129,8 @@ def setup_report_and_case(
         name=case_name,
         content=case_content,
     )
-    create_case_activity = CreateCaseActivity(
-        actor=vendor.id_,
-        object_=case,
-    )
-    post_to_inbox_and_wait(client, vendor.id_, create_case_activity)
+    create_case_act = create_case_activity(case, actor=vendor.id_)
+    post_to_inbox_and_wait(client, vendor.id_, create_case_act)
 
     vendor_participant = VendorParticipant(
         attributed_to=vendor.id_,
@@ -158,17 +147,13 @@ def setup_report_and_case(
     )
     post_to_inbox_and_wait(client, vendor.id_, create_vendor_participant)
 
-    add_vendor_participant = AddParticipantToCaseActivity(
-        actor=vendor.id_,
-        object_=vendor_participant,
-        target=case.id_,
+    add_vendor_participant = add_participant_to_case_activity(
+        vendor_participant, actor=vendor.id_, target=case.id_
     )
     post_to_inbox_and_wait(client, vendor.id_, add_vendor_participant)
 
-    add_report = AddReportToCaseActivity(
-        actor=vendor.id_,
-        object_=report,
-        target=case.id_,
+    add_report = add_report_to_case_activity(
+        report, actor=vendor.id_, target=case.id_
     )
     post_to_inbox_and_wait(client, vendor.id_, add_report)
 
@@ -219,19 +204,13 @@ def demo_engage_path(
                 )
 
     with demo_step("Step 3: Vendor engages the case (RmEngageCaseActivity)"):
-        engage = RmEngageCaseActivity(
-            actor=vendor.id_,
-            object_=case,
-        )
+        engage = rm_engage_case_activity(case, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, engage)
         with demo_check("RmEngageCaseActivity activity stored"):
             verify_object_stored(client, engage.id_)
 
     with demo_step("Step 4: Vendor closes the case (RmCloseCaseActivity)"):
-        close = RmCloseCaseActivity(
-            actor=vendor.id_,
-            object_=case,
-        )
+        close = rm_close_case_activity(case, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, close)
         with demo_check("RmCloseCaseActivity activity stored"):
             verify_object_stored(client, close.id_)
@@ -284,10 +263,7 @@ def demo_defer_reengage_path(
             log_case_state(client, case.id_, "after setup")
 
     with demo_step("Step 3: Vendor defers the case (RmDeferCaseActivity)"):
-        defer = RmDeferCaseActivity(
-            actor=vendor.id_,
-            object_=case,
-        )
+        defer = rm_defer_case_activity(case, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, defer)
         with demo_check("RmDeferCaseActivity activity stored"):
             verify_object_stored(client, defer.id_)
@@ -296,10 +272,7 @@ def demo_defer_reengage_path(
     with demo_step(
         "Step 4: Vendor re-engages the case (RmEngageCaseActivity from DEFERRED)"
     ):
-        reengage = RmEngageCaseActivity(
-            actor=vendor.id_,
-            object_=case,
-        )
+        reengage = rm_engage_case_activity(case, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, reengage)
         with demo_check("RmEngageCaseActivity (re-engage) activity stored"):
             verify_object_stored(client, reengage.id_)
@@ -310,10 +283,7 @@ def demo_defer_reengage_path(
         )
 
     with demo_step("Step 5: Vendor closes the case (RmCloseCaseActivity)"):
-        close = RmCloseCaseActivity(
-            actor=vendor.id_,
-            object_=case,
-        )
+        close = rm_close_case_activity(case, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, close)
         with demo_check("RmCloseCaseActivity activity stored"):
             verify_object_stored(client, close.id_)
@@ -347,10 +317,8 @@ def demo_invalidate_path(
             name="Alleged Username Enumeration",
         )
         logger.info(f"Created report: {logfmt(report)}")
-        offer = RmSubmitReportActivity(
-            actor=finder.id_,
-            object_=report,
-            to=[vendor.id_],
+        offer = rm_submit_report_activity(
+            report, actor=finder.id_, to=vendor.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, offer)
         with demo_check("Report and offer stored"):
@@ -361,9 +329,9 @@ def demo_invalidate_path(
         "Step 2: Vendor invalidates the report (RmInvalidateReportActivity)"
     ):
         stored_offer = get_offer_from_datalayer(client, vendor.id_, offer.id_)
-        invalidate = RmInvalidateReportActivity(
+        invalidate = rm_invalidate_report_activity(
+            stored_offer,
             actor=vendor.id_,
-            object_=stored_offer,
             content=(
                 "Assessed as not a vulnerability — consistent error messages "
                 "are expected behavior per the security policy."
@@ -374,9 +342,9 @@ def demo_invalidate_path(
             verify_object_stored(client, invalidate.id_)
 
     with demo_step("Step 3: Vendor closes the report (RmCloseReportActivity)"):
-        close_report = RmCloseReportActivity(
+        close_report = rm_close_report_activity(
+            stored_offer,
             actor=vendor.id_,
-            object_=stored_offer,
             content="Report closed — assessed as not a valid vulnerability.",
         )
         post_to_inbox_and_wait(client, vendor.id_, close_report)

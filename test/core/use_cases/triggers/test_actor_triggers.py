@@ -37,7 +37,8 @@ from vultron.core.use_cases.triggers.requests import (
     SuggestActorToCaseTriggerRequest,
 )
 from vultron.errors import VultronNotFoundError
-from vultron.wire.as2.vocab.activities.case import RmInviteToCaseActivity
+from vultron.wire.as2.factories import rm_invite_to_case_activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCase,
@@ -118,7 +119,7 @@ class TestSvcInviteActorToCaseUseCase:
         invite_id = result["activity"]["id"]
         stored = dl.read(invite_id)
         assert stored is not None
-        assert isinstance(stored, RmInviteToCaseActivity)
+        assert isinstance(stored, as_Invite)
 
     def test_invite_raises_when_invitee_not_in_dl(self):
         actor, dl = _make_actor_dl("Coordinator")
@@ -244,10 +245,10 @@ class TestSvcAcceptCaseInviteUseCase:
         )
         dl_inviter.create(case)
 
-        invite = RmInviteToCaseActivity(
-            actor=inviter.id_,
-            object_=invitee,
+        invite = rm_invite_to_case_activity(
+            invitee,
             target=VulnerabilityCaseStub(id_=case.id_),
+            actor=inviter.id_,
             to=[invitee.id_],
         )
         dl_invitee.create(inviter)
@@ -289,10 +290,10 @@ class TestSvcAcceptCaseInviteUseCase:
         )
         dl_inviter.create(case)
 
-        invite = RmInviteToCaseActivity(
-            actor=inviter.id_,
-            object_=invitee,
+        invite = rm_invite_to_case_activity(
+            invitee,
             target=VulnerabilityCaseStub(id_=case.id_),
+            actor=inviter.id_,
             to=[invitee.id_],
         )
         dl_invitee.create(inviter)

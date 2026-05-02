@@ -61,10 +61,8 @@ from vultron.adapters.utils import parse_id
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.wire.as2.vocab.activities.report import (
-    RmSubmitReportActivity,
-)
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import (
     CaseParticipant,
@@ -86,6 +84,10 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     reset_datalayer,
     seed_actor,
     verify_object_stored,
+)
+from vultron.wire.as2.factories import (
+    parse_submit_report_offer,
+    rm_submit_report_activity,
 )
 
 logger = logging.getLogger(__name__)
@@ -239,7 +241,7 @@ def finder_submits_report(
     finder: as_Actor,
     vendor: as_Actor,
     finder_client: Optional[DataLayerClient] = None,
-) -> Tuple[VulnerabilityReport, RmSubmitReportActivity]:
+) -> Tuple[VulnerabilityReport, as_Offer]:
     """Finder creates a vulnerability report and submits it to the Vendor's inbox.
 
     When ``finder_client`` is provided (e.g. in a multi-container Docker demo),
@@ -284,23 +286,7 @@ def finder_submits_report(
                 },
             )
         offer_dict = result.get("offer", {})
-        offer = RmSubmitReportActivity.model_validate(offer_dict)
-        report_raw = offer.object_
-        if isinstance(report_raw, str):
-            report = VulnerabilityReport(
-                id_=report_raw,
-                name=report_name,
-                content=report_content,
-            )
-        elif isinstance(report_raw, VulnerabilityReport):
-            report = report_raw
-        else:
-            # as_Link or None — fall back to a minimal VulnerabilityReport
-            # using the data we know (the trigger always embeds the full object).
-            report = VulnerabilityReport(
-                name=report_name,
-                content=report_content,
-            )
+        report, offer = parse_submit_report_offer(offer_dict)
         # Deliver the offer from the Finder to the Vendor's inbox.
         # Per ADR-0012 (per-actor DataLayer isolation) the trigger stores the
         # offer only in the Finder's namespace; the Vendor must receive it
@@ -318,11 +304,8 @@ def finder_submits_report(
                 "issue to execute arbitrary code with elevated privileges."
             ),
         )
-        offer = RmSubmitReportActivity(
-            actor=finder.id_,
-            object_=report,
-            target=vendor.id_,
-            to=[vendor.id_],
+        offer = rm_submit_report_activity(
+            report, actor=finder.id_, target=vendor.id_, to=vendor.id_
         )
         with demo_step(
             "Finder submits vulnerability report to Vendor's inbox"
@@ -346,7 +329,7 @@ def vendor_validates_report(
     Args:
         vendor_client: Client connected to the Vendor container.
         vendor: Vendor ``as_Actor``.
-        offer_id: Full URI of the ``RmSubmitReportActivity`` offer to validate.
+        offer_id: Full URI of the submit-report ``as_Offer`` to validate.
 
     Returns:
         Response dict from the trigger endpoint (contains the validate activity).
@@ -533,7 +516,7 @@ def find_case_for_offer(
 
     Args:
         vendor_client: Client connected to the Vendor container.
-        offer_id: Full URI of the ``RmSubmitReportActivity`` offer.
+        offer_id: Full URI of the ``VultronActivity`` offer.
 
     Returns:
         The matching ``VulnerabilityCase``, or ``None`` if not found.

@@ -35,6 +35,17 @@ from vultron.core.use_cases.received.actor import (
     AcceptInviteActorToCaseReceivedUseCase,
     RejectInviteActorToCaseReceivedUseCase,
 )
+from vultron.wire.as2.factories import (
+    accept_actor_recommendation_activity,
+    accept_case_ownership_transfer_activity,
+    offer_case_ownership_transfer_activity,
+    recommend_actor_activity,
+    reject_actor_recommendation_activity,
+    reject_case_ownership_transfer_activity,
+    rm_accept_invite_to_case_activity,
+    rm_invite_to_case_activity,
+    rm_reject_invite_to_case_activity,
+)
 
 
 class TestInviteActorUseCases:
@@ -46,17 +57,14 @@ class TestInviteActorUseCases:
     ):
         """InviteActorToCaseReceivedUseCase persists the Invite activity to the DataLayer."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.activities.case import (
-            RmInviteToCaseActivity,
-        )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
 
-        invite = RmInviteToCaseActivity(
-            id_="https://example.org/cases/case1/invitations/1",
-            actor="https://example.org/users/owner",
-            object_=as_Actor(id_="https://example.org/users/coordinator"),
+        invite = rm_invite_to_case_activity(
+            as_Actor(id_="https://example.org/users/coordinator"),
             target="https://example.org/cases/case1",
+            actor="https://example.org/users/owner",
+            id_="https://example.org/cases/case1/invitations/1",
         )
 
         event = make_payload(invite)
@@ -69,17 +77,14 @@ class TestInviteActorUseCases:
     def test_invite_actor_to_case_idempotent(self, monkeypatch, make_payload):
         """InviteActorToCaseReceivedUseCase skips storing a duplicate Invite."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.activities.case import (
-            RmInviteToCaseActivity,
-        )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
 
-        invite = RmInviteToCaseActivity(
-            id_="https://example.org/cases/case1/invitations/2",
-            actor="https://example.org/users/owner",
-            object_=as_Actor(id_="https://example.org/users/coordinator"),
+        invite = rm_invite_to_case_activity(
+            as_Actor(id_="https://example.org/users/coordinator"),
             target="https://example.org/cases/case1",
+            actor="https://example.org/users/owner",
+            id_="https://example.org/cases/case1/invitations/2",
         )
 
         event = make_payload(invite)
@@ -94,20 +99,15 @@ class TestInviteActorUseCases:
 
     def test_reject_invite_actor_to_case_logs_rejection(self, make_payload):
         """RejectInviteActorToCaseReceivedUseCase logs without raising."""
-        from vultron.wire.as2.vocab.activities.case import (
-            RmInviteToCaseActivity,
-            RmRejectInviteToCaseActivity,
-        )
-
-        invite = RmInviteToCaseActivity(
-            id_="https://example.org/cases/case1/invitations/3",
-            actor="https://example.org/users/owner",
-            object_=as_Actor(id_="https://example.org/users/coordinator"),
+        invite = rm_invite_to_case_activity(
+            as_Actor(id_="https://example.org/users/coordinator"),
             target="https://example.org/cases/case1",
+            actor="https://example.org/users/owner",
+            id_="https://example.org/cases/case1/invitations/3",
         )
-        reject = RmRejectInviteToCaseActivity(
+        reject = rm_reject_invite_to_case_activity(
+            invite,
             actor="https://example.org/users/coordinator",
-            object_=invite,
         )
 
         event = make_payload(reject)
@@ -122,10 +122,6 @@ class TestInviteActorUseCases:
     ):
         """AcceptInviteActorToCaseReceivedUseCase creates a CaseParticipant and adds them to the case."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.activities.case import (
-            RmAcceptInviteToCaseActivity,
-            RmInviteToCaseActivity,
-        )
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
@@ -138,19 +134,19 @@ class TestInviteActorUseCases:
             id_="https://example.org/cases/caseIA1",
             name="TEST-ACCEPT-INVITE",
         )
-        invite = RmInviteToCaseActivity(
-            id_="https://example.org/cases/caseIA1/invitations/1",
-            actor="https://example.org/users/owner",
-            object_=invitee,
+        invite = rm_invite_to_case_activity(
+            invitee,
             target=VulnerabilityCaseStub(id_=case.id_),
+            actor="https://example.org/users/owner",
+            id_="https://example.org/cases/caseIA1/invitations/1",
         )
         dl.create(invitee)
         dl.create(case)
         dl.create(invite)
 
-        accept = RmAcceptInviteToCaseActivity(
+        accept = rm_accept_invite_to_case_activity(
+            invite,
             actor=invitee_id,
-            object_=invite,
         )
 
         event = make_payload(accept)
@@ -168,10 +164,6 @@ class TestInviteActorUseCases:
         """AcceptInviteActorToCaseReceivedUseCase records the active embargo ID on the new participant (CM-10-001, CM-10-003)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.states.em import EM
-        from vultron.wire.as2.vocab.activities.case import (
-            RmAcceptInviteToCaseActivity,
-            RmInviteToCaseActivity,
-        )
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -191,20 +183,20 @@ class TestInviteActorUseCases:
         )
         case.active_embargo = embargo.id_
         case.current_status.em_state = EM.ACTIVE
-        invite = RmInviteToCaseActivity(
-            id_="https://example.org/cases/caseIA2/invitations/1",
-            actor="https://example.org/users/owner",
-            object_=invitee,
+        invite = rm_invite_to_case_activity(
+            invitee,
             target=VulnerabilityCaseStub(id_=case.id_),
+            actor="https://example.org/users/owner",
+            id_="https://example.org/cases/caseIA2/invitations/1",
         )
         dl.create(invitee)
         dl.create(case)
         dl.create(embargo)
         dl.create(invite)
 
-        accept = RmAcceptInviteToCaseActivity(
+        accept = rm_accept_invite_to_case_activity(
+            invite,
             actor=invitee_id,
-            object_=invite,
         )
 
         event = make_payload(accept)
@@ -233,10 +225,6 @@ class TestInviteActorUseCases:
         from typing import Any, cast
 
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.activities.case import (
-            RmAcceptInviteToCaseActivity,
-            RmInviteToCaseActivity,
-        )
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
@@ -250,19 +238,19 @@ class TestInviteActorUseCases:
             id_="https://example.org/cases/caseRM001",
             name="TEST-RM-LIFECYCLE",
         )
-        invite = RmInviteToCaseActivity(
-            id_="https://example.org/cases/caseRM001/invitations/1",
-            actor="https://example.org/users/owner",
-            object_=invitee,
+        invite = rm_invite_to_case_activity(
+            invitee,
             target=VulnerabilityCaseStub(id_=case.id_),
+            actor="https://example.org/users/owner",
+            id_="https://example.org/cases/caseRM001/invitations/1",
         )
         dl.create(invitee)
         dl.create(case)
         dl.create(invite)
 
-        accept = RmAcceptInviteToCaseActivity(
+        accept = rm_accept_invite_to_case_activity(
+            invite,
             actor=invitee_id,
-            object_=invite,
         )
         event = make_payload(accept)
         AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
@@ -280,10 +268,6 @@ class TestInviteActorUseCases:
         from typing import Any, cast
 
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.activities.case import (
-            RmAcceptInviteToCaseActivity,
-            RmInviteToCaseActivity,
-        )
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
@@ -296,19 +280,19 @@ class TestInviteActorUseCases:
             id_="https://example.org/cases/caseRM002",
             name="TEST-RM-AUTO-ENGAGE",
         )
-        invite = RmInviteToCaseActivity(
-            id_="https://example.org/cases/caseRM002/invitations/1",
-            actor="https://example.org/users/owner",
-            object_=invitee,
+        invite = rm_invite_to_case_activity(
+            invitee,
             target=VulnerabilityCaseStub(id_=case.id_),
+            actor="https://example.org/users/owner",
+            id_="https://example.org/cases/caseRM002/invitations/1",
         )
         dl.create(invitee)
         dl.create(case)
         dl.create(invite)
 
-        accept = RmAcceptInviteToCaseActivity(
+        accept = rm_accept_invite_to_case_activity(
+            invite,
             actor=invitee_id,
-            object_=invite,
         )
         event = make_payload(accept)
 
@@ -337,10 +321,6 @@ class TestInviteActorUseCases:
     ):
         """AcceptInviteActorToCaseReceivedUseCase appends a trusted-timestamp event to case.events (CM-02-009)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.activities.case import (
-            RmAcceptInviteToCaseActivity,
-            RmInviteToCaseActivity,
-        )
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
@@ -353,19 +333,19 @@ class TestInviteActorUseCases:
             id_="https://example.org/cases/caseIA3",
             name="TEST-ACCEPT-INVITE-EVENT",
         )
-        invite = RmInviteToCaseActivity(
-            id_="https://example.org/cases/caseIA3/invitations/1",
-            actor="https://example.org/users/owner",
-            object_=invitee,
+        invite = rm_invite_to_case_activity(
+            invitee,
             target=VulnerabilityCaseStub(id_=case.id_),
+            actor="https://example.org/users/owner",
+            id_="https://example.org/cases/caseIA3/invitations/1",
         )
         dl.create(invitee)
         dl.create(case)
         dl.create(invite)
 
-        accept = RmAcceptInviteToCaseActivity(
+        accept = rm_accept_invite_to_case_activity(
+            invite,
             actor=invitee_id,
-            object_=invite,
         )
 
         event = make_payload(accept)
@@ -391,9 +371,6 @@ class TestSuggestActorUseCases:
         """SuggestActorToCaseReceivedUseCase persists the RecommendActor offer."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-        from vultron.wire.as2.vocab.activities.actor import (
-            RecommendActorActivity,
-        )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
 
@@ -402,10 +379,10 @@ class TestSuggestActorUseCases:
             id_="https://example.org/cases/case_sa1",
             name="SA Case 1",
         )
-        activity = RecommendActorActivity(
-            actor="https://example.org/users/finder",
-            object_=coordinator,
+        activity = recommend_actor_activity(
+            coordinator,
             target=case,
+            actor="https://example.org/users/finder",
             to="https://example.org/users/vendor",
         )
 
@@ -419,9 +396,6 @@ class TestSuggestActorUseCases:
     def test_suggest_actor_to_case_idempotent(self, monkeypatch, make_payload):
         """SuggestActorToCaseReceivedUseCase is idempotent — second call is a no-op."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.activities.actor import (
-            RecommendActorActivity,
-        )
         from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -431,10 +405,10 @@ class TestSuggestActorUseCases:
             id_="https://example.org/cases/case_sa2",
             name="SA Case 2",
         )
-        activity = RecommendActorActivity(
-            actor="https://example.org/users/finder",
-            object_=coordinator,
+        activity = recommend_actor_activity(
+            coordinator,
             target=case,
+            actor="https://example.org/users/finder",
         )
         event = make_payload(activity)
 
@@ -449,10 +423,6 @@ class TestSuggestActorUseCases:
     ):
         """AcceptSuggestActorToCaseReceivedUseCase persists the AcceptActorRecommendation."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.activities.actor import (
-            AcceptActorRecommendationActivity,
-            RecommendActorActivity,
-        )
         from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -462,15 +432,15 @@ class TestSuggestActorUseCases:
             id_="https://example.org/cases/case_sa3",
             name="SA Case 3",
         )
-        recommendation = RecommendActorActivity(
+        recommendation = recommend_actor_activity(
+            coordinator,
+            target=case,
             actor="https://example.org/users/finder",
-            object_=coordinator,
-            target=case,
         )
-        activity = AcceptActorRecommendationActivity(
-            actor="https://example.org/users/vendor",
-            object_=recommendation,
+        activity = accept_actor_recommendation_activity(
+            recommendation,
             target=case,
+            actor="https://example.org/users/vendor",
         )
         event = make_payload(activity)
 
@@ -483,10 +453,6 @@ class TestSuggestActorUseCases:
         self, monkeypatch, caplog, make_payload
     ):
         """RejectSuggestActorToCaseReceivedUseCase logs rejection without state change."""
-        from vultron.wire.as2.vocab.activities.actor import (
-            RecommendActorActivity,
-            RejectActorRecommendationActivity,
-        )
         from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
         coordinator = as_Actor(id_="https://example.org/users/coordinator")
@@ -494,15 +460,15 @@ class TestSuggestActorUseCases:
             id_="https://example.org/cases/case_sa4",
             name="SA Case 4",
         )
-        recommendation = RecommendActorActivity(
+        recommendation = recommend_actor_activity(
+            coordinator,
+            target=case,
             actor="https://example.org/users/finder",
-            object_=coordinator,
-            target=case,
         )
-        activity = RejectActorRecommendationActivity(
-            actor="https://example.org/users/vendor",
-            object_=recommendation,
+        activity = reject_actor_recommendation_activity(
+            recommendation,
             target=case,
+            actor="https://example.org/users/vendor",
         )
         event = make_payload(activity)
 
@@ -541,21 +507,17 @@ class TestSuggestActorUseCases:
         self, make_payload
     ):
         """Owner emits Accept + Invite when receiving a recommendation."""
-        from vultron.wire.as2.vocab.activities.actor import (
-            RecommendActorActivity,
-        )
-
         dl, local_actor_id, case_id = self._setup_dl_with_owner()
         recommender_id = "https://example.org/actors/finder"
         invitee_id = "https://example.org/actors/vendor"
         invitee = as_Actor(id_=invitee_id)
 
-        recommendation = RecommendActorActivity(
-            id_="https://example.org/activities/rec-001",
-            actor=recommender_id,
-            object_=invitee,
+        recommendation = recommend_actor_activity(
+            invitee,
             target=case_id,
+            actor=recommender_id,
             to=[local_actor_id],
+            id_="https://example.org/activities/rec-001",
         )
         event = make_payload(recommendation)
 
@@ -568,10 +530,6 @@ class TestSuggestActorUseCases:
 
     def test_suggest_actor_skips_when_not_case_owner(self, make_payload):
         """Non-owner silently skips — no outbox entries emitted."""
-        from vultron.wire.as2.vocab.activities.actor import (
-            RecommendActorActivity,
-        )
-
         dl, local_actor_id, case_id = self._setup_dl_with_owner()
         # Override case with a different owner
         case = dl.read(case_id)
@@ -584,12 +542,12 @@ class TestSuggestActorUseCases:
         invitee_id = "https://example.org/actors/vendor"
         invitee = as_Actor(id_=invitee_id)
 
-        recommendation = RecommendActorActivity(
-            id_="https://example.org/activities/rec-002",
-            actor=recommender_id,
-            object_=invitee,
+        recommendation = recommend_actor_activity(
+            invitee,
             target=case_id,
+            actor=recommender_id,
             to=[local_actor_id],
+            id_="https://example.org/activities/rec-002",
         )
         event = make_payload(recommendation)
 
@@ -602,21 +560,17 @@ class TestSuggestActorUseCases:
 
     def test_suggest_actor_idempotent_when_invite_exists(self, make_payload):
         """Second execute() adds no new outbox entries."""
-        from vultron.wire.as2.vocab.activities.actor import (
-            RecommendActorActivity,
-        )
-
         dl, local_actor_id, case_id = self._setup_dl_with_owner()
         recommender_id = "https://example.org/actors/finder"
         invitee_id = "https://example.org/actors/vendor"
         invitee = as_Actor(id_=invitee_id)
 
-        recommendation = RecommendActorActivity(
-            id_="https://example.org/activities/rec-003",
-            actor=recommender_id,
-            object_=invitee,
+        recommendation = recommend_actor_activity(
+            invitee,
             target=case_id,
+            actor=recommender_id,
             to=[local_actor_id],
+            id_="https://example.org/activities/rec-003",
         )
         event = make_payload(recommendation)
 
@@ -646,9 +600,6 @@ class TestOwnershipTransferUseCases:
     ):
         """OfferCaseOwnershipTransferReceivedUseCase persists the offer."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.activities.case import (
-            OfferCaseOwnershipTransferActivity,
-        )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
 
@@ -656,10 +607,10 @@ class TestOwnershipTransferUseCases:
             id_="https://example.org/cases/case_ot1",
             name="OT Case 1",
         )
-        activity = OfferCaseOwnershipTransferActivity(
-            actor="https://example.org/users/vendor",
-            object_=case,
+        activity = offer_case_ownership_transfer_activity(
+            case,
             target="https://example.org/users/coordinator",
+            actor="https://example.org/users/vendor",
         )
         event = make_payload(activity)
 
@@ -673,10 +624,6 @@ class TestOwnershipTransferUseCases:
     ):
         """AcceptCaseOwnershipTransferReceivedUseCase updates case.attributed_to to new owner."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.activities.case import (
-            AcceptCaseOwnershipTransferActivity,
-            OfferCaseOwnershipTransferActivity,
-        )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         case = VulnerabilityCase(
@@ -686,17 +633,17 @@ class TestOwnershipTransferUseCases:
         )
         dl.create(case)
 
-        offer = OfferCaseOwnershipTransferActivity(
-            id_="https://example.org/activities/offer_ot2",
-            actor="https://example.org/users/vendor",
-            object_=case,
+        offer = offer_case_ownership_transfer_activity(
+            case,
             target="https://example.org/users/coordinator",
+            actor="https://example.org/users/vendor",
+            id_="https://example.org/activities/offer_ot2",
         )
         dl.create(offer)
 
-        activity = AcceptCaseOwnershipTransferActivity(
+        activity = accept_case_ownership_transfer_activity(
+            offer,
             actor="https://example.org/users/coordinator",
-            object_=offer,
         )
         event = make_payload(activity)
 
@@ -714,24 +661,19 @@ class TestOwnershipTransferUseCases:
         self, monkeypatch, caplog, make_payload
     ):
         """RejectCaseOwnershipTransferReceivedUseCase logs rejection; ownership unchanged."""
-        from vultron.wire.as2.vocab.activities.case import (
-            OfferCaseOwnershipTransferActivity,
-            RejectCaseOwnershipTransferActivity,
-        )
-
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_ot3",
             name="OT Case 3",
         )
-        offer = OfferCaseOwnershipTransferActivity(
-            id_="https://example.org/activities/offer_ot3",
-            actor="https://example.org/users/vendor",
-            object_=case,
+        offer = offer_case_ownership_transfer_activity(
+            case,
             target="https://example.org/users/coordinator",
+            actor="https://example.org/users/vendor",
+            id_="https://example.org/activities/offer_ot3",
         )
-        activity = RejectCaseOwnershipTransferActivity(
+        activity = reject_case_ownership_transfer_activity(
+            offer,
             actor="https://example.org/users/coordinator",
-            object_=offer,
         )
         event = make_payload(activity)
 

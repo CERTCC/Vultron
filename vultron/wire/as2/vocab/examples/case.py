@@ -11,18 +11,18 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.wire.as2.vocab.activities.case import (
-    AcceptCaseOwnershipTransferActivity,
-    AddReportToCaseActivity,
-    CreateCaseActivity,
-    OfferCaseOwnershipTransferActivity,
-    RejectCaseOwnershipTransferActivity,
-    RmCloseCaseActivity,
-    RmDeferCaseActivity,
-    RmEngageCaseActivity,
-    UpdateCaseActivity,
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Undo,
+    as_Accept,
+    as_Add,
+    as_Create,
+    as_Ignore,
+    as_Join,
+    as_Leave,
+    as_Offer,
+    as_Reject,
+    as_Update,
 )
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Undo
 from vultron.wire.as2.vocab.examples._base import (
     _COORDINATOR,
     _REPORT,
@@ -32,9 +32,20 @@ from vultron.wire.as2.vocab.examples._base import (
     vendor,
 )
 from vultron.wire.as2.vocab.objects.case_participant import VendorParticipant
+from vultron.wire.as2.factories import (
+    accept_case_ownership_transfer_activity,
+    add_report_to_case_activity,
+    create_case_activity,
+    offer_case_ownership_transfer_activity,
+    reject_case_ownership_transfer_activity,
+    rm_close_case_activity,
+    rm_defer_case_activity,
+    rm_engage_case_activity,
+    update_case_activity,
+)
 
 
-def create_case() -> CreateCaseActivity:
+def create_case() -> as_Create:
     _case = case()
     _case.add_report(_REPORT.id_)
     participant = VendorParticipant(
@@ -42,61 +53,55 @@ def create_case() -> CreateCaseActivity:
     )
     _case.add_participant(participant)
 
-    activity = CreateCaseActivity(
+    activity = create_case_activity(
+        _case,
         actor=_VENDOR.id_,
-        object_=_case,
         content="We've created a case from this report.",
         context=_REPORT.id_,
     )
     return activity
 
 
-def add_report_to_case() -> AddReportToCaseActivity:
+def add_report_to_case() -> as_Add:
     _vendor = vendor()
     _report = gen_report()
     _case = case()
 
-    activity = AddReportToCaseActivity(
+    activity = add_report_to_case_activity(
+        _report,
         actor=_vendor.id_,
-        object_=_report,
         target=_case.id_,
         content="We're adding this report to this case.",
     )
     return activity
 
 
-def engage_case() -> RmEngageCaseActivity:
+def engage_case() -> as_Join:
     _vendor = vendor()
     _case = case()
 
-    activity = RmEngageCaseActivity(
-        actor=_vendor.id_,
-        object_=_case,
-        content="We're engaging this case.",
+    activity = rm_engage_case_activity(
+        _case, actor=_vendor.id_, content="We're engaging this case."
     )
     return activity
 
 
-def close_case() -> RmCloseCaseActivity:
+def close_case() -> as_Leave:
     _vendor = vendor()
     _case = case()
 
-    activity = RmCloseCaseActivity(
-        actor=_vendor.id_,
-        object_=_case,
-        content="We're closing this case.",
+    activity = rm_close_case_activity(
+        _case, actor=_vendor.id_, content="We're closing this case."
     )
     return activity
 
 
-def defer_case() -> RmDeferCaseActivity:
+def defer_case() -> as_Ignore:
     _vendor = vendor()
     _case = case()
 
-    activity = RmDeferCaseActivity(
-        actor=_vendor.id_,
-        object_=_case,
-        content="We're deferring this case.",
+    activity = rm_defer_case_activity(
+        _case, actor=_vendor.id_, content="We're deferring this case."
     )
     return activity
 
@@ -115,50 +120,50 @@ def reengage_case() -> as_Undo:
     return activity
 
 
-def offer_case_ownership_transfer() -> OfferCaseOwnershipTransferActivity:
+def offer_case_ownership_transfer() -> as_Offer:
     _vendor = vendor()
     _case = case()
     _coordinator = _COORDINATOR
-    _activity = OfferCaseOwnershipTransferActivity(
+    _activity = offer_case_ownership_transfer_activity(
+        _case,
         actor=_vendor.id_,
-        object_=_case,
         target=_coordinator.id_,
         content=f"We're offering to transfer ownership of case {_case.name} to you.",
     )
     return _activity
 
 
-def accept_case_ownership_transfer() -> AcceptCaseOwnershipTransferActivity:
+def accept_case_ownership_transfer() -> as_Accept:
     _case = case()
     _coordinator = _COORDINATOR
     _offer = offer_case_ownership_transfer()
-    _activity = AcceptCaseOwnershipTransferActivity(
+    _activity = accept_case_ownership_transfer_activity(
+        _offer,
         actor=_coordinator.id_,
-        object_=_offer,
         content=f"We're accepting your offer to transfer ownership of case {_case.name} to us.",
     )
     return _activity
 
 
-def reject_case_ownership_transfer() -> RejectCaseOwnershipTransferActivity:
+def reject_case_ownership_transfer() -> as_Reject:
     _case = case()
     _coordinator = _COORDINATOR
     _offer = offer_case_ownership_transfer()
-    _activity = RejectCaseOwnershipTransferActivity(
+    _activity = reject_case_ownership_transfer_activity(
+        _offer,
         actor=_coordinator.id_,
-        object_=_offer,
         content=f"We're declining your offer to transfer ownership of case {_case.name} to us.",
     )
     return _activity
 
 
-def update_case() -> UpdateCaseActivity:
+def update_case() -> as_Update:
     _case = case()
     _vendor = vendor()
 
-    _activity = UpdateCaseActivity(
+    _activity = update_case_activity(
+        _case,
         actor=_vendor.id_,
-        object_=_case,
         content="We're updating the case to reflect a transfer of ownership.",
     )
     return _activity

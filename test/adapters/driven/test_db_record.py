@@ -21,6 +21,7 @@ from vultron.adapters.driven.db_record import (
     object_to_record,
     record_to_object,
 )
+from vultron.wire.as2.factories import rm_submit_report_activity
 
 
 # Fixtures for reused test objects
@@ -187,7 +188,6 @@ def test_dehydrate_data_dehydrates_all_object_ref_fields():
 
 def test_object_to_record_stores_nested_object_as_id_reference():
     """An activity with a nested object stores only the nested object's ID."""
-    from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
         VulnerabilityReport,
     )
@@ -197,9 +197,10 @@ def test_object_to_record_stores_nested_object_as_id_reference():
         content="Details of the vulnerability",
         attributed_to="https://example.org/finder",
     )
-    offer = RmSubmitReportActivity(
+    offer = rm_submit_report_activity(
+        report,
+        "https://example.org/finder",
         actor="https://example.org/finder",
-        object_=report,
     )
 
     record = object_to_record(offer)
@@ -212,7 +213,6 @@ def test_object_to_record_stores_nested_object_as_id_reference():
 
 def test_object_to_record_nested_report_not_duplicated_in_offer_data():
     """The stored offer data must not contain a full copy of the nested report."""
-    from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
         VulnerabilityReport,
     )
@@ -222,9 +222,10 @@ def test_object_to_record_nested_report_not_duplicated_in_offer_data():
         content="More vulnerability details",
         attributed_to="https://example.org/finder",
     )
-    offer = RmSubmitReportActivity(
+    offer = rm_submit_report_activity(
+        report,
+        "https://example.org/finder",
         actor="https://example.org/finder",
-        object_=report,
     )
 
     record = object_to_record(offer)

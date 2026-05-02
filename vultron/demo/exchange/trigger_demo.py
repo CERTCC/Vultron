@@ -42,7 +42,7 @@ import logging
 import sys
 from typing import Callable, Optional, Sequence, Tuple
 
-from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -59,6 +59,9 @@ from vultron.demo.utils import (
     post_to_trigger,
     verify_object_stored,
 )
+from vultron.wire.as2.factories import (
+    rm_submit_report_activity,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +77,7 @@ def _submit_report(
     vendor: as_Actor,
     name: str,
     content: str,
-) -> Tuple[VulnerabilityReport, RmSubmitReportActivity]:
+) -> Tuple[VulnerabilityReport, as_Offer]:
     """Finder submits a vulnerability report to the vendor's inbox.
 
     Returns the ``(report, offer)`` pair after verifying both are stored.
@@ -84,11 +87,7 @@ def _submit_report(
         name=name,
         content=content,
     )
-    offer = RmSubmitReportActivity(
-        actor=finder.id_,
-        object_=report,
-        to=[vendor.id_],
-    )
+    offer = rm_submit_report_activity(report, actor=finder.id_, to=vendor.id_)
     post_to_inbox_and_wait(client, vendor.id_, offer)
     with demo_check("Report and offer stored in DataLayer"):
         verify_object_stored(client, report.id_)

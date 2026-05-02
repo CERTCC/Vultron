@@ -34,11 +34,13 @@ from vultron.core.use_cases.triggers.requests import (
     SuggestActorToCaseTriggerRequest,
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
-from vultron.wire.as2.vocab.activities.actor import RecommendActorActivity
-from vultron.wire.as2.vocab.activities.case import (
-    RmAcceptInviteToCaseActivity,
-    RmInviteToCaseActivity,
+from vultron.wire.as2.factories import (
+    recommend_actor_activity,
+    rm_accept_invite_to_case_activity,
+    rm_invite_to_case_activity,
 )
+from vultron.wire.as2.factories.errors import VultronActivityConstructionError
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCase,
@@ -77,10 +79,10 @@ class SvcSuggestActorToCaseUseCase:
                 "Actor", self._request.suggested_actor_id
             )
 
-        activity = RecommendActorActivity(
-            actor=actor_id,
-            object_=cast(as_Actor, suggested_raw),
+        activity = recommend_actor_activity(
+            recommended=cast(as_Actor, suggested_raw),
             target=cast(VulnerabilityCase, case),
+            actor=actor_id,
         )
         self._dl.create(activity)
 
@@ -123,10 +125,10 @@ class SvcInviteActorToCaseUseCase:
         if invitee_raw is None:
             raise VultronNotFoundError("Actor", self._request.invitee_id)
 
-        activity = RmInviteToCaseActivity(
-            actor=actor_id,
-            object_=cast(as_Actor, invitee_raw),
+        activity = rm_invite_to_case_activity(
+            invitee=cast(as_Actor, invitee_raw),
             target=VulnerabilityCaseStub(id_=case.id_),
+            actor=actor_id,
             to=[self._request.invitee_id],
         )
         self._dl.create(activity)
@@ -172,17 +174,23 @@ class SvcAcceptCaseInviteUseCase:
                 "RmInviteToCaseActivity", self._request.invite_id
             )
 
-        if not isinstance(raw_invite, RmInviteToCaseActivity):
+        if not isinstance(raw_invite, as_Invite):
             raise VultronValidationError(
                 f"'{self._request.invite_id}' is not an"
                 " RmInviteToCaseActivity"
             )
         invite = raw_invite
 
-        activity = RmAcceptInviteToCaseActivity(
-            actor=actor_id,
-            object_=invite,
-        )
+        try:
+            activity = rm_accept_invite_to_case_activity(
+                invite=invite,
+                actor=actor_id,
+            )
+        except VultronActivityConstructionError as exc:
+            raise VultronValidationError(
+                f"'{self._request.invite_id}' is not a valid"
+                " RmInviteToCaseActivity"
+            ) from exc
         self._dl.create(activity)
 
         add_activity_to_outbox(actor_id, activity.id_, self._dl)

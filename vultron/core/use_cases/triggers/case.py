@@ -38,11 +38,11 @@ from vultron.core.use_cases.triggers.requests import (
     EngageCaseTriggerRequest,
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
-from vultron.wire.as2.vocab.activities.case import (
-    AddReportToCaseActivity,
-    CreateCaseActivity,
-    RmDeferCaseActivity,
-    RmEngageCaseActivity,
+from vultron.wire.as2.factories import (
+    add_report_to_case_activity,
+    create_case_activity,
+    rm_defer_case_activity,
+    rm_engage_case_activity,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -72,9 +72,9 @@ class SvcEngageCaseUseCase:
 
         case = resolve_case(case_id, dl)
 
-        engage_activity = RmEngageCaseActivity(
+        engage_activity = rm_engage_case_activity(
+            case=cast(Any, case),
             actor=actor_id,
-            object_=cast(Any, case),
             to=case_addressees(case, actor_id) or None,
         )
 
@@ -120,9 +120,9 @@ class SvcDeferCaseUseCase:
 
         case = resolve_case(case_id, dl)
 
-        defer_activity = RmDeferCaseActivity(
+        defer_activity = rm_defer_case_activity(
+            case=cast(Any, case),
             actor=actor_id,
-            object_=cast(Any, case),
             to=case_addressees(case, actor_id) or None,
         )
 
@@ -187,9 +187,9 @@ class SvcCreateCaseUseCase:
 
         self._dl.create(case)
 
-        activity = CreateCaseActivity(
+        activity = create_case_activity(
+            case=case,
             actor=actor.id_,
-            object_=case,
         )
         self._dl.create(activity)
 
@@ -236,10 +236,10 @@ class SvcAddReportToCaseUseCase:
             )
         report = cast(VulnerabilityReport, raw)
 
-        activity = AddReportToCaseActivity(
-            actor=actor.id_,
-            object_=report,
+        activity = add_report_to_case_activity(
+            report=report,
             target=cast(VulnerabilityCase, case),
+            actor=actor.id_,
         )
         self._dl.create(activity)
 

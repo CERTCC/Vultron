@@ -54,21 +54,21 @@ from vultron.demo.utils import (
     seed_actor,
     verify_object_stored,
 )
-from vultron.wire.as2.vocab.activities.case import (
-    AddReportToCaseActivity,
-    CreateCaseActivity,
-    RmAcceptInviteToCaseActivity,
-    RmInviteToCaseActivity,
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Create,
+    as_Invite,
+    as_Offer,
+    as_TransitiveActivity,
 )
-from vultron.wire.as2.vocab.activities.embargo import (
-    EmProposeEmbargoActivity,
-)
-from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
+)
+from vultron.wire.as2.factories import (
+    rm_submit_report_activity,
 )
 
 logger = logging.getLogger(__name__)
@@ -191,7 +191,7 @@ def finder_submits_report_to_coordinator(
     coordinator_client: DataLayerClient,
     finder: as_Actor,
     coordinator: as_Actor,
-) -> tuple[VulnerabilityReport, RmSubmitReportActivity]:
+) -> tuple[VulnerabilityReport, as_Offer]:
     """Finder submits a report to the Coordinator container."""
     report = VulnerabilityReport(
         attributed_to=finder.id_,
@@ -202,10 +202,8 @@ def finder_submits_report_to_coordinator(
             "verification completes."
         ),
     )
-    offer = RmSubmitReportActivity(
-        actor=finder.id_,
-        object_=report,
-        to=[coordinator.id_],
+    offer = rm_submit_report_activity(
+        report, actor=finder.id_, to=coordinator.id_
     )
     with demo_step(
         "Finder submits vulnerability report to Coordinator's inbox"
@@ -240,7 +238,7 @@ def coordinator_creates_case_on_case_actor(
                 "report_id": report.id_,
             },
         )
-    create_case = CreateCaseActivity.model_validate(result["activity"])
+    create_case = as_Create.model_validate(result["activity"])
     case = VulnerabilityCase.model_validate(
         create_case.object_.model_dump(by_alias=True)  # type: ignore[union-attr]
     )
@@ -273,7 +271,7 @@ def coordinator_adds_report_to_case(
                 "report_id": report.id_,
             },
         )
-    add_report = AddReportToCaseActivity.model_validate(result["activity"])
+    add_report = as_TransitiveActivity.model_validate(result["activity"])
     with demo_step("Delivering AddReportToCase activity to CaseActor"):
         post_to_inbox_and_wait(case_actor_client, case_actor.id_, add_report)
     with demo_check("CaseActor stores the AddReportToCase activity"):
@@ -288,7 +286,7 @@ def coordinator_invites_actor(
     case: VulnerabilityCase,
     case_actor_client: DataLayerClient | None = None,
     case_actor: as_Actor | None = None,
-) -> RmInviteToCaseActivity:
+) -> as_Activity:
     """Record and deliver a case invitation from the case owner."""
     with demo_step(f"{actor.name} invites {recipient.name} via trigger"):
         result = post_to_trigger(
@@ -300,7 +298,7 @@ def coordinator_invites_actor(
                 "invitee_id": recipient.id_,
             },
         )
-    invite = RmInviteToCaseActivity.model_validate(result["activity"])
+    invite = as_TransitiveActivity.model_validate(result["activity"])
 
     if (
         case_actor_client is not None
@@ -327,8 +325,8 @@ def actor_accepts_case_invite(
     case_actor_client: DataLayerClient,
     case_actor: as_Actor,
     actor: as_Actor,
-    invite: RmInviteToCaseActivity,
-) -> RmAcceptInviteToCaseActivity:
+    invite: as_Activity,
+) -> as_Activity:
     """Accept a case invitation by notifying the CaseActor container."""
     with demo_step(f"{actor.name} accepts the case invitation via trigger"):
         result = post_to_trigger(
@@ -337,7 +335,7 @@ def actor_accepts_case_invite(
             behavior="accept-case-invite",
             body={"invite_id": invite.id_},
         )
-    accept = RmAcceptInviteToCaseActivity.model_validate(result["activity"])
+    accept = as_TransitiveActivity.model_validate(result["activity"])
     with demo_step("Delivering accept activity to CaseActor"):
         post_to_inbox_and_wait(case_actor_client, case_actor.id_, accept)
     with demo_check("Accept activity is stored in the CaseActor DataLayer"):
@@ -350,7 +348,7 @@ def coordinator_proposes_embargo(
     case_actor_client: DataLayerClient,
     coordinator: as_Actor,
     case: VulnerabilityCase,
-) -> tuple[EmProposeEmbargoActivity, str]:
+) -> tuple[as_Activity, str]:
     """Propose an embargo on the authoritative case."""
     end_time = datetime.now(tz=timezone.utc) + timedelta(days=30)
     with demo_step("Coordinator proposes an embargo on the case"):
@@ -364,7 +362,7 @@ def coordinator_proposes_embargo(
                 "end_time": end_time.isoformat(),
             },
         )
-    proposal = EmProposeEmbargoActivity.model_validate(result["activity"])
+    proposal = as_Invite.model_validate(result["activity"])
     embargo_id = ref_id(proposal.object_)
     if embargo_id is None:
         raise AssertionError(
@@ -381,7 +379,7 @@ def deliver_embargo_proposal(
     recipient_client: DataLayerClient,
     case_actor_client: DataLayerClient,
     recipient: as_Actor,
-    proposal: EmProposeEmbargoActivity,
+    proposal: as_Activity,
 ) -> None:
     """Deliver an embargo proposal activity to a participant inbox."""
     if recipient_client.base_url == case_actor_client.base_url:
@@ -398,7 +396,7 @@ def actor_accepts_embargo(
     case_actor_client: DataLayerClient,
     actor: as_Actor,
     case: VulnerabilityCase,
-    proposal: EmProposeEmbargoActivity,
+    proposal: as_Activity,
 ) -> None:
     """Accept the active embargo proposal on the authoritative case."""
     with demo_step(f"{actor.name} accepts the embargo proposal via trigger"):

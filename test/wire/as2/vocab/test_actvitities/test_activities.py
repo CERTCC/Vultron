@@ -15,7 +15,7 @@ import unittest
 
 import vultron.wire.as2.vocab.activities as activities  # noqa: F401
 from vultron.wire.as2.vocab.activities.case_participant import (
-    CreateParticipantActivity,
+    _CreateParticipantActivity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import VendorParticipant
 
@@ -32,7 +32,7 @@ class MyTestCase(unittest.TestCase):
 
 
 class TestCreateParticipantName(unittest.TestCase):
-    """CreateParticipantActivity activity name should clearly identify CaseParticipant creation."""
+    """_CreateParticipantActivity activity name should clearly identify CaseParticipant creation."""
 
     def setUp(self):
         self.actor_id = "https://vultron.example/organizations/vendorco"
@@ -43,7 +43,7 @@ class TestCreateParticipantName(unittest.TestCase):
             attributed_to=self.attributed_to,
             context=self.case_id,
         )
-        self.activity = CreateParticipantActivity(
+        self.activity = _CreateParticipantActivity(
             actor=self.actor_id,
             object_=self.participant,
             context=self.case_id,

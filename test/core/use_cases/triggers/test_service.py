@@ -40,7 +40,7 @@ from vultron.core.models.participant_status import VultronParticipantStatus
 from vultron.core.use_cases._helpers import _report_phase_status_id
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.wire.as2.vocab.activities.embargo import EmProposeEmbargoActivity
+from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
@@ -172,10 +172,8 @@ def case_with_proposal(dl, actor):
     case_obj = VulnerabilityCase(name="PROPOSAL-CASE-001")
     embargo = EmbargoEvent(context=case_obj.id_)
     dl.create(embargo)
-    proposal = EmProposeEmbargoActivity(
-        actor=actor.id_,
-        object_=embargo,
-        context=case_obj.id_,
+    proposal = em_propose_embargo_activity(
+        embargo, context=case_obj.id_, actor=actor.id_
     )
     dl.create(proposal)
     case_obj.current_status.em_state = EM.PROPOSED

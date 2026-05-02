@@ -33,7 +33,7 @@ from typing import cast
 
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.semantic_registry import extract_event
-from vultron.wire.as2.vocab.activities.sync import RejectLogEntryActivity
+from vultron.wire.as2.factories import reject_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_log_entry import (
     CaseLogEntry as WireCaseLogEntry,
 )
@@ -77,11 +77,11 @@ def _make_reject_event(
 ) -> RejectLogEntryReceivedEvent:
     """Build a RejectLogEntryReceivedEvent via the extractor."""
     wire_entry = WireCaseLogEntry.model_validate(entry.model_dump(mode="json"))
-    activity = RejectLogEntryActivity(
-        actor=actor,
-        object_=wire_entry,
-        to=[CASE_ACTOR_URI],
+    activity = reject_log_entry_activity(
+        wire_entry,
         context=last_accepted_hash,
+        actor=actor,
+        to=[CASE_ACTOR_URI],
     )
     return cast(RejectLogEntryReceivedEvent, extract_event(activity))
 
@@ -93,10 +93,8 @@ class TestRejectLogEntryPattern:
         wire_entry = WireCaseLogEntry.model_validate(
             entry0.model_dump(mode="json")
         )
-        activity = RejectLogEntryActivity(
-            actor=PARTICIPANT_URI,
-            object_=wire_entry,
-            context=GENESIS_HASH,
+        activity = reject_log_entry_activity(
+            wire_entry, context=GENESIS_HASH, actor=PARTICIPANT_URI
         )
         event = extract_event(activity)
         assert event.semantic_type == MessageSemantics.REJECT_CASE_LOG_ENTRY
@@ -125,10 +123,7 @@ class TestRejectLogEntryPattern:
         wire_entry = WireCaseLogEntry.model_validate(
             entry0.model_dump(mode="json")
         )
-        activity = RejectLogEntryActivity(
-            actor=PARTICIPANT_URI,
-            object_=wire_entry,
-        )
+        activity = reject_log_entry_activity(wire_entry, actor=PARTICIPANT_URI)
         event = extract_event(activity)
         assert isinstance(event, RejectLogEntryReceivedEvent)
         assert event.last_accepted_hash == GENESIS_HASH

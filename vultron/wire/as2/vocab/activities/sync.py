@@ -13,9 +13,9 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Wire-layer AS2 activity classes for SYNC-2/SYNC-3 log replication.
 
-Provides :class:`AnnounceLogEntryActivity` used by the CaseActor to fan
+Provides :class:`_AnnounceLogEntryActivity` used by the CaseActor to fan
 out canonical log entries to participant actors, and
-:class:`RejectLogEntryActivity` used by participants to report hash-chain
+:class:`_RejectLogEntryActivity` used by participants to report hash-chain
 mismatches back to the CaseActor.
 """
 
@@ -32,7 +32,7 @@ from vultron.wire.as2.vocab.objects.case_log_entry import (
 )
 
 
-class AnnounceLogEntryActivity(as_Announce):
+class _AnnounceLogEntryActivity(as_Announce):
     """The CaseActor is announcing a canonical CaseLogEntry for replication.
 
     Sent to each participant actor after a new log entry has been committed
@@ -49,7 +49,7 @@ class AnnounceLogEntryActivity(as_Announce):
     )
 
 
-class RejectLogEntryActivity(as_Reject):
+class _RejectLogEntryActivity(as_Reject):
     """Participant rejects a ``CaseLogEntry`` announcement due to hash-chain mismatch.
 
     Sent by a participant actor to the CaseActor when the incoming

@@ -11,104 +11,106 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.wire.as2.vocab.activities.report import (
-    RmCloseReportActivity,
-    RmCreateReportActivity,
-    RmInvalidateReportActivity,
-    RmReadReportActivity,
-    RmSubmitReportActivity,
-    RmValidateReportActivity,
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Accept,
+    as_Create,
+    as_Offer,
+    as_Read,
+    as_Reject,
+    as_TentativeReject,
 )
 from vultron.wire.as2.vocab.examples._base import _FINDER, _REPORT, _VENDOR
+from vultron.wire.as2.factories import (
+    rm_close_report_activity,
+    rm_create_report_activity,
+    rm_invalidate_report_activity,
+    rm_read_report_activity,
+    rm_submit_report_activity,
+    rm_validate_report_activity,
+)
 
 
-def create_report() -> RmCreateReportActivity:
+def create_report() -> as_Create:
     """
     In this example, a finder creates a vulnerability report.
 
     Example:
-          >>> RmCreateReportActivity(actor=finder.id_, id_=gen_report)
+          >>> rm_create_report_activity(_REPORT, actor=_FINDER.id_)
     """
-    activity = RmCreateReportActivity(actor=_FINDER.id_, object_=_REPORT)
+    activity = rm_create_report_activity(_REPORT, actor=_FINDER.id_)
     return activity
 
 
-def submit_report(verbose=False) -> RmSubmitReportActivity:
+def submit_report(verbose=False) -> as_Offer:
     if verbose:
-        activity = RmSubmitReportActivity(
-            actor=_FINDER,
-            object_=_REPORT,
-            to=_VENDOR,
+        activity = rm_submit_report_activity(
+            _REPORT, actor=_FINDER, to=_VENDOR
         )
     else:
-        activity = RmSubmitReportActivity(
-            actor=_FINDER.id_, object_=_REPORT, to=_VENDOR.id_
+        activity = rm_submit_report_activity(
+            _REPORT, actor=_FINDER.id_, to=_VENDOR.id_
         )
 
     return activity
 
 
-def read_report() -> RmReadReportActivity:
+def read_report() -> as_Read:
     # TODO this should probably change to Read(Offer(Report)) to match the other activities
-    activity = RmReadReportActivity(
+    activity = rm_read_report_activity(
+        _REPORT,
         actor=_VENDOR.id_,
-        object_=_REPORT,
         content="We've read the report. We'll get back to you soon.",
     )
     return activity
 
 
-def validate_report(verbose: bool = False) -> RmValidateReportActivity:
+def validate_report(verbose: bool = False) -> as_Accept:
     _offer = submit_report(verbose=verbose)
     # Note: you accept the Offer activity that contains the Report, not the Report itself
 
     if verbose:
-        activity = RmValidateReportActivity(
+        activity = rm_validate_report_activity(
+            _offer,
             actor=_VENDOR,
-            object_=_offer,
             content="We've validated the report. We'll be creating a case shortly.",
         )
     else:
-        activity = RmValidateReportActivity(
+        activity = rm_validate_report_activity(
+            _offer,
             actor=_VENDOR.id_,
-            object_=_offer,
             content="We've validated the report. We'll be creating a case shortly.",
         )
     return activity
 
 
-def invalidate_report(verbose: bool = False) -> RmInvalidateReportActivity:
+def invalidate_report(verbose: bool = False) -> as_TentativeReject:
     _offer = submit_report(verbose=verbose)
     # Note: you tentative reject the Offer activity that contains the Report, not the Report itself
 
     if verbose:
-        activity = RmInvalidateReportActivity(
+        activity = rm_invalidate_report_activity(
+            _offer,
             actor=_VENDOR,
-            object_=_offer,
             content="We're declining this report as invalid. If you have a reason we should reconsider, please let us know. Otherwise we'll be closing it shortly.",
         )
     else:
-        activity = RmInvalidateReportActivity(
+        activity = rm_invalidate_report_activity(
+            _offer,
             actor=_VENDOR.id_,
-            object_=_offer,
             content="We're declining this report as invalid. If you have a reason we should reconsider, please let us know. Otherwise we'll be closing it shortly.",
         )
     return activity
 
 
-def close_report(verbose: bool = False) -> RmCloseReportActivity:
+def close_report(verbose: bool = False) -> as_Reject:
     # Note: you reject the Offer activity that contains the Report, not the Report itself
     _offer = submit_report(verbose=verbose)
     if verbose:
-        activity = RmCloseReportActivity(
-            actor=_VENDOR,
-            object_=_offer,
-            content="We're closing this report.",
+        activity = rm_close_report_activity(
+            _offer, actor=_VENDOR, content="We're closing this report."
         )
     else:
-        activity = RmCloseReportActivity(
-            actor=_VENDOR.id_,
-            object_=_offer,
-            content="We're closing this report.",
+        activity = rm_close_report_activity(
+            _offer, actor=_VENDOR.id_, content="We're closing this report."
         )
     return activity

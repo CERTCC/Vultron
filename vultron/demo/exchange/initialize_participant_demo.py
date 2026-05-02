@@ -45,18 +45,6 @@ import sys
 from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
-from vultron.wire.as2.vocab.activities.case import (
-    AddReportToCaseActivity,
-    CreateCaseActivity,
-)
-from vultron.wire.as2.vocab.activities.case_participant import (
-    AddParticipantToCaseActivity,
-    CreateParticipantActivity,
-)
-from vultron.wire.as2.vocab.activities.report import (
-    RmSubmitReportActivity,
-    RmValidateReportActivity,
-)
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import (
     CoordinatorParticipant,
@@ -79,6 +67,14 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     post_to_inbox_and_wait,
     ref_id,
     verify_object_stored,
+)
+from vultron.wire.as2.factories import (
+    add_participant_to_case_activity,
+    add_report_to_case_activity,
+    create_case_activity,
+    create_participant_activity,
+    rm_submit_report_activity,
+    rm_validate_report_activity,
 )
 
 logger = logging.getLogger(__name__)
@@ -106,17 +102,15 @@ def setup_case_precondition(
         content="An integer overflow vulnerability in the network stack.",
         name="Integer Overflow in Network Stack",
     )
-    report_offer = RmSubmitReportActivity(
-        actor=finder.id_,
-        object_=report,
-        to=[vendor.id_],
+    report_offer = rm_submit_report_activity(
+        report, actor=finder.id_, to=vendor.id_
     )
     post_to_inbox_and_wait(client, vendor.id_, report_offer)
 
     offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-    validate_activity = RmValidateReportActivity(
+    validate_activity = rm_validate_report_activity(
+        offer,
         actor=vendor.id_,
-        object_=offer,
         content="Confirmed — integer overflow via crafted packet.",
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
@@ -126,16 +120,11 @@ def setup_case_precondition(
         name="Integer Overflow Case — Network Stack",
         content="Tracking the integer overflow vulnerability in the network stack.",
     )
-    create_case_activity = CreateCaseActivity(
-        actor=vendor.id_,
-        object_=case,
-    )
-    post_to_inbox_and_wait(client, vendor.id_, create_case_activity)
+    create_case_act = create_case_activity(case, actor=vendor.id_)
+    post_to_inbox_and_wait(client, vendor.id_, create_case_act)
 
-    add_report_activity = AddReportToCaseActivity(
-        actor=vendor.id_,
-        object_=report,
-        target=case.id_,
+    add_report_activity = add_report_to_case_activity(
+        report, actor=vendor.id_, target=case.id_
     )
     post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
 
@@ -191,10 +180,8 @@ def demo_initialize_participant(
         logger.info(
             f"Created coordinator participant: {logfmt(coordinator_participant)}"
         )
-        create_coordinator_participant = CreateParticipantActivity(
-            actor=vendor.id_,
-            object_=coordinator_participant,
-            context=case.id_,
+        create_coordinator_participant = create_participant_activity(
+            coordinator_participant, actor=vendor.id_, context=case.id_
         )
         post_to_inbox_and_wait(
             client, vendor.id_, create_coordinator_participant
@@ -203,10 +190,8 @@ def demo_initialize_participant(
             verify_object_stored(client, coordinator_participant.id_)
 
     with demo_step("Step 2: Vendor adds coordinator participant to case"):
-        add_coordinator_participant = AddParticipantToCaseActivity(
-            actor=vendor.id_,
-            object_=coordinator_participant,
-            target=case.id_,
+        add_coordinator_participant = add_participant_to_case_activity(
+            coordinator_participant, actor=vendor.id_, target=case.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, add_coordinator_participant)
         with demo_check("Coordinator participant added to case"):
@@ -234,20 +219,16 @@ def demo_initialize_participant(
         logger.info(
             f"Created finder participant: {logfmt(finder_participant)}"
         )
-        create_finder_participant = CreateParticipantActivity(
-            actor=vendor.id_,
-            object_=finder_participant,
-            context=case.id_,
+        create_finder_participant = create_participant_activity(
+            finder_participant, actor=vendor.id_, context=case.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, create_finder_participant)
         with demo_check("Finder participant stored in data layer"):
             verify_object_stored(client, finder_participant.id_)
 
     with demo_step("Step 4: Vendor adds finder participant to case"):
-        add_finder_participant = AddParticipantToCaseActivity(
-            actor=vendor.id_,
-            object_=finder_participant,
-            target=case.id_,
+        add_finder_participant = add_participant_to_case_activity(
+            finder_participant, actor=vendor.id_, target=case.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, add_finder_participant)
         with demo_check("Finder participant added to case"):

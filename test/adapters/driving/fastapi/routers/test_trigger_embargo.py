@@ -34,7 +34,7 @@ from vultron.adapters.driving.fastapi.routers import (
     trigger_embargo as trigger_embargo_router,
 )
 from vultron.core.use_cases.triggers.service import TriggerService
-from vultron.wire.as2.vocab.activities.embargo import EmProposeEmbargoActivity
+from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
@@ -122,10 +122,8 @@ def case_with_proposal(dl, actor):
     case_obj = VulnerabilityCase(name="PROPOSAL-CASE-001")
     embargo = EmbargoEvent(context=case_obj.id_)
     dl.create(embargo)
-    proposal = EmProposeEmbargoActivity(
-        actor=actor.id_,
-        object_=embargo,
-        context=case_obj.id_,
+    proposal = em_propose_embargo_activity(
+        embargo, context=case_obj.id_, actor=actor.id_
     )
     dl.create(proposal)
     case_obj.current_status.em_state = EM.PROPOSED

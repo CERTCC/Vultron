@@ -210,6 +210,16 @@ and `actor_id` when available. See `specs/structured-logging.yaml`.
 - **Case States**: `vultron/case_states/` — enums are authoritative; update
   docs, not enums, when they conflict
 
+### Constructing Outbound Activities
+
+All outbound Vultron activities MUST be constructed via the factory functions
+in `vultron.wire.as2.factories`. Code outside
+`vultron/wire/as2/vocab/activities/` and `vultron/wire/as2/factories/` MUST
+NOT import internal activity subclasses (e.g., `RmCreateReportActivity`)
+directly. Use the corresponding factory function instead (e.g.,
+`rm_create_report_activity()`). This boundary is enforced by
+`test/architecture/test_activity_factory_imports.py`.
+
 ## Change Protocol
 
 When making non-trivial changes, agents SHOULD:

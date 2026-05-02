@@ -37,11 +37,11 @@ from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
 from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import _as_id
-from vultron.wire.as2.vocab.activities.actor import (
-    AcceptActorRecommendationActivity,
-    RecommendActorActivity,
+from vultron.wire.as2.factories import (
+    accept_actor_recommendation_activity,
+    recommend_actor_activity,
+    rm_invite_to_case_activity,
 )
-from vultron.wire.as2.vocab.activities.case import RmInviteToCaseActivity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 logger = logging.getLogger(__name__)
@@ -167,20 +167,20 @@ class EmitAcceptRecommendationNode(DataLayerAction):
         if self.datalayer is None or self.actor_id is None:
             return Status.FAILURE
 
-        recommendation = RecommendActorActivity(
+        recommendation = recommend_actor_activity(
+            recommended=as_Actor(id_=self.invitee_id),
+            target=self.case_id,
             id_=self.recommendation_id,
             actor=self.recommender_id,
-            object_=as_Actor(id_=self.invitee_id),
-            target=self.case_id,
         )
         accept_id = _deterministic_accept_id(
             self.recommendation_id, self.actor_id
         )
-        accept = AcceptActorRecommendationActivity(
+        accept = accept_actor_recommendation_activity(
+            offer=recommendation,
+            target=self.case_id,
             id_=accept_id,
             actor=self.actor_id,
-            object_=recommendation,
-            target=self.case_id,
             to=[self.recommender_id],
         )
         try:
@@ -222,11 +222,11 @@ class EmitInviteToCaseNode(DataLayerAction):
         invite_id = _deterministic_invite_id(
             self.case_id, self.invitee_id, self.actor_id
         )
-        invite = RmInviteToCaseActivity(
+        invite = rm_invite_to_case_activity(
+            invitee=as_Actor(id_=self.invitee_id),
+            target=self.case_id,
             id_=invite_id,
             actor=self.actor_id,
-            object_=as_Actor(id_=self.invitee_id),
-            target=self.case_id,
             to=[self.invitee_id],
         )
         try:

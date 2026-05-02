@@ -17,9 +17,9 @@
 Demonstrates the workflow for receiving and processing vulnerability reports via the Vultron API.
 
 This demo script showcases three different outcomes when processing vulnerability reports:
-1. Validate Report: RmValidateReportActivity (Accept) - creates a case
-2. Invalidate Report: RmInvalidateReportActivity (TentativeReject) - holds for reconsideration
-3. Invalidate and Close Report: RmInvalidateReportActivity + RmCloseReportActivity - rejects and closes
+1. Validate Report: ``as_Accept`` - creates a case
+2. Invalidate Report: ``as_TentativeReject`` - holds for reconsideration
+3. Invalidate and Close Report: ``as_TentativeReject`` + ``as_Reject`` - rejects and closes
 
 This demo uses direct inbox-to-inbox communication between actors, per the Vultron prototype
 design (see docs/reference/inbox_handler.md). Actors post activities directly to each other's
@@ -55,14 +55,8 @@ from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
 from vultron.adapters.utils import parse_id
-from vultron.wire.as2.vocab.activities.case import CreateCaseActivity
-from vultron.wire.as2.vocab.activities.report import (
-    RmCloseReportActivity,
-    RmInvalidateReportActivity,
-    RmSubmitReportActivity,
-    RmValidateReportActivity,
-)
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -82,17 +76,21 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     postfmt,
     verify_object_stored,
 )
+from vultron.wire.as2.factories import (
+    create_case_activity,
+    rm_close_report_activity,
+    rm_invalidate_report_activity,
+    rm_submit_report_activity,
+    rm_validate_report_activity,
+)
 
 logger = logging.getLogger(__name__)
 
 
-def make_submit_offer(finder, vendor, report) -> RmSubmitReportActivity:
-    """Build an ``RmSubmitReportActivity`` offer from the finder to the vendor."""
-    offer = RmSubmitReportActivity(
-        actor=finder.id_,
-        object_=report,
-        target=vendor.id_,
-        to=[vendor.id_],
+def make_submit_offer(finder, vendor, report) -> as_Offer:
+    """Build an ``as_Offer`` offer from the finder to the vendor."""
+    offer = rm_submit_report_activity(
+        report, actor=finder.id_, target=vendor.id_, to=vendor.id_
     )
     logger.info(f"Created SubmitReport activity: {logfmt(offer)}")
     return offer
@@ -258,14 +256,14 @@ def demo_validate_report(
     """
     Demonstrates the workflow where a vendor validates a report and creates a case.
 
-    Uses RmValidateReportActivity (Accept) activity, followed by vendor posting
-    a CreateCaseActivity activity to the finder's inbox.
+    Uses VultronActivity (Accept) activity, followed by vendor posting
+    a VultronActivity activity to the finder's inbox.
 
     This follows the "Receiver Accepts Offered Report" sequence diagram from
     docs/howto/activitypub/activities/report_vulnerability.md.
 
     Note: This demo uses direct inbox-to-inbox communication. The vendor posts
-    the CreateCaseActivity activity directly to the finder's inbox rather than using outbox
+    the VultronActivity activity directly to the finder's inbox rather than using outbox
     processing, per the Vultron prototype design (see docs/reference/inbox_handler.md).
     """
     logger.info("=" * 80)
@@ -289,9 +287,9 @@ def demo_validate_report(
 
     with demo_step("Step 2: Vendor validates report"):
         offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-        validate_activity = RmValidateReportActivity(
+        validate_activity = rm_validate_report_activity(
+            offer,
             actor=vendor.id_,
-            object_=offer,
             content="Validating the report as legitimate. Creating case.",
         )
         post_to_inbox_and_wait(client, vendor.id_, validate_activity)
@@ -307,22 +305,22 @@ def demo_validate_report(
             if not case_data:
                 logger.error("Could not find case related to this report.")
                 raise ValueError("Could not find case related to this report.")
-        create_case_activity = CreateCaseActivity(
+        create_case_act = create_case_activity(
+            case_data,
             actor=vendor.id_,
-            object_=case_data,
             to=[finder.id_],
             content="Case created for your vulnerability report.",
         )
-        post_to_inbox_and_wait(client, finder.id_, create_case_activity)
-        with demo_check("CreateCaseActivity activity in finder's inbox"):
+        post_to_inbox_and_wait(client, finder.id_, create_case_act)
+        with demo_check("VultronActivity activity in finder's inbox"):
             if not verify_activity_in_inbox(
-                client, finder.id_, create_case_activity.id_
+                client, finder.id_, create_case_act.id_
             ):
                 logger.error(
-                    "CreateCaseActivity activity not found in finder's inbox."
+                    "VultronActivity activity not found in finder's inbox."
                 )
                 raise ValueError(
-                    "CreateCaseActivity activity not found in finder's inbox."
+                    "VultronActivity activity not found in finder's inbox."
                 )
 
     logger.info(
@@ -336,7 +334,7 @@ def demo_invalidate_report(
     """
     Demonstrates the workflow where a vendor invalidates a report.
 
-    Uses RmInvalidateReportActivity (TentativeReject) activity, followed by vendor posting
+    Uses VultronActivity (TentativeReject) activity, followed by vendor posting
     the response directly to the finder's inbox.
 
     This follows the "Receiver Invalidates and Holds Offered Report" sequence diagram from
@@ -369,9 +367,9 @@ def demo_invalidate_report(
         "Step 2: Vendor invalidates report (holds for reconsideration)"
     ):
         offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-        invalidate_activity = RmInvalidateReportActivity(
+        invalidate_activity = rm_invalidate_report_activity(
+            offer,
             actor=vendor.id_,
-            object_=offer,
             content="Invalidating the report - needs more investigation before accepting.",
         )
         post_to_inbox_and_wait(client, vendor.id_, invalidate_activity)
@@ -384,9 +382,9 @@ def demo_invalidate_report(
             )
 
     with demo_step("Step 3: Vendor notifies finder of invalidation"):
-        invalidate_response_to_finder = RmInvalidateReportActivity(
+        invalidate_response_to_finder = rm_invalidate_report_activity(
+            offer,
             actor=vendor.id_,
-            object_=offer,
             to=[finder.id_],
             content="We are holding this report for further investigation.",
         )
@@ -415,7 +413,7 @@ def demo_invalidate_and_close_report(
     """
     Demonstrates the workflow where a vendor invalidates a report and closes it.
 
-    Uses RmInvalidateReportActivity (TentativeReject) followed by RmCloseReportActivity (Reject) activities,
+    Uses VultronActivity (TentativeReject) followed by VultronActivity (Reject) activities,
     with responses posted directly to the finder's inbox.
 
     This follows the "Receiver Invalidates and Closes Offered Report" sequence diagram from
@@ -446,16 +444,14 @@ def demo_invalidate_and_close_report(
 
     with demo_step("Step 2: Vendor invalidates and closes report"):
         offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-        invalidate_activity = RmInvalidateReportActivity(
+        invalidate_activity = rm_invalidate_report_activity(
+            offer,
             actor=vendor.id_,
-            object_=offer,
             content="Invalidating the report - this is a false positive.",
         )
         post_to_inbox_and_wait(client, vendor.id_, invalidate_activity)
-        close_activity = RmCloseReportActivity(
-            actor=vendor.id_,
-            object_=offer,
-            content="Closing the report as invalid.",
+        close_activity = rm_close_report_activity(
+            offer, actor=vendor.id_, content="Closing the report as invalid."
         )
         post_to_inbox_and_wait(client, vendor.id_, close_activity)
         with demo_check("InvalidateReport and CloseReport activities stored"):
@@ -473,9 +469,9 @@ def demo_invalidate_and_close_report(
     with demo_step(
         "Step 3: Vendor notifies finder of invalidation and closure"
     ):
-        invalidate_response_to_finder = RmInvalidateReportActivity(
+        invalidate_response_to_finder = rm_invalidate_report_activity(
+            offer,
             actor=vendor.id_,
-            object_=offer,
             to=[finder.id_],
             content="This report has been invalidated as a false positive.",
         )
@@ -484,9 +480,9 @@ def demo_invalidate_and_close_report(
             finder.id_,
             invalidate_response_to_finder,
         )
-        close_response_to_finder = RmCloseReportActivity(
+        close_response_to_finder = rm_close_report_activity(
+            offer,
             actor=vendor.id_,
-            object_=offer,
             to=[finder.id_],
             content="This report has been closed.",
         )

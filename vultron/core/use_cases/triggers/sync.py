@@ -35,7 +35,7 @@ from vultron.core.ports.case_persistence import (
 from vultron.core.use_cases._helpers import case_addressees
 from vultron.core.use_cases.received.sync import _reconstruct_tail_hash
 from vultron.core.use_cases.triggers._helpers import add_activity_to_outbox
-from vultron.wire.as2.vocab.activities.sync import AnnounceLogEntryActivity
+from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_log_entry import (
     CaseLogEntry as WireCaseLogEntry,
 )
@@ -100,9 +100,9 @@ def _fan_out_log_entry(
         return
 
     for recipient_id in recipients:
-        announce = AnnounceLogEntryActivity(
+        announce = announce_log_entry_activity(
+            entry=WireCaseLogEntry.from_core(entry),
             actor=actor_id,
-            object_=WireCaseLogEntry.from_core(entry),
             to=[recipient_id],
         )
         dl.save(announce)
@@ -256,9 +256,9 @@ def replay_missing_entries_trigger(
 
     replayed = 0
     for entry in missing:
-        announce = AnnounceLogEntryActivity(
+        announce = announce_log_entry_activity(
+            entry=WireCaseLogEntry.from_core(entry),
             actor=case_actor_id,
-            object_=WireCaseLogEntry.from_core(entry),
             to=[peer_id],
         )
         dl.save(announce)

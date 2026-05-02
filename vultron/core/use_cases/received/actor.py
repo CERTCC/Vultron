@@ -348,8 +348,8 @@ class AcceptInviteActorToCaseReceivedUseCase:
         from vultron.core.use_cases.triggers._helpers import (
             add_activity_to_outbox,
         )
-        from vultron.wire.as2.vocab.activities.case import (
-            AnnounceVulnerabilityCaseActivity,
+        from vultron.wire.as2.factories import (
+            announce_vulnerability_case_activity,
         )
 
         case_owner_id = _find_local_actor_id(self._dl)
@@ -362,9 +362,9 @@ class AcceptInviteActorToCaseReceivedUseCase:
             return
 
         try:
-            announce = AnnounceVulnerabilityCaseActivity(
+            announce = announce_vulnerability_case_activity(
+                case=case,
                 actor=case_owner_id,
-                object_=case,
                 to=[invitee_id],
             )
             self._dl.create(announce)

@@ -16,11 +16,8 @@ Custom Activity Streams Activities for VulnerabilityCase objects.
 Each activity should have a VulnerabilityCase object as either its target or object.
 """
 
-from typing import TypeAlias
-
 from pydantic import Field, model_validator
 
-from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
@@ -51,7 +48,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 ########################################################################################
 
 
-class AddReportToCaseActivity(as_Add):
+class _AddReportToCaseActivity(as_Add):
     """Add a VulnerabilityReport to a VulnerabilityCase
     object_: VulnerabilityReport
     target: VulnerabilityCase
@@ -64,11 +61,11 @@ class AddReportToCaseActivity(as_Add):
 
 
 # add CaseParticipant to VulnerabilityCase
-# see AddParticipantToCaseActivity in case_participant.py
+# see _AddParticipantToCaseActivity in case_participant.py
 
 
 # add CaseStatus to VulnerabilityCase
-class AddStatusToCaseActivity(as_Add):
+class _AddStatusToCaseActivity(as_Add):
     """Add a CaseStatus to a VulnerabilityCase.
     This should only be performed by the case owner.
     Other case participants can add a case status to their participant record, which the case
@@ -89,7 +86,7 @@ class AddStatusToCaseActivity(as_Add):
 
 
 # create a VulnerabilityCase
-class CreateCaseActivity(as_Create):
+class _CreateCaseActivity(as_Create):
     """Create a VulnerabilityCase.
     object_: VulnerabilityCase
     """
@@ -99,7 +96,7 @@ class CreateCaseActivity(as_Create):
     )
 
 
-class CreateCaseStatusActivity(as_Create):
+class _CreateCaseStatusActivity(as_Create):
     """Create a CaseStatus.
     object_: CaseStatus
     """
@@ -110,7 +107,7 @@ class CreateCaseStatusActivity(as_Create):
 
 
 # Add a Note to a VulnerabilityCase
-class AddNoteToCaseActivity(as_Add):
+class _AddNoteToCaseActivity(as_Add):
     """Add a Note to a VulnerabilityCase.
     object_: Note
     target: VulnerabilityCase
@@ -123,7 +120,7 @@ class AddNoteToCaseActivity(as_Add):
 
 
 # update a VulnerabilityCase
-class UpdateCaseActivity(as_Update):
+class _UpdateCaseActivity(as_Update):
     """Update a VulnerabilityCase.
     object_: VulnerabilityCase
     """
@@ -139,7 +136,7 @@ class UpdateCaseActivity(as_Update):
 
 
 # join a case
-class RmEngageCaseActivity(as_Join):
+class _RmEngageCaseActivity(as_Join):
     """The actor is has joined (i.e., is actively working on) a case.
     This represents the Vultron Message Type RA, and indicates that the actor is now in the RM.ACCEPTED state.
     object_: VulnerabilityCase
@@ -150,13 +147,13 @@ class RmEngageCaseActivity(as_Join):
     )
 
 
-class RmDeferCaseActivity(as_Ignore):
+class _RmDeferCaseActivity(as_Ignore):
     """The actor is deferring a case.
     This implies that the actor is no longer actively working on the case.
     Deferring a case does not imply that the actor is abandoning the case entirely,
     it just means that the actor is no longer actively working on it.
     This represents the Vultron Message Type RD, and indicates that the actor is now in the RM.DEFERRED state.
-    Contrast with RmCloseCaseActivity, which indicates that the actor is abandoning the case entirely.
+    Contrast with _RmCloseCaseActivity, which indicates that the actor is abandoning the case entirely.
     object_: VulnerabilityCase
     """
 
@@ -165,7 +162,7 @@ class RmDeferCaseActivity(as_Ignore):
     )
 
 
-class RmCloseCaseActivity(as_Leave):
+class _RmCloseCaseActivity(as_Leave):
     """The actor is ending their participation in the case and closing their local copy of the case.
     This corresponds to the Vultron RC message type.
     Case closure is considered a permanent Leave from the case.
@@ -179,7 +176,7 @@ class RmCloseCaseActivity(as_Leave):
     )
 
 
-class OfferCaseOwnershipTransferActivity(as_Offer):
+class _OfferCaseOwnershipTransferActivity(as_Offer):
     """The actor is offering to transfer ownership of the case to another actor.
 
     The case MUST be provided as an inline ``VulnerabilityCase`` object so that
@@ -198,34 +195,34 @@ class OfferCaseOwnershipTransferActivity(as_Offer):
     target: as_ActorRef = None
 
 
-class AcceptCaseOwnershipTransferActivity(as_Accept):
+class _AcceptCaseOwnershipTransferActivity(as_Accept):
     """The actor is accepting an offer to transfer ownership of the case.
 
-    - object_: the OfferCaseOwnershipTransferActivity being accepted (inline
+    - object_: the _OfferCaseOwnershipTransferActivity being accepted (inline
       typed object required — bare string IDs are rejected at construction time)
     """
 
-    object_: OfferCaseOwnershipTransferActivity = Field(
+    object_: _OfferCaseOwnershipTransferActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
 
 
-class RejectCaseOwnershipTransferActivity(as_Reject):
+class _RejectCaseOwnershipTransferActivity(as_Reject):
     """The actor is rejecting an offer to transfer ownership of the case.
 
-    - object_: the OfferCaseOwnershipTransferActivity being rejected (inline
+    - object_: the _OfferCaseOwnershipTransferActivity being rejected (inline
       typed object required — bare string IDs are rejected at construction time)
     """
 
-    object_: OfferCaseOwnershipTransferActivity = Field(
+    object_: _OfferCaseOwnershipTransferActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
 
 
-class RmInviteToCaseActivity(as_Invite):
+class _RmInviteToCaseActivity(as_Invite):
     """The actor is inviting another actor to a case.
     This corresponds to the Vultron Message Type RS when a case already exists.
-    See also RmSubmitReportActivity for the scenario when a case does not exist yet.
+    See also _RmSubmitReportActivity for the scenario when a case does not exist yet.
     object_: the Actor being invited
     target: VulnerabilityCase
     """
@@ -236,19 +233,16 @@ class RmInviteToCaseActivity(as_Invite):
     target: VulnerabilityCaseStub | str | None = None
 
 
-RmInviteToCaseRef: TypeAlias = ActivityStreamRef[RmInviteToCaseActivity]
-
-
-class RmAcceptInviteToCaseActivity(as_Accept):
+class _RmAcceptInviteToCaseActivity(as_Accept):
     """The actor is accepting an invitation to a case.
     This corresponds to the Vultron Message Type RV when the case already exists.
-    See also RmValidateReportActivity for the scenario when the case does not exist yet.
+    See also _RmValidateReportActivity for the scenario when the case does not exist yet.
 
-    object_: the RmInviteToCaseActivity being accepted (inline typed object
+    object_: the _RmInviteToCaseActivity being accepted (inline typed object
         required — bare string IDs are rejected at construction time)
     """
 
-    object_: RmInviteToCaseActivity = Field(
+    object_: _RmInviteToCaseActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
 
@@ -259,16 +253,16 @@ class RmAcceptInviteToCaseActivity(as_Accept):
         return self
 
 
-class RmRejectInviteToCaseActivity(as_Reject):
+class _RmRejectInviteToCaseActivity(as_Reject):
     """The actor is rejecting an invitation to a case.
     This corresponds to the Vultron Message Type RI when the case already exists.
-    See also RmInvalidateReportActivity for the scenario when the case does not exist yet.
+    See also _RmInvalidateReportActivity for the scenario when the case does not exist yet.
 
-    `object_`: the `RmInviteToCaseActivity` being rejected (inline typed
+    `object_`: the `_RmInviteToCaseActivity` being rejected (inline typed
         object required — bare string IDs are rejected at construction time)
     """
 
-    object_: RmInviteToCaseActivity = Field(
+    object_: _RmInviteToCaseActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
 
@@ -279,7 +273,7 @@ class RmRejectInviteToCaseActivity(as_Reject):
         return self
 
 
-class AnnounceVulnerabilityCaseActivity(as_Announce):
+class _AnnounceVulnerabilityCaseActivity(as_Announce):
     """The case owner announces full case details to a newly accepted invitee.
 
     Sent by the case owner after an ``Accept(Invite)`` is received and the
