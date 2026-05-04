@@ -31,6 +31,32 @@ groups:
       management
     rationale: Wire format concerns are structurally distinct from domain concerns; mixing them prevents future wire format
       substitution
+
+  - id: ARCH-01-004
+    priority: MUST
+    statement: >-
+      All ARCH-01-001 violations in `vultron/core/` MUST be remediated via
+      dedicated driven ports. Known violations that require their own ports or
+      an expansion of the existing `ActivityEmitter` port include:
+      `core/behaviors/case/nodes.py`,
+      `core/behaviors/report/nodes.py`,
+      `core/use_cases/triggers/embargo.py`,
+      `core/use_cases/triggers/case.py`, and
+      `core/use_cases/triggers/actor.py`.
+      Each file MUST be audited and either given a narrow driven port (following
+      the `SyncActivityPort` pattern) or folded under an expanded shared port.
+      A comprehensive ARCH-01-001 audit covering all `core/` modules MUST be
+      completed as a tracked task.
+    rationale: >-
+      The `sync.py` fix (SyncActivityPort) is not the only ARCH-01-001 violation
+      in core/. Leaving the remaining violations unfixed undermines the hexagonal
+      boundary and prevents clean unit testing of core logic with mock adapters.
+    relationships:
+      - rel_type: refines
+        spec_id: ARCH-01-001
+        note: >-
+          ARCH-01-001 is the general constraint; ARCH-01-004 names the known
+          violations and requires a systematic remediation effort.
 - id: ARCH-02
   title: SemanticIntent Enum
   kind: domain
@@ -54,6 +80,33 @@ groups:
     statement: Driven adapters (persistence, delivery queue, DNS resolver, HTTP delivery) MUST be injected into core services
       via port interfaces
     rationale: Enables testing core logic with in-memory ports and swapping production backends without touching domain code
+
+  - id: ARCH-04-002
+    priority: MUST
+    statement: >-
+      `SyncActivityPort` MUST be defined as a `typing.Protocol` in
+      `vultron/core/ports/sync_activity_port.py` with two fire-and-forget
+      methods:
+        - `send_reject_log_entry(entry: VultronCaseLogEntry, tail_hash: str, actor_id: str, to: str) -> None`
+        - `send_announce_log_entry(entry: VultronCaseLogEntry, actor_id: str, to: str) -> None`
+      The concrete adapter (`SyncActivityAdapter`) MUST be implemented in
+      `vultron/adapters/driven/sync_activity_adapter.py` and own the full
+      domain → wire → persist → outbox pipeline. Core use cases and BT nodes
+      MUST call only the port methods and MUST NOT import wire types
+      (`CaseLogEntry`, `WireCaseLogEntry`) or wire factory functions
+      (`announce_log_entry_activity`, `reject_log_entry_activity`).
+    rationale: >-
+      The incremental fix for ARCH-01-001 violations in `received/sync.py`
+      and `triggers/sync.py`. The "baton-pass" pattern: core hands domain
+      objects to the port; the adapter handles wire conversion unidirectionally.
+    relationships:
+      - rel_type: refines
+        spec_id: ARCH-04-001
+        note: SyncActivityPort is the specific driven port for sync outbound activities
+      - rel_type: implements
+        spec_id: ARCH-01-001
+        note: Eliminates wire imports from core sync use cases
+
 - id: ARCH-05
   title: Connector Plugins
   kind: language

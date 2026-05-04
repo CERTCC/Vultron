@@ -173,8 +173,18 @@ groups:
   - id: CFG-06-003
     priority: MUST
     statement: >-
-      Test fixtures MUST call `reload_config()` in teardown (or via an `autouse` fixture)
-      to clear the cached instance between test cases.
+      Test fixtures MUST clear the config cache between test cases by nulling
+      `_config_cache` directly (`import vultron.config as _cfg; _cfg._config_cache = None`)
+      in teardown — NOT by calling `reload_config()`. Calling `reload_config()` in
+      teardown triggers an immediate cache reload before `pytest`'s `monkeypatch`
+      reverts environment-variable changes, which locks in the test's environment
+      state for the reload and pollutes the next test. Nulling the cache directly
+      defers the reload until the next `get_config()` call, by which time
+      `monkeypatch` has already restored the environment.
+    rationale: >-
+      `reload_config()` = reset + immediate reload. In teardown the env is still
+      the test's env, so the reload bakes that env into the next test's starting
+      state. Direct cache null = reset only; reload happens lazily under clean env.
   - id: CFG-06-004
     priority: MUST
     statement: >-
