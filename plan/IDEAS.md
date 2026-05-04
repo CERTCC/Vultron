@@ -44,3 +44,11 @@ The `SyncActivityPort` (from TASK-ARCHVIO) provides the driven port that
 BT leaf nodes would use for outbound activities.
 
 Depends on: TASK-ARCHVIO completion, BT node design for sync operations.
+
+## IDEA-26050404 Clearly delineate specs vs ADRs
+
+We have both specs in `specs/` and any decision records in `docs/adr`, and
+we have mechanisms in place for ingesting ideas and learnings into `specs/`
+but we're less clear on when a spec goes beyond just being a spec and should
+be an ADR instead (or both?). We should clarify the distinction and
+establish guidelines for when creating an ADR is warranted.
