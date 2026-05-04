@@ -6,6 +6,8 @@
 |------|------------|------|--------|-------|
 | 2026-05-26 | 00:00 | implementation | BUG-26052601 | BUG-26052601: Factory cast() does not coerce at runtime |
 | 2026-05-26 | 00:00 | implementation | BUG-26052602 | BUG-26052602: finder_submits_report loses VulnerabilityReport ID |
+| 2026-05-04 | 17:45 | idea | IDEA-26050403 | Sync behavior tree for log entry protocol |
+| 2026-05-04 | 17:44 | idea | IDEA-26050402 | Case-actor vs non-case-actor log entry handling |
 | 2026-05-04 | 16:57 | idea | IDEA-26050401 | Participant role methods |
 | 2026-05-04 | 14:52 | implementation | TASK-CFG | Unified Configuration System (TASK-CFG) |
 | 2026-05-04 | 14:19 | implementation | TASK-BTND5-4 | BTND5.4 — Refactor CVDRoles Flag to CVDRole StrEnum |
