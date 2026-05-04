@@ -46,28 +46,6 @@ have typed replacements.
 
 ---
 
-## TASK-BTND5-4 — Refactor `CVDRoles` from Flag to `list[StrEnum]`
-
-**Source**: `specs/behavior-tree-node-design.yaml` BTND-05-001 through
-BTND-05-003; `notes/bt-reusability.md` "ActorConfig-Driven Roles" section.
-
-`CVDRoles` is a `Flag` enum (bitmask); persisted records are not
-human-readable. Refactor to `StrEnum` + `list[CVDRoles]` makes records
-legible and eliminates bitmask arithmetic. See `notes/bt-reusability.md`
-"ActorConfig-Driven Roles".
-
-**Acceptance criteria:**
-
-- `CVDRoles` is a `StrEnum`; `VultronParticipant.case_roles` is `list[CVDRoles]`.
-- Persisted records store role names as strings; no bitmask operators in
-  non-test code.
-
-- [ ] BTND5.4: Refactor `CVDRoles` Flag → StrEnum + migrate all call sites
-
----
-
-## TASK-CC — Cyclomatic Complexity Enforcement
-
 `flake8-mccabe` is already bundled in the project's flake8 install. The
 gate integrates into the existing `lint-flake8` CI job and pre-commit
 pipeline with no new dependencies. Scope: both `vultron/` and `test/`.

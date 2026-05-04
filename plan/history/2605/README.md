@@ -6,6 +6,7 @@
 |------|------------|------|--------|-------|
 | 2026-05-26 | 00:00 | implementation | BUG-26052601 | BUG-26052601: Factory cast() does not coerce at runtime |
 | 2026-05-26 | 00:00 | implementation | BUG-26052602 | BUG-26052602: finder_submits_report loses VulnerabilityReport ID |
+| 2026-05-04 | 14:19 | implementation | TASK-BTND5-4 | BTND5.4 — Refactor CVDRoles Flag to CVDRole StrEnum |
 | 2026-05-02 | 22:23 | implementation | TASK-BTND5 | Generalize Participant BT Nodes (BTND5.2, BTND5.3) |
 | 2026-05-01 | 19:43 | idea | IDEA-26043003 | append-history: accept frontmatter fields as CLI params |
 | 2026-05-01 | 19:43 | idea | IDEA-26043002 | append-history: add tz-aware timestamps |

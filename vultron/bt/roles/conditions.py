@@ -17,12 +17,12 @@
 
 from vultron.bt.base.bt_node import BtNode
 from vultron.bt.base.factory import condition_check, invert
-from vultron.core.states.roles import CVDRoles
+from vultron.bt.roles.enums import CVDRolesFlag
 
 
 def role_is_vendor(obj: BtNode) -> bool:
     """True if the CVD role is vendor"""
-    return bool(obj.bb.CVD_role & CVDRoles.VENDOR)
+    return bool(obj.bb.CVD_role & CVDRolesFlag.VENDOR)
 
 
 RoleIsVendor = condition_check("RoleIsVendor", role_is_vendor)
@@ -30,7 +30,7 @@ RoleIsVendor = condition_check("RoleIsVendor", role_is_vendor)
 
 def role_is_deployer(obj: BtNode) -> bool:
     """True if the CVD role is deployer"""
-    return bool(obj.bb.CVD_role & CVDRoles.DEPLOYER)
+    return bool(obj.bb.CVD_role & CVDRolesFlag.DEPLOYER)
 
 
 RoleIsDeployer = condition_check("RoleIsDeployer", role_is_deployer)
@@ -38,7 +38,7 @@ RoleIsDeployer = condition_check("RoleIsDeployer", role_is_deployer)
 
 def role_is_coordinator(obj: BtNode) -> bool:
     """True if the CVD role is coordinator"""
-    return bool(obj.bb.CVD_role & CVDRoles.COORDINATOR)
+    return bool(obj.bb.CVD_role & CVDRolesFlag.COORDINATOR)
 
 
 RoleIsCoordinator = condition_check("RoleIsCoordinator", role_is_coordinator)

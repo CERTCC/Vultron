@@ -271,7 +271,7 @@ def test_tree_creates_case_owner_participant_at_rm_received(
     vendor_received_status,
 ):
     """Tree creates a case-owner participant at RM.RECEIVED (BTND-05-002)."""
-    from vultron.core.states.roles import CVDRoles
+    from vultron.core.states.roles import CVDRole
 
     tree = create_receive_report_case_tree(
         report_id=report.id_,
@@ -298,7 +298,7 @@ def test_tree_creates_case_owner_participant_at_rm_received(
         if p_actor_id != actor.id_:
             continue
         roles = participant.case_roles
-        if CVDRoles.CASE_OWNER not in roles:
+        if CVDRole.CASE_OWNER not in roles:
             continue
         statuses = participant.participant_statuses
         assert statuses, "Case-owner participant has no status history"
@@ -324,7 +324,7 @@ def test_tree_creates_finder_participant_at_rm_accepted(
     vendor_received_status,
 ):
     """Tree creates a reporter participant at RM.ACCEPTED."""
-    from vultron.core.states.roles import CVDRoles
+    from vultron.core.states.roles import CVDRole
 
     tree = create_receive_report_case_tree(
         report_id=report.id_,
@@ -351,7 +351,7 @@ def test_tree_creates_finder_participant_at_rm_accepted(
         if p_actor_id != reporter_actor.id_:
             continue
         roles = participant.case_roles
-        if CVDRoles.FINDER not in roles:
+        if CVDRole.FINDER not in roles:
             continue
         statuses = participant.participant_statuses
         assert statuses, "Finder participant has no status history"
@@ -700,7 +700,7 @@ def test_case_owner_participant_created_without_pre_existing_status(
     case = datalayer.find_case_by_report_id(report.id_)
     assert case is not None
 
-    from vultron.core.states.roles import CVDRoles
+    from vultron.core.states.roles import CVDRole
 
     for p_ref in case.case_participants:
         p_id = p_ref if isinstance(p_ref, str) else p_ref.id_
@@ -715,7 +715,7 @@ def test_case_owner_participant_created_without_pre_existing_status(
         )
         if p_actor_id != actor.id_:
             continue
-        if CVDRoles.CASE_OWNER not in participant.case_roles:
+        if CVDRole.CASE_OWNER not in participant.case_roles:
             continue
         statuses = participant.participant_statuses
         assert statuses

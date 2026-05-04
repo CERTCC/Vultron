@@ -25,7 +25,7 @@ from pydantic import Field, field_serializer, field_validator, model_validator
 
 from vultron.core.models.participant import VultronParticipant
 from vultron.core.states.rm import RM, is_valid_rm_transition
-from vultron.core.states.roles import CVDRoles as CVDRole
+from vultron.core.states.roles import CVDRole, serialize_roles, validate_roles
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef, as_Link
@@ -85,26 +85,12 @@ class CaseParticipant(VultronAS2Object):
 
     @field_serializer("case_roles")
     def serialize_case_roles(self, value: list[CVDRole]) -> list[str]:
-        return [
-            role.name if role.name is not None else str(role) for role in value
-        ]
+        return serialize_roles(value)
 
     @field_validator("case_roles", mode="before")
     @classmethod
-    def validate_case_roles(cls, value):
-        if isinstance(value, list) and value and isinstance(value[0], str):
-            return [CVDRole[name] for name in value]
-        return value
-
-    @model_validator(mode="after")
-    def set_no_role_if_empty(self):
-        """If case_roles is empty, set it to [CVDRole.NO_ROLE]"""
-        if self.case_roles:
-            return self
-
-        self.case_roles = [CVDRole.NO_ROLE]
-
-        return self
+    def validate_case_roles(cls, value: object) -> list[CVDRole]:
+        return validate_roles(value)
 
     @model_validator(mode="after")
     def set_name_if_empty(self):

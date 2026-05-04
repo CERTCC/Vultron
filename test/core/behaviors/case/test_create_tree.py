@@ -206,7 +206,7 @@ def test_create_case_tree_creates_case_owner_participant(
     datalayer, actor, case_obj, bridge
 ):
     """A case-owner participant SHOULD be created and added to case_participants (CM-02-008)."""
-    from vultron.core.states.roles import CVDRoles as CVDRole
+    from vultron.core.states.roles import CVDRole
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
@@ -230,7 +230,7 @@ def test_create_case_tree_creates_case_owner_participant(
             if (
                 at == actor.id_
                 and ctx == case_obj.id_
-                and CVDRole.CASE_OWNER.name in roles
+                and CVDRole.CASE_OWNER.value in roles
             ):
                 found_owner = True
                 break
@@ -242,7 +242,7 @@ def test_create_case_tree_case_owner_participant_includes_config_roles(
 ):
     """CreateCaseOwnerParticipant includes config roles + CASE_OWNER (CFG-07-004)."""
     from vultron.core.models.actor_config import ActorConfig
-    from vultron.core.states.roles import CVDRoles as CVDRole
+    from vultron.core.states.roles import CVDRole
 
     config = ActorConfig(default_case_roles=[CVDRole.COORDINATOR])
     tree = create_create_case_tree(
@@ -262,8 +262,8 @@ def test_create_case_tree_case_owner_participant_includes_config_roles(
             ctx = data.get("context")
             roles = data.get("case_roles", [])
             if at == actor.id_ and ctx == case_obj.id_:
-                assert CVDRole.CASE_OWNER.name in roles
-                assert CVDRole.COORDINATOR.name in roles
+                assert CVDRole.CASE_OWNER.value in roles
+                assert CVDRole.COORDINATOR.value in roles
                 return
     pytest.fail("No participant found for actor in case")
 

@@ -28,7 +28,7 @@ from vultron.bt.messaging.outbound.behaviors import EmitCV, EmitRS
 from vultron.bt.report_management.conditions import RMnotInStateStart
 from vultron.bt.report_management.transitions import q_rm_to_R
 from vultron.bt.roles.conditions import RoleIsNotVendor
-from vultron.core.states.roles import CVDRoles
+from vultron.bt.roles.enums import CVDRolesFlag
 from vultron.bt.vul_discovery.fuzzer import (
     DiscoverVulnerability,
     HaveDiscoveryPriority,
@@ -38,7 +38,7 @@ from vultron.bt.vul_discovery.fuzzer import (
 
 def have_discovery_capability(obj: BtNode) -> bool:
     """True if the participant has the ability to discover vulnerabilities."""
-    return bool(obj.bb.CVD_role & CVDRoles.FINDER)
+    return bool(obj.bb.CVD_role & CVDRolesFlag.FINDER)
 
 
 HaveDiscoveryCapability = condition_check(

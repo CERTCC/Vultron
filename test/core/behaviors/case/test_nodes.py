@@ -55,7 +55,7 @@ from vultron.core.models.vultron_types import (
     VultronParticipant,
     VultronReport,
 )
-from vultron.core.states.roles import CVDRoles
+from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from test.core.behaviors.bt_harness import BTTestScenario
@@ -140,7 +140,7 @@ class TestCreateAndAttachParticipant:
         participant = VultronParticipant(
             attributed_to=actor_id,
             context=case_obj.id_,
-            case_roles=[CVDRoles.VENDOR],
+            case_roles=[CVDRole.VENDOR],
         )
         result = _create_and_attach_participant(
             bt_scenario.dl,
@@ -161,7 +161,7 @@ class TestCreateAndAttachParticipant:
         participant = VultronParticipant(
             attributed_to=actor_id,
             context=case_obj.id_,
-            case_roles=[CVDRoles.VENDOR],
+            case_roles=[CVDRole.VENDOR],
         )
         result = _create_and_attach_participant(
             bt_scenario.dl,
@@ -182,7 +182,7 @@ class TestCreateAndAttachParticipant:
         participant = VultronParticipant(
             attributed_to=actor_id,
             context=case_obj.id_,
-            case_roles=[CVDRoles.VENDOR],
+            case_roles=[CVDRole.VENDOR],
         )
         result = _create_and_attach_participant(
             bt_scenario.dl,
@@ -204,7 +204,7 @@ class TestCreateAndAttachParticipant:
         participant = VultronParticipant(
             attributed_to=actor_id,
             context=case_obj.id_,
-            case_roles=[CVDRoles.VENDOR],
+            case_roles=[CVDRole.VENDOR],
         )
         result = _create_and_attach_participant(
             bt_scenario.dl,
@@ -227,7 +227,7 @@ class TestCreateAndAttachParticipant:
         participant = VultronParticipant(
             attributed_to=actor_id,
             context=case_obj.id_,
-            case_roles=[CVDRoles.VENDOR],
+            case_roles=[CVDRole.VENDOR],
         )
         node_logger = logging.getLogger("test")
         _create_and_attach_participant(
@@ -247,7 +247,7 @@ class TestCreateAndAttachParticipant:
         participant = VultronParticipant(
             attributed_to=actor_id,
             context="https://example.org/cases/missing",
-            case_roles=[CVDRoles.VENDOR],
+            case_roles=[CVDRole.VENDOR],
         )
         result = _create_and_attach_participant(
             bt_scenario.dl,
@@ -345,7 +345,7 @@ class TestCreateCaseOwnerParticipant:
                 else getattr(p_actor, "id_", p_actor)
             )
             if p_actor_id == actor_id:
-                assert CVDRoles.CASE_OWNER in participant.case_roles
+                assert CVDRole.CASE_OWNER in participant.case_roles
                 return
         pytest.fail("No case-owner participant found")
 
@@ -360,7 +360,7 @@ class TestCreateCaseOwnerParticipant:
         from typing import cast, Any
         from vultron.core.models.actor_config import ActorConfig
 
-        config = ActorConfig(default_case_roles=[CVDRoles.COORDINATOR])
+        config = ActorConfig(default_case_roles=[CVDRole.COORDINATOR])
         bt_scenario.run(
             CreateCaseOwnerParticipant(actor_config=config),
             actor_id=actor_id,
@@ -379,8 +379,8 @@ class TestCreateCaseOwnerParticipant:
                 else getattr(p_actor, "id_", p_actor)
             )
             if p_actor_id == actor_id:
-                assert CVDRoles.CASE_OWNER in participant.case_roles
-                assert CVDRoles.COORDINATOR in participant.case_roles
+                assert CVDRole.CASE_OWNER in participant.case_roles
+                assert CVDRole.COORDINATOR in participant.case_roles
                 return
         pytest.fail("No participant found for actor")
 
@@ -407,7 +407,7 @@ class TestCreateCaseParticipantNode:
     ) -> None:
         result = bt_scenario.run(
             CreateCaseParticipantNode(
-                actor_id=finder_actor_id, roles=[CVDRoles.FINDER]
+                actor_id=finder_actor_id, roles=[CVDRole.FINDER]
             ),
             actor_id=actor_id,
             case_id=case_obj.id_,
@@ -428,7 +428,7 @@ class TestCreateCaseParticipantNode:
         """CreateCaseParticipantNode records 'participant_added' on the case."""
         bt_scenario.run(
             CreateCaseParticipantNode(
-                actor_id=finder_actor_id, roles=[CVDRoles.FINDER]
+                actor_id=finder_actor_id, roles=[CVDRole.FINDER]
             ),
             actor_id=actor_id,
             case_id=case_obj.id_,
@@ -449,7 +449,7 @@ class TestCreateCaseParticipantNode:
         """CreateCaseParticipantNode queues AddParticipantToCaseActivity."""
         bt_scenario.run(
             CreateCaseParticipantNode(
-                actor_id=finder_actor_id, roles=[CVDRoles.FINDER]
+                actor_id=finder_actor_id, roles=[CVDRole.FINDER]
             ),
             actor_id=actor_id,
             case_id=case_obj.id_,

@@ -81,7 +81,7 @@ def create_create_case_tree(
         actor_id: ID of the receiving actor (case owner)
         actor_config: Optional actor configuration carrying CVD-role
                       defaults.  When ``None`` the case-owner participant
-                      receives only the ``CVDRoles.CASE_OWNER`` role
+                      receives only the ``CVDRole.CASE_OWNER`` role
                       (CFG-07-002, CFG-07-004).
 
     Returns:

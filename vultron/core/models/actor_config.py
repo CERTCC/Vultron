@@ -23,7 +23,7 @@ Per specs/configuration.yaml CFG-07-001 and CFG-07-002.
 
 from pydantic import BaseModel, Field, field_serializer, field_validator
 
-from vultron.core.states.roles import CVDRoles
+from vultron.core.states.roles import CVDRole, serialize_roles, validate_roles
 
 
 class ActorConfig(BaseModel):
@@ -36,23 +36,17 @@ class ActorConfig(BaseModel):
     Attributes:
         default_case_roles: CVD roles assigned to the local actor when it
             creates or receives ownership of a ``VulnerabilityCase``.
-            Defaults to an empty list; ``CVDRoles.CASE_OWNER`` is always
+            Defaults to an empty list; ``CVDRole.CASE_OWNER`` is always
             appended at participant-creation time (BTND-05-002).
     """
 
-    default_case_roles: list[CVDRoles] = Field(default_factory=list)
+    default_case_roles: list[CVDRole] = Field(default_factory=list)
 
     @field_serializer("default_case_roles")
-    def _serialize_default_case_roles(
-        self, value: list[CVDRoles]
-    ) -> list[str]:
-        return [
-            role.name if role.name is not None else str(role) for role in value
-        ]
+    def _serialize_default_case_roles(self, value: list[CVDRole]) -> list[str]:
+        return serialize_roles(value)
 
     @field_validator("default_case_roles", mode="before")
     @classmethod
-    def _validate_default_case_roles(cls, value: list) -> list:
-        if isinstance(value, list) and value and isinstance(value[0], str):
-            return [CVDRoles[name] for name in value]
-        return value
+    def _validate_default_case_roles(cls, value: object) -> list[CVDRole]:
+        return validate_roles(value)

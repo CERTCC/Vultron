@@ -23,7 +23,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_pxa, CS_vfd
-from vultron.core.states.roles import CVDRoles as CVDRole
+from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases.query.action_rules import (
     ActionRulesRequest,
     GetActionRulesUseCase,
@@ -113,7 +113,7 @@ class TestGetActionRulesUseCase:
     def test_happy_path_role(self, dl, request_):
         """Participant role is reflected in the response."""
         result = GetActionRulesUseCase(dl=dl, request=request_).execute()
-        assert CVDRole.VENDOR.name in result["role"]
+        assert CVDRole.VENDOR.value in result["role"]
 
     def test_happy_path_ids(self, dl, request_):
         """IDs in the response match the stored object IDs."""

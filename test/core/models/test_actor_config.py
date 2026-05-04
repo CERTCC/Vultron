@@ -19,13 +19,13 @@ Tests for ActorConfig neutral model.
 Spec coverage:
 - CFG-07-001: ActorConfig MUST be defined outside the demo layer.
 - CFG-07-002: ActorConfig MUST include a default_case_roles field
-              (list[CVDRoles], default empty list).
+              (list[CVDRole], default empty list).
 """
 
 import pytest
 
 from vultron.core.models.actor_config import ActorConfig
-from vultron.core.states.roles import CVDRoles
+from vultron.core.states.roles import CVDRole
 
 # ============================================================================
 # Basic model tests (CFG-07-001, CFG-07-002)
@@ -40,17 +40,17 @@ def test_actor_config_default_roles_empty():
 
 def test_actor_config_accepts_cvd_roles():
     """ActorConfig.default_case_roles accepts CVDRoles enum values."""
-    config = ActorConfig(default_case_roles=[CVDRoles.VENDOR])
-    assert CVDRoles.VENDOR in config.default_case_roles
+    config = ActorConfig(default_case_roles=[CVDRole.VENDOR])
+    assert CVDRole.VENDOR in config.default_case_roles
 
 
 def test_actor_config_accepts_multiple_roles():
     """ActorConfig.default_case_roles accepts multiple roles."""
     config = ActorConfig(
-        default_case_roles=[CVDRoles.COORDINATOR, CVDRoles.VENDOR]
+        default_case_roles=[CVDRole.COORDINATOR, CVDRole.VENDOR]
     )
-    assert CVDRoles.COORDINATOR in config.default_case_roles
-    assert CVDRoles.VENDOR in config.default_case_roles
+    assert CVDRole.COORDINATOR in config.default_case_roles
+    assert CVDRole.VENDOR in config.default_case_roles
 
 
 def test_actor_config_accepts_role_names_as_strings():
@@ -58,8 +58,8 @@ def test_actor_config_accepts_role_names_as_strings():
     config = ActorConfig.model_validate(
         {"default_case_roles": ["VENDOR", "COORDINATOR"]}
     )
-    assert CVDRoles.VENDOR in config.default_case_roles
-    assert CVDRoles.COORDINATOR in config.default_case_roles
+    assert CVDRole.VENDOR in config.default_case_roles
+    assert CVDRole.COORDINATOR in config.default_case_roles
 
 
 def test_actor_config_rejects_invalid_role_name():
@@ -69,16 +69,16 @@ def test_actor_config_rejects_invalid_role_name():
 
 
 def test_actor_config_serializes_roles_as_names():
-    """ActorConfig serializes default_case_roles as role name strings."""
-    config = ActorConfig(default_case_roles=[CVDRoles.VENDOR])
+    """ActorConfig serializes default_case_roles as role value strings."""
+    config = ActorConfig(default_case_roles=[CVDRole.VENDOR])
     data = config.model_dump()
-    assert data["default_case_roles"] == ["VENDOR"]
+    assert data["default_case_roles"] == ["vendor"]
 
 
 def test_actor_config_roundtrip():
     """ActorConfig round-trips through model_dump / model_validate."""
     config = ActorConfig(
-        default_case_roles=[CVDRoles.COORDINATOR, CVDRoles.VENDOR]
+        default_case_roles=[CVDRole.COORDINATOR, CVDRole.VENDOR]
     )
     data = config.model_dump()
     restored = ActorConfig.model_validate(data)
@@ -87,10 +87,10 @@ def test_actor_config_roundtrip():
 
 def test_actor_config_does_not_mutate_between_uses():
     """Shared ActorConfig instances do not leak mutations between uses."""
-    config = ActorConfig(default_case_roles=[CVDRoles.VENDOR])
+    config = ActorConfig(default_case_roles=[CVDRole.VENDOR])
     roles_before = list(config.default_case_roles)
     # Simulate a second use: build effective roles list
-    _ = list(dict.fromkeys(config.default_case_roles + [CVDRoles.CASE_OWNER]))
+    _ = list(dict.fromkeys(config.default_case_roles + [CVDRole.CASE_OWNER]))
     assert config.default_case_roles == roles_before
 
 
@@ -121,7 +121,7 @@ def test_local_actor_config_with_roles():
 
     cfg = LocalActorConfig(
         name="Coordinator",
-        default_case_roles=[CVDRoles.COORDINATOR],
+        default_case_roles=[CVDRole.COORDINATOR],
     )
-    assert CVDRoles.COORDINATOR in cfg.default_case_roles
+    assert CVDRole.COORDINATOR in cfg.default_case_roles
     assert cfg.name == "Coordinator"

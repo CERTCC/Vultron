@@ -39,11 +39,6 @@ Additional implementation-level architecture tasks (no GitHub issues yet):
   call `from_core()` on wire objects, violating the hexagonal constraint.
   Introduce a driven port adapter for domain→wire translation. Depends on
   TASK-AF.
-- **TASK-BTND5** — Generalize Participant BT Nodes: replace
-  `CreateInitialVendorParticipant` with a config-driven
-  `CreateCaseOwnerParticipant`; add `CVDRoles.CASE_OWNER`; remove the
-  `CreateFinderParticipantNode` alias; refactor `CVDRoles` from `Flag` to
-  `StrEnum`.
 - **TASK-CP-CLEANUP** — Remove deprecated `get()` / `by_type()` from
   `CasePersistence` after migrating core callers to typed `read()` / `list()`
   or dedicated typed helpers. Blocked by TASK-DL-REHYDRATE.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2023-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -11,24 +11,30 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Provides CVD Role states"""
+"""Provides CVD Role states."""
 
-from enum import Flag, auto
+from enum import StrEnum, auto
 
 
-class CVDRoles(Flag):
-    """Coordinated Vulnerability Disclosure Roles as a Flag (bitwise)
+class CVDRole(StrEnum):
+    """Individual CVD role values (lowercase string enum).
 
-    NO_ROLE: No role is assigned
-    FINDER: CVD Finder (entity that finds the vulnerability)
-    REPORTER: CVD Reporter (often the same as the finder)
-    VENDOR: CVD Vendor (supplier of the affected product or service, usually provider of the fix)
-    DEPLOYER: CVD Deployer (entity that deploys the fix, sometimes the same as the vendor)
-    COORDINATOR: CVD Coordinator (entity that coordinates the CVD process)
-    OTHER: Other role
+    Each member represents a single, atomic CVD role. Participants may hold
+    multiple roles simultaneously; use ``list[CVDRole]`` at call sites rather
+    than bitmask arithmetic.
+
+    Values are lowercase strings (e.g. ``CVDRole.FINDER == 'finder'``).
+
+    Roles:
+        FINDER: Entity that discovers the vulnerability.
+        REPORTER: Entity that reports the vulnerability to others.
+        VENDOR: Supplier of the affected product or service.
+        DEPLOYER: Entity that deploys the fix.
+        COORDINATOR: Entity that coordinates the CVD process.
+        OTHER: Any other CVD role not captured above.
+        CASE_OWNER: Actor who owns and manages a VulnerabilityCase (BTND-05-001).
     """
 
-    NO_ROLE = 0
     FINDER = auto()
     REPORTER = auto()
     VENDOR = auto()
@@ -37,35 +43,24 @@ class CVDRoles(Flag):
     OTHER = auto()
     CASE_OWNER = auto()
 
-    # shorthand
-    F = FINDER
-    R = REPORTER
-    V = VENDOR
-    D = DEPLOYER
-    C = COORDINATOR
-    O = OTHER  # noqa: E741
 
-    # frequent combinations
-    FINDER_REPORTER = FINDER | REPORTER
-    FINDER_VENDOR = FINDER | VENDOR
-    FINDER_REPORTER_VENDOR = FINDER | REPORTER | VENDOR
-    FINDER_REPORTER_VENDOR_DEPLOYER = FINDER | REPORTER | VENDOR | DEPLOYER
-    FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR = (
-        FINDER | REPORTER | VENDOR | DEPLOYER | COORDINATOR
-    )
-
-    VENDOR_DEPLOYER = VENDOR | DEPLOYER
-    VENDOR_COORDINATOR = VENDOR | COORDINATOR
-
-    FINDER_COORDINATOR = FINDER | COORDINATOR
-    FINDER_DEPLOYER = FINDER | DEPLOYER
-
-    FR = FINDER_REPORTER
-    FV = FINDER_VENDOR
-    FRV = FINDER_REPORTER_VENDOR
-    FRVD = FINDER_REPORTER_VENDOR_DEPLOYER
-    FRVDC = FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+def serialize_roles(roles: list[CVDRole]) -> list[str]:
+    """Serialize a list of CVDRole members to a list of lowercase strings."""
+    return [role.value for role in roles]
 
 
-def add_role(old_role, new_role):
-    return old_role | new_role
+def validate_roles(value: object) -> list[CVDRole]:
+    """Coerce a list of strings or CVDRole members to ``list[CVDRole]``.
+
+    Accepts either a list of ``CVDRole`` enum members (pass-through) or a
+    list of string values (e.g. from JSON deserialization).
+    """
+    if not isinstance(value, list):
+        return []
+    result: list[CVDRole] = []
+    for item in value:
+        if isinstance(item, CVDRole):
+            result.append(item)
+        elif isinstance(item, str):
+            result.append(CVDRole(item.lower()))
+    return result

@@ -46,7 +46,7 @@ from vultron.core.models.vultron_types import (
 )
 from vultron.core.states.em import EM, EMAdapter, create_em_machine
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRoles
+from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.factories import add_participant_to_case_activity
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.core.behaviors.helpers import (
@@ -482,7 +482,7 @@ class CreateCaseOwnerParticipant(DataLayerAction):
     then add it to the case's case_participants list.
 
     Roles are sourced from ``actor_config.default_case_roles``
-    (CFG-07-004); ``CVDRoles.CASE_OWNER`` is always appended
+    (CFG-07-004); ``CVDRole.CASE_OWNER`` is always appended
     (BTND-05-002).  When ``actor_config`` is ``None`` the participant
     receives only the ``CASE_OWNER`` role.
 
@@ -576,8 +576,8 @@ class CreateCaseOwnerParticipant(DataLayerAction):
                 if self.actor_config is not None
                 else []
             )
-            effective_roles: list[CVDRoles] = list(
-                dict.fromkeys(base_roles + [CVDRoles.CASE_OWNER])
+            effective_roles: list[CVDRole] = list(
+                dict.fromkeys(base_roles + [CVDRole.CASE_OWNER])
             )
 
             participant = VultronParticipant(
@@ -888,7 +888,7 @@ class CreateCaseParticipantNode(DataLayerAction):
     def __init__(
         self,
         actor_id: str,
-        roles: list[CVDRoles],
+        roles: list[CVDRole],
         report_id: str | None = None,
         name: str | None = None,
     ) -> None:

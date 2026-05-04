@@ -71,7 +71,7 @@ from vultron.core.behaviors.report.nodes import (
 )
 from vultron.core.models.actor_config import ActorConfig
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRoles
+from vultron.core.states.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ def create_receive_report_case_tree(
     - Creates a default embargo and attaches it to the case.
     - Creates a ``VultronParticipant`` for the receiving actor (case owner)
       at ``rm_state=RM.RECEIVED``, with roles from
-      ``actor_config.default_case_roles`` plus ``CVDRoles.CASE_OWNER``.
+      ``actor_config.default_case_roles`` plus ``CVDRole.CASE_OWNER``.
     - Creates a ``VultronParticipant`` for the reporting actor (reporter) at
       ``rm_state=RM.ACCEPTED`` (reusing the report-phase status if present).
     - Queues a ``Create(Case)`` activity to the actor's outbox so the reporter
@@ -115,7 +115,7 @@ def create_receive_report_case_tree(
         actor_config: Optional actor configuration carrying CVD-role
                       defaults for the receiving actor.  When ``None`` the
                       case-owner participant receives only the
-                      ``CVDRoles.CASE_OWNER`` role (CFG-07-002, CFG-07-004).
+                      ``CVDRole.CASE_OWNER`` role (CFG-07-002, CFG-07-004).
 
     Returns:
         Root node of the receive-report case-creation behavior tree.
@@ -153,7 +153,7 @@ def create_receive_report_case_tree(
             UpdateActorOutbox(),
             CreateCaseParticipantNode(
                 actor_id=reporter_actor_id,
-                roles=[CVDRoles.FINDER, CVDRoles.REPORTER],
+                roles=[CVDRole.FINDER, CVDRole.REPORTER],
                 report_id=report_id,
             ),
             # case_id is not known at build time; CreateCaseNode writes it to

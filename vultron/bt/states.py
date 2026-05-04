@@ -27,7 +27,7 @@ from vultron.bt.report_management.report_priority_states import (
     ReportPriority,
 )
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRoles
+from vultron.bt.roles.enums import CVDRolesFlag
 from vultron.core.states.cs import CS
 from vultron.bt.messaging.message import Message
 
@@ -41,7 +41,7 @@ class CapabilityFlag(Flag):
 
 
 class ActorState(BaseModel):
-    CVD_role: CVDRoles = CVDRoles.NO_ROLE
+    CVD_role: CVDRolesFlag = CVDRolesFlag.NO_ROLE
     others: Dict = Field(default_factory=dict)
 
     q_rm: RM = RM.START

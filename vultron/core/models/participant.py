@@ -21,7 +21,7 @@ from pydantic import Field, field_serializer, field_validator
 
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM, is_valid_rm_transition
-from vultron.core.states.roles import CVDRoles
+from vultron.core.states.roles import CVDRole, serialize_roles, validate_roles
 from vultron.core.models.base import NonEmptyString, VultronObject
 from vultron.core.models.participant_status import VultronParticipantStatus
 
@@ -44,7 +44,7 @@ class VultronParticipant(VultronObject):
     )
     attributed_to: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
-    case_roles: list[CVDRoles] = Field(default_factory=list)
+    case_roles: list[CVDRole] = Field(default_factory=list)
     participant_statuses: list[VultronParticipantStatus] = Field(
         default_factory=list
     )
@@ -53,17 +53,13 @@ class VultronParticipant(VultronObject):
     participant_case_name: NonEmptyString | None = None
 
     @field_serializer("case_roles")
-    def _serialize_case_roles(self, value: list[CVDRoles]) -> list[str]:
-        return [
-            role.name if role.name is not None else str(role) for role in value
-        ]
+    def _serialize_case_roles(self, value: list[CVDRole]) -> list[str]:
+        return serialize_roles(value)
 
     @field_validator("case_roles", mode="before")
     @classmethod
-    def _validate_case_roles(cls, value: list) -> list:
-        if isinstance(value, list) and value and isinstance(value[0], str):
-            return [CVDRoles[name] for name in value]
-        return value
+    def _validate_case_roles(cls, value: object) -> list[CVDRole]:
+        return validate_roles(value)
 
     def append_rm_state(self, rm_state: RM, actor: str, context: str) -> bool:
         """Append a new VultronParticipantStatus with the given RM state.

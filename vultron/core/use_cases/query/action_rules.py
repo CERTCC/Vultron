@@ -136,7 +136,7 @@ class GetActionRulesUseCase:
         valid_actions = get_actions(cs_state)
 
         # 7. Collect participant roles as string names
-        roles = [r.name for r in (participant.case_roles or [])]
+        roles = [r.value for r in (participant.case_roles or [])]
 
         return {
             "participant_id": str(participant.id_),
