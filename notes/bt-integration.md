@@ -674,6 +674,16 @@ failed" log lines that require re-running the scenario to diagnose. The
 `feedback_message` is set by failing nodes in py_trees and is the canonical
 source of diagnostic information.
 
+**Critical pitfall — `result.feedback_message` on the root is always empty**:
+When a `py_trees` Sequence fails because a child node fails, the root
+Sequence node's own `feedback_message` is always `""`. Logging
+`result.feedback_message` or `bt.root.feedback_message` after a BT failure
+therefore produces an empty string, not the diagnostic message set by the
+failing child. Always use `BTBridge.get_failure_reason(tree)` (depth-first walk
+to the first failing leaf) to get a meaningful message. Apply this pattern
+**everywhere** `feedback_message` is logged after a BT failure — not just for
+a single BT class.
+
 ---
 
 ### AttachNoteToCase Idempotency: Check Attachment, Not Existence
