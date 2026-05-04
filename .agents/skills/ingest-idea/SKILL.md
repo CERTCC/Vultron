@@ -3,7 +3,7 @@ name: ingest-idea
 description: >
   Process a raw design idea from plan/IDEAS.md into formal specs and
   implementation notes, then archive the idea and commit. Runs a structured
-  interview (grill-me), writes specs/<topic>.md and notes/<topic>.md, archives
+  interview (grill-me), writes specs/<topic>.yaml and notes/<topic>.md, archives
   the idea via `uv run append-history idea`, updates specs/README.md, lints,
   and commits. Use when the user says "ingest idea", references an IDEA ID, or
   wants to convert a plan/IDEAS.md entry into spec and notes files.
@@ -47,13 +47,13 @@ for each question. Reach shared understanding before writing anything.
 
 ### 5. Write the spec file
 
-Create or modify `specs/<topic>.md` following `specs/meta-specifications.yaml`
+Create or modify `specs/<topic>.yaml` following `specs/meta-specifications.yaml`
 conventions:
 
 - Use a `FILE_PREFIX-SECTION_#-###` ID scheme (e.g., `CFG-01-001`)
-- Group requirements by category with RFC 2119 keywords on every line
-- Include an `## Overview` with source reference and scope note
-- Sections: one `---` divider after the header; categories as `##` headings
+- Define requirements as YAML structures with RFC 2119 keywords
+- Include an overview section with source reference and scope note
+- Organize by category with clear section headings
 
 ### 6. Write the notes file
 
@@ -69,7 +69,7 @@ Create or modify `notes/<topic>.md` with implementation guidance:
 
 Add the new spec to both:
 
-- The **Load Contextually** table (topic → file)
+- The **Load Contextually** table (topic → file with .yaml extension)
 - The **Specification Structure** section (bullet with ID range)
 
 ### 8. Archive the idea
@@ -88,7 +88,7 @@ cat <<'ENDOFENTRY' | uv run append-history idea \
 <full original idea text here>
 
 **Processed**: YYYY-MM-DD — design decisions captured in
-`specs/<topic>.md` (ID-01 through ID-NN) and `notes/<topic>.md`.
+`specs/<topic>.yaml` (ID-01 through ID-NN) and `notes/<topic>.md`.
 ENDOFENTRY
 ```
 
@@ -104,12 +104,12 @@ any errors before proceeding.
 Invoke the `commit` skill:
 
 ```bash
-git add specs/<topic>.md notes/<topic>.md \
+git add specs/<topic>.yaml notes/<topic>.md \
         plan/IDEAS.md \
         specs/README.md
 git commit -m "ingest IDEA-<ID>: <short title>
 
-- Add specs/<topic>.md (ID-01 through ID-NN)
+- Add specs/<topic>.yaml (ID-01 through ID-NN)
 - Add notes/<topic>.md with implementation guidance
 - Archive IDEA-<ID> via append-history idea
 
@@ -122,7 +122,7 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
 - [ ] Idea text read from `plan/IDEAS.md`
 - [ ] Codebase explored before grilling
 - [ ] All design decision branches resolved via grill-me
-- [ ] `specs/<topic>.md` created with correct ID scheme
+- [ ] `specs/<topic>.yaml` created with correct ID scheme
 - [ ] `notes/<topic>.md` created with decision table + examples
 - [ ] `specs/README.md` updated (both tables)
 - [ ] `plan/IDEAS.md` — idea section removed
@@ -132,9 +132,10 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
 
 ## Conventions
 
-- **Spec file names**: use the topic name, lowercase hyphenated
-  (e.g., `configuration.md`, `actor-discovery.md`)
+- **Spec file names**: use the topic name, lowercase hyphenated with `.yaml`
+  extension (e.g., `configuration.yaml`, `actor-discovery.yaml`)
 - **ID prefix**: derive from the topic abbreviation (e.g., `CFG`, `AD`)
-- **Notes file name**: same as spec file name, in `notes/` instead of `specs/`
+- **Notes file name**: same as spec file name with `.md` extension, in `notes/`
+  instead of `specs/` (e.g., `configuration.md`, `actor-discovery.md`)
 - **History archiving**: use `uv run append-history idea` to archive processed
   ideas — do not append directly to any `plan/history/*.md` file
