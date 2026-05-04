@@ -56,34 +56,31 @@ through PRM-05-003). `CaseParticipant` lacks a `roles` property (PRM-04-001).
 
 **Source**: `specs/datalayer.yaml` DL-04; `notes/datalayer-design.md`
 
-`DataLayer` Protocol already exposes `list_objects(type_key)` at
-`vultron/core/ports/datalayer.py`. However, `CasePersistence` does not
-yet include it. Core use cases and BT nodes still call `by_type()` and
-manually run `model_validate()` on the raw dicts. Migrate them to the
-typed `list_objects()` path to remove raw-dict handling from the core.
+`DataLayer` Protocol exposes `list_objects(type_key)` but `CasePersistence`
+does not yet include it. `by_type()` callers in core have been removed, but
+four `model_validate()` coercions remain:
+
+- `behaviors/case/nodes.py:980` — `CaseParticipant.model_validate(...)`
+- `received/sync.py:55` — `VultronCaseLogEntry.model_validate(...)`
+- `triggers/sync.py:226` — `VultronCaseLogEntry.model_validate(...)`
+- `triggers/embargo.py:86` — `EmbargoEvent.model_validate(...)`
 
 **Unblocks TASK-CP-CLEANUP.**
 
 **Acceptance criteria:**
 
 - `CasePersistence` exposes `list_objects(type_key: str)`.
-- Core use cases (`received/sync.py`, `received/case.py`,
-  `received/note.py`, `triggers/sync.py`, `triggers/_helpers.py`) use
-  `list_objects()` instead of `by_type()` + `model_validate()`.
-- BT nodes in `behaviors/case/nodes.py` and `behaviors/report/nodes.py`
-  use `list_objects()` instead of `by_type()`.
+- The four `model_validate()` coercions above are replaced with
+  `list_objects()` calls or typed `read()`.
 - No manual `model_validate()` coercions in core for objects
   retrievable by type.
 
 - [ ] DL-REHYDRATE.1: Add `list_objects(type_key: str) ->
   Iterable[PersistableModel]` to `CasePersistence`
-- [ ] DL-REHYDRATE.2: Migrate `received/sync.py`, `received/case.py`,
-  `received/note.py`, `triggers/sync.py`, `triggers/_helpers.py` to
-  `list_objects()`; remove `model_validate()` coercions
-- [ ] DL-REHYDRATE.3: Migrate `behaviors/case/nodes.py` and
-  `behaviors/report/nodes.py` to `list_objects()`; remove raw `dict`
-  handling
-- [ ] DL-REHYDRATE.4: Update tests to verify `CasePersistence` callers
+- [ ] DL-REHYDRATE.2: Migrate the four remaining `model_validate()` sites
+  (`received/sync.py`, `triggers/sync.py`, `triggers/embargo.py`,
+  `behaviors/case/nodes.py`) to `list_objects()` or typed `read()`
+- [ ] DL-REHYDRATE.3: Update tests to verify `CasePersistence` callers
   use the typed method
 
 ---
@@ -146,13 +143,15 @@ do not leave at an intermediate level). Activate gate in the same PR.
 
 **Blocked by CC.1.**
 
-Current violations (CC 11–15):
+Current violations (CC 11–15) — 25 functions:
 
 - `vultron/adapters/driving/fastapi/main.py` `main` CC=11
+- `vultron/adapters/driving/fastapi/outbox_handler.py`
+  `handle_outbox_item` CC=11 *(new since CC.2 was drafted)*
 - `vultron/adapters/driving/fastapi/routers/actors.py`
   `post_actor_inbox` CC=12
 - `vultron/core/behaviors/case/nodes.py`
-  `CreateInitialVendorParticipant.update` CC=12
+  `CreateCaseOwnerParticipant.update` CC=12
 - `vultron/core/behaviors/case/nodes.py`
   `InitializeDefaultEmbargoNode.update` CC=13
 - `vultron/core/behaviors/case/nodes.py`
@@ -171,12 +170,18 @@ Current violations (CC 11–15):
   `SvcAcceptEmbargoUseCase.execute` CC=13
 - `vultron/core/use_cases/triggers/embargo.py`
   `SvcRejectEmbargoUseCase.execute` CC=12
+- `vultron/core/use_cases/triggers/sync.py`
+  `replay_missing_entries_trigger` CC=11 *(new since CC.2 was drafted)*
 - `vultron/demo/scenario/multi_vendor_demo.py`
   `verify_multi_vendor_case_state` CC=13
 - `vultron/demo/scenario/three_actor_demo.py`
   `verify_case_actor_case_state` CC=12
 - `vultron/demo/scenario/two_actor_demo.py` `find_case_for_offer` CC=11
 - `vultron/demo/scenario/two_actor_demo.py` `verify_vendor_case_state` CC=13
+- `vultron/metadata/history/backfill_implementation.py`
+  `_coerce_manifest_entry` CC=14 *(new since CC.2 was drafted)*
+- `vultron/metadata/history/cli.py` `main` CC=12
+  *(new since CC.2 was drafted)*
 - `vultron/metadata/specs/llm_export.py` `to_llm_json` CC=13
 - `vultron/metadata/specs/render.py` `render_markdown` CC=14
 - `vultron/metadata/specs/render.py` `_spec_to_dict` CC=12
@@ -184,10 +189,10 @@ Current violations (CC 11–15):
 
 **Acceptance criteria:**
 
-- All 21 functions pass `uv run flake8 --max-complexity=10 --select=C901`
+- All 25 functions pass `uv run flake8 --max-complexity=10 --select=C901`
 - `.flake8` contains `max-complexity = 10`
 
-- [ ] CC.2.1 Reduce all 21 CC 11–15 functions to CC≤10 (see violation list
+- [ ] CC.2.1 Reduce all 25 CC 11–15 functions to CC≤10 (see violation list
   above)
 - [ ] CC.2.2 Lower `max-complexity` from 15 to 10 in `.flake8`
 - [ ] CC.2.3 Upgrade `IMPLTS-07-008` from SHOULD to MUST in
