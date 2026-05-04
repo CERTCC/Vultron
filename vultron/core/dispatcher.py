@@ -24,6 +24,7 @@ The ``get_dispatcher`` factory function is provided for adapter convenience.
 """
 
 import logging
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, Callable
 
 from vultron.core.models.events import MessageSemantics
@@ -54,7 +55,7 @@ class DispatcherBase:
         self,
         use_case_map: dict[MessageSemantics, type],
         port_factories: (
-            dict[
+            Mapping[
                 MessageSemantics,
                 Callable[["DataLayer"], dict[str, Any]],
             ]
@@ -113,7 +114,7 @@ class DirectActivityDispatcher(DispatcherBase):
 def get_dispatcher(
     use_case_map: dict[MessageSemantics, type],
     port_factories: (
-        dict[
+        Mapping[
             MessageSemantics,
             Callable[["DataLayer"], dict[str, Any]],
         ]
