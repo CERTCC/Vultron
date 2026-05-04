@@ -195,11 +195,7 @@ def find_embargo_proposal(case_id: str, dl: CasePersistence):
 
     Returns None if no matching proposal is found.
     """
-    invite_records = dl.by_type("Invite")
-    for obj_id in invite_records:
-        obj = dl.read(obj_id)
-        if obj is None:
-            continue
+    for obj in dl.list_objects("Invite"):
         context = getattr(obj, "context", None)
         c_id = (
             context

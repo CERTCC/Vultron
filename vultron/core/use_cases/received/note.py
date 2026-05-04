@@ -115,11 +115,10 @@ class AddNoteToCaseReceivedUseCase:
         Recipients are derived from VulnerabilityCase.actor_participant_index.
         """
         # Locate the CaseActor (type_="Service") for this case.
-        service_records = self._dl.by_type("Service")
         case_actor_id: str | None = None
-        for obj_id, data in service_records.items():
-            if data.get("context") == case_id:
-                case_actor_id = obj_id
+        for service in self._dl.list_objects("Service"):
+            if getattr(service, "context", None) == case_id:
+                case_actor_id = service.id_
                 break
 
         if case_actor_id is None:

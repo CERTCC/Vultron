@@ -767,34 +767,21 @@ class InitializeDefaultEmbargoNode(DataLayerAction):
                 )
                 return Status.FAILURE
 
-            # Determine embargo duration from stored policy (wire-layer object
-            # accessed via raw dict to avoid importing the wire type).
+            # Determine embargo duration from stored policy.
             duration = timedelta(days=_DEFAULT_EMBARGO_DAYS)
-            policies = self.datalayer.by_type(VultronObjectType.EMBARGO_POLICY)
+            policies = list(
+                self.datalayer.list_objects(VultronObjectType.EMBARGO_POLICY)
+            )
             if policies:
-                first = next(iter(policies.values()))
-                duration_str = first.get(
-                    "preferred_duration", f"P{_DEFAULT_EMBARGO_DAYS}D"
-                )
-                try:
-                    parsed = isodate.parse_duration(duration_str)
-                    if isinstance(parsed, timedelta):
-                        duration = parsed
-                    else:
-                        self.logger.warning(
-                            "%s: EmbargoPolicy preferred_duration %r uses"
-                            " calendar units (years/months); falling back to"
-                            " default %d days",
-                            self.name,
-                            duration_str,
-                            _DEFAULT_EMBARGO_DAYS,
-                        )
-                except Exception:
+                preferred = getattr(policies[0], "preferred_duration", None)
+                if isinstance(preferred, timedelta):
+                    duration = preferred
+                else:
                     self.logger.warning(
-                        "%s: Could not parse EmbargoPolicy preferred_duration"
-                        " %r; falling back to default %d days",
+                        "%s: EmbargoPolicy preferred_duration %r is not a"
+                        " timedelta; falling back to default %d days",
                         self.name,
-                        duration_str,
+                        preferred,
                         _DEFAULT_EMBARGO_DAYS,
                     )
 

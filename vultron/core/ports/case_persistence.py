@@ -35,7 +35,7 @@ See also:
 """
 
 from collections.abc import Iterable
-from typing import Any, Protocol
+from typing import Protocol
 
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
@@ -59,13 +59,7 @@ class CasePersistence(Protocol):
         self, object_id: str, raise_on_missing: bool = False
     ) -> PersistableModel | None: ...
 
-    def get(
-        self, table: str | None, id_: str | None
-    ) -> "PersistableModel | dict[str, Any] | None": ...
-
     def save(self, obj: PersistableModel) -> None: ...
-
-    def by_type(self, type_: str) -> "dict[str, dict[str, Any]]": ...
 
     def list_objects(self, type_key: str) -> Iterable[PersistableModel]: ...
 

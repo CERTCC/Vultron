@@ -29,6 +29,7 @@ import logging
 from typing import Any, cast
 
 import py_trees
+from pydantic import BaseModel
 from py_trees.common import Status
 
 from vultron.core.models.protocols import has_outbox
@@ -215,7 +216,7 @@ class ReadObject(DataLayerCondition):
             return Status.FAILURE
 
         try:
-            record = self.datalayer.get(self.table, self.object_id)
+            record = self.datalayer.read(self.object_id)
 
             if record is None:
                 self.feedback_message = (
@@ -306,7 +307,20 @@ class UpdateObject(DataLayerAction):
                 return Status.FAILURE
 
             # Build an updated StorableRecord without importing the adapter-layer Record.
-            if "data_" in current_dict:
+            if isinstance(current_dict, BaseModel):
+                # Typed domain object stored by ReadObject; serialise to dict
+                # before applying updates.
+                current_data = current_dict.model_dump(mode="json")
+                record_type = current_data.get("type_") or str(
+                    getattr(current_dict, "type_", "Object")
+                )
+                updated_data = {**current_data, **self.updates}
+                storable = StorableRecord(
+                    id_=self.object_id,
+                    type_=record_type,
+                    data_=updated_data,
+                )
+            elif "data_" in current_dict:
                 updated_data = {**current_dict["data_"], **self.updates}
                 storable = StorableRecord(
                     id_=current_dict["id_"],

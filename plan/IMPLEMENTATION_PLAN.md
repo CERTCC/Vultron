@@ -17,28 +17,6 @@ section order.
 
 ---
 
-## TASK-CP-CLEANUP — Remove Deprecated `CasePersistence` Compat Methods
-
-**Source**: `specs/datalayer.yaml` DL-04-005; `notes/datalayer-design.md`
-
-`CasePersistence` still exposes `get()` and `by_type()` as compatibility
-methods. Remove them once all core callers have migrated to
-`read()` and `list_objects()` (TASK-DL-REHYDRATE is now complete).
-
-**Acceptance criteria:**
-
-- `CasePersistence` and `CaseOutboxPersistence` no longer expose `get()`
-  or `by_type()`.
-- No core code accesses raw `dict[str, Any]` through the narrow ports.
-- Specs, notes, and tests are updated consistently.
-
-- [ ] CP-CLEANUP.1: Verify no remaining `get()` / `by_type()` callers in
-  `vultron/core/` after TASK-DL-REHYDRATE
-- [ ] CP-CLEANUP.2: Remove `get()` and `by_type()` from `CasePersistence`
-  and `CaseOutboxPersistence`; update tests and docs
-
----
-
 `flake8-mccabe` is already bundled in the project's flake8 install. The
 gate integrates into the existing `lint-flake8` CI job and pre-commit
 pipeline with no new dependencies. Scope: both `vultron/` and `test/`.

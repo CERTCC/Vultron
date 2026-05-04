@@ -6,6 +6,7 @@
 |------|------------|------|--------|-------|
 | 2026-05-26 | 00:00 | implementation | BUG-26052601 | BUG-26052601: Factory cast() does not coerce at runtime |
 | 2026-05-26 | 00:00 | implementation | BUG-26052602 | BUG-26052602: finder_submits_report loses VulnerabilityReport ID |
+| 2026-05-04 | 20:37 | implementation | TASK-CP-CLEANUP | Remove deprecated CasePersistence compat methods |
 | 2026-05-04 | 20:13 | implementation | TASK-DL-REHYDRATE | Migrate core use-cases from by_type/model_validate to typed list_objects |
 | 2026-05-04 | 19:26 | implementation | TASK-PRM | Participant Role Management |
 | 2026-05-04 | 19:04 | priority | TASK-OUTBOX-TO | Outbox Integrity Enforcement (Priority 475, TASK-OUTBOX-TO) |

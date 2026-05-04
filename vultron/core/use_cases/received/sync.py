@@ -69,9 +69,9 @@ def _find_local_actor_id(dl: CasePersistence) -> str | None:
     actor-scoped DataLayer.  Returns the first match, or ``None``.
     """
     for actor_type in ("Service", "Person", "Organization"):
-        records = dl.by_type(actor_type)
-        if records:
-            return next(iter(records.keys()))
+        actors = list(dl.list_objects(actor_type))
+        if actors:
+            return actors[0].id_
     return None
 
 
@@ -332,11 +332,11 @@ class RejectLogEntryReceivedUseCase:
         ``context`` equals *case_id* (same pattern as
         ``AddNoteToCaseReceivedUseCase._broadcast_note_to_participants``).
         """
-        service_records = self._dl.by_type("Service")
-        for obj_id, data in service_records.items():
-            if data.get("context") == case_id:
-                return obj_id
+        services = list(self._dl.list_objects("Service"))
+        for service in services:
+            if getattr(service, "context", None) == case_id:
+                return service.id_
         # Fall back: return any Service actor if none has a matching context
-        if service_records:
-            return next(iter(service_records.keys()))
+        if services:
+            return services[0].id_
         return None
