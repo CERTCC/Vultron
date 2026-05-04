@@ -6,6 +6,14 @@
 |------|------------|------|--------|-------|
 | 2026-05-26 | 00:00 | implementation | BUG-26052601 | BUG-26052601: Factory cast() does not coerce at runtime |
 | 2026-05-26 | 00:00 | implementation | BUG-26052602 | BUG-26052602: finder_submits_report loses VulnerabilityReport ID |
+| 2026-05-04 | 18:02 | learning | TASK-ARCHVIO | Sync use cases violate ARCH-01-001 more broadly than from_core() alone |
+| 2026-05-04 | 18:01 | learning | TASK-CFG | pydantic-settings 2.x source priority order |
+| 2026-05-04 | 18:01 | learning | BTND5.4 | Legacy bt/ isolation pattern for shared enums |
+| 2026-05-04 | 18:01 | learning | AF.8-10 | Factory return types are wire types, not domain models |
+| 2026-05-04 | 18:01 | learning | BUG-26043001 | append-history: always use a Pydantic model for structured file formats |
+| 2026-05-04 | 18:01 | learning | TASK-DL-REHYDRATE | Do not name a method list in a Python class |
+| 2026-05-04 | 18:00 | learning | P472-BUG386 | Closed via sender-side inline-object fix |
+| 2026-05-04 | 18:00 | learning | BUG-471.6 | BTBridge.get_failure_reason vs result.feedback_message |
 | 2026-05-04 | 17:45 | idea | IDEA-26050403 | Sync behavior tree for log entry protocol |
 | 2026-05-04 | 17:44 | idea | IDEA-26050402 | Case-actor vs non-case-actor log entry handling |
 | 2026-05-04 | 16:57 | idea | IDEA-26050401 | Participant role methods |
