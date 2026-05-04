@@ -23,12 +23,14 @@
 | 2026-04-30 | 00:00 | implementation | TASK-AF.8-10 | TASK-AF.8-10 — Factory call-site type annotation fixes |
 | 2026-04-29 | 16:35 | implementation | TASK-BUGS-471 | Bug Fixes: BUG-471.5, BUG-471.6, BUG-471.7a, BUG-471.7b |
 | 2026-04-29 | 00:00 | priority | Priority 471 | Priority 471: Bug Fixes and Demo Polish — COMPLETE |
+| 2026-04-28 | 23:59 | idea | IDEA-26042702 | "History" files should be chunked by time to avoid unlimited growth |
 | 2026-04-28 | 22:54 | implementation | TASK-CCDRIFT | TASK-CCDRIFT — Fix cc Addressing Warning + PersistCase Upsert |
 | 2026-04-28 | 22:54 | implementation | TASK-SEDRIFT | TASK-SEDRIFT — Fix Semantic Extraction Pattern Gaps |
 | 2026-04-28 | 22:10 | priority | Priority 470 | Priority 470 — Skills-upgrade spec tasks complete |
 | 2026-04-28 | 20:44 | implementation | TASK-SPECMD, TASK-SPECIDFIX | TASK-SPECMD + TASK-SPECIDFIX |
 | 2026-04-28 | 00:00 | idea | IDEA-26042701 | Implementation plan groups should be approximately Issue or PR sized |
 | 2026-04-28 | 00:00 | idea | IDEA-26042801 | build skill should be clear on distinction between notes and history |
+| 2026-04-27 | 23:59 | idea | IDEA-26042402 | Convert spec.md files to YAML governed by a pydantic dataclass schema |
 | 2026-04-27 | 00:00 | implementation | LEGACY-2026-04-27-sr-6-1-sr-6-3-spec-migration-to-yaml-priority-46 | SR.6.1–SR.6.3 — Spec Migration to YAML (Priority 460) |
 | 2026-04-27 | 00:00 | implementation | LEGACY-2026-04-27-sr-6-3-continued-schema-strictness-and-yaml-expo | SR.6.3 (continued) — Schema Strictness and YAML Export |
 | 2026-04-27 | 00:00 | implementation | LEGACY-2026-04-27-sr-6-4-update-all-specs-md-references | SR.6.4 — Update All specs/*.md References |
@@ -36,6 +38,25 @@
 | 2026-04-27 | 00:00 | implementation | LEGACY-2026-04-27-sr-6-6-delete-original-specs-md-files | SR.6.6 — Delete Original specs/*.md Files |
 | 2026-04-27 | 00:00 | implementation | LEGACY-2026-04-27-sr-6-new-networkx-graph-and-llm-optimized-export | SR.6 (new) — NetworkX Graph and LLM-Optimized Export |
 | 2026-04-27 | 00:00 | implementation | LEGACY-2026-04-27-task-sr-sr-1-sr-5-spec-registry-tests-pytest-mar | TASK-SR SR.1–SR.5 — Spec Registry Tests, Pytest Marker, Pre-commit Hook |
+| 2026-04-24 | 23:59 | idea | IDEA-260402-02 | Does each participant need their own stub Case Actor clone to manage their copy of the case? |
+| 2026-04-24 | 23:59 | idea | IDEA-26041002 | Default embargo should result in `EM.ACTIVE` not `EM.PROPOSED` |
+| 2026-04-24 | 23:59 | idea | IDEA-26041003 | Differentiate between "demo" triggers and "normal" triggers |
+| 2026-04-24 | 23:59 | idea | IDEA-26041601 | Recurring problem: Actors assuming that everyone knows what they know |
+| 2026-04-24 | 23:59 | idea | IDEA-26041602 | Clarification on Actor knowledge assumptions in specs |
+| 2026-04-24 | 23:59 | idea | IDEA-26041701 | Clarification of intended control flow |
+| 2026-04-24 | 23:59 | idea | IDEA-26041702 | Generalize behavior nodes to avoid overfitting to the demo |
+| 2026-04-24 | 23:59 | idea | IDEA-26041703 | Concern about behavior tree integration into design |
+| 2026-04-24 | 23:59 | idea | IDEA-26042001 | The Vultron-specific activities might make more sense as factory functions |
+| 2026-04-24 | 23:59 | idea | IDEA-26042401 | Priorities should be decoupled from the implementation plan |
+| 2026-04-24 | 23:59 | idea | IDEA-26042403 | Add YAML frontmatter to notes/*.md files |
+| 2026-04-23 | 23:59 | idea | IDEA-260402-01 | Config files should be YAML and loaded into a structured config object |
+| 2026-04-23 | 23:59 | idea | IDEA-26040903 | Do not worry about backward compatibility in prototype phase |
+| 2026-04-23 | 23:59 | idea | IDEA-26041001 | Outbox posting must have `to:` field requirement |
+| 2026-04-23 | 23:59 | idea | IDEA-26041501 | Need spec to avoid compatability shims in prototype |
+| 2026-04-23 | 23:59 | idea | IDEA-26041704 | Bugfix skill prematurely locks in on simple fixes |
+| 2026-04-23 | 23:59 | idea | IDEA-26042201 | append-only means append, not "insert at specific location" |
+| 2026-04-23 | 23:59 | idea | IDEA-26042202 | bugfix skill should move fixed bugs out of BUGS.md |
+| 2026-04-23 | 23:59 | idea | IDEA-26042301 | Do not check existence of append-only files before appending |
 | 2026-04-23 | 00:00 | implementation | BUG-26042204 | BUG-26042204 — three-actor demo never activates case embargo after owner-gated accept flow (FIXED 2026-04-22) |
 | 2026-04-23 | 00:00 | implementation | DOCMAINT-2 | DOCMAINT-2 — Fix stale references to archived notes (2026-04-23) |
 | 2026-04-23 | 00:00 | implementation | DOCS-3 | DOCS-3 — User Story Traceability Matrix |
