@@ -13,29 +13,33 @@
 
 """Verify that the test environment uses in-memory SQLite storage.
 
-These tests confirm that the ``VULTRON_DB_URL`` environment variable is set to
-``sqlite:///:memory:`` by the test infrastructure (``test/conftest.py``), so no
-on-disk SQLite files are created during the test suite.
+These tests confirm that the ``VULTRON_DATABASE__DB_URL`` environment variable
+is set to ``sqlite:///:memory:`` by the test infrastructure
+(``test/conftest.py``), so no on-disk SQLite files are created during the
+test suite.
 """
 
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
-    _DEFAULT_DB_URL,
     get_datalayer,
     reset_datalayer,
 )
+from vultron.config import get_config
 
 
-def test_default_db_url_is_in_memory():
-    """_DEFAULT_DB_URL must be 'sqlite:///:memory:' during tests.
+def test_config_db_url_is_in_memory():
+    """get_config().database.db_url must be 'sqlite:///:memory:' during tests.
 
-    The test/conftest.py sets VULTRON_DB_URL=sqlite:///:memory: before any
-    vultron imports, so _DEFAULT_DB_URL is resolved to the in-memory value.
+    The test/conftest.py sets VULTRON_DATABASE__DB_URL=sqlite:///:memory:
+    before any vultron imports, so get_config().database.db_url resolves to
+    the in-memory value.
     """
-    assert _DEFAULT_DB_URL == "sqlite:///:memory:", (
-        f"Expected _DEFAULT_DB_URL='sqlite:///:memory:', got {_DEFAULT_DB_URL!r}.  "
-        "Ensure os.environ.setdefault('VULTRON_DB_URL', 'sqlite:///:memory:') "
-        "is set in test/conftest.py BEFORE any vultron imports."
+    db_url = get_config().database.db_url
+    assert db_url == "sqlite:///:memory:", (
+        f"Expected database.db_url='sqlite:///:memory:', got {db_url!r}.  "
+        "Ensure os.environ.setdefault('VULTRON_DATABASE__DB_URL', "
+        "'sqlite:///:memory:') is set in test/conftest.py BEFORE any "
+        "vultron imports."
     )
 
 

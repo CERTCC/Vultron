@@ -13,9 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tests for get_datalayer() factory and VULTRON_DB_URL env var support."""
-
-import os
+"""Tests for get_datalayer() factory and env var config support."""
 
 import pytest
 
@@ -28,10 +26,16 @@ from vultron.adapters.driven.datalayer_sqlite import (
 
 @pytest.fixture(autouse=True)
 def reset_singleton():
-    """Ensure the datalayer singletons are cleared before and after each test."""
+    """Ensure the datalayer singletons and config cache are reset each test."""
+    import vultron.config as _cfg_module
+
     reset_datalayer()
     yield
     reset_datalayer()
+    # Clear config cache without reloading — monkeypatch reverts env vars
+    # AFTER this teardown, so calling reload_config() here would lock in
+    # the test's env state rather than the session-level conftest defaults.
+    _cfg_module._config_cache = None
 
 
 def test_get_datalayer_returns_sqlite_instance():
@@ -66,11 +70,16 @@ def test_get_datalayer_returns_different_instances_for_different_actors():
     assert dl_a is not dl_b
 
 
-def test_default_db_url_uses_vultron_db_url_env_var(monkeypatch, tmp_path):
-    """get_datalayer() must honour VULTRON_DB_URL when it is set."""
+def test_default_db_url_uses_vultron_database_db_url_env_var(
+    monkeypatch, tmp_path
+):
+    """get_datalayer() must honour VULTRON_DATABASE__DB_URL when it is set."""
+    from vultron.config import reload_config
+
     db_file = str(tmp_path / "env_test.sqlite")
     db_url = f"sqlite:///{db_file}"
-    monkeypatch.setenv("VULTRON_DB_URL", db_url)
+    monkeypatch.setenv("VULTRON_DATABASE__DB_URL", db_url)
+    reload_config()
 
     dl = get_datalayer()
     assert dl.ping()
@@ -79,10 +88,13 @@ def test_default_db_url_uses_vultron_db_url_env_var(monkeypatch, tmp_path):
     assert db_url in str(dl._engine.url)
 
 
-def test_default_db_url_falls_back_to_sqlite_mydb():
-    """When VULTRON_DB_URL is not set, _DEFAULT_DB_URL falls back to sqlite:///mydb.sqlite."""
-    import vultron.adapters.driven.datalayer_sqlite as mod
+def test_default_db_url_falls_back_to_config_default(monkeypatch):
+    """When no DB URL env var is set, get_config().database.db_url falls back
+    to the default 'sqlite:///vultron.db'."""
+    from vultron.config import get_config, reload_config
 
-    if os.environ.get("VULTRON_DB_URL"):
-        pytest.skip("VULTRON_DB_URL is set in the environment")
-    assert mod._DEFAULT_DB_URL == "sqlite:///mydb.sqlite"
+    monkeypatch.delenv("VULTRON_DATABASE__DB_URL", raising=False)
+    reload_config()
+
+    db_url = get_config().database.db_url
+    assert db_url == "sqlite:///vultron.db"

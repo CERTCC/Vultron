@@ -22,13 +22,14 @@ they depend on the wire-format ID conventions (HTTP URLs and ``urn:uuid:``
 URNs) rather than on domain concepts.
 """
 
-import os
 import re
 from typing import TypedDict
 from urllib.parse import urljoin, urlparse
 from uuid import uuid4
 
-BASE_URL = os.environ.get("VULTRON_BASE_URL", "https://demo.vultron.local/")
+from vultron.config import get_config
+
+BASE_URL = get_config().server.base_url
 
 _UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",

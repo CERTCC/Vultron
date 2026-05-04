@@ -88,3 +88,19 @@ Key decisions: `NO_ROLE` is removed from the StrEnum (empty list = no roles).
 Serialization uses `.value` (lowercase), not `.name`. The centralized
 `serialize_roles` / `validate_roles` helpers in `roles.py` are the single
 source of truth for all models — don't duplicate per-class serializers.
+
+### 2026-05-04 TASK-CFG — pydantic-settings 2.x source priority order
+
+In pydantic-settings 2.14, `settings_customise_sources` returns a tuple where
+the **first** source has the **highest** priority (it wins in the deep-merge
+performed by `_settings_build_values`). The `notes/configuration.md` example
+incorrectly commented "last = highest". The correct order to get env vars >
+YAML is `(env_settings, YamlConfigSource(settings_cls))`.
+
+### 2026-05-04 TASK-CFG — Config fixture teardown: clear cache, don't reload
+
+When a test fixture calls `reload_config()` in teardown (after `yield`), it
+fires BEFORE pytest's `monkeypatch` reverts env var changes. This locks in the
+test's env state rather than the session-level defaults from `conftest.py`.
+Pattern: set `_config_cache = None` directly in teardown, and let the next
+test's first `get_config()` call reload with the correctly-restored env vars.

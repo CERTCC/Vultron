@@ -138,35 +138,12 @@ objects.
 
 ---
 
-## TASK-CFG — Unified Configuration System
-
-**Source**: `specs/configuration.yaml` CFG-01 through CFG-07;
-`notes/configuration.md`
-
-Introduce `vultron/config.py` with `AppConfig`, `ServerConfig`,
-`DatabaseConfig`, `RunMode(StrEnum)`, `get_config()`, `reload_config()`.
-Refactor `SeedConfig`/`LocalActorConfig` to `pydantic-settings`.
-
-**Acceptance criteria:**
-
-- `vultron/config.py` exports all above symbols; `RunMode` has `PROTOTYPE`
-  and `PROD` values.
-- All `os.environ.get()` config reads replaced by `get_config()`.
-- `test/test_config.py` covers defaults, env-var override, `reload_config()`.
-
-- [ ] CFG.1 Create `vultron/config.py` (CFG-01-001 through CFG-04-007)
-- [ ] CFG.2 Refactor `seed_config.py` to `BaseSettings` (CFG-05-001–CFG-05-003)
-- [ ] CFG.3 Replace `os.environ.get()` config reads (CFG-01-004)
-- [ ] CFG.4 Add `test/test_config.py` (CFG-06-001–CFG-06-005)
-
----
-
 ## TASK-TRIGCLASS — Trigger Classification and Demo Route Separation
 
 **Source**: `specs/triggerable-behaviors.yaml` TRIG-08, TRIG-09, TRIG-10;
 `notes/trigger-classification.md`
 
-**Blocked by TASK-CFG** (needs `RunMode` and `get_config()`).
+**Requires `RunMode` and `get_config()` from `vultron/config.py` (now available).**
 
 ### TRIGCLASS.1 — Create the demo trigger router
 
