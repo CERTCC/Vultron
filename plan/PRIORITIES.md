@@ -34,11 +34,6 @@ Remaining implementation-level architecture tasks (no GitHub issues):
 - **TASK-DL-REHYDRATE** — Add `list_objects(type_key)` to `CasePersistence`;
   remove remaining `model_validate()` coercions from core use cases and BT
   nodes.
-- **TASK-PRM** — Participant Role Management: add `roles` property and tests
-  for `add_role()`, `remove_role()`, `has_role()` on `VultronParticipant`;
-  align `CaseParticipant` wire-layer interface; add architecture test
-  enforcing no direct `case_roles` mutation in core. See
-  `specs/participant-role-management.yaml` PRM-01 through PRM-05.
 
 ## Priority 474: Trigger Classification
 

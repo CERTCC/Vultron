@@ -165,10 +165,74 @@ class CaseParticipant(VultronAS2Object):
         )
         return True
 
-    def add_role(self, role: CVDRole, reset=False):
-        if reset:
-            self.case_roles = []
-        self.case_roles.append(role)
+    def add_role(
+        self, role: CVDRole, raise_when_present: bool = False
+    ) -> None:
+        """Add a role to the participant.
+
+        Idempotent when role already exists. Raises ``KeyError`` when
+        ``raise_when_present=True`` and the role is already present.
+
+        Args:
+            role: CVD role to add.
+            raise_when_present: when True, raise KeyError if role already held.
+
+        Raises:
+            KeyError: when raise_when_present is True and role already present.
+        """
+        roles = set(self.case_roles)
+        if role not in roles:
+            roles.add(role)
+        else:
+            logger.info(
+                "Attempted to add role %s to participant %s, but role was already present",
+                role,
+                self,
+            )
+            if raise_when_present:
+                raise KeyError(
+                    f"Role {role} was already present in participant.case_roles"
+                )
+        self.case_roles = list(roles)
+
+    def remove_role(
+        self, role: CVDRole, raise_when_missing: bool = False
+    ) -> None:
+        """Remove a role from the participant.
+
+        Idempotent when role does not exist. Raises ``KeyError`` when
+        ``raise_when_missing=True`` and the role is not held.
+
+        Args:
+            role: CVD role to remove.
+            raise_when_missing: when True, raise KeyError if role not present.
+
+        Raises:
+            KeyError: when raise_when_missing is True and role not present.
+        """
+        roles = set(self.case_roles)
+        if role in roles:
+            roles.remove(role)
+        else:
+            logger.info(
+                "Attempted to remove role %s from participant %s, but role was not present",
+                role,
+                self,
+            )
+            if raise_when_missing:
+                raise KeyError(
+                    f"Role {role} was not present to delete from participant.case_roles"
+                )
+        self.case_roles = list(roles)
+
+    def has_role(self, role: CVDRole) -> bool:
+        """Return True when the participant holds the given role."""
+        return role in self.case_roles
+
+    @property
+    def roles(self) -> list[CVDRole]:
+        """Return the participant's current CVD roles (read-only copy)."""
+        return list(self.case_roles)
 
     @classmethod
     def from_core(cls, core_obj: VultronParticipant) -> "CaseParticipant":
@@ -199,7 +263,8 @@ class FinderParticipant(CaseParticipant):
     @model_validator(mode="after")
     def set_role(self):
         """Set the FINDER role."""
-        self.case_roles = [CVDRole.FINDER]
+        self.case_roles = []
+        self.add_role(CVDRole.FINDER)
         return self
 
 
@@ -211,7 +276,8 @@ class ReporterParticipant(CaseParticipant):
     @model_validator(mode="after")
     def set_role(self):
         """Set the REPORTER role."""
-        self.case_roles = [CVDRole.REPORTER]
+        self.case_roles = []
+        self.add_role(CVDRole.REPORTER)
         return self
 
     @model_validator(mode="after")
@@ -236,7 +302,9 @@ class FinderReporterParticipant(CaseParticipant):
     @model_validator(mode="after")
     def set_roles(self) -> FinderReporterParticipant:
         """Set both FINDER and REPORTER roles."""
-        self.case_roles = [CVDRole.FINDER, CVDRole.REPORTER]
+        self.case_roles = []
+        self.add_role(CVDRole.FINDER)
+        self.add_role(CVDRole.REPORTER)
         return self
 
     @model_validator(mode="after")
@@ -263,7 +331,8 @@ class VendorParticipant(CaseParticipant):
     @model_validator(mode="after")
     def set_role(self):
         """Set the VENDOR role."""
-        self.case_roles = [CVDRole.VENDOR]
+        self.case_roles = []
+        self.add_role(CVDRole.VENDOR)
         return self
 
 
@@ -275,7 +344,8 @@ class DeployerParticipant(CaseParticipant):
     @model_validator(mode="after")
     def set_role(self) -> DeployerParticipant:
         """Set the DEPLOYER role."""
-        self.case_roles = [CVDRole.DEPLOYER]
+        self.case_roles = []
+        self.add_role(CVDRole.DEPLOYER)
         return self
 
 
@@ -287,7 +357,8 @@ class CoordinatorParticipant(CaseParticipant):
     @model_validator(mode="after")
     def set_role(self):
         """Set the COORDINATOR role."""
-        self.case_roles = [CVDRole.COORDINATOR]
+        self.case_roles = []
+        self.add_role(CVDRole.COORDINATOR)
         return self
 
 
@@ -299,7 +370,8 @@ class OtherParticipant(CaseParticipant):
     @model_validator(mode="after")
     def set_role(self):
         """Set the OTHER role."""
-        self.case_roles = [CVDRole.OTHER]
+        self.case_roles = []
+        self.add_role(CVDRole.OTHER)
         return self
 
 

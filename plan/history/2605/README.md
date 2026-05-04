@@ -6,6 +6,7 @@
 |------|------------|------|--------|-------|
 | 2026-05-26 | 00:00 | implementation | BUG-26052601 | BUG-26052601: Factory cast() does not coerce at runtime |
 | 2026-05-26 | 00:00 | implementation | BUG-26052602 | BUG-26052602: finder_submits_report loses VulnerabilityReport ID |
+| 2026-05-04 | 19:26 | implementation | TASK-PRM | Participant Role Management |
 | 2026-05-04 | 19:04 | priority | TASK-OUTBOX-TO | Outbox Integrity Enforcement (Priority 475, TASK-OUTBOX-TO) |
 | 2026-05-04 | 18:02 | learning | TASK-ARCHVIO | Sync use cases violate ARCH-01-001 more broadly than from_core() alone |
 | 2026-05-04 | 18:01 | learning | TASK-CFG | pydantic-settings 2.x source priority order |

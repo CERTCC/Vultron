@@ -154,3 +154,8 @@ class VultronParticipant(VultronObject):
     def has_role(self, role: CVDRole) -> bool:
         """Return true when the participant has the given role."""
         return role in self.case_roles
+
+    @property
+    def roles(self) -> list[CVDRole]:
+        """Return the participant's current CVD roles (read-only copy)."""
+        return list(self.case_roles)

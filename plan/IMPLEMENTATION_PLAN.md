@@ -15,43 +15,6 @@ section order.
 
 ---
 
-## TASK-PRM — Participant Role Management
-
-**Source**: `specs/participant-role-management.yaml` PRM-01 through PRM-05;
-`notes/participant-role-management.md`
-
-`VultronParticipant` already has `add_role()`, `remove_role()`, and
-`has_role()` methods, but the required read-only `roles` property
-(PRM-01-001) is missing. `action_rules.py` still accesses `case_roles`
-directly (PRM-01-003, PRM-03-001). Unit tests are absent (PRM-05-001
-through PRM-05-003). `CaseParticipant` lacks a `roles` property (PRM-04-001).
-
-**Acceptance criteria:**
-
-- `VultronParticipant.roles` property returns `list[CVDRole]` (PRM-01-001).
-- Core code uses `participant.roles` or `participant.has_role()`; no direct
-  `case_roles` access outside the model class itself (PRM-01-003, PRM-03-001).
-- `CaseParticipant` exposes a `roles` property (PRM-04-001).
-- Unit tests cover all PRM-05-001 through PRM-05-003 scenarios.
-- Architecture test enforces no direct `case_roles` mutation in core
-  (PRM-05-004).
-
-- [ ] PRM.1: Add `roles: list[CVDRole]` read-only property to
-  `VultronParticipant`; migrate `action_rules.py` line 139 and any other
-  core `case_roles` accesses to use `participant.roles` or
-  `participant.has_role()`
-- [ ] PRM.2: Add `roles` property to `CaseParticipant` wire-layer class
-  (PRM-04-001); verify model validators use `add_role()` / `remove_role()`
-  where appropriate (PRM-04-002)
-- [ ] PRM.3: Write unit tests for `VultronParticipant.add_role()`,
-  `remove_role()`, `has_role()`, and `roles` covering all PRM-05-001
-  through PRM-05-003 scenarios
-- [ ] PRM.4: Add architecture test enforcing no direct `case_roles` mutation
-  in `vultron/core/` outside `vultron/core/models/participant.py`
-  (PRM-05-004)
-
----
-
 ## TASK-DL-REHYDRATE — Migrate Core to `list_objects()`
 
 **Source**: `specs/datalayer.yaml` DL-04; `notes/datalayer-design.md`

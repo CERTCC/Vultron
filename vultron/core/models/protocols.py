@@ -79,6 +79,9 @@ class ParticipantModel(PersistableModel, Protocol):
     attributed_to: object
     case_roles: list
 
+    @property
+    def roles(self) -> list: ...
+
     def append_rm_state(
         self, rm_state: RM, actor: str, context: str
     ) -> bool: ...
