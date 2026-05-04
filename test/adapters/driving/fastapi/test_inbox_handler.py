@@ -120,7 +120,9 @@ def test_init_dispatcher_sets_dispatcher(monkeypatch):
     mock_dispatcher = Mock()
     monkeypatch.setattr(ih, "_DISPATCHER", None)
     monkeypatch.setattr(
-        ih, "get_dispatcher", lambda use_case_map: mock_dispatcher
+        ih,
+        "get_dispatcher",
+        lambda use_case_map, port_factories=None: mock_dispatcher,
     )
 
     ih.init_dispatcher()

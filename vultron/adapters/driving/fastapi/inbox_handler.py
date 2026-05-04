@@ -21,7 +21,7 @@ from typing import Any, cast
 
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.core.dispatcher import get_dispatcher
-from vultron.core.models.events import VultronEvent
+from vultron.core.models.events import MessageSemantics, VultronEvent
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.semantic_registry import (
@@ -53,6 +53,23 @@ def prepare_for_dispatch(activity: as_Activity) -> VultronEvent:
 _DISPATCHER: ActivityDispatcher | None = None
 
 
+def _sync_port_factory(dl: DataLayer) -> dict[str, Any]:
+    """Create a ``SyncActivityAdapter`` from the current DataLayer."""
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
+
+    return {"sync_port": SyncActivityAdapter(dl)}
+
+
+_SYNC_PORT_SEMANTICS = frozenset(
+    {
+        MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY,
+        MessageSemantics.REJECT_CASE_LOG_ENTRY,
+    }
+)
+
+
 def init_dispatcher(dl: DataLayer | None = None) -> None:
     """Initialise the module-level dispatcher.
 
@@ -65,7 +82,11 @@ def init_dispatcher(dl: DataLayer | None = None) -> None:
             passed at dispatch time via :func:`dispatch`.
     """
     global _DISPATCHER
-    _DISPATCHER = get_dispatcher(use_case_map=_use_case_map())
+    port_factories = {sem: _sync_port_factory for sem in _SYNC_PORT_SEMANTICS}
+    _DISPATCHER = get_dispatcher(
+        use_case_map=_use_case_map(),
+        port_factories=port_factories,
+    )
     logger.info("Initialised inbox dispatcher: %s", type(_DISPATCHER).__name__)
 
 

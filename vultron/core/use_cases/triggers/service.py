@@ -86,6 +86,7 @@ from vultron.core.use_cases.triggers.requests import (
     TerminateEmbargoTriggerRequest,
     ValidateReportTriggerRequest,
 )
+from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.triggers.sync import commit_log_entry_trigger
 
 
@@ -102,8 +103,13 @@ class TriggerService:
     via ``domain_error_translation()``.
     """
 
-    def __init__(self, dl: DataLayer) -> None:
+    def __init__(
+        self,
+        dl: DataLayer,
+        sync_port: SyncActivityPort | None = None,
+    ) -> None:
         self._dl = dl
+        self._sync_port = sync_port
 
     # -----------------------------------------------------------------------
     # Report triggers
@@ -390,4 +396,5 @@ class TriggerService:
             reason_code=reason_code,
             reason_detail=reason_detail,
             disposition=disposition,
+            sync_port=self._sync_port,
         )

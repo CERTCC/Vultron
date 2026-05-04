@@ -1057,6 +1057,7 @@ class CommitCaseLogEntryNode(DataLayerAction):
         """
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
+        self._sync_port: Any = None
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
@@ -1066,6 +1067,16 @@ class CommitCaseLogEntryNode(DataLayerAction):
         self.blackboard.register_key(
             key="activity", access=py_trees.common.Access.READ
         )
+        self.blackboard.register_key(
+            key="sync_port", access=py_trees.common.Access.READ
+        )
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self._sync_port = self.blackboard.sync_port
+        except (AttributeError, KeyError):
+            self._sync_port = None
 
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
@@ -1108,6 +1119,7 @@ class CommitCaseLogEntryNode(DataLayerAction):
                 event_type=event_type,
                 actor_id=self.actor_id,
                 dl=cast(CaseOutboxPersistence, self.datalayer),
+                sync_port=self._sync_port,
             )
             self.logger.info(
                 "%s: committed log entry '%s' for case '%s'",

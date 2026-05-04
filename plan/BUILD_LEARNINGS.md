@@ -104,3 +104,96 @@ fires BEFORE pytest's `monkeypatch` reverts env var changes. This locks in the
 test's env state rather than the session-level defaults from `conftest.py`.
 Pattern: set `_config_cache = None` directly in teardown, and let the next
 test's first `get_config()` call reload with the correctly-restored env vars.
+
+### 2026-05-04 TASK-ARCHVIO — Sync use cases violate ARCH-01-001 more broadly than `from_core()` alone
+
+#### Problem scope is wider than originally described
+
+TASK-ARCHVIO was scoped to "fix `from_core()` calls in core use cases." But
+the real ARCH-01-001 violation in `received/sync.py` and `triggers/sync.py`
+goes deeper: these files import **both** wire vocab types (`CaseLogEntry`,
+`WireCaseLogEntry` from `vultron.wire.as2.vocab.objects.case_log_entry`) and
+factory functions (`announce_log_entry_activity`,
+`reject_log_entry_activity` from `vultron.wire.as2.factories`). Fixing only
+`from_core()` while leaving wire factory imports in core still violates
+ARCH-01-001.
+
+#### Incremental fix: `SyncActivityPort` (driven port)
+
+The agreed incremental fix introduces a narrow driven port
+(`SyncActivityPort`) with two fire-and-forget methods:
+
+- `send_reject_log_entry(entry, tail_hash, actor_id, to)` — converts
+  domain `VultronCaseLogEntry` → wire `CaseLogEntry`, builds a
+  `Reject(CaseLogEntry)` activity via factory, persists it, queues to outbox.
+- `send_announce_log_entry(entry, actor_id, to)` — same pattern for
+  `Announce(CaseLogEntry)`.
+
+The adapter (`SyncActivityAdapter`) accepts `CaseOutboxPersistence` at
+construction and owns the entire domain→wire→persist→outbox pipeline. Core
+use cases call the port methods with domain objects and never touch wire
+types. This is the "baton-pass" pattern: core hands off domain data and the
+adapter handles the rest unidirectionally.
+
+Port is injected as constructor parameter (for use-case classes) and function
+parameter (for trigger helper functions). The dispatcher passes it via
+`**kwargs` so only sync use cases receive it.
+
+#### Correct end-state: BT-based sync flow (future task)
+
+The incremental port fix is a stepping stone. The correct long-term
+architecture (per project owner) is:
+
+1. `AnnounceLogEntryReceivedUseCase` should pass the received log entry to
+   a **behavior tree** (via `BTBridge`), not directly decide accept/reject.
+2. The BT contains the decision logic (hash-chain validation, accept vs.
+   reject branching).
+3. BT leaf nodes use driven ports (like `SyncActivityPort`) for outbound
+   actions.
+4. Same pattern for `RejectLogEntryReceivedUseCase`: use case passes event
+   to a BT, BT decides what to replay, BT nodes use the port.
+
+This matches how other protocol flows (report, case, embargo) already work
+through BTs. The sync flow is currently the exception — its logic lives
+entirely in procedural use-case code.
+
+**This BT integration is a separate task**, not part of TASK-ARCHVIO. The
+port created in the incremental fix will be reused by BT nodes when the
+sync BT is built.
+
+#### Additional architectural observations
+
+**Case-actor vs. non-case-actor distinction for log entries**: There is a
+meaningful difference in how log entries should be handled depending on
+whether the receiving actor is the case-actor (who owns the log) or a
+non-case-actor (who is replicating it). Non-case-actors treat received
+`Announce(CaseLogEntry)` as events that update their local case replica.
+Case-actors receiving their own log entries (round-tripped through
+outbox→inbox) can use the receipt as delivery confirmation. This distinction
+is captured in IDEAS.md as a separate design question.
+
+#### TASK-ARCHVIO subtask updates
+
+The original plan subtasks remain valid for the incremental fix:
+
+- ARCHVIO.1: Define `SyncActivityPort` in `vultron/core/ports/`
+- ARCHVIO.2: Implement `SyncActivityAdapter` in
+  `vultron/adapters/driven/sync_activity_adapter.py`
+- ARCHVIO.3: Replace ALL wire imports (not just `from_core()`) in
+  `received/sync.py` and `triggers/sync.py` with port calls
+- ARCHVIO.4: Update tests; verify no core module imports wire types in
+  these files
+
+**New follow-up task needed**: Build sync behavior tree to replace
+procedural logic in sync use cases. Depends on ARCHVIO completion (port
+exists) and BT-07 spec group (if it exists, otherwise needs spec work).
+
+#### Wire imports remaining in other core files
+
+ARCHVIO only addresses `sync.py` files. Many other core files still import
+from wire layer (behaviors/case/nodes.py, behaviors/report/nodes.py,
+triggers/embargo.py, triggers/case.py, triggers/actor.py, etc.). These are
+separate violations that should be tracked independently — likely each needs
+its own driven port or the existing `ActivityEmitter` port needs to be
+expanded. A comprehensive audit of all ARCH-01-001 violations in `core/`
+would be valuable as a follow-up task.
