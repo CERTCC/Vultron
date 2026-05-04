@@ -1,0 +1,237 @@
+id: PRM
+title: Participant Role Management
+description: >
+  Defines the API for reading and mutating CVD roles on VultronParticipant
+  (core domain) and CaseParticipant (wire layer). Requires consistent
+  role-management methods on both classes, prohibits direct case_roles
+  attribute mutation in core code after construction, and mandates test
+  coverage for each method. Source: IDEA-26050401.
+version: 1.0.0
+kind: domain
+scope:
+  - prototype
+  - production
+groups:
+  - id: PRM-01
+    title: Role Read API
+    specs:
+      - id: PRM-01-001
+        priority: MUST
+        statement: >
+          VultronParticipant MUST expose a read-only `roles` property that
+          returns `list[CVDRole]`, providing a stable public interface for
+          iterating a participant's current roles without directly accessing the
+          `case_roles` field.
+        rationale: >
+          A named property decouples callers from the internal storage field,
+          enabling future changes to how roles are stored without updating every
+          call site.
+        tags:
+          - protocol
+      - id: PRM-01-002
+        priority: MUST
+        statement: >
+          VultronParticipant MUST expose a `has_role(role: CVDRole) -> bool`
+          method that returns True when the participant holds the given role,
+          False otherwise.
+        rationale: >
+          Provides a clear, named predicate for role-presence checks rather than
+          requiring callers to write `role in participant.case_roles`.
+        tags:
+          - protocol
+      - id: PRM-01-003
+        priority: MUST
+        statement: >
+          Core code in `vultron/core/` MUST use `participant.roles` (the
+          property) or `participant.has_role(role)` for role-presence checks
+          and role iteration; direct reads of `participant.case_roles` MUST NOT
+          appear in core code outside of the `VultronParticipant` class itself.
+        rationale: >
+          Encapsulating storage access in the class boundary allows the internal
+          representation to change without cascading updates across the core.
+        tags:
+          - protocol
+          - tooling
+
+  - id: PRM-02
+    title: Role Mutation API
+    specs:
+      - id: PRM-02-001
+        priority: MUST
+        statement: >
+          VultronParticipant MUST expose an `add_role(role: CVDRole,
+          raise_when_present: bool = False) -> None` method that adds a role to
+          the participant's role set.
+        rationale: >
+          A named method provides a single place to enforce invariants (e.g.
+          deduplication, logging) whenever a role is added.
+        tags:
+          - protocol
+      - id: PRM-02-002
+        priority: MUST
+        statement: >
+          `add_role()` MUST be idempotent: calling it with a role that the
+          participant already holds MUST NOT raise an error unless
+          `raise_when_present=True`; it SHOULD log an INFO-level message when
+          the duplicate add is silently ignored.
+        rationale: >
+          Idempotent add is safe for concurrent or repeated processing. Logging
+          the skip makes duplicate adds visible for debugging.
+        tags:
+          - protocol
+      - id: PRM-02-003
+        priority: MUST
+        statement: >
+          `add_role()` MUST raise `KeyError` when `raise_when_present=True` and
+          the given role is already present in the participant's role set.
+        rationale: >
+          Callers that require strict single-assignment semantics (e.g. role
+          initialization guards) need a fail-fast path.
+        tags:
+          - protocol
+      - id: PRM-02-004
+        priority: MUST
+        statement: >
+          VultronParticipant MUST expose a `remove_role(role: CVDRole,
+          raise_when_missing: bool = False) -> None` method that removes a role
+          from the participant's role set.
+        rationale: >
+          A named method provides a single place to enforce invariants whenever a
+          role is removed.
+        tags:
+          - protocol
+      - id: PRM-02-005
+        priority: MUST
+        statement: >
+          `remove_role()` MUST be idempotent: calling it with a role that the
+          participant does not hold MUST NOT raise an error unless
+          `raise_when_missing=True`; it SHOULD log an INFO-level message when
+          the missing remove is silently ignored.
+        rationale: >
+          Idempotent remove is safe for repeated processing. Logging the skip
+          makes spurious removes visible for debugging.
+        tags:
+          - protocol
+      - id: PRM-02-006
+        priority: MUST
+        statement: >
+          `remove_role()` MUST raise `KeyError` when `raise_when_missing=True`
+          and the given role is not present in the participant's role set.
+        rationale: >
+          Callers that rely on strict presence checks before removal need a
+          fail-fast path.
+        tags:
+          - protocol
+
+  - id: PRM-03
+    title: Core Layer Rules
+    specs:
+      - id: PRM-03-001
+        priority: MUST
+        statement: >
+          Core code in `vultron/core/` MUST NOT mutate `case_roles` directly on
+          a VultronParticipant instance after construction (e.g.
+          `participant.case_roles.append(...)` or
+          `participant.case_roles = [...]` post-init). `add_role()` and
+          `remove_role()` MUST be used for all post-construction role changes.
+        rationale: >
+          Direct mutation bypasses the class's encapsulation and any future
+          invariant checks added to the mutation methods. Centralising mutations
+          in named methods is the standard object-oriented pattern.
+        tags:
+          - protocol
+          - tooling
+      - id: PRM-03-002
+        priority: MUST
+        statement: >
+          Passing `case_roles=[...]` as a constructor argument when creating a
+          VultronParticipant instance is permitted and does not violate
+          PRM-03-001; the prohibition applies only to post-construction
+          attribute mutation.
+        rationale: >
+          Constructor arguments are the canonical way to initialise an immutable
+          value-object. This clarification prevents over-application of the
+          rule.
+        tags:
+          - protocol
+
+  - id: PRM-04
+    title: Wire Layer Interface Parity
+    specs:
+      - id: PRM-04-001
+        priority: MUST
+        statement: >
+          The wire-layer class `CaseParticipant`
+          (`vultron/wire/as2/vocab/objects/case_participant.py`) MUST expose
+          `add_role()`, `remove_role()`, and `has_role()` methods with
+          behavioral contracts equivalent to those on `VultronParticipant`:
+          idempotent add/remove with optional raise-on-duplicate/missing flags,
+          and a boolean presence check.
+        rationale: >
+          Callers that work with either domain or wire participant objects should
+          not need to know which class they hold in order to manage roles.
+        tags:
+          - wire-format
+      - id: PRM-04-002
+        priority: SHOULD
+        statement: >
+          Wire-layer `model_validator` methods in `CaseParticipant` subclasses
+          (e.g. `FinderParticipant`, `VendorParticipant`) that initialise
+          `case_roles` SHOULD call `add_role()` rather than assigning to
+          `self.case_roles` directly, so that role-management logic is
+          centralised.
+        rationale: >
+          Using `add_role()` in validators ensures any future invariant checks
+          or logging added to `add_role()` apply uniformly during construction.
+        tags:
+          - wire-format
+
+  - id: PRM-05
+    title: Testing Requirements
+    specs:
+      - id: PRM-05-001
+        priority: MUST
+        statement: >
+          Unit tests for `VultronParticipant.add_role()` MUST cover: (a) adding
+          a new role, (b) idempotent re-add (no exception, INFO log), and (c)
+          `raise_when_present=True` raising `KeyError`.
+        rationale: >
+          Each distinct branch of the method must be independently verified.
+        tags:
+          - testing
+      - id: PRM-05-002
+        priority: MUST
+        statement: >
+          Unit tests for `VultronParticipant.remove_role()` MUST cover: (a)
+          removing a present role, (b) idempotent remove-when-missing (no
+          exception, INFO log), and (c) `raise_when_missing=True` raising
+          `KeyError`.
+        rationale: >
+          Each distinct branch of the method must be independently verified.
+        tags:
+          - testing
+      - id: PRM-05-003
+        priority: MUST
+        statement: >
+          Unit tests for `VultronParticipant.has_role()` MUST cover both the
+          case where the role is present (returns True) and the case where it is
+          absent (returns False).
+        rationale: >
+          Both branches of the boolean predicate must be verified.
+        tags:
+          - testing
+      - id: PRM-05-004
+        priority: SHOULD
+        statement: >
+          An architecture test SHOULD enforce that no Python source file under
+          `vultron/core/` (outside `vultron/core/models/participant.py`) contains
+          a direct `case_roles` mutation pattern (i.e. `\.case_roles\s*=` or
+          `\.case_roles\.append`). The test MUST complete within one second.
+        rationale: >
+          A machine-checkable rule prevents regression; the one-second budget
+          ensures it does not slow the test suite. Using a targeted file-content
+          scan (e.g. ripgrep or stdlib pathlib glob + str search) on a small,
+          bounded directory satisfies the budget constraint.
+        tags:
+          - testing
+          - tooling

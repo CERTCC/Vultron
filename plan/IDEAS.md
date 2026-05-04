@@ -44,14 +44,3 @@ The `SyncActivityPort` (from TASK-ARCHVIO) provides the driven port that
 BT leaf nodes would use for outbound activities.
 
 Depends on: TASK-ARCHVIO completion, BT node design for sync operations.
-
-## IDEA-26050401 Participant role methods
-
-We recently added role-helper methods to the VultronParticipant class:
-`add_role()`, `remove_role()`, and `has_role()`. These methods are not used
-anywhere yet, nor do they have tests. We need to add tests for them, and
-then update the codebase to use them where appropriate instead of directly
-manipulating the `case_roles` attribute of `VultronParticipant` instances
-within `core` code. This will help to ensure that role management is consistent
-and that any future changes to how roles are stored or managed can be handled
-in a single place within the `VultronParticipant` class.

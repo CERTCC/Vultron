@@ -77,6 +77,7 @@ Load additional files only when the task touches the relevant area. See the
 | Response generation / outbox | `response-format.yaml`, `outbox.yaml` |
 | Synchronization | `sync-log-replication.yaml` |
 | Participant case replica lifecycle | `participant-case-replica.yaml` |
+| Participant role management (add/remove/has_role) | `participant-role-management.yaml` |
 | Embargo / duration | `embargo-policy.yaml`, `duration.yaml` |
 | Embargo default semantics | `embargo-policy.yaml`, `notes/embargo-default-semantics.md` |
 | Configuration | `configuration.yaml` |
@@ -181,6 +182,11 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   object model relationships (Report/Case/CaseReference/VulnerabilityRecord), case update
   broadcast, CVD action rules API, redacted case view (CM-09), per-participant embargo
   acceptance tracking (CM-10)
+- **`participant-role-management.yaml`** - Role read/mutation API on
+  `VultronParticipant` and `CaseParticipant`: `add_role()`, `remove_role()`,
+  `has_role()`, `roles` property, core-layer no-direct-mutation rule, wire-layer
+  interface parity, and test requirements
+  (PRM-01 through PRM-05)
 - **`case-log-processing.yaml`** - Participant assertions, CaseActor-authored
   `CaseLogEntry` objects, case audit scope, recorded-history projection, and
   replication rules for recorded vs rejected log outcomes (CLP-01 through
@@ -399,6 +405,7 @@ is reserved for `testability.yaml`).
 | `SM` | `state-machine.yaml` |
 | `SL` | `structured-logging.yaml` |
 | `PCR` | `participant-case-replica.yaml` |
+| `PRM` | `participant-role-management.yaml` |
 | `SYNC` | `sync-log-replication.yaml` |
 | `TB` | `testability.yaml` |
 | `AF` | `activity-factories.yaml` |

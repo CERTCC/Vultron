@@ -6,6 +6,7 @@
 |------|------------|------|--------|-------|
 | 2026-05-26 | 00:00 | implementation | BUG-26052601 | BUG-26052601: Factory cast() does not coerce at runtime |
 | 2026-05-26 | 00:00 | implementation | BUG-26052602 | BUG-26052602: finder_submits_report loses VulnerabilityReport ID |
+| 2026-05-04 | 16:57 | idea | IDEA-26050401 | Participant role methods |
 | 2026-05-04 | 14:52 | implementation | TASK-CFG | Unified Configuration System (TASK-CFG) |
 | 2026-05-04 | 14:19 | implementation | TASK-BTND5-4 | BTND5.4 — Refactor CVDRoles Flag to CVDRole StrEnum |
 | 2026-05-02 | 22:23 | implementation | TASK-BTND5 | Generalize Participant BT Nodes (BTND5.2, BTND5.3) |

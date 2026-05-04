@@ -45,6 +45,12 @@ Additional implementation-level architecture tasks (no GitHub issues yet):
 - **TASK-DL-REHYDRATE** — DataLayer auto-rehydration residual: use the typed
   `list_objects(type_key)` method on the `DataLayer` Protocol and SQLite
   adapter; remove manual `model_validate()` coercions from use cases.
+- **TASK-PRM** — Participant Role Management: add `roles` property and tests
+  for `add_role()`, `remove_role()`, `has_role()` on `VultronParticipant`;
+  align `CaseParticipant` wire-layer interface; migrate `action_rules.py` to
+  use `participant.roles`; add architecture test enforcing no direct
+  `case_roles` mutation in core. See `specs/participant-role-management.yaml`
+  PRM-01 through PRM-05.
 
 ## Priority 474: Unified Configuration and Trigger Classification
 
