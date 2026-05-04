@@ -333,6 +333,14 @@ provides unique ID constraints. Report handlers (`create_report`,
 - **Scenario Demos Must Puppeteer via Trigger Endpoints, Not Spoof Inboxes** — see [notes/event-driven-control-flow.md](notes/event-driven-control-flow.md)
 - **Role Taxonomies Must Not Leak Into Parameter Names** — When renaming a role concept (e.g., "finder" → "reporter"), search adapter and demo layers as well as core. Demo helpers often mirror public parameter names; leaving them behind creates naming inconsistency. See `notes/bugfix-workflow.md`.
 - **Close Bugs With Evidence, Not Assumption** — see [notes/bt-integration.md](notes/bt-integration.md)
+- **Use `isinstance` for Pyright Attribute Narrowing, Not `# type: ignore`** — When
+  accessing an attribute that exists on a subtype but not its base type (pyright
+  `[attr-defined]` error), narrow with a runtime `isinstance` assertion rather than
+  suppressing the error with `# type: ignore`. Example: if `as_Question` does not have
+  `one_of` but `ChoosePreferredEmbargoActivity` does, add
+  `assert isinstance(activity, ChoosePreferredEmbargoActivity)` before accessing
+  `activity.one_of`. This keeps the type checker accurate and makes implicit subtype
+  assumptions explicit and runtime-verified.
 
 > **Parallelism and Single-Agent Testing** has moved to `test/AGENTS.md`.
 >
