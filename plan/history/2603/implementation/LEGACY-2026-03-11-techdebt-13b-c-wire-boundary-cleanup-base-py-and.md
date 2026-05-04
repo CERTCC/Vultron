@@ -2,7 +2,7 @@
 title: "TECHDEBT-13b/c \u2014 Wire-boundary cleanup: _base.py and TYPE_CHECKING\
   \ imports"
 type: implementation
-date: '2026-03-11'
+timestamp: '2026-03-11T00:00:00+00:00'
 source: LEGACY-2026-03-11-techdebt-13b-c-wire-boundary-cleanup-base-py-and
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 1165

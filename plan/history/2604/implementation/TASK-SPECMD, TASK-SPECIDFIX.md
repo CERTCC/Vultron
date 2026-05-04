@@ -1,7 +1,8 @@
 ---
 title: TASK-SPECMD + TASK-SPECIDFIX
 type: implementation
-date: 2026-04-28
+timestamp: '2026-04-28T20:44:00+00:00'
+
 source: TASK-SPECMD, TASK-SPECIDFIX
 ---
 

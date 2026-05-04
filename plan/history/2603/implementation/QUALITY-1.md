@@ -1,7 +1,7 @@
 ---
 title: "QUALITY-1 \u2014 Treat pytest warnings as errors (2026-03-26)"
 type: implementation
-date: '2026-03-26'
+timestamp: '2026-03-26T00:00:00+00:00'
 source: QUALITY-1
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 3413

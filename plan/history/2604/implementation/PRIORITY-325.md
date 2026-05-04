@@ -2,7 +2,7 @@
 title: "PRIORITY-325 \u2014 TinyDB to SQLModel/SQLite DataLayer Migration\
   \ (DL-SQLITE-ADR through DL-SQLITE-5)"
 type: implementation
-date: '2026-04-14'
+timestamp: '2026-04-14T00:00:00+00:00'
 source: PRIORITY-325
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 6010

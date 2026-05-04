@@ -1,7 +1,7 @@
 ---
 title: "ACT-3 \u2014 Per-actor DataLayer for trigger endpoints (2026-03-25)"
 type: implementation
-date: '2026-03-25'
+timestamp: '2026-03-25T00:00:00+00:00'
 source: ACT-3
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 3179

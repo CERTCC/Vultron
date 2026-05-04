@@ -1,7 +1,7 @@
 ---
 title: "TECHDEBT-36 \u2014 Centralize `_make_payload()` test helper"
 type: implementation
-date: '2026-03-24'
+timestamp: '2026-03-24T00:00:00+00:00'
 source: TECHDEBT-36
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 2813

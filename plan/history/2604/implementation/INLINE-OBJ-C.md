@@ -1,7 +1,7 @@
 ---
 title: "INLINE-OBJ-C \u2014 Prohibit object_=None on semantic-dispatch classes"
 type: implementation
-date: '2026-04-17'
+timestamp: '2026-04-17T00:00:00+00:00'
 source: INLINE-OBJ-C
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 6505

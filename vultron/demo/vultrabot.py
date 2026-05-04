@@ -26,7 +26,7 @@ from vultron.bt.behaviors import CvdProtocolBt, CvdProtocolRoot, STATELOG
 from vultron.bt.common import show_graph
 from vultron.bt.messaging.behaviors import incoming_message
 from vultron.bt.messaging.inbound.fuzzer import generate_inbound_message
-from vultron.core.states.roles import CVDRoles
+from vultron.bt.roles.enums import CVDRolesFlag
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,9 @@ def _run_simulation():
     tick = 0
     with CvdProtocolBt() as tree:
         protocol_tree = cast(CvdProtocolBt, tree)
-        tree.bb.CVD_role = CVDRoles.FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+        tree.bb.CVD_role = (
+            CVDRolesFlag.FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+        )
 
         for tick in range(1000):
             tick += 1

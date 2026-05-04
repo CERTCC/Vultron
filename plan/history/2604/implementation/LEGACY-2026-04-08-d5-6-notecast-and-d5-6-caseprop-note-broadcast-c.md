@@ -2,7 +2,7 @@
 title: "D5-6-NOTECAST and D5-6-CASEPROP \u2014 Note broadcast + case propagation\
   \ fix"
 type: implementation
-date: '2026-04-08'
+timestamp: '2026-04-08T00:00:00+00:00'
 source: LEGACY-2026-04-08-d5-6-notecast-and-d5-6-caseprop-note-broadcast-c
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 4968

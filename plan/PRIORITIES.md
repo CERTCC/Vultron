@@ -16,64 +16,38 @@ RFC-level improvements that deepen module design, reduce coupling, and
 improve testability. Tracked under parent issue
 [#405](https://github.com/CERTCC/Vultron/issues/405).
 
-Sub-issues:
+RFC sub-issues completed:
 
-- [#400](https://github.com/CERTCC/Vultron/issues/400) — RFC: Deepen the trigger path — replace 4-layer shallow stack with TriggerService + TriggerServicePort
-- [#401](https://github.com/CERTCC/Vultron/issues/401) — RFC: Deep-module BT test harness — replace duplicated setup_node_blackboard boilerplate with BTTestScenario
-- [#402](https://github.com/CERTCC/Vultron/issues/402) — RFC: Consolidate extractor.py — move find_matching_semantics to semantic_registry
-- [#403](https://github.com/CERTCC/Vultron/issues/403) — RFC: Narrow the DataLayer port — introduce CasePersistence and CaseOutboxPersistence
+- [#400](https://github.com/CERTCC/Vultron/issues/400) — ✓ TriggerService + TriggerServicePort
+- [#401](https://github.com/CERTCC/Vultron/issues/401) — ✓ BTTestScenario BT test harness
+- [#402](https://github.com/CERTCC/Vultron/issues/402) — ✓ `find_matching_semantics` moved to `semantic_registry`
+- [#403](https://github.com/CERTCC/Vultron/issues/403) — ✓ `CasePersistence` and `CaseOutboxPersistence` ports
 
-Resolving these before cyclomatic complexity reduction (Priority 480) enables
-cleaner refactors: narrower interfaces and deeper modules reduce CC
-organically.
+Remaining implementation-level architecture tasks (no GitHub issues):
 
-**See also**: `TASK-RFC-400`, `TASK-RFC-401`, `TASK-RFC-403`
-
-Additional implementation-level architecture tasks (no GitHub issues yet):
-
-- **TASK-AF** — Activity Factory Functions: introduce
-  `vultron/wire/as2/factories/` as the sole public construction API for
-  outbound Vultron protocol activities; migrate all call sites; make internal
-  vocab subclasses private.
-- **TASK-ARCHVIO** — Fix ARCH-03-001 violations: core use cases in `sync.py`
-  call `from_core()` on wire objects, violating the hexagonal constraint.
-  Introduce a driven port adapter for domain→wire translation. Depends on
-  TASK-AF.
-- **TASK-BTND5** — Generalize Participant BT Nodes: replace
-  `CreateInitialVendorParticipant` with a config-driven
-  `CreateCaseOwnerParticipant`; add `CVDRoles.CASE_OWNER`; remove the
-  `CreateFinderParticipantNode` alias; refactor `CVDRoles` from `Flag` to
-  `StrEnum`.
+- **TASK-ARCHVIO** — Fix ARCH-03-001 violations: deferred `SyncActivityAdapter`
+  imports in `received/sync.py` and `triggers/sync.py` violate the hexagonal
+  constraint. Remove fallback imports; require explicit port injection.
 - **TASK-CP-CLEANUP** — Remove deprecated `get()` / `by_type()` from
-  `CasePersistence` after migrating core callers to typed `read()` / `list()`
-  or dedicated typed helpers. Blocked by TASK-DL-REHYDRATE.
-- **TASK-DL-REHYDRATE** — DataLayer auto-rehydration residual: use the typed
-  `list_objects(type_key)` method on the `DataLayer` Protocol and SQLite
-  adapter; remove manual `model_validate()` coercions from use cases.
+  `CasePersistence` after migrating core callers to `list_objects()`.
+  Blocked by TASK-DL-REHYDRATE.
+- **TASK-DL-REHYDRATE** — Add `list_objects(type_key)` to `CasePersistence`;
+  remove remaining `model_validate()` coercions from core use cases and BT
+  nodes.
+- **TASK-PRM** — Participant Role Management: add `roles` property and tests
+  for `add_role()`, `remove_role()`, `has_role()` on `VultronParticipant`;
+  align `CaseParticipant` wire-layer interface; add architecture test
+  enforcing no direct `case_roles` mutation in core. See
+  `specs/participant-role-management.yaml` PRM-01 through PRM-05.
 
-## Priority 474: Unified Configuration and Trigger Classification
+## Priority 474: Trigger Classification
 
-Introduce a single unified configuration API and formally separate demo-only
-trigger endpoints from general-purpose ones. No GitHub issues yet.
+Formally separate demo-only trigger endpoints from general-purpose ones.
 
-- **TASK-CFG**: Introduce `vultron/config.py` with `AppConfig`,
-  `ServerConfig`, `DatabaseConfig`, `RunMode(StrEnum)`, `get_config()`, and
-  `reload_config()`. Replace all `os.environ.get()` calls; refactor
-  `SeedConfig`/`LocalActorConfig` to `pydantic-settings`.
 - **TASK-TRIGCLASS**: Separate demo-only triggers (`add-note-to-case`,
   `sync-log-entry`) into a dedicated router mounted only when
   `RunMode.PROTOTYPE`; add a general-purpose `add-object-to-case` trigger.
-  Blocked by TASK-CFG.
-
-## Priority 475: Outbox Integrity Enforcement
-
-All outbound Vultron activities are direct messages and MUST have a non-empty
-`to:` field. Enforce this at `handle_outbox_item` so no activity leaves the
-outbox without an addressee. No GitHub issue yet.
-
-- **TASK-OUTBOX-TO**: Add `VultronOutboxToFieldMissingError` and enforce
-  `to:` presence in `handle_outbox_item`; log `WARNING` when `cc`/`bto`/`bcc`
-  are non-empty.
+  `RunMode` and `get_config()` are available from `vultron/config.py`.
 
 ## Priority 480: Cyclomatic Complexity Enforcement
 
@@ -81,7 +55,7 @@ Cyclomatic complexity (CC) is treated as a policy boundary, not just a
 measurement. High CC correlates with harder-to-test, harder-to-maintain
 code and is a leading indicator of defects.
 
-The project currently has 23 functions exceeding CC=10, including one at
+The project currently has 30 functions exceeding CC=10, including one at
 CC=34. `flake8-mccabe` (already bundled in the project's flake8 7.3.0
 install) provides the enforcement mechanism with zero new dependencies.
 The gate integrates into the existing `lint-flake8` CI job.
@@ -91,7 +65,7 @@ Enforcement is two-phase to avoid a big-bang refactor:
 - **Phase 1** (CC-1): Reduce the 5 worst offenders (CC>15) to CC≤10, then
   activate a `max-complexity = 15` gate in `.flake8`. This immediately
   blocks future regressions at a reachable bar.
-- **Phase 2** (CC-2): Reduce the remaining 18 functions (CC 11–15) to
+- **Phase 2** (CC-2): Reduce the remaining 25 functions (CC 11–15) to
   CC≤10, then tighten the gate to `max-complexity = 10` — the generally
   accepted upper bound for maintainable functions.
 

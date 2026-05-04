@@ -1,7 +1,7 @@
 ---
 title: "TECHDEBT-27 \u2014 Standardize error handling in use cases (2026-03-17)"
 type: implementation
-date: '2026-03-17'
+timestamp: '2026-03-17T00:00:00+00:00'
 source: TECHDEBT-27
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 1761

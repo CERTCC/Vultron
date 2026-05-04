@@ -46,11 +46,15 @@ def test_parse_id_extracts_components_correctly(test_base_url):
         assert _UUID_PATTERN.fullmatch(parsed["object_id"]) is not None
 
 
-def test_base_url_reads_from_vultron_base_url_env_var(monkeypatch):
+def test_base_url_reads_from_vultron_server_base_url_env_var(monkeypatch):
     custom_url = "https://custom.vultron.example/"
-    monkeypatch.setenv("VULTRON_BASE_URL", custom_url)
+    monkeypatch.setenv("VULTRON_SERVER__BASE_URL", custom_url)
     import importlib
 
+    from vultron import config as cfg_module
+    from vultron.adapters import utils
+
+    cfg_module.reload_config()
     importlib.reload(utils)
     assert utils.BASE_URL == custom_url
 

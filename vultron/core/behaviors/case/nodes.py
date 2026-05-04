@@ -33,6 +33,7 @@ import isodate  # type: ignore[import-untyped]
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.models.actor_config import ActorConfig
 from vultron.core.models.embargo_event import VultronEmbargoEvent
 from vultron.core.models.enums import VultronObjectType
 from vultron.core.models.participant_status import VultronParticipantStatus
@@ -45,7 +46,7 @@ from vultron.core.models.vultron_types import (
 )
 from vultron.core.states.em import EM, EMAdapter, create_em_machine
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRoles
+from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.factories import add_participant_to_case_activity
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.core.behaviors.helpers import (
@@ -475,30 +476,39 @@ def _create_and_attach_participant(
     return stored_case
 
 
-class CreateInitialVendorParticipant(DataLayerAction):
+class CreateCaseOwnerParticipant(DataLayerAction):
     """
-    Create and persist a VendorParticipant for the receiving actor, then
-    add it to the case's case_participants list.
+    Create and persist a case-owner participant for the receiving actor,
+    then add it to the case's case_participants list.
 
-    Seeds the participant with the deterministic status record for the given
-    ``initial_rm_state`` (defaulting to ``RM.VALID``). When ``report_id`` is
-    provided, the node first looks for an existing status record in the
-    DataLayer (created by an earlier use case) and reuses it to avoid
-    duplicating history. If no existing record is found, a fresh
+    Roles are sourced from ``actor_config.default_case_roles``
+    (CFG-07-004); ``CVDRole.CASE_OWNER`` is always appended
+    (BTND-05-002).  When ``actor_config`` is ``None`` the participant
+    receives only the ``CASE_OWNER`` role.
+
+    Seeds the participant with the deterministic status record for the
+    given ``initial_rm_state`` (defaulting to ``RM.VALID``). When
+    ``report_id`` is provided, the node first looks for an existing status
+    record in the DataLayer (created by an earlier use case) and reuses it
+    to avoid duplicating history. If no existing record is found, a fresh
     ``VultronParticipantStatus`` is created.
 
-    Optionally advances the vendor RM to ACCEPTED (``advance_to_accepted=True``)
-    after the participant is created — use this in the validate-report BT where
-    case creation is the act of engaging the case.
+    Optionally advances the actor's RM to ACCEPTED
+    (``advance_to_accepted=True``) after the participant is created — use
+    this in the validate-report BT where case creation is the act of
+    engaging the case.
 
     Must run after the case exists in the DataLayer (``PersistCase`` or
     ``CreateCaseNode``).
 
-    Per specs/case-management.yaml CM-02-008 (SHOULD).
+    Per specs/case-management.yaml CM-02-008 (SHOULD),
+    specs/behavior-tree-node-design.yaml BTND-05-002 (MUST), and
+    specs/configuration.yaml CFG-07-004 (MUST).
     """
 
     def __init__(
         self,
+        actor_config: ActorConfig | None = None,
         report_id: str | None = None,
         case_obj: VultronCase | None = None,
         advance_to_accepted: bool = False,
@@ -506,6 +516,7 @@ class CreateInitialVendorParticipant(DataLayerAction):
         name: str | None = None,
     ):
         super().__init__(name=name or self.__class__.__name__)
+        self.actor_config = actor_config
         self.report_id = report_id
         self.case_obj = case_obj
         self.advance_to_accepted = advance_to_accepted
@@ -558,10 +569,21 @@ class CreateInitialVendorParticipant(DataLayerAction):
                     attributed_to=self.actor_id,
                 )
 
+            # Derive effective roles: config roles + CASE_OWNER (deduped,
+            # order-preserving).
+            base_roles = (
+                self.actor_config.default_case_roles
+                if self.actor_config is not None
+                else []
+            )
+            effective_roles: list[CVDRole] = list(
+                dict.fromkeys(base_roles + [CVDRole.CASE_OWNER])
+            )
+
             participant = VultronParticipant(
                 attributed_to=self.actor_id,
                 context=case_id,
-                case_roles=[CVDRoles.VENDOR],
+                case_roles=effective_roles,
                 participant_statuses=[initial_status],
             )
 
@@ -578,9 +600,9 @@ class CreateInitialVendorParticipant(DataLayerAction):
                 )
                 return Status.FAILURE
 
-            # Optionally advance vendor RM to ACCEPTED — creating the case
-            # is the act of engaging it in the validate-report BT, so no
-            # separate engage-case trigger is needed.  The create-case BT
+            # Optionally advance the actor's RM to ACCEPTED — creating the
+            # case is the act of engaging it in the validate-report BT, so
+            # no separate engage-case trigger is needed.  The create-case BT
             # seeds VALID only (ADR-0013).
             if self.advance_to_accepted:
                 self.datalayer.save(stored_case)
@@ -589,14 +611,14 @@ class CreateInitialVendorParticipant(DataLayerAction):
                 )
                 if advanced:
                     self.logger.info(
-                        "Vendor RM: VALID → ACCEPTED for actor '%s' in case"
+                        "Owner RM: VALID → ACCEPTED for actor '%s' in case"
                         " '%s' (case creation = case engagement)",
                         self.actor_id,
                         case_id,
                     )
                 else:
                     self.logger.warning(
-                        "%s: Could not advance vendor RM to ACCEPTED for"
+                        "%s: Could not advance owner RM to ACCEPTED for"
                         " actor '%s' in case '%s'",
                         self.name,
                         self.actor_id,
@@ -609,7 +631,7 @@ class CreateInitialVendorParticipant(DataLayerAction):
 
         except Exception as e:
             self.logger.error(
-                f"{self.name}: Error creating VendorParticipant: {e}"
+                f"{self.name}: Error creating case-owner participant: {e}"
             )
             return Status.FAILURE
 
@@ -846,9 +868,7 @@ class CreateCaseParticipantNode(DataLayerAction):
     it to the case.
 
     Parameterized by ``actor_id`` (the actor being added as a participant)
-    and ``roles`` (the CVD roles to assign).  This replaces the earlier
-    hard-coded ``CreateFinderParticipantNode`` which was coupled to the
-    finder/reporter role pair.
+    and ``roles`` (the CVD roles to assign).
 
     When ``report_id`` is supplied, the node reuses the deterministic
     report-phase ``VultronParticipantStatus`` for ``RM.ACCEPTED`` that was
@@ -862,13 +882,13 @@ class CreateCaseParticipantNode(DataLayerAction):
     ``object_`` fields after dehydration.
 
     Must run after ``CreateCaseNode`` (so ``case_id`` is on the blackboard)
-    and after ``CreateInitialVendorParticipant``.
+    and after ``CreateCaseOwnerParticipant``.
     """
 
     def __init__(
         self,
         actor_id: str,
-        roles: list[CVDRoles],
+        roles: list[CVDRole],
         report_id: str | None = None,
         name: str | None = None,
     ) -> None:
@@ -999,10 +1019,6 @@ class CreateCaseParticipantNode(DataLayerAction):
             return Status.FAILURE
 
 
-# Backward-compatibility alias.
-CreateFinderParticipantNode = CreateCaseParticipantNode
-
-
 class CommitCaseLogEntryNode(DataLayerAction):
     """
     Commit a hash-chained CaseLogEntry and fan it out to all case participants.
@@ -1041,6 +1057,7 @@ class CommitCaseLogEntryNode(DataLayerAction):
         """
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
+        self._sync_port: Any = None
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
@@ -1050,6 +1067,16 @@ class CommitCaseLogEntryNode(DataLayerAction):
         self.blackboard.register_key(
             key="activity", access=py_trees.common.Access.READ
         )
+        self.blackboard.register_key(
+            key="sync_port", access=py_trees.common.Access.READ
+        )
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self._sync_port = self.blackboard.sync_port
+        except (AttributeError, KeyError):
+            self._sync_port = None
 
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
@@ -1092,6 +1119,7 @@ class CommitCaseLogEntryNode(DataLayerAction):
                 event_type=event_type,
                 actor_id=self.actor_id,
                 dl=cast(CaseOutboxPersistence, self.datalayer),
+                sync_port=self._sync_port,
             )
             self.logger.info(
                 "%s: committed log entry '%s' for case '%s'",

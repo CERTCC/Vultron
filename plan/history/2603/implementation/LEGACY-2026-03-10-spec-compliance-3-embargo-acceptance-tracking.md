@@ -1,7 +1,7 @@
 ---
 title: "SPEC-COMPLIANCE-3 \u2014 Embargo Acceptance Tracking"
 type: implementation
-date: '2026-03-10'
+timestamp: '2026-03-10T00:00:00+00:00'
 source: LEGACY-2026-03-10-spec-compliance-3-embargo-acceptance-tracking
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 585

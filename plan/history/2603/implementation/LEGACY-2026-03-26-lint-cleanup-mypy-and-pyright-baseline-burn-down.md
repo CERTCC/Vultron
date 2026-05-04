@@ -1,7 +1,7 @@
 ---
 title: "Lint cleanup \u2014 mypy and pyright baseline burn-down"
 type: implementation
-date: '2026-03-26'
+timestamp: '2026-03-26T00:00:00+00:00'
 source: LEGACY-2026-03-26-lint-cleanup-mypy-and-pyright-baseline-burn-down
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 239

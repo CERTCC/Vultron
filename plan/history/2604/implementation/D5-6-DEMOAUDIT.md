@@ -2,7 +2,7 @@
 title: "D5-6-DEMOAUDIT \u2014 Audit and refactor all demos for protocol compliance\
   \ (2026-04-07)"
 type: implementation
-date: '2026-04-08'
+timestamp: '2026-04-08T00:00:00+00:00'
 source: D5-6-DEMOAUDIT
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 4865

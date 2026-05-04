@@ -1,7 +1,7 @@
 ---
 title: 'Gap analysis refresh #22: new gaps identified'
 type: implementation
-date: '2026-03-11'
+timestamp: '2026-03-11T00:00:00+00:00'
 source: LEGACY-2026-03-11-gap-analysis-refresh-22-new-gaps-identified
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 407

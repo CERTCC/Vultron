@@ -219,13 +219,13 @@ def test_extract_intent_participant_case_roles():
     from vultron.wire.as2.vocab.objects.case_participant import (
         CaseParticipant,
     )
-    from vultron.core.states.roles import CVDRoles
+    from vultron.core.states.roles import CVDRole
 
     participant = CaseParticipant(
         attributed_to="https://example.org/alice",
         context="https://example.org/cases/1",
     )
-    participant.case_roles = [CVDRoles.VENDOR]
+    participant.case_roles = [CVDRole.VENDOR]
     # CreateCaseParticipant pattern: Create + CASE_PARTICIPANT + context=VULNERABILITY_CASE
     activity = as_Create(
         actor="https://example.org/alice",
@@ -236,7 +236,7 @@ def test_extract_intent_participant_case_roles():
 
     p = cast(Any, event).participant
     assert p is not None
-    assert CVDRoles.VENDOR in p.case_roles
+    assert CVDRole.VENDOR in p.case_roles
 
 
 def test_extract_intent_case_status_name():

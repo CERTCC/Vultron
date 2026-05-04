@@ -1,7 +1,7 @@
 ---
 title: "BT-8 \u2014 Missing MessageSemantics"
 type: implementation
-date: '2026-02-24'
+timestamp: '2026-02-24T00:00:00+00:00'
 source: BT-8
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 124

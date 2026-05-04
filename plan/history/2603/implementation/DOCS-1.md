@@ -1,7 +1,7 @@
 ---
 title: "DOCS-1 \u2014 Update `docker/README.md` (2026-03-19)"
 type: implementation
-date: '2026-03-19'
+timestamp: '2026-03-19T00:00:00+00:00'
 source: DOCS-1
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 2455

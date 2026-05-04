@@ -1,7 +1,7 @@
 ---
 title: "BT-7 \u2014 Suggest Actor + Ownership Transfer"
 type: implementation
-date: '2026-02-24'
+timestamp: '2026-02-24T00:00:00+00:00'
 source: BT-7
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 109

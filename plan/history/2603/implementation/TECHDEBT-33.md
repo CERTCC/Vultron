@@ -1,7 +1,7 @@
 ---
 title: "TECHDEBT-33 \u2014 Split test_handlers.py"
 type: implementation
-date: '2026-03-23'
+timestamp: '2026-03-23T00:00:00+00:00'
 source: TECHDEBT-33
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 2608

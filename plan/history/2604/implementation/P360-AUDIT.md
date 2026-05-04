@@ -1,7 +1,7 @@
 ---
 title: "P360-AUDIT \u2014 BT Composability Audit"
 type: implementation
-date: '2026-04-23'
+timestamp: '2026-04-23T00:00:00+00:00'
 source: P360-AUDIT
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 7891

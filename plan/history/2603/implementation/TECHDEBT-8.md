@@ -1,7 +1,7 @@
 ---
 title: "TECHDEBT-8 \u2014 Pyright gradual static type checking (2026-03-10)"
 type: implementation
-date: '2026-03-10'
+timestamp: '2026-03-10T00:00:00+00:00'
 source: TECHDEBT-8
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 882

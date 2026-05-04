@@ -25,9 +25,10 @@ SR-05-002).
 import os
 from pathlib import Path
 
-# Set VULTRON_DB_URL BEFORE any vultron module imports so that _DEFAULT_DB_URL
-# in datalayer_sqlite.py picks up the in-memory value at import time.
-os.environ.setdefault("VULTRON_DB_URL", "sqlite:///:memory:")
+# Set VULTRON_DATABASE__DB_URL BEFORE any vultron module imports so that
+# get_config().database.db_url returns the in-memory value.
+# The legacy VULTRON_DB_URL is also cleared to avoid confusion.
+os.environ.setdefault("VULTRON_DATABASE__DB_URL", "sqlite:///:memory:")
 
 import pytest  # noqa: E402
 from vultron.adapters.driven.datalayer_sqlite import (  # noqa: E402

@@ -21,6 +21,7 @@ on:
       - pyproject.toml
       - pyrightconfig.json
       - .github/workflows/python-app.yml
+  workflow_dispatch:
 
 permissions:
   contents: read

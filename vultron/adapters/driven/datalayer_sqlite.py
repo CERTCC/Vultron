@@ -19,20 +19,15 @@ Concrete implementation of the ``vultron.core.ports.datalayer.DataLayer``
 port for persisting and fetching ActivityStreams objects using SQLite via
 SQLModel and SQLAlchemy.
 
-Environment variables
----------------------
-``VULTRON_DB_URL``
-    SQLAlchemy connection URL used by ``get_datalayer()``.  Defaults to
-    ``"sqlite:///mydb.sqlite"`` (relative to the process working directory).
-    Set this in multi-container deployments to isolate each container's
-    database under a persistent volume (e.g.,
-    ``sqlite:////app/data/mydb.sqlite``).  Use ``"sqlite:///:memory:"`` for
-    in-memory storage (useful for testing and development).
+The database URL is read from :func:`vultron.config.get_config` so that it
+respects the unified configuration system (``VULTRON_DATABASE__DB_URL`` env
+var or ``database.db_url`` in ``config.yaml``).  Pass an explicit ``db_url``
+argument to :func:`get_datalayer` to override the config value, e.g. for
+``"sqlite:///:memory:"`` in tests.
 """
 
 import json
 import logging
-import os
 from datetime import date, datetime
 from typing import Any, cast
 
@@ -59,14 +54,6 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
 logger = logging.getLogger(__name__)
-
-#: Default SQLAlchemy DB URL used by :func:`get_datalayer` when no explicit
-#: ``db_url`` is provided.  Override via the ``VULTRON_DB_URL`` environment
-#: variable *before* the module is imported (e.g., set the env var in the
-#: container startup script or in ``docker-compose.yml``).
-_DEFAULT_DB_URL: str = os.environ.get(
-    "VULTRON_DB_URL", "sqlite:///mydb.sqlite"
-)
 
 #: Actor types used by :meth:`SqliteDataLayer.find_actor_by_short_id`.
 _ACTOR_TYPES: frozenset[str] = frozenset(
@@ -960,26 +947,24 @@ def get_datalayer(
     instance with no actor filtering.  Admin endpoints and health checks use
     this form.
 
-    In tests, use dependency injection to override this function, or set the
-    ``VULTRON_DB_URL`` environment variable to ``"sqlite:///:memory:"`` before
-    the module is imported.
+    In tests, use dependency injection to override this function, or pass an
+    explicit ``db_url="sqlite:///:memory:"`` argument.
 
     Args:
         actor_id: The actor whose scoped DataLayer to return.  ``None`` for
             the shared/admin DataLayer.
-        db_url: SQLAlchemy connection URL.  Defaults to ``_DEFAULT_DB_URL``
-            (the value of ``VULTRON_DB_URL`` at module import time, or
-            ``"sqlite:///mydb.sqlite"``).
+        db_url: SQLAlchemy connection URL.  Defaults to
+            ``get_config().database.db_url`` (``"sqlite:///vultron.db"``
+            unless overridden via ``VULTRON_DATABASE__DB_URL`` or
+            ``config.yaml``).
 
     Returns:
         :class:`SqliteDataLayer` — actor-scoped or shared instance.
     """
+    from vultron.config import get_config
+
     global _shared_instance
-    _url = (
-        db_url
-        if db_url is not None
-        else os.environ.get("VULTRON_DB_URL", _DEFAULT_DB_URL)
-    )
+    _url = db_url if db_url is not None else get_config().database.db_url
     if actor_id is None:
         if _shared_instance is None:
             _shared_instance = SqliteDataLayer(db_url=_url)

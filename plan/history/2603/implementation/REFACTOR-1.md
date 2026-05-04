@@ -1,7 +1,7 @@
 ---
 title: "REFACTOR-1 \u2014 CM-03-006 Status History Renames"
 type: implementation
-date: '2026-03-09'
+timestamp: '2026-03-09T00:00:00+00:00'
 source: REFACTOR-1
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 221

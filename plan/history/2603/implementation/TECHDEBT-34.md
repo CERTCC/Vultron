@@ -1,7 +1,7 @@
 ---
 title: "TECHDEBT-34 \u2014 EM state transition guards (2026-03-24)"
 type: implementation
-date: '2026-03-24'
+timestamp: '2026-03-24T00:00:00+00:00'
 source: TECHDEBT-34
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 2949

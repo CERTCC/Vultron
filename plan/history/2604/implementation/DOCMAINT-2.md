@@ -1,7 +1,7 @@
 ---
 title: "DOCMAINT-2 \u2014 Fix stale references to archived notes (2026-04-23)"
 type: implementation
-date: '2026-04-23'
+timestamp: '2026-04-23T00:00:00+00:00'
 source: DOCMAINT-2
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 7844

@@ -1,7 +1,7 @@
 ---
 title: 'ARCH-1.3 complete: wire/as2/parser.py and wire/as2/extractor.py created'
 type: implementation
-date: '2026-03-09'
+timestamp: '2026-03-09T00:00:00+00:00'
 source: ARCH-1.3
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 763

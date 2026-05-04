@@ -1,7 +1,7 @@
 ---
 title: "PRIORITY-60 \u2014 Package Relocation"
 type: implementation
-date: '2026-03-10'
+timestamp: '2026-03-10T00:00:00+00:00'
 source: PRIORITY-60
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 576

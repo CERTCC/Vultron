@@ -139,10 +139,12 @@ class AppConfig(BaseSettings):
         dotenv_settings,
         secrets_settings,
     ):
-        # Precedence (last = highest): YAML < env vars
+        # Precedence (first = highest): env vars > YAML.
+        # In pydantic-settings 2.x the FIRST source in the returned tuple wins.
+        # Putting env_settings first ensures environment variables override YAML.
         return (
-            YamlConfigSource(settings_cls),
             env_settings,
+            YamlConfigSource(settings_cls),
         )
 
 
@@ -261,13 +263,19 @@ async def info(config: AppConfig = Depends(get_config)):
 ```python
 # test/test_config.py
 import pytest
+import vultron.config as _cfg_module
 from vultron.config import get_config, reload_config
 
 
 @pytest.fixture(autouse=True)
 def reset_config():
     yield
-    reload_config()
+    # Set the cache to None directly rather than calling reload_config().
+    # reload_config() fires the cache reset BEFORE pytest's monkeypatch reverts
+    # env-var changes, locking in the test's env state for the reload.
+    # Nulling the cache directly lets the NEXT test's get_config() call reload
+    # with a clean env provided by the session-level conftest.py.
+    _cfg_module._config_cache = None
 
 
 def test_defaults(tmp_path):

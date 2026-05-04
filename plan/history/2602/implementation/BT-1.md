@@ -1,7 +1,7 @@
 ---
 title: "BT-1 \u2014 Behavior Tree Integration POC"
 type: implementation
-date: '2026-02-24'
+timestamp: '2026-02-24T00:00:00+00:00'
 source: BT-1
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 28

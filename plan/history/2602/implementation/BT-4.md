@@ -1,7 +1,7 @@
 ---
 title: "BT-4 \u2014 Actor Invitation + `invite_actor` Demo"
 type: implementation
-date: '2026-02-24'
+timestamp: '2026-02-24T00:00:00+00:00'
 source: BT-4
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 77

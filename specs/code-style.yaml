@@ -225,3 +225,30 @@ groups:
       aliases, re-exports, and shims that exist solely to avoid updating call sites are prohibited.
     rationale: The codebase is in prototype development; there are no external downstream consumers that require stable import
       paths. Leaving old symbols in place accumulates technical debt and makes the codebase harder to navigate.
+- id: CS-16
+  title: Method and Variable Naming Safety
+  kind: language
+  specs:
+  - id: CS-16-001
+    priority: MUST_NOT
+    statement: Methods and class-level variables MUST NOT be named after Python built-in types (`list`, `dict`, `set`, `tuple`,
+      `type`, `object`, `int`, `str`, `float`, `bool`, `bytes`, etc.)
+    rationale: |-
+      Defining `def list(self, ...)` in a class body shadows the built-in `list` type for all
+      subsequent annotations and expressions in that class scope. Any annotation like `list[str]`
+      that appears after the method definition resolves to the method (a function), producing a
+      `TypeError` at runtime ("'function' object is not subscriptable"). A `# type: ignore`
+      comment suppresses mypy but does NOT prevent the runtime error. Rename the method to avoid
+      the collision (e.g., `list_objects`).
+- id: CS-17
+  title: Pydantic Models for Structured Data
+  kind: general
+  specs:
+  - id: CS-17-001
+    priority: MUST
+    statement: CLI tools and any code that reads or writes structured files (YAML frontmatter, JSON, structured config) MUST
+      define a Pydantic model for the file structure rather than using `dict.get()` with fallback defaults.
+    rationale: Ad-hoc `metadata.get("field", "")` access makes it impossible to distinguish "absent field" from "empty
+      field", silently allows invalid data through, and scatters validation logic across callers. A Pydantic model with
+      `ValidationError` on missing required fields is the single source of truth and forces callers to handle the error
+      path explicitly.

@@ -1,7 +1,8 @@
 ---
 title: Priority 472 — Docs Batch (LaTeX Fixes and Versioning Updates)
 type: priority
-date: 2026-04-30
+timestamp: '2026-04-30T14:07:31+00:00'
+
 source: Priority 472
 ---
 

@@ -2,7 +2,7 @@
 title: "IDEA-260408-01-5 and IDEA-260408-01-6 \u2014 Dereference Pattern +\
   \ Remove Standalone VultronParticipantStatus"
 type: implementation
-date: '2026-04-09'
+timestamp: '2026-04-09T00:00:00+00:00'
 source: LEGACY-2026-04-09-idea-260408-01-5-and-idea-260408-01-6-dereferenc
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 5234

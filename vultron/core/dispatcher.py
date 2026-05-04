@@ -24,7 +24,8 @@ The ``get_dispatcher`` factory function is provided for adapter convenience.
 """
 
 import logging
-from typing import TYPE_CHECKING
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, Callable
 
 from vultron.core.models.events import MessageSemantics
 from vultron.core.ports.dispatcher import ActivityDispatcher
@@ -43,10 +44,26 @@ class DispatcherBase:
     Looks up the use case class for the event's ``semantic_type`` from the
     supplied routing table, instantiates it with ``dl``, and calls
     ``execute(event)``.
+
+    Optional *port_factories* allow driven ports to be injected for specific
+    semantic types.  Each factory receives the ``DataLayer`` and returns a
+    dict of keyword arguments to pass to the use-case constructor.  Use cases
+    whose constructors do not accept these kwargs are unaffected.
     """
 
-    def __init__(self, use_case_map: dict[MessageSemantics, type]):
+    def __init__(
+        self,
+        use_case_map: dict[MessageSemantics, type],
+        port_factories: (
+            Mapping[
+                MessageSemantics,
+                Callable[["DataLayer"], dict[str, Any]],
+            ]
+            | None
+        ) = None,
+    ):
         self._use_case_map = use_case_map
+        self._port_factories = port_factories or {}
 
     def dispatch(self, event: "VultronEvent", dl: "DataLayer") -> None:
         logger.info(
@@ -64,8 +81,12 @@ class DispatcherBase:
 
     def _handle(self, event: "VultronEvent", dl: "DataLayer") -> None:
         use_case_class = self._get_use_case(event.semantic_type)
+        extra_kwargs: dict[str, Any] = {}
+        port_factory = self._port_factories.get(event.semantic_type)
+        if port_factory is not None:
+            extra_kwargs = port_factory(dl)
         try:
-            use_case_class(dl, event).execute()
+            use_case_class(dl, event, **extra_kwargs).execute()
         except Exception:
             logger.error(
                 "Unexpected error dispatching activity_id=%s actor_id=%s semantics=%s",
@@ -92,6 +113,16 @@ class DirectActivityDispatcher(DispatcherBase):
 
 def get_dispatcher(
     use_case_map: dict[MessageSemantics, type],
+    port_factories: (
+        Mapping[
+            MessageSemantics,
+            Callable[["DataLayer"], dict[str, Any]],
+        ]
+        | None
+    ) = None,
 ) -> ActivityDispatcher:
     """Factory: return a ``DirectActivityDispatcher`` for the given routing table."""
-    return DirectActivityDispatcher(use_case_map=use_case_map)
+    return DirectActivityDispatcher(
+        use_case_map=use_case_map,
+        port_factories=port_factories,
+    )

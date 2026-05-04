@@ -1,7 +1,7 @@
 ---
 title: "Refresh #51 \u2014 VCR-014 + TECHDEBT-37 (2026-03-25)"
 type: implementation
-date: '2026-03-25'
+timestamp: '2026-03-25T00:00:00+00:00'
 source: LEGACY-2026-03-25-refresh-51-vcr-014-techdebt-37-2026-03-25
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 3117

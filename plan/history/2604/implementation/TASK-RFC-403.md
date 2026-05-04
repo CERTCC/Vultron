@@ -1,7 +1,8 @@
 ---
 title: "Introduce CasePersistence and CaseOutboxPersistence narrow Protocols (RFC-403)"
 type: implementation
-date: 2026-04-30
+timestamp: '2026-04-30T15:15:53+00:00'
+
 source: TASK-RFC-403
 ---
 

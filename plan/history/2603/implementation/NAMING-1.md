@@ -1,7 +1,7 @@
 ---
 title: "NAMING-1 \u2014 Standardize `as_`-prefixed field names (2026-03-30)"
 type: implementation
-date: '2026-03-30'
+timestamp: '2026-03-30T00:00:00+00:00'
 source: NAMING-1
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 3710

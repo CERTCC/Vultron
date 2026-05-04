@@ -202,11 +202,11 @@ def test_create_case_tree_sets_attributed_to(
     assert attributed == actor.id_
 
 
-def test_create_case_tree_creates_vendor_participant(
+def test_create_case_tree_creates_case_owner_participant(
     datalayer, actor, case_obj, bridge
 ):
-    """A VendorParticipant SHOULD be created and added to case_participants (CM-02-008)."""
-    from vultron.core.states.roles import CVDRoles as CVDRole
+    """A case-owner participant SHOULD be created and added to case_participants (CM-02-008)."""
+    from vultron.core.states.roles import CVDRole
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
@@ -215,7 +215,7 @@ def test_create_case_tree_creates_vendor_participant(
     assert stored_case is not None
     assert len(stored_case.case_participants) >= 1
 
-    found_vendor = False
+    found_owner = False
     from sqlmodel import Session, select
 
     from vultron.adapters.driven.datalayer_sqlite import VultronObjectRecord
@@ -230,11 +230,42 @@ def test_create_case_tree_creates_vendor_participant(
             if (
                 at == actor.id_
                 and ctx == case_obj.id_
-                and CVDRole.VENDOR.name in roles
+                and CVDRole.CASE_OWNER.value in roles
             ):
-                found_vendor = True
+                found_owner = True
                 break
-    assert found_vendor, "VendorParticipant was not found in DataLayer"
+    assert found_owner, "Case-owner participant was not found in DataLayer"
+
+
+def test_create_case_tree_case_owner_participant_includes_config_roles(
+    datalayer, actor, case_obj, bridge
+):
+    """CreateCaseOwnerParticipant includes config roles + CASE_OWNER (CFG-07-004)."""
+    from vultron.core.models.actor_config import ActorConfig
+    from vultron.core.states.roles import CVDRole
+
+    config = ActorConfig(default_case_roles=[CVDRole.COORDINATOR])
+    tree = create_create_case_tree(
+        case_obj=case_obj, actor_id=actor.id_, actor_config=config
+    )
+    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+
+    from sqlmodel import Session, select
+
+    from vultron.adapters.driven.datalayer_sqlite import VultronObjectRecord
+
+    with Session(datalayer._engine) as session:
+        rows = session.exec(select(VultronObjectRecord)).all()
+        for row in rows:
+            data = row.data or {}
+            at = data.get("attributed_to")
+            ctx = data.get("context")
+            roles = data.get("case_roles", [])
+            if at == actor.id_ and ctx == case_obj.id_:
+                assert CVDRole.CASE_OWNER.value in roles
+                assert CVDRole.COORDINATOR.value in roles
+                return
+    pytest.fail("No participant found for actor in case")
 
 
 def test_create_case_tree_vendor_participant_seeded_with_rm_valid(

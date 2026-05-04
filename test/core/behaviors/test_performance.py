@@ -77,7 +77,7 @@ def mock_datalayer():
     # Mock read() for nodes that use TinyDB-specific method.
     # Returns objects from the in-memory store first, then falls back to
     # pattern-based construction so that objects persisted via create()/save()
-    # are visible to subsequent reads (e.g. CreateInitialVendorParticipant
+    # are visible to subsequent reads (e.g. CreateCaseOwnerParticipant
     # reading back the case created by CreateCaseNode).
     def mock_read(id_, raise_on_missing=False):
         if id_ in storage:

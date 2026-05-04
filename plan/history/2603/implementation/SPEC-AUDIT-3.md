@@ -1,7 +1,7 @@
 ---
 title: "SPEC-AUDIT-3 \u2014 Fix Stale Spec References"
 type: implementation
-date: '2026-03-30'
+timestamp: '2026-03-30T00:00:00+00:00'
 source: SPEC-AUDIT-3
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 3650

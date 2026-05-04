@@ -1,7 +1,7 @@
 ---
 title: "EMBARGO-DUR-1 \u2014 EmbargoPolicy ISO 8601 Duration Fields (2026-04-09)"
 type: implementation
-date: '2026-04-08'
+timestamp: '2026-04-08T00:00:00+00:00'
 source: EMBARGO-DUR-1
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 5083

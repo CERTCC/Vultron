@@ -1,7 +1,7 @@
 ---
 title: 'VOCAB-REG-1.1: Redesign vocabulary registry core mechanics'
 type: implementation
-date: '2026-04-17'
+timestamp: '2026-04-17T00:00:00+00:00'
 source: VOCAB-REG-1.1
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 6665

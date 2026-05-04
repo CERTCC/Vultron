@@ -1,7 +1,8 @@
 ---
 title: "AF.3–AF.6 — Case, Embargo, Participant, Actor, Sync factory modules"
 type: implementation
-date: 2026-04-30
+timestamp: '2026-04-30T20:43:03+00:00'
+
 source: TASK-AF-3to6
 ---
 

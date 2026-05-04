@@ -31,7 +31,7 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
 )
-from vultron.wire.as2.factories import reject_log_entry_activity
+from vultron.core.ports.sync_activity import SyncActivityPort
 
 logger = logging.getLogger(__name__)
 
@@ -139,9 +139,11 @@ class AnnounceLogEntryReceivedUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: AnnounceLogEntryReceivedEvent,
+        sync_port: SyncActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._request = request
+        self._sync_port = sync_port
 
     def execute(self) -> None:
         request = self._request
@@ -215,22 +217,24 @@ class AnnounceLogEntryReceivedUseCase:
         tail_hash: str,
         case_actor_id: str,
     ) -> None:
-        """Queue a :class:`RejectLogEntryActivity` back to the CaseActor.
+        """Queue a ``Reject(CaseLogEntry)`` back to the CaseActor.
 
         Spec: SYNC-03-001.
         """
-        from vultron.wire.as2.vocab.objects.case_log_entry import CaseLogEntry
+        if self._sync_port is None:
+            from vultron.adapters.driven.sync_activity_adapter import (
+                SyncActivityAdapter,
+            )
 
-        local_actor_id = _find_local_actor_id(self._dl) or "unknown"
-        wire_entry = CaseLogEntry.from_core(entry)
-        reject = reject_log_entry_activity(
-            entry=wire_entry,
-            context=tail_hash,
-            actor=local_actor_id,
+            self._sync_port = SyncActivityAdapter(self._dl)
+
+        local_actor_id = self._request.receiving_actor_id or "unknown"
+        self._sync_port.send_reject_log_entry(
+            entry=entry,
+            tail_hash=tail_hash,
+            actor_id=local_actor_id,
             to=[case_actor_id],
         )
-        self._dl.save(reject)
-        self._dl.outbox_append(reject.id_)
         logger.info(
             "sync: sent Reject(CaseLogEntry) to '%s' "
             "with last_accepted_hash=%.16s…",
@@ -257,9 +261,11 @@ class RejectLogEntryReceivedUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: RejectLogEntryReceivedEvent,
+        sync_port: SyncActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._request = request
+        self._sync_port = sync_port
 
     def execute(self) -> None:
         from vultron.core.use_cases.triggers.sync import (
@@ -315,6 +321,7 @@ class RejectLogEntryReceivedUseCase:
             from_hash=last_accepted_hash,
             case_actor_id=case_actor_id,
             dl=self._dl,
+            sync_port=self._sync_port,
         )
         logger.info(
             "sync: replayed %d entries to peer '%s' for case '%s'",

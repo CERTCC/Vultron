@@ -2,7 +2,7 @@
 title: "TASK-SR SR.1\u2013SR.5 \u2014 Spec Registry Tests, Pytest Marker,\
   \ Pre-commit Hook"
 type: implementation
-date: '2026-04-27'
+timestamp: '2026-04-27T00:00:00+00:00'
 source: LEGACY-2026-04-27-task-sr-sr-1-sr-5-spec-registry-tests-pytest-mar
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 8074

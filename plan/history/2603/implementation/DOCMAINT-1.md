@@ -1,7 +1,7 @@
 ---
 title: "DOCMAINT-1 \u2014 Update outdated notes/ files"
 type: implementation
-date: '2026-03-30'
+timestamp: '2026-03-30T00:00:00+00:00'
 source: DOCMAINT-1
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 3596

@@ -1,7 +1,8 @@
 ---
 title: "DataLayer list_objects() method and model_validate cleanup"
 type: implementation
-date: 2026-04-30
+timestamp: '2026-04-30T15:46:25+00:00'
+
 source: TASK-DL-REHYDRATE
 ---
 

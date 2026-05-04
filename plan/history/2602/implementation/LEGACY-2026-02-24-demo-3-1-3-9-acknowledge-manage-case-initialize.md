@@ -1,7 +1,7 @@
 ---
 title: "DEMO-3.1\u20133.9 \u2014 Acknowledge, Manage Case, Initialize Participant"
 type: implementation
-date: '2026-02-24'
+timestamp: '2026-02-24T00:00:00+00:00'
 source: LEGACY-2026-02-24-demo-3-1-3-9-acknowledge-manage-case-initialize
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 141

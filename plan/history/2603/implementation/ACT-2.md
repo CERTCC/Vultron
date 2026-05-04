@@ -1,7 +1,7 @@
 ---
 title: 'ACT-2: Per-Actor DataLayer Isolation (ADR-0012)'
 type: implementation
-date: '2026-03-24'
+timestamp: '2026-03-24T00:00:00+00:00'
 source: ACT-2
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 3071

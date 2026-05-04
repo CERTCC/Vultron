@@ -1,7 +1,7 @@
 ---
 title: 'Fix: SQLite ResourceWarning Test Failures (2026-04-14)'
 type: implementation
-date: '2026-04-14'
+timestamp: '2026-04-14T00:00:00+00:00'
 source: LEGACY-2026-04-14-fix-sqlite-resourcewarning-test-failures-2026-04
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 6071

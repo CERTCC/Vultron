@@ -1,7 +1,7 @@
 ---
 title: "SPEC-COMPLIANCE-1 \u2014 Object Model Gaps"
 type: implementation
-date: '2026-03-09'
+timestamp: '2026-03-09T00:00:00+00:00'
 source: SPEC-COMPLIANCE-1
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 266

@@ -1,7 +1,7 @@
 ---
 title: "VCR-019c \u2014 Enum/state consolidation study (2026-03-18)"
 type: implementation
-date: '2026-03-18'
+timestamp: '2026-03-18T00:00:00+00:00'
 source: VCR-019c
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 2068

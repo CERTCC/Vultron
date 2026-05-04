@@ -1,7 +1,8 @@
 ---
 title: "Fix block-math opening delimiter in conclusion.md (#234, #235)"
 type: implementation
-date: 2026-04-30
+timestamp: '2026-04-30T14:16:11+00:00'
+
 source: P472-LATEX
 type: implementation
 ---

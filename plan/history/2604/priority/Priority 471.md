@@ -1,7 +1,8 @@
 ---
 title: "Priority 471: Bug Fixes and Demo Polish — COMPLETE"
 type: priority
-date: 2026-04-29
+timestamp: '2026-04-29T00:00:00+00:00'
+
 source: Priority 471
 ---
 

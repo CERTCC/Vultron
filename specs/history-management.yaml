@@ -5,7 +5,7 @@ description: >-
   project history files. Replaces the monolithic append-only `plan/*HISTORY.md`
   pattern with per-entry write-once files organized by month and type under
   `plan/history/`, managed by the `append-history` CLI tool.
-version: 1.1.0
+version: 1.2.0
 kind: pattern
 scope:
   - prototype
@@ -53,6 +53,11 @@ groups:
           Once written, a history entry file MUST NOT be modified. History
           entries are immutable records. Only the `plan/history/YYMM/README.md`
           index may be regenerated.
+        notes: >-
+          One-time exception: the IDEA-26043001/2/3 migration (2026-05) rewrote
+          all existing entries to replace the legacy `date:` field with a
+          tz-aware `timestamp:` field. That migration is the only authorised
+          exception to this rule; future changes to entry files are prohibited.
 
   - id: HM-02
     title: Entry File Format
@@ -64,8 +69,11 @@ groups:
           Every history entry file MUST begin with a YAML frontmatter block
           containing at least the following fields: `title` (human-readable
           summary), `type` (one of the valid HistoryEntryType values),
-          `date` (ISO 8601 date string, e.g., `2026-04-28`), and `source`
-          (the originating identifier such as an IDEA-ID or TASK-ID).
+          `timestamp` (tz-aware ISO 8601 datetime string in UTC, e.g.,
+          `"2026-05-01T15:30:00+00:00"`), and `source` (the originating
+          identifier such as an IDEA-ID or TASK-ID). The legacy `date` field
+          (ISO 8601 date string) is accepted for reading pre-migration entries
+          but MUST NOT be written by the tool for new entries.
       - id: HM-02-002
         priority: MUST
         statement: >-
@@ -205,3 +213,85 @@ groups:
           structure: the "Key Files Map" and any quick-reference sections that
           list `plan/*HISTORY.md` paths MUST be updated to reference
           `plan/history/` and the `append-history` tool.
+
+  - id: HM-06
+    title: Timestamp Field and Future-Date Rejection
+    kind: domain
+    specs:
+      - id: HM-06-001
+        priority: MUST
+        statement: >-
+          Every new history entry MUST include a `timestamp` field containing a
+          tz-aware ISO 8601 datetime string in UTC (e.g.,
+          `"2026-05-01T15:30:00+00:00"`). The `append-history` tool MUST
+          populate this field automatically from the current system clock when
+          creating new entries.
+      - id: HM-06-002
+        priority: MUST
+        statement: >-
+          `HistoryEntryFrontmatter` MUST accept exactly one of `timestamp` or
+          the legacy `date` field. If both are present, validation MUST fail
+          with a clear error. If neither is present, validation MUST fail.
+      - id: HM-06-003
+        priority: MUST
+        statement: >-
+          When the legacy `date` field is present and `timestamp` is absent,
+          `HistoryEntryFrontmatter` MUST normalise the entry by converting
+          `date` to a `timestamp` equal to midnight UTC on that date
+          (e.g., `date: 2026-04-28` → `timestamp: 2026-04-28T00:00:00+00:00`).
+          After normalisation all downstream code MUST use `timestamp` only.
+      - id: HM-06-004
+        priority: MUST
+        statement: >-
+          `HistoryEntryFrontmatter` MUST reject any `timestamp` value that is
+          more than 60 seconds in the future (relative to the current UTC
+          system clock). This tolerance accounts for clock drift between the
+          time the timestamp is computed and when the Pydantic model is
+          validated.
+      - id: HM-06-005
+        priority: MUST
+        statement: >-
+          All `timestamp` values MUST be timezone-aware. Naive datetime values
+          (those without a UTC offset) MUST be rejected with a clear error
+          message. All stored and compared timestamps MUST be normalised to
+          UTC.
+      - id: HM-06-006
+        priority: MUST
+        statement: >-
+          The `plan/history/YYMM/README.md` index MUST display both a
+          `Date` column (YYYY-MM-DD extracted from `timestamp`) and a
+          `Time (UTC)` column (HH:MM extracted from `timestamp`). Entries
+          MUST be sorted by `timestamp` in descending order.
+
+  - id: HM-07
+    title: CLI Interface for Frontmatter Construction
+    kind: implementation
+    specs:
+      - id: HM-07-001
+        priority: MUST
+        statement: >-
+          The `append-history <type>` command MUST accept `--title` and
+          `--source` as required named arguments. The tool MUST construct the
+          YAML frontmatter block internally from these arguments plus the
+          auto-generated `timestamp`.
+      - id: HM-07-002
+        priority: MUST_NOT
+        statement: >-
+          Callers of `append-history` MUST NOT include a YAML frontmatter
+          block in the content they supply via stdin or `--file`. The content
+          MUST be the body text only; the tool prepends the generated
+          frontmatter.
+      - id: HM-07-003
+        priority: MUST
+        statement: >-
+          The tool MUST accept a hidden `--timestamp` argument for backfill
+          use only (e.g., migrating pre-existing entries). This argument MUST
+          accept an ISO 8601 datetime string with a UTC offset. The standard
+          future-date validation (HM-06-004) MUST apply to this override value.
+      - id: HM-07-004
+        priority: MUST
+        statement: >-
+          All existing skill documentation (`ingest-idea`, `build`, `learn`)
+          and `notes/history-management.md` MUST be updated to use the new
+          `--title`/`--source` interface. References to the old
+          frontmatter-in-stdin pattern MUST be removed.

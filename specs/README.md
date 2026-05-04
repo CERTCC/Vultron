@@ -76,7 +76,9 @@ Load additional files only when the task touches the relevant area. See the
 | Activity factory functions | `activity-factories.yaml` |
 | Response generation / outbox | `response-format.yaml`, `outbox.yaml` |
 | Synchronization | `sync-log-replication.yaml` |
+| Sync behavior trees (AnnounceLogEntry, RejectLogEntry, CommitLogEntry BTs) | `sync-behavior-trees.yaml`, `notes/sync-behavior-trees.md` |
 | Participant case replica lifecycle | `participant-case-replica.yaml` |
+| Participant role management (add/remove/has_role) | `participant-role-management.yaml` |
 | Embargo / duration | `embargo-policy.yaml`, `duration.yaml` |
 | Embargo default semantics | `embargo-policy.yaml`, `notes/embargo-default-semantics.md` |
 | Configuration | `configuration.yaml` |
@@ -106,12 +108,16 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 - **`architecture.yaml`** - Hexagonal architecture (Ports and Adapters): layer
   separation rules, SemanticIntent placement, extractor isolation, adapter
-  injection, connector plugins, wire replaceability, review checklist
-  (ARCH-01 through ARCH-08)
+  injection (including `SyncActivityPort` Protocol contract), connector
+  plugins, wire replaceability, review checklist, ARCH-01-001 violation
+  remediation audit
+  (ARCH-01 through ARCH-12; ARCH-01-004, ARCH-04-002 added to track sync
+  port and broader wire-import violations in core/)
 - **`configuration.yaml`** - Unified YAML + Pydantic configuration management:
   `AppConfig` structure, `get_config()` / `reload_config()` API, env var
   naming conventions, `SeedConfig` alignment, `ActorConfig` abstraction with
-  `default_case_roles`, testing patterns
+  `default_case_roles`, testing patterns (note: CFG-06-003 requires direct
+  `_config_cache = None` in test teardown — NOT `reload_config()`)
   (CFG-01 through CFG-07)
 - **`event-driven-control-flow.yaml`** - Event-driven processing model: primary
   event and cascade definitions, cascade chain, external decision nodes,
@@ -156,7 +162,9 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 **Behavior Tree Integration** (optional for complex workflows):
 
-- **`behavior-tree-integration.yaml`** - BT execution model, bridge layer, DataLayer integration
+- **`behavior-tree-integration.yaml`** - BT execution model, bridge layer, DataLayer
+  integration, BT failure diagnosis (BT-13: MUST use `BTBridge.get_failure_reason()`
+  — `result.feedback_message` is always empty on a Sequence root)
 - **`behavior-tree-node-design.yaml`** - BT node parameterization, composability, reuse,
   blackboard interface contracts, actor-config-driven roles, `CreateCaseOwnerParticipant`
   node design, and `CVDRoles.CASE_OWNER` requirement (BTND-01 through BTND-05)
@@ -181,6 +189,11 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   object model relationships (Report/Case/CaseReference/VulnerabilityRecord), case update
   broadcast, CVD action rules API, redacted case view (CM-09), per-participant embargo
   acceptance tracking (CM-10)
+- **`participant-role-management.yaml`** - Role read/mutation API on
+  `VultronParticipant` and `CaseParticipant`: `add_role()`, `remove_role()`,
+  `has_role()`, `roles` property, core-layer no-direct-mutation rule, wire-layer
+  interface parity, and test requirements
+  (PRM-01 through PRM-05)
 - **`case-log-processing.yaml`** - Participant assertions, CaseActor-authored
   `CaseLogEntry` objects, case audit scope, recorded-history projection, and
   replication rules for recorded vs rejected log outcomes (CLP-01 through
@@ -233,6 +246,11 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 - **`sync-log-replication.yaml`** - Append-only case event log, replication
   transport, conflict handling, per-peer state, and retry semantics
   (SYNC-01 through SYNC-07)
+- **`sync-behavior-trees.yaml`** - Behavior-tree requirements for sync
+  protocol flows: AnnounceLogEntryReceivedBT (with case-actor vs
+  non-case-actor branching), RejectLogEntryReceivedBT, CommitLogEntryBT,
+  and port-injection-via-blackboard pattern
+  (SBT-01 through SBT-05)
 - **`participant-case-replica.yaml`** - Participant case replica lifecycle:
   bootstrap via `Announce(VulnerabilityCase)`, single-writer update authority,
   case-context routing, reporter case discovery, and unknown-context handling
@@ -399,6 +417,7 @@ is reserved for `testability.yaml`).
 | `SM` | `state-machine.yaml` |
 | `SL` | `structured-logging.yaml` |
 | `PCR` | `participant-case-replica.yaml` |
+| `PRM` | `participant-role-management.yaml` |
 | `SYNC` | `sync-log-replication.yaml` |
 | `TB` | `testability.yaml` |
 | `AF` | `activity-factories.yaml` |

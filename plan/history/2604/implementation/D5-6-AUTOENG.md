@@ -1,7 +1,7 @@
 ---
 title: "D5-6-AUTOENG \u2014 Auto-engage after invitation acceptance (2026-04-08)"
 type: implementation
-date: '2026-04-08'
+timestamp: '2026-04-08T00:00:00+00:00'
 source: D5-6-AUTOENG
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 4922

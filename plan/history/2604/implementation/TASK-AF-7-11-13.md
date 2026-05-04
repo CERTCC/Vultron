@@ -1,7 +1,8 @@
 ---
 title: "AF.7, AF.11, AF.13 — Architecture boundary test, type alias cleanup, AGENTS.md"
 type: implementation
-date: 2026-04-30
+timestamp: '2026-04-30T21:06:17+00:00'
+
 source: TASK-AF-7-11-13
 ---
 

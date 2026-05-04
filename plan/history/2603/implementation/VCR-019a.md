@@ -1,7 +1,7 @@
 ---
 title: "VCR-019a \u2014 Move case_states/ into vultron/core/ (2026-03-19)"
 type: implementation
-date: '2026-03-18'
+timestamp: '2026-03-18T00:00:00+00:00'
 source: VCR-019a
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 2103

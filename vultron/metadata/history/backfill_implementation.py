@@ -244,10 +244,14 @@ def _render_entry_markdown(
     body: str,
 ) -> str:
     """Render a backfilled implementation history entry."""
+    ts = datetime.datetime(
+        *datetime.date.fromisoformat(canonical_date).timetuple()[:3],
+        tzinfo=datetime.timezone.utc,
+    ).isoformat()
     metadata: dict[str, object] = {
         "title": title,
         "type": HistoryEntryType.implementation.value,
-        "date": canonical_date,
+        "timestamp": ts,
         "source": source,
         "legacy_file": legacy_rel_path,
         "legacy_line": heading_line,

@@ -1,7 +1,7 @@
 ---
 title: "PRIORITY-348 DR-07 \u2014 ActivityPattern actor subtype-aware matching"
 type: implementation
-date: '2026-04-20'
+timestamp: '2026-04-20T00:00:00+00:00'
 source: LEGACY-2026-04-20-priority-348-dr-07-activitypattern-actor-subtype
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 7204

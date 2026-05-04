@@ -1,7 +1,7 @@
 ---
 title: "VCR-019e \u2014 Convert non-StrEnum Enums to StrEnum (2026-03-19)"
 type: implementation
-date: '2026-03-19'
+timestamp: '2026-03-19T00:00:00+00:00'
 source: VCR-019e
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 2299

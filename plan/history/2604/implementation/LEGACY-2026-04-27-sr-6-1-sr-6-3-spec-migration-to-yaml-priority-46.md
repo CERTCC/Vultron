@@ -1,7 +1,7 @@
 ---
 title: "SR.6.1\u2013SR.6.3 \u2014 Spec Migration to YAML (Priority 460)"
 type: implementation
-date: '2026-04-27'
+timestamp: '2026-04-27T00:00:00+00:00'
 source: LEGACY-2026-04-27-sr-6-1-sr-6-3-spec-migration-to-yaml-priority-46
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 8134

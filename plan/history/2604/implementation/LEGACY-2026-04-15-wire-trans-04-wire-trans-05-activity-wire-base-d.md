@@ -1,7 +1,7 @@
 ---
 title: "WIRE-TRANS-04 + WIRE-TRANS-05 \u2014 Activity wire base + delete serializer.py"
 type: implementation
-date: '2026-04-15'
+timestamp: '2026-04-15T00:00:00+00:00'
 source: LEGACY-2026-04-15-wire-trans-04-wire-trans-05-activity-wire-base-d
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 6345

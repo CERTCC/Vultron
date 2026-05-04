@@ -1,7 +1,7 @@
 ---
 title: "SPEC-COMPLIANCE-2 \u2014 Embargo Policy Model"
 type: implementation
-date: '2026-03-09'
+timestamp: '2026-03-09T00:00:00+00:00'
 source: SPEC-COMPLIANCE-2
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 279

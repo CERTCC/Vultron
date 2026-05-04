@@ -32,13 +32,9 @@ from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
 )
+from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import case_addressees
 from vultron.core.use_cases.received.sync import _reconstruct_tail_hash
-from vultron.core.use_cases.triggers._helpers import add_activity_to_outbox
-from vultron.wire.as2.factories import announce_log_entry_activity
-from vultron.wire.as2.vocab.objects.case_log_entry import (
-    CaseLogEntry as WireCaseLogEntry,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +66,7 @@ def _fan_out_log_entry(
     entry: VultronCaseLogEntry,
     actor_id: str,
     dl: CaseOutboxPersistence,
+    sync_port: SyncActivityPort | None = None,
 ) -> None:
     """Create one ``Announce(CaseLogEntry)`` per peer and queue for delivery.
 
@@ -79,6 +76,13 @@ def _fan_out_log_entry(
 
     Spec: SYNC-02-002.
     """
+    if sync_port is None:
+        from vultron.adapters.driven.sync_activity_adapter import (
+            SyncActivityAdapter,
+        )
+
+        sync_port = SyncActivityAdapter(dl)
+
     case_obj = dl.read(case_id)
     if not is_case_model(case_obj):
         logger.warning(
@@ -100,16 +104,13 @@ def _fan_out_log_entry(
         return
 
     for recipient_id in recipients:
-        announce = announce_log_entry_activity(
-            entry=WireCaseLogEntry.from_core(entry),
-            actor=actor_id,
+        sync_port.send_announce_log_entry(
+            entry=entry,
+            actor_id=actor_id,
             to=[recipient_id],
         )
-        dl.save(announce)
-        add_activity_to_outbox(actor_id, announce.id_, dl)
         logger.info(
-            "sync fan-out: queued Announce(CaseLogEntry) '%s' → '%s'",
-            announce.id_,
+            "sync fan-out: queued Announce(CaseLogEntry) → '%s'",
             recipient_id,
         )
 
@@ -125,6 +126,7 @@ def commit_log_entry_trigger(
     reason_code: str | None = None,
     reason_detail: str | None = None,
     disposition: str = "recorded",
+    sync_port: SyncActivityPort | None = None,
 ) -> VultronCaseLogEntry:
     """Commit a new log entry to the local chain and fan it out to peers.
 
@@ -182,7 +184,7 @@ def commit_log_entry_trigger(
         event_type,
     )
 
-    _fan_out_log_entry(case_id, entry, actor_id, dl)
+    _fan_out_log_entry(case_id, entry, actor_id, dl, sync_port=sync_port)
     return entry
 
 
@@ -192,6 +194,7 @@ def replay_missing_entries_trigger(
     from_hash: str,
     case_actor_id: str,
     dl: CaseOutboxPersistence,
+    sync_port: SyncActivityPort | None = None,
 ) -> int:
     """Replay all log entries after *from_hash* to a specific peer.
 
@@ -254,19 +257,23 @@ def replay_missing_entries_trigger(
         )
         return 0
 
+    if sync_port is None:
+        from vultron.adapters.driven.sync_activity_adapter import (
+            SyncActivityAdapter,
+        )
+
+        sync_port = SyncActivityAdapter(dl)
+
     replayed = 0
     for entry in missing:
-        announce = announce_log_entry_activity(
-            entry=WireCaseLogEntry.from_core(entry),
-            actor=case_actor_id,
+        sync_port.send_announce_log_entry(
+            entry=entry,
+            actor_id=case_actor_id,
             to=[peer_id],
         )
-        dl.save(announce)
-        add_activity_to_outbox(case_actor_id, announce.id_, dl)
         logger.info(
-            "sync replay: queued Announce(CaseLogEntry) '%s' "
+            "sync replay: queued Announce(CaseLogEntry) "
             "(log_index=%d) → '%s'",
-            announce.id_,
             entry.log_index,
             peer_id,
         )

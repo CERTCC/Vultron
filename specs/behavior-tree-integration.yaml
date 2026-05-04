@@ -233,3 +233,34 @@ groups:
     statement: Future optimizations MAY introduce resource-level locking
     scope:
     - production
+- id: BT-13
+  title: BT Failure Diagnosis
+  kind: implementation
+  specs:
+  - id: BT-13-001
+    priority: MUST
+    statement: >-
+      After any BT execution that returns FAILURE, code MUST retrieve the
+      failure reason via `BTBridge.get_failure_reason(tree)` (a depth-first
+      walk to the first failing leaf node). Code MUST NOT log or inspect
+      `result.feedback_message` or `bt.root.feedback_message` for diagnostic
+      purposes: a `py_trees` Sequence root's `feedback_message` is always
+      `""` when a child fails, regardless of what the failing child set.
+    rationale: >-
+      `py_trees` sets `feedback_message` on the failing child node, not on
+      the parent Sequence. Logging the root message produces an empty string
+      that is indistinguishable from "no error" in logs, making failures
+      completely silent. `get_failure_reason()` walks to the actual failing
+      leaf and returns its message.
+
+  - id: BT-13-002
+    priority: MUST
+    statement: >-
+      The `BTBridge.get_failure_reason()` pattern MUST be applied consistently
+      across all BT execution sites, not only for a single BT class or
+      protocol flow. Any place in the codebase that logs a BT result MUST use
+      this helper.
+    relationships:
+      - rel_type: refines
+        spec_id: BT-13-001
+        note: Scope is all BT execution sites, not just sync

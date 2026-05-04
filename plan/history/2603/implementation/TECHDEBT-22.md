@@ -2,7 +2,7 @@
 title: "TECHDEBT-22 \u2014 UseCase[Req, Res] Protocol base on all use case\
   \ classes (2026-03-16)"
 type: implementation
-date: '2026-03-16'
+timestamp: '2026-03-16T00:00:00+00:00'
 source: TECHDEBT-22
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 1705

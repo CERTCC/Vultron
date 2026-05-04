@@ -24,4 +24,4 @@ from vultron.core.states.cs import (
 )
 from vultron.core.states.em import EM, EM_NEGOTIATING
 from vultron.core.states.rm import RM, RM_ACTIVE, RM_CLOSABLE, RM_UNCLOSED
-from vultron.core.states.roles import CVDRoles, add_role
+from vultron.core.states.roles import CVDRole, serialize_roles, validate_roles

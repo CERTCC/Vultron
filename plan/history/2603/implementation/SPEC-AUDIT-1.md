@@ -2,7 +2,7 @@
 title: "SPEC-AUDIT-1 \u2014 Consolidation audit: eliminate redundant requirements\
   \ (2026-03-30)"
 type: implementation
-date: '2026-03-31'
+timestamp: '2026-03-31T00:00:00+00:00'
 source: SPEC-AUDIT-1
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 3768

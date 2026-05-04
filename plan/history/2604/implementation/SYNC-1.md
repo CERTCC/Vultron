@@ -1,7 +1,7 @@
 ---
 title: "SYNC-1 \u2014 Local append-only case event log with indexing (2026-04-11)"
 type: implementation
-date: '2026-04-11'
+timestamp: '2026-04-11T00:00:00+00:00'
 source: SYNC-1
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 5677

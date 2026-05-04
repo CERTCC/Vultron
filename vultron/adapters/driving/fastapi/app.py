@@ -17,7 +17,6 @@ Vultron API v2 Application
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -37,7 +36,9 @@ def configure_logging() -> None:
     Only called inside the lifespan context so importing this module in tests
     does not mutate the root logger.
     """
-    log_level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
+    from vultron.config import get_config
+
+    log_level_name = get_config().server.log_level
     log_level = getattr(logging, log_level_name, logging.INFO)
 
     uvicorn_logger = logging.getLogger("uvicorn")

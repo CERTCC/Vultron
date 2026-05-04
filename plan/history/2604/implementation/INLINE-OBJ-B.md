@@ -1,7 +1,7 @@
 ---
 title: "INLINE-OBJ-B \u2014 Accept/Reject inline typed objects (Priority 330)"
 type: implementation
-date: '2026-04-17'
+timestamp: '2026-04-17T00:00:00+00:00'
 source: INLINE-OBJ-B
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 6463

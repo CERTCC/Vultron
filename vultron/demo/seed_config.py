@@ -40,13 +40,15 @@ from typing import Literal, cast
 import yaml
 from pydantic import BaseModel, Field
 
+from vultron.core.models.actor_config import ActorConfig
+
 #: Valid ActivityStreams actor type strings accepted by the seed command.
 ActorType = Literal[
     "Person", "Organization", "Service", "Application", "Group"
 ]
 
 
-class LocalActorConfig(BaseModel):
+class LocalActorConfig(ActorConfig):
     """Configuration for the local actor record to create on startup."""
 
     name: str = Field(description="Display name of the local actor.")

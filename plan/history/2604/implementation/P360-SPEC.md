@@ -1,7 +1,7 @@
 ---
 title: "P360-SPEC \u2014 BT Node Design Spec"
 type: implementation
-date: '2026-04-23'
+timestamp: '2026-04-23T00:00:00+00:00'
 source: P360-SPEC
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 7872

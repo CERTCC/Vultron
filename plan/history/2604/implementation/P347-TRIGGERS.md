@@ -2,7 +2,7 @@
 title: "P347-TRIGGERS \u2014 New Trigger Endpoints (create-case, add-report-to-case,\
   \ suggest-actor-to-case, accept-case-invite)"
 type: implementation
-date: '2026-04-20'
+timestamp: '2026-04-20T00:00:00+00:00'
 source: P347-TRIGGERS
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 6833

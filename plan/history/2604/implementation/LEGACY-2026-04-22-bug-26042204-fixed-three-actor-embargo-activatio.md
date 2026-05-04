@@ -1,7 +1,7 @@
 ---
 title: 'BUG-26042204 fixed: three-actor embargo activation flow'
 type: implementation
-date: '2026-04-22'
+timestamp: '2026-04-22T00:00:00+00:00'
 source: LEGACY-2026-04-22-bug-26042204-fixed-three-actor-embargo-activatio
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 7774

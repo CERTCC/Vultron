@@ -1,7 +1,7 @@
 ---
 title: ARCH-01-001 Fix + Wire Translation Boundary Design [2026-04-15]
 type: implementation
-date: '2026-04-15'
+timestamp: '2026-04-15T00:00:00+00:00'
 source: LEGACY-2026-04-15-arch-01-001-fix-wire-translation-boundary-design
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 6197

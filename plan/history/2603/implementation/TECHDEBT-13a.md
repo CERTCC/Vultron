@@ -1,7 +1,7 @@
 ---
 title: "TECHDEBT-13a \u2014 Wire-boundary cleanup: test_policy.py"
 type: implementation
-date: '2026-03-11'
+timestamp: '2026-03-11T00:00:00+00:00'
 source: TECHDEBT-13a
 legacy_file: plan/history/IMPLEMENTATION_HISTORY.md
 legacy_line: 1152
