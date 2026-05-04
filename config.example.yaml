@@ -1,0 +1,28 @@
+# Vultron example configuration file.
+#
+# Copy to config.yaml (or any path) and set VULTRON_CONFIG to point to it.
+# Environment variables always take precedence over values in this file.
+# All keys are optional; defaults are shown below.
+#
+# Environment variable equivalents (prefix VULTRON_, nested with __):
+#   VULTRON_MODE                     → mode
+#   VULTRON_SERVER__BASE_URL         → server.base_url
+#   VULTRON_SERVER__LOG_LEVEL        → server.log_level
+#   VULTRON_DATABASE__DB_URL         → database.db_url
+
+# Operational mode: "prototype" (default) or "prod".
+# prototype: demo endpoints enabled, relaxed validation.
+# prod:      demo endpoints disabled, strict validation.
+mode: prototype
+
+server:
+  # Base URL used when constructing activity/actor object IDs.
+  base_url: http://localhost:7999
+
+  # Root log level.  One of: DEBUG, INFO, WARNING, ERROR, CRITICAL.
+  log_level: INFO
+
+database:
+  # SQLAlchemy connection URL.
+  # Use "sqlite://" (no path) for an in-memory database (testing only).
+  db_url: sqlite:///vultron.db
