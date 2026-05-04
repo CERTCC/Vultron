@@ -44,6 +44,12 @@ Formally separate demo-only trigger endpoints from general-purpose ones.
   `RunMode.PROTOTYPE`; add a general-purpose `add-object-to-case` trigger.
   `RunMode` and `get_config()` are available from `vultron/config.py`.
 
+## Priority 476: Bug Fixes and Demo Polish
+
+Fix issues affecting demo execution and correctness.
+
+- [#412](https://github.com/CERTCC/Vultron/issues/412) — mislabeled demo (docker-compose multi-vendor label mismatch)
+
 ## Priority 480: Cyclomatic Complexity Enforcement
 
 Cyclomatic complexity (CC) is treated as a policy boundary, not just a
@@ -141,6 +147,14 @@ complete.
 
 - [#5](https://github.com/CERTCC/Vultron/issues/5) — Integrate FIRST services frameworks
 - [#6](https://github.com/CERTCC/Vultron/issues/6) — Add CVSSv4 crosswalk
+
+## Priority 97000: MkDocs Replacement
+
+Migrate documentation build tooling from MkDocs 1.x to Zensical (MkDocs 2.0
+compatibility). MkDocs 2.0 is a ground-up rewrite that is incompatible with
+the current plugin ecosystem and configuration format.
+
+- [#294](https://github.com/CERTCC/Vultron/issues/294) — Plan migration to Zensical for MkDocs 2.0 compatibility
 
 ## Priority 99999: Remaining Requirements and Documentation Updates
 
