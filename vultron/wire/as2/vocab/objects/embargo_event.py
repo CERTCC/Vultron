@@ -18,7 +18,7 @@ Provides an EmbargoEvent object for the Vultron ActivityStreams Vocabulary.
 
 # TODO: convert to pydantic idioms
 from datetime import datetime, timedelta
-from typing import TypeAlias
+from typing import Literal, TypeAlias
 
 from pydantic import Field, model_validator
 
@@ -40,7 +40,11 @@ class EmbargoEvent(as_Event):
     An EmbargoEvent is an Event that represents an embargo on a VulnerabilityCase.
     """
 
-    # note: embargo events don't need to be their own type_, the value inherited from as_Event is sufficient
+    type_: Literal["EmbargoEvent"] = Field(  # type: ignore[assignment]
+        default="EmbargoEvent",
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
     start_time: datetime = Field(
         default_factory=now_utc, json_schema_extra={"format": "date-time"}

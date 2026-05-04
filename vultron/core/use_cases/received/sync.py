@@ -26,6 +26,7 @@ from vultron.core.models.events.sync import (
     AnnounceLogEntryReceivedEvent,
     RejectLogEntryReceivedEvent,
 )
+from vultron.core.models.protocols import LogEntryModel, is_log_entry_model
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.ports.case_persistence import (
     CasePersistence,
@@ -47,17 +48,11 @@ def _reconstruct_tail_hash(
 
     Returns ``(GENESIS_HASH, -1)`` if no entries exist yet.
     """
-    raw_entries: dict[str, dict] = dl.by_type("CaseLogEntry")
-    entries: list[VultronCaseLogEntry] = []
-    for data in raw_entries.values():
-        if data.get("case_id") == case_id:
-            try:
-                entries.append(VultronCaseLogEntry.model_validate(data))
-            except Exception:
-                logger.debug(
-                    "sync: skipping malformed CaseLogEntry record for case '%s'",
-                    case_id,
-                )
+    entries: list[LogEntryModel] = [
+        obj
+        for obj in dl.list_objects("CaseLogEntry")
+        if is_log_entry_model(obj) and obj.case_id == case_id
+    ]
 
     if not entries:
         return GENESIS_HASH, -1

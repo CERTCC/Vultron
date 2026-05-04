@@ -21,7 +21,6 @@ No HTTP framework imports permitted here.
 
 import logging
 
-from pydantic import BaseModel, ValidationError
 from transitions import MachineError
 
 from vultron.core.states.em import EM, EMAdapter, create_em_machine
@@ -73,23 +72,19 @@ logger = logging.getLogger(__name__)
 def _coerce_embargo_event(
     raw_embargo: object, embargo_id: str
 ) -> EmbargoEvent:
-    """Normalize a persisted embargo record to an ``EmbargoEvent`` instance."""
+    """Normalize a persisted embargo record to an ``EmbargoEvent`` instance.
+
+    Since ``EmbargoEvent`` has ``type_ = "EmbargoEvent"`` and is registered in
+    the wire vocabulary, ``dl.read()`` returns a fully typed ``EmbargoEvent``
+    directly. This function validates that the result is the expected type.
+    """
     if isinstance(raw_embargo, EmbargoEvent):
         return raw_embargo
     if raw_embargo is None:
         raise VultronNotFoundError("EmbargoEvent", embargo_id)
-    if not isinstance(raw_embargo, BaseModel):
-        raise VultronValidationError(
-            f"Could not resolve EmbargoEvent '{embargo_id}'."
-        )
-    try:
-        return EmbargoEvent.model_validate(
-            raw_embargo.model_dump(by_alias=True)
-        )
-    except ValidationError as exc:
-        raise VultronValidationError(
-            f"Could not resolve EmbargoEvent '{embargo_id}'."
-        ) from exc
+    raise VultronValidationError(
+        f"Could not resolve EmbargoEvent '{embargo_id}'."
+    )
 
 
 def _cascade_pec_revise(

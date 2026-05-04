@@ -977,11 +977,17 @@ class CreateCaseParticipantNode(DataLayerAction):
 
             # Emit Add activity with a fully typed CaseParticipant object
             # (not a bare string ID) to satisfy MV-09-001.
-            case_participant = CaseParticipant.model_validate(
-                participant.model_dump(by_alias=True)
-            )
+            # Read back from storage to get the wire-typed CaseParticipant.
+            stored_participant = self.datalayer.read(participant.id_)
+            if not isinstance(stored_participant, CaseParticipant):
+                self.logger.error(
+                    "%s: Could not resolve stored CaseParticipant '%s'",
+                    self.name,
+                    participant.id_,
+                )
+                return Status.FAILURE
             add_notification = add_participant_to_case_activity(
-                participant=case_participant,
+                participant=stored_participant,
                 target=case_id,
                 actor=self.actor_id,
                 to=[self.participant_actor_id],

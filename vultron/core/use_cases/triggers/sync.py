@@ -28,7 +28,11 @@ from typing import Any
 
 from vultron.core.models.case_log import CaseLogEntry
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.protocols import (
+    LogEntryModel,
+    is_case_model,
+    is_log_entry_model,
+)
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
 )
@@ -218,17 +222,11 @@ def replay_missing_entries_trigger(
 
     Spec: SYNC-03-002.
     """
-    raw_entries: dict[str, dict] = dl.by_type("CaseLogEntry")
-    entries: list[VultronCaseLogEntry] = []
-    for data in raw_entries.values():
-        if data.get("case_id") == case_id:
-            try:
-                entries.append(VultronCaseLogEntry.model_validate(data))
-            except Exception:
-                logger.debug(
-                    "sync replay: skipping malformed CaseLogEntry for case '%s'",
-                    case_id,
-                )
+    entries: list[LogEntryModel] = [
+        obj
+        for obj in dl.list_objects("CaseLogEntry")
+        if is_log_entry_model(obj) and obj.case_id == case_id
+    ]
 
     if not entries:
         logger.debug(

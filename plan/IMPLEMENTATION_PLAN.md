@@ -15,48 +15,15 @@ section order.
 
 ---
 
-## TASK-DL-REHYDRATE — Migrate Core to `list_objects()`
-
-**Source**: `specs/datalayer.yaml` DL-04; `notes/datalayer-design.md`
-
-`DataLayer` Protocol exposes `list_objects(type_key)` but `CasePersistence`
-does not yet include it. `by_type()` callers in core have been removed, but
-four `model_validate()` coercions remain:
-
-- `behaviors/case/nodes.py:980` — `CaseParticipant.model_validate(...)`
-- `received/sync.py:55` — `VultronCaseLogEntry.model_validate(...)`
-- `triggers/sync.py:226` — `VultronCaseLogEntry.model_validate(...)`
-- `triggers/embargo.py:86` — `EmbargoEvent.model_validate(...)`
-
-**Unblocks TASK-CP-CLEANUP.**
-
-**Acceptance criteria:**
-
-- `CasePersistence` exposes `list_objects(type_key: str)`.
-- The four `model_validate()` coercions above are replaced with
-  `list_objects()` calls or typed `read()`.
-- No manual `model_validate()` coercions in core for objects
-  retrievable by type.
-
-- [ ] DL-REHYDRATE.1: Add `list_objects(type_key: str) ->
-  Iterable[PersistableModel]` to `CasePersistence`
-- [ ] DL-REHYDRATE.2: Migrate the four remaining `model_validate()` sites
-  (`received/sync.py`, `triggers/sync.py`, `triggers/embargo.py`,
-  `behaviors/case/nodes.py`) to `list_objects()` or typed `read()`
-- [ ] DL-REHYDRATE.3: Update tests to verify `CasePersistence` callers
-  use the typed method
-
 ---
 
 ## TASK-CP-CLEANUP — Remove Deprecated `CasePersistence` Compat Methods
 
 **Source**: `specs/datalayer.yaml` DL-04-005; `notes/datalayer-design.md`
 
-**Blocked by TASK-DL-REHYDRATE.**
-
 `CasePersistence` still exposes `get()` and `by_type()` as compatibility
-methods. Remove them once TASK-DL-REHYDRATE migrates all core callers to
-`read()` and `list_objects()`.
+methods. Remove them once all core callers have migrated to
+`read()` and `list_objects()` (TASK-DL-REHYDRATE is now complete).
 
 **Acceptance criteria:**
 

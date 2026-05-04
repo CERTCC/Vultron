@@ -219,6 +219,9 @@ def find_embargo_proposal(case_id: str, dl: CasePersistence):
         if embargo_id is None:
             continue
         emb = dl.read(embargo_id)
-        if emb is not None and str(getattr(emb, "type_", "")) == "Event":
+        if emb is not None and str(getattr(emb, "type_", "")) in (
+            "Event",
+            "EmbargoEvent",
+        ):
             return obj
     return None

@@ -15,8 +15,9 @@
 
 """Adapter implementing :class:`~vultron.core.ports.sync_activity.SyncActivityPort`.
 
-Converts domain :class:`~vultron.core.models.case_log_entry.VultronCaseLogEntry`
-objects to wire-layer :class:`~vultron.wire.as2.vocab.objects.case_log_entry.CaseLogEntry`
+Converts log entry objects (satisfying
+:class:`~vultron.core.models.protocols.LogEntryModel`) to wire-layer
+:class:`~vultron.wire.as2.vocab.objects.case_log_entry.CaseLogEntry`
 objects, builds the appropriate AS2 activity via factory functions, persists
 the activity, and queues it to the actor's outbox for delivery.
 
@@ -32,7 +33,7 @@ See also:
 
 import logging
 
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.protocols import LogEntryModel
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.triggers._helpers import add_activity_to_outbox
 from vultron.wire.as2.factories import (
@@ -56,13 +57,13 @@ class SyncActivityAdapter:
     def __init__(self, dl: CaseOutboxPersistence) -> None:
         self._dl = dl
 
-    def _to_wire(self, entry: VultronCaseLogEntry) -> WireCaseLogEntry:
-        """Convert a domain log entry to its wire-layer representation."""
-        return WireCaseLogEntry.from_core(entry)
+    def _to_wire(self, entry: LogEntryModel) -> WireCaseLogEntry:
+        """Convert a log entry to its wire-layer representation."""
+        return WireCaseLogEntry.model_validate(entry.model_dump(mode="json"))
 
     def send_reject_log_entry(
         self,
-        entry: VultronCaseLogEntry,
+        entry: LogEntryModel,
         tail_hash: str,
         actor_id: str,
         to: list[str],
@@ -88,7 +89,7 @@ class SyncActivityAdapter:
 
     def send_announce_log_entry(
         self,
-        entry: VultronCaseLogEntry,
+        entry: LogEntryModel,
         actor_id: str,
         to: list[str],
     ) -> None:

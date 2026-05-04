@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.object_types import as_Event
 from vultron.core.models.base import VultronObject
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
 from vultron.core.models.events import (
@@ -79,8 +80,13 @@ class ActivityPattern(BaseModel):
                 return False
             # Subtype-aware matching: AOtype.ACTOR matches any as_Actor subclass
             # (Person, Organization, Service, etc.) whose type_ differs from "Actor".
+            # AOtype.EVENT matches any as_Event subclass (e.g., EmbargoEvent).
             if pattern_field == AOtype.ACTOR and isinstance(
                 activity_field, as_Actor
+            ):
+                return True
+            if pattern_field == AOtype.EVENT and isinstance(
+                activity_field, as_Event
             ):
                 return True
             return bool(
@@ -459,7 +465,7 @@ def extract_intent(
                     published=getattr(obj, "published", None),
                     updated=getattr(obj, "updated", None),
                 )
-        elif _obj_type == str(AOtype.EVENT) and obj is not None:
+        elif isinstance(obj, as_Event) and obj is not None:
             end_time = getattr(obj, "end_time", None)
             object_id = _get_id(obj)
             embargo_context = (

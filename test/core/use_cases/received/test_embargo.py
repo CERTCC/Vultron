@@ -76,7 +76,7 @@ class TestEmbargoUseCases:
 
         CreateEmbargoEventReceivedUseCase(dl, event).execute()
 
-        stored = dl.get(embargo.type_.value, embargo.id_)
+        stored = dl.get(embargo.type_, embargo.id_)
         assert stored is not None
 
     def test_create_embargo_event_idempotent(self, monkeypatch, make_payload):
@@ -112,7 +112,7 @@ class TestEmbargoUseCases:
             dl, event
         ).execute()  # second call no-op
 
-        stored = dl.get(embargo.type_.value, embargo.id_)
+        stored = dl.get(embargo.type_, embargo.id_)
         assert stored is not None
 
     def test_add_embargo_event_to_case_activates_embargo(

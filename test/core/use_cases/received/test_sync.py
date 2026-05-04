@@ -196,9 +196,10 @@ class TestAnnounceLogEntryReceivedUseCase:
         uc = AnnounceLogEntryReceivedUseCase(dl, event)
         uc.execute()  # should skip silently
         # Still exactly one entry for this case
-        raw = dl.by_type("CaseLogEntry")
         case_entries = [
-            v for v in raw.values() if v.get("case_id") == CASE_URI
+            obj
+            for obj in dl.list_objects("CaseLogEntry")
+            if getattr(obj, "case_id", None) == CASE_URI
         ]
         assert len(case_entries) == 1
 

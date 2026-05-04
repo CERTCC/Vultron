@@ -34,6 +34,7 @@ See also:
     - GitHub issue #403
 """
 
+from collections.abc import Iterable
 from typing import Any, Protocol
 
 from vultron.core.models.protocols import PersistableModel
@@ -65,6 +66,8 @@ class CasePersistence(Protocol):
     def save(self, obj: PersistableModel) -> None: ...
 
     def by_type(self, type_: str) -> "dict[str, dict[str, Any]]": ...
+
+    def list_objects(self, type_key: str) -> Iterable[PersistableModel]: ...
 
     def find_case_by_report_id(
         self, report_id: str
