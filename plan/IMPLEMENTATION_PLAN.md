@@ -108,51 +108,6 @@ Current violations (CC 11–15) — 25 functions:
 
 ---
 
-## TASK-ARCHVIO — Remove Remaining Core→Adapter Import Violations
-
-**Source**: `specs/architecture.yaml` ARCH-01-001;
-`notes/architecture-ports-and-adapters.md`
-
-**Background**: The original scope was to fix `from_core()` calls in
-`sync.py` use cases. That work is complete: `SyncActivityPort`
-(`vultron/core/ports/sync_activity.py`) and `SyncActivityAdapter`
-(`vultron/adapters/driven/sync_activity_adapter.py`) are implemented and
-`from_core()` calls are gone. However, both `received/sync.py` and
-`triggers/sync.py` still contain deferred imports of `SyncActivityAdapter`
-as a fallback constructor (lines 225–229 and 80–84 respectively). These
-lazy imports violate ARCH-01-001 — core MUST NOT import from the adapters
-layer under any circumstances, including deferred imports.
-
-The narrower sync violation is nearly complete. Broader ARCH-01-001
-violations in `behaviors/case/nodes.py`, `behaviors/case/suggest_actor_tree.py`,
-and trigger use cases (`triggers/embargo.py`, `triggers/case.py`,
-`triggers/actor.py`, `triggers/note.py`, `triggers/report.py`) each import
-wire vocab types directly. These are separate, lower-priority violations
-that will require their own driven ports or ActivityEmitter expansion and
-are tracked here as future work.
-
-**Acceptance criteria (sync cleanup — current scope):**
-
-- Neither `received/sync.py` nor `triggers/sync.py` imports anything from
-  `vultron/adapters/` at any code path.
-- Callers that previously relied on the fallback injection now provide
-  `SyncActivityPort` explicitly.
-- Tests for sync use cases inject a `MagicMock(spec=SyncActivityPort)`
-  rather than relying on the fallback constructor.
-
-- [ ] ARCHVIO.4a: Remove lazy `SyncActivityAdapter` import fallback from
-  `received/sync.py`; update its use cases to require `SyncActivityPort`
-  injection (raise on `None`)
-- [ ] ARCHVIO.4b: Remove lazy `SyncActivityAdapter` import fallback from
-  `triggers/sync.py`; update callers to inject port
-- [ ] ARCHVIO.4c: Update FastAPI dispatcher or dependency injection to
-  always provide `SyncActivityPort` when constructing sync use cases
-- [ ] ARCHVIO.4d: Update sync use case tests to use
-  `MagicMock(spec=SyncActivityPort)`; add an architecture test asserting no
-  `vultron.adapters` import in `vultron/core/`
-
----
-
 ## TASK-TRIGCLASS — Trigger Classification and Demo Route Separation
 
 **Source**: `specs/triggerable-behaviors.yaml` TRIG-08, TRIG-09, TRIG-10;
@@ -213,4 +168,4 @@ are tracked here as future work.
   (`triggers/embargo.py`, `triggers/case.py`, `triggers/actor.py`,
   `triggers/note.py`, `triggers/report.py`) all import wire vocab types
   directly. Each requires its own driven port or ActivityEmitter expansion.
-  Defer until TASK-ARCHVIO sync cleanup is complete.
+  The deferred sync cleanup is complete; this work may now proceed.

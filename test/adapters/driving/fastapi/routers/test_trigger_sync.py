@@ -75,9 +75,15 @@ def dl(actor_and_dl):
 
 @pytest.fixture
 def client_triggers(dl):
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
+
     app = FastAPI()
     app.include_router(trigger_sync_router.router)
-    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(dl)
+    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
+        dl, sync_port=SyncActivityAdapter(dl)
+    )
     app.dependency_overrides[get_trigger_dl] = lambda: dl
     app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
     yield TestClient(app)

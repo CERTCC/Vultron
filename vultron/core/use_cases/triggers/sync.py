@@ -39,6 +39,7 @@ from vultron.core.ports.case_persistence import (
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import case_addressees
 from vultron.core.use_cases.received.sync import _reconstruct_tail_hash
+from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
 
@@ -81,11 +82,13 @@ def _fan_out_log_entry(
     Spec: SYNC-02-002.
     """
     if sync_port is None:
-        from vultron.adapters.driven.sync_activity_adapter import (
-            SyncActivityAdapter,
+        logger.debug(
+            "sync fan-out: sync_port not injected — "
+            "skipping fan-out for log entry '%s' in case '%s'",
+            entry.id_,
+            case_id,
         )
-
-        sync_port = SyncActivityAdapter(dl)
+        return
 
     case_obj = dl.read(case_id)
     if not is_case_model(case_obj):
@@ -256,11 +259,10 @@ def replay_missing_entries_trigger(
         return 0
 
     if sync_port is None:
-        from vultron.adapters.driven.sync_activity_adapter import (
-            SyncActivityAdapter,
+        raise VultronError(
+            "replay_missing_entries_trigger: sync_port must be injected — "
+            "no adapter fallback is available in the core layer."
         )
-
-        sync_port = SyncActivityAdapter(dl)
 
     replayed = 0
     for entry in missing:

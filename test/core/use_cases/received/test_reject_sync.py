@@ -17,13 +17,16 @@ Spec: SYNC-03-001, SYNC-03-002, SYNC-04-001, SYNC-04-002.
 """
 
 import pytest
+from unittest.mock import MagicMock
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_log import GENESIS_HASH, CaseLogEntry
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
 from vultron.core.use_cases.triggers.sync import _to_persistable_entry
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.replication_state import VultronReplicationState
+from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.sync import (
     RejectLogEntryReceivedUseCase,
     _update_replication_state,
@@ -183,12 +186,14 @@ class TestReplayMissingEntriesTrigger:
         dl.save(entry0)
         dl.save(entry1)
 
+        sync_port = MagicMock(spec=SyncActivityPort)
         replayed = replay_missing_entries_trigger(
             case_id=CASE_URI,
             peer_id=PARTICIPANT_URI,
             from_hash=GENESIS_HASH,
             case_actor_id=CASE_ACTOR_URI,
             dl=dl,
+            sync_port=sync_port,
         )
         assert replayed == 2
 
@@ -196,45 +201,53 @@ class TestReplayMissingEntriesTrigger:
         dl.save(entry0)
         dl.save(entry1)
 
+        sync_port = MagicMock(spec=SyncActivityPort)
         replayed = replay_missing_entries_trigger(
             case_id=CASE_URI,
             peer_id=PARTICIPANT_URI,
             from_hash=entry0.entry_hash,
             case_actor_id=CASE_ACTOR_URI,
             dl=dl,
+            sync_port=sync_port,
         )
         assert replayed == 1
 
     def test_returns_zero_when_up_to_date(self, dl, entry0):
         dl.save(entry0)
 
+        sync_port = MagicMock(spec=SyncActivityPort)
         replayed = replay_missing_entries_trigger(
             case_id=CASE_URI,
             peer_id=PARTICIPANT_URI,
             from_hash=entry0.entry_hash,
             case_actor_id=CASE_ACTOR_URI,
             dl=dl,
+            sync_port=sync_port,
         )
         assert replayed == 0
 
     def test_returns_zero_when_no_entries(self, dl):
+        sync_port = MagicMock(spec=SyncActivityPort)
         replayed = replay_missing_entries_trigger(
             case_id=CASE_URI,
             peer_id=PARTICIPANT_URI,
             from_hash=GENESIS_HASH,
             case_actor_id=CASE_ACTOR_URI,
             dl=dl,
+            sync_port=sync_port,
         )
         assert replayed == 0
 
     def test_announces_target_peer(self, dl, entry0):
         dl.save(entry0)
+        sync_port = SyncActivityAdapter(dl)
         replay_missing_entries_trigger(
             case_id=CASE_URI,
             peer_id=PARTICIPANT_URI,
             from_hash=GENESIS_HASH,
             case_actor_id=CASE_ACTOR_URI,
             dl=dl,
+            sync_port=sync_port,
         )
         # Check the announce was saved to the DataLayer (outbox queue
         # goes to a per-actor table not accessible via the global dl.outbox_list())
@@ -301,7 +314,8 @@ class TestRejectLogEntryReceivedUseCase:
 
         # Participant says they only have up to entry0
         event = self._make_event(entry1, entry0.entry_hash)
-        RejectLogEntryReceivedUseCase(dl, event).execute()
+        sync_port = SyncActivityAdapter(dl)
+        RejectLogEntryReceivedUseCase(dl, event, sync_port=sync_port).execute()
 
         # Should have queued one replay Announce (for entry1).
         # announce saved to DataLayer; outbox queue uses actor-scoped table.

@@ -33,6 +33,7 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
 
@@ -217,11 +218,11 @@ class AnnounceLogEntryReceivedUseCase:
         Spec: SYNC-03-001.
         """
         if self._sync_port is None:
-            from vultron.adapters.driven.sync_activity_adapter import (
-                SyncActivityAdapter,
+            raise VultronError(
+                "AnnounceLogEntryReceivedUseCase: sync_port must be injected "
+                "before calling _send_rejection — no adapter fallback is "
+                "available in the core layer."
             )
-
-            self._sync_port = SyncActivityAdapter(self._dl)
 
         local_actor_id = self._request.receiving_actor_id or "unknown"
         self._sync_port.send_reject_log_entry(
