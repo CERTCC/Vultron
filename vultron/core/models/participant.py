@@ -19,11 +19,11 @@ import logging
 
 from pydantic import Field, field_serializer, field_validator
 
+from vultron.core.models.base import NonEmptyString, VultronObject
+from vultron.core.models.participant_status import VultronParticipantStatus
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.core.states.roles import CVDRole, serialize_roles, validate_roles
-from vultron.core.models.base import NonEmptyString, VultronObject
-from vultron.core.models.participant_status import VultronParticipantStatus
 
 logger = logging.getLogger(__name__)
 
@@ -88,3 +88,69 @@ class VultronParticipant(VultronObject):
             )
         )
         return True
+
+    def add_role(
+        self, role: CVDRole, raise_when_present: bool = False
+    ) -> None:
+        """
+        Add a new role to the participant.
+        Idempotent when role already exists in the participant.
+
+        Args:
+            role (CVDRole): New role to add.
+            raise_when_present (bool): when true, raise a KeyError if the role already exists.
+
+        Raises:
+            KeyError: when raise_when_present is true and the role already exists in the participant.
+        """
+        roles = set(self.case_roles)
+
+        if role not in roles:
+            roles.add(role)
+        else:
+            logger.info(
+                "Attempted to add role %s to participant %s, but role was already present",
+                role,
+                self,
+            )
+            if raise_when_present:
+                raise KeyError(
+                    f"Role {role} was already present in participant.case_roles"
+                )
+
+        self.case_roles = list(roles)
+
+    def remove_role(
+        self, role: CVDRole, raise_when_missing: bool = False
+    ) -> None:
+        """
+        Remove a role from the participant.
+        Idempotent when role does not exist in the participant.
+
+        Args:
+            role (CVDRole): New role to remove.
+            raise_when_missing (bool): when true, raise a KeyError if the role does not exist in the participant.
+
+        Raises:
+            KeyError: when raise_when_missing is true and the role does not exist in the participant.
+        """
+        roles = set(self.case_roles)
+
+        if role in roles:
+            roles.remove(role)
+        else:
+            logger.info(
+                "Attempted to remove role %s from participant %s, but role was not present",
+                role,
+                self,
+            )
+            if raise_when_missing:
+                raise KeyError(
+                    f"Role {role} was not present to delete from participant.case_roles"
+                )
+
+        self.case_roles = list(roles)
+
+    def has_role(self, role: CVDRole) -> bool:
+        """Return true when the participant has the given role."""
+        return role in self.case_roles
