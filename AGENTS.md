@@ -341,6 +341,16 @@ provides unique ID constraints. Report handlers (`create_report`,
   `assert isinstance(activity, ChoosePreferredEmbargoActivity)` before accessing
   `activity.one_of`. This keeps the type checker accurate and makes implicit subtype
   assumptions explicit and runtime-verified.
+- **Untyped Closures Are Invisible to mypy — Extract to Named Functions** — When
+  refactoring or extracting logic from an untyped function body or closure (e.g.,
+  inside `extractor.py`), mypy does not check the body of untyped functions.
+  Hidden type errors only surface once the code is promoted to a named, typed
+  function. Always extract closures to named, fully-typed helper functions; do not
+  leave logic inside untyped lambda or nested-function bodies. Specifically: AS2
+  fields that carry an object or ID reference (e.g., `context`, `origin`,
+  `in_reply_to`) MUST be converted to `str | None` using `_get_id(field)` before
+  assigning to a `NonEmptyString | None` snapshot field — passing the raw AS2
+  object directly is a type error that mypy will catch only after extraction.
 
 > **Parallelism and Single-Agent Testing** has moved to `test/AGENTS.md`.
 >

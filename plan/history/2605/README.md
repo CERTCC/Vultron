@@ -6,6 +6,10 @@
 |------|------------|------|--------|-------|
 | 2026-05-26 | 00:00 | implementation | BUG-26052601 | BUG-26052601: Factory cast() does not coerce at runtime |
 | 2026-05-26 | 00:00 | implementation | BUG-26052602 | BUG-26052602: finder_submits_report loses VulnerabilityReport ID |
+| 2026-05-05 | 18:28 | learning | CC1-FLAKY | SUBFAILED in unittest subtests does not fail pytest; pre-existing flaky test_vultrabot |
+| 2026-05-05 | 18:28 | learning | CC1-MYPY | Untyped closures invisible to mypy; use _get_id() for AS2 context fields |
+| 2026-05-05 | 18:27 | learning | ARCHVIO | Fan-out degrades gracefully when sync_port absent; ratchet test added |
+| 2026-05-05 | 18:27 | learning | CC2-COMPLETE | CC gate enforced at max-complexity=10; IMPLTS-07-008 is active |
 | 2026-05-05 | 18:00 | idea | IDEA-26050404 | Clearly delineate specs vs ADRs |
 | 2026-05-05 | 17:46 | idea | IDEA-26050501 | Clarify order of operations on case creation |
 | 2026-05-05 | 16:46 | idea | IDEA-26050502 | Integrate docs/codebase into study skill |
