@@ -463,12 +463,15 @@ groups:
   - id: CM-12-002
     priority: MUST
     statement: >-
-      At case creation, the system MUST create two initial `VultronParticipant` records:
+      At case creation, the system MUST create two initial `VultronParticipant` records
+      in the order defined by CM-14-001
     relationships:
     - rel_type: depends_on
       spec_id: CM-03-001
     - rel_type: depends_on
       spec_id: CM-02-008
+    - rel_type: part_of
+      spec_id: CM-14-001
   - id: CM-12-003
     priority: MUST
     statement: >-
@@ -478,12 +481,16 @@ groups:
     - rel_type: depends_on
       spec_id: OX-02-001
   - id: CM-12-004
-    priority: SHOULD
-    statement: A default embargo SHOULD be initialized at case creation (RM.RECEIVED)
+    priority: MUST
+    statement: >-
+      If a default embargo policy is configured, a default embargo MUST be initialized
+      at case creation (RM.RECEIVED) following the sequence in CM-14-001
     relationships:
     - rel_type: refines
       spec_id: DUR-07-002
       note: which now applies at case receipt
+    - rel_type: part_of
+      spec_id: CM-14-001
   - id: CM-12-005
     priority: MUST
     statement: >-
@@ -559,3 +566,123 @@ groups:
     rationale: >-
       A note may be stored in the DataLayer by one path and never attached to `case.notes`
       by another path. Checking DataLayer existence produces false idempotency.
+- id: CM-14
+  title: Case Initialization Sequence
+  description: >-
+    Defines the canonical ordered sequence of initialization steps that MUST occur when a
+    VulnerabilityCase is created at Offer(Report) receipt (CM-12-001). All steps MUST complete
+    before the case is considered fully initialized. Source: IDEA-26050501.
+  specs:
+  - id: CM-14-001
+    priority: MUST
+    statement: >-
+      The case initialization sequence MUST execute in the following order:
+      (1) create the `VulnerabilityCase` with the receiving actor set as `attributed_to`;
+      (2) create the case-owner `VultronParticipant` (RM.RECEIVED, `CVDRole.CASE_OWNER`);
+      (3) initialize the default embargo to `EM.ACTIVE` and seed the case owner as `SIGNATORY`,
+      if a default embargo policy is configured;
+      (4) queue a `Create(Case)` activity addressed to the reporter and flush the outbox;
+      (5) add the reporter as a `VultronParticipant` (RM.ACCEPTED, `CVDRole.FINDER`/`REPORTER`)
+      and seed them as `SIGNATORY` on any active embargo;
+      (6) commit a case log entry (triggering `Announce(CaseLogEntry)` fan-out to all participants).
+    rationale: >-
+      Step 2 precedes step 3 so that the embargo is always created by a participant
+      (the case owner). The Create(Case) notification in step 4 is flushed before the
+      reporter is added in step 5 so the reporter's system receives the case object
+      before any subsequent Announce(CaseLogEntry) fan-out that references it.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-12-001
+    - rel_type: refines
+      spec_id: CM-12-002
+    - rel_type: refines
+      spec_id: CM-12-004
+  - id: CM-14-002
+    priority: MUST
+    statement: >-
+      The case-owner `VultronParticipant` MUST be created before the default embargo is
+      initialized, so that the embargo is always associated with an existing participant
+    rationale: >-
+      An embargo without any participant lacks an owning actor. Creating the owner
+      participant first ensures that the embargo is initialized in the context of an
+      actor who can be responsible for it.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-14-001
+  - id: CM-14-003
+    priority: MUST
+    statement: >-
+      When the case initialization sequence creates a default embargo, the case owner
+      MUST be seeded as `SIGNATORY` on that embargo immediately after the embargo reaches
+      `EM.ACTIVE` state
+    rationale: >-
+      The case owner initiated the embargo by accepting the default policy on behalf of
+      the case. Requiring a separate accept step would leave the case owner as a
+      non-signatory on their own active embargo.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-14-001
+    - rel_type: refines
+      spec_id: CM-13-006
+  - id: CM-14-004
+    priority: MUST
+    statement: >-
+      The `Create(Case)` notification MUST be queued and the outbox flushed before the
+      reporter is added as a `VultronParticipant` in step 5 of CM-14-001
+    rationale: >-
+      The reporter's system must receive and store the case object before any
+      Announce(CaseLogEntry) fan-out that lists them as a participant. Reversing this
+      order causes "case not found" errors on the reporter side when the log entry
+      arrives referencing a case the reporter has not yet seen.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-14-001
+    - rel_type: depends_on
+      spec_id: CM-12-003
+  - id: CM-14-005
+    priority: MUST
+    statement: >-
+      When the reporter is added as a `VultronParticipant` during case initialization,
+      they MUST be seeded as `SIGNATORY` on any active embargo
+    rationale: >-
+      The reporter already possesses the vulnerability information before the case is
+      created. Requiring an explicit embargo acceptance before sharing case content
+      would create a paradoxical deadlock: the reporter has the information that the
+      embargo is meant to protect, yet cannot receive case updates until they accept
+      the embargo. Seeding them as SIGNATORY reflects their implicit consent, expressed
+      by submitting the report.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-14-001
+  - id: CM-14-006
+    priority: SHOULD
+    statement: >-
+      If the reporter included an embargo proposal with their `Offer(Report)`, the case
+      initialization SHOULD reconcile the reporter's proposed duration against the
+      receiver's default embargo policy and initialize the embargo at the shorter of
+      the two durations
+    note: >-
+      No wire-format mechanism currently exists for a reporter to include an embargo
+      proposal in an `Offer(Report)`. This requirement is forward-looking and cannot
+      be exercised until that mechanism is implemented. See
+      notes/embargo-default-semantics.md "Known Gap: No Reporter Embargo Proposal
+      Mechanism" and specs/embargo-policy.yaml EP-04-003.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-14-001
+    - rel_type: depends_on
+      spec_id: CM-12-004
+  - id: CM-14-007
+    priority: MUST
+    statement: >-
+      Additional participants MUST NOT be invited and embargo modifications MUST NOT be
+      initiated until the case initialization sequence (CM-14-001 through CM-14-006) is
+      complete
+    rationale: >-
+      The initialization sequence establishes the minimum valid case state: a case
+      object, an owner, an optional embargo, and a reporter. Inviting third parties or
+      modifying the embargo before this baseline is in place creates race conditions
+      and protocol violations.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-14-001

@@ -189,7 +189,8 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 - **`case-management.yaml`** - CaseActor lifecycle, actor isolation, RM/EM/CS/VFD state model,
   object model relationships (Report/Case/CaseReference/VulnerabilityRecord), case update
   broadcast, CVD action rules API, redacted case view (CM-09), per-participant embargo
-  acceptance tracking (CM-10)
+  acceptance tracking (CM-10), invitation acceptance lifecycle (CM-11), case creation timing
+  (CM-12), embargo acceptance ownership (CM-13), case initialization sequence (CM-14)
 - **`participant-role-management.yaml`** - Role read/mutation API on
   `VultronParticipant` and `CaseParticipant`: `add_role()`, `remove_role()`,
   `has_role()`, `roles` property, core-layer no-direct-mutation rule, wire-layer
