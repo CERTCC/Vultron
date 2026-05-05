@@ -69,6 +69,10 @@ _STUB_KEYS: frozenset[str] = frozenset({"id", "type", "summary", "@context"})
 # rather than collapsed to a bare URI string.
 _STUB_OBJECT_TYPES: frozenset[str] = frozenset({"VulnerabilityCase"})
 
+_INLINE_OBJECT_ACTIVITY_TYPES: frozenset[str] = frozenset(
+    {"Create", "Announce", "Add", "Invite", "Accept"}
+)
+
 
 def _dehydrate_references(activity_dict: dict) -> dict:
     """Collapse domain-object dicts in reference fields to URI strings.
@@ -177,6 +181,122 @@ def _extract_recipients(activity) -> list[str]:
     return recipients
 
 
+def _load_outbound_activity(
+    actor_id: str,
+    activity_id: str,
+    dl: DataLayer,
+) -> VultronActivity | None:
+    activity = dl.read(activity_id)
+    if activity is None:
+        logger.warning(
+            "Activity %s not found in DataLayer for actor %s; skipping"
+            " delivery.",
+            activity_id,
+            actor_id,
+        )
+        return None
+
+    if isinstance(activity, VultronActivity):
+        return activity
+    if hasattr(activity, "model_dump"):
+        raw = _dehydrate_references(
+            activity.model_dump(by_alias=True, serialize_as_any=True)
+        )
+        return VultronActivity.model_validate(raw)
+
+    logger.warning(
+        "Activity %s could not be converted for delivery; skipping.",
+        activity_id,
+    )
+    return None
+
+
+def _validate_to_field(
+    outbound_activity: VultronActivity,
+    activity_id: str,
+    activity_type: str,
+) -> None:
+    to_field = getattr(outbound_activity, "to", None)
+    if to_field is None or (isinstance(to_field, list) and len(to_field) == 0):
+        raise VultronOutboxToFieldMissingError(
+            f"Outbound {activity_type} activity '{activity_id}' has no"
+            " `to:` field or has an empty `to:` list. All outbound"
+            " Vultron activities MUST address at least one recipient via"
+            " `to:` (OX-08-001).",
+            activity_id=activity_id,
+            activity_type=activity_type,
+        )
+
+
+def _warn_secondary_addressing(
+    outbound_activity: VultronActivity,
+    activity_id: str,
+    activity_type: str,
+) -> None:
+    for addr_field in ("cc", "bto", "bcc"):
+        value = getattr(outbound_activity, addr_field, None)
+        if value is None or value == []:
+            continue
+        logger.warning(
+            "Outbound %s activity '%s' has `%s:` set."
+            " Vultron direct messages should only use `to:` for"
+            " addressing (OX-08-004).",
+            activity_type,
+            activity_id,
+            addr_field,
+        )
+
+
+def _expand_inline_object(
+    outbound_activity: VultronActivity,
+    activity_id: str,
+    activity_type: str,
+    activity_object: object,
+    dl: DataLayer,
+) -> object:
+    if activity_type not in _INLINE_OBJECT_ACTIVITY_TYPES:
+        return activity_object
+    if not isinstance(activity_object, str):
+        return activity_object
+
+    logger.warning(
+        "Outbound %s activity '%s' has a bare string object_ '%s'."
+        " Attempting DataLayer expansion (MV-09-001 violation).",
+        activity_type,
+        activity_id,
+        activity_object,
+    )
+    full_obj = dl.read(activity_object)
+    if full_obj is None:
+        return activity_object
+
+    outbound_activity.object_ = full_obj
+    logger.debug(
+        "Expanded object_ from '%s' to full %s for %s activity '%s' delivery.",
+        getattr(full_obj, "id_", activity_object),
+        type(full_obj).__name__,
+        activity_type,
+        activity_id,
+    )
+    return full_obj
+
+
+def _validate_inline_object(
+    activity_id: str,
+    activity_type: str,
+    activity_object: object,
+) -> None:
+    if isinstance(activity_object, (str, as_Link)):
+        raise VultronOutboxObjectIntegrityError(
+            f"Outbound {activity_type} activity '{activity_id}' has an"
+            f" inline object_ that is a bare string or Link"
+            f" ({activity_object!r}). Outbound initiating activities must"
+            " carry fully inline typed objects (MV-09-001).",
+            activity_id=activity_id,
+            activity_type=activity_type,
+        )
+
+
 async def handle_outbox_item(
     actor_id: str,
     activity_id: str,
@@ -202,116 +322,25 @@ async def handle_outbox_item(
         "Processing outbox item for actor '%s': %s", actor_id, activity_id
     )
 
-    activity = dl.read(activity_id)
-    if activity is None:
-        logger.warning(
-            "Activity %s not found in DataLayer for actor %s; skipping"
-            " delivery.",
-            activity_id,
-            actor_id,
-        )
+    outbound_activity = _load_outbound_activity(actor_id, activity_id, dl)
+    if outbound_activity is None:
         return
 
-    if isinstance(activity, VultronActivity):
-        outbound_activity = activity
-    elif hasattr(activity, "model_dump"):
-        raw = _dehydrate_references(
-            activity.model_dump(by_alias=True, serialize_as_any=True)
-        )
-        outbound_activity = VultronActivity.model_validate(raw)
-    else:
-        logger.warning(
-            "Activity %s could not be converted for delivery; skipping.",
-            activity_id,
-        )
-        return
-
-    activity_type = getattr(outbound_activity, "type_", "Activity")
-    activity_object = getattr(outbound_activity, "object_", None)
-
-    # Validate to: field (OX-08-001, OX-08-002, OX-08-003)
-    to_field = getattr(outbound_activity, "to", None)
-    _to_empty = to_field is None or (
-        isinstance(to_field, list) and len(to_field) == 0
+    raw_activity_type = getattr(outbound_activity, "type_", "Activity")
+    activity_type = (
+        raw_activity_type if isinstance(raw_activity_type, str) else "Activity"
     )
-    if _to_empty:
-        raise VultronOutboxToFieldMissingError(
-            f"Outbound {activity_type} activity '{activity_id}' has no"
-            " `to:` field or has an empty `to:` list. All outbound"
-            " Vultron activities MUST address at least one recipient via"
-            " `to:` (OX-08-001).",
-            activity_id=activity_id,
-            activity_type=activity_type,
-        )
-
-    # Warn if cc/bto/bcc are set (OX-08-004)
-    for _addr_field in ("cc", "bto", "bcc"):
-        _val = getattr(outbound_activity, _addr_field, None)
-        if _val is not None and _val != []:
-            logger.warning(
-                "Outbound %s activity '%s' has `%s:` set."
-                " Vultron direct messages should only use `to:` for"
-                " addressing (OX-08-004).",
-                activity_type,
-                activity_id,
-                _addr_field,
-            )
-
-    # For initiating activity types, expand an ID-string object_ to the full
-    # domain object so the recipient inbox endpoint can store it separately
-    # before dispatching.  For Create: the receiving side needs the full object
-    # to recreate the case.  For Announce(CaseLogEntry): the receiving side
-    # needs all CaseLogEntry fields for hash-chain validation (BUG-26041501;
-    # a URI-only reference violates SYNC-02-004).  For Add, Invite, Accept:
-    # the receiving side needs the full inline object to determine semantic
-    # type and update its own state correctly.
-    #
-    # NOTE: This expansion path is a backward-compatibility bridge for
-    # activities stored before INLINE-OBJ-A narrowed object_ types.  New
-    # outbound activities should always carry inline objects (MV-09-001).
-    #
-    # TODO: When "Join" and "Remove" are implemented they will also require
-    # expansion here.
-    if activity_type in (
-        "Create",
-        "Announce",
-        "Add",
-        "Invite",
-        "Accept",
-    ) and isinstance(activity_object, str):
-        logger.warning(
-            "Outbound %s activity '%s' has a bare string object_ '%s'."
-            " Attempting DataLayer expansion (MV-09-001 violation).",
-            activity_type,
-            activity_id,
-            activity_object,
-        )
-        full_obj = dl.read(activity_object)
-        if full_obj is not None:
-            outbound_activity.object_ = full_obj
-            activity_object = full_obj
-            logger.debug(
-                "Expanded object_ from '%s' to full %s for %s"
-                " activity '%s' delivery.",
-                getattr(full_obj, "id_", activity_object),
-                type(full_obj).__name__,
-                activity_type,
-                activity_id,
-            )
-
-    # Object integrity check: reject delivery of any outbound activity whose
-    # object_ is still a bare string or an as_Link after the expansion attempt.
-    # Outbound initiating activities must carry fully inline typed objects so
-    # that recipients can determine the semantic type (MV-09-001, MV-09-002).
-    if isinstance(activity_object, (str, as_Link)):
-        raise VultronOutboxObjectIntegrityError(
-            f"Outbound {activity_type} activity '{activity_id}' has an"
-            f" inline object_ that is a bare string or Link"
-            f" ({activity_object!r}). Outbound initiating activities must"
-            " carry fully inline typed objects (MV-09-001).",
-            activity_id=activity_id,
-            activity_type=activity_type,
-        )
+    activity_object = getattr(outbound_activity, "object_", None)
+    _validate_to_field(outbound_activity, activity_id, activity_type)
+    _warn_secondary_addressing(outbound_activity, activity_id, activity_type)
+    activity_object = _expand_inline_object(
+        outbound_activity,
+        activity_id,
+        activity_type,
+        activity_object,
+        dl,
+    )
+    _validate_inline_object(activity_id, activity_type, activity_object)
 
     recipients = _extract_recipients(outbound_activity)
     if not recipients:

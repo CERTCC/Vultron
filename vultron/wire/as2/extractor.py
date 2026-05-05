@@ -61,52 +61,38 @@ class ActivityPattern(BaseModel):
         if self.activity_ != activity.type_:
             return False
 
-        def _match_field(
-            pattern_field: AOtype | VOtype | ActivityPattern | None,
-            activity_field: object,
-        ) -> bool:
-            if pattern_field is None:
-                return True
-            # Nested pattern: bare-string references cannot satisfy a typed
-            # nested-activity constraint — rehydration is required first.
-            if isinstance(pattern_field, ActivityPattern):
-                return isinstance(
-                    activity_field, as_Activity
-                ) and pattern_field.match(activity_field)
-            # URI/ID string reference: can't type-check AOtype/VOtype, allow
-            if isinstance(activity_field, str):
-                return True
-            if activity_field is None:
-                return False
-            # Subtype-aware matching: AOtype.ACTOR matches any as_Actor subclass
-            # (Person, Organization, Service, etc.) whose type_ differs from "Actor".
-            # AOtype.EVENT matches any as_Event subclass (e.g., EmbargoEvent).
-            if pattern_field == AOtype.ACTOR and isinstance(
-                activity_field, as_Actor
-            ):
-                return True
-            if pattern_field == AOtype.EVENT and isinstance(
-                activity_field, as_Event
-            ):
-                return True
-            return bool(
-                pattern_field == getattr(activity_field, "type_", None)
-            )
+        field_pairs = (
+            (self.object_, getattr(activity, "object_", None)),
+            (self.target_, getattr(activity, "target", None)),
+            (self.context_, getattr(activity, "context", None)),
+            (self.to_, getattr(activity, "to", None)),
+            (self.in_reply_to_, getattr(activity, "in_reply_to", None)),
+        )
+        return all(
+            _match_activity_field(pattern_field, activity_field)
+            for pattern_field, activity_field in field_pairs
+        )
 
-        if not _match_field(self.object_, getattr(activity, "object_", None)):
-            return False
-        if not _match_field(self.target_, getattr(activity, "target", None)):
-            return False
-        if not _match_field(self.context_, getattr(activity, "context", None)):
-            return False
-        if not _match_field(self.to_, getattr(activity, "to", None)):
-            return False
-        if not _match_field(
-            self.in_reply_to_, getattr(activity, "in_reply_to", None)
-        ):
-            return False
 
+def _match_activity_field(
+    pattern_field: AOtype | VOtype | ActivityPattern | None,
+    activity_field: object,
+) -> bool:
+    if pattern_field is None:
         return True
+    if isinstance(pattern_field, ActivityPattern):
+        return isinstance(activity_field, as_Activity) and pattern_field.match(
+            activity_field
+        )
+    if isinstance(activity_field, str):
+        return True
+    if activity_field is None:
+        return False
+    if pattern_field == AOtype.ACTOR and isinstance(activity_field, as_Actor):
+        return True
+    if pattern_field == AOtype.EVENT and isinstance(activity_field, as_Event):
+        return True
+    return bool(pattern_field == getattr(activity_field, "type_", None))
 
 
 # ---------------------------------------------------------------------------

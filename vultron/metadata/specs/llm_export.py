@@ -113,6 +113,68 @@ def _topic_record(file: SpecFile) -> dict[str, str]:
     }
 
 
+def _selected_spec_ids(
+    registry: SpecRegistry,
+    spec_ids: list[str] | None,
+    *,
+    include_deps: bool,
+) -> set[str] | None:
+    if spec_ids is None:
+        return None
+
+    selected_ids = set(spec_ids)
+    if include_deps:
+        for spec_id in list(selected_ids):
+            selected_ids |= registry.transitive_deps(spec_id)
+    return selected_ids
+
+
+def _matches_filters(
+    spec: Spec,
+    group: SpecGroup,
+    file: SpecFile,
+    *,
+    topic: str | None,
+    selected_ids: set[str] | None,
+    spec_id: str,
+    kind: str | None,
+    scope: str | None,
+    tags: list[str] | None,
+    priority: str | None,
+) -> bool:
+    if topic is not None and file.id != topic:
+        return False
+    if selected_ids is not None and spec_id not in selected_ids:
+        return False
+
+    eff_kind = effective_kind(spec, group, file)
+    eff_scope_values = {
+        item.value for item in effective_scope(spec, group, file)
+    }
+    eff_tag_values = {item.value for item in effective_tags(spec)}
+
+    if kind and eff_kind.value != kind:
+        return False
+    if scope and scope not in eff_scope_values:
+        return False
+    if tags and not set(tags).issubset(eff_tag_values):
+        return False
+    if priority and spec.priority.value != priority:
+        return False
+    return True
+
+
+def _edge_record(spec_id: str, relationship: object) -> dict[str, str]:
+    edge: dict[str, str] = {
+        "from": spec_id,
+        "rel_type": relationship.rel_type.value,  # type: ignore[attr-defined]
+        "to": relationship.spec_id,  # type: ignore[attr-defined]
+    }
+    if relationship.note:  # type: ignore[attr-defined]
+        edge["note"] = relationship.note  # type: ignore[attr-defined]
+    return edge
+
+
 def to_llm_json(
     registry: SpecRegistry,
     *,
@@ -140,64 +202,43 @@ def to_llm_json(
     Returns:
         Compact JSON string (no indentation).
     """
-    # Determine which spec IDs to include.
-    selected_ids: set[str] | None = None
-
-    if spec_ids is not None:
-        selected_ids = set(spec_ids)
-        if include_deps:
-            for sid in list(selected_ids):
-                selected_ids |= registry.transitive_deps(sid)
-
+    selected_ids = _selected_spec_ids(
+        registry, spec_ids, include_deps=include_deps
+    )
     requirements: list[dict[str, Any]] = []
     edges: list[dict[str, str]] = []
     topic_ids_seen: set[str] = set()
 
     for spec_id, spec in registry.all_specs.items():
         group, file = registry._spec_context[spec_id]
-
-        # Apply filters.
-        if topic is not None and file.id != topic:
-            continue
-        if selected_ids is not None and spec_id not in selected_ids:
-            continue
-
-        eff_kind = effective_kind(spec, group, file)
-        eff_scope = effective_scope(spec, group, file)
-        eff_tags = effective_tags(spec)
-
-        if kind and eff_kind.value != kind:
-            continue
-        if scope and scope not in [s.value for s in eff_scope]:
-            continue
-        if tags and not all(t in [tg.value for tg in eff_tags] for t in tags):
-            continue
-        if priority and spec.priority.value != priority:
+        if not _matches_filters(
+            spec,
+            group,
+            file,
+            topic=topic,
+            selected_ids=selected_ids,
+            spec_id=spec_id,
+            kind=kind,
+            scope=scope,
+            tags=tags,
+            priority=priority,
+        ):
             continue
 
         requirements.append(_spec_record(spec, group, file))
         topic_ids_seen.add(file.id)
-
-        # Collect edges for the centralized array.
-        for rel in spec.relationships or []:
-            edge: dict[str, str] = {
-                "from": spec_id,
-                "rel_type": rel.rel_type.value,
-                "to": rel.spec_id,
-            }
-            if rel.note:
-                edge["note"] = rel.note
-            edges.append(edge)
-
-    # Build lightweight file metadata for included files.
-    topics_meta = [
-        _topic_record(f) for f in registry.files if f.id in topic_ids_seen
-    ]
+        edges.extend(
+            _edge_record(spec_id, relationship)
+            for relationship in spec.relationships or []
+        )
 
     result: dict[str, Any] = {
-        "topics": topics_meta,
+        "topics": [
+            _topic_record(file)
+            for file in registry.files
+            if file.id in topic_ids_seen
+        ],
         "requirements": requirements,
         "edges": edges,
     }
-
     return json.dumps(result, separators=(",", ":"))

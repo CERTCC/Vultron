@@ -482,66 +482,98 @@ def _write_manifest_output(
     print(str(output))
 
 
+def _require_manifest_entry_int(
+    data: dict[object, object], field: str, message: str
+) -> int:
+    value = data.get(field)
+    if not isinstance(value, int):
+        raise ValueError(message)
+    return value
+
+
+def _require_manifest_entry_str(
+    data: dict[object, object], field: str, message: str
+) -> str:
+    value = data.get(field)
+    if not isinstance(value, str):
+        raise ValueError(message)
+    return value
+
+
+def _optional_manifest_entry_str(
+    data: dict[object, object], field: str
+) -> str | None:
+    value = data.get(field)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"manifest entry {field} is malformed")
+    return value
+
+
+def _manifest_entry_str_list(
+    data: dict[object, object], field: str
+) -> list[str]:
+    value = data.get(field)
+    if not isinstance(value, list) or not all(
+        isinstance(item, str) for item in value
+    ):
+        raise ValueError(f"manifest entry {field} is malformed")
+    return value
+
+
 def _coerce_manifest_entry(data: object) -> ManifestEntry:
     """Validate and coerce JSON-loaded manifest entry data."""
     if not isinstance(data, dict):
         raise ValueError("manifest entry is malformed")
 
-    heading_line = data.get("heading_line")
-    raw_heading = data.get("raw_heading")
-    title = data.get("title")
-    candidate_source = data.get("candidate_source")
-    source = data.get("source")
-    source_origin = data.get("source_origin")
-    canonical_date = data.get("canonical_date")
-    target_month = data.get("target_month")
-    target_path = data.get("target_path")
-    advisory_dates = data.get("advisory_dates")
-    flags = data.get("flags")
-    entry_markdown = data.get("entry_markdown")
-
-    if not isinstance(heading_line, int):
-        raise ValueError("manifest entry heading_line is missing")
-    if not isinstance(raw_heading, str):
-        raise ValueError("manifest entry raw_heading is missing")
-    if not isinstance(title, str):
-        raise ValueError("manifest entry title is missing")
-    if candidate_source is not None and not isinstance(candidate_source, str):
-        raise ValueError("manifest entry candidate_source is malformed")
-    if not isinstance(source, str):
-        raise ValueError("manifest entry source is missing")
-    if not isinstance(source_origin, str):
-        raise ValueError("manifest entry source_origin is missing")
-    if canonical_date is not None and not isinstance(canonical_date, str):
-        raise ValueError("manifest entry canonical_date is malformed")
-    if not isinstance(target_month, str):
-        raise ValueError("manifest entry target_month is missing")
-    if not isinstance(target_path, str):
-        raise ValueError("manifest entry target_path is missing")
-    if not isinstance(advisory_dates, list) or not all(
-        isinstance(item, str) for item in advisory_dates
-    ):
-        raise ValueError("manifest entry advisory_dates is malformed")
-    if not isinstance(flags, list) or not all(
-        isinstance(item, str) for item in flags
-    ):
-        raise ValueError("manifest entry flags is malformed")
-    if not isinstance(entry_markdown, str):
-        raise ValueError("manifest entry entry_markdown is missing")
-
     return ManifestEntry(
-        heading_line=heading_line,
-        raw_heading=raw_heading,
-        title=title,
-        candidate_source=candidate_source,
-        source=source,
-        source_origin=source_origin,
-        canonical_date=canonical_date,
-        target_month=target_month,
-        target_path=target_path,
-        advisory_dates=advisory_dates,
-        flags=flags,
-        entry_markdown=entry_markdown,
+        heading_line=_require_manifest_entry_int(
+            data,
+            "heading_line",
+            "manifest entry heading_line is missing",
+        ),
+        raw_heading=_require_manifest_entry_str(
+            data,
+            "raw_heading",
+            "manifest entry raw_heading is missing",
+        ),
+        title=_require_manifest_entry_str(
+            data,
+            "title",
+            "manifest entry title is missing",
+        ),
+        candidate_source=_optional_manifest_entry_str(
+            data, "candidate_source"
+        ),
+        source=_require_manifest_entry_str(
+            data,
+            "source",
+            "manifest entry source is missing",
+        ),
+        source_origin=_require_manifest_entry_str(
+            data,
+            "source_origin",
+            "manifest entry source_origin is missing",
+        ),
+        canonical_date=_optional_manifest_entry_str(data, "canonical_date"),
+        target_month=_require_manifest_entry_str(
+            data,
+            "target_month",
+            "manifest entry target_month is missing",
+        ),
+        target_path=_require_manifest_entry_str(
+            data,
+            "target_path",
+            "manifest entry target_path is missing",
+        ),
+        advisory_dates=_manifest_entry_str_list(data, "advisory_dates"),
+        flags=_manifest_entry_str_list(data, "flags"),
+        entry_markdown=_require_manifest_entry_str(
+            data,
+            "entry_markdown",
+            "manifest entry entry_markdown is missing",
+        ),
     )
 
 

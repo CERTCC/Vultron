@@ -7,6 +7,15 @@ insights, issues, and learnings during the implementation process.
 Append new items below any existing ones, marking them with the date and a
 header.
 
+### 2026-05-05 CC2-COMPLETE — All 24 CC>10 functions reduced; gate at max-complexity=10
+
+All CC 11–15 violations resolved by extracting named helper functions
+(route/status/embargo/participant logic). No logic changes; every refactor
+is pure decomposition. `IMPLTS-07-008` upgraded to MUST. The `replay_missing_entries_trigger`
+in `triggers/sync.py` was already below CC=10 at time of CC.2 execution
+(likely reduced during the ARCHVIO cleanup), so only 24 of the 25 listed
+functions required changes. Gate now blocks at CC>10 going forward.
+
 ### 2026-05-04 ARCHVIO — Fan-out should degrade gracefully when sync_port is absent
 
 When removing the deferred `SyncActivityAdapter` import from `_fan_out_log_entry`,

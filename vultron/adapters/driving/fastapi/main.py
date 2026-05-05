@@ -18,11 +18,13 @@ Vultron API Application
 
 from contextlib import asynccontextmanager
 from enum import Enum
-from typing import cast
+from typing import Any, cast
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.responses import RedirectResponse
+from fastapi.routing import APIRoute
+from starlette.routing import BaseRoute, Mount
 
 from vultron.adapters.driving.fastapi.app import app_v2
 
@@ -82,40 +84,47 @@ async def redirect_root_to_docs():
     return RedirectResponse(url="/docs")
 
 
-def main():
-    from fastapi.routing import APIRoute, Mount
+def _route_tags(route: APIRoute) -> list[str | Enum]:
+    if not route.tags:
+        route.tags = cast(list[str | Enum], ["default"])
+    return route.tags
 
-    routes_by_tag = dict()
 
-    def collect_routes(app_routes, prefix=""):
-        for route in app_routes:
-            if isinstance(route, Mount):
-                # Recursively process mounted apps
-                mounted_prefix = prefix + route.path
-                collect_routes(route.app.routes, mounted_prefix)
-            elif isinstance(route, APIRoute):
-                # Add prefix to the route path
-                full_path = prefix + route.path
+def _mounted_routes(route: Mount) -> list[BaseRoute]:
+    mounted_app = cast(Any, route.app)
+    if not hasattr(mounted_app, "routes"):
+        return []
+    return cast(list[BaseRoute], mounted_app.routes)
 
-                if not route.tags:
-                    route.tags = cast(list[str | Enum], ["default"])
 
-                for tag in route.tags:
-                    if tag not in routes_by_tag:
-                        routes_by_tag[tag] = []
-                    routes_by_tag[tag].append((route, full_path))
+def _collect_routes(
+    app_routes: list[BaseRoute],
+    routes_by_tag: dict[str | Enum, list[tuple[APIRoute, str]]],
+    prefix: str = "",
+) -> None:
+    for route in app_routes:
+        if isinstance(route, Mount):
+            _collect_routes(
+                _mounted_routes(route), routes_by_tag, prefix + route.path
+            )
+            continue
+        if not isinstance(route, APIRoute):
+            continue
 
-    # Start collecting routes from the main app
-    collect_routes(app.routes)
+        full_path = prefix + route.path
+        for tag in _route_tags(route):
+            routes_by_tag.setdefault(tag, []).append((route, full_path))
 
-    # Print the collected routes
+
+def _print_routes_by_tag(
+    routes_by_tag: dict[str | Enum, list[tuple[APIRoute, str]]],
+) -> None:
+    line_format = "| `{method} {path}` | {description} |"
     for tag, route_data in routes_by_tag.items():
         print(f"## Tag: {tag}")
         print()
-
         print("| Endpoint | Description |")
         print("|:---------|:------------|")
-        line_format = "| `{method} {path}` | {description} |"
 
         for route, full_path in route_data:
             for method in route.methods:
@@ -127,6 +136,12 @@ def main():
                     )
                 )
         print()
+
+
+def main():
+    routes_by_tag: dict[str | Enum, list[tuple[APIRoute, str]]] = {}
+    _collect_routes(app.routes, routes_by_tag)
+    _print_routes_by_tag(routes_by_tag)
 
 
 if __name__ == "__main__":

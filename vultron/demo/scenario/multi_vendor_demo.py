@@ -360,6 +360,60 @@ def coordinator_accepts_case_ownership(
     return accept
 
 
+def _multi_vendor_report_ids(case: VulnerabilityCase) -> list[str]:
+    return [
+        ref_id(report) or str(report) for report in case.vulnerability_reports
+    ]
+
+
+def _assert_multi_vendor_active_embargo(
+    case: VulnerabilityCase,
+    embargo_id: str,
+) -> None:
+    if case.current_status.em_state != EM.ACTIVE:
+        raise AssertionError(
+            f"Expected ACTIVE embargo state, found {case.current_status.em_state}"
+        )
+    if ref_id(case.active_embargo) != embargo_id:
+        raise AssertionError(
+            "Final case does not reference the accepted active embargo"
+        )
+
+
+def _assert_multi_vendor_participants_present(
+    case: VulnerabilityCase,
+    actor_ids: tuple[str, ...],
+) -> None:
+    for actor_id in actor_ids:
+        if actor_id not in case.actor_participant_index:
+            raise AssertionError(
+                f"Actor {actor_id} missing from actor_participant_index"
+            )
+
+
+def _assert_multi_vendor_embargo_acceptance(
+    case_actor_client: DataLayerClient,
+    case: VulnerabilityCase,
+    actor_ids: tuple[str, ...],
+    embargo_id: str,
+) -> None:
+    participant_records = case_actor_client.get("/datalayer/CaseParticipants/")
+    for actor_id in actor_ids:
+        participant_id = case.actor_participant_index[actor_id]
+        participant_data = participant_records.get(participant_id)
+        if participant_data is None:
+            raise AssertionError(
+                f"Participant record {participant_id} not found in "
+                "CaseActor DataLayer"
+            )
+        participant = CaseParticipant(**participant_data)
+        if embargo_id not in participant.accepted_embargo_ids:
+            raise AssertionError(
+                f"Participant {participant_id} did not record acceptance of "
+                f"embargo {embargo_id}"
+            )
+
+
 def verify_multi_vendor_case_state(
     case_actor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
@@ -380,38 +434,23 @@ def verify_multi_vendor_case_state(
     - The embargo is ACTIVE and all three participants have accepted it.
     - Coordinator and Vendor2 containers do not hold the authoritative case.
     """
-    final_case_data = case_actor_client.get(f"/datalayer/{case_id}")
-    final_case = VulnerabilityCase(**final_case_data)
+    final_case = VulnerabilityCase(
+        **case_actor_client.get(f"/datalayer/{case_id}")
+    )
+    actor_ids = (reporter_actor_id, vendor_actor_id, vendor2_actor_id)
 
     if len(final_case.case_participants) != 3:
         raise AssertionError(
             "Expected 3 case participants on the CaseActor container "
             f"(Finder, Vendor, Vendor2), found {len(final_case.case_participants)}"
         )
-
-    if report_id not in [
-        ref_id(r) or str(r) for r in final_case.vulnerability_reports
-    ]:
+    if report_id not in _multi_vendor_report_ids(final_case):
         raise AssertionError(
             "Final case does not reference the submitted report"
         )
 
-    current_status = final_case.current_status
-    if current_status.em_state != EM.ACTIVE:
-        raise AssertionError(
-            f"Expected ACTIVE embargo state, found {current_status.em_state}"
-        )
-
-    if ref_id(final_case.active_embargo) != embargo_id:
-        raise AssertionError(
-            "Final case does not reference the accepted active embargo"
-        )
-
-    for actor_id in (reporter_actor_id, vendor_actor_id, vendor2_actor_id):
-        if actor_id not in final_case.actor_participant_index:
-            raise AssertionError(
-                f"Actor {actor_id} missing from actor_participant_index"
-            )
+    _assert_multi_vendor_active_embargo(final_case, embargo_id)
+    _assert_multi_vendor_participants_present(final_case, actor_ids)
 
     coord_segment = coordinator_actor_id.split("/")[-1]
     if coord_segment not in str(final_case.attributed_to):
@@ -419,21 +458,13 @@ def verify_multi_vendor_case_state(
             f"Expected Coordinator '{coordinator_actor_id}' to own the case, "
             f"got: {final_case.attributed_to}"
         )
-    participant_records = case_actor_client.get("/datalayer/CaseParticipants/")
-    for actor_id in (reporter_actor_id, vendor_actor_id, vendor2_actor_id):
-        participant_id = final_case.actor_participant_index[actor_id]
-        participant_data = participant_records.get(participant_id)
-        if participant_data is None:
-            raise AssertionError(
-                f"Participant record {participant_id} not found in "
-                "CaseActor DataLayer"
-            )
-        participant = CaseParticipant(**participant_data)
-        if embargo_id not in participant.accepted_embargo_ids:
-            raise AssertionError(
-                f"Participant {participant_id} did not record acceptance of "
-                f"embargo {embargo_id}"
-            )
+
+    _assert_multi_vendor_embargo_acceptance(
+        case_actor_client,
+        final_case,
+        actor_ids,
+        embargo_id,
+    )
 
     if coordinator_client.base_url != case_actor_client.base_url:
         coordinator_cases = coordinator_client.get(
@@ -441,8 +472,7 @@ def verify_multi_vendor_case_state(
         )
         if case_id in coordinator_cases:
             raise AssertionError(
-                "Coordinator container unexpectedly persisted the "
-                "authoritative case"
+                "Coordinator container unexpectedly persisted the authoritative case"
             )
 
     return final_case

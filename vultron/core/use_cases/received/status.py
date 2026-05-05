@@ -23,6 +23,64 @@ from vultron.core.models.protocols import (
 logger = logging.getLogger(__name__)
 
 
+def _resolve_case_status_object(
+    dl: CasePersistence,
+    status_id: str,
+    request: AddCaseStatusToCaseReceivedEvent,
+) -> object:
+    status_obj = dl.read(status_id)
+    if hasattr(status_obj, "id_"):
+        return status_obj
+    return request.status
+
+
+def _validate_case_status_transition(
+    case: object, status_obj: object, case_id: str
+) -> bool:
+    current_status = getattr(case, "current_status", None)
+    if current_status is None:
+        return True
+
+    if not _validate_optional_case_transition(
+        "EM",
+        current_status.em_state,
+        getattr(status_obj, "em_state", None),
+        case_id,
+        is_valid_em_transition,
+    ):
+        return False
+
+    return _validate_optional_case_transition(
+        "PXA",
+        current_status.pxa_state,
+        getattr(status_obj, "pxa_state", None),
+        case_id,
+        is_valid_pxa_transition,
+    )
+
+
+def _validate_optional_case_transition(
+    label: str,
+    current_state: object,
+    new_state: object,
+    case_id: str,
+    validator: Any,
+) -> bool:
+    if new_state is None or current_state == new_state:
+        return True
+    if validator(current_state, new_state):
+        return True
+
+    logger.warning(
+        "Invalid %s transition %s → %s for case '%s'; skipping status append",
+        label,
+        current_state,
+        new_state,
+        case_id,
+    )
+    return False
+
+
 class CreateCaseStatusReceivedUseCase:
     def __init__(
         self, dl: CasePersistence, request: CreateCaseStatusReceivedEvent
@@ -75,46 +133,11 @@ class AddCaseStatusToCaseReceivedUseCase:
             )
             return
 
-        # Prefer the domain object from the event over dl.read, which may
-        # return a raw TinyDB Document if reconstitution of the stored
-        # VultronCaseStatus record fails (wire CaseStatus has different
-        # field types).
-        status_obj = self._dl.read(status_id)
-        if not hasattr(status_obj, "id_"):
-            status_obj = request.status
-
-        if case.case_statuses:
-            current_status = getattr(case, "current_status", None)
-            if current_status is not None:
-                new_em = getattr(status_obj, "em_state", None)
-                if new_em is not None:
-                    current_em = current_status.em_state
-                    if current_em != new_em and not is_valid_em_transition(
-                        current_em, new_em
-                    ):
-                        logger.warning(
-                            "Invalid EM transition %s → %s for case '%s'; "
-                            "skipping status append",
-                            current_em,
-                            new_em,
-                            case_id,
-                        )
-                        return
-
-                new_pxa = getattr(status_obj, "pxa_state", None)
-                if new_pxa is not None:
-                    current_pxa = current_status.pxa_state
-                    if current_pxa != new_pxa and not is_valid_pxa_transition(
-                        current_pxa, new_pxa
-                    ):
-                        logger.warning(
-                            "Invalid PXA transition %s → %s for case '%s'; "
-                            "skipping status append",
-                            current_pxa,
-                            new_pxa,
-                            case_id,
-                        )
-                        return
+        status_obj = _resolve_case_status_object(self._dl, status_id, request)
+        if case.case_statuses and not _validate_case_status_transition(
+            case, status_obj, case_id
+        ):
+            return
 
         case.case_statuses.append(status_obj)
         self._dl.save(case)

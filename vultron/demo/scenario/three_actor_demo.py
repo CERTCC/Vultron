@@ -412,58 +412,35 @@ def actor_accepts_embargo(
     logger.info("Embargo accepted by %s", actor.name)
 
 
-def verify_case_actor_case_state(
-    case_actor_client: DataLayerClient,
-    coordinator_client: DataLayerClient,
-    case_id: str,
-    report_id: str,
-    coordinator_actor_id: str,
-    reporter_actor_id: str,
-    vendor_actor_id: str,
+def _three_actor_report_ids(case: VulnerabilityCase) -> list[str]:
+    return [
+        ref_id(report) or str(report) for report in case.vulnerability_reports
+    ]
+
+
+def _assert_three_actor_active_embargo(
+    case: VulnerabilityCase,
     embargo_id: str,
-) -> VulnerabilityCase:
-    """Assert the authoritative final case state on the CaseActor container."""
-    final_case_data = case_actor_client.get(f"/datalayer/{case_id}")
-    final_case = VulnerabilityCase(**final_case_data)
-
-    if len(final_case.case_participants) != 3:
+) -> None:
+    if case.current_status.em_state != EM.ACTIVE:
         raise AssertionError(
-            "Expected 3 case participants on the CaseActor container, "
-            f"found {len(final_case.case_participants)}"
+            f"Expected ACTIVE embargo state, found {case.current_status.em_state}"
         )
-
-    if report_id not in [
-        ref_id(report) or str(report)
-        for report in final_case.vulnerability_reports
-    ]:
-        raise AssertionError(
-            "Final case does not reference the submitted report"
-        )
-
-    current_status = final_case.current_status
-    if current_status.em_state != EM.ACTIVE:
-        raise AssertionError(
-            f"Expected ACTIVE embargo state, found {current_status.em_state}"
-        )
-
-    if ref_id(final_case.active_embargo) != embargo_id:
+    if ref_id(case.active_embargo) != embargo_id:
         raise AssertionError(
             "Final case does not reference the accepted active embargo"
         )
 
-    for actor_id in (coordinator_actor_id, reporter_actor_id, vendor_actor_id):
-        if actor_id not in final_case.actor_participant_index:
-            raise AssertionError(
-                f"Actor {actor_id} missing from actor_participant_index"
-            )
 
+def _assert_three_actor_embargo_acceptance(
+    case_actor_client: DataLayerClient,
+    case: VulnerabilityCase,
+    actor_ids: tuple[str, ...],
+    embargo_id: str,
+) -> None:
     participant_records = case_actor_client.get("/datalayer/CaseParticipants/")
-    for actor_id in (
-        coordinator_actor_id,
-        reporter_actor_id,
-        vendor_actor_id,
-    ):
-        participant_id = final_case.actor_participant_index[actor_id]
+    for actor_id in actor_ids:
+        participant_id = case.actor_participant_index[actor_id]
         participant_data = participant_records.get(participant_id)
         if participant_data is None:
             raise AssertionError(
@@ -475,6 +452,46 @@ def verify_case_actor_case_state(
                 f"Participant {participant_id} did not record acceptance of "
                 f"embargo {embargo_id}"
             )
+
+
+def verify_case_actor_case_state(
+    case_actor_client: DataLayerClient,
+    coordinator_client: DataLayerClient,
+    case_id: str,
+    report_id: str,
+    coordinator_actor_id: str,
+    reporter_actor_id: str,
+    vendor_actor_id: str,
+    embargo_id: str,
+) -> VulnerabilityCase:
+    """Assert the authoritative final case state on the CaseActor container."""
+    final_case = VulnerabilityCase(
+        **case_actor_client.get(f"/datalayer/{case_id}")
+    )
+    actor_ids = (coordinator_actor_id, reporter_actor_id, vendor_actor_id)
+
+    if len(final_case.case_participants) != 3:
+        raise AssertionError(
+            "Expected 3 case participants on the CaseActor container, "
+            f"found {len(final_case.case_participants)}"
+        )
+    if report_id not in _three_actor_report_ids(final_case):
+        raise AssertionError(
+            "Final case does not reference the submitted report"
+        )
+
+    _assert_three_actor_active_embargo(final_case, embargo_id)
+    for actor_id in actor_ids:
+        if actor_id not in final_case.actor_participant_index:
+            raise AssertionError(
+                f"Actor {actor_id} missing from actor_participant_index"
+            )
+    _assert_three_actor_embargo_acceptance(
+        case_actor_client,
+        final_case,
+        actor_ids,
+        embargo_id,
+    )
 
     if coordinator_client.base_url != case_actor_client.base_url:
         coordinator_cases = coordinator_client.get(

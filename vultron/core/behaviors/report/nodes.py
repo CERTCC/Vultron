@@ -62,6 +62,40 @@ from vultron.wire.as2.factories import (
 logger = logging.getLogger(__name__)
 
 
+def _append_addressee_ids(addressees: list[str], value: object) -> None:
+    if value is None:
+        return
+    if isinstance(value, str):
+        addressees.append(value)
+        return
+    if isinstance(value, list):
+        for item in value:
+            _append_addressee_ids(addressees, item)
+        return
+    addressee_id = getattr(value, "id_", None)
+    if isinstance(addressee_id, str):
+        addressees.append(addressee_id)
+
+
+def _collect_create_case_addressees(
+    actor: object,
+    report: object,
+    offer: object,
+    actor_id: str,
+) -> list[str]:
+    addressees: list[str] = []
+    for value in (
+        actor,
+        getattr(report, "attributed_to", None) if report is not None else None,
+        getattr(offer, "to", None) if offer is not None else None,
+        getattr(offer, "actor", None) if offer is not None else None,
+    ):
+        _append_addressee_ids(addressees, value)
+    return [
+        addressee for addressee in set(addressees) if addressee != actor_id
+    ]
+
+
 # ============================================================================
 # Condition Nodes
 # ============================================================================
@@ -508,7 +542,6 @@ class CreateCaseActivity(DataLayerAction):
             return Status.FAILURE
 
         try:
-            # Get case_id from blackboard (set by CreateCaseNode)
             case_id = self.blackboard.get("case_id")
             if case_id is None:
                 self.logger.error(
@@ -516,62 +549,23 @@ class CreateCaseActivity(DataLayerAction):
                 )
                 return Status.FAILURE
 
-            # Read objects for addressee collection.
             actor = self.datalayer.read(self.actor_id, raise_on_missing=True)
             report = self.datalayer.read(self.report_id, raise_on_missing=True)
             offer = self.datalayer.read(self.offer_id)
-
-            # Collect addressees (same logic as handler)
-            addressees = []
-            report_attributed_to = (
-                getattr(report, "attributed_to", None)
-                if report is not None
-                else None
+            addressees = _collect_create_case_addressees(
+                actor, report, offer, self.actor_id
             )
-            offer_to = (
-                getattr(offer, "to", None) if offer is not None else None
-            )
-            # Also include the offer submitter (offer.actor) — the finder who
-            # created the report and submitted the offer needs to receive the
-            # case so they can participate as a case participant.
-            offer_actor = (
-                getattr(offer, "actor", None) if offer is not None else None
-            )
-            for x in [actor, report_attributed_to, offer_to, offer_actor]:
-                if x is None:
-                    continue
-                if isinstance(x, str):
-                    addressees.append(x)
-                elif isinstance(x, list):
-                    for item in x:
-                        if isinstance(item, str):
-                            addressees.append(item)
-                        elif hasattr(item, "id_"):
-                            addressees.append(item.id_)
-                elif hasattr(x, "id_"):
-                    addressees.append(x.id_)
-
-            # Unique addressees, excluding the sending actor itself so
-            # we don't deliver the notification back to our own inbox.
-            addressees = [a for a in set(addressees) if a != self.actor_id]
             self.logger.info(
                 f"{self.name}: Notifying addressees: {addressees}"
             )
 
-            # Read full case to embed in the activity so recipients can
-            # store the case object and process it without a separate fetch.
             case_obj = self.datalayer.read(case_id)
-
-            # Create CreateCaseActivity activity domain object; embed the
-            # full case as object_ so the inbox endpoint on the receiving
-            # side stores the case before dispatching the activity.
             create_case_activity = VultronCreateCaseActivity(
                 actor=self.actor_id,
                 object_=case_obj if case_obj is not None else case_id,
                 to=addressees if addressees else None,
             )
 
-            # Store activity in DataLayer
             try:
                 self.datalayer.create(create_case_activity)
                 self.logger.info(
@@ -582,12 +576,10 @@ class CreateCaseActivity(DataLayerAction):
                     f"{self.name}: CreateCaseActivity activity {create_case_activity.id_} already exists: {e}"
                 )
 
-            # Store activity_id in blackboard for UpdateActorOutbox node
             self.blackboard.register_key(
                 key="activity_id", access=py_trees.common.Access.WRITE
             )
             self.blackboard.activity_id = create_case_activity.id_
-
             return Status.SUCCESS
 
         except Exception as e:
