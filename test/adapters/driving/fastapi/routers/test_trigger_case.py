@@ -777,3 +777,93 @@ def test_trigger_add_report_short_actor_id_updates_outbox_without_warning(
     assert not any(
         "add_activity_to_outbox" in record.message for record in caplog.records
     )
+
+
+# ===========================================================================
+# Tests for trigger/add-object-to-case  (TRIG-10-001)
+# ===========================================================================
+
+
+def test_trigger_add_object_to_case_returns_202(
+    client_triggers, actor, case_with_participant, report
+):
+    """TB-01-002: POST /actors/{id}/trigger/add-object-to-case returns 202."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-object-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "object_id": report.id_,
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_add_object_to_case_response_contains_activity(
+    client_triggers, actor, case_with_participant, report
+):
+    """TB-04-001: Response body contains 'activity' key (TRIG-10-001)."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-object-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "object_id": report.id_,
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert "activity" in data
+    assert data["activity"] is not None
+
+
+def test_trigger_add_object_to_case_missing_object_id_returns_422(
+    client_triggers, actor, case_with_participant
+):
+    """Missing object_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-object-to-case",
+        json={"case_id": case_with_participant.id_},
+    )
+    assert resp.status_code == 422
+
+
+def test_trigger_add_object_to_case_unknown_object_returns_404(
+    client_triggers, actor, case_with_participant
+):
+    """TB-01-003: Unknown object_id returns HTTP 404 (TRIG-10-001)."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-object-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "object_id": "urn:uuid:nonexistent-object",
+        },
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_trigger_add_object_to_case_unknown_case_returns_404(
+    client_triggers, actor, report
+):
+    """TB-01-003: Unknown case_id returns HTTP 404 (TRIG-10-001)."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-object-to-case",
+        json={
+            "case_id": "urn:uuid:nonexistent-case",
+            "object_id": report.id_,
+        },
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_trigger_add_object_to_case_extra_fields_ignored(
+    client_triggers, actor, case_with_participant, report
+):
+    """Extra request body fields are silently ignored (TB-03-002)."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-object-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "object_id": report.id_,
+            "unexpected_field": "ignored",
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED

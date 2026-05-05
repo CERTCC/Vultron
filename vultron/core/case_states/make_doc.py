@@ -47,6 +47,44 @@ def _enum2title(x):
     return x.name.replace("_", " ").title()
 
 
+def _write_node_links(fp, nodes, score_fn=None) -> None:
+    """Write predecessor or successor bullet links to *fp*.
+
+    Args:
+        fp: Open file-like object to write to.
+        nodes: Iterable of node names; empty iterable writes a "None" bullet.
+        score_fn: Optional callable ``(node) -> float`` for successor scores.
+    """
+    if not nodes:
+        fp.write(_bullet("None"))
+        return
+    for node in nodes:
+        link = f"[{node}]({_fname(node)})"
+        if score_fn is not None:
+            link += f" (score={score_fn(node):.2f})"
+        fp.write(_bullet(link))
+
+
+def _write_path_links(fp, paths, sg) -> None:
+    """Write path bullet links (sequences of transitions) to *fp*.
+
+    Args:
+        fp: Open file-like object to write to.
+        paths: Iterable of paths (each path is a list of (start, end) steps).
+        sg: Case state graph providing ``transitions_in_path``.
+    """
+    if not paths:
+        fp.write(_bullet("None"))
+        return
+    for path in paths:
+        transitions = sg.transitions_in_path(path)
+        links = [
+            f"[**{t}**]({_fname(end)})"
+            for t, (_start, end) in zip(transitions, path)
+        ]
+        fp.write(_bullet(" &rarr; ".join(links)))
+
+
 def print_readme(model_dir="../../docs/case_states"):
     sg = CVDmodel()
 
@@ -117,53 +155,19 @@ def print_model(model_dir="../../docs/reference/case_states"):
                 fp.write("|\n")
 
             fp.write("| Predecessors |")
-            if not len(info["predecessors"]):
-                fp.write(_bullet("None"))
-            else:
-                for p in info["predecessors"]:
-                    link = f"[{p}]({_fname(p)})"
-                    fp.write(_bullet(link))
+            _write_node_links(fp, info["predecessors"])
             fp.write("|\n")
 
             fp.write("| Successors<br/>(prefer higher scores) |")
-            if not len(info["successors"]):
-                fp.write(_bullet("None"))
-            else:
-                for s in info["successors"]:
-                    link = (
-                        f"[{s}]({_fname(s)}) (score={sg.score_state(s):.2f})"
-                    )
-                    fp.write(_bullet(link))
+            _write_node_links(fp, info["successors"], score_fn=sg.score_state)
             fp.write("|\n")
 
             fp.write("| Possible Sequences To This State |")
-            paths = list(sg.paths_to(state))
-            if len(paths) == 0:
-                fp.write(_bullet("None"))
-            else:
-                for path in paths:
-                    transitions = sg.transitions_in_path(path)
-                    links = []
-                    for transition, step in zip(transitions, path):
-                        start, end = step
-                        link = f"[**{transition}**]({_fname(end)})"
-                        links.append(link)
-                    fp.write(_bullet(" &rarr; ".join(links)))
+            _write_path_links(fp, list(sg.paths_to(state)), sg)
             fp.write("| \n")
 
             fp.write("| Possible Sequences From This State |")
-            paths = list(sg.paths_from(state))
-            if len(paths) == 0:
-                fp.write(_bullet("None"))
-            else:
-                for path in paths:
-                    transitions = sg.transitions_in_path(path)
-                    links = []
-                    for transition, step in zip(transitions, path):
-                        start, end = step
-                        link = f"[**{transition}**]({_fname(end)})"
-                        links.append(link)
-                    fp.write(_bullet(" &rarr; ".join(links)))
+            _write_path_links(fp, list(sg.paths_from(state)), sg)
             fp.write("|\n")
 
 

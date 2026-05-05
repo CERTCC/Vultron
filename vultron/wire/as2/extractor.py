@@ -10,12 +10,13 @@ into a single module.  Pattern-to-semantics matching lives in
 """
 
 from datetime import datetime
-from typing import Any, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 from pydantic import BaseModel
 
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.object_types import as_Event
 from vultron.core.models.base import VultronObject
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
 from vultron.core.models.events import (
@@ -60,47 +61,38 @@ class ActivityPattern(BaseModel):
         if self.activity_ != activity.type_:
             return False
 
-        def _match_field(
-            pattern_field: AOtype | VOtype | ActivityPattern | None,
-            activity_field: object,
-        ) -> bool:
-            if pattern_field is None:
-                return True
-            # Nested pattern: bare-string references cannot satisfy a typed
-            # nested-activity constraint — rehydration is required first.
-            if isinstance(pattern_field, ActivityPattern):
-                return isinstance(
-                    activity_field, as_Activity
-                ) and pattern_field.match(activity_field)
-            # URI/ID string reference: can't type-check AOtype/VOtype, allow
-            if isinstance(activity_field, str):
-                return True
-            if activity_field is None:
-                return False
-            # Subtype-aware matching: AOtype.ACTOR matches any as_Actor subclass
-            # (Person, Organization, Service, etc.) whose type_ differs from "Actor".
-            if pattern_field == AOtype.ACTOR and isinstance(
-                activity_field, as_Actor
-            ):
-                return True
-            return bool(
-                pattern_field == getattr(activity_field, "type_", None)
-            )
+        field_pairs = (
+            (self.object_, getattr(activity, "object_", None)),
+            (self.target_, getattr(activity, "target", None)),
+            (self.context_, getattr(activity, "context", None)),
+            (self.to_, getattr(activity, "to", None)),
+            (self.in_reply_to_, getattr(activity, "in_reply_to", None)),
+        )
+        return all(
+            _match_activity_field(pattern_field, activity_field)
+            for pattern_field, activity_field in field_pairs
+        )
 
-        if not _match_field(self.object_, getattr(activity, "object_", None)):
-            return False
-        if not _match_field(self.target_, getattr(activity, "target", None)):
-            return False
-        if not _match_field(self.context_, getattr(activity, "context", None)):
-            return False
-        if not _match_field(self.to_, getattr(activity, "to", None)):
-            return False
-        if not _match_field(
-            self.in_reply_to_, getattr(activity, "in_reply_to", None)
-        ):
-            return False
 
+def _match_activity_field(
+    pattern_field: AOtype | VOtype | ActivityPattern | None,
+    activity_field: object,
+) -> bool:
+    if pattern_field is None:
         return True
+    if isinstance(pattern_field, ActivityPattern):
+        return isinstance(activity_field, as_Activity) and pattern_field.match(
+            activity_field
+        )
+    if isinstance(activity_field, str):
+        return True
+    if activity_field is None:
+        return False
+    if pattern_field == AOtype.ACTOR and isinstance(activity_field, as_Actor):
+        return True
+    if pattern_field == AOtype.EVENT and isinstance(activity_field, as_Event):
+        return True
+    return bool(pattern_field == getattr(activity_field, "type_", None))
 
 
 # ---------------------------------------------------------------------------
@@ -336,6 +328,322 @@ AddParticipantStatusToParticipantPattern = ActivityPattern(
 )
 
 
+# ---------------------------------------------------------------------------
+# Private field-extraction helpers
+# ---------------------------------------------------------------------------
+
+
+def _get_id(field: object) -> str | None:
+    if field is None:
+        return None
+    if isinstance(field, str):
+        return field
+    return getattr(field, "id_", str(field)) or None
+
+
+def _get_id_list(field: object) -> list[str] | None:
+    """Convert an AS2 to/cc field (Any | None) to a list of ID strings."""
+    if field is None:
+        return None
+    if isinstance(field, str):
+        return [field] if field else None
+    if isinstance(field, list):
+        ids = [_get_id(x) for x in field]
+        result = [r for r in ids if r]
+        return result or None
+    single = _get_id(field)
+    return [single] if single else None
+
+
+def _get_type(field: object) -> str | None:
+    if field is None or isinstance(field, str):
+        return None
+    t = getattr(field, "type_", None)
+    return str(t) if t is not None else None
+
+
+def _to_domain_obj(as_obj: object) -> VultronObject | None:
+    """Wrap a bare AS2 object reference as a minimal VultronObject."""
+    if as_obj is None:
+        return None
+    obj_id = _get_id(as_obj)
+    if not obj_id:
+        return None
+    obj_type = _get_type(as_obj)
+    return VultronObject(id_=obj_id, type_=obj_type)
+
+
+# ---------------------------------------------------------------------------
+# Activity snapshot builder
+# ---------------------------------------------------------------------------
+
+
+def _build_activity_snapshot(
+    activity: as_Activity,
+    actor_id: str,
+    obj: object,
+    target: object,
+    origin: object,
+    context: object,
+) -> VultronActivity:
+    """Build a VultronActivity snapshot from raw AS2 fields."""
+    activity_type = str(activity.type_) if activity.type_ else "Activity"
+    return VultronActivity(
+        id_=activity.id_,
+        type_=activity_type,
+        actor=actor_id,
+        object_=obj,
+        target=target,
+        origin=_get_id(origin),
+        context=_get_id(context),
+        in_reply_to=_get_id(getattr(activity, "in_reply_to", None)),
+        to=_get_id_list(getattr(activity, "to", None)),
+        cc=_get_id_list(getattr(activity, "cc", None)),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Per-type domain-object builders
+# ---------------------------------------------------------------------------
+
+
+def _build_report_object(obj: object) -> dict[str, Any]:
+    content = getattr(obj, "content", None)
+    object_id = _get_id(obj)
+    if isinstance(content, str) and content and object_id:
+        return {
+            "object_": VultronReport(
+                id_=object_id,
+                name=getattr(obj, "name", None),
+                summary=getattr(obj, "summary", None),
+                content=content,
+                url=_get_id(getattr(obj, "url", None)),
+                media_type=getattr(obj, "media_type", None),
+                attributed_to=_get_id(getattr(obj, "attributed_to", None)),
+                context=_get_id(getattr(obj, "context", None)),
+                published=getattr(obj, "published", None),
+                updated=getattr(obj, "updated", None),
+            )
+        }
+    return {}
+
+
+def _build_case_object(obj: object) -> dict[str, Any]:
+    object_id = _get_id(obj)
+    if object_id:
+        return {
+            "object_": VultronCase(
+                id_=object_id,
+                name=getattr(obj, "name", None),
+                summary=getattr(obj, "summary", None),
+                content=getattr(obj, "content", None),
+                url=_get_id(getattr(obj, "url", None)),
+                attributed_to=_get_id(getattr(obj, "attributed_to", None)),
+                published=getattr(obj, "published", None),
+                updated=getattr(obj, "updated", None),
+            )
+        }
+    return {}
+
+
+def _build_embargo_event_object(
+    obj: as_Event, context: object, target: object
+) -> dict[str, Any]:
+    end_time = getattr(obj, "end_time", None)
+    object_id = _get_id(obj)
+    embargo_context = (
+        _get_id(getattr(obj, "context", None))
+        or _get_id(context)
+        or _get_id(target)
+    )
+    if isinstance(end_time, datetime) and embargo_context and object_id:
+        return {
+            "object_": VultronEmbargoEvent(
+                id_=object_id,
+                name=getattr(obj, "name", None),
+                start_time=getattr(obj, "start_time", None),
+                end_time=end_time,
+                published=getattr(obj, "published", None),
+                updated=getattr(obj, "updated", None),
+                context=embargo_context,
+            )
+        }
+    return {}
+
+
+def _build_participant_object(obj: object) -> dict[str, Any]:
+    object_id = _get_id(obj)
+    attributed_to = _get_id(getattr(obj, "attributed_to", None))
+    participant_context = _get_id(getattr(obj, "context", None))
+    if object_id and attributed_to and participant_context:
+        return {
+            "object_": VultronParticipant(
+                id_=object_id,
+                name=getattr(obj, "name", None),
+                attributed_to=attributed_to,
+                context=participant_context,
+                case_roles=list(getattr(obj, "case_roles", []) or []),
+                participant_case_name=getattr(
+                    obj, "participant_case_name", None
+                ),
+            )
+        }
+    return {}
+
+
+def _build_note_object(obj: object) -> dict[str, Any]:
+    content = getattr(obj, "content", None)
+    object_id = _get_id(obj)
+    if isinstance(content, str) and content and object_id:
+        return {
+            "object_": VultronNote(
+                id_=object_id,
+                name=getattr(obj, "name", None),
+                summary=getattr(obj, "summary", None),
+                content=content,
+                url=_get_id(getattr(obj, "url", None)),
+                attributed_to=_get_id(getattr(obj, "attributed_to", None)),
+                context=_get_id(getattr(obj, "context", None)),
+            )
+        }
+    return {}
+
+
+def _build_case_log_entry_object(obj: object) -> dict[str, Any]:
+    object_id = _get_id(obj)
+    case_id = getattr(obj, "case_id", None)
+    log_index = getattr(obj, "log_index", -1)
+    log_object_id = getattr(obj, "log_object_id", None) or getattr(
+        obj, "logObjectId", None
+    )
+    event_type = getattr(obj, "event_type", None) or getattr(
+        obj, "eventType", None
+    )
+    if object_id and case_id and log_object_id and event_type:
+        return {
+            "object_": VultronCaseLogEntry(
+                id_=object_id,
+                case_id=case_id,
+                log_index=log_index,
+                disposition=getattr(obj, "disposition", "recorded"),
+                term=getattr(obj, "term", None),
+                log_object_id=log_object_id,
+                event_type=event_type,
+                payload_snapshot=getattr(obj, "payload_snapshot", {})
+                or getattr(obj, "payloadSnapshot", {}),
+                prev_log_hash=getattr(obj, "prev_log_hash", None)
+                or getattr(obj, "prevLogHash", None)
+                or "",
+                entry_hash=getattr(obj, "entry_hash", None)
+                or getattr(obj, "entryHash", None)
+                or "",
+                reason_code=getattr(obj, "reason_code", None)
+                or getattr(obj, "reasonCode", None),
+                reason_detail=getattr(obj, "reason_detail", None)
+                or getattr(obj, "reasonDetail", None),
+            )
+        }
+    return {}
+
+
+def _build_case_status_object(obj: object) -> dict[str, Any]:
+    object_id = _get_id(obj)
+    case_context = _get_id(getattr(obj, "context", None))
+    if object_id and case_context:
+        return {
+            "object_": VultronCaseStatus(
+                id_=object_id,
+                name=getattr(obj, "name", None),
+                context=case_context,
+                attributed_to=_get_id(getattr(obj, "attributed_to", None)),
+                em_state=getattr(obj, "em_state", None)
+                or VultronCaseStatus.model_fields["em_state"].default,
+                pxa_state=getattr(obj, "pxa_state", None)
+                or VultronCaseStatus.model_fields["pxa_state"].default,
+            )
+        }
+    return {}
+
+
+def _build_participant_status_object(obj: object) -> dict[str, Any]:
+    object_id = _get_id(obj)
+    ctx = _get_id(getattr(obj, "context", None)) or ""
+    wire_case_status = getattr(obj, "case_status", None)
+    if object_id:
+        return {
+            "object_": VultronParticipantStatus(
+                id_=object_id,
+                name=getattr(obj, "name", None),
+                context=ctx,
+                attributed_to=_get_id(getattr(obj, "attributed_to", None)),
+                rm_state=getattr(obj, "rm_state", None)
+                or VultronParticipantStatus.model_fields["rm_state"].default,
+                vfd_state=getattr(obj, "vfd_state", None)
+                or VultronParticipantStatus.model_fields["vfd_state"].default,
+                case_status=(
+                    _get_id(wire_case_status)
+                    if wire_case_status is not None
+                    else None
+                ),
+            )
+        }
+    return {}
+
+
+# Dispatch table: obj type_ string → builder function.
+# VULNERABILITY_REPORT and VULNERABILITY_CASE are handled explicitly in
+# _build_object_kwargs (before the as_Event isinstance check) to preserve
+# the original priority order.
+_OBJ_BUILDERS: dict[str, Callable[[object], dict[str, Any]]] = {
+    str(VOtype.CASE_PARTICIPANT): _build_participant_object,
+    str(AOtype.NOTE): _build_note_object,
+    str(VOtype.CASE_LOG_ENTRY): _build_case_log_entry_object,
+    str(VOtype.CASE_STATUS): _build_case_status_object,
+    str(VOtype.PARTICIPANT_STATUS): _build_participant_status_object,
+}
+
+
+def _build_object_kwargs(
+    obj: object,
+    _obj_type: str,
+    context: object,
+    target: object,
+    include_activity: bool,
+    activity: as_Activity,
+    actor_id: str,
+    origin: object,
+) -> dict[str, Any]:
+    """Build the domain-field kwargs dict for ``extract_intent``.
+
+    Uses type_ string comparison because the wire parser returns ``as_Object``
+    (base class) for nested objects; isinstance checks against Vultron subtypes
+    would always fail.  The ``as_Event`` check is an exception and is placed
+    after the VULNERABILITY_REPORT / VULNERABILITY_CASE type-string checks to
+    preserve the original priority order.
+    """
+    kw: dict[str, Any] = {}
+    if include_activity:
+        kw["activity"] = _build_activity_snapshot(
+            activity, actor_id, obj, target, origin, context
+        )
+    if obj is None:
+        return kw
+
+    if _obj_type == str(VOtype.VULNERABILITY_REPORT):
+        kw.update(_build_report_object(obj))
+    elif _obj_type == str(VOtype.VULNERABILITY_CASE):
+        kw.update(_build_case_object(obj))
+    elif isinstance(obj, as_Event):
+        kw.update(_build_embargo_event_object(obj, context, target))
+    elif builder := _OBJ_BUILDERS.get(_obj_type):
+        kw.update(builder(obj))
+    else:
+        obj_id = _get_id(obj)
+        if obj_id:
+            kw["object_"] = VultronObject(id_=obj_id, type_=_get_type(obj))
+    return kw
+
+
 def extract_intent(
     activity: as_Activity,
     semantics: MessageSemantics,
@@ -362,33 +670,6 @@ def extract_intent(
     Returns:
         A concrete VultronEvent subclass discriminated by MessageSemantics.
     """
-
-    def _get_id(field) -> str | None:
-        if field is None:
-            return None
-        if isinstance(field, str):
-            return field
-        return getattr(field, "id_", str(field)) or None
-
-    def _get_id_list(field) -> list[str] | None:
-        """Convert an AS2 to/cc field (Any | None) to a list of ID strings."""
-        if field is None:
-            return None
-        if isinstance(field, str):
-            return [field] if field else None
-        if isinstance(field, list):
-            ids = [_get_id(x) for x in field]
-            result = [r for r in ids if r]
-            return result or None
-        single = _get_id(field)
-        return [single] if single else None
-
-    def _get_type(field) -> str | None:
-        if field is None or isinstance(field, str):
-            return None
-        t = getattr(field, "type_", None)
-        return str(t) if t is not None else None
-
     actor_id = _get_id(getattr(activity, "actor", None)) or ""
     obj = getattr(activity, "object_", None)
     target = getattr(activity, "target", None)
@@ -396,207 +677,23 @@ def extract_intent(
     origin = getattr(activity, "origin", None)
 
     # Nested fields from activity.object_ (for Accept/Reject wrapping another activity)
-    inner_obj = None
-    inner_target = None
-    inner_context = None
+    inner_obj = inner_target = inner_context = None
     if obj is not None and not isinstance(obj, str):
         inner_obj = getattr(obj, "object_", None)
         inner_target = getattr(obj, "target", None)
         inner_context = getattr(obj, "context", None)
 
-    event_class = event_class  # passed in; no lookup needed
-
-    def _build_domain_kwargs() -> dict[str, Any]:
-        # Use type_ string comparison because the wire parser returns
-        # as_Object (base class) for nested objects; isinstance checks against
-        # Vultron subtypes (EmbargoEvent, CaseParticipant, etc.) would always
-        # fail. Match on type_ string, consistent with ActivityPattern._match_field.
-        _obj_type = str(getattr(obj, "type_", "")) if obj is not None else ""
-
-        kw: dict[str, Any] = {}
-        activity_type = str(activity.type_) if activity.type_ else "Activity"
-
-        if include_activity:
-            kw["activity"] = VultronActivity(
-                id_=activity.id_,
-                type_=activity_type,
-                actor=actor_id,
-                object_=obj,
-                target=target,
-                origin=_get_id(origin),
-                context=context,
-                in_reply_to=_get_id(getattr(activity, "in_reply_to", None)),
-                to=_get_id_list(getattr(activity, "to", None)),
-                cc=_get_id_list(getattr(activity, "cc", None)),
-            )
-
-        if _obj_type == str(VOtype.VULNERABILITY_REPORT) and obj is not None:
-            content = getattr(obj, "content", None)
-            object_id = _get_id(obj)
-            if isinstance(content, str) and content and object_id:
-                kw["object_"] = VultronReport(
-                    id_=object_id,
-                    name=getattr(obj, "name", None),
-                    summary=getattr(obj, "summary", None),
-                    content=content,
-                    url=_get_id(getattr(obj, "url", None)),
-                    media_type=getattr(obj, "media_type", None),
-                    attributed_to=_get_id(getattr(obj, "attributed_to", None)),
-                    context=_get_id(getattr(obj, "context", None)),
-                    published=getattr(obj, "published", None),
-                    updated=getattr(obj, "updated", None),
-                )
-        elif _obj_type == str(VOtype.VULNERABILITY_CASE) and obj is not None:
-            object_id = _get_id(obj)
-            if object_id:
-                kw["object_"] = VultronCase(
-                    id_=object_id,
-                    name=getattr(obj, "name", None),
-                    summary=getattr(obj, "summary", None),
-                    content=getattr(obj, "content", None),
-                    url=_get_id(getattr(obj, "url", None)),
-                    attributed_to=_get_id(getattr(obj, "attributed_to", None)),
-                    published=getattr(obj, "published", None),
-                    updated=getattr(obj, "updated", None),
-                )
-        elif _obj_type == str(AOtype.EVENT) and obj is not None:
-            end_time = getattr(obj, "end_time", None)
-            object_id = _get_id(obj)
-            embargo_context = (
-                _get_id(getattr(obj, "context", None))
-                or _get_id(context)
-                or _get_id(target)
-            )
-            if (
-                isinstance(end_time, datetime)
-                and embargo_context
-                and object_id
-            ):
-                kw["object_"] = VultronEmbargoEvent(
-                    id_=object_id,
-                    name=getattr(obj, "name", None),
-                    start_time=getattr(obj, "start_time", None),
-                    end_time=end_time,
-                    published=getattr(obj, "published", None),
-                    updated=getattr(obj, "updated", None),
-                    context=embargo_context,
-                )
-        elif _obj_type == str(VOtype.CASE_PARTICIPANT) and obj is not None:
-            object_id = _get_id(obj)
-            attributed_to = _get_id(getattr(obj, "attributed_to", None))
-            participant_context = _get_id(getattr(obj, "context", None))
-            if object_id and attributed_to and participant_context:
-                kw["object_"] = VultronParticipant(
-                    id_=object_id,
-                    name=getattr(obj, "name", None),
-                    attributed_to=attributed_to,
-                    context=participant_context,
-                    case_roles=list(getattr(obj, "case_roles", []) or []),
-                    participant_case_name=getattr(
-                        obj, "participant_case_name", None
-                    ),
-                )
-        elif _obj_type == str(AOtype.NOTE) and obj is not None:
-            content = getattr(obj, "content", None)
-            object_id = _get_id(obj)
-            if isinstance(content, str) and content and object_id:
-                kw["object_"] = VultronNote(
-                    id_=object_id,
-                    name=getattr(obj, "name", None),
-                    summary=getattr(obj, "summary", None),
-                    content=content,
-                    url=_get_id(getattr(obj, "url", None)),
-                    attributed_to=_get_id(getattr(obj, "attributed_to", None)),
-                    context=_get_id(getattr(obj, "context", None)),
-                )
-        elif _obj_type == str(VOtype.CASE_LOG_ENTRY) and obj is not None:
-            object_id = _get_id(obj)
-            case_id = getattr(obj, "case_id", None)
-            log_index = getattr(obj, "log_index", -1)
-            log_object_id = getattr(obj, "log_object_id", None) or getattr(
-                obj, "logObjectId", None
-            )
-            event_type = getattr(obj, "event_type", None) or getattr(
-                obj, "eventType", None
-            )
-            if object_id and case_id and log_object_id and event_type:
-                kw["object_"] = VultronCaseLogEntry(
-                    id_=object_id,
-                    case_id=case_id,
-                    log_index=log_index,
-                    disposition=getattr(obj, "disposition", "recorded"),
-                    term=getattr(obj, "term", None),
-                    log_object_id=log_object_id,
-                    event_type=event_type,
-                    payload_snapshot=getattr(obj, "payload_snapshot", {})
-                    or getattr(obj, "payloadSnapshot", {}),
-                    prev_log_hash=getattr(obj, "prev_log_hash", None)
-                    or getattr(obj, "prevLogHash", None)
-                    or "",
-                    entry_hash=getattr(obj, "entry_hash", None)
-                    or getattr(obj, "entryHash", None)
-                    or "",
-                    reason_code=getattr(obj, "reason_code", None)
-                    or getattr(obj, "reasonCode", None),
-                    reason_detail=getattr(obj, "reason_detail", None)
-                    or getattr(obj, "reasonDetail", None),
-                )
-        elif _obj_type == str(VOtype.CASE_STATUS) and obj is not None:
-            object_id = _get_id(obj)
-            case_context = _get_id(getattr(obj, "context", None))
-            if object_id and case_context:
-                kw["object_"] = VultronCaseStatus(
-                    id_=object_id,
-                    name=getattr(obj, "name", None),
-                    context=case_context,
-                    attributed_to=_get_id(getattr(obj, "attributed_to", None)),
-                    em_state=getattr(obj, "em_state", None)
-                    or VultronCaseStatus.model_fields["em_state"].default,
-                    pxa_state=getattr(obj, "pxa_state", None)
-                    or VultronCaseStatus.model_fields["pxa_state"].default,
-                )
-        elif _obj_type == str(VOtype.PARTICIPANT_STATUS) and obj is not None:
-            object_id = _get_id(obj)
-            ctx = _get_id(getattr(obj, "context", None)) or ""
-            wire_case_status = getattr(obj, "case_status", None)
-            if object_id:
-                kw["object_"] = VultronParticipantStatus(
-                    id_=object_id,
-                    name=getattr(obj, "name", None),
-                    context=ctx,
-                    attributed_to=_get_id(getattr(obj, "attributed_to", None)),
-                    rm_state=getattr(obj, "rm_state", None)
-                    or VultronParticipantStatus.model_fields[
-                        "rm_state"
-                    ].default,
-                    vfd_state=getattr(obj, "vfd_state", None)
-                    or VultronParticipantStatus.model_fields[
-                        "vfd_state"
-                    ].default,
-                    case_status=(
-                        _get_id(wire_case_status)
-                        if wire_case_status is not None
-                        else None
-                    ),
-                )
-        elif obj is not None:
-            obj_id = _get_id(obj)
-            if obj_id:
-                obj_type = _get_type(obj)
-                kw["object_"] = VultronObject(id_=obj_id, type_=obj_type)
-        return kw
-
-    def _to_domain_obj(as_obj: object) -> VultronObject | None:
-        """Wrap a bare AS2 object reference as a minimal VultronObject."""
-        if as_obj is None:
-            return None
-        obj_id = _get_id(as_obj)
-        if not obj_id:
-            return None
-        obj_type = _get_type(as_obj)
-        return VultronObject(id_=obj_id, type_=obj_type)
-
-    extra_kwargs = _build_domain_kwargs()
+    _obj_type = str(getattr(obj, "type_", "")) if obj is not None else ""
+    extra_kwargs = _build_object_kwargs(
+        obj,
+        _obj_type,
+        context,
+        target,
+        include_activity,
+        activity,
+        actor_id,
+        origin,
+    )
     return event_class(
         semantic_type=semantics,
         activity_id=activity.id_,

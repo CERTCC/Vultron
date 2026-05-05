@@ -28,13 +28,18 @@ from typing import Any
 
 from vultron.core.models.case_log import CaseLogEntry
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.protocols import (
+    LogEntryModel,
+    is_case_model,
+    is_log_entry_model,
+)
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import case_addressees
 from vultron.core.use_cases.received.sync import _reconstruct_tail_hash
+from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
 
@@ -77,11 +82,13 @@ def _fan_out_log_entry(
     Spec: SYNC-02-002.
     """
     if sync_port is None:
-        from vultron.adapters.driven.sync_activity_adapter import (
-            SyncActivityAdapter,
+        logger.debug(
+            "sync fan-out: sync_port not injected — "
+            "skipping fan-out for log entry '%s' in case '%s'",
+            entry.id_,
+            case_id,
         )
-
-        sync_port = SyncActivityAdapter(dl)
+        return
 
     case_obj = dl.read(case_id)
     if not is_case_model(case_obj):
@@ -218,17 +225,11 @@ def replay_missing_entries_trigger(
 
     Spec: SYNC-03-002.
     """
-    raw_entries: dict[str, dict] = dl.by_type("CaseLogEntry")
-    entries: list[VultronCaseLogEntry] = []
-    for data in raw_entries.values():
-        if data.get("case_id") == case_id:
-            try:
-                entries.append(VultronCaseLogEntry.model_validate(data))
-            except Exception:
-                logger.debug(
-                    "sync replay: skipping malformed CaseLogEntry for case '%s'",
-                    case_id,
-                )
+    entries: list[LogEntryModel] = [
+        obj
+        for obj in dl.list_objects("CaseLogEntry")
+        if is_log_entry_model(obj) and obj.case_id == case_id
+    ]
 
     if not entries:
         logger.debug(
@@ -258,11 +259,10 @@ def replay_missing_entries_trigger(
         return 0
 
     if sync_port is None:
-        from vultron.adapters.driven.sync_activity_adapter import (
-            SyncActivityAdapter,
+        raise VultronError(
+            "replay_missing_entries_trigger: sync_port must be injected — "
+            "no adapter fallback is available in the core layer."
         )
-
-        sync_port = SyncActivityAdapter(dl)
 
     replayed = 0
     for entry in missing:

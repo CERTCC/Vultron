@@ -14,12 +14,15 @@
 """Tests for SYNC-2/SYNC-3 received use cases."""
 
 import pytest
+from unittest.mock import MagicMock
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_log import GENESIS_HASH, CaseLogEntry
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
 from vultron.core.use_cases.triggers.sync import _to_persistable_entry
 from vultron.core.models.events import MessageSemantics
+from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.sync import (
     AnnounceLogEntryReceivedUseCase,
     _reconstruct_tail_hash,
@@ -134,7 +137,8 @@ class TestAnnounceLogEntryReceivedUseCase:
         """Entry whose prev_log_hash does not match local tail is rejected."""
         bad_entry = _make_entry(CASE_URI, 0, "deadbeef" * 8)
         event = self._make_event(bad_entry)
-        uc = AnnounceLogEntryReceivedUseCase(dl, event)
+        sync_port = MagicMock(spec=SyncActivityPort)
+        uc = AnnounceLogEntryReceivedUseCase(dl, event, sync_port=sync_port)
         uc.execute()
         # Entry not stored
         assert dl.read(bad_entry.id_) is None
@@ -146,7 +150,8 @@ class TestAnnounceLogEntryReceivedUseCase:
         # Send a second entry with wrong prev_hash
         bad_entry = _make_entry(CASE_URI, 1, "badbadbadbadbad0" * 4)
         event = self._make_event(bad_entry)
-        uc = AnnounceLogEntryReceivedUseCase(dl, event)
+        sync_port = SyncActivityAdapter(dl)
+        uc = AnnounceLogEntryReceivedUseCase(dl, event, sync_port=sync_port)
         uc.execute()
 
         # Bad entry still not stored
@@ -171,7 +176,10 @@ class TestAnnounceLogEntryReceivedUseCase:
         dl.save(first_entry)
         bad_entry = _make_entry(CASE_URI, 1, "badbadbadbadbad0" * 4)
         event = self._make_event(bad_entry)
-        AnnounceLogEntryReceivedUseCase(dl, event).execute()
+        sync_port = SyncActivityAdapter(dl)
+        AnnounceLogEntryReceivedUseCase(
+            dl, event, sync_port=sync_port
+        ).execute()
 
         queued = dl.outbox_list()
         reject_obj = dl.read(queued[0])
@@ -182,7 +190,10 @@ class TestAnnounceLogEntryReceivedUseCase:
         dl.save(first_entry)
         bad_entry = _make_entry(CASE_URI, 1, "badbadbadbadbad0" * 4)
         event = self._make_event(bad_entry)
-        AnnounceLogEntryReceivedUseCase(dl, event).execute()
+        sync_port = SyncActivityAdapter(dl)
+        AnnounceLogEntryReceivedUseCase(
+            dl, event, sync_port=sync_port
+        ).execute()
 
         queued = dl.outbox_list()
         reject_obj = dl.read(queued[0])
@@ -196,9 +207,10 @@ class TestAnnounceLogEntryReceivedUseCase:
         uc = AnnounceLogEntryReceivedUseCase(dl, event)
         uc.execute()  # should skip silently
         # Still exactly one entry for this case
-        raw = dl.by_type("CaseLogEntry")
         case_entries = [
-            v for v in raw.values() if v.get("case_id") == CASE_URI
+            obj
+            for obj in dl.list_objects("CaseLogEntry")
+            if getattr(obj, "case_id", None) == CASE_URI
         ]
         assert len(case_entries) == 1
 

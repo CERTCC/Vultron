@@ -26,12 +26,14 @@ from vultron.core.models.events.sync import (
     AnnounceLogEntryReceivedEvent,
     RejectLogEntryReceivedEvent,
 )
+from vultron.core.models.protocols import LogEntryModel, is_log_entry_model
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
 
@@ -47,17 +49,11 @@ def _reconstruct_tail_hash(
 
     Returns ``(GENESIS_HASH, -1)`` if no entries exist yet.
     """
-    raw_entries: dict[str, dict] = dl.by_type("CaseLogEntry")
-    entries: list[VultronCaseLogEntry] = []
-    for data in raw_entries.values():
-        if data.get("case_id") == case_id:
-            try:
-                entries.append(VultronCaseLogEntry.model_validate(data))
-            except Exception:
-                logger.debug(
-                    "sync: skipping malformed CaseLogEntry record for case '%s'",
-                    case_id,
-                )
+    entries: list[LogEntryModel] = [
+        obj
+        for obj in dl.list_objects("CaseLogEntry")
+        if is_log_entry_model(obj) and obj.case_id == case_id
+    ]
 
     if not entries:
         return GENESIS_HASH, -1
@@ -74,9 +70,9 @@ def _find_local_actor_id(dl: CasePersistence) -> str | None:
     actor-scoped DataLayer.  Returns the first match, or ``None``.
     """
     for actor_type in ("Service", "Person", "Organization"):
-        records = dl.by_type(actor_type)
-        if records:
-            return next(iter(records.keys()))
+        actors = list(dl.list_objects(actor_type))
+        if actors:
+            return actors[0].id_
     return None
 
 
@@ -222,11 +218,11 @@ class AnnounceLogEntryReceivedUseCase:
         Spec: SYNC-03-001.
         """
         if self._sync_port is None:
-            from vultron.adapters.driven.sync_activity_adapter import (
-                SyncActivityAdapter,
+            raise VultronError(
+                "AnnounceLogEntryReceivedUseCase: sync_port must be injected "
+                "before calling _send_rejection — no adapter fallback is "
+                "available in the core layer."
             )
-
-            self._sync_port = SyncActivityAdapter(self._dl)
 
         local_actor_id = self._request.receiving_actor_id or "unknown"
         self._sync_port.send_reject_log_entry(
@@ -337,11 +333,11 @@ class RejectLogEntryReceivedUseCase:
         ``context`` equals *case_id* (same pattern as
         ``AddNoteToCaseReceivedUseCase._broadcast_note_to_participants``).
         """
-        service_records = self._dl.by_type("Service")
-        for obj_id, data in service_records.items():
-            if data.get("context") == case_id:
-                return obj_id
+        services = list(self._dl.list_objects("Service"))
+        for service in services:
+            if getattr(service, "context", None) == case_id:
+                return service.id_
         # Fall back: return any Service actor if none has a matching context
-        if service_records:
-            return next(iter(service_records.keys()))
+        if services:
+            return services[0].id_
         return None

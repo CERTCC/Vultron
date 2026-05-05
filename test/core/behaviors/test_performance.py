@@ -22,6 +22,7 @@ and document performance baseline. Target: P99 < 100ms per plan/BT_INTEGRATION.m
 
 import logging
 import time
+from functools import partial
 from unittest.mock import MagicMock
 
 import pytest
@@ -41,6 +42,78 @@ from vultron.core.models.vultron_types import (
 logger = logging.getLogger(__name__)
 
 
+def _mock_get_helper(table: str, id_: str) -> dict | None:
+    """Pattern-based mock for DataLayer.get()."""
+    if "report" in id_:
+        return {
+            "id_": id_,
+            "type_": "VulnerabilityReport",
+            "name": "TEST-REPORT",
+            "content": "Test vulnerability report",
+        }
+    if "offer" in id_:
+        return {
+            "id_": id_,
+            "type_": "Offer",
+            "actor": "https://example.org/finder",
+            "object_": "test-report-123",
+        }
+    if "actor" in id_ or "Person" in table or "Organization" in table:
+        return {
+            "id_": id_,
+            "type_": "Person",
+            "inbox": {"items": []},
+            "outbox": {"items": []},
+        }
+    return None
+
+
+def _mock_read_helper(
+    storage: dict, id_: str, raise_on_missing: bool = False
+) -> object:
+    """Pattern-based mock for DataLayer.read(), consulting in-memory store first."""
+    if id_ in storage:
+        return storage[id_]
+    if "report" in id_:
+        return VultronReport(
+            id_=id_,
+            name="TEST-REPORT",
+            content="Test vulnerability report",
+        )
+    if "offer" in id_:
+        return VultronOffer(
+            id_=id_,
+            actor="https://example.org/finder",
+            object_="test-report-123",
+        )
+    if id_.startswith("https://example.org/"):
+        return VultronCaseActor(id_=id_, name="Test Actor")
+    if raise_on_missing:
+        raise ValueError(f"Object not found: {id_}")
+    return None
+
+
+def _mock_store(storage: dict, obj: object) -> None:
+    """Persist *obj* to the in-memory store keyed by its ``id_``."""
+    id_ = getattr(obj, "id_", None)
+    if id_:
+        storage[id_] = obj
+
+
+def _mock_by_type_helper(type_name: str) -> dict:
+    """Pattern-based mock for DataLayer.by_type()."""
+    if type_name == "Offer":
+        return {
+            "test-offer-456": {
+                "id_": "test-offer-456",
+                "type_": "Offer",
+                "actor": "https://example.org/finder",
+                "object_": "test-report-123",
+            }
+        }
+    return {}
+
+
 @pytest.fixture
 def mock_datalayer():
     """Mock DataLayer for performance testing."""
@@ -49,85 +122,12 @@ def mock_datalayer():
     # In-memory store so that create()/save() objects are visible to read().
     storage: dict = {}
 
-    # Mock get() to return objects needed by BT nodes
-    def mock_get(table, id_):
-        if "report" in id_:
-            return {
-                "id_": id_,
-                "type_": "VulnerabilityReport",
-                "name": "TEST-REPORT",
-                "content": "Test vulnerability report",
-            }
-        elif "offer" in id_:
-            return {
-                "id_": id_,
-                "type_": "Offer",
-                "actor": "https://example.org/finder",
-                "object_": "test-report-123",
-            }
-        elif "actor" in id_ or "Person" in table or "Organization" in table:
-            return {
-                "id_": id_,
-                "type_": "Person",
-                "inbox": {"items": []},
-                "outbox": {"items": []},
-            }
-        return None
-
-    # Mock read() for nodes that use TinyDB-specific method.
-    # Returns objects from the in-memory store first, then falls back to
-    # pattern-based construction so that objects persisted via create()/save()
-    # are visible to subsequent reads (e.g. CreateCaseOwnerParticipant
-    # reading back the case created by CreateCaseNode).
-    def mock_read(id_, raise_on_missing=False):
-        if id_ in storage:
-            return storage[id_]
-        if "report" in id_:
-            return VultronReport(
-                id_=id_,
-                name="TEST-REPORT",
-                content="Test vulnerability report",
-            )
-        elif "offer" in id_:
-            return VultronOffer(
-                id_=id_,
-                actor="https://example.org/finder",
-                object_="test-report-123",
-            )
-        elif id_.startswith("https://example.org/"):
-            return VultronCaseActor(id_=id_, name="Test Actor")
-        if raise_on_missing:
-            raise ValueError(f"Object not found: {id_}")
-        return None
-
-    def mock_create(obj):
-        id_ = getattr(obj, "id_", None)
-        if id_:
-            storage[id_] = obj
-
-    def mock_save(obj):
-        id_ = getattr(obj, "id_", None)
-        if id_:
-            storage[id_] = obj
-
-    def mock_by_type(type_name):
-        if type_name == "Offer":
-            return {
-                "test-offer-456": {
-                    "id_": "test-offer-456",
-                    "type_": "Offer",
-                    "actor": "https://example.org/finder",
-                    "object_": "test-report-123",
-                }
-            }
-        return {}
-
-    dl.get.side_effect = mock_get
-    dl.read.side_effect = mock_read
-    dl.create.side_effect = mock_create
-    dl.save.side_effect = mock_save
+    dl.get.side_effect = _mock_get_helper
+    dl.read.side_effect = partial(_mock_read_helper, storage)
+    dl.create.side_effect = partial(_mock_store, storage)
+    dl.save.side_effect = partial(_mock_store, storage)
     dl.update.return_value = None
-    dl.by_type.side_effect = mock_by_type
+    dl.by_type.side_effect = _mock_by_type_helper
     dl.record_outbox_item.return_value = None
 
     return dl

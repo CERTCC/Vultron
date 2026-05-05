@@ -23,31 +23,26 @@ RFC sub-issues completed:
 - [#402](https://github.com/CERTCC/Vultron/issues/402) — ✓ `find_matching_semantics` moved to `semantic_registry`
 - [#403](https://github.com/CERTCC/Vultron/issues/403) — ✓ `CasePersistence` and `CaseOutboxPersistence` ports
 
-Remaining implementation-level architecture tasks (no GitHub issues):
+Implementation-level architecture tasks completed:
 
-- **TASK-ARCHVIO** — Fix ARCH-03-001 violations: deferred `SyncActivityAdapter`
-  imports in `received/sync.py` and `triggers/sync.py` violate the hexagonal
-  constraint. Remove fallback imports; require explicit port injection.
-- **TASK-CP-CLEANUP** — Remove deprecated `get()` / `by_type()` from
-  `CasePersistence` after migrating core callers to `list_objects()`.
-  Blocked by TASK-DL-REHYDRATE.
-- **TASK-DL-REHYDRATE** — Add `list_objects(type_key)` to `CasePersistence`;
-  remove remaining `model_validate()` coercions from core use cases and BT
-  nodes.
-- **TASK-PRM** — Participant Role Management: add `roles` property and tests
-  for `add_role()`, `remove_role()`, `has_role()` on `VultronParticipant`;
-  align `CaseParticipant` wire-layer interface; add architecture test
-  enforcing no direct `case_roles` mutation in core. See
-  `specs/participant-role-management.yaml` PRM-01 through PRM-05.
+- ✓ **TASK-ARCHVIO** — Fixed ARCH-03-001 violations: removed deferred
+  `SyncActivityAdapter` imports from `received/sync.py` and `triggers/sync.py`.
+- ✓ **TASK-DL-REHYDRATE** — Added `list_objects(type_key)` to
+  `CasePersistence`; removed remaining `model_validate()` coercions.
+- ✓ **TASK-CP-CLEANUP** — Removed deprecated `get()` / `by_type()` from
+  `CasePersistence`.
 
 ## Priority 474: Trigger Classification
 
-Formally separate demo-only trigger endpoints from general-purpose ones.
+✓ **TASK-TRIGCLASS** — Demo-only trigger endpoints separated into dedicated
+router mounted only when `RunMode.PROTOTYPE`; general-purpose
+`add-object-to-case` trigger added.
 
-- **TASK-TRIGCLASS**: Separate demo-only triggers (`add-note-to-case`,
-  `sync-log-entry`) into a dedicated router mounted only when
-  `RunMode.PROTOTYPE`; add a general-purpose `add-object-to-case` trigger.
-  `RunMode` and `get_config()` are available from `vultron/config.py`.
+## Priority 476: Bug Fixes and Demo Polish
+
+Fix issues affecting demo execution and correctness.
+
+- [#412](https://github.com/CERTCC/Vultron/issues/412) — mislabeled demo (docker-compose multi-vendor label mismatch)
 
 ## Priority 480: Cyclomatic Complexity Enforcement
 
@@ -146,6 +141,14 @@ complete.
 
 - [#5](https://github.com/CERTCC/Vultron/issues/5) — Integrate FIRST services frameworks
 - [#6](https://github.com/CERTCC/Vultron/issues/6) — Add CVSSv4 crosswalk
+
+## Priority 97000: MkDocs Replacement
+
+Migrate documentation build tooling from MkDocs 1.x to Zensical (MkDocs 2.0
+compatibility). MkDocs 2.0 is a ground-up rewrite that is incompatible with
+the current plugin ecosystem and configuration format.
+
+- [#294](https://github.com/CERTCC/Vultron/issues/294) — Plan migration to Zensical for MkDocs 2.0 compatibility
 
 ## Priority 99999: Remaining Requirements and Documentation Updates
 

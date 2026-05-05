@@ -243,47 +243,47 @@ def is_valid_transition(src: str, dst: str, allow_null: bool = False) -> None:
     Raises:
         TransitionValidationError: if the transition is invalid
     """
-    try:
-        is_valid_state(src)
-    except StateValidationError as e:
-        raise TransitionValidationError(e)
+    _ensure_transition_state(src)
+    _ensure_transition_state(dst)
 
-    try:
-        is_valid_state(dst)
-    except StateValidationError as e:
-        raise TransitionValidationError(e)
-
-    # compute hamming distance
-    diff = [(c1, c2) for c1, c2 in zip(src, dst) if c1 != c2]
-    HD = len(diff)
-
-    # short circuit to allow null transition
-    if allow_null and HD == 0:
+    diff = _transition_diff(src, dst)
+    if allow_null and not diff:
         return
 
-    # otherwise reject unless hamming distance is 1
-    if HD != 1:
+    if len(diff) != 1:
         raise TransitionValidationError("Only HD=1 transitions allowed")
 
-    # changes must be from lc to uc
-    c1, c2 = diff[0]
+    _validate_transition_case(diff[0])
+    _validate_transition_rules(src, dst)
+
+
+def _ensure_transition_state(state: str) -> None:
+    try:
+        is_valid_state(state)
+    except StateValidationError as e:
+        raise TransitionValidationError(e)
+
+
+def _transition_diff(src: str, dst: str) -> list[tuple[str, str]]:
+    return [(c1, c2) for c1, c2 in zip(src, dst) if c1 != c2]
+
+
+def _validate_transition_case(diff: tuple[str, str]) -> None:
+    c1, c2 = diff
     if c1.isupper():
         raise TransitionValidationError("Transitions from UC not permitted")
-
     if c2.islower():
         raise TransitionValidationError("Transitions to lc not permitted")
-
     if c1.lower() != c2.lower():
         raise TransitionValidationError(f"Invalid transition [{c1}->{c2}]")
 
+
+def _validate_transition_rules(src: str, dst: str) -> None:
     for a, b in TRANSITION_RULES:
-        if re.match(a, src):
-            # if the first pattern matches,
-            # then the second must as well
-            if not re.match(b, dst):
-                raise TransitionValidationError(
-                    f"Transition not permitted [{a}->{b}]"
-                )
+        if re.match(a, src) and not re.match(b, dst):
+            raise TransitionValidationError(
+                f"Transition not permitted [{a}->{b}]"
+            )
 
 
 def is_valid_history(h: str) -> None:

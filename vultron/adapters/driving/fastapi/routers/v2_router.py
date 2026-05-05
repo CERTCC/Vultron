@@ -28,7 +28,6 @@ from vultron.adapters.driving.fastapi.routers import (
     trigger_case,
     trigger_embargo,
     trigger_report,
-    trigger_sync,
 )
 
 router = APIRouter()
@@ -57,5 +56,3 @@ router.include_router(trigger_actor.router)
 router.include_router(trigger_case.router)
 
 router.include_router(trigger_embargo.router)
-
-router.include_router(trigger_sync.router)

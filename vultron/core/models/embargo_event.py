@@ -25,12 +25,12 @@ from vultron.core.models.base import NonEmptyString, VultronObject
 class VultronEmbargoEvent(VultronObject):
     """Domain representation of an EmbargoEvent.
 
-    ``type_`` is ``"Event"`` to match the wire value (EmbargoEvent inherits
-    as_Event and does not override type_).
+    ``type_`` is ``"EmbargoEvent"`` to match the wire vocabulary key, enabling
+    proper DataLayer round-trips via ``dl.read()`` and ``dl.list_objects()``.
     """
 
     type_: str = Field(
-        default="Event",
+        default="EmbargoEvent",
         validation_alias="type",
         serialization_alias="type",
     )

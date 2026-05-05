@@ -356,6 +356,76 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
         )
 
 
+def _resolve_actor_or_404(actor_id: str, dl: DataLayer) -> as_Actor:
+    actor_record = dl.read(actor_id)
+    if actor_record is None:
+        actor_record = dl.find_actor_by_short_id(actor_id)
+    if actor_record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
+        )
+    return as_Actor.model_validate(actor_record)
+
+
+def _activity_already_received(actor: as_Actor, activity_id: str) -> bool:
+    return bool(
+        actor.inbox
+        and hasattr(actor.inbox, "items")
+        and activity_id in actor.inbox.items
+    )
+
+
+def _store_nested_inbox_object(dl: DataLayer, activity: as_Activity) -> None:
+    nested = getattr(activity, "object_", None)
+    if nested is None or isinstance(nested, str):
+        return
+    if not (
+        hasattr(nested, "id_")
+        and hasattr(nested, "type_")
+        and nested.type_ is not None
+        and not nested.type_.startswith("as_")
+    ):
+        return
+
+    try:
+        dl.create(object_to_record(cast(PersistableModel, nested)))
+    except ValueError:
+        pass
+
+
+def _store_inbox_activity(dl: DataLayer, activity: as_Activity) -> None:
+    try:
+        dl.create(object_to_record(activity))
+    except ValueError:
+        logger.debug(
+            "Activity %s already exists in shared DL; skipping re-store.",
+            activity.id_,
+        )
+
+
+def _record_inbox_receipt(
+    dl: DataLayer,
+    actor: as_Actor,
+    activity_id: str,
+    canonical_actor_id: str,
+) -> None:
+    if not actor.inbox or not hasattr(actor.inbox, "items"):
+        return
+
+    actor.inbox.items.append(activity_id)
+    dl.update(
+        actor.id_,
+        StorableRecord(
+            id_=actor.id_,
+            type_=actor.type_ or "Actor",
+            data_=actor.model_dump(mode="json"),
+        ),
+    )
+    logger.debug(
+        f"Added activity {activity_id} to actor {canonical_actor_id} inbox record"
+    )
+
+
 @router.post(
     "/{actor_id}/inbox/",
     summary="Add an Activity to the Actor's Inbox.",
@@ -384,100 +454,28 @@ def post_actor_inbox(
     Raises:
         HTTPException: If the Actor is not found.
     """
-    # Try to read actor by full ID first (shared DataLayer for identity lookup)
-    actor_record = dl.read(actor_id)
-
-    # If not found, try to resolve as short ID (e.g., "vendorco" -> "https://.../vendorco")
-    if actor_record is None:
-        actor_record = dl.find_actor_by_short_id(actor_id)
-
-    if actor_record is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
-        )
-
-    actor = as_Actor.model_validate(actor_record)
-
-    # Normalise to the canonical actor URI so that short-ID and full-ID
-    # callers always scope to the same DataLayer namespace (OX-05-001).
+    actor = _resolve_actor_or_404(actor_id, dl)
     canonical_actor_id = actor.id_
 
-    # OX-1.3 / OX-06-001: idempotency — check persistent received log
-    # BEFORE storing so that re-delivered activities (after the inbox queue
-    # has been drained) are still detected and silently ignored with 202.
-    if actor.inbox and hasattr(actor.inbox, "items"):
-        if activity.id_ in actor.inbox.items:
-            logger.info(
-                "Activity %s already received by %s; ignoring duplicate"
-                " submission.",
-                activity.id_,
-                canonical_actor_id,
-            )
-            return None
-
-    # Store any inline nested object (e.g. VulnerabilityReport in an Offer)
-    # in the DataLayer BEFORE storing the activity itself.  The dehydration
-    # step in ``object_to_record`` replaces the inline object with its ID
-    # string; the separate record ensures the inbox handler can later resolve
-    # that reference via ``rehydrate()``.
-    nested_obj = getattr(activity, "object_", None)
-    if nested_obj is not None and not isinstance(nested_obj, str):
-        nested = nested_obj
-        if (
-            nested is not None
-            and hasattr(nested, "id_")
-            and hasattr(nested, "type_")
-            and nested.type_ is not None
-            and not nested.type_.startswith("as_")
-        ):
-            try:
-                dl.create(object_to_record(cast(PersistableModel, nested)))
-            except ValueError:
-                pass  # already exists — idempotent
-
-    # Store activity in the SHARED DataLayer so cross-actor lookups work.
-    # (Operational data must be accessible to all actors' use cases and
-    # rehydration; actor-scoped DL is used only for queue management.)
-    # Use try/except for idempotency: triggers (and outbox re-deliveries) may
-    # have already stored the activity in the shared DL.
-    try:
-        dl.create(object_to_record(activity))
-    except ValueError:
-        logger.debug(
-            "Activity %s already exists in shared DL; skipping re-store.",
+    if _activity_already_received(actor, activity.id_):
+        logger.info(
+            "Activity %s already received by %s; ignoring duplicate submission.",
             activity.id_,
+            canonical_actor_id,
         )
+        return None
+
+    _store_nested_inbox_object(dl, activity)
+    _store_inbox_activity(dl, activity)
 
     logger.debug(
         f"Posting activity to actor {canonical_actor_id} inbox: {activity}"
     )
+    _record_inbox_receipt(dl, actor, activity.id_, canonical_actor_id)
 
-    # Append activity ID to the actor's inbox.items in the shared DL —
-    # this is the persistent received-log checked for idempotency above.
-    # It is NOT removed by the inbox handler.
-    if actor.inbox and hasattr(actor.inbox, "items"):
-        actor.inbox.items.append(activity.id_)
-        dl.update(
-            actor.id_,
-            StorableRecord(
-                id_=actor.id_,
-                type_=actor.type_ or "Actor",
-                data_=actor.model_dump(mode="json"),
-            ),
-        )
-        logger.debug(
-            f"Added activity {activity.id_} to actor"
-            f" {canonical_actor_id} inbox record"
-        )
-
-    # Queue the activity ID in the actor-scoped DataLayer inbox.
     actor_dl = get_datalayer(canonical_actor_id)
     actor_dl.inbox_append(activity.id_)
-
-    # Trigger inbox processing: pass canonical actor_id, shared DL for
-    # data, and actor-scoped DL for queue management.
     background_tasks.add_task(inbox_handler, canonical_actor_id, dl, actor_dl)
-
     return None
 
 

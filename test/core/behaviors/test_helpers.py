@@ -28,7 +28,9 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.adapters.driven.db_record import Record
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 
 # Test implementation of abstract base classes
 
@@ -73,18 +75,20 @@ def bridge(datalayer):
 
 
 @pytest.fixture
-def sample_record():
-    """Sample record for testing CRUD operations."""
-    return Record(
+def sample_report():
+    """Sample VulnerabilityReport for testing CRUD operations."""
+    return VulnerabilityReport(
         id_="https://example.org/objects/test-123",
-        type_="Object",
-        data_={
-            "id_": "https://example.org/objects/test-123",
-            "type_": "Object",
-            "name": "Test Object",
-            "content": "Sample content",
-        },
+        name="Test Object",
     )
+
+
+# Keep the old name as an alias for backward compat within this module
+@pytest.fixture
+def sample_record(datalayer, sample_report):
+    """Fixture that saves sample_report and returns it (backward-compat)."""
+    datalayer.save(sample_report)
+    return sample_report
 
 
 # Tests for DataLayerCondition base class
@@ -186,22 +190,19 @@ def test_action_base_class_not_implemented(bridge, datalayer):
 
 def test_read_object_success(bridge, datalayer, sample_record):
     """Verify ReadObject retrieves object from DataLayer."""
-    # Create object in DataLayer
-    datalayer.create(sample_record)
-
-    # Read object using BT node
+    # Read object using BT node (sample_record fixture already saved it)
     tree = ReadObject(
-        table="Object", object_id="https://example.org/objects/test-123"
+        table="VulnerabilityReport",
+        object_id="https://example.org/objects/test-123",
     )
     result = bridge.execute_with_setup(tree, actor_id="actor-1")
 
     assert result.status == Status.SUCCESS
-    assert "Read Object" in result.feedback_message
+    assert "Read VulnerabilityReport" in result.feedback_message
 
 
 def test_read_object_stores_in_blackboard(bridge, datalayer, sample_record):
     """Verify ReadObject stores retrieved object in blackboard."""
-    datalayer.create(sample_record)
 
     # Create sequence: Read object, then check blackboard
     class CheckBlackboard(DataLayerCondition):
@@ -217,15 +218,10 @@ def test_read_object_stores_in_blackboard(bridge, datalayer, sample_record):
             if obj is None:
                 self.feedback_message = "Object not in blackboard"
                 return Status.FAILURE
-            # obj is a Record dict with {id_, type_, data_}
-            if "data_" in obj:
-                data = obj["data_"]
-            else:
-                data = obj
-            if data.get("name") != "Test Object":
-                self.feedback_message = (
-                    f"Object data incorrect: {data.get('name')}"
-                )
+            # obj is a PersistableModel (Pydantic BaseModel)
+            name = getattr(obj, "name", None)
+            if name != "Test Object":
+                self.feedback_message = f"Object name incorrect: {name!r}"
                 return Status.FAILURE
             self.feedback_message = "Object verified in blackboard"
             return Status.SUCCESS
@@ -235,7 +231,7 @@ def test_read_object_stores_in_blackboard(bridge, datalayer, sample_record):
         memory=False,
         children=[
             ReadObject(
-                table="Object",
+                table="VulnerabilityReport",
                 object_id="https://example.org/objects/test-123",
             ),
             CheckBlackboard(name="CheckBlackboard"),
@@ -259,10 +255,8 @@ def test_read_object_not_found(bridge, datalayer):
 
 def test_read_object_custom_name(bridge, datalayer, sample_record):
     """Verify ReadObject accepts custom node name."""
-    datalayer.create(sample_record)
-
     tree = ReadObject(
-        table="Object",
+        table="VulnerabilityReport",
         object_id="https://example.org/objects/test-123",
         name="CustomReadName",
     )
@@ -278,20 +272,18 @@ def test_read_object_custom_name(bridge, datalayer, sample_record):
 
 def test_update_object_success(bridge, datalayer, sample_record):
     """Verify UpdateObject modifies object in DataLayer."""
-    datalayer.create(sample_record)
-
-    # Read object, then update it
+    # Read object, then update it (sample_record fixture already saved it)
     tree = py_trees.composites.Sequence(
         name="ReadAndUpdate",
         memory=False,
         children=[
             ReadObject(
-                table="Object",
+                table="VulnerabilityReport",
                 object_id="https://example.org/objects/test-123",
             ),
             UpdateObject(
                 object_id="https://example.org/objects/test-123",
-                updates={"name": "Updated Name", "status": "modified"},
+                updates={"name": "Updated Name"},
             ),
         ],
     )
@@ -300,28 +292,19 @@ def test_update_object_success(bridge, datalayer, sample_record):
     assert result.status == Status.SUCCESS
 
     # Verify update persisted to DataLayer
-    updated = datalayer.get("Object", "https://example.org/objects/test-123")
+    updated = datalayer.read("https://example.org/objects/test-123")
     assert updated is not None
-    # updated is a Record dict {id_, type_, data_}
-    if "data_" in updated:
-        data = updated["data_"]
-    else:
-        data = updated
-    assert data["name"] == "Updated Name"
-    assert data["status"] == "modified"
-    assert data["content"] == "Sample content"  # Unchanged field preserved
+    assert getattr(updated, "name", None) == "Updated Name"
 
 
 def test_update_object_custom_name(bridge, datalayer, sample_record):
     """Verify UpdateObject accepts custom node name."""
-    datalayer.create(sample_record)
-
     tree = py_trees.composites.Sequence(
         name="ReadAndUpdate",
         memory=False,
         children=[
             ReadObject(
-                table="Object",
+                table="VulnerabilityReport",
                 object_id="https://example.org/objects/test-123",
             ),
             UpdateObject(
@@ -358,12 +341,7 @@ def test_create_object_success(bridge, datalayer):
     # Verify object persisted to DataLayer
     created = datalayer.get("Object", "https://example.org/objects/new-object")
     assert created is not None
-    # created is a Record dict {id_, type_, data_}
-    if "data_" in created:
-        data = created["data_"]
-    else:
-        data = created
-    assert data["name"] == "New Object"
+    assert created["data_"]["name"] == "New Object"
 
 
 def test_create_object_missing_id_fails(bridge, datalayer):
@@ -403,32 +381,29 @@ def test_create_object_custom_name(bridge, datalayer):
 
 def test_full_crud_workflow(bridge, datalayer):
     """Verify complete CRUD workflow using helper nodes."""
-    initial_object = Record(
-        id_="https://example.org/objects/workflow-test",
-        type_="Object",
-        data_={
-            "id_": "https://example.org/objects/workflow-test",
-            "type_": "Object",
-            "name": "Initial Name",
-            "status": "draft",
-        },
-    )
+    initial_object = {
+        "id_": "https://example.org/objects/workflow-test",
+        "type_": "VulnerabilityReport",
+        "name": "Initial Name",
+    }
 
     tree = py_trees.composites.Sequence(
         name="CRUDWorkflow",
         memory=False,
         children=[
             # Create object
-            CreateObject(table="Object", object_data=initial_object.data_),
+            CreateObject(
+                table="VulnerabilityReport", object_data=initial_object
+            ),
             # Read it back
             ReadObject(
-                table="Object",
+                table="VulnerabilityReport",
                 object_id="https://example.org/objects/workflow-test",
             ),
             # Update it
             UpdateObject(
                 object_id="https://example.org/objects/workflow-test",
-                updates={"name": "Updated Name", "status": "published"},
+                updates={"name": "Updated Name"},
             ),
         ],
     )
@@ -438,33 +413,25 @@ def test_full_crud_workflow(bridge, datalayer):
     assert result.status == Status.SUCCESS
 
     # Verify final state in DataLayer
-    final = datalayer.get(
-        "Object", "https://example.org/objects/workflow-test"
-    )
+    final = datalayer.read("https://example.org/objects/workflow-test")
     assert final is not None
-    # final is a Record dict {id_, type_, data_}
-    if "data_" in final:
-        data = final["data_"]
-    else:
-        data = final
-    assert data["name"] == "Updated Name"
-    assert data["status"] == "published"
+    assert getattr(final, "name", None) == "Updated Name"
 
 
 def test_actor_isolation(bridge, datalayer, sample_record):
     """Verify actors have isolated BT execution contexts."""
-    datalayer.create(sample_record)
-
     # Execute for actor-1
     tree1 = ReadObject(
-        table="Object", object_id="https://example.org/objects/test-123"
+        table="VulnerabilityReport",
+        object_id="https://example.org/objects/test-123",
     )
     result1 = bridge.execute_with_setup(tree1, actor_id="actor-1")
     assert result1.status == Status.SUCCESS
 
     # Execute for actor-2 (separate context)
     tree2 = ReadObject(
-        table="Object", object_id="https://example.org/objects/test-123"
+        table="VulnerabilityReport",
+        object_id="https://example.org/objects/test-123",
     )
     result2 = bridge.execute_with_setup(tree2, actor_id="actor-2")
     assert result2.status == Status.SUCCESS

@@ -110,6 +110,13 @@ class TriggerServicePort(Protocol):
         case_id: str,
     ) -> dict[str, Any]: ...
 
+    def add_object_to_case(
+        self,
+        actor_id: str,
+        case_id: str,
+        object_id: str,
+    ) -> dict[str, Any]: ...
+
     def add_report_to_case(
         self,
         actor_id: str,

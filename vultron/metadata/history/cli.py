@@ -31,6 +31,7 @@ import argparse
 import datetime
 import sys
 from pathlib import Path
+from typing import NoReturn
 
 import yaml
 from pydantic import ValidationError
@@ -283,45 +284,49 @@ def append_history_entry(
     return entry_file
 
 
+def _fail(message: str, *, exit_code: int = 1) -> NoReturn:
+    print(f"Error: {message}", file=sys.stderr)
+    sys.exit(exit_code)
+
+
+def _parse_entry_type(value: str) -> HistoryEntryType:
+    try:
+        return HistoryEntryType(value)
+    except ValueError:
+        valid = ", ".join(t.value for t in HistoryEntryType)
+        _fail(f"unknown history type '{value}'. Valid values: {valid}")
+
+
+def _read_body(file_arg: str | None) -> str:
+    if file_arg is None:
+        body = sys.stdin.read()
+    else:
+        file_path = Path(file_arg)
+        if not file_path.exists():
+            _fail(f"file not found: {file_path}")
+        body = file_path.read_text(encoding="utf-8")
+
+    if body.strip():
+        return body
+    _fail("body text is empty; provide content via stdin or --file")
+
+
+def _parse_timestamp(value: str | None) -> datetime.datetime | None:
+    if value is None:
+        return None
+    try:
+        return _parse_iso_datetime(value)
+    except ValueError as exc:
+        _fail(str(exc))
+
+
 def main() -> None:
     """Entry point for ``uv run append-history``."""
     parser = _build_parser()
     args = parser.parse_args()
-
-    try:
-        entry_type = HistoryEntryType(args.entry_type)
-    except ValueError:
-        valid = ", ".join(t.value for t in HistoryEntryType)
-        print(
-            f"Error: unknown history type '{args.entry_type}'. "
-            f"Valid values: {valid}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    if args.file:
-        file_path = Path(args.file)
-        if not file_path.exists():
-            print(f"Error: file not found: {file_path}", file=sys.stderr)
-            sys.exit(1)
-        body = file_path.read_text(encoding="utf-8")
-    else:
-        body = sys.stdin.read()
-
-    if not body.strip():
-        print(
-            "Error: body text is empty; provide content via stdin or --file",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    timestamp: datetime.datetime | None = None
-    if args.timestamp is not None:
-        try:
-            timestamp = _parse_iso_datetime(args.timestamp)
-        except ValueError as exc:
-            print(f"Error: {exc}", file=sys.stderr)
-            sys.exit(1)
+    entry_type = _parse_entry_type(args.entry_type)
+    body = _read_body(args.file)
+    timestamp = _parse_timestamp(args.timestamp)
 
     try:
         content = _build_content(
@@ -339,8 +344,7 @@ def main() -> None:
             target_date=target_date,
         )
     except (FileExistsError, FileNotFoundError, ValueError) as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        sys.exit(1)
+        _fail(str(exc))
 
     print(str(entry_file))
 

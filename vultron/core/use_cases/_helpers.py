@@ -62,7 +62,7 @@ def _idempotent_create(
     """
     if not type_key or not id_key:
         return
-    if dl.get(type_key, id_key) is not None:
+    if dl.read(id_key) is not None:
         logger.info("'%s' already stored — skipping (idempotent)", id_key)
         return
     if obj is not None:

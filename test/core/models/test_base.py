@@ -136,7 +136,7 @@ def test_domain_object_expected_as_types():
     )
     assert (
         VultronEmbargoEvent(context="urn:uuid:c", end_time=_FUTURE_DT).type_
-        == "Event"
+        == "EmbargoEvent"
     )
     assert VultronCaseActor().type_ == "Service"
     _test_actor = "https://example.org/actors/test"

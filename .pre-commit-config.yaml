@@ -24,6 +24,13 @@ repos:
         exclude: ^notes/README\.md$
         pass_filenames: false
 
+      - id: flake8
+        name: flake8 (with CC gate)
+        entry: uv run flake8
+        language: system
+        args: ["vultron/", "test/"]
+        pass_filenames: false
+
       - id: spec-lint
         name: Spec registry linter
         entry: uv run python -m vultron.metadata.specs.lint specs/

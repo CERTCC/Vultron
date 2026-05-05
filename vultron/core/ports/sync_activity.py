@@ -28,7 +28,7 @@ See also:
 
 from typing import Protocol
 
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.protocols import LogEntryModel
 
 
 class SyncActivityPort(Protocol):
@@ -45,7 +45,7 @@ class SyncActivityPort(Protocol):
 
     def send_reject_log_entry(
         self,
-        entry: VultronCaseLogEntry,
+        entry: LogEntryModel,
         tail_hash: str,
         actor_id: str,
         to: list[str],
@@ -66,7 +66,7 @@ class SyncActivityPort(Protocol):
 
     def send_announce_log_entry(
         self,
-        entry: VultronCaseLogEntry,
+        entry: LogEntryModel,
         actor_id: str,
         to: list[str],
     ) -> None:

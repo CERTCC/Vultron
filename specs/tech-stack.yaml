@@ -161,11 +161,12 @@ groups:
     - rel_type: refines
       spec_id: IMPLTS-07-004
   - id: IMPLTS-07-008
-    priority: SHOULD
+    priority: MUST
     statement: >-
-      All functions and methods SHOULD have cyclomatic complexity ≤ 10, the generally accepted
-      upper bound for maintainable code. This requirement SHOULD be upgraded to MUST once
-      all CC violations above 10 are resolved (see `plan/IMPLEMENTATION_PLAN.md` CC-2).
+      All functions and methods MUST have cyclomatic complexity ≤ 10, the generally accepted
+      upper bound for maintainable code. This requirement is now enforced via
+      `max-complexity = 10` in `.flake8` after resolving all CC violations above 10
+      (see `plan/IMPLEMENTATION_PLAN.md` CC-2).
     relationships:
     - rel_type: refines
       spec_id: IMPLTS-07-007

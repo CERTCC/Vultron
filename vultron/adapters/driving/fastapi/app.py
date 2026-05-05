@@ -110,3 +110,12 @@ app_v2 = FastAPI(
     lifespan=lifespan,
 )
 app_v2.include_router(router)
+
+# Demo-only endpoints are mounted conditionally so they never appear in
+# production deployments (TRIG-09-002, TRIG-09-003).
+from vultron.config import RunMode, get_config  # noqa: E402
+
+if get_config().mode == RunMode.PROTOTYPE:
+    from vultron.adapters.driving.fastapi.routers import demo_triggers
+
+    app_v2.include_router(demo_triggers.router)

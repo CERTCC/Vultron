@@ -428,6 +428,7 @@ def finder_asks_question(
                 "note_name": note_name,
                 "note_content": note_content,
             },
+            path_prefix="demo",
         )
 
     note_id = result.get("note", {}).get("id")
@@ -491,6 +492,7 @@ def vendor_replies_to_question(
                 "note_content": note_content,
                 "in_reply_to": question_note.id_,
             },
+            path_prefix="demo",
         )
 
     note_id = result.get("note", {}).get("id")
@@ -506,6 +508,40 @@ def vendor_replies_to_question(
 
     note_data = vendor_client.get(f"/datalayer/{note_id}")
     return as_Note(**note_data)
+
+
+def _report_id_from_offer_data(
+    offer_data: dict[str, object],
+    offer_id: str,
+) -> str | None:
+    offer_object = offer_data.get("object")
+    if isinstance(offer_object, str):
+        return offer_object
+    if isinstance(offer_object, dict):
+        return offer_object.get("id")
+
+    report_id = ref_id(offer_object)
+    if report_id:
+        return report_id
+
+    logger.warning("Offer %s does not reference a report object", offer_id)
+    return None
+
+
+def _load_vendor_case(
+    vendor_client: DataLayerClient,
+    item: str | dict[str, object],
+) -> VulnerabilityCase | None:
+    if not isinstance(item, str):
+        return VulnerabilityCase.model_validate(item)
+
+    try:
+        return VulnerabilityCase.model_validate(
+            vendor_client.get(f"/datalayer/{item}")
+        )
+    except Exception as exc:
+        logger.warning("Could not fetch case %s: %s", item, exc)
+        return None
 
 
 def find_case_for_offer(
@@ -525,40 +561,89 @@ def find_case_for_offer(
     if not offer_data:
         return None
 
-    offer_object = offer_data.get("object")
-    report_id: str | None
-    if isinstance(offer_object, str):
-        report_id = offer_object
-    elif isinstance(offer_object, dict):
-        report_id = offer_object.get("id")
-    else:
-        report_id = ref_id(offer_object)
-
+    report_id = _report_id_from_offer_data(offer_data, offer_id)
     if not report_id:
-        logger.warning("Offer %s does not reference a report object", offer_id)
         return None
 
     cases_data = vendor_client.get("/datalayer/VulnerabilityCases/")
     if not cases_data:
         return None
+
     for item in cases_data:
-        if isinstance(item, str):
-            try:
-                data = vendor_client.get(f"/datalayer/{item}")
-                case = VulnerabilityCase(**data)
-            except Exception as exc:
-                logger.warning("Could not fetch case %s: %s", item, exc)
-                continue
-        else:
-            case = VulnerabilityCase(**item)
+        case = _load_vendor_case(vendor_client, item)
+        if case is None:
+            continue
 
         report_ids = [
-            r if isinstance(r, str) else getattr(r, "id_", str(r))
-            for r in (case.vulnerability_reports or [])
+            (
+                report
+                if isinstance(report, str)
+                else getattr(report, "id_", str(report))
+            )
+            for report in (case.vulnerability_reports or [])
         ]
         if report_id in report_ids:
             return case
     return None
+
+
+def _require_case_participant_id(
+    case: VulnerabilityCase,
+    actor_id: str,
+    label: str,
+) -> str:
+    participant_id = case.actor_participant_index.get(actor_id)
+    if participant_id is None:
+        raise AssertionError(
+            f"{label} actor is missing from actor_participant_index"
+        )
+    return participant_id
+
+
+def _assert_vendor_participant_state(
+    vendor_client: DataLayerClient,
+    participant_id: str,
+) -> None:
+    participant = CaseParticipant(
+        **vendor_client.get(f"/datalayer/{participant_id}")
+    )
+    if not participant.participant_statuses:
+        raise AssertionError("Vendor participant has no participant statuses")
+    if participant.participant_statuses[-1].rm_state != RM.ACCEPTED:
+        raise AssertionError(
+            "Vendor participant RM state did not transition to ACCEPTED"
+        )
+
+
+def _assert_vendor_case_status(case: VulnerabilityCase) -> None:
+    if case.current_status.em_state != EM.ACTIVE:
+        raise AssertionError(
+            f"Expected ACTIVE final EM state (default embargo activated at"
+            f" case creation per EP-04-001), found {case.current_status.em_state}"
+        )
+    if case.current_status.pxa_state != CS_pxa.pxa:
+        raise AssertionError(
+            f"Expected pxa final case state, found {case.current_status.pxa_state}"
+        )
+
+
+def _assert_case_notes(
+    case: VulnerabilityCase,
+    question_note_id: str | None,
+    reply_note_id: str | None,
+) -> None:
+    if question_note_id is None and reply_note_id is None:
+        return
+
+    note_ids = [ref_id(note) or str(note) for note in case.notes]
+    if question_note_id is not None and question_note_id not in note_ids:
+        raise AssertionError(
+            f"Question note {question_note_id!r} not found in case notes"
+        )
+    if reply_note_id is not None and reply_note_id not in note_ids:
+        raise AssertionError(
+            f"Reply note {reply_note_id!r} not found in case notes"
+        )
 
 
 def verify_vendor_case_state(
@@ -571,8 +656,9 @@ def verify_vendor_case_state(
     reply_note_id: str | None = None,
 ) -> VulnerabilityCase:
     """Assert the final authoritative case state stored on the Vendor container."""
-    final_case_data = vendor_client.get(f"/datalayer/{case_id}")
-    final_case = VulnerabilityCase(**final_case_data)
+    final_case = VulnerabilityCase(
+        **vendor_client.get(f"/datalayer/{case_id}")
+    )
 
     participant_count = len(final_case.case_participants)
     if participant_count != 2:
@@ -589,32 +675,13 @@ def verify_vendor_case_state(
             "Final case does not reference the submitted report"
         )
 
-    vendor_participant_id = final_case.actor_participant_index.get(
-        vendor_actor_id
+    vendor_participant_id = _require_case_participant_id(
+        final_case,
+        vendor_actor_id,
+        "Vendor",
     )
-    if vendor_participant_id is None:
-        raise AssertionError(
-            "Vendor actor is missing from actor_participant_index"
-        )
-
-    finder_participant_id = final_case.actor_participant_index.get(
-        reporter_actor_id
-    )
-    if finder_participant_id is None:
-        raise AssertionError(
-            "Finder actor is missing from actor_participant_index"
-        )
-
-    vendor_participant_data = vendor_client.get(
-        f"/datalayer/{vendor_participant_id}"
-    )
-    vendor_participant = CaseParticipant(**vendor_participant_data)
-    if not vendor_participant.participant_statuses:
-        raise AssertionError("Vendor participant has no participant statuses")
-    if vendor_participant.participant_statuses[-1].rm_state != RM.ACCEPTED:
-        raise AssertionError(
-            "Vendor participant RM state did not transition to ACCEPTED"
-        )
+    _require_case_participant_id(final_case, reporter_actor_id, "Finder")
+    _assert_vendor_participant_state(vendor_client, vendor_participant_id)
 
     event_types = [event.event_type for event in final_case.events]
     if "participant_added" not in event_types:
@@ -622,28 +689,8 @@ def verify_vendor_case_state(
             "Expected participant_added event after Finder was added to the case"
         )
 
-    current_status = final_case.current_status
-    if current_status.em_state != EM.ACTIVE:
-        raise AssertionError(
-            f"Expected ACTIVE final EM state (default embargo activated at"
-            f" case creation per EP-04-001), found {current_status.em_state}"
-        )
-    if current_status.pxa_state != CS_pxa.pxa:
-        raise AssertionError(
-            f"Expected pxa final case state, found {current_status.pxa_state}"
-        )
-
-    if question_note_id is not None or reply_note_id is not None:
-        note_ids = [ref_id(n) or str(n) for n in final_case.notes]
-        if question_note_id is not None and question_note_id not in note_ids:
-            raise AssertionError(
-                f"Question note {question_note_id!r} not found in case notes"
-            )
-        if reply_note_id is not None and reply_note_id not in note_ids:
-            raise AssertionError(
-                f"Reply note {reply_note_id!r} not found in case notes"
-            )
-
+    _assert_vendor_case_status(final_case)
+    _assert_case_notes(final_case, question_note_id, reply_note_id)
     return final_case
 
 
@@ -746,7 +793,7 @@ def trigger_log_commit(
 ) -> str:
     """Commit a log entry for *case_id* and return the entry hash.
 
-    POSTs to ``/actors/{actor_id}/trigger/sync-log-entry`` and returns
+    POSTs to ``/actors/{actor_id}/demo/sync-log-entry`` and returns
     the ``entry_hash`` from the response.  The entry is also fanned out
     to all case participants via ``Announce(CaseLogEntry)`` activities
     queued in the actor's outbox.
@@ -773,6 +820,7 @@ def trigger_log_commit(
             "object_id": object_id if object_id is not None else case_id,
             "event_type": event_type,
         },
+        path_prefix="demo",
     )
     entry_hash: str = result["entry_hash"]
     logger.info(

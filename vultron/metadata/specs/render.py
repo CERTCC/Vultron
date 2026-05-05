@@ -47,94 +47,125 @@ def _priority_line(spec: Spec) -> str:
     return f"- `{spec.id}` {spec.statement}"
 
 
+def _append_behavioral_markdown(
+    lines: list[str], spec: BehavioralSpec
+) -> None:
+    for precondition in spec.preconditions or []:
+        lines.append(f"  - *Precondition*: {precondition.description}")
+
+    for step in spec.steps or []:
+        lines.append(f"  - *Step {step.order}* [{step.actor}]: {step.action}")
+        if step.expected:
+            lines.append(f"    - *Expected*: {step.expected}")
+
+    for postcondition in spec.postconditions or []:
+        lines.append(f"  - *Postcondition*: {postcondition.description}")
+
+
+def _append_relationship_markdown(lines: list[str], spec: Spec) -> None:
+    for relationship in spec.relationships or []:
+        note = f" ({relationship.note})" if relationship.note else ""
+        lines.append(
+            f"  - {spec.id} {relationship.rel_type.value} "
+            f"{relationship.spec_id}{note}"
+        )
+
+
+def _append_spec_markdown(lines: list[str], spec: Spec) -> None:
+    lines.append(_priority_line(spec))
+    if spec.rationale:
+        lines.append(f"  - *Rationale*: {spec.rationale}")
+    if isinstance(spec, BehavioralSpec):
+        _append_behavioral_markdown(lines, spec)
+    _append_relationship_markdown(lines, spec)
+
+
+def _append_group_markdown(lines: list[str], group: SpecGroup) -> None:
+    lines.append(f"## {group.title}")
+    lines.append("")
+    if group.description:
+        lines.append(group.description)
+        lines.append("")
+    for spec in group.specs:
+        _append_spec_markdown(lines, spec)
+    lines.append("")
+
+
 def render_markdown(spec_file: SpecFile) -> str:
     """Render a single SpecFile as a Markdown string (SR-07-002, SR-07-004).
 
     The output follows the ``meta-specifications.md`` style guide:
     one requirement per bullet, grouped by category, RFC 2119 keyword inline.
     """
-    lines: list[str] = []
-    lines.append(f"# {spec_file.title}")
-    lines.append("")
-    lines.append("## Overview")
-    lines.append("")
-    lines.append(spec_file.description)
-    lines.append("")
-    lines.append(f"**Version**: {spec_file.version}")
-    lines.append("")
-    lines.append("---")
-    lines.append("")
-
+    lines = [
+        f"# {spec_file.title}",
+        "",
+        "## Overview",
+        "",
+        spec_file.description,
+        "",
+        f"**Version**: {spec_file.version}",
+        "",
+        "---",
+        "",
+    ]
     for group in spec_file.groups:
-        lines.append(f"## {group.title}")
-        lines.append("")
-        if group.description:
-            lines.append(group.description)
-            lines.append("")
-        for spec in group.specs:
-            lines.append(_priority_line(spec))
-            if spec.rationale:
-                lines.append(f"  - *Rationale*: {spec.rationale}")
-            if isinstance(spec, BehavioralSpec):
-                if spec.preconditions:
-                    for pre in spec.preconditions:
-                        lines.append(f"  - *Precondition*: {pre.description}")
-                if spec.steps:
-                    for step in spec.steps:
-                        lines.append(
-                            f"  - *Step {step.order}* [{step.actor}]:"
-                            f" {step.action}"
-                        )
-                        if step.expected:
-                            lines.append(f"    - *Expected*: {step.expected}")
-                if spec.postconditions:
-                    for post in spec.postconditions:
-                        lines.append(
-                            f"  - *Postcondition*: {post.description}"
-                        )
-            rels = spec.relationships or []
-            for rel in rels:
-                note = f" ({rel.note})" if rel.note else ""
-                lines.append(
-                    f"  - {spec.id} {rel.rel_type.value} {rel.spec_id}{note}"
-                )
-        lines.append("")
-
+        _append_group_markdown(lines, group)
     return "\n".join(lines)
+
+
+def _add_behavioral_spec_fields(d: dict, spec: BehavioralSpec) -> None:
+    authored_sequences = {
+        "preconditions": [
+            {"description": item.description}
+            for item in spec.preconditions or []
+        ],
+        "steps": [_step_dict(item) for item in spec.steps or []],
+        "postconditions": [
+            {"description": item.description}
+            for item in spec.postconditions or []
+        ],
+    }
+    for field, value in authored_sequences.items():
+        if value:
+            d[field] = value
 
 
 def _spec_to_dict(spec: Spec, group: SpecGroup, file: SpecFile) -> dict:
     """Serialize a spec to a dict with only authored (non-inherited) fields."""
+    _ = group, file
     d: dict = {
         "id": spec.id,
         "priority": spec.priority.value,
         "statement": spec.statement,
     }
-    if spec.rationale is not None:
-        d["rationale"] = spec.rationale
+    authored_optional_fields = {
+        "rationale": spec.rationale,
+        "kind": spec.kind.value if spec.kind is not None else None,
+        "scope": (
+            [s.value for s in spec.scope] if spec.scope is not None else None
+        ),
+        "tags": (
+            [t.value for t in spec.tags] if spec.tags is not None else None
+        ),
+        "relationships": (
+            [_rel_dict(relationship) for relationship in spec.relationships]
+            if spec.relationships
+            else None
+        ),
+        "lint_suppress": (
+            [warning.value for warning in spec.lint_suppress]
+            if spec.lint_suppress
+            else None
+        ),
+    }
+    for field, value in authored_optional_fields.items():
+        if value is not None:
+            d[field] = value
     if not spec.testable:
         d["testable"] = False
-    if spec.kind is not None:
-        d["kind"] = spec.kind.value
-    if spec.scope is not None:
-        d["scope"] = [s.value for s in spec.scope]
-    if spec.tags is not None:
-        d["tags"] = [t.value for t in spec.tags]
-    if spec.relationships:
-        d["relationships"] = [_rel_dict(r) for r in spec.relationships]
-    if spec.lint_suppress:
-        d["lint_suppress"] = [lw.value for lw in spec.lint_suppress]
     if isinstance(spec, BehavioralSpec):
-        if spec.preconditions:
-            d["preconditions"] = [
-                {"description": p.description} for p in spec.preconditions
-            ]
-        if spec.steps:
-            d["steps"] = [_step_dict(s) for s in spec.steps]
-        if spec.postconditions:
-            d["postconditions"] = [
-                {"description": p.description} for p in spec.postconditions
-            ]
+        _add_behavioral_spec_fields(d, spec)
     return d
 
 

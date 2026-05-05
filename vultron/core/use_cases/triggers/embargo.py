@@ -21,11 +21,11 @@ No HTTP framework imports permitted here.
 
 import logging
 
-from pydantic import BaseModel, ValidationError
 from transitions import MachineError
 
 from vultron.core.states.em import EM, EMAdapter, create_em_machine
 from vultron.core.models.protocols import (
+    CaseModel,
     PersistableModel,
     is_case_model,
     is_participant_model,
@@ -73,23 +73,19 @@ logger = logging.getLogger(__name__)
 def _coerce_embargo_event(
     raw_embargo: object, embargo_id: str
 ) -> EmbargoEvent:
-    """Normalize a persisted embargo record to an ``EmbargoEvent`` instance."""
+    """Normalize a persisted embargo record to an ``EmbargoEvent`` instance.
+
+    Since ``EmbargoEvent`` has ``type_ = "EmbargoEvent"`` and is registered in
+    the wire vocabulary, ``dl.read()`` returns a fully typed ``EmbargoEvent``
+    directly. This function validates that the result is the expected type.
+    """
     if isinstance(raw_embargo, EmbargoEvent):
         return raw_embargo
     if raw_embargo is None:
         raise VultronNotFoundError("EmbargoEvent", embargo_id)
-    if not isinstance(raw_embargo, BaseModel):
-        raise VultronValidationError(
-            f"Could not resolve EmbargoEvent '{embargo_id}'."
-        )
-    try:
-        return EmbargoEvent.model_validate(
-            raw_embargo.model_dump(by_alias=True)
-        )
-    except ValidationError as exc:
-        raise VultronValidationError(
-            f"Could not resolve EmbargoEvent '{embargo_id}'."
-        ) from exc
+    raise VultronValidationError(
+        f"Could not resolve EmbargoEvent '{embargo_id}'."
+    )
 
 
 def _cascade_pec_revise(
@@ -230,6 +226,112 @@ def _update_participant_embargo_rejection(
     dl.save(participant)
 
 
+def _resolve_embargo_proposal(
+    case: CaseModel, proposal_id: str | None, dl: CaseOutboxPersistence
+) -> as_Invite:
+    if proposal_id:
+        proposal = dl.read(proposal_id)
+        if proposal is None:
+            raise VultronNotFoundError("EmbargoProposal", proposal_id)
+    else:
+        proposal = find_embargo_proposal(case.id_, dl)
+        if proposal is None:
+            raise VultronNotFoundError(
+                "EmbargoProposal",
+                f"(pending for case '{case.id_}')",
+            )
+
+    if not isinstance(proposal, as_Invite):
+        raise VultronValidationError(
+            f"Expected an EmProposeEmbargoActivity (embargo proposal), got "
+            f"{type(proposal).__name__}."
+        )
+    return proposal
+
+
+def _resolve_embargo_id_from_proposal(proposal: as_Invite) -> str:
+    embargo_id = getattr(proposal.object_, "id_", None)
+    if embargo_id is not None and not isinstance(embargo_id, str):
+        raise VultronValidationError(
+            "Proposal embargo event reference must have a string ID."
+        )
+    if not embargo_id:
+        raise VultronValidationError(
+            "Proposal is missing an embargo event reference."
+        )
+    return embargo_id
+
+
+def _apply_owner_embargo_acceptance(
+    case: CaseModel,
+    actor_id: str,
+    proposal_id: str,
+    embargo_id: str,
+) -> tuple[EM, bool]:
+    em_state = case.current_status.em_state
+    if not _is_case_owner(case, actor_id):
+        return em_state, False
+
+    active_embargo_id = _as_id(case.active_embargo)
+    if em_state == EM.ACTIVE and active_embargo_id == embargo_id:
+        return em_state, False
+
+    adapter = EMAdapter(em_state)
+    em_machine = create_em_machine()
+    em_machine.add_model(adapter, initial=em_state)
+    try:
+        getattr(adapter, "accept")()
+    except MachineError:
+        logger.warning(
+            "Invalid EM state transition: actor '%s' cannot ACCEPT proposal "
+            "'%s' on case '%s' (EM state '%s').",
+            actor_id,
+            proposal_id,
+            case.id_,
+            em_state,
+        )
+        raise VultronInvalidStateTransitionError(
+            f"Cannot accept embargo: case '{case.id_}' EM state '{em_state}' "
+            "does not allow an ACCEPT transition."
+        )
+
+    new_em_state = EM(adapter.state)
+    case.set_embargo(embargo_id)
+    case.current_status.em_state = new_em_state
+    return new_em_state, True
+
+
+def _apply_owner_embargo_rejection(
+    case: CaseModel, actor_id: str, proposal_id: str
+) -> tuple[EM, bool]:
+    em_state = case.current_status.em_state
+    if not _is_case_owner(case, actor_id):
+        return em_state, False
+
+    adapter = EMAdapter(em_state)
+    em_machine = create_em_machine()
+    em_machine.add_model(adapter, initial=em_state)
+    try:
+        getattr(adapter, "reject")()
+    except MachineError:
+        logger.warning(
+            "Invalid EM state transition: actor '%s' cannot REJECT proposal "
+            "'%s' on case '%s' (EM state '%s').",
+            actor_id,
+            proposal_id,
+            case.id_,
+            em_state,
+        )
+        raise VultronInvalidStateTransitionError(
+            f"Cannot reject embargo: case '{case.id_}' EM state '{em_state}' "
+            "does not allow a REJECT transition."
+        )
+
+    new_em_state = EM(adapter.state)
+    case.current_status.em_state = new_em_state
+    return new_em_state, True
+
+
 class SvcProposeEmbargoUseCase:
     """Propose an embargo on a case."""
 
@@ -343,40 +445,13 @@ class SvcAcceptEmbargoUseCase:
 
     def execute(self) -> dict:
         request = self._request
-        actor_id = request.actor_id
-        case_id = request.case_id
-        proposal_id = request.proposal_id
         dl = self._dl
 
-        actor = resolve_actor(actor_id, dl)
+        actor = resolve_actor(request.actor_id, dl)
         actor_id = actor.id_
-
-        case = resolve_case(case_id, dl)
-
-        if proposal_id:
-            proposal_raw = dl.read(proposal_id)
-            if proposal_raw is None:
-                raise VultronNotFoundError("EmbargoProposal", proposal_id)
-            proposal = proposal_raw
-        else:
-            proposal = find_embargo_proposal(case.id_, dl)
-            if proposal is None:
-                raise VultronNotFoundError(
-                    "EmbargoProposal",
-                    f"(pending for case '{case.id_}')",
-                )
-
-        if not isinstance(proposal, as_Invite):
-            raise VultronValidationError(
-                f"Expected an EmProposeEmbargoActivity (embargo proposal), got "
-                f"{type(proposal).__name__}."
-            )
-
-        embargo_id = getattr(proposal.object_, "id_", None)
-        if not embargo_id:
-            raise VultronValidationError(
-                "Proposal is missing an embargo event reference."
-            )
+        case = resolve_case(request.case_id, dl)
+        proposal = _resolve_embargo_proposal(case, request.proposal_id, dl)
+        embargo_id = _resolve_embargo_id_from_proposal(proposal)
 
         embargo = dl.read(embargo_id)
         if embargo is None:
@@ -399,43 +474,18 @@ class SvcAcceptEmbargoUseCase:
             )
 
         em_state = case.current_status.em_state
-        active_embargo_id = _as_id(case.active_embargo)
-        is_case_owner = _is_case_owner(case, actor_id)
-        case_already_active = (
-            em_state == EM.ACTIVE and active_embargo_id == embargo_id
+        new_em_state, owner_activated = _apply_owner_embargo_acceptance(
+            case,
+            actor_id,
+            proposal.id_,
+            embargo_id,
         )
-
-        if is_case_owner and not case_already_active:
-            adapter = EMAdapter(em_state)
-            em_machine = create_em_machine()
-            em_machine.add_model(adapter, initial=em_state)
-            try:
-                getattr(adapter, "accept")()
-            except MachineError:
-                logger.warning(
-                    "Invalid EM state transition: actor '%s' cannot ACCEPT"
-                    " proposal '%s' on case '%s' (EM state '%s').",
-                    actor_id,
-                    proposal.id_,
-                    case.id_,
-                    em_state,
-                )
-                raise VultronInvalidStateTransitionError(
-                    f"Cannot accept embargo: case '{case.id_}' EM state"
-                    f" '{em_state}' does not allow an ACCEPT transition."
-                )
-            new_em_state = EM(adapter.state)
-            case.set_embargo(embargo_id)
-            case.current_status.em_state = new_em_state
-        else:
-            new_em_state = em_state
 
         _update_participant_embargo_acceptance(case, actor_id, embargo_id, dl)
         dl.save(case)
-
         add_activity_to_outbox(actor_id, accept.id_, dl)
 
-        if is_case_owner and not case_already_active:
+        if owner_activated:
             logger.info(
                 "Actor '%s' accepted embargo proposal '%s'; activated embargo"
                 " '%s' on case '%s' (EM %s → %s)",
@@ -580,69 +630,19 @@ class SvcRejectEmbargoUseCase:
 
     def execute(self) -> dict:
         request = self._request
-        actor_id = request.actor_id
-        case_id = request.case_id
-        proposal_id = request.proposal_id
         dl = self._dl
 
-        actor = resolve_actor(actor_id, dl)
+        actor = resolve_actor(request.actor_id, dl)
         actor_id = actor.id_
-
-        case = resolve_case(case_id, dl)
-
-        if proposal_id:
-            proposal_raw = dl.read(proposal_id)
-            if proposal_raw is None:
-                raise VultronNotFoundError("EmbargoProposal", proposal_id)
-            proposal = proposal_raw
-        else:
-            proposal = find_embargo_proposal(case.id_, dl)
-            if proposal is None:
-                raise VultronNotFoundError(
-                    "EmbargoProposal",
-                    f"(pending for case '{case.id_}')",
-                )
-
-        if not isinstance(proposal, as_Invite):
-            raise VultronValidationError(
-                f"Expected an EmProposeEmbargoActivity (embargo proposal), got "
-                f"{type(proposal).__name__}."
-            )
-
-        embargo_id = getattr(proposal.object_, "id_", None)
-        if not embargo_id:
-            raise VultronValidationError(
-                "Proposal is missing an embargo event reference."
-            )
-
+        case = resolve_case(request.case_id, dl)
+        proposal = _resolve_embargo_proposal(case, request.proposal_id, dl)
+        embargo_id = _resolve_embargo_id_from_proposal(proposal)
         em_state = case.current_status.em_state
-        is_case_owner = _is_case_owner(case, actor_id)
-
-        if is_case_owner:
-            adapter = EMAdapter(em_state)
-            em_machine = create_em_machine()
-            em_machine.add_model(adapter, initial=em_state)
-
-            try:
-                getattr(adapter, "reject")()
-            except MachineError:
-                logger.warning(
-                    "Invalid EM state transition: actor '%s' cannot REJECT"
-                    " proposal '%s' on case '%s' (EM state '%s').",
-                    actor_id,
-                    proposal.id_,
-                    case.id_,
-                    em_state,
-                )
-                raise VultronInvalidStateTransitionError(
-                    f"Cannot reject embargo: case '{case.id_}' EM state"
-                    f" '{em_state}' does not allow a REJECT transition."
-                )
-
-            new_em_state = EM(adapter.state)
-            case.current_status.em_state = new_em_state
-        else:
-            new_em_state = em_state
+        new_em_state, owner_rejected = _apply_owner_embargo_rejection(
+            case,
+            actor_id,
+            proposal.id_,
+        )
 
         reject = em_reject_embargo_activity(
             proposal=proposal,
@@ -663,7 +663,7 @@ class SvcRejectEmbargoUseCase:
 
         add_activity_to_outbox(actor_id, reject.id_, dl)
 
-        if is_case_owner:
+        if owner_rejected:
             logger.info(
                 "Actor '%s' rejected embargo proposal '%s' on case '%s'"
                 " (EM %s → %s)",

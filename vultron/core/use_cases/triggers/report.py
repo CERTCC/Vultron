@@ -337,7 +337,7 @@ class SvcCloseReportUseCase:
         closed_id = _report_phase_status_id(
             actor_id, report.id_, RM.CLOSED.value
         )
-        if dl.get("ParticipantStatus", closed_id) is not None:
+        if dl.read(closed_id) is not None:
             logger.warning(
                 "Invalid RM state transition: actor '%s' cannot CLOSE offer"
                 " '%s' — report '%s' is already CLOSED.",
