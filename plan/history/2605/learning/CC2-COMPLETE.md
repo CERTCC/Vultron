@@ -9,10 +9,11 @@ type: learning
 
 All CC 11–15 violations resolved by extracting named helper functions
 (route/status/embargo/participant logic). No logic changes; every refactor
-is pure decomposition. `IMPLTS-07-008` upgraded to MUST. The `replay_missing_entries_trigger`
-in `triggers/sync.py` was already below CC=10 at time of CC.2 execution
-(likely reduced during the ARCHVIO cleanup), so only 24 of the 25 listed
-functions required changes. Gate now blocks at CC>10 going forward.
+is pure decomposition. `IMPLTS-07-008` remained `MUST`; this update only cleaned
+up its statement text. The `replay_missing_entries_trigger` in `triggers/sync.py`
+was already below CC=10 at time of CC.2 execution (likely reduced during the
+ARCHVIO cleanup), so only 24 of the 25 listed functions required changes.
+Gate now blocks at CC>10 going forward.
 
 **Promoted**: 2026-05-05 — captured in `specs/tech-stack.yaml`
-(IMPLTS-07-007 marked superseded, IMPLTS-07-008 statement cleaned).
+(IMPLTS-07-007 marked superseded, IMPLTS-07-008 already `MUST`; statement cleaned).
