@@ -96,6 +96,54 @@ Set the `size:` label from AC count: 1–2 → `size:S`; 3–6 → `size:M`;
 
 Do **not** add tasks to `plan/IMPLEMENTATION_PLAN.md`.
 
+**Grouping related gaps (PAD-01-002, PAD-01-003):** When the gap analysis
+identifies **2 or more closely related gaps** in the same spec area (e.g.,
+multiple missing implementations of the same protocol feature), consider
+creating a **parent Task Issue** first using the `Task` issue type, then
+wire the individual gap Issues as sub-issues. This keeps the hierarchy
+shallow and right-sized (PAD-01-004).
+
+To create a parent Task Issue:
+
+```bash
+# 1. Get the repo node ID and Task type ID
+REPO_NODE_ID="R_kgDOIn77fA"
+TASK_TYPE_ID="IT_kwDOAjf0s84AcFLo"
+
+# 2. Create the parent Task via GraphQL
+gh api graphql -f query='
+mutation {
+  createIssue(input: {
+    repositoryId: "'"${REPO_NODE_ID}"'"
+    title: "<Parent task title>"
+    body: "<Summary of the related gaps>"
+    issueTypeId: "'"${TASK_TYPE_ID}"'"
+  }) { issue { number url } }
+}'
+
+# 3. Label the parent
+gh issue edit <PARENT_NUMBER> --repo CERTCC/Vultron \
+  --add-label "group:unscheduled,size:<S|M|L>"
+
+# 4. Link each gap Issue as a sub-issue (GraphQL addSubIssue)
+# First resolve node IDs for the parent and child:
+gh api graphql -f query='{ repository(owner:"CERTCC", name:"Vultron") {
+  parent: issue(number: <PARENT_NUMBER>) { id }
+  child: issue(number: <CHILD_NUMBER>) { id }
+} }'
+# Then link:
+gh api graphql -f query='
+mutation {
+  addSubIssue(input: {
+    issueId: "<PARENT_NODE_ID>"
+    subIssueId: "<CHILD_NODE_ID>"
+  }) { issue { number } subIssue { number } }
+}'
+```
+
+Only create a parent Task if the gaps are genuinely related and benefit from
+grouping. Independent gaps MUST remain flat leaf Issues.
+
 ### Phase 4 — Write Observations to notes/
 
 - Any gap-analysis observations, open questions, clarified assumptions, or
