@@ -812,9 +812,19 @@ def test_owner_seeded_as_signatory_after_embargo_init(
             continue
         if CVDRole.CASE_OWNER not in participant.case_roles:
             continue
-        assert participant.embargo_consent_state == PEC.SIGNATORY, (
+        assert PEC(participant.embargo_consent_state) == PEC.SIGNATORY, (
             f"Expected owner embargo_consent_state=SIGNATORY,"
             f" got {participant.embargo_consent_state!r}"
+        )
+        active_embargo_id = (
+            case.active_embargo
+            if isinstance(case.active_embargo, str)
+            else getattr(case.active_embargo, "id_", str(case.active_embargo))
+        )
+        assert active_embargo_id in participant.accepted_embargo_ids, (
+            f"Expected active embargo '{active_embargo_id}'"
+            f" in owner accepted_embargo_ids,"
+            f" got {participant.accepted_embargo_ids!r}"
         )
         found_owner = True
 
@@ -866,9 +876,19 @@ def test_reporter_seeded_as_signatory_when_active_embargo(
             continue
         if CVDRole.FINDER not in participant.case_roles:
             continue
-        assert participant.embargo_consent_state == PEC.SIGNATORY, (
+        assert PEC(participant.embargo_consent_state) == PEC.SIGNATORY, (
             f"Expected reporter embargo_consent_state=SIGNATORY,"
             f" got {participant.embargo_consent_state!r}"
+        )
+        active_embargo_id = (
+            case.active_embargo
+            if isinstance(case.active_embargo, str)
+            else getattr(case.active_embargo, "id_", str(case.active_embargo))
+        )
+        assert active_embargo_id in participant.accepted_embargo_ids, (
+            f"Expected active embargo '{active_embargo_id}'"
+            f" in reporter accepted_embargo_ids,"
+            f" got {participant.accepted_embargo_ids!r}"
         )
         found_reporter = True
 

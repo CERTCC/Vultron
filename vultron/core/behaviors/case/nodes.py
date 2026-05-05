@@ -60,6 +60,7 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
 )
 from vultron.core.use_cases._helpers import (
+    _as_id,
     _report_phase_status_id,
     update_participant_rm_state,
 )
@@ -992,7 +993,13 @@ class InitializeDefaultEmbargoNode(DataLayerAction):
                 participant_id,
             )
             return
+        embargo_id = _as_id(stored_case.active_embargo)
         cast(Any, participant).embargo_consent_state = PEC.SIGNATORY
+        if (
+            embargo_id
+            and embargo_id not in cast(Any, participant).accepted_embargo_ids
+        ):
+            cast(Any, participant).accepted_embargo_ids.append(embargo_id)
         self.datalayer.save(participant)
         self.logger.info(
             "Seeded case-owner participant '%s' (actor '%s') as SIGNATORY"
@@ -1094,7 +1101,14 @@ class CreateCaseParticipantNode(DataLayerAction):
             # CM-14-005: seed the new participant as SIGNATORY when a
             # default embargo is already active at case initialization time.
             if stored_case.active_embargo is not None:
+                active_embargo_id = _as_id(stored_case.active_embargo)
                 participant.embargo_consent_state = PEC.SIGNATORY
+                if (
+                    active_embargo_id
+                    and active_embargo_id
+                    not in participant.accepted_embargo_ids
+                ):
+                    participant.accepted_embargo_ids.append(active_embargo_id)
                 self.datalayer.save(participant)
                 self.logger.info(
                     "Seeded participant '%s' (actor '%s') as SIGNATORY"
