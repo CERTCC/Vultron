@@ -45,6 +45,7 @@ from vultron.core.models.vultron_types import (
     VultronParticipant,
 )
 from vultron.core.states.em import EM, EMAdapter, create_em_machine
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.factories import add_participant_to_case_activity
@@ -948,6 +949,7 @@ class InitializeDefaultEmbargoNode(DataLayerAction):
                     case_id,
                     stored_case.current_status.em_state,
                 )
+                self._seed_owner_as_signatory(stored_case, case_id)
 
             return Status.SUCCESS
 
@@ -956,6 +958,49 @@ class InitializeDefaultEmbargoNode(DataLayerAction):
                 f"{self.name}: Error initializing default embargo: {e}"
             )
             return Status.FAILURE
+
+    def _seed_owner_as_signatory(
+        self, stored_case: "CaseModel", case_id: str
+    ) -> None:
+        """Seed the case-owner participant as SIGNATORY (CM-14-003).
+
+        The owner created the embargo, so a separate accept step is
+        paradoxical.  This method reads the owner participant from the
+        DataLayer and sets ``embargo_consent_state`` to ``PEC.SIGNATORY``
+        directly, bypassing the INVITE step.
+        """
+        if self.datalayer is None or self.actor_id is None:
+            return
+        participant_id = stored_case.actor_participant_index.get(self.actor_id)
+        if not participant_id:
+            self.logger.warning(
+                "%s: No participant found for owner '%s' in case '%s'"
+                " — cannot seed SIGNATORY",
+                self.name,
+                self.actor_id,
+                case_id,
+            )
+            return
+        participant = self.datalayer.read(participant_id)
+        if participant is None or not hasattr(
+            participant, "embargo_consent_state"
+        ):
+            self.logger.warning(
+                "%s: Participant '%s' not found or lacks embargo_consent_state"
+                " — cannot seed SIGNATORY",
+                self.name,
+                participant_id,
+            )
+            return
+        cast(Any, participant).embargo_consent_state = PEC.SIGNATORY
+        self.datalayer.save(participant)
+        self.logger.info(
+            "Seeded case-owner participant '%s' (actor '%s') as SIGNATORY"
+            " for embargo in case '%s' (CM-14-003)",
+            participant_id,
+            self.actor_id,
+            case_id,
+        )
 
 
 class CreateCaseParticipantNode(DataLayerAction):
@@ -1045,6 +1090,20 @@ class CreateCaseParticipantNode(DataLayerAction):
 
             stored_case.record_event(participant.id_, "participant_added")
             self.datalayer.save(stored_case)
+
+            # CM-14-005: seed the new participant as SIGNATORY when a
+            # default embargo is already active at case initialization time.
+            if stored_case.active_embargo is not None:
+                participant.embargo_consent_state = PEC.SIGNATORY
+                self.datalayer.save(participant)
+                self.logger.info(
+                    "Seeded participant '%s' (actor '%s') as SIGNATORY"
+                    " for active embargo in case '%s' (CM-14-005)",
+                    participant.id_,
+                    self.participant_actor_id,
+                    case_id,
+                )
+
             if not _queue_participant_add_notification(
                 self.datalayer,
                 self.name,

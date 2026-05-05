@@ -29,17 +29,17 @@ The tree is structurally similar to the ValidationActions subsequence of
 2. The vendor (receiver) participant is seeded at ``RM.RECEIVED``
    (``initial_rm_state=RM.RECEIVED``) rather than ``RM.VALID``.
 
-Structure:
+Structure (CM-14 canonical order):
 
     ReceiveReportCaseBT (Selector)
     ├─ CheckCaseExistsForReport          # Early exit if case already created
     └─ ReceiveReportCaseFlow (Sequence)
        ├─ CreateCaseNode                 # Create VulnerabilityCase; write case_id
-       ├─ InitializeDefaultEmbargoNode   # Create default embargo
        ├─ CreateCaseOwnerParticipant     # Receiver participant (RM.RECEIVED)
+       ├─ InitializeDefaultEmbargoNode   # Create default embargo; seed owner SIGNATORY
        ├─ CreateCaseActivity             # Queue Create(Case) BEFORE reporter add
        ├─ UpdateActorOutbox              # Flush Create(Case) to outbox
-       ├─ CreateCaseParticipantNode      # Reporter participant (RM.ACCEPTED)
+       ├─ CreateCaseParticipantNode      # Reporter participant (RM.ACCEPTED); seed SIGNATORY
        └─ CommitCaseLogEntryNode         # Log entry → Announce fan-out (SYNC-02-002)
 
 Note: ``CreateCaseActivity`` and ``UpdateActorOutbox`` are intentionally placed
@@ -49,7 +49,15 @@ notification.  If the two activities were queued in the opposite order, the
 reporter would receive an ``Add(CaseParticipant)`` for a case it has not yet
 seen, triggering "case not found" warnings on the reporter side.
 
-Per specs/case-management.yaml CM-12 (ADR-0015) and
+Note: ``CreateCaseOwnerParticipant`` MUST run before
+``InitializeDefaultEmbargoNode`` (CM-14-002): the embargo requires at least
+one participant (the owner) to exist in the case before it is activated.
+``InitializeDefaultEmbargoNode`` seeds the owner participant as
+``PEC.SIGNATORY`` (CM-14-003).  ``CreateCaseParticipantNode`` seeds any
+subsequently added participant as ``PEC.SIGNATORY`` when an active embargo
+already exists (CM-14-005).
+
+Per specs/case-management.yaml CM-12, CM-14 (ADR-0015) and
 docs/adr/0015-create-case-at-report-receipt.md.
 """
 
@@ -140,12 +148,12 @@ def create_receive_report_case_tree(
         memory=False,
         children=[
             CreateCaseNode(report_id=report_id),
-            InitializeDefaultEmbargoNode(),
             CreateCaseOwnerParticipant(
                 report_id=report_id,
                 initial_rm_state=RM.RECEIVED,
                 actor_config=actor_config,
             ),
+            InitializeDefaultEmbargoNode(),
             # Create(Case) MUST be queued before Add(CaseParticipant) so that
             # the reporter actor receives the case notification first
             # (D5-7-MSGORDER-1).

@@ -722,3 +722,154 @@ def test_case_owner_participant_created_without_pre_existing_status(
         rm = getattr(statuses[-1], "rm_state", None)
         assert rm == RM.RECEIVED, f"Expected RM.RECEIVED, got {rm}"
         break
+
+
+# ============================================================================
+# CM-14 ordering and SIGNATORY seeding tests (AC-1, AC-2, AC-3, AC-5)
+# ============================================================================
+
+
+def test_tree_owner_participant_precedes_embargo_in_sequence(
+    report, offer, reporter_actor_id
+):
+    """CreateCaseOwnerParticipant MUST precede InitializeDefaultEmbargoNode
+    in the sequence (CM-14-002, AC-1).
+    """
+    from vultron.core.behaviors.case.nodes import (
+        CreateCaseOwnerParticipant,
+        InitializeDefaultEmbargoNode,
+    )
+
+    tree = create_receive_report_case_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+        reporter_actor_id=reporter_actor_id,
+    )
+    flow = tree.children[1]
+    node_types = [type(child) for child in flow.children]
+
+    owner_idx = None
+    embargo_idx = None
+    for i, t in enumerate(node_types):
+        if t is CreateCaseOwnerParticipant:
+            owner_idx = i
+        if t is InitializeDefaultEmbargoNode:
+            embargo_idx = i
+
+    assert (
+        owner_idx is not None
+    ), "CreateCaseOwnerParticipant not found in flow"
+    assert (
+        embargo_idx is not None
+    ), "InitializeDefaultEmbargoNode not found in flow"
+    assert owner_idx < embargo_idx, (
+        f"CreateCaseOwnerParticipant (idx={owner_idx}) must precede"
+        f" InitializeDefaultEmbargoNode (idx={embargo_idx}) — CM-14-002"
+    )
+
+
+def test_owner_seeded_as_signatory_after_embargo_init(
+    datalayer,
+    actor,
+    reporter_actor,
+    reporter_actor_id,
+    report,
+    offer,
+    bridge,
+    reporter_accepted_status,
+    vendor_received_status,
+):
+    """Case-owner participant MUST have embargo_consent_state == SIGNATORY
+    after tree execution when a default embargo is created (CM-14-003, AC-2).
+    """
+    from vultron.core.states.participant_embargo_consent import PEC
+    from vultron.core.states.roles import CVDRole
+
+    tree = create_receive_report_case_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+        reporter_actor_id=reporter_actor_id,
+    )
+    bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+
+    case = datalayer.find_case_by_report_id(report.id_)
+    assert case is not None
+    assert case.active_embargo is not None, "No active embargo — prerequisite"
+
+    found_owner = False
+    for p_ref in case.case_participants:
+        p_id = p_ref if isinstance(p_ref, str) else p_ref.id_
+        participant = datalayer.read(p_id)
+        if participant is None:
+            continue
+        p_actor = participant.attributed_to
+        p_actor_id = (
+            p_actor
+            if isinstance(p_actor, str)
+            else getattr(p_actor, "id_", p_actor)
+        )
+        if p_actor_id != actor.id_:
+            continue
+        if CVDRole.CASE_OWNER not in participant.case_roles:
+            continue
+        assert participant.embargo_consent_state == PEC.SIGNATORY, (
+            f"Expected owner embargo_consent_state=SIGNATORY,"
+            f" got {participant.embargo_consent_state!r}"
+        )
+        found_owner = True
+
+    assert found_owner, "No case-owner participant found in case"
+
+
+def test_reporter_seeded_as_signatory_when_active_embargo(
+    datalayer,
+    actor,
+    reporter_actor,
+    reporter_actor_id,
+    report,
+    offer,
+    bridge,
+    reporter_accepted_status,
+    vendor_received_status,
+):
+    """Reporter participant MUST have embargo_consent_state == SIGNATORY
+    when an active embargo exists at participant creation time
+    (CM-14-005, AC-3).
+    """
+    from vultron.core.states.participant_embargo_consent import PEC
+    from vultron.core.states.roles import CVDRole
+
+    tree = create_receive_report_case_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+        reporter_actor_id=reporter_actor_id,
+    )
+    bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+
+    case = datalayer.find_case_by_report_id(report.id_)
+    assert case is not None
+    assert case.active_embargo is not None, "No active embargo — prerequisite"
+
+    found_reporter = False
+    for p_ref in case.case_participants:
+        p_id = p_ref if isinstance(p_ref, str) else p_ref.id_
+        participant = datalayer.read(p_id)
+        if participant is None:
+            continue
+        p_actor = participant.attributed_to
+        p_actor_id = (
+            p_actor
+            if isinstance(p_actor, str)
+            else getattr(p_actor, "id_", p_actor)
+        )
+        if p_actor_id != reporter_actor.id_:
+            continue
+        if CVDRole.FINDER not in participant.case_roles:
+            continue
+        assert participant.embargo_consent_state == PEC.SIGNATORY, (
+            f"Expected reporter embargo_consent_state=SIGNATORY,"
+            f" got {participant.embargo_consent_state!r}"
+        )
+        found_reporter = True
+
+    assert found_reporter, "No reporter participant found in case"
