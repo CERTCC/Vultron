@@ -242,7 +242,7 @@ groups:
     - documentation
   - id: MS-11-004
     priority: SHOULD
-    statement: A spec entry that was motivated by an ADR-backed decision SHOULD reference the ADR in its description field.
+    statement: A spec entry that was motivated by an ADR-backed decision SHOULD reference the ADR in its rationale field.
       The corresponding ADR SHOULD list the generated spec IDs in its "More Information" section.
     rationale: Bidirectional cross-references make it possible to trace a requirement back to its decision rationale and
       forward from a decision to its testable consequences.

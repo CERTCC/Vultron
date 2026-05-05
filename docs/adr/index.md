@@ -28,8 +28,8 @@ Concretely, write an ADR when:
 **ADR vs. spec**: an ADR records *why* a choice was made; a spec entry records
 *what* the system must do going forward. When a significant decision also
 generates recurring testable requirements, create both — see
-[notes/specs-vs-adrs.md](../../notes/specs-vs-adrs.md) for the full
-delineation guidelines and worked examples.
+`notes/specs-vs-adrs.md` for the full delineation guidelines and worked
+examples.
 
 You do **not** need an ADR for:
 

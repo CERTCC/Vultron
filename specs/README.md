@@ -8,7 +8,7 @@ models in `vultron/metadata/specs/`.  Each specification defines
 requirements using RFC 2119 keywords (MUST, SHOULD, MAY) with unique
 requirement IDs and verification criteria.
 
-**How to read specifications**: See `meta-specifications.md` for style
+**How to read specifications**: See `meta-specifications.yaml` for style
 guide and conventions.
 
 ---
@@ -295,7 +295,7 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 - **`use-case-organization.yaml`** - Package layout for `vultron/core/use_cases/`
   (received/ vs triggers/), registry synchronization, test mirroring, and
   information flow documentation (UCORG-01 through UCORG-04)
-- **`meta-specifications.md`** - How to write and maintain specifications:
+- **`meta-specifications.yaml`** - How to write and maintain specifications:
   file structure, requirement format, ID scheme, writing rules, lifecycle,
   quality criteria, and spec vs. ADR delineation guidelines
   (MS-01 through MS-11)
@@ -359,7 +359,7 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 **For new contributors**:
 
-1. Start with `meta-specifications.md` to understand spec structure
+1. Start with `meta-specifications.yaml` to understand spec structure
 2. Read handler pipeline specs in order (inbox → validation → extraction → dispatch → handler)
 3. Consult cross-cutting specs as needed
 
@@ -496,7 +496,7 @@ specification.
 
 When updating specifications:
 
-1. Follow `meta-specifications.md` style guide
+1. Follow `meta-specifications.yaml` style guide
 2. Keep requirements atomic and testable
 3. Update verification criteria when changing requirements
 4. Add cross-references for related requirements
