@@ -258,6 +258,7 @@ def post_to_trigger(
     actor_id: str,
     behavior: str,
     body: dict,
+    path_prefix: str = "trigger",
 ) -> dict:
     """POST to a trigger endpoint and return the response body.
 
@@ -270,6 +271,10 @@ def post_to_trigger(
         actor_id: Full URI of the actor initiating the behavior.
         behavior: Kebab-case behavior name (e.g. ``"validate-report"``).
         body: Request body dict (e.g. ``{"offer_id": "..."}``).
+        path_prefix: URL segment before the behavior name.  Use
+            ``"trigger"`` (default) for standard trigger endpoints and
+            ``"demo"`` for demo-only endpoints such as
+            ``add-note-to-case`` and ``sync-log-entry``.
 
     Returns:
         Response dict from the trigger endpoint.
@@ -281,7 +286,9 @@ def post_to_trigger(
         actor_obj_id,
         body,
     )
-    return client.post(f"/actors/{actor_obj_id}/trigger/{behavior}", json=body)
+    return client.post(
+        f"/actors/{actor_obj_id}/{path_prefix}/{behavior}", json=body
+    )
 
 
 def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:

@@ -428,6 +428,7 @@ def finder_asks_question(
                 "note_name": note_name,
                 "note_content": note_content,
             },
+            path_prefix="demo",
         )
 
     note_id = result.get("note", {}).get("id")
@@ -491,6 +492,7 @@ def vendor_replies_to_question(
                 "note_content": note_content,
                 "in_reply_to": question_note.id_,
             },
+            path_prefix="demo",
         )
 
     note_id = result.get("note", {}).get("id")
@@ -791,7 +793,7 @@ def trigger_log_commit(
 ) -> str:
     """Commit a log entry for *case_id* and return the entry hash.
 
-    POSTs to ``/actors/{actor_id}/trigger/sync-log-entry`` and returns
+    POSTs to ``/actors/{actor_id}/demo/sync-log-entry`` and returns
     the ``entry_hash`` from the response.  The entry is also fanned out
     to all case participants via ``Announce(CaseLogEntry)`` activities
     queued in the actor's outbox.
@@ -818,6 +820,7 @@ def trigger_log_commit(
             "object_id": object_id if object_id is not None else case_id,
             "event_type": event_type,
         },
+        path_prefix="demo",
     )
     entry_hash: str = result["entry_hash"]
     logger.info(
