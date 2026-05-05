@@ -40,6 +40,9 @@ import py_trees
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import _report_phase_status_id
@@ -71,6 +74,7 @@ class BTTestScenario:
         self.bridge = BTBridge(
             datalayer=self.dl,
             is_leader=lambda: is_leader,
+            trigger_activity=TriggerActivityAdapter(self.dl),
         )
 
     # ------------------------------------------------------------------

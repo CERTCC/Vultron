@@ -62,10 +62,27 @@ def _sync_port_factory(dl: DataLayer) -> dict[str, Any]:
     return {"sync_port": SyncActivityAdapter(dl)}
 
 
+def _trigger_activity_port_factory(dl: DataLayer) -> dict[str, Any]:
+    """Create a ``TriggerActivityAdapter`` from the current DataLayer."""
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+
+    return {"trigger_activity": TriggerActivityAdapter(dl)}
+
+
 _SYNC_PORT_SEMANTICS = frozenset(
     {
         MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY,
         MessageSemantics.REJECT_CASE_LOG_ENTRY,
+    }
+)
+
+_TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
+    {
+        MessageSemantics.SUBMIT_REPORT,
+        MessageSemantics.SUGGEST_ACTOR_TO_CASE,
+        MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
     }
 )
 
@@ -83,6 +100,12 @@ def init_dispatcher(dl: DataLayer | None = None) -> None:
     """
     global _DISPATCHER
     port_factories = {sem: _sync_port_factory for sem in _SYNC_PORT_SEMANTICS}
+    port_factories.update(
+        {
+            sem: _trigger_activity_port_factory
+            for sem in _TRIGGER_ACTIVITY_PORT_SEMANTICS
+        }
+    )
     _DISPATCHER = get_dispatcher(
         use_case_map=_use_case_map(),
         port_factories=port_factories,

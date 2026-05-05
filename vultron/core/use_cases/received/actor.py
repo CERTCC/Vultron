@@ -1,6 +1,7 @@
 """Use cases for case actor/participant invitation and suggestion activities."""
 
 import logging
+from typing import TYPE_CHECKING
 
 from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
@@ -29,15 +30,22 @@ from vultron.core.states.participant_embargo_consent import (
 from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 
+if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
+
 logger = logging.getLogger(__name__)
 
 
 class SuggestActorToCaseReceivedUseCase:
     def __init__(
-        self, dl: CasePersistence, request: SuggestActorToCaseReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: SuggestActorToCaseReceivedEvent,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: SuggestActorToCaseReceivedEvent = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         request = self._request
@@ -85,7 +93,9 @@ class SuggestActorToCaseReceivedUseCase:
             invitee_id=invitee_id,
             case_id=case_id,
         )
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl, trigger_activity=self._trigger_activity
+        )
         bridge.execute_with_setup(tree, actor_id=local_actor_id)
 
 
@@ -247,9 +257,11 @@ class AcceptInviteActorToCaseReceivedUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: AcceptInviteActorToCaseReceivedEvent,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: AcceptInviteActorToCaseReceivedEvent = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         request = self._request
@@ -326,7 +338,9 @@ class AcceptInviteActorToCaseReceivedUseCase:
             create_prioritize_subtree,
         )
 
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl, trigger_activity=self._trigger_activity
+        )
         prioritize_tree = create_prioritize_subtree(
             case_id=case_id, actor_id=invitee_id
         )

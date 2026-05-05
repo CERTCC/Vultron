@@ -25,7 +25,7 @@ No HTTP framework imports (FastAPI, Starlette) are permitted here.
 """
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from vultron.core.states.rm import RM
 from vultron.core.behaviors.bridge import BTBridge
@@ -33,6 +33,7 @@ from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
 from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.report import VultronReport
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
@@ -57,22 +58,16 @@ from vultron.errors import (
     VultronNotFoundError,
     VultronValidationError,
 )
-from vultron.wire.as2.factories import (
-    rm_close_report_activity,
-    rm_invalidate_report_activity,
-    rm_submit_report_activity,
-)
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
-)
+
+if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
 
 def _resolve_offer_and_report(
     offer_id: str, dl: CaseOutboxPersistence
-) -> tuple[as_Offer, VulnerabilityReport]:
+) -> tuple[Any, Any]:
     """Resolve offer and its embedded report; raise domain errors on failure.
 
     After the DataLayer rehydration pipeline, ``dl.read(offer_id)`` returns an
@@ -82,22 +77,23 @@ def _resolve_offer_and_report(
     offer = dl.read(offer_id)
     if offer is None:
         raise VultronNotFoundError("Offer", offer_id)
-    if not isinstance(offer, as_Offer):
+    if getattr(offer, "type_", "") != "Offer":
         raise VultronValidationError(
             f"Expected RmSubmitReportActivity for offer '{offer_id}', "
-            f"got {type(offer).__name__}."
+            f"got type '{getattr(offer, 'type_', 'unknown')}'."
         )
-    report = offer.object_
-    if not isinstance(report, VulnerabilityReport):
+    report = getattr(offer, "object_", None)
+    if getattr(report, "type_", "") != "VulnerabilityReport":
         raise VultronValidationError(
             f"Expected VulnerabilityReport embedded in offer '{offer_id}', "
-            f"got {type(report).__name__ if report is not None else 'None'}."
+            f"got type"
+            f" '{getattr(report, 'type_', 'None' if report is None else 'unknown')}'."
         )
     return offer, report
 
 
 def _report_addressees(
-    report_id: str, actor_id: str, offer, dl: CaseOutboxPersistence
+    report_id: str, actor_id: str, offer: Any, dl: CaseOutboxPersistence
 ) -> list[str] | None:
     """Return the ``to`` recipient list for a report-phase outbound activity.
 
@@ -190,9 +186,11 @@ class SvcInvalidateReportUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: InvalidateReportTriggerRequest,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: InvalidateReportTriggerRequest = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> dict:
         request = self._request
@@ -205,19 +203,16 @@ class SvcInvalidateReportUseCase:
 
         offer, report = _resolve_offer_and_report(offer_id, dl)
 
-        invalidate_activity = rm_invalidate_report_activity(
-            offer=offer,
+        if self._trigger_activity is None:
+            raise RuntimeError(
+                "SvcInvalidateReportUseCase requires a TriggerActivityPort"
+            )
+
+        activity_id, activity_dict = self._trigger_activity.invalidate_report(
+            offer_id=offer.id_,
             actor=actor_id,
             to=_report_addressees(report.id_, actor_id, offer, dl),
         )
-
-        try:
-            dl.create(invalidate_activity)
-        except ValueError:
-            logger.warning(
-                "InvalidateReport activity '%s' already exists",
-                invalidate_activity.id_,
-            )
 
         set_status_invalidate = VultronParticipantStatus(
             id_=_report_phase_status_id(
@@ -235,7 +230,7 @@ class SvcInvalidateReportUseCase:
             "ParticipantStatus (report-phase RM.INVALID)",
         )
 
-        add_activity_to_outbox(actor_id, invalidate_activity.id_, dl)
+        add_activity_to_outbox(actor_id, activity_id, dl)
 
         logger.info(
             "Actor '%s' invalidated offer '%s' (report '%s')",
@@ -244,20 +239,21 @@ class SvcInvalidateReportUseCase:
             report.id_,
         )
 
-        activity = invalidate_activity.model_dump(
-            by_alias=True, exclude_none=True
-        )
-        return {"activity": activity}
+        return {"activity": activity_dict}
 
 
 class SvcRejectReportUseCase:
     """Hard-close a report offer by emitting RmCloseReportActivity (Reject)."""
 
     def __init__(
-        self, dl: CaseOutboxPersistence, request: RejectReportTriggerRequest
+        self,
+        dl: CaseOutboxPersistence,
+        request: RejectReportTriggerRequest,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: RejectReportTriggerRequest = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> dict:
         request = self._request
@@ -271,19 +267,17 @@ class SvcRejectReportUseCase:
 
         offer, report = _resolve_offer_and_report(offer_id, dl)
 
-        reject_activity = rm_close_report_activity(
-            offer=offer,
+        if self._trigger_activity is None:
+            raise RuntimeError(
+                "SvcRejectReportUseCase requires a TriggerActivityPort"
+            )
+
+        activity_id, activity_dict = self._trigger_activity.close_report(
+            offer_id=offer.id_,
+            report_id=report.id_,
             actor=actor_id,
             to=_report_addressees(report.id_, actor_id, offer, dl),
         )
-
-        try:
-            dl.create(reject_activity)
-        except ValueError:
-            logger.warning(
-                "CloseReport activity '%s' already exists",
-                reject_activity.id_,
-            )
 
         set_status_reject = VultronParticipantStatus(
             id_=_report_phase_status_id(actor_id, report.id_, RM.CLOSED.value),
@@ -299,7 +293,7 @@ class SvcRejectReportUseCase:
             "ParticipantStatus (report-phase RM.CLOSED)",
         )
 
-        add_activity_to_outbox(actor_id, reject_activity.id_, dl)
+        add_activity_to_outbox(actor_id, activity_id, dl)
 
         logger.info(
             "Actor '%s' hard-closed offer '%s' (report '%s'); note: %s",
@@ -309,18 +303,21 @@ class SvcRejectReportUseCase:
             note,
         )
 
-        activity = reject_activity.model_dump(by_alias=True, exclude_none=True)
-        return {"activity": activity}
+        return {"activity": activity_dict}
 
 
 class SvcCloseReportUseCase:
     """Close a report via the RM lifecycle (RM → C transition)."""
 
     def __init__(
-        self, dl: CaseOutboxPersistence, request: CloseReportTriggerRequest
+        self,
+        dl: CaseOutboxPersistence,
+        request: CloseReportTriggerRequest,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: CloseReportTriggerRequest = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> dict:
         request = self._request
@@ -349,19 +346,17 @@ class SvcCloseReportUseCase:
                 f"Report '{report.id_}' is already CLOSED."
             )
 
-        close_activity = rm_close_report_activity(
-            offer=offer,
+        if self._trigger_activity is None:
+            raise RuntimeError(
+                "SvcCloseReportUseCase requires a TriggerActivityPort"
+            )
+
+        activity_id, activity_dict = self._trigger_activity.close_report(
+            offer_id=offer.id_,
+            report_id=report.id_,
             actor=actor_id,
             to=_report_addressees(report.id_, actor_id, offer, dl),
         )
-
-        try:
-            dl.create(close_activity)
-        except ValueError:
-            logger.warning(
-                "CloseReport activity '%s' already exists",
-                close_activity.id_,
-            )
 
         set_status_close = VultronParticipantStatus(
             id_=closed_id,
@@ -377,18 +372,18 @@ class SvcCloseReportUseCase:
             "ParticipantStatus (report-phase RM.CLOSED)",
         )
 
-        add_activity_to_outbox(actor_id, close_activity.id_, dl)
+        add_activity_to_outbox(actor_id, activity_id, dl)
 
         logger.info(
-            "Actor '%s' closed offer '%s' (report '%s') via RM lifecycle; note: %s",
+            "Actor '%s' closed offer '%s' (report '%s') via RM lifecycle;"
+            " note: %s",
             actor_id,
             offer.id_,
             report.id_,
             note,
         )
 
-        activity = close_activity.model_dump(by_alias=True, exclude_none=True)
-        return {"activity": activity}
+        return {"activity": activity_dict}
 
 
 class SvcSubmitReportUseCase:
@@ -400,10 +395,14 @@ class SvcSubmitReportUseCase:
     """
 
     def __init__(
-        self, dl: CaseOutboxPersistence, request: SubmitReportTriggerRequest
+        self,
+        dl: CaseOutboxPersistence,
+        request: SubmitReportTriggerRequest,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> dict:
         request = self._request
@@ -412,7 +411,7 @@ class SvcSubmitReportUseCase:
         actor = resolve_actor(request.actor_id, dl)
         actor_id = actor.id_
 
-        report = VulnerabilityReport(
+        report = VultronReport(
             name=request.report_name,
             content=request.report_content,
             attributed_to=actor_id,
@@ -430,26 +429,25 @@ class SvcSubmitReportUseCase:
             report.id_,
         )
 
-        offer = rm_submit_report_activity(
-            report=report,
-            to=request.recipient_id,
+        if self._trigger_activity is None:
+            raise RuntimeError(
+                "SvcSubmitReportUseCase requires a TriggerActivityPort"
+            )
+
+        offer_id, offer_dict = self._trigger_activity.submit_report(
+            report_id=report.id_,
             actor=actor_id,
+            to=request.recipient_id,
             target=request.recipient_id,
         )
-        try:
-            dl.create(offer)
-        except ValueError:
-            logger.warning(
-                "RmSubmitReportActivity '%s' already exists", offer.id_
-            )
 
         logger.info(
             "Offering report '%s' to '%s' (offer: '%s')",
             report.id_,
             request.recipient_id,
-            offer.id_,
+            offer_id,
         )
 
-        add_activity_to_outbox(actor_id, offer.id_, dl)
+        add_activity_to_outbox(actor_id, offer_id, dl)
 
-        return {"offer": offer.model_dump(by_alias=True, exclude_none=True)}
+        return {"offer": offer_dict}

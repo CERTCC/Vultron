@@ -143,7 +143,13 @@ def offer(datalayer, report, actor_id, reporter_actor_id):
 @pytest.fixture
 def bridge(datalayer):
     """BT bridge for tree execution."""
-    return BTBridge(datalayer=datalayer)
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+
+    return BTBridge(
+        datalayer=datalayer, trigger_activity=TriggerActivityAdapter(datalayer)
+    )
 
 
 # ============================================================================

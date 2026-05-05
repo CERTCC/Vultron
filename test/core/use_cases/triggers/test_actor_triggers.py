@@ -44,6 +44,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCase,
     VulnerabilityCaseStub,
 )
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 
 _BASE = "http://coordinator:7999/api/v2/actors"
 _UUID = "24d63c7d-6b1e-4f61-a5e1-180d27192d0b"
@@ -92,7 +95,9 @@ class TestSvcInviteActorToCaseUseCase:
             case_id=case.id_,
             invitee_id=invitee.id_,
         )
-        result = SvcInviteActorToCaseUseCase(dl, request).execute()
+        result = SvcInviteActorToCaseUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         assert "activity" in result
         activity_data = result["activity"]
@@ -114,7 +119,9 @@ class TestSvcInviteActorToCaseUseCase:
             case_id=case.id_,
             invitee_id=invitee.id_,
         )
-        result = SvcInviteActorToCaseUseCase(dl, request).execute()
+        result = SvcInviteActorToCaseUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         invite_id = result["activity"]["id"]
         stored = dl.read(invite_id)
@@ -136,7 +143,9 @@ class TestSvcInviteActorToCaseUseCase:
             invitee_id=missing_id,
         )
         with pytest.raises(VultronNotFoundError):
-            SvcInviteActorToCaseUseCase(dl, request).execute()
+            SvcInviteActorToCaseUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
 
     def test_invite_raises_when_case_not_in_dl(self):
         actor, dl = _make_actor_dl("Coordinator")
@@ -151,7 +160,9 @@ class TestSvcInviteActorToCaseUseCase:
             invitee_id=invitee.id_,
         )
         with pytest.raises(Exception):
-            SvcInviteActorToCaseUseCase(dl, request).execute()
+            SvcInviteActorToCaseUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
 
     def test_invite_normalises_short_uuid_actor_id(self):
         """DR-09: short UUID in actor_id is resolved to full URI."""
@@ -169,7 +180,9 @@ class TestSvcInviteActorToCaseUseCase:
             case_id=case.id_,
             invitee_id=invitee.id_,
         )
-        result = SvcInviteActorToCaseUseCase(dl, request).execute()
+        result = SvcInviteActorToCaseUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         # Activity actor field must be the full canonical URI, not the short UUID
         assert result["activity"]["actor"] == _HTTP_ACTOR_ID
@@ -192,7 +205,9 @@ class TestSvcSuggestActorToCaseUseCase:
             case_id=case.id_,
             suggested_actor_id=suggested.id_,
         )
-        result = SvcSuggestActorToCaseUseCase(dl, request).execute()
+        result = SvcSuggestActorToCaseUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         assert "activity" in result
         assert result["activity"]["actor"] == actor.id_
@@ -210,7 +225,9 @@ class TestSvcSuggestActorToCaseUseCase:
             suggested_actor_id="https://example.org/actors/ghost",
         )
         with pytest.raises(VultronNotFoundError):
-            SvcSuggestActorToCaseUseCase(dl, request).execute()
+            SvcSuggestActorToCaseUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
 
     def test_suggest_normalises_short_uuid_actor_id(self):
         """DR-09: short UUID in actor_id is resolved to full URI."""
@@ -227,7 +244,9 @@ class TestSvcSuggestActorToCaseUseCase:
             case_id=case.id_,
             suggested_actor_id=suggested.id_,
         )
-        result = SvcSuggestActorToCaseUseCase(dl, request).execute()
+        result = SvcSuggestActorToCaseUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         assert result["activity"]["actor"] == _HTTP_ACTOR_ID
 
@@ -258,7 +277,11 @@ class TestSvcAcceptCaseInviteUseCase:
             actor_id=invitee.id_,
             invite_id=invite.id_,
         )
-        result = SvcAcceptCaseInviteUseCase(dl_invitee, request).execute()
+        result = SvcAcceptCaseInviteUseCase(
+            dl_invitee,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl_invitee),
+        ).execute()
 
         assert "activity" in result
         assert result["activity"]["actor"] == invitee.id_
@@ -275,7 +298,9 @@ class TestSvcAcceptCaseInviteUseCase:
         dl.create(actor)
 
         with pytest.raises(VultronNotFoundError):
-            SvcAcceptCaseInviteUseCase(dl, request).execute()
+            SvcAcceptCaseInviteUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
 
     def test_accept_normalises_short_uuid_actor_id(self):
         """DR-09: short UUID in actor_id is resolved to full URI."""
@@ -304,6 +329,10 @@ class TestSvcAcceptCaseInviteUseCase:
             actor_id=_UUID,
             invite_id=invite.id_,
         )
-        result = SvcAcceptCaseInviteUseCase(dl_invitee, request).execute()
+        result = SvcAcceptCaseInviteUseCase(
+            dl_invitee,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl_invitee),
+        ).execute()
 
         assert result["activity"]["actor"] == _HTTP_ACTOR_ID

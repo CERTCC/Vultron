@@ -29,6 +29,9 @@ from vultron.wire.as2.vocab.objects.case_participant import (
 )
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 
 
 def _persist_actor(dl: SqliteDataLayer, name: str) -> as_Service:
@@ -111,7 +114,9 @@ def test_non_owner_accept_embargo_on_active_case_updates_participant_only(
         proposal_id=proposal.id_,
     )
 
-    result = SvcAcceptEmbargoUseCase(finder_dl, request).execute()
+    result = SvcAcceptEmbargoUseCase(
+        finder_dl, request, trigger_activity=TriggerActivityAdapter(finder_dl)
+    ).execute()
 
     assert "activity" in result
 
@@ -144,7 +149,9 @@ def test_non_owner_reject_embargo_on_active_case_updates_participant_only(
         proposal_id=proposal.id_,
     )
 
-    result = SvcRejectEmbargoUseCase(finder_dl, request).execute()
+    result = SvcRejectEmbargoUseCase(
+        finder_dl, request, trigger_activity=TriggerActivityAdapter(finder_dl)
+    ).execute()
 
     assert "activity" in result
 

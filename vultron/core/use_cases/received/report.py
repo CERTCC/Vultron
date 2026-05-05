@@ -1,6 +1,7 @@
 """Use cases for vulnerability report activities."""
 
 import logging
+from typing import TYPE_CHECKING
 
 from vultron.core.models.events.report import (
     AckReportReceivedEvent,
@@ -18,6 +19,9 @@ from vultron.core.use_cases.received.case import (
     ValidateCaseUseCase,
 )
 from vultron.errors import VultronValidationError
+
+if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +89,7 @@ def _run_submit_report_case_creation(
     request: SubmitReportReceivedEvent,
     receiving_actor_id: str,
     report_id: str,
+    trigger_activity: "TriggerActivityPort | None" = None,
 ) -> None:
     from py_trees.common import Status
 
@@ -99,7 +104,7 @@ def _run_submit_report_case_creation(
         request.report_id,
     )
 
-    bridge = BTBridge(datalayer=dl)
+    bridge = BTBridge(datalayer=dl, trigger_activity=trigger_activity)
     tree = create_receive_report_case_tree(
         report_id=report_id,
         offer_id=request.activity_id,
@@ -176,10 +181,14 @@ class CreateReportReceivedUseCase:
 
 class SubmitReportReceivedUseCase:
     def __init__(
-        self, dl: CasePersistence, request: SubmitReportReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: SubmitReportReceivedEvent,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: SubmitReportReceivedEvent = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         request = self._request
@@ -202,7 +211,11 @@ class SubmitReportReceivedUseCase:
             return
 
         _run_submit_report_case_creation(
-            self._dl, request, receiving_actor_id, request.report_id
+            self._dl,
+            request,
+            receiving_actor_id,
+            request.report_id,
+            trigger_activity=self._trigger_activity,
         )
 
 

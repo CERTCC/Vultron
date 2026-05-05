@@ -38,6 +38,9 @@ from vultron.wire.as2.factories import (
     em_reject_embargo_activity,
     remove_embargo_from_case_activity,
 )
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 
 
 class TestEmbargoUseCases:
@@ -618,4 +621,6 @@ class TestEmbargoUseCases:
             proposal_id=proposal.id_,
         )
         with pytest.raises(VultronInvalidStateTransitionError):
-            SvcAcceptEmbargoUseCase(dl, request).execute()
+            SvcAcceptEmbargoUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()

@@ -35,7 +35,7 @@ No HTTP framework imports permitted in this module.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
@@ -91,6 +91,9 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.triggers.sync import commit_log_entry_trigger
 
+if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
+
 
 class TriggerService:
     """Facade over all actor-initiated trigger use cases.
@@ -109,9 +112,11 @@ class TriggerService:
         self,
         dl: DataLayer,
         sync_port: SyncActivityPort | None = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._sync_port = sync_port
+        self._trigger_activity = trigger_activity
 
     # -----------------------------------------------------------------------
     # Report triggers
@@ -131,7 +136,9 @@ class TriggerService:
             report_content=report_content,
             recipient_id=recipient_id,
         )
-        return SvcSubmitReportUseCase(self._dl, req).execute()
+        return SvcSubmitReportUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
 
     def validate_report(
         self,
@@ -155,7 +162,9 @@ class TriggerService:
         req = InvalidateReportTriggerRequest(
             actor_id=actor_id, offer_id=offer_id, note=note
         )
-        return SvcInvalidateReportUseCase(self._dl, req).execute()
+        return SvcInvalidateReportUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
 
     def reject_report(
         self,
@@ -167,7 +176,9 @@ class TriggerService:
         req = RejectReportTriggerRequest(
             actor_id=actor_id, offer_id=offer_id, note=note or None
         )
-        return SvcRejectReportUseCase(self._dl, req).execute()
+        return SvcRejectReportUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
 
     def close_report(
         self,
@@ -179,7 +190,9 @@ class TriggerService:
         req = CloseReportTriggerRequest(
             actor_id=actor_id, offer_id=offer_id, note=note
         )
-        return SvcCloseReportUseCase(self._dl, req).execute()
+        return SvcCloseReportUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
 
     # -----------------------------------------------------------------------
     # Case triggers
@@ -199,7 +212,9 @@ class TriggerService:
             content=content,
             report_id=report_id,
         )
-        return SvcCreateCaseUseCase(self._dl, req).execute()
+        return SvcCreateCaseUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
 
     def engage_case(
         self,
@@ -208,7 +223,9 @@ class TriggerService:
     ) -> dict[str, Any]:
         """Accept a case, transitioning RM state to ACCEPTED."""
         req = EngageCaseTriggerRequest(actor_id=actor_id, case_id=case_id)
-        return SvcEngageCaseUseCase(self._dl, req).execute()
+        return SvcEngageCaseUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
 
     def defer_case(
         self,
@@ -217,7 +234,9 @@ class TriggerService:
     ) -> dict[str, Any]:
         """Defer a case, transitioning RM state to DEFERRED."""
         req = DeferCaseTriggerRequest(actor_id=actor_id, case_id=case_id)
-        return SvcDeferCaseUseCase(self._dl, req).execute()
+        return SvcDeferCaseUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
 
     def add_report_to_case(
         self,
@@ -231,7 +250,9 @@ class TriggerService:
             case_id=case_id,
             report_id=report_id,
         )
-        return SvcAddReportToCaseUseCase(self._dl, req).execute()
+        return SvcAddReportToCaseUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
 
     def add_object_to_case(
         self,
@@ -245,7 +266,9 @@ class TriggerService:
             case_id=case_id,
             object_id=object_id,
         )
-        return SvcAddObjectToCaseUseCase(self._dl, req).execute()
+        return SvcAddObjectToCaseUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
 
     def add_note_to_case(
         self,
@@ -263,7 +286,9 @@ class TriggerService:
             note_content=note_content,
             in_reply_to=in_reply_to,
         )
-        return SvcAddNoteToCaseUseCase(self._dl, req).execute()
+        return SvcAddNoteToCaseUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
 
     # -----------------------------------------------------------------------
     # Embargo triggers
@@ -283,7 +308,9 @@ class TriggerService:
             end_time=end_time,
             note=note,
         )
-        return SvcProposeEmbargoUseCase(self._dl, req).execute()
+        return SvcProposeEmbargoUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
 
     def accept_embargo(
         self,
@@ -297,7 +324,9 @@ class TriggerService:
             case_id=case_id,
             proposal_id=proposal_id,
         )
-        return SvcAcceptEmbargoUseCase(self._dl, req).execute()
+        return SvcAcceptEmbargoUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
 
     def reject_embargo(
         self,
@@ -311,7 +340,9 @@ class TriggerService:
             case_id=case_id,
             proposal_id=proposal_id,
         )
-        return SvcRejectEmbargoUseCase(self._dl, req).execute()
+        return SvcRejectEmbargoUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
 
     def propose_embargo_revision(
         self,
@@ -327,7 +358,9 @@ class TriggerService:
             end_time=end_time,
             note=note,
         )
-        return SvcProposeEmbargoRevisionUseCase(self._dl, req).execute()
+        return SvcProposeEmbargoRevisionUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
 
     def terminate_embargo(
         self,
@@ -338,7 +371,9 @@ class TriggerService:
         req = TerminateEmbargoTriggerRequest(
             actor_id=actor_id, case_id=case_id
         )
-        return SvcTerminateEmbargoUseCase(self._dl, req).execute()
+        return SvcTerminateEmbargoUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
 
     # -----------------------------------------------------------------------
     # Actor / participant triggers
@@ -356,7 +391,9 @@ class TriggerService:
             case_id=case_id,
             suggested_actor_id=suggested_actor_id,
         )
-        return SvcSuggestActorToCaseUseCase(self._dl, req).execute()
+        return SvcSuggestActorToCaseUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
 
     def accept_case_invite(
         self,
@@ -368,7 +405,9 @@ class TriggerService:
             actor_id=actor_id,
             invite_id=invite_id,
         )
-        return SvcAcceptCaseInviteUseCase(self._dl, req).execute()
+        return SvcAcceptCaseInviteUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
 
     def invite_actor_to_case(
         self,
@@ -382,7 +421,9 @@ class TriggerService:
             case_id=case_id,
             invitee_id=invitee_id,
         )
-        return SvcInviteActorToCaseUseCase(self._dl, req).execute()
+        return SvcInviteActorToCaseUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
 
     # -----------------------------------------------------------------------
     # Sync / log-replication triggers

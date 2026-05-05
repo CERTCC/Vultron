@@ -36,6 +36,9 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers (mirrors pattern in test_trignotify.py)
@@ -126,7 +129,9 @@ class TestSvcAddNoteToCaseUseCase:
             note_content=self.NOTE_CONTENT,
             in_reply_to=in_reply_to,
         )
-        return SvcAddNoteToCaseUseCase(self.dl, request).execute()
+        return SvcAddNoteToCaseUseCase(
+            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+        ).execute()
 
     # ------------------------------------------------------------------
     # Return-value structure
@@ -224,7 +229,9 @@ class TestSvcAddNoteToCaseUseCase:
             note_name=self.NOTE_NAME,
             note_content=self.NOTE_CONTENT,
         )
-        result = SvcAddNoteToCaseUseCase(self.dl, request).execute()
+        result = SvcAddNoteToCaseUseCase(
+            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+        ).execute()
 
         activity_id = result["activity"].get("id")
         act_obj = self.dl.read(activity_id)

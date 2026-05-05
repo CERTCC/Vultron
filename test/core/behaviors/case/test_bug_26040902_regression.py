@@ -149,7 +149,13 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
     dl.create(vendor_status)
 
     # Run the BT — must succeed without conftest side-effect imports
-    bridge = BTBridge(datalayer=dl)
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+
+    bridge = BTBridge(
+        datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
+    )
     tree = create_receive_report_case_tree(
         report_id=_report_id,
         offer_id=_offer_id,

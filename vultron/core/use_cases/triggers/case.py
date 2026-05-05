@@ -20,8 +20,9 @@ No HTTP framework imports permitted here.
 """
 
 import logging
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any
 
+from vultron.core.models.case import VultronCase
 from vultron.core.states.rm import RM
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import update_participant_rm_state
@@ -39,16 +40,9 @@ from vultron.core.use_cases.triggers.requests import (
     EngageCaseTriggerRequest,
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
-from vultron.wire.as2.factories import (
-    create_case_activity,
-    rm_defer_case_activity,
-    rm_engage_case_activity,
-)
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
-)
+
+if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
@@ -57,10 +51,14 @@ class SvcEngageCaseUseCase:
     """Engage a case (RM → ACCEPTED)."""
 
     def __init__(
-        self, dl: CaseOutboxPersistence, request: EngageCaseTriggerRequest
+        self,
+        dl: CaseOutboxPersistence,
+        request: EngageCaseTriggerRequest,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: EngageCaseTriggerRequest = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> dict:
         request = self._request
@@ -73,23 +71,20 @@ class SvcEngageCaseUseCase:
 
         case = resolve_case(case_id, dl)
 
-        engage_activity = rm_engage_case_activity(
-            case=cast(Any, case),
+        if self._trigger_activity is None:
+            raise RuntimeError(
+                "SvcEngageCaseUseCase requires a TriggerActivityPort"
+            )
+
+        activity_id, activity_dict = self._trigger_activity.engage_case(
+            case_id=case_id,
             actor=actor_id,
             to=case_addressees(case, actor_id) or None,
         )
 
-        try:
-            dl.create(engage_activity)
-        except ValueError:
-            logger.warning(
-                "EngageCase activity '%s' already exists",
-                engage_activity.id_,
-            )
-
         update_participant_rm_state(case.id_, actor_id, RM.ACCEPTED, dl)
 
-        add_activity_to_outbox(actor_id, engage_activity.id_, dl)
+        add_activity_to_outbox(actor_id, activity_id, dl)
 
         logger.info(
             "Actor '%s' engaged case '%s' (RM → ACCEPTED)",
@@ -97,18 +92,21 @@ class SvcEngageCaseUseCase:
             case.id_,
         )
 
-        activity = engage_activity.model_dump(by_alias=True, exclude_none=True)
-        return {"activity": activity}
+        return {"activity": activity_dict}
 
 
 class SvcDeferCaseUseCase:
     """Defer a case (RM → DEFERRED)."""
 
     def __init__(
-        self, dl: CaseOutboxPersistence, request: DeferCaseTriggerRequest
+        self,
+        dl: CaseOutboxPersistence,
+        request: DeferCaseTriggerRequest,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: DeferCaseTriggerRequest = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> dict:
         request = self._request
@@ -121,23 +119,20 @@ class SvcDeferCaseUseCase:
 
         case = resolve_case(case_id, dl)
 
-        defer_activity = rm_defer_case_activity(
-            case=cast(Any, case),
+        if self._trigger_activity is None:
+            raise RuntimeError(
+                "SvcDeferCaseUseCase requires a TriggerActivityPort"
+            )
+
+        activity_id, activity_dict = self._trigger_activity.defer_case(
+            case_id=case_id,
             actor=actor_id,
             to=case_addressees(case, actor_id) or None,
         )
 
-        try:
-            dl.create(defer_activity)
-        except ValueError:
-            logger.warning(
-                "DeferCase activity '%s' already exists",
-                defer_activity.id_,
-            )
-
         update_participant_rm_state(case.id_, actor_id, RM.DEFERRED, dl)
 
-        add_activity_to_outbox(actor_id, defer_activity.id_, dl)
+        add_activity_to_outbox(actor_id, activity_id, dl)
 
         logger.info(
             "Actor '%s' deferred case '%s' (RM → DEFERRED)",
@@ -145,8 +140,7 @@ class SvcDeferCaseUseCase:
             case.id_,
         )
 
-        activity = defer_activity.model_dump(by_alias=True, exclude_none=True)
-        return {"activity": activity}
+        return {"activity": activity_dict}
 
 
 class SvcCreateCaseUseCase:
@@ -158,17 +152,21 @@ class SvcCreateCaseUseCase:
     """
 
     def __init__(
-        self, dl: CaseOutboxPersistence, request: CreateCaseTriggerRequest
+        self,
+        dl: CaseOutboxPersistence,
+        request: CreateCaseTriggerRequest,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> dict[str, Any]:
         actor_id = self._request.actor_id
         actor = resolve_actor(actor_id, self._dl)
         actor_id = actor.id_
 
-        case = VulnerabilityCase(
+        case = VultronCase(
             name=self._request.name,
             content=self._request.content,
             attributed_to=actor.id_,
@@ -180,32 +178,35 @@ class SvcCreateCaseUseCase:
                 raise VultronNotFoundError(
                     "VulnerabilityReport", self._request.report_id
                 )
-            if not isinstance(raw, VulnerabilityReport):
+            if getattr(raw, "type_", "") != "VulnerabilityReport":
                 raise VultronValidationError(
                     f"'{self._request.report_id}' is not a VulnerabilityReport"
                 )
-            case.vulnerability_reports.append(raw.id_)
+            raw_id = getattr(raw, "id_", None) or self._request.report_id
+            case.vulnerability_reports.append(raw_id)
 
         self._dl.create(case)
 
-        activity = create_case_activity(
-            case=case,
+        if self._trigger_activity is None:
+            raise RuntimeError(
+                "SvcCreateCaseUseCase requires a TriggerActivityPort"
+            )
+
+        activity_id, activity_dict = self._trigger_activity.create_case(
+            case_id=case.id_,
             actor=actor.id_,
         )
-        self._dl.create(activity)
 
-        add_activity_to_outbox(actor_id, activity.id_, self._dl)
+        add_activity_to_outbox(actor_id, activity_id, self._dl)
 
         logger.info(
             "Actor '%s' created case '%s' (CreateCaseActivity '%s')",
             actor_id,
             case.id_,
-            activity.id_,
+            activity_id,
         )
 
-        return {
-            "activity": activity.model_dump(by_alias=True, exclude_none=True)
-        }
+        return {"activity": activity_dict}
 
 
 class SvcAddObjectToCaseUseCase:
@@ -225,9 +226,11 @@ class SvcAddObjectToCaseUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: AddObjectToCaseTriggerRequest,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> dict[str, Any]:
         actor_id = self._request.actor_id
@@ -238,38 +241,33 @@ class SvcAddObjectToCaseUseCase:
         actor = resolve_actor(actor_id, dl)
         actor_id = actor.id_
 
-        case = resolve_case(case_id, dl)
+        resolve_case(case_id, dl)
 
         raw = dl.read(object_id)
         if raw is None:
             raise VultronNotFoundError("AS2Object", object_id)
 
-        activity = as_Add(
-            actor=actor_id,
-            object_=cast(Any, raw),
-            target=cast(Any, case),
-        )
-
-        try:
-            dl.create(activity)
-        except ValueError:
-            logger.warning(
-                "AddObjectToCase: activity '%s' already exists — skipping",
-                activity.id_,
+        if self._trigger_activity is None:
+            raise RuntimeError(
+                "SvcAddObjectToCaseUseCase requires a TriggerActivityPort"
             )
 
-        add_activity_to_outbox(actor_id, activity.id_, dl)
+        activity_id, activity_dict = self._trigger_activity.add_object_to_case(
+            actor=actor_id,
+            object_id=object_id,
+            case_id=case_id,
+        )
+
+        add_activity_to_outbox(actor_id, activity_id, dl)
 
         logger.info(
             "Actor '%s' added object '%s' to case '%s'",
             actor_id,
             object_id,
-            case.id_,
+            case_id,
         )
 
-        return {
-            "activity": activity.model_dump(by_alias=True, exclude_none=True)
-        }
+        return {"activity": activity_dict}
 
 
 class SvcAddReportToCaseUseCase:
@@ -282,10 +280,14 @@ class SvcAddReportToCaseUseCase:
     """
 
     def __init__(
-        self, dl: CaseOutboxPersistence, request: AddReportToCaseTriggerRequest
+        self,
+        dl: CaseOutboxPersistence,
+        request: AddReportToCaseTriggerRequest,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> dict[str, Any]:
         actor_id = self._request.actor_id
@@ -296,7 +298,7 @@ class SvcAddReportToCaseUseCase:
             raise VultronNotFoundError(
                 "VulnerabilityReport", self._request.report_id
             )
-        if not isinstance(raw, VulnerabilityReport):
+        if getattr(raw, "type_", "") != "VulnerabilityReport":
             raise VultronValidationError(
                 f"'{self._request.report_id}' is not a VulnerabilityReport"
             )
@@ -308,5 +310,6 @@ class SvcAddReportToCaseUseCase:
                 case_id=self._request.case_id,
                 object_id=self._request.report_id,
             ),
+            trigger_activity=self._trigger_activity,
         )
         return inner.execute()

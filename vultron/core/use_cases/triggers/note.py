@@ -20,6 +20,7 @@ No HTTP framework imports permitted here.
 """
 
 import logging
+from typing import TYPE_CHECKING
 
 from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
@@ -32,9 +33,9 @@ from vultron.core.use_cases.triggers._helpers import (
 from vultron.core.use_cases.triggers.requests import (
     AddNoteToCaseTriggerRequest,
 )
-from vultron.wire.as2.factories import add_note_to_case_activity
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +49,14 @@ class SvcAddNoteToCaseUseCase:
     """
 
     def __init__(
-        self, dl: CaseOutboxPersistence, request: AddNoteToCaseTriggerRequest
+        self,
+        dl: CaseOutboxPersistence,
+        request: AddNoteToCaseTriggerRequest,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> dict:
         request = self._request
@@ -64,21 +69,19 @@ class SvcAddNoteToCaseUseCase:
 
         case = resolve_case(case_id, dl)
 
-        note = as_Note(
+        if self._trigger_activity is None:
+            raise RuntimeError(
+                "SvcAddNoteToCaseUseCase requires a TriggerActivityPort"
+            )
+        factory = self._trigger_activity
+
+        note_id, note_dict = factory.create_note(
             name=request.note_name,
             content=request.note_content,
-            context=case_id,
+            context_id=case_id,
             attributed_to=actor_id,
             in_reply_to=request.in_reply_to,
         )
-
-        try:
-            dl.create(note)
-        except ValueError:
-            logger.warning(
-                "AddNoteToCase: note '%s' already exists — skipping create",
-                note.id_,
-            )
 
         # Add note to the actor's local copy of the case.
         case_obj = dl.read(case_id)
@@ -87,49 +90,42 @@ class SvcAddNoteToCaseUseCase:
                 n if isinstance(n, str) else getattr(n, "id_", str(n))
                 for n in case_obj.notes
             ]
-            if note.id_ not in existing_ids:
-                case_obj.notes.append(note.id_)
+            if note_id not in existing_ids:
+                case_obj.notes.append(note_id)
                 dl.save(case_obj)
                 logger.debug(
                     "AddNoteToCase: added note '%s' to local case '%s'",
-                    note.id_,
+                    note_id,
                     case_id,
                 )
 
         addressees = case_addressees(case, actor_id) or None
 
-        create_activity = as_Create(
+        create_activity_id = factory.create_note_activity(
             actor=actor_id,
-            object_=note,
+            note_id=note_id,
             to=addressees,
         )
-        add_note_activity = add_note_to_case_activity(
-            note=note,
-            target=case_id,
-            actor=actor_id,
-            to=addressees,
+        add_note_activity_id, add_note_activity_dict = (
+            factory.add_note_to_case(
+                note_id=note_id,
+                case_id=case_id,
+                actor=actor_id,
+                to=addressees,
+            )
         )
 
-        for activity in (create_activity, add_note_activity):
-            try:
-                dl.create(activity)
-            except ValueError:
-                logger.warning(
-                    "AddNoteToCase: activity '%s' already exists — skipping",
-                    activity.id_,
-                )
-            add_activity_to_outbox(actor_id, activity.id_, dl)
+        for activity_id in (create_activity_id, add_note_activity_id):
+            add_activity_to_outbox(actor_id, activity_id, dl)
 
         logger.info(
             "Actor '%s' added note '%s' to case '%s'",
             actor_id,
-            note.id_,
+            note_id,
             case_id,
         )
 
         return {
-            "note": note.model_dump(by_alias=True, exclude_none=True),
-            "activity": add_note_activity.model_dump(
-                by_alias=True, exclude_none=True
-            ),
+            "note": note_dict,
+            "activity": add_note_activity_dict,
         }

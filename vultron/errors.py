@@ -125,3 +125,14 @@ class HistoryValidationError(ValidationError):
 
 class TransitionValidationError(ValidationError):
     pass
+
+
+class VultronActivityConstructionError(VultronError):
+    """Raised when a factory function cannot construct the requested activity.
+
+    Wraps a Pydantic ``ValidationError`` as ``__cause__`` so that callers
+    can inspect the original validation details if needed.  Factory
+    functions MUST catch ``pydantic.ValidationError`` and re-raise as this
+    exception to keep internal activity class names out of public error
+    messages.  See ``specs/activity-factories.yaml`` AF-04-001, AF-04-002.
+    """

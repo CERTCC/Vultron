@@ -34,6 +34,9 @@ from fastapi import Depends, Path
 
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.trigger_service import TriggerServicePort
 from vultron.core.use_cases.triggers.service import TriggerService
@@ -76,4 +79,8 @@ def get_trigger_service(
     Inject ``app.dependency_overrides[get_trigger_service] = lambda: mock``
     in tests to replace the service with a ``Mock(spec=TriggerServicePort)``.
     """
-    return TriggerService(dl, sync_port=SyncActivityAdapter(dl))
+    return TriggerService(
+        dl,
+        sync_port=SyncActivityAdapter(dl),
+        trigger_activity=TriggerActivityAdapter(dl),
+    )
