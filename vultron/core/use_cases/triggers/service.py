@@ -46,6 +46,7 @@ from vultron.core.use_cases.triggers.actor import (
     SvcSuggestActorToCaseUseCase,
 )
 from vultron.core.use_cases.triggers.case import (
+    SvcAddObjectToCaseUseCase,
     SvcAddReportToCaseUseCase,
     SvcCreateCaseUseCase,
     SvcDeferCaseUseCase,
@@ -70,6 +71,7 @@ from vultron.core.use_cases.triggers.requests import (
     AcceptCaseInviteTriggerRequest,
     AcceptEmbargoTriggerRequest,
     AddNoteToCaseTriggerRequest,
+    AddObjectToCaseTriggerRequest,
     AddReportToCaseTriggerRequest,
     CloseReportTriggerRequest,
     CreateCaseTriggerRequest,
@@ -230,6 +232,20 @@ class TriggerService:
             report_id=report_id,
         )
         return SvcAddReportToCaseUseCase(self._dl, req).execute()
+
+    def add_object_to_case(
+        self,
+        actor_id: str,
+        case_id: str,
+        object_id: str,
+    ) -> dict[str, Any]:
+        """Add any existing AS2 object to a case (TRIG-10-001)."""
+        req = AddObjectToCaseTriggerRequest(
+            actor_id=actor_id,
+            case_id=case_id,
+            object_id=object_id,
+        )
+        return SvcAddObjectToCaseUseCase(self._dl, req).execute()
 
     def add_note_to_case(
         self,

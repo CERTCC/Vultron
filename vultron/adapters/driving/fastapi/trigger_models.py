@@ -228,6 +228,23 @@ class SubmitReportRequest(BaseModel):
     recipient_id: UriString
 
 
+class AddObjectToCaseRequest(BaseModel):
+    """Request body for the add-object-to-case general trigger endpoint.
+
+    Accepts any existing AS2 object identified by ``object_id``.  The object
+    must already exist in the actor's datalayer.  Type-specific convenience
+    endpoints (e.g., ``add-report-to-case``) delegate to this after
+    performing their own type validation (TRIG-10-001, TRIG-10-002).
+
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString
+    object_id: NonEmptyString
+
+
 class AddNoteToCaseRequest(BaseModel):
     """Request body for the add-note-to-case trigger endpoint.
 

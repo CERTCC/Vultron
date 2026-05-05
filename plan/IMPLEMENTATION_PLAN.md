@@ -108,38 +108,6 @@ Current violations (CC 11–15) — 25 functions:
 
 ---
 
-## TASK-TRIGCLASS — Trigger Classification and Demo Route Separation
-
-**Source**: `specs/triggerable-behaviors.yaml` TRIG-08, TRIG-09, TRIG-10;
-`notes/trigger-classification.md`
-
-`RunMode` and `get_config()` from `vultron/config.py` are now available.
-
-### TRIGCLASS.1 — Create the demo trigger router
-
-- `demo_triggers.py` with `tags=["Demo Triggers"]` at
-  `/actors/{actor_id}/demo/`.
-- `add-note-to-case` and `sync-log-entry` moved from general routers.
-- Router conditionally mounted when `RunMode.PROTOTYPE`.
-
-- [ ] TRIGCLASS.1a: Create `demo_triggers.py`; move `add-note-to-case` and
-  `sync-log-entry` (TRIG-09-001, TRIG-10-003, TRIG-10-004)
-- [ ] TRIGCLASS.1b: Conditionally mount demo router
-  (TRIG-09-002, TRIG-09-003)
-- [ ] TRIGCLASS.1c: Add OpenAPI tags (TRIG-09-005)
-
-### TRIGCLASS.2 — Add `add-object-to-case` general trigger
-
-- `POST /actors/{actor_id}/trigger/add-object-to-case` accepts any valid
-  AS2 object type (TRIG-10-001).
-- `add-report-to-case` delegates to it after type-specific validation
-  (TRIG-10-002).
-
-- [ ] TRIGCLASS.2: Implement `add-object-to-case` trigger; update
-  `add-report-to-case` to delegate to it (TRIG-10-001, TRIG-10-002)
-
----
-
 ## Deferred (Per PRIORITIES.md)
 
 - USE-CASE-01 **`CloseCaseUseCase` wire-type construction** — Replace direct
@@ -161,8 +129,7 @@ Current violations (CC 11–15) — 25 functions:
   trigger-based puppeteering all done; see
   `plan/history/IMPLEMENTATION_HISTORY.md`). Remaining work tracked in
   Vultron#387. See `specs/multi-actor-demo.yaml` DEMOMA-01 through DEMOMA-05
-  and `notes/demo-review-26042001.md`. Defer until TASK-TRIGCLASS is
-  complete.
+  and `notes/demo-review-26042001.md`.
 - ARCH-VIOLATIONS **Broader core→wire ARCH-01-001 violations** — BT nodes
   (`behaviors/case/nodes.py`, `suggest_actor_tree.py`) and trigger use cases
   (`triggers/embargo.py`, `triggers/case.py`, `triggers/actor.py`,

@@ -32,6 +32,7 @@ from vultron.core.use_cases.triggers._helpers import (
     resolve_case,
 )
 from vultron.core.use_cases.triggers.requests import (
+    AddObjectToCaseTriggerRequest,
     AddReportToCaseTriggerRequest,
     CreateCaseTriggerRequest,
     DeferCaseTriggerRequest,
@@ -39,11 +40,11 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.factories import (
-    add_report_to_case_activity,
     create_case_activity,
     rm_defer_case_activity,
     rm_engage_case_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
@@ -207,10 +208,77 @@ class SvcCreateCaseUseCase:
         }
 
 
+class SvcAddObjectToCaseUseCase:
+    """Add any existing AS2 object to a case (general-purpose).
+
+    Reads the object by ``object_id`` from the datalayer, creates a generic
+    ``Add(object, target=case)`` activity, and queues it in the actor's
+    outbox.  The object must already exist; this use case does not create it.
+
+    Type-specific wrappers (e.g., ``SvcAddReportToCaseUseCase``) delegate
+    here after performing their own validation (TRIG-10-002).
+
+    Implements: TRIG-10-001.
+    """
+
+    def __init__(
+        self,
+        dl: CaseOutboxPersistence,
+        request: AddObjectToCaseTriggerRequest,
+    ) -> None:
+        self._dl = dl
+        self._request = request
+
+    def execute(self) -> dict[str, Any]:
+        actor_id = self._request.actor_id
+        case_id = self._request.case_id
+        object_id = self._request.object_id
+        dl = self._dl
+
+        actor = resolve_actor(actor_id, dl)
+        actor_id = actor.id_
+
+        case = resolve_case(case_id, dl)
+
+        raw = dl.read(object_id)
+        if raw is None:
+            raise VultronNotFoundError("AS2Object", object_id)
+
+        activity = as_Add(
+            actor=actor_id,
+            object_=cast(Any, raw),
+            target=cast(Any, case),
+        )
+
+        try:
+            dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "AddObjectToCase: activity '%s' already exists — skipping",
+                activity.id_,
+            )
+
+        add_activity_to_outbox(actor_id, activity.id_, dl)
+
+        logger.info(
+            "Actor '%s' added object '%s' to case '%s'",
+            actor_id,
+            object_id,
+            case.id_,
+        )
+
+        return {
+            "activity": activity.model_dump(by_alias=True, exclude_none=True)
+        }
+
+
 class SvcAddReportToCaseUseCase:
     """Link a VulnerabilityReport to an existing case.
 
-    Emits an AddReportToCaseActivity queued in the actor's outbox.
+    Validates that the referenced object is a ``VulnerabilityReport``, then
+    delegates to :class:`SvcAddObjectToCaseUseCase` (TRIG-10-002).
+    Emits an ``Add(VulnerabilityReport, target=VulnerabilityCase)`` activity
+    queued in the actor's outbox.
     """
 
     def __init__(
@@ -221,11 +289,9 @@ class SvcAddReportToCaseUseCase:
 
     def execute(self) -> dict[str, Any]:
         actor_id = self._request.actor_id
-        actor = resolve_actor(actor_id, self._dl)
-        actor_id = actor.id_
-        case = resolve_case(self._request.case_id, self._dl)
+        dl = self._dl
 
-        raw = self._dl.read(self._request.report_id)
+        raw = dl.read(self._request.report_id)
         if raw is None:
             raise VultronNotFoundError(
                 "VulnerabilityReport", self._request.report_id
@@ -234,24 +300,13 @@ class SvcAddReportToCaseUseCase:
             raise VultronValidationError(
                 f"'{self._request.report_id}' is not a VulnerabilityReport"
             )
-        report = cast(VulnerabilityReport, raw)
 
-        activity = add_report_to_case_activity(
-            report=report,
-            target=cast(VulnerabilityCase, case),
-            actor=actor.id_,
+        inner = SvcAddObjectToCaseUseCase(
+            dl,
+            AddObjectToCaseTriggerRequest(
+                actor_id=actor_id,
+                case_id=self._request.case_id,
+                object_id=self._request.report_id,
+            ),
         )
-        self._dl.create(activity)
-
-        add_activity_to_outbox(actor_id, activity.id_, self._dl)
-
-        logger.info(
-            "Actor '%s' added report '%s' to case '%s'",
-            actor_id,
-            report.id_,
-            case.id_,
-        )
-
-        return {
-            "activity": activity.model_dump(by_alias=True, exclude_none=True)
-        }
+        return inner.execute()

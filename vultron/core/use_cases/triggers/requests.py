@@ -151,6 +151,19 @@ class CreateCaseTriggerRequest(TriggerRequest):
     report_id: NonEmptyString | None = None
 
 
+class AddObjectToCaseTriggerRequest(CaseTriggerRequest):
+    """Trigger request to attach an existing AS2 object to a case.
+
+    The object must already exist in the actor's datalayer.  The use case
+    will read it by ``object_id`` and queue an ``Add(object, target=case)``
+    activity in the actor's outbox.  Type-specific wrappers (e.g.,
+    ``AddReportToCaseTriggerRequest``) extend this with additional
+    type-validation before delegating here.
+    """
+
+    object_id: NonEmptyString
+
+
 class AddReportToCaseTriggerRequest(CaseTriggerRequest):
     """Trigger request to link a report to an existing case."""
 

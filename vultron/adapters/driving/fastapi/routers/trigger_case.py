@@ -30,7 +30,7 @@ from vultron.adapters.driving.fastapi.deps import (
 from vultron.adapters.driving.fastapi.errors import domain_error_translation
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.trigger_models import (
-    AddNoteToCaseRequest,
+    AddObjectToCaseRequest,
     AddReportToCaseRequest,
     CaseTriggerRequest,
     CreateCaseRequest,
@@ -108,39 +108,38 @@ def trigger_defer_case(
 
 
 @router.post(
-    "/{actor_id}/trigger/add-note-to-case",
+    "/{actor_id}/trigger/add-object-to-case",
     status_code=status.HTTP_202_ACCEPTED,
-    summary="Add a note to a case.",
+    summary="Add an existing AS2 object to a case.",
     description=(
-        "Triggers the add-note-to-case behavior for the given actor. "
-        "Creates a Note, adds it to the actor's local copy of the case, "
-        "and queues Create(Note) and AddNoteToCase(Note, Case) activities "
-        "in the actor's outbox for delivery to case participants."
+        "Adds any existing AS2 object (identified by ``object_id``) to a "
+        "VulnerabilityCase and queues an Add(object, target=case) activity "
+        "in the actor's outbox for delivery to case participants. "
+        "The object must already exist in the actor's datalayer. "
+        "Type-specific convenience triggers (e.g., ``add-report-to-case``) "
+        "delegate here after performing type validation (TRIG-10-001)."
     ),
-    operation_id="actors_trigger_add_note_to_case",
+    operation_id="actors_trigger_add_object_to_case",
 )
-def trigger_add_note_to_case(
+def trigger_add_object_to_case(
     actor_id: str,
-    body: AddNoteToCaseRequest,
+    body: AddObjectToCaseRequest,
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: DataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
-    """
-    Trigger the add-note-to-case behavior for the given actor.
+    """Add an existing AS2 object to a case.
 
     Implements:
-        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
-        TB-04-001, TB-06-001, TB-06-002
+        TRIG-10-001, TB-01-001, TB-01-002, TB-01-003, TB-02-001,
+        TB-03-001, TB-03-002, TB-04-001, TB-06-001, TB-06-002
     """
     with domain_error_translation():
-        result = svc.add_note_to_case(
+        result = svc.add_object_to_case(
             actor_id=actor_id,
             case_id=body.case_id,
-            note_name=body.note_name,
-            note_content=body.note_content,
-            in_reply_to=body.in_reply_to,
+            object_id=body.object_id,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result

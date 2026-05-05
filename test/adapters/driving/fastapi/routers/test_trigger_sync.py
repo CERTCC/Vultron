@@ -15,7 +15,7 @@
 
 """
 Tests for the sync trigger endpoint
-(POST /actors/{actor_id}/trigger/sync-log-entry).
+(POST /actors/{actor_id}/demo/sync-log-entry).
 
 Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml
 and SYNC-02-002, SYNC-02-003 from specs/sync-log-replication.yaml.
@@ -31,7 +31,7 @@ from vultron.adapters.driving.fastapi.deps import (
     get_trigger_service,
 )
 from vultron.adapters.driving.fastapi.routers import (
-    trigger_sync as trigger_sync_router,
+    demo_triggers as demo_triggers_router,
 )
 from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -80,7 +80,7 @@ def client_triggers(dl):
     )
 
     app = FastAPI()
-    app.include_router(trigger_sync_router.router)
+    app.include_router(demo_triggers_router.router)
     app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
         dl, sync_port=SyncActivityAdapter(dl)
     )
@@ -108,7 +108,7 @@ def case_with_actor(dl, actor):
 
 
 # ---------------------------------------------------------------------------
-# Tests: POST /actors/{actor_id}/trigger/sync-log-entry
+# Tests: POST /actors/{actor_id}/demo/sync-log-entry
 # ---------------------------------------------------------------------------
 
 
@@ -120,7 +120,7 @@ class TestTriggerSyncLogEntry:
     ):
         """Returns HTTP 202 Accepted when request is valid (TB-01-001)."""
         response = client_triggers.post(
-            f"/actors/{actor.id_}/trigger/sync-log-entry",
+            f"/actors/{actor.id_}/demo/sync-log-entry",
             json={
                 "case_id": case_with_actor.id_,
                 "object_id": case_with_actor.id_,
@@ -134,7 +134,7 @@ class TestTriggerSyncLogEntry:
     ):
         """Response includes log_entry_id, entry_hash, and log_index (TB-04-001)."""
         response = client_triggers.post(
-            f"/actors/{actor.id_}/trigger/sync-log-entry",
+            f"/actors/{actor.id_}/demo/sync-log-entry",
             json={
                 "case_id": case_with_actor.id_,
                 "object_id": case_with_actor.id_,
@@ -152,7 +152,7 @@ class TestTriggerSyncLogEntry:
     ):
         """The committed entry ID is scoped to the case (SYNC-02-002)."""
         response = client_triggers.post(
-            f"/actors/{actor.id_}/trigger/sync-log-entry",
+            f"/actors/{actor.id_}/demo/sync-log-entry",
             json={
                 "case_id": case_with_actor.id_,
                 "object_id": case_with_actor.id_,
@@ -167,7 +167,7 @@ class TestTriggerSyncLogEntry:
     ):
         """First log entry for a case gets log_index 0 (SYNC-02-002)."""
         response = client_triggers.post(
-            f"/actors/{actor.id_}/trigger/sync-log-entry",
+            f"/actors/{actor.id_}/demo/sync-log-entry",
             json={
                 "case_id": case_with_actor.id_,
                 "object_id": case_with_actor.id_,
@@ -181,7 +181,7 @@ class TestTriggerSyncLogEntry:
     ):
         """Sequential commits for the same case increment log_index."""
         r1 = client_triggers.post(
-            f"/actors/{actor.id_}/trigger/sync-log-entry",
+            f"/actors/{actor.id_}/demo/sync-log-entry",
             json={
                 "case_id": case_with_actor.id_,
                 "object_id": case_with_actor.id_,
@@ -189,7 +189,7 @@ class TestTriggerSyncLogEntry:
             },
         )
         r2 = client_triggers.post(
-            f"/actors/{actor.id_}/trigger/sync-log-entry",
+            f"/actors/{actor.id_}/demo/sync-log-entry",
             json={
                 "case_id": case_with_actor.id_,
                 "object_id": case_with_actor.id_,
@@ -203,7 +203,7 @@ class TestTriggerSyncLogEntry:
     ):
         """entry_hash is a non-empty string (SYNC-02-003)."""
         response = client_triggers.post(
-            f"/actors/{actor.id_}/trigger/sync-log-entry",
+            f"/actors/{actor.id_}/demo/sync-log-entry",
             json={
                 "case_id": case_with_actor.id_,
                 "object_id": case_with_actor.id_,
@@ -219,7 +219,7 @@ class TestTriggerSyncLogEntry:
     ):
         """Each committed entry produces a distinct entry_hash."""
         r1 = client_triggers.post(
-            f"/actors/{actor.id_}/trigger/sync-log-entry",
+            f"/actors/{actor.id_}/demo/sync-log-entry",
             json={
                 "case_id": case_with_actor.id_,
                 "object_id": case_with_actor.id_,
@@ -227,7 +227,7 @@ class TestTriggerSyncLogEntry:
             },
         )
         r2 = client_triggers.post(
-            f"/actors/{actor.id_}/trigger/sync-log-entry",
+            f"/actors/{actor.id_}/demo/sync-log-entry",
             json={
                 "case_id": case_with_actor.id_,
                 "object_id": case_with_actor.id_,
@@ -241,7 +241,7 @@ class TestTriggerSyncLogEntry:
     ):
         """Missing required field case_id returns 422 Unprocessable Entity."""
         response = client_triggers.post(
-            f"/actors/{actor.id_}/trigger/sync-log-entry",
+            f"/actors/{actor.id_}/demo/sync-log-entry",
             json={"object_id": "https://example.org/obj", "event_type": "x"},
         )
         assert response.status_code == 422
@@ -251,7 +251,7 @@ class TestTriggerSyncLogEntry:
     ):
         """Missing required field object_id returns 422."""
         response = client_triggers.post(
-            f"/actors/{actor.id_}/trigger/sync-log-entry",
+            f"/actors/{actor.id_}/demo/sync-log-entry",
             json={
                 "case_id": case_with_actor.id_,
                 "event_type": "test",
@@ -264,7 +264,7 @@ class TestTriggerSyncLogEntry:
     ):
         """Missing required field event_type returns 422."""
         response = client_triggers.post(
-            f"/actors/{actor.id_}/trigger/sync-log-entry",
+            f"/actors/{actor.id_}/demo/sync-log-entry",
             json={
                 "case_id": case_with_actor.id_,
                 "object_id": case_with_actor.id_,
@@ -277,7 +277,7 @@ class TestTriggerSyncLogEntry:
     ):
         """Extra fields in the request body are silently ignored (TB-03-002)."""
         response = client_triggers.post(
-            f"/actors/{actor.id_}/trigger/sync-log-entry",
+            f"/actors/{actor.id_}/demo/sync-log-entry",
             json={
                 "case_id": case_with_actor.id_,
                 "object_id": case_with_actor.id_,
@@ -292,7 +292,7 @@ class TestTriggerSyncLogEntry:
     ):
         """The committed VultronCaseLogEntry is stored in the DataLayer."""
         response = client_triggers.post(
-            f"/actors/{actor.id_}/trigger/sync-log-entry",
+            f"/actors/{actor.id_}/demo/sync-log-entry",
             json={
                 "case_id": case_with_actor.id_,
                 "object_id": case_with_actor.id_,
