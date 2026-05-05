@@ -6,6 +6,7 @@
 |------|------------|------|--------|-------|
 | 2026-05-26 | 00:00 | implementation | BUG-26052601 | BUG-26052601: Factory cast() does not coerce at runtime |
 | 2026-05-26 | 00:00 | implementation | BUG-26052602 | BUG-26052602: finder_submits_report loses VulnerabilityReport ID |
+| 2026-05-05 | 18:00 | idea | IDEA-26050404 | Clearly delineate specs vs ADRs |
 | 2026-05-05 | 17:46 | idea | IDEA-26050501 | Clarify order of operations on case creation |
 | 2026-05-05 | 16:46 | idea | IDEA-26050502 | Integrate docs/codebase into study skill |
 | 2026-05-05 | 16:09 | idea | PAD-design-session-26050501 | Parallel Agentic Development: GitHub Issue-based coordination |
