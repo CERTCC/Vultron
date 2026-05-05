@@ -4,8 +4,7 @@
 
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
-| 2026-05-26 | 00:00 | implementation | BUG-26052601 | BUG-26052601: Factory cast() does not coerce at runtime |
-| 2026-05-26 | 00:00 | implementation | BUG-26052602 | BUG-26052602: finder_submits_report loses VulnerabilityReport ID |
+| 2026-05-05 | 19:52 | implementation | ISSUE-435 | Implement CM-14 canonical case initialization sequence |
 | 2026-05-05 | 18:28 | learning | CC1-FLAKY | SUBFAILED in unittest subtests does not fail pytest; pre-existing flaky test_vultrabot |
 | 2026-05-05 | 18:28 | learning | CC1-MYPY | Untyped closures invisible to mypy; use _get_id() for AS2 context fields |
 | 2026-05-05 | 18:27 | learning | ARCHVIO | Fan-out degrades gracefully when sync_port absent; ratchet test added |
@@ -41,3 +40,5 @@
 | 2026-05-01 | 19:43 | idea | IDEA-26043001 | append-history: reject future dates |
 | 2026-05-01 | 18:56 | implementation | TASK-AF | AF.12 — Mark internal activity subclasses as private |
 | 2026-05-01 | 17:38 | implementation | BUG-26050101 | BUG-26050101: Slow tests — factory import scan + subprocess + outbox retry |
+| 2026-05-01 | 17:38 | implementation | BUG-26052601 | BUG-26052601: Factory cast() does not coerce at runtime |
+| 2026-05-01 | 17:38 | implementation | BUG-26052602 | BUG-26052602: finder_submits_report loses VulnerabilityReport ID |
