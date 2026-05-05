@@ -89,16 +89,14 @@ Use `[TODO]` for anything that cannot be determined from code. Use `[ASK USER]` 
 
 ### Phase 4: Validate, Repair, Verify
 
-n this mandatory validation loop before finalizing:
-1
+Run this mandatory validation loop before finalizing:
 
- Validate each doc against `references/inquiry-checkpoints.md`.
-
-1. If any required section is missing or unsupported:
-
-- Fix the document.
-
-1. Repeat until all seven docs pass.
+1. Validate each doc against `references/inquiry-checkpoints.md`.
+2. For each non-trivial claim, confirm at least one evidence reference exists.
+3. If any required section is missing or unsupported:
+   - Fix the document.
+   - Re-run validation.
+4. Repeat until all seven docs pass.
 
 Then present a summary of all seven documents, list every `[ASK USER]` item as a numbered question, and highlight any Intent vs. Reality divergences from Phase 1.
 

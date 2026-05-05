@@ -572,13 +572,13 @@ def get_git_churn() -> List[str]:
 def is_git_repo() -> bool:
     """Check if current directory is a git repository."""
     try:
-        subprocess.run(
+        result = subprocess.run(
             ["git", "rev-parse", "--git-dir"],
             capture_output=True,
             cwd=Path.cwd(),
             timeout=2,
         )
-        return True
+        return result.returncode == 0
     except Exception:
         return False
 

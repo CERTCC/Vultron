@@ -76,9 +76,13 @@ that the cost of a full scan is justified on every invocation.
 > archiving. Any critical insight in an entry **must be promoted** to
 > `specs/` or `notes/` before being archived.
 >
-> `CONCERNS.md` is treated as a second queue: entries that are resolved,
-> no longer applicable, or fully captured in specs/notes should be archived
-> and deleted just like BUILD_LEARNINGS entries.
+> `CONCERNS.md` is a **generated** file — `acquire-codebase-knowledge`
+> regenerates it on each run. Treat the current snapshot as a read-only
+> input: extract any concerns that reveal missing specs or design notes,
+> promote them to `specs/` or `notes/`, and record that they are resolved
+> in those durable files. Do **not** delete entries from `CONCERNS.md`;
+> deletions will not persist across future scans. The durable record of
+> resolution lives in `specs/` and `notes/`, not in CONCERNS.md itself.
 
 ### Phase 2 — Analyze Gaps
 
