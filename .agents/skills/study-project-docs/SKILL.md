@@ -3,7 +3,8 @@ name: study-project-docs
 description: >
   Load all specs and read key project context files so the agent has a
   complete picture before doing any implementation, design, or documentation
-  work. Invokes load-specs and reads plan/, docs/adr/, notes/, and AGENTS.md.
+  work. Invokes load-specs and reads plan/, docs/adr/, notes/, AGENTS.md,
+  docs/reference/codebase/, and docs/reference/glossary.md.
   Run this at the start of every workflow skill.
 ---
 
@@ -15,6 +16,11 @@ that all workflow skills (`build`, `bugfix`, `learn`, `ingest-idea`) run
 before doing anything else.
 
 ## Procedure
+
+### Step 0 — Read the ubiquitous language glossary
+
+Read `docs/reference/glossary.md` **before** loading specs. This establishes
+the domain vocabulary used throughout all requirements, notes, and ADRs.
 
 ### Step 1 — Load specs
 
@@ -49,6 +55,17 @@ Read in parallel:
 - `docs/adr/` directory listing, then each relevant ADR
 - `notes/README.md`, then any `notes/*.md` files relevant to the current task
 - `AGENTS.md` — agent rules and conventions
+- `docs/reference/codebase/index.md` — codebase reference overview
+- `docs/reference/codebase/ARCHITECTURE.md` — system flow and layer rules
+- `docs/reference/codebase/STRUCTURE.md` — top-level module map and entry points
+- `docs/reference/codebase/CONVENTIONS.md` — naming, formatting, import rules
+
+Read the following codebase reference files **only when relevant to the task**:
+
+- `docs/reference/codebase/STACK.md` — when adding or evaluating dependencies
+- `docs/reference/codebase/TESTING.md` — when writing or reviewing tests
+- `docs/reference/codebase/CONCERNS.md` — when assessing risk or technical debt
+- `docs/reference/codebase/INTEGRATIONS.md` — when working on external integrations
 
 ### Step 4 — Scan the codebase
 
@@ -64,4 +81,4 @@ search.
   cross-cutting specs (`ARCH`, `CS`, `TB`, `HP`, `SL`, `EH`) are always in
   context.
 - If the task is narrowly scoped, you may skip `plan/BUGS.md` and the ADR
-  deep-read, but always run Step 1 and Step 2.
+  deep-read, but always run Steps 0, 1, and 2.

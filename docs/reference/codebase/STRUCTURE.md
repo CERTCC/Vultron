@@ -6,15 +6,15 @@
 
 | Path | Purpose | Evidence |
 |------|---------|----------|
-| `vultron/` | Main application package: adapters, core logic, wire models, demos, metadata tooling | `AGENTS.md`, `docs/codebase/.codebase-scan.txt` |
+| `vultron/` | Main application package: adapters, core logic, wire models, demos, metadata tooling | `AGENTS.md`, `docs/reference/codebase/.codebase-scan.txt` |
 | `test/` | Pytest suite mirroring `vultron/` | `test/AGENTS.md`, `pyproject.toml` |
-| `docs/` | MkDocs source for published documentation site | `mkdocs.yml`, `docs/codebase/.codebase-scan.txt` |
+| `docs/` | MkDocs source for published documentation site | `mkdocs.yml`, `docs/reference/codebase/.codebase-scan.txt` |
 | `doc/` | Example and legacy supporting docs distinct from MkDocs site | `README.md`, `doc/README.md` |
 | `notes/` | Durable design notes and architecture guidance | `notes/README.md`, `AGENTS.md` |
 | `specs/` | Formal requirement files and spec tooling inputs | `specs/README.md` |
 | `docker/` | Dockerfiles, compose stacks, and seed configs for demos | `docker/README.md`, `docker/docker-compose.yml` |
 | `integration_tests/` | Manual acceptance/integration scripts outside pytest | `integration_tests/README.md` |
-| `plan/` | Priorities, history, and implementation planning artifacts | `docs/codebase/.codebase-scan.txt`, `AGENTS.md` |
+| `plan/` | Priorities, history, and implementation planning artifacts | `docs/reference/codebase/.codebase-scan.txt`, `AGENTS.md` |
 | `.github/` | CI workflows, repo automation, and authoring instructions | `.github/workflows/python-app.yml`, `.github/dependabot.yml` |
 
 ### 2) Entry Points
@@ -51,7 +51,7 @@
 
 ### 5) Evidence
 
-- `docs/codebase/.codebase-scan.txt`
+- `docs/reference/codebase/.codebase-scan.txt`
 - `pyproject.toml`
 - `docker/Dockerfile`
 - `AGENTS.md`
