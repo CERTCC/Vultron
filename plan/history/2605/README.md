@@ -6,6 +6,7 @@
 |------|------------|------|--------|-------|
 | 2026-05-26 | 00:00 | implementation | BUG-26052601 | BUG-26052601: Factory cast() does not coerce at runtime |
 | 2026-05-26 | 00:00 | implementation | BUG-26052602 | BUG-26052602: finder_submits_report loses VulnerabilityReport ID |
+| 2026-05-05 | 12:14 | implementation | TASK-CC.1 | CC.1: Reduce CC>15 violations and activate CC=15 gate |
 | 2026-05-04 | 21:12 | implementation | TASK-TRIGCLASS | TASK-TRIGCLASS: Trigger Classification and Demo Route Separation |
 | 2026-05-04 | 20:53 | implementation | TASK-ARCHVIO | Remove deferred SyncActivityAdapter imports from core sync use cases |
 | 2026-05-04 | 20:37 | implementation | TASK-CP-CLEANUP | Remove deprecated CasePersistence compat methods |

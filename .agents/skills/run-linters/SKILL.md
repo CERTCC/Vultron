@@ -62,6 +62,11 @@ uv run black vultron/ test/ && uv run flake8 vultron/ test/ && uv run mypy && uv
 - Run `black` first — formatting errors cause spurious `flake8` failures.
 - `flake8` MUST be run **without** `--exit-zero`; a non-zero exit means the
   commit is not ready.
+- `flake8` enforces a **cyclomatic complexity (CC) gate** via `.flake8`
+  (`max-complexity = 15`). Any function exceeding CC=15 is a hard lint
+  failure. The final target is CC≤10 (IMPLTS-07-008); the gate will be
+  tightened to `max-complexity = 10` once all CC 11–15 violations are
+  resolved (CC.2).
 - `mypy` and `pyright` are both required; they surface complementary classes
   of type errors.
 - Do **not** commit code that produces warnings or errors from any of the four

@@ -15,7 +15,7 @@ section order.
 
 ---
 
----
+## TASK-CC — Cyclomatic Complexity Enforcement
 
 `flake8-mccabe` is already bundled in the project's flake8 install. The
 gate integrates into the existing `lint-flake8` CI job and pre-commit
@@ -24,32 +24,7 @@ pipeline with no new dependencies. Scope: both `vultron/` and `test/`.
 See `plan/BUILD_LEARNINGS.md` section CC-ENFORCEMENT for the full
 violation inventory, refactoring guidance, and config change details.
 
-### CC.1 — Phase 1: Reduce CC>15 violations to CC≤10 and activate CC=15 gate
-
-**Prerequisite for CC.2.** Refactor each function to CC≤10 (final target —
-do not leave at an intermediate level). Activate gate in the same PR.
-
-**Acceptance criteria:**
-
-- All five functions pass `uv run flake8 --max-complexity=10 --select=C901`
-- `.flake8` contains `max-complexity = 15`
-- `.pre-commit-config.yaml` has a `flake8` hook entry
-- `.agents/skills/run-linters/SKILL.md` documents the CC gate
-
-- [ ] CC.1.1 Reduce `extract_intent` CC=34 — `vultron/wire/as2/extractor.py`
-  (dispatch table keyed on type tuples)
-- [ ] CC.1.2 Reduce `rehydrate` CC=18 — `vultron/wire/as2/rehydration.py`
-- [ ] CC.1.3 Reduce `thing2md` CC=17 — `vultron/scripts/ontology2md.py`
-- [ ] CC.1.4 Reduce `mock_datalayer` CC=17 —
-  `test/core/behaviors/test_performance.py`
-- [ ] CC.1.5 Reduce `print_model` CC=16 —
-  `vultron/core/case_states/make_doc.py`
-- [ ] CC.1.6 Activate CC=15 gate in `.flake8`; add pre-commit hook; update
-  run-linters SKILL.md
-
 ### CC.2 — Phase 2: Reduce CC 11–15 violations to CC≤10 and tighten gate
-
-**Blocked by CC.1.**
 
 Current violations (CC 11–15) — 25 functions:
 

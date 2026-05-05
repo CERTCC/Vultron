@@ -21,3 +21,22 @@ should raise.
 The architecture test `test/architecture/test_core_no_adapter_imports.py` uses
 AST scanning (same ratchet pattern as `test_activity_factory_imports.py`) to
 enforce the boundary going forward.
+
+### 2026-05-05 CC1-MYPY — `VultronActivity.context` was typed wrong in snapshot builder
+
+When extracting `_build_activity_snapshot` from the untyped closure inside
+`extract_intent`, mypy correctly flagged that `context=context` passed a raw
+`as_Object` to a field typed `NonEmptyString | None`.  The original closure
+was invisible to mypy because untyped function bodies are not checked.
+
+Fix: use `_get_id(context)` (consistent with how `origin` is handled).
+This converts the AS2 object to its string ID — the semantically correct
+value for a snapshot field.
+
+### 2026-05-05 CC1-FLAKY — Pre-existing flaky subtest in test_vultrabot
+
+`test/bt/test_vultrabot.py::MyTestCase::test_main` shows `SUBFAILED` on
+`test_main` when run in the full suite but passes in isolation. This is a
+pre-existing global-state ordering issue (py_trees blackboard), not caused
+by CC.1 changes. Exit code remains 0 because unittest subtest failures do
+not trigger pytest's failure exit code.

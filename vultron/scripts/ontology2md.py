@@ -24,6 +24,69 @@ import owlready2  # type: ignore[import]
 seen_things: set[owlready2.ThingClass] = set()
 
 
+def _mkrow(k: str, v: str) -> str:
+    """Format a markdown table row, escaping pipe characters in values."""
+    return f"| {k} | {v.replace('|', ' or ')} |"
+
+
+def _get_thing_properties(thing: owlready2.ThingClass) -> list:
+    """Safely retrieve the property list from a thing class."""
+    get_properties = getattr(thing, "get_properties", None)
+    if not callable(get_properties):
+        return []
+    try:
+        get_properties_fn = cast(
+            Callable[[], Iterable[object]], get_properties
+        )
+        return list(cast(Iterable[object], get_properties_fn()))
+    except TypeError:
+        return []
+
+
+def _get_optional_list(thing: owlready2.ThingClass, attr: str) -> list:
+    """Return ``list(getattr(thing, attr))`` or ``[]`` on AttributeError."""
+    try:
+        val = getattr(thing, attr, None)
+        return list(val) if val else []
+    except AttributeError:
+        return []
+
+
+def _build_thing_data(
+    thing: owlready2.ThingClass, comment: str
+) -> dict[str, str]:
+    """Build the attribute→value mapping for a thing's markdown table."""
+    data: dict[str, str] = {
+        "Name": thing.name,
+        "IRI": thing.iri,
+        "Description": comment,
+    }
+
+    if len(thing.equivalent_to):
+        data["Equivalent To"] = "<br/>".join(_listify(thing.equivalent_to))
+
+    if len(thing.is_a):
+        data["Superclasses"] = "<br/>".join(_listify(thing.is_a))
+
+    properties = _get_thing_properties(thing)
+    if properties:
+        data["Properties"] = "<br/>".join(_listify(properties))
+
+    domain = _get_optional_list(thing, "domain")
+    if domain:
+        data["Domain"] = "<br/>".join(_listify(domain))
+
+    range_ = _get_optional_list(thing, "range")
+    if range_:
+        data["Range"] = "<br/>".join(_listify(range_))
+
+    subclasses = list(thing.subclasses())
+    if subclasses:
+        data["Subclasses"] = "<br/>".join(_listify(subclasses))
+
+    return data
+
+
 def _listify(x):
     # sometimes the things in x are redundant
     # so we need to make sure they are unique
@@ -49,8 +112,7 @@ def thing2md(thing: owlready2.ThingClass, hdrlevel: int = 2) -> list[str]:
     lines.append(f"{hdr} {thing.name}")
     lines.append("")
 
-    comment = " ".join(thing.comment)
-    comment = _linkify(comment)
+    comment = _linkify(" ".join(thing.comment))
 
     if comment:
         lines.append(comment)
@@ -59,60 +121,8 @@ def thing2md(thing: owlready2.ThingClass, hdrlevel: int = 2) -> list[str]:
     lines.append("| Attribute | Value |")
     lines.append("| --------- | ----- |")
 
-    data = {
-        "Name": thing.name,
-        "IRI": thing.iri,
-        "Description": comment,
-    }
-
-    if len(thing.equivalent_to):
-        data["Equivalent To"] = "<br/>".join(_listify(thing.equivalent_to))
-
-    if len(thing.is_a):
-        data["Superclasses"] = "<br/>".join(_listify(thing.is_a))
-
-    # add properties for Thing class
-    get_properties = getattr(thing, "get_properties", None)
-    if callable(get_properties):
-        try:
-            get_properties_fn = cast(
-                Callable[[], Iterable[object]], get_properties
-            )
-            properties_iter = cast(Iterable[object], get_properties_fn())
-            properties = list(properties_iter)
-        except TypeError:
-            properties = []
-    else:
-        properties = []
-
-    if len(properties):
-        data["Properties"] = "<br/>".join(_listify(properties))
-
-    # add domains and ranges for properties
-    # not all things have domains and ranges
-    try:
-        if len(thing.domain):
-            data["Domain"] = "<br/>".join(_listify(thing.domain))
-    except AttributeError:
-        pass
-
-    try:
-        if len(thing.range):
-            data["Range"] = "<br/>".join(_listify(thing.range))
-    except AttributeError:
-        pass
-
-    subclasses = list(thing.subclasses())
-    if len(subclasses):
-        data["Subclasses"] = "<br/>".join(_listify(subclasses))
-
-    # we have to be careful about pipe characters in the values
-    def mkrow(k, v):
-        return f"| {k} | {v.replace('|', ' or ')} |"
-
-    # turn data into rows
-    for k, v in data.items():
-        lines.append(mkrow(k, v))
+    for k, v in _build_thing_data(thing, comment).items():
+        lines.append(_mkrow(k, v))
 
     return lines
 

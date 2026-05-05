@@ -40,6 +40,125 @@ logger = logging.getLogger(__name__)
 MAX_REHYDRATION_DEPTH = 5
 
 
+def _resolve_string_id(obj_id: str, dl: DataLayer) -> as_Object:
+    """Resolve a string ID reference to an ``as_Object`` via the data layer.
+
+    Args:
+        obj_id: The string ID to resolve.
+        dl: DataLayer used for lookup.
+
+    Returns:
+        The resolved ``as_Object``.
+
+    Raises:
+        ValueError: If the ID cannot be resolved or resolves to an unexpected type.
+    """
+    logger.debug("Rehydrating string ID '%s' via provided DataLayer.", obj_id)
+    resolved = dl.read(obj_id)
+    if resolved is None:
+        raise ValueError(f"Object '{obj_id}' not found in data layer")
+    if not isinstance(resolved, as_Object):
+        raise ValueError(
+            f"Object '{obj_id}' resolved to unsupported type "
+            f"{type(resolved).__name__}"
+        )
+    logger.debug("String ID '%s' resolved to %s.", obj_id, type(resolved))
+    return resolved
+
+
+def _rehydrate_nested_object_field(
+    obj: as_Object, dl: DataLayer, depth: int
+) -> as_Object | None:
+    """Rehydrate the nested ``object_`` field of an ``as_Object`` in place.
+
+    If the field is ``None``, raises ``ValueError``.  If rehydration of the
+    nested object fails (e.g. remote federated object), logs a debug message
+    and returns ``None`` so the caller keeps the original reference.
+
+    Args:
+        obj: Object whose ``object_`` field should be rehydrated.
+        dl: DataLayer passed through to recursive ``rehydrate`` calls.
+        depth: Current recursion depth.
+
+    Returns:
+        The rehydrated nested object, or ``None`` if rehydration was skipped.
+
+    Raises:
+        ValueError: If ``obj.object_`` is ``None``.
+    """
+    obj_with_object = cast(Any, obj)
+    if obj_with_object.object_ is None:
+        logger.error("'object_' field is None in %s.", obj.type_)
+        raise ValueError(f"'object_' field is None in {obj.type_}")
+    logger.debug("Rehydrating nested 'object_' of %s.", obj.type_)
+    try:
+        rehydrated_nested = rehydrate(
+            obj_with_object.object_, dl=dl, depth=depth + 1
+        )
+        obj_with_object.object_ = rehydrated_nested
+        return rehydrated_nested
+    except ValueError:
+        # Nested object not found in the local DataLayer — common in
+        # federated scenarios where objects live on remote containers.
+        # Keep the original ID string reference; pattern matching
+        # treats string values as "conservatively allowed" (see
+        # ActivityPattern._match_field), and use cases handle the
+        # missing object gracefully.
+        logger.debug(
+            "Could not rehydrate nested 'object_' of %s; "
+            "keeping original reference.",
+            obj.type_,
+        )
+        return None
+
+
+def _cast_to_vocabulary_type(obj: as_Object) -> as_Object:
+    """Look up the correct vocabulary class for *obj* and rehydrate if needed.
+
+    Args:
+        obj: Object to cast to its canonical vocabulary type.
+
+    Returns:
+        The object cast (or already typed) to the correct subclass.
+
+    Raises:
+        ValueError: If ``obj`` lacks a ``type_`` attribute or the value is ``None``,
+            or if rehydration yields an unexpected type.
+        KeyError: If the type string is not registered in the vocabulary.
+        ValidationError: If Pydantic validation of the rehydrated object fails.
+    """
+    if not hasattr(obj, "type_"):
+        logger.error("Object %s has no 'type_' attribute.", obj)
+        raise ValueError(f"Object {obj} has no 'type_' attribute.")
+    if obj.type_ is None:
+        raise ValueError(f"Object {obj} has no 'type_' value.")
+    try:
+        cls = find_in_vocabulary(obj.type_)
+    except KeyError:
+        logger.error("Unknown object type: %s.", obj.type_)
+        raise
+    if isinstance(obj, cls):
+        logger.debug(
+            "Object already rehydrated as '%s', skipping.",
+            obj.__class__.__name__,
+        )
+        return cast(as_Object, obj)
+    logger.debug(
+        "Rehydrating to class %s for type %s.", cls.__name__, obj.type_
+    )
+    try:
+        rehydrated = cls.model_validate(obj.model_dump())
+    except ValidationError:
+        logger.error("%s validation failed on %s.", cls.__name__, obj)
+        raise
+    if not isinstance(rehydrated, as_Object):
+        raise ValueError(
+            f"Rehydration of {obj.type_} produced unsupported type "
+            f"{type(rehydrated).__name__}"
+        )
+    return cast(as_Object, rehydrated)
+
+
 def rehydrate(
     obj: as_Object | str, dl: DataLayer, depth: int = 0
 ) -> as_Object:
@@ -67,87 +186,19 @@ def rehydrate(
         )
 
     if isinstance(obj, str):
-        logger.debug("Rehydrating string ID '%s' via provided DataLayer.", obj)
-        resolved = dl.read(obj)
+        obj = _resolve_string_id(obj, dl)
 
-        if resolved is None:
-            raise ValueError(f"Object '{obj}' not found in data layer")
-
-        if not isinstance(resolved, as_Object):
-            raise ValueError(
-                f"Object '{obj}' resolved to unsupported type "
-                f"{type(resolved).__name__}"
-            )
-
-        logger.debug("String ID '%s' resolved to %s.", obj, type(resolved))
-        obj = resolved
-
-    rehydrated_nested_object = None
+    rehydrated_nested = None
     if hasattr(obj, "object_"):
-        obj_with_object = cast(Any, obj)
-        if obj_with_object.object_ is not None:
-            logger.debug("Rehydrating nested 'object_' of %s.", obj.type_)
-            try:
-                rehydrated_nested_object = rehydrate(
-                    obj_with_object.object_, dl=dl, depth=depth + 1
-                )
-                obj_with_object.object_ = rehydrated_nested_object
-            except ValueError:
-                # Nested object not found in the local DataLayer — common in
-                # federated scenarios where objects live on remote containers.
-                # Keep the original ID string reference; pattern matching
-                # treats string values as "conservatively allowed" (see
-                # ActivityPattern._match_field), and use cases handle the
-                # missing object gracefully.
-                logger.debug(
-                    "Could not rehydrate nested 'object_' of %s; "
-                    "keeping original reference.",
-                    obj.type_,
-                )
-        else:
-            logger.error("'object_' field is None in %s.", obj.type_)
-            raise ValueError(f"'object_' field is None in {obj.type_}")
+        rehydrated_nested = _rehydrate_nested_object_field(obj, dl, depth)
 
-    if not hasattr(obj, "type_"):
-        logger.error("Object %s has no 'type_' attribute.", obj)
-        raise ValueError(f"Object {obj} has no 'type_' attribute.")
+    rehydrated = _cast_to_vocabulary_type(obj)
 
-    if obj.type_ is None:
-        raise ValueError(f"Object {obj} has no 'type_' value.")
-
-    try:
-        cls = find_in_vocabulary(obj.type_)
-    except KeyError:
-        logger.error("Unknown object type: %s.", obj.type_)
-        raise
-
-    if isinstance(obj, cls):
-        logger.debug(
-            "Object already rehydrated as '%s', skipping.",
-            obj.__class__.__name__,
-        )
-        return cast(as_Object, obj)
-
-    logger.debug(
-        "Rehydrating to class %s for type %s.", cls.__name__, obj.type_
-    )
-    try:
-        rehydrated = cls.model_validate(obj.model_dump())
-    except ValidationError:
-        logger.error("%s validation failed on %s.", cls.__name__, obj)
-        raise
-
-    if not isinstance(rehydrated, as_Object):
-        raise ValueError(
-            f"Rehydration of {obj.type_} produced unsupported type "
-            f"{type(rehydrated).__name__}"
-        )
-
-    if rehydrated_nested_object is not None and hasattr(rehydrated, "object_"):
-        cast(Any, rehydrated).object_ = rehydrated_nested_object
+    if rehydrated_nested is not None and hasattr(rehydrated, "object_"):
+        cast(Any, rehydrated).object_ = rehydrated_nested
         logger.debug(
             "Preserved rehydrated nested object of type %s.",
-            rehydrated_nested_object.__class__.__name__,
+            rehydrated_nested.__class__.__name__,
         )
 
     return cast(as_Object, rehydrated)
