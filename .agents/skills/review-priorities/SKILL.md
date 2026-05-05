@@ -76,6 +76,28 @@ For each `group:unscheduled` Issue, the choices are:
 Use the grill-me skill for contentious placement decisions or when the user
 wants to think through the priority ordering in depth.
 
+### Label Naming Rules (PAD-02-007)
+
+Before assigning or creating any `group:` label:
+
+- **Never include a priority number** in the label name.
+  Use `group:architecture-hardening`, **not** `group:473-architecture-hardening`
+  or `group:473`. Priority numbers change when PRIORITIES.md is reordered; label
+  names must not.
+- **Derive the name** from the priority group title using short, descriptive
+  kebab-case (e.g., "Cyclomatic Complexity Enforcement" → `group:cyclomatic-complexity`).
+- **Check for label existence** before assigning. If the label does not yet
+  exist, create it first:
+
+  ```bash
+  gh label create "group:<slug>" \
+    --repo CERTCC/Vultron \
+    --description "<Priority group title (no number)>" \
+    --color "#1d76db"
+  ```
+
+  Use the priority group title (without the number) as the description.
+
 ### Phase 5 — Update PRIORITIES.md and Issue labels
 
 Apply the agreed placements:

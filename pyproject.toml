@@ -59,6 +59,7 @@ dependencies = [
     "pyyaml>=6.0",
     "python-frontmatter>=1.1.0",
     "pydantic-settings>=2.14.0",
+    "httpx>=0.28.1",
 ]
 dynamic = ["version",]
 
@@ -140,7 +141,6 @@ profile = "black"
 dev = [
     "black>=26.1.0",
     "flake8>=7.3.0",
-    "httpx>=0.28.1",
     "isort>=7.0.0",
     "linkchecker>=10.6.0",
     "mypy>=1.20.2",

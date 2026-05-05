@@ -306,6 +306,31 @@ port being permanently `True` in single-node imposes zero runtime cost.
 
 ---
 
+## Fan-Out Graceful Degradation
+
+`_fan_out_log_entry` (in `vultron/core/use_cases/triggers/sync.py`) queues one
+`Announce(CaseLogEntry)` per peer participant. `sync_port` is an **optional**
+injection: when it is absent (single-actor context, tests, or configurations
+without a `SyncActivityAdapter`), the function logs at `DEBUG` level and
+returns immediately instead of raising.
+
+This differs from the two functions that **require** `sync_port`:
+
+- `_send_rejection` — must be able to send a rejection; raises `VultronError`
+  if `sync_port` is absent.
+- `replay_missing_entries_trigger` — replaying entries to a peer requires an
+  outbound channel; raises `VultronError` if `sync_port` is absent.
+
+**Rule**: fan-out is optional behaviour — skipping it silently is correct when
+no sync port is configured. Rejection and replay paths are not optional; they
+MUST raise if the port is missing.
+
+This means BT node tests and single-actor integration tests do **not** need a
+`sync_port` injected on the blackboard or as a use-case parameter — the absence
+is handled gracefully without patching.
+
+---
+
 ## Related
 
 - `specs/sync-log-replication.yaml` — normative requirements

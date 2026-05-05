@@ -793,3 +793,30 @@ from the wire layer (e.g., `behaviors/case/nodes.py`,
 its own driven port or an expansion of the existing `ActivityEmitter` port.
 A comprehensive audit of all ARCH-01-001 violations in `core/` is warranted
 as a follow-up task.
+
+### Architecture Boundary Ratchet Test
+
+`test/architecture/test_core_no_adapter_imports.py` enforces the
+`core/` → `adapters/` half of ARCH-01-001: `vultron/core/` MUST NOT import
+from `vultron/adapters/` at any code path — including deferred
+(local-function-body) imports.
+
+The test uses a **ratchet pattern** (`KNOWN_VIOLATIONS` frozenset):
+
+- Adding a new violation causes the test to **fail immediately**.
+- Fixing a violation also causes the test to **fail** until the resolved
+  entry is removed from `KNOWN_VIOLATIONS`.
+
+`KNOWN_VIOLATIONS` is currently `frozenset()` — the `core/` → `adapters/`
+boundary is clean. Note that this test does **not** cover the `core/` →
+`wire/` boundary; several known violations there remain open (see "Broader
+ARCH-01-001 Audit Needed" above). When a violation must be temporarily
+permitted (e.g., during incremental refactoring), add the module path string
+to `KNOWN_VIOLATIONS`, not a `# type: ignore` comment. Remove it once the
+violation is resolved.
+
+A parallel ratchet test (`test_activity_factory_imports.py`) enforces that
+internal activity subclasses are not imported directly except from the
+allowed locations: `vultron/wire/as2/vocab/activities/`,
+`vultron/wire/as2/factories/`, `test/wire/as2/vocab/`,
+`test/architecture/`, and `vultron/semantic_registry.py`.

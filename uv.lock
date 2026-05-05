@@ -1697,6 +1697,7 @@ dependencies = [
     { name = "click" },
     { name = "fastapi" },
     { name = "griffelib" },
+    { name = "httpx" },
     { name = "isodate" },
     { name = "markdown-exec" },
     { name = "mkdocs" },
@@ -1727,7 +1728,6 @@ dependencies = [
 dev = [
     { name = "black" },
     { name = "flake8" },
-    { name = "httpx" },
     { name = "isort" },
     { name = "linkchecker" },
     { name = "mypy" },
@@ -1744,6 +1744,7 @@ requires-dist = [
     { name = "click", specifier = ">=8.3.3" },
     { name = "fastapi", specifier = ">=0.136.1" },
     { name = "griffelib", specifier = ">=2.0.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "isodate", specifier = ">=0.7.2" },
     { name = "markdown-exec", specifier = ">=1.11.0" },
     { name = "mkdocs", specifier = ">=1.6.1" },
@@ -1774,7 +1775,6 @@ requires-dist = [
 dev = [
     { name = "black", specifier = ">=26.1.0" },
     { name = "flake8", specifier = ">=7.3.0" },
-    { name = "httpx", specifier = ">=0.28.1" },
     { name = "isort", specifier = ">=7.0.0" },
     { name = "linkchecker", specifier = ">=10.6.0" },
     { name = "mypy", specifier = ">=1.20.2" },

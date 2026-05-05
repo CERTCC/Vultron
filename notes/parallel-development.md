@@ -173,6 +173,32 @@ GitHub Issues with appropriate labels.
 
 ---
 
+## Group Label Conventions (gap-analysis finding, 2026-05-05)
+
+A `group:<name>` label MUST correspond to exactly one priority group in
+`PRIORITIES.md`. Labels MUST use descriptive names only — **never embed a
+priority number** in the label name or description. Priority ordering lives
+in `PRIORITIES.md` and can change without touching issue labels.
+
+### Implications
+
+- Each `group:*` label maps to one entry in `PRIORITIES.md`. If two priority
+  entries need separate work-streams, create two labels.
+- The label description should name the work-stream (e.g.,
+  "Re-implement fuzzer nodes from original simulator"), not the priority
+  number. This was corrected for `group:fuzzer-nodes` in May 2026.
+- `group:unscheduled` is the holding label for Issues not yet slotted into
+  `PRIORITIES.md`. Use `review-priorities` to assign them.
+
+### Label compliance for older issues
+
+Issues predating the PAD label requirements (opened before Priority 473
+work began) may lack `group:*` and/or `size:*` labels. These are not
+retroactively wrong — they should be updated when touched. Issues #5, #6,
+and #294 were missing labels and were updated in May 2026.
+
+---
+
 ## Open Questions / Future Work
 
 - **Diff-size threshold tuning**: The 50/300 line thresholds are a starting

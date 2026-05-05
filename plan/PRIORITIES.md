@@ -32,17 +32,40 @@ Implementation-level architecture tasks completed:
 - ✓ **TASK-CP-CLEANUP** — Removed deprecated `get()` / `by_type()` from
   `CasePersistence`.
 
+Open tasks:
+
+- [#428](https://github.com/CERTCC/Vultron/issues/428) — ARCH-VIOLATIONS:
+  Fix broader core→wire ARCH-01-001 import violations
+- [#439](https://github.com/CERTCC/Vultron/issues/439) — SBT: Implement
+  Sync Behavior Trees in `vultron/core/behaviors/sync/`
+- [#435](https://github.com/CERTCC/Vultron/issues/435) — Implement CM-14:
+  canonical case initialization sequence
+- [#429](https://github.com/CERTCC/Vultron/issues/429) — PAD: Implement
+  stale-claim sweeper GitHub Actions workflow
+
 ## Priority 474: Trigger Classification
 
 ✓ **TASK-TRIGCLASS** — Demo-only trigger endpoints separated into dedicated
 router mounted only when `RunMode.PROTOTYPE`; general-purpose
 `add-object-to-case` trigger added.
 
+## Priority 475: Participant Case Replica Safety
+
+Enforce safety rules for seeding and maintaining local case replicas in
+participant nodes, preventing unauthorized or out-of-order state
+propagation, as specified in `specs/participant-case-replica.yaml`.
+
+- [#440](https://github.com/CERTCC/Vultron/issues/440) — PCR: Implement
+  participant case replica safety rules (PCR-03, PCR-05, PCR-06)
+
 ## Priority 476: Bug Fixes and Demo Polish
 
 Fix issues affecting demo execution and correctness.
 
-- [#412](https://github.com/CERTCC/Vultron/issues/412) — mislabeled demo (docker-compose multi-vendor label mismatch)
+- [#412](https://github.com/CERTCC/Vultron/issues/412) — mislabeled demo
+  (docker-compose multi-vendor label mismatch)
+- [#437](https://github.com/CERTCC/Vultron/issues/437) — Enforce spec vs.
+  ADR delineation guidelines (MS-11)
 
 ## Priority 480: Cyclomatic Complexity Enforcement
 
@@ -87,6 +110,9 @@ it in the new codebase using `py_trees` as the foundation. The underlying
 `vultron/bt/base/fuzzer.py` module (and all the other `fuzzer.py` modules in
 `vultron/bt/`) can be used as a structural reference for the new implementation.
 
+- [#427](https://github.com/CERTCC/Vultron/issues/427) — FUZZ-00:
+  Re-implement fuzzer nodes from original simulator
+
 ## Priority 1000: Agentic AI readiness
 
 We are going to want to allow for the possibility of agentic AI integration
@@ -107,6 +133,9 @@ who are directing them to perform specific tasks.
 
 `AR-09-001` through `AR-09-004` and similar tasks will fall here.
 
+- [#426](https://github.com/CERTCC/Vultron/issues/426) — AGENTIC-00:
+  Agentic AI integration design and implementation
+
 We will need to design the system in a way that allows for either of these
 possibilities to be implemented in the future without requiring major refactoring.
 
@@ -122,9 +151,13 @@ from a prototype to a production-ready system, but they also represent a
 number of decisions and implementation work that is not core to being able
 to demonstrate the core behavior tree and coordination logic.
 
+- [#441](https://github.com/CERTCC/Vultron/issues/441) — Upgrade
+  external-decision fuzzer nodes to full implementations
+
 ## Priority 3000: Miscellaneous tasks
 
-BT-2.2, BT-2.3
+- [#442](https://github.com/CERTCC/Vultron/issues/442) — Clean up orphaned
+  BT-2.2/BT-2.3 placeholder references in PRIORITIES.md
 
 ## Priority 50000: Full RAFT consensus implementation
 
@@ -157,12 +190,15 @@ that are marked as `PROD_ONLY` are temporarily a lower priority than other
 requirements. See `specs/prototype-shortcuts.yaml` for the prototype-stage
 deferral policy.
 
-USE-CASE-01
-USE-CASE-02
-EP-02
-EP-03
-AR-04
-AR-05
-AR-06
-AGENTIC-00
-FUZZ-00
+- [#422](https://github.com/CERTCC/Vultron/issues/422) — USE-CASE-01:
+  CloseCaseUseCase wire-type construction
+- [#423](https://github.com/CERTCC/Vultron/issues/423) — USE-CASE-02:
+  UseCase Protocol generic enforcement
+- [#424](https://github.com/CERTCC/Vultron/issues/424) — EP-02/EP-03:
+  EmbargoPolicy API + compatibility evaluation (PROD_ONLY)
+- [#425](https://github.com/CERTCC/Vultron/issues/425) — AR-04/05/06:
+  Job tracking, pagination, bulk ops (PROD_ONLY)
+- [#426](https://github.com/CERTCC/Vultron/issues/426) — AGENTIC-00:
+  Agentic AI integration (see also Priority 1000)
+- [#427](https://github.com/CERTCC/Vultron/issues/427) — FUZZ-00:
+  Fuzzer node re-implementation (see also Priority 500)

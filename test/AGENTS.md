@@ -195,3 +195,26 @@ as a candidate test class, even when it is just a helper enum inheriting from
 regression test in `test/test_pytest_collection_hygiene.py` enforces this.
 
 ---
+
+### `SUBFAILED` in `unittest.TestCase` Subtests Does Not Fail pytest
+
+`test/bt/test_vultrabot.py::MyTestCase::test_main` uses `unittest` subtests
+(`with self.subTest(...)`). When run as part of the full suite, the subtest
+may show `SUBFAILED` in pytest output due to py_trees blackboard global-state
+ordering, but **the pytest exit code remains 0**.
+
+This is a known limitation: `unittest` subtest failures report as `SUBFAILED`
+in verbose pytest output but do not cause pytest to exit non-zero. The test
+summary line may still show "passed", masking the subtest failure.
+
+**Rule**: The ONE RUN RULE above remains the only required full-suite
+validation command. Do **not** change that command or add `-v` to the full
+suite run. If you are specifically investigating
+`test/bt/test_vultrabot.py::MyTestCase::test_main`, you may run that targeted
+test or file separately with `-v` and treat any `SUBFAILED` line as a real
+failure even if pytest exits 0.
+
+**Root cause here**: py_trees `Blackboard.storage` is process-global. Test
+ordering in the full suite can leave state from a prior test that affects
+`test_vultrabot`. Clear `py_trees.blackboard.Blackboard.storage` in fixtures
+that use behavior trees.
