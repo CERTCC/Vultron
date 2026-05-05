@@ -28,3 +28,18 @@ This happens AFTER the case creator does their initialization routine thing.
 
 Everything else (inviting additional parties, embargo changes, etc.) happens
 after there is already a case owner and reporter in place.
+
+## IDEA-26050502 Integrate `docs/codebase` into study skill
+
+1. `docs/codebase` should actually be put into `docs/reference/codebase` to
+   make it clear that it is reference material for the codebase and not
+   general documentation. This will require updating `mkdocs.yaml` too.
+2. The study skill should be updated to include `docs/reference/codebase` as part of the
+   materials that it reviews when triggered. This will allow the agent to learn
+   from the codebase documentation as part of its study process, which can help
+   it understand the existing implementation patterns and architecture
+   better.
+3. `reference/glossary.md` should also be included in the study materials
+   since it establishes a common vocabulary for the project and domain that
+   is important for the agent to understand as part of its learning process.
+   This should come early in the study skill.

@@ -32,6 +32,16 @@ Record the parent task ID (e.g. `TASK-AF`, `CC.1`) and the task title.
 Fetch open issues from `CERTCC/Vultron` using `github-mcp-server-list_issues`
 (state: `OPEN`). Paginate until all open issues are loaded.
 
+### Phase 2.5 — Collect group:unscheduled Issues
+
+Fetch all open Issues with the `group:unscheduled` label using
+`github-mcp-server-list_issues` with `labels: ["group:unscheduled"]`.
+These are Issues created by `ingest-idea`, `update-plan`, or agents during
+development that have not yet been slotted into PRIORITIES.md.
+
+Add them to the gap list as **Unscheduled Issues** — a separate category
+from untracked plan tasks and untracked open issues.
+
 ### Phase 3 — Diff against PRIORITIES.md
 
 Read `plan/PRIORITIES.md`. An item is considered **tracked** if any of the
@@ -53,13 +63,20 @@ Build two gap lists:
 
 ### Phase 4 — Interview the user
 
-For each untracked item, use `ask_user` to ask where it belongs.
+For each untracked item (including **Unscheduled Issues** from Phase 2.5),
+use `ask_user` to ask where it belongs.
 See [REFERENCE.md](REFERENCE.md) for question templates and placement rules.
+
+For each `group:unscheduled` Issue, the choices are:
+
+- Slot into an existing PRIORITIES.md group (update the Issue's `group:` label)
+- Create a new PRIORITIES.md group for it
+- Close or defer (leave as `group:unscheduled` or close the issue)
 
 Use the grill-me skill for contentious placement decisions or when the user
 wants to think through the priority ordering in depth.
 
-### Phase 5 — Update PRIORITIES.md
+### Phase 5 — Update PRIORITIES.md and Issue labels
 
 Apply the agreed placements:
 
@@ -68,6 +85,15 @@ Apply the agreed placements:
 - **New priority block**: insert a new `## Priority NNN: Title` section at the
   agreed position. Choose a number that leaves gaps above and below for future
   insertion.
+- **Update group: label**: for each `group:unscheduled` Issue that was slotted,
+  update its label:
+
+  ```bash
+  gh issue edit <N> --repo CERTCC/Vultron \
+    --remove-label "group:unscheduled" \
+    --add-label "group:<chosen-group-name>"
+  ```
+
 - **Defer / skip**: note the item and why it was deferred; do not add it.
 
 Preserve the ascending-number ordering of priority blocks. Do not renumber

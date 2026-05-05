@@ -2,18 +2,20 @@
 name: ingest-idea
 description: >
   Process a raw design idea from plan/IDEAS.md into formal specs and
-  implementation notes, then archive the idea and commit. Runs a structured
-  interview (grill-me), writes specs/<topic>.yaml and notes/<topic>.md, archives
-  the idea via `uv run append-history idea`, updates specs/README.md, lints,
-  and commits. Use when the user says "ingest idea", references an IDEA ID, or
-  wants to convert a plan/IDEAS.md entry into spec and notes files.
+  implementation notes, then archive the idea, open a docs-only PR, and
+  create a GitHub Issue for implementation. Runs a structured interview
+  (grill-me), writes specs/<topic>.yaml and notes/<topic>.md, archives the
+  idea via `uv run append-history idea`, opens a docs-only PR with the
+  specs-notes label, and creates a GitHub Issue tagged group:unscheduled.
+  Use when the user says "ingest idea", references an IDEA ID, or wants to
+  convert a plan/IDEAS.md entry into spec and notes files.
 ---
 
 # Skill: Ingest Idea
 
 Convert a raw idea from `plan/IDEAS.md` into durable specs and notes, then
-archive it. This is the full end-to-end workflow: interview → write → archive
-→ commit.
+archive it and open a docs-only PR. This is the full end-to-end workflow:
+interview → write → archive → PR → issue.
 
 ## Workflow
 
@@ -72,7 +74,12 @@ Add the new spec to both:
 - The **Load Contextually** table (topic → file with .yaml extension)
 - The **Specification Structure** section (bullet with ID range)
 
-### 8. Archive the idea
+### 8. Lint markdown
+
+Invoke the `format-markdown` skill on all new/modified markdown files. Fix
+any errors before proceeding.
+
+### 9. Archive the idea
 
 Build the entry body — the full original idea text with a `**Processed**`
 line at the end — and pipe it to `uv run append-history idea` with
@@ -94,27 +101,64 @@ ENDOFENTRY
 
 Remove the idea section (heading + body) from `plan/IDEAS.md`.
 
-### 9. Lint markdown
+### 10. Open a docs-only PR
 
-Invoke the `format-markdown` skill on all new/modified markdown files. Fix
-any errors before proceeding.
-
-### 10. Commit
-
-Invoke the `commit` skill:
+Create a branch, commit all spec/notes/README/IDEAS.md changes, and open a
+PR carrying the `specs-notes` label:
 
 ```bash
-git add specs/<topic>.yaml notes/<topic>.md \
-        plan/IDEAS.md \
-        specs/README.md
-git commit -m "ingest IDEA-<ID>: <short title>
+git switch -c ingest/<IDEA-ID>-<slug>
+git add specs/<topic>.yaml notes/<topic>.md specs/README.md plan/IDEAS.md
+git commit -m "specs: ingest IDEA-<ID> — <short title>
 
 - Add specs/<topic>.yaml (ID-01 through ID-NN)
 - Add notes/<topic>.md with implementation guidance
 - Archive IDEA-<ID> via append-history idea
 
 Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
+git push -u origin ingest/<IDEA-ID>-<slug>
+
+gh pr create --repo CERTCC/Vultron \
+  --title "specs: ingest IDEA-<ID> — <short title>" \
+  --body "Docs-only PR: adds spec and notes for IDEA-<ID>.
+
+No .py files changed. Auto-merges when linters pass." \
+  --label "specs-notes"
 ```
+
+This PR carries the `specs-notes` label and auto-merges when linters pass
+(per PAD-06-003). This ensures spec and notes files are on `main` and
+referenceable from GitHub Issues before any implementation work begins.
+
+### 11. Create a GitHub Issue for implementation
+
+After opening the docs-only PR, create a GitHub Issue to track implementation:
+
+```bash
+gh issue create --repo CERTCC/Vultron \
+  --title "<Implementation title from spec>" \
+  --body "## Summary
+
+<Description from spec — one paragraph>
+
+## Acceptance Criteria
+
+- [ ] AC-1: <from spec>
+- [ ] AC-2: <from spec>
+...
+
+## Reference
+
+Spec: \`specs/<topic>.yaml\` (ID-01 through ID-NN)
+Notes: \`notes/<topic>.md\`" \
+  --label "group:unscheduled,size:<S|M|L>"
+```
+
+Set the `size:` label based on AC checkbox count:
+1–2 ACs → `size:S`; 3–6 ACs → `size:M`; 7+ ACs → `size:L`.
+
+The Issue sits in `group:unscheduled` until a human runs `review-priorities`
+to slot it into `plan/PRIORITIES.md`.
 
 ## Checklist
 
@@ -125,10 +169,11 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
 - [ ] `specs/<topic>.yaml` created with correct ID scheme
 - [ ] `notes/<topic>.md` created with decision table + examples
 - [ ] `specs/README.md` updated (both tables)
-- [ ] `plan/IDEAS.md` — idea section removed
-- [ ] Idea archived via `uv run append-history idea`
 - [ ] Markdown lint clean
-- [ ] Git commit done
+- [ ] Idea archived via `uv run append-history idea`
+- [ ] `plan/IDEAS.md` — idea section removed
+- [ ] Docs-only PR opened with `specs-notes` label
+- [ ] GitHub Issue created with `group:unscheduled` and `size:` labels
 
 ## Conventions
 

@@ -1,35 +1,35 @@
 ---
 name: update-plan
 description: >
-  Update the implementation plan by performing a gap analysis between current
-  specs/notes and the codebase, then rewriting IMPLEMENTATION_PLAN.md with an
-  ordered, actionable task list. Observations and open questions go directly to
+  Perform a gap analysis between current specs/notes and the codebase, then
+  create GitHub Issues for any untracked gaps and update PRIORITIES.md
+  references as needed. Observations and open questions go directly to
   notes/ files. Use after learn or ingest-idea has updated specs/notes, and
-  before running build. Modifies plan files only — does not change code,
-  specs, or notes.
+  before running build. Does not write new tasks to IMPLEMENTATION_PLAN.md.
 ---
 
 # Skill: Update Plan
 
 Perform a gap analysis between the current specifications, design notes, and
-the actual codebase, then update `plan/IMPLEMENTATION_PLAN.md` with a
-prioritized, actionable task list.
+the actual codebase, then create GitHub Issues for any untracked gaps.
 
-**Constraint**: Modify **plan files only** (`plan/IMPLEMENTATION_PLAN.md`).
-Do not change code, tests, `specs/`, or `notes/`. Do **not** write to
-`plan/BUILD_LEARNINGS.md` — that file is reserved for `build` and `bugfix`.
-Write gap-analysis observations directly to the appropriate `notes/*.md` file.
+**Constraint**: Do not write new tasks to `plan/IMPLEMENTATION_PLAN.md` — it
+is a read-only index. All new work items MUST be GitHub Issues. Do not change
+code, tests, `specs/`, or `notes/` (except when writing gap-analysis
+observations). Do **not** write to `plan/BUILD_LEARNINGS.md` — that file is
+reserved for `build` and `bugfix`.
 
 **Trigger**: Use after `learn` or `ingest-idea` has updated specs or notes,
-to translate those changes into concrete implementation tasks. Also run
-periodically to keep the plan aligned with the codebase.
+to translate those changes into concrete GitHub Issues. Also run periodically
+to keep open Issues aligned with the codebase.
 
 ## Quick Start
 
 1. Invoke `study-project-docs` to load all specs and context.
 2. Run a gap analysis: compare `specs/` + `notes/` against `vultron/` and
    `test/`.
-3. Update `plan/IMPLEMENTATION_PLAN.md` — add, reorder, and prune tasks.
+3. For each gap, create a GitHub Issue (group:unscheduled) rather than a plan
+   entry.
 4. Write any significant observations or open questions directly to the
    appropriate `notes/*.md` file (not to `BUILD_LEARNINGS.md`).
 5. Invoke `commit`.
@@ -48,22 +48,9 @@ only when their titles suggest they contain relevant context.
 
 ### Phase 1b — Resolve GitHub Issues
 
-Parse every GitHub issue URL or `#NNN` reference from `plan/PRIORITIES.md`.
-For each referenced issue:
-
-1. Fetch the issue body using `github-mcp-server-issue_read` (`method: get`).
-2. Fetch the issue comments using `github-mcp-server-issue_read`
-   (`method: get_comments`).
-3. Use the combined content (body + comments) as implementation context when
-   writing or updating the corresponding task in `IMPLEMENTATION_PLAN.md`.
-
-When a priority entry has sub-issues, create **one task per sub-issue** and
-include that sub-issue's URL in the task's `**Source**:` field. Include the
-parent issue URL in the priority-level description or as a secondary source
-reference.
-
-> Skip issues that have no corresponding pending work (already closed or
-> already archived in `plan/history/`).
+Fetch open issues from `CERTCC/Vultron` using `github-mcp-server-list_issues`
+(state: `OPEN`). This gives a picture of what work is already tracked. When
+writing new gap Issues, check this list to avoid creating duplicates.
 
 ### Phase 2 — Gap Analysis
 
@@ -74,33 +61,40 @@ Compare the current `specs/` + `notes/` against `vultron/` and `test/`:
 - **Partial implementations**: code exists but tests or edge cases are
   missing.
 - **Untested behaviors**: implementation exists but no test covers it.
-- **Stale tasks**: `IMPLEMENTATION_PLAN.md` has tasks for things already
-  implemented — these should be archived via `uv run append-history implementation`
-  and removed from `IMPLEMENTATION_PLAN.md`.
+- **Stale open Issues**: GitHub Issues for things already implemented — close
+  these with a comment explaining they are done.
 - **Known bugs**: open entries in `plan/BUGS.md` that block or relate to
   planned work.
 
 > Do not assume missing functionality; confirm via code search first.
 
-### Phase 3 — Update `plan/IMPLEMENTATION_PLAN.md`
+### Phase 3 — Create GitHub Issues for gaps
 
-Rewrite the plan based on the gap analysis:
+For each confirmed gap, create a GitHub Issue:
 
-- Tasks must be **atomic, actionable, testable, and unambiguous**.
-- Size tasks as "meaningful chunks": large enough to produce measurable
-  progress (e.g., implement a feature + tests + minimal docs), small enough
-  to complete in a single agent run.
-- Group closely related technical-debt items into a single task when they
-  share the same implementation context.
-- Order tasks using `plan/PRIORITIES.md` as authoritative plus dependency
-  analysis. Do **not** include explicit priority labels in task descriptions.
-- Include the GitHub issue URL in each task's `**Source**:` field when the
-  task originates from a GitHub issue (e.g.,
-  `**Source**: https://github.com/CERTCC/Vultron/issues/378`). This allows
-  `build` to fetch fresh issue details at implementation time.
-- **Completed tasks MUST be archived** via `uv run append-history implementation`
-  and then deleted from `IMPLEMENTATION_PLAN.md`. Do not leave tombstones,
-  `[x]` checkboxes, or one-line summaries.
+```bash
+gh issue create --repo CERTCC/Vultron \
+  --title "<Gap description — one line>" \
+  --body "## Summary
+
+<What is missing and why it matters — one paragraph>
+
+## Acceptance Criteria
+
+- [ ] AC-1: <testable criterion>
+- [ ] AC-2: <testable criterion>
+...
+
+## Reference
+
+Spec: \`specs/<topic>.yaml\` <ID range>" \
+  --label "group:unscheduled,size:<S|M|L>"
+```
+
+Set the `size:` label from AC count: 1–2 → `size:S`; 3–6 → `size:M`;
+7+ → `size:L`.
+
+Do **not** add tasks to `plan/IMPLEMENTATION_PLAN.md`.
 
 ### Phase 4 — Write Observations to notes/
 
@@ -112,15 +106,16 @@ Rewrite the plan based on the gap analysis:
 
 ### Phase 5 — Commit
 
-Invoke the `commit` skill. Commit only modified plan files with a clear,
-specific message (e.g., `plan: gap analysis, add N tasks, move M completed`).
+Invoke the `commit` skill. Commit only modified notes/ files with a clear,
+specific message (e.g.,
+`plan: gap analysis — create N issues, update notes/`).
 
 ## Constraints
 
-- Do not modify code, tests, or `notes/` except when writing gap-analysis
-  observations (Phase 4).
+- Do not modify code or tests.
 - Do not write to `plan/BUILD_LEARNINGS.md`.
+- Do not write new tasks to `plan/IMPLEMENTATION_PLAN.md`.
 - Do not speculate about missing functionality; verify with code search first.
 - Do not implement anything — that is `build`'s domain.
-- Use `uv run append-history implementation` to archive completed tasks — do
-  not write directly to any file in `plan/history/`.
+- Use `uv run append-history implementation` only via `build` — never from
+  within `update-plan`.
