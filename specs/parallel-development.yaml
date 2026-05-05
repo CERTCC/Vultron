@@ -77,6 +77,17 @@ groups:
           Docs-only PRs (containing only `specs/` and `notes/` changes) MUST
           carry the `specs-notes` label to identify them as docs-only for
           reviewers.
+      - id: PAD-02-007
+        priority: MUST_NOT
+        statement: >-
+          The `group:` label name MUST NOT include a priority number. The label
+          name MUST be a short, descriptive kebab-case slug derived from the
+          priority group title (e.g., `group:architecture-hardening` for
+          "Priority 473: Architecture Hardening"). Priority ordering is expressed
+          in PRIORITIES.md; embedding numbers in label names causes conflicts
+          when priorities are reordered. When creating a new `group:` label on
+          GitHub, the label description MUST use the priority group title (not
+          the number) so it remains accurate if the priority number changes.
 
   - id: PAD-03
     title: Priority Ordering Authority

@@ -184,3 +184,21 @@ to slot it into `plan/PRIORITIES.md`.
   instead of `specs/` (e.g., `configuration.md`, `actor-discovery.md`)
 - **History archiving**: use `uv run append-history idea` to archive processed
   ideas — do not append directly to any `plan/history/*.md` file
+
+## Label Naming Rules (PAD-02-007)
+
+All new Issues created by this skill use `group:unscheduled` by default — no
+priority number or slug is needed at creation time. However, if you are
+assigning a specific `group:` label for any reason:
+
+- **Never include a priority number** in the label name.
+  Use `group:architecture-hardening`, **not** `group:473-architecture-hardening`.
+- **Derive the slug** from the priority group title in kebab-case.
+- **Check for label existence** before assigning. Create it if missing:
+
+  ```bash
+  gh label create "group:<slug>" \
+    --repo CERTCC/Vultron \
+    --description "<Priority group title (no number)>" \
+    --color "#1d76db"
+  ```

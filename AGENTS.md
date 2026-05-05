@@ -220,6 +220,16 @@ directly. Use the corresponding factory function instead (e.g.,
 `rm_create_report_activity()`). This boundary is enforced by
 `test/architecture/test_activity_factory_imports.py`.
 
+### GitHub Issue Labels
+
+When adding a `group:` label to an issue, the label name MUST NOT include a
+priority number (PAD-02-007). Use a short, descriptive kebab-case slug derived
+from the priority group title — e.g., `group:architecture-hardening`, never
+`group:473-architecture-hardening`. Priority numbers in `plan/PRIORITIES.md`
+can be reordered; label names must remain stable. Before assigning a
+`group:` label, verify it exists on GitHub and create it with `gh label create`
+if not. See `notes/parallel-development.md` §Group Label Conventions.
+
 ## Change Protocol
 
 When making non-trivial changes, agents SHOULD:

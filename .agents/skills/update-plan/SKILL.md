@@ -119,3 +119,23 @@ specific message (e.g.,
 - Do not implement anything — that is `build`'s domain.
 - Use `uv run append-history implementation` only via `build` — never from
   within `update-plan`.
+
+## Label Naming Rules (PAD-02-007)
+
+All Issues created by this skill use `group:unscheduled` — no priority number
+or slug needed at creation time. However, if you assign a specific `group:`
+label for any reason:
+
+- **Never include a priority number** in the label name.
+  Use `group:architecture-hardening`, **not** `group:473-architecture-hardening`.
+  Priority numbers can change when PRIORITIES.md is reordered.
+- **Derive the slug** from the priority group title in kebab-case
+  (e.g., "Cyclomatic Complexity Enforcement" → `group:cyclomatic-complexity`).
+- **Check for label existence** before assigning. Create it if missing:
+
+  ```bash
+  gh label create "group:<slug>" \
+    --repo CERTCC/Vultron \
+    --description "<Priority group title (no number)>" \
+    --color "#1d76db"
+  ```

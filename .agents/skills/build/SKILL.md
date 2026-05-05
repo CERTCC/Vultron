@@ -169,3 +169,21 @@ If the PR reports merge conflicts:
 - Do not commit directly to `main`. All work goes through a PR.
 - Do not add tasks to `plan/IMPLEMENTATION_PLAN.md`. New work items are GitHub
   Issues.
+
+## Label Naming Rules (PAD-02-007)
+
+When creating prerequisite Issues or updating `group:` labels on any issue:
+
+- **Never include a priority number** in the `group:` label name.
+  Use `group:architecture-hardening`, **not** `group:473-architecture-hardening`.
+  Priority numbers in PRIORITIES.md can change; label names must remain stable.
+- **Derive the slug** from the priority group title in kebab-case
+  (e.g., "Bug Fixes and Demo Polish" → `group:bug-fixes-demo-polish`).
+- **Check for label existence** before assigning. Create it if missing:
+
+  ```bash
+  gh label create "group:<slug>" \
+    --repo CERTCC/Vultron \
+    --description "<Priority group title (no number)>" \
+    --color "#1d76db"
+  ```
