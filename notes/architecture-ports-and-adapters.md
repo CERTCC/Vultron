@@ -812,6 +812,7 @@ refactoring), add the module path string to `KNOWN_VIOLATIONS`, not a `#
 type: ignore` comment. Remove it once the violation is resolved.
 
 A parallel ratchet test (`test_activity_factory_imports.py`) enforces that
-code outside `vultron/wire/as2/vocab/activities/` and
-`vultron/wire/as2/factories/` does not import internal activity subclasses
-directly.
+internal activity subclasses are not imported directly except from the
+allowed locations: `vultron/wire/as2/vocab/activities/`,
+`vultron/wire/as2/factories/`, `test/wire/as2/vocab/`,
+`test/architecture/`, and `vultron/semantic_registry.py`.
