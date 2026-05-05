@@ -2,20 +2,23 @@
 name: learn
 description: >
   Promote lessons learned from the build process into durable specifications
-  and design notes. Reads BUILD_LEARNINGS.md (internal source), analyzes
-  gaps, interviews the user with grill-me to align on scope, then writes to
-  specs/, notes/, and AGENTS.md, opens a docs-only PR with the specs-notes
-  label, and archives processed entries. Use when build execution has
-  produced insights that should be reflected in specs or notes. For external
-  ideas (IDEAS.md), use ingest-idea instead.
+  and design notes. First refreshes docs/reference/codebase/ via
+  acquire-codebase-knowledge, then reads BUILD_LEARNINGS.md and
+  CONCERNS.md (both as input queues), analyzes gaps, interviews the user
+  with grill-me to align on scope, then writes to specs/, notes/, and
+  AGENTS.md, opens a docs-only PR with the specs-notes label, and archives
+  processed entries. Use when build execution has produced insights that
+  should be reflected in specs or notes. For external ideas (IDEAS.md),
+  use ingest-idea instead.
 ---
 
 # Skill: Learn
 
 Integrate lessons learned from build execution into the project's durable
-specification and design documentation. The input is what the build process
-has discovered (`BUILD_LEARNINGS.md`); the
-output is refined `specs/`, `notes/`, and `AGENTS.md`.
+specification and design documentation. The inputs are what the build process
+has discovered (`BUILD_LEARNINGS.md`) and open concerns from the codebase
+scan (`docs/reference/codebase/CONCERNS.md`); the output is refined `specs/`,
+`notes/`, and `AGENTS.md`.
 
 **Constraint**: Modify **documentation files only**, including Markdown files
 and YAML spec files in `specs/`. Do not modify code or tests.
@@ -27,42 +30,70 @@ entries that should be promoted into durable docs.
 
 ## Quick Start
 
-1. Read `plan/BUILD_LEARNINGS.md`.
-2. Invoke `study-project-docs` for full context (specs, notes, code).
-3. Analyze what the build process has learned vs. what specs and notes capture.
-4. Invoke `grill-me` to align on scope and decisions — before writing anything.
-5. Write to `specs/`, `notes/`, and `AGENTS.md`.
-6. Archive each processed entry via `uv run append-history learning`, then
-   delete it from `plan/BUILD_LEARNINGS.md`.
-7. Invoke `format-markdown`.
-8. Create a branch, commit, push, and open a docs-only PR with `specs-notes`
-   label.
+1. Invoke `acquire-codebase-knowledge` — full scan, refreshes all 7 docs
+   in `docs/reference/codebase/`.
+2. Read `plan/BUILD_LEARNINGS.md` and `docs/reference/codebase/CONCERNS.md`
+   (both are input queues).
+3. Invoke `study-project-docs` for full context (specs, notes, code) — it
+   now reads the freshly updated codebase docs.
+4. Analyze what the build process has learned vs. what specs and notes capture.
+5. Invoke `grill-me` to align on scope and decisions — before writing anything.
+   Include CONCERNS.md triage in this phase (no separate triage step needed).
+6. Write to `specs/`, `notes/`, and `AGENTS.md`.
+7. Archive each processed BUILD_LEARNINGS entry and each resolved CONCERNS
+   entry via `uv run append-history learning`, then delete each from its
+   source file.
+8. Invoke `format-markdown`.
+9. Create a branch, commit (including updated `docs/reference/codebase/`
+   files), push, and open a docs-only PR with `specs-notes` label.
 
 ## Workflow
+
+### Phase 0 — Refresh Codebase Knowledge
+
+Invoke the `acquire-codebase-knowledge` skill (full scan, no focus area
+restriction). This regenerates all seven files in `docs/reference/codebase/`
+from the current state of the repository before any gap analysis begins,
+ensuring `study-project-docs` in Phase 1 reads an accurate baseline.
+
+Always run this phase unconditionally — `learn` runs infrequently enough
+that the cost of a full scan is justified on every invocation.
 
 ### Phase 1 — Load Internal Sources and Context
 
 1. Read `plan/BUILD_LEARNINGS.md` — open questions, observations, and
    constraints from recent build/bugfix runs (ephemeral queue; entries are
    deleted after archiving).
-2. Invoke the `study-project-docs` skill for full context: specs JSON,
-   plan files, docs/adr/, notes/, AGENTS.md, and a code scan.
+2. Read `docs/reference/codebase/CONCERNS.md` — open technical concerns,
+   risks, and debt items identified by the codebase scan (second input
+   queue; resolved entries are archived like BUILD_LEARNINGS entries).
+3. Invoke the `study-project-docs` skill for full context: specs JSON,
+   plan files, docs/adr/, notes/, AGENTS.md, and a code scan. Because
+   Phase 0 has already refreshed the codebase docs, `study-project-docs`
+   will read up-to-date architecture and structure information.
 
 > `BUILD_LEARNINGS.md` is an ephemeral queue. Entries are deleted after
 > archiving. Any critical insight in an entry **must be promoted** to
 > `specs/` or `notes/` before being archived.
+>
+> `CONCERNS.md` is treated as a second queue: entries that are resolved,
+> no longer applicable, or fully captured in specs/notes should be archived
+> and deleted just like BUILD_LEARNINGS entries.
 
 ### Phase 2 — Analyze Gaps
 
-Identify what the build process has learned that is not yet captured in
-durable docs:
+Identify what the build process and codebase scan have surfaced that is not
+yet captured in durable docs. Consider both BUILD_LEARNINGS entries and
+CONCERNS.md entries:
 
 1. Missing requirements — behavior exists in code but has no spec.
 2. Ambiguous or untestable requirements — reality diverges from what's written.
 3. Redundant or contradictory requirements across spec files.
 4. Agent guidance patterns that keep recurring in `BUILD_LEARNINGS.md`
    but are not yet in `AGENTS.md`.
-5. Recent completed-task insights — when needed, read relevant monthly index
+5. Open concerns in `CONCERNS.md` that reveal missing spec requirements or
+   durable design notes.
+6. Recent completed-task insights — when needed, read relevant monthly index
    files in `plan/history/` (e.g., `plan/history/YYMM/README.md`) to identify
    which history entries contain architectural lessons, then open those files.
 
@@ -72,6 +103,9 @@ Invoke the `grill-me` skill. Resolve one question at a time (using `ask_user`)
 with a recommended answer before writing anything:
 
 - Which insights from `BUILD_LEARNINGS.md` are most important to promote?
+- Which open concerns in `CONCERNS.md` are resolved, outdated, or should be
+  promoted to specs/notes? (Resolved concerns go to `specs/` if they reveal
+  missing requirements, `notes/` otherwise.)
 - Which gaps are most critical to close in this run?
 - Are there unresolvable conflicts that need a human decision?
 - Does any spec change require code verification first?
@@ -91,8 +125,9 @@ Answer questions from codebase exploration where possible.
 
 ### Phase 5 — Update Design Notes (`notes/`)
 
-- Promote insights, tradeoffs, and lessons from `BUILD_LEARNINGS.md`
-  into the appropriate `notes/*.md` file. Do not duplicate spec text.
+- Promote insights, tradeoffs, and lessons from `BUILD_LEARNINGS.md` and
+  resolved `CONCERNS.md` entries into the appropriate `notes/*.md` file.
+  Do not duplicate spec text.
 - Mark unresolved items explicitly: `Open Question:` / `Design Decision:`.
 - Update `notes/README.md` when files are added, removed, or reorganized.
 - Every `notes/*.md` (except `notes/README.md`) must have valid YAML
@@ -106,8 +141,8 @@ and minimal.
 
 ### Phase 7 — Archive and Delete Processed Entries
 
-For each entry in `plan/BUILD_LEARNINGS.md` that has been fully promoted to
-`specs/`, `notes/`, or `AGENTS.md`:
+For each BUILD_LEARNINGS entry and each resolved CONCERNS entry that has been
+fully promoted to `specs/`, `notes/`, or `AGENTS.md`:
 
 1. Archive the entry via `uv run append-history learning`:
 
@@ -122,8 +157,10 @@ For each entry in `plan/BUILD_LEARNINGS.md` that has been fully promoted to
    EOF
    ```
 
-2. Delete the entry from `plan/BUILD_LEARNINGS.md` entirely — no
-   strike-through, no tombstone.
+2. Delete the entry from its source file entirely — no strike-through, no
+   tombstone. For BUILD_LEARNINGS entries, delete from
+   `plan/BUILD_LEARNINGS.md`. For resolved CONCERNS entries, delete from
+   `docs/reference/codebase/CONCERNS.md`.
 
 Do **not** reference `plan/BUILD_LEARNINGS.md` from durable docs.
 
@@ -138,11 +175,12 @@ Do **not** reference `plan/BUILD_LEARNINGS.md` from durable docs.
    ```bash
    git switch -c learn/<YYYYMMDD>-<slug>
    git add specs/<changed-files> notes/<changed-files> AGENTS.md \
-       plan/BUILD_LEARNINGS.md
+       plan/BUILD_LEARNINGS.md docs/reference/codebase/
    git commit -m "docs: promote BUILD_LEARNINGS — <topic>
 
    - <bullet: what was promoted and where>
    - Archive <N> entr[y/ies] via append-history learning
+   - Refresh docs/reference/codebase/ via acquire-codebase-knowledge
 
    Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
    git push -u origin learn/<YYYYMMDD>-<slug>
@@ -150,7 +188,7 @@ Do **not** reference `plan/BUILD_LEARNINGS.md` from durable docs.
    gh pr create --repo CERTCC/Vultron \
      --title "docs: promote BUILD_LEARNINGS — <topic>" \
      --body "Docs-only PR: promotes build learnings to specs/, notes/,
-   and/or AGENTS.md.
+   and/or AGENTS.md. Includes refreshed docs/reference/codebase/ output.
 
    No .py files changed." \
      --label "specs-notes"
