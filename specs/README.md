@@ -96,6 +96,7 @@ Load additional files only when the task touches the relevant area. See the
 | Notes frontmatter / metadata tooling | `notes-frontmatter.yaml` |
 | Spec registry / YAML requirement files | `spec-registry.yaml` |
 | Bugfix skill / bug lifecycle | `bugfix-workflow.yaml` |
+| Spec vs. ADR delineation / when to write each | `meta-specifications.yaml`, `notes/specs-vs-adrs.md` |
 
 ---
 
@@ -294,7 +295,10 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 - **`use-case-organization.yaml`** - Package layout for `vultron/core/use_cases/`
   (received/ vs triggers/), registry synchronization, test mirroring, and
   information flow documentation (UCORG-01 through UCORG-04)
-- **`meta-specifications.md`** - How to write and maintain specifications
+- **`meta-specifications.md`** - How to write and maintain specifications:
+  file structure, requirement format, ID scheme, writing rules, lifecycle,
+  quality criteria, and spec vs. ADR delineation guidelines
+  (MS-01 through MS-11)
 
 ### Documentation Content and Organization
 

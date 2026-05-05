@@ -10,10 +10,35 @@ We use [Markdown Any Decision Records (MADR)](https://adr.github.io/madr/) to do
 
 ### When to write an ADR
 
-Write an ADR whenever you make an important decision that affects the project.
-This includes decisions about the architecture, design, or implementation of the project, as well as decisions about the project's processes, tools, or infrastructure.
-If you're not sure whether a decision is important enough to warrant an ADR, err on the side of writing one.
-Discussing the decision with the team in a pull request, issue, or discussion is a good way to determine whether it's important enough to warrant an ADR.
+The primary signal for an ADR is **evaluated alternatives**: if you considered
+more than one option and rejected at least one, document the decision. The
+record preserves context for future maintainers who might otherwise re-open
+a settled question.
+
+Concretely, write an ADR when:
+
+- You adopted a structural or architectural approach over one or more
+  alternatives (e.g., hexagonal architecture over layered, SQLModel over
+  TinyDB).
+- You made a one-time process or tooling decision with lasting project-wide
+  impact (e.g., CalVer over SemVer, pinning CI action SHAs).
+- A decision will be hard or costly to reverse, so the rationale should be
+  preserved explicitly.
+
+**ADR vs. spec**: an ADR records *why* a choice was made; a spec entry records
+*what* the system must do going forward. When a significant decision also
+generates recurring testable requirements, create both — see
+[notes/specs-vs-adrs.md](../../notes/specs-vs-adrs.md) for the full
+delineation guidelines and worked examples.
+
+You do **not** need an ADR for:
+
+- Uncontested conventions with no real alternatives (write a spec entry
+  instead).
+- Small tactical choices where the rationale is obvious from the code.
+
+If you're unsure, err on the side of writing one — a brief ADR is better than
+losing context.
 
 ### How to write an ADR
 

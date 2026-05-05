@@ -1,7 +1,7 @@
 id: MS
 title: Meta-Specification Style Guide
 description: Normative rules for authoring specification files in this project. Covers file structure, requirement format,
-  IDs, writing rules, cross-references, lifecycle, and quality criteria.
+  IDs, writing rules, cross-references, lifecycle, quality criteria, and the delineation between spec files and ADRs.
 version: 1.0.0
 kind: general
 scope:
@@ -208,5 +208,60 @@ groups:
     statement: Spec entries SHOULD require only `id`, `priority`, and `statement` to be complete; optional fields (`rationale`,
       `tags`, `relationships`) SHOULD be added only when they provide clear value, not by default.
     rationale: Requiring optional fields on every entry creates boilerplate that discourages keeping specs current.
+    tags:
+    - documentation
+- id: MS-11
+  title: Spec vs. ADR Delineation
+  specs:
+  - id: MS-11-001
+    priority: MUST
+    statement: A spec file MUST be used to capture testable requirements — what the system MUST, SHOULD, or MAY do — using
+      RFC 2119 keywords. Specs define the intended behaviour of the system; they do not record the rationale for choosing one
+      approach over another.
+    rationale: Mixing decision rationale into spec files blurs the distinction between requirements and design history, making
+      both harder to maintain and trace.
+    tags:
+    - documentation
+  - id: MS-11-002
+    priority: MUST
+    statement: An Architecture Decision Record (ADR) MUST be created whenever a meaningful alternative was evaluated and
+      rejected. The primary signal for an ADR is the presence of options considered and discarded — "we weighed X, Y, and Z
+      and chose X because …"
+    rationale: If no real fork existed, there is no decision to record. An ADR without evaluated alternatives is just prose
+      documentation and belongs in notes/ instead.
+    tags:
+    - documentation
+  - id: MS-11-003
+    priority: SHOULD
+    statement: When a significant architectural decision generates recurring testable requirements, both an ADR and a spec
+      entry SHOULD be created. The ADR captures the why (context, options, consequences); the spec captures the what
+      (requirements agents and reviewers must satisfy going forward).
+    rationale: The two documents serve different audiences. The ADR is for human reviewers asking "why was this chosen?";
+      the spec is for implementation agents asking "what must I do?". Collapsing them into one document serves neither well.
+    tags:
+    - documentation
+  - id: MS-11-004
+    priority: SHOULD
+    statement: A spec entry that was motivated by an ADR-backed decision SHOULD reference the ADR in its description field.
+      The corresponding ADR SHOULD list the generated spec IDs in its "More Information" section.
+    rationale: Bidirectional cross-references make it possible to trace a requirement back to its decision rationale and
+      forward from a decision to its testable consequences.
+    tags:
+    - documentation
+  - id: MS-11-005
+    priority: SHOULD
+    statement: When the correct approach is uncontested and no alternative was seriously considered, a spec entry alone is
+      sufficient. An ADR SHOULD NOT be created merely to document an obvious or unchallenged choice.
+    rationale: Writing ADRs for trivial decisions adds noise to the decision log and devalues the records that capture
+      genuine trade-offs.
+    tags:
+    - documentation
+  - id: MS-11-006
+    priority: SHOULD
+    statement: When a decision is a one-time structural or process choice with no recurring testable requirements (e.g.,
+      "use CalVer for project versioning", "pin CI actions to full commit SHAs"), an ADR alone is sufficient. A spec entry
+      SHOULD NOT be created if there is no per-change requirement for agents to check.
+    rationale: Not every decision produces enforceable requirements. Creating spec entries for binary one-time choices
+      inflates the spec corpus without providing testable value.
     tags:
     - documentation
