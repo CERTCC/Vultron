@@ -58,11 +58,6 @@ groups:
           the label `group:unscheduled`. Only humans (and the
           `review-priorities` skill) may change a `group:unscheduled` label
           to a named group label.
-      - id: PAD-02-003
-        priority: MUST
-        statement: >-
-          Every Issue and open PR MUST carry one of the size labels `size:S`,
-          `size:M`, or `size:L`. See PAD-05 for definitions and update rules.
       - id: PAD-02-004
         priority: MUST
         statement: >-
