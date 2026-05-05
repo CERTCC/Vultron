@@ -5,7 +5,7 @@ description: >
   Design decisions and implementation guidance for coordinating multiple
   parallel AI agents and human developers via GitHub Issues. Covers the
   issue hierarchy, label taxonomy, task claiming protocol, size labeling,
-  auto-merge, orphan recovery, and skill updates.
+  orphan recovery, and skill updates.
 related_specs:
   - specs/parallel-development.yaml
 ---
@@ -38,10 +38,8 @@ building Vultron.
 | How are tasks claimed? | Branch creation (`task/<N>-slug`) | Git branch creation is atomic — ideal distributed lock |
 | Should there be a `claimed` label? | No | Adds a second source of truth that can drift from branch state |
 | Stale-claim threshold | 3 days since last branch commit | Short enough to keep the queue clean; tune if agent sessions are longer |
-| What governs auto-merge eligibility? | Size label at PR-open time (diff-based) | Issue-creation estimate is speculative; actual diff is authoritative |
 | Diff-size thresholds | ≤50 lines = S, 51–300 = M, 301+ = L | Common open-source convention; aligns with maintainability expectations |
 | Two-pass code review? | Single-pass with [BLOCKING]/[ADVISORY] tags | Same signal, less process theater; build agent acts on tags |
-| CODEOWNERS for docs-only auto-merge? | Already exists (`.github/CODEOWNERS`) | `specs/` and `notes/` already covered by `@ahouseholder` |
 | Where do `update-plan` gap findings go? | GitHub Issues (group:unscheduled) | Consistent with the new model; no new tasks in IMPLEMENTATION_PLAN.md |
 
 ---
@@ -69,7 +67,7 @@ Use minimum depth. Many Epics will have leaf Tasks with no Subtasks.
 | `size:L` | Agent at issue creation + PR open | 7+ ACs or 301+ diff lines |
 | `stale-claim` | Stale-claim sweeper (GH Actions) | Orphaned claim; skip until human clears |
 | `needs-rebase` | Build agent | PR has unresolvable merge conflicts |
-| `specs-notes` | ingest-idea | Docs-only PR; triggers auto-merge workflow |
+| `specs-notes` | ingest-idea, learn | Docs-only PR containing only specs/ and notes/ changes |
 
 ---
 
@@ -88,7 +86,6 @@ Use minimum depth. Many Epics will have leaf Tasks with no Subtasks.
 8. Compute diff size → update size label on Issue and future PR
 9. git push -u origin task/<N>-<slug>
 10. gh pr create --title "..." --body "Closes #<N>\n\n..." --label size:X
-11. If size:S → gh pr merge --auto --squash
 ```
 
 ---
@@ -105,20 +102,6 @@ finding:
 
 This is a single review pass, not two sequential passes. The tag is the
 signal; the build agent acts on it.
-
----
-
-## Auto-Merge Decision Tree
-
-```text
-PR opened
-  ├── Has specs-notes label AND no .py files changed?
-  │     → docs-only auto-merge workflow: merge when linters pass
-  └── Has size:S label?
-        └── All CI checks green AND no [BLOCKING] code-review findings?
-              → size:S auto-merge workflow: gh pr merge --auto
-  Otherwise: require human review approval
-```
 
 ---
 
@@ -211,7 +194,6 @@ Load this file when:
 - Adding or modifying skill SKILL.md files (`build`, `ingest-idea`,
   `review-priorities`, `update-plan`, `study-project-docs`)
 - Creating GitHub Issues for new work items
-- Implementing or modifying the stale-claim sweeper or auto-merge GitHub
-  Actions workflows
+- Implementing or modifying the stale-claim sweeper GitHub Actions workflow
 - Debugging task-selection or claiming behavior in the `build` skill
 - Reviewing why IMPLEMENTATION_PLAN.md is now a read-only index

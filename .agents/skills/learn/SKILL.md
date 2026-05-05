@@ -152,13 +152,13 @@ Do **not** reference `plan/BUILD_LEARNINGS.md` from durable docs.
      --body "Docs-only PR: promotes build learnings to specs/, notes/,
    and/or AGENTS.md.
 
-   No .py files changed. Auto-merges when linters pass." \
+   No .py files changed." \
      --label "specs-notes"
    ```
 
    Use multiple commits for thematically distinct changes (e.g., spec
    refinements, notes promoted, AGENTS.md updates). This PR carries the
-   `specs-notes` label and auto-merges when linters pass (PAD-06-003).
+   `specs-notes` label for reviewer awareness.
 
 ## Constraints
 

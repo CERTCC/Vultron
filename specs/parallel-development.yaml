@@ -3,10 +3,10 @@ title: Parallel Agentic Development
 description: >-
   Requirements for coordinating multiple parallel AI agents and human developers
   via GitHub Issues. Defines the issue hierarchy, label taxonomy, task claiming
-  protocol, size labeling, auto-merge rules, orphan recovery, and the revised
-  workflows for the build, ingest-idea, review-priorities, and update-plan
-  skills. Distinct from agentic-readiness.yaml (AR), which covers making the
-  Vultron protocol code itself integrable with external agentic tools.
+  protocol, size labeling, orphan recovery, and the revised workflows for the
+  build, ingest-idea, review-priorities, and update-plan skills. Distinct from
+  agentic-readiness.yaml (AR), which covers making the Vultron protocol code
+  itself integrable with external agentic tools.
 version: 1.0.0
 kind: pattern
 scope:
@@ -80,8 +80,8 @@ groups:
         priority: MUST
         statement: >-
           Docs-only PRs (containing only `specs/` and `notes/` changes) MUST
-          carry the `specs-notes` label to trigger the docs-only auto-merge
-          workflow (PAD-06-003).
+          carry the `specs-notes` label to identify them as docs-only for
+          reviewers.
 
   - id: PAD-03
     title: Priority Ordering Authority
@@ -150,31 +150,8 @@ groups:
         priority: MUST
         statement: >-
           The size label at PR-open time (after the diff-based update per
-          PAD-05-002) MUST govern auto-merge eligibility, not the
-          Issue-creation-time estimate.
-
-  - id: PAD-06
-    title: Auto-Merge Rules
-    specs:
-      - id: PAD-06-001
-        priority: MUST
-        statement: >-
-          A PR labelled `size:S` MUST be auto-merge eligible when all CI
-          checks are green and the pre-PR code review returned no [BLOCKING]
-          findings. A GitHub Actions workflow MUST implement this check and
-          call `gh pr merge --auto`.
-      - id: PAD-06-002
-        priority: MUST
-        statement: >-
-          PRs labelled `size:M` or `size:L` MUST require at least one human
-          review approval before merge.
-      - id: PAD-06-003
-        priority: MUST
-        statement: >-
-          A docs-only PR (carrying the `specs-notes` label, no `.py` files
-          changed, PR author listed in CODEOWNERS for `specs/` and `notes/`)
-          MUST be auto-merged when all linters pass, regardless of size label.
-          A GitHub Actions workflow MUST implement this check.
+          PAD-05-002) is the authoritative size for the PR, not the
+          Issue-creation-time AC-count estimate.
 
   - id: PAD-07
     title: Pre-PR Code Review Protocol
@@ -228,11 +205,6 @@ groups:
           After implementation, the `build` skill MUST compute the diff size
           and update the size label on both the Issue and the PR per
           PAD-05-002 before opening the PR.
-      - id: PAD-08-004
-        priority: SHOULD
-        statement: >-
-          When a `size:S` PR is opened and all CI checks pass, the `build`
-          skill SHOULD confirm that auto-merge is enabled on the PR.
 
   - id: PAD-09
     title: Ingest-Idea — Docs-Only PR and Issue Creation
@@ -350,20 +322,6 @@ groups:
   - id: PAD-14
     title: GitHub Actions Requirements
     specs:
-      - id: PAD-14-001
-        priority: MUST
-        statement: >-
-          A GitHub Actions workflow MUST be created to implement auto-merge for
-          `size:S` PRs (PAD-06-001): trigger on `pull_request` labeled
-          events, check the `size:S` label, wait for all required CI checks
-          to pass, then call `gh pr merge --auto --squash`.
-      - id: PAD-14-002
-        priority: MUST
-        statement: >-
-          A GitHub Actions workflow MUST be created to implement auto-merge for
-          docs-only PRs (PAD-06-003): trigger on `pull_request` labeled with
-          `specs-notes`, verify no `.py` files are changed, verify linters
-          pass, then call `gh pr merge --auto --squash`.
       - id: PAD-14-003
         priority: MUST
         statement: >-

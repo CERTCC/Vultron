@@ -115,13 +115,7 @@ Invoke the `code-review` agent against the current branch diff relative to
      --label "size:<X>"
    ```
 
-3. If the PR is labelled `size:S`, enable auto-merge:
-
-   ```bash
-   gh pr merge --auto --squash --repo CERTCC/Vultron <PR-number>
-   ```
-
-4. If there were `[ADVISORY]` findings from the code review, post them as a
+3. If there were `[ADVISORY]` findings from the code review, post them as a
    PR comment:
 
    ```bash
@@ -129,7 +123,7 @@ Invoke the `code-review` agent against the current branch diff relative to
      --body "Code review advisory findings: ..."
    ```
 
-5. Append a completion summary to `plan/history/` using the `append-history`
+4. Append a completion summary to `plan/history/` using the `append-history`
    tool:
 
    ```bash
@@ -143,12 +137,12 @@ Invoke the `code-review` agent against the current branch diff relative to
    EOF
    ```
 
-6. Record **observations, open questions, and constraints** discovered during
+5. Record **observations, open questions, and constraints** discovered during
    implementation in `plan/BUILD_LEARNINGS.md`. Use a dated header per entry
    (e.g., `### 2026-04-28 LABEL — Short description`). Do **not** write
    completion summaries here.
 
-7. Invoke the `commit` skill if any local files (BUGS.md, BUILD_LEARNINGS.md)
+6. Invoke the `commit` skill if any local files (BUGS.md, BUILD_LEARNINGS.md)
    were updated. The implementation changes themselves are on the PR branch.
 
 ### Phase 8 - Merge conflict recovery (if needed)

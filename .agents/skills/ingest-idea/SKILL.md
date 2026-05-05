@@ -122,12 +122,12 @@ gh pr create --repo CERTCC/Vultron \
   --title "specs: ingest IDEA-<ID> — <short title>" \
   --body "Docs-only PR: adds spec and notes for IDEA-<ID>.
 
-No .py files changed. Auto-merges when linters pass." \
+No .py files changed." \
   --label "specs-notes"
 ```
 
-This PR carries the `specs-notes` label and auto-merges when linters pass
-(per PAD-06-003). This ensures spec and notes files are on `main` and
+This PR carries the `specs-notes` label for reviewer awareness. This ensures
+spec and notes files are on `main` and
 referenceable from GitHub Issues before any implementation work begins.
 
 ### 11. Create a GitHub Issue for implementation
