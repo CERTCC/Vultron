@@ -204,12 +204,15 @@ may show `SUBFAILED` in pytest output due to py_trees blackboard global-state
 ordering, but **the pytest exit code remains 0**.
 
 This is a known limitation: `unittest` subtest failures report as `SUBFAILED`
-in the verbose output but do not cause pytest to exit non-zero. The test
-summary line will still show "passed", masking the failure.
+in verbose pytest output but do not cause pytest to exit non-zero. The test
+summary line may still show "passed", masking the subtest failure.
 
-**Rule**: When reading test output, also scan for `SUBFAILED` lines in verbose
-output (`-v`). A `SUBFAILED` is a real failure even though the exit code is 0.
-Do not assume a clean exit code means all subtests passed.
+**Rule**: The ONE RUN RULE above remains the only required full-suite
+validation command. Do **not** change that command or add `-v` to the full
+suite run. If you are specifically investigating
+`test/bt/test_vultrabot.py::MyTestCase::test_main`, you may run that targeted
+test or file separately with `-v` and treat any `SUBFAILED` line as a real
+failure even if pytest exits 0.
 
 **Root cause here**: py_trees `Blackboard.storage` is process-global. Test
 ordering in the full suite can leave state from a prior test that affects
