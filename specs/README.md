@@ -91,6 +91,7 @@ Load additional files only when the task touches the relevant area. See the
 | Build/bugfix workflow / learnings queue | `build-workflow.yaml` |
 | Plan organization / priorities | `project-documentation.yaml`, `notes/plan-organization.md` |
 | Task granularity / GitHub Issues workflow | `project-documentation.yaml`, `notes/work-granularity.md` |
+| Parallel agentic development / multi-agent coordination | `parallel-development.yaml`, `notes/parallel-development.md` |
 | History file management / append-history tool | `history-management.yaml` |
 | Notes frontmatter / metadata tooling | `notes-frontmatter.yaml` |
 | Spec registry / YAML requirement files | `spec-registry.yaml` |
@@ -308,6 +309,15 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   processed entries via `uv run append-history learning`, the `learning`
   history entry type, and skill documentation update requirements
   (BW-01 through BW-04)
+- **`parallel-development.yaml`** - Multi-agent coordination via GitHub Issues:
+  issue hierarchy (Epic/Task/Subtask), label taxonomy (`group:`, `size:`,
+  `stale-claim`, `needs-rebase`, `specs-notes`), task claiming protocol (branch
+  as distributed lock), size labeling (AC count + diff-based update), auto-merge
+  rules, pre-PR code review with `[BLOCKING]`/`[ADVISORY]` tags, stale-claim
+  sweeper, merge conflict recovery, and migration from IMPLEMENTATION_PLAN.md
+  (PAD-01 through PAD-15). See also `notes/parallel-development.md`.
+  Distinct from `agentic-readiness.yaml` (AR), which covers making the
+  Vultron protocol code integrable with external agentic tools.
 - **`project-documentation.yaml`** - Documentation file structure and purpose;
   includes append-only history write protocol (PD-05) for `plan/*HISTORY.md`,
   plan section organization rules (PD-06): `TASK-FOO` heading format,
@@ -410,6 +420,7 @@ is reserved for `testability.yaml`).
 | `OB` | `observability.yaml` |
 | `OID` | `object-ids.yaml` |
 | `OX` | `outbox.yaml` |
+| `PAD` | `parallel-development.yaml` |
 | `PD` | `project-documentation.yaml` |
 | `PROTO` | `prototype-shortcuts.yaml` |
 | `RF` | `response-format.yaml` |

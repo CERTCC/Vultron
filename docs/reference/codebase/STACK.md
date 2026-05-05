@@ -6,7 +6,7 @@
 
 | Area | Value | Evidence |
 |------|-------|----------|
-| Primary language | Python | `pyproject.toml`, `docs/codebase/.codebase-scan.txt` |
+| Primary language | Python | `pyproject.toml`, `docs/reference/codebase/.codebase-scan.txt` |
 | Runtime + version | Python `>=3.12`; Docker and CI use Python 3.13 | `pyproject.toml`, `docker/Dockerfile`, `.github/workflows/python-app.yml` |
 | Package manager | `uv` for dependency sync and command execution | `Makefile`, `.github/workflows/python-app.yml`, `docker/Dockerfile` |
 | Module/build system | Setuptools build backend with `uv build` packaging | `pyproject.toml`, `.github/workflows/python-app.yml` |
@@ -65,4 +65,4 @@ uv run flake8 vultron/ test/
 - `.github/workflows/python-app.yml`
 - `Makefile`
 - `package.json`
-- `docs/codebase/.codebase-scan.txt`
+- `docs/reference/codebase/.codebase-scan.txt`

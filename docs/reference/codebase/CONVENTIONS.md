@@ -6,7 +6,7 @@
 
 | Item | Rule | Example | Evidence |
 |------|------|---------|----------|
-| Files | Snake_case Python module names | `datalayer_sqlite.py`, `outbox_monitor.py` | `docs/codebase/.codebase-scan.txt`, `vultron/adapters/driven/datalayer_sqlite.py` |
+| Files | Snake_case Python module names | `datalayer_sqlite.py`, `outbox_monitor.py` | `docs/reference/codebase/.codebase-scan.txt`, `vultron/adapters/driven/datalayer_sqlite.py` |
 | Functions/methods | Snake_case verbs; internal/private helpers use leading `_` | `get_trigger_service`, `_deliver_with_retry` | `vultron/adapters/driving/fastapi/deps.py`, `vultron/adapters/driven/delivery_queue.py` |
 | Types/interfaces | PascalCase for classes and Protocols | `SqliteDataLayer`, `OutboxMonitor`, `DataLayer` | `vultron/adapters/driven/datalayer_sqlite.py`, `vultron/core/ports/datalayer.py` |
 | Constants/env vars | UPPER_CASE module constants and env names | `DEFAULT_MAX_RETRIES`, `VULTRON_DB_URL` | `vultron/adapters/driven/delivery_queue.py`, `vultron/adapters/driven/datalayer_sqlite.py` |

@@ -1,0 +1,362 @@
+id: PAD
+title: Parallel Agentic Development
+description: >-
+  Requirements for coordinating multiple parallel AI agents and human developers
+  via GitHub Issues. Defines the issue hierarchy, label taxonomy, task claiming
+  protocol, size labeling, orphan recovery, and the revised workflows for the
+  build, ingest-idea, review-priorities, and update-plan skills. Distinct from
+  agentic-readiness.yaml (AR), which covers making the Vultron protocol code
+  itself integrable with external agentic tools.
+version: 1.0.0
+kind: pattern
+scope:
+  - prototype
+  - production
+groups:
+  - id: PAD-01
+    title: Issue Hierarchy
+    specs:
+      - id: PAD-01-001
+        priority: MUST
+        statement: >-
+          Tasks MUST be represented as GitHub Issues in the CERTCC/Vultron
+          repository. IMPLEMENTATION_PLAN.md MUST NOT be used as the
+          authoritative task list; it is a read-only index linking to GitHub
+          Issues and PRIORITIES.md.
+      - id: PAD-01-002
+        priority: MUST
+        statement: >-
+          Issues MUST be organized in up to three levels: Epic (Priority
+          Group), Task (coherent unit of work), and Subtask (atomic PR-sized
+          chunk). Leaf issues (those with no sub-issues) are the claimable
+          work units.
+      - id: PAD-01-003
+        priority: MUST
+        statement: >-
+          Epic Issues MUST correspond to a named priority group in
+          PRIORITIES.md. Task Issues MUST be sub-issues of their parent Epic.
+          Subtask Issues MUST be sub-issues of their parent Task.
+      - id: PAD-01-004
+        priority: SHOULD
+        statement: >-
+          The minimum depth that produces right-sized leaf issues SHOULD be
+          used. Not every Epic requires Task or Subtask children.
+
+  - id: PAD-02
+    title: Label Taxonomy
+    specs:
+      - id: PAD-02-001
+        priority: MUST
+        statement: >-
+          Every Issue MUST carry a `group:<name>` label whose value matches
+          the corresponding priority group name in PRIORITIES.md (e.g.,
+          `group:architecture-hardening`).
+      - id: PAD-02-002
+        priority: MUST
+        statement: >-
+          Issues that have not yet been slotted into PRIORITIES.md MUST carry
+          the label `group:unscheduled`. Only humans (and the
+          `review-priorities` skill) may change a `group:unscheduled` label
+          to a named group label.
+      - id: PAD-02-003
+        priority: MUST
+        statement: >-
+          Every Issue and open PR MUST carry one of the size labels `size:S`,
+          `size:M`, or `size:L`. See PAD-05 for definitions and update rules.
+      - id: PAD-02-004
+        priority: MUST
+        statement: >-
+          A `stale-claim` label MUST be applied by the sweeper job (PAD-10)
+          when a claimed Issue has no open PR and the claim branch has not
+          received a commit within 3 days. Agents MUST skip Issues that carry
+          this label.
+      - id: PAD-02-005
+        priority: MUST
+        statement: >-
+          A `needs-rebase` label MUST be applied when an open PR has merge
+          conflicts that cannot be automatically resolved (PAD-11). Human
+          intervention is required before the label is removed.
+      - id: PAD-02-006
+        priority: MUST
+        statement: >-
+          Docs-only PRs (containing only `specs/` and `notes/` changes) MUST
+          carry the `specs-notes` label to identify them as docs-only for
+          reviewers.
+
+  - id: PAD-03
+    title: Priority Ordering Authority
+    specs:
+      - id: PAD-03-001
+        priority: MUST
+        statement: >-
+          PRIORITIES.md MUST remain the authoritative ordering document for
+          work priority. Priority changes MUST be made by editing PRIORITIES.md
+          and updating affected Issues' `group:` labels — not by reordering
+          issues in the GitHub tracker.
+      - id: PAD-03-002
+        priority: MUST_NOT
+        statement: >-
+          Agents MUST NOT write to PRIORITIES.md. Only humans and the
+          `review-priorities` skill may modify it.
+      - id: PAD-03-003
+        priority: MUST
+        statement: >-
+          When the `build` skill selects a task, it MUST read PRIORITIES.md
+          once to determine the current top-priority group name, then query
+          GitHub for open, unblocked leaf Issues with that `group:` label.
+          It MUST NOT use IMPLEMENTATION_PLAN.md as a task source.
+
+  - id: PAD-04
+    title: Task Claiming Protocol
+    specs:
+      - id: PAD-04-001
+        priority: MUST
+        statement: >-
+          An agent MUST claim a task by creating a branch named
+          `task/<issue-number>-<slug>` before beginning any implementation
+          work. Branch existence is the authoritative distributed lock: if the
+          branch already exists, the task is already claimed.
+      - id: PAD-04-002
+        priority: MUST
+        statement: >-
+          After creating the claim branch, the agent MUST assign the Issue to
+          the triggering user and MUST post a comment on the Issue identifying
+          the agent session and branch name.
+      - id: PAD-04-003
+        priority: MUST_NOT
+        statement: >-
+          Agents MUST NOT begin implementation work on an Issue whose claim
+          branch already exists, whose `stale-claim` label is set, or that
+          is already assigned to another user.
+
+  - id: PAD-05
+    title: Size Labeling
+    specs:
+      - id: PAD-05-001
+        priority: MUST
+        statement: >-
+          At Issue creation, the initial size label MUST be set based on the
+          count of acceptance-criteria (AC) checkboxes in the Issue body:
+          1–2 ACs → `size:S`; 3–6 ACs → `size:M`; 7+ ACs → `size:L`.
+      - id: PAD-05-002
+        priority: MUST
+        statement: >-
+          At PR open time, the agent MUST measure the actual diff (total lines
+          added plus removed across all changed files) and update the size
+          label: ≤50 lines → `size:S`; 51–300 lines → `size:M`;
+          301+ lines → `size:L`. Downgrading is permitted and expected when
+          the work was smaller than the AC-count estimate predicted.
+      - id: PAD-05-003
+        priority: MUST
+        statement: >-
+          The size label at PR-open time (after the diff-based update per
+          PAD-05-002) is the authoritative size for the PR, not the
+          Issue-creation-time AC-count estimate.
+
+  - id: PAD-07
+    title: Pre-PR Code Review Protocol
+    specs:
+      - id: PAD-07-001
+        priority: MUST
+        statement: >-
+          The `build` skill MUST invoke the `code-review` agent before
+          opening a PR. The review MUST run against the current branch diff
+          relative to `main`.
+      - id: PAD-07-002
+        priority: MUST
+        statement: >-
+          Every finding produced by the `code-review` agent MUST be tagged
+          either `[BLOCKING]` or `[ADVISORY]`. `[BLOCKING]` findings are bugs
+          and security issues that MUST be resolved before the PR is opened.
+          `[ADVISORY]` findings are style and quality observations that do not
+          block PR creation.
+      - id: PAD-07-003
+        priority: MUST
+        statement: >-
+          The `build` skill MUST resolve all `[BLOCKING]` findings before
+          opening a PR. After resolving, it MUST re-run the code review to
+          confirm no new `[BLOCKING]` findings were introduced.
+      - id: PAD-07-004
+        priority: SHOULD
+        statement: >-
+          After a PR is opened, `[ADVISORY]` findings SHOULD be posted as a
+          comment on the PR for human review.
+
+  - id: PAD-08
+    title: Build Skill — Issue-Based Task Selection
+    specs:
+      - id: PAD-08-001
+        priority: MUST
+        statement: >-
+          The `build` skill MUST select work by querying GitHub for open,
+          unblocked leaf Issues in the top-priority group (as determined by
+          reading PRIORITIES.md), filtered to exclude Issues with
+          `stale-claim` or that are already assigned. It MUST NOT select
+          tasks from IMPLEMENTATION_PLAN.md.
+      - id: PAD-08-002
+        priority: MUST
+        statement: >-
+          The `build` skill MUST open a GitHub Pull Request with "Closes #N"
+          in the body after completing implementation and passing all
+          validations. It MUST NOT commit directly to `main`.
+      - id: PAD-08-003
+        priority: MUST
+        statement: >-
+          After implementation, the `build` skill MUST compute the diff size
+          and update the size label on both the Issue and the PR per
+          PAD-05-002 before opening the PR.
+
+  - id: PAD-09
+    title: Ingest-Idea — Docs-Only PR and Issue Creation
+    specs:
+      - id: PAD-09-001
+        priority: MUST
+        statement: >-
+          After writing `specs/<topic>.yaml` and `notes/<topic>.md`, the
+          `ingest-idea` skill MUST open a docs-only PR carrying the
+          `specs-notes` label before creating the implementation GitHub Issue.
+          This ensures spec and notes files are on `main` and referenceable
+          from Issues before any implementation work begins.
+      - id: PAD-09-002
+        priority: MUST
+        statement: >-
+          After the docs-only PR is opened, `ingest-idea` MUST create a
+          GitHub Issue with: a title and description derived from the spec,
+          the `group:unscheduled` label, the appropriate `size:` label (from
+          AC count per PAD-05-001), and a link to the spec file in the body.
+      - id: PAD-09-003
+        priority: MUST_NOT
+        statement: >-
+          `ingest-idea` MUST NOT begin implementation work. It MUST stop after
+          creating the Issue. Implementation work begins only when a human runs
+          `review-priorities` to slot the Issue into PRIORITIES.md.
+
+  - id: PAD-10
+    title: Orphan Recovery — Stale Claim Sweeper
+    specs:
+      - id: PAD-10-001
+        priority: MUST
+        statement: >-
+          A scheduled GitHub Actions workflow (weekly cadence, also
+          triggerable on `workflow_dispatch`) MUST scan for Issues that are
+          assigned, have a `task/<N>-slug` branch, have no open PR, and have
+          not received a branch commit within 3 days.
+      - id: PAD-10-002
+        priority: MUST
+        statement: >-
+          When the sweeper identifies an orphaned claim, it MUST apply the
+          `stale-claim` label to the Issue and MUST post a comment identifying
+          the orphaned branch and requesting human review.
+      - id: PAD-10-003
+        priority: MUST
+        statement: >-
+          A human MUST review the orphaned branch, clean it up, unassign the
+          Issue, and remove the `stale-claim` label before the Issue becomes
+          claimable again.
+
+  - id: PAD-11
+    title: Merge Conflict Recovery
+    specs:
+      - id: PAD-11-001
+        priority: MUST
+        statement: >-
+          When a PR has merge conflicts, the `build` skill MUST attempt an
+          automatic rebase of the task branch onto `main`.
+      - id: PAD-11-002
+        priority: MUST
+        statement: >-
+          If the automatic rebase succeeds, the agent MUST force-push the
+          rebased branch. CI re-runs automatically on the updated head.
+      - id: PAD-11-003
+        priority: MUST
+        statement: >-
+          If the automatic rebase fails, the agent MUST post a comment on the
+          PR explaining the conflict, MUST apply the `needs-rebase` label, and
+          MUST NOT attempt further changes. Human intervention is required to
+          resolve the conflict and remove the label.
+
+  - id: PAD-12
+    title: Review-Priorities — Unscheduled Issue Triage
+    specs:
+      - id: PAD-12-001
+        priority: MUST
+        statement: >-
+          The `review-priorities` skill MUST fetch all open GitHub Issues
+          carrying the `group:unscheduled` label and surface them as a triage
+          list alongside any untracked PRIORITIES.md items.
+      - id: PAD-12-002
+        priority: MUST
+        statement: >-
+          For each `group:unscheduled` Issue, the `review-priorities` skill
+          MUST use `ask_user` to determine where to slot it in PRIORITIES.md
+          or whether to close or defer it.
+      - id: PAD-12-003
+        priority: MUST
+        statement: >-
+          After the user confirms a placement, the `review-priorities` skill
+          MUST update the Issue's `group:` label from `group:unscheduled` to
+          the chosen group label and update PRIORITIES.md accordingly.
+
+  - id: PAD-13
+    title: Update-Plan — Issue Creation
+    specs:
+      - id: PAD-13-001
+        priority: MUST
+        statement: >-
+          When the `update-plan` skill identifies a new implementation gap (a
+          spec requirement with no corresponding code or test), it MUST create
+          a GitHub Issue rather than add a task to IMPLEMENTATION_PLAN.md.
+      - id: PAD-13-002
+        priority: MUST
+        statement: >-
+          Issues created by `update-plan` MUST carry the `group:unscheduled`
+          label and the appropriate initial `size:` label (from AC count per
+          PAD-05-001).
+      - id: PAD-13-003
+        priority: MUST_NOT
+        statement: >-
+          The `update-plan` skill MUST NOT write new tasks to
+          IMPLEMENTATION_PLAN.md. IMPLEMENTATION_PLAN.md is a read-only index
+          after the hard cutover migration (PAD-15).
+
+  - id: PAD-14
+    title: GitHub Actions Requirements
+    specs:
+      - id: PAD-14-003
+        priority: MUST
+        statement: >-
+          A GitHub Actions workflow MUST be created to implement the
+          stale-claim sweeper (PAD-10): run on `schedule` (weekly) and
+          `workflow_dispatch`, scan for orphaned claims per PAD-10-001,
+          apply `stale-claim` label and post comment per PAD-10-002.
+
+  - id: PAD-15
+    title: Migration
+    specs:
+      - id: PAD-15-001
+        priority: MUST
+        statement: >-
+          Before migrating tasks, `review-priorities` MUST be run to triage
+          and clean up PRIORITIES.md, ensuring no stale or mis-ordered tasks
+          are promoted to Issues.
+      - id: PAD-15-002
+        priority: MUST
+        statement: >-
+          All tasks in IMPLEMENTATION_PLAN.md MUST be migrated to GitHub
+          Issues in a single pass using the
+          `create-github-issues-feature-from-implementation-plan` skill or a
+          bulk script. Each task group → Epic Issue; each task → child Issue;
+          dependency prose → `Blocked by #N` notation.
+      - id: PAD-15-003
+        priority: MUST
+        statement: >-
+          After migration, IMPLEMENTATION_PLAN.md MUST be converted to a
+          read-only index: a short header note stating that tasks have moved
+          to GitHub Issues, with links to the relevant Epic Issues and to
+          PRIORITIES.md.
+      - id: PAD-15-004
+        priority: MUST_NOT
+        statement: >-
+          After the hard cutover, agents and humans MUST NOT add new tasks
+          to IMPLEMENTATION_PLAN.md. All new work items MUST be created as
+          GitHub Issues.

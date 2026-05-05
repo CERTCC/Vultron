@@ -4,9 +4,10 @@ description: >
   Promote lessons learned from the build process into durable specifications
   and design notes. Reads BUILD_LEARNINGS.md (internal source), analyzes
   gaps, interviews the user with grill-me to align on scope, then writes to
-  specs/, notes/, and AGENTS.md before committing. Use when build execution
-  has produced insights that should be reflected in specs or notes. For
-  external ideas (IDEAS.md), use ingest-idea instead.
+  specs/, notes/, and AGENTS.md, opens a docs-only PR with the specs-notes
+  label, and archives processed entries. Use when build execution has
+  produced insights that should be reflected in specs or notes. For external
+  ideas (IDEAS.md), use ingest-idea instead.
 ---
 
 # Skill: Learn
@@ -33,7 +34,9 @@ entries that should be promoted into durable docs.
 5. Write to `specs/`, `notes/`, and `AGENTS.md`.
 6. Archive each processed entry via `uv run append-history learning`, then
    delete it from `plan/BUILD_LEARNINGS.md`.
-7. Invoke `format-markdown`, then `commit`.
+7. Invoke `format-markdown`.
+8. Create a branch, commit, push, and open a docs-only PR with `specs-notes`
+   label.
 
 ## Workflow
 
@@ -124,14 +127,38 @@ For each entry in `plan/BUILD_LEARNINGS.md` that has been fully promoted to
 
 Do **not** reference `plan/BUILD_LEARNINGS.md` from durable docs.
 
-### Phase 8 — Lint and Commit
+### Phase 8 — Lint, Commit, and Open PR
 
 1. Invoke the `format-markdown` skill on all new/modified markdown files.
    Fix all errors.
 2. If a requirement conflict cannot be resolved, add a note to
    `plan/BUILD_LEARNINGS.md` and **stop before committing**.
-3. Invoke the `commit` skill. Use multiple commits for thematically distinct
-   changes (e.g., spec refinements, notes promoted, AGENTS.md updates).
+3. Create a branch, stage, commit, push, and open a docs-only PR:
+
+   ```bash
+   git switch -c learn/<YYYYMMDD>-<slug>
+   git add specs/<changed-files> notes/<changed-files> AGENTS.md \
+       plan/BUILD_LEARNINGS.md
+   git commit -m "docs: promote BUILD_LEARNINGS — <topic>
+
+   - <bullet: what was promoted and where>
+   - Archive <N> entr[y/ies] via append-history learning
+
+   Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
+   git push -u origin learn/<YYYYMMDD>-<slug>
+
+   gh pr create --repo CERTCC/Vultron \
+     --title "docs: promote BUILD_LEARNINGS — <topic>" \
+     --body "Docs-only PR: promotes build learnings to specs/, notes/,
+   and/or AGENTS.md.
+
+   No .py files changed." \
+     --label "specs-notes"
+   ```
+
+   Use multiple commits for thematically distinct changes (e.g., spec
+   refinements, notes promoted, AGENTS.md updates). This PR carries the
+   `specs-notes` label for reviewer awareness.
 
 ## Constraints
 

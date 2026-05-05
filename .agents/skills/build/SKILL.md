@@ -2,10 +2,10 @@
 name: build
 description: >
   Completes the highest-priority pending implementation task: loads project
-  context, selects the next task, implements it, validates, updates plan
-  history, and commits. Use when the user asks to continue planned
-  implementation work or turn the next prioritized item in the implementation
-  plan into a completed changeset.
+  context, selects the next task from GitHub Issues, implements it, validates,
+  opens a PR, and updates plan history. Use when the user asks to continue
+  planned implementation work or turn the next prioritized item into a
+  completed changeset.
 ---
 
 # Skill: Build
@@ -14,10 +14,13 @@ description: >
 
 1. Invoke the `study-project-docs` skill to load all specs and read project
    context.
-2. Select the highest-priority unchecked task that can be completed in one run.
+2. Select the highest-priority unblocked leaf GitHub Issue in the top-priority
+   group (read from `plan/PRIORITIES.md`), then claim it by creating the task
+   branch.
 3. Verify the current implementation in `vultron/` and `test/` before coding.
 4. Implement only the selected task, then run the required validation.
-5. If validation succeeds, update plan/history files, stage changes, and commit.
+5. If validation succeeds, run a pre-PR code review, open a PR with
+   "Closes #N", and archive the completion summary.
 
 ## Inputs
 
@@ -31,35 +34,36 @@ description: >
 Invoke the `study-project-docs` skill. It loads all specs, reads all plan/,
 docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
 
-### Phase 2 - Select work
+### Phase 2 - Select and claim work
 
-1. Identify the highest-priority unchecked task in
-   `plan/IMPLEMENTATION_PLAN.md`.
-2. Use `plan/PRIORITIES.md` as authoritative, but account for prerequisites,
-   blockers, dependencies, and whether the work fits in a single run.
-3. Small trivial tasks at the same priority may be grouped when that avoids
-   wasteful context switching.
-4. If the selected task's `**Source**:` field contains a GitHub issue URL,
-   fetch that issue's body and comments using `github-mcp-server-issue_read`
+1. Read `plan/PRIORITIES.md` to identify the current top-priority group name.
+2. Query GitHub for open, unblocked **leaf Issues** (no sub-issues) with that
+   `group:` label, excluding Issues that have `stale-claim` set or are already
+   assigned. Use `github-mcp-server-list_issues` with the appropriate label
+   filter.
+3. From the resulting list, pick the highest-priority unblocked Issue. Account
+   for blockers (`Blocked by #N` in the Issue body), prerequisites, and whether
+   the work fits in a single run.
+4. Fetch the Issue body and comments using `github-mcp-server-issue_read`
    (`method: get` then `method: get_comments`). Use the combined content as
-   supplementary implementation context throughout Phases 3–5. This ensures
-   the implementation reflects any updates or discussion added to the issue
-   after `update-plan` last ran.
+   implementation context throughout Phases 3–5.
+5. **Claim the Issue**:
+   - Create a branch: `git switch -c task/<issue-number>-<slug>`
+   - If the branch already exists, abort — the task is already claimed.
+   - Assign the Issue to the triggering user:
+     `gh issue edit <N> --add-assignee @me --repo CERTCC/Vultron`
+   - Post a claim comment:
+     `gh issue comment <N> --repo CERTCC/Vultron --body "Claimed by <agent-session> on branch task/<N>-<slug>"`
 
 ### Phase 3 - Verify before coding
 
 1. Search `vultron/` and `test/` to confirm the current implementation.
 2. Do not assume missing functionality; verify it in code.
-3. If a blocking prerequisite is discovered, you may add **at most one**
-   minimal prerequisite entry to `plan/IMPLEMENTATION_PLAN.md` only when all of
-   the following are true:
-   - it is strictly necessary for the selected task
-   - it is labeled `auto-added`
-   - it includes a short title, one-line justification, and one-line
-     acceptance criterion
-   - the rationale is recorded in `plan/BUILD_LEARNINGS.md`
-   - the commit message is prefixed `plan: add prerequisite`
-4. If more than one prerequisite is required, or the prerequisite change is
+3. If a blocking prerequisite is discovered, create a new GitHub Issue for it
+   with `group:unscheduled` and the appropriate `size:` label, then record the
+   dependency in `plan/BUILD_LEARNINGS.md` and stop. Do not add prerequisite
+   tasks to `plan/IMPLEMENTATION_PLAN.md`.
+4. If more than one prerequisite is required, or the prerequisite work is
    non-trivial, update `plan/BUILD_LEARNINGS.md` with details and stop.
 
 ### Phase 4 - Implement
@@ -78,65 +82,90 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
 3. If incidental bugs are discovered, add them to `plan/BUGS.md` with clear
    reproduction notes and do not pursue them unless they block the current task.
 
-### Phase 6 - Finalize
+### Phase 6 - Pre-PR code review
 
-1. Append a completion summary to `plan/history/` using the `append-history`
+Invoke the `code-review` agent against the current branch diff relative to
+`main`. Every finding will be tagged `[BLOCKING]` or `[ADVISORY]`:
+
+- `[BLOCKING]` — bugs and security issues. Fix **all** of these before
+  continuing. After fixing, re-run the code review to confirm no new
+  `[BLOCKING]` findings were introduced.
+- `[ADVISORY]` — style and quality observations. Do not block on these; log
+  them in a PR comment after the PR is opened (Phase 7 step 4).
+
+### Phase 7 - Open PR and finalize
+
+1. Compute the actual diff size (total lines added + removed across all changed
+   files):
+   - ≤50 lines → `size:S`
+   - 51–300 lines → `size:M`
+   - 301+ lines → `size:L`
+
+   Update the `size:` label on the Issue to match.
+
+2. Push the branch and open a PR:
+
+   ```bash
+   git push -u origin task/<issue-number>-<slug>
+   gh pr create --repo CERTCC/Vultron \
+     --title "<short title>" \
+     --body "Closes #<N>
+
+   <summary of changes>" \
+     --label "size:<X>"
+   ```
+
+3. If there were `[ADVISORY]` findings from the code review, post them as a
+   PR comment:
+
+   ```bash
+   gh pr comment <PR-number> --repo CERTCC/Vultron \
+     --body "Code review advisory findings: ..."
+   ```
+
+4. Append a completion summary to `plan/history/` using the `append-history`
    tool:
 
    ```bash
    cat <<'EOF' | uv run append-history implementation \
        --title "<short task title>" \
-       --source "<TASK-ID>"
+       --source "https://github.com/CERTCC/Vultron/issues/<N>"
 
-   ## <TASK-ID> — <title>
+   ## Issue #<N> — <title>
 
-   <completion summary: what was done, outcome, artifacts>
+   <completion summary: what was done, outcome, PR link>
    EOF
    ```
 
-2. Delete the completed task from `plan/IMPLEMENTATION_PLAN.md` **entirely**
-   — the heading, every sub-heading, every line of body text, and the
-   surrounding `---` dividers. Zero lines of the task section must remain.
-
-   **What "entirely" means:** after your edit, searching the plan file for
-   the task ID (e.g. `TASK-SPECMD`) must return no matches.
-
-   The following are all tombstones and are **forbidden**:
-
-   ```markdown
-   ## TASK-FOO — Some Title        ← forbidden: heading left behind
-   **Status: COMPLETE** — abc1234  ← forbidden: one-line status summary
-   - [x] FOO.1: done               ← forbidden: checked checkbox
-   ~~## TASK-FOO — Some Title~~    ← forbidden: strikethrough
-   ```
-
-   The task details belong in `plan/history/` (step 1 above). The plan file
-   is a forward-looking roadmap; completed work has no place in it.
-3. Record **observations, open questions, and constraints** discovered during
+5. Record **observations, open questions, and constraints** discovered during
    implementation in `plan/BUILD_LEARNINGS.md`. Use a dated header per entry
    (e.g., `### 2026-04-28 LABEL — Short description`). Do **not** write
-   completion summaries here — those belong in `uv run append-history
-   implementation` (step 1 above).
-4. If the completed task has a GitHub issue URL in its `**Source**:` field,
-   post a comment on that issue with the commit SHA and a one-line summary
-   of what was done:
+   completion summaries here.
+
+6. Invoke the `commit` skill if any local files (BUGS.md, BUILD_LEARNINGS.md)
+   were updated. The implementation changes themselves are on the PR branch.
+
+### Phase 8 - Merge conflict recovery (if needed)
+
+If the PR reports merge conflicts:
+
+1. Attempt an automatic rebase:
 
    ```bash
-   gh issue comment <NUMBER> --repo CERTCC/Vultron \
-     --body "Resolved in <SHA>: <one-line summary>"
+   git fetch origin main
+   git rebase origin/main
    ```
 
-5. Invoke the `commit` skill with a clear, specific message.
+2. If the rebase succeeds: `git push --force-with-lease`. CI re-runs.
+3. If the rebase fails: post a comment on the PR explaining the conflict, add
+   the `needs-rebase` label, and stop. Human intervention is required.
 
 ## Constraints
 
 - Preserve focus on a single task, or a tightly related set of trivial tasks.
 - Do not modify unrelated tasks.
-- Do not skip validation.
+- Do not skip validation or the pre-PR code review.
 - Each run starts in a fresh context.
-- The single-prerequisite exception is narrow and does not authorize broader
-  plan edits.
-- **No tombstones**: when a task is deleted from `plan/IMPLEMENTATION_PLAN.md`,
-  every line of it — heading, sub-headings, body, dividers — must be gone.
-  A task ID that still appears anywhere in the plan file after deletion is a
-  tombstone and MUST be removed.
+- Do not commit directly to `main`. All work goes through a PR.
+- Do not add tasks to `plan/IMPLEMENTATION_PLAN.md`. New work items are GitHub
+  Issues.
