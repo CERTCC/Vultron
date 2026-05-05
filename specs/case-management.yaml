@@ -5,7 +5,7 @@ description: >-
   the RM/EM/CS/VFD state model. Covers actor isolation at the protocol level and the distinction
   between participant-specific and participant-agnostic state. `notes/bt-integration.md`,
   ActivityPub specification `handler-protocol.md` (HP-00-001, HP-00-002), `actor-knowledge-model.md`
-  (AKM-01-001, AKM-01-002)
+  (AKM-01-001, AKM-01-002). CM-14 (case initialization sequence) sourced from IDEA-26050501.
 version: 1.0.0
 kind: domain
 scope:
@@ -571,7 +571,7 @@ groups:
   description: >-
     Defines the canonical ordered sequence of initialization steps that MUST occur when a
     VulnerabilityCase is created at Offer(Report) receipt (CM-12-001). All steps MUST complete
-    before the case is considered fully initialized. Source: IDEA-26050501.
+    before the case is considered fully initialized.
   specs:
   - id: CM-14-001
     priority: MUST
@@ -676,8 +676,8 @@ groups:
     priority: MUST
     statement: >-
       Additional participants MUST NOT be invited and embargo modifications MUST NOT be
-      initiated until the case initialization sequence (CM-14-001 through CM-14-006) is
-      complete
+      initiated until the case initialization sequence defined in CM-14-001 (including any
+      applicable conditional steps) is complete
     rationale: >-
       The initialization sequence establishes the minimum valid case state: a case
       object, an owner, an optional embargo, and a reporter. Inviting third parties or
