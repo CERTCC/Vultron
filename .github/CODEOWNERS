@@ -11,6 +11,9 @@
 /docs/ @ahouseholder
 /vultron/ @ahouseholder
 /test/ @ahouseholder
+/specs/ @ahouseholder
+/notes/ @ahouseholder
+
 
 # site config
 mkdocs.yml @ahouseholder
