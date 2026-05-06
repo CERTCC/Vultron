@@ -67,6 +67,7 @@ Load additional files only when the task touches the relevant area. See the
 | Topic | Files to add |
 |-------|-------------|
 | Inter-actor communication / knowledge model | `actor-knowledge-model.yaml` |
+| Case bootstrap trust establishment | `case-bootstrap-trust.yaml`, `participant-case-replica.yaml`, `actor-knowledge-model.yaml` |
 | DataLayer adapter | `datalayer.md` |
 | Handler pipeline | `inbox-endpoint.yaml`, `message-validation.yaml`, `semantic-extraction.yaml`, `dispatch-routing.yaml` |
 | Behavior Trees | `behavior-tree-integration.yaml`, `behavior-tree-node-design.yaml`, `bt-composability.yaml`, `triggerable-behaviors.yaml`, `notes/trigger-classification.md` |
@@ -192,6 +193,11 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   broadcast, CVD action rules API, redacted case view (CM-09), per-participant embargo
   acceptance tracking (CM-10), invitation acceptance lifecycle (CM-11), case creation timing
   (CM-12), embargo acceptance ownership (CM-13), case initialization sequence (CM-14)
+- **`case-bootstrap-trust.yaml`** - Trust establishment for non-owner
+  participants: creator-signed `Create(VulnerabilityCase)` bootstrap on the
+  original report path, invite-based trust establishment for late joiners,
+  pre-bootstrap queue / replay rules, and trusted CaseActor persistence
+  (CBT-01 through CBT-05)
 - **`participant-role-management.yaml`** - Role read/mutation API on
   `VultronParticipant` and `CaseParticipant`: `add_role()`, `remove_role()`,
   `has_role()`, `roles` property, core-layer no-direct-mutation rule, wire-layer
@@ -255,8 +261,9 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   and port-injection-via-blackboard pattern
   (SBT-01 through SBT-05)
 - **`participant-case-replica.yaml`** - Participant case replica lifecycle:
-  bootstrap via `Announce(VulnerabilityCase)`, single-writer update authority,
-  case-context routing, reporter case discovery, and unknown-context handling
+  replica identity, single-writer update authority, case-context routing,
+  reporter case discovery, and unknown-context handling; see
+  `case-bootstrap-trust.yaml` for non-owner trust establishment
   (PCR-01 through PCR-07)
 
 ### Demo and Tooling

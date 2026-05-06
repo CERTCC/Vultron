@@ -4,6 +4,7 @@ status: active
 description: "Design notes for participant case replicas: per-actor case copies and synchronization model."
 related_specs:
   - specs/participant-case-replica.yaml
+  - specs/case-bootstrap-trust.yaml
   - specs/case-management.yaml
   - specs/sync-log-replication.yaml
 relevant_packages:
@@ -17,7 +18,14 @@ relevant_packages:
 **Relates to**: `specs/participant-case-replica.yaml`
 
 **Cross-references**: `specs/case-management.yaml`,
-`specs/sync-log-replication.yaml`, `specs/actor-knowledge-model.yaml`
+`specs/sync-log-replication.yaml`, `specs/actor-knowledge-model.yaml`,
+`specs/case-bootstrap-trust.yaml`
+
+> **Supersession note**: The non-owner bootstrap guidance in this file is
+> partially superseded by `specs/case-bootstrap-trust.yaml` and
+> `notes/case-bootstrap-trust.md`. For the original report-submission path,
+> trust now starts with creator-signed `Create(VulnerabilityCase)`, not with
+> `Announce(VulnerabilityCase)` from the CaseActor.
 
 ---
 
@@ -26,14 +34,14 @@ relevant_packages:
 | Question | Decision | Rationale |
 |---|---|---|
 | Does each participant need a stub CaseActor clone? | No — one Actor, one inbox; routing is an internal concern. | Separate per-participant-per-case actors would explode the actor registry and add wire-protocol complexity with no protocol benefit. |
-| What is the unified mechanism for delivering a full case snapshot? | `Announce(VulnerabilityCase)` at all lifecycle stages. | `Announce` is semantically correct ("I am telling you about this") for both initial delivery and ongoing updates. `Create(Case)` retains its "case was created" semantics but is not the snapshot vehicle. |
-| Who triggers initial sync for the original participants? | CaseActor sends `Announce(VulnerabilityCase)` as part of case initialization. | Consistent with the unified mechanism; no special-casing required. |
-| Who triggers initial sync for late-joining participants? | CaseActor auto-sends `Announce(VulnerabilityCase)` as a cascade when it processes `Accept(Invite)`. | Implements the protocol-event-cascade pattern: acceptance implies participant is added implies snapshot is sent. |
+| What is the bootstrap mechanism for delivering a full case snapshot? | Split by path: creator-signed `Create(VulnerabilityCase)` for the original report path; `Announce(VulnerabilityCase)` from the CaseActor after trust is established; invite-based bootstrap for late joiners. | Original report submitters already trust the report receiver, so that actor should introduce the CaseActor. Late joiners need trust establishment through invitation rather than report history. |
+| Who triggers initial sync for the original participants? | The case creator sends one-time `Create(VulnerabilityCase)` to the original report submitter. | This establishes trust in the CaseActor before later updates arrive from a different identity. |
+| Who triggers initial sync for late-joining participants? | The case creator establishes trust through `InviteActorToCase`, then the CaseActor sends `Announce(VulnerabilityCase)` after acceptance. | Keeps late-joiner trust establishment tied to the invite flow while preserving CaseActor-authoritative replication afterward. |
 | Who may update a participant's local case replica? | Only the CaseActor. Reject and log at WARNING for any other sender. | Enforces the single-writer invariant (CM-02-002). Matches the idea's explicit requirement. |
 | Does the case owner follow the same replica rules? | Yes. Even the case owner routes through the CaseActor and never writes directly to its local copy. | Reinforces CM-02-010 (distinct CaseActor and owner actor identities). |
 | Which field routes a case-scoped message to the right local handler? | `context` field, set to the case ID. | Already the established pattern in all demos. Consistent with AS2 semantics. |
 | What happens when an activity arrives with an unknown case context? | Queue, warn, request resync. Drop if no snapshot arrives within timeout. | Handles out-of-order delivery (snapshot and follow-up arrive in wrong order) without silently dropping or corrupting state. |
-| Should an actor maintain a report-to-case mapping? | Yes. Allows reporter actors to recognize that an `Announce(Case)` is a response to their prior `Offer(Report)`. | Enables the "reporter checks their open submissions" flow described in the idea. |
+| Should an actor maintain a report-to-case mapping? | Yes. Allows reporter actors to recognize that bootstrap `Create(Case)` and later `Announce(Case)` traffic belong to their prior `Offer(Report)`. | Enables the "reporter checks their open submissions" flow described in the idea. |
 
 ---
 
@@ -53,32 +61,35 @@ entity that may update participant replicas.
 ```text
 Case Lifecycle:
   Case created
-    └── CaseActor sends Announce(VulnerabilityCase) to each initial participant
-          └── Participant creates local replica on first receipt
-          └── Participant updates local replica on subsequent receipt
+    └── Case creator sends Create(VulnerabilityCase) to original report submitter
+          └── Submitter validates report linkage + CaseActor identity
+          └── Trusted CaseActor sends Announce(VulnerabilityCase) updates
 
   New participant invited and accepts
-    └── CaseActor processes Accept(Invite)
-          └── CaseActor adds participant to case
+    └── Case creator sends InviteActorToCase
+          └── Invitee validates invite + CaseActor identity
           └── CaseActor sends Announce(VulnerabilityCase) to new participant
                 └── New participant creates local replica
 ```
 
 ---
 
-## `Announce(VulnerabilityCase)` as Unified Bootstrap
+## Bootstrap Split by Participant Origin
 
-The `Announce` activity is the correct AS2 verb for "I am informing you about
-this object." This covers both:
+`Announce(VulnerabilityCase)` is still the right vehicle for CaseActor-led
+ongoing synchronization, but it is no longer the universal first-bootstrap
+message for non-owner participants.
 
-- **Initial delivery**: participant does not yet have a local copy; the
-  `Announce` handler checks for an existing replica, finds none, and creates
-  one.
-- **Subsequent updates**: participant already has a local copy; the `Announce`
-  handler merges the received state.
+- **Original report path**: the case creator sends one-time
+  `Create(VulnerabilityCase)` to the original report submitter to introduce the
+  case and the CaseActor.
+- **Post-bootstrap updates**: the trusted CaseActor sends
+  `Announce(VulnerabilityCase)` for ongoing synchronization.
+- **Late joiners**: `InviteActorToCase` establishes trust first, then the
+  CaseActor may send `Announce(VulnerabilityCase)`.
 
-The receiver's handler does NOT need to know which case of its lifecycle the
-delivery is at:
+The receiver therefore needs bootstrap-state awareness before treating a
+CaseActor-originated snapshot as authoritative:
 
 ```python
 class AnnounceVulnerabilityCaseReceivedUseCase:

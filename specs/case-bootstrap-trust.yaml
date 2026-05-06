@@ -1,0 +1,203 @@
+id: CBT
+title: Case Bootstrap Trust
+description: >-
+  Requirements for establishing trust in a `VulnerabilityCase` and its
+  `CaseActor` at non-owner sites. Source: 2026-05-06 design conversation about
+  #440 and #457. Scope note: this spec governs trust establishment for
+  non-owner participants and refines the bootstrap assumptions in
+  `specs/participant-case-replica.yaml`; it does not replace the ongoing
+  single-writer and replica-routing rules in PCR or the log-replication
+  transport rules in `specs/sync-log-replication.yaml`.
+version: 1.0.0
+kind: domain
+scope:
+  - prototype
+  - production
+groups:
+  - id: CBT-01
+    title: Original Report-Submission Bootstrap
+    specs:
+      - id: CBT-01-001
+        priority: MUST
+        statement: >-
+          When an actor creates a case in response to an inbound
+          `Offer(VulnerabilityReport)`, that case creator MUST establish trust
+          at the original report submitter by sending a one-time
+          `Create(VulnerabilityCase)` activity.
+        relationships:
+          - rel_type: refines
+            spec_id: CM-12-001
+          - rel_type: refines
+            spec_id: PCR-02-005
+      - id: CBT-01-002
+        priority: MUST
+        statement: >-
+          The bootstrap `Create(VulnerabilityCase)` activity MUST carry a full
+          inline `VulnerabilityCase` snapshot rather than a minimal stub or
+          partial trust-only payload.
+        relationships:
+          - rel_type: implements
+            spec_id: AKM-03-001
+      - id: CBT-01-003
+        priority: MUST
+        statement: >-
+          The bootstrap case snapshot MUST identify the case creator/owner as a
+          participant with `CASE_OWNER` role and MUST identify the CaseActor as
+          a participant with `COORDINATOR` role.
+        relationships:
+          - rel_type: refines
+            spec_id: CM-02-001
+          - rel_type: refines
+            spec_id: CM-02-010
+      - id: CBT-01-004
+        priority: MUST
+        statement: >-
+          When the original report submitter is intended to receive ongoing
+          case updates immediately, the bootstrap case snapshot MUST include
+          that actor as a participant from the start.
+      - id: CBT-01-005
+        priority: MUST
+        statement: >-
+          A report submitter MUST NOT trust a newly introduced CaseActor unless
+          the bootstrap `Create(VulnerabilityCase)` both comes from the same
+          actor that received the report and references the previously
+          submitted report.
+        relationships:
+          - rel_type: refines
+            spec_id: PCR-05-001
+          - rel_type: refines
+            spec_id: AKM-02-001
+      - id: CBT-01-006
+        priority: MUST
+        statement: >-
+          After validating the bootstrap `Create(VulnerabilityCase)`, the
+          receiving actor MUST persist the report-to-case link, the trusted
+          case-creator identity, and the trusted CaseActor identity for that
+          relationship.
+        relationships:
+          - rel_type: refines
+            spec_id: PCR-05-001
+  - id: CBT-02
+    title: Post-Bootstrap Update Authority
+    specs:
+      - id: CBT-02-001
+        priority: MUST
+        statement: >-
+          For the original report-submission path, `Create(VulnerabilityCase)`
+          is a one-time bootstrap message only; subsequent full-case
+          synchronization MUST use `Announce(VulnerabilityCase)` from the
+          trusted CaseActor.
+        relationships:
+          - rel_type: refines
+            spec_id: PCR-02-001
+          - rel_type: refines
+            spec_id: PCR-03-001
+      - id: CBT-02-002
+        priority: MUST_NOT
+        statement: >-
+          Transport authentication or encrypted direct messaging alone MUST NOT
+          be treated as sufficient authority to trust a previously unknown
+          CaseActor without the explicit bootstrap trust handoff.
+        relationships:
+          - rel_type: refines
+            spec_id: AKM-01-002
+      - id: CBT-02-003
+        priority: MUST
+        statement: >-
+          Once a CaseActor has been trusted for a case, that identity MUST NOT
+          be replaced implicitly by ordinary case-update traffic; CaseActor
+          rotation or transfer MUST use an explicit transfer workflow.
+        relationships:
+          - rel_type: refines
+            spec_id: CM-02-010
+  - id: CBT-03
+    title: Out-of-Order Handling and Replay Requests
+    specs:
+      - id: CBT-03-001
+        priority: SHOULD
+        statement: >-
+          If a CaseActor-originated case message arrives before the required
+          bootstrap trust handoff, the receiving actor SHOULD queue it only for
+          a short bounded interval rather than accepting or permanently
+          trusting it immediately.
+        relationships:
+          - rel_type: refines
+            spec_id: PCR-06-002
+      - id: CBT-03-002
+        priority: MUST_NOT
+        statement: >-
+          A pre-bootstrap CaseActor message MUST NOT update local case state
+          before the corresponding trust-establishing bootstrap message has been
+          validated.
+        relationships:
+          - rel_type: refines
+            spec_id: PCR-06-003
+      - id: CBT-03-003
+        priority: MUST
+        statement: >-
+          When the bounded pre-bootstrap queue expires, the receiver MUST drop
+          the queued message, log a warning, and require a resend after
+          bootstrap.
+      - id: CBT-03-004
+        priority: SHOULD
+        statement: >-
+          When bootstrap has not arrived in time, the receiver SHOULD request a
+          replay from the original report receiver / case creator by sending a
+          generic `Question` asking for the bootstrap `Create(VulnerabilityCase)`
+          to be resent.
+  - id: CBT-04
+    title: Late-Joiner Bootstrap
+    specs:
+      - id: CBT-04-001
+        priority: MUST
+        statement: >-
+          For a participant added after case creation, the trust-establishing
+          message MUST be `InviteActorToCase` from the case creator/owner rather
+          than `Create(VulnerabilityCase)`.
+        relationships:
+          - rel_type: refines
+            spec_id: CM-11-001
+      - id: CBT-04-002
+        priority: MUST
+        statement: >-
+          The trust-establishing invite for a late joiner MUST identify both
+          the case and the CaseActor that will send subsequent
+          `Announce(VulnerabilityCase)` updates.
+      - id: CBT-04-003
+        priority: MUST
+        statement: >-
+          After the late joiner has validated and accepted that invitation, the
+          CaseActor MAY send `Announce(VulnerabilityCase)` without a separate
+          `Create(VulnerabilityCase)` bootstrap.
+        relationships:
+          - rel_type: refines
+            spec_id: PCR-07-007
+  - id: CBT-05
+    title: Verification
+    specs:
+      - id: CBT-05-001
+        priority: MUST
+        statement: >-
+          Tests MUST verify that the original report submitter accepts
+          CaseActor-originated `Announce(VulnerabilityCase)` updates only after
+          a valid creator-signed bootstrap `Create(VulnerabilityCase)` has
+          established trust.
+      - id: CBT-05-002
+        priority: MUST
+        statement: >-
+          Tests MUST verify that a bootstrap `Create(VulnerabilityCase)` is
+          rejected when the sender does not match the actor that received the
+          report or when the case does not reference the known submitted report.
+      - id: CBT-05-003
+        priority: MUST
+        statement: >-
+          Tests MUST verify that pre-bootstrap CaseActor messages remain
+          unapplied, expire safely, and lead to a replay request to the case
+          creator.
+      - id: CBT-05-004
+        priority: MUST
+        statement: >-
+          Tests MUST verify that late joiners establish trust through
+          `InviteActorToCase` and may then accept CaseActor-originated
+          `Announce(VulnerabilityCase)` updates without an intermediate
+          `Create(VulnerabilityCase)` bootstrap.
