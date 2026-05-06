@@ -13,6 +13,7 @@ from vultron.core.models.events.case import (
     EngageCaseReceivedEvent,
     UpdateCaseReceivedEvent,
 )
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.vultron_types import VultronActivity
 from vultron.core.ports.case_persistence import (
     CasePersistence,
@@ -24,9 +25,65 @@ from vultron.core.models.protocols import (
     is_participant_model,
 )
 from vultron.core.states.rm import RM
+from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases._helpers import _as_id, update_participant_rm_state
 
 logger = logging.getLogger(__name__)
+
+
+def _find_case_actor_id_from_participants(
+    case_obj: CaseModel, dl: CasePersistence
+) -> str | None:
+    """Find the CaseActor ID from the CASE_ACTOR participant in the case.
+
+    Uses duck-typing on ``case_roles`` to avoid importing wire-layer types.
+    Returns the ``attributed_to`` URI of the first participant holding
+    ``CVDRole.CASE_ACTOR`` (CBT-01-003).
+
+    Handles both inline objects and ID-only references stored in
+    ``case_participants``.
+    """
+    for participant_ref in case_obj.case_participants:
+        # Try inline object first (participant embedded in snapshot)
+        if not isinstance(participant_ref, str):
+            roles = getattr(participant_ref, "case_roles", [])
+            if CVDRole.CASE_ACTOR in roles:
+                attributed = getattr(participant_ref, "attributed_to", None)
+                if attributed:
+                    return str(attributed)
+            continue
+
+        # ID-only reference — look up from DataLayer
+        participant = dl.read(participant_ref)
+        if participant is None:
+            continue
+        roles = getattr(participant, "case_roles", [])
+        if CVDRole.CASE_ACTOR in roles:
+            attributed = getattr(participant, "attributed_to", None)
+            if attributed:
+                return str(attributed)
+    return None
+
+
+def _find_report_case_link(
+    creator_id: str, dl: CasePersistence
+) -> VultronReportCaseLink | None:
+    """Return a pending ReportCaseLink expecting a bootstrap from *creator_id*.
+
+    Scans all ``ReportCaseLink`` records and returns the first that has
+    ``trusted_case_creator_id == creator_id`` and ``case_id is None``
+    (i.e. awaiting bootstrap).  Using the sender identity rather than the
+    case's vulnerability_reports list makes the lookup independent of whether
+    the case snapshot embeds the report.
+    """
+    for obj in dl.list_objects("ReportCaseLink"):
+        if isinstance(obj, VultronReportCaseLink):
+            if (
+                obj.trusted_case_creator_id == creator_id
+                and obj.case_id is None
+            ):
+                return obj
+    return None
 
 
 def _check_participant_embargo_acceptance(
@@ -66,6 +123,19 @@ def _check_participant_embargo_acceptance(
 
 
 class CreateCaseReceivedUseCase:
+    """Process a bootstrap ``Create(VulnerabilityCase)`` from a remote actor.
+
+    Receiving this message means *someone else* created the case and is
+    notifying us.  We do NOT create our own case infrastructure here.
+
+    Bootstrap trust path (CBT-01-005 / CBT-01-006):
+    1. Locate the ``VultronReportCaseLink`` for any report listed in the case.
+    2. Validate that the sender matches ``link.trusted_case_creator_id``.
+    3. Extract the ``CaseActor`` ID from the ``CASE_ACTOR`` participant.
+    4. Seed a local replica of the case via the case-replica BT.
+    5. Update the link with ``case_id`` and ``trusted_case_actor_id``.
+    """
+
     def __init__(
         self, dl: CasePersistence, request: CreateCaseReceivedEvent
     ) -> None:
@@ -74,38 +144,126 @@ class CreateCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.case.create_tree import (
-            create_create_case_tree,
-        )
-
         actor_id = request.actor_id
         case_id = request.case_id
 
         if request.case is None:
             logger.warning(
-                "create_case: no case domain object in event for case '%s'",
+                "create_case_received: no case domain object in event for "
+                "case '%s'",
                 case_id,
             )
             return
 
-        logger.info("Actor '%s' creates case '%s'", actor_id, case_id)
-
-        bridge = BTBridge(datalayer=self._dl)
-        tree = create_create_case_tree(
-            case_obj=request.case, actor_id=actor_id
-        )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=actor_id, activity=request
-        )
-
-        if result.status != Status.SUCCESS:
+        if case_id is None:
             logger.warning(
-                "CreateCaseBT did not succeed for actor '%s' / case '%s': %s",
-                actor_id,
-                case_id,
-                BTBridge.get_failure_reason(tree),
+                "create_case_received: case_id missing in event — skipping"
             )
+            return
+
+        case_obj_raw = request.case
+        if not is_case_model(case_obj_raw):
+            logger.warning(
+                "create_case_received: case object for case '%s' does not "
+                "satisfy CaseModel protocol — skipping",
+                case_id,
+            )
+            return
+        case_obj: CaseModel = case_obj_raw
+        link = _find_report_case_link(actor_id, self._dl)
+
+        if link is not None:
+            # Bootstrap trust path — CBT-01-005 / CBT-01-006
+            self._handle_bootstrap(actor_id, case_id, case_obj, link)
+        else:
+            logger.info(
+                "create_case_received: no ReportCaseLink for case '%s' — "
+                "no bootstrap trust to record (not a known reporter)",
+                case_id,
+            )
+
+    def _handle_bootstrap(
+        self,
+        actor_id: str,
+        case_id: str,
+        case_obj: CaseModel,
+        link: VultronReportCaseLink,
+    ) -> None:
+        """Validate trust and seed the case replica."""
+        # CBT-01-005: sender must match the actor we sent the report to
+        if link.trusted_case_creator_id is not None:
+            if actor_id != link.trusted_case_creator_id:
+                logger.warning(
+                    "create_case_received: bootstrap rejected for case '%s' — "
+                    "sender '%s' does not match trusted case creator '%s' "
+                    "(CBT-01-005)",
+                    case_id,
+                    actor_id,
+                    link.trusted_case_creator_id,
+                )
+                return
+        else:
+            logger.warning(
+                "create_case_received: no trusted_case_creator_id in link "
+                "for case '%s'; accepting bootstrap from '%s' unchecked",
+                case_id,
+                actor_id,
+            )
+
+        # CBT-01-003: extract CaseActor from CASE_ACTOR participant
+        case_actor_id = _find_case_actor_id_from_participants(
+            case_obj, self._dl
+        )
+        if case_actor_id is None:
+            logger.warning(
+                "create_case_received: no CASE_ACTOR participant found in "
+                "bootstrap snapshot for case '%s'; Announce validation will "
+                "be bypassed",
+                case_id,
+            )
+
+        logger.info(
+            "create_case_received: bootstrap accepted for case '%s' from "
+            "'%s'; seeding replica (CBT-01-006)",
+            case_id,
+            actor_id,
+        )
+
+        # Seed the local case replica
+        from vultron.core.models.protocols import is_case_model
+
+        # Idempotency guard (CBT-01-006, ID-04-004)
+        existing = self._dl.read(case_id)
+        if is_case_model(existing):
+            logger.info(
+                "create_case_received: case '%s' already exists as replica "
+                "— skipping re-seed",
+                case_id,
+            )
+        else:
+            try:
+                self._dl.create(case_obj)
+                logger.info(
+                    "create_case_received: replica case '%s' persisted",
+                    case_id,
+                )
+            except ValueError:
+                logger.info(
+                    "create_case_received: case '%s' persisted concurrently "
+                    "— idempotent",
+                    case_id,
+                )
+
+        # CBT-01-006: persist trust anchors in the link
+        link.case_id = case_id
+        link.trusted_case_actor_id = case_actor_id
+        self._dl.save(link)
+        logger.info(
+            "create_case_received: ReportCaseLink updated with case_id='%s' "
+            "and trusted_case_actor_id='%s' (CBT-01-006)",
+            case_id,
+            case_actor_id,
+        )
 
 
 class UpdateCaseReceivedUseCase:

@@ -38,7 +38,19 @@ logger = logging.getLogger(__name__)
 
 
 def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
-    """Return the CaseActor ID for *case_id*, if present in the DataLayer."""
+    """Return the CaseActor ID for *case_id*, if present in the DataLayer.
+
+    First checks for a ``VultronReportCaseLink`` whose ``trusted_case_actor_id``
+    was established during bootstrap (CBT-01-006).  Falls back to the legacy
+    Service-object scan for backward compatibility.
+    """
+    # Bootstrap-trust path: check ReportCaseLink first
+    for link in dl.list_objects("ReportCaseLink"):
+        if isinstance(link, VultronReportCaseLink):
+            if link.case_id == case_id and link.trusted_case_actor_id:
+                return str(link.trusted_case_actor_id)
+
+    # Legacy path: scan for a VultronCaseActor Service with context=case_id
     for service in dl.list_objects("Service"):
         if getattr(service, "context", None) == case_id:
             return service.id_

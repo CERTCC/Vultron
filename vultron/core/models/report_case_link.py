@@ -24,6 +24,23 @@ class VultronReportCaseLink(VultronObject):
         default=None,
         description="URI of the linked case replica, once known",
     )
+    trusted_case_creator_id: UriString | None = Field(
+        default=None,
+        description=(
+            "URI of the actor that the reporter sent the original report offer "
+            "to.  Set at submission time; validated against the bootstrap "
+            "Create(VulnerabilityCase) sender (CBT-01-005, CBT-01-006)."
+        ),
+    )
+    trusted_case_actor_id: UriString | None = Field(
+        default=None,
+        description=(
+            "URI of the CaseActor trusted for this case after bootstrap "
+            "validation.  Extracted from the CASE_ACTOR participant in the "
+            "bootstrap snapshot; used to validate subsequent "
+            "Announce(VulnerabilityCase) senders (CBT-01-006)."
+        ),
+    )
 
     @classmethod
     def build_id(cls, report_id: str) -> str:

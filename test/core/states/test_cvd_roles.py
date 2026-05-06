@@ -41,6 +41,7 @@ def test_atomic_roles_exist():
         "COORDINATOR",
         "OTHER",
         "CASE_OWNER",
+        "CASE_ACTOR",
     }
     actual = {m.name for m in CVDRole}
     assert expected == actual

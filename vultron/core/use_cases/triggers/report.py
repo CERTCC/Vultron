@@ -429,7 +429,12 @@ class SvcSubmitReportUseCase:
             request.report_name,
             report.id_,
         )
-        dl.save(VultronReportCaseLink(report_id=report.id_))
+        dl.save(
+            VultronReportCaseLink(
+                report_id=report.id_,
+                trusted_case_creator_id=request.recipient_id,
+            )
+        )
 
         if self._trigger_activity is None:
             raise RuntimeError(

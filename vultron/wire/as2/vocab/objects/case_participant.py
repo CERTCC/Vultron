@@ -375,6 +375,25 @@ class OtherParticipant(CaseParticipant):
         return self
 
 
+class CaseActorParticipant(CaseParticipant):
+    """A participant that acts as the CaseActor service for a VulnerabilityCase.
+
+    Holds both ``COORDINATOR`` and ``CASE_ACTOR`` roles (CBT-01-003).  The
+    ``attributed_to`` field identifies the ActivityStreams Service URI that
+    will send ``Announce(VulnerabilityCase)`` updates on behalf of the case
+    owner.  Receivers use this participant to establish trusted CaseActor
+    identity during bootstrap.
+    """
+
+    @model_validator(mode="after")
+    def set_role(self):
+        """Set both COORDINATOR and CASE_ACTOR roles."""
+        self.case_roles = []
+        self.add_role(CVDRole.COORDINATOR)
+        self.add_role(CVDRole.CASE_ACTOR)
+        return self
+
+
 CaseParticipantRef: TypeAlias = ActivityStreamRef[
     CaseParticipant
     | FinderParticipant
@@ -382,6 +401,7 @@ CaseParticipantRef: TypeAlias = ActivityStreamRef[
     | VendorParticipant
     | DeployerParticipant
     | CoordinatorParticipant
+    | CaseActorParticipant
     | OtherParticipant
 ]
 
