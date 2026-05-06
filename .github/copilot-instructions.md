@@ -121,12 +121,12 @@ class CreateReportReceivedUseCase:
 - Activities are **state-change notifications**, not commands
 - Inbound: update local state to reflect sender's assertion; do not execute on their behalf
 - Outbound: work causes the activity; the activity does not cause the work
-- `Accept`/`Reject` in reply to `Offer`/`Invite`: set `object` to the **ID string** of the original (not inline object)
+- `Accept`/`Reject` in reply to `Offer`/`Invite`: set `object` to an **inline typed activity object** (not an ID string); `Accept.object_` must be the Invite activity itself, not the Case object
 - Call `rehydrate()` on incoming activities before pattern matching
 
 ### Data Layer
 
-- Use `object_to_record()` + `dl.update(id, record)` to persist Pydantic models
+- Use `dl.save(obj)` to persist Pydantic models (`object_to_record()` + `dl.update()` has been removed)
 - `VulnerabilityCase.case_status` is a **list** (`list[CaseStatusRef]`); use `case.current_status` for the active one
 - Do not write typed activities to `case_activity` (enum coverage issue); store the ID string instead
 - Case events: always use `case.record_event(object_id, event_type)` — never copy activity timestamps

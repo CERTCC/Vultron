@@ -4,6 +4,7 @@
 
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
+| 2026-05-06 | 16:08 | implementation | GH-429 | PAD stale-claim sweeper GitHub Actions workflow |
 | 2026-05-05 | 19:52 | implementation | ISSUE-435 | Implement CM-14 canonical case initialization sequence |
 | 2026-05-05 | 18:28 | learning | CC1-FLAKY | SUBFAILED in unittest subtests does not fail pytest; pre-existing flaky test_vultrabot |
 | 2026-05-05 | 18:28 | learning | CC1-MYPY | Untyped closures invisible to mypy; use _get_id() for AS2 context fields |
