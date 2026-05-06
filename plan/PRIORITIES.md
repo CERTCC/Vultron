@@ -10,7 +10,7 @@ relative order. Completed priorities should be archived via `uv run append-histo
 (writes to `plan/history/YYMM/priority/`) and then removed from this file to keep
 `plan/PRIORITIES.md` focused on pending and in-progress work.
 
-## Priority 473: Architecture Hardening
+## Priority 473 — Epic #445: Architecture Hardening
 
 RFC-level improvements that deepen module design, reduce coupling, and
 improve testability. Tracked under parent issue
@@ -58,7 +58,7 @@ propagation, as specified in `specs/participant-case-replica.yaml`.
 - [#440](https://github.com/CERTCC/Vultron/issues/440) — PCR: Implement
   participant case replica safety rules (PCR-03, PCR-05, PCR-06)
 
-## Priority 476: Bug Fixes and Demo Polish
+## Priority 476 — Epic #446: Bug Fixes and Demo Polish
 
 Fix issues affecting demo execution and correctness.
 
@@ -183,7 +183,7 @@ the current plugin ecosystem and configuration format.
 
 - [#294](https://github.com/CERTCC/Vultron/issues/294) — Plan migration to Zensical for MkDocs 2.0 compatibility
 
-## Priority 99999: Remaining Requirements and Documentation Updates
+## Priority 99999 — Epic #447: Remaining Requirements and Documentation Updates
 
 The project is currently in prototype development mode, therefore requirements
 that are marked as `PROD_ONLY` are temporarily a lower priority than other

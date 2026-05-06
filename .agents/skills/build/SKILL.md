@@ -60,9 +60,29 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
 1. Search `vultron/` and `test/` to confirm the current implementation.
 2. Do not assume missing functionality; verify it in code.
 3. If a blocking prerequisite is discovered, create a new GitHub Issue for it
-   with `group:unscheduled` and the appropriate `size:` label, then record the
-   dependency in `plan/BUILD_LEARNINGS.md` and stop. Do not add prerequisite
-   tasks to `plan/IMPLEMENTATION_PLAN.md`.
+   with `group:unscheduled` and the appropriate `size:` label, then
+   immediately link it as a sub-issue of the current task Issue
+   (PAD-01-003). First resolve the node IDs, then use GraphQL `addSubIssue`:
+
+   ```bash
+   # Resolve node IDs
+   gh api graphql -f query='{ repository(owner:"CERTCC", name:"Vultron") {
+     parent: issue(number: <CURRENT_TASK_NUMBER>) { id }
+     child:  issue(number: <NEW_ISSUE_NUMBER>) { id }
+   } }'
+
+   # Link as sub-issue
+   gh api graphql -f query='
+   mutation {
+     addSubIssue(input: {
+       issueId: "<PARENT_NODE_ID>"
+       subIssueId: "<CHILD_NODE_ID>"
+     }) { issue { number } subIssue { number } }
+   }'
+   ```
+
+   Record the dependency in `plan/BUILD_LEARNINGS.md` and stop. Do not add
+   prerequisite tasks to `plan/IMPLEMENTATION_PLAN.md`.
 4. If more than one prerequisite is required, or the prerequisite work is
    non-trivial, update `plan/BUILD_LEARNINGS.md` with details and stop.
 

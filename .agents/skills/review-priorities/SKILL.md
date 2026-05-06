@@ -121,6 +121,85 @@ Apply the agreed placements:
 Preserve the ascending-number ordering of priority blocks. Do not renumber
 existing blocks.
 
+### Phase 5b — Epic maintenance (PAD-02-008, PAD-02-009, PAD-02-010)
+
+After updating PRIORITIES.md labels, enforce the Epic hierarchy for every
+priority group that now has **2 or more open leaf Issues**.
+
+For each such group:
+
+1. **Find existing open Epics** for the group:
+
+   ```bash
+   gh issue list --repo CERTCC/Vultron \
+     --label "group:<slug>" \
+     --state open \
+     --json number,title,issueType \
+     | python3 -c "
+   import json, sys
+   issues = json.load(sys.stdin)
+   epics = [i for i in issues if (i.get('issueType') or {}).get('name') == 'Epic']
+   if len(epics) > 1:
+       nums = ', '.join(str(e['number']) for e in epics)
+       print(f'ERROR: {len(epics)} open Epics: {nums}')
+       raise SystemExit(1)
+   print(epics[0]['number'] if epics else 'NONE')
+   "
+   ```
+
+   If the query returns `ERROR: …`, stop and report the duplicate-Epic
+   conflict to the user. Do **not** silently pick one; PAD-02-008 requires
+   exactly one open Epic per group. Close or merge duplicates manually, then
+   re-run this phase.
+
+2. **If no Epic exists**, invoke the `create-epic` skill. Provide the group
+   label slug, a suitable Epic title (derived from the PRIORITIES.md group
+   heading), a body listing the open leaf Issues, and the list of open leaf
+   issue numbers. The skill prints a single plain issue number on stdout;
+   capture it directly:
+
+   ```bash
+   EPIC_NUMBER=$(invoke_skill create-epic \
+     "${GROUP_LABEL}" "${EPIC_TITLE}" "${EPIC_BODY}")
+   # EPIC_NUMBER now holds a plain integer string, e.g. "443"
+   ```
+
+3. **If an Epic exists**, link any open leaf Issues that are not yet
+   sub-issues of it. First resolve node IDs, then use GraphQL `addSubIssue`:
+
+   ```bash
+   # Get node IDs
+   gh api graphql -f query='{ repository(owner:"CERTCC", name:"Vultron") {
+     epic: issue(number: <EPIC_NUMBER>) { id }
+     leaf: issue(number: <LEAF_NUMBER>) { id }
+   } }'
+
+   # Link as sub-issue
+   gh api graphql -f query='
+   mutation {
+     addSubIssue(input: {
+       issueId: "<EPIC_NODE_ID>"
+       subIssueId: "<LEAF_NODE_ID>"
+     }) { issue { number } subIssue { number } }
+   }'
+   ```
+
+4. **Record the Epic number in PRIORITIES.md** next to the group heading
+   (PAD-02-010). Change:
+
+   ```markdown
+   ## Priority NNN: Title
+   ```
+
+   to:
+
+   ```markdown
+   ## Priority NNN — Epic #M: Title
+   ```
+
+   If the heading already contains `— Epic #M:`, update the number only if
+   it has changed (e.g., the old Epic was closed and a new one was created).
+
 ### Phase 6 — Commit
 
 Invoke the `commit` skill with a message like
