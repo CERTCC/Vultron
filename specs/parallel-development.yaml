@@ -88,6 +88,28 @@ groups:
           when priorities are reordered. When creating a new `group:` label on
           GitHub, the label description MUST use the priority group title (not
           the number) so it remains accurate if the priority number changes.
+      - id: PAD-02-008
+        priority: MUST
+        statement: >-
+          Every priority group that has two or more open leaf Issues MUST have
+          exactly one open Epic Issue. A leaf Issue is any Issue with no open
+          sub-issues.
+      - id: PAD-02-009
+        priority: MUST
+        statement: >-
+          Epic Issues MUST be created using the GitHub `Epic` issue type (via
+          GraphQL `createIssue` with the appropriate `issueTypeId`) and MUST
+          carry the `group:<name>` label matching their priority group. The
+          `create-epic` skill MUST be used to create Epic Issues to ensure
+          consistent wiring of sub-issues.
+      - id: PAD-02-010
+        priority: MUST
+        statement: >-
+          The Epic Issue number for each priority group MUST be recorded in
+          `PRIORITIES.md` next to the group heading, e.g.
+          `## Priority 473 — Epic #NNN: Architecture Hardening`. This serves
+          as the authoritative lookup for agents that need to find or link to
+          the Epic for a given group.
 
   - id: PAD-03
     title: Priority Ordering Authority
