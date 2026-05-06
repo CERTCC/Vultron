@@ -1,0 +1,144 @@
+# Stale-claim sweeper: scans for orphaned task claims and flags them.
+# An orphaned claim is an Issue that is assigned, has a task/<N>-slug branch,
+# has no open PR, and has not received a branch commit within 3 days.
+#
+# Reference: specs/parallel-development.yaml PAD-10, PAD-14-003
+
+name: Stale claim sweeper
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # Every Monday at 09:00 UTC
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+  pull-requests: read
+
+jobs:
+  sweep:
+    name: Sweep stale task claims
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+
+    steps:
+      - name: Find and flag orphaned claims
+        run: |
+          set -euo pipefail
+
+          CUTOFF=$(date -u -d "3 days ago" +%Y-%m-%dT%H:%M:%SZ)
+          echo "Stale cutoff: $CUTOFF"
+          FLAGGED=0
+
+          # Fetch all branches whose names start with task/
+          BRANCHES=$(gh api "repos/$REPO/git/matching-refs/heads/task/" \
+            --paginate \
+            --jq '.[].ref | ltrimstr("refs/heads/")' \
+            2>/dev/null || true)
+
+          if [ -z "$BRANCHES" ]; then
+            echo "No task/* branches found. Nothing to sweep."
+            exit 0
+          fi
+
+          while IFS= read -r BRANCH; do
+            echo "--- Checking branch: $BRANCH"
+
+            # Parse the issue number from the branch name (task/<N>-slug)
+            ISSUE_NUM=$(echo "$BRANCH" | \
+              sed -n 's|^task/\([0-9][0-9]*\)-.*|\1|p')
+            if [ -z "$ISSUE_NUM" ]; then
+              echo "  Cannot parse issue number from '$BRANCH', skipping"
+              continue
+            fi
+
+            # Check the date of the most recent commit on this branch
+            LAST_COMMIT=$(gh api "repos/$REPO/commits/$BRANCH" \
+              --jq '.commit.committer.date' 2>/dev/null || echo "")
+            if [ -z "$LAST_COMMIT" ]; then
+              echo "  Cannot fetch last commit for $BRANCH, skipping"
+              continue
+            fi
+            echo "  Last commit: $LAST_COMMIT"
+
+            # Skip branches that have been active within the staleness window
+            if [[ "$LAST_COMMIT" > "$CUTOFF" ]]; then
+              echo "  Branch is active (within 3 days), skipping"
+              continue
+            fi
+
+            # Fetch issue details
+            ISSUE_DATA=$(gh api "repos/$REPO/issues/$ISSUE_NUM" \
+              2>/dev/null || echo "")
+            if [ -z "$ISSUE_DATA" ]; then
+              echo "  Cannot fetch issue #$ISSUE_NUM, skipping"
+              continue
+            fi
+
+            # Skip closed issues
+            ISSUE_STATE=$(echo "$ISSUE_DATA" | jq -r '.state')
+            if [ "$ISSUE_STATE" != "open" ]; then
+              echo "  Issue #$ISSUE_NUM is $ISSUE_STATE, skipping"
+              continue
+            fi
+
+            # Skip unassigned issues (no active claim to report)
+            ISSUE_ASSIGNEE=$(echo "$ISSUE_DATA" | jq -r '.assignee.login // ""')
+            if [ -z "$ISSUE_ASSIGNEE" ]; then
+              echo "  Issue #$ISSUE_NUM has no assignee, skipping"
+              continue
+            fi
+
+            # Skip issues that already carry the stale-claim label
+            HAS_STALE=$(echo "$ISSUE_DATA" | \
+              jq -r '[.labels[].name] | any(. == "stale-claim")')
+            if [ "$HAS_STALE" = "true" ]; then
+              echo "  Issue #$ISSUE_NUM already labeled stale-claim, skipping"
+              continue
+            fi
+
+            # Skip if there is already an open PR for this branch
+            PR_COUNT=$(gh pr list \
+              --repo "$REPO" \
+              --head "$BRANCH" \
+              --state open \
+              --json number \
+              --jq 'length' 2>/dev/null || echo "0")
+            if [ "$PR_COUNT" -gt 0 ]; then
+              echo "  Issue #$ISSUE_NUM has $PR_COUNT open PR(s), skipping"
+              continue
+            fi
+
+            # All criteria met — apply stale-claim label and post comment
+            echo "  FLAGGING issue #$ISSUE_NUM" \
+              "(branch: $BRANCH, last commit: $LAST_COMMIT," \
+              "assignee: $ISSUE_ASSIGNEE)"
+
+            gh issue edit "$ISSUE_NUM" \
+              --repo "$REPO" \
+              --add-label "stale-claim"
+
+            SWEEPER_URL="https://github.com/${REPO}/actions/workflows/stale_claim_sweeper.yml"
+            BODY_DESC="Branch \`${BRANCH}\` was last updated on \`${LAST_COMMIT}\`"
+            BODY_DESC="${BODY_DESC} (more than 3 days ago) and has no open PR."
+            BODY_DESC="${BODY_DESC} This issue has been labeled \`stale-claim\`."
+            BODY_OPT1="- Reassign and continue the work, then remove the \`stale-claim\` label, or"
+            BODY_OPT2="- Delete the branch, unassign the issue, and remove the \`stale-claim\` label"
+            BODY_FOOT="*Posted automatically by the [stale-claim sweeper](${SWEEPER_URL}) workflow.*"
+            printf '%s\n\n%s\n\nA human should review the orphaned branch:\n\n%s\n%s\n\n%s\n' \
+              "**Stale claim detected** 🔍" \
+              "$BODY_DESC" \
+              "$BODY_OPT1" \
+              "$BODY_OPT2" \
+              "$BODY_FOOT" | \
+              gh issue comment "$ISSUE_NUM" --repo "$REPO" --body-file -
+
+            FLAGGED=$((FLAGGED + 1))
+            echo "  Done."
+
+          done <<< "$BRANCHES"
+
+          echo "=== Sweep complete. Flagged $FLAGGED issue(s). ==="
