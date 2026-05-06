@@ -175,7 +175,7 @@ def add_activity_to_outbox(
             actor_id,
         )
     else:
-        logger.warning(
+        logger.debug(
             "add_activity_to_outbox: actor '%s' not found or has no"
             " outbox field; skipping outbox.items update",
             actor_id,

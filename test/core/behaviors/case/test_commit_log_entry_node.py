@@ -13,15 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""
-Unit tests for CommitCaseLogEntryNode (BUG-26041602).
-
-Verifies that the node calls ``commit_log_entry_trigger`` with the correct
-arguments when a case_id is available, and returns SUCCESS silently when
-no case_id is present.
-
-Per specs/sync-log-replication.yaml SYNC-02-002, SYNC-02-003.
-"""
+"""Unit tests for CommitCaseLogEntryNode."""
 
 from unittest.mock import patch
 
@@ -30,12 +22,15 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes import CommitCaseLogEntryNode
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.vultron_types import VultronCaseActor
 
-_TRIGGER_PATH = "vultron.core.behaviors.case.nodes.commit_log_entry_trigger"
+_FACTORY_PATH = (
+    "vultron.core.behaviors.case.nodes.create_commit_log_entry_tree"
+)
+_INNER_BRIDGE_PATH = "vultron.core.behaviors.case.nodes.BTBridge"
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/case-001"
@@ -105,29 +100,42 @@ def test_node_instantiates_without_case_id():
 # ---------------------------------------------------------------------------
 
 
-def test_no_case_id_returns_success_without_calling_trigger(bridge):
+def test_no_case_id_returns_success_without_building_inner_tree(bridge):
     """Node returns SUCCESS silently when no case_id is available (no-op)."""
     node = CommitCaseLogEntryNode()
-    with patch(_TRIGGER_PATH) as mock_trigger:
+    with patch(_FACTORY_PATH) as mock_factory, patch(
+        _INNER_BRIDGE_PATH
+    ) as mock_bridge:
         result = bridge.execute_with_setup(
             tree=node, actor_id=ACTOR_ID, activity=None
         )
     assert result.status == Status.SUCCESS
-    mock_trigger.assert_not_called()
+    mock_factory.assert_not_called()
+    mock_bridge.assert_not_called()
 
 
-def test_constructor_case_id_calls_trigger(bridge):
-    """Node calls trigger with correct args when case_id is given at build."""
+def test_constructor_case_id_builds_inner_commit_tree(bridge):
+    """Node composes CommitLogEntryBT when case_id is given at build."""
     node = CommitCaseLogEntryNode(case_id=CASE_ID)
-    with patch(_TRIGGER_PATH) as mock_trigger:
+    with patch(_FACTORY_PATH) as mock_factory, patch(
+        _INNER_BRIDGE_PATH
+    ) as mock_bridge_cls:
+        mock_bridge_cls.return_value.execute_with_setup.return_value = (
+            BTExecutionResult(status=Status.SUCCESS)
+        )
         bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID, activity=None)
-    mock_trigger.assert_called_once()
-    call_kwargs = mock_trigger.call_args[1]
-    assert call_kwargs["case_id"] == CASE_ID
-    assert call_kwargs["actor_id"] == ACTOR_ID
+    mock_factory.assert_called_once_with(
+        case_id=CASE_ID,
+        object_id=CASE_ID,
+        event_type="case_event",
+    )
+    execute_kwargs = (
+        mock_bridge_cls.return_value.execute_with_setup.call_args.kwargs
+    )
+    assert execute_kwargs["actor_id"] == ACTOR_ID
 
 
-def test_blackboard_case_id_calls_trigger(bridge, datalayer):
+def test_blackboard_case_id_builds_inner_commit_tree(bridge, datalayer):
     """Node reads case_id from blackboard written by a prior node."""
     node = CommitCaseLogEntryNode()  # no constructor param
 
@@ -152,12 +160,19 @@ def test_blackboard_case_id_calls_trigger(bridge, datalayer):
         name="TestSeq", memory=False, children=[_WriteCaseId(), node]
     )
 
-    with patch(_TRIGGER_PATH) as mock_trigger:
+    with patch(_FACTORY_PATH) as mock_factory, patch(
+        _INNER_BRIDGE_PATH
+    ) as mock_bridge_cls:
+        mock_bridge_cls.return_value.execute_with_setup.return_value = (
+            BTExecutionResult(status=Status.SUCCESS)
+        )
         bridge.execute_with_setup(tree=seq, actor_id=ACTOR_ID, activity=None)
 
-    mock_trigger.assert_called_once()
-    call_kwargs = mock_trigger.call_args[1]
-    assert call_kwargs["case_id"] == CASE_ID
+    mock_factory.assert_called_once_with(
+        case_id=CASE_ID,
+        object_id=CASE_ID,
+        event_type="case_event",
+    )
 
 
 def test_activity_on_blackboard_uses_semantic_type_as_event_type(bridge):
@@ -167,21 +182,49 @@ def test_activity_on_blackboard_uses_semantic_type_as_event_type(bridge):
         semantic_type=MessageSemantics.CREATE_CASE,
     )
     node = CommitCaseLogEntryNode(case_id=CASE_ID)
-    with patch(_TRIGGER_PATH) as mock_trigger:
+    with patch(_FACTORY_PATH) as mock_factory, patch(
+        _INNER_BRIDGE_PATH
+    ) as mock_bridge_cls:
+        mock_bridge_cls.return_value.execute_with_setup.return_value = (
+            BTExecutionResult(status=Status.SUCCESS)
+        )
         bridge.execute_with_setup(
             tree=node, actor_id=ACTOR_ID, activity=activity
         )
-    mock_trigger.assert_called_once()
-    call_kwargs = mock_trigger.call_args[1]
-    assert call_kwargs["event_type"] == MessageSemantics.CREATE_CASE.value
-    assert call_kwargs["object_id"] == ACTIVITY_ID
+    mock_factory.assert_called_once_with(
+        case_id=CASE_ID,
+        object_id=ACTIVITY_ID,
+        event_type=MessageSemantics.CREATE_CASE.value,
+    )
 
 
 def test_no_activity_falls_back_to_case_event(bridge):
     """When no activity on blackboard, event_type defaults to 'case_event'."""
     node = CommitCaseLogEntryNode(case_id=CASE_ID)
-    with patch(_TRIGGER_PATH) as mock_trigger:
+    with patch(_FACTORY_PATH) as mock_factory, patch(
+        _INNER_BRIDGE_PATH
+    ) as mock_bridge_cls:
+        mock_bridge_cls.return_value.execute_with_setup.return_value = (
+            BTExecutionResult(status=Status.SUCCESS)
+        )
         bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID, activity=None)
-    mock_trigger.assert_called_once()
-    call_kwargs = mock_trigger.call_args[1]
-    assert call_kwargs["event_type"] == "case_event"
+    mock_factory.assert_called_once_with(
+        case_id=CASE_ID,
+        object_id=CASE_ID,
+        event_type="case_event",
+    )
+
+
+def test_inner_commit_bt_failure_propagates(bridge):
+    node = CommitCaseLogEntryNode(case_id=CASE_ID)
+    with patch(_FACTORY_PATH) as mock_factory, patch(
+        _INNER_BRIDGE_PATH
+    ) as mock_bridge_cls:
+        mock_factory.return_value = object()
+        mock_bridge_cls.return_value.execute_with_setup.return_value = (
+            BTExecutionResult(
+                status=Status.FAILURE, feedback_message="commit failed"
+            )
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+    assert result.status == Status.FAILURE

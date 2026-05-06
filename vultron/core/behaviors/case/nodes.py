@@ -53,6 +53,10 @@ from vultron.core.behaviors.helpers import (
     DataLayerCondition,
 )
 from vultron.core.behaviors.helpers import UpdateActorOutbox  # noqa: F401
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.sync.commit_tree import (
+    create_commit_log_entry_tree,
+)
 from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
@@ -62,7 +66,6 @@ from vultron.core.use_cases._helpers import (
     _report_phase_status_id,
     update_participant_rm_state,
 )
-from vultron.core.use_cases.triggers.sync import commit_log_entry_trigger
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -1241,15 +1244,19 @@ class CommitCaseLogEntryNode(DataLayerAction):
             object_id = case_id
             event_type = "case_event"
 
-        try:
-            commit_log_entry_trigger(
-                case_id=case_id,
-                object_id=object_id,
-                event_type=event_type,
-                actor_id=self.actor_id,
-                dl=cast(CaseOutboxPersistence, self.datalayer),
-                sync_port=self._sync_port,
-            )
+        tree = create_commit_log_entry_tree(
+            case_id=case_id,
+            object_id=object_id,
+            event_type=event_type,
+        )
+        result = BTBridge(
+            datalayer=cast(CaseOutboxPersistence, self.datalayer)
+        ).execute_with_setup(
+            tree=tree,
+            actor_id=self.actor_id,
+            sync_port=self._sync_port,
+        )
+        if result.status == Status.SUCCESS:
             self.logger.info(
                 "%s: committed log entry '%s' for case '%s'",
                 self.name,
@@ -1257,11 +1264,10 @@ class CommitCaseLogEntryNode(DataLayerAction):
                 case_id,
             )
             return Status.SUCCESS
-        except Exception as e:
-            self.logger.error(
-                "%s: failed to commit log entry for case '%s': %s",
-                self.name,
-                case_id,
-                e,
-            )
-            return Status.FAILURE
+        self.logger.error(
+            "%s: failed to commit log entry for case '%s': %s",
+            self.name,
+            case_id,
+            result.feedback_message,
+        )
+        return Status.FAILURE
