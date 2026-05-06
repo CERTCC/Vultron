@@ -33,6 +33,7 @@ from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
 from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.report import VultronReport
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import (
@@ -428,6 +429,7 @@ class SvcSubmitReportUseCase:
             request.report_name,
             report.id_,
         )
+        dl.save(VultronReportCaseLink(report_id=report.id_))
 
         if self._trigger_activity is None:
             raise RuntimeError(

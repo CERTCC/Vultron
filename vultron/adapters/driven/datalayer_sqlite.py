@@ -44,6 +44,7 @@ from vultron.adapters.driven.db_record import (
     record_to_object,
 )
 from vultron.adapters.utils import _URN_UUID_PREFIX, _UUID_RE
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
 from vultron.semantic_registry import (
@@ -774,6 +775,13 @@ class SqliteDataLayer:
         Returns:
             Reconstituted ``VulnerabilityCase``, or ``None`` if not found.
         """
+        report_link = self.read(VultronReportCaseLink.build_id(report_id))
+        if isinstance(report_link, VultronReportCaseLink):
+            if report_link.case_id is not None:
+                linked_case = self.read(report_link.case_id)
+                if linked_case is not None:
+                    return linked_case
+
         with Session(self._engine) as session:
             stmt = self._scoped(
                 select(VultronObjectRecord).where(

@@ -637,6 +637,33 @@ def test_find_case_by_report_id_returns_none_for_unknown_id(dl):
     assert result is None
 
 
+def test_find_case_by_report_id_returns_case_via_report_case_link(dl):
+    from vultron.core.models.report_case_link import VultronReportCaseLink
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        VulnerabilityCase,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        VulnerabilityReport,
+    )
+
+    report = VulnerabilityReport(
+        name="CVE-2025-006",
+        content="Linked through ReportCaseLink",
+        attributed_to="https://example.org/finder",
+    )
+    case = VulnerabilityCase()
+
+    dl.create(report)
+    dl.save(case)
+    dl.save(VultronReportCaseLink(report_id=report.id_, case_id=case.id_))
+
+    result = dl.find_case_by_report_id(report.id_)
+
+    assert result is not None
+    assert isinstance(result, VulnerabilityCase)
+    assert result.id_ == case.id_
+
+
 # ---------------------------------------------------------------------------
 # File-backed integration test
 # ---------------------------------------------------------------------------

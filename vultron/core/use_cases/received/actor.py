@@ -15,6 +15,7 @@ from vultron.core.models.events.actor import (
     RejectSuggestActorToCaseReceivedEvent,
     SuggestActorToCaseReceivedEvent,
 )
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import (
@@ -34,6 +35,35 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
+
+
+def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
+    """Return the CaseActor ID for *case_id*, if present in the DataLayer."""
+    for service in dl.list_objects("Service"):
+        if getattr(service, "context", None) == case_id:
+            return service.id_
+    return None
+
+
+def _link_report_case_links(dl: CasePersistence, case) -> None:
+    """Attach any matching ``ReportCaseLink`` records to the announced case."""
+    for report_ref in case.vulnerability_reports:
+        report_id = _as_id(report_ref)
+        if report_id is None:
+            continue
+
+        link = dl.read(VultronReportCaseLink.build_id(report_id))
+        if not isinstance(link, VultronReportCaseLink):
+            continue
+        if link.case_id == case.id_:
+            continue
+
+        dl.save(link.model_copy(update={"case_id": case.id_}))
+        logger.info(
+            "AnnounceVulnerabilityCase: linked report '%s' to case '%s'",
+            report_id,
+            case.id_,
+        )
 
 
 class SuggestActorToCaseReceivedUseCase:
@@ -353,12 +383,11 @@ class AcceptInviteActorToCaseReceivedUseCase:
         )
 
     def _emit_announce_case(self, case_id: str, invitee_id: str, case) -> None:
-        """Emit Announce(VulnerabilityCase) to the invitee from the case owner.
+        """Emit Announce(VulnerabilityCase) to the invitee from the CaseActor.
 
         Per MV-10-003, the case owner sends the full case object after the
         invitee's embargo consent has been verified.
         """
-        from vultron.core.use_cases.received.sync import _find_local_actor_id
         from vultron.core.use_cases.triggers._helpers import (
             add_activity_to_outbox,
         )
@@ -366,10 +395,10 @@ class AcceptInviteActorToCaseReceivedUseCase:
             announce_vulnerability_case_activity,
         )
 
-        case_owner_id = _find_local_actor_id(self._dl)
-        if case_owner_id is None:
+        case_actor_id = _find_case_actor_id(self._dl, case_id)
+        if case_actor_id is None:
             logger.warning(
-                "AcceptInviteActorToCase: no local actor found;"
+                "AcceptInviteActorToCase: no CaseActor found;"
                 " cannot emit AnnounceVulnerabilityCase for case '%s'",
                 case_id,
             )
@@ -378,11 +407,12 @@ class AcceptInviteActorToCaseReceivedUseCase:
         try:
             announce = announce_vulnerability_case_activity(
                 case=case,
-                actor=case_owner_id,
+                actor=case_actor_id,
+                context=case_id,
                 to=[invitee_id],
             )
             self._dl.create(announce)
-            add_activity_to_outbox(case_owner_id, announce.id_, self._dl)
+            add_activity_to_outbox(case_actor_id, announce.id_, self._dl)
             logger.info(
                 "Emitted AnnounceVulnerabilityCase '%s' to '%s' for case '%s'",
                 announce.id_,
@@ -471,6 +501,16 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             )
             return
 
+        case_actor_id = _find_case_actor_id(self._dl, case_id)
+        if case_actor_id is not None and case_actor_id != request.actor_id:
+            logger.warning(
+                "AnnounceVulnerabilityCase: actor '%s' is not the CaseActor"
+                " for case '%s' — update rejected (PCR-03-001)",
+                request.actor_id,
+                case_id,
+            )
+            return
+
         existing = self._dl.read(case_id)
         if existing is not None:
             logger.info(
@@ -478,10 +518,12 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 " — skipping (idempotent, MV-10-004)",
                 case_id,
             )
+            _link_report_case_links(self._dl, case_obj)
             return
 
         try:
-            self._dl.create(case_obj)
+            self._dl.save(case_obj)
+            _link_report_case_links(self._dl, case_obj)
             logger.info(
                 "AnnounceVulnerabilityCase: seeded case '%s' from actor '%s'",
                 case_id,

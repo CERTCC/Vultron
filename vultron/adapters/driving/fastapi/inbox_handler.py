@@ -19,9 +19,11 @@ Vultron Actor Inbox Handler
 import logging
 from typing import Any, cast
 
+from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.events import MessageSemantics, VultronEvent
+from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.semantic_registry import (
@@ -142,7 +144,7 @@ def handle_inbox_item(actor_id: str, obj: as_Activity, dl: DataLayer) -> None:
     Args:
         actor_id: The canonical URI of the Actor whose inbox is being processed.
         obj: The Activity item to process.
-        dl: The DataLayer instance scoped to the current actor.
+        dl: The DataLayer instance used for reads and dispatch.
     """
     logger.info("Processing item '%s' for actor '%s'", obj.name, actor_id)
     logger.debug(
@@ -152,6 +154,141 @@ def handle_inbox_item(actor_id: str, obj: as_Activity, dl: DataLayer) -> None:
     event = prepare_for_dispatch(activity=obj)
     event = event.model_copy(update={"receiving_actor_id": actor_id})
     dispatch(event=event, dl=dl)
+
+
+def _activity_context_id(
+    activity: as_Activity, event: VultronEvent
+) -> str | None:
+    """Return the case context ID carried by an activity, if any."""
+    if event.context_id is not None:
+        return event.context_id
+    context = getattr(activity, "context", None)
+    if isinstance(context, str) and context:
+        return context
+    return getattr(context, "id_", None)
+
+
+def _queue_pending_case_activity(
+    queue_dl: DataLayer, case_id: str, activity_id: str
+) -> None:
+    """Persist *activity_id* in the deferred queue for *case_id*."""
+    pending_id = VultronPendingCaseInbox.build_id(case_id)
+    pending = queue_dl.read(pending_id)
+    if isinstance(pending, VultronPendingCaseInbox):
+        if activity_id in pending.activity_ids:
+            return
+        pending.activity_ids.append(activity_id)
+        queue_dl.save(pending)
+        return
+
+    queue_dl.save(
+        VultronPendingCaseInbox(case_id=case_id, activity_ids=[activity_id])
+    )
+
+
+def _replay_pending_case_activities(
+    case_id: str, dl: DataLayer, queue_dl: DataLayer
+) -> None:
+    """Move deferred activities for *case_id* back onto the live inbox queue."""
+    if not is_case_model(dl.read(case_id)):
+        return
+
+    pending_id = VultronPendingCaseInbox.build_id(case_id)
+    pending = queue_dl.read(pending_id)
+    if not isinstance(pending, VultronPendingCaseInbox):
+        return
+
+    for activity_id in pending.activity_ids:
+        queue_dl.inbox_append(activity_id)
+    queue_dl.delete("PendingCaseInbox", pending_id)
+    logger.info(
+        "Queued %d deferred inbox activities for case '%s' after replica sync",
+        len(pending.activity_ids),
+        case_id,
+    )
+
+
+def _dispatch_or_defer_inbox_item(
+    actor_id: str,
+    obj: as_Activity,
+    dl: DataLayer,
+    queue_dl: DataLayer,
+) -> VultronEvent | None:
+    """Dispatch an inbox item or defer it until its case replica exists."""
+    event = prepare_for_dispatch(activity=obj)
+    event = event.model_copy(update={"receiving_actor_id": actor_id})
+
+    case_id = _activity_context_id(obj, event)
+    if (
+        case_id is not None
+        and event.semantic_type != MessageSemantics.ANNOUNCE_VULNERABILITY_CASE
+        and not is_case_model(dl.read(case_id))
+    ):
+        logger.warning(
+            "Unknown case context '%s' for activity '%s' — queuing for replay",
+            case_id,
+            event.activity_id,
+        )
+        _queue_pending_case_activity(queue_dl, case_id, event.activity_id)
+        return None
+
+    dispatch(event=event, dl=dl)
+    return event
+
+
+def _log_rehydrated_item(item: as_Activity) -> None:
+    """Log summary details for a rehydrated inbox activity."""
+    logger.debug("Rehydrated item from inbox: %s", item.type_)
+    if not hasattr(item, "object_"):
+        return
+
+    item_with_object = cast(Any, item)
+    obj_field = item_with_object.object_
+    obj_type_label = (
+        obj_field
+        if isinstance(obj_field, str)
+        else getattr(obj_field, "type_", repr(obj_field))
+    )
+    logger.debug("Item has transitive object of type: %s", obj_type_label)
+
+
+def _process_inbox_item(
+    actor_id: str,
+    canonical_actor_id: str,
+    item_id: str,
+    item: as_Activity,
+    dl: DataLayer,
+    queue_dl: DataLayer,
+) -> bool:
+    """Dispatch one inbox activity and return ``True`` on success."""
+    _log_rehydrated_item(item)
+
+    try:
+        event = _dispatch_or_defer_inbox_item(
+            actor_id=canonical_actor_id,
+            obj=item,
+            dl=dl,
+            queue_dl=queue_dl,
+        )
+        if event is not None:
+            case_id = _activity_context_id(item, event)
+            if (
+                event.semantic_type
+                == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE
+                and case_id is not None
+            ):
+                _replay_pending_case_activities(case_id, dl, queue_dl)
+        return True
+    except Exception as e:
+        logger.error(
+            "Error processing inbox item for actor %s: %s", actor_id, e
+        )
+        logger.debug(
+            "Item causing error: %s",
+            item.model_dump_json(indent=2, exclude_none=True),
+        )
+        queue_dl.inbox_append(item_id)
+        return False
 
 
 async def inbox_handler(
@@ -199,30 +336,14 @@ async def inbox_handler(
             err_count += 1
             continue
 
-        logger.debug("Rehydrated item from inbox: %s", item.type_)
-        if hasattr(item, "object_"):
-            item_with_object = cast(Any, item)
-            obj_field = item_with_object.object_
-            obj_type_label = (
-                obj_field
-                if isinstance(obj_field, str)
-                else getattr(obj_field, "type_", repr(obj_field))
-            )
-            logger.debug(
-                "Item has transitive object of type: %s", obj_type_label
-            )
-
-        try:
-            handle_inbox_item(actor_id=canonical_actor_id, obj=item, dl=dl)
-        except Exception as e:
-            logger.error(
-                "Error processing inbox item for actor %s: %s", actor_id, e
-            )
-            logger.debug(
-                "Item causing error: %s",
-                item.model_dump_json(indent=2, exclude_none=True),
-            )
-            queue_dl.inbox_append(item_id)
+        if not _process_inbox_item(
+            actor_id=actor_id,
+            canonical_actor_id=canonical_actor_id,
+            item_id=item_id,
+            item=item,
+            dl=dl,
+            queue_dl=queue_dl,
+        ):
             err_count += 1
             if err_count > 3:
                 logger.error(
