@@ -3,8 +3,8 @@ name: create-epic
 description: >
   Create a GitHub Epic issue for a priority group and wire existing leaf
   issues as its sub-issues. Uses the GitHub Epic issue type (via GraphQL)
-  and the sub-issues REST API. Invoke this skill whenever a priority group
-  needs an Epic created or updated (PAD-02-008, PAD-02-009).
+  and the GraphQL addSubIssue mutation. Invoke this skill whenever a priority
+  group needs an Epic created or updated (PAD-02-008, PAD-02-009).
 ---
 
 # Skill: Create Epic
@@ -27,7 +27,7 @@ consistent use of the `Epic` issue type, `group:` label, and sub-issue wiring.
 
 ### Step 1 — Verify no existing open Epic
 
-Query GitHub for an existing open Epic in this group to avoid duplicates
+Query GitHub for existing open Epics in this group to avoid duplicates
 (PAD-02-008):
 
 ```bash
@@ -39,14 +39,23 @@ gh issue list --repo CERTCC/Vultron \
 import json, sys
 issues = json.load(sys.stdin)
 epics = [i for i in issues if (i.get('issueType') or {}).get('name') == 'Epic']
-if epics:
+if len(epics) > 1:
+    nums = ', '.join(str(e['number']) for e in epics)
+    print(f'ERROR: {len(epics)} open Epics found for this group: {nums}')
+    print('Resolve to exactly one open Epic before proceeding (PAD-02-008).')
+    raise SystemExit(1)
+elif len(epics) == 1:
     print('EPIC_EXISTS:', epics[0]['number'])
 else:
     print('NO_EPIC')
 "
 ```
 
-If an Epic already exists, skip Step 2 and proceed to Step 3 (link any
+If multiple open Epics are found, stop and report the conflict — do **not**
+silently pick one. Close or merge the duplicate Epics manually until exactly
+one remains.
+
+If exactly one Epic already exists, skip Step 2 and proceed to Step 3 (link any
 unparented leaf issues).
 
 ### Step 2 — Create the Epic issue via GraphQL

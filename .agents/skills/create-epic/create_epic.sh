@@ -60,6 +60,5 @@ gh issue edit "${EPIC_NUMBER}" \
 
 echo "  Applied label: group:${GROUP_LABEL}" >&2
 
-# Output the Epic issue number and node ID (tab-separated) for the caller
-# Callers that only need the number can use: EPIC_NUM=$(... | cut -f1)
-printf '%s\t%s\n' "${EPIC_NUMBER}" "${EPIC_ID}"
+# Output only the Epic issue number on stdout so callers can capture it directly
+echo "${EPIC_NUMBER}"

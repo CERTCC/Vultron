@@ -128,7 +128,7 @@ priority group that now has **2 or more open leaf Issues**.
 
 For each such group:
 
-1. **Find the existing open Epic** for the group:
+1. **Find existing open Epics** for the group:
 
    ```bash
    gh issue list --repo CERTCC/Vultron \
@@ -139,14 +139,30 @@ For each such group:
    import json, sys
    issues = json.load(sys.stdin)
    epics = [i for i in issues if (i.get('issueType') or {}).get('name') == 'Epic']
+   if len(epics) > 1:
+       nums = ', '.join(str(e['number']) for e in epics)
+       print(f'ERROR: {len(epics)} open Epics: {nums}')
+       raise SystemExit(1)
    print(epics[0]['number'] if epics else 'NONE')
    "
    ```
 
+   If the query returns `ERROR: …`, stop and report the duplicate-Epic
+   conflict to the user. Do **not** silently pick one; PAD-02-008 requires
+   exactly one open Epic per group. Close or merge duplicates manually, then
+   re-run this phase.
+
 2. **If no Epic exists**, invoke the `create-epic` skill. Provide the group
    label slug, a suitable Epic title (derived from the PRIORITIES.md group
    heading), a body listing the open leaf Issues, and the list of open leaf
-   issue numbers. The skill returns the new Epic number.
+   issue numbers. The skill prints a single plain issue number on stdout;
+   capture it directly:
+
+   ```bash
+   EPIC_NUMBER=$(invoke_skill create-epic \
+     "${GROUP_LABEL}" "${EPIC_TITLE}" "${EPIC_BODY}")
+   # EPIC_NUMBER now holds a plain integer string, e.g. "443"
+   ```
 
 3. **If an Epic exists**, link any open leaf Issues that are not yet
    sub-issues of it. First resolve node IDs, then use GraphQL `addSubIssue`:
