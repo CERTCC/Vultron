@@ -66,6 +66,18 @@ Fix issues affecting demo execution and correctness.
   (docker-compose multi-vendor label mismatch)
 - [#437](https://github.com/CERTCC/Vultron/issues/437) — Enforce spec vs.
   ADR delineation guidelines (MS-11)
+- [#449](https://github.com/CERTCC/Vultron/issues/449) — Actor inbox
+  endpoints return HTTP 404 during demo delivery
+- [#450](https://github.com/CERTCC/Vultron/issues/450) — Outbound activities
+  missing required `to:` field (OX-08-001 violation)
+- [#451](https://github.com/CERTCC/Vultron/issues/451) — Invalid PEC state
+  machine transition: `accept` trigger in NO_EMBARGO state
+- [#452](https://github.com/CERTCC/Vultron/issues/452) — Demo times out
+  waiting for case to propagate to finder DataLayer
+- [#453](https://github.com/CERTCC/Vultron/issues/453) — Outbox processing
+  aborts after too many `to:` field errors
+- [#454](https://github.com/CERTCC/Vultron/issues/454) — Coordinator actor
+  unexpectedly persists the authoritative case
 
 ## Priority 480: Cyclomatic Complexity Enforcement
 
