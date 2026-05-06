@@ -429,12 +429,19 @@ class SvcSubmitReportUseCase:
             request.report_name,
             report.id_,
         )
-        dl.save(
-            VultronReportCaseLink(
-                report_id=report.id_,
-                trusted_case_creator_id=request.recipient_id,
+        try:
+            dl.create(
+                VultronReportCaseLink(
+                    report_id=report.id_,
+                    trusted_case_creator_id=request.recipient_id,
+                )
             )
-        )
+        except ValueError:
+            logger.debug(
+                "SvcSubmitReportUseCase: ReportCaseLink for '%s' already "
+                "exists — preserving existing link (idempotent)",
+                report.id_,
+            )
 
         if self._trigger_activity is None:
             raise RuntimeError(

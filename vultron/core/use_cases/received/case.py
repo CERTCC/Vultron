@@ -195,19 +195,16 @@ class CreateCaseReceivedUseCase:
             if actor_id != link.trusted_case_creator_id:
                 logger.warning(
                     "create_case_received: bootstrap rejected for case '%s' — "
-                    "sender '%s' does not match trusted case creator '%s' "
+                    "sender does not match trusted case creator "
                     "(CBT-01-005)",
                     case_id,
-                    actor_id,
-                    link.trusted_case_creator_id,
                 )
                 return
         else:
             logger.warning(
                 "create_case_received: no trusted_case_creator_id in link "
-                "for case '%s'; accepting bootstrap from '%s' unchecked",
+                "for case '%s'; accepting bootstrap unchecked",
                 case_id,
-                actor_id,
             )
 
         # CBT-01-003: extract CaseActor from CASE_ACTOR participant

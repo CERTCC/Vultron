@@ -45,7 +45,7 @@ from vultron.adapters.driven.db_record import (
 )
 from vultron.adapters.utils import _URN_UUID_PREFIX, _UUID_RE
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models.protocols import PersistableModel
+from vultron.core.models.protocols import PersistableModel, is_case_model
 from vultron.core.ports.datalayer import StorableRecord
 from vultron.semantic_registry import (
     find_matching_semantics,
@@ -779,7 +779,7 @@ class SqliteDataLayer:
         if isinstance(report_link, VultronReportCaseLink):
             if report_link.case_id is not None:
                 linked_case = self.read(report_link.case_id)
-                if linked_case is not None:
+                if is_case_model(linked_case):
                     return linked_case
 
         with Session(self._engine) as session:
