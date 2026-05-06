@@ -4,6 +4,10 @@
 
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
+| 2026-05-06 | 17:53 | priority | Priority 50000 | Full RAFT consensus implementation archived with no open issues |
+| 2026-05-06 | 17:53 | priority | Priority 480 | Cyclomatic Complexity Enforcement archived with no open issues |
+| 2026-05-06 | 17:53 | priority | Priority 474 | Trigger Classification archived with no remaining open issues |
+| 2026-05-06 | 17:53 | priority | Priority 473 | Architecture Hardening archived after all linked issues closed |
 | 2026-05-06 | 16:08 | implementation | GH-429 | PAD stale-claim sweeper GitHub Actions workflow |
 | 2026-05-05 | 19:52 | implementation | ISSUE-435 | Implement CM-14 canonical case initialization sequence |
 | 2026-05-05 | 18:28 | learning | CC1-FLAKY | SUBFAILED in unittest subtests does not fail pytest; pre-existing flaky test_vultrabot |

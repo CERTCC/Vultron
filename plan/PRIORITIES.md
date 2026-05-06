@@ -10,45 +10,6 @@ relative order. Completed priorities should be archived via `uv run append-histo
 (writes to `plan/history/YYMM/priority/`) and then removed from this file to keep
 `plan/PRIORITIES.md` focused on pending and in-progress work.
 
-## Priority 473 — Epic #445: Architecture Hardening
-
-RFC-level improvements that deepen module design, reduce coupling, and
-improve testability. Tracked under parent issue
-[#405](https://github.com/CERTCC/Vultron/issues/405).
-
-RFC sub-issues completed:
-
-- [#400](https://github.com/CERTCC/Vultron/issues/400) — ✓ TriggerService + TriggerServicePort
-- [#401](https://github.com/CERTCC/Vultron/issues/401) — ✓ BTTestScenario BT test harness
-- [#402](https://github.com/CERTCC/Vultron/issues/402) — ✓ `find_matching_semantics` moved to `semantic_registry`
-- [#403](https://github.com/CERTCC/Vultron/issues/403) — ✓ `CasePersistence` and `CaseOutboxPersistence` ports
-
-Implementation-level architecture tasks completed:
-
-- ✓ **TASK-ARCHVIO** — Fixed ARCH-03-001 violations: removed deferred
-  `SyncActivityAdapter` imports from `received/sync.py` and `triggers/sync.py`.
-- ✓ **TASK-DL-REHYDRATE** — Added `list_objects(type_key)` to
-  `CasePersistence`; removed remaining `model_validate()` coercions.
-- ✓ **TASK-CP-CLEANUP** — Removed deprecated `get()` / `by_type()` from
-  `CasePersistence`.
-
-Open tasks:
-
-- [#428](https://github.com/CERTCC/Vultron/issues/428) — ARCH-VIOLATIONS:
-  Fix broader core→wire ARCH-01-001 import violations
-- [#439](https://github.com/CERTCC/Vultron/issues/439) — SBT: Implement
-  Sync Behavior Trees in `vultron/core/behaviors/sync/`
-- [#435](https://github.com/CERTCC/Vultron/issues/435) — Implement CM-14:
-  canonical case initialization sequence
-- [#429](https://github.com/CERTCC/Vultron/issues/429) — PAD: Implement
-  stale-claim sweeper GitHub Actions workflow
-
-## Priority 474: Trigger Classification
-
-✓ **TASK-TRIGCLASS** — Demo-only trigger endpoints separated into dedicated
-router mounted only when `RunMode.PROTOTYPE`; general-purpose
-`add-object-to-case` trigger added.
-
 ## Priority 475: Participant Case Replica Safety
 
 Enforce safety rules for seeding and maintaining local case replicas in
@@ -78,33 +39,6 @@ Fix issues affecting demo execution and correctness.
   aborts after too many `to:` field errors
 - [#454](https://github.com/CERTCC/Vultron/issues/454) — Coordinator actor
   unexpectedly persists the authoritative case
-
-## Priority 480: Cyclomatic Complexity Enforcement
-
-Cyclomatic complexity (CC) is treated as a policy boundary, not just a
-measurement. High CC correlates with harder-to-test, harder-to-maintain
-code and is a leading indicator of defects.
-
-The project currently has 30 functions exceeding CC=10, including one at
-CC=34. `flake8-mccabe` (already bundled in the project's flake8 7.3.0
-install) provides the enforcement mechanism with zero new dependencies.
-The gate integrates into the existing `lint-flake8` CI job.
-
-Enforcement is two-phase to avoid a big-bang refactor:
-
-- **Phase 1** (CC-1): Reduce the 5 worst offenders (CC>15) to CC≤10, then
-  activate a `max-complexity = 15` gate in `.flake8`. This immediately
-  blocks future regressions at a reachable bar.
-- **Phase 2** (CC-2): Reduce the remaining 25 functions (CC 11–15) to
-  CC≤10, then tighten the gate to `max-complexity = 10` — the generally
-  accepted upper bound for maintainable functions.
-
-Each refactoring task explicitly targets CC≤10 (the final goal) so no
-function needs to be revisited when the threshold drops in Phase 2.
-
-See `plan/IMPLEMENTATION_PLAN.md` `TASK-CC` for the task breakdown (CC.1 and
-CC.2), and `plan/BUILD_LEARNINGS.md` CC-ENFORCEMENT for the full
-violation inventory, per-function refactoring notes, and configuration details.
 
 ## Priority 500: Re-implement "fuzzer" nodes from the original simulator
 
@@ -170,12 +104,6 @@ to demonstrate the core behavior tree and coordination logic.
 
 - [#442](https://github.com/CERTCC/Vultron/issues/442) — Clean up orphaned
   BT-2.2/BT-2.3 placeholder references in PRIORITIES.md
-
-## Priority 50000: Full RAFT consensus implementation
-
-SYNC-4 enables RAFT consensus for the CaseActor process. Before we get here
-we will need to establish how we want to handle the CaseActor scaling and
-failover process.
 
 ## Priority 95000: Documentation Enhancements — Crosswalks and Framework Integration
 
