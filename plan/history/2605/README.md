@@ -4,6 +4,7 @@
 
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
+| 2026-05-06 | 19:50 | idea | conversation-2026-05-06-440-457 | Case creator bootstraps CaseActor trust |
 | 2026-05-06 | 17:53 | priority | Priority 50000 | Full RAFT consensus implementation archived with no open issues |
 | 2026-05-06 | 17:53 | priority | Priority 480 | Cyclomatic Complexity Enforcement archived with no open issues |
 | 2026-05-06 | 17:53 | priority | Priority 474 | Trigger Classification archived with no remaining open issues |
