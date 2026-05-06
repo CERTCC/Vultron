@@ -457,17 +457,18 @@ def _build_embargo_event_object(
         or _get_id(target)
     )
     if isinstance(end_time, datetime) and embargo_context and object_id:
-        return {
-            "object_": VultronEmbargoEvent(
-                id_=object_id,
-                name=getattr(obj, "name", None),
-                start_time=getattr(obj, "start_time", None),
-                end_time=end_time,
-                published=getattr(obj, "published", None),
-                updated=getattr(obj, "updated", None),
-                context=embargo_context,
-            )
+        raw_start = getattr(obj, "start_time", None)
+        kwargs: dict[str, Any] = {
+            "id_": object_id,
+            "name": getattr(obj, "name", None),
+            "end_time": end_time,
+            "published": getattr(obj, "published", None),
+            "updated": getattr(obj, "updated", None),
+            "context": embargo_context,
         }
+        if isinstance(raw_start, datetime):
+            kwargs["start_time"] = raw_start
+        return {"object_": VultronEmbargoEvent(**kwargs)}
     return {}
 
 

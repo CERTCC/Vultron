@@ -20,6 +20,9 @@ import logging
 from typing import Any
 
 from vultron.adapters.driven.datalayer import get_datalayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.use_cases.triggers.case import (
     SvcDeferCaseUseCase,
     SvcEngageCaseUseCase,
@@ -70,10 +73,11 @@ def mcp_invalidate_report(
 ) -> dict[str, Any]:
     """MCP tool: tentatively reject a report offer for an actor."""
     dl = get_datalayer()
+    trigger_activity = TriggerActivityAdapter(dl)
     request = InvalidateReportTriggerRequest(
         actor_id=actor_id, offer_id=offer_id, note=note
     )
-    return SvcInvalidateReportUseCase(dl, request).execute()
+    return SvcInvalidateReportUseCase(dl, request, trigger_activity).execute()
 
 
 def mcp_reject_report(
@@ -81,10 +85,11 @@ def mcp_reject_report(
 ) -> dict[str, Any]:
     """MCP tool: hard-reject a report offer for an actor."""
     dl = get_datalayer()
+    trigger_activity = TriggerActivityAdapter(dl)
     request = RejectReportTriggerRequest(
         actor_id=actor_id, offer_id=offer_id, note=note
     )
-    return SvcRejectReportUseCase(dl, request).execute()
+    return SvcRejectReportUseCase(dl, request, trigger_activity).execute()
 
 
 def mcp_close_report(
@@ -92,24 +97,27 @@ def mcp_close_report(
 ) -> dict[str, Any]:
     """MCP tool: close a report via the RM lifecycle for an actor."""
     dl = get_datalayer()
+    trigger_activity = TriggerActivityAdapter(dl)
     request = CloseReportTriggerRequest(
         actor_id=actor_id, offer_id=offer_id, note=note
     )
-    return SvcCloseReportUseCase(dl, request).execute()
+    return SvcCloseReportUseCase(dl, request, trigger_activity).execute()
 
 
 def mcp_engage_case(actor_id: str, case_id: str) -> dict[str, Any]:
     """MCP tool: engage a case for an actor."""
     dl = get_datalayer()
+    trigger_activity = TriggerActivityAdapter(dl)
     request = EngageCaseTriggerRequest(actor_id=actor_id, case_id=case_id)
-    return SvcEngageCaseUseCase(dl, request).execute()
+    return SvcEngageCaseUseCase(dl, request, trigger_activity).execute()
 
 
 def mcp_defer_case(actor_id: str, case_id: str) -> dict[str, Any]:
     """MCP tool: defer a case for an actor."""
     dl = get_datalayer()
+    trigger_activity = TriggerActivityAdapter(dl)
     request = DeferCaseTriggerRequest(actor_id=actor_id, case_id=case_id)
-    return SvcDeferCaseUseCase(dl, request).execute()
+    return SvcDeferCaseUseCase(dl, request, trigger_activity).execute()
 
 
 def mcp_propose_embargo(
@@ -128,13 +136,14 @@ def mcp_propose_embargo(
     if parsed_end_time is None:
         raise ValueError("end_time is required for propose_embargo")
     dl = get_datalayer()
+    trigger_activity = TriggerActivityAdapter(dl)
     request = ProposeEmbargoTriggerRequest(
         actor_id=actor_id,
         case_id=case_id,
         note=note,
         end_time=parsed_end_time,
     )
-    return SvcProposeEmbargoUseCase(dl, request).execute()
+    return SvcProposeEmbargoUseCase(dl, request, trigger_activity).execute()
 
 
 def mcp_accept_embargo(
@@ -142,10 +151,11 @@ def mcp_accept_embargo(
 ) -> dict[str, Any]:
     """MCP tool: accept an embargo proposal for an actor."""
     dl = get_datalayer()
+    trigger_activity = TriggerActivityAdapter(dl)
     request = AcceptEmbargoTriggerRequest(
         actor_id=actor_id, case_id=case_id, proposal_id=proposal_id
     )
-    return SvcAcceptEmbargoUseCase(dl, request).execute()
+    return SvcAcceptEmbargoUseCase(dl, request, trigger_activity).execute()
 
 
 def mcp_reject_embargo(
@@ -153,10 +163,11 @@ def mcp_reject_embargo(
 ) -> dict[str, Any]:
     """MCP tool: reject an embargo proposal for an actor."""
     dl = get_datalayer()
+    trigger_activity = TriggerActivityAdapter(dl)
     request = RejectEmbargoTriggerRequest(
         actor_id=actor_id, case_id=case_id, proposal_id=proposal_id
     )
-    return SvcRejectEmbargoUseCase(dl, request).execute()
+    return SvcRejectEmbargoUseCase(dl, request, trigger_activity).execute()
 
 
 def mcp_propose_embargo_revision(
@@ -174,22 +185,26 @@ def mcp_propose_embargo_revision(
 
     parsed_end_time = datetime.fromisoformat(end_time)
     dl = get_datalayer()
+    trigger_activity = TriggerActivityAdapter(dl)
     request = ProposeEmbargoRevisionTriggerRequest(
         actor_id=actor_id,
         case_id=case_id,
         note=note,
         end_time=parsed_end_time,
     )
-    return SvcProposeEmbargoRevisionUseCase(dl, request).execute()
+    return SvcProposeEmbargoRevisionUseCase(
+        dl, request, trigger_activity
+    ).execute()
 
 
 def mcp_terminate_embargo(actor_id: str, case_id: str) -> dict[str, Any]:
     """MCP tool: terminate the active embargo on a case for an actor."""
     dl = get_datalayer()
+    trigger_activity = TriggerActivityAdapter(dl)
     request = TerminateEmbargoTriggerRequest(
         actor_id=actor_id, case_id=case_id
     )
-    return SvcTerminateEmbargoUseCase(dl, request).execute()
+    return SvcTerminateEmbargoUseCase(dl, request, trigger_activity).execute()
 
 
 MCP_TOOLS = [

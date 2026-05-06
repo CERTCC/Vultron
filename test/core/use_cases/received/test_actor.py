@@ -46,6 +46,9 @@ from vultron.wire.as2.factories import (
     rm_invite_to_case_activity,
     rm_reject_invite_to_case_activity,
 )
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 
 
 class TestInviteActorUseCases:
@@ -521,7 +524,9 @@ class TestSuggestActorUseCases:
         )
         event = make_payload(recommendation)
 
-        SuggestActorToCaseReceivedUseCase(dl, event).execute()
+        SuggestActorToCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         outbox = dl.outbox_list()
         assert (
@@ -575,12 +580,16 @@ class TestSuggestActorUseCases:
         event = make_payload(recommendation)
 
         # First execution
-        SuggestActorToCaseReceivedUseCase(dl, event).execute()
+        SuggestActorToCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
         outbox_after_first = len(dl.outbox_list())
 
         # Second execution (should be a no-op)
         py_trees.blackboard.Blackboard.storage.clear()
-        SuggestActorToCaseReceivedUseCase(dl, event).execute()
+        SuggestActorToCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
         outbox_after_second = len(dl.outbox_list())
 
         assert (

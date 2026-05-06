@@ -58,6 +58,9 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
@@ -155,7 +158,9 @@ class TestCaseTriggerToField:
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
         )
-        result = SvcEngageCaseUseCase(self.dl, request).execute()
+        result = SvcEngageCaseUseCase(
+            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+        ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -171,7 +176,9 @@ class TestCaseTriggerToField:
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
         )
-        result = SvcDeferCaseUseCase(self.dl, request).execute()
+        result = SvcDeferCaseUseCase(
+            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+        ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -193,7 +200,9 @@ class TestCaseTriggerToField:
             actor_id=self.vendor.id_,
             case_id=case_solo.id_,
         )
-        result = SvcEngageCaseUseCase(self.dl, request).execute()
+        result = SvcEngageCaseUseCase(
+            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+        ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -230,7 +239,9 @@ class TestEmbargoTriggerToField:
             case_id=self.case.id_,
             end_time=FUTURE_END_DATETIME,
         )
-        result = SvcProposeEmbargoUseCase(self.dl, request).execute()
+        result = SvcProposeEmbargoUseCase(
+            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+        ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -256,7 +267,9 @@ class TestEmbargoTriggerToField:
             case_id=self.case.id_,
             proposal_id=proposal.id_,
         )
-        result = SvcAcceptEmbargoUseCase(self.dl, request).execute()
+        result = SvcAcceptEmbargoUseCase(
+            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+        ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -277,7 +290,9 @@ class TestEmbargoTriggerToField:
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
         )
-        result = SvcTerminateEmbargoUseCase(self.dl, request).execute()
+        result = SvcTerminateEmbargoUseCase(
+            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+        ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -326,7 +341,9 @@ class TestReportTriggerToField:
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
         )
-        result = SvcCloseReportUseCase(self.dl, request).execute()
+        result = SvcCloseReportUseCase(
+            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+        ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -341,7 +358,9 @@ class TestReportTriggerToField:
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
         )
-        result = SvcInvalidateReportUseCase(self.dl, request).execute()
+        result = SvcInvalidateReportUseCase(
+            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+        ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -356,7 +375,9 @@ class TestReportTriggerToField:
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
         )
-        result = SvcRejectReportUseCase(self.dl, request).execute()
+        result = SvcRejectReportUseCase(
+            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+        ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)
@@ -377,7 +398,9 @@ class TestReportTriggerToField:
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
         )
-        result = SvcCloseReportUseCase(self.dl, request).execute()
+        result = SvcCloseReportUseCase(
+            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+        ).execute()
 
         _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
         recipients = _to_field(act_obj)

@@ -37,6 +37,9 @@ from vultron.adapters.driving.fastapi.routers import (
     trigger_case as trigger_case_router,
 )
 from vultron.core.use_cases.triggers.service import TriggerService
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
@@ -87,7 +90,9 @@ def client_demo(dl):
     app = FastAPI()
     app.include_router(demo_triggers_router.router)
     app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
-        dl, sync_port=SyncActivityAdapter(dl)
+        dl,
+        sync_port=SyncActivityAdapter(dl),
+        trigger_activity=TriggerActivityAdapter(dl),
     )
     app.dependency_overrides[get_trigger_dl] = lambda: dl
     app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
@@ -100,7 +105,9 @@ def client_trigger_only(dl):
     """Test client with only general trigger router — no demo routes."""
     app = FastAPI()
     app.include_router(trigger_case_router.router)
-    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(dl)
+    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
+        dl, trigger_activity=TriggerActivityAdapter(dl)
+    )
     app.dependency_overrides[get_trigger_dl] = lambda: dl
     app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
     yield TestClient(app)

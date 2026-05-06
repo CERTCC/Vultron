@@ -37,12 +37,6 @@ from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
 from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import _as_id
-from vultron.wire.as2.factories import (
-    accept_actor_recommendation_activity,
-    recommend_actor_activity,
-    rm_invite_to_case_activity,
-)
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 logger = logging.getLogger(__name__)
 
@@ -167,31 +161,33 @@ class EmitAcceptRecommendationNode(DataLayerAction):
         if self.datalayer is None or self.actor_id is None:
             return Status.FAILURE
 
-        recommendation = recommend_actor_activity(
-            recommended=as_Actor(id_=self.invitee_id),
-            target=self.case_id,
-            id_=self.recommendation_id,
-            actor=self.recommender_id,
-        )
+        factory = self.trigger_activity_factory
+        if factory is None:
+            self.logger.error(
+                "%s: trigger_activity_factory not found in blackboard",
+                self.name,
+            )
+            return Status.FAILURE
+
         accept_id = _deterministic_accept_id(
             self.recommendation_id, self.actor_id
         )
-        accept = accept_actor_recommendation_activity(
-            offer=recommendation,
-            target=self.case_id,
-            id_=accept_id,
+        accept_activity_id, _ = factory.accept_actor_recommendation(
+            recommended_id=self.invitee_id,
+            recommender_id=self.recommender_id,
+            recommendation_id=self.recommendation_id,
+            case_id=self.case_id,
             actor=self.actor_id,
             to=[self.recommender_id],
+            id_=accept_id,
         )
-        try:
-            self.datalayer.create(accept)
-        except ValueError:
-            pass  # idempotent — accept already stored
-        cast(CaseOutboxPersistence, self.datalayer).outbox_append(accept.id_)
+        cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+            accept_activity_id
+        )
         self.logger.info(
             "%s: queued AcceptActorRecommendation '%s' to outbox for actor '%s'",
             self.name,
-            accept.id_,
+            accept_activity_id,
             self.actor_id,
         )
         return Status.SUCCESS
@@ -219,25 +215,31 @@ class EmitInviteToCaseNode(DataLayerAction):
         if self.datalayer is None or self.actor_id is None:
             return Status.FAILURE
 
+        factory = self.trigger_activity_factory
+        if factory is None:
+            self.logger.error(
+                "%s: trigger_activity_factory not found in blackboard",
+                self.name,
+            )
+            return Status.FAILURE
+
         invite_id = _deterministic_invite_id(
             self.case_id, self.invitee_id, self.actor_id
         )
-        invite = rm_invite_to_case_activity(
-            invitee=as_Actor(id_=self.invitee_id),
-            target=self.case_id,
-            id_=invite_id,
+        invite_activity_id, _ = factory.invite_actor_to_case(
+            invitee_id=self.invitee_id,
+            case_id=self.case_id,
             actor=self.actor_id,
             to=[self.invitee_id],
+            id_=invite_id,
         )
-        try:
-            self.datalayer.create(invite)
-        except ValueError:
-            pass  # idempotent — invite already stored
-        cast(CaseOutboxPersistence, self.datalayer).outbox_append(invite.id_)
+        cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+            invite_activity_id
+        )
         self.logger.info(
             "%s: queued RmInviteToCase '%s' to outbox for actor '%s'",
             self.name,
-            invite.id_,
+            invite_activity_id,
             self.actor_id,
         )
         return Status.SUCCESS

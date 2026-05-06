@@ -20,7 +20,7 @@ No HTTP framework imports permitted here.
 """
 
 import logging
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any
 
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.triggers._helpers import (
@@ -34,18 +34,9 @@ from vultron.core.use_cases.triggers.requests import (
     SuggestActorToCaseTriggerRequest,
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
-from vultron.wire.as2.factories import (
-    recommend_actor_activity,
-    rm_accept_invite_to_case_activity,
-    rm_invite_to_case_activity,
-)
-from vultron.wire.as2.factories.errors import VultronActivityConstructionError
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCase,
-    VulnerabilityCaseStub,
-)
+
+if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
@@ -63,9 +54,11 @@ class SvcSuggestActorToCaseUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: SuggestActorToCaseTriggerRequest,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> dict[str, Any]:
         actor_id = self._request.actor_id
@@ -79,14 +72,20 @@ class SvcSuggestActorToCaseUseCase:
                 "Actor", self._request.suggested_actor_id
             )
 
-        activity = recommend_actor_activity(
-            recommended=cast(as_Actor, suggested_raw),
-            target=cast(VulnerabilityCase, case),
-            actor=actor_id,
-        )
-        self._dl.create(activity)
+        if self._trigger_activity is None:
+            raise RuntimeError(
+                "SvcSuggestActorToCaseUseCase requires a TriggerActivityPort"
+            )
 
-        add_activity_to_outbox(actor_id, activity.id_, self._dl)
+        activity_id, activity_dict = (
+            self._trigger_activity.suggest_actor_to_case(
+                recommended_id=self._request.suggested_actor_id,
+                case_id=case.id_,
+                actor=actor_id,
+            )
+        )
+
+        add_activity_to_outbox(actor_id, activity_id, self._dl)
 
         logger.info(
             "Actor '%s' suggested actor '%s' for case '%s'",
@@ -95,9 +94,7 @@ class SvcSuggestActorToCaseUseCase:
             case.id_,
         )
 
-        return {
-            "activity": activity.model_dump(by_alias=True, exclude_none=True)
-        }
+        return {"activity": activity_dict}
 
 
 class SvcInviteActorToCaseUseCase:
@@ -111,9 +108,11 @@ class SvcInviteActorToCaseUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: InviteActorToCaseTriggerRequest,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> dict[str, Any]:
         actor_id = self._request.actor_id
@@ -125,15 +124,21 @@ class SvcInviteActorToCaseUseCase:
         if invitee_raw is None:
             raise VultronNotFoundError("Actor", self._request.invitee_id)
 
-        activity = rm_invite_to_case_activity(
-            invitee=cast(as_Actor, invitee_raw),
-            target=VulnerabilityCaseStub(id_=case.id_),
-            actor=actor_id,
-            to=[self._request.invitee_id],
-        )
-        self._dl.create(activity)
+        if self._trigger_activity is None:
+            raise RuntimeError(
+                "SvcInviteActorToCaseUseCase requires a TriggerActivityPort"
+            )
 
-        add_activity_to_outbox(actor_id, activity.id_, self._dl)
+        activity_id, activity_dict = (
+            self._trigger_activity.invite_actor_to_case(
+                invitee_id=self._request.invitee_id,
+                case_id=case.id_,
+                actor=actor_id,
+                to=[self._request.invitee_id],
+            )
+        )
+
+        add_activity_to_outbox(actor_id, activity_id, self._dl)
 
         logger.info(
             "Actor '%s' invited actor '%s' to case '%s'",
@@ -142,9 +147,7 @@ class SvcInviteActorToCaseUseCase:
             case.id_,
         )
 
-        return {
-            "activity": activity.model_dump(by_alias=True, exclude_none=True)
-        }
+        return {"activity": activity_dict}
 
 
 class SvcAcceptCaseInviteUseCase:
@@ -159,9 +162,11 @@ class SvcAcceptCaseInviteUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: AcceptCaseInviteTriggerRequest,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> dict[str, Any]:
         actor_id = self._request.actor_id
@@ -174,33 +179,29 @@ class SvcAcceptCaseInviteUseCase:
                 "RmInviteToCaseActivity", self._request.invite_id
             )
 
-        if not isinstance(raw_invite, as_Invite):
+        invite_type = getattr(raw_invite, "type_", "")
+        if invite_type != "Invite":
             raise VultronValidationError(
                 f"'{self._request.invite_id}' is not an"
                 " RmInviteToCaseActivity"
             )
-        invite = raw_invite
 
-        try:
-            activity = rm_accept_invite_to_case_activity(
-                invite=invite,
-                actor=actor_id,
+        if self._trigger_activity is None:
+            raise RuntimeError(
+                "SvcAcceptCaseInviteUseCase requires a TriggerActivityPort"
             )
-        except VultronActivityConstructionError as exc:
-            raise VultronValidationError(
-                f"'{self._request.invite_id}' is not a valid"
-                " RmInviteToCaseActivity"
-            ) from exc
-        self._dl.create(activity)
 
-        add_activity_to_outbox(actor_id, activity.id_, self._dl)
+        activity_id, activity_dict = self._trigger_activity.accept_case_invite(
+            invite_id=self._request.invite_id,
+            actor=actor_id,
+        )
+
+        add_activity_to_outbox(actor_id, activity_id, self._dl)
 
         logger.info(
             "Actor '%s' accepted case invite '%s'",
             actor_id,
-            invite.id_,
+            self._request.invite_id,
         )
 
-        return {
-            "activity": activity.model_dump(by_alias=True, exclude_none=True)
-        }
+        return {"activity": activity_dict}

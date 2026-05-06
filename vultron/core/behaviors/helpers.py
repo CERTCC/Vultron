@@ -26,7 +26,7 @@ Per specs/behavior-tree-integration.yaml:
 """
 
 import logging
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import py_trees
 from pydantic import BaseModel
@@ -38,6 +38,9 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
 )
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
+
+if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
@@ -137,9 +140,10 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
         )
         self.datalayer: CasePersistence | None = None
         self.actor_id: str | None = None
+        self.trigger_activity_factory: "TriggerActivityPort | None" = None
 
     def setup(self, **kwargs: Any) -> None:
-        """Set up blackboard access for DataLayer and actor_id."""
+        """Set up blackboard access for DataLayer, actor_id, and trigger_activity_factory."""
         self.blackboard = self.attach_blackboard_client(name=self.name)
         self.blackboard.register_key(
             key="datalayer", access=py_trees.common.Access.READ
@@ -147,11 +151,25 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
         self.blackboard.register_key(
             key="actor_id", access=py_trees.common.Access.READ
         )
+        try:
+            self.blackboard.register_key(
+                key="trigger_activity_factory",
+                access=py_trees.common.Access.READ,
+            )
+        except Exception:
+            pass
 
     def initialise(self) -> None:
         """Initialize action node by reading blackboard state."""
         self.datalayer = self.blackboard.datalayer
         self.actor_id = self.blackboard.actor_id
+
+        try:
+            self.trigger_activity_factory = (
+                self.blackboard.trigger_activity_factory
+            )
+        except Exception:
+            self.trigger_activity_factory = None
 
         if self.datalayer is None:
             self.logger.error(

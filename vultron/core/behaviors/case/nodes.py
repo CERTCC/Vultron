@@ -26,7 +26,7 @@ CM-02 requirements.
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import isodate  # type: ignore[import-untyped]
 
@@ -48,8 +48,6 @@ from vultron.core.states.em import EM, EMAdapter, create_em_machine
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.core.states.roles import CVDRole
-from vultron.wire.as2.factories import add_participant_to_case_activity
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerCondition,
@@ -65,6 +63,9 @@ from vultron.core.use_cases._helpers import (
     update_participant_rm_state,
 )
 from vultron.core.use_cases.triggers.sync import commit_log_entry_trigger
+
+if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
@@ -628,9 +629,13 @@ def _queue_participant_add_notification(
     participant_actor_id: str,
     participant_id: str,
     case_id: str,
+    trigger_activity: "TriggerActivityPort | None" = None,
 ) -> bool:
     stored_participant = dl.read(participant_id)
-    if not isinstance(stored_participant, CaseParticipant):
+    if (
+        getattr(stored_participant, "type_", None)
+        != VultronObjectType.CASE_PARTICIPANT
+    ):
         node_logger.error(
             "%s: Could not resolve stored CaseParticipant '%s'",
             node_name,
@@ -638,23 +643,27 @@ def _queue_participant_add_notification(
         )
         return False
 
-    add_notification = add_participant_to_case_activity(
-        participant=stored_participant,
-        target=case_id,
+    if trigger_activity is None:
+        node_logger.error(
+            "%s: trigger_activity_factory not available for participant"
+            " add notification",
+            node_name,
+        )
+        return False
+
+    add_notification_id = trigger_activity.add_participant_to_case(
+        participant_id=participant_id,
+        case_id=case_id,
         actor=sender_actor_id,
         to=[participant_actor_id],
     )
-    try:
-        dl.create(add_notification)
-    except ValueError:
-        pass
 
     actor_obj = dl.read(sender_actor_id, raise_on_missing=True)
     if has_outbox(actor_obj):
-        actor_obj.outbox.items.append(add_notification.id_)
+        actor_obj.outbox.items.append(add_notification_id)
         dl.save(actor_obj)
     cast(CaseOutboxPersistence, dl).record_outbox_item(
-        sender_actor_id, add_notification.id_
+        sender_actor_id, add_notification_id
     )
     node_logger.info(
         "Queued Add(CaseParticipant '%s' for actor '%s' to case '%s') "
@@ -662,7 +671,7 @@ def _queue_participant_add_notification(
         participant_id,
         participant_actor_id,
         case_id,
-        add_notification.id_,
+        add_notification_id,
         sender_actor_id,
     )
     return True
@@ -1126,6 +1135,7 @@ class CreateCaseParticipantNode(DataLayerAction):
                 self.participant_actor_id,
                 participant.id_,
                 case_id,
+                trigger_activity=self.trigger_activity_factory,
             ):
                 return Status.FAILURE
 

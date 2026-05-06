@@ -38,13 +38,16 @@ Per specs/sync-log-replication.yaml:
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 import py_trees
 from py_trees.common import Status
 from py_trees.display import unicode_tree
 
 from vultron.core.ports.case_persistence import CasePersistence
+
+if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +91,7 @@ class BTBridge:
         self,
         datalayer: CasePersistence,
         is_leader: Callable[[], bool] = _default_is_leader,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ):
         """
         Initialize BT bridge with DataLayer access and optional leadership guard.
@@ -97,9 +101,15 @@ class BTBridge:
             is_leader: Callable returning True iff this node is the
                 replication leader.  Defaults to a function that always
                 returns True (single-node behaviour).  Per SYNC-09-003.
+            trigger_activity: Optional port for constructing outbound wire
+                activities from BT nodes (ARCH-01-004).  When provided it is
+                placed on the py_trees blackboard under the key
+                ``trigger_activity_factory`` so that BT nodes can call it
+                without importing from the wire layer.
         """
         self.datalayer = datalayer
         self.is_leader = is_leader
+        self.trigger_activity = trigger_activity
         self.logger = logging.getLogger(
             f"{__name__}.{self.__class__.__name__}"
         )
@@ -143,6 +153,13 @@ class BTBridge:
 
         blackboard.datalayer = self.datalayer
         blackboard.actor_id = actor_id
+
+        if self.trigger_activity is not None:
+            blackboard.register_key(
+                key="trigger_activity_factory",
+                access=py_trees.common.Access.WRITE,
+            )
+            blackboard.trigger_activity_factory = self.trigger_activity
 
         if activity is not None:
             blackboard.register_key(

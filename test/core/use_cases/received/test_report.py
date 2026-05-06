@@ -15,6 +15,9 @@
 from typing import cast
 from unittest.mock import MagicMock
 
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import VultronObject
@@ -207,7 +210,9 @@ class TestDuplicateReportHandling:
         dl.save(VultronCaseActor(id_="https://example.org/actors/vendor"))
 
         with caplog.at_level(logging.WARNING):
-            SubmitReportReceivedUseCase(dl, event).execute()
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
 
         warning_records = [
             r for r in caplog.records if r.levelno >= logging.WARNING
@@ -290,7 +295,9 @@ class TestSubmitReportLogMessages:
         dl.save(VultronCaseActor(id_="https://example.org/actors/vendor"))
 
         with caplog.at_level(logging.INFO):
-            SubmitReportReceivedUseCase(dl, event).execute()
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
 
         log_text = " ".join(r.message for r in caplog.records)
         assert (
@@ -352,7 +359,9 @@ class TestSubmitReportCreatesCase:
         RM.RECEIVED processing.
         """
         event, dl = self._make_event_and_dl()
-        SubmitReportReceivedUseCase(dl, event).execute()
+        SubmitReportReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         all_cases = dl.get_all("VulnerabilityCase")
         assert len(all_cases) >= 1, "Expected at least one VulnerabilityCase"
@@ -371,7 +380,9 @@ class TestSubmitReportCreatesCase:
     def test_submit_report_creates_vendor_participant_at_received(self):
         """SubmitReportReceivedUseCase creates vendor CaseParticipant at RM.RECEIVED."""
         event, dl = self._make_event_and_dl()
-        SubmitReportReceivedUseCase(dl, event).execute()
+        SubmitReportReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         participants = dl.get_all("CaseParticipant")
         vendor_participants = [
@@ -391,7 +402,9 @@ class TestSubmitReportCreatesCase:
         them via CreateCaseParticipantNode.
         """
         event, dl = self._make_event_and_dl()
-        SubmitReportReceivedUseCase(dl, event).execute()
+        SubmitReportReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         all_statuses = dl.get_all("ParticipantStatus")
         finder_accepted = [
@@ -408,8 +421,12 @@ class TestSubmitReportCreatesCase:
     def test_submit_report_case_creation_is_idempotent(self):
         """Calling SubmitReportReceivedUseCase twice creates only one case."""
         event, dl = self._make_event_and_dl()
-        SubmitReportReceivedUseCase(dl, event).execute()
-        SubmitReportReceivedUseCase(dl, event).execute()
+        SubmitReportReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+        SubmitReportReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         all_cases = dl.get_all("VulnerabilityCase")
         report_cases = [
@@ -445,7 +462,9 @@ class TestSubmitReportCreatesCase:
         )
         dl = SqliteDataLayer("sqlite:///:memory:")
 
-        SubmitReportReceivedUseCase(dl, event).execute()
+        SubmitReportReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         all_cases = dl.get_all("VulnerabilityCase")
         assert (
@@ -502,7 +521,9 @@ class TestOfferAddressingSemantics:
         )
         dl = self._make_dl()
 
-        SubmitReportReceivedUseCase(dl, event).execute()
+        SubmitReportReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         all_cases = dl.get_all("VulnerabilityCase")
         assert len(all_cases) >= 1, "Expected case when receiving actor in to"
@@ -517,7 +538,9 @@ class TestOfferAddressingSemantics:
         dl = self._make_dl()
 
         with caplog.at_level(logging.WARNING):
-            SubmitReportReceivedUseCase(dl, event).execute()
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
 
         all_cases = dl.get_all("VulnerabilityCase")
         assert (
@@ -541,7 +564,9 @@ class TestOfferAddressingSemantics:
         dl = self._make_dl()
 
         with caplog.at_level(logging.WARNING):
-            SubmitReportReceivedUseCase(dl, event).execute()
+            SubmitReportReceivedUseCase(
+                dl, event, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
 
         all_cases = dl.get_all("VulnerabilityCase")
         assert (
@@ -568,7 +593,9 @@ class TestOfferAddressingSemantics:
         )
         dl = self._make_dl()
 
-        SubmitReportReceivedUseCase(dl, event).execute()
+        SubmitReportReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         all_cases = dl.get_all("VulnerabilityCase")
         assert (
@@ -588,7 +615,9 @@ class TestOfferAddressingSemantics:
         )
         dl = self._make_dl()
 
-        SubmitReportReceivedUseCase(dl, event).execute()
+        SubmitReportReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
 
         all_cases = dl.get_all("VulnerabilityCase")
         assert (

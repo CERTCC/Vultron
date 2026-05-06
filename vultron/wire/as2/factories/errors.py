@@ -14,17 +14,11 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """
 Exceptions raised by Vultron activity factory functions.
+
+``VultronActivityConstructionError`` is defined in ``vultron.errors`` and
+re-exported here for backward compatibility.
 """
 
-from vultron.errors import VultronError
+from vultron.errors import VultronActivityConstructionError  # noqa: F401
 
-
-class VultronActivityConstructionError(VultronError):
-    """Raised when a factory function cannot construct the requested activity.
-
-    Wraps a Pydantic ``ValidationError`` as ``__cause__`` so that callers
-    can inspect the original validation details if needed.  Factory
-    functions MUST catch ``pydantic.ValidationError`` and re-raise as this
-    exception to keep internal activity class names out of public error
-    messages.  See ``specs/activity-factories.yaml`` AF-04-001, AF-04-002.
-    """
+__all__ = ["VultronActivityConstructionError"]

@@ -20,9 +20,11 @@ No HTTP framework imports permitted here.
 """
 
 import logging
+from typing import TYPE_CHECKING, Any
 
 from transitions import MachineError
 
+from vultron.core.models.embargo_event import VultronEmbargoEvent
 from vultron.core.states.em import EM, EMAdapter, create_em_machine
 from vultron.core.models.protocols import (
     CaseModel,
@@ -58,28 +60,20 @@ from vultron.errors import (
     VultronNotFoundError,
     VultronValidationError,
 )
-from vultron.wire.as2.factories import (
-    announce_embargo_activity,
-    em_accept_embargo_activity,
-    em_propose_embargo_activity,
-    em_reject_embargo_activity,
-)
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+
+if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
 
-def _coerce_embargo_event(
-    raw_embargo: object, embargo_id: str
-) -> EmbargoEvent:
-    """Normalize a persisted embargo record to an ``EmbargoEvent`` instance.
+def _coerce_embargo_event(raw_embargo: object, embargo_id: str) -> Any:
+    """Normalize a persisted embargo record; raise domain errors on failure.
 
-    Since ``EmbargoEvent`` has ``type_ = "EmbargoEvent"`` and is registered in
-    the wire vocabulary, ``dl.read()`` returns a fully typed ``EmbargoEvent``
-    directly. This function validates that the result is the expected type.
+    Validates that the result has type ``"EmbargoEvent"`` by checking the
+    ``type_`` attribute rather than using a wire-type isinstance check.
     """
-    if isinstance(raw_embargo, EmbargoEvent):
+    if getattr(raw_embargo, "type_", "") == "EmbargoEvent":
         return raw_embargo
     if raw_embargo is None:
         raise VultronNotFoundError("EmbargoEvent", embargo_id)
@@ -228,7 +222,7 @@ def _update_participant_embargo_rejection(
 
 def _resolve_embargo_proposal(
     case: CaseModel, proposal_id: str | None, dl: CaseOutboxPersistence
-) -> as_Invite:
+) -> Any:
     if proposal_id:
         proposal = dl.read(proposal_id)
         if proposal is None:
@@ -241,15 +235,15 @@ def _resolve_embargo_proposal(
                 f"(pending for case '{case.id_}')",
             )
 
-    if not isinstance(proposal, as_Invite):
+    if getattr(proposal, "type_", "") != "Invite":
         raise VultronValidationError(
             f"Expected an EmProposeEmbargoActivity (embargo proposal), got "
-            f"{type(proposal).__name__}."
+            f"type '{getattr(proposal, 'type_', 'unknown')}'."
         )
     return proposal
 
 
-def _resolve_embargo_id_from_proposal(proposal: as_Invite) -> str:
+def _resolve_embargo_id_from_proposal(proposal: Any) -> str:
     embargo_id = getattr(proposal.object_, "id_", None)
     if embargo_id is not None and not isinstance(embargo_id, str):
         raise VultronValidationError(
@@ -336,10 +330,14 @@ class SvcProposeEmbargoUseCase:
     """Propose an embargo on a case."""
 
     def __init__(
-        self, dl: CaseOutboxPersistence, request: ProposeEmbargoTriggerRequest
+        self,
+        dl: CaseOutboxPersistence,
+        request: ProposeEmbargoTriggerRequest,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: ProposeEmbargoTriggerRequest = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> dict:
         request = self._request
@@ -380,26 +378,26 @@ class SvcProposeEmbargoUseCase:
         if end_time is not None:
             embargo_kwargs["end_time"] = end_time
 
-        embargo = EmbargoEvent(**embargo_kwargs)
+        embargo = VultronEmbargoEvent(**embargo_kwargs)
 
         try:
             dl.create(embargo)
         except ValueError:
-            logger.warning("EmbargoEvent '%s' already exists", embargo.id_)
+            logger.warning(
+                "VultronEmbargoEvent '%s' already exists", embargo.id_
+            )
 
-        proposal = em_propose_embargo_activity(
-            embargo=embargo,
-            context=case.id_,
+        if self._trigger_activity is None:
+            raise RuntimeError(
+                "SvcProposeEmbargoUseCase requires a TriggerActivityPort"
+            )
+
+        proposal_id, proposal_dict = self._trigger_activity.propose_embargo(
+            embargo_id=embargo.id_,
+            case_id=case.id_,
             actor=actor_id,
             to=case_addressees(case, actor_id) or None,
         )
-
-        try:
-            dl.create(proposal)
-        except ValueError:
-            logger.warning(
-                "em_propose_embargo_activity '%s' already exists", proposal.id_
-            )
 
         case.current_status.em_state = new_em_state
         # When transitioning from ACTIVE to REVISE, all current signatories
@@ -428,20 +426,23 @@ class SvcProposeEmbargoUseCase:
         case.proposed_embargoes.append(embargo.id_)
         dl.save(case)
 
-        add_activity_to_outbox(actor_id, proposal.id_, dl)
+        add_activity_to_outbox(actor_id, proposal_id, dl)
 
-        activity = proposal.model_dump(by_alias=True, exclude_none=True)
-        return {"activity": activity}
+        return {"activity": proposal_dict}
 
 
 class SvcAcceptEmbargoUseCase:
     """Accept an embargo proposal (accept-embargo)."""
 
     def __init__(
-        self, dl: CaseOutboxPersistence, request: AcceptEmbargoTriggerRequest
+        self,
+        dl: CaseOutboxPersistence,
+        request: AcceptEmbargoTriggerRequest,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: AcceptEmbargoTriggerRequest = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> dict:
         request = self._request
@@ -459,19 +460,17 @@ class SvcAcceptEmbargoUseCase:
                 f"Could not resolve EmbargoEvent '{embargo_id}'."
             )
 
-        accept = em_accept_embargo_activity(
-            proposal=proposal,
-            context=case.id_,
+        if self._trigger_activity is None:
+            raise RuntimeError(
+                "SvcAcceptEmbargoUseCase requires a TriggerActivityPort"
+            )
+
+        accept_id, accept_dict = self._trigger_activity.accept_embargo(
+            proposal_id=proposal.id_,
+            case_id=case.id_,
             actor=actor_id,
             to=case_addressees(case, actor_id) or None,
         )
-
-        try:
-            dl.create(accept)
-        except ValueError:
-            logger.warning(
-                "em_accept_embargo_activity '%s' already exists", accept.id_
-            )
 
         em_state = case.current_status.em_state
         new_em_state, owner_activated = _apply_owner_embargo_acceptance(
@@ -483,7 +482,7 @@ class SvcAcceptEmbargoUseCase:
 
         _update_participant_embargo_acceptance(case, actor_id, embargo_id, dl)
         dl.save(case)
-        add_activity_to_outbox(actor_id, accept.id_, dl)
+        add_activity_to_outbox(actor_id, accept_id, dl)
 
         if owner_activated:
             logger.info(
@@ -508,8 +507,7 @@ class SvcAcceptEmbargoUseCase:
                 new_em_state,
             )
 
-        activity = accept.model_dump(by_alias=True, exclude_none=True)
-        return {"activity": activity}
+        return {"activity": accept_dict}
 
 
 class SvcTerminateEmbargoUseCase:
@@ -519,9 +517,11 @@ class SvcTerminateEmbargoUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: TerminateEmbargoTriggerRequest,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: TerminateEmbargoTriggerRequest = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> dict:
         request = self._request
@@ -575,21 +575,19 @@ class SvcTerminateEmbargoUseCase:
                 f"Active embargo on case '{case.id_}' is missing an ID."
             )
 
-        embargo = _coerce_embargo_event(dl.read(embargo_id), embargo_id)
+        _coerce_embargo_event(dl.read(embargo_id), embargo_id)
 
-        announce = announce_embargo_activity(
-            embargo=embargo,
-            context=case.id_,
+        if self._trigger_activity is None:
+            raise RuntimeError(
+                "SvcTerminateEmbargoUseCase requires a TriggerActivityPort"
+            )
+
+        announce_id, announce_dict = self._trigger_activity.announce_embargo(
+            embargo_id=embargo_id,
+            case_id=case.id_,
             actor=actor_id,
             to=case_addressees(case, actor_id) or None,
         )
-
-        try:
-            dl.create(announce)
-        except ValueError:
-            logger.warning(
-                "announce_embargo_activity '%s' already exists", announce.id_
-            )
 
         case.current_status.em_state = EM(adapter.state)
         case.active_embargo = None
@@ -597,7 +595,7 @@ class SvcTerminateEmbargoUseCase:
         _cascade_pec_reset(case, dl)
         dl.save(case)
 
-        add_activity_to_outbox(actor_id, announce.id_, dl)
+        add_activity_to_outbox(actor_id, announce_id, dl)
 
         logger.info(
             "Actor '%s' terminated embargo '%s' on case '%s' (EM %s → %s)",
@@ -608,8 +606,7 @@ class SvcTerminateEmbargoUseCase:
             adapter.state,
         )
 
-        activity = announce.model_dump(by_alias=True, exclude_none=True)
-        return {"activity": activity}
+        return {"activity": announce_dict}
 
 
 # Backward-compatible alias
@@ -623,10 +620,14 @@ class SvcRejectEmbargoUseCase:
     """
 
     def __init__(
-        self, dl: CaseOutboxPersistence, request: RejectEmbargoTriggerRequest
+        self,
+        dl: CaseOutboxPersistence,
+        request: RejectEmbargoTriggerRequest,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: RejectEmbargoTriggerRequest = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> dict:
         request = self._request
@@ -644,24 +645,22 @@ class SvcRejectEmbargoUseCase:
             proposal.id_,
         )
 
-        reject = em_reject_embargo_activity(
-            proposal=proposal,
-            context=case.id_,
+        if self._trigger_activity is None:
+            raise RuntimeError(
+                "SvcRejectEmbargoUseCase requires a TriggerActivityPort"
+            )
+
+        reject_id, reject_dict = self._trigger_activity.reject_embargo(
+            proposal_id=proposal.id_,
+            case_id=case.id_,
             actor=actor_id,
             to=case_addressees(case, actor_id) or None,
         )
 
-        try:
-            dl.create(reject)
-        except ValueError:
-            logger.warning(
-                "em_reject_embargo_activity '%s' already exists", reject.id_
-            )
-
         _update_participant_embargo_rejection(case, actor_id, embargo_id, dl)
         dl.save(case)
 
-        add_activity_to_outbox(actor_id, reject.id_, dl)
+        add_activity_to_outbox(actor_id, reject_id, dl)
 
         if owner_rejected:
             logger.info(
@@ -685,8 +684,7 @@ class SvcRejectEmbargoUseCase:
                 new_em_state,
             )
 
-        activity = reject.model_dump(by_alias=True, exclude_none=True)
-        return {"activity": activity}
+        return {"activity": reject_dict}
 
 
 class SvcProposeEmbargoRevisionUseCase:
@@ -701,9 +699,11 @@ class SvcProposeEmbargoRevisionUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: ProposeEmbargoRevisionTriggerRequest,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: ProposeEmbargoRevisionTriggerRequest = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> dict:
         request = self._request
@@ -751,32 +751,33 @@ class SvcProposeEmbargoRevisionUseCase:
         if end_time is not None:
             embargo_kwargs["end_time"] = end_time
 
-        embargo = EmbargoEvent(**embargo_kwargs)
+        embargo = VultronEmbargoEvent(**embargo_kwargs)
 
         try:
             dl.create(embargo)
         except ValueError:
-            logger.warning("EmbargoEvent '%s' already exists", embargo.id_)
+            logger.warning(
+                "VultronEmbargoEvent '%s' already exists", embargo.id_
+            )
 
-        proposal = em_propose_embargo_activity(
-            embargo=embargo,
-            context=case.id_,
+        if self._trigger_activity is None:
+            raise RuntimeError(
+                "SvcProposeEmbargoRevisionUseCase requires a"
+                " TriggerActivityPort"
+            )
+
+        proposal_id, proposal_dict = self._trigger_activity.propose_embargo(
+            embargo_id=embargo.id_,
+            case_id=case.id_,
             actor=actor_id,
             to=case_addressees(case, actor_id) or None,
         )
-
-        try:
-            dl.create(proposal)
-        except ValueError:
-            logger.warning(
-                "em_propose_embargo_activity '%s' already exists", proposal.id_
-            )
 
         case.current_status.em_state = new_em_state
         case.proposed_embargoes.append(embargo.id_)
         dl.save(case)
 
-        add_activity_to_outbox(actor_id, proposal.id_, dl)
+        add_activity_to_outbox(actor_id, proposal_id, dl)
 
         logger.info(
             "Actor '%s' proposed embargo revision '%s' on case '%s'"
@@ -788,5 +789,4 @@ class SvcProposeEmbargoRevisionUseCase:
             new_em_state,
         )
 
-        activity = proposal.model_dump(by_alias=True, exclude_none=True)
-        return {"activity": activity}
+        return {"activity": proposal_dict}
