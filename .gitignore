@@ -151,3 +151,4 @@ catalog-*.xml
 /wip_notes/
 devlogs
 .codebase-scan.txt
+/demologs/
