@@ -532,11 +532,13 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                 return False
             latest_ref = statuses[-1]
             # Resolve to an object when stored as an ID/ref string.
-            latest = (
-                self._dl.read(_as_id(latest_ref))
-                if isinstance(latest_ref, str)
-                else latest_ref
-            )
+            if isinstance(latest_ref, str):
+                ref_id = _as_id(latest_ref)
+                if ref_id is None:
+                    return False
+                latest = self._dl.read(ref_id)
+            else:
+                latest = latest_ref
             if latest is None:
                 return False
             rm_state = getattr(latest, "rm_state", None)
