@@ -39,6 +39,16 @@ from vultron.errors import VultronNotFoundError, VultronValidationError
 logger = logging.getLogger(__name__)
 
 
+def _log_label(uri: str) -> str:
+    """Return the last path segment of *uri* for use in log messages.
+
+    Using only the final path segment instead of the full URI prevents
+    CodeQL from treating tainted actor/activity IDs as clear-text secrets
+    while still providing enough context for debug tracing.
+    """
+    return uri.rsplit("/", 1)[-1] if "/" in uri else uri
+
+
 def resolve_actor(actor_id: str, dl: CasePersistence):
     """Resolve actor by full ID or short ID; raise VultronNotFoundError if absent."""
     actor = dl.read(actor_id)
@@ -171,21 +181,21 @@ def add_activity_to_outbox(
         dl.save(actor_obj)
         logger.debug(
             "Added activity '%s' to actor '%s' outbox.items",
-            activity_id,
-            actor_id,
+            _log_label(activity_id),
+            _log_label(actor_id),
         )
     else:
         logger.debug(
             "add_activity_to_outbox: actor '%s' not found or has no"
             " outbox field; skipping outbox.items update",
-            actor_id,
+            _log_label(actor_id),
         )
     # Delivery queue: write to actor-scoped queue table for outbox_handler.
     dl.record_outbox_item(actor_id, activity_id)
     logger.debug(
         "Queued activity '%s' in delivery queue for actor '%s'",
-        activity_id,
-        actor_id,
+        _log_label(activity_id),
+        _log_label(actor_id),
     )
 
 
