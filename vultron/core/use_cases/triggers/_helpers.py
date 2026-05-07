@@ -22,6 +22,7 @@ framework imports allowed here.
 """
 
 import logging
+import hashlib
 
 from vultron.core.models.protocols import (
     CaseModel,
@@ -40,13 +41,14 @@ logger = logging.getLogger(__name__)
 
 
 def _log_label(uri: str) -> str:
-    """Return the last path segment of *uri* for use in log messages.
+    """Return a deterministic redacted label for IDs used in log messages.
 
-    Using only the final path segment instead of the full URI prevents
-    CodeQL from treating tainted actor/activity IDs as clear-text secrets
-    while still providing enough context for debug tracing.
+    Do not log raw actor/activity identifiers (or URI segments) because they
+    may be sensitive.  Instead, emit a short non-reversible hash token that
+    still allows correlation across log lines.
     """
-    return uri.rsplit("/", 1)[-1] if "/" in uri else uri
+    digest = hashlib.sha256(uri.encode("utf-8")).hexdigest()[:12]
+    return f"id:{digest}"
 
 
 def resolve_actor(actor_id: str, dl: CasePersistence):
