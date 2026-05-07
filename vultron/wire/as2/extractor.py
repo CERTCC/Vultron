@@ -610,6 +610,26 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
     ctx = _get_id(getattr(obj, "context", None)) or ""
     wire_case_status = getattr(obj, "case_status", None)
     if object_id:
+        # Extract embedded CaseStatus into a VultronCaseStatus core object so
+        # that pxa_state and em_state are propagated across the wire boundary.
+        core_case_status: VultronCaseStatus | None = None
+        if wire_case_status is not None:
+            cs_id = _get_id(wire_case_status)
+            cs_context = (
+                _get_id(getattr(wire_case_status, "context", None)) or ctx
+            )
+            if cs_id and cs_context:
+                core_case_status = VultronCaseStatus(
+                    id_=cs_id,
+                    context=cs_context,
+                    attributed_to=_get_id(
+                        getattr(wire_case_status, "attributed_to", None)
+                    ),
+                    em_state=getattr(wire_case_status, "em_state", None)
+                    or VultronCaseStatus.model_fields["em_state"].default,
+                    pxa_state=getattr(wire_case_status, "pxa_state", None)
+                    or VultronCaseStatus.model_fields["pxa_state"].default,
+                )
         return {
             "object_": VultronParticipantStatus(
                 id_=object_id,
@@ -620,12 +640,7 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
                 or VultronParticipantStatus.model_fields["rm_state"].default,
                 vfd_state=getattr(obj, "vfd_state", None)
                 or VultronParticipantStatus.model_fields["vfd_state"].default,
-                pxa_state=getattr(obj, "pxa_state", None),
-                case_status=(
-                    _get_id(wire_case_status)
-                    if wire_case_status is not None
-                    else None
-                ),
+                case_status=core_case_status,
             )
         }
     return {}

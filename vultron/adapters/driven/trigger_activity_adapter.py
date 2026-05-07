@@ -35,6 +35,7 @@ import logging
 from typing import Any, cast
 
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.factories import (
     accept_actor_recommendation_activity,
     add_note_to_case_activity,
@@ -440,7 +441,27 @@ class TriggerActivityAdapter:
         to: list[str] | None = None,
     ) -> str:
         """Create and persist an ``Add(ParticipantStatus, CaseParticipant)`` activity."""
-        status = cast(ParticipantStatus, self._dl.read(status_id))
+        raw = self._dl.read(status_id)
+        if raw is None:
+            raise VultronNotFoundError(
+                "ParticipantStatus",
+                f"status '{status_id}' not found",
+            )
+        # Convert from core VultronParticipantStatus to wire ParticipantStatus
+        # so that nested fields (case_status, pxa_state) survive the boundary.
+        if not isinstance(raw, ParticipantStatus):
+            from vultron.wire.as2.vocab.objects.case_status import (
+                ParticipantStatus as WirePS,
+            )
+            from vultron.core.models.participant_status import (
+                VultronParticipantStatus,
+            )
+
+            if isinstance(raw, VultronParticipantStatus):
+                raw = WirePS.from_core(raw)
+            else:
+                raw = cast(ParticipantStatus, raw)
+        status: ParticipantStatus = raw
         activity = add_status_to_participant_activity(
             status=status, target=participant_id, actor=actor, to=to
         )

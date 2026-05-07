@@ -157,11 +157,14 @@ class ParticipantStatus(VultronAS2Object):
         data = core_obj.model_dump(mode="json")
         case_status = data.get("case_status")
         if isinstance(case_status, str):
+            # Legacy: case_status stored as bare ID string
             data["case_status"] = CaseStatus(
                 id_=case_status,
                 context=data.get("context"),
                 attributed_to=data.get("attributed_to"),
             )
+        # If case_status is a dict (from VultronCaseStatus serialisation),
+        # cls.model_validate will hydrate it into a CaseStatus instance.
         return cls.model_validate(data)
 
     def to_core(self) -> VultronParticipantStatus:
@@ -170,7 +173,18 @@ class ParticipantStatus(VultronAS2Object):
             data.get("attributed_to")
         )
         data["context"] = _scalar_ref_id_or_value(data.get("context"))
-        data["case_status"] = _scalar_ref_id_or_value(data.get("case_status"))
+        # Convert embedded CaseStatus wire object (or its serialised dict) to
+        # VultronCaseStatus so pxa_state and em_state cross the boundary.
+        wire_case_status = data.get("case_status")
+        if isinstance(wire_case_status, CaseStatus):
+            data["case_status"] = wire_case_status.to_core()
+        elif isinstance(wire_case_status, dict):
+            # _to_core_data() with round_trip=True serialises nested objects
+            # as dicts; re-validate and convert.
+            cs_obj = CaseStatus.model_validate(wire_case_status)
+            data["case_status"] = cs_obj.to_core()
+        else:
+            data["case_status"] = None
         if isinstance(data.get("vfd_state"), str):
             data["vfd_state"] = CS_vfd[data["vfd_state"]]
         return VultronParticipantStatus.model_validate(data)

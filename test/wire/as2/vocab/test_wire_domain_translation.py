@@ -77,12 +77,18 @@ def test_case_status_round_trips_between_core_and_wire():
 
 
 def test_participant_status_from_core_materializes_case_status_reference():
+    core_case_status = VultronCaseStatus(
+        id_="https://example.org/cases/1/status/1",
+        context="https://example.org/cases/1",
+        attributed_to="https://example.org/actors/vendor",
+        em_state=EM.NO_EMBARGO,
+    )
     core = VultronParticipantStatus(
         id_="https://example.org/cases/1/participants/1/status/1",
         attributed_to="https://example.org/actors/vendor",
         context="https://example.org/cases/1",
         rm_state=RM.ACCEPTED,
-        case_status="https://example.org/cases/1/status/1",
+        case_status=core_case_status,
     )
 
     wire = ParticipantStatus.from_core(core)
@@ -95,7 +101,9 @@ def test_participant_status_from_core_materializes_case_status_reference():
     assert round_tripped.context == core.context
     assert round_tripped.rm_state == core.rm_state
     assert round_tripped.vfd_state == core.vfd_state
-    assert round_tripped.case_status == core.case_status
+    assert isinstance(round_tripped.case_status, VultronCaseStatus)
+    assert round_tripped.case_status.id_ == core_case_status.id_
+    assert round_tripped.case_status.em_state == core_case_status.em_state
 
 
 def test_case_participant_round_trips_between_core_and_wire():

@@ -22,6 +22,7 @@ from vultron.core.models.protocols import (
     is_case_model,
     is_participant_model,
 )
+from vultron.errors import VultronError
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -407,6 +408,16 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                     to=recipient_ids,
                 )
             )
+            # Update the Case Manager actor's outbox to reflect the pending
+            # send, mirroring the pattern used by other received broadcast
+            # handlers (e.g. received/note.py).
+            case_manager_actor = self._dl.read(case_manager_id)
+            if case_manager_actor is not None and hasattr(
+                case_manager_actor, "outbox"
+            ):
+                cast(Any, case_manager_actor).outbox.items.append(activity_id)
+                self._dl.save(case_manager_actor)
+
             self._dl.record_outbox_item(case_manager_id, activity_id)
             logger.info(
                 "add_participant_status_to_participant: Case Manager '%s' "
@@ -415,7 +426,7 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                 status_id,
                 len(recipient_ids),
             )
-        except Exception as exc:
+        except VultronError as exc:
             logger.warning(
                 "add_participant_status_to_participant: broadcast failed: %s",
                 exc,
@@ -436,7 +447,9 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         from vultron.core.states.cs import CS_pxa
         from vultron.core.states.roles import CVDRole
 
-        pxa_state = getattr(status_obj, "pxa_state", None)
+        pxa_state = getattr(
+            getattr(status_obj, "case_status", None), "pxa_state", None
+        )
         if pxa_state is None:
             return
 
@@ -517,7 +530,15 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             statuses = getattr(p, "participant_statuses", [])
             if not statuses:
                 return False
-            latest = statuses[-1]
+            latest_ref = statuses[-1]
+            # Resolve to an object when stored as an ID/ref string.
+            latest = (
+                self._dl.read(_as_id(latest_ref))
+                if isinstance(latest_ref, str)
+                else latest_ref
+            )
+            if latest is None:
+                return False
             rm_state = getattr(latest, "rm_state", None)
             if rm_state is None or rm_state != RM.CLOSED:
                 return False
@@ -527,9 +548,10 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         """Record case-closed event for all case participants (DEMOMA-07-003 step 5).
 
         SvcCloseReportUseCase requires an offer_id (not a report_id), which
-        is unavailable in the received-handler context.  Instead this method
-        emits a log entry to record the auto-close intent, which is sufficient
-        for the prototype demo.
+        is unavailable in the received-handler context.  This method emits a
+        log entry to record the auto-close intent.  Actual case closure is
+        **not** persisted here; this is log-only behaviour for the prototype
+        demo.
         """
         logger.info(
             "add_participant_status_to_participant: Case Manager '%s' "

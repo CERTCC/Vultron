@@ -27,8 +27,9 @@ In ``RunMode.PROD`` these paths are simply not registered, so any request to
 Spec: TRIG-08-004, TRIG-09-001 through TRIG-09-005, TRIG-10-003, TRIG-10-004.
 """
 
-from fastapi import APIRouter, BackgroundTasks, Depends, status
 from typing import Any
+
+from fastapi import APIRouter, BackgroundTasks, Depends, status
 
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,

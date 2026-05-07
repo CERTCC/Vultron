@@ -338,6 +338,7 @@ class SvcAddParticipantStatusUseCase:
         from vultron.core.models.participant_status import (
             VultronParticipantStatus,
         )
+        from vultron.core.models.case_status import VultronCaseStatus
         from vultron.core.states.rm import RM
         from vultron.core.states.cs import CS_vfd
 
@@ -364,6 +365,22 @@ class SvcAddParticipantStatusUseCase:
                 f"actor '{actor_id}' not in case '{case_id}'",
             )
 
+        # Build embedded CaseStatus if a participant-perspective pxa_state was
+        # provided; inherit em_state from the current case-level status.
+        case_status: VultronCaseStatus | None = None
+        if request.pxa_state is not None:
+            current_em = getattr(
+                getattr(case, "current_status", None), "em_state", None
+            )
+            from vultron.core.states.em import EM
+
+            case_status = VultronCaseStatus(
+                context=case_id,
+                attributed_to=actor_id,
+                em_state=current_em if current_em is not None else EM.NONE,
+                pxa_state=request.pxa_state,
+            )
+
         # Build and persist the status object
         status = VultronParticipantStatus(
             context=case_id,
@@ -376,7 +393,7 @@ class SvcAddParticipantStatusUseCase:
                 if request.vfd_state is not None
                 else CS_vfd.vfd
             ),
-            pxa_state=request.pxa_state,
+            case_status=case_status,
         )
         try:
             dl.create(status)
@@ -396,14 +413,19 @@ class SvcAddParticipantStatusUseCase:
                     case_manager_id = str(case_manager_id)
                 break
 
-        to = [case_manager_id] if case_manager_id else None
+        if case_manager_id is None:
+            raise VultronNotFoundError(
+                "CaseParticipant",
+                f"no CASE_MANAGER found in case '{case_id}'"
+                " — cannot send status update",
+            )
 
         activity_id = (
             self._trigger_activity.add_participant_status_to_participant(
                 status_id=status.id_,
                 participant_id=participant_id,
                 actor=actor_id,
-                to=to,
+                to=[case_manager_id],
             )
         )
 
