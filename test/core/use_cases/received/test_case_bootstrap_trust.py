@@ -19,7 +19,7 @@ Covers:
   CBT-05-002  Bootstrap Create rejected when sender ≠ trusted_case_creator_id.
   CBT-05-003  No-link path: Create without a matching ReportCaseLink is a
               no-op (receiver is not the original reporter).
-  CBT-05-004  trusted_case_actor_id is extracted from the CASE_ACTOR participant
+  CBT-05-004  trusted_case_actor_id is extracted from the CASE_MANAGER participant
               in the bootstrap snapshot and recorded in the ReportCaseLink.
 """
 
@@ -62,7 +62,7 @@ _PARTICIPANT_ID = f"{_CASE_ID}/participants/case-actor"
 
 
 def _case_with_case_actor_participant() -> tuple:
-    """Build a VulnerabilityCase whose participant list includes a CASE_ACTOR.
+    """Build a VulnerabilityCase whose participant list includes a CASE_MANAGER.
 
     Returns a tuple of (VulnerabilityCase, CaseActorParticipant).  The
     participant is embedded INLINE in the case snapshot (not just an ID),
@@ -108,7 +108,7 @@ def dl():
 
 @pytest.fixture()
 def case_with_participant():
-    """Return (VulnerabilityCase, VultronParticipant) with CASE_ACTOR role."""
+    """Return (VulnerabilityCase, VultronParticipant) with CASE_MANAGER role."""
     return _case_with_case_actor_participant()
 
 
@@ -161,7 +161,7 @@ class TestBootstrapCreateAccepted:
     def test_report_case_link_updated_with_trusted_case_actor_id(
         self, dl, create_event, case_with_participant
     ):
-        """Bootstrap extracts trusted_case_actor_id from CASE_ACTOR participant
+        """Bootstrap extracts trusted_case_actor_id from CASE_MANAGER participant
         (CBT-01-003, CBT-01-006)."""
         link = _build_link()
         dl.save(link)

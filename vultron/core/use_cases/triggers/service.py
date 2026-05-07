@@ -47,6 +47,7 @@ from vultron.core.use_cases.triggers.actor import (
 )
 from vultron.core.use_cases.triggers.case import (
     SvcAddObjectToCaseUseCase,
+    SvcAddParticipantStatusUseCase,
     SvcAddReportToCaseUseCase,
     SvcCreateCaseUseCase,
     SvcDeferCaseUseCase,
@@ -72,6 +73,7 @@ from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
     AddNoteToCaseTriggerRequest,
     AddObjectToCaseTriggerRequest,
+    AddParticipantStatusTriggerRequest,
     AddReportToCaseTriggerRequest,
     CloseReportTriggerRequest,
     CreateCaseTriggerRequest,
@@ -287,6 +289,26 @@ class TriggerService:
             in_reply_to=in_reply_to,
         )
         return SvcAddNoteToCaseUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
+
+    def add_participant_status(
+        self,
+        actor_id: str,
+        case_id: str,
+        rm_state: Any = None,
+        vfd_state: Any = None,
+        pxa_state: Any = None,
+    ) -> dict[str, Any]:
+        """Self-report actor RM/VFD/PXA state to the Case Manager (DEMOMA-07-001)."""
+        req = AddParticipantStatusTriggerRequest(
+            actor_id=actor_id,
+            case_id=case_id,
+            rm_state=rm_state,
+            vfd_state=vfd_state,
+            pxa_state=pxa_state,
+        )
+        return SvcAddParticipantStatusUseCase(
             self._dl, req, trigger_activity=self._trigger_activity
         ).execute()
 

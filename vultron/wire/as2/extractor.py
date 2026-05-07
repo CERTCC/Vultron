@@ -435,7 +435,7 @@ def _participant_ref_to_domain(ref: object) -> str | VultronParticipant | None:
     a plain string if it is a URI reference, or ``None`` if the ref is
     unusable.  This preserves participant metadata — including role lists —
     across the wire→domain extraction boundary so bootstrap trust logic can
-    inspect ``CVDRole.CASE_ACTOR`` on the extracted case (CBT-01-003).
+    inspect ``CVDRole.CASE_MANAGER`` on the extracted case (CBT-01-003).
     """
     if isinstance(ref, str):
         return ref if ref else None
@@ -620,6 +620,7 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
                 or VultronParticipantStatus.model_fields["rm_state"].default,
                 vfd_state=getattr(obj, "vfd_state", None)
                 or VultronParticipantStatus.model_fields["vfd_state"].default,
+                pxa_state=getattr(obj, "pxa_state", None),
                 case_status=(
                     _get_id(wire_case_status)
                     if wire_case_status is not None

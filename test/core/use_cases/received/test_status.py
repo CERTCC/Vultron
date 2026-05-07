@@ -239,8 +239,14 @@ class TestStatusUseCases:
             id_="https://example.org/cases/case_ps2",
             name="PS Case 2",
         )
+        # Register the vendor actor as a participant so step 1 passes
+        case_ps2.case_participants.append(participant.id_)
+        case_ps2.actor_participant_index[
+            "https://example.org/users/vendor"
+        ] = participant.id_
         dl.create(participant)
         dl.create(pstatus)
+        dl.create(case_ps2)
 
         activity = add_status_to_participant_activity(
             pstatus,

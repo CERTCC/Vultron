@@ -34,6 +34,7 @@ from vultron.core.use_cases.triggers._helpers import (
 )
 from vultron.core.use_cases.triggers.requests import (
     AddObjectToCaseTriggerRequest,
+    AddParticipantStatusTriggerRequest,
     AddReportToCaseTriggerRequest,
     CreateCaseTriggerRequest,
     DeferCaseTriggerRequest,
@@ -313,3 +314,106 @@ class SvcAddReportToCaseUseCase:
             trigger_activity=self._trigger_activity,
         )
         return inner.execute()
+
+
+class SvcAddParticipantStatusUseCase:
+    """Self-report actor RM/VFD/PXA state to the Case Manager.
+
+    Creates a VultronParticipantStatus object, saves it, then emits an
+    Add(ParticipantStatus, target=CaseParticipant) activity addressed to the
+    Case Manager (DEMOMA-07-001).
+    """
+
+    def __init__(
+        self,
+        dl: CaseOutboxPersistence,
+        request: AddParticipantStatusTriggerRequest,
+        trigger_activity: "TriggerActivityPort | None" = None,
+    ) -> None:
+        self._dl = dl
+        self._request = request
+        self._trigger_activity = trigger_activity
+
+    def execute(self) -> dict[str, Any]:
+        from vultron.core.models.participant_status import (
+            VultronParticipantStatus,
+        )
+        from vultron.core.states.rm import RM
+        from vultron.core.states.cs import CS_vfd
+
+        request = self._request
+        actor_id = request.actor_id
+        case_id = request.case_id
+        dl = self._dl
+
+        actor = resolve_actor(actor_id, dl)
+        actor_id = actor.id_
+
+        case = resolve_case(case_id, dl)
+
+        if self._trigger_activity is None:
+            raise RuntimeError(
+                "SvcAddParticipantStatusUseCase requires a TriggerActivityPort"
+            )
+
+        # Look up the actor's participant record ID
+        participant_id = case.actor_participant_index.get(actor_id)
+        if participant_id is None:
+            raise VultronNotFoundError(
+                "CaseParticipant",
+                f"actor '{actor_id}' not in case '{case_id}'",
+            )
+
+        # Build and persist the status object
+        status = VultronParticipantStatus(
+            context=case_id,
+            attributed_to=actor_id,
+            rm_state=(
+                request.rm_state if request.rm_state is not None else RM.START
+            ),
+            vfd_state=(
+                request.vfd_state
+                if request.vfd_state is not None
+                else CS_vfd.vfd
+            ),
+            pxa_state=request.pxa_state,
+        )
+        try:
+            dl.create(status)
+        except ValueError:
+            dl.save(status)
+
+        # Find Case Manager ID to address activity
+        from vultron.core.states.roles import CVDRole
+
+        case_manager_id: str | None = None
+        for p_id in case.actor_participant_index.values():
+            p = dl.read(p_id)
+            roles = getattr(p, "case_roles", [])
+            if CVDRole.CASE_MANAGER in roles:
+                case_manager_id = getattr(p, "attributed_to", None)
+                if case_manager_id:
+                    case_manager_id = str(case_manager_id)
+                break
+
+        to = [case_manager_id] if case_manager_id else None
+
+        activity_id = (
+            self._trigger_activity.add_participant_status_to_participant(
+                status_id=status.id_,
+                participant_id=participant_id,
+                actor=actor_id,
+                to=to,
+            )
+        )
+
+        add_activity_to_outbox(actor_id, activity_id, dl)
+
+        logger.info(
+            "Actor '%s' reported status to participant '%s' in case '%s'",
+            actor_id,
+            participant_id,
+            case_id,
+        )
+
+        return {"activity_id": activity_id, "status_id": status.id_}

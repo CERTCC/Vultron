@@ -20,7 +20,7 @@ from typing import Literal
 from pydantic import Field, field_serializer
 
 from vultron.core.states.rm import RM
-from vultron.core.states.cs import CS_vfd
+from vultron.core.states.cs import CS_vfd, CS_pxa
 from vultron.core.models.base import NonEmptyString, VultronObject
 
 
@@ -41,6 +41,7 @@ class VultronParticipantStatus(VultronObject):
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     rm_state: RM = RM.START
     vfd_state: CS_vfd = CS_vfd.vfd
+    pxa_state: CS_pxa | None = None
     case_engagement: bool = True
     embargo_adherence: bool = True
     tracking_id: NonEmptyString | None = None
@@ -49,3 +50,7 @@ class VultronParticipantStatus(VultronObject):
     @field_serializer("vfd_state")
     def _serialize_vfd_state(self, v: CS_vfd) -> str:
         return v.name
+
+    @field_serializer("pxa_state")
+    def _serialize_pxa_state(self, v: CS_pxa | None) -> str | None:
+        return v.name if v is not None else None

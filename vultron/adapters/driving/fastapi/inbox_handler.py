@@ -82,6 +82,7 @@ _SYNC_PORT_SEMANTICS = frozenset(
 
 _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
     {
+        MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
         MessageSemantics.SUBMIT_REPORT,
         MessageSemantics.SUGGEST_ACTOR_TO_CASE,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,

@@ -341,3 +341,51 @@ class SyncLogEntryRequest(BaseModel):
     case_id: UriString
     object_id: UriString
     event_type: NonEmptyString
+
+
+class NotifyFixReadyRequest(BaseModel):
+    """Request body for the notify-fix-ready demo trigger.
+
+    Signals that the vendor has a fix ready (VFD → VFd).
+    TB-03-002: Unknown fields are silently ignored.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString
+
+
+class NotifyFixDeployedRequest(BaseModel):
+    """Request body for the notify-fix-deployed demo trigger.
+
+    Signals that the fix has been deployed (VFd → VFD).
+    TB-03-002: Unknown fields are silently ignored.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString
+
+
+class NotifyPublishedRequest(BaseModel):
+    """Request body for the notify-published demo trigger.
+
+    Signals that the vulnerability has been publicly disclosed (CS.VFDPxa).
+    TB-03-002: Unknown fields are silently ignored.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString
+
+
+class CloseCaseRequest(BaseModel):
+    """Request body for the close-case demo trigger.
+
+    Signals that the actor is closing the case (RM → CLOSED).
+    TB-03-002: Unknown fields are silently ignored.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString

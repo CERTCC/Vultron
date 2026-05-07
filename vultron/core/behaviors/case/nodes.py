@@ -312,7 +312,7 @@ class CreateCaseActorNode(DataLayerAction):
             return Status.FAILURE
 
     def _register_case_actor_participant(self, case_actor_id: str) -> None:
-        """Add a VultronParticipant with COORDINATOR+CASE_ACTOR roles to the case.
+        """Add a VultronParticipant with COORDINATOR+CASE_MANAGER roles to the case.
 
         Uses core-layer ``VultronParticipant`` with both roles set so the
         bootstrap receiver can identify the CaseActor from the case snapshot
@@ -339,7 +339,7 @@ class CreateCaseActorNode(DataLayerAction):
             attributed_to=case_actor_id,
             context=self.case_id,
             name=f"CaseActor for {self.case_id}",
-            case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_ACTOR],
+            case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
         )
         try:
             self.datalayer.create(participant)
@@ -351,7 +351,7 @@ class CreateCaseActorNode(DataLayerAction):
         self.datalayer.save(case)
         self.logger.info(
             f"{self.name}: Registered CaseActor participant '{participant_id}'"
-            f" (roles: COORDINATOR, CASE_ACTOR) for case '{self.case_id}'"
+            f" (roles: COORDINATOR, CASE_MANAGER) for case '{self.case_id}'"
         )
 
 

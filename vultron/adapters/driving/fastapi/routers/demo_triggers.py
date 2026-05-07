@@ -28,6 +28,7 @@ Spec: TRIG-08-004, TRIG-09-001 through TRIG-09-005, TRIG-10-003, TRIG-10-004.
 """
 
 from fastapi import APIRouter, BackgroundTasks, Depends, status
+from typing import Any
 
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
@@ -38,6 +39,10 @@ from vultron.adapters.driving.fastapi.errors import domain_error_translation
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.trigger_models import (
     AddNoteToCaseRequest,
+    CloseCaseRequest,
+    NotifyFixDeployedRequest,
+    NotifyFixReadyRequest,
+    NotifyPublishedRequest,
     SyncLogEntryRequest,
 )
 from vultron.core.ports.datalayer import DataLayer
@@ -141,3 +146,152 @@ def demo_sync_log_entry(
         "entry_hash": entry.entry_hash,
         "log_index": entry.log_index,
     }
+
+
+@router.post(
+    "/{actor_id}/demo/notify-fix-ready",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="[Demo] Report that the actor's fix is ready (VFd).",
+    description=(
+        "Demo-only scaffold. "
+        "Self-reports VFD state VFd (fix ready, not yet deployed) "
+        "to the Case Manager via Add(ParticipantStatus, CaseParticipant). "
+        "Only available in ``RunMode.PROTOTYPE``. "
+        "Spec: DEMOMA-07-001."
+    ),
+    operation_id="actors_demo_notify_fix_ready",
+)
+def demo_notify_fix_ready(
+    actor_id: str,
+    body: NotifyFixReadyRequest,
+    background_tasks: BackgroundTasks,
+    svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
+) -> dict[str, Any]:
+    """Report that the actor has a fix ready (demo scaffold).
+
+    Implements: DEMOMA-07-001, TRIG-09-001, TB-01-001, TB-06-001.
+    """
+    from vultron.core.states.cs import CS_vfd
+
+    with domain_error_translation():
+        result = svc.add_participant_status(
+            actor_id=actor_id,
+            case_id=body.case_id,
+            vfd_state=CS_vfd.VFd,
+        )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result
+
+
+@router.post(
+    "/{actor_id}/demo/notify-fix-deployed",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="[Demo] Report that the actor's fix is deployed (VFD).",
+    description=(
+        "Demo-only scaffold. "
+        "Self-reports VFD state VFD (fix deployed) "
+        "to the Case Manager via Add(ParticipantStatus, CaseParticipant). "
+        "Only available in ``RunMode.PROTOTYPE``. "
+        "Spec: DEMOMA-07-001."
+    ),
+    operation_id="actors_demo_notify_fix_deployed",
+)
+def demo_notify_fix_deployed(
+    actor_id: str,
+    body: NotifyFixDeployedRequest,
+    background_tasks: BackgroundTasks,
+    svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
+) -> dict[str, Any]:
+    """Report that the actor has deployed a fix (demo scaffold).
+
+    Implements: DEMOMA-07-001, TRIG-09-001, TB-01-001, TB-06-001.
+    """
+    from vultron.core.states.cs import CS_vfd
+
+    with domain_error_translation():
+        result = svc.add_participant_status(
+            actor_id=actor_id,
+            case_id=body.case_id,
+            vfd_state=CS_vfd.VFD,
+        )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result
+
+
+@router.post(
+    "/{actor_id}/demo/notify-published",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="[Demo] Report that the vulnerability has been publicly disclosed.",
+    description=(
+        "Demo-only scaffold. "
+        "Self-reports VFD=VFD and PXA=Pxa (public aware) "
+        "to the Case Manager via Add(ParticipantStatus, CaseParticipant). "
+        "Only available in ``RunMode.PROTOTYPE``. "
+        "Spec: DEMOMA-07-001."
+    ),
+    operation_id="actors_demo_notify_published",
+)
+def demo_notify_published(
+    actor_id: str,
+    body: NotifyPublishedRequest,
+    background_tasks: BackgroundTasks,
+    svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
+) -> dict[str, Any]:
+    """Report that the vulnerability is publicly disclosed (demo scaffold).
+
+    Implements: DEMOMA-07-001, TRIG-09-001, TB-01-001, TB-06-001.
+    """
+    from vultron.core.states.cs import CS_pxa, CS_vfd
+
+    with domain_error_translation():
+        result = svc.add_participant_status(
+            actor_id=actor_id,
+            case_id=body.case_id,
+            vfd_state=CS_vfd.VFD,
+            pxa_state=CS_pxa.Pxa,
+        )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result
+
+
+@router.post(
+    "/{actor_id}/demo/close-case",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="[Demo] Report that the actor is closing the case (RM.CLOSED).",
+    description=(
+        "Demo-only scaffold. "
+        "Self-reports RM state CLOSED "
+        "to the Case Manager via Add(ParticipantStatus, CaseParticipant). "
+        "Only available in ``RunMode.PROTOTYPE``. "
+        "Spec: DEMOMA-07-001."
+    ),
+    operation_id="actors_demo_close_case",
+)
+def demo_close_case(
+    actor_id: str,
+    body: CloseCaseRequest,
+    background_tasks: BackgroundTasks,
+    svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
+    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
+) -> dict[str, Any]:
+    """Report that the actor is closing the case (demo scaffold).
+
+    Implements: DEMOMA-07-001, TRIG-09-001, TB-01-001, TB-06-001.
+    """
+    from vultron.core.states.rm import RM
+
+    with domain_error_translation():
+        result = svc.add_participant_status(
+            actor_id=actor_id,
+            case_id=body.case_id,
+            rm_state=RM.CLOSED,
+        )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result
