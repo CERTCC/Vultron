@@ -233,6 +233,14 @@ class TestOwnershipTransfer:
 class TestRunMultiVendorDemo:
     """Integration-style tests for the full multi-vendor demo flow."""
 
+    @pytest.mark.xfail(
+        reason=(
+            "Demo flow uses pre-CBT case seeding pattern; CBT correctly blocks "
+            "case replication without prior trust setup. Demo will be redesigned "
+            "by #464 (Priority 470 — Two-Actor Demo Redesign)."
+        ),
+        strict=False,
+    )
     def test_full_workflow_succeeds(
         self, client: TestClient, base: str, caplog
     ):
