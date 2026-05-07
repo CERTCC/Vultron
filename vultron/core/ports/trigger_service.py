@@ -133,6 +133,15 @@ class TriggerServicePort(Protocol):
         in_reply_to: str | None = None,
     ) -> dict[str, Any]: ...
 
+    def add_participant_status(
+        self,
+        actor_id: str,
+        case_id: str,
+        rm_state: Any = None,
+        vfd_state: Any = None,
+        pxa_state: Any = None,
+    ) -> dict[str, Any]: ...
+
     # -----------------------------------------------------------------------
     # Embargo triggers
     # -----------------------------------------------------------------------

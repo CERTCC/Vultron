@@ -264,6 +264,19 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def add_participant_status_to_participant(
+        self,
+        status_id: str,
+        participant_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> str:
+        """Create and persist an ``Add(ParticipantStatus, CaseParticipant)`` activity.
+
+        Returns the activity ID (callers only need the ID for outbox queueing).
+        """
+        ...
+
     # -----------------------------------------------------------------------
     # Embargo
     # -----------------------------------------------------------------------

@@ -17,6 +17,8 @@ from datetime import datetime, timezone
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from vultron.core.models.base import NonEmptyString, UriString
+from vultron.core.states.cs import CS_vfd, CS_pxa
+from vultron.core.states.rm import RM
 
 
 class TriggerRequest(BaseModel):
@@ -198,3 +200,15 @@ class InviteActorToCaseTriggerRequest(CaseTriggerRequest):
     """
 
     invitee_id: NonEmptyString
+
+
+class AddParticipantStatusTriggerRequest(CaseTriggerRequest):
+    """Trigger request to send a ParticipantStatus update to the case.
+
+    The actor self-reports their current RM/VFD/PXA state to the Case Manager.
+    Emits an Add(ParticipantStatus, target=CaseParticipant) activity.
+    """
+
+    rm_state: RM | None = None
+    vfd_state: CS_vfd | None = None
+    pxa_state: CS_pxa | None = None

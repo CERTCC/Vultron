@@ -35,10 +35,12 @@ import logging
 from typing import Any, cast
 
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.factories import (
     accept_actor_recommendation_activity,
     add_note_to_case_activity,
     add_participant_to_case_activity,
+    add_status_to_participant_activity,
     announce_embargo_activity,
     create_case_activity,
     em_accept_embargo_activity,
@@ -60,6 +62,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCase,
@@ -426,6 +429,48 @@ class TriggerActivityAdapter:
             logger.warning(
                 "add_participant_to_case: activity '%s' already exists"
                 " — skipping",
+                activity.id_,
+            )
+        return activity.id_
+
+    def add_participant_status_to_participant(
+        self,
+        status_id: str,
+        participant_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> str:
+        """Create and persist an ``Add(ParticipantStatus, CaseParticipant)`` activity."""
+        raw = self._dl.read(status_id)
+        if raw is None:
+            raise VultronNotFoundError(
+                "ParticipantStatus",
+                f"status '{status_id}' not found",
+            )
+        # Convert from core VultronParticipantStatus to wire ParticipantStatus
+        # so that nested fields (case_status, pxa_state) survive the boundary.
+        if not isinstance(raw, ParticipantStatus):
+            from vultron.wire.as2.vocab.objects.case_status import (
+                ParticipantStatus as WirePS,
+            )
+            from vultron.core.models.participant_status import (
+                VultronParticipantStatus,
+            )
+
+            if isinstance(raw, VultronParticipantStatus):
+                raw = WirePS.from_core(raw)
+            else:
+                raw = cast(ParticipantStatus, raw)
+        status: ParticipantStatus = raw
+        activity = add_status_to_participant_activity(
+            status=status, target=participant_id, actor=actor, to=to
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "add_participant_status_to_participant: activity '%s' already"
+                " exists — skipping",
                 activity.id_,
             )
         return activity.id_

@@ -22,6 +22,7 @@ from pydantic import Field, field_serializer
 from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_vfd
 from vultron.core.models.base import NonEmptyString, VultronObject
+from vultron.core.models.case_status import VultronCaseStatus
 
 
 class VultronParticipantStatus(VultronObject):
@@ -31,6 +32,9 @@ class VultronParticipantStatus(VultronObject):
     ``type_`` is ``"ParticipantStatus"`` to match the wire value.
 
     ``context`` (case ID) is required, matching the wire type's constraint.
+
+    ``case_status`` embeds the participant's perspective on the case-level
+    state (em_state and pxa_state) via a nested ``VultronCaseStatus`` object.
     """
 
     type_: Literal["ParticipantStatus"] = Field(
@@ -44,7 +48,7 @@ class VultronParticipantStatus(VultronObject):
     case_engagement: bool = True
     embargo_adherence: bool = True
     tracking_id: NonEmptyString | None = None
-    case_status: NonEmptyString | None = None
+    case_status: VultronCaseStatus | None = None
 
     @field_serializer("vfd_state")
     def _serialize_vfd_state(self, v: CS_vfd) -> str:

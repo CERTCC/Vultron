@@ -49,7 +49,7 @@ class VultronReportCaseLink(VultronObject):
         default=None,
         description=(
             "URI of the CaseActor trusted for this case after bootstrap "
-            "validation.  Extracted from the CASE_ACTOR participant in the "
+            "validation.  Extracted from the CASE_MANAGER participant in the "
             "bootstrap snapshot; used to validate subsequent "
             "Announce(VulnerabilityCase) senders (CBT-01-006)."
         ),

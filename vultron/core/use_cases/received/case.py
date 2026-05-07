@@ -34,11 +34,11 @@ logger = logging.getLogger(__name__)
 def _find_case_actor_id_from_participants(
     case_obj: CaseModel, dl: CasePersistence
 ) -> str | None:
-    """Find the CaseActor ID from the CASE_ACTOR participant in the case.
+    """Find the CaseActor ID from the CASE_MANAGER participant in the case.
 
     Uses duck-typing on ``case_roles`` to avoid importing wire-layer types.
     Returns the ``attributed_to`` URI of the first participant holding
-    ``CVDRole.CASE_ACTOR`` (CBT-01-003).
+    ``CVDRole.CASE_MANAGER`` (CBT-01-003).
 
     Handles both inline objects and ID-only references stored in
     ``case_participants``.
@@ -47,7 +47,7 @@ def _find_case_actor_id_from_participants(
         # Try inline object first (participant embedded in snapshot)
         if not isinstance(participant_ref, str):
             roles = getattr(participant_ref, "case_roles", [])
-            if CVDRole.CASE_ACTOR in roles:
+            if CVDRole.CASE_MANAGER in roles:
                 attributed = getattr(participant_ref, "attributed_to", None)
                 if attributed:
                     return str(attributed)
@@ -58,7 +58,7 @@ def _find_case_actor_id_from_participants(
         if participant is None:
             continue
         roles = getattr(participant, "case_roles", [])
-        if CVDRole.CASE_ACTOR in roles:
+        if CVDRole.CASE_MANAGER in roles:
             attributed = getattr(participant, "attributed_to", None)
             if attributed:
                 return str(attributed)
@@ -131,7 +131,7 @@ class CreateCaseReceivedUseCase:
     Bootstrap trust path (CBT-01-005 / CBT-01-006):
     1. Locate the ``VultronReportCaseLink`` for any report listed in the case.
     2. Validate that the sender matches ``link.trusted_case_creator_id``.
-    3. Extract the ``CaseActor`` ID from the ``CASE_ACTOR`` participant.
+    3. Extract the ``CaseActor`` ID from the ``CASE_MANAGER`` participant.
     4. Seed a local replica of the case via the case-replica BT.
     5. Update the link with ``case_id`` and ``trusted_case_actor_id``.
     """
@@ -207,13 +207,13 @@ class CreateCaseReceivedUseCase:
                 case_id,
             )
 
-        # CBT-01-003: extract CaseActor from CASE_ACTOR participant
+        # CBT-01-003: extract CaseActor from CASE_MANAGER participant
         case_actor_id = _find_case_actor_id_from_participants(
             case_obj, self._dl
         )
         if case_actor_id is None:
             logger.warning(
-                "create_case_received: no CASE_ACTOR participant found in "
+                "create_case_received: no CASE_MANAGER participant found in "
                 "bootstrap snapshot for case '%s'; Announce validation will "
                 "be bypassed",
                 case_id,

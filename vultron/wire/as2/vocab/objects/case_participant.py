@@ -378,7 +378,7 @@ class OtherParticipant(CaseParticipant):
 class CaseActorParticipant(CaseParticipant):
     """A participant that acts as the CaseActor service for a VulnerabilityCase.
 
-    Holds both ``COORDINATOR`` and ``CASE_ACTOR`` roles (CBT-01-003).  The
+    Holds both ``COORDINATOR`` and ``CASE_MANAGER`` roles (CBT-01-003).  The
     ``attributed_to`` field identifies the ActivityStreams Service URI that
     will send ``Announce(VulnerabilityCase)`` updates on behalf of the case
     owner.  Receivers use this participant to establish trusted CaseActor
@@ -387,10 +387,10 @@ class CaseActorParticipant(CaseParticipant):
 
     @model_validator(mode="after")
     def set_role(self):
-        """Set both COORDINATOR and CASE_ACTOR roles."""
+        """Set both COORDINATOR and CASE_MANAGER roles."""
         self.case_roles = []
         self.add_role(CVDRole.COORDINATOR)
-        self.add_role(CVDRole.CASE_ACTOR)
+        self.add_role(CVDRole.CASE_MANAGER)
         return self
 
 
