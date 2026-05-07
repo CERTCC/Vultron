@@ -10,6 +10,26 @@ relative order. Completed priorities should be archived via `uv run append-histo
 (writes to `plan/history/YYMM/priority/`) and then removed from this file to keep
 `plan/PRIORITIES.md` focused on pending and in-progress work.
 
+## Priority 470 — Two-Actor Demo Redesign
+
+Redesign the two-actor (Reporter + Vendor) CVD demo to implement a complete,
+correct end-to-end CVD workflow: report submission, case creation with Case
+Actor handoff, embargo bootstrap, fix lifecycle (VF → VFD → VFDPxa),
+embargo teardown, and case closure.
+
+See `notes/two-actor-demo.md` for the authoritative design; `specs/multi-actor-demo.yaml`
+groups DEMOMA-06, DEMOMA-07, DEMOMA-08 for formal requirements.
+
+**Prerequisite**: PR #457 (Priority 475 / PCR safety) must merge first — it
+introduces `CVDRole.CASE_ACTOR` and the `Create(VulnerabilityCase)` bootstrap
+receiver that this epic depends on.
+
+- Epic: [#464](https://github.com/CERTCC/Vultron/issues/464)
+- [#460](https://github.com/CERTCC/Vultron/issues/460) — Sub-issue A: Documentation and spec updates ✅
+- [#461](https://github.com/CERTCC/Vultron/issues/461) — Sub-issue B: Core capabilities
+- [#462](https://github.com/CERTCC/Vultron/issues/462) — Sub-issue C: CASE_MANAGER role delegation protocol
+- [#463](https://github.com/CERTCC/Vultron/issues/463) — Sub-issue D: Demo replacement (blocked by B, C)
+
 ## Priority 475: Participant Case Replica Safety
 
 Enforce safety rules for seeding and maintaining local case replicas in

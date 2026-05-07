@@ -39,6 +39,7 @@ try:
     from pydantic import ValidationError as PydanticValidationError
 except ImportError:
     from pydantic_core import ValidationError as PydanticValidationError
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.participant_status import VultronParticipantStatus
 from vultron.core.use_cases._helpers import _report_phase_status_id
 from vultron.core.states.em import EM
@@ -54,6 +55,27 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 FUTURE_DATETIME = datetime(2099, 12, 1, tzinfo=timezone.utc)
+
+
+def test_submit_report_trigger_creates_report_case_link(dl, actor):
+    """submit_report creates an unlinked ReportCaseLink for later replica sync."""
+    TriggerService(
+        dl, trigger_activity=TriggerActivityAdapter(dl)
+    ).submit_report(
+        actor.id_,
+        "Submitted vulnerability",
+        "Proof of concept",
+        "https://example.org/actors/vendor",
+    )
+
+    reports = list(dl.list_objects("VulnerabilityReport"))
+    assert len(reports) == 1
+
+    link = dl.read(VultronReportCaseLink.build_id(reports[0].id_))
+    assert isinstance(link, VultronReportCaseLink)
+    assert link.report_id == reports[0].id_
+    assert link.case_id is None
+
 
 # ---------------------------------------------------------------------------
 # Fixtures

@@ -300,11 +300,59 @@ class CreateCaseActorNode(DataLayerAction):
                     f" already exists: {e}"
                 )
 
+            # Register the CaseActor as a CaseActorParticipant so receivers
+            # can extract trusted_case_actor_id from the case snapshot during
+            # bootstrap trust establishment (CBT-01-003).
+            self._register_case_actor_participant(case_actor.id_)
+
             return Status.SUCCESS
 
         except Exception as e:
             self.logger.error(f"{self.name}: Error creating CaseActor: {e}")
             return Status.FAILURE
+
+    def _register_case_actor_participant(self, case_actor_id: str) -> None:
+        """Add a VultronParticipant with COORDINATOR+CASE_ACTOR roles to the case.
+
+        Uses core-layer ``VultronParticipant`` with both roles set so the
+        bootstrap receiver can identify the CaseActor from the case snapshot
+        without requiring a wire-layer import (CBT-01-003).
+        """
+        if self.datalayer is None:
+            return
+
+        case = self.datalayer.read(self.case_id)
+        if not is_case_model(case):
+            self.logger.warning(
+                f"{self.name}: Case '{self.case_id}' not found; "
+                "cannot register CaseActor participant"
+            )
+            return
+
+        participant_id = f"{self.case_id}/participants/case-actor"
+        existing = self.datalayer.read(participant_id)
+        if existing is not None:
+            return
+
+        participant = VultronParticipant(
+            id_=participant_id,
+            attributed_to=case_actor_id,
+            context=self.case_id,
+            name=f"CaseActor for {self.case_id}",
+            case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_ACTOR],
+        )
+        try:
+            self.datalayer.create(participant)
+        except ValueError:
+            pass  # already exists — idempotent
+
+        case.case_participants.append(participant_id)
+        case.actor_participant_index[case_actor_id] = participant_id
+        self.datalayer.save(case)
+        self.logger.info(
+            f"{self.name}: Registered CaseActor participant '{participant_id}'"
+            f" (roles: COORDINATOR, CASE_ACTOR) for case '{self.case_id}'"
+        )
 
 
 class EmitCreateCaseActivity(DataLayerAction):

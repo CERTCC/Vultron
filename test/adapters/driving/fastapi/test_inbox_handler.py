@@ -6,8 +6,12 @@ from unittest.mock import Mock, MagicMock
 import pytest
 
 from vultron.adapters.driving.fastapi import inbox_handler as ih
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.events import MessageSemantics, VultronEvent
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 
 def test_prepare_for_dispatch_returns_vultron_event(monkeypatch):
@@ -95,10 +99,13 @@ def test_inbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
 
     monkeypatch.setattr(ih, "rehydrate", lambda x, dl=None: item)
 
-    def always_raise(actor_id, obj, dl):
-        raise RuntimeError("boom")
+    def fail_and_requeue(
+        actor_id, canonical_actor_id, item_id, item, dl, queue_dl
+    ):
+        queue_dl.inbox_append(item_id)
+        return False
 
-    monkeypatch.setattr(ih, "handle_inbox_item", always_raise)
+    monkeypatch.setattr(ih, "_process_inbox_item", fail_and_requeue)
 
     asyncio.run(ih.inbox_handler("actor-xyz", mock_dl))
 
@@ -127,3 +134,107 @@ def test_init_dispatcher_sets_dispatcher(monkeypatch):
 
     ih.init_dispatcher()
     assert ih._DISPATCHER is mock_dispatcher
+
+
+def test_dispatch_or_defer_inbox_item_queues_unknown_case_context(monkeypatch):
+    actor_id = "https://example.org/actors/participant"
+    case_id = "https://example.org/cases/case-unknown"
+    item_id = "https://example.org/activities/add-note-1"
+    shared_dl = SqliteDataLayer("sqlite:///:memory:")
+    queue_dl = shared_dl.clone_for_actor(actor_id)
+    item = as_Activity(
+        id_=item_id,
+        type_="Add",
+        actor="https://example.org/actors/case-actor",
+        context=case_id,
+        name="queued-note",
+    )
+    fake_event = VultronEvent(
+        semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
+        activity_id=item_id,
+        actor_id="https://example.org/actors/case-actor",
+    )
+
+    monkeypatch.setattr(
+        ih, "prepare_for_dispatch", lambda activity: fake_event
+    )
+    mock_dispatcher = Mock()
+    monkeypatch.setattr(ih, "_DISPATCHER", mock_dispatcher)
+
+    result = ih._dispatch_or_defer_inbox_item(
+        actor_id=actor_id,
+        obj=item,
+        dl=shared_dl,
+        queue_dl=queue_dl,
+    )
+
+    assert result is None
+    pending = queue_dl.read(VultronPendingCaseInbox.build_id(case_id))
+    assert isinstance(pending, VultronPendingCaseInbox)
+    assert pending.activity_ids == [item_id]
+    mock_dispatcher.dispatch.assert_not_called()
+
+
+def test_inbox_handler_replays_deferred_items_after_case_announce(monkeypatch):
+    actor_id = "https://example.org/actors/participant"
+    case_id = "https://example.org/cases/case-replay"
+    note_id = "https://example.org/activities/add-note-2"
+    announce_id = "https://example.org/activities/announce-case-1"
+    shared_dl = SqliteDataLayer("sqlite:///:memory:")
+    shared_dl.save(as_Service(id_=actor_id, name="Participant"))
+    queue_dl = shared_dl.clone_for_actor(actor_id)
+    queue_dl.inbox_append(note_id)
+    queue_dl.inbox_append(announce_id)
+
+    note_item = as_Activity(
+        id_=note_id,
+        type_="Add",
+        actor="https://example.org/actors/case-actor",
+        context=case_id,
+        name="deferred-note",
+    )
+    announce_item = as_Activity(
+        id_=announce_id,
+        type_="Announce",
+        actor="https://example.org/actors/case-actor",
+        context=case_id,
+        name="announce-case",
+    )
+    items = {note_id: note_item, announce_id: announce_item}
+
+    def fake_prepare(activity: as_Activity) -> VultronEvent:
+        if activity.id_ == note_id:
+            return VultronEvent(
+                semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
+                activity_id=note_id,
+                actor_id="https://example.org/actors/case-actor",
+            )
+        return VultronEvent(
+            semantic_type=MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
+            activity_id=announce_id,
+            actor_id="https://example.org/actors/case-actor",
+        )
+
+    dispatched: list[str] = []
+
+    def fake_dispatch(event: VultronEvent, dl: SqliteDataLayer) -> None:
+        dispatched.append(event.activity_id)
+        if event.semantic_type == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE:
+            dl.save(VulnerabilityCase(id_=case_id, name="Replica"))
+
+    async def fake_outbox_handler(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    mock_dispatcher = Mock()
+    mock_dispatcher.dispatch.side_effect = fake_dispatch
+    monkeypatch.setattr(ih, "_DISPATCHER", mock_dispatcher)
+    monkeypatch.setattr(ih, "prepare_for_dispatch", fake_prepare)
+    monkeypatch.setattr(
+        ih, "rehydrate", lambda item_id, dl=None: items[item_id]
+    )
+    monkeypatch.setattr(ih, "outbox_handler", fake_outbox_handler)
+
+    asyncio.run(ih.inbox_handler(actor_id, shared_dl, queue_dl))
+
+    assert dispatched == [announce_id, note_id]
+    assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is None

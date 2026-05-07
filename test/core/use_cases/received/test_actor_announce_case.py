@@ -17,15 +17,20 @@ from typing import Any, cast
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.use_cases.received.actor import (
     AnnounceVulnerabilityCaseReceivedUseCase,
 )
 from vultron.wire.as2.factories import announce_vulnerability_case_activity
+from vultron.wire.as2.vocab.objects.case_actor import CaseActor
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 _OWNER_ID = "https://example.org/actors/owner"
+_CASE_ACTOR_ID = "https://example.org/actors/case-actor"
+_IMPOSTER_ID = "https://example.org/actors/imposter"
 _CASE_ID = "https://example.org/cases/case-ann-001"
 _CASE_ID2 = "https://example.org/cases/case-ann-002"
+_REPORT_ID = "https://example.org/reports/report-ann-001"
 
 
 @pytest.fixture()
@@ -39,8 +44,22 @@ def case():
 
 
 @pytest.fixture()
-def announce_activity(case):
-    return announce_vulnerability_case_activity(case, actor=_OWNER_ID)
+def case_actor():
+    return CaseActor(
+        id_=_CASE_ACTOR_ID,
+        attributed_to=_OWNER_ID,
+        context=_CASE_ID,
+        name="CaseActor",
+    )
+
+
+@pytest.fixture()
+def announce_activity(case, case_actor):
+    return announce_vulnerability_case_activity(
+        case,
+        actor=case_actor.id_,
+        context=case.id_,
+    )
 
 
 @pytest.fixture()
@@ -53,6 +72,14 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
 
     def test_creates_case_when_absent(self, dl, event, case):
         """MV-10-003: Announce seeding creates the case in the invitee's DL."""
+        dl.create(
+            CaseActor(
+                id_=_CASE_ACTOR_ID,
+                attributed_to=_OWNER_ID,
+                context=_CASE_ID,
+                name="CaseActor",
+            )
+        )
         assert dl.read(_CASE_ID) is None
 
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
@@ -60,15 +87,52 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         result = dl.read(_CASE_ID)
         assert result is not None
 
-    def test_case_fields_preserved(self, dl, event, case):
+    def test_case_fields_preserved(self, dl, event, case, case_actor):
         """The seeded case retains the name from the Announce payload."""
+        dl.create(case_actor)
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         result = cast(Any, dl.read(_CASE_ID))
         assert result.name == "DR-10 Announce Case"
 
-    def test_idempotent_when_case_already_exists(self, dl, event, case):
+    def test_creates_case_when_case_actor_not_yet_known_locally(
+        self, dl, event, case
+    ):
+        """First-time replica seeding succeeds before the CaseActor is stored."""
+        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+
+        result = dl.read(_CASE_ID)
+        assert result is not None
+
+    def test_updates_report_case_link_when_case_contains_report(
+        self, dl, event, case, case_actor
+    ):
+        """A valid Announce links known reports to the seeded case replica."""
+        dl.create(case_actor)
+        case.vulnerability_reports.append(_REPORT_ID)
+        dl.save(VultronReportCaseLink(report_id=_REPORT_ID))
+
+        linked_event = event.model_copy(
+            update={
+                "activity": announce_vulnerability_case_activity(
+                    case,
+                    actor=case_actor.id_,
+                    context=case.id_,
+                )
+            }
+        )
+
+        AnnounceVulnerabilityCaseReceivedUseCase(dl, linked_event).execute()
+
+        link = dl.read(VultronReportCaseLink.build_id(_REPORT_ID))
+        assert isinstance(link, VultronReportCaseLink)
+        assert link.case_id == _CASE_ID
+
+    def test_idempotent_when_case_already_exists(
+        self, dl, event, case, case_actor
+    ):
         """MV-10-004: A second Announce for an existing case is a no-op."""
+        dl.create(case_actor)
         dl.create(case)
 
         # First call — case exists; should not fail or overwrite
@@ -113,3 +177,26 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         assert dl.read(_CASE_ID2) is None
+
+    def test_rejects_announce_from_non_case_actor(
+        self, dl, case, make_payload
+    ):
+        """PCR-07-003: non-CaseActor senders cannot seed a case replica."""
+        dl.create(
+            CaseActor(
+                id_=_CASE_ACTOR_ID,
+                attributed_to=_OWNER_ID,
+                context=_CASE_ID,
+                name="CaseActor",
+            )
+        )
+        announce = announce_vulnerability_case_activity(
+            case,
+            actor=_IMPOSTER_ID,
+            context=case.id_,
+        )
+        event = make_payload(announce)
+
+        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+
+        assert dl.read(_CASE_ID) is None

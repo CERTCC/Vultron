@@ -33,6 +33,9 @@ class CVDRole(StrEnum):
         COORDINATOR: Entity that coordinates the CVD process.
         OTHER: Any other CVD role not captured above.
         CASE_OWNER: Actor who owns and manages a VulnerabilityCase (BTND-05-001).
+        CASE_ACTOR: The ActivityStreams Service actor that performs ongoing case
+            replica synchronisation on behalf of the case owner.  A CaseActor
+            participant always also holds the COORDINATOR role (CBT-01-003).
     """
 
     FINDER = auto()
@@ -42,6 +45,7 @@ class CVDRole(StrEnum):
     COORDINATOR = auto()
     OTHER = auto()
     CASE_OWNER = auto()
+    CASE_ACTOR = auto()
 
 
 def serialize_roles(roles: list[CVDRole]) -> list[str]:

@@ -22,6 +22,7 @@ framework imports allowed here.
 """
 
 import logging
+import hashlib
 
 from vultron.core.models.protocols import (
     CaseModel,
@@ -37,6 +38,17 @@ from vultron.core.ports.case_persistence import (
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
+
+
+def _log_label(uri: str) -> str:
+    """Return a deterministic redacted label for IDs used in log messages.
+
+    Do not log raw actor/activity identifiers (or URI segments) because they
+    may be sensitive.  Instead, emit a short non-reversible hash token that
+    still allows correlation across log lines.
+    """
+    digest = hashlib.sha256(uri.encode("utf-8")).hexdigest()[:12]
+    return f"id:{digest}"
 
 
 def resolve_actor(actor_id: str, dl: CasePersistence):
@@ -171,21 +183,21 @@ def add_activity_to_outbox(
         dl.save(actor_obj)
         logger.debug(
             "Added activity '%s' to actor '%s' outbox.items",
-            activity_id,
-            actor_id,
+            _log_label(activity_id),
+            _log_label(actor_id),
         )
     else:
         logger.debug(
             "add_activity_to_outbox: actor '%s' not found or has no"
             " outbox field; skipping outbox.items update",
-            actor_id,
+            _log_label(actor_id),
         )
     # Delivery queue: write to actor-scoped queue table for outbox_handler.
     dl.record_outbox_item(actor_id, activity_id)
     logger.debug(
         "Queued activity '%s' in delivery queue for actor '%s'",
-        activity_id,
-        actor_id,
+        _log_label(activity_id),
+        _log_label(actor_id),
     )
 
 

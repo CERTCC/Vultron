@@ -428,9 +428,47 @@ def _build_report_object(obj: object) -> dict[str, Any]:
     return {}
 
 
+def _participant_ref_to_domain(ref: object) -> str | VultronParticipant | None:
+    """Convert a wire-layer participant ref to a core domain object or ID string.
+
+    Returns a ``VultronParticipant`` if ``ref`` has ``case_roles`` (duck-type),
+    a plain string if it is a URI reference, or ``None`` if the ref is
+    unusable.  This preserves participant metadata — including role lists —
+    across the wire→domain extraction boundary so bootstrap trust logic can
+    inspect ``CVDRole.CASE_ACTOR`` on the extracted case (CBT-01-003).
+    """
+    if isinstance(ref, str):
+        return ref if ref else None
+
+    participant_id = _get_id(ref)
+    if not participant_id:
+        return None
+
+    roles = getattr(ref, "case_roles", [])
+    attributed = getattr(ref, "attributed_to", None)
+    context_id = _get_id(getattr(ref, "context", None))
+    if roles is not None and attributed is not None and context_id:
+        return VultronParticipant(
+            id_=participant_id,
+            attributed_to=str(attributed),
+            context=context_id,
+            name=getattr(ref, "name", None),
+            case_roles=list(roles),
+        )
+
+    # Fallback: return as ID string only
+    return participant_id
+
+
 def _build_case_object(obj: object) -> dict[str, Any]:
     object_id = _get_id(obj)
     if object_id:
+        raw_participants = getattr(obj, "case_participants", []) or []
+        participants: list[str | VultronParticipant] = []
+        for ref in raw_participants:
+            converted = _participant_ref_to_domain(ref)
+            if converted is not None:
+                participants.append(converted)
         return {
             "object_": VultronCase(
                 id_=object_id,
@@ -441,6 +479,7 @@ def _build_case_object(obj: object) -> dict[str, Any]:
                 attributed_to=_get_id(getattr(obj, "attributed_to", None)),
                 published=getattr(obj, "published", None),
                 updated=getattr(obj, "updated", None),
+                case_participants=participants,
             )
         }
     return {}
