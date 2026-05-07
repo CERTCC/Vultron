@@ -1,6 +1,7 @@
 ---
 title: Demo Review — 2026-04-20
 status: archived
+superseded_by: notes/two-actor-demo.md
 description: >
   Point-in-time demo review from 2026-04-20; log analysis and findings from
   the demonstration run.

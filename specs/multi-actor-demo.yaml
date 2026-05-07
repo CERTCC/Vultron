@@ -116,3 +116,100 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-00-001
+- id: DEMOMA-06
+  title: Two-Actor Scenario Workflow
+  specs:
+  - id: DEMOMA-06-001
+    priority: MUST
+    statement: >-
+      The two-actor (Reporter + Vendor) demo scenario MUST execute a complete CVD lifecycle
+      ending in final case state VFDPxa (Vendor aware, Fix ready, Fix Deployed, Public aware,
+      no exploit public, no active attacks)
+  - id: DEMOMA-06-002
+    priority: MUST
+    statement: >-
+      The two-actor demo MUST verify the following milestones, checking both the Vendor and
+      Finder DataLayers at each checkpoint: M1 (case + 3 participants + EM.ACTIVE),
+      M2 (Finder has case replica), M4 (CS.VF on all replicas),
+      M5 (CS.VFD on all replicas), M6 (CS.VFDPxa + EM terminated on all replicas),
+      M7 (all participants RM.CLOSED, case closed)
+  - id: DEMOMA-06-003
+    priority: MUST
+    statement: >-
+      Milestone verification MUST read both the Vendor DataLayer and the Finder DataLayer
+      directly; direct DataLayer reads are acceptable in demo scripts for verification
+      (read-only assertions), but MUST NOT be used to write or manipulate actor state
+  - id: DEMOMA-06-004
+    priority: MUST
+    statement: >-
+      The two-actor demo Docker topology MUST use exactly two containers (finder and vendor);
+      the Case Actor MUST be an actor record co-located in the vendor container with its own
+      actor ID and inbox URL, not a separate container
+- id: DEMOMA-07
+  title: ParticipantStatus Trigger Pattern
+  specs:
+  - id: DEMOMA-07-001
+    priority: MUST
+    statement: >-
+      CS state transitions (fix-ready, fix-deployed, published) and RM case closure MUST
+      all be driven through participant status updates via
+      Add(ParticipantStatus, target=Case) sent to the Case Actor inbox, not through dedicated
+      low-level state-machine endpoints
+  - id: DEMOMA-07-002
+    priority: MUST
+    statement: >-
+      Demo trigger endpoints for participant status transitions MUST use the "notify" naming
+      convention (e.g., notify-fix-ready, notify-fix-deployed, notify-published, close-case)
+      to avoid semantic collision with the ActivityStreams Announce verb
+  - id: DEMOMA-07-003
+    priority: MUST
+    statement: >-
+      The Case Actor received handler for ADD_PARTICIPANT_STATUS_TO_PARTICIPANT MUST:
+      (1) verify the activity actor is a known case participant,
+      (2) update the participant status record,
+      (3) announce the update to all other case participants,
+      (4) if CS.P is newly set by the Case Owner, trigger embargo teardown automatically,
+      (5) if all participants are RM.CLOSED, close the case automatically
+  - id: DEMOMA-07-004
+    priority: SHOULD
+    statement: >-
+      The participant status trigger implementation SHOULD be layered: SvcAddObjectToCaseUseCase
+      (generic Add(object, target=Case)) as the base, SvcAddParticipantStatusUseCase (new core
+      use case) above it, and demo-specific endpoints in demo_triggers.py at the top
+- id: DEMOMA-08
+  title: Case Actor Bootstrap and CASE_MANAGER Role
+  specs:
+  - id: DEMOMA-08-001
+    priority: MUST
+    statement: >-
+      The vendor MUST send Create(VulnerabilityCase) (not Announce) to the Reporter as the
+      trust bootstrap after case initialization; only the Case Actor uses Announce for
+      subsequent case updates; the bootstrap payload MUST include all three participants
+      (Vendor, Reporter, Case Actor) so the Reporter can bind the Case Actor identity to
+      this case
+    relationships:
+    - rel_type: refines
+      spec_id: CBT-01-001
+      note: original report submission path bootstrap
+  - id: DEMOMA-08-002
+    priority: MUST
+    statement: >-
+      The CASE_MANAGER role delegation (Vendor hands operational management to Case Actor)
+      MUST be implemented as a distinct protocol mechanism from OFFER_CASE_OWNERSHIP_TRANSFER;
+      CASE_MANAGER delegation allows the Vendor to retain CASE_OWNER while delegating
+      operational authority, and requires new MessageSemantics values:
+      OFFER_CASE_MANAGER_ROLE and ACCEPT_CASE_MANAGER_ROLE
+  - id: DEMOMA-08-003
+    priority: MUST_NOT
+    statement: >-
+      CASE_MANAGER role delegation MUST NOT reuse or adapt the existing
+      OFFER_CASE_OWNERSHIP_TRANSFER, ACCEPT_CASE_OWNERSHIP_TRANSFER, or
+      REJECT_CASE_OWNERSHIP_TRANSFER message semantics; these are distinct protocol operations
+      with different semantics and different effects on case ownership
+  - id: DEMOMA-08-004
+    priority: MUST
+    statement: >-
+      When the Case Actor accepts the CASE_MANAGER delegation, it MUST run the case
+      initialization BT: establish the default embargo with both Vendor and Reporter
+      immediately as SIGNATORY (no invite/accept round-trip), and set EM state to ACTIVE
+      before the trust bootstrap is sent to the Reporter
