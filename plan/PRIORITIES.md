@@ -26,8 +26,9 @@ receiver that this epic depends on.
 
 - Epic: [#464](https://github.com/CERTCC/Vultron/issues/464)
 - [#460](https://github.com/CERTCC/Vultron/issues/460) — Sub-issue A: Documentation and spec updates ✅
-- [#461](https://github.com/CERTCC/Vultron/issues/461) — Sub-issue B: Core capabilities
-- [#462](https://github.com/CERTCC/Vultron/issues/462) — Sub-issue C: CASE_MANAGER role delegation protocol
+- [#461](https://github.com/CERTCC/Vultron/issues/461) — Sub-issue B: Core capabilities ✅
+- [#462](https://github.com/CERTCC/Vultron/issues/462) — Sub-issue C: CASE_MANAGER role delegation protocol ✅
+- [#469](https://github.com/CERTCC/Vultron/issues/469) — Case Actor spawning and CASE_MANAGER delegation automation (PR #473)
 - [#463](https://github.com/CERTCC/Vultron/issues/463) — Sub-issue D: Demo replacement (blocked by B, C)
 
 ## Priority 475: Participant Case Replica Safety

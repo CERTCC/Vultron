@@ -734,3 +734,41 @@ When a backlog bug may already be fixed by unrelated work, close it with
 **Anti-pattern**: Treating "I can't reproduce it" as sufficient closure — the
 fix may be coincidental and fragile. Concrete evidence ensures it won't
 silently regress.
+
+### py_trees `blackboard.get()` Raises KeyError for Unwritten READ Keys
+
+`Client.get(key)` does **not** return `None` when a key is registered for
+`Access.READ` but has not yet been written to `Blackboard.storage`. It raises
+`KeyError`. This has two consequences:
+
+1. **Test nodes return wrong status** — if `update()` calls `get()` on an
+   unwritten key, the `KeyError` propagates out of `update()`. If the node
+   has a broad `except Exception` block, it catches the error and returns
+   `FAILURE` — but if the `KeyError` propagates all the way to `execute_tree()`
+   and the outer `except Exception` there returns `FAILURE`, a test expecting
+   `SUCCESS` will correctly fail. However if the `KeyError` is caught somewhere
+   that swallows it silently, status can be wrong.
+
+2. **Silent node shadowing** — a more insidious variant occurred during
+   development of `SendOfferCaseManagerRoleNode`: the class body of
+   `EmitCreateCaseActivity` was accidentally embedded *inside*
+   `SendOfferCaseManagerRoleNode` (as a duplicate `__init__`, `setup`, and
+   `update()` defined later in the same class body). Python resolves to the
+   *last* definition, so the correct `update()` was silently replaced by the
+   embedded one. The embedded `setup()` only registered `case_id`, so
+   `get("case_actor_id")` never raised — it was never even called. The node
+   returned `SUCCESS` whenever `case_id` was present, masking the real logic
+   entirely.
+
+**Rules**:
+
+- Use `Blackboard.storage.get("/key")` (with the leading `/` prefix that
+  py_trees uses internally) only in tests to inspect raw storage — never in
+  production node code.
+- In production `update()`, use `self.blackboard.get(key)` knowing it will
+  raise if the key is unset. Guard with an explicit `try/except KeyError` or
+  ensure the key is always written before being read (i.e., the writing node
+  precedes the reading node in the sequence).
+- When a new node class is added to a file, **always verify class boundaries
+  with `grep -n "^class " <file>`** before committing. Python silently accepts
+  duplicate method definitions within a class; the last definition wins.

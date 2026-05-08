@@ -806,3 +806,125 @@ class TestCaseManagerRoleDelegationUseCases:
             RejectCaseManagerRoleReceivedUseCase(MagicMock(), event).execute()
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
+
+    def test_offer_case_manager_role_auto_accepts_when_trigger_given(
+        self, make_payload
+    ):
+        """OfferCaseManagerRoleReceivedUseCase auto-accepts when trigger_activity provided."""
+        from unittest.mock import MagicMock, patch
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        local_actor = as_Organization(id_=self._CASE_ACTOR_URI)
+        dl.create(local_actor)
+
+        offer = self._make_offer()
+        event = make_payload(offer)
+
+        trigger = MagicMock()
+        trigger.accept_case_manager_role.return_value = (
+            "https://example.org/activities/accept-1"
+        )
+
+        with patch(
+            "vultron.core.use_cases.triggers._helpers.add_activity_to_outbox"
+        ):
+            OfferCaseManagerRoleReceivedUseCase(
+                dl, event, trigger_activity=trigger
+            ).execute()
+
+        trigger.accept_case_manager_role.assert_called_once()
+        call_kwargs = trigger.accept_case_manager_role.call_args
+        assert call_kwargs.kwargs["offer_id"] == offer.id_
+        assert call_kwargs.kwargs["vendor_id"] == self._VENDOR_URI
+
+    def test_offer_case_manager_role_no_auto_accept_without_trigger(
+        self, make_payload
+    ):
+        """OfferCaseManagerRoleReceivedUseCase skips auto-accept when trigger_activity is None."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        offer = self._make_offer()
+        event = make_payload(offer)
+
+        # No trigger_activity — should not raise
+        OfferCaseManagerRoleReceivedUseCase(dl, event).execute()
+
+        stored = dl.get(offer.type_.value, offer.id_)
+        assert stored is not None
+
+    def test_accept_case_manager_role_sends_bootstrap_when_reporter_found(
+        self, make_payload
+    ):
+        """AcceptCaseManagerRoleReceivedUseCase sends Create(Case) to Reporter on accept."""
+        from unittest.mock import MagicMock, patch
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+        from vultron.core.models.vultron_types import VultronParticipant
+        from vultron.core.states.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        vendor = as_Organization(id_=self._VENDOR_URI)
+        reporter_id = "https://example.org/actors/reporter"
+        reporter_participant_id = f"{self._CASE_URI}/participants/reporter"
+        reporter_participant = VultronParticipant(
+            id_=reporter_participant_id,
+            attributed_to=reporter_id,
+            context=self._CASE_URI,
+            name="Reporter",
+            case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
+        )
+        case = VulnerabilityCase(id_=self._CASE_URI, name="BOOTSTRAP-TEST")
+        case.actor_participant_index[reporter_id] = reporter_participant_id
+        dl.create(vendor)
+        dl.create(reporter_participant)
+        dl.create(case)
+
+        offer = self._make_offer()
+        accept = accept_case_manager_role_activity(
+            offer, actor=self._CASE_ACTOR_URI
+        )
+        event = make_payload(accept)
+
+        trigger = MagicMock()
+        trigger.create_case.return_value = (
+            "https://example.org/activities/create-1",
+            {},
+        )
+
+        with patch(
+            "vultron.core.use_cases.triggers._helpers.add_activity_to_outbox"
+        ):
+            AcceptCaseManagerRoleReceivedUseCase(
+                dl, event, trigger_activity=trigger
+            ).execute()
+
+        trigger.create_case.assert_called_once()
+        call_kwargs = trigger.create_case.call_args
+        assert call_kwargs.kwargs.get("to") == [reporter_id] or (
+            len(call_kwargs.args) >= 3 and reporter_id in call_kwargs.args
+        )
+
+    def test_accept_case_manager_role_no_bootstrap_without_trigger(
+        self, make_payload
+    ):
+        """AcceptCaseManagerRoleReceivedUseCase skips bootstrap when trigger_activity is None."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        offer = self._make_offer()
+        accept = accept_case_manager_role_activity(
+            offer, actor=self._CASE_ACTOR_URI
+        )
+        event = make_payload(accept)
+
+        # No trigger_activity — should not raise
+        AcceptCaseManagerRoleReceivedUseCase(dl, event).execute()
+
+        stored = dl.get(accept.type_.value, accept.id_)
+        assert stored is not None

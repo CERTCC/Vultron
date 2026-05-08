@@ -55,6 +55,10 @@ from vultron.wire.as2.factories import (
     rm_invite_to_case_activity,
     rm_submit_report_activity,
 )
+from vultron.wire.as2.factories.case import (
+    accept_case_manager_role_activity,
+    offer_case_manager_role_activity,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Add,
     as_Create,
@@ -230,10 +234,11 @@ class TriggerActivityAdapter:
         self,
         case_id: str,
         actor: str,
+        to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist a ``Create(VulnerabilityCase)`` activity."""
         case = cast(VulnerabilityCase, self._dl.read(case_id))
-        activity = create_case_activity(case=case, actor=actor)
+        activity = create_case_activity(case=case, actor=actor, to=to)
         try:
             self._dl.create(activity)
         except ValueError:
@@ -471,6 +476,71 @@ class TriggerActivityAdapter:
             logger.warning(
                 "add_participant_status_to_participant: activity '%s' already"
                 " exists — skipping",
+                activity.id_,
+            )
+        return activity.id_
+
+    # -----------------------------------------------------------------------
+    # Case Actor / CASE_MANAGER delegation
+    # -----------------------------------------------------------------------
+
+    def offer_case_manager_role(
+        self,
+        case_id: str,
+        participant_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> str:
+        """Create and persist an ``Offer(VulnerabilityCase, target=CaseParticipant)``
+        CASE_MANAGER delegation activity.
+        """
+        case = cast(VulnerabilityCase, self._dl.read(case_id))
+        participant = cast(CaseParticipant, self._dl.read(participant_id))
+        activity = offer_case_manager_role_activity(
+            case=case, target=participant, actor=actor, to=to
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "offer_case_manager_role: activity '%s' already exists"
+                " — skipping",
+                activity.id_,
+            )
+        return activity.id_
+
+    def accept_case_manager_role(
+        self,
+        offer_id: str,
+        case_id: str,
+        participant_id: str,
+        vendor_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> str:
+        """Create and persist an ``Accept(_OfferCaseManagerRoleActivity)``.
+
+        Ephemerally reconstructs the original Offer from ``offer_id``,
+        ``case_id``, ``participant_id``, and ``vendor_id`` so that
+        ``Accept.object_`` is a typed ``_OfferCaseManagerRoleActivity``.
+        """
+        case = cast(VulnerabilityCase, self._dl.read(case_id))
+        participant = cast(CaseParticipant, self._dl.read(participant_id))
+        offer = offer_case_manager_role_activity(
+            case=case,
+            target=participant,
+            id_=offer_id,
+            actor=vendor_id,
+        )
+        activity = accept_case_manager_role_activity(
+            offer=offer, actor=actor, to=to
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "accept_case_manager_role: activity '%s' already exists"
+                " — skipping",
                 activity.id_,
             )
         return activity.id_

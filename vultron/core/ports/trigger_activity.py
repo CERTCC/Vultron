@@ -144,6 +144,7 @@ class TriggerActivityPort(Protocol):
         self,
         case_id: str,
         actor: str,
+        to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist a ``Create(VulnerabilityCase)`` activity.
 
@@ -274,6 +275,47 @@ class TriggerActivityPort(Protocol):
         """Create and persist an ``Add(ParticipantStatus, CaseParticipant)`` activity.
 
         Returns the activity ID (callers only need the ID for outbox queueing).
+        """
+        ...
+
+    # -----------------------------------------------------------------------
+    # Case Actor / CASE_MANAGER delegation
+    # -----------------------------------------------------------------------
+
+    def offer_case_manager_role(
+        self,
+        case_id: str,
+        participant_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> str:
+        """Create and persist an ``Offer(VulnerabilityCase, target=CaseParticipant)``
+        CASE_MANAGER delegation activity.
+
+        ``participant_id`` must refer to an existing ``CaseParticipant`` with
+        ``CASE_MANAGER`` role (the Case Actor participant).
+
+        Returns the activity ID.
+        """
+        ...
+
+    def accept_case_manager_role(
+        self,
+        offer_id: str,
+        case_id: str,
+        participant_id: str,
+        vendor_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> str:
+        """Create and persist an ``Accept(_OfferCaseManagerRoleActivity)``.
+
+        Ephemerally reconstructs the original Offer (using ``offer_id``,
+        ``case_id``, ``participant_id``, and ``vendor_id``) before building
+        the Accept so that ``Accept.object_`` is a typed
+        ``_OfferCaseManagerRoleActivity``, not a bare string IRI.
+
+        Returns the activity ID.
         """
         ...
 
