@@ -269,30 +269,63 @@ class CreateCaseActorNode(DataLayerAction):
     The CaseActor is an ActivityStreams Service that manages case
     communications (inbox/outbox).
 
+    When ``case_id`` is not supplied at construction time the node reads
+    ``case_id`` from the blackboard (written by a preceding
+    ``CreateCaseNode``).  After the CaseActor is created its ID is written
+    to the blackboard as ``case_actor_id`` so that subsequent nodes (e.g.
+    ``SendOfferCaseManagerRoleNode``) can address it without a DataLayer
+    scan.
+
     Per specs/case-management.yaml CM-02-001.
     """
 
-    def __init__(self, case_id: str, actor_id: str, name: str | None = None):
+    def __init__(
+        self,
+        case_id: str | None = None,
+        actor_id: str = "",
+        name: str | None = None,
+    ):
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.actor_id = actor_id
+        self._case_id_arg = case_id
+        # actor_id from constructor is overridden by blackboard in initialise()
+
+    def setup(self, **kwargs: Any) -> None:
+        """Register blackboard keys including optional case_id read."""
+        super().setup(**kwargs)
+        if self._case_id_arg is None:
+            self.blackboard.register_key(
+                key="case_id", access=py_trees.common.Access.READ
+            )
+        self.blackboard.register_key(
+            key="case_actor_id", access=py_trees.common.Access.WRITE
+        )
 
     def update(self) -> Status:
         if self.datalayer is None:
             self.logger.error(f"{self.name}: DataLayer not available")
             return Status.FAILURE
 
+        case_id = self._case_id_arg
+        if case_id is None:
+            case_id = self.blackboard.get("case_id")
+        if not case_id:
+            self.logger.error(
+                f"{self.name}: case_id not available from constructor"
+                " or blackboard"
+            )
+            return Status.FAILURE
+
         try:
             case_actor = VultronCaseActor(
-                name=f"CaseActor for {self.case_id}",
+                name=f"CaseActor for {case_id}",
                 attributed_to=self.actor_id,
-                context=self.case_id,
+                context=case_id,
             )
             try:
                 self.datalayer.create(case_actor)
                 self.logger.info(
                     f"{self.name}: Created CaseActor {case_actor.id_}"
-                    f" for case {self.case_id}"
+                    f" for case {case_id}"
                 )
             except ValueError as e:
                 self.logger.warning(
@@ -303,7 +336,10 @@ class CreateCaseActorNode(DataLayerAction):
             # Register the CaseActor as a CaseActorParticipant so receivers
             # can extract trusted_case_actor_id from the case snapshot during
             # bootstrap trust establishment (CBT-01-003).
-            self._register_case_actor_participant(case_actor.id_)
+            self._register_case_actor_participant(case_id, case_actor.id_)
+
+            # Publish case_actor_id to the blackboard for downstream nodes.
+            self.blackboard.case_actor_id = case_actor.id_
 
             return Status.SUCCESS
 
@@ -311,7 +347,9 @@ class CreateCaseActorNode(DataLayerAction):
             self.logger.error(f"{self.name}: Error creating CaseActor: {e}")
             return Status.FAILURE
 
-    def _register_case_actor_participant(self, case_actor_id: str) -> None:
+    def _register_case_actor_participant(
+        self, case_id: str, case_actor_id: str
+    ) -> None:
         """Add a VultronParticipant with COORDINATOR+CASE_MANAGER roles to the case.
 
         Uses core-layer ``VultronParticipant`` with both roles set so the
@@ -321,15 +359,15 @@ class CreateCaseActorNode(DataLayerAction):
         if self.datalayer is None:
             return
 
-        case = self.datalayer.read(self.case_id)
+        case = self.datalayer.read(case_id)
         if not is_case_model(case):
             self.logger.warning(
-                f"{self.name}: Case '{self.case_id}' not found; "
+                f"{self.name}: Case '{case_id}' not found; "
                 "cannot register CaseActor participant"
             )
             return
 
-        participant_id = f"{self.case_id}/participants/case-actor"
+        participant_id = f"{case_id}/participants/case-actor"
         existing = self.datalayer.read(participant_id)
         if existing is not None:
             return
@@ -337,8 +375,8 @@ class CreateCaseActorNode(DataLayerAction):
         participant = VultronParticipant(
             id_=participant_id,
             attributed_to=case_actor_id,
-            context=self.case_id,
-            name=f"CaseActor for {self.case_id}",
+            context=case_id,
+            name=f"CaseActor for {case_id}",
             case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
         )
         try:
@@ -351,7 +389,7 @@ class CreateCaseActorNode(DataLayerAction):
         self.datalayer.save(case)
         self.logger.info(
             f"{self.name}: Registered CaseActor participant '{participant_id}'"
-            f" (roles: COORDINATOR, CASE_MANAGER) for case '{self.case_id}'"
+            f" (roles: COORDINATOR, CASE_MANAGER) for case '{case_id}'"
         )
 
 
@@ -432,6 +470,88 @@ class EmitCreateCaseActivity(DataLayerAction):
         except Exception as e:
             self.logger.error(
                 f"{self.name}: Error creating CreateCaseActivity activity: {e}"
+            )
+            return Status.FAILURE
+
+
+class SendOfferCaseManagerRoleNode(DataLayerAction):
+    """Send an Offer(VulnerabilityCase, target=CaseParticipant) to the Case Actor.
+
+    Reads ``case_id`` and ``case_actor_id`` from the blackboard (written by
+    ``CreateCaseNode`` and ``CreateCaseActorNode`` respectively), builds the
+    deterministic participant ID, then calls
+    ``trigger_activity_factory.offer_case_manager_role`` to create and persist
+    the Offer activity.  Writes ``activity_id`` to the blackboard so that the
+    following ``UpdateActorOutbox`` node can flush it to the actor's outbox.
+
+    Per DEMOMA-08-002, DEMOMA-08-003; Issue #469.
+    """
+
+    def __init__(self, name: str | None = None):
+        super().__init__(name=name or self.__class__.__name__)
+
+    def setup(self, **kwargs: Any) -> None:
+        """Register blackboard keys: read case_id + case_actor_id, write activity_id."""
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="case_actor_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="activity_id", access=py_trees.common.Access.WRITE
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                f"{self.name}: DataLayer or actor_id not available"
+            )
+            return Status.FAILURE
+
+        if self.trigger_activity_factory is None:
+            self.logger.error(
+                f"{self.name}: trigger_activity_factory not available"
+            )
+            return Status.FAILURE
+
+        case_id = self.blackboard.get("case_id")
+        case_actor_id = self.blackboard.get("case_actor_id")
+
+        if not case_id or not case_actor_id:
+            self.logger.error(
+                f"{self.name}: case_id or case_actor_id missing from"
+                " blackboard"
+            )
+            return Status.FAILURE
+
+        # The Case Actor participant ID is deterministic (set by CreateCaseActorNode).
+        participant_id = f"{case_id}/participants/case-actor"
+
+        try:
+            activity_id = (
+                self.trigger_activity_factory.offer_case_manager_role(
+                    case_id=case_id,
+                    participant_id=participant_id,
+                    actor=self.actor_id,
+                    to=[case_actor_id],
+                )
+            )
+            self.blackboard.activity_id = activity_id
+            self.logger.info(
+                "%s: Queued Offer(CaseManagerRole) '%s' to Case Actor '%s'"
+                " for case '%s'",
+                self.name,
+                activity_id,
+                case_actor_id,
+                case_id,
+            )
+            return Status.SUCCESS
+
+        except Exception as e:
+            self.logger.error(
+                f"{self.name}: Error sending Offer(CaseManagerRole): {e}"
             )
             return Status.FAILURE
 

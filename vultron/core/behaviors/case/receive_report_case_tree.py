@@ -40,6 +40,9 @@ Structure (CM-14 canonical order):
        ├─ CreateCaseActivity             # Queue Create(Case) BEFORE reporter add
        ├─ UpdateActorOutbox              # Flush Create(Case) to outbox
        ├─ CreateCaseParticipantNode      # Reporter participant (RM.ACCEPTED); seed SIGNATORY
+       ├─ CreateCaseActorNode            # Spawn Case Actor; write case_actor_id
+       ├─ SendOfferCaseManagerRoleNode   # Offer CASE_MANAGER role to Case Actor
+       ├─ UpdateActorOutbox (Offer)      # Flush Offer to outbox
        └─ CommitCaseLogEntryNode         # Log entry → Announce fan-out (SYNC-02-002)
 
 Note: ``CreateCaseActivity`` and ``UpdateActorOutbox`` are intentionally placed
@@ -68,9 +71,11 @@ import py_trees
 from vultron.core.behaviors.case.nodes import (
     CheckCaseExistsForReport,
     CommitCaseLogEntryNode,
+    CreateCaseActorNode,
     CreateCaseOwnerParticipant,
     CreateCaseParticipantNode,
     InitializeDefaultEmbargoNode,
+    SendOfferCaseManagerRoleNode,
     UpdateActorOutbox,
 )
 from vultron.core.behaviors.report.nodes import (
@@ -164,6 +169,13 @@ def create_receive_report_case_tree(
                 roles=[CVDRole.FINDER, CVDRole.REPORTER],
                 report_id=report_id,
             ),
+            # Spawn the Case Actor entity after all participants are registered
+            # so the Offer can reference a complete case snapshot (DEMOMA-08-002).
+            # CreateCaseActorNode reads case_id from the blackboard and writes
+            # case_actor_id for SendOfferCaseManagerRoleNode.
+            CreateCaseActorNode(),
+            SendOfferCaseManagerRoleNode(),
+            UpdateActorOutbox(name="UpdateActorOutboxOffer"),
             # case_id is not known at build time; CreateCaseNode writes it to
             # the blackboard so CommitCaseLogEntryNode can read it here.
             CommitCaseLogEntryNode(),

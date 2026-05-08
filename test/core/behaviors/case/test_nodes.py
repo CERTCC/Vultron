@@ -586,3 +586,171 @@ class TestRecordCaseCreationEvents:
         event_types = [e.event_type for e in stored_case.events]
         assert "offer_received" not in event_types
         assert "case_created" in event_types
+
+
+# ---------------------------------------------------------------------------
+# CreateCaseActorNode (blackboard variant) tests
+# ---------------------------------------------------------------------------
+
+
+class TestCreateCaseActorNodeBlackboard:
+    """CreateCaseActorNode reads case_id from blackboard when not given at construction."""
+
+    def test_creates_case_actor_from_blackboard_case_id(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        actor_id: str,
+        case_obj: VultronCase,
+    ) -> None:
+        """CreateCaseActorNode() (no args) succeeds and creates a CaseActor entity."""
+        from vultron.core.behaviors.case.nodes import CreateCaseActorNode
+
+        result = bt_scenario.run(
+            CreateCaseActorNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+        )
+        bt_scenario.assert_success(result)
+
+        # A Service (VultronCaseActor) should exist in the DataLayer.
+        services = list(bt_scenario.dl.list_objects("Service"))
+        case_actor_services = [
+            s for s in services if getattr(s, "context", None) == case_obj.id_
+        ]
+        assert len(case_actor_services) >= 1
+
+    def test_writes_case_actor_id_to_blackboard(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        actor_id: str,
+        case_obj: VultronCase,
+    ) -> None:
+        """CreateCaseActorNode() writes case_actor_id to the blackboard."""
+        import py_trees
+        from vultron.core.behaviors.case.nodes import CreateCaseActorNode
+
+        bt_scenario.run(
+            CreateCaseActorNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+        )
+
+        # py_trees stores global keys with a leading "/" prefix.
+        stored = py_trees.blackboard.Blackboard.storage.get("/case_actor_id")
+        assert stored is not None
+        assert isinstance(stored, str)
+
+    def test_registers_case_actor_participant(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        actor_id: str,
+        case_obj: VultronCase,
+    ) -> None:
+        """CreateCaseActorNode registers a CASE_MANAGER participant in the case."""
+        from vultron.core.behaviors.case.nodes import CreateCaseActorNode
+
+        bt_scenario.run(
+            CreateCaseActorNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+        )
+
+        expected_participant_id = f"{case_obj.id_}/participants/case-actor"
+        participant = bt_scenario.dl.read(expected_participant_id)
+        assert participant is not None
+
+    def test_fails_without_case_id(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        actor_id: str,
+    ) -> None:
+        """CreateCaseActorNode() fails when case_id is not in blackboard."""
+        import py_trees
+        from vultron.core.behaviors.case.nodes import CreateCaseActorNode
+
+        result = bt_scenario.run(
+            CreateCaseActorNode(),
+            actor_id=actor_id,
+            # No case_id supplied
+        )
+        assert result.status == py_trees.common.Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# SendOfferCaseManagerRoleNode tests
+# ---------------------------------------------------------------------------
+
+
+class TestSendOfferCaseManagerRoleNode:
+    """SendOfferCaseManagerRoleNode queues Offer(CaseManagerRole) to Case Actor."""
+
+    def test_queues_offer_and_writes_activity_id(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        actor_id: str,
+        case_obj: VultronCase,
+    ) -> None:
+        """SendOfferCaseManagerRoleNode writes activity_id to blackboard after Offer."""
+        import py_trees
+        from vultron.core.behaviors.case.nodes import (
+            CreateCaseActorNode,
+            SendOfferCaseManagerRoleNode,
+        )
+
+        # Run CreateCaseActorNode first to populate the DataLayer with the
+        # Case Actor entity and participant.
+        bt_scenario.run(
+            CreateCaseActorNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+        )
+
+        # Retrieve the case_actor_id that was written to the blackboard.
+        case_actor_id = py_trees.blackboard.Blackboard.storage.get(
+            "/case_actor_id"
+        )
+        assert (
+            case_actor_id is not None
+        ), "CreateCaseActorNode must write case_actor_id"
+
+        # Now run SendOfferCaseManagerRoleNode with the needed blackboard context.
+        result = bt_scenario.run(
+            SendOfferCaseManagerRoleNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+            case_actor_id=case_actor_id,
+        )
+        bt_scenario.assert_success(result)
+
+        activity_id = py_trees.blackboard.Blackboard.storage.get(
+            "/activity_id"
+        )
+        assert activity_id is not None
+
+    def test_fails_without_case_actor_id_in_blackboard(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        actor_id: str,
+        case_obj: VultronCase,
+    ) -> None:
+        """SendOfferCaseManagerRoleNode fails if case_actor_id is not in blackboard."""
+        import py_trees
+        from vultron.core.behaviors.case.nodes import (
+            SendOfferCaseManagerRoleNode,
+        )
+
+        # Provide case_id but no case_actor_id — the participant exists in DL
+        # but the blackboard is missing the case_actor_id key.
+        result = bt_scenario.run(
+            SendOfferCaseManagerRoleNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+            # case_actor_id intentionally omitted
+        )
+        assert result.status == py_trees.common.Status.FAILURE
