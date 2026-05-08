@@ -253,7 +253,9 @@ to relevant tests and design notes.
 
 1. `format-code` — Black + flake8
 2. `run-linters` — all four linters (Black, flake8, mypy, pyright); all MUST pass
-3. `run-tests` — unit suite once; read output
+3. `run-tests` — unit suite once; read output.
+   **If any `vultron/demo/` or `test/demo/` files were modified**, also run
+   the full suite (CI always does): `uv run pytest -m "" --tb=short 2>&1 | tail -5`
 4. `build-docs` — only when `docs/` files were modified
 5. `commit` skill — include Co-authored-by trailer
 
@@ -361,6 +363,15 @@ provides unique ID constraints. Report handlers (`create_report`,
   `in_reply_to`) MUST be converted to `str | None` using `_get_id(field)` before
   assigning to a `NonEmptyString | None` snapshot field — passing the raw AS2
   object directly is a type error that mypy will catch only after extraction.
+- **CI Runs All Tests; Default Local Run Omits Integration** — `pytest` (default
+  local, via `addopts`) excludes `@pytest.mark.integration` tests. CI always
+  runs `pytest -m ""` which includes them. Demo scenario files
+  (`vultron/demo/scenario/`) contain assertion functions (e.g.,
+  `verify_vendor_case_state`) with hardcoded participant counts and state
+  expectations that break silently in the unit suite but fail in CI. Whenever
+  you touch any file under `vultron/demo/` or `test/demo/`, you MUST run the
+  full suite before committing: `uv run pytest -m "" --tb=short 2>&1 | tail -5`.
+  See the Commit Workflow section above.
 
 > **Parallelism and Single-Agent Testing** has moved to `test/AGENTS.md`.
 >
