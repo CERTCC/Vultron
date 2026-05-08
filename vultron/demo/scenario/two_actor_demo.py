@@ -661,9 +661,10 @@ def verify_vendor_case_state(
     )
 
     participant_count = len(final_case.case_participants)
-    if participant_count != 2:
+    if participant_count != 3:
         raise AssertionError(
-            f"Expected 2 case participants, found {participant_count}"
+            f"Expected 3 case participants (vendor + finder + case-actor),"
+            f" found {participant_count}"
         )
 
     report_ids = [
