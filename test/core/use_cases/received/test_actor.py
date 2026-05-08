@@ -760,10 +760,29 @@ class TestCaseManagerRoleDelegationUseCases:
         stored = dl.get(offer.type_.value, offer.id_)
         assert stored is not None
 
+    def test_accept_case_manager_role_persists_acceptance(self, make_payload):
+        """AcceptCaseManagerRoleReceivedUseCase persists the acceptance activity."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        offer = self._make_offer()
+        accept = accept_case_manager_role_activity(
+            offer, actor=self._CASE_ACTOR_URI
+        )
+        event = make_payload(accept)
+
+        AcceptCaseManagerRoleReceivedUseCase(dl, event).execute()
+
+        stored = dl.get(accept.type_.value, accept.id_)
+        assert stored is not None
+
     def test_accept_case_manager_role_logs_acceptance(
         self, caplog, make_payload
     ):
         """AcceptCaseManagerRoleReceivedUseCase logs acceptance without raising."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
         offer = self._make_offer()
         accept = accept_case_manager_role_activity(
             offer, actor=self._CASE_ACTOR_URI
@@ -771,7 +790,7 @@ class TestCaseManagerRoleDelegationUseCases:
         event = make_payload(accept)
 
         with caplog.at_level(logging.INFO):
-            AcceptCaseManagerRoleReceivedUseCase(MagicMock(), event).execute()
+            AcceptCaseManagerRoleReceivedUseCase(dl, event).execute()
 
         assert any("accepted" in r.message.lower() for r in caplog.records)
 

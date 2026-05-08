@@ -64,7 +64,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_ActorRef
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipantRef
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCase,
@@ -342,7 +342,7 @@ def rm_close_case_activity(
 
 def offer_case_manager_role_activity(
     case: VulnerabilityCase,
-    target: CaseParticipantRef | None = None,
+    target: CaseParticipant,
     **kwargs,
 ) -> as_Offer:
     """Build an Offer(VulnerabilityCase, target=CaseParticipant) — CASE_MANAGER delegation.
@@ -352,14 +352,15 @@ def offer_case_manager_role_activity(
     delegated to the Case Actor participant.
 
     The case MUST be passed as an inline ``VulnerabilityCase`` object and the
-    target MUST be the ``CaseParticipant`` record for the Case Actor so that
-    pattern matching can distinguish this activity from a case-ownership
-    transfer (see DEMOMA-08-002, DEMOMA-08-003).
+    ``target`` MUST be an inline ``CaseParticipant`` object (not a bare string
+    IRI) so that pattern matching can distinguish this activity from a
+    case-ownership transfer (see DEMOMA-08-002, DEMOMA-08-003).
 
     Args:
         case: The ``VulnerabilityCase`` for which management is being delegated.
         target: The ``CaseParticipant`` record of the Case Actor being delegated
-            the CASE_MANAGER role.
+            the CASE_MANAGER role.  Must be an inline typed object — bare string
+            IRIs are rejected.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
 
@@ -368,8 +369,14 @@ def offer_case_manager_role_activity(
         Case Actor participant.
 
     Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
+        VultronActivityConstructionError: If ``target`` is not an inline
+            ``CaseParticipant`` or if Pydantic validation fails.
     """
+    if not isinstance(target, CaseParticipant):
+        raise VultronActivityConstructionError(
+            "offer_case_manager_role_activity: target must be an inline"
+            " CaseParticipant object, not a bare string IRI or None"
+        )
     try:
         return _OfferCaseManagerRoleActivity(
             object_=case, target=target, **kwargs

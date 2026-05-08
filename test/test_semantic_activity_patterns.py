@@ -536,9 +536,42 @@ def test_offer_case_manager_role_rejects_string_case():
     An inline VulnerabilityCase object is required so the recipient can
     distinguish this activity from other Offer types during pattern matching.
     """
+    participant = _make_case_actor_participant()
     with pytest.raises(VultronActivityConstructionError):
         offer_case_manager_role_activity(
             "urn:uuid:some-case-id",  # type: ignore[arg-type]
+            participant,
+            actor=_VENDOR_URI,
+        )
+
+
+def test_offer_case_manager_role_rejects_none_target():
+    """offer_case_manager_role_activity must reject a None target.
+
+    A missing target makes this activity indistinguishable from
+    OFFER_CASE_OWNERSHIP_TRANSFER during semantic pattern matching.
+    """
+    case = _make_case_manager_case()
+    with pytest.raises(VultronActivityConstructionError):
+        offer_case_manager_role_activity(
+            case,
+            None,  # type: ignore[arg-type]
+            actor=_VENDOR_URI,
+        )
+
+
+def test_offer_case_manager_role_rejects_string_target():
+    """offer_case_manager_role_activity must reject a bare string IRI as target.
+
+    A string target is not a typed CaseParticipant and will not match the
+    CASE_PARTICIPANT constraint in the ActivityPattern, causing the activity
+    to be misclassified as OFFER_CASE_OWNERSHIP_TRANSFER.
+    """
+    case = _make_case_manager_case()
+    with pytest.raises(VultronActivityConstructionError):
+        offer_case_manager_role_activity(
+            case,
+            _PARTICIPANT_URI,  # type: ignore[arg-type]
             actor=_VENDOR_URI,
         )
 

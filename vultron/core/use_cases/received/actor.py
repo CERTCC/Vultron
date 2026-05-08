@@ -184,15 +184,17 @@ class RejectSuggestActorToCaseReceivedUseCase:
 
 
 class OfferCaseManagerRoleReceivedUseCase:
-    """Process an incoming CASE_MANAGER role delegation offer.
+    """Skeleton handler: persist an incoming CASE_MANAGER role delegation offer.
 
-    The Case Actor verifies that the sender holds ``CASE_OWNER`` on the case
-    and that itself is listed as a ``CASE_MANAGER`` participant, then persists
-    the offer and sends an ``Accept`` response.
+    Idempotently stores the incoming Offer activity for record-keeping and logs
+    receipt.  Distinct from ``OfferCaseOwnershipTransferReceivedUseCase``: the
+    offering actor retains ``CASE_OWNER``; only operational management authority
+    is delegated.  See DEMOMA-08-002, DEMOMA-08-003.
 
-    Distinct from ``OfferCaseOwnershipTransferReceivedUseCase``: the offering
-    actor retains ``CASE_OWNER``; only operational management authority is
-    delegated.  See DEMOMA-08-002, DEMOMA-08-003.
+    .. note::
+        Full verification (sender holds ``CASE_OWNER``, Case Actor is a valid
+        participant) and the outbound ``Accept`` response are deferred to the
+        BT-based implementation tracked in Issue #467.
     """
 
     def __init__(
@@ -222,11 +224,15 @@ class OfferCaseManagerRoleReceivedUseCase:
 
 
 class AcceptCaseManagerRoleReceivedUseCase:
-    """Process an Accept(Offer(VulnerabilityCase)) for CASE_MANAGER delegation.
+    """Skeleton handler: persist an incoming CASE_MANAGER role delegation acceptance.
 
     The offering actor (Vendor) receives this acceptance from the Case Actor.
-    Persists the acceptance for record-keeping.  The Vendor's subsequent step
-    is the trust bootstrap (send ``Create(VulnerabilityCase)`` to Reporter).
+    Idempotently stores the Accept activity for record-keeping and logs receipt.
+
+    .. note::
+        The trust-bootstrap step (send ``Create(VulnerabilityCase)`` to
+        Reporter) is deferred to the BT-based implementation tracked in
+        Issue #467.
     """
 
     def __init__(
@@ -239,6 +245,14 @@ class AcceptCaseManagerRoleReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
+        _idempotent_create(
+            self._dl,
+            request.activity_type,
+            request.activity_id,
+            request.activity,
+            "AcceptCaseManagerRole",
+            request.activity_id,
+        )
         logger.info(
             "AcceptCaseManagerRoleReceived: actor '%s' accepted CASE_MANAGER"
             " role delegation (inner case: '%s')",

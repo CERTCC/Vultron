@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# pyright: reportGeneralTypeIssues=false
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -33,7 +34,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_ActorRef
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipantRef
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCase,
@@ -187,7 +188,7 @@ class _OfferCaseManagerRoleActivity(as_Offer):
     transfer (which carries no typed CaseParticipant target).
 
     object_: VulnerabilityCase (inline — not a bare string ID)
-    target: CaseParticipantRef — the Case Actor's participant record
+    target: CaseParticipant — the Case Actor's participant record
 
     See DEMOMA-08-002, DEMOMA-08-003.
     """
@@ -195,7 +196,9 @@ class _OfferCaseManagerRoleActivity(as_Offer):
     object_: VulnerabilityCase = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: CaseParticipantRef = None
+    target: CaseParticipant = Field(
+        ..., validation_alias="target", serialization_alias="target"
+    )
 
 
 class _AcceptCaseManagerRoleActivity(as_Accept):

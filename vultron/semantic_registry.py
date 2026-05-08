@@ -419,6 +419,7 @@ SEMANTIC_REGISTRY: list[SemanticEntry] = [
         event_class=AcceptCaseManagerRoleReceivedEvent,
         use_case_class=AcceptCaseManagerRoleReceivedUseCase,
         wire_activity_class=_AcceptCaseManagerRoleActivity,
+        include_activity=True,
     ),
     SemanticEntry(
         semantics=MessageSemantics.REJECT_CASE_MANAGER_ROLE,
