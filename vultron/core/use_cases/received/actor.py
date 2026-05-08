@@ -4,12 +4,15 @@ import logging
 from typing import TYPE_CHECKING
 
 from vultron.core.models.events.actor import (
+    AcceptCaseManagerRoleReceivedEvent,
     AcceptCaseOwnershipTransferReceivedEvent,
     AcceptInviteActorToCaseReceivedEvent,
     AcceptSuggestActorToCaseReceivedEvent,
     AnnounceVulnerabilityCaseReceivedEvent,
     InviteActorToCaseReceivedEvent,
+    OfferCaseManagerRoleReceivedEvent,
     OfferCaseOwnershipTransferReceivedEvent,
+    RejectCaseManagerRoleReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
     RejectSuggestActorToCaseReceivedEvent,
@@ -177,6 +180,95 @@ class RejectSuggestActorToCaseReceivedUseCase:
             "Actor '%s' rejected recommendation to add actor '%s' to case",
             request.actor_id,
             request.suggested_actor_id,
+        )
+
+
+class OfferCaseManagerRoleReceivedUseCase:
+    """Process an incoming CASE_MANAGER role delegation offer.
+
+    The Case Actor verifies that the sender holds ``CASE_OWNER`` on the case
+    and that itself is listed as a ``CASE_MANAGER`` participant, then persists
+    the offer and sends an ``Accept`` response.
+
+    Distinct from ``OfferCaseOwnershipTransferReceivedUseCase``: the offering
+    actor retains ``CASE_OWNER``; only operational management authority is
+    delegated.  See DEMOMA-08-002, DEMOMA-08-003.
+    """
+
+    def __init__(
+        self,
+        dl: CasePersistence,
+        request: OfferCaseManagerRoleReceivedEvent,
+    ) -> None:
+        self._dl = dl
+        self._request: OfferCaseManagerRoleReceivedEvent = request
+
+    def execute(self) -> None:
+        request = self._request
+        _idempotent_create(
+            self._dl,
+            request.activity_type,
+            request.activity_id,
+            request.activity,
+            "OfferCaseManagerRole",
+            request.activity_id,
+        )
+        logger.info(
+            "OfferCaseManagerRoleReceived: actor '%s' offered CASE_MANAGER"
+            " role delegation for activity '%s'",
+            request.actor_id,
+            request.activity_id,
+        )
+
+
+class AcceptCaseManagerRoleReceivedUseCase:
+    """Process an Accept(Offer(VulnerabilityCase)) for CASE_MANAGER delegation.
+
+    The offering actor (Vendor) receives this acceptance from the Case Actor.
+    Persists the acceptance for record-keeping.  The Vendor's subsequent step
+    is the trust bootstrap (send ``Create(VulnerabilityCase)`` to Reporter).
+    """
+
+    def __init__(
+        self,
+        dl: CasePersistence,
+        request: AcceptCaseManagerRoleReceivedEvent,
+    ) -> None:
+        self._dl = dl
+        self._request: AcceptCaseManagerRoleReceivedEvent = request
+
+    def execute(self) -> None:
+        request = self._request
+        logger.info(
+            "AcceptCaseManagerRoleReceived: actor '%s' accepted CASE_MANAGER"
+            " role delegation (inner case: '%s')",
+            request.actor_id,
+            request.inner_object_id,
+        )
+
+
+class RejectCaseManagerRoleReceivedUseCase:
+    """Process a Reject(Offer(VulnerabilityCase)) for CASE_MANAGER delegation.
+
+    The offering actor (Vendor) receives this rejection from the Case Actor.
+    Logs a warning so the operator can investigate.
+    """
+
+    def __init__(
+        self,
+        dl: CasePersistence,
+        request: RejectCaseManagerRoleReceivedEvent,
+    ) -> None:
+        self._dl = dl
+        self._request: RejectCaseManagerRoleReceivedEvent = request
+
+    def execute(self) -> None:
+        request = self._request
+        logger.warning(
+            "RejectCaseManagerRoleReceived: actor '%s' rejected CASE_MANAGER"
+            " role delegation offer '%s'",
+            request.actor_id,
+            request.object_id,
         )
 
 

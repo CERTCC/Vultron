@@ -33,6 +33,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_ActorRef
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipantRef
 from vultron.wire.as2.vocab.objects.case_status import CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCase,
@@ -172,6 +173,51 @@ class _RmCloseCaseActivity(as_Leave):
     """
 
     object_: VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+class _OfferCaseManagerRoleActivity(as_Offer):
+    """Vendor offers the CASE_MANAGER role to a Case Actor participant.
+
+    Distinct from ``_OfferCaseOwnershipTransferActivity``: the offering actor
+    retains ``CASE_OWNER``; only operational management authority is delegated.
+    The target MUST be the ``CaseParticipant`` record for the Case Actor so
+    that pattern matching can distinguish this activity from a case-ownership
+    transfer (which carries no typed CaseParticipant target).
+
+    object_: VulnerabilityCase (inline — not a bare string ID)
+    target: CaseParticipantRef — the Case Actor's participant record
+
+    See DEMOMA-08-002, DEMOMA-08-003.
+    """
+
+    object_: VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+    target: CaseParticipantRef = None
+
+
+class _AcceptCaseManagerRoleActivity(as_Accept):
+    """Case Actor accepts the CASE_MANAGER role delegation offer.
+
+    - object_: the ``_OfferCaseManagerRoleActivity`` being accepted (inline
+      typed object required — bare string IDs are rejected at construction time)
+    """
+
+    object_: _OfferCaseManagerRoleActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+class _RejectCaseManagerRoleActivity(as_Reject):
+    """Case Actor rejects the CASE_MANAGER role delegation offer.
+
+    - object_: the ``_OfferCaseManagerRoleActivity`` being rejected (inline
+      typed object required — bare string IDs are rejected at construction time)
+    """
+
+    object_: _OfferCaseManagerRoleActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
 

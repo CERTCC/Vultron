@@ -45,6 +45,38 @@ class RejectSuggestActorToCaseReceivedEvent(
     )
 
 
+class OfferCaseManagerRoleReceivedEvent(VultronEvent):
+    """Vendor offered the CASE_MANAGER role to a Case Actor participant.
+
+    Distinct from ``OfferCaseOwnershipTransferReceivedEvent``: the offering
+    actor retains ``CASE_OWNER``; only operational management authority is
+    delegated.  See DEMOMA-08-002, DEMOMA-08-003.
+    """
+
+    semantic_type: Literal[MessageSemantics.OFFER_CASE_MANAGER_ROLE] = (
+        MessageSemantics.OFFER_CASE_MANAGER_ROLE
+    )
+    activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
+
+
+class AcceptCaseManagerRoleReceivedEvent(
+    _InnerObjectIsCaseMixin, VultronEvent
+):
+    """Case Actor accepted the CASE_MANAGER role delegation offer."""
+
+    semantic_type: Literal[MessageSemantics.ACCEPT_CASE_MANAGER_ROLE] = (
+        MessageSemantics.ACCEPT_CASE_MANAGER_ROLE
+    )
+
+
+class RejectCaseManagerRoleReceivedEvent(_ObjectIsOfferMixin, VultronEvent):
+    """Case Actor rejected the CASE_MANAGER role delegation offer."""
+
+    semantic_type: Literal[MessageSemantics.REJECT_CASE_MANAGER_ROLE] = (
+        MessageSemantics.REJECT_CASE_MANAGER_ROLE
+    )
+
+
 class OfferCaseOwnershipTransferReceivedEvent(VultronEvent):
     """Actor offered ownership of a VulnerabilityCase to another actor."""
 
