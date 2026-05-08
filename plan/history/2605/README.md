@@ -7,6 +7,7 @@
 | 2026-05-08 | 17:29 | learning | ISSUE-469-BT | py_trees blackboard.get() raises KeyError; duplicate class methods shadow BT logic |
 | 2026-05-08 | 17:28 | learning | ISSUE-469-CI | CI runs all tests; local default omits integration |
 | 2026-05-08 | 17:28 | implementation | ISSUE-469 | Case Actor spawning and CASE_MANAGER delegation automation |
+| 2026-05-08 | 15:23 | implementation | 462 | CASE_MANAGER role delegation protocol |
 | 2026-05-06 | 19:50 | idea | conversation-2026-05-06-440-457 | Case creator bootstraps CaseActor trust |
 | 2026-05-06 | 18:39 | implementation | ISSUE-440 | Implement participant case replica safety |
 | 2026-05-06 | 17:53 | priority | Priority 50000 | Full RAFT consensus implementation archived with no open issues |
