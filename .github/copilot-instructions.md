@@ -39,6 +39,57 @@ Always format Python sources with Black and run `flake8` before staging
 changes for commit. Do not run Black on markdown files — use
 `markdownlint-cli2` for those.
 
+## Deep Reference
+
+For Vultron-specific architectural rules, naming conventions, validation patterns,
+GitHub label naming, and the complete reference index, see **`AGENTS.md`** — the
+authoritative guide for Vultron coding agents. This file focuses on platform-agnostic
+setup and quick tactical guidance.
+
+---
+
+## Common Pitfalls & Type Checking
+
+### mypy/pyright: dict Variance and Protocol Types
+
+mypy and pyright are strict about type variance. If you encounter an error like
+"`dict[K, V]` is not assignable to `dict[K, V] | None`", the issue is likely
+that `V` involves a callable with a `Protocol` type parameter. **Fix this by
+switching to `Mapping[K, V]` (covariant in value type) instead of `dict`.**
+Both `mypy` and `pyright` must pass before committing.
+
+### Spec File Format & References
+
+All Vultron specifications are **YAML files** (`.yaml`, not `.md`). When you
+need to reference a spec, use `uv run spec-dump` or invoke the `load-specs`
+skill to get the authoritative, inheritance-resolved JSON view. **Never
+construct spec file paths manually** — the load-specs output is the source of
+truth.
+
+### History File Immutability Exceptions
+
+`plan/history/` files are normally immutable (enforced by pre-commit), but you
+**SHOULD override immutability in two cases**:
+1. **Corrupt or impossible dates** — fix entries with future dates or other data
+   errors using git blame to determine correct timestamps
+2. **Explicit user override** — when the user explicitly asks you to override
+   immutability rules
+
+Use `uv run append-history` to add new history entries (never append directly).
+Reference: `specs/history-management.yaml` § HM-03.
+
+### Test Suite Runtime Expectations
+
+The full pytest suite can take **60–120+ seconds** to complete. Use
+`initial_wait: 180` when running `pytest` in sync mode. Long-running tests are
+normal. For faster feedback during development, run a single test file:
+`uv run pytest test/test_semantic_activity_patterns.py -v`.
+
+For the single-run rule and full test suite guidance, see **`AGENTS.md`**
+§ Agent Quickstart and § Commit Workflow.
+
+---
+
 ## Architecture
 
 ### Hexagonal (Ports and Adapters)
@@ -86,12 +137,10 @@ Handlers never inspect AS2 types directly.
 
 ### Naming
 
-- Wire-layer AS2 fields/types use `as_` prefix (e.g., `as_Activity`, `as_type`)
-- Core domain models do **not** use `as_` prefix; use `field_: str = Field(alias="field")` for reserved-word conflicts
-- Vulnerability abbreviation: **`vul`** (not `vuln`)
-- Handler use cases (processing received messages): `XxxReceivedUseCase`
-- Trigger use cases (actor-initiated): `SvcXxxUseCase` (class) / `xxx_trigger` (function)
-- `ActivityPattern` objects: `<TypeName>Pattern` (e.g., `CreateReportPattern`)
+See **`AGENTS.md`** § Naming Conventions for the complete set of Vultron naming
+rules (22 detailed conventions): `as_` prefix usage, field naming with
+reserved-word conflicts, handler vs. trigger case naming, pattern object
+naming, and more. All conventions are binding and enforced by tests.
 
 ### Use-Case Protocol
 
@@ -160,9 +209,15 @@ require an ADR before merging.
 
 ## Further Reference
 
-- `AGENTS.md` — comprehensive agent rules and common pitfalls
-- `specs/` — formal requirements with unique IDs (e.g., `HP-01-001`)
-- `notes/` — durable design insights (architecture, BT integration, AS2 semantics)
-- `docs/adr/` — architecture decision records
+**Primary reference for Vultron agents:**
+- **`AGENTS.md`** — Comprehensive guide with: naming conventions, validation rules,
+  architecture deep-dive, key files map, common pitfalls reference index, complete
+  GitHub label naming rules, change protocol, and skill interaction rules. This is
+  the authoritative source for Vultron-specific guidance.
+
+**Supplementary:**
+- `specs/` — Formal requirements with unique IDs (e.g., `HP-01-001`)
+- `notes/` — Durable design insights (architecture, BT integration, AS2 semantics)
+- `docs/adr/` — Architecture decision records
 - `.agents/skills/format-code/SKILL.md`, `.agents/skills/run-linters/SKILL.md`,
-  `.agents/skills/run-tests/SKILL.md` — canonical format, lint, and test commands
+  `.agents/skills/run-tests/SKILL.md` — Canonical format, lint, and test commands
