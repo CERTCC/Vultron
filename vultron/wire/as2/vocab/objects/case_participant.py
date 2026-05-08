@@ -132,7 +132,7 @@ class CaseParticipant(VultronAS2Object):
             return None
         return max(
             self.participant_statuses,
-            key=lambda ps: ps.updated or ps.published or ps.id_,
+            key=lambda ps: str(ps.updated or ps.published or ps.id_),
         )
 
     def append_rm_state(self, rm_state: RM, actor: str, context: str) -> bool:

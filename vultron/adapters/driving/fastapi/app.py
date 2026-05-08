@@ -69,8 +69,13 @@ async def lifespan(application: FastAPI):
     from vultron.adapters.driving.fastapi.inbox_handler import init_dispatcher
     from vultron.adapters.driven.datalayer import get_datalayer
     from vultron.adapters.driving.fastapi.outbox_monitor import OutboxMonitor
+    from vultron.adapters.driven.asgi_emitter import ASGIEmitter
+    from vultron.adapters.driving.fastapi.outbox_handler import (
+        configure_default_emitter,
+    )
 
     init_dispatcher(dl=get_datalayer())
+    configure_default_emitter(ASGIEmitter(app=application))
     monitor = OutboxMonitor()
     monitor.start()
     yield

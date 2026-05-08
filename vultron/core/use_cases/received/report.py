@@ -26,6 +26,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _get_server_base_url() -> str:
+    """Return the server base URL from config (neutral module)."""
+    from vultron.config import get_config
+
+    return get_config().server.base_url
+
+
 def _store_submit_report_dependencies(
     dl: CasePersistence, request: SubmitReportReceivedEvent
 ) -> None:
@@ -111,7 +118,10 @@ def _run_submit_report_case_creation(
         reporter_actor_id=request.actor_id,
     )
     result = bridge.execute_with_setup(
-        tree, actor_id=receiving_actor_id, activity=request
+        tree,
+        actor_id=receiving_actor_id,
+        activity=request,
+        server_base_url=_get_server_base_url(),
     )
 
     if result.status == Status.SUCCESS:

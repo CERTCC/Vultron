@@ -20,13 +20,9 @@ No HTTP framework imports permitted here.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from vultron.core.models.case import VultronCase
-from vultron.core.models.protocols import (
-    is_participant_model,
-    ParticipantStatusModel,
-)
 from vultron.core.states.rm import RM
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import update_participant_rm_state
@@ -338,13 +334,33 @@ class SvcAddParticipantStatusUseCase:
         self._request = request
         self._trigger_activity = trigger_activity
 
+    def _resolve_current_participant_state(
+        self,
+        dl: CaseOutboxPersistence,
+        participant_id: str,
+    ) -> tuple[Any, Any]:
+        """Return (current_rm, current_vfd) from the participant's latest status."""
+        from vultron.core.states.rm import RM
+        from vultron.core.states.cs import CS_vfd
+
+        participant_obj = dl.read(participant_id)
+        if participant_obj is not None and hasattr(
+            participant_obj, "participant_statuses"
+        ):
+            statuses = getattr(participant_obj, "participant_statuses")
+            if statuses:
+                latest = statuses[-1]
+                return (
+                    getattr(latest, "rm_state", RM.START),
+                    getattr(latest, "vfd_state", CS_vfd.vfd),
+                )
+        return RM.START, CS_vfd.vfd
+
     def execute(self) -> dict[str, Any]:
         from vultron.core.models.participant_status import (
             VultronParticipantStatus,
         )
         from vultron.core.models.case_status import VultronCaseStatus
-        from vultron.core.states.rm import RM
-        from vultron.core.states.cs import CS_vfd
 
         request = self._request
         actor_id = request.actor_id
@@ -385,17 +401,24 @@ class SvcAddParticipantStatusUseCase:
                 pxa_state=request.pxa_state,
             )
 
+        # Resolve current participant state to inherit RM/VFD if not specified
+        current_rm, current_vfd = self._resolve_current_participant_state(
+            dl, participant_id
+        )
+
         # Build and persist the status object
         status = VultronParticipantStatus(
             context=case_id,
             attributed_to=actor_id,
             rm_state=(
-                request.rm_state if request.rm_state is not None else RM.START
+                request.rm_state
+                if request.rm_state is not None
+                else current_rm
             ),
             vfd_state=(
                 request.vfd_state
                 if request.vfd_state is not None
-                else CS_vfd.vfd
+                else current_vfd
             ),
             case_status=case_status,
         )
@@ -435,22 +458,6 @@ class SvcAddParticipantStatusUseCase:
 
         add_activity_to_outbox(actor_id, activity_id, dl)
 
-        # Immediately reflect the new status on the local participant record so
-        # callers can observe it without waiting for the Case Manager to
-        # acknowledge via inbox (DEMOMA-07-001, local-consistency property).
-        # AddParticipantStatusToParticipantReceivedUseCase has a duplicate-ID
-        # guard that prevents double-append when the message is later processed.
-        self._update_local_participant(participant_id, status, dl)
-
-        # If this status signals public disclosure by the CASE_OWNER, initiate
-        # embargo teardown directly.  In co-located deployments the Case Actor
-        # inbox may be unreachable (URN-based ID), so we apply the same logic
-        # that AddParticipantStatusToParticipantReceivedUseCase
-        # ._check_public_disclosure would execute (DEMOMA-07-003 step 4).
-        self._maybe_terminate_embargo(
-            case_status, participant_id, case_manager_id, case_id, dl
-        )
-
         logger.info(
             "Actor '%s' reported status to participant '%s' in case '%s'",
             actor_id,
@@ -459,95 +466,3 @@ class SvcAddParticipantStatusUseCase:
         )
 
         return {"activity_id": activity_id, "status_id": status.id_}
-
-    def _update_local_participant(
-        self,
-        participant_id: str,
-        status: Any,
-        dl: CaseOutboxPersistence,
-    ) -> None:
-        """Append *status* to the local participant record if not already present."""
-        p = dl.read(participant_id)
-        if not is_participant_model(p):
-            return
-        existing_ids = {
-            getattr(s, "id_", None) or str(s) for s in p.participant_statuses
-        }
-        if status.id_ not in existing_ids:
-            # Re-read the status so it arrives as the same layer type that
-            # the participant model expects (e.g. the wire ParticipantStatus
-            # with its VultronObjectType enum type_).  Appending the freshly
-            # created core VultronParticipantStatus directly would cause a
-            # Pydantic serialization mismatch on model_dump.
-            wire_status = dl.read(status.id_) or status
-            p.participant_statuses.append(
-                cast(ParticipantStatusModel, wire_status)
-            )
-            dl.save(p)
-            logger.debug(
-                "Local participant '%s' updated with new status '%s'",
-                participant_id,
-                status.id_,
-            )
-
-    def _maybe_terminate_embargo(
-        self,
-        case_status: Any,
-        participant_id: str,
-        case_manager_id: str,
-        case_id: str,
-        dl: CaseOutboxPersistence,
-    ) -> None:
-        """Trigger embargo teardown when the CASE_OWNER signals public awareness."""
-        if case_status is None:
-            return
-
-        from vultron.core.states.cs import CS_pxa
-        from vultron.core.states.roles import CVDRole
-
-        pxa = getattr(case_status, "pxa_state", None)
-        if pxa is None:
-            return
-        public_aware = pxa in (
-            CS_pxa.Pxa,
-            CS_pxa.PxA,
-            CS_pxa.PXa,
-            CS_pxa.PXA,
-        )
-        if not public_aware:
-            return
-
-        sender = dl.read(participant_id)
-        roles = getattr(sender, "case_roles", [])
-        if CVDRole.CASE_OWNER not in roles:
-            return
-
-        logger.info(
-            "CASE_OWNER signalled public awareness in case '%s'; "
-            "initiating embargo teardown as Case Manager '%s'",
-            case_id,
-            case_manager_id,
-        )
-        try:
-            from vultron.core.use_cases.triggers.embargo import (
-                SvcTerminateEmbargoUseCase,
-            )
-            from vultron.core.use_cases.triggers.requests import (
-                TerminateEmbargoTriggerRequest,
-            )
-
-            req = TerminateEmbargoTriggerRequest(
-                actor_id=case_manager_id,
-                case_id=case_id,
-            )
-            SvcTerminateEmbargoUseCase(
-                dl,
-                req,
-                trigger_activity=self._trigger_activity,
-            ).execute()
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "Embargo teardown failed for case '%s': %s",
-                case_id,
-                exc,
-            )

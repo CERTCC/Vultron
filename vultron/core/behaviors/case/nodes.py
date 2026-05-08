@@ -297,6 +297,30 @@ class CreateCaseActorNode(DataLayerAction):
         self.blackboard.register_key(
             key="case_actor_id", access=py_trees.common.Access.WRITE
         )
+        self.blackboard.register_key(
+            key="case_actor_participant_id",
+            access=py_trees.common.Access.WRITE,
+        )
+        self.blackboard.register_key(
+            key="server_base_url", access=py_trees.common.Access.READ
+        )
+
+    def _derive_case_slug(self, case_id: str) -> str:
+        """Derive a short deterministic slug from case_id."""
+        import hashlib
+
+        if case_id.startswith("urn:uuid:"):
+            return case_id[len("urn:uuid:") :]
+        return hashlib.sha256(case_id.encode()).hexdigest()[:12]
+
+    def _resolve_server_base_url(self) -> str:
+        """Read server_base_url from blackboard or fall back to config."""
+        try:
+            return str(self.blackboard.get("server_base_url")).rstrip("/")
+        except KeyError:
+            from vultron.config import get_config
+
+            return get_config().server.base_url.rstrip("/")
 
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
@@ -316,8 +340,15 @@ class CreateCaseActorNode(DataLayerAction):
             return Status.FAILURE
 
         # Use deterministic IDs so re-runs are idempotent.
-        case_actor_id = f"{case_id}/actors/case-actor"
-        participant_id = f"{case_id}/participants/case-actor"
+        # Derive a short slug from the case_id to create a flat,
+        # HTTP-routable actor ID.
+        case_slug = self._derive_case_slug(case_id)
+        server_base_url = self._resolve_server_base_url()
+
+        case_actor_id = f"{server_base_url}/actors/case-actor-{case_slug}"
+        participant_id = (
+            f"{server_base_url}/actors/case-actor-{case_slug}/participant"
+        )
 
         try:
             # Idempotency: if the participant already exists use its
@@ -332,6 +363,7 @@ class CreateCaseActorNode(DataLayerAction):
                     or case_actor_id
                 )
                 self.blackboard.case_actor_id = authoritative_id
+                self.blackboard.case_actor_participant_id = participant_id
                 self.logger.info(
                     f"{self.name}: CaseActor participant already registered;"
                     f" reusing id '{authoritative_id}'"
@@ -359,10 +391,13 @@ class CreateCaseActorNode(DataLayerAction):
             # Register the CaseActor as a CaseActorParticipant so receivers
             # can extract trusted_case_actor_id from the case snapshot during
             # bootstrap trust establishment (CBT-01-003).
-            self._register_case_actor_participant(case_id, case_actor_id)
+            self._register_case_actor_participant(
+                case_id, case_actor_id, participant_id
+            )
 
-            # Publish case_actor_id to the blackboard for downstream nodes.
+            # Publish IDs to the blackboard for downstream nodes.
             self.blackboard.case_actor_id = case_actor_id
+            self.blackboard.case_actor_participant_id = participant_id
 
             return Status.SUCCESS
 
@@ -371,7 +406,7 @@ class CreateCaseActorNode(DataLayerAction):
             return Status.FAILURE
 
     def _register_case_actor_participant(
-        self, case_id: str, case_actor_id: str
+        self, case_id: str, case_actor_id: str, participant_id: str
     ) -> None:
         """Add a VultronParticipant with COORDINATOR+CASE_MANAGER roles to the case.
 
@@ -390,7 +425,6 @@ class CreateCaseActorNode(DataLayerAction):
             )
             return
 
-        participant_id = f"{case_id}/participants/case-actor"
         existing = self.datalayer.read(participant_id)
         if existing is not None:
             # Already registered; participant was checked in update() so this
@@ -525,6 +559,10 @@ class SendOfferCaseManagerRoleNode(DataLayerAction):
             key="case_actor_id", access=py_trees.common.Access.READ
         )
         self.blackboard.register_key(
+            key="case_actor_participant_id",
+            access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
             key="activity_id", access=py_trees.common.Access.WRITE
         )
 
@@ -543,16 +581,14 @@ class SendOfferCaseManagerRoleNode(DataLayerAction):
 
         case_id = self.blackboard.get("case_id")
         case_actor_id = self.blackboard.get("case_actor_id")
+        participant_id = self.blackboard.get("case_actor_participant_id")
 
-        if not case_id or not case_actor_id:
+        if not case_id or not case_actor_id or not participant_id:
             self.logger.error(
-                f"{self.name}: case_id or case_actor_id missing from"
-                " blackboard"
+                f"{self.name}: case_id, case_actor_id, or"
+                " case_actor_participant_id missing from blackboard"
             )
             return Status.FAILURE
-
-        # The Case Actor participant ID is deterministic (set by CreateCaseActorNode).
-        participant_id = f"{case_id}/participants/case-actor"
 
         try:
             activity_id = (

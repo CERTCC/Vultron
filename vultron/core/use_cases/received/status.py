@@ -322,14 +322,17 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             if current_rm != new_rm_state and not is_valid_rm_transition(
                 current_rm, new_rm_state
             ):
-                logger.warning(
-                    "Invalid RM transition %s → %s for participant '%s'; "
-                    "skipping status append",
+                # The sender is authoritative about their own RM state.
+                # Forward jumps (e.g. RECEIVED → ACCEPTED) are legitimate
+                # when intermediate transitions happen locally.  Log but
+                # do not reject.
+                logger.info(
+                    "Non-adjacent RM transition %s → %s for participant "
+                    "'%s'; accepting sender-authoritative state",
                     current_rm,
                     new_rm_state,
                     participant_id,
                 )
-                return None
 
         participant.participant_statuses.append(
             cast(ParticipantStatusModel, status_obj)
