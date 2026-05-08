@@ -7,6 +7,31 @@ insights, issues, and learnings during the implementation process.
 Append new items below any existing ones, marking them with the date and a
 header.
 
+### 2025-05-25 TWO-ACTOR-DEMO — Case Actor URN-based ID delivery limitation
+
+**Issue**: The Case Actor uses a URN-based ID
+(`urn:uuid:{uuid}/actors/case-actor`), so HTTP delivery via
+`DeliveryQueueAdapter` always fails silently. Inbox handlers on the
+Case Actor never execute for status updates sent by participants.
+
+**Fix applied in #463 / PR #474**:
+
+- `SvcAddParticipantStatusUseCase._update_local_participant()` appends
+  status to the local participant record immediately after creation
+  (self-report pattern with idempotency guard).
+- `SvcAddParticipantStatusUseCase._maybe_terminate_embargo()` directly
+  calls `SvcTerminateEmbargoUseCase` when CASE_OWNER signals public
+  awareness — replicates what the Case Actor inbox handler would do.
+- `_all_participants_closed()` and demo polling helpers skip
+  CASE_MANAGER participants (coordinator role, not self-reporting).
+
+**Broader lesson**: Any co-located deployment where Case Actor has a
+non-HTTP ID needs local-consistency fallbacks. This is a workaround;
+the proper fix is ensuring Case Actor has a routable HTTP ID or using
+in-process dispatch for co-located actors.
+
+---
+
 ### 2026-05-08 TWO-ACTOR-DEMO — Case Actor spawning blocks #463
 
 **Issue**: Issue #463 (Two-actor demo, complete VFDPxa workflow) cannot be
