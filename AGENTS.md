@@ -316,6 +316,8 @@ provides unique ID constraints. Report handlers (`create_report`,
 - **Protocol Event Cascades (Cascading Automation)** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Post-BT Procedural Cascade Anti-Pattern** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **py_trees Blackboard Global State** — see [notes/bt-integration.md](notes/bt-integration.md)
+- **py_trees `blackboard.get()` Raises KeyError for Unwritten READ Keys** — see [notes/bt-integration.md](notes/bt-integration.md)
+- **Duplicate Method Definitions Silently Shadow Correct BT Logic** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **BT Blackboard Key Naming** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Health Check Readiness Gap** — see [notes/codebase-structure.md](notes/codebase-structure.md)
 - **Docker Health Check Coordination** — see [notes/codebase-structure.md](notes/codebase-structure.md)
