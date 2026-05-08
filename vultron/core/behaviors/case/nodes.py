@@ -282,12 +282,10 @@ class CreateCaseActorNode(DataLayerAction):
     def __init__(
         self,
         case_id: str | None = None,
-        actor_id: str = "",
         name: str | None = None,
     ):
         super().__init__(name=name or self.__class__.__name__)
         self._case_id_arg = case_id
-        # actor_id from constructor is overridden by blackboard in initialise()
 
     def setup(self, **kwargs: Any) -> None:
         """Register blackboard keys including optional case_id read."""
@@ -301,8 +299,10 @@ class CreateCaseActorNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error(f"{self.name}: DataLayer not available")
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                f"{self.name}: DataLayer or actor_id not available"
+            )
             return Status.FAILURE
 
         case_id = self._case_id_arg
@@ -315,8 +315,31 @@ class CreateCaseActorNode(DataLayerAction):
             )
             return Status.FAILURE
 
+        # Use deterministic IDs so re-runs are idempotent.
+        case_actor_id = f"{case_id}/actors/case-actor"
+        participant_id = f"{case_id}/participants/case-actor"
+
         try:
+            # Idempotency: if the participant already exists use its
+            # attributed_to as the authoritative actor ID so downstream nodes
+            # always get a consistent value regardless of re-execution order.
+            existing_participant = self.datalayer.read(participant_id)
+            if existing_participant is not None:
+                authoritative_id = (
+                    _as_id(
+                        getattr(existing_participant, "attributed_to", None)
+                    )
+                    or case_actor_id
+                )
+                self.blackboard.case_actor_id = authoritative_id
+                self.logger.info(
+                    f"{self.name}: CaseActor participant already registered;"
+                    f" reusing id '{authoritative_id}'"
+                )
+                return Status.SUCCESS
+
             case_actor = VultronCaseActor(
+                id_=case_actor_id,
                 name=f"CaseActor for {case_id}",
                 attributed_to=self.actor_id,
                 context=case_id,
@@ -324,22 +347,22 @@ class CreateCaseActorNode(DataLayerAction):
             try:
                 self.datalayer.create(case_actor)
                 self.logger.info(
-                    f"{self.name}: Created CaseActor {case_actor.id_}"
+                    f"{self.name}: Created CaseActor {case_actor_id}"
                     f" for case {case_id}"
                 )
             except ValueError as e:
                 self.logger.warning(
-                    f"{self.name}: CaseActor {case_actor.id_}"
+                    f"{self.name}: CaseActor {case_actor_id}"
                     f" already exists: {e}"
                 )
 
             # Register the CaseActor as a CaseActorParticipant so receivers
             # can extract trusted_case_actor_id from the case snapshot during
             # bootstrap trust establishment (CBT-01-003).
-            self._register_case_actor_participant(case_id, case_actor.id_)
+            self._register_case_actor_participant(case_id, case_actor_id)
 
             # Publish case_actor_id to the blackboard for downstream nodes.
-            self.blackboard.case_actor_id = case_actor.id_
+            self.blackboard.case_actor_id = case_actor_id
 
             return Status.SUCCESS
 
@@ -370,6 +393,8 @@ class CreateCaseActorNode(DataLayerAction):
         participant_id = f"{case_id}/participants/case-actor"
         existing = self.datalayer.read(participant_id)
         if existing is not None:
+            # Already registered; participant was checked in update() so this
+            # path is only reached on a race condition — safe to skip.
             return
 
         participant = VultronParticipant(

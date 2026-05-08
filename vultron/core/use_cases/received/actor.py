@@ -248,7 +248,9 @@ class OfferCaseManagerRoleReceivedUseCase:
             )
             return
 
-        local_actor_id = _find_local_actor_id(self._dl)
+        local_actor_id = request.receiving_actor_id or _find_local_actor_id(
+            self._dl
+        )
         if local_actor_id is None:
             logger.warning(
                 "OfferCaseManagerRoleReceived: no local actor found"
@@ -351,7 +353,9 @@ class AcceptCaseManagerRoleReceivedUseCase:
             )
             return
 
-        local_actor_id = _find_local_actor_id(self._dl)
+        local_actor_id = request.receiving_actor_id or _find_local_actor_id(
+            self._dl
+        )
         if local_actor_id is None:
             logger.warning(
                 "AcceptCaseManagerRoleReceived: no local actor found"

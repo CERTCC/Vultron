@@ -100,7 +100,7 @@ def create_create_case_tree(
             CreateCaseOwnerParticipant(
                 case_obj=case_obj, actor_config=actor_config
             ),
-            CreateCaseActorNode(case_id=case_id, actor_id=actor_id),
+            CreateCaseActorNode(case_id=case_id),
             EmitCreateCaseActivity(),
             UpdateActorOutbox(),
             CommitCaseLogEntryNode(case_id=case_id),

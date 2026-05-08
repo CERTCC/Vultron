@@ -330,7 +330,7 @@ class TestFinderAsksQuestion:
         demo.wait_for_case_participants(
             vendor_client=vendor_client,
             case_id=case.id_,
-            expected_count=2,
+            expected_count=3,  # vendor + finder + case-actor (added by CreateCaseActorNode)
         )
 
         import vultron.wire.as2.vocab.objects.vulnerability_case as vc_module
