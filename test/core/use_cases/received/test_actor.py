@@ -25,22 +25,28 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCaseStub,
 )
 from vultron.core.use_cases.received.actor import (
-    SuggestActorToCaseReceivedUseCase,
-    AcceptSuggestActorToCaseReceivedUseCase,
-    RejectSuggestActorToCaseReceivedUseCase,
-    OfferCaseOwnershipTransferReceivedUseCase,
+    AcceptCaseManagerRoleReceivedUseCase,
     AcceptCaseOwnershipTransferReceivedUseCase,
-    RejectCaseOwnershipTransferReceivedUseCase,
-    InviteActorToCaseReceivedUseCase,
     AcceptInviteActorToCaseReceivedUseCase,
+    AcceptSuggestActorToCaseReceivedUseCase,
+    OfferCaseManagerRoleReceivedUseCase,
+    OfferCaseOwnershipTransferReceivedUseCase,
+    RejectCaseManagerRoleReceivedUseCase,
+    RejectCaseOwnershipTransferReceivedUseCase,
     RejectInviteActorToCaseReceivedUseCase,
+    RejectSuggestActorToCaseReceivedUseCase,
+    SuggestActorToCaseReceivedUseCase,
+    InviteActorToCaseReceivedUseCase,
 )
 from vultron.wire.as2.factories import (
     accept_actor_recommendation_activity,
+    accept_case_manager_role_activity,
     accept_case_ownership_transfer_activity,
+    offer_case_manager_role_activity,
     offer_case_ownership_transfer_activity,
     recommend_actor_activity,
     reject_actor_recommendation_activity,
+    reject_case_manager_role_activity,
     reject_case_ownership_transfer_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
@@ -690,5 +696,113 @@ class TestOwnershipTransferUseCases:
             RejectCaseOwnershipTransferReceivedUseCase(
                 MagicMock(), event
             ).execute()
+
+        assert any("rejected" in r.message.lower() for r in caplog.records)
+
+
+class TestCaseManagerRoleDelegationUseCases:
+    """Tests for offer/accept/reject CASE_MANAGER role delegation use cases.
+
+    DEMOMA-08-002: CASE_MANAGER delegation is distinct from ownership transfer.
+    """
+
+    _VENDOR_URI = "https://example.org/actors/vendor"
+    _CASE_ACTOR_URI = "https://example.org/actors/case-actor"
+    _CASE_URI = "https://example.org/cases/urn:uuid:test-case-mgr"
+    _PARTICIPANT_URI = (
+        "https://example.org/participants/urn:uuid:case-actor-participant"
+    )
+
+    def _make_offer(self):
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        case = VulnerabilityCase(id_=self._CASE_URI, name="CASE-MGR-TEST")
+        participant = CaseParticipant(
+            id_=self._PARTICIPANT_URI,
+            attributed_to=self._CASE_ACTOR_URI,
+            context=self._CASE_URI,
+        )
+        return offer_case_manager_role_activity(
+            case,
+            target=participant,
+            actor=self._VENDOR_URI,
+        )
+
+    def test_offer_case_manager_role_persists_offer(self, make_payload):
+        """OfferCaseManagerRoleReceivedUseCase persists the offer activity."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        offer = self._make_offer()
+        event = make_payload(offer)
+
+        OfferCaseManagerRoleReceivedUseCase(dl, event).execute()
+
+        stored = dl.get(offer.type_.value, offer.id_)
+        assert stored is not None
+
+    def test_offer_case_manager_role_idempotent(self, make_payload):
+        """Repeated execution of OfferCaseManagerRoleReceivedUseCase is a no-op."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        offer = self._make_offer()
+        event = make_payload(offer)
+
+        OfferCaseManagerRoleReceivedUseCase(dl, event).execute()
+        OfferCaseManagerRoleReceivedUseCase(dl, event).execute()
+
+        stored = dl.get(offer.type_.value, offer.id_)
+        assert stored is not None
+
+    def test_accept_case_manager_role_persists_acceptance(self, make_payload):
+        """AcceptCaseManagerRoleReceivedUseCase persists the acceptance activity."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        offer = self._make_offer()
+        accept = accept_case_manager_role_activity(
+            offer, actor=self._CASE_ACTOR_URI
+        )
+        event = make_payload(accept)
+
+        AcceptCaseManagerRoleReceivedUseCase(dl, event).execute()
+
+        stored = dl.get(accept.type_.value, accept.id_)
+        assert stored is not None
+
+    def test_accept_case_manager_role_logs_acceptance(
+        self, caplog, make_payload
+    ):
+        """AcceptCaseManagerRoleReceivedUseCase logs acceptance without raising."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        offer = self._make_offer()
+        accept = accept_case_manager_role_activity(
+            offer, actor=self._CASE_ACTOR_URI
+        )
+        event = make_payload(accept)
+
+        with caplog.at_level(logging.INFO):
+            AcceptCaseManagerRoleReceivedUseCase(dl, event).execute()
+
+        assert any("accepted" in r.message.lower() for r in caplog.records)
+
+    def test_reject_case_manager_role_logs_warning(self, caplog, make_payload):
+        """RejectCaseManagerRoleReceivedUseCase logs a warning without raising."""
+        offer = self._make_offer()
+        reject = reject_case_manager_role_activity(
+            offer, actor=self._CASE_ACTOR_URI
+        )
+        event = make_payload(reject)
+
+        with caplog.at_level(logging.WARNING):
+            RejectCaseManagerRoleReceivedUseCase(MagicMock(), event).execute()
 
         assert any("rejected" in r.message.lower() for r in caplog.records)

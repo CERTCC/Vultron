@@ -229,6 +229,28 @@ AcceptSuggestActorToCasePattern = ActivityPattern(
 RejectSuggestActorToCasePattern = ActivityPattern(
     activity_=TAtype.REJECT, object_=SuggestActorToCasePattern
 )
+OfferCaseManagerRolePattern = ActivityPattern(
+    description=(
+        "Vendor offers the CASE_MANAGER role to a Case Actor participant. "
+        "Distinct from OFFER_CASE_OWNERSHIP_TRANSFER: the offering actor "
+        "retains CASE_OWNER; only operational management authority is "
+        "delegated. Identified by target being a CASE_PARTICIPANT record. "
+        "See DEMOMA-08-002, DEMOMA-08-003."
+    ),
+    activity_=TAtype.OFFER,
+    object_=VOtype.VULNERABILITY_CASE,
+    target_=VOtype.CASE_PARTICIPANT,
+)
+AcceptCaseManagerRolePattern = ActivityPattern(
+    description="Case Actor accepted the CASE_MANAGER role delegation offer.",
+    activity_=TAtype.ACCEPT,
+    object_=OfferCaseManagerRolePattern,
+)
+RejectCaseManagerRolePattern = ActivityPattern(
+    description="Case Actor rejected the CASE_MANAGER role delegation offer.",
+    activity_=TAtype.REJECT,
+    object_=OfferCaseManagerRolePattern,
+)
 OfferCaseOwnershipTransferActivityPattern = ActivityPattern(
     activity_=TAtype.OFFER, object_=VOtype.VULNERABILITY_CASE
 )

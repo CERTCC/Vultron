@@ -12,8 +12,11 @@ from vultron.wire.as2.extractor import (
     ActivityPattern,
 )
 from vultron.wire.as2.factories import (
+    accept_case_manager_role_activity,
     announce_vulnerability_case_activity,
+    offer_case_manager_role_activity,
     offer_case_ownership_transfer_activity,
+    reject_case_manager_role_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
 )
@@ -25,6 +28,7 @@ from vultron.wire.as2.vocab.base.objects.actors import (
     as_Person,
     as_Service,
 )
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCase,
     VulnerabilityCaseStub,
@@ -110,11 +114,50 @@ def _is_subset(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
     return True
 
 
+def _registry_order_map() -> dict[int, int]:
+    """Map each pattern object id to its index in SEMANTIC_REGISTRY."""
+    return {
+        id(entry.pattern): idx
+        for idx, entry in enumerate(SEMANTIC_REGISTRY)
+        if entry.pattern is not None
+    }
+
+
+def _subset_safe(
+    dump_a: dict,
+    dump_b: dict,
+    idx_a: int,
+    idx_b: int,
+) -> bool:
+    """Return True if any subset relationship between dump_a / dump_b is safe.
+
+    Safe means the more-specific pattern (superset of constraints) appears
+    first in the registry, so the first-match-wins algorithm dispatches
+    correctly.  Ambiguous (equal) patterns are never safe.
+    """
+    a_in_b = _is_subset(dump_a, dump_b)  # a less specific than b
+    b_in_a = _is_subset(dump_b, dump_a)  # b less specific than a
+    if not (a_in_b or b_in_a):
+        return True  # no overlap
+    if b_in_a and not a_in_b:
+        return idx_a < idx_b  # a more specific; safe if a is first
+    if a_in_b and not b_in_a:
+        return idx_b < idx_a  # b more specific; safe if b is first
+    return False  # equal dumps — always ambiguous
+
+
 def test_non_overlapping_activity_patterns():
+    """Verify that no two patterns in the same activity_ group are ambiguous.
+
+    A pair is ambiguous when one dump is a subset of the other AND the
+    less-specific pattern appears first in the registry (wrong dispatch order).
+
+    Ordering-based disambiguation is allowed: the more-specific pattern must
+    come first.  This mirrors AGENTS.md: "order matters — specific before
+    general".
     """
-    Group patterns by activity_ and ensure no pattern's dumped structure is a top-level
-    subset of another in the same activity_ group (either direction).
-    """
+    registry_order = _registry_order_map()
+
     groups: dict[str, list[ActivityPattern]] = {}
     for entry in SEMANTIC_REGISTRY:
         if entry.pattern is None:
@@ -122,14 +165,11 @@ def test_non_overlapping_activity_patterns():
         pat = entry.pattern
         groups.setdefault(getattr(pat, "activity_", ""), []).append(pat)
 
-    problems = []
+    problems: list = []
 
     for group_name, group_patterns in groups.items():
         if len(group_patterns) < 2:
-            # skip groups with only one pattern since they can't overlap with anything else
             continue
-
-        # Precompute dumps
         enriched = []
         for pat in group_patterns:
             try:
@@ -143,42 +183,29 @@ def test_non_overlapping_activity_patterns():
                     }
                 )
                 continue
-            # ignore description differences
             dumped = {k: v for k, v in dumped.items() if k != "description"}
             enriched.append((pat, dumped))
 
-        # pairwise check (only within group)
         for (pat_a, dump_a), (pat_b, dump_b) in itertools.combinations(
             enriched, 2
         ):
-            # sanity: both should share same activity_ to be compared
             assert getattr(pat_a, "activity_", None) == getattr(
                 pat_b, "activity_", None
             ), f"Patterns {pat_a!r} and {pat_b!r} should share activity_ to be grouped"
-
-            # If one dump is a subset of the other (or equal) -> potential overlap
-            a_in_b = _is_subset(dump_a, dump_b)
-            b_in_a = _is_subset(dump_b, dump_a)
-            if a_in_b or b_in_a:
+            idx_a = registry_order.get(id(pat_a), -1)
+            idx_b = registry_order.get(id(pat_b), -1)
+            if not _subset_safe(dump_a, dump_b, idx_a, idx_b):
                 problems.append(
                     {
                         "group": group_name,
                         "pat_a": repr(pat_a),
                         "pat_b": repr(pat_b),
-                        "dump_a_keys": sorted(dump_a.keys()),
-                        "dump_b_keys": sorted(dump_b.keys()),
-                        "reason": "top-level subset"
-                        + (
-                            " (a subset of b)"
-                            if a_in_b
-                            else " (b subset of a)"
-                        ),
+                        "registry_idx": (idx_a, idx_b),
+                        "reason": "ambiguous subset: less-specific precedes more-specific",
                     }
                 )
 
-    assert (
-        not problems
-    ), f"Problems found in activity pattern groups: {problems}"
+    assert not problems, f"Ambiguous activity pattern groups: {problems}"
 
 
 def test_offer_case_ownership_transfer_rejects_string_object():
@@ -406,3 +433,159 @@ def test_rm_invite_rejects_full_vulnerability_case_as_target():
             target=cast(Any, full_case),
             actor=actor.id_,
         )
+
+
+# ---------------------------------------------------------------------------
+# CASE_MANAGER role delegation pattern tests (DEMOMA-08-002, DEMOMA-08-003)
+# ---------------------------------------------------------------------------
+
+_VENDOR_URI = "https://example.org/actors/vendor"
+_CASE_ACTOR_URI = "https://example.org/actors/case-actor"
+_CASE_URI = "https://example.org/cases/urn:uuid:test-case-mgr"
+_PARTICIPANT_URI = (
+    "https://example.org/participants/urn:uuid:case-actor-participant"
+)
+
+
+def _make_case_manager_case() -> VulnerabilityCase:
+    return VulnerabilityCase(id_=_CASE_URI, name="CASE-001")
+
+
+def _make_case_actor_participant() -> CaseParticipant:
+    return CaseParticipant(
+        id_=_PARTICIPANT_URI,
+        attributed_to=_CASE_ACTOR_URI,
+        context=_CASE_URI,
+    )
+
+
+def test_offer_case_manager_role_dispatches_correctly():
+    """Offer(VulnerabilityCase, target=CaseParticipant) must be classified as
+    OFFER_CASE_MANAGER_ROLE, not OFFER_CASE_OWNERSHIP_TRANSFER.
+
+    DEMOMA-08-002: CASE_MANAGER delegation is a distinct protocol from
+    case-ownership transfer and must not share message semantics.
+    """
+    case = _make_case_manager_case()
+    participant = _make_case_actor_participant()
+    offer = offer_case_manager_role_activity(
+        case,
+        target=participant,
+        actor=_VENDOR_URI,
+    )
+    result = find_matching_semantics(offer)
+    assert (
+        result == MessageSemantics.OFFER_CASE_MANAGER_ROLE
+    ), f"Expected OFFER_CASE_MANAGER_ROLE, got {result}"
+
+
+def test_offer_case_manager_role_not_confused_with_ownership_transfer():
+    """Offer(VulnerabilityCase) without a CaseParticipant target must be
+    classified as OFFER_CASE_OWNERSHIP_TRANSFER, not OFFER_CASE_MANAGER_ROLE.
+
+    The presence of a typed CaseParticipant target is the sole discriminator.
+    """
+    case = _make_case_manager_case()
+    offer = offer_case_ownership_transfer_activity(
+        case,
+        actor=_VENDOR_URI,
+    )
+    result = find_matching_semantics(offer)
+    assert (
+        result == MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
+    ), f"Expected OFFER_CASE_OWNERSHIP_TRANSFER, got {result}"
+
+
+def test_accept_case_manager_role_dispatches_correctly():
+    """Accept(Offer(VulnerabilityCase, target=CaseParticipant)) must be
+    classified as ACCEPT_CASE_MANAGER_ROLE."""
+    case = _make_case_manager_case()
+    participant = _make_case_actor_participant()
+    offer = offer_case_manager_role_activity(
+        case,
+        target=participant,
+        actor=_VENDOR_URI,
+    )
+    accept = accept_case_manager_role_activity(offer, actor=_CASE_ACTOR_URI)
+    result = find_matching_semantics(accept)
+    assert (
+        result == MessageSemantics.ACCEPT_CASE_MANAGER_ROLE
+    ), f"Expected ACCEPT_CASE_MANAGER_ROLE, got {result}"
+
+
+def test_reject_case_manager_role_dispatches_correctly():
+    """Reject(Offer(VulnerabilityCase, target=CaseParticipant)) must be
+    classified as REJECT_CASE_MANAGER_ROLE."""
+    case = _make_case_manager_case()
+    participant = _make_case_actor_participant()
+    offer = offer_case_manager_role_activity(
+        case,
+        target=participant,
+        actor=_VENDOR_URI,
+    )
+    reject = reject_case_manager_role_activity(offer, actor=_CASE_ACTOR_URI)
+    result = find_matching_semantics(reject)
+    assert (
+        result == MessageSemantics.REJECT_CASE_MANAGER_ROLE
+    ), f"Expected REJECT_CASE_MANAGER_ROLE, got {result}"
+
+
+def test_offer_case_manager_role_rejects_string_case():
+    """offer_case_manager_role_activity must reject a bare string URI as case.
+
+    An inline VulnerabilityCase object is required so the recipient can
+    distinguish this activity from other Offer types during pattern matching.
+    """
+    participant = _make_case_actor_participant()
+    with pytest.raises(VultronActivityConstructionError):
+        offer_case_manager_role_activity(
+            "urn:uuid:some-case-id",  # type: ignore[arg-type]
+            participant,
+            actor=_VENDOR_URI,
+        )
+
+
+def test_offer_case_manager_role_rejects_none_target():
+    """offer_case_manager_role_activity must reject a None target.
+
+    A missing target makes this activity indistinguishable from
+    OFFER_CASE_OWNERSHIP_TRANSFER during semantic pattern matching.
+    """
+    case = _make_case_manager_case()
+    with pytest.raises(VultronActivityConstructionError):
+        offer_case_manager_role_activity(
+            case,
+            None,  # type: ignore[arg-type]
+            actor=_VENDOR_URI,
+        )
+
+
+def test_offer_case_manager_role_rejects_string_target():
+    """offer_case_manager_role_activity must reject a bare string IRI as target.
+
+    A string target is not a typed CaseParticipant and will not match the
+    CASE_PARTICIPANT constraint in the ActivityPattern, causing the activity
+    to be misclassified as OFFER_CASE_OWNERSHIP_TRANSFER.
+    """
+    case = _make_case_manager_case()
+    with pytest.raises(VultronActivityConstructionError):
+        offer_case_manager_role_activity(
+            case,
+            _PARTICIPANT_URI,  # type: ignore[arg-type]
+            actor=_VENDOR_URI,
+        )
+
+
+def test_accept_case_manager_role_rejects_bare_ownership_offer():
+    """accept_case_manager_role_activity must reject an Offer whose object_ is
+    not an _OfferCaseManagerRoleActivity (e.g., an ownership-transfer offer).
+
+    The accept uses a concrete wire subtype, so passing the wrong Offer kind
+    triggers a Pydantic ValidationError wrapped in VultronActivityConstructionError.
+    """
+    case = _make_case_manager_case()
+    wrong_offer = offer_case_ownership_transfer_activity(
+        case, actor=_VENDOR_URI
+    )
+    with pytest.raises(VultronActivityConstructionError):
+        accept_case_manager_role_activity(wrong_offer, actor=_CASE_ACTOR_URI)

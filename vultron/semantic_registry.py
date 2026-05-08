@@ -32,12 +32,15 @@ from dataclasses import dataclass, field
 
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.core.models.events.actor import (
+    AcceptCaseManagerRoleReceivedEvent,
     AcceptCaseOwnershipTransferReceivedEvent,
     AcceptInviteActorToCaseReceivedEvent,
     AcceptSuggestActorToCaseReceivedEvent,
     AnnounceVulnerabilityCaseReceivedEvent,
     InviteActorToCaseReceivedEvent,
+    OfferCaseManagerRoleReceivedEvent,
     OfferCaseOwnershipTransferReceivedEvent,
+    RejectCaseManagerRoleReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
     RejectSuggestActorToCaseReceivedEvent,
@@ -93,12 +96,15 @@ from vultron.core.models.events.unknown import (
     UnresolvableObjectReceivedEvent,
 )
 from vultron.core.use_cases.received.actor import (
+    AcceptCaseManagerRoleReceivedUseCase,
     AcceptCaseOwnershipTransferReceivedUseCase,
     AcceptInviteActorToCaseReceivedUseCase,
     AcceptSuggestActorToCaseReceivedUseCase,
     AnnounceVulnerabilityCaseReceivedUseCase,
     InviteActorToCaseReceivedUseCase,
+    OfferCaseManagerRoleReceivedUseCase,
     OfferCaseOwnershipTransferReceivedUseCase,
+    RejectCaseManagerRoleReceivedUseCase,
     RejectCaseOwnershipTransferReceivedUseCase,
     RejectInviteActorToCaseReceivedUseCase,
     RejectSuggestActorToCaseReceivedUseCase,
@@ -154,6 +160,7 @@ from vultron.core.use_cases.received.unknown import (
     UnresolvableObjectUseCase,
 )
 from vultron.wire.as2.extractor import (
+    AcceptCaseManagerRolePattern,
     AcceptCaseOwnershipTransferActivityPattern,
     AcceptInviteActorToCasePattern,
     AcceptInviteToEmbargoOnCasePattern,
@@ -183,7 +190,9 @@ from vultron.wire.as2.extractor import (
     InviteActorToCasePattern,
     InviteToEmbargoOnCasePattern,
     AnnounceVulnerabilityCasePattern,
+    OfferCaseManagerRolePattern,
     OfferCaseOwnershipTransferActivityPattern,
+    RejectCaseManagerRolePattern,
     RejectCaseOwnershipTransferActivityPattern,
     RejectInviteActorToCasePattern,
     RejectInviteToEmbargoOnCasePattern,
@@ -203,13 +212,16 @@ from vultron.wire.as2.vocab.activities.actor import (
     _RejectActorRecommendationActivity,
 )
 from vultron.wire.as2.vocab.activities.case import (
+    _AcceptCaseManagerRoleActivity,
     _AcceptCaseOwnershipTransferActivity,
     _AddNoteToCaseActivity,
     _AddReportToCaseActivity,
     _AddStatusToCaseActivity,
     _CreateCaseActivity,
     _CreateCaseStatusActivity,
+    _OfferCaseManagerRoleActivity,
     _OfferCaseOwnershipTransferActivity,
+    _RejectCaseManagerRoleActivity,
     _RejectCaseOwnershipTransferActivity,
     _RmAcceptInviteToCaseActivity,
     _RmCloseCaseActivity,
@@ -392,6 +404,29 @@ SEMANTIC_REGISTRY: list[SemanticEntry] = [
         event_class=RejectSuggestActorToCaseReceivedEvent,
         use_case_class=RejectSuggestActorToCaseReceivedUseCase,
         wire_activity_class=_RejectActorRecommendationActivity,
+    ),
+    SemanticEntry(
+        semantics=MessageSemantics.OFFER_CASE_MANAGER_ROLE,
+        pattern=OfferCaseManagerRolePattern,
+        event_class=OfferCaseManagerRoleReceivedEvent,
+        use_case_class=OfferCaseManagerRoleReceivedUseCase,
+        wire_activity_class=_OfferCaseManagerRoleActivity,
+        include_activity=True,
+    ),
+    SemanticEntry(
+        semantics=MessageSemantics.ACCEPT_CASE_MANAGER_ROLE,
+        pattern=AcceptCaseManagerRolePattern,
+        event_class=AcceptCaseManagerRoleReceivedEvent,
+        use_case_class=AcceptCaseManagerRoleReceivedUseCase,
+        wire_activity_class=_AcceptCaseManagerRoleActivity,
+        include_activity=True,
+    ),
+    SemanticEntry(
+        semantics=MessageSemantics.REJECT_CASE_MANAGER_ROLE,
+        pattern=RejectCaseManagerRolePattern,
+        event_class=RejectCaseManagerRoleReceivedEvent,
+        use_case_class=RejectCaseManagerRoleReceivedUseCase,
+        wire_activity_class=_RejectCaseManagerRoleActivity,
     ),
     SemanticEntry(
         semantics=MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER,

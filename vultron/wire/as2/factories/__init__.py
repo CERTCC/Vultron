@@ -29,6 +29,7 @@ from vultron.wire.as2.factories.actor import (
     reject_actor_recommendation_activity,
 )
 from vultron.wire.as2.factories.case import (
+    accept_case_manager_role_activity,
     accept_case_ownership_transfer_activity,
     add_note_to_case_activity,
     add_report_to_case_activity,
@@ -36,7 +37,9 @@ from vultron.wire.as2.factories.case import (
     announce_vulnerability_case_activity,
     create_case_activity,
     create_case_status_activity,
+    offer_case_manager_role_activity,
     offer_case_ownership_transfer_activity,
+    reject_case_manager_role_activity,
     reject_case_ownership_transfer_activity,
     rm_accept_invite_to_case_activity,
     rm_close_case_activity,
