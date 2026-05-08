@@ -520,13 +520,22 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             )
 
     def _all_participants_closed(self, case: Any) -> bool:
-        """Return True if every participant has RM.CLOSED as their latest status."""
+        """Return True if every CVD participant has RM.CLOSED as their latest status.
+
+        The Case Manager (Case Actor) is a coordinator role and does not
+        self-report RM closure, so it is excluded from this check.
+        """
         from vultron.core.states.rm import RM
+        from vultron.core.states.roles import CVDRole
 
         for p_id in case.actor_participant_index.values():
             p = self._dl.read(p_id)
             if p is None:
                 return False
+            # Case Manager is a coordinator; skip its participant record.
+            roles = getattr(p, "case_roles", [])
+            if CVDRole.CASE_MANAGER in roles:
+                continue
             statuses = getattr(p, "participant_statuses", [])
             if not statuses:
                 return False
