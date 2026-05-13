@@ -30,6 +30,8 @@ receiver that this epic depends on.
 - [#462](https://github.com/CERTCC/Vultron/issues/462) — Sub-issue C: CASE_MANAGER role delegation protocol ✅
 - [#469](https://github.com/CERTCC/Vultron/issues/469) — Case Actor spawning and CASE_MANAGER delegation automation (PR #473)
 - [#463](https://github.com/CERTCC/Vultron/issues/463) — Sub-issue D: Demo replacement (blocked by B, C)
+- [#475](https://github.com/CERTCC/Vultron/issues/475) — Case Actor URN-based ID makes it unreachable via HTTP delivery
+- [#476](https://github.com/CERTCC/Vultron/issues/476) — Remove spec-violating workarounds from SvcAddParticipantStatusUseCase (blocked by #475)
 
 ## Priority 475: Participant Case Replica Safety
 
@@ -37,8 +39,11 @@ Enforce safety rules for seeding and maintaining local case replicas in
 participant nodes, preventing unauthorized or out-of-order state
 propagation, as specified in `specs/participant-case-replica.yaml`.
 
+**Note**: #440 is currently blocked by PR #457 (PCR safety baseline) — ensure
+PR #457 merges before starting work on #440.
+
 - [#440](https://github.com/CERTCC/Vultron/issues/440) — PCR: Implement
-  participant case replica safety rules (PCR-03, PCR-05, PCR-06)
+  participant case replica safety rules (PCR-03, PCR-05, PCR-06) (Blocked by PR #457)
 
 ## Priority 476 — Epic #446: Bug Fixes and Demo Polish
 
