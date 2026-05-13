@@ -19,6 +19,7 @@ Provides various CaseParticipant objects for the Vultron ActivityStreams Vocabul
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import TypeAlias, cast
 
 from pydantic import Field, field_serializer, field_validator, model_validator
@@ -36,6 +37,8 @@ from vultron.wire.as2.vocab.objects.base import (
 from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
 
 logger = logging.getLogger(__name__)
+
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
 class CaseParticipant(VultronAS2Object):
@@ -127,13 +130,22 @@ class CaseParticipant(VultronAS2Object):
 
     @property
     def participant_status(self) -> ParticipantStatus | None:
-        """Return the most recent ParticipantStatus (read-only; see participant_statuses for history)."""
+        """Return the most recent ParticipantStatus (read-only; see participant_statuses for history).
+
+        Selection is by descending timestamp (``updated`` then ``published``),
+        with list-index as a tiebreaker so that same-second entries resolve to
+        the last-appended element. This is robust even if ``now_utc()``
+        truncates sub-second precision.
+        """
         if not self.participant_statuses:
             return None
         return max(
-            self.participant_statuses,
-            key=lambda ps: ps.updated or ps.published or ps.id_,
-        )
+            enumerate(self.participant_statuses),
+            key=lambda i_ps: (
+                i_ps[1].updated or i_ps[1].published or _EPOCH,
+                i_ps[0],
+            ),
+        )[1]
 
     def append_rm_state(self, rm_state: RM, actor: str, context: str) -> bool:
         """Append a new ParticipantStatus with the given RM state.

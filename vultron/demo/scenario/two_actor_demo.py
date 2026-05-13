@@ -56,11 +56,15 @@ import os
 import sys
 import time
 from typing import Optional, Tuple
+from urllib.parse import quote
+
+import requests  # type: ignore[import-untyped]
 
 from vultron.adapters.utils import parse_id
-from vultron.core.states.cs import CS_pxa
+from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
+from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -106,6 +110,25 @@ CASE_ACTOR_BASE_URL = os.environ.get(
 # Deterministic actor IDs from docker-compose-multi-actor.yml (D5-1-G3).
 FINDER_ACTOR_ID = "http://finder:7999/api/v2/actors/finder"
 VENDOR_ACTOR_ID = "http://vendor:7999/api/v2/actors/vendor"
+
+
+# ---------------------------------------------------------------------------
+# DataLayer path helpers
+# ---------------------------------------------------------------------------
+
+
+def _dl_key(key: str) -> str:
+    """URL-encode a DataLayer key for safe embedding in an API path segment.
+
+    Encodes characters that are illegal in URL path segments (e.g., colons in
+    URN-style keys like ``urn:uuid:...``).
+
+    Note: HTTP URL-based participant IDs (which contain literal slashes) cannot
+    be fetched via the single-segment ``/{key}`` DataLayer route even after
+    URL-encoding, because Starlette decodes ``%2F`` back to ``/`` before path
+    matching.  Such IDs must be handled via exception catching at the call site.
+    """
+    return quote(str(key), safe="")
 
 
 # ---------------------------------------------------------------------------
@@ -605,11 +628,12 @@ def _assert_vendor_participant_state(
     participant_id: str,
 ) -> None:
     participant = CaseParticipant(
-        **vendor_client.get(f"/datalayer/{participant_id}")
+        **vendor_client.get(f"/datalayer/{_dl_key(participant_id)}")
     )
-    if not participant.participant_statuses:
+    latest = participant.participant_status
+    if latest is None:
         raise AssertionError("Vendor participant has no participant statuses")
-    if participant.participant_statuses[-1].rm_state != RM.ACCEPTED:
+    if latest.rm_state != RM.ACCEPTED:
         raise AssertionError(
             "Vendor participant RM state did not transition to ACCEPTED"
         )
@@ -660,11 +684,22 @@ def verify_vendor_case_state(
         **vendor_client.get(f"/datalayer/{case_id}")
     )
 
-    participant_count = len(final_case.case_participants)
-    if participant_count != 3:
+    # Verify required participants are present by ID rather than a raw count,
+    # so future changes to the participant set don't silently break CI.
+    required_ids = {vendor_actor_id, reporter_actor_id}
+    missing = required_ids - set(final_case.actor_participant_index.keys())
+    if missing:
         raise AssertionError(
-            f"Expected 3 case participants (vendor + finder + case-actor),"
-            f" found {participant_count}"
+            f"Required participants missing from case: {missing}"
+        )
+    # At least one Case Actor must be present beyond vendor and finder.
+    other_actors = (
+        set(final_case.actor_participant_index.keys()) - required_ids
+    )
+    if not other_actors:
+        raise AssertionError(
+            "Expected at least one Case Actor participant in addition to"
+            " vendor and finder"
         )
 
     report_ids = [
@@ -1001,6 +1036,590 @@ def verify_finder_replica_state(
 
 
 # ---------------------------------------------------------------------------
+# Fix-lifecycle and closure step functions
+# ---------------------------------------------------------------------------
+
+
+def actor_notifies_fix_ready(
+    client: DataLayerClient,
+    actor: as_Actor,
+    case_id: str,
+) -> dict:
+    """Self-report fix ready (CS.VFd) via the demo trigger endpoint.
+
+    Sends ``Add(ParticipantStatus(CS.VFd), target=Case)`` to the Case Manager
+    so the Case Actor can update participant state and broadcast to peers.
+
+    Args:
+        client: Client connected to the actor's container.
+        actor: The actor that has a fix ready.
+        case_id: Full URI of the ``VulnerabilityCase``.
+
+    Returns:
+        Response dict from the trigger endpoint.
+
+    Spec: DEMOMA-07-001.
+    """
+    with demo_step(f"Actor {ref_id(actor)} reports fix ready"):
+        return post_to_trigger(
+            client=client,
+            actor_id=actor.id_,
+            behavior="notify-fix-ready",
+            body={"case_id": case_id},
+            path_prefix="demo",
+        )
+
+
+def actor_notifies_fix_deployed(
+    client: DataLayerClient,
+    actor: as_Actor,
+    case_id: str,
+) -> dict:
+    """Self-report fix deployed (CS.VFD) via the demo trigger endpoint.
+
+    Args:
+        client: Client connected to the actor's container.
+        actor: The actor that has deployed a fix.
+        case_id: Full URI of the ``VulnerabilityCase``.
+
+    Returns:
+        Response dict from the trigger endpoint.
+
+    Spec: DEMOMA-07-001.
+    """
+    with demo_step(f"Actor {ref_id(actor)} reports fix deployed"):
+        return post_to_trigger(
+            client=client,
+            actor_id=actor.id_,
+            behavior="notify-fix-deployed",
+            body={"case_id": case_id},
+            path_prefix="demo",
+        )
+
+
+def actor_notifies_published(
+    client: DataLayerClient,
+    actor: as_Actor,
+    case_id: str,
+) -> dict:
+    """Self-report vulnerability publicly disclosed (CS.VFDPxa) via the
+    demo trigger endpoint.
+
+    When called by the CASE_OWNER (Vendor), the Case Actor automatically
+    initiates embargo teardown on receipt (DEMOMA-07-003 step 4).
+
+    Args:
+        client: Client connected to the actor's container.
+        actor: The actor reporting publication.
+        case_id: Full URI of the ``VulnerabilityCase``.
+
+    Returns:
+        Response dict from the trigger endpoint.
+
+    Spec: DEMOMA-07-001.
+    """
+    with demo_step(
+        f"Actor {ref_id(actor)} reports vulnerability publicly disclosed"
+    ):
+        return post_to_trigger(
+            client=client,
+            actor_id=actor.id_,
+            behavior="notify-published",
+            body={"case_id": case_id},
+            path_prefix="demo",
+        )
+
+
+def actor_closes_case(
+    client: DataLayerClient,
+    actor: as_Actor,
+    case_id: str,
+) -> dict:
+    """Self-report case closed (RM.CLOSED) via the demo trigger endpoint.
+
+    When all participants report RM.CLOSED, the Case Actor automatically
+    closes the case (DEMOMA-07-003 step 5).
+
+    Args:
+        client: Client connected to the actor's container.
+        actor: The actor closing the case.
+        case_id: Full URI of the ``VulnerabilityCase``.
+
+    Returns:
+        Response dict from the trigger endpoint.
+
+    Spec: DEMOMA-07-001.
+    """
+    with demo_step(f"Actor {ref_id(actor)} closes case"):
+        return post_to_trigger(
+            client=client,
+            actor_id=actor.id_,
+            behavior="close-case",
+            body={"case_id": case_id},
+            path_prefix="demo",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Polling helpers for milestone verification
+# ---------------------------------------------------------------------------
+
+
+def _fetch_participant(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+) -> Optional[CaseParticipant]:
+    """Fetch the CaseParticipant record for *actor_id* in *case_id*.
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``VulnerabilityCase``.
+        actor_id: Full URI of the actor whose participant record to fetch.
+
+    Returns:
+        The ``CaseParticipant`` or ``None`` if the actor or participant
+        record is not found.
+    """
+    try:
+        case_data = client.get(f"/datalayer/{case_id}")
+        case = VulnerabilityCase.model_validate(case_data)
+        participant_id = case.actor_participant_index.get(actor_id)
+        if participant_id is None:
+            return None
+        p_data = client.get(f"/datalayer/{_dl_key(participant_id)}")
+        return CaseParticipant(**p_data)
+    except (requests.HTTPError, AssertionError):
+        return None
+
+
+def wait_for_participant_vfd_state(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    expected_states: "set[CS_vfd]",
+    timeout_seconds: float = 10.0,
+    poll_interval: float = 0.25,
+) -> None:
+    """Poll until the actor's latest participant ``vfd_state`` is in
+    *expected_states*.
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``VulnerabilityCase``.
+        actor_id: Full URI of the actor to check.
+        expected_states: Set of ``CS_vfd`` values that satisfy the condition.
+        timeout_seconds: Maximum time to wait.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Raises:
+        AssertionError: If the state is not reached within *timeout_seconds*.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        participant = _fetch_participant(client, case_id, actor_id)
+        if participant is not None:
+            latest = participant.participant_status
+            if latest is not None and latest.vfd_state in expected_states:
+                return
+        time.sleep(poll_interval)
+
+    participant = _fetch_participant(client, case_id, actor_id)
+    latest = (
+        participant.participant_status if participant is not None else None
+    )
+    current = latest.vfd_state if latest is not None else "unknown"
+    raise AssertionError(
+        f"Timed out waiting for actor '{actor_id}' vfd_state to be in "
+        f"{expected_states!r}; current={current!r}"
+    )
+
+
+def wait_for_case_em_terminated(
+    client: DataLayerClient,
+    case_id: str,
+    timeout_seconds: float = 10.0,
+    poll_interval: float = 0.25,
+) -> None:
+    """Poll until the case EM state is ``EM.EXITED``.
+
+    After the Vendor (CASE_OWNER) reports public disclosure, the Case Actor
+    automatically initiates embargo teardown.  This helper waits for the
+    teardown to be reflected in the DataLayer.
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``VulnerabilityCase``.
+        timeout_seconds: Maximum time to wait.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Raises:
+        AssertionError: If EM.EXITED is not observed within *timeout_seconds*.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            case_data = client.get(f"/datalayer/{case_id}")
+            case = VulnerabilityCase.model_validate(case_data)
+            if case.current_status.em_state == EM.EXITED:
+                return
+        except Exception:  # noqa: BLE001
+            pass
+        time.sleep(poll_interval)
+
+    raise AssertionError(
+        f"Timed out waiting for case '{case_id}' EM state to reach EXITED"
+        " — embargo teardown may not have completed"
+    )
+
+
+def _fetch_participant_data(client: DataLayerClient, p_id: str) -> dict | None:
+    """Fetch a participant record, returning None for genuine 404s.
+
+    Re-raises for any non-404 error so failures are not silently swallowed.
+    """
+    try:
+        return client.get(f"/datalayer/{_dl_key(p_id)}")
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code == 404:
+            return None
+        raise
+    except AssertionError as e:
+        # TestClient compatibility: make_testclient_call raises AssertionError
+        # for 4xx responses; treat only genuine 404s as "not found".
+        if "404" in str(e):
+            return None
+        raise
+
+
+def _assert_participant_vfd_pxa(
+    participant: "CaseParticipant",
+    label: str,
+    vendor_actor_id: str,
+) -> None:
+    """Assert that *participant* (for *vendor_actor_id*) has VFD and a
+    public-aware pxa_state.  *label* is used in error messages."""
+    public_aware = {CS_pxa.Pxa, CS_pxa.PxA, CS_pxa.PXa, CS_pxa.PXA}
+    latest = participant.participant_status
+    if latest is None:
+        raise AssertionError(
+            f"M6 {label}: participant {vendor_actor_id!r} has no statuses"
+        )
+    if latest.vfd_state != CS_vfd.VFD:
+        raise AssertionError(
+            f"M6 {label}: vfd_state is not VFD, found {latest.vfd_state!r}"
+        )
+    cs = getattr(latest, "case_status", None)
+    pxa = getattr(cs, "pxa_state", None) if cs is not None else None
+    if pxa not in public_aware:
+        raise AssertionError(
+            f"M6 {label}: pxa_state is not public-aware, found {pxa!r}"
+        )
+
+
+def _all_fetchable_participants_rm_closed(
+    client: DataLayerClient,
+    case: VulnerabilityCase,
+) -> bool:
+    """Return True when every fetchable, non-coordinator participant is
+    RM.CLOSED."""
+    for p_id in case.actor_participant_index.values():
+        p_data = _fetch_participant_data(client, p_id)
+        if p_data is None:
+            continue  # remote container — not fetchable here
+        if not p_data:
+            return False
+        p = CaseParticipant(**p_data)
+        if CVDRole.CASE_MANAGER in (p.case_roles or []):
+            continue
+        latest = p.participant_status
+        if latest is None:
+            return False
+        if latest.rm_state != RM.CLOSED:
+            return False
+    return True
+
+
+def wait_for_all_participants_rm_closed(
+    client: DataLayerClient,
+    case_id: str,
+    timeout_seconds: float = 10.0,
+    poll_interval: float = 0.25,
+) -> None:
+    """Poll until all participants in *case_id* have ``RM.CLOSED`` as
+    their latest status.
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``VulnerabilityCase``.
+        timeout_seconds: Maximum time to wait.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Raises:
+        AssertionError: If any participant is not RM.CLOSED within
+            *timeout_seconds*.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            case_data = client.get(f"/datalayer/{case_id}")
+            case = VulnerabilityCase.model_validate(case_data)
+            if _all_fetchable_participants_rm_closed(client, case):
+                return
+        except Exception:  # noqa: BLE001
+            pass
+        time.sleep(poll_interval)
+
+    raise AssertionError(
+        f"Timed out waiting for all participants in case '{case_id}' "
+        "to reach RM.CLOSED"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Milestone verification helpers
+# ---------------------------------------------------------------------------
+
+
+def verify_m1_state(
+    vendor_client: DataLayerClient,
+    finder_client: DataLayerClient,
+    case_id: str,
+    vendor_actor_id: str,
+    reporter_actor_id: str,
+) -> None:
+    """Verify milestone M1: required participants present, EM.ACTIVE, finder has case replica.
+
+    Checks the Vendor DataLayer for the required participants (Vendor and
+    Reporter) plus at least one Case Actor (≥3 total) with an active embargo,
+    then verifies the Reporter DataLayer has a matching case replica.
+
+    Spec: DEMOMA-06-002, DEMOMA-06-003.
+    """
+    # Vendor side
+    case_data = vendor_client.get(f"/datalayer/{case_id}")
+    assert case_data, f"M1: Vendor case {case_id!r} not found"
+    case = VulnerabilityCase.model_validate(case_data)
+
+    required = {vendor_actor_id, reporter_actor_id}
+    missing = required - set(case.actor_participant_index.keys())
+    if missing:
+        raise AssertionError(
+            f"M1: Required participants missing from vendor case: {missing}"
+        )
+    other_actors = set(case.actor_participant_index.keys()) - required
+    if not other_actors:
+        raise AssertionError(
+            "M1: Expected a Case Actor participant in addition to vendor and finder"
+        )
+    if case.current_status.em_state != EM.ACTIVE:
+        raise AssertionError(
+            f"M1 vendor: expected EM.ACTIVE, found {case.current_status.em_state}"
+        )
+    if case.active_embargo is None:
+        raise AssertionError("M1 vendor: case has no active_embargo")
+    logger.info(
+        "✓ M1 vendor: required participants (vendor, finder) + case-actor "
+        "present, EM.ACTIVE, embargo present"
+    )
+
+    # Finder side: replica must exist with matching participant index and embargo
+    finder_case_data = finder_client.get(f"/datalayer/{case_id}")
+    if not finder_case_data:
+        raise AssertionError(
+            f"M1: Finder does not have case replica for {case_id!r} — "
+            "outbox delivery may not have completed"
+        )
+    finder_case = VulnerabilityCase.model_validate(finder_case_data)
+
+    vendor_embargo_id = _extract_ref_id(case.active_embargo)
+    finder_embargo_id = _extract_ref_id(finder_case.active_embargo)
+    if (
+        vendor_embargo_id is not None
+        and vendor_embargo_id != finder_embargo_id
+    ):
+        raise AssertionError(
+            f"M1: Finder active_embargo {finder_embargo_id!r} != "
+            f"vendor active_embargo {vendor_embargo_id!r}"
+        )
+    logger.info(
+        "✓ M1 finder: case replica present, matching participant index "
+        "and active embargo"
+    )
+
+
+def _check_participant_vfd_state_in(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    expected_states: "set[CS_vfd]",
+    label: str,
+) -> None:
+    """Assert actor's latest participant vfd_state is in *expected_states*.
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``VulnerabilityCase``.
+        actor_id: Full URI of the actor to check.
+        expected_states: Set of acceptable ``CS_vfd`` values.
+        label: Human-readable label for AssertionError messages.
+    """
+    participant = _fetch_participant(client, case_id, actor_id)
+    if participant is None:
+        raise AssertionError(
+            f"{label}: participant for actor '{actor_id}' not found"
+        )
+    latest = participant.participant_status
+    if latest is None:
+        raise AssertionError(
+            f"{label}: participant for actor '{actor_id}' has no participant"
+            " statuses"
+        )
+    latest_vfd = latest.vfd_state
+    if latest_vfd not in expected_states:
+        raise AssertionError(
+            f"{label}: expected vfd_state in {expected_states!r}, "
+            f"found {latest_vfd!r}"
+        )
+
+
+def verify_m4_state(
+    vendor_client: DataLayerClient,
+    finder_client: DataLayerClient,
+    case_id: str,
+    vendor_actor_id: str,
+) -> None:
+    """Verify milestone M4: both replicas show CS includes F (fix ready).
+
+    Spec: DEMOMA-06-002.
+    """
+    fix_ready_states = {CS_vfd.VFd, CS_vfd.VFD}
+    _check_participant_vfd_state_in(
+        vendor_client,
+        case_id,
+        vendor_actor_id,
+        fix_ready_states,
+        "M4 vendor",
+    )
+    _check_participant_vfd_state_in(
+        finder_client,
+        case_id,
+        vendor_actor_id,
+        fix_ready_states,
+        "M4 finder replica",
+    )
+    logger.info("✓ M4: both replicas show CS includes F (fix ready)")
+
+
+def verify_m5_state(
+    vendor_client: DataLayerClient,
+    finder_client: DataLayerClient,
+    case_id: str,
+    vendor_actor_id: str,
+) -> None:
+    """Verify milestone M5: both replicas show CS includes D (fix deployed).
+
+    Spec: DEMOMA-06-002.
+    """
+    deployed_state = {CS_vfd.VFD}
+    _check_participant_vfd_state_in(
+        vendor_client, case_id, vendor_actor_id, deployed_state, "M5 vendor"
+    )
+    _check_participant_vfd_state_in(
+        finder_client,
+        case_id,
+        vendor_actor_id,
+        deployed_state,
+        "M5 finder replica",
+    )
+    logger.info("✓ M5: both replicas show CS includes D (fix deployed)")
+
+
+def verify_m6_state(
+    vendor_client: DataLayerClient,
+    finder_client: DataLayerClient,
+    case_id: str,
+    vendor_actor_id: str,
+) -> None:
+    """Verify milestone M6: both replicas CS.VFDPxa and EM terminated.
+
+    Checks:
+    - Both DataLayers reflect ``EM.EXITED`` on the case.
+    - Vendor participant's latest status has ``vfd_state == VFD`` and
+      a public-aware ``pxa_state``.
+
+    Spec: DEMOMA-06-002.
+    """
+    for label, client in [
+        ("vendor", vendor_client),
+        ("finder", finder_client),
+    ]:
+        case_data = client.get(f"/datalayer/{case_id}")
+        assert case_data, f"M6 {label}: case {case_id!r} not found"
+        case = VulnerabilityCase.model_validate(case_data)
+        if case.current_status.em_state != EM.EXITED:
+            raise AssertionError(
+                f"M6 {label}: expected EM.EXITED, "
+                f"found {case.current_status.em_state}"
+            )
+        logger.info("✓ M6 %s: EM.EXITED", label)
+
+    # Verify vendor participant's latest status is VFD + public-aware pxa
+    # on both the vendor's and finder's DataLayer replicas.
+    for label, c in [("vendor", vendor_client), ("finder", finder_client)]:
+        p = _fetch_participant(c, case_id, vendor_actor_id)
+        if p is None:
+            raise AssertionError(
+                f"M6 {label}: vendor participant {vendor_actor_id!r} not found"
+            )
+        _assert_participant_vfd_pxa(p, label, vendor_actor_id)
+    logger.info("✓ M6: both replicas CS.VFDPxa and EM.EXITED")
+
+
+def verify_m7_state(
+    vendor_client: DataLayerClient,
+    finder_client: DataLayerClient,
+    case_id: str,
+) -> None:
+    """Verify milestone M7: all participants RM.CLOSED on both replicas.
+
+    The Case Actor automatically closes the case once all participants report
+    RM.CLOSED (DEMOMA-07-003 step 5).  This helper verifies the terminal
+    participant state on both DataLayers.
+
+    Spec: DEMOMA-06-002.
+    """
+    for label, client in [
+        ("vendor", vendor_client),
+        ("finder", finder_client),
+    ]:
+        case_data = client.get(f"/datalayer/{case_id}")
+        assert case_data, f"M7 {label}: case {case_id!r} not found"
+        case = VulnerabilityCase.model_validate(case_data)
+        for a_id, p_id in case.actor_participant_index.items():
+            p_data = _fetch_participant_data(client, p_id)
+            if p_data is None:
+                continue  # remote container — not fetchable here
+            p = CaseParticipant(**p_data)
+            # Case Manager is a coordinator; skip RM closure check.
+            if CVDRole.CASE_MANAGER in (p.case_roles or []):
+                continue
+            latest = p.participant_status
+            if latest is None:
+                raise AssertionError(
+                    f"M7 {label}: actor '{a_id}' has no participant statuses"
+                )
+            rm = latest.rm_state
+            if rm != RM.CLOSED:
+                raise AssertionError(
+                    f"M7 {label}: actor '{a_id}' RM state is "
+                    f"{rm!r}, expected RM.CLOSED"
+                )
+        logger.info("✓ M7 %s: all participants RM.CLOSED", label)
+    logger.info("✓ M7: all participants RM.CLOSED on both replicas")
+
+
+# ---------------------------------------------------------------------------
 # Main workflow orchestration
 # ---------------------------------------------------------------------------
 
@@ -1014,16 +1633,20 @@ def run_two_actor_demo(
 ) -> None:
     """Orchestrate the complete two-actor (Finder + Vendor) CVD workflow.
 
-    1. Reset all participating containers to a clean baseline.
-    2. Seed both actor containers.
-    3. Finder submits report → Vendor's inbox.
-    4. Vendor validates report; the BT automatically creates the case,
-       initializes the default embargo, and registers both the Vendor and
-       Finder as case participants (vendor RM → ACCEPTED).
-    5. Finder posts a question note to the case; Vendor replies and the
-       case forwards the reply to the Finder.
-    6. Verify final state on the Vendor container and optional CaseActor
-       isolation for the D5-2 topology.
+    Exercises the full VFDPxa lifecycle (M1 → M7) in the D5-1-G5 topology:
+
+    - Phase 1 (M1): Report submission → validation → case creation, default
+      embargo, required participants (Vendor + Finder + Case Actor ≥3 total),
+      EM.ACTIVE.
+    - Phase 2 (M2): Finder receives case replica via outbox delivery; log
+      tail hashes match (SYNC-2).
+    - Phase 3 (M3): Notes exchange — Finder asks a question, Vendor replies.
+    - Phase 4 (M4 → M5): Vendor self-reports fix ready (CS.VFd), then fix
+      deployed (CS.VFD).  Both replicas are verified after each transition.
+    - Phase 5 (M6): Vendor (CASE_OWNER) and Finder report public disclosure.
+      Case Actor triggers embargo teardown (EM.EXITED) automatically.
+    - Phase 6 (M7): Vendor and Finder close their cases (RM.CLOSED).  Case
+      Actor automatically closes the case when all participants report closed.
 
     Args:
         finder_client: Client connected to the Finder container.
@@ -1035,7 +1658,7 @@ def run_two_actor_demo(
         vendor_id: Optional deterministic URI for the Vendor actor.
     """
     logger.info("=" * 80)
-    logger.info("TWO-ACTOR DEMO: Finder + Vendor CVD Workflow (D5-1-G5)")
+    logger.info("TWO-ACTOR DEMO: Finder + Vendor CVD Workflow (VFDPxa)")
     logger.info("=" * 80)
     logger.info("Finder container: %s", finder_client.base_url)
     logger.info("Vendor container: %s", vendor_client.base_url)
@@ -1092,7 +1715,7 @@ def run_two_actor_demo(
     wait_for_case_participants(
         vendor_client=vendor_client,
         case_id=case.id_,
-        expected_count=2,
+        expected_count=3,
     )
 
     # Verify the Finder's container received the case via outbox delivery.
@@ -1111,11 +1734,27 @@ def run_two_actor_demo(
             case.id_,
         )
 
+    # ── Milestone M1: 3 participants, EM.ACTIVE, finder has case replica ──
+    with demo_check(
+        "M1: required participants (vendor + finder + case-actor, ≥3), EM.ACTIVE, "
+        "finder has case replica"
+    ):
+        verify_m1_state(
+            vendor_client=vendor_client,
+            finder_client=finder_client,
+            case_id=case.id_,
+            vendor_actor_id=vendor.id_,
+            reporter_actor_id=finder.id_,
+        )
+
     # Refresh case after BT completes.
     case_data = vendor_client.get(f"/datalayer/{case.id_}")
     case = VulnerabilityCase(**case_data)
 
-    # ── Step 4: Notes exchange ────────────────────────────────────────────
+    # ── Phase 3 (M3): Notes exchange ─────────────────────────────────────
+    logger.info("─" * 80)
+    logger.info("Phase 3: Notes exchange")
+    logger.info("─" * 80)
     # Finder actor from the Finder container.
     finder_in_finder = get_actor_by_id(finder_client, finder.id_)
 
@@ -1136,9 +1775,9 @@ def run_two_actor_demo(
         question_note=question_note,
     )
 
-    # ── Step 5: Verify final state ────────────────────────────────────────
+    # ── M3: Verify notes are attached to case after exchange ──────────────
     with demo_check(
-        "Vendor container holds the authoritative final case state"
+        "M3: Vendor container holds the authoritative final case state"
     ):
         final_case = verify_vendor_case_state(
             vendor_client=vendor_client,
@@ -1151,7 +1790,7 @@ def run_two_actor_demo(
         )
         logger.info("Final case state (Vendor): %s", logfmt(final_case))
 
-    # ── Step 6: Commit log entry + verify finder replica ──────────────────
+    # ── M2: Commit log entry + verify finder replica ──────────────────────
     # Per SYNC-2, the CaseActor (co-located in the Vendor container for the
     # D5-2 topology) commits a log entry that fans out to the Finder via
     # Announce(CaseLogEntry).  We then poll the Finder for the entry and
@@ -1180,11 +1819,148 @@ def run_two_actor_demo(
             reporter_actor_id=finder.id_,
         )
 
+    logger.info("✓ M2: Finder DataLayer synchronized (SYNC-2 verified)")
+
     with demo_check("Dedicated CaseActor container remains unused for D5-2"):
         verify_case_actor_unused(case_actor_client, case.id_)
 
+    # ── Phase 4: Fix lifecycle (M4 → M5) ─────────────────────────────────
+    logger.info("─" * 80)
+    logger.info(
+        "Phase 4: Fix lifecycle — VFd (fix ready) → VFD (fix deployed)"
+    )
+    logger.info("─" * 80)
+
+    # Step 10: Vendor reports fix ready (CS.vfd → CS.VFd)
+    actor_notifies_fix_ready(
+        client=vendor_client,
+        actor=vendor_in_vendor,
+        case_id=case.id_,
+    )
+
+    with demo_check("Vendor participant vfd_state transitions to VFd or VFD"):
+        wait_for_participant_vfd_state(
+            client=vendor_client,
+            case_id=case.id_,
+            actor_id=vendor.id_,
+            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+        )
+
+    with demo_check("M4: both replicas show CS includes F (fix ready)"):
+        wait_for_participant_vfd_state(
+            client=finder_client,
+            case_id=case.id_,
+            actor_id=vendor.id_,
+            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+        )
+        verify_m4_state(
+            vendor_client=vendor_client,
+            finder_client=finder_client,
+            case_id=case.id_,
+            vendor_actor_id=vendor.id_,
+        )
+
+    # Step 11: Vendor reports fix deployed (CS.VFd → CS.VFD)
+    actor_notifies_fix_deployed(
+        client=vendor_client,
+        actor=vendor_in_vendor,
+        case_id=case.id_,
+    )
+
+    with demo_check("M5: both replicas show CS includes D (fix deployed)"):
+        wait_for_participant_vfd_state(
+            client=finder_client,
+            case_id=case.id_,
+            actor_id=vendor.id_,
+            expected_states={CS_vfd.VFD},
+        )
+        verify_m5_state(
+            vendor_client=vendor_client,
+            finder_client=finder_client,
+            case_id=case.id_,
+            vendor_actor_id=vendor.id_,
+        )
+
+    # ── Phase 5: Publication and embargo teardown (M6) ───────────────────
+    logger.info("─" * 80)
+    logger.info(
+        "Phase 5: Publication — CS.VFDPxa + embargo teardown (EM.EXITED)"
+    )
+    logger.info("─" * 80)
+
+    # Step 12: Vendor (CASE_OWNER) reports public disclosure.
+    # This triggers automatic embargo teardown by the Case Actor.
+    actor_notifies_published(
+        client=vendor_client,
+        actor=vendor_in_vendor,
+        case_id=case.id_,
+    )
+
+    with demo_check(
+        "Embargo terminated (EM.EXITED) after Vendor reports published"
+    ):
+        wait_for_case_em_terminated(
+            client=vendor_client,
+            case_id=case.id_,
+        )
+
+    # Step 13: Finder (Reporter) also reports public disclosure.
+    actor_notifies_published(
+        client=finder_client,
+        actor=finder_in_finder,
+        case_id=case.id_,
+    )
+
+    with demo_check(
+        "M6: both replicas CS.VFDPxa, EM.EXITED, vendor participant is public-aware"
+    ):
+        wait_for_case_em_terminated(
+            client=finder_client,
+            case_id=case.id_,
+        )
+        verify_m6_state(
+            vendor_client=vendor_client,
+            finder_client=finder_client,
+            case_id=case.id_,
+            vendor_actor_id=vendor.id_,
+        )
+
+    # ── Phase 6: Case closure (M7) ───────────────────────────────────────
+    logger.info("─" * 80)
+    logger.info("Phase 6: Case closure — all participants RM.CLOSED")
+    logger.info("─" * 80)
+
+    # Step 14: Vendor closes case.
+    actor_closes_case(
+        client=vendor_client,
+        actor=vendor_in_vendor,
+        case_id=case.id_,
+    )
+
+    # Step 15: Finder (Reporter) closes case.
+    actor_closes_case(
+        client=finder_client,
+        actor=finder_in_finder,
+        case_id=case.id_,
+    )
+
+    with demo_check("M7: all participants RM.CLOSED on both replicas"):
+        wait_for_all_participants_rm_closed(
+            client=vendor_client,
+            case_id=case.id_,
+        )
+        wait_for_all_participants_rm_closed(
+            client=finder_client,
+            case_id=case.id_,
+        )
+        verify_m7_state(
+            vendor_client=vendor_client,
+            finder_client=finder_client,
+            case_id=case.id_,
+        )
+
     logger.info("=" * 80)
-    logger.info("TWO-ACTOR DEMO COMPLETE ✓")
+    logger.info("TWO-ACTOR DEMO COMPLETE ✓  (VFDPxa full lifecycle)")
     logger.info("=" * 80)
 
 

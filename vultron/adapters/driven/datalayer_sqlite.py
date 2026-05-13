@@ -978,9 +978,12 @@ def get_datalayer(
             _shared_instance = SqliteDataLayer(db_url=_url)
         return _shared_instance
     if actor_id not in _actor_instances:
-        _actor_instances[actor_id] = SqliteDataLayer(
-            db_url=_url, actor_id=actor_id
-        )
+        # Ensure the shared instance exists so we can clone from it.
+        # Cloning shares the underlying engine, which is critical for
+        # in-memory SQLite (each Engine gets its own isolated database).
+        if _shared_instance is None:
+            _shared_instance = SqliteDataLayer(db_url=_url)
+        _actor_instances[actor_id] = _shared_instance.clone_for_actor(actor_id)
     return _actor_instances[actor_id]
 
 

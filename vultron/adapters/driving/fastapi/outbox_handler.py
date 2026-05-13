@@ -39,6 +39,31 @@ from vultron.wire.as2.vocab.base.links import as_Link
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Default emitter singleton
+# ---------------------------------------------------------------------------
+# Set via ``configure_default_emitter()`` during app startup so all
+# ``outbox_handler`` calls use local ASGI delivery for co-located actors.
+# Falls back to ``DeliveryQueueAdapter`` (HTTP-only) when not configured.
+_default_emitter: ActivityEmitter | None = None
+
+
+def configure_default_emitter(emitter: ActivityEmitter) -> None:
+    """Set the default ``ActivityEmitter`` for ``outbox_handler``.
+
+    Called once during app lifespan to install the ``ASGIEmitter`` so
+    co-located actors (e.g. Case Actor) receive messages through the
+    normal inbox pipeline rather than failing silently on HTTP delivery.
+    """
+    global _default_emitter  # noqa: PLW0603
+    _default_emitter = emitter
+
+
+def get_default_emitter() -> ActivityEmitter:
+    """Return the configured default emitter, or ``DeliveryQueueAdapter``."""
+    return _default_emitter or DeliveryQueueAdapter()
+
+
 # Reference fields that must be collapsed to URI strings before validating as
 # VultronActivity.  ``object`` is intentionally excluded — it must remain a
 # full inline typed object so recipients can determine the semantic type
@@ -392,11 +417,12 @@ async def outbox_handler(
             the ``POST /outbox`` case where activities are stored in the
             actor's own DL).
         emitter: The ActivityEmitter port to use for delivery. Defaults to
-            ``DeliveryQueueAdapter()`` which delivers via HTTP POST.
+            the configured emitter (``ASGIEmitter`` when available, otherwise
+            ``DeliveryQueueAdapter``).
     """
     _emitter = cast(
         ActivityEmitter,
-        emitter if emitter is not None else DeliveryQueueAdapter(),
+        emitter if emitter is not None else get_default_emitter(),
     )
     _read_dl = shared_dl if shared_dl is not None else dl
 

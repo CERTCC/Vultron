@@ -15,7 +15,10 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.states.cs import is_valid_pxa_transition
 from vultron.core.states.em import is_valid_em_transition
-from vultron.core.states.rm import is_valid_rm_transition
+from vultron.core.states.rm import (
+    is_valid_rm_transition,
+    is_monotonic_rm_forward,
+)
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 from vultron.core.models.protocols import (
     ParticipantStatusModel,
@@ -322,14 +325,27 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             if current_rm != new_rm_state and not is_valid_rm_transition(
                 current_rm, new_rm_state
             ):
-                logger.warning(
-                    "Invalid RM transition %s → %s for participant '%s'; "
-                    "skipping status append",
-                    current_rm,
-                    new_rm_state,
-                    participant_id,
-                )
-                return None
+                if is_monotonic_rm_forward(current_rm, new_rm_state):
+                    # Forward jump (e.g. RECEIVED → ACCEPTED): the sender is
+                    # authoritative about their own RM state; intermediate
+                    # transitions may have occurred locally.  Log but accept.
+                    logger.info(
+                        "Non-adjacent forward RM transition %s → %s for "
+                        "participant '%s'; accepting sender-authoritative state",
+                        current_rm,
+                        new_rm_state,
+                        participant_id,
+                    )
+                else:
+                    # Regression (e.g. CLOSED → RECEIVED): reject and discard.
+                    logger.warning(
+                        "Rejecting backwards RM transition %s → %s for "
+                        "participant '%s'; sender state ignored",
+                        current_rm,
+                        new_rm_state,
+                        participant_id,
+                    )
+                    return None
 
         participant.participant_statuses.append(
             cast(ParticipantStatusModel, status_obj)
@@ -520,13 +536,22 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             )
 
     def _all_participants_closed(self, case: Any) -> bool:
-        """Return True if every participant has RM.CLOSED as their latest status."""
+        """Return True if every CVD participant has RM.CLOSED as their latest status.
+
+        The Case Manager (Case Actor) is a coordinator role and does not
+        self-report RM closure, so it is excluded from this check.
+        """
         from vultron.core.states.rm import RM
+        from vultron.core.states.roles import CVDRole
 
         for p_id in case.actor_participant_index.values():
             p = self._dl.read(p_id)
             if p is None:
                 return False
+            # Case Manager is a coordinator; skip its participant record.
+            roles = getattr(p, "case_roles", [])
+            if CVDRole.CASE_MANAGER in roles:
+                continue
             statuses = getattr(p, "participant_statuses", [])
             if not statuses:
                 return False

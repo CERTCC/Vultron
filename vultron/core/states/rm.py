@@ -160,6 +160,28 @@ def is_valid_rm_transition(source: RM, dest: RM) -> bool:
     )
 
 
+# Progress values for each RM state: higher = closer to CLOSED.
+_RM_PROGRESS: dict[RM, int] = {
+    RM.START: 0,
+    RM.RECEIVED: 1,
+    RM.INVALID: 2,
+    RM.VALID: 2,
+    RM.DEFERRED: 3,
+    RM.ACCEPTED: 3,
+    RM.CLOSED: 4,
+}
+
+
+def is_monotonic_rm_forward(source: RM, dest: RM) -> bool:
+    """Return True if *dest* is strictly further toward CLOSED than *source*.
+
+    Used to accept legitimate sender-authoritative forward jumps (e.g.
+    RECEIVED → ACCEPTED when intermediate transitions occurred locally)
+    while still rejecting regressions (e.g. CLOSED → RECEIVED).
+    """
+    return _RM_PROGRESS.get(dest, 0) > _RM_PROGRESS.get(source, 0)
+
+
 def create_rm_machine() -> Machine:
     """
     Generates a new Report Management State Machine object

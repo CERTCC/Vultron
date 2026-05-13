@@ -658,7 +658,21 @@ class TestCreateCaseActorNodeBlackboard:
             case_id=case_obj.id_,
         )
 
-        expected_participant_id = f"{case_obj.id_}/participants/case-actor"
+        # Case Actor participant ID uses flat HTTP URL, not URN-based path.
+        import hashlib
+
+        case_id = case_obj.id_
+        if case_id.startswith("urn:uuid:"):
+            case_slug = case_id[len("urn:uuid:") :]
+        else:
+            case_slug = hashlib.sha256(case_id.encode()).hexdigest()[:12]
+
+        from vultron.config import get_config
+
+        base_url = get_config().server.base_url.rstrip("/")
+        expected_participant_id = (
+            f"{base_url}/actors/case-actor-{case_slug}/participant"
+        )
         participant = bt_scenario.dl.read(expected_participant_id)
         assert participant is not None
 
@@ -718,12 +732,20 @@ class TestSendOfferCaseManagerRoleNode:
             case_actor_id is not None
         ), "CreateCaseActorNode must write case_actor_id"
 
+        case_actor_participant_id = py_trees.blackboard.Blackboard.storage.get(
+            "/case_actor_participant_id"
+        )
+        assert (
+            case_actor_participant_id is not None
+        ), "CreateCaseActorNode must write case_actor_participant_id"
+
         # Now run SendOfferCaseManagerRoleNode with the needed blackboard context.
         result = bt_scenario.run(
             SendOfferCaseManagerRoleNode(),
             actor_id=actor_id,
             case_id=case_obj.id_,
             case_actor_id=case_actor_id,
+            case_actor_participant_id=case_actor_participant_id,
         )
         bt_scenario.assert_success(result)
 

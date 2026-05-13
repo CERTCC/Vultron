@@ -656,6 +656,304 @@ class TestVerifyFinderReplicaState:
 
 
 # ---------------------------------------------------------------------------
+# Tests for fix-lifecycle and closure step functions
+# ---------------------------------------------------------------------------
+
+
+def _setup_case_with_3_participants(base: str):
+    """Helper: seed, submit report, validate, and return (finder, vendor, case).
+
+    Returns a tuple of (finder_client, vendor_client, finder, vendor, case).
+    The shared DataLayer will have 3 participants (Vendor + Finder + Case Actor).
+    """
+    finder_client = _make_client(base)
+    vendor_client = _make_client(base)
+
+    finder, vendor = demo.seed_containers(
+        finder_client=finder_client,
+        vendor_client=vendor_client,
+    )
+    vendor_in_vendor = demo.get_actor_by_id(vendor_client, vendor.id_)
+    _, offer = demo.finder_submits_report(
+        vendor_client=vendor_client,
+        finder_client=finder_client,
+        finder=finder,
+        vendor=vendor_in_vendor,
+    )
+    demo.vendor_validates_report(
+        vendor_client=vendor_client,
+        vendor=vendor_in_vendor,
+        offer_id=offer.id_,
+    )
+    case = demo.find_case_for_offer(vendor_client, offer.id_)
+    assert case is not None
+    return finder_client, vendor_client, finder, vendor_in_vendor, case
+
+
+class TestActorNotifiesFixReady:
+    """Tests for actor_notifies_fix_ready."""
+
+    def test_returns_response(self, client: TestClient, base: str):
+        """Returns a response dict from the trigger endpoint."""
+        finder_client, vendor_client, finder, vendor, case = (
+            _setup_case_with_3_participants(base)
+        )
+        result = demo.actor_notifies_fix_ready(
+            client=vendor_client,
+            actor=vendor,
+            case_id=case.id_,
+        )
+        # trigger endpoint returns a dict (accepted/queued)
+        assert result is not None
+
+    def test_raises_on_invalid_case(self, client: TestClient, base: str):
+        """Raises when actor or case is not found."""
+        finder_client, vendor_client, finder, vendor, case = (
+            _setup_case_with_3_participants(base)
+        )
+        with pytest.raises(Exception):
+            demo.actor_notifies_fix_ready(
+                client=vendor_client,
+                actor=vendor,
+                case_id="https://example.org/does-not-exist",
+            )
+
+
+class TestActorNotifiesFixDeployed:
+    """Tests for actor_notifies_fix_deployed."""
+
+    def test_returns_response(self, client: TestClient, base: str):
+        """Returns a response dict from the trigger endpoint."""
+        finder_client, vendor_client, finder, vendor, case = (
+            _setup_case_with_3_participants(base)
+        )
+        # notify-fix-ready first so VFd state is set before deploying
+        demo.actor_notifies_fix_ready(
+            client=vendor_client,
+            actor=vendor,
+            case_id=case.id_,
+        )
+        result = demo.actor_notifies_fix_deployed(
+            client=vendor_client,
+            actor=vendor,
+            case_id=case.id_,
+        )
+        assert result is not None
+
+
+class TestActorNotifiesPublished:
+    """Tests for actor_notifies_published."""
+
+    def test_returns_response(self, client: TestClient, base: str):
+        """Returns a response dict from the trigger endpoint."""
+        finder_client, vendor_client, finder, vendor, case = (
+            _setup_case_with_3_participants(base)
+        )
+        result = demo.actor_notifies_published(
+            client=vendor_client,
+            actor=vendor,
+            case_id=case.id_,
+        )
+        assert result is not None
+
+
+class TestActorClosesCase:
+    """Tests for actor_closes_case."""
+
+    def test_returns_response(self, client: TestClient, base: str):
+        """Returns a response dict from the trigger endpoint."""
+        finder_client, vendor_client, finder, vendor, case = (
+            _setup_case_with_3_participants(base)
+        )
+        result = demo.actor_closes_case(
+            client=vendor_client,
+            actor=vendor,
+            case_id=case.id_,
+        )
+        assert result is not None
+
+
+class TestWaitForParticipantVfdState:
+    """Tests for wait_for_participant_vfd_state."""
+
+    def test_times_out_for_unknown_actor(self, client: TestClient, base: str):
+        """Raises AssertionError when the actor is not a participant."""
+        finder_client, vendor_client, finder, vendor, case = (
+            _setup_case_with_3_participants(base)
+        )
+        from vultron.core.states.cs import CS_vfd
+
+        with pytest.raises(AssertionError, match="Timed out"):
+            demo.wait_for_participant_vfd_state(
+                client=vendor_client,
+                case_id=case.id_,
+                actor_id="https://example.org/non-existent-actor",
+                expected_states={CS_vfd.VFD},
+                timeout_seconds=0.1,
+                poll_interval=0.05,
+            )
+
+
+class TestWaitForCaseEmTerminated:
+    """Tests for wait_for_case_em_terminated."""
+
+    def test_times_out_when_not_terminated(
+        self, client: TestClient, base: str
+    ):
+        """Raises AssertionError when embargo is still ACTIVE."""
+        _, vendor_client, _, vendor, case = _setup_case_with_3_participants(
+            base
+        )
+
+        with pytest.raises(AssertionError, match="Timed out"):
+            demo.wait_for_case_em_terminated(
+                client=vendor_client,
+                case_id=case.id_,
+                timeout_seconds=0.1,
+                poll_interval=0.05,
+            )
+
+
+class TestWaitForAllParticipantsRmClosed:
+    """Tests for wait_for_all_participants_rm_closed."""
+
+    def test_times_out_when_participants_not_closed(
+        self, client: TestClient, base: str
+    ):
+        """Raises AssertionError when participants are not RM.CLOSED."""
+        _, vendor_client, _, vendor, case = _setup_case_with_3_participants(
+            base
+        )
+
+        with pytest.raises(AssertionError, match="Timed out"):
+            demo.wait_for_all_participants_rm_closed(
+                client=vendor_client,
+                case_id=case.id_,
+                timeout_seconds=0.1,
+                poll_interval=0.05,
+            )
+
+    def test_case_manager_does_not_block_rm_closure_check(
+        self, client: TestClient, base: str
+    ):
+        """CASE_MANAGER participant is excluded from the RM closure check.
+
+        Close vendor and finder; the Case Actor (CASE_MANAGER role) must not
+        block ``_all_fetchable_participants_rm_closed`` from returning True,
+        whether or not the Case Actor has auto-closed.
+        """
+        finder_client, vendor_client, finder, vendor, case = (
+            _setup_case_with_3_participants(base)
+        )
+        demo.actor_closes_case(
+            client=vendor_client, actor=vendor, case_id=case.id_
+        )
+        demo.actor_closes_case(
+            client=finder_client, actor=finder, case_id=case.id_
+        )
+        case_data = vendor_client.get(f"/datalayer/{case.id_}")
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        refreshed_case = VulnerabilityCase.model_validate(case_data)
+        result = demo._all_fetchable_participants_rm_closed(
+            vendor_client, refreshed_case
+        )
+        assert result is True
+
+    def test_url_based_participant_id_handled_gracefully(
+        self, client: TestClient, base: str
+    ):
+        """URL-based participant IDs (HTTP URLs with slashes) are handled gracefully.
+
+        The Case Actor's participant ID is an HTTP URL.  The DataLayer
+        ``/{key}`` route cannot serve it — Starlette decodes ``%2F`` before
+        path matching, so encoded slashes still break the single-segment route.
+        ``_all_fetchable_participants_rm_closed`` must catch the resulting
+        exception and skip the participant rather than propagating the error.
+        """
+        finder_client, vendor_client, finder, vendor, case = (
+            _setup_case_with_3_participants(base)
+        )
+        case_data = vendor_client.get(f"/datalayer/{case.id_}")
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        fetched_case = VulnerabilityCase.model_validate(case_data)
+        url_based_ids = [
+            p_id
+            for p_id in fetched_case.actor_participant_index.values()
+            if p_id.startswith("http")
+        ]
+        assert (
+            url_based_ids
+        ), "Expected at least one URL-based participant ID (Case Actor)"
+        # Confirm that a direct fetch of the URL-based participant ID raises an
+        # exception — slashes make the /{key} route unreachable.
+        p_id = url_based_ids[0]
+        with pytest.raises(Exception):
+            vendor_client.get(f"/datalayer/{p_id}")
+
+        # _all_fetchable_participants_rm_closed must not propagate the
+        # exception; it catches and skips unfetchable participant IDs.
+        try:
+            demo._all_fetchable_participants_rm_closed(
+                vendor_client, fetched_case
+            )
+        except Exception as exc:
+            pytest.fail(
+                f"_all_fetchable_participants_rm_closed crashed on"
+                f" URL-based participant ID {p_id!r}: {exc}"
+            )
+
+
+class TestVerifyM1State:
+    """Tests for verify_m1_state."""
+
+    def test_passes_with_3_participants(self, client: TestClient, base: str):
+        """Passes when both DataLayers share 3 participants and EM.ACTIVE."""
+        finder_client, vendor_client, finder, vendor, case = (
+            _setup_case_with_3_participants(base)
+        )
+        demo.wait_for_case_participants(
+            vendor_client=vendor_client,
+            case_id=case.id_,
+            expected_count=3,
+        )
+        demo.wait_for_finder_case(
+            finder_client=finder_client,
+            case_id=case.id_,
+        )
+        # In single-server mode both clients share the same DataLayer
+        demo.verify_m1_state(
+            vendor_client=vendor_client,
+            finder_client=vendor_client,
+            case_id=case.id_,
+            vendor_actor_id=vendor.id_,
+            reporter_actor_id=finder.id_,
+        )
+
+    def test_raises_when_participant_missing(
+        self, client: TestClient, base: str
+    ):
+        """Raises AssertionError when a required participant is absent."""
+        _, vendor_client, _, vendor, case = _setup_case_with_3_participants(
+            base
+        )
+
+        with pytest.raises(AssertionError):
+            demo.verify_m1_state(
+                vendor_client=vendor_client,
+                finder_client=vendor_client,
+                case_id=case.id_,
+                vendor_actor_id=vendor.id_,
+                reporter_actor_id="https://example.org/non-existent-reporter",
+            )
+
+
+# ---------------------------------------------------------------------------
 # Full workflow integration test
 # ---------------------------------------------------------------------------
 

@@ -1,206 +1,175 @@
 ---
 name: review-priorities
-description: >
-  Audit open tasks and GitHub issues against PRIORITIES.md and interview the
-  user to place any untracked items into the priority list. Use when the user
-  wants to review, triage, or update project priorities, mentions
-  "review priorities", or asks what is missing from the priority list.
+description: Audit and update PRIORITIES.md in one workflow. Runs a comprehensive status check against open issues and PRs, then offers interactive options to add, refine, or remove priority groups. Use when you want to review where the project stands relative to plans and make any necessary updates.
 ---
 
-# Skill: Review Priorities
+# Review Priorities
 
-Identify open work that is not yet reflected in `plan/PRIORITIES.md`, then
-interview the user (grill-me style) to decide where each item belongs.
+Complete audit-and-update workflow for `plan/PRIORITIES.md`. Combines status checking and interactive updates into a single guided workflow.
 
 ## Quick start
 
-1. Collect open items from `plan/IMPLEMENTATION_PLAN.md` and GitHub issues.
-2. Diff against `plan/PRIORITIES.md` to find gaps.
-3. Interview the user with `ask_user` for each gap.
-4. Update `plan/PRIORITIES.md` with the agreed placements.
-5. Invoke `commit`.
+Run the review-priorities skill.
 
-## Workflow
+The skill will:
 
-### Phase 1 — Collect open plan tasks
+1. **Check status** (via `check-priority-status`):
+   - Audit current priorities against open GitHub issues and PRs
+   - Generate detailed report: coverage %, progress per group, uncovered issues, stale work
+2. **Review findings** with you:
+   - Highlight significant gaps, empty priorities, stale items
+   - Offer insights on what might need updating
+3. **Offer interactive update options**:
+   - Add new priority groups (for uncovered work)
+   - Refine existing groups (add/remove issues, update description)
+   - Remove completed priorities (archive via `append-history`)
+   - Skip updates and just review
+4. **Stage and commit** any changes made
 
-Parse `plan/IMPLEMENTATION_PLAN.md` for every unchecked task (`- [ ]`).
-Record the parent task ID (e.g. `TASK-AF`, `CC.1`) and the task title.
+## Workflows
 
-### Phase 2 — Collect open GitHub issues
+### Typical Session: Review Only
 
-Fetch open issues from `CERTCC/Vultron` using `github-mcp-server-list_issues`
-(state: `OPEN`). Paginate until all open issues are loaded.
+If the status report shows everything on track:
 
-### Phase 2.5 — Collect group:unscheduled Issues
+1. Run skill
+2. Review findings
+3. Exit (no changes needed)
+4. Done
 
-Fetch all open Issues with the `group:unscheduled` label using
-`github-mcp-server-list_issues` with `labels: ["group:unscheduled"]`.
-These are Issues created by `ingest-idea`, `update-plan`, or agents during
-development that have not yet been slotted into PRIORITIES.md.
+### Typical Session: Review + Update
 
-Add them to the gap list as **Unscheduled Issues** — a separate category
-from untracked plan tasks and untracked open issues.
+If the status report flags uncovered issues or stale work:
 
-### Phase 3 — Diff against PRIORITIES.md
+1. Run skill
+2. Review findings
+3. Choose: "Add new priority for uncovered issues? [Yes/No]"
+4. Interactively add/refine groups (uses `update-priorities` logic)
+5. Preview changes
+6. Commit
+7. Done
 
-Read `plan/PRIORITIES.md`. An item is considered **tracked** if any of the
-following appear anywhere in the file:
+### Typical Session: Review + Multiple Updates
 
-- The GitHub issue number (e.g. `#378`)
-- The full GitHub issue URL
-- The task ID (e.g. `TASK-AF`, `CC.1`, `BTND5.2`)
+If multiple changes are warranted:
 
-Build two gap lists:
+1. Run skill
+2. Review findings
+3. Add new priority #480 for uncovered issues
+4. Ask: "Make more updates? [Add another / Refine existing / Remove / No]"
+5. Refine existing priority #475
+6. Ask again: "More updates?"
+7. Done adding
+8. Preview all changes together
+9. Commit
+10. Done
 
-- **Untracked plan tasks** — task IDs present in IMPLEMENTATION_PLAN.md but
-  absent from PRIORITIES.md.
-- **Untracked open issues** — open GitHub issues absent from PRIORITIES.md.
+## Report Sections (from check-priority-status)
 
-> Skip issues whose titles indicate they are sub-issues of a parent already
-> tracked in PRIORITIES.md, provided the parent issue is also open and the
-> sub-issue is listed under its parent.
+### Summary
 
-### Phase 4 — Interview the user
+- Total priority groups, linked items, coverage %
+- Status distribution (closed, pending, PR-pending, blocked)
+- Activity age and stale items (1-week threshold)
 
-For each untracked item (including **Unscheduled Issues** from Phase 2.5),
-use `ask_user` to ask where it belongs.
-See [REFERENCE.md](REFERENCE.md) for question templates and placement rules.
+### Per-Priority Progress
 
-For each `group:unscheduled` Issue, the choices are:
+Table: each group's progress toward completion, with status indicators.
 
-- Slot into an existing PRIORITIES.md group (update the Issue's `group:` label)
-- Create a new PRIORITIES.md group for it
-- Close or defer (leave as `group:unscheduled` or close the issue)
+### Coverage Audit
 
-Use the grill-me skill for contentious placement decisions or when the user
-wants to think through the priority ordering in depth.
+- **Uncovered issues**: All open issues not in any priority (with labels, age, activity)
+- **Empty priorities**: Groups with no active work
+- **Orphaned PRs**: Open PRs not linked to any priority
 
-### Label Naming Rules (PAD-02-007)
+### Health Check
 
-Before assigning or creating any `group:` label:
+- Stale items (no activity for 1+ week)
+- Long-pending PRs
+- Dependency chains and blockers
 
-- **Never include a priority number** in the label name.
-  Use `group:architecture-hardening`, **not** `group:473-architecture-hardening`
-  or `group:473`. Priority numbers change when PRIORITIES.md is reordered; label
-  names must not.
-- **Derive the name** from the priority group title using short, descriptive
-  kebab-case (e.g., "Cyclomatic Complexity Enforcement" → `group:cyclomatic-complexity`).
-- **Check for label existence** before assigning. If the label does not yet
-  exist, create it first:
+## Interactive Update Options
 
-  ```bash
-  gh label create "group:<slug>" \
-    --repo CERTCC/Vultron \
-    --description "<Priority group title (no number)>" \
-    --color "#1d76db"
-  ```
+After reviewing the status report, you're offered:
 
-  Use the priority group title (without the number) as the description.
+```text
+Based on the report:
+  - 12 uncovered open issues
+  - 1 empty priority (476)
+  - 2 stale items (>1 week inactive)
 
-### Phase 5 — Update PRIORITIES.md and Issue labels
+What would you like to do?
+  [A] Add new priority group(s)
+  [B] Refine existing priority
+  [C] Remove a priority
+  [D] No changes, exit
+```
 
-Apply the agreed placements:
+### Add New Priority
 
-- **Insert into existing block**: add the item to the sub-issues list or body
-  of the named priority block.
-- **New priority block**: insert a new `## Priority NNN: Title` section at the
-  agreed position. Choose a number that leaves gaps above and below for future
-  insertion.
-- **Update group: label**: for each `group:unscheduled` Issue that was slotted,
-  update its label:
+- Identify root issue (epic or feature)
+- List related work
+- Clarify dependencies
+- Assign or auto-suggest priority number
+- Validate all issues exist and are open
+- Add to PRIORITIES.md
 
-  ```bash
-  gh issue edit <N> --repo CERTCC/Vultron \
-    --remove-label "group:unscheduled" \
-    --add-label "group:<chosen-group-name>"
-  ```
+### Refine Existing Priority
 
-- **Defer / skip**: note the item and why it was deferred; do not add it.
+- Select priority to update
+- Choose: title, description, add/remove issues, adjust priority number
+- Validate
+- Update in PRIORITIES.md
 
-Preserve the ascending-number ordering of priority blocks. Do not renumber
-existing blocks.
+### Remove Priority
 
-### Phase 5b — Epic maintenance (PAD-02-008, PAD-02-009, PAD-02-010)
+- Confirm all linked issues are closed
+- Archive via `append-history priority`
+- Remove from PRIORITIES.md
 
-After updating PRIORITIES.md labels, enforce the Epic hierarchy for every
-priority group that now has **2 or more open leaf Issues**.
+## Preview & Commit
 
-For each such group:
+Before writing to disk:
 
-1. **Find existing open Epics** for the group:
+1. Show **diff preview** of all changes
+2. Ask for confirmation
+3. If yes:
+   - Stage `plan/PRIORITIES.md`
+   - Generate commit message (or prompt user for custom message)
+   - Add co-author trailer and commit
+4. If no:
+   - Save draft to session workspace
+   - Exit for manual review later
 
-   ```bash
-   gh issue list --repo CERTCC/Vultron \
-     --label "group:<slug>" \
-     --state open \
-     --json number,title,issueType \
-     | python3 -c "
-   import json, sys
-   issues = json.load(sys.stdin)
-   epics = [i for i in issues if (i.get('issueType') or {}).get('name') == 'Epic']
-   if len(epics) > 1:
-       nums = ', '.join(str(e['number']) for e in epics)
-       print(f'ERROR: {len(epics)} open Epics: {nums}')
-       raise SystemExit(1)
-   print(epics[0]['number'] if epics else 'NONE')
-   "
-   ```
+## Advanced Features
 
-   If the query returns `ERROR: …`, stop and report the duplicate-Epic
-   conflict to the user. Do **not** silently pick one; PAD-02-008 requires
-   exactly one open Epic per group. Close or merge duplicates manually, then
-   re-run this phase.
+See [REFERENCE.md](REFERENCE.md) for:
 
-2. **If no Epic exists**, invoke the `create-epic` skill. Provide the group
-   label slug, a suitable Epic title (derived from the PRIORITIES.md group
-   heading), a body listing the open leaf Issues, and the list of open leaf
-   issue numbers. The skill prints a single plain issue number on stdout;
-   capture it directly:
+- Batch operations (add multiple priorities from structured input)
+- Priority renumbering (consolidate gaps)
+- Report export (JSON, CSV)
+- History queries
 
-   ```bash
-   EPIC_NUMBER=$(invoke_skill create-epic \
-     "${GROUP_LABEL}" "${EPIC_TITLE}" "${EPIC_BODY}")
-   # EPIC_NUMBER now holds a plain integer string, e.g. "443"
-   ```
+## Component Skills
 
-3. **If an Epic exists**, link any open leaf Issues that are not yet
-   sub-issues of it. First resolve node IDs, then use GraphQL `addSubIssue`:
+This skill is built on two independent sub-skills:
 
-   ```bash
-   # Get node IDs
-   gh api graphql -f query='{ repository(owner:"CERTCC", name:"Vultron") {
-     epic: issue(number: <EPIC_NUMBER>) { id }
-     leaf: issue(number: <LEAF_NUMBER>) { id }
-   } }'
+- **check-priority-status** — Status auditing (read-only, reports findings)
+- **update-priorities** — Interactive updates (write, validates, commits)
 
-   # Link as sub-issue
-   gh api graphql -f query='
-   mutation {
-     addSubIssue(input: {
-       issueId: "<EPIC_NODE_ID>"
-       subIssueId: "<LEAF_NODE_ID>"
-     }) { issue { number } subIssue { number } }
-   }'
-   ```
+You can run these independently if you prefer to separate concerns:
 
-4. **Record the Epic number in PRIORITIES.md** next to the group heading
-   (PAD-02-010). Change:
+```bash
+# Status check only
+check-priority-status
 
-   ```markdown
-   ## Priority NNN: Title
-   ```
+# Updates only (assuming you already know what to change)
+update-priorities
+```
 
-   to:
+## Notes
 
-   ```markdown
-   ## Priority NNN — Epic #M: Title
-   ```
-
-   If the heading already contains `— Epic #M:`, update the number only if
-   it has changed (e.g., the old Epic was closed and a new one was created).
-
-### Phase 6 — Commit
-
-Invoke the `commit` skill with a message like
-`plan: triage N untracked items into PRIORITIES.md`.
+- **Review-first philosophy**: Always check status before updating. Findings inform decisions.
+- **User control**: No automatic changes. You decide what updates are warranted based on report.
+- **Archival requirement**: Completed priorities must be archived to `plan/history/` before removal.
+- **Undo via git**: If changes are committed incorrectly, use `git revert` or `git reset --soft`.

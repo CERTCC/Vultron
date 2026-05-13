@@ -18,6 +18,7 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
 from vultron.core.models.base import VultronObject
+from vultron.core.models._helpers import _now_utc as _core_now_utc
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
 from vultron.core.models.events import (
     MessageSemantics,
@@ -429,6 +430,16 @@ def _build_activity_snapshot(
 # ---------------------------------------------------------------------------
 
 
+def _get_timestamp(obj: object, field: str) -> datetime:
+    """Return a wire object's ``published`` or ``updated`` datetime.
+
+    Falls back to ``_core_now_utc()`` if the attribute is absent or not a
+    ``datetime``, so callers always receive a typed, non-optional value.
+    """
+    val = getattr(obj, field, None)
+    return val if isinstance(val, datetime) else _core_now_utc()
+
+
 def _build_report_object(obj: object) -> dict[str, Any]:
     content = getattr(obj, "content", None)
     object_id = _get_id(obj)
@@ -443,8 +454,8 @@ def _build_report_object(obj: object) -> dict[str, Any]:
                 media_type=getattr(obj, "media_type", None),
                 attributed_to=_get_id(getattr(obj, "attributed_to", None)),
                 context=_get_id(getattr(obj, "context", None)),
-                published=getattr(obj, "published", None),
-                updated=getattr(obj, "updated", None),
+                published=_get_timestamp(obj, "published"),
+                updated=_get_timestamp(obj, "updated"),
             )
         }
     return {}
@@ -491,6 +502,22 @@ def _build_case_object(obj: object) -> dict[str, Any]:
             converted = _participant_ref_to_domain(ref)
             if converted is not None:
                 participants.append(converted)
+        raw_index = getattr(obj, "actor_participant_index", None)
+        actor_participant_index: dict[str, str] = (
+            {str(k): str(v) for k, v in raw_index.items()}
+            if isinstance(raw_index, dict)
+            else {}
+        )
+        active_embargo = _get_id(getattr(obj, "active_embargo", None))
+        raw_statuses = getattr(obj, "case_statuses", []) or []
+        case_statuses: list[str | VultronCaseStatus] = []
+        for cs in raw_statuses:
+            if hasattr(cs, "to_core"):
+                case_statuses.append(cs.to_core())
+            else:
+                cs_id = _get_id(cs)
+                if cs_id:
+                    case_statuses.append(cs_id)
         return {
             "object_": VultronCase(
                 id_=object_id,
@@ -499,9 +526,12 @@ def _build_case_object(obj: object) -> dict[str, Any]:
                 content=getattr(obj, "content", None),
                 url=_get_id(getattr(obj, "url", None)),
                 attributed_to=_get_id(getattr(obj, "attributed_to", None)),
-                published=getattr(obj, "published", None),
-                updated=getattr(obj, "updated", None),
+                published=_get_timestamp(obj, "published"),
+                updated=_get_timestamp(obj, "updated"),
                 case_participants=participants,
+                actor_participant_index=actor_participant_index,
+                active_embargo=active_embargo,
+                case_statuses=case_statuses if case_statuses else [],
             )
         }
     return {}
