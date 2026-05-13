@@ -132,10 +132,13 @@ referenceable from GitHub Issues before any implementation work begins.
 
 ### 11. Create a GitHub Issue for implementation
 
-After opening the docs-only PR, create a GitHub Issue to track implementation:
+After opening the docs-only PR, create a GitHub Issue to track implementation
+using the `manage-github-issue` skill. If the issue has known blockers at
+creation time, wire them as structured relationships — do **not** add
+`Blocked by #N` text to the body.
 
 ```bash
-gh issue create --repo CERTCC/Vultron \
+ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
   --title "<Implementation title from spec>" \
   --body "## Summary
 
@@ -151,7 +154,9 @@ gh issue create --repo CERTCC/Vultron \
 
 Spec: \`specs/<topic>.yaml\` (ID-01 through ID-NN)
 Notes: \`notes/<topic>.md\`" \
-  --label "group:unscheduled,size:<S|M|L>"
+  --label "group:unscheduled,size:<S|M|L>")
+  # Add --blocked-by N if this issue has known blockers at creation time
+echo "Created issue #${ISSUE_NUMBER}"
 ```
 
 Set the `size:` label based on AC checkbox count:
@@ -173,7 +178,8 @@ to slot it into `plan/PRIORITIES.md`.
 - [ ] Idea archived via `uv run append-history idea`
 - [ ] `plan/IDEAS.md` — idea section removed
 - [ ] Docs-only PR opened with `specs-notes` label
-- [ ] GitHub Issue created with `group:unscheduled` and `size:` labels
+- [ ] GitHub Issue created via `manage-github-issue` with `group:unscheduled`
+  and `size:` labels; blockers wired as structured relationships
 
 ## Conventions
 
