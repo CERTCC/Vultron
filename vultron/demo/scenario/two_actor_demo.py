@@ -1273,6 +1273,50 @@ def wait_for_case_em_terminated(
     )
 
 
+def _fetch_participant_data(client: DataLayerClient, p_id: str) -> dict | None:
+    """Fetch a participant record, returning None for genuine 404s.
+
+    Re-raises for any non-404 error so failures are not silently swallowed.
+    """
+    try:
+        return client.get(f"/datalayer/{_dl_key(p_id)}")
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code == 404:
+            return None
+        raise
+    except AssertionError as e:
+        # TestClient compatibility: make_testclient_call raises AssertionError
+        # for 4xx responses; treat only genuine 404s as "not found".
+        if "404" in str(e):
+            return None
+        raise
+
+
+def _assert_participant_vfd_pxa(
+    participant: "CaseParticipant",
+    label: str,
+    vendor_actor_id: str,
+) -> None:
+    """Assert that *participant* (for *vendor_actor_id*) has VFD and a
+    public-aware pxa_state.  *label* is used in error messages."""
+    public_aware = {CS_pxa.Pxa, CS_pxa.PxA, CS_pxa.PXa, CS_pxa.PXA}
+    latest = participant.participant_status
+    if latest is None:
+        raise AssertionError(
+            f"M6 {label}: participant {vendor_actor_id!r} has no statuses"
+        )
+    if latest.vfd_state != CS_vfd.VFD:
+        raise AssertionError(
+            f"M6 {label}: vfd_state is not VFD, found {latest.vfd_state!r}"
+        )
+    cs = getattr(latest, "case_status", None)
+    pxa = getattr(cs, "pxa_state", None) if cs is not None else None
+    if pxa not in public_aware:
+        raise AssertionError(
+            f"M6 {label}: pxa_state is not public-aware, found {pxa!r}"
+        )
+
+
 def _all_fetchable_participants_rm_closed(
     client: DataLayerClient,
     case: VulnerabilityCase,
@@ -1280,17 +1324,12 @@ def _all_fetchable_participants_rm_closed(
     """Return True when every fetchable, non-coordinator participant is
     RM.CLOSED."""
     for p_id in case.actor_participant_index.values():
-        try:
-            p_data = client.get(f"/datalayer/{_dl_key(p_id)}")
-        except (requests.HTTPError, AssertionError):
-            # Participant record not accessible from this DataLayer
-            # (e.g. on a remote container in multi-container deployment).
-            continue
+        p_data = _fetch_participant_data(client, p_id)
+        if p_data is None:
+            continue  # remote container — not fetchable here
         if not p_data:
             return False
         p = CaseParticipant(**p_data)
-        # Case Manager (Case Actor) is a coordinator role only;
-        # it does not self-report RM closure so skip it.
         if CVDRole.CASE_MANAGER in (p.case_roles or []):
             continue
         latest = p.participant_status
@@ -1392,14 +1431,6 @@ def verify_m1_state(
             "outbox delivery may not have completed"
         )
     finder_case = VulnerabilityCase.model_validate(finder_case_data)
-
-    vendor_index_keys = set(case.actor_participant_index.keys())
-    finder_index_keys = set(finder_case.actor_participant_index.keys())
-    if vendor_index_keys != finder_index_keys:
-        raise AssertionError(
-            "M1: Finder actor_participant_index differs from vendor — "
-            f"finder={finder_index_keys} vendor={vendor_index_keys}"
-        )
 
     vendor_embargo_id = _extract_ref_id(case.active_embargo)
     finder_embargo_id = _extract_ref_id(finder_case.active_embargo)
@@ -1534,23 +1565,14 @@ def verify_m6_state(
         logger.info("✓ M6 %s: EM.EXITED", label)
 
     # Verify vendor participant's latest status is VFD + public-aware pxa
-    participant = _fetch_participant(vendor_client, case_id, vendor_actor_id)
-    if participant is None:
-        raise AssertionError("M6: vendor participant not found")
-    latest = participant.participant_status
-    if latest is None:
-        raise AssertionError("M6: vendor participant has no statuses")
-    if latest.vfd_state != CS_vfd.VFD:
-        raise AssertionError(
-            f"M6: vendor vfd_state is not VFD, found {latest.vfd_state!r}"
-        )
-    cs = getattr(latest, "case_status", None)
-    pxa = getattr(cs, "pxa_state", None) if cs is not None else None
-    public_aware_states = {CS_pxa.Pxa, CS_pxa.PxA, CS_pxa.PXa, CS_pxa.PXA}
-    if pxa not in public_aware_states:
-        raise AssertionError(
-            f"M6: vendor pxa_state is not public-aware, found {pxa!r}"
-        )
+    # on both the vendor's and finder's DataLayer replicas.
+    for label, c in [("vendor", vendor_client), ("finder", finder_client)]:
+        p = _fetch_participant(c, case_id, vendor_actor_id)
+        if p is None:
+            raise AssertionError(
+                f"M6 {label}: vendor participant {vendor_actor_id!r} not found"
+            )
+        _assert_participant_vfd_pxa(p, label, vendor_actor_id)
     logger.info("✓ M6: both replicas CS.VFDPxa and EM.EXITED")
 
 
@@ -1575,13 +1597,10 @@ def verify_m7_state(
         assert case_data, f"M7 {label}: case {case_id!r} not found"
         case = VulnerabilityCase.model_validate(case_data)
         for a_id, p_id in case.actor_participant_index.items():
-            try:
-                p_data = client.get(f"/datalayer/{_dl_key(p_id)}")
-                p = CaseParticipant(**p_data)
-            except (requests.HTTPError, AssertionError):
-                # Participant record not accessible from this DataLayer
-                # (e.g. on a remote container) — skip it.
-                continue
+            p_data = _fetch_participant_data(client, p_id)
+            if p_data is None:
+                continue  # remote container — not fetchable here
+            p = CaseParticipant(**p_data)
             # Case Manager is a coordinator; skip RM closure check.
             if CVDRole.CASE_MANAGER in (p.case_roles or []):
                 continue

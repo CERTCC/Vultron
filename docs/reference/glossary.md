@@ -31,7 +31,7 @@ machines, and design notes.
 | **Actor** | Any URI-identified federated peer (person or organization) in the protocol | Agent, endpoint |
 | **Case Owner** | The Actor who creates and administers a Case (typically the party seeking vulnerability coordination) | Case creator |
 | **Case Actor** | An auto-generated federated peer (ActivityStreams Service actor) created during case initialization; operates as the single-writer authority for the canonical case log and coordinates state across participants | Case service actor, case coordinator |
-| **Case Manager** | A **CVDRoles** role flag (part of **CVDRoles** bitmask) that designates a **Participant** authorized to delegate case management responsibilities and co-manage embargo negotiations; often assigned via **Offer** → **Accept** handoff during case creation | Admin role, management role |
+| **Case Manager** | A `CVDRole.CASE_MANAGER` role that designates a **Participant** authorized to delegate case management responsibilities and co-manage embargo negotiations; often assigned via **Offer** → **Accept** handoff during case creation | Admin role, management role |
 
 ---
 

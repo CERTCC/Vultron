@@ -15,7 +15,10 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.states.cs import is_valid_pxa_transition
 from vultron.core.states.em import is_valid_em_transition
-from vultron.core.states.rm import is_valid_rm_transition
+from vultron.core.states.rm import (
+    is_valid_rm_transition,
+    is_monotonic_rm_forward,
+)
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 from vultron.core.models.protocols import (
     ParticipantStatusModel,
@@ -322,17 +325,27 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             if current_rm != new_rm_state and not is_valid_rm_transition(
                 current_rm, new_rm_state
             ):
-                # The sender is authoritative about their own RM state.
-                # Forward jumps (e.g. RECEIVED → ACCEPTED) are legitimate
-                # when intermediate transitions happen locally.  Log but
-                # do not reject.
-                logger.info(
-                    "Non-adjacent RM transition %s → %s for participant "
-                    "'%s'; accepting sender-authoritative state",
-                    current_rm,
-                    new_rm_state,
-                    participant_id,
-                )
+                if is_monotonic_rm_forward(current_rm, new_rm_state):
+                    # Forward jump (e.g. RECEIVED → ACCEPTED): the sender is
+                    # authoritative about their own RM state; intermediate
+                    # transitions may have occurred locally.  Log but accept.
+                    logger.info(
+                        "Non-adjacent forward RM transition %s → %s for "
+                        "participant '%s'; accepting sender-authoritative state",
+                        current_rm,
+                        new_rm_state,
+                        participant_id,
+                    )
+                else:
+                    # Regression (e.g. CLOSED → RECEIVED): reject and discard.
+                    logger.warning(
+                        "Rejecting backwards RM transition %s → %s for "
+                        "participant '%s'; sender state ignored",
+                        current_rm,
+                        new_rm_state,
+                        participant_id,
+                    )
+                    return None
 
         participant.participant_statuses.append(
             cast(ParticipantStatusModel, status_obj)

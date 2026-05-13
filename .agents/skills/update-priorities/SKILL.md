@@ -73,7 +73,7 @@ Priority | Title                          | Issues | Status
 470      | Two-Actor Demo Redesign        | 5      | 🟡 In Progress
 475      | Participant Case Replica Safety| 1      | 🟡 In Progress
 476      | Bug Fixes and Demo Polish      | 7      | 🟢 On Track
-```text
+```
 
 ## Priority Number Assignment
 

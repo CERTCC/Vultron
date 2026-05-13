@@ -77,6 +77,9 @@ class ASGIEmitter:
 
         remote_fallback: list[str] = []
         for recipient_id in recipients:
+            if not self._is_local_recipient(recipient_id):
+                remote_fallback.append(recipient_id)
+                continue
             delivered = await self._try_deliver_local(
                 json_body, recipient_id, activity_id
             )
@@ -85,6 +88,23 @@ class ASGIEmitter:
 
         if remote_fallback:
             await self._http_fallback.emit(activity, remote_fallback)
+
+    def _is_local_recipient(self, recipient_id: str) -> bool:
+        """Return True if *recipient_id* is served by this ASGI app.
+
+        Compares the scheme and netloc of the recipient URL against the
+        configured ``base_url``.  Remote actors (different host/port) are
+        routed directly to HTTP to avoid intercepting messages destined for
+        other containers.
+        """
+        try:
+            parsed = urlparse(recipient_id)
+            local = urlparse(self._base_url)
+            return (
+                parsed.scheme == local.scheme and parsed.netloc == local.netloc
+            )
+        except Exception:
+            return False
 
     async def _try_deliver_local(
         self,

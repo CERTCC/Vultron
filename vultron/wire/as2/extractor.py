@@ -502,6 +502,22 @@ def _build_case_object(obj: object) -> dict[str, Any]:
             converted = _participant_ref_to_domain(ref)
             if converted is not None:
                 participants.append(converted)
+        raw_index = getattr(obj, "actor_participant_index", None)
+        actor_participant_index: dict[str, str] = (
+            {str(k): str(v) for k, v in raw_index.items()}
+            if isinstance(raw_index, dict)
+            else {}
+        )
+        active_embargo = _get_id(getattr(obj, "active_embargo", None))
+        raw_statuses = getattr(obj, "case_statuses", []) or []
+        case_statuses: list[str | VultronCaseStatus] = []
+        for cs in raw_statuses:
+            if hasattr(cs, "to_core"):
+                case_statuses.append(cs.to_core())
+            else:
+                cs_id = _get_id(cs)
+                if cs_id:
+                    case_statuses.append(cs_id)
         return {
             "object_": VultronCase(
                 id_=object_id,
@@ -513,6 +529,9 @@ def _build_case_object(obj: object) -> dict[str, Any]:
                 published=_get_timestamp(obj, "published"),
                 updated=_get_timestamp(obj, "updated"),
                 case_participants=participants,
+                actor_participant_index=actor_participant_index,
+                active_embargo=active_embargo,
+                case_statuses=case_statuses if case_statuses else [],
             )
         }
     return {}

@@ -20,7 +20,7 @@ Issues:
 Dependencies:
   Prerequisite: <issue_link>
   Blocks: [<issue_list>]
-```text
+```
 
 ### Parsing
 
@@ -68,7 +68,7 @@ When applying changes:
 
    Prerequisite: #<prereq>
 
-   ```text
+   ```
 
 4. **Insert at correct position** (maintain ascending order)
 5. **Validate**, preview, commit

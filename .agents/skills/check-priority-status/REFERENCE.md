@@ -23,7 +23,7 @@ Issues:
 Dependencies:
   - Prerequisite issues (noted as "Prerequisite:")
   - Blocked items (issues with "blocked by" annotation)
-```text
+```
 
 ### Issue State
 
@@ -184,7 +184,7 @@ query {
 
 ```graphql
 GET /repos/{owner}/{repo}/issues/{issue_number}/pull_requests
-```text
+```
 
 ## Limitations
 
@@ -203,18 +203,11 @@ Add a new section by:
 2. Add a section render function
 3. Insert into report output sequence
 
-
-
-### Export Formats
-
 Extend output to JSON, CSV, or Markdown table for downstream tooling:
 
-```
-
-check-priority-status --format json --output report.json
-
 ```text
-
+check-priority-status --format json --output report.json
+```
 
 ### Hard Stop
 

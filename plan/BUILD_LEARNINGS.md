@@ -14,21 +14,20 @@ header.
 `DeliveryQueueAdapter` always fails silently. Inbox handlers on the
 Case Actor never execute for status updates sent by participants.
 
-**Fix applied in #463 / PR #474**:
+**Fix applied in branch `task/463-two-actor-demo-replacement`**:
 
-- `SvcAddParticipantStatusUseCase._update_local_participant()` appends
-  status to the local participant record immediately after creation
-  (self-report pattern with idempotency guard).
-- `SvcAddParticipantStatusUseCase._maybe_terminate_embargo()` directly
-  calls `SvcTerminateEmbargoUseCase` when CASE_OWNER signals public
-  awareness — replicates what the Case Actor inbox handler would do.
-- `_all_participants_closed()` and demo polling helpers skip
-  CASE_MANAGER participants (coordinator role, not self-reporting).
+- `CreateCaseActorNode` now generates an HTTP-routable Case Actor ID
+  (`{base_url}/actors/case-actor-{slug}`) instead of a URN-based path.
+- `ASGIEmitter` (`vultron/adapters/driven/asgi_emitter.py`) delivers messages
+  to co-located actors in-process via the ASGI interface, bypassing HTTP
+  entirely for same-server recipients.
+- `configure_default_emitter()` wires the `ASGIEmitter` at app startup so all
+  outbox processing uses local delivery for co-located actors.
 
-**Broader lesson**: Any co-located deployment where Case Actor has a
-non-HTTP ID needs local-consistency fallbacks. This is a workaround;
-the proper fix is ensuring Case Actor has a routable HTTP ID or using
-in-process dispatch for co-located actors.
+**Broader lesson**: Co-located actors must have HTTP-routable IDs, or an
+in-process emitter must be configured so their inbox handlers actually fire.
+The workaround of directly updating `SvcAddParticipantStatusUseCase` was
+removed once proper delivery was in place.
 
 ---
 
