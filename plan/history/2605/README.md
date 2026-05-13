@@ -4,6 +4,7 @@
 
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
+| 2026-05-13 | 17:14 | implementation | 484 | Fix type narrowing: _resolve_current_participant_state() returns tuple[RM, CS_vfd] |
 | 2026-05-13 | 15:11 | implementation | GH-483 | Fix five bugs in two_actor_demo.py (#483) |
 | 2026-05-08 | 19:06 | implementation | GH-463 | Two-actor demo — full VFDPxa lifecycle (M1–M7) |
 | 2026-05-08 | 17:29 | learning | ISSUE-469-BT | py_trees blackboard.get() raises KeyError; duplicate class methods shadow BT logic |
