@@ -79,33 +79,22 @@ echo "Created Epic #${EPIC_NUMBER}"
 
 ### Step 3 — Link leaf issues as sub-issues
 
-Leaf issues must be linked via the GraphQL `addSubIssue` mutation (the REST
-sub-issues API is not available for this repo). First, resolve the node IDs
-for the Epic and each leaf issue:
+Use the `manage-github-issue` skill to wire each leaf issue as a sub-issue
+of the Epic. All wiring is idempotent — already-linked issues are skipped.
 
 ```bash
-# Get node IDs for the Epic and leaf issues
-gh api graphql -f query='{ repository(owner:"CERTCC", name:"Vultron") {
-  epic: issue(number: <EPIC_NUMBER>) { id }
-  i1: issue(number: <LEAF_1>) { id }
-  i2: issue(number: <LEAF_2>) { id }
-} }'
+.agents/skills/manage-github-issue/manage_github_issue.sh \
+  --issue-number "${EPIC_NUMBER}" \
+  --sub-issue <LEAF_1> \
+  --sub-issue <LEAF_2> \
+  --sub-issue <LEAF_3>
 ```
 
-Then link each leaf:
+The script prints the Epic number on stdout and progress on stderr.
 
-```bash
-gh api graphql -f query='
-mutation {
-  addSubIssue(input: {
-    issueId: "<EPIC_NODE_ID>"
-    subIssueId: "<LEAF_NODE_ID>"
-  }) {
-    issue { number }
-    subIssue { number }
-  }
-}'
-```
+> **Note**: If you need to wire more than a handful of leaves, you can also
+> call the script once per leaf in a loop, or pass all leaf numbers as
+> multiple `--sub-issue` flags in one invocation.
 
 ### Step 4 — Update PRIORITIES.md
 

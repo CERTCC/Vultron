@@ -42,8 +42,22 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
    assigned. Use `github-mcp-server-list_issues` with the appropriate label
    filter.
 3. From the resulting list, pick the highest-priority unblocked Issue. Account
-   for blockers (`Blocked by #N` in the Issue body), prerequisites, and whether
-   the work fits in a single run.
+   for blockers, prerequisites, and whether the work fits in a single run.
+   **Detect blockers via the structured GraphQL API** — do not parse the issue
+   body for text markers like `Blocked by #N`:
+
+   ```bash
+   gh api graphql -f query='{
+     repository(owner:"CERTCC", name:"Vultron") {
+       issue(number: <N>) {
+         blockedBy(first: 50) { nodes { number title state } }
+       }
+     }
+   }'
+   ```
+
+   An issue is unblocked only if all entries in `blockedBy.nodes` have
+   `state: CLOSED`.
 4. Fetch the Issue body and comments using `github-mcp-server-issue_read`
    (`method: get` then `method: get_comments`). Use the combined content as
    implementation context throughout Phases 3–5.
@@ -62,23 +76,16 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
 3. If a blocking prerequisite is discovered, create a new GitHub Issue for it
    with `group:unscheduled` and the appropriate `size:` label, then
    immediately link it as a sub-issue of the current task Issue
-   (PAD-01-003). First resolve the node IDs, then use GraphQL `addSubIssue`:
+   (PAD-01-003). Use the `manage-github-issue` skill to create the issue
+   and wire the sub-issue relationship in one step:
 
    ```bash
-   # Resolve node IDs
-   gh api graphql -f query='{ repository(owner:"CERTCC", name:"Vultron") {
-     parent: issue(number: <CURRENT_TASK_NUMBER>) { id }
-     child:  issue(number: <NEW_ISSUE_NUMBER>) { id }
-   } }'
-
-   # Link as sub-issue
-   gh api graphql -f query='
-   mutation {
-     addSubIssue(input: {
-       issueId: "<PARENT_NODE_ID>"
-       subIssueId: "<CHILD_NODE_ID>"
-     }) { issue { number } subIssue { number } }
-   }'
+   NEW_ISSUE=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
+     --title "<prerequisite title>" \
+     --body "<description>" \
+     --label "group:unscheduled,size:<S|M|L>" \
+     --parent <CURRENT_TASK_NUMBER>)
+   echo "Created prerequisite #${NEW_ISSUE}"
    ```
 
    Record the dependency in `plan/BUILD_LEARNINGS.md` and stop. Do not add
