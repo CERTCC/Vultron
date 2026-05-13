@@ -30,7 +30,7 @@ from vultron.bt.messaging.message import Message
 logger = logging.getLogger(__name__)
 
 # keep track of all emitters
-_emitters = set()
+_emitters: set[type[ActionNode]] = set()
 
 
 def _emitter_func(
