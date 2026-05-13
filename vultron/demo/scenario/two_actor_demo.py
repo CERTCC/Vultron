@@ -58,6 +58,8 @@ import time
 from typing import Optional, Tuple
 from urllib.parse import quote
 
+import requests  # type: ignore[import-untyped]
+
 from vultron.adapters.utils import parse_id
 from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.em import EM
@@ -1187,7 +1189,7 @@ def _fetch_participant(
             return None
         p_data = client.get(f"/datalayer/{_dl_key(participant_id)}")
         return CaseParticipant(**p_data)
-    except Exception:  # noqa: BLE001
+    except (requests.HTTPError, AssertionError):
         return None
 
 
@@ -1280,7 +1282,7 @@ def _all_fetchable_participants_rm_closed(
     for p_id in case.actor_participant_index.values():
         try:
             p_data = client.get(f"/datalayer/{_dl_key(p_id)}")
-        except Exception:  # noqa: BLE001
+        except (requests.HTTPError, AssertionError):
             # Participant record not accessible from this DataLayer
             # (e.g. on a remote container in multi-container deployment).
             continue
@@ -1576,7 +1578,7 @@ def verify_m7_state(
             try:
                 p_data = client.get(f"/datalayer/{_dl_key(p_id)}")
                 p = CaseParticipant(**p_data)
-            except Exception:  # noqa: BLE001
+            except (requests.HTTPError, AssertionError):
                 # Participant record not accessible from this DataLayer
                 # (e.g. on a remote container) — skip it.
                 continue
