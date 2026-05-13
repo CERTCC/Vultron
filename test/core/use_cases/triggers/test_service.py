@@ -42,6 +42,7 @@ except ImportError:
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.participant_status import VultronParticipantStatus
 from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.core.states.cs import CS_vfd
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.wire.as2.factories import em_propose_embargo_activity
@@ -828,3 +829,159 @@ def test_terminate_embargo_trigger_adds_activity_to_outbox(
         item for item in actor_after.outbox.items if isinstance(item, str)
     }
     assert len(after - before) >= 1
+
+
+# ---------------------------------------------------------------------------
+# SvcAddParticipantStatusUseCase._resolve_current_participant_state tests
+# ---------------------------------------------------------------------------
+
+
+class FakeParticipantStatus:
+    """Minimal stand-in for VultronParticipantStatus in state-resolution tests."""
+
+    def __init__(self, rm_state: RM, vfd_state: CS_vfd) -> None:
+        self.rm_state = rm_state
+        self.vfd_state = vfd_state
+
+
+class FakeParticipantWithStatuses:
+    """Participant stub with a non-empty participant_statuses list."""
+
+    def __init__(self, statuses: list) -> None:
+        self.participant_statuses = statuses
+
+
+class FakeParticipantNoStatuses:
+    """Participant stub with an empty participant_statuses list."""
+
+    participant_statuses: list = []
+
+
+class FakeDL:
+    """Minimal DataLayer stub for _resolve_current_participant_state tests."""
+
+    def __init__(self, stored=None) -> None:
+        self._stored = stored
+
+    def read(self, obj_id: str):
+        return self._stored
+
+
+def _fake_dl_as_persistence(dl: "FakeDL"):
+    """Cast FakeDL to CaseOutboxPersistence for pyright-safe test calls."""
+    from typing import cast
+    from vultron.core.ports.case_persistence import CaseOutboxPersistence
+
+    return cast(CaseOutboxPersistence, dl)
+
+
+def _make_use_case(dl):
+    """Construct a SvcAddParticipantStatusUseCase with a minimal request."""
+    from vultron.core.use_cases.triggers.case import (
+        SvcAddParticipantStatusUseCase,
+    )
+    from vultron.core.use_cases.triggers.requests import (
+        AddParticipantStatusTriggerRequest,
+    )
+
+    request = AddParticipantStatusTriggerRequest(
+        actor_id="https://example.org/actor",
+        case_id="https://example.org/case",
+    )
+    return SvcAddParticipantStatusUseCase(dl, request)
+
+
+def test_resolve_participant_state_returns_tuple_of_rm_cs_vfd():
+    """Return type is tuple[RM, CS_vfd] — not tuple[Any, Any]."""
+    status = FakeParticipantStatus(RM.ACCEPTED, CS_vfd.VFD)
+    participant = FakeParticipantWithStatuses([status])
+    dl = FakeDL(stored=participant)
+    use_case = _make_use_case(dl)
+
+    rm, vfd = use_case._resolve_current_participant_state(
+        _fake_dl_as_persistence(dl), "any-id"
+    )
+
+    assert isinstance(rm, RM)
+    assert isinstance(vfd, CS_vfd)
+
+
+def test_resolve_participant_state_returns_latest_statuses():
+    """Returns RM and CS_vfd values from the last entry in participant_statuses."""
+    earlier = FakeParticipantStatus(RM.RECEIVED, CS_vfd.vfd)
+    later = FakeParticipantStatus(RM.ACCEPTED, CS_vfd.VFD)
+    participant = FakeParticipantWithStatuses([earlier, later])
+    dl = FakeDL(stored=participant)
+    use_case = _make_use_case(dl)
+
+    rm, vfd = use_case._resolve_current_participant_state(
+        _fake_dl_as_persistence(dl), "any-id"
+    )
+
+    assert rm == RM.ACCEPTED
+    assert vfd == CS_vfd.VFD
+
+
+def test_resolve_participant_state_defaults_when_no_statuses():
+    """Returns (RM.START, CS_vfd.vfd) when participant_statuses is empty."""
+    participant = FakeParticipantNoStatuses()
+    dl = FakeDL(stored=participant)
+    use_case = _make_use_case(dl)
+
+    rm, vfd = use_case._resolve_current_participant_state(
+        _fake_dl_as_persistence(dl), "any-id"
+    )
+
+    assert rm == RM.START
+    assert vfd == CS_vfd.vfd
+
+
+def test_resolve_participant_state_defaults_when_participant_not_found():
+    """Returns (RM.START, CS_vfd.vfd) when dl.read() returns None."""
+    dl = FakeDL(stored=None)
+    use_case = _make_use_case(dl)
+
+    rm, vfd = use_case._resolve_current_participant_state(
+        _fake_dl_as_persistence(dl), "missing-id"
+    )
+
+    assert rm == RM.START
+    assert vfd == CS_vfd.vfd
+
+
+def test_resolve_participant_state_defaults_when_invalid_rm_type():
+    """Falls back to defaults when rm_state is not an RM enum value."""
+
+    class BadStatus:
+        rm_state = "not-an-rm"
+        vfd_state = CS_vfd.VFd
+
+    participant = FakeParticipantWithStatuses([BadStatus()])
+    dl = FakeDL(stored=participant)
+    use_case = _make_use_case(dl)
+
+    rm, vfd = use_case._resolve_current_participant_state(
+        _fake_dl_as_persistence(dl), "any-id"
+    )
+
+    assert rm == RM.START
+    assert isinstance(vfd, CS_vfd)
+
+
+def test_resolve_participant_state_defaults_when_invalid_vfd_type():
+    """Falls back to defaults when vfd_state is not a CS_vfd enum value."""
+
+    class BadStatus:
+        rm_state = RM.VALID
+        vfd_state = "not-a-cs-vfd"
+
+    participant = FakeParticipantWithStatuses([BadStatus()])
+    dl = FakeDL(stored=participant)
+    use_case = _make_use_case(dl)
+
+    rm, vfd = use_case._resolve_current_participant_state(
+        _fake_dl_as_persistence(dl), "any-id"
+    )
+
+    assert isinstance(rm, RM)
+    assert vfd == CS_vfd.vfd
