@@ -15,10 +15,12 @@
 
 | Dependency | Version | Role in system | Evidence |
 |------------|---------|----------------|----------|
-| `fastapi` | `>=0.136.0` | HTTP API and router layer | `pyproject.toml`, `vultron/adapters/driving/fastapi/app.py` |
+| `fastapi` | `>=0.136.1` | HTTP API and router layer | `pyproject.toml`, `vultron/adapters/driving/fastapi/app.py` |
 | `uvicorn` | `>=0.46.0` | ASGI server for the API | `pyproject.toml`, `docker/Dockerfile` |
-| `pydantic` | `==2.13.3` | Model validation and typed request/object models | `pyproject.toml`, `vultron/core/ports/datalayer.py` |
+| `pydantic` | `==2.13.4` | Model validation and typed request/object models | `pyproject.toml`, `vultron/core/ports/datalayer.py` |
+| `pydantic-settings` | `>=2.14.0` | Environment-variable config loading | `pyproject.toml`, `vultron/config.py` |
 | `sqlmodel` | `>=0.0.38` | SQLite-backed persistence adapter | `pyproject.toml`, `vultron/adapters/driven/datalayer_sqlite.py` |
+| `httpx` | `>=0.28.1` | HTTP client for outbound inbox delivery and demo calls | `pyproject.toml`, `vultron/adapters/driven/delivery_queue.py` |
 | `py-trees` | `>=2.2.0` | Behavior-tree implementation support | `pyproject.toml`, `docs/adr/0002-model-processes-with-behavior-trees.md` |
 | `transitions` | `>=0.9.3` | State-machine support | `pyproject.toml` |
 | `pyyaml` | `>=6.0` | YAML-backed config and metadata loading | `pyproject.toml`, `vultron/demo/cli.py` |
@@ -30,7 +32,7 @@
 |------|---------|----------|
 | `black` | Python formatting | `pyproject.toml`, `.pre-commit-config.yaml` |
 | `flake8` | Python linting | `pyproject.toml`, `.flake8`, `.github/workflows/python-app.yml` |
-| `mypy` | Static type checking | `pyproject.toml`, `.github/workflows/python-app.yml` |
+| `mypy` | Static type checking (`>=2.1.0`) | `pyproject.toml`, `.github/workflows/python-app.yml` |
 | `pyright` | Static type checking | `pyproject.toml`, `pyrightconfig.json`, `.github/workflows/python-app.yml` |
 | `pytest` | Automated tests | `pyproject.toml`, `test/AGENTS.md` |
 | `markdownlint-cli2` | Markdown linting/fixing | `.pre-commit-config.yaml`, `.markdownlint-cli2.yaml` |

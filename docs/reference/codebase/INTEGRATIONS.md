@@ -7,7 +7,8 @@
 | System | Type (API/DB/Queue/etc) | Purpose | Auth model | Criticality | Evidence |
 |--------|---------------------------|---------|------------|-------------|----------|
 | SQLite via SQLModel | DB | Persist Vultron objects and inbox/outbox queue entries | Local file or in-memory DB URL; no separate DB auth shown | high | `vultron/adapters/driven/datalayer_sqlite.py`, `docker/docker-compose-multi-actor.yml` |
-| Peer actor inboxes | API | Deliver outbound AS2 activities with HTTP POST | `[TODO]` no auth/signing shown in sampled delivery code | high | `vultron/adapters/driven/delivery_queue.py` |
+| ASGIEmitter (in-process) | API | Deliver outbound AS2 activities to co-located actors via ASGI, bypassing HTTP | None required (same-process) | high | `vultron/adapters/driven/asgi_emitter.py`, `vultron/adapters/driving/fastapi/app.py` |
+| Peer actor inboxes | API | Deliver outbound AS2 activities to remote actors with HTTP POST | `[TODO]` no auth/signing shown in sampled delivery code | high | `vultron/adapters/driven/delivery_queue.py` |
 | Demo client to local API | API | Drive seeded/demo scenarios over HTTP | None shown beyond local base URL config | medium | `vultron/demo/utils.py`, `vultron/demo/cli.py` |
 | MCP trigger adapter | Tool/API surface | Expose trigger use cases to MCP-compatible callers once registered | `[TODO]` not shown in current file | low | `vultron/adapters/driving/mcp_server.py` |
 
@@ -48,6 +49,7 @@
 
 - `vultron/adapters/driven/datalayer_sqlite.py`
 - `vultron/adapters/driven/delivery_queue.py`
+- `vultron/adapters/driven/asgi_emitter.py`
 - `vultron/demo/utils.py`
 - `docker/docker-compose.yml`
 - `docker/docker-compose-multi-actor.yml`

@@ -471,10 +471,21 @@ The `ActivityDispatcher` Protocol lives in `core/ports/dispatcher.py`.
 
 **Emit (outbound)** — a core action is completed → a wire object is sent to
 one or more recipients. This is a **driven port**: the core calls *out* to an
-external system that delivers the activity. A future `ActivityEmitter` Protocol
-belongs in `core/ports/emitter.py`. The delivery-queue adapter implements it.
-The emitter port is the use-case-facing interface; the delivery queue adapter
-is the transport implementation.
+external system that delivers the activity. The `ActivityEmitter` Protocol is
+implemented in `core/ports/emitter.py`. The emitter port is the use-case-facing
+interface; concrete emitter adapters are the transport implementations.
+
+Two emitter adapters are provided:
+
+- **`DeliveryQueueAdapter`** (`adapters/driven/delivery_queue.py`) — queues
+  outbound activities for asynchronous HTTP delivery to remote actor inboxes,
+  with exponential back-off retry logic.
+- **`ASGIEmitter`** (`adapters/driven/asgi_emitter.py`) — delivers to
+  co-located actors in-process via the ASGI interface, bypassing HTTP entirely.
+  Falls back to `DeliveryQueueAdapter` for recipients whose inbox URL is not
+  hosted on the same server. Wired at app startup by `configure_default_emitter()`
+  in `adapters/driving/fastapi/outbox_handler.py`. This is the **production
+  default** for the FastAPI application.
 
 Key rules:
 
@@ -610,15 +621,16 @@ Core ports should be discriminated into two categories for clarity:
 - `CasePersistence` / `CaseOutboxPersistence`
   (`core/ports/case_persistence.py`) — narrower core-facing persistence ports
   for use cases and BT nodes; see `notes/datalayer-design.md`
-- `ActivityEmitter` Protocol (`core/ports/emitter.py`, to be created in
-  OX-1.0) — outbound activity delivery
+- `ActivityEmitter` Protocol (`core/ports/emitter.py`) — outbound activity
+  delivery; implemented by `DeliveryQueueAdapter` (HTTP) and `ASGIEmitter`
+  (in-process / ASGI, with HTTP fallback)
 
 **Ports that have been removed** (confirmed no callers):
 
 - `core/ports/dns_resolver.py` — deleted (VCR-024); DNS resolution is an
   adapter-level concern
 - `core/ports/delivery_queue.py` — deleted (VCR-023); superseded by
-  the upcoming `ActivityEmitter` port (OX-1.0)
+  the `ActivityEmitter` port
 
 **Ports to evaluate for removal**:
 

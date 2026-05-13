@@ -335,6 +335,14 @@ provides unique ID constraints. Report handlers (`create_report`,
 - **Avoid `BaseModel` in Port/Adapter Type Hints** — see [notes/architecture-ports-and-adapters.md](notes/architecture-ports-and-adapters.md)
 - **Activity `name` Field Must Not Use `repr()` or `str()`** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **Actor IDs Must Always Be Full URIs** — see [notes/codebase-structure.md](notes/codebase-structure.md)
+- **Co-located Actor IDs Must Be HTTP-Routable; Wire Up `ASGIEmitter` at Startup** — An
+  actor whose ID uses a non-HTTP scheme (e.g. `urn:uuid:…/actors/case-actor`) cannot
+  receive deliveries via `DeliveryQueueAdapter` — outbound activities silently fail.
+  Co-located actors (e.g. a Case Actor hosted in the same server process) **MUST** have
+  HTTP-routable IDs (e.g. `{base_url}/actors/case-actor-{slug}`), **and** the app
+  startup code MUST call `configure_default_emitter(ASGIEmitter(app=…))` so the outbox
+  handler routes in-process deliveries via ASGI rather than HTTP.
+  See `notes/architecture-ports-and-adapters.md` (Dispatch vs Emit section).
 - **BT Failure Reason: Use `get_failure_reason()`, Not Generic Error Logs** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Dead-Letter vs. No-Pattern: Two Distinct UNKNOWN Failure Modes** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **Accept.object_ Must Be the Invite Activity, Not the Case Object** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)

@@ -21,7 +21,8 @@
 ```text
 HTTP request -> FastAPI app/router -> inbox handler + rehydration ->
 semantic extraction -> dispatcher/use case -> DataLayer + outbox ->
-outbox monitor/delivery queue -> peer inbox HTTP POST
+outbox handler -> ASGIEmitter (co-located) | DeliveryQueueAdapter (remote) ->
+peer inbox HTTP POST
 ```
 
 Evidence-backed flow:
@@ -51,7 +52,8 @@ Evidence-backed flow:
 | Port/adapter split | `vultron/core/ports/datalayer.py`, `vultron/adapters/driven/datalayer.py` | Keep core independent of storage implementation |
 | Dispatcher + routing table | `vultron/core/dispatcher.py`, `vultron/semantic_registry.py` | Route semantic events to use cases without router-specific logic |
 | Dependency injection | `vultron/adapters/driving/fastapi/deps.py` | Centralize shared/shared-scoped DataLayer and TriggerService seams |
-| Background worker loop | `vultron/adapters/driving/fastapi/outbox_monitor.py` | Drain outboxes asynchronously for all actors |
+| Background worker loop | `vultron/adapters/driving/fastapi/outbox_handler.py` | Drain outboxes asynchronously for all actors |
+| ASGI-first delivery | `vultron/adapters/driven/asgi_emitter.py`, `vultron/adapters/driving/fastapi/app.py` | Deliver to co-located actors in-process via ASGI; fall back to HTTP for remote actors |
 | Behavior trees | `docs/adr/0002-model-processes-with-behavior-trees.md`, `AGENTS.md` | Model multi-state CVD workflows and automation paths |
 
 ### 5) Known Architectural Risks
@@ -70,4 +72,6 @@ Evidence-backed flow:
 - `vultron/adapters/driving/fastapi/inbox_handler.py`
 - `vultron/core/dispatcher.py`
 - `vultron/semantic_registry.py`
-- `vultron/adapters/driving/fastapi/outbox_monitor.py`
+- `vultron/adapters/driving/fastapi/outbox_handler.py`
+- `vultron/adapters/driven/asgi_emitter.py`
+- `vultron/core/ports/emitter.py`

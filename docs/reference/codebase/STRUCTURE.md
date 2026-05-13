@@ -34,7 +34,7 @@
 | `vultron/core/` | Domain models, ports, dispatch, use cases, behavior trees | FastAPI imports, adapter types, direct AS2 parsing |
 | `vultron/wire/` | AS2 parsing, vocabulary, semantic extraction, rehydration | Case-handling business logic |
 | `vultron/adapters/driving/` | HTTP/MCP-facing translation into core calls | Persistent domain state ownership |
-| `vultron/adapters/driven/` | Persistence and outbound delivery implementations | Framework-facing request handling |
+| `vultron/adapters/driven/` | Persistence, outbound HTTP delivery, and ASGI-first co-located delivery | Framework-facing request handling |
 | `vultron/demo/` | CLI demos and workflow scripts | Authoritative domain interfaces |
 | `test/` | Mirrored test modules and fixture layers | Production runtime code |
 
