@@ -36,7 +36,22 @@ For each issue linked to a priority:
 - **Sub-issues**: For epics, aggregated state of linked issues
 - **Blockers**: Explicit dependencies or prerequisite tags
 
-## Computation
+### Blocker Detection
+
+Blockers are sourced **exclusively** from formal GitHub issue relationship
+metadata — specifically the "blocked by" relationship on an issue (as set via
+GitHub's issue relationship feature). Body text mentioning "blocked by" is
+**not** parsed and MUST NOT be used as a blocker source.
+
+`PRIORITIES.md` MUST NOT contain blocker or dependency text. Any blocker
+information found there is stale and should be ignored; the authoritative
+source is GitHub issue relationships.
+
+For each issue with a "blocked by" relationship:
+
+1. Fetch the live state of the blocking issue/PR from GitHub.
+2. If the blocker is **closed**, do not report it as blocking.
+3. If the blocker is **open**, report the dependent issue as blocked.
 
 ### Coverage Analysis
 
@@ -82,9 +97,9 @@ For each priority group (or epic):
 
 ```text
 Done         = Count of closed issues
-Pending      = Count of open issues with no PR
+Pending      = Count of open issues with no PR (and not blocked by an open issue)
 PR Pending   = Count of open issues with ≥1 open PR
-Blocked      = Count of issues labeled "blocked" or with explicit dependency
+Blocked      = Count of issues with ≥1 open "blocked by" relationship
 Total        = Done + Pending + PR Pending + Blocked
 
 % Complete = Done / (Done + Pending + PR Pending + Blocked)
@@ -92,7 +107,21 @@ Status:
   🟢 ≥75% done OR all sub-items have active PRs
   🟡 25–75% done with some pending items
   🔴 <25% done OR has blocked items with no ETA
-```text
+```
+
+### Readiness
+
+A priority group is **actionable** (eligible for "Next up") only when ALL of
+the following are true:
+
+1. It has at least one unblocked pending issue (open, no open "blocked by"
+   relationship, no open PR yet).
+2. Every priority group with a **lower priority number** (higher urgency) has
+   no unblocked pending work — i.e., all their open issues are either blocked,
+   have open PRs, or are closed.
+
+The **"Next up"** callout in the Summary names the single group with the lowest
+priority number that satisfies both conditions.
 
 ## Configuration
 
@@ -100,11 +129,9 @@ Status:
 
 Environment variable or config file:
 
-```
-
-PRIORITY_STATUS_STALE_DAYS=7  # Default: 1 week
-
 ```text
+PRIORITY_STATUS_STALE_DAYS=7  # Default: 1 week
+```
 
 Activity age measured from status change, commit, or comment—not creation date.
 
@@ -112,27 +139,20 @@ Activity age measured from status change, commit, or comment—not creation date
 
 Optional: Report only on activity within a date range:
 
-
-```
-
+```text
 PRIORITY_STATUS_FROM=2025-01-01
 PRIORITY_STATUS_TO=2025-12-31
-
-```text
+```
 
 ### Issue Type Filters
 
-
-
 By default, all types (bug, feature, chore, epic) are included. To focus on specific types:
 
+```text
+PRIORITY_STATUS_TYPES=bug,epic  # Comma-separated
 ```
 
-PRIORITY_STATUS_TYPES=bug,epic  # Comma-separated
-
-```text
-
-## Queries
+## Computation
 
 ### GitHub Query Examples
 
@@ -196,16 +216,10 @@ check-priority-status --format json --output report.json
 ```text
 
 
-### Integration with update-priorities
+### Hard Stop
 
-After status check, if significant uncovered work is found:
-
-```
-
-Suggest: Run `update-priorities` to add new priority groups
-or `update-priorities --group 470` to refine an existing group
-
-```text
+This skill MUST stop after delivering its report. It MUST NOT invoke any other
+skill or take any follow-up action. The report is the complete, final output.
 
 ## Troubleshooting
 
