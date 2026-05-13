@@ -21,7 +21,7 @@ from typing import Annotated, Any
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
-from vultron.core.models._helpers import _new_urn
+from vultron.core.models._helpers import _new_urn, _now_utc
 
 
 def _non_empty(v: str) -> str:
@@ -80,8 +80,8 @@ class VultronObject(VultronBase):
     duration: timedelta | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
-    published: datetime | None = None
-    updated: datetime | None = None
+    published: datetime = Field(default_factory=_now_utc)
+    updated: datetime = Field(default_factory=_now_utc)
 
     # content
     content: Any | None = None

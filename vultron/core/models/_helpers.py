@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 
 
 def _now_utc() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(timezone.utc).replace(microsecond=0)
 
 
 def _new_urn() -> str:

@@ -24,6 +24,17 @@ groups DEMOMA-06, DEMOMA-07, DEMOMA-08 for formal requirements.
 introduces `CVDRole.CASE_ACTOR` and the `Create(VulnerabilityCase)` bootstrap
 receiver that this epic depends on.
 
+### Integration branch
+
+All work for this priority group lives on branch
+**`task/463-two-actor-demo-replacement`** (the long-lived integration branch
+for Priority 470). Sub-issue branches should be created from this branch and
+PRs should target it — **not `main`**. When all sub-issues are resolved a
+fresh PR will be opened from the integration branch to `main`.
+
+When invoking the `build` skill for issues in this group, specify the base
+branch explicitly: `task/463-two-actor-demo-replacement`.
+
 - Epic: [#464](https://github.com/CERTCC/Vultron/issues/464)
 - [#460](https://github.com/CERTCC/Vultron/issues/460) — Sub-issue A: Documentation and spec updates ✅
 - [#461](https://github.com/CERTCC/Vultron/issues/461) — Sub-issue B: Core capabilities ✅
@@ -32,6 +43,16 @@ receiver that this epic depends on.
 - [#463](https://github.com/CERTCC/Vultron/issues/463) — Sub-issue D: Demo replacement (blocked by B, C)
 - [#475](https://github.com/CERTCC/Vultron/issues/475) — Case Actor URN-based ID makes it unreachable via HTTP delivery
 - [#476](https://github.com/CERTCC/Vultron/issues/476) — Remove spec-violating workarounds from SvcAddParticipantStatusUseCase
+- [#467](https://github.com/CERTCC/Vultron/issues/467) — BT refactor: AddParticipantStatusToParticipant handler (also fixes RM
+  transition validation regression)
+- [#483](https://github.com/CERTCC/Vultron/issues/483) — two\_actor\_demo.py: participant fetch, status check, and exception
+  handling bugs (from PR #474 review)
+- [#484](https://github.com/CERTCC/Vultron/issues/484) — Type narrowing: \`_resolve_current_participant_state()\` returns
+  \`tuple[Any, Any]\` (from PR #474 review; may be addressed in #467)
+- [#466](https://github.com/CERTCC/Vultron/issues/466) — Docs: two-actor-demo tutorial + technical reference (blocked by demo
+  running end-to-end)
+- [#471](https://github.com/CERTCC/Vultron/issues/471) — Tutorial: docs/tutorials/two-actor-demo.md
+- [#472](https://github.com/CERTCC/Vultron/issues/472) — Technical reference: docs/reference/two-actor-demo-protocol.md
 
 ## Priority 475: Participant Case Replica Safety
 

@@ -833,6 +833,81 @@ class TestWaitForAllParticipantsRmClosed:
                 poll_interval=0.05,
             )
 
+    def test_case_manager_does_not_block_rm_closure_check(
+        self, client: TestClient, base: str
+    ):
+        """CASE_MANAGER participant is excluded from the RM closure check.
+
+        Close vendor and finder; the Case Actor (CASE_MANAGER role) must not
+        block ``_all_fetchable_participants_rm_closed`` from returning True,
+        whether or not the Case Actor has auto-closed.
+        """
+        finder_client, vendor_client, finder, vendor, case = (
+            _setup_case_with_3_participants(base)
+        )
+        demo.actor_closes_case(
+            client=vendor_client, actor=vendor, case_id=case.id_
+        )
+        demo.actor_closes_case(
+            client=finder_client, actor=finder, case_id=case.id_
+        )
+        case_data = vendor_client.get(f"/datalayer/{case.id_}")
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        refreshed_case = VulnerabilityCase.model_validate(case_data)
+        result = demo._all_fetchable_participants_rm_closed(
+            vendor_client, refreshed_case
+        )
+        assert result is True
+
+    def test_url_based_participant_id_handled_gracefully(
+        self, client: TestClient, base: str
+    ):
+        """URL-based participant IDs (HTTP URLs with slashes) are handled gracefully.
+
+        The Case Actor's participant ID is an HTTP URL.  The DataLayer
+        ``/{key}`` route cannot serve it — Starlette decodes ``%2F`` before
+        path matching, so encoded slashes still break the single-segment route.
+        ``_all_fetchable_participants_rm_closed`` must catch the resulting
+        exception and skip the participant rather than propagating the error.
+        """
+        finder_client, vendor_client, finder, vendor, case = (
+            _setup_case_with_3_participants(base)
+        )
+        case_data = vendor_client.get(f"/datalayer/{case.id_}")
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        fetched_case = VulnerabilityCase.model_validate(case_data)
+        url_based_ids = [
+            p_id
+            for p_id in fetched_case.actor_participant_index.values()
+            if p_id.startswith("http")
+        ]
+        assert (
+            url_based_ids
+        ), "Expected at least one URL-based participant ID (Case Actor)"
+        # Confirm that a direct fetch of the URL-based participant ID raises an
+        # exception — slashes make the /{key} route unreachable.
+        p_id = url_based_ids[0]
+        with pytest.raises(Exception):
+            vendor_client.get(f"/datalayer/{p_id}")
+
+        # _all_fetchable_participants_rm_closed must not propagate the
+        # exception; it catches and skips unfetchable participant IDs.
+        try:
+            demo._all_fetchable_participants_rm_closed(
+                vendor_client, fetched_case
+            )
+        except Exception as exc:
+            pytest.fail(
+                f"_all_fetchable_participants_rm_closed crashed on"
+                f" URL-based participant ID {p_id!r}: {exc}"
+            )
+
 
 class TestVerifyM1State:
     """Tests for verify_m1_state."""
