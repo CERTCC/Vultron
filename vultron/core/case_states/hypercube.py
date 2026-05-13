@@ -873,7 +873,7 @@ class CVDmodel:
 
         """
         # copy the graph since we're going to modify it
-        G = nx.DiGraph(self.G)
+        G: nx.DiGraph = nx.DiGraph(self.G)
 
         # add a wraparound link
         # this allows page rank to walk from the end back to the beginning naturally
