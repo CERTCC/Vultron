@@ -130,10 +130,7 @@ class CaseParticipant(VultronAS2Object):
         """Return the most recent ParticipantStatus (read-only; see participant_statuses for history)."""
         if not self.participant_statuses:
             return None
-        return max(
-            self.participant_statuses,
-            key=lambda ps: str(ps.updated or ps.published or ps.id_),
-        )
+        return self.participant_statuses[-1]
 
     def append_rm_state(self, rm_state: RM, actor: str, context: str) -> bool:
         """Append a new ParticipantStatus with the given RM state.

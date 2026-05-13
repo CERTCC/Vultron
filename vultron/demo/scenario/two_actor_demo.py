@@ -56,6 +56,7 @@ import os
 import sys
 import time
 from typing import Optional, Tuple
+from urllib.parse import quote
 
 from vultron.adapters.utils import parse_id
 from vultron.core.states.cs import CS_pxa, CS_vfd
@@ -107,6 +108,25 @@ CASE_ACTOR_BASE_URL = os.environ.get(
 # Deterministic actor IDs from docker-compose-multi-actor.yml (D5-1-G3).
 FINDER_ACTOR_ID = "http://finder:7999/api/v2/actors/finder"
 VENDOR_ACTOR_ID = "http://vendor:7999/api/v2/actors/vendor"
+
+
+# ---------------------------------------------------------------------------
+# DataLayer path helpers
+# ---------------------------------------------------------------------------
+
+
+def _dl_key(key: str) -> str:
+    """URL-encode a DataLayer key for safe embedding in an API path segment.
+
+    Encodes characters that are illegal in URL path segments (e.g., colons in
+    URN-style keys like ``urn:uuid:...``).
+
+    Note: HTTP URL-based participant IDs (which contain literal slashes) cannot
+    be fetched via the single-segment ``/{key}`` DataLayer route even after
+    URL-encoding, because Starlette decodes ``%2F`` back to ``/`` before path
+    matching.  Such IDs must be handled via exception catching at the call site.
+    """
+    return quote(str(key), safe="")
 
 
 # ---------------------------------------------------------------------------
@@ -606,11 +626,12 @@ def _assert_vendor_participant_state(
     participant_id: str,
 ) -> None:
     participant = CaseParticipant(
-        **vendor_client.get(f"/datalayer/{participant_id}")
+        **vendor_client.get(f"/datalayer/{_dl_key(participant_id)}")
     )
-    if not participant.participant_statuses:
+    latest = participant.participant_status
+    if latest is None:
         raise AssertionError("Vendor participant has no participant statuses")
-    if participant.participant_statuses[-1].rm_state != RM.ACCEPTED:
+    if latest.rm_state != RM.ACCEPTED:
         raise AssertionError(
             "Vendor participant RM state did not transition to ACCEPTED"
         )
@@ -1164,7 +1185,7 @@ def _fetch_participant(
         participant_id = case.actor_participant_index.get(actor_id)
         if participant_id is None:
             return None
-        p_data = client.get(f"/datalayer/{participant_id}")
+        p_data = client.get(f"/datalayer/{_dl_key(participant_id)}")
         return CaseParticipant(**p_data)
     except Exception:  # noqa: BLE001
         return None
@@ -1195,20 +1216,17 @@ def wait_for_participant_vfd_state(
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
         participant = _fetch_participant(client, case_id, actor_id)
-        if participant is not None and participant.participant_statuses:
-            if (
-                participant.participant_statuses[-1].vfd_state
-                in expected_states
-            ):
+        if participant is not None:
+            latest = participant.participant_status
+            if latest is not None and latest.vfd_state in expected_states:
                 return
         time.sleep(poll_interval)
 
     participant = _fetch_participant(client, case_id, actor_id)
-    current = (
-        participant.participant_statuses[-1].vfd_state
-        if participant and participant.participant_statuses
-        else "unknown"
+    latest = (
+        participant.participant_status if participant is not None else None
     )
+    current = latest.vfd_state if latest is not None else "unknown"
     raise AssertionError(
         f"Timed out waiting for actor '{actor_id}' vfd_state to be in "
         f"{expected_states!r}; current={current!r}"
@@ -1261,10 +1279,10 @@ def _all_fetchable_participants_rm_closed(
     RM.CLOSED."""
     for p_id in case.actor_participant_index.values():
         try:
-            p_data = client.get(f"/datalayer/{p_id}")
+            p_data = client.get(f"/datalayer/{_dl_key(p_id)}")
         except Exception:  # noqa: BLE001
-            # Case Actor participant has a URN-based ID that cannot be
-            # fetched via the HTTP API — skip it.
+            # Participant record not accessible from this DataLayer
+            # (e.g. on a remote container in multi-container deployment).
             continue
         if not p_data:
             return False
@@ -1273,9 +1291,10 @@ def _all_fetchable_participants_rm_closed(
         # it does not self-report RM closure so skip it.
         if CVDRole.CASE_MANAGER in (p.case_roles or []):
             continue
-        if not p.participant_statuses:
+        latest = p.participant_status
+        if latest is None:
             return False
-        if p.participant_statuses[-1].rm_state != RM.CLOSED:
+        if latest.rm_state != RM.CLOSED:
             return False
     return True
 
@@ -1328,11 +1347,11 @@ def verify_m1_state(
     vendor_actor_id: str,
     reporter_actor_id: str,
 ) -> None:
-    """Verify milestone M1: 3 participants, EM.ACTIVE, finder has case replica.
+    """Verify milestone M1: required participants present, EM.ACTIVE, finder has case replica.
 
-    Checks the Vendor DataLayer for 3 participants (Vendor, Reporter, Case
-    Actor) with an active embargo, then verifies the Reporter DataLayer has
-    a matching case replica.
+    Checks the Vendor DataLayer for the required participants (Vendor and
+    Reporter) plus at least one Case Actor (≥3 total) with an active embargo,
+    then verifies the Reporter DataLayer has a matching case replica.
 
     Spec: DEMOMA-06-002, DEMOMA-06-003.
     """
@@ -1359,8 +1378,8 @@ def verify_m1_state(
     if case.active_embargo is None:
         raise AssertionError("M1 vendor: case has no active_embargo")
     logger.info(
-        "✓ M1 vendor: 3 participants (vendor, finder, case-actor), "
-        "EM.ACTIVE, embargo present"
+        "✓ M1 vendor: required participants (vendor, finder) + case-actor "
+        "present, EM.ACTIVE, embargo present"
     )
 
     # Finder side: replica must exist with matching participant index and embargo
@@ -1413,12 +1432,17 @@ def _check_participant_vfd_state_in(
         label: Human-readable label for AssertionError messages.
     """
     participant = _fetch_participant(client, case_id, actor_id)
-    if participant is None or not participant.participant_statuses:
+    if participant is None:
         raise AssertionError(
-            f"{label}: participant for actor '{actor_id}' not found or "
-            "has no participant statuses"
+            f"{label}: participant for actor '{actor_id}' not found"
         )
-    latest_vfd = participant.participant_statuses[-1].vfd_state
+    latest = participant.participant_status
+    if latest is None:
+        raise AssertionError(
+            f"{label}: participant for actor '{actor_id}' has no participant"
+            " statuses"
+        )
+    latest_vfd = latest.vfd_state
     if latest_vfd not in expected_states:
         raise AssertionError(
             f"{label}: expected vfd_state in {expected_states!r}, "
@@ -1509,11 +1533,11 @@ def verify_m6_state(
 
     # Verify vendor participant's latest status is VFD + public-aware pxa
     participant = _fetch_participant(vendor_client, case_id, vendor_actor_id)
-    if participant is None or not participant.participant_statuses:
-        raise AssertionError(
-            "M6: vendor participant not found or has no statuses"
-        )
-    latest = participant.participant_statuses[-1]
+    if participant is None:
+        raise AssertionError("M6: vendor participant not found")
+    latest = participant.participant_status
+    if latest is None:
+        raise AssertionError("M6: vendor participant has no statuses")
     if latest.vfd_state != CS_vfd.VFD:
         raise AssertionError(
             f"M6: vendor vfd_state is not VFD, found {latest.vfd_state!r}"
@@ -1550,20 +1574,21 @@ def verify_m7_state(
         case = VulnerabilityCase.model_validate(case_data)
         for a_id, p_id in case.actor_participant_index.items():
             try:
-                p_data = client.get(f"/datalayer/{p_id}")
+                p_data = client.get(f"/datalayer/{_dl_key(p_id)}")
                 p = CaseParticipant(**p_data)
             except Exception:  # noqa: BLE001
-                # Case Actor participant has a URN-based ID that
-                # cannot be fetched via the HTTP API — skip it.
+                # Participant record not accessible from this DataLayer
+                # (e.g. on a remote container) — skip it.
                 continue
             # Case Manager is a coordinator; skip RM closure check.
             if CVDRole.CASE_MANAGER in (p.case_roles or []):
                 continue
-            if not p.participant_statuses:
+            latest = p.participant_status
+            if latest is None:
                 raise AssertionError(
                     f"M7 {label}: actor '{a_id}' has no participant statuses"
                 )
-            rm = p.participant_statuses[-1].rm_state
+            rm = latest.rm_state
             if rm != RM.CLOSED:
                 raise AssertionError(
                     f"M7 {label}: actor '{a_id}' RM state is "
@@ -1590,7 +1615,8 @@ def run_two_actor_demo(
     Exercises the full VFDPxa lifecycle (M1 → M7) in the D5-1-G5 topology:
 
     - Phase 1 (M1): Report submission → validation → case creation, default
-      embargo, 3 participants (Vendor + Finder + Case Actor), EM.ACTIVE.
+      embargo, required participants (Vendor + Finder + Case Actor ≥3 total),
+      EM.ACTIVE.
     - Phase 2 (M2): Finder receives case replica via outbox delivery; log
       tail hashes match (SYNC-2).
     - Phase 3 (M3): Notes exchange — Finder asks a question, Vendor replies.
@@ -1689,7 +1715,7 @@ def run_two_actor_demo(
 
     # ── Milestone M1: 3 participants, EM.ACTIVE, finder has case replica ──
     with demo_check(
-        "M1: 3 participants (vendor + finder + case-actor), EM.ACTIVE, "
+        "M1: required participants (vendor + finder + case-actor, ≥3), EM.ACTIVE, "
         "finder has case replica"
     ):
         verify_m1_state(
