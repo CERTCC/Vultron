@@ -23,6 +23,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from vultron.core.models.case import VultronCase
+from vultron.core.states.cs import CS_vfd
 from vultron.core.states.rm import RM
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import update_participant_rm_state
@@ -338,11 +339,8 @@ class SvcAddParticipantStatusUseCase:
         self,
         dl: CaseOutboxPersistence,
         participant_id: str,
-    ) -> tuple[Any, Any]:
+    ) -> tuple[RM, CS_vfd]:
         """Return (current_rm, current_vfd) from the participant's latest status."""
-        from vultron.core.states.rm import RM
-        from vultron.core.states.cs import CS_vfd
-
         participant_obj = dl.read(participant_id)
         if participant_obj is not None and hasattr(
             participant_obj, "participant_statuses"
@@ -350,10 +348,13 @@ class SvcAddParticipantStatusUseCase:
             statuses = getattr(participant_obj, "participant_statuses")
             if statuses:
                 latest = statuses[-1]
-                return (
-                    getattr(latest, "rm_state", RM.START),
-                    getattr(latest, "vfd_state", CS_vfd.vfd),
+                raw_rm = getattr(latest, "rm_state", RM.START)
+                raw_vfd = getattr(latest, "vfd_state", CS_vfd.vfd)
+                rm_state = raw_rm if isinstance(raw_rm, RM) else RM.START
+                vfd_state = (
+                    raw_vfd if isinstance(raw_vfd, CS_vfd) else CS_vfd.vfd
                 )
+                return rm_state, vfd_state
         return RM.START, CS_vfd.vfd
 
     def execute(self) -> dict[str, Any]:
