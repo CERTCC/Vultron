@@ -369,7 +369,7 @@ class CountTicks(BtNode):
         return NodeStatus.SUCCESS
 
 
-STATELOG = []
+STATELOG: list[Any] = []
 
 
 class SnapshotState(BtNode):

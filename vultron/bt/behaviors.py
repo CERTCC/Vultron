@@ -17,6 +17,7 @@
 
 import logging
 from copy import deepcopy
+from typing import Any
 
 from vultron.bt.base import bt
 from vultron.bt.base.bt_node import ActionNode
@@ -31,7 +32,7 @@ from vultron.bt.vul_discovery.behaviors import DiscoverVulnerabilityBt
 
 logger = logging.getLogger(__name__)
 
-STATELOG = []
+STATELOG: list[dict[str, Any]] = []
 
 
 def reset_statelog():
