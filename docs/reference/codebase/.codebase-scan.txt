@@ -24,6 +24,9 @@
 .agents/skills/create-epic
 .agents/skills/create-epic/SKILL.md
 .agents/skills/create-epic/create_epic.sh
+.agents/skills/dev-status
+.agents/skills/dev-status/REFERENCE.md
+.agents/skills/dev-status/SKILL.md
 .agents/skills/format-code
 .agents/skills/format-code/SKILL.md
 .agents/skills/format-markdown
@@ -39,11 +42,15 @@
 .agents/skills/manage-github-issue
 .agents/skills/manage-github-issue/SKILL.md
 .agents/skills/manage-github-issue/manage_github_issue.sh
+.agents/skills/new-concern
+.agents/skills/new-concern/SKILL.md
 .agents/skills/pr-comprehensive-fix
 .agents/skills/pr-comprehensive-fix/REFERENCE.md
 .agents/skills/pr-comprehensive-fix/RESOLUTION-GUIDE.md
 .agents/skills/pr-comprehensive-fix/SKILL.md
 .agents/skills/pr-comprehensive-fix/TESTING-LOGIC.md
+.agents/skills/process-concerns
+.agents/skills/process-concerns/SKILL.md
 .agents/skills/review-priorities
 .agents/skills/review-priorities/REFERENCE.md
 .agents/skills/review-priorities/SKILL.md
@@ -64,6 +71,11 @@
 .flake8
 .github
 .github/CODEOWNERS
+.github/ISSUE_TEMPLATE
+.github/ISSUE_TEMPLATE/bug_report.md
+.github/ISSUE_TEMPLATE/concern.md
+.github/ISSUE_TEMPLATE/feature_request.md
+.github/ISSUE_TEMPLATE/idea.md
 .github/PULL_REQUEST_TEMPLATE
 .github/PULL_REQUEST_TEMPLATE/pull_request_template.md
 .github/copilot-instructions.md
@@ -74,6 +86,7 @@
 .github/scripts/mkdocs-build-strict.sh
 .github/workflows
 .github/workflows/deploy_site.yml
+.github/workflows/label-to-issue-type.yml
 .github/workflows/linkchecker.yml
 .github/workflows/lint_md_all.yml
 .github/workflows/python-app.yml
@@ -187,19 +200,6 @@
 .mypy_cache/3.13/_pytest/monkeypatch.meta.json
 .mypy_cache/3.13/_pytest/nodes.data.json
 .mypy_cache/3.13/_pytest/nodes.meta.json
-.mypy_cache/3.13/_pytest/outcomes.data.json
-.mypy_cache/3.13/_pytest/outcomes.meta.json
-.mypy_cache/3.13/_pytest/pathlib.data.json
-.mypy_cache/3.13/_pytest/pathlib.meta.json
-.mypy_cache/3.13/_pytest/pytester.data.json
-.mypy_cache/3.13/_pytest/pytester.meta.json
-.mypy_cache/3.13/_pytest/pytester_assertions.data.json
-.mypy_cache/3.13/_pytest/pytester_assertions.meta.json
-.mypy_cache/3.13/_pytest/python.data.json
-.mypy_cache/3.13/_pytest/python.meta.json
-.mypy_cache/3.13/_pytest/python_api.data.json
-.mypy_cache/3.13/_pytest/python_api.meta.json
-.mypy_cache/3.13/_pytest/raises.data.json
 
 === STACK DETECTION (manifest files) ===
 
@@ -591,58 +591,58 @@ site/assets/javascripts/lunr/wordcut.js:3578: // TODO: It would probably be fast
 site/assets/javascripts/lunr/wordcut.js:4282: // TODO: make this comparison case-insensitive on windows?
 
 === GIT RECENT COMMITS (last 20) ===
+be0b4aca plan: add priorities 480 and 490, slot #487 into 476
+52ba6d08 skills: add process-concerns and new-concern; fix dev-status lint
+9d1e2f69 chore: add Feature Request issue template and feature label mapping
+835f8503 chore: refactor label-to-issue-type workflow to single parameterized job
+e2800fa1 chore: add Concern issue template and concern-label job
+6c20940d chore: merge label-to-type workflows into single workflow
+06fbb18f chore: add Bug Report issue template and label-to-type workflow
+dff3226d chore: add Idea issue template and label-to-type workflow
+b6d1795b skills: migrate bugfix skill from plan/BUGS.md to GitHub Bug-type issues
+548746eb skills: migrate ingest-idea from IDEAS.md to GitHub Idea-type issues
+89ffe6dd Merge commit 'fbadc4d0ebaa35bb69c9fd5013e597fdce583b2a' into learn/20260513-asgiemitter-pcr-trust-guard
+7e02d32c plan: gap analysis — create #500, clean up PRIORITIES.md
+bfe35912 docs: address PR #499 review feedback
+827e1326 docs: promote BUILD_LEARNINGS — ASGIEmitter, PCR trust guard, co-located delivery
+fbadc4d0 Merge pull request #488 from CERTCC/task/463-two-actor-demo-replacement
 e05f7a4d fix: address all PR #488 review comments
 d8fb6314 update history
 ae2bb91b Merge pull request #490 from CERTCC/task/484-type-narrowing-resolve-participant-state
 9c65c3d9 refactor(test): move _resolve_current_participant_state tests to dedicated module
 01b5a109 fix(types): narrow _resolve_current_participant_state() return to tuple[RM, CS_vfd]
-ec96770a Merge branch 'main' into task/463-two-actor-demo-replacement
-d34ac439 Merge pull request #485 from CERTCC/task/483-two-actor-demo-bugs
-09c8e3e1 Fix PR #485 feedback: timestamps, participant_status ordering, exception narrowing
-562b45c5 docs(history): append implementation entry for #483 two_actor_demo bug fixes
-84b19568 fix(demo): resolve 5 bugs in two_actor_demo (#483)
-d7db390b skills: add manage-github-issue; update callers to use structured relationships
-5642220b chore(priorities): document Priority 470 integration branch; add issues #483, #484
-abed7334 Merge branch 'main' into task/463-two-actor-demo-replacement
-afcb6d7a Merge pull request #481 from CERTCC/dependabot/uv/types-networkx-3.6.1.20260508
-7d9b4df6 chore(deps-dev): Bump mypy from 1.20.2 to 2.1.0 (#479)
-d4444cdd chore(deps): Bump pydantic from 2.13.3 to 2.13.4 (#482)
-43c73921 fix: add type annotation for G in compute_pagerank (mypy [var-annotated])
-1072becb chore(deps-dev): Bump types-networkx
-76dc7559 Merge pull request #480 from CERTCC/dependabot/uv/types-pyyaml-6.0.12.20260510
-ebf313b4 Merge pull request #478 from CERTCC/dependabot/github_actions/DavidAnson/markdownlint-cli2-action-23.2.0
 
 === HIGH-CHURN FILES (last 90 days, top 20) ===
- 393 plan/IMPLEMENTATION_PLAN.md
- 316 plan/IMPLEMENTATION_NOTES.md
+ 385 plan/IMPLEMENTATION_PLAN.md
+ 305 plan/IMPLEMENTATION_NOTES.md
  206 plan/IMPLEMENTATION_HISTORY.md
- 121 plan/BUGS.md
- 112 plan/IDEAS.md
+ 122 plan/BUGS.md
+ 113 plan/IDEAS.md
   90 plan/PRIORITIES.md
   87 AGENTS.md
-  68 specs/README.md
-  66 uv.lock
+  67 specs/README.md
+  65 uv.lock
   47 vultron/core/behaviors/case/nodes.py
-  43 pyproject.toml
+  42 pyproject.toml
   39 notes/README.md
-  37 specs/code-style.md
   36 vultron/wire/as2/extractor.py
-  33 plan/history/2605/README.md
+  35 specs/code-style.md
+  34 plan/history/2605/README.md
   31 vultron/core/use_cases/triggers/embargo.py
   30 vultron/core/behaviors/report/nodes.py
-  29 test/api/v2/backend/test_handlers.py
   28 plan/history/2604/README.md
-  28 specs/handler-protocol.md
+  27 test/api/v2/backend/test_handlers.py
+  26 vultron/core/use_cases/triggers/report.py
 
 === MONOREPO SIGNALS ===
 No monorepo signals detected.
 
 === CODE METRICS ===
-Total files scanned: 6637
-Total lines of code: 126052
+Total files scanned: 6650
+Total lines of code: 126053
 
 Files by language:
-  Other: 5979
+  Other: 5992
   Python: 616
   JavaScript: 42
 
@@ -656,7 +656,7 @@ Top 10 largest files:
 site/print_page/index.html: 3349.3KB
 .mypy_cache/3.13/cache.4.db: 3260.0KB
 .mypy_cache/3.13/cache.3.db: 3220.0KB
-docs/reference/codebase/.codebase-scan.txt: 3217.7KB
+docs/reference/codebase/.codebase-scan.txt: 3217.6KB
 
 === CI/CD PIPELINES ===
 CI/CD: GitHub Actions

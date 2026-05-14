@@ -731,80 +731,113 @@ connector plugins.
 
 ---
 
-## Sync Use-Case Architecture: Incremental Fix and BT End-State
+## Driven Ports for Outbound Activity Construction
 
-### Scope of ARCH-01-001 Violations in `sync.py`
+This section documents the narrow driven-port pattern used to keep
+`vultron/core/` free of wire-layer imports (ARCH-01-001).
 
-The ARCH-01-001 violation in `vultron/core/use_cases/received/sync.py` and
-`vultron/core/use_cases/triggers/sync.py` is **broader** than just
-`from_core()` calls. These files also import wire vocab types
-(`CaseLogEntry`, `WireCaseLogEntry`) and factory functions
-(`announce_log_entry_activity`, `reject_log_entry_activity`) directly from
-the wire layer. Fixing only the `from_core()` calls while leaving wire
-factory imports in core still violates ARCH-01-001.
+### The Baton-Pass Pattern
 
-### Incremental Fix: `SyncActivityPort` (Driven Port)
+Core use cases and BT nodes MUST NOT construct or import wire-layer types
+directly. Instead, each outbound activity construction path is owned by a
+narrow **driven port** defined in `vultron/core/ports/` and implemented in
+`vultron/adapters/driven/`. The adapter owns the full domain → wire →
+persist → outbox pipeline. Core code passes domain-level arguments (string
+IDs, primitive values, domain model objects) and receives back only the
+activity ID (and optionally a serialized dict for HTTP responses).
 
-The agreed incremental fix introduces a narrow driven port (`SyncActivityPort`)
-with two fire-and-forget methods:
+This is the "baton-pass" pattern: core hands off domain data at the port
+boundary and the adapter handles the rest unidirectionally.
 
-- `send_reject_log_entry(entry, tail_hash, actor_id, to)` — converts
-  domain `VultronCaseLogEntry` → wire `CaseLogEntry`, builds a
-  `Reject(CaseLogEntry)` activity via factory, persists it, queues to outbox.
+### `SyncActivityPort`
+
+`SyncActivityPort` (`vultron/core/ports/sync_activity.py`) is the driven
+port for sync-related outbound activities. It has two fire-and-forget
+methods:
+
+- `send_reject_log_entry(entry, tail_hash, actor_id, to)` — converts a
+  domain `VultronCaseLogEntry` to a wire `CaseLogEntry`, builds a
+  `Reject(CaseLogEntry)` activity via factory, persists it, queues to
+  outbox.
 - `send_announce_log_entry(entry, actor_id, to)` — same pattern for
   `Announce(CaseLogEntry)`.
 
-The adapter (`SyncActivityAdapter`) accepts `CaseOutboxPersistence` at
-construction and owns the entire domain → wire → persist → outbox pipeline.
-Core use cases call the port methods with domain objects and never touch wire
-types. This is the "baton-pass" pattern: core hands off domain data and the
-adapter handles the rest unidirectionally.
+The concrete adapter is `SyncActivityAdapter`
+(`vultron/adapters/driven/sync_activity_adapter.py`). It accepts
+`CaseOutboxPersistence` at construction and owns the entire translation
+pipeline. Core sync use cases call the port methods with domain objects and
+never touch wire types.
 
-The port is injected as a constructor parameter (for use-case classes) and
-function parameter (for trigger helper functions). The dispatcher passes it
-via `**kwargs` so only sync use cases receive it.
+The port is injected as a constructor parameter for use-case classes and as
+a function parameter for trigger helper functions.
 
-**Subtask plan:**
+### `TriggerActivityPort`
 
-- ARCHVIO.1: Define `SyncActivityPort` in `vultron/core/ports/`
-- ARCHVIO.2: Implement `SyncActivityAdapter` in
-  `vultron/adapters/driven/sync_activity_adapter.py`
-- ARCHVIO.3: Replace **all** wire imports (not just `from_core()`) in
-  `received/sync.py` and `triggers/sync.py` with port calls
-- ARCHVIO.4: Update tests; verify no core module imports wire types in
-  these files
+`TriggerActivityPort` (`vultron/core/ports/trigger_activity.py`) is the
+driven port for trigger-originated outbound activities — all activities that
+are constructed in response to actor-initiated trigger requests rather than
+received inbound messages.
 
-### Correct Long-Term Architecture: BT-Based Sync Flow
+The concrete adapter is `TriggerActivityAdapter`
+(`vultron/adapters/driven/trigger_activity_adapter.py`). It reads persisted
+objects from the DataLayer, calls the appropriate wire-layer factory
+functions to construct outbound ActivityStreams activities, persists the
+activities, and returns `(activity_id, activity_dict)` or `activity_id`
+alone to callers. This is the **sole** location where trigger-related
+domain→wire translation occurs, keeping `vultron/core/` free of wire-layer
+factory imports (ARCH-01-001).
 
-The incremental port fix is a stepping stone. The correct long-term
-architecture is:
+`TriggerActivityPort` covers:
 
-1. `AnnounceLogEntryReceivedUseCase` should pass the received log entry to
-   a **behavior tree** (via `BTBridge`), not directly decide accept/reject.
-2. The BT contains the decision logic (hash-chain validation, accept vs.
-   reject branching).
-3. BT leaf nodes use driven ports (like `SyncActivityPort`) for outbound
-   actions.
-4. The same pattern applies to `RejectLogEntryReceivedUseCase`: use case
-   passes event to a BT, BT decides what to reply, BT nodes use the port.
+- Notes: `create_note`, `create_note_activity`, `add_note_to_case`
+- Reports: `submit_report`, `close_report`, `invalidate_report`
+- Cases: `create_case`, `engage_case`, `defer_case`, `add_object_to_case`
+- Actors (invitations, recommendations): `invite_actor_to_case`,
+  `accept_case_invite`, `suggest_actor_to_case`, `accept_actor_recommendation`,
+  `add_participant_to_case`, `add_participant_status_to_participant`
+- Case Actor / CASE_MANAGER delegation: `offer_case_manager_role`,
+  `accept_case_manager_role`
+- Embargo: `propose_embargo`, `accept_embargo`, `reject_embargo`,
+  `announce_embargo`
 
-This matches how other protocol flows (report, case, embargo) already work
-through BTs. The sync flow is currently the exception — its logic lives
-entirely in procedural use-case code.
+### Long-Term Architecture: BT-Based Flows
 
-**This BT integration is a separate future task**, not part of TASK-ARCHVIO.
-The port created in the incremental fix will be reused by BT nodes when the
-sync BT is built.
+The narrow driven-port approach is a stepping stone. The correct long-term
+architecture for sync and other protocol flows is:
 
-### Broader ARCH-01-001 Audit Needed
+1. Received use cases pass the event to a **behavior tree** (via
+   `BTBridge`), not direct procedural accept/reject logic.
+2. The BT encodes the decision logic (validation, branching).
+3. BT leaf nodes call driven ports (like `SyncActivityPort` or
+   `TriggerActivityPort`) for outbound actions.
 
-TASK-ARCHVIO only addresses `sync.py` files. Other core files still import
-from the wire layer (e.g., `behaviors/case/nodes.py`,
-`behaviors/report/nodes.py`, `triggers/embargo.py`, `triggers/case.py`,
-`triggers/actor.py`). Each is a separate ARCH-01-001 violation that needs
-its own driven port or an expansion of the existing `ActivityEmitter` port.
-A comprehensive audit of all ARCH-01-001 violations in `core/` is warranted
-as a follow-up task.
+This matches how report, case, and embargo protocol flows already work.
+The sync flow is currently the exception — its logic lives in procedural
+use-case code. Migrating it to a BT is a separate future task; the existing
+`SyncActivityPort` will be reused unchanged.
+
+### Remaining ARCH-01-001 Violations
+
+Some core modules still import from the wire layer and require their own
+driven port or an expansion of an existing port. Specific files are tracked
+in the GitHub issue for ARCH-01-001 remediation. See `specs/architecture.yaml`
+ARCH-01-004 for the requirement and the associated GitHub tracking issue for
+the current list.
+
+### Future Delivery Stubs
+
+Two adapter stubs exist as architectural placeholders for future signed HTTP
+delivery and ActivityPub shared-inbox support:
+
+- `vultron/adapters/driven/http_delivery.py` — transport-only stub for
+  signed HTTP POST to remote actor inboxes. Intended to use HTTP Signature
+  signing. Not yet implemented. It must not construct or inspect AS2 objects;
+  serialization happens in `wire/as2/` before the payload reaches this
+  adapter.
+- `vultron/adapters/driving/shared_inbox.py` — driving adapter stub for
+  ActivityPub shared-inbox fan-out. Will validate the HTTP Signature on the
+  inbound request, identify addressed local actors from `to`/`cc` fields,
+  and enqueue one inbox delivery per addressed actor.
 
 ### Architecture Boundary Ratchet Test
 

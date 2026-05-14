@@ -36,27 +36,19 @@ groups:
     priority: MUST
     statement: >-
       All ARCH-01-001 violations in `vultron/core/` MUST be remediated via
-      dedicated driven ports. Known violations that require their own ports or
-      an expansion of the existing `ActivityEmitter` port include:
-      `core/behaviors/case/nodes.py`,
-      `core/behaviors/report/nodes.py`,
-      `core/use_cases/triggers/embargo.py`,
-      `core/use_cases/triggers/case.py`, and
-      `core/use_cases/triggers/actor.py`.
-      Each file MUST be audited and either given a narrow driven port (following
-      the `SyncActivityPort` pattern) or folded under an expanded shared port.
-      A comprehensive ARCH-01-001 audit covering all `core/` modules MUST be
-      completed as a tracked task.
+      dedicated driven ports. Each file with a core→wire import MUST be given
+      a narrow driven port (following the `SyncActivityPort` or
+      `TriggerActivityPort` pattern) or folded under an expanded shared port.
     rationale: >-
-      The `sync.py` fix (SyncActivityPort) is not the only ARCH-01-001 violation
-      in core/. Leaving the remaining violations unfixed undermines the hexagonal
+      Leaving core→wire import violations unfixed undermines the hexagonal
       boundary and prevents clean unit testing of core logic with mock adapters.
+      See tracking issues for the current set of known violations.
     relationships:
       - rel_type: refines
         spec_id: ARCH-01-001
         note: >-
-          ARCH-01-001 is the general constraint; ARCH-01-004 names the known
-          violations and requires a systematic remediation effort.
+          ARCH-01-001 is the general constraint; ARCH-01-004 requires that
+          all violations be systematically remediated via driven ports.
 - id: ARCH-02
   title: SemanticIntent Enum
   kind: domain

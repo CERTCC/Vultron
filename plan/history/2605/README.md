@@ -4,6 +4,7 @@
 
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
+| 2026-05-14 | 20:07 | learning | TASK-ARCHVIO-CLEANUP | ARCH-01-001 sync.py violation fix: SyncActivityPort implementation tasks (cleanup) |
 | 2026-05-13 | 20:28 | learning | PCR | PCR: Announce trust guard, actor-scoped deferral, report-to-case link |
 | 2026-05-13 | 20:27 | learning | TWO-ACTOR-DEMO-2 | Case Actor spawning: CASE_MANAGER role delegation automation (#469) |
 | 2026-05-13 | 20:27 | learning | TWO-ACTOR-DEMO | Co-located actor delivery: HTTP-routable IDs and ASGIEmitter required |
