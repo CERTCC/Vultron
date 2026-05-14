@@ -68,8 +68,8 @@ groups:
     priority: MUST
     statement: >-
       When Phase 2 or Phase 2b analysis surfaces additional related issues beyond the confirmed
-      scope, the agent MUST file each as a new entry in `plan/BUGS.md` using the `BUG-YYMMDDXX`
-      ID scheme with a brief description and reproduction pointer.
+      scope, the agent MUST file each as a new Bug-type GitHub issue using the `manage-github-issue`
+      skill with a brief description and reproduction pointer.
   - id: BFW-03-002
     priority: MUST_NOT
     statement: >-
@@ -78,8 +78,8 @@ groups:
   - id: BFW-03-003
     priority: SHOULD
     statement: >-
-      The commit message for the fix SHOULD reference any new bugs filed during analysis (e.g.,
-      `Also filed: BUG-YYMMDDXX`).
+      The PR description for the fix SHOULD reference any new bug issues filed during analysis
+      (e.g., `Also filed: #NNN`).
 - id: BFW-04
   title: Bug Archiving (MUST)
   specs:
@@ -87,19 +87,6 @@ groups:
     priority: MUST
     statement: >-
       When a bug fix passes validation, the agent MUST append a completion summary for the
-      bug to `plan/IMPLEMENTATION_HISTORY.md` in the same format used by the build skill (see
-      `notes/bugfix-workflow.md` for the template).
-  - id: BFW-04-002
-    priority: MUST
-    statement: >-
-      After archiving, the agent MUST remove the bug's entry entirely from `plan/BUGS.md`.
-      No tombstone, `FIXED` marker, checkbox, or closed-notice MAY remain.
-  - id: BFW-04-003
-    priority: MUST
-    statement: '`plan/BUGS.md` MUST contain only open (unfixed) bugs at all times.'
-  - id: BFW-04-004
-    priority: MUST
-    statement: >-
-      Any bug already marked fixed in `plan/BUGS.md` from a prior run MUST be moved to `plan/IMPLEMENTATION_HISTORY.md`
-      the next time an agent opens `plan/BUGS.md`, even if no new fix work is done in that
-      run.
+      bug to `plan/history/` using `uv run append-history implementation` in the same format
+      used by the build skill (see `notes/bugfix-workflow.md` for the template). The GitHub
+      issue is closed automatically when the PR merges with "Fixes #N".

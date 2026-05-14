@@ -22,10 +22,10 @@ requirements in `specs/bugfix-workflow.yaml`.
 | Should deeper root-cause analysis be a new phase or woven into Phase 2? | New Phase 2b — a distinct gate | Keeps Phase 2 focused on basic alignment; Phase 2b is a conditional follow-up that fires only when scope hasn't already been addressed. |
 | When should Phase 2b fire? | Only if Phase 2 has not already surfaced broader scope | Avoids redundant questions when the user has already indicated the issue is larger. |
 | What should Phase 2b questions reference? | Specific code paths and invariants found by the agent | Open-ended questions invite unhelpful "I don't know" answers; grounded questions drive useful answers. |
-| When Phase 2b surfaces multiple issues, what happens to them? | Each filed as a new `BUG-YYMMDDXX` in `plan/BUGS.md` | Keeps current run focused; new bugs surface for future runs without being lost. |
-| Where should fixed bugs be archived? | `plan/IMPLEMENTATION_HISTORY.md` | Bug fixes are implementation history; a single history file avoids proliferating files. |
-| Should fixed bugs leave a tombstone in `BUGS.md`? | No — remove entirely | `BUGS.md` is a work queue; closed items in a work queue are noise. History belongs in the history file. |
-| What if a bug was already marked fixed but never archived? | Archive it the next time any agent opens `BUGS.md` | Cleanup is opportunistic to avoid permanent debt accumulation. |
+| When Phase 2b surfaces multiple issues, what happens to them? | Each filed as a new Bug-type GitHub issue via `manage-github-issue` | Keeps current run focused; new bugs surface for future runs without being lost. |
+| Where should fixed bugs be archived? | `plan/history/` via `uv run append-history implementation` | Bug fixes are implementation history; the GitHub issue is closed automatically by the PR "Fixes #N". |
+| Should fixed bugs leave a tombstone anywhere? | No — GitHub closes the issue on PR merge; history is captured via `append-history` | GitHub Issues are the source of truth; closed issues are their own record. |
+| What if a bug was discovered in a prior session but never filed? | File it as a Bug-type GitHub issue via `manage-github-issue` | GitHub Issues are durable and discoverable; local files are ephemeral. |
 
 ---
 
@@ -57,41 +57,42 @@ If the user says "just the surface fix":
 
 ## Escalation — Pattern
 
-When filing newly discovered bugs during analysis:
+When filing newly discovered bugs during analysis, use the `manage-github-issue`
+helper script:
 
-```markdown
-## BUG-YYMMDDXX — <short title> — NEW
+```bash
+.agents/skills/manage-github-issue/manage_github_issue.sh \
+  --title "<short bug title>" \
+  --body "## Symptoms
 
-**Symptoms:** <one sentence>
+<one sentence>
 
-**Root cause (hypothesis):** <what was observed during analysis of BUG-X>
+## Root cause (hypothesis)
 
-**Components involved:**
-- `path/to/module.py`
+<what was observed during analysis of #N>
 
-**Resolution steps:** (to be determined)
+## Components involved
+
+- \`path/to/module.py\`" \
+  --issue-type-id "IT_kwDOAjf0s84AcFLq"
 ```
 
-Reference them in the commit message:
+Reference newly filed issues in the PR description:
 
 ```text
-fix: <short description of confirmed fix>
-
-Addresses BUG-YYMMDDXX.
-Also filed: BUG-YYMMDDZZ (related issue discovered during analysis).
-
-Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+Fixes #<N>.
+Also filed: #<NNN> (related issue discovered during analysis).
 ```
 
 ---
 
-## Bug Archive Format (IMPLEMENTATION_HISTORY.md)
+## Bug Archive Format
 
-Append bug fix summaries at the **end** of `plan/IMPLEMENTATION_HISTORY.md`.
-Use the same section format as build-skill completions:
+Append bug fix summaries to `plan/history/` using `uv run append-history
+implementation`. Use the same section format as build-skill completions:
 
 ```markdown
-## BUG-YYMMDDXX — <title> (FIXED YYYY-MM-DD)
+## #<N> — <title> (FIXED YYYY-MM-DD)
 
 **Symptoms**: <one sentence describing observed vs expected behaviour>
 
@@ -110,29 +111,21 @@ Use the same section format as build-skill completions:
 
 ## Skill Integration Notes
 
-### `plan/BUGS.md` lifecycle
+### Bug lifecycle (GitHub Issues)
 
 ```text
-New bug filed  →  open entry in BUGS.md
-                       ↓
-              Agent confirms + scopes fix (Phase 2 + 2b)
-                       ↓
-              Fix implemented, tests pass
-                       ↓
-              Summary appended to IMPLEMENTATION_HISTORY.md
-                       ↓
-              Entry REMOVED from BUGS.md (no tombstone)
+Bug filed (GitHub Bug-type issue)
+              ↓
+    Agent claims issue + creates branch bug/<N>-<slug>
+              ↓
+    Agent confirms + scopes fix (Phase 2 + 2b)
+              ↓
+    Fix implemented, tests pass
+              ↓
+    Summary appended via uv run append-history implementation
+              ↓
+    PR opened with "Fixes #N" → merges → issue closed automatically
 ```
-
-### Already-fixed stragglers
-
-When an agent opens `BUGS.md` and finds entries with `Status: FIXED`:
-
-1. For each such entry, append an archive entry to
-   `IMPLEMENTATION_HISTORY.md` using available information from the bug body.
-2. Remove the entry from `BUGS.md`.
-3. If this is an incidental cleanup (not the main task), include it in the
-   commit for the main task under a "housekeeping" note.
 
 ### Relationship to grill-me
 

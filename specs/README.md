@@ -346,8 +346,8 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   / change-completeness policy (PROTO-08)
 - **`agentic-readiness.yaml`** - API and CLI requirements for automated agent integration
 - **`bugfix-workflow.yaml`** - Bugfix skill requirements: root-cause depth analysis
-  (Phase 2b), user engagement, issue escalation to `plan/BUGS.md`, and bug
-  lifecycle archiving to `plan/IMPLEMENTATION_HISTORY.md`
+  (Phase 2b), user engagement, issue escalation to GitHub Bug-type issues, and bug
+  lifecycle archiving to `plan/history/`
   (BFW-01 through BFW-04)
 - **`notes-frontmatter.yaml`** - YAML frontmatter schema for `notes/*.md` files:
   required fields (`title`, `status`), optional relationship fields, Pydantic

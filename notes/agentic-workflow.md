@@ -154,7 +154,6 @@ flowchart TD
 | `plan/PRIORITIES.md` | Authoritative priority ordering | Permanent |
 | `plan/IMPLEMENTATION_PLAN.md` | Pending + in-progress tasks | Living document |
 | `plan/BUILD_LEARNINGS.md` | Ephemeral build/bugfix observations | Yes — processed and archived by `learn` |
-| `plan/BUGS.md` | Open bugs | Living document |
 | `vultron/`, `test/` | Implementation | Permanent |
 
 ---

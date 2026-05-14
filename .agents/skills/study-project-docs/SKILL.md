@@ -33,7 +33,6 @@ Read all of the following in parallel (do **not** recurse into `plan/history/`):
 
 - `plan/PRIORITIES.md` — authoritative priority ordering
 - `plan/BUILD_LEARNINGS.md` — ephemeral build/bugfix observations (queue for `learn`)
-- `plan/BUGS.md` — open bugs (if it exists)
 - `plan/IMPLEMENTATION_PLAN.md` — read-only index; tasks have moved to GitHub
   Issues. Read only for historical context or to check deferred items; do not
   treat it as the task source.
@@ -81,5 +80,5 @@ search.
 - Do not skip this skill for "small" tasks — it ensures constraints from
   cross-cutting specs (`ARCH`, `CS`, `TB`, `HP`, `SL`, `EH`) are always in
   context.
-- If the task is narrowly scoped, you may skip `plan/BUGS.md` and the ADR
-  deep-read, but always run Steps 0, 1, and 2.
+- If the task is narrowly scoped, you may skip the ADR deep-read, but always
+  run Steps 0, 1, and 2.
