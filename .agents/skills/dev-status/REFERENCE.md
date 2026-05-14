@@ -86,6 +86,29 @@ gh api graphql -f query='{
 #   - subIssues.totalCount == 0 (leaf issue, not a parent task)
 ```
 
+## Query: Open Pull Requests
+
+```bash
+gh pr list --repo CERTCC/Vultron \
+  --state open \
+  --json number,title \
+  --jq 'length'
+```
+
+For the full list with review status and CI state:
+
+```bash
+gh pr list --repo CERTCC/Vultron \
+  --state open \
+  --json number,title,reviewDecision,statusCheckRollup \
+  --jq '.[] | "\(.number): \(.title) [review=\(.reviewDecision // "NONE")] [ci=\(.statusCheckRollup // [] | map(.conclusion) | unique | join(","))]"'
+```
+
+Use `pr-comprehensive-fix` when any PR has failing checks or pending review
+comments. When all PRs are green and approved, the count is still shown but
+the row skill column should list `pr-comprehensive-fix` (it handles review
+preparation too).
+
 ## Query: BUILD_LEARNINGS Entry Count
 
 ```bash
@@ -118,14 +141,15 @@ import time; age=(time.time()-{})/86400; print(f'{age:.0f}')
 ```text
 ## Vultron Status — {date}
 
-| Queue                 | Count | Skill             |
-|-----------------------|-------|-------------------|
-| BUILD_LEARNINGS       |  {n}  | learn             |
-| Ideas (open)          |  {n}  | ingest-idea       |
-| Bugs (open)           |  {n}  | bugfix            |
-| Concerns (open)       |  {n}  | process-concerns  |
-| Unscheduled issues    |  {n}  | review-priorities |
-| Ready to build        |  {n}  | build             |
+| Queue                 | Count | Skill                |
+|-----------------------|-------|----------------------|
+| BUILD_LEARNINGS       |  {n}  | learn                |
+| Ideas (open)          |  {n}  | ingest-idea          |
+| Bugs (open)           |  {n}  | bugfix               |
+| Concerns (open)       |  {n}  | process-concerns     |
+| Open PRs              |  {n}  | pr-comprehensive-fix |
+| Unscheduled issues    |  {n}  | review-priorities    |
+| Ready to build        |  {n}  | build                |
 
 PRIORITIES.md last updated: {relative_time}{staleness_warning}
 

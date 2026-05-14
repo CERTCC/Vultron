@@ -38,6 +38,7 @@ Read these in parallel:
 | GitHub Issues — type: Bug | Count of open issues |
 | GitHub Issues — type: Concern | Count of open issues |
 | GitHub Issues — label: `group:unscheduled` | Count of open issues |
+| GitHub Pull Requests — open | Count of open PRs |
 | `plan/PRIORITIES.md` | Top group with ≥1 unblocked open issue |
 | `git log -- plan/PRIORITIES.md` | Days since last commit to PRIORITIES.md |
 
@@ -50,14 +51,15 @@ Print a single table followed by a "Next up" callout:
 ```text
 ## Vultron Status — YYYY-MM-DD HH:MM
 
-| Queue                  | Count | Skill        |
-|------------------------|-------|--------------|
-| BUILD_LEARNINGS        |   2   | learn        |
-| Ideas (open)           |   1   | ingest-idea  |
-| Bugs (open)            |   3   | bugfix       |
-| Concerns (open)        |   0   | —            |
-| Unscheduled issues     |   5   | review-priorities |
-| Ready to build         |   4   | build        |
+| Queue                  | Count | Skill                |
+|------------------------|-------|----------------------|
+| BUILD_LEARNINGS        |   2   | learn                |
+| Ideas (open)           |   1   | ingest-idea          |
+| Bugs (open)            |   3   | bugfix               |
+| Concerns (open)        |   0   | —                    |
+| Open PRs               |   2   | pr-comprehensive-fix |
+| Unscheduled issues     |   5   | review-priorities    |
+| Ready to build         |   4   | build                |
 
 PRIORITIES.md last updated: 3 days ago
 
@@ -79,9 +81,10 @@ list all non-zero conditions as `ask_user` choices):
 2. `process-concerns` — open Concern issues
 3. `ingest-idea` — open Idea issues
 4. `bugfix` — open Bug issues
-5. `review-priorities` — unscheduled issues > 0
-6. `build` — ready-to-build count > 0
-7. *(stop)* — all queues empty, nothing actionable
+5. `pr-comprehensive-fix` — open PRs > 0
+6. `review-priorities` — unscheduled issues > 0
+7. `build` — ready-to-build count > 0
+8. *(stop)* — all queues empty, nothing actionable
 
 Always include "Nothing — just show the report" as a final choice.
 
