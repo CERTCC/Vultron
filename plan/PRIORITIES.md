@@ -20,10 +20,6 @@ embargo teardown, and case closure.
 See `notes/two-actor-demo.md` for the authoritative design; `specs/multi-actor-demo.yaml`
 groups DEMOMA-06, DEMOMA-07, DEMOMA-08 for formal requirements.
 
-**Prerequisite**: PR #457 (Priority 475 / PCR safety) must merge first — it
-introduces `CVDRole.CASE_ACTOR` and the `Create(VulnerabilityCase)` bootstrap
-receiver that this epic depends on.
-
 ### Integration branch
 
 All work for this priority group lives on branch
@@ -39,29 +35,21 @@ branch explicitly: `task/463-two-actor-demo-replacement`.
 - [#460](https://github.com/CERTCC/Vultron/issues/460) — Sub-issue A: Documentation and spec updates ✅
 - [#461](https://github.com/CERTCC/Vultron/issues/461) — Sub-issue B: Core capabilities ✅
 - [#462](https://github.com/CERTCC/Vultron/issues/462) — Sub-issue C: CASE_MANAGER role delegation protocol ✅
-- [#469](https://github.com/CERTCC/Vultron/issues/469) — Case Actor spawning and CASE_MANAGER delegation automation (PR #473)
-- [#463](https://github.com/CERTCC/Vultron/issues/463) — Sub-issue D: Demo replacement (blocked by B, C)
-- [#475](https://github.com/CERTCC/Vultron/issues/475) — Case Actor URN-based ID makes it unreachable via HTTP delivery
-- [#476](https://github.com/CERTCC/Vultron/issues/476) — Remove spec-violating workarounds from SvcAddParticipantStatusUseCase
+- [#469](https://github.com/CERTCC/Vultron/issues/469) — Case Actor spawning and CASE_MANAGER delegation automation ✅
+- [#463](https://github.com/CERTCC/Vultron/issues/463) — Sub-issue D: Demo replacement ✅
+- [#475](https://github.com/CERTCC/Vultron/issues/475) — Case Actor URN-based ID makes it unreachable via HTTP delivery ✅
+- [#476](https://github.com/CERTCC/Vultron/issues/476) — Remove spec-violating workarounds from SvcAddParticipantStatusUseCase ✅
+- [#483](https://github.com/CERTCC/Vultron/issues/483) — two\_actor\_demo.py: participant fetch, status check, and exception
+  handling bugs ✅
+- [#484](https://github.com/CERTCC/Vultron/issues/484) — Type narrowing: `_resolve_current_participant_state()` returns
+  `tuple[Any, Any]` ✅
 - [#467](https://github.com/CERTCC/Vultron/issues/467) — BT refactor: AddParticipantStatusToParticipant handler (also fixes RM
   transition validation regression)
-- [#483](https://github.com/CERTCC/Vultron/issues/483) — two\_actor\_demo.py: participant fetch, status check, and exception
-  handling bugs (from PR #474 review)
-- [#484](https://github.com/CERTCC/Vultron/issues/484) — Type narrowing: \`_resolve_current_participant_state()\` returns
-  \`tuple[Any, Any]\` (from PR #474 review; may be addressed in #467)
+- [#489](https://github.com/CERTCC/Vultron/issues/489) — Extract shared helpers into vultron/demo/helpers/
 - [#466](https://github.com/CERTCC/Vultron/issues/466) — Docs: two-actor-demo tutorial + technical reference (blocked by demo
   running end-to-end)
 - [#471](https://github.com/CERTCC/Vultron/issues/471) — Tutorial: docs/tutorials/two-actor-demo.md
 - [#472](https://github.com/CERTCC/Vultron/issues/472) — Technical reference: docs/reference/two-actor-demo-protocol.md
-
-## Priority 475: Participant Case Replica Safety
-
-Enforce safety rules for seeding and maintaining local case replicas in
-participant nodes, preventing unauthorized or out-of-order state
-propagation, as specified in `specs/participant-case-replica.yaml`.
-
-- [#440](https://github.com/CERTCC/Vultron/issues/440) — PCR: Implement
-  participant case replica safety rules (PCR-03, PCR-05, PCR-06)
 
 ## Priority 476 — Epic #446: Bug Fixes and Demo Polish
 
@@ -72,17 +60,19 @@ Fix issues affecting demo execution and correctness.
 - [#437](https://github.com/CERTCC/Vultron/issues/437) — Enforce spec vs.
   ADR delineation guidelines (MS-11)
 - [#449](https://github.com/CERTCC/Vultron/issues/449) — Actor inbox
-  endpoints return HTTP 404 during demo delivery
+  endpoints return HTTP 404 during demo delivery ✅
 - [#450](https://github.com/CERTCC/Vultron/issues/450) — Outbound activities
-  missing required `to:` field (OX-08-001 violation)
+  missing required `to:` field (OX-08-001 violation) ✅
 - [#451](https://github.com/CERTCC/Vultron/issues/451) — Invalid PEC state
-  machine transition: `accept` trigger in NO_EMBARGO state
+  machine transition: `accept` trigger in NO_EMBARGO state ✅
 - [#452](https://github.com/CERTCC/Vultron/issues/452) — Demo times out
-  waiting for case to propagate to finder DataLayer
+  waiting for case to propagate to finder DataLayer ✅
 - [#453](https://github.com/CERTCC/Vultron/issues/453) — Outbox processing
-  aborts after too many `to:` field errors
+  aborts after too many `to:` field errors ✅
 - [#454](https://github.com/CERTCC/Vultron/issues/454) — Coordinator actor
-  unexpectedly persists the authoritative case
+  unexpectedly persists the authoritative case ✅
+- [#486](https://github.com/CERTCC/Vultron/issues/486) — HTTP-08-001
+  violation: actors.py response\_model strips subclass fields
 
 ## Priority 500: Re-implement "fuzzer" nodes from the original simulator
 
