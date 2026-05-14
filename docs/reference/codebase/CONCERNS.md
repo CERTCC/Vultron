@@ -9,7 +9,7 @@
 | high | `vultron/demo/utils.py` and `vultron/demo/scenario/two_actor_demo.py` import `requests`, but `requests` is not declared in `project.dependencies` | `vultron/demo/utils.py`, `vultron/demo/scenario/two_actor_demo.py`, `pyproject.toml` | Fresh non-dev installs may fail when demos run outbound HTTP calls; `httpx` (`>=0.28.1`) is already a declared runtime dep and could replace `requests` | Migrate demo HTTP calls from `requests` to `httpx` (already declared) |
 | high | Shared and actor-scoped DataLayer behavior depends on canonical actor-ID resolution and process-local façades | `vultron/adapters/driving/fastapi/deps.py`, `vultron/adapters/driving/fastapi/inbox_handler.py`, `vultron/adapters/driven/datalayer.py` | Subtle routing/storage bugs can appear when queue and object reads use different scopes | Keep scope boundaries explicit and add regression tests around actor-ID normalization |
 | medium | The automated scan over-reports generated/cache artifacts and under-reports real infra/security files | `docs/reference/codebase/.codebase-scan.txt`, `docker/docker-compose.yml`, `.github/dependabot.yml` | Repository mapping or metrics can mislead maintainers if consumed without manual correction | Update the scan ignore list or post-processing rules before using it as a durable source |
-| medium | Outbox draining is implemented as a 1-second polling loop over all actor DataLayers | `vultron/adapters/driving/fastapi/outbox_handler.py` | Polling cost grows with actor count and can hide queue-depth issues | Consider event-driven wakeups or queue metrics if actor count grows |
+| medium | Outbox draining is implemented as a 1-second polling loop over all actor DataLayers | `vultron/adapters/driving/fastapi/outbox_monitor.py` | Polling cost grows with actor count and can hide queue-depth issues | Consider event-driven wakeups or queue metrics if actor count grows |
 
 ### 2) Technical Debt
 
@@ -30,7 +30,7 @@
 
 | Concern | Evidence | Current symptom | Scaling risk | Suggested improvement |
 |---------|----------|-----------------|-------------|-----------------------|
-| Polling outbox handler scans every actor DataLayer once per second | `vultron/adapters/driving/fastapi/outbox_handler.py` | Constant polling work even when queues are empty | More actors mean more unnecessary wakeups and reads | Add queue-driven wakeups or adaptive polling |
+| Polling outbox handler scans every actor DataLayer once per second | `vultron/adapters/driving/fastapi/outbox_monitor.py` | Constant polling work even when queues are empty | More actors mean more unnecessary wakeups and reads | Add queue-driven wakeups or adaptive polling |
 | SQLite is the only active persistence backend exposed by the façade | `vultron/adapters/driven/datalayer.py`, `vultron/adapters/driven/datalayer_sqlite.py` | Local-file DB is simple for tests and demos | Multi-writer or higher-volume deployments may hit SQLite limits | Define the next backend/operational profile before scaling beyond demos |
 
 ### 5) Fragile/High-Churn Areas

@@ -337,7 +337,8 @@ provides unique ID constraints. Report handlers (`create_report`,
 - **Actor IDs Must Always Be Full URIs** — see [notes/codebase-structure.md](notes/codebase-structure.md)
 - **Co-located Actor IDs Must Be HTTP-Routable; Wire Up `ASGIEmitter` at Startup** — An
   actor whose ID uses a non-HTTP scheme (e.g. `urn:uuid:…/actors/case-actor`) cannot
-  receive deliveries via `DeliveryQueueAdapter` — outbound activities silently fail.
+  receive deliveries via `DeliveryQueueAdapter` — outbound activities are logged at
+  WARNING/ERROR level but the exception is not raised, so inbox handlers are never called.
   Co-located actors (e.g. a Case Actor hosted in the same server process) **MUST** have
   HTTP-routable IDs (e.g. `{base_url}/actors/case-actor-{slug}`), **and** the app
   startup code MUST call `configure_default_emitter(ASGIEmitter(app=…))` so the outbox

@@ -103,7 +103,7 @@ case through one of two paths:
    pending-expectation record associating the CaseActor identity with the
    incoming case ID.
 
-**Implementation note**: the `_resolve_case_actor` helper should return `None`
+**Implementation note**: the `_find_case_actor_id` helper returns `None`
 only when NO local CaseActor record exists *and* there is no pending-expectation
 record for that case. When `case_actor_id is None`, the handler should check for
 a pending trust record before creating the replica — not accept blindly.

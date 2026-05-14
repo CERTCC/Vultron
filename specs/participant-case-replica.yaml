@@ -113,6 +113,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-03-001
+    - rel_type: refines
+      spec_id: PCR-02-003
 - id: PCR-04
   title: Case Context Routing
   specs:

@@ -9,8 +9,9 @@ type: learning
 
 **Issue**: The Case Actor uses a URN-based ID
 (`urn:uuid:{uuid}/actors/case-actor`), so HTTP delivery via
-`DeliveryQueueAdapter` always fails silently. Inbox handlers on the
-Case Actor never execute for status updates sent by participants.
+`DeliveryQueueAdapter` always fails: the adapter logs WARNING on each retry
+and ERROR when retries are exhausted, but does not raise — so inbox handlers
+on the Case Actor never execute for status updates sent by participants.
 
 **Fix applied in branch `task/463-two-actor-demo-replacement`**:
 
