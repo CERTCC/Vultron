@@ -1,0 +1,49 @@
+name: "Convert bug label to Bug issue type"
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  issues: write
+
+jobs:
+  convert-bug-label:
+    if: github.event.label.name == 'bug'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BUG_TYPE_ID: "IT_kwDOAjf0s84AcFLq"
+    steps:
+      - name: Set issue type to Bug (if not already typed)
+        run: |
+          ISSUE_NODE_ID="${{ github.event.issue.node_id }}"
+
+          # Only convert if the issue has no type set yet
+          CURRENT_TYPE=$(gh api graphql -f query="
+          {
+            node(id: \"${ISSUE_NODE_ID}\") {
+              ... on Issue { issueType { name } }
+            }
+          }" --jq '.data.node.issueType.name // ""')
+
+          if [[ -z "${CURRENT_TYPE}" ]]; then
+            gh api graphql -f query="
+            mutation {
+              updateIssue(input: {
+                id: \"${ISSUE_NODE_ID}\"
+                issueTypeId: \"${BUG_TYPE_ID}\"
+              }) {
+                issue { number issueType { name } }
+              }
+            }"
+            echo "Issue type set to Bug"
+          else
+            echo "Issue already has type '${CURRENT_TYPE}', skipping conversion"
+          fi
+
+      - name: Remove bug label
+        run: |
+          gh issue edit "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
+            --remove-label "bug"
