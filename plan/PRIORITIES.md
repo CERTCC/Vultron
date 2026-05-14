@@ -73,6 +73,45 @@ Fix issues affecting demo execution and correctness.
   unexpectedly persists the authoritative case ✅
 - [#486](https://github.com/CERTCC/Vultron/issues/486) — HTTP-08-001
   violation: actors.py response\_model strips subclass fields
+- [#487](https://github.com/CERTCC/Vultron/issues/487) — examples.py: add
+  actor subtype example endpoints (VultronPerson, VultronOrganization, etc.)
+
+## Priority 480 — CBT-03: Pre-Bootstrap Queue Expiry
+
+The pre-bootstrap inbox queue (`VultronPendingCaseInbox`) exists and can defer
+activities when a case replica is not yet trusted, but has no bounded expiry.
+This leaves two MUST-level requirements unimplemented: CBT-03-003 (drop and
+warn on expiry) and CBT-03-004 (replay request to original report receiver).
+
+See `specs/case-bootstrap-trust.yaml` CBT-03-001 through CBT-03-004,
+CBT-05-003 and `notes/case-bootstrap-trust.md` §Out-of-Order Handling.
+
+- [#500](https://github.com/CERTCC/Vultron/issues/500) — CBT-03: Implement
+  bounded pre-bootstrap queue expiry and replay request
+
+## Priority 490 — Test File Refactoring
+
+Refactor the largest test files to split by concern and consolidate duplicated
+fixture code. The 10 largest files account for ~9,000 of 45,000+ test lines;
+targeted splits improve navigation, reduce duplication, and make failures
+easier to diagnose.
+
+- [#491](https://github.com/CERTCC/Vultron/issues/491) — Refactor largest
+  test files: split by concern and consolidate fixtures (parent)
+- [#492](https://github.com/CERTCC/Vultron/issues/492) — P1: Consolidate
+  duplicated trigger-router fixtures into conftest.py
+- [#493](https://github.com/CERTCC/Vultron/issues/493) — P2: Split
+  test\_trigger\_embargo.py into per-operation files
+- [#494](https://github.com/CERTCC/Vultron/issues/494) — P3: Split
+  test\_sqlite\_backend.py by backend concern
+- [#495](https://github.com/CERTCC/Vultron/issues/495) — P4: Split
+  test\_report.py (received) by use-case type
+- [#496](https://github.com/CERTCC/Vultron/issues/496) — P5: Split
+  test\_vocab\_examples.py by domain area
+- [#497](https://github.com/CERTCC/Vultron/issues/497) — P6: Split
+  test\_outbox.py by functional area
+- [#498](https://github.com/CERTCC/Vultron/issues/498) — P7 (optional):
+  Light cleanup of test\_two\_actor\_demo.py
 
 ## Priority 500: Re-implement "fuzzer" nodes from the original simulator
 
