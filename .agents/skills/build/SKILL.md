@@ -106,8 +106,9 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
 
 1. Invoke the `format-code` skill, then `run-linters`, then `run-tests`.
 2. Do not skip or delegate validation.
-3. If incidental bugs are discovered, add them to `plan/BUGS.md` with clear
-   reproduction notes and do not pursue them unless they block the current task.
+3. If incidental bugs are discovered, file each as a Bug-type GitHub issue
+   via the `manage-github-issue` helper script with clear reproduction notes;
+   do not pursue them unless they block the current task.
 
 ### Phase 6 - Pre-PR code review
 
@@ -169,8 +170,8 @@ Invoke the `code-review` agent against the current branch diff relative to
    (e.g., `### 2026-04-28 LABEL — Short description`). Do **not** write
    completion summaries here.
 
-6. Invoke the `commit` skill if any local files (BUGS.md, BUILD_LEARNINGS.md)
-   were updated. The implementation changes themselves are on the PR branch.
+6. Invoke the `commit` skill if any local files (BUILD_LEARNINGS.md) were
+   updated. The implementation changes themselves are on the PR branch.
 
 ### Phase 8 - Merge conflict recovery (if needed)
 

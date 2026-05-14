@@ -64,7 +64,7 @@ groups:
     statement: Command line interfaces MUST be implemented using `click`.
   - id: IMPLTS-03-002
     priority: MUST
-    statement: The system MUST support HTTP interactions with external services using requests.
+    statement: The system MUST use `httpx` for all HTTP client interactions, including outbound inbox delivery and demo HTTP calls. The `requests` library MUST NOT be used.
   - id: IMPLTS-03-003
     priority: MUST
     statement: The project MUST include automated tests implemented using `pytest`.

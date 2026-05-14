@@ -63,7 +63,7 @@ Compare the current `specs/` + `notes/` against `vultron/` and `test/`:
 - **Untested behaviors**: implementation exists but no test covers it.
 - **Stale open Issues**: GitHub Issues for things already implemented — close
   these with a comment explaining they are done.
-- **Known bugs**: open entries in `plan/BUGS.md` that block or relate to
+- **Known bugs**: open Bug-type GitHub Issues that block or relate to
   planned work.
 
 > Do not assume missing functionality; confirm via code search first.

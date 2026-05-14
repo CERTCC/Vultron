@@ -88,7 +88,29 @@ message for non-owner participants.
 - **Late joiners**: `InviteActorToCase` establishes trust first, then the
   CaseActor may send `Announce(VulnerabilityCase)`.
 
-The receiver therefore needs bootstrap-state awareness before treating a
+### Trust Guard: Seeding Requires Prior Trust
+
+A participant MUST NOT create a local case replica from any arbitrary
+`Announce(VulnerabilityCase)` message. Before accepting a seeding announce
+as authoritative, the receiver must have prior trust established for that
+case through one of two paths:
+
+1. **Report-submission path**: the receiver has already processed a
+   `Create(VulnerabilityCase)` from the case creator, which establishes the
+   local CaseActor identity before any `Announce` arrives.
+2. **Invite/Accept path**: the receiver has completed an
+   `InviteActorToCase`/`AcceptInviteToCase` exchange that leaves a
+   pending-expectation record associating the CaseActor identity with the
+   incoming case ID.
+
+**Implementation note**: the `_find_case_actor_id` helper returns `None`
+only when NO local CaseActor record exists *and* there is no pending-expectation
+record for that case. When `case_actor_id is None`, the handler should check for
+a pending trust record before creating the replica — not accept blindly.
+
+**Spec reference**: `PCR-03-004`.
+
+The receiver therefore also needs bootstrap-state awareness before treating a
 CaseActor-originated snapshot as authoritative:
 
 ```python
@@ -250,6 +272,21 @@ def dispatch_case_scoped_activity(activity, dl):
 Pending activities are keyed by `case_id`. When `Announce(VulnerabilityCase)`
 arrives and creates the replica, the dispatcher MUST replay any pending
 activities queued for that case ID.
+
+### Actor-Scoped Deferral
+
+The pending-activity queue MUST be **actor-scoped** (keyed by both
+`actor_id` and `case_id`), not global. This ensures that:
+
+1. Activities deferred for actor A's unknown case context do not interfere
+   with actor B's handling of the same case ID.
+2. Multi-actor deployments (e.g. multi-vendor scenarios) can replay deferred
+   activities per-actor after the appropriate replica is seeded.
+
+A global queue would allow activities intended for one actor to be replayed
+against a different actor's case replica, producing incorrect state.
+
+**Spec reference**: `PCR-06-004`.
 
 ---
 

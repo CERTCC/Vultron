@@ -4,6 +4,10 @@
 
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
+| 2026-05-14 | 20:07 | learning | TASK-ARCHVIO-CLEANUP | ARCH-01-001 sync.py violation fix: SyncActivityPort implementation tasks (cleanup) |
+| 2026-05-13 | 20:28 | learning | PCR | PCR: Announce trust guard, actor-scoped deferral, report-to-case link |
+| 2026-05-13 | 20:27 | learning | TWO-ACTOR-DEMO-2 | Case Actor spawning: CASE_MANAGER role delegation automation (#469) |
+| 2026-05-13 | 20:27 | learning | TWO-ACTOR-DEMO | Co-located actor delivery: HTTP-routable IDs and ASGIEmitter required |
 | 2026-05-13 | 17:14 | implementation | 484 | Fix type narrowing: _resolve_current_participant_state() returns tuple[RM, CS_vfd] |
 | 2026-05-13 | 15:11 | implementation | GH-483 | Fix five bugs in two_actor_demo.py (#483) |
 | 2026-05-08 | 19:06 | implementation | GH-463 | Two-actor demo — full VFDPxa lifecycle (M1–M7) |

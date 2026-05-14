@@ -1,0 +1,62 @@
+name: "Convert issue label to issue type"
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  issues: write
+
+jobs:
+  convert:
+    if: contains(fromJson('["idea","concern","bug","feature"]'), github.event.label.name)
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Resolve issue type ID
+        id: resolve
+        run: |
+          case "${{ github.event.label.name }}" in
+            idea)    echo "type_id=IT_kwDOAjf0s84B_EoA" >> "$GITHUB_OUTPUT" ;;
+            concern) echo "type_id=IT_kwDOAjf0s84B_2VT" >> "$GITHUB_OUTPUT" ;;
+            bug)     echo "type_id=IT_kwDOAjf0s84AcFLq" >> "$GITHUB_OUTPUT" ;;
+            feature) echo "type_id=IT_kwDOAjf0s84AcFLs" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Set issue type (if not already typed)
+        id: set_type
+        run: |
+          ISSUE_NODE_ID="${{ github.event.issue.node_id }}"
+          TYPE_ID="${{ steps.resolve.outputs.type_id }}"
+
+          CURRENT_TYPE=$(gh api graphql -f query="
+          {
+            node(id: \"${ISSUE_NODE_ID}\") {
+              ... on Issue { issueType { name } }
+            }
+          }" --jq '.data.node.issueType.name // ""')
+
+          if [[ -z "${CURRENT_TYPE}" ]]; then
+            gh api graphql -f query="
+            mutation {
+              updateIssue(input: {
+                id: \"${ISSUE_NODE_ID}\"
+                issueTypeId: \"${TYPE_ID}\"
+              }) {
+                issue { number issueType { name } }
+              }
+            }"
+            echo "type_was_set=true" >> "$GITHUB_OUTPUT"
+            echo "Issue type set"
+          else
+            echo "type_was_set=false" >> "$GITHUB_OUTPUT"
+            echo "Issue already has type '${CURRENT_TYPE}', skipping conversion"
+          fi
+
+      - name: Remove label
+        if: steps.set_type.outputs.type_was_set == 'true'
+        run: |
+          gh issue edit "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
+            --remove-label "${{ github.event.label.name }}"

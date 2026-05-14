@@ -34,15 +34,15 @@ notes.
 
 | | |
 |---|---|
-| **Trigger** | `plan/IDEAS.md` has new or unprocessed entries |
-| **Input** | `plan/IDEAS.md` (one idea per run) |
+| **Trigger** | Open Idea-type GitHub issues exist (unprocessed) |
+| **Input** | GitHub Idea-type issue (one idea per run) |
 | **Process** | Select idea → explore codebase → grill-me interview → write |
 | **Output** | `specs/<topic>.yaml` (new/updated), `notes/<topic>.md` |
-| **Side effects** | Idea archived to `plan/IDEA-HISTORY.md`, removed from `plan/IDEAS.md`; `specs/README.md` updated |
+| **Side effects** | Idea archived via `uv run append-history idea`; idea issue closed with links to PR and implementation issue; `specs/README.md` updated |
 
 This is the **highest-priority** skill because new ideas may invalidate
-in-progress plans or render planned tasks obsolete. Unprocessed ideas in
-`IDEAS.md` should always be ingested before any other work proceeds.
+in-progress plans or render planned tasks obsolete. Unprocessed Idea-type
+issues should always be ingested before any other work proceeds.
 
 ---
 
@@ -117,9 +117,9 @@ lower-priority ones.
 
 ```mermaid
 flowchart TD
-    START([🔄 Loop start]) --> CHK_IDEAS{IDEAS.md has\nnew entries?}
+    START([🔄 Loop start]) --> CHK_IDEAS{Open Idea-type\nGitHub issues?}
 
-    CHK_IDEAS -->|Yes| INGEST["🌱 ingest-idea\nIDEAS.md → specs/ + notes/"]
+    CHK_IDEAS -->|Yes| INGEST["🌱 ingest-idea\nGitHub idea → specs/ + notes/"]
     INGEST --> START
 
     CHK_IDEAS -->|No| CHK_NOTES{BUILD_LEARNINGS.md\nhas unprocessed\ninsights?}
@@ -146,7 +146,7 @@ flowchart TD
 
 | File | Role | Ephemeral? |
 |---|---|---|
-| `plan/IDEAS.md` | Raw human ideas awaiting ingestion | Yes — processed by `ingest-idea` |
+| GitHub Idea-type issues | Raw human ideas awaiting ingestion | Yes — processed and closed by `ingest-idea` |
 | `plan/history/` | Archive of processed ideas, tasks, learnings | Permanent (append-only, chunked) |
 | `specs/*.yaml` | Authoritative requirements | Permanent |
 | `notes/*.md` | Durable design insights | Permanent |
@@ -154,7 +154,6 @@ flowchart TD
 | `plan/PRIORITIES.md` | Authoritative priority ordering | Permanent |
 | `plan/IMPLEMENTATION_PLAN.md` | Pending + in-progress tasks | Living document |
 | `plan/BUILD_LEARNINGS.md` | Ephemeral build/bugfix observations | Yes — processed and archived by `learn` |
-| `plan/BUGS.md` | Open bugs | Living document |
 | `vultron/`, `test/` | Implementation | Permanent |
 
 ---
@@ -241,7 +240,7 @@ implementation:
 
 ```text
 Selector (priority order)
-├── Sequence: IDEAS.md changed? → ingest-idea
+├── Sequence: Open Idea-type GitHub issues? → ingest-idea
 ├── Sequence: BUILD_LEARNINGS.md changed? → learn
 ├── Sequence: specs/ or notes/ changed? → update-plan
 └── Sequence: IMPLEMENTATION_PLAN.md has tasks? → build

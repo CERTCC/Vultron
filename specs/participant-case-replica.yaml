@@ -101,6 +101,20 @@ groups:
       accepting them as authoritative updates to its local replica.
     scope:
     - production
+  - id: PCR-03-004
+    priority: MUST_NOT
+    statement: >-
+      A participant actor MUST NOT create a local case replica from an `Announce(VulnerabilityCase)`
+      message unless prior trust for that case has been established: either (a) the actor has
+      already processed a `Create(VulnerabilityCase)` from the case creator that introduced the
+      CaseActor identity, or (b) the actor has completed an `InviteActorToCase`/`AcceptInviteToCase`
+      exchange that records a pending-expectation for that case. Accepting any `Announce(VulnerabilityCase)`
+      from an unauthenticated or unexpected sender as a bootstrap signal is not permitted.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-03-001
+    - rel_type: refines
+      spec_id: PCR-02-003
 - id: PCR-04
   title: Case Context Routing
   specs:
@@ -156,6 +170,16 @@ groups:
     statement: >-
       Activities with unknown case context MUST NOT update any local state until a valid case
       replica has been established.
+  - id: PCR-06-004
+    priority: MUST
+    statement: >-
+      The pending-activity queue for unknown case contexts MUST be actor-scoped: deferred
+      activities for a given case ID MUST be keyed by both the receiving actor's ID and the
+      case ID, so that replaying deferred activities after replica seeding is isolated to the
+      correct actor's DataLayer and cannot affect a different co-located actor's case state.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-06-002
 - id: PCR-07
   title: Testing
   specs:
