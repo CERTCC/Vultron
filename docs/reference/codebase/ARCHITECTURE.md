@@ -40,10 +40,10 @@ Evidence-backed flow:
 
 | Layer or module | Owns | Must not own | Evidence |
 |-----------------|------|--------------|----------|
-| `vultron/core/` | Domain events, ports, dispatcher, use cases | FastAPI and adapter details | `AGENTS.md`, `vultron/core/ports/datalayer.py`, `vultron/core/dispatcher.py` |
+| `vultron/core/` | Domain events, ports, dispatcher, use cases | FastAPI and adapter details, wire-layer factory imports | `AGENTS.md`, `vultron/core/ports/datalayer.py`, `vultron/core/dispatcher.py` |
 | `vultron/wire/as2/` | AS2 vocabulary, pattern matching, semantic extraction | Case lifecycle behavior | `vultron/wire/as2/extractor.py` |
 | `vultron/adapters/driving/fastapi/` | HTTP routing, dependency injection, background task scheduling | Persistent model ownership | `vultron/adapters/driving/fastapi/app.py`, `vultron/adapters/driving/fastapi/deps.py` |
-| `vultron/adapters/driven/` | SQLite persistence and outbound HTTP delivery | FastAPI request translation | `vultron/adapters/driven/datalayer_sqlite.py`, `vultron/adapters/driven/delivery_queue.py` |
+| `vultron/adapters/driven/` | SQLite persistence, outbound HTTP delivery, ASGI-first co-located delivery, sync/trigger activity translation | FastAPI request translation | `vultron/adapters/driven/datalayer_sqlite.py`, `vultron/adapters/driven/delivery_queue.py`, `vultron/adapters/driven/sync_activity_adapter.py`, `vultron/adapters/driven/trigger_activity_adapter.py` |
 | `vultron/demo/` | Operator/demo CLI workflows and seeding | Authoritative storage API | `vultron/demo/cli.py`, `vultron/demo/utils.py` |
 
 ### 4) Reused Patterns
@@ -56,6 +56,7 @@ Evidence-backed flow:
 | Background worker loop | `vultron/adapters/driving/fastapi/outbox_monitor.py` (polls; calls `outbox_handler.py`) | Drain outboxes asynchronously for all actors |
 | ASGI-first delivery | `vultron/adapters/driven/asgi_emitter.py`, `vultron/adapters/driving/fastapi/app.py` | Deliver to co-located actors in-process via ASGI; fall back to HTTP for remote actors |
 | Behavior trees | `docs/adr/0002-model-processes-with-behavior-trees.md`, `AGENTS.md` | Model multi-state CVD workflows and automation paths |
+| Single-translation-point adapters | `vultron/adapters/driven/sync_activity_adapter.py`, `vultron/adapters/driven/trigger_activity_adapter.py` | Each adapter is the sole domain→wire translation point for its port, enforcing ARCH-01-001 (no wire-layer imports in core) |
 
 ### 5) Known Architectural Risks
 
@@ -76,4 +77,8 @@ Evidence-backed flow:
 - `vultron/adapters/driving/fastapi/outbox_monitor.py`
 - `vultron/adapters/driving/fastapi/outbox_handler.py`
 - `vultron/adapters/driven/asgi_emitter.py`
+- `vultron/adapters/driven/sync_activity_adapter.py`
+- `vultron/adapters/driven/trigger_activity_adapter.py`
 - `vultron/core/ports/emitter.py`
+- `vultron/core/ports/sync_activity.py`
+- `vultron/core/ports/trigger_activity.py`

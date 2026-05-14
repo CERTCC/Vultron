@@ -34,9 +34,17 @@
 | `vultron/core/` | Domain models, ports, dispatch, use cases, behavior trees | FastAPI imports, adapter types, direct AS2 parsing |
 | `vultron/wire/` | AS2 parsing, vocabulary, semantic extraction, rehydration | Case-handling business logic |
 | `vultron/adapters/driving/` | HTTP/MCP-facing translation into core calls | Persistent domain state ownership |
-| `vultron/adapters/driven/` | Persistence, outbound HTTP delivery, and ASGI-first co-located delivery | Framework-facing request handling |
+| `vultron/adapters/driven/` | Persistence, outbound HTTP delivery, ASGI-first co-located delivery, sync/trigger activity adapters | Framework-facing request handling |
+| `vultron/scripts/` | Standalone CLI scripts (e.g., ontology-to-markdown generation) | Core domain logic |
 | `vultron/demo/` | CLI demos and workflow scripts | Authoritative domain interfaces |
 | `test/` | Mirrored test modules and fixture layers | Production runtime code |
+
+Notable adapter files added since last scan:
+
+- `vultron/adapters/driven/sync_activity_adapter.py` — implements `SyncActivityPort`; sole domain→wire translation point for sync-related activities (ARCH-01-001)
+- `vultron/adapters/driven/trigger_activity_adapter.py` — implements `TriggerActivityPort`; sole domain→wire translation point for trigger-originated activities
+- `vultron/adapters/driven/http_delivery.py` — **stub** for future signed HTTP delivery to remote inboxes
+- `vultron/adapters/driving/shared_inbox.py` — **stub** for ActivityPub shared-inbox fan-out
 
 ### 4) Naming and Organization Rules
 

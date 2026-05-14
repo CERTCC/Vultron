@@ -9,6 +9,8 @@
 | SQLite via SQLModel | DB | Persist Vultron objects and inbox/outbox queue entries | Local file or in-memory DB URL; no separate DB auth shown | high | `vultron/adapters/driven/datalayer_sqlite.py`, `docker/docker-compose-multi-actor.yml` |
 | ASGIEmitter (in-process) | API | Deliver outbound AS2 activities to co-located actors via ASGI, bypassing HTTP | None required (same-process) | high | `vultron/adapters/driven/asgi_emitter.py`, `vultron/adapters/driving/fastapi/app.py` |
 | Peer actor inboxes | API | Deliver outbound AS2 activities to remote actors with HTTP POST | `[TODO]` no auth/signing shown in sampled delivery code | high | `vultron/adapters/driven/delivery_queue.py` |
+| HTTP delivery (stub) | API | Future signed HTTP delivery to remote inboxes | Intended to use HTTP Signature signing; not yet implemented | medium | `vultron/adapters/driven/http_delivery.py` |
+| Shared inbox (stub) | API | ActivityPub shared-inbox fan-out to multiple local actors | HTTP Signature validation planned; not yet implemented | medium | `vultron/adapters/driving/shared_inbox.py` |
 | Demo client to local API | API | Drive seeded/demo scenarios over HTTP | None shown beyond local base URL config | medium | `vultron/demo/utils.py`, `vultron/demo/cli.py` |
 | MCP trigger adapter | Tool/API surface | Expose trigger use cases to MCP-compatible callers once registered | `[TODO]` not shown in current file | low | `vultron/adapters/driving/mcp_server.py` |
 
