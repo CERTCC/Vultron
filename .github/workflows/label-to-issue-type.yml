@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   convert:
-    if: contains(fromJson('["idea","concern","bug"]'), github.event.label.name)
+    if: contains(fromJson('["idea","concern","bug","feature"]'), github.event.label.name)
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -21,6 +21,7 @@ jobs:
             idea)    echo "type_id=IT_kwDOAjf0s84B_EoA" >> "$GITHUB_OUTPUT" ;;
             concern) echo "type_id=IT_kwDOAjf0s84B_2VT" >> "$GITHUB_OUTPUT" ;;
             bug)     echo "type_id=IT_kwDOAjf0s84AcFLq" >> "$GITHUB_OUTPUT" ;;
+            feature) echo "type_id=IT_kwDOAjf0s84AcFLs" >> "$GITHUB_OUTPUT" ;;
           esac
 
       - name: Set issue type (if not already typed)
