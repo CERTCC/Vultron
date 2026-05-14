@@ -1,6 +1,6 @@
-# Status Skill — Reference
+# Dev Status Skill — Reference
 
-Exact queries used by the `status` skill.
+Exact queries used by the `dev-status` skill.
 
 ## GitHub Issue Type IDs (CERTCC/Vultron)
 
@@ -28,16 +28,19 @@ gh api graphql -f query='{
 ```bash
 # Open Idea issues
 gh issue list --repo CERTCC/Vultron \
+  --limit 200 \
   --json number,title,issueType \
   --jq '[.[] | select(.issueType.name == "Idea")] | length'
 
 # Open Bug issues
 gh issue list --repo CERTCC/Vultron \
+  --limit 200 \
   --json number,title,issueType \
   --jq '[.[] | select(.issueType.name == "Bug")] | length'
 
 # Open Concern issues
 gh issue list --repo CERTCC/Vultron \
+  --limit 200 \
   --json number,title,issueType \
   --jq '[.[] | select(.issueType.name == "Concern")] | length'
 ```
@@ -49,6 +52,7 @@ For the full list (not just count), omit `| length` and add
 
 ```bash
 gh issue list --repo CERTCC/Vultron \
+  --limit 200 \
   --label "group:unscheduled" \
   --json number,title \
   --jq 'length'
@@ -63,6 +67,7 @@ gh issue list --repo CERTCC/Vultron \
 ```bash
 # Step 1: list open issues with the top-priority group label
 gh issue list --repo CERTCC/Vultron \
+  --limit 200 \
   --label "<top-priority-group-label>" \
   --json number,title \
   --jq '.[].number'
@@ -118,7 +123,7 @@ import time; age=(time.time()-{})/86400; print(f'{age:.0f}')
 | BUILD_LEARNINGS       |  {n}  | learn             |
 | Ideas (open)          |  {n}  | ingest-idea       |
 | Bugs (open)           |  {n}  | bugfix            |
-| Concerns (open)       |  {n}  | learn             |
+| Concerns (open)       |  {n}  | process-concerns  |
 | Unscheduled issues    |  {n}  | review-priorities |
 | Ready to build        |  {n}  | build             |
 

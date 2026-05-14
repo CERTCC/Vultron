@@ -22,6 +22,7 @@ bug is being fixed and why.
 
    ```bash
    gh issue list --repo CERTCC/Vultron \
+     --limit 200 \
      --json number,title,issueType \
      --jq '.[] | select(.issueType.name == "Bug") | "#\(.number): \(.title)"'
    ```

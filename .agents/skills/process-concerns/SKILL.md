@@ -54,6 +54,7 @@ table so the agent has full context before creating or updating anything:
 gh issue list \
   --repo CERTCC/Vultron \
   --state open \
+  --limit 200 \
   --json number,title,issueType,labels \
   --jq '.[] | select(.issueType.name == "Concern") | "#\(.number): \(.title)"'
 ```
@@ -115,13 +116,25 @@ be identical, but the subject matter must clearly match.
 #### 3c — Create New Issue
 
 Synthesize a short, descriptive title from the row data. Build a body
-following the **Issue Body Format** below. Create the issue:
+following the **Issue Body Format** below. Ensure labels exist, create the
+issue, then apply labels:
 
 ```bash
 TITLE_JSON=$(printf '%s' "${TITLE}" \
   | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
 BODY_JSON=$(printf '%s' "${BODY}" \
   | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
+
+# Ensure labels exist before applying them
+gh label create "group:unscheduled" \
+  --repo CERTCC/Vultron \
+  --description "Not yet scheduled in PRIORITIES.md" \
+  --color "#e4e669" 2>/dev/null || true
+
+gh label create "concern" \
+  --repo CERTCC/Vultron \
+  --description "Technical risk, debt, or fragile area" \
+  --color "#d93f0b" 2>/dev/null || true
 
 ISSUE_NUMBER=$(gh api graphql -f query="
 mutation {
@@ -142,21 +155,6 @@ gh issue edit "${ISSUE_NUMBER}" \
 echo "Created concern issue #${ISSUE_NUMBER}"
 ```
 
-Verify the `group:unscheduled` and `concern` labels exist before assigning;
-create them with `gh label create` if not:
-
-```bash
-gh label create "group:unscheduled" \
-  --repo CERTCC/Vultron \
-  --description "Not yet scheduled in PRIORITIES.md" \
-  --color "#e4e669" 2>/dev/null || true
-
-gh label create "concern" \
-  --repo CERTCC/Vultron \
-  --description "Technical risk, debt, or fragile area" \
-  --color "#d93f0b" 2>/dev/null || true
-```
-
 ### Phase 4 — Handle `[ASK USER]` Questions
 
 For each question in the `[ASK USER]` Questions section of CONCERNS.md,
@@ -173,8 +171,7 @@ user's response:
     --repo CERTCC/Vultron \
     --title "${TITLE}" \
     --body "${BODY}" \
-    --label "group:unscheduled" \
-    --assignee ""
+    --label "group:unscheduled"
   ```
 
 - If the question is resolved by the user's answer (no issue needed) →

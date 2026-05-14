@@ -130,6 +130,17 @@ TITLE_JSON=$(printf '%s' "${TITLE}" \
 BODY_JSON=$(printf '%s' "${BODY}" \
   | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
 
+# Ensure labels exist before applying them
+gh label create "group:unscheduled" \
+  --repo CERTCC/Vultron \
+  --description "Not yet scheduled in PRIORITIES.md" \
+  --color "#e4e669" 2>/dev/null || true
+
+gh label create "concern" \
+  --repo CERTCC/Vultron \
+  --description "Technical risk, debt, or fragile area" \
+  --color "#d93f0b" 2>/dev/null || true
+
 ISSUE_NUMBER=$(gh api graphql -f query="
 mutation {
   createIssue(input: {
@@ -147,21 +158,6 @@ gh issue edit "${ISSUE_NUMBER}" \
   --add-label "group:unscheduled,concern"
 
 echo "Created concern issue #${ISSUE_NUMBER}"
-```
-
-Verify the `group:unscheduled` and `concern` labels exist before assigning;
-create them if not:
-
-```bash
-gh label create "group:unscheduled" \
-  --repo CERTCC/Vultron \
-  --description "Not yet scheduled in PRIORITIES.md" \
-  --color "#e4e669" 2>/dev/null || true
-
-gh label create "concern" \
-  --repo CERTCC/Vultron \
-  --description "Technical risk, debt, or fragile area" \
-  --color "#d93f0b" 2>/dev/null || true
 ```
 
 #### Updating an existing issue (if user chose update in Phase 1)

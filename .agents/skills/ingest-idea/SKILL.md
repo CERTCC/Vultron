@@ -30,6 +30,7 @@ idea"** option at the end.
 
 ```bash
 gh issue list --repo CERTCC/Vultron \
+  --limit 200 \
   --json number,title,issueType \
   --jq '.[] | select(.issueType.name == "Idea") | "#\(.number): \(.title)"'
 ```

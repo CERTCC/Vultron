@@ -75,12 +75,13 @@ PRIORITIES.md last updated: 3 days ago
 Ranked priority (first matching condition wins for the primary recommendation;
 list all non-zero conditions as `ask_user` choices):
 
-1. `learn` — BUILD_LEARNINGS has entries, or open Concern issues
-2. `ingest-idea` — open Idea issues
-3. `bugfix` — open Bug issues
-4. `review-priorities` — unscheduled issues > 0
-5. `build` — ready-to-build count > 0
-6. *(stop)* — all queues empty, nothing actionable
+1. `learn` — BUILD_LEARNINGS has entries
+2. `process-concerns` — open Concern issues
+3. `ingest-idea` — open Idea issues
+4. `bugfix` — open Bug issues
+5. `review-priorities` — unscheduled issues > 0
+6. `build` — ready-to-build count > 0
+7. *(stop)* — all queues empty, nothing actionable
 
 Always include "Nothing — just show the report" as a final choice.
 

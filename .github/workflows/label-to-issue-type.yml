@@ -25,6 +25,7 @@ jobs:
           esac
 
       - name: Set issue type (if not already typed)
+        id: set_type
         run: |
           ISSUE_NODE_ID="${{ github.event.issue.node_id }}"
           TYPE_ID="${{ steps.resolve.outputs.type_id }}"
@@ -46,12 +47,15 @@ jobs:
                 issue { number issueType { name } }
               }
             }"
+            echo "type_was_set=true" >> "$GITHUB_OUTPUT"
             echo "Issue type set"
           else
+            echo "type_was_set=false" >> "$GITHUB_OUTPUT"
             echo "Issue already has type '${CURRENT_TYPE}', skipping conversion"
           fi
 
       - name: Remove label
+        if: steps.set_type.outputs.type_was_set == 'true'
         run: |
           gh issue edit "${{ github.event.issue.number }}" \
             --repo "${{ github.repository }}" \
