@@ -34,6 +34,32 @@ jobs:
             --repo "${{ github.repository }}" \
             --remove-label "idea"
 
+  concern-label:
+    if: github.event.label.name == 'concern'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CONCERN_TYPE_ID: "IT_kwDOAjf0s84B_2VT"
+    steps:
+      - name: Set issue type to Concern
+        run: |
+          ISSUE_NODE_ID="${{ github.event.issue.node_id }}"
+          gh api graphql -f query="
+          mutation {
+            updateIssue(input: {
+              id: \"${ISSUE_NODE_ID}\"
+              issueTypeId: \"${CONCERN_TYPE_ID}\"
+            }) {
+              issue { number issueType { name } }
+            }
+          }"
+
+      - name: Remove concern label
+        run: |
+          gh issue edit "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
+            --remove-label "concern"
+
   bug-label:
     if: github.event.label.name == 'bug'
     runs-on: ubuntu-latest
