@@ -46,6 +46,11 @@ branch explicitly: `task/463-two-actor-demo-replacement`.
 - [#467](https://github.com/CERTCC/Vultron/issues/467) — BT refactor: AddParticipantStatusToParticipant handler (also fixes RM
   transition validation regression)
 - [#489](https://github.com/CERTCC/Vultron/issues/489) — Extract shared helpers into vultron/demo/helpers/
+- [#521](https://github.com/CERTCC/Vultron/issues/521) — PCR-07: Integration tests for case-replica bootstrap and late-joiner
+  sequences (parent)
+  - [#522](https://github.com/CERTCC/Vultron/issues/522) — PCR-07-006: bootstrap sequence (Create → Announce → replica)
+  - [#523](https://github.com/CERTCC/Vultron/issues/523) — PCR-07-007: late-joiner sequence (Invite → Accept → Announce →
+    replica)
 - [#466](https://github.com/CERTCC/Vultron/issues/466) — Docs: two-actor-demo tutorial + technical reference (blocked by demo
   running end-to-end)
 - [#471](https://github.com/CERTCC/Vultron/issues/471) — Tutorial: docs/tutorials/two-actor-demo.md
