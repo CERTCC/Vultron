@@ -69,11 +69,10 @@ but their *position* in the sequence is fixed.
 ## BT Node Mapping
 
 The `receive_report_case_tree.py` (`create_receive_report_case_tree`) is the
-canonical implementation of this sequence. The current node order does **not**
-match the required ordering above (step 2 and step 3 are swapped). See
-**Implementation Gap** below.
+canonical implementation of this sequence. The node order matches the
+required ordering above (implemented in commit `2d8ce2c4`).
 
-**Target (spec-correct) node order:**
+**Current (spec-correct) node order:**
 
 | Step | BT Node | Module |
 |---|---|---|
@@ -85,54 +84,26 @@ match the required ordering above (step 2 and step 3 are swapped). See
 | 5 | `CreateCaseParticipantNode` + reporter SIGNATORY seed | `vultron/core/behaviors/case/nodes.py` |
 | 6 | `CommitCaseLogEntryNode` | `vultron/core/behaviors/case/nodes.py` |
 
-**Current (incorrect) node order in `receive_report_case_tree.py`:**
-
-```text
-CreateCaseNode
-InitializeDefaultEmbargoNode        ← BUG: runs before owner participant exists
-CreateCaseOwnerParticipant
-CreateCaseActivity
-UpdateActorOutbox
-CreateCaseParticipantNode
-CommitCaseLogEntryNode
-```
-
-The `InitializeDefaultEmbargoNode` must move to after
-`CreateCaseOwnerParticipant`. Fixing this tree is the primary
-implementation task for CM-14.
-
 ---
 
-## Implementation Gaps
+## Implementation Notes
 
-### Gap 1: Wrong step ordering in `receive_report_case_tree.py`
+### Gaps 1–3: Resolved in commit `2d8ce2c4`
 
-`InitializeDefaultEmbargoNode` currently runs before
-`CreateCaseOwnerParticipant`. Per CM-14-002, the embargo MUST be created
-after at least one participant (the case owner) exists.
+Gaps 1, 2, and 3 described below were present when this note was authored
+(2026-05-05) but were resolved on the same day in commit `2d8ce2c4`
+("feat(case-init): implement CM-14 canonical case initialization sequence"):
 
-**Fix**: Swap the positions of `InitializeDefaultEmbargoNode` and
-`CreateCaseOwnerParticipant` in the sequence.
-
-### Gap 2: Owner not seeded as SIGNATORY (BUG-26042204)
-
-`InitializeDefaultEmbargoNode` and `CreateCaseOwnerParticipant` do not
-seed the owner's `embargo_adherence` consent state as `SIGNATORY`.
-
-**Fix**: After the default embargo reaches `EM.ACTIVE`, set the case
-owner's `ParticipantStatus.embargo_adherence` to `SIGNATORY` via the
-PEC state machine (CM-14-003, CM-13-006). This must happen in
-`InitializeDefaultEmbargoNode` (once it runs after the owner participant
-exists) or in an immediately following sibling BT node.
-
-### Gap 3: Reporter not seeded as SIGNATORY
-
-`CreateCaseParticipantNode` does not set the reporter's
-`embargo_adherence` to `SIGNATORY` when there is an active embargo.
-
-**Fix**: After adding the reporter participant, check whether
-`case.active_embargo is not None`; if so, transition the reporter's
-consent state to `SIGNATORY` (CM-14-005).
+- **Gap 1** — wrong step ordering (`InitializeDefaultEmbargoNode` before
+  `CreateCaseOwnerParticipant`): **resolved**. The tree now runs
+  `CreateCaseOwnerParticipant` at step 2, then `InitializeDefaultEmbargoNode`
+  at step 3, matching CM-14-002.
+- **Gap 2** — owner not seeded as SIGNATORY (BUG-26042204): **resolved**.
+  `InitializeDefaultEmbargoNode` seeds the owner via `_seed_owner_as_signatory`
+  in `vultron/core/behaviors/case/nodes.py` (CM-14-003).
+- **Gap 3** — reporter not seeded as SIGNATORY: **resolved**.
+  `CreateCaseParticipantNode` seeds the reporter as SIGNATORY when an active
+  embargo exists (CM-14-005), implemented in `nodes.py`.
 
 ### Gap 4: Reporter embargo proposal (forward-looking)
 
