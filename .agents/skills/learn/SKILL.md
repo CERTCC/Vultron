@@ -8,8 +8,8 @@ description: >
   with grill-me to align on scope, then writes to specs/, notes/, and
   AGENTS.md, opens a docs-only PR with the specs-notes label, and archives
   processed entries. Use when build execution has produced insights that
-  should be reflected in specs or notes. For external ideas (IDEAS.md),
-  use ingest-idea instead.
+  should be reflected in specs or notes. For external ideas (GitHub
+  Idea-type issues), use ingest-idea instead.
 ---
 
 # Skill: Learn
@@ -26,7 +26,7 @@ and YAML spec files in `specs/`. Do not modify code or tests.
 **Trigger**: Use this skill when `plan/BUILD_LEARNINGS.md` has unprocessed
 entries that should be promoted into durable docs.
 
-> For new external ideas from `plan/IDEAS.md`, use `ingest-idea` instead.
+> For new external ideas (GitHub Idea-type issues), use `ingest-idea` instead.
 
 ## Quick Start
 
@@ -205,7 +205,7 @@ Do **not** reference `plan/BUILD_LEARNINGS.md` from durable docs.
 ## Constraints
 
 - Do not modify code or tests.
-- Do not process `plan/IDEAS.md` — that is `ingest-idea`'s domain.
+- Do not process GitHub Idea-type issues — that is `ingest-idea`'s domain.
 - Do not skip the grill-me phase — it must complete before any writing.
 - Do not reference `plan/BUILD_LEARNINGS.md` from durable docs.
 - Archive processed entries via `uv run append-history learning`; do not

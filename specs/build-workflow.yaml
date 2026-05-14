@@ -86,9 +86,10 @@ groups:
           file after archiving — no strike-through, no tombstone.
         rationale: >-
           `BUILD_LEARNINGS.md` is a queue of unprocessed items. The same
-          lifecycle pattern applies here as for `plan/IDEAS.md`: once
-          processed, an entry is removed from the queue and its content
-          lives in the archive and in durable docs.
+          lifecycle pattern applies here as for GitHub Idea-type issues
+          processed by `ingest-idea`: once processed, an entry is removed
+          from the queue and its content lives in the archive and in durable
+          docs.
       - id: BW-02-003
         priority: SHOULD
         statement: >-

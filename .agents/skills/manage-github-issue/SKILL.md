@@ -360,6 +360,7 @@ transferred or recreated, re-query using the commands in
 | Repo node ID | `R_kgDOIn77fA` |
 | Task issue type ID | `IT_kwDOAjf0s84AcFLo` |
 | Epic issue type ID | `IT_kwDOAjf0s84B_E1A` |
+| Idea issue type ID | `IT_kwDOAjf0s84B_EoA` |
 
 ## API Discovery
 
