@@ -162,8 +162,8 @@ behavior across backends (in-memory / tinydb) where reasonable.
 
 ### Per-Test Timeout Guardrail
 
-Every test has a **30-second default timeout** enforced by `pytest-timeout`
-(configured in `pyproject.toml`). A test that runs longer than 30 seconds
+Every test has a **5-second default timeout** enforced by `pytest-timeout`
+(configured in `pyproject.toml`). A test that runs longer than 5 seconds
 fails immediately with a `Timeout` error.
 
 **When a test trips the timeout, fix the test first:**
