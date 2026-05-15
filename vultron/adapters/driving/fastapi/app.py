@@ -63,25 +63,58 @@ def configure_logging() -> None:
         uvicorn_access_logger.propagate = True
 
 
-@asynccontextmanager
-async def lifespan(application: FastAPI):
-    configure_logging()
-    from vultron.adapters.driving.fastapi.inbox_handler import init_dispatcher
-    from vultron.adapters.driven.datalayer import get_datalayer
-    from vultron.adapters.driving.fastapi.outbox_monitor import OutboxMonitor
-    from vultron.adapters.driven.asgi_emitter import ASGIEmitter
-    from vultron.adapters.driving.fastapi.outbox_handler import (
-        configure_default_emitter,
-    )
+def _make_lifespan(*, configure_globals: bool = True):
+    """Return a lifespan context manager for a FastAPI Vultron application.
 
-    init_dispatcher(dl=get_datalayer())
-    emitter = ASGIEmitter(app=application, mount_prefix="/api/v2")
-    configure_default_emitter(emitter)
-    application.state.emitter = emitter
-    monitor = OutboxMonitor()
-    monitor.start()
-    yield
-    monitor.stop()
+    Args:
+        configure_globals: When ``True`` (the default for the production
+            singleton ``app_v2``), the lifespan installs the
+            ``ASGIEmitter`` as the module-level default emitter, configures
+            logging, and starts the background ``OutboxMonitor``.  When
+            ``False`` (used by :func:`create_app` for isolated test apps),
+            these global side-effects are skipped so that multiple apps
+            running in the same process do not contaminate each other's
+            state.
+    """
+
+    @asynccontextmanager
+    async def _lifespan(application: FastAPI):
+        if configure_globals:
+            configure_logging()
+
+        from vultron.adapters.driven.asgi_emitter import ASGIEmitter
+        from vultron.adapters.driving.fastapi.inbox_handler import (
+            init_dispatcher,
+        )
+
+        if configure_globals:
+            init_dispatcher()
+        emitter = ASGIEmitter(app=application, mount_prefix="/api/v2")
+        application.state.emitter = emitter
+
+        monitor = None
+        if configure_globals:
+            from vultron.adapters.driving.fastapi.outbox_handler import (
+                configure_default_emitter,
+            )
+            from vultron.adapters.driving.fastapi.outbox_monitor import (
+                OutboxMonitor,
+            )
+
+            configure_default_emitter(emitter)
+            monitor = OutboxMonitor()
+            monitor.start()
+
+        yield
+
+        if monitor is not None:
+            monitor.stop()
+        # Remove the per-app emitter reference so a stale ASGIEmitter
+        # cannot leak between TestClient lifetimes on the same app
+        # singleton (e.g. unit tests followed by integration tests).
+        application.state.emitter = None
+
+    return _lifespan
 
 
 tags_metadata = [
@@ -114,7 +147,7 @@ app_v2 = FastAPI(
     docs_url="/docs",
     openapi_url="/openapi/v2.json",
     openapi_tags=tags_metadata,
-    lifespan=lifespan,
+    lifespan=_make_lifespan(configure_globals=True),
 )
 app_v2.include_router(router)
 
@@ -151,7 +184,7 @@ def create_app(
         version=version,
         docs_url=docs_url,
         openapi_url=openapi_url,
-        lifespan=lifespan,
+        lifespan=_make_lifespan(configure_globals=False),
     )
     application.include_router(router, prefix="/api/v2")
     if get_config().mode == RunMode.PROTOTYPE:
