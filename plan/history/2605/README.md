@@ -4,6 +4,24 @@
 
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
+| 2026-05-15 | 14:42 | priority | Priority-460 | Priority 460: Specs as data structures (COMPLETED 2026-04-27) |
+| 2026-05-15 | 14:42 | priority | Priority-400 | Priority 400: Initial SYNC implementation |
+| 2026-05-15 | 14:42 | priority | Priority-360 | Priority 360: BT composability audit (IDEA-26041703) |
+| 2026-05-15 | 14:42 | priority | Priority-350 | Priority 350: Update python version and other maintenance tasks |
+| 2026-05-15 | 14:42 | priority | Priority-348 | Priority 348: More Demo prep |
+| 2026-05-15 | 14:42 | priority | Priority-347 | Priority 347: Demo puppeteering, trigger completeness, BT node generalization |
+| 2026-05-15 | 14:42 | priority | Priority-345 | Priority 345: DataLayer auto-rehydration |
+| 2026-05-15 | 14:42 | priority | PRIORITY 340 | PRIORITY 340: Wire translation |
+| 2026-05-15 | 14:42 | priority | Priority-330 | Priority 330: SYNC implementation + demo sign-off |
+| 2026-05-15 | 14:42 | priority | Priority-325 | Priority 325: TinyDB → SQLModel/SQLite Datalayer Migration |
+| 2026-05-15 | 14:42 | priority | Priority-320 | Priority 320: additional demo feedback |
+| 2026-05-15 | 14:42 | priority | Priority-310 | Priority 310: Address feedback on demos |
+| 2026-05-15 | 14:42 | priority | Priority-300 | Priority 300: Multi-Actor Demo Scenarios |
+| 2026-05-15 | 14:42 | priority | Priority-250 | Priority 250: pre-300 cleanup |
+| 2026-05-15 | 14:42 | priority | Priority-200 | Priority 200: Case Actor as source of truth for case state |
+| 2026-05-15 | 14:42 | priority | Priority-100 | Priority 100: Actor independence |
+| 2026-05-15 | 14:42 | priority | Priority-90 | Priority 90: Fully address ADR-0013 and OPP-06 |
+| 2026-05-15 | 13:43 | implementation | GH-467 | Refactor AddParticipantStatus handler to Behavior Tree |
 | 2026-05-14 | 20:07 | learning | TASK-ARCHVIO-CLEANUP | ARCH-01-001 sync.py violation fix: SyncActivityPort implementation tasks (cleanup) |
 | 2026-05-13 | 20:28 | learning | PCR | PCR: Announce trust guard, actor-scoped deferral, report-to-case link |
 | 2026-05-13 | 20:27 | learning | TWO-ACTOR-DEMO-2 | Case Actor spawning: CASE_MANAGER role delegation automation (#469) |
