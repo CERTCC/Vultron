@@ -1,6 +1,6 @@
 ---
 source: Priority-347
-timestamp: '2026-05-15T14:42:45.746722+00:00'
+timestamp: '2026-04-21T00:00:00+00:00'
 title: 'Priority 347: Demo puppeteering, trigger completeness, BT node generalization'
 type: priority
 ---

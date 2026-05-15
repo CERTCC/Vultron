@@ -1,6 +1,6 @@
 ---
 source: Priority-200
-timestamp: '2026-05-15T14:42:43.574693+00:00'
+timestamp: '2026-03-25T00:00:00+00:00'
 title: 'Priority 200: Case Actor as source of truth for case state'
 type: priority
 ---

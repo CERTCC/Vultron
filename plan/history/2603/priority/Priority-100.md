@@ -1,6 +1,6 @@
 ---
 source: Priority-100
-timestamp: '2026-05-15T14:42:43.312253+00:00'
+timestamp: '2026-03-25T00:00:00+00:00'
 title: 'Priority 100: Actor independence'
 type: priority
 ---

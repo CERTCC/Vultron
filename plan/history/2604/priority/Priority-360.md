@@ -1,6 +1,6 @@
 ---
 source: Priority-360
-timestamp: '2026-05-15T14:42:46.460031+00:00'
+timestamp: '2026-04-23T00:00:00+00:00'
 title: 'Priority 360: BT composability audit (IDEA-26041703)'
 type: priority
 ---

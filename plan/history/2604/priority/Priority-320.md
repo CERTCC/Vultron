@@ -1,6 +1,6 @@
 ---
 source: Priority-320
-timestamp: '2026-05-15T14:42:44.544533+00:00'
+timestamp: '2026-04-10T00:00:00+00:00'
 title: 'Priority 320: additional demo feedback'
 type: priority
 ---

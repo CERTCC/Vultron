@@ -14,6 +14,7 @@
 | 2026-03-31 | 00:00 | implementation | LEGACY-2026-03-31-spec-audit-1-consolidation-audit-eliminate-redun | SPEC-AUDIT-1 — Consolidation audit: eliminate redundant requirements |
 | 2026-03-31 | 00:00 | implementation | SPEC-AUDIT-1 | SPEC-AUDIT-1 — Consolidation audit: eliminate redundant requirements (2026-03-30) |
 | 2026-03-31 | 00:00 | implementation | SPEC-AUDIT-2 | SPEC-AUDIT-2 — RFC 2119 strength keyword migration (2026-03-30) |
+| 2026-03-31 | 00:00 | priority | Priority-250 | Priority 250: pre-300 cleanup |
 | 2026-03-30 | 00:00 | implementation | DOCMAINT-1 | DOCMAINT-1 — Update outdated notes/ files |
 | 2026-03-30 | 00:00 | implementation | LEGACY-2026-03-30-vsr-err-1-sm-guard-1-bug-flaky-1-2026-03-30 | VSR-ERR-1 + SM-GUARD-1 + BUG-FLAKY-1 (2026-03-30) |
 | 2026-03-30 | 00:00 | implementation | NAMING-1 | NAMING-1 — Standardize `as_`-prefixed field names (2026-03-30) |
@@ -31,6 +32,8 @@
 | 2026-03-25 | 00:00 | implementation | LEGACY-2026-03-25-ca-2-follow-up-actor-first-case-scoped-action-ru | CA-2 follow-up: actor-first case-scoped action-rules endpoint |
 | 2026-03-25 | 00:00 | implementation | LEGACY-2026-03-25-ox-1-1-1-2-1-3-outbox-delivery-implementation-20 | OX-1.1/1.2/1.3 — Outbox delivery implementation (2026-03-25) |
 | 2026-03-25 | 00:00 | implementation | LEGACY-2026-03-25-refresh-51-vcr-014-techdebt-37-2026-03-25 | Refresh #51 — VCR-014 + TECHDEBT-37 (2026-03-25) |
+| 2026-03-25 | 00:00 | priority | Priority-100 | Priority 100: Actor independence |
+| 2026-03-25 | 00:00 | priority | Priority-200 | Priority 200: Case Actor as source of truth for case state |
 | 2026-03-24 | 00:00 | implementation | ACT-2 | ACT-2: Per-Actor DataLayer Isolation (ADR-0012) |
 | 2026-03-24 | 00:00 | implementation | BUG-001 | BUG-001: `outbox_handler` early-return fix |
 | 2026-03-24 | 00:00 | implementation | LEGACY-2026-03-24-techdebt-32-techdebt-32b-datalayer-boundary-audi | TECHDEBT-32 / TECHDEBT-32b — DataLayer boundary audit and core adapter import removal |
@@ -117,6 +120,7 @@
 | 2026-03-10 | 00:00 | implementation | PRIORITY-60 | PRIORITY-60 — Package Relocation |
 | 2026-03-10 | 00:00 | implementation | TECHDEBT-10 | TECHDEBT-10 — Backfill pre-case events in create_case BT (2026-03-10) |
 | 2026-03-10 | 00:00 | implementation | TECHDEBT-8 | TECHDEBT-8 — Pyright gradual static type checking (2026-03-10) |
+| 2026-03-10 | 00:00 | priority | Priority-90 | Priority 90: Fully address ADR-0013 and OPP-06 |
 | 2026-03-09 | 00:00 | implementation | ARCH-1.1 | ARCH-1.1 complete: MessageSemantics moved to vultron/core/models/events.py |
 | 2026-03-09 | 00:00 | implementation | ARCH-1.2 | ARCH-1.2 complete: InboundPayload introduced; AS2 type removed from DispatchActivity |
 | 2026-03-09 | 00:00 | implementation | ARCH-1.3 | ARCH-1.3 complete: wire/as2/parser.py and wire/as2/extractor.py created |

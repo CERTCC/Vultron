@@ -1,6 +1,6 @@
 ---
 source: Priority-330
-timestamp: '2026-05-15T14:42:45.023682+00:00'
+timestamp: '2026-04-22T00:00:00+00:00'
 title: 'Priority 330: SYNC implementation + demo sign-off'
 type: priority
 ---

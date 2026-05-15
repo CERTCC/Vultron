@@ -1,6 +1,6 @@
 ---
 source: Priority-300
-timestamp: '2026-05-15T14:42:44.068047+00:00'
+timestamp: '2026-04-01T00:00:00+00:00'
 title: 'Priority 300: Multi-Actor Demo Scenarios'
 type: priority
 ---

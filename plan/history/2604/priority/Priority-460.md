@@ -1,6 +1,6 @@
 ---
 source: Priority-460
-timestamp: '2026-05-15T14:42:46.932086+00:00'
+timestamp: '2026-04-27T00:00:00+00:00'
 title: 'Priority 460: Specs as data structures (COMPLETED 2026-04-27)'
 type: priority
 ---

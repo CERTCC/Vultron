@@ -1,6 +1,6 @@
 ---
 source: Priority-345
-timestamp: '2026-05-15T14:42:45.507481+00:00'
+timestamp: '2026-04-17T00:00:00+00:00'
 title: 'Priority 345: DataLayer auto-rehydration'
 type: priority
 ---
