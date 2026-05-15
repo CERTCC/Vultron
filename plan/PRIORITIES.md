@@ -39,7 +39,7 @@ groups DEMOMA-06, DEMOMA-07, DEMOMA-08 for formal requirements.
 - [#484](https://github.com/CERTCC/Vultron/issues/484) — Type narrowing: `_resolve_current_participant_state()` returns
   `tuple[Any, Any]` ✅
 - [#467](https://github.com/CERTCC/Vultron/issues/467) — BT refactor: AddParticipantStatusToParticipant handler (also fixes RM
-  transition validation regression)
+  transition validation regression) ✅
 - [#489](https://github.com/CERTCC/Vultron/issues/489) — Extract shared helpers into vultron/demo/helpers/
 - [#521](https://github.com/CERTCC/Vultron/issues/521) — PCR-07: Integration tests for case-replica bootstrap and late-joiner
   sequences (parent)
@@ -47,7 +47,9 @@ groups DEMOMA-06, DEMOMA-07, DEMOMA-08 for formal requirements.
   - [#523](https://github.com/CERTCC/Vultron/issues/523) — PCR-07-007: late-joiner sequence (Invite → Accept → Announce →
     replica)
 - [#527](https://github.com/CERTCC/Vultron/issues/527) — Integration demo suite takes 17+ min in CI — polling helpers not
-  patched (blocks P470 merges)
+  patched (blocks P470 merges) ✅
+- [#534](https://github.com/CERTCC/Vultron/issues/534) — bug: co-located actors in same process share module-level singletons
+  (emitter, dispatcher, DataLayer)
 - [#530](https://github.com/CERTCC/Vultron/issues/530) — Demo integration tests share a single DataLayer across actors —
   delivery path untested
 - [#466](https://github.com/CERTCC/Vultron/issues/466) — Docs: two-actor-demo tutorial + technical reference (blocked by demo
@@ -101,11 +103,13 @@ CBT-05-003 and `notes/case-bootstrap-trust.md` §Out-of-Order Handling.
 - [#500](https://github.com/CERTCC/Vultron/issues/500) — CBT-03: Implement
   bounded pre-bootstrap queue expiry and replay request
 
-## Priority 485 — Architecture Hardening
+## Priority 485 — Epic #539: Architecture Hardening
 
 Resolve structural fragilities in the core architecture: import boundary
 violations, order-sensitive dispatch, fragile DataLayer scope conventions,
 outbox polling, and oversized centralized dispatch tables.
+
+- Epic: [#539](https://github.com/CERTCC/Vultron/issues/539)
 
 - [#502](https://github.com/CERTCC/Vultron/issues/502) — Actor-scoped vs
   shared DataLayer scope boundaries are fragile and under-tested
@@ -121,6 +125,13 @@ outbox polling, and oversized centralized dispatch tables.
 - [#519](https://github.com/CERTCC/Vultron/issues/519) — ARCH-01-001: Fix
   remaining core→wire import violations in report/nodes.py, received/actor.py,
   received/note.py
+- [#535](https://github.com/CERTCC/Vultron/issues/535) — RFC: Replace
+  `_mixins.py` 26-class mixin system with direct `@property` declarations
+- [#537](https://github.com/CERTCC/Vultron/issues/537) — RFC: Add
+  `InboxPipeline` to surface the `inbox_handler → dispatcher` seam as a
+  testable boundary
+- [#538](https://github.com/CERTCC/Vultron/issues/538) — RFC: Introduce
+  `EmbargoLifecycle` service to consolidate fragmented embargo state management
 
 ## Priority 490 — Test File Refactoring
 
