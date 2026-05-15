@@ -123,27 +123,34 @@ def client():
     :func:`vultron.adapters.driving.fastapi.inbox_handler.init_dispatcher`.
 
     After the lifespan fires, the ``ASGIEmitter``'s HTTP fallback adapter is
-    patched to disable retries.  Demo actors use fictional URLs
+    replaced with a ``_NullDeliveryAdapter`` that silently drops deliveries.
+    Demo actors use fictional URLs
     (e.g. ``https://vultron.example/users/finndervul``) that are unreachable
-    in the test environment.  The ``ASGIEmitter._is_local_recipient`` check
-    correctly identifies these as non-local and delegates to the
-    ``DeliveryQueueAdapter`` HTTP fallback, which by default retries 3 times
-    with exponential backoff totalling ≈ 3.5 s of ``asyncio.sleep`` per
-    recipient per activity.  With many activities across 35+ tests the
-    cumulative sleep time reached 17+ minutes in CI (#527).
+    in the test environment.  The default ``DeliveryQueueAdapter`` retries
+    3 × with exponential backoff (≈ 3.5 s per recipient), causing 17+ min
+    CI slowdowns (#527).  The no-op adapter eliminates that overhead.
 
-    Patching the fallback to ``max_retries=0`` makes deliveries to
-    unreachable hosts fail immediately — the test still exercises the full
-    outbox pipeline but without the production retry overhead.
+    .. note::
+
+       The lifespan-configured ``ASGIEmitter`` uses the config default
+       ``base_url`` (``http://localhost:7999``), while TestClient creates
+       actor IDs under ``http://testserver``.  This means
+       ``_is_local_recipient`` classifies test actors as non-local, so
+       their deliveries also flow through the fallback adapter.
+       Aligning the ``base_url`` would enable ASGI delivery for test
+       actors, but the demo workflow tests currently assume no
+       inter-actor delivery occurs (state changes are driven by
+       explicit trigger-endpoint calls).  Enabling ASGI delivery is
+       deferred until the test fixtures support it (#530).
 
     See also: #530 (actors sharing a single DataLayer in tests — a separate
     correctness bug).
     """
     with TestClient(api_app) as test_client:
-        # Replace the lifespan-configured ASGIEmitter's HTTP fallback with a
-        # no-op adapter.  Demo actors use fictional URLs that are unreachable
-        # in the test environment; the default DeliveryQueueAdapter attempts
-        # real HTTP POST requests with retries, causing massive slowdowns.
+        # Replace the HTTP fallback with a no-op adapter.  All non-local
+        # deliveries (both fictional demo hosts and testserver-based test
+        # actors) are silently dropped.  See docstring note above for why
+        # test actors are also classified as non-local.
         emitter = get_default_emitter()
         if isinstance(emitter, ASGIEmitter):
             emitter._http_fallback = _NullDeliveryAdapter()  # type: ignore[assignment]
