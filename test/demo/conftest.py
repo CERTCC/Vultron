@@ -15,12 +15,17 @@
 
 from pathlib import Path
 
+import logging
+
 import pytest
 from fastapi.testclient import TestClient
 
 import vultron.demo.utils as demo_utils
 from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
 from vultron.adapters.driving.fastapi.main import app as api_app
+from vultron.adapters.driven.asgi_emitter import ASGIEmitter
+from vultron.adapters.driving.fastapi.outbox_handler import get_default_emitter
+from vultron.core.models.activity import VultronActivity
 from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
     make_testclient_call,
 )
@@ -29,6 +34,36 @@ from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
 # background tasks synchronously, so no sleep is needed between inbox posts
 # and state checks.
 demo_utils.DEFAULT_WAIT_SECONDS = 0.0
+
+logger = logging.getLogger(__name__)
+
+
+class _NullDeliveryAdapter:
+    """No-op ``ActivityEmitter`` that silently drops deliveries.
+
+    Used in tests to replace ``DeliveryQueueAdapter`` as the HTTP fallback
+    inside ``ASGIEmitter``.  Demo actors use fictional URLs
+    (e.g. ``https://vultron.example/users/finndervul``) that are unreachable
+    in the test environment.  The default ``DeliveryQueueAdapter`` attempts
+    real HTTP POST requests with a 5 s timeout and 3 retries (3.5 s of
+    ``asyncio.sleep`` per recipient), which caused the integration suite to
+    take 17+ minutes in CI (#527).
+
+    Replacing the fallback with this no-op adapter eliminates all HTTP
+    overhead.  The outbox pipeline (emitter → ``_is_local_recipient`` →
+    fallback) is still exercised; only the unreachable HTTP delivery is
+    skipped.
+    """
+
+    async def emit(
+        self, activity: VultronActivity, recipients: list[str]
+    ) -> None:
+        logger.debug(
+            "NullDeliveryAdapter: skipping HTTP delivery to %d"
+            " unreachable recipient(s): %s",
+            len(recipients),
+            recipients,
+        )
 
 
 def pytest_collection_modifyitems(
@@ -86,6 +121,37 @@ def client():
     Uses the context-manager form so the FastAPI lifespan events (startup and
     shutdown) are triggered, which initialises the inbox dispatcher via
     :func:`vultron.adapters.driving.fastapi.inbox_handler.init_dispatcher`.
+
+    After the lifespan fires, the ``ASGIEmitter``'s HTTP fallback adapter is
+    replaced with a ``_NullDeliveryAdapter`` that silently drops deliveries.
+    Demo actors use fictional URLs
+    (e.g. ``https://vultron.example/users/finndervul``) that are unreachable
+    in the test environment.  The default ``DeliveryQueueAdapter`` retries
+    3 × with exponential backoff (≈ 3.5 s per recipient), causing 17+ min
+    CI slowdowns (#527).  The no-op adapter eliminates that overhead.
+
+    .. note::
+
+       The lifespan-configured ``ASGIEmitter`` uses the config default
+       ``base_url`` (``http://localhost:7999``), while TestClient creates
+       actor IDs under ``http://testserver``.  This means
+       ``_is_local_recipient`` classifies test actors as non-local, so
+       their deliveries also flow through the fallback adapter.
+       Aligning the ``base_url`` would enable ASGI delivery for test
+       actors, but the demo workflow tests currently assume no
+       inter-actor delivery occurs (state changes are driven by
+       explicit trigger-endpoint calls).  Enabling ASGI delivery is
+       deferred until the test fixtures support it (#530).
+
+    See also: #530 (actors sharing a single DataLayer in tests — a separate
+    correctness bug).
     """
     with TestClient(api_app) as test_client:
+        # Replace the HTTP fallback with a no-op adapter.  All non-local
+        # deliveries (both fictional demo hosts and testserver-based test
+        # actors) are silently dropped.  See docstring note above for why
+        # test actors are also classified as non-local.
+        emitter = get_default_emitter()
+        if isinstance(emitter, ASGIEmitter):
+            emitter._http_fallback = _NullDeliveryAdapter()  # type: ignore[assignment]
         yield test_client
