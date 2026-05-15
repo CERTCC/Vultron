@@ -39,7 +39,7 @@ groups DEMOMA-06, DEMOMA-07, DEMOMA-08 for formal requirements.
 - [#484](https://github.com/CERTCC/Vultron/issues/484) — Type narrowing: `_resolve_current_participant_state()` returns
   `tuple[Any, Any]` ✅
 - [#467](https://github.com/CERTCC/Vultron/issues/467) — BT refactor: AddParticipantStatusToParticipant handler (also fixes RM
-  transition validation regression)
+  transition validation regression) ✅
 - [#489](https://github.com/CERTCC/Vultron/issues/489) — Extract shared helpers into vultron/demo/helpers/
 - [#521](https://github.com/CERTCC/Vultron/issues/521) — PCR-07: Integration tests for case-replica bootstrap and late-joiner
   sequences (parent)
@@ -47,15 +47,17 @@ groups DEMOMA-06, DEMOMA-07, DEMOMA-08 for formal requirements.
   - [#523](https://github.com/CERTCC/Vultron/issues/523) — PCR-07-007: late-joiner sequence (Invite → Accept → Announce →
     replica)
 - [#527](https://github.com/CERTCC/Vultron/issues/527) — Integration demo suite takes 17+ min in CI — polling helpers not
-  patched (blocks P470 merges)
+  patched ✅
 - [#530](https://github.com/CERTCC/Vultron/issues/530) — Demo integration tests share a single DataLayer across actors —
   delivery path untested
+- [#534](https://github.com/CERTCC/Vultron/issues/534) — Co-located actors in same process share module-level singletons
+  (emitter, dispatcher, DataLayer)
 - [#466](https://github.com/CERTCC/Vultron/issues/466) — Docs: two-actor-demo tutorial + technical reference (blocked by demo
   running end-to-end)
 - [#471](https://github.com/CERTCC/Vultron/issues/471) — Tutorial: docs/tutorials/two-actor-demo.md
 - [#472](https://github.com/CERTCC/Vultron/issues/472) — Technical reference: docs/reference/two-actor-demo-protocol.md
 
-## Priority 476 — Epic #446: Bug Fixes and Demo Polish
+## Priority 476 — Bug Fixes and Demo Polish
 
 Fix issues affecting demo execution and correctness.
 
@@ -107,6 +109,7 @@ Resolve structural fragilities in the core architecture: import boundary
 violations, order-sensitive dispatch, fragile DataLayer scope conventions,
 outbox polling, and oversized centralized dispatch tables.
 
+- Epic: [#539](https://github.com/CERTCC/Vultron/issues/539)
 - [#502](https://github.com/CERTCC/Vultron/issues/502) — Actor-scoped vs
   shared DataLayer scope boundaries are fragile and under-tested
 - [#503](https://github.com/CERTCC/Vultron/issues/503) — Outbox drain loop
@@ -121,6 +124,14 @@ outbox polling, and oversized centralized dispatch tables.
 - [#519](https://github.com/CERTCC/Vultron/issues/519) — ARCH-01-001: Fix
   remaining core→wire import violations in report/nodes.py, received/actor.py,
   received/note.py
+- [#535](https://github.com/CERTCC/Vultron/issues/535) — RFC: Replace
+  `_mixins.py` 26-class mixin system with direct `@property` declarations on
+  event subclasses
+- [#537](https://github.com/CERTCC/Vultron/issues/537) — RFC: Add
+  `InboxPipeline` to surface the `inbox_handler → dispatcher` seam as a
+  testable boundary
+- [#538](https://github.com/CERTCC/Vultron/issues/538) — RFC: Introduce
+  `EmbargoLifecycle` service to consolidate fragmented embargo state management
 
 ## Priority 490 — Test File Refactoring
 
@@ -177,6 +188,17 @@ it in the new codebase using `py_trees` as the foundation. The underlying
 
 - [#427](https://github.com/CERTCC/Vultron/issues/427) — FUZZ-00:
   Re-implement fuzzer nodes from original simulator
+
+## Priority 510 — Interactive Demo UI
+
+Build an interactive web UI for stakeholder presentations that visualizes
+Vultron protocol state in real time across all running actor containers and
+lets a presenter (or viewer) make real protocol decisions at key branch
+points. Replaces log-scrolling demos with a polished experience aimed at
+non-technical audiences (government funders, industry practitioners).
+
+- [#533](https://github.com/CERTCC/Vultron/issues/533) — Idea: Interactive
+  ReactFlow Demo UI with CYOA scenarios for stakeholder presentations
 
 ## Priority 520 — Agent Guidance Freshness
 
@@ -260,7 +282,7 @@ the current plugin ecosystem and configuration format.
 
 - [#294](https://github.com/CERTCC/Vultron/issues/294) — Plan migration to Zensical for MkDocs 2.0 compatibility
 
-## Priority 99999 — Epic #447: Remaining Requirements and Documentation Updates
+## Priority 99999 — Remaining Requirements and Documentation Updates
 
 The project is currently in prototype development mode, therefore requirements
 that are marked as `PROD_ONLY` are temporarily a lower priority than other
@@ -284,3 +306,5 @@ deferral policy.
 - [#511](https://github.com/CERTCC/Vultron/issues/511) — SQLite is the only
   persistence backend; multi-writer and high-volume deployments unsupported
   (PROD_ONLY)
+- [#526](https://github.com/CERTCC/Vultron/issues/526) — Idea: Scheduled
+  GitHub Action for automated monthly/quarterly project reports
