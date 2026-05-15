@@ -127,6 +127,50 @@ What would you like to do?
 - Archive via `append-history priority`
 - Remove from PRIORITIES.md
 
+### Epic Hierarchy Maintenance (PAD-02-008 – PAD-02-010)
+
+After adding, refining, or removing priority groups, enforce the Epic
+hierarchy for every group that has **2 or more open leaf Issues** (a leaf
+Issue is any Issue with no open sub-issues).
+
+For each such group:
+
+1. **Check for an existing open Epic** with the group's `group:` label:
+
+   ```bash
+   gh issue list --repo CERTCC/Vultron \
+     --label "group:<slug>" \
+     --state open \
+     --json number,title,issueType \
+     | python3 -c "
+   import json, sys
+   issues = json.load(sys.stdin)
+   epics = [i for i in issues if (i.get('issueType') or {}).get('name') == 'Epic']
+   print(epics[0]['number'] if epics else 'NONE')
+   "
+   ```
+
+2. **If no Epic exists**, invoke the `create-epic` skill. Provide the group
+   label slug, an Epic title derived from the PRIORITIES.md group heading,
+   a body listing the open leaf Issues, and the list of leaf issue numbers.
+   The skill returns the new Epic number.
+
+3. **If an Epic exists**, use the `manage-github-issue` skill to link any
+   open leaf Issues not yet wired as sub-issues.
+
+4. **Record the Epic number** in `plan/PRIORITIES.md` next to the group
+   heading (PAD-02-010):
+
+   ```markdown
+   ## Priority NNN — Epic #M: Title
+   ```
+
+   If the heading already has `— Epic #M:`, update the number only if the
+   old Epic was closed and a new one was created.
+
+Run this step for every group touched during the session, plus any group
+whose Epic number is missing from PRIORITIES.md.
+
 ## Preview & Commit
 
 Before writing to disk:
