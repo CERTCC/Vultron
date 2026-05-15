@@ -63,7 +63,9 @@ def configure_logging() -> None:
         uvicorn_access_logger.propagate = True
 
 
-def _make_lifespan(*, configure_globals: bool = True):
+def _make_lifespan(
+    *, configure_globals: bool = True, mount_prefix: str = "/api/v2"
+):
     """Return a lifespan context manager for a FastAPI Vultron application.
 
     Args:
@@ -75,6 +77,12 @@ def _make_lifespan(*, configure_globals: bool = True):
             these global side-effects are skipped so that multiple apps
             running in the same process do not contaminate each other's
             state.
+        mount_prefix: URL prefix at which the app's routes are mounted.
+            ``app_v2`` (the production singleton) is mounted at
+            ``/api/v2`` by the root app, so the emitter must strip that
+            prefix from recipient paths.  ``create_app()`` apps include
+            the router *with* the ``/api/v2`` prefix, so their emitter
+            should use ``""`` to avoid double-stripping.
     """
 
     @asynccontextmanager
@@ -87,9 +95,8 @@ def _make_lifespan(*, configure_globals: bool = True):
             init_dispatcher,
         )
 
-        if configure_globals:
-            init_dispatcher()
-        emitter = ASGIEmitter(app=application, mount_prefix="/api/v2")
+        init_dispatcher()
+        emitter = ASGIEmitter(app=application, mount_prefix=mount_prefix)
         application.state.emitter = emitter
 
         monitor = None
@@ -161,9 +168,11 @@ def create_app(
     """Factory that creates a fresh, isolated FastAPI application instance.
 
     Each call produces an independent application with its own lifespan
-    context (dispatcher, emitter, OutboxMonitor) and its own
-    ``app.state.emitter``.  Use this in tests or multi-actor deployments
-    where each actor process requires an isolated DataLayer and emitter.
+    context (emitter stored on ``app.state.emitter``).  Global singletons
+    (the module-level default emitter, ``OutboxMonitor``) are NOT modified
+    so that multiple ``create_app()`` instances can coexist in the same
+    process without contaminating each other.  The inbox dispatcher is
+    always initialised so inbox delivery works out of the box.
 
     Override ``app.dependency_overrides[get_shared_dl]`` after calling this
     factory to inject a per-actor in-memory DataLayer for full test isolation.
@@ -184,7 +193,7 @@ def create_app(
         version=version,
         docs_url=docs_url,
         openapi_url=openapi_url,
-        lifespan=_make_lifespan(configure_globals=False),
+        lifespan=_make_lifespan(configure_globals=False, mount_prefix=""),
     )
     application.include_router(router, prefix="/api/v2")
     if get_config().mode == RunMode.PROTOTYPE:

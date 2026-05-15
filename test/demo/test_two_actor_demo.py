@@ -1095,7 +1095,9 @@ class TestDeliveryIsolation:
 
     def test_finder_dl_empty_before_delivery(self, delivery_setup):
         """Finder's DataLayer contains no cases before any delivery occurs."""
-        finder_isolated, vendor_isolated, finder_tc, vendor_tc = delivery_setup
+        finder_isolated, _vendor_isolated, finder_tc, _vendor_tc = (
+            delivery_setup
+        )
 
         # Create Finder actor on finder's app.
         finder_base = finder_isolated.base_url + "/api/v2"
@@ -1119,7 +1121,9 @@ class TestDeliveryIsolation:
 
     def test_vendor_dl_isolated_from_finder(self, delivery_setup):
         """Objects created in Vendor's DataLayer are not visible in Finder's."""
-        finder_isolated, vendor_isolated, finder_tc, vendor_tc = delivery_setup
+        finder_isolated, vendor_isolated, _finder_tc, vendor_tc = (
+            delivery_setup
+        )
 
         vendor_base = vendor_isolated.base_url + "/api/v2"
         vendor_id = f"{vendor_base}/actors/vendor-isolation-test"
