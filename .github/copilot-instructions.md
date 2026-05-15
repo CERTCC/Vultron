@@ -78,6 +78,11 @@ truth.
 Use `uv run append-history` to add new history entries (never append directly).
 Reference: `specs/history-management.yaml` § HM-03.
 
+**`append-history` timestamp rule:** When migrating or backfilling historical
+entries (not recording current work), **always** pass `--timestamp <ISO8601>`
+derived from `git log`/`git blame`. Never let it default to today's date — this
+produces corrupt history that requires an immutability override to fix.
+
 ### Test Suite Runtime Expectations
 
 The full pytest suite can take **60–120+ seconds** to complete. Use
@@ -87,6 +92,17 @@ normal. For faster feedback during development, run a single test file:
 
 For the single-run rule and full test suite guidance, see **`AGENTS.md`**
 § Agent Quickstart and § Commit Workflow.
+
+**CRITICAL — Demo/integration test requirement:** The default `pytest` run
+**omits** `@pytest.mark.integration` tests. CI always runs all tests. If **any**
+file under `vultron/demo/` or `test/demo/` was touched, you **must** run the
+full suite before committing:
+
+```bash
+uv run pytest -m "" --tb=short 2>&1 | tail -5
+```
+
+Skipping this is how PRs end up blocked by 17-minute CI runs.
 
 ---
 
@@ -199,6 +215,15 @@ class CreateReportReceivedUseCase:
 - Use full Pydantic objects in test data (not string primitives)
 - Use full URIs: `actor="https://example.org/alice"` not `actor="alice"`
 - Match `MessageSemantics` to actual activity structure in test events
+- **DataLayer isolation:** each actor in tests must use a **distinct** `DataLayer`
+  instance — sharing one across actors is a bug. `create_app()` must NOT mutate
+  global singletons (`_default_emitter`, etc.); store per-app state on `app.state`.
+
+### Task Branching
+
+- Default base branch is always **`main`**. Do **not** infer the base from
+  `PRIORITIES.md`, issue descriptions, or any other source — if the base branch
+  is anything other than `main`, the user must explicitly state it.
 
 ## Architecture Decision Records
 

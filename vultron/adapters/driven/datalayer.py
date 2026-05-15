@@ -27,5 +27,6 @@ from vultron.adapters.driven.datalayer_sqlite import (  # noqa: F401
     SqliteDataLayer as DataLayerImpl,
     get_all_actor_datalayers,
     get_datalayer,
+    get_shared_dl,
     reset_datalayer,
 )

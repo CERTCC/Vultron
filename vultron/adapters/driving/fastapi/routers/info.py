@@ -25,7 +25,7 @@ notes/multi-actor-architecture.md §4 G1.
 
 from fastapi import APIRouter, Depends
 
-from vultron.adapters.driven.datalayer import get_datalayer
+from vultron.adapters.driven.datalayer import get_shared_dl
 from vultron.adapters.utils import BASE_URL
 from vultron.core.ports.datalayer import DataLayer
 
@@ -41,13 +41,8 @@ _ACTOR_TABLE_NAMES = [
 ]
 
 
-def _shared_dl() -> DataLayer:
-    """Dependency: always returns the shared (non-actor-scoped) DataLayer."""
-    return get_datalayer()
-
-
 @router.get("/info", operation_id="info_get")
-def get_info(dl: DataLayer = Depends(_shared_dl)) -> dict:
+def get_info(dl: DataLayer = Depends(get_shared_dl)) -> dict:
     """Returns server identity information (D5-1-G1).
 
     Response includes the configured ``VULTRON_BASE_URL`` and the list of

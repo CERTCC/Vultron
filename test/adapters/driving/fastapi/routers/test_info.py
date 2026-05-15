@@ -35,7 +35,7 @@ def client_info(datalayer):
     app = FastAPI()
     app.include_router(info_router.router)
     app.dependency_overrides[get_datalayer] = lambda: datalayer
-    app.dependency_overrides[info_router._shared_dl] = lambda: datalayer
+    app.dependency_overrides[info_router.get_shared_dl] = lambda: datalayer
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
@@ -81,7 +81,7 @@ def test_info_actors_includes_seeded_actors(datalayer):
     app = FastAPI()
     app.include_router(info_router.router)
     app.dependency_overrides[get_datalayer] = lambda: datalayer
-    app.dependency_overrides[info_router._shared_dl] = lambda: datalayer
+    app.dependency_overrides[info_router.get_shared_dl] = lambda: datalayer
     client = TestClient(app)
 
     resp = client.get("/info")

@@ -32,7 +32,7 @@ get_trigger_service
 
 from fastapi import Depends, Path
 
-from vultron.adapters.driven.datalayer import get_datalayer
+from vultron.adapters.driven.datalayer import get_shared_dl
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -42,7 +42,10 @@ from vultron.core.ports.trigger_service import TriggerServicePort
 from vultron.core.use_cases.triggers.service import TriggerService
 
 
-def get_trigger_dl(actor_id: str = Path(...)) -> DataLayer:  # noqa: ARG001
+def get_trigger_dl(
+    actor_id: str = Path(...),  # noqa: ARG001
+    dl: DataLayer = Depends(get_shared_dl),
+) -> DataLayer:
     """FastAPI dependency: return the shared DataLayer for trigger use cases.
 
     Operational data (actors, offers, reports, cases) is stored in the
@@ -50,7 +53,7 @@ def get_trigger_dl(actor_id: str = Path(...)) -> DataLayer:  # noqa: ARG001
     so that ``app.dependency_overrides[get_trigger_dl]`` works in tests
     (ADR-0012).
     """
-    return get_datalayer()
+    return dl
 
 
 def get_canonical_actor_dl(
@@ -68,7 +71,7 @@ def get_canonical_actor_dl(
     """
     actor = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
     canonical_id = actor.id_ if actor and hasattr(actor, "id_") else actor_id
-    return get_datalayer(canonical_id)
+    return dl.clone_for_actor(canonical_id)
 
 
 def get_trigger_service(

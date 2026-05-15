@@ -21,7 +21,7 @@ from specs/observability.yaml.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from vultron.adapters.driven.datalayer import get_datalayer
+from vultron.adapters.driven.datalayer import get_shared_dl
 from vultron.core.ports.datalayer import DataLayer
 
 router = APIRouter(prefix="/health", tags=["Health"])
@@ -34,7 +34,7 @@ async def liveness():
 
 
 @router.get("/ready", operation_id="health_ready")
-async def readiness(dl: DataLayer = Depends(get_datalayer)):
+async def readiness(dl: DataLayer = Depends(get_shared_dl)):
     """Returns 200 if the service is ready to accept requests (OB-05-002)."""
     try:
         dl.ping()

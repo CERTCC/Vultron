@@ -26,6 +26,7 @@ from vultron.core.models.events import MessageSemantics, VultronEvent
 from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
+from vultron.core.ports.emitter import ActivityEmitter
 from vultron.semantic_registry import (
     extract_event,
     use_case_map as _use_case_map,
@@ -295,7 +296,10 @@ def _process_inbox_item(
 
 
 async def inbox_handler(
-    actor_id: str, dl: DataLayer, actor_dl: DataLayer | None = None
+    actor_id: str,
+    dl: DataLayer,
+    actor_dl: DataLayer | None = None,
+    emitter: ActivityEmitter | None = None,
 ) -> None:
     """Process the inbox for the given actor.
 
@@ -303,11 +307,20 @@ async def inbox_handler(
     rehydrates each one into a full AS2 Activity object using the shared
     DataLayer, and dispatches it.
 
+    After processing, triggers outbox delivery for any outbound activities
+    created during dispatch, using *emitter* when provided.
+
     Args:
         actor_id: The short ID of the Actor whose inbox is being processed.
         dl: The shared DataLayer for activity storage and use-case dispatch.
         actor_dl: The actor-scoped DataLayer for inbox queue management.
             Defaults to ``dl`` when not provided (backward-compatible).
+        emitter: Optional ``ActivityEmitter`` to use for outbox delivery.
+            When provided (e.g. from ``request.app.state.emitter`` in a
+            multi-app deployment), outbound activities are delivered via
+            this emitter instead of the module-level default.  This enables
+            per-app delivery routing so that co-located actors in the same
+            process can each use their own isolated emitter configuration.
     """
     queue_dl = actor_dl if actor_dl is not None else dl
     actor = dl.read(actor_id)
@@ -356,4 +369,4 @@ async def inbox_handler(
                 break
 
     # OX-1.2 / OX-03-002: trigger outbox delivery after inbox processing completes
-    await outbox_handler(actor_id, queue_dl, shared_dl=dl)
+    await outbox_handler(actor_id, queue_dl, shared_dl=dl, emitter=emitter)

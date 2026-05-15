@@ -15,7 +15,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from vultron.adapters.driven.datalayer import get_datalayer
+from vultron.adapters.driven.datalayer import get_shared_dl
 from vultron.adapters.driving.fastapi.routers import health as health_router
 
 
@@ -23,7 +23,7 @@ from vultron.adapters.driving.fastapi.routers import health as health_router
 def client_health(datalayer):
     app = FastAPI()
     app.include_router(health_router.router)
-    app.dependency_overrides[get_datalayer] = lambda: datalayer
+    app.dependency_overrides[get_shared_dl] = lambda: datalayer
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
@@ -37,7 +37,7 @@ def client_health_failing():
 
     app = FastAPI()
     app.include_router(health_router.router)
-    app.dependency_overrides[get_datalayer] = lambda: FailingDataLayer()
+    app.dependency_overrides[get_shared_dl] = lambda: FailingDataLayer()
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}

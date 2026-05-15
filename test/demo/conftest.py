@@ -13,15 +13,24 @@
 
 """Shared fixtures and helpers for demo tests."""
 
+from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 import logging
 
+import httpx
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import vultron.demo.utils as demo_utils
-from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
+from vultron.adapters.driven.datalayer import get_shared_dl
+from vultron.adapters.driven.datalayer_sqlite import (
+    SqliteDataLayer,
+    reset_datalayer,
+)
+from vultron.adapters.driving.fastapi.app import create_app
 from vultron.adapters.driving.fastapi.main import app as api_app
 from vultron.adapters.driven.asgi_emitter import ASGIEmitter
 from vultron.adapters.driving.fastapi.outbox_handler import get_default_emitter
@@ -64,6 +73,132 @@ class _NullDeliveryAdapter:
             len(recipients),
             recipients,
         )
+
+
+class _TestASGIRouter:
+    """Cross-app delivery adapter for isolated multi-actor test setups.
+
+    Routes outbound activity delivery to the correct ASGI app based on
+    the recipient actor's base URL.  Replace each actor app's
+    ``ASGIEmitter._http_fallback`` with a shared instance of this class so
+    that when Actor A cannot deliver locally (the recipient is on Actor B's
+    app), the delivery is forwarded to Actor B's ASGI app via
+    ``httpx.ASGITransport`` instead of making a real HTTP request.
+
+    Use :meth:`register` to map base URLs to their ASGI apps before
+    entering the TestClient context.
+    """
+
+    def __init__(self) -> None:
+        self._apps: dict[str, "FastAPI"] = {}
+
+    def register(self, base_url: str, app: "FastAPI") -> None:
+        """Register *app* as the delivery target for *base_url*."""
+        self._apps[base_url.rstrip("/")] = app
+
+    async def emit(
+        self, activity: VultronActivity, recipients: list[str]
+    ) -> None:
+        """Deliver *activity* to each recipient via the registered ASGI app."""
+        json_body: str = activity.model_dump_json(
+            by_alias=True, exclude_none=True
+        )
+        for recipient_id in recipients:
+            parsed = urlparse(recipient_id.rstrip("/") + "/inbox/")
+            base = f"{parsed.scheme}://{parsed.netloc}"
+            app = self._apps.get(base)
+            if app is None:
+                logger.debug(
+                    "_TestASGIRouter: no app registered for %s,"
+                    " dropping delivery to %s",
+                    base,
+                    recipient_id,
+                )
+                continue
+            inbox_path = parsed.path
+            try:
+                transport = httpx.ASGITransport(app=app)  # type: ignore[arg-type]
+                async with httpx.AsyncClient(
+                    transport=transport, base_url=base
+                ) as client:
+                    response = await client.post(
+                        inbox_path,
+                        content=json_body,
+                        headers={"Content-Type": "application/json"},
+                        timeout=10.0,
+                    )
+                    response.raise_for_status()
+                    logger.info(
+                        "_TestASGIRouter: delivered to %s (HTTP %s)",
+                        inbox_path,
+                        response.status_code,
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "_TestASGIRouter: delivery to %s failed: %s",
+                    inbox_path,
+                    exc,
+                )
+
+
+@dataclass
+class IsolatedActorApp:
+    """Holds a FastAPI app and TestClient pair with isolated per-actor state.
+
+    Each ``IsolatedActorApp`` instance represents a separate logical actor
+    container in tests.  The ``app`` has its own ``DataLayer`` injected via
+    ``dependency_overrides`` and its own ``ASGIEmitter`` stored on
+    ``app.state.emitter``, so no state leaks between actors.
+
+    Attributes:
+        app: The FastAPI application instance for this actor.
+        client: A ``TestClient`` wrapping ``app`` with a deterministic
+            ``base_url`` (e.g. ``http://actor-name.test``).
+        dl: The isolated in-memory ``SqliteDataLayer`` for this actor.
+        base_url: The base URL used to construct actor IDs.
+    """
+
+    app: FastAPI
+    client: TestClient
+    dl: SqliteDataLayer
+    base_url: str
+
+
+def create_isolated_actor_app(
+    base_url: str,
+    router: "_TestASGIRouter",
+) -> "IsolatedActorApp":
+    """Create an isolated FastAPI app for a single actor in tests.
+
+    Creates a fresh :class:`FastAPI` application via :func:`create_app`,
+    injects an in-memory :class:`SqliteDataLayer` via ``dependency_overrides``,
+    and wires a :class:`_TestASGIRouter` as the ``ASGIEmitter`` HTTP fallback
+    so that deliveries to other actors are routed to their registered ASGI apps
+    instead of making real HTTP requests.
+
+    The ``ASGIEmitter`` is stored on ``app.state.emitter`` during the lifespan
+    startup.  After ``TestClient.__enter__`` fires, the emitter's
+    ``_http_fallback`` is replaced with the shared ``_TestASGIRouter``.
+
+    Args:
+        base_url: Base URL for this actor (e.g. ``"http://finder.test"``).
+            Actor IDs will use this as their URL prefix.
+        router: Shared :class:`_TestASGIRouter` instance that both apps
+            register with so cross-app deliveries are routed correctly.
+
+    Returns:
+        An :class:`IsolatedActorApp` whose ``client`` context manager has
+        *not* been entered yet — callers must use it as a context manager.
+    """
+    isolated_dl = SqliteDataLayer(db_url="sqlite:///:memory:")
+    app = create_app(docs_url=None, openapi_url=None)
+    app.dependency_overrides[get_shared_dl] = lambda: isolated_dl
+    router.register(base_url, app)
+    # TestClient is not yet entered; the caller drives the lifecycle.
+    client = TestClient(app, base_url=base_url)
+    return IsolatedActorApp(
+        app=app, client=client, dl=isolated_dl, base_url=base_url
+    )
 
 
 def pytest_collection_modifyitems(

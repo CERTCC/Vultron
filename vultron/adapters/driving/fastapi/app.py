@@ -63,23 +63,65 @@ def configure_logging() -> None:
         uvicorn_access_logger.propagate = True
 
 
-@asynccontextmanager
-async def lifespan(application: FastAPI):
-    configure_logging()
-    from vultron.adapters.driving.fastapi.inbox_handler import init_dispatcher
-    from vultron.adapters.driven.datalayer import get_datalayer
-    from vultron.adapters.driving.fastapi.outbox_monitor import OutboxMonitor
-    from vultron.adapters.driven.asgi_emitter import ASGIEmitter
-    from vultron.adapters.driving.fastapi.outbox_handler import (
-        configure_default_emitter,
-    )
+def _make_lifespan(
+    *, configure_globals: bool = True, mount_prefix: str = "/api/v2"
+):
+    """Return a lifespan context manager for a FastAPI Vultron application.
 
-    init_dispatcher(dl=get_datalayer())
-    configure_default_emitter(ASGIEmitter(app=application))
-    monitor = OutboxMonitor()
-    monitor.start()
-    yield
-    monitor.stop()
+    Args:
+        configure_globals: When ``True`` (the default for the production
+            singleton ``app_v2``), the lifespan installs the
+            ``ASGIEmitter`` as the module-level default emitter, configures
+            logging, and starts the background ``OutboxMonitor``.  When
+            ``False`` (used by :func:`create_app` for isolated test apps),
+            these global side-effects are skipped so that multiple apps
+            running in the same process do not contaminate each other's
+            state.
+        mount_prefix: URL prefix at which the app's routes are mounted.
+            ``app_v2`` (the production singleton) is mounted at
+            ``/api/v2`` by the root app, so the emitter must strip that
+            prefix from recipient paths.  ``create_app()`` apps include
+            the router *with* the ``/api/v2`` prefix, so their emitter
+            should use ``""`` to avoid double-stripping.
+    """
+
+    @asynccontextmanager
+    async def _lifespan(application: FastAPI):
+        if configure_globals:
+            configure_logging()
+
+        from vultron.adapters.driven.asgi_emitter import ASGIEmitter
+        from vultron.adapters.driving.fastapi.inbox_handler import (
+            init_dispatcher,
+        )
+
+        init_dispatcher()
+        emitter = ASGIEmitter(app=application, mount_prefix=mount_prefix)
+        application.state.emitter = emitter
+
+        monitor = None
+        if configure_globals:
+            from vultron.adapters.driving.fastapi.outbox_handler import (
+                configure_default_emitter,
+            )
+            from vultron.adapters.driving.fastapi.outbox_monitor import (
+                OutboxMonitor,
+            )
+
+            configure_default_emitter(emitter)
+            monitor = OutboxMonitor()
+            monitor.start()
+
+        yield
+
+        if monitor is not None:
+            monitor.stop()
+        # Remove the per-app emitter reference so a stale ASGIEmitter
+        # cannot leak between TestClient lifetimes on the same app
+        # singleton (e.g. unit tests followed by integration tests).
+        application.state.emitter = None
+
+    return _lifespan
 
 
 tags_metadata = [
@@ -112,9 +154,54 @@ app_v2 = FastAPI(
     docs_url="/docs",
     openapi_url="/openapi/v2.json",
     openapi_tags=tags_metadata,
-    lifespan=lifespan,
+    lifespan=_make_lifespan(configure_globals=True),
 )
 app_v2.include_router(router)
+
+
+def create_app(
+    title: str = "Vultron API v2",
+    version: str = "0.2.0",
+    docs_url: str | None = "/docs",
+    openapi_url: str | None = "/openapi/v2.json",
+) -> FastAPI:
+    """Factory that creates a fresh, isolated FastAPI application instance.
+
+    Each call produces an independent application with its own lifespan
+    context (emitter stored on ``app.state.emitter``).  Global singletons
+    (the module-level default emitter, ``OutboxMonitor``) are NOT modified
+    so that multiple ``create_app()`` instances can coexist in the same
+    process without contaminating each other.  The inbox dispatcher is
+    always initialised so inbox delivery works out of the box.
+
+    Override ``app.dependency_overrides[get_shared_dl]`` after calling this
+    factory to inject a per-actor in-memory DataLayer for full test isolation.
+
+    Args:
+        title: OpenAPI title.
+        version: OpenAPI version string.
+        docs_url: URL for the Swagger UI (``None`` to disable).
+        openapi_url: URL for the OpenAPI schema (``None`` to disable).
+
+    Returns:
+        A new :class:`FastAPI` instance with the Vultron router included.
+    """
+    from vultron.config import RunMode, get_config  # noqa: E402
+
+    application = FastAPI(
+        title=title,
+        version=version,
+        docs_url=docs_url,
+        openapi_url=openapi_url,
+        lifespan=_make_lifespan(configure_globals=False, mount_prefix=""),
+    )
+    application.include_router(router, prefix="/api/v2")
+    if get_config().mode == RunMode.PROTOTYPE:
+        from vultron.adapters.driving.fastapi.routers import demo_triggers
+
+        application.include_router(demo_triggers.router, prefix="/api/v2")
+    return application
+
 
 # Demo-only endpoints are mounted conditionally so they never appear in
 # production deployments (TRIG-09-002, TRIG-09-003).

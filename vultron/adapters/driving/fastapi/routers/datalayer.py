@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, status, HTTPException
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.vocab.base.objects.base import as_Object
-from vultron.adapters.driven.datalayer import get_datalayer
+from vultron.adapters.driven.datalayer import get_shared_dl
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.collections import (
@@ -36,21 +36,12 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 router = APIRouter(prefix="/datalayer", tags=["datalayer"])
 
 
-def _shared_dl() -> DataLayer:
-    """Dependency: always returns the shared (non-actor-scoped) DataLayer.
-
-    Prevents FastAPI from forwarding ``actor_id`` path parameters into
-    ``get_datalayer(actor_id=…)`` when this function is used as a dependency.
-    """
-    return get_datalayer()
-
-
 @router.get(
     "/{key}",
     description="Returns a specific object by key.",
     operation_id="datalayer_get_by_key",
 )
-def get_object_by_key(key: str, datalayer: DataLayer = Depends(get_datalayer)):
+def get_object_by_key(key: str, datalayer: DataLayer = Depends(get_shared_dl)):
     obj = datalayer.read(key)
 
     if not obj:
@@ -67,7 +58,7 @@ def get_object_by_key(key: str, datalayer: DataLayer = Depends(get_datalayer)):
 def get_object(
     object_type: str,
     object_id: str,
-    datalayer: DataLayer = Depends(get_datalayer),
+    datalayer: DataLayer = Depends(get_shared_dl),
 ):
     obj = datalayer.read(object_id)
 
@@ -79,7 +70,7 @@ def get_object(
 
 @router.get("/Offer/", operation_id="datalayer_get_offer")
 def get_offer(
-    object_id: str, datalayer: DataLayer = Depends(get_datalayer)
+    object_id: str, datalayer: DataLayer = Depends(get_shared_dl)
 ) -> as_Offer:
     obj = datalayer.read(object_id)
     if not obj:
@@ -89,7 +80,7 @@ def get_offer(
 
 @router.get("/Report/", operation_id="datalayer_get_report")
 def get_report(
-    id: str, datalayer: DataLayer = Depends(get_datalayer)
+    id: str, datalayer: DataLayer = Depends(get_shared_dl)
 ) -> VulnerabilityReport:
     obj = datalayer.read(id)
     if not obj:
@@ -103,7 +94,7 @@ def get_report(
     operation_id="datalayer_list",
 )
 def get_datalayer_contents(
-    datalayer: DataLayer = Depends(get_datalayer),
+    datalayer: DataLayer = Depends(get_shared_dl),
 ) -> dict[str, dict]:
     data = datalayer.all()
     if not isinstance(data, dict):
@@ -121,7 +112,7 @@ def get_datalayer_contents(
     operation_id="datalayer_get_actor_offer",
 )
 def get_actor_offer(
-    actor_id: str, offer_id: str, datalayer: DataLayer = Depends(_shared_dl)
+    actor_id: str, offer_id: str, datalayer: DataLayer = Depends(get_shared_dl)
 ) -> as_Offer:
     obj = datalayer.read(offer_id)
 
@@ -149,7 +140,7 @@ def get_actor_offer(
     operation_id="datalayer_list_offers",
 )
 def get_offers(
-    datalayer: DataLayer = Depends(get_datalayer),
+    datalayer: DataLayer = Depends(get_shared_dl),
 ) -> dict[str, as_Offer]:
     results = datalayer.by_type("Offer")
 
@@ -163,7 +154,7 @@ def get_offers(
     operation_id="datalayer_list_reports",
 )
 def get_reports(
-    datalayer: DataLayer = Depends(get_datalayer),
+    datalayer: DataLayer = Depends(get_shared_dl),
 ) -> dict[str, VulnerabilityReport]:
     results = datalayer.by_type("VulnerabilityReport")
 
@@ -178,7 +169,7 @@ def get_reports(
     operation_id="datalayer_list_actors",
 )
 def get_actors(
-    datalayer: DataLayer = Depends(get_datalayer),
+    datalayer: DataLayer = Depends(get_shared_dl),
 ) -> dict[str, as_Actor]:
     results = datalayer.by_type("Actor")
 
@@ -192,7 +183,7 @@ def get_actors(
     operation_id="datalayer_get_actor_outbox",
 )
 def get_actor_outbox(
-    actor_id: str, datalayer: DataLayer = Depends(_shared_dl)
+    actor_id: str, datalayer: DataLayer = Depends(get_shared_dl)
 ) -> as_OrderedCollection:
     actor_obj = datalayer.read(actor_id)
 
@@ -222,7 +213,7 @@ def get_actor_outbox(
     operation_id="datalayer_list_by_type",
 )
 def get_objects(
-    object_type: str, datalayer: DataLayer = Depends(get_datalayer)
+    object_type: str, datalayer: DataLayer = Depends(get_shared_dl)
 ):
     results = datalayer.by_type(object_type)
 
@@ -235,7 +226,7 @@ def get_objects(
     operation_id="datalayer_reset",
 )
 def reset_datalayer(
-    init: bool = False, datalayer: DataLayer = Depends(get_datalayer)
+    init: bool = False, datalayer: DataLayer = Depends(get_shared_dl)
 ) -> dict:
     """Resets the datalayer by clearing all stored objects."""
     datalayer.clear_all()

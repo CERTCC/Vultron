@@ -25,6 +25,7 @@ from fastapi import (
     BackgroundTasks,
     Depends,
     HTTPException,
+    Request,
     Response,
     status,
 )
@@ -42,7 +43,7 @@ from vultron.core.use_cases.query.action_rules import (
     GetActionRulesUseCase,
 )
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.adapters.driven.datalayer import get_datalayer
+from vultron.adapters.driven.datalayer import get_shared_dl
 from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.links import as_Link
@@ -72,16 +73,6 @@ logger = logging.getLogger("uvicorn.error")
 router = APIRouter(prefix="/actors", tags=["Actors"])
 
 
-def _shared_dl() -> DataLayer:
-    """Dependency: always returns the shared (non-actor-scoped) DataLayer.
-
-    Using this wrapper prevents FastAPI from forwarding the ``actor_id`` path
-    parameter into ``get_datalayer(actor_id=…)``, which would return a scoped
-    DataLayer that contains no actors.
-    """
-    return get_datalayer()
-
-
 @router.get(
     "/",
     response_model=list[as_Actor],
@@ -90,7 +81,7 @@ def _shared_dl() -> DataLayer:
     operation_id="actors_list",
 )
 def get_actors(
-    datalayer: DataLayer = Depends(_shared_dl),
+    datalayer: DataLayer = Depends(get_shared_dl),
 ) -> list[as_Actor]:
     """Returns a list of Actor examples."""
     types = [
@@ -175,7 +166,7 @@ class ActorCreateRequest(BaseModel):
 def create_actor(
     request: ActorCreateRequest,
     response: Response,
-    datalayer: DataLayer = Depends(_shared_dl),
+    datalayer: DataLayer = Depends(get_shared_dl),
 ) -> as_Actor:
     """Create (or return existing) actor record."""
     actor_id = request.id_ or make_id("actors")
@@ -203,7 +194,7 @@ def create_actor(
     operation_id="actors_get",
 )
 def get_actor(
-    actor_id: str, datalayer: DataLayer = Depends(_shared_dl)
+    actor_id: str, datalayer: DataLayer = Depends(get_shared_dl)
 ) -> as_Actor:
     """Returns an Actor example based on the provided actor_id."""
     actor = datalayer.read(actor_id)
@@ -231,7 +222,7 @@ def get_actor(
     operation_id="actors_get_profile",
 )
 def get_actor_profile(
-    actor_id: str, datalayer: DataLayer = Depends(_shared_dl)
+    actor_id: str, datalayer: DataLayer = Depends(get_shared_dl)
 ):
     """Returns an actor's discovery profile.
 
@@ -271,7 +262,7 @@ def get_actor_profile(
 def get_action_rules(
     actor_id: str,
     case_id: str,
-    dl: DataLayer = Depends(_shared_dl),
+    dl: DataLayer = Depends(get_shared_dl),
 ) -> dict:
     """Return valid CVD actions for an actor in a specific case."""
     try:
@@ -298,7 +289,7 @@ def get_action_rules(
     operation_id="actors_get_inbox",
 )
 def get_actor_inbox(
-    actor_id: str, datalayer: DataLayer = Depends(_shared_dl)
+    actor_id: str, datalayer: DataLayer = Depends(get_shared_dl)
 ) -> as_OrderedCollection:
     """Returns the Actor's Inbox."""
 
@@ -314,7 +305,7 @@ def get_actor_inbox(
         )
 
     actor = as_Actor.model_validate(actor_record)
-    actor_dl = get_datalayer(actor.id_)
+    actor_dl = datalayer.clone_for_actor(actor.id_)
     items = cast(
         list[as_Object | as_Link | str | None], list(actor_dl.inbox_list())
     )
@@ -437,9 +428,10 @@ def post_actor_inbox(
     actor_id: str,
     # as_Activity is a problem, because its subclasses have different required fields,
     # so we really want to accept any subclass that we have a registered handler for here.
+    request: Request,
     background_tasks: BackgroundTasks,
     activity: as_Activity = Depends(parse_activity),
-    dl: DataLayer = Depends(_shared_dl),
+    dl: DataLayer = Depends(get_shared_dl),
 ) -> None:
     """Adds an item to the Actor's Inbox.
     The 202 Accepted status code indicates that the request has been accepted for
@@ -447,6 +439,7 @@ def post_actor_inbox(
     because the inbox processing is handled asynchronously in the background.
     Args:
         actor_id: The ID of the Actor whose Inbox to add the item to.
+        request: The FastAPI Request (used to resolve the per-app emitter).
         activity: The Activity item to add to the Inbox.
         background_tasks: FastAPI BackgroundTasks instance to schedule background tasks.
     Returns:
@@ -473,9 +466,12 @@ def post_actor_inbox(
     )
     _record_inbox_receipt(dl, actor, activity.id_, canonical_actor_id)
 
-    actor_dl = get_datalayer(canonical_actor_id)
+    actor_dl = dl.clone_for_actor(canonical_actor_id)
     actor_dl.inbox_append(activity.id_)
-    background_tasks.add_task(inbox_handler, canonical_actor_id, dl, actor_dl)
+    emitter = getattr(request.app.state, "emitter", None)
+    background_tasks.add_task(
+        inbox_handler, canonical_actor_id, dl, actor_dl, emitter
+    )
     return None
 
 
@@ -489,13 +485,15 @@ def post_actor_inbox(
 def post_actor_outbox(
     actor_id: str,
     activity: as_Activity,
+    request: Request,
     background_tasks: BackgroundTasks,
-    dl: DataLayer = Depends(_shared_dl),
+    dl: DataLayer = Depends(get_shared_dl),
 ) -> None:
     """Adds an item to the Actor's Outbox.
     Args:
         actor_id: The ID of the Actor whose Outbox to add the item to.
         activity: The Activity item to add to the Outbox.
+        request: The FastAPI Request (used to resolve the per-app emitter).
         background_tasks: FastAPI BackgroundTasks instance to schedule background tasks.
     Returns:
         None
@@ -533,11 +531,13 @@ def post_actor_outbox(
     )
 
     # Use the actor-scoped DataLayer for operational data
-    actor_dl = get_datalayer(canonical_actor_id)
+    actor_dl = dl.clone_for_actor(canonical_actor_id)
     actor_dl.create(object_to_record(activity))
     actor_dl.outbox_append(activity.id_)
 
-    # Trigger outbox processing (in the background)
-    background_tasks.add_task(outbox_handler, canonical_actor_id, actor_dl, dl)
+    emitter = getattr(request.app.state, "emitter", None)
+    background_tasks.add_task(
+        outbox_handler, canonical_actor_id, actor_dl, dl, emitter
+    )
 
     return None
