@@ -15,12 +15,17 @@
 
 from pathlib import Path
 
+import logging
+
 import pytest
 from fastapi.testclient import TestClient
 
 import vultron.demo.utils as demo_utils
 from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
 from vultron.adapters.driving.fastapi.main import app as api_app
+from vultron.adapters.driven.asgi_emitter import ASGIEmitter
+from vultron.adapters.driving.fastapi.outbox_handler import get_default_emitter
+from vultron.core.models.activity import VultronActivity
 from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
     make_testclient_call,
 )
@@ -29,6 +34,36 @@ from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
 # background tasks synchronously, so no sleep is needed between inbox posts
 # and state checks.
 demo_utils.DEFAULT_WAIT_SECONDS = 0.0
+
+logger = logging.getLogger(__name__)
+
+
+class _NullDeliveryAdapter:
+    """No-op ``ActivityEmitter`` that silently drops deliveries.
+
+    Used in tests to replace ``DeliveryQueueAdapter`` as the HTTP fallback
+    inside ``ASGIEmitter``.  Demo actors use fictional URLs
+    (e.g. ``https://vultron.example/users/finndervul``) that are unreachable
+    in the test environment.  The default ``DeliveryQueueAdapter`` attempts
+    real HTTP POST requests with a 5 s timeout and 3 retries (3.5 s of
+    ``asyncio.sleep`` per recipient), which caused the integration suite to
+    take 17+ minutes in CI (#527).
+
+    Replacing the fallback with this no-op adapter eliminates all HTTP
+    overhead.  The outbox pipeline (emitter → ``_is_local_recipient`` →
+    fallback) is still exercised; only the unreachable HTTP delivery is
+    skipped.
+    """
+
+    async def emit(
+        self, activity: VultronActivity, recipients: list[str]
+    ) -> None:
+        logger.debug(
+            "NullDeliveryAdapter: skipping HTTP delivery to %d"
+            " unreachable recipient(s): %s",
+            len(recipients),
+            recipients,
+        )
 
 
 def pytest_collection_modifyitems(
@@ -86,6 +121,30 @@ def client():
     Uses the context-manager form so the FastAPI lifespan events (startup and
     shutdown) are triggered, which initialises the inbox dispatcher via
     :func:`vultron.adapters.driving.fastapi.inbox_handler.init_dispatcher`.
+
+    After the lifespan fires, the ``ASGIEmitter``'s HTTP fallback adapter is
+    patched to disable retries.  Demo actors use fictional URLs
+    (e.g. ``https://vultron.example/users/finndervul``) that are unreachable
+    in the test environment.  The ``ASGIEmitter._is_local_recipient`` check
+    correctly identifies these as non-local and delegates to the
+    ``DeliveryQueueAdapter`` HTTP fallback, which by default retries 3 times
+    with exponential backoff totalling ≈ 3.5 s of ``asyncio.sleep`` per
+    recipient per activity.  With many activities across 35+ tests the
+    cumulative sleep time reached 17+ minutes in CI (#527).
+
+    Patching the fallback to ``max_retries=0`` makes deliveries to
+    unreachable hosts fail immediately — the test still exercises the full
+    outbox pipeline but without the production retry overhead.
+
+    See also: #530 (actors sharing a single DataLayer in tests — a separate
+    correctness bug).
     """
     with TestClient(api_app) as test_client:
+        # Replace the lifespan-configured ASGIEmitter's HTTP fallback with a
+        # no-op adapter.  Demo actors use fictional URLs that are unreachable
+        # in the test environment; the default DeliveryQueueAdapter attempts
+        # real HTTP POST requests with retries, causing massive slowdowns.
+        emitter = get_default_emitter()
+        if isinstance(emitter, ASGIEmitter):
+            emitter._http_fallback = _NullDeliveryAdapter()  # type: ignore[assignment]
         yield test_client
