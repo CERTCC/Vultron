@@ -213,7 +213,6 @@ class AddParticipantStatusToParticipantReceivedUseCase:
 
         tree = add_participant_status_tree(
             request=request,
-            trigger_activity=self._trigger_activity,
         )
         bridge = BTBridge(
             datalayer=self._dl,

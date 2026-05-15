@@ -29,7 +29,6 @@ Per specs/multi-actor-demo.yaml DEMOMA-07-003.
 """
 
 import logging
-from typing import TYPE_CHECKING
 
 import py_trees
 
@@ -44,15 +43,11 @@ from vultron.core.behaviors.status.nodes import (
     VerifySenderIsParticipantNode,
 )
 
-if TYPE_CHECKING:
-    from vultron.core.ports.trigger_activity import TriggerActivityPort
-
 logger = logging.getLogger(__name__)
 
 
 def add_participant_status_tree(
     request: AddParticipantStatusToParticipantReceivedEvent,
-    trigger_activity: "TriggerActivityPort | None" = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the behavior tree for the AddParticipantStatus workflow.
 
@@ -64,11 +59,12 @@ def add_participant_status_tree(
     field.  If it is not available in the inline object, the
     ``VerifySenderIsParticipantNode`` will perform a DataLayer lookup.
 
+    ``BroadcastStatusToPeersNode`` and ``PublicDisclosureBranchNode`` use
+    the ``trigger_activity_factory`` that the caller places on the
+    py_trees blackboard via ``BTBridge(trigger_activity=...)``.
+
     Args:
         request: The parsed inbound domain event.
-        trigger_activity: Optional outbound-activity port.  When provided,
-            ``BroadcastStatusToPeersNode`` and
-            ``PublicDisclosureBranchNode`` use it for outbound activities.
 
     Returns:
         Root node of the ``AddParticipantStatusBT`` Sequence.

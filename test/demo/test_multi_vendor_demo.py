@@ -234,6 +234,7 @@ class TestRunMultiVendorDemo:
     """Integration-style tests for the full multi-vendor demo flow."""
 
     @pytest.mark.xfail(
+        run=False,
         reason=(
             "Demo flow uses pre-CBT case seeding pattern; CBT correctly blocks "
             "case replication without prior trust setup. Demo will be redesigned "

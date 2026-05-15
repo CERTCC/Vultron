@@ -222,8 +222,8 @@ class AppendParticipantStatusNode(DataLayerAction):
 
         # Validate RM state transition
         new_rm_state = getattr(status_obj, "rm_state", None)
-        if new_rm_state is not None and participant.participant_statuses:
-            current_status = participant.participant_statuses[-1]
+        current_status = getattr(participant, "participant_status", None)
+        if new_rm_state is not None and current_status is not None:
             current_rm = current_status.rm_state
             if current_rm != new_rm_state and not is_valid_rm_transition(
                 current_rm, new_rm_state
