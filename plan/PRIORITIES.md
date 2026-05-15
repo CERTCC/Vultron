@@ -10,6 +10,12 @@ relative order. Completed priorities should be archived via `uv run append-histo
 (writes to `plan/history/YYMM/priority/`) and then removed from this file to keep
 `plan/PRIORITIES.md` focused on pending and in-progress work.
 
+Each priority group should have a corresponding GitHub Issue of type `Epic`
+that tracks the overall work as child issues (which may in turn have their
+own child issues, etc.) The list of child issues in GitHub is
+authoritative regardless what is listed below, this file is a high-level
+index and summary.
+
 ## Priority 470 — Two-Actor Demo Redesign
 
 Redesign the two-actor (Reporter + Vendor) CVD demo to implement a complete,
@@ -19,17 +25,6 @@ embargo teardown, and case closure.
 
 See `notes/two-actor-demo.md` for the authoritative design; `specs/multi-actor-demo.yaml`
 groups DEMOMA-06, DEMOMA-07, DEMOMA-08 for formal requirements.
-
-### Integration branch
-
-All work for this priority group lives on branch
-**`task/463-two-actor-demo-replacement`** (the long-lived integration branch
-for Priority 470). Sub-issue branches should be created from this branch and
-PRs should target it — **not `main`**. When all sub-issues are resolved a
-fresh PR will be opened from the integration branch to `main`.
-
-When invoking the `build` skill for issues in this group, specify the base
-branch explicitly: `task/463-two-actor-demo-replacement`.
 
 - Epic: [#464](https://github.com/CERTCC/Vultron/issues/464)
 - [#460](https://github.com/CERTCC/Vultron/issues/460) — Sub-issue A: Documentation and spec updates ✅
