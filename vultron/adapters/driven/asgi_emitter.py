@@ -8,9 +8,18 @@ not hosted locally), the recipient is retried via HTTP through the standard
 This strategy is URL-scheme agnostic: it works whether actor IDs use the
 production ``base_url`` or a test-client URL like ``http://testserver``.
 
+A reentrancy guard (``_asgi_delivery_depth``) prevents recursive ASGI
+transport calls.  When ``_try_deliver_local`` is invoked from within an
+already-active delivery chain (same asyncio task), subsequent deliveries
+fall through to the HTTP fallback instead of re-entering the ASGI app.
+In production the fallback is ``DeliveryQueueAdapter`` (normal HTTP POST
+handled by uvicorn as a new request/task); in tests it is typically a
+``NullDeliveryAdapter`` that silently drops unreachable deliveries.
+
 Port: ``vultron.core.ports.emitter.ActivityEmitter``
 """
 
+import contextvars
 import json
 import logging
 from typing import TYPE_CHECKING
@@ -24,6 +33,14 @@ if TYPE_CHECKING:
     from starlette.types import ASGIApp
 
 logger = logging.getLogger(__name__)
+
+# Tracks ASGI delivery depth within a single asyncio task to prevent
+# recursive ASGITransport re-entry (#531).  Each new asyncio task (e.g.
+# a fresh HTTP request in uvicorn) starts at depth 0, so production
+# delivery chains across separate requests are unaffected.
+_asgi_delivery_depth: contextvars.ContextVar[int] = contextvars.ContextVar(
+    "_asgi_delivery_depth", default=0
+)
 
 
 class ASGIEmitter:
@@ -112,7 +129,23 @@ class ASGIEmitter:
         recipient_id: str,
         activity_id: str | None,
     ) -> bool:
-        """Attempt ASGI delivery; return True on success, False otherwise."""
+        """Attempt ASGI delivery; return True on success, False otherwise.
+
+        Skips nested delivery when already inside an ASGI delivery chain
+        (same asyncio task) to prevent recursive ``ASGITransport``
+        re-entry (#531).  Cascading deliveries fall through to the HTTP
+        fallback adapter instead.
+        """
+        depth = _asgi_delivery_depth.get()
+        if depth > 0:
+            logger.debug(
+                "Skipping recursive ASGI delivery for %s"
+                " (depth=%d) — deferring to HTTP fallback",
+                recipient_id,
+                depth,
+            )
+            return False
+
         import httpx
 
         parsed = urlparse(recipient_id.rstrip("/") + "/inbox/")
@@ -122,6 +155,7 @@ class ASGIEmitter:
         if self._mount_prefix and inbox_path.startswith(self._mount_prefix):
             inbox_path = inbox_path[len(self._mount_prefix) :]
 
+        token = _asgi_delivery_depth.set(depth + 1)
         try:
             transport = httpx.ASGITransport(app=self._app)
             async with httpx.AsyncClient(
@@ -155,3 +189,5 @@ class ASGIEmitter:
                 exc,
             )
             return False
+        finally:
+            _asgi_delivery_depth.reset(token)
