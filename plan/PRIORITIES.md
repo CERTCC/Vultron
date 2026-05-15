@@ -46,6 +46,11 @@ branch explicitly: `task/463-two-actor-demo-replacement`.
 - [#467](https://github.com/CERTCC/Vultron/issues/467) — BT refactor: AddParticipantStatusToParticipant handler (also fixes RM
   transition validation regression)
 - [#489](https://github.com/CERTCC/Vultron/issues/489) — Extract shared helpers into vultron/demo/helpers/
+- [#521](https://github.com/CERTCC/Vultron/issues/521) — PCR-07: Integration tests for case-replica bootstrap and late-joiner
+  sequences (parent)
+  - [#522](https://github.com/CERTCC/Vultron/issues/522) — PCR-07-006: bootstrap sequence (Create → Announce → replica)
+  - [#523](https://github.com/CERTCC/Vultron/issues/523) — PCR-07-007: late-joiner sequence (Invite → Accept → Announce →
+    replica)
 - [#466](https://github.com/CERTCC/Vultron/issues/466) — Docs: two-actor-demo tutorial + technical reference (blocked by demo
   running end-to-end)
 - [#471](https://github.com/CERTCC/Vultron/issues/471) — Tutorial: docs/tutorials/two-actor-demo.md
@@ -55,6 +60,7 @@ branch explicitly: `task/463-two-actor-demo-replacement`.
 
 Fix issues affecting demo execution and correctness.
 
+- Epic: [#446](https://github.com/CERTCC/Vultron/issues/446)
 - [#412](https://github.com/CERTCC/Vultron/issues/412) — mislabeled demo
   (docker-compose multi-vendor label mismatch)
 - [#437](https://github.com/CERTCC/Vultron/issues/437) — Enforce spec vs.
@@ -75,6 +81,13 @@ Fix issues affecting demo execution and correctness.
   violation: actors.py response\_model strips subclass fields
 - [#487](https://github.com/CERTCC/Vultron/issues/487) — examples.py: add
   actor subtype example endpoints (VultronPerson, VultronOrganization, etc.)
+- [#501](https://github.com/CERTCC/Vultron/issues/501) — Demo HTTP calls use
+  `requests` which is not declared in `project.dependencies`
+- [#517](https://github.com/CERTCC/Vultron/issues/517) — Migrate demo HTTP
+  calls from `requests` to `httpx` (child of #501)
+- [#518](https://github.com/CERTCC/Vultron/issues/518) — Document
+  `vultron.adapters.driving.fastapi.main:app` as canonical deployment entry
+  point
 
 ## Priority 480 — CBT-03: Pre-Bootstrap Queue Expiry
 
@@ -88,6 +101,27 @@ CBT-05-003 and `notes/case-bootstrap-trust.md` §Out-of-Order Handling.
 
 - [#500](https://github.com/CERTCC/Vultron/issues/500) — CBT-03: Implement
   bounded pre-bootstrap queue expiry and replay request
+
+## Priority 485 — Architecture Hardening
+
+Resolve structural fragilities in the core architecture: import boundary
+violations, order-sensitive dispatch, fragile DataLayer scope conventions,
+outbox polling, and oversized centralized dispatch tables.
+
+- [#502](https://github.com/CERTCC/Vultron/issues/502) — Actor-scoped vs
+  shared DataLayer scope boundaries are fragile and under-tested
+- [#503](https://github.com/CERTCC/Vultron/issues/503) — Outbox drain loop
+  uses fixed 1-second polling over all actor DataLayers
+- [#506](https://github.com/CERTCC/Vultron/issues/506) — Architecture notes
+  describe target layout as well as current structure, creating confusion
+- [#508](https://github.com/CERTCC/Vultron/issues/508) — `semantic_registry.py`
+  is a 783-line centralized dispatch table with tight coupling
+- [#515](https://github.com/CERTCC/Vultron/issues/515) — `vultron/wire/as2/extractor.py`
+  is order-sensitive and high-churn — pattern errors are easy to introduce
+  silently
+- [#519](https://github.com/CERTCC/Vultron/issues/519) — ARCH-01-001: Fix
+  remaining core→wire import violations in report/nodes.py, received/actor.py,
+  received/note.py
 
 ## Priority 490 — Test File Refactoring
 
@@ -113,6 +147,19 @@ easier to diagnose.
 - [#498](https://github.com/CERTCC/Vultron/issues/498) — P7 (optional):
   Light cleanup of test\_two\_actor\_demo.py
 
+## Priority 495 — Production Source Refactoring
+
+Split the largest production source files by concern to reduce merge conflicts,
+improve navigability, and make tests more targeted. Complements P490 (test
+file refactoring).
+
+- [#504](https://github.com/CERTCC/Vultron/issues/504) — Several source files
+  exceed 500 lines and mix multiple responsibilities
+- [#514](https://github.com/CERTCC/Vultron/issues/514) — `vultron/core/behaviors/case/nodes.py`
+  is the highest-churn source file at 1502+ lines
+- [#516](https://github.com/CERTCC/Vultron/issues/516) — `vultron/core/use_cases/triggers/embargo.py`
+  is a 792-line high-churn file with mixed responsibilities
+
 ## Priority 500: Re-implement "fuzzer" nodes from the original simulator
 
 As we originally built out the `py_trees` implementation, we replaced
@@ -131,6 +178,22 @@ it in the new codebase using `py_trees` as the foundation. The underlying
 
 - [#427](https://github.com/CERTCC/Vultron/issues/427) — FUZZ-00:
   Re-implement fuzzer nodes from original simulator
+
+## Priority 520 — Agent Guidance Freshness
+
+The spec files and `AGENTS.md` change frequently as the codebase evolves,
+causing agent sessions to start with stale context. This group tracks work
+to make agent guidance more durable and easier to keep current. Note:
+`PRIORITIES.md` is actively maintained; the concern is primarily with
+`AGENTS.md` and spec files, which are harder to keep in sync.
+
+- [#507](https://github.com/CERTCC/Vultron/issues/507) — Planning and
+  specification files change so frequently that agent guidance goes stale
+- [#512](https://github.com/CERTCC/Vultron/issues/512) — `plan/`
+  documentation is highly volatile and frequently causes stale context for
+  agents
+- [#513](https://github.com/CERTCC/Vultron/issues/513) — `AGENTS.md` and
+  spec guidance files are high-churn, risking stale agent rules
 
 ## Priority 1000: Agentic AI readiness
 
@@ -177,6 +240,8 @@ to demonstrate the core behavior tree and coordination logic.
 
 - [#442](https://github.com/CERTCC/Vultron/issues/442) — Clean up orphaned
   BT-2.2/BT-2.3 placeholder references in PRIORITIES.md
+- [#505](https://github.com/CERTCC/Vultron/issues/505) — Triage 15
+  outstanding TODO/FIXME/XXX markers in production code
 
 ## Priority 95000: Documentation Enhancements — Crosswalks and Framework Integration
 
@@ -203,6 +268,7 @@ that are marked as `PROD_ONLY` are temporarily a lower priority than other
 requirements. See `specs/prototype-shortcuts.yaml` for the prototype-stage
 deferral policy.
 
+- Epic: [#447](https://github.com/CERTCC/Vultron/issues/447)
 - [#422](https://github.com/CERTCC/Vultron/issues/422) — USE-CASE-01:
   CloseCaseUseCase wire-type construction
 - [#423](https://github.com/CERTCC/Vultron/issues/423) — USE-CASE-02:
@@ -211,7 +277,11 @@ deferral policy.
   EmbargoPolicy API + compatibility evaluation (PROD_ONLY)
 - [#425](https://github.com/CERTCC/Vultron/issues/425) — AR-04/05/06:
   Job tracking, pagination, bulk ops (PROD_ONLY)
-- [#426](https://github.com/CERTCC/Vultron/issues/426) — AGENTIC-00:
-  Agentic AI integration (see also Priority 1000)
-- [#427](https://github.com/CERTCC/Vultron/issues/427) — FUZZ-00:
-  Fuzzer node re-implementation (see also Priority 500)
+- [#509](https://github.com/CERTCC/Vultron/issues/509) — No authentication
+  or message-signing in HTTP inbox/outbox delivery paths (PROD_ONLY)
+- [#510](https://github.com/CERTCC/Vultron/issues/510) — Secret handling
+  relies on plain environment variables with no rotation or secrets manager
+  (PROD_ONLY)
+- [#511](https://github.com/CERTCC/Vultron/issues/511) — SQLite is the only
+  persistence backend; multi-writer and high-volume deployments unsupported
+  (PROD_ONLY)
