@@ -100,7 +100,13 @@ def test_inbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
     monkeypatch.setattr(ih, "rehydrate", lambda x, dl=None: item)
 
     def fail_and_requeue(
-        actor_id, canonical_actor_id, item_id, item, dl, queue_dl
+        actor_id,
+        canonical_actor_id,
+        item_id,
+        item,
+        dl,
+        queue_dl,
+        dispatcher=None,
     ):
         queue_dl.inbox_append(item_id)
         return False
@@ -113,7 +119,32 @@ def test_inbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
     assert item_id in _queue
 
 
-def test_dispatch_raises_if_not_initialised(monkeypatch):
+def test_dispatch_uses_explicit_dispatcher(monkeypatch):
+    """dispatch() should use the provided dispatcher, not the global."""
+    from types import SimpleNamespace
+    from typing import cast
+
+    monkeypatch.setattr(ih, "_DISPATCHER", None)
+    explicit_dispatcher = Mock()
+    fake_event = cast(
+        VultronEvent, SimpleNamespace(activity_id="x", semantic_type="y")
+    )
+    mock_dl = MagicMock()
+
+    ih.dispatch(fake_event, mock_dl, dispatcher=explicit_dispatcher)
+
+    explicit_dispatcher.dispatch.assert_called_once_with(fake_event, mock_dl)
+
+
+def test_make_dispatcher_does_not_mutate_global(monkeypatch):
+    """make_dispatcher() must not touch the module-level _DISPATCHER."""
+    sentinel = object()
+    monkeypatch.setattr(ih, "_DISPATCHER", sentinel)
+
+    result = ih.make_dispatcher()
+
+    assert ih._DISPATCHER is sentinel
+    assert result is not sentinel
     monkeypatch.setattr(ih, "_DISPATCHER", None)
     fake_event = cast(
         VultronEvent, SimpleNamespace(activity_id="x", semantic_type="y")

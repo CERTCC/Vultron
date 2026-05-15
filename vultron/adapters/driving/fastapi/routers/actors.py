@@ -469,8 +469,9 @@ def post_actor_inbox(
     actor_dl = dl.clone_for_actor(canonical_actor_id)
     actor_dl.inbox_append(activity.id_)
     emitter = getattr(request.app.state, "emitter", None)
+    dispatcher = getattr(request.app.state, "dispatcher", None)
     background_tasks.add_task(
-        inbox_handler, canonical_actor_id, dl, actor_dl, emitter
+        inbox_handler, canonical_actor_id, dl, actor_dl, emitter, dispatcher
     )
     return None
 
