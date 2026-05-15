@@ -160,6 +160,35 @@ behavior across backends (in-memory / tinydb) where reasonable.
 
 ---
 
+### Per-Test Timeout Guardrail
+
+Every test has a **30-second default timeout** enforced by `pytest-timeout`
+(configured in `pyproject.toml`). A test that runs longer than 30 seconds
+fails immediately with a `Timeout` error.
+
+**When a test trips the timeout, fix the test first:**
+
+- Mock slow dependencies (real HTTP calls, filesystem scans, long sleeps)
+- Avoid `time.sleep()` in tests; use `monkeypatch` or fake timers instead
+- Restructure integration tests to avoid unnecessary sequential waits
+
+`@pytest.mark.timeout(N)` exists as a **last resort** for tests that
+genuinely cannot be made faster — for example, a test that exercises a
+real sleep-based timeout or a live-network behavior. Any override **MUST**
+include a comment explaining why the default is insufficient:
+
+```python
+@pytest.mark.timeout(90)  # exercises the 60-second embargo expiry timer
+def test_embargo_expiry_fires():
+    ...
+```
+
+Do **not** use `@pytest.mark.timeout(N)` as a quick fix for a test that is
+just slow. Slow tests are a signal of a structural problem; fix the root
+cause instead.
+
+---
+
 ### Pytest `filterwarnings = ["error"]` Does Not Catch All Warnings
 
 `pyproject.toml` sets `filterwarnings = ["error"]`, which converts Python

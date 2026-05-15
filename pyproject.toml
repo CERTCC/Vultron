@@ -117,6 +117,8 @@ minversion = "6.0"
 #
 # See AGENTS.md "Testing" section for full guidance.
 addopts = "-ra -q -m 'not integration'"
+timeout = 30
+timeout_method = "thread"
 testpaths = [
     "test",
 ]
@@ -148,6 +150,7 @@ dev = [
     "pre-commit>=4.6.0",
     "pyright>=1.1.409",
     "pytest>=9.0.3",
+    "pytest-timeout>=0.5",
     "types-networkx>=3.6.1.20260513",
     "types-pyyaml>=6.0.12.20260510",
 ]
