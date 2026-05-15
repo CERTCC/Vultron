@@ -987,6 +987,16 @@ def get_datalayer(
     return _actor_instances[actor_id]
 
 
+def get_shared_dl() -> "SqliteDataLayer":
+    """FastAPI dependency: always returns the shared (non-actor-scoped) DataLayer.
+
+    Use this function in ``Depends()`` instead of a local ``_shared_dl``
+    wrapper.  Override via ``app.dependency_overrides[get_shared_dl]`` in
+    tests to inject an isolated in-memory DataLayer per application instance.
+    """
+    return get_datalayer()
+
+
 def get_all_actor_datalayers() -> dict[str, SqliteDataLayer]:
     """Return a snapshot of all registered actor-scoped DataLayer instances.
 

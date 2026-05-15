@@ -106,7 +106,7 @@ def test_derived_inbox_path_matches_fastapi_route(dl):
     app = FastAPI()
     app.include_router(actors_router.router)
     app.dependency_overrides[get_datalayer] = lambda: dl
-    app.dependency_overrides[actors_router._shared_dl] = lambda: dl
+    app.dependency_overrides[actors_router.get_shared_dl] = lambda: dl
 
     client = TestClient(app, raise_server_exceptions=False)
 

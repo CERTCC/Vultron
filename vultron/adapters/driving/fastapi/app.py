@@ -75,7 +75,9 @@ async def lifespan(application: FastAPI):
     )
 
     init_dispatcher(dl=get_datalayer())
-    configure_default_emitter(ASGIEmitter(app=application))
+    emitter = ASGIEmitter(app=application, mount_prefix="/api/v2")
+    configure_default_emitter(emitter)
+    application.state.emitter = emitter
     monitor = OutboxMonitor()
     monitor.start()
     yield
@@ -115,6 +117,49 @@ app_v2 = FastAPI(
     lifespan=lifespan,
 )
 app_v2.include_router(router)
+
+
+def create_app(
+    title: str = "Vultron API v2",
+    version: str = "0.2.0",
+    docs_url: str | None = "/docs",
+    openapi_url: str | None = "/openapi/v2.json",
+) -> FastAPI:
+    """Factory that creates a fresh, isolated FastAPI application instance.
+
+    Each call produces an independent application with its own lifespan
+    context (dispatcher, emitter, OutboxMonitor) and its own
+    ``app.state.emitter``.  Use this in tests or multi-actor deployments
+    where each actor process requires an isolated DataLayer and emitter.
+
+    Override ``app.dependency_overrides[get_shared_dl]`` after calling this
+    factory to inject a per-actor in-memory DataLayer for full test isolation.
+
+    Args:
+        title: OpenAPI title.
+        version: OpenAPI version string.
+        docs_url: URL for the Swagger UI (``None`` to disable).
+        openapi_url: URL for the OpenAPI schema (``None`` to disable).
+
+    Returns:
+        A new :class:`FastAPI` instance with the Vultron router included.
+    """
+    from vultron.config import RunMode, get_config  # noqa: E402
+
+    application = FastAPI(
+        title=title,
+        version=version,
+        docs_url=docs_url,
+        openapi_url=openapi_url,
+        lifespan=lifespan,
+    )
+    application.include_router(router, prefix="/api/v2")
+    if get_config().mode == RunMode.PROTOTYPE:
+        from vultron.adapters.driving.fastapi.routers import demo_triggers
+
+        application.include_router(demo_triggers.router, prefix="/api/v2")
+    return application
+
 
 # Demo-only endpoints are mounted conditionally so they never appear in
 # production deployments (TRIG-09-002, TRIG-09-003).

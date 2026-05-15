@@ -1041,3 +1041,211 @@ class TestTwoActorCLI:
             patched_run.call_args.kwargs["case_actor_client"].base_url
             == case_actor_url
         )
+
+
+# ---------------------------------------------------------------------------
+# DataLayer isolation tests (#530)
+# ---------------------------------------------------------------------------
+
+
+class TestDeliveryIsolation:
+    """Verify per-actor DataLayer isolation: state only crosses between actors
+    via the outbox→inbox delivery path (#530).
+
+    These tests use two isolated FastAPI app instances (created via
+    ``create_app()``) each with their own in-memory ``SqliteDataLayer``.
+    A ``_TestASGIRouter`` replaces each app's HTTP fallback emitter so that
+    outbound deliveries are routed to the correct ASGI app in-process rather
+    than making real HTTP requests.
+
+    Passing these tests confirms that:
+    - Finder's DataLayer is empty before Vendor delivers via the outbox path.
+    - After Vendor processes Finder's report and delivers the case announcement,
+      Finder's DataLayer contains the case (received via inbox delivery, not
+      through shared DataLayer state).
+    """
+
+    @pytest.fixture
+    def delivery_setup(self):
+        """Two isolated actor apps wired with cross-app ASGI delivery."""
+        from test.demo.conftest import (
+            _TestASGIRouter,
+            create_isolated_actor_app,
+        )
+
+        router = _TestASGIRouter()
+        finder_isolated = create_isolated_actor_app(
+            base_url="http://finder.test",
+            router=router,
+        )
+        vendor_isolated = create_isolated_actor_app(
+            base_url="http://vendor.test",
+            router=router,
+        )
+
+        with finder_isolated.client as finder_tc:
+            with vendor_isolated.client as vendor_tc:
+                # Replace each app's ASGIEmitter fallback with the cross router.
+                for isolated in (finder_isolated, vendor_isolated):
+                    emitter = getattr(isolated.app.state, "emitter", None)
+                    if hasattr(emitter, "_http_fallback"):
+                        emitter._http_fallback = router  # type: ignore[assignment]
+
+                yield finder_isolated, vendor_isolated, finder_tc, vendor_tc
+
+    def test_finder_dl_empty_before_delivery(self, delivery_setup):
+        """Finder's DataLayer contains no cases before any delivery occurs."""
+        finder_isolated, vendor_isolated, finder_tc, vendor_tc = delivery_setup
+
+        # Create Finder actor on finder's app.
+        finder_base = finder_isolated.base_url + "/api/v2"
+        finder_id = f"{finder_base}/actors/finder-isolation-test"
+        resp = finder_tc.post(
+            "/api/v2/actors/",
+            json={
+                "type": "Organization",
+                "name": "Finder",
+                "id": finder_id,
+            },
+        )
+        assert resp.status_code in (200, 201)
+
+        # Finder's DataLayer should have no VulnerabilityCase records.
+        cases = finder_isolated.dl.get_all("VulnerabilityCase")
+        assert cases == [], (
+            f"Expected no cases in Finder's isolated DataLayer before"
+            f" delivery, but found: {cases}"
+        )
+
+    def test_vendor_dl_isolated_from_finder(self, delivery_setup):
+        """Objects created in Vendor's DataLayer are not visible in Finder's."""
+        finder_isolated, vendor_isolated, finder_tc, vendor_tc = delivery_setup
+
+        vendor_base = vendor_isolated.base_url + "/api/v2"
+        vendor_id = f"{vendor_base}/actors/vendor-isolation-test"
+        resp = vendor_tc.post(
+            "/api/v2/actors/",
+            json={
+                "type": "Organization",
+                "name": "Vendor",
+                "id": vendor_id,
+            },
+        )
+        assert resp.status_code in (200, 201)
+
+        # Vendor's actor must NOT be visible in Finder's DataLayer.
+        actor_in_finder = finder_isolated.dl.read(vendor_id)
+        assert actor_in_finder is None, (
+            "Vendor's actor should not be in Finder's isolated DataLayer,"
+            " but it was found."
+        )
+
+    def test_case_delivered_to_finder_via_inbox(self, delivery_setup):
+        """After Vendor validates the report, Finder receives the case via delivery.
+
+        This is the core delivery-path test for #530.  Without the fix,
+        Finder's DataLayer would remain empty because delivery was never
+        exercised.  With the fix, the outbox→inbox chain runs in-process
+        via ``_TestASGIRouter`` and Finder's isolated DataLayer receives the
+        case announcement.
+        """
+        from test.demo._helpers import make_testclient_call
+        import types
+
+        finder_isolated, vendor_isolated, finder_tc, vendor_tc = delivery_setup
+
+        finder_base = finder_isolated.base_url + "/api/v2"
+        vendor_base = vendor_isolated.base_url + "/api/v2"
+
+        finder_id = f"{finder_base}/actors/finder-delivery-test"
+        vendor_id = f"{vendor_base}/actors/vendor-delivery-test"
+
+        # Create actors on their respective isolated apps.
+        r = finder_tc.post(
+            "/api/v2/actors/",
+            json={"type": "Organization", "name": "Finder", "id": finder_id},
+        )
+        assert r.status_code in (200, 201)
+        r = vendor_tc.post(
+            "/api/v2/actors/",
+            json={"type": "Organization", "name": "Vendor", "id": vendor_id},
+        )
+        assert r.status_code in (200, 201)
+
+        # Build DataLayerClient wrappers routed to their respective apps.
+        finder_dc = demo.DataLayerClient(base_url=finder_base)
+        vendor_dc = demo.DataLayerClient(base_url=vendor_base)
+        object.__setattr__(
+            finder_dc,
+            "call",
+            types.MethodType(
+                make_testclient_call(finder_tc, finder_base), finder_dc
+            ),
+        )
+        object.__setattr__(
+            vendor_dc,
+            "call",
+            types.MethodType(
+                make_testclient_call(vendor_tc, vendor_base), vendor_dc
+            ),
+        )
+
+        finder_actor = demo.get_actor_by_id(finder_dc, finder_id)
+        vendor_actor = demo.get_actor_by_id(vendor_dc, vendor_id)
+
+        # Finder registers Vendor as a peer on Finder's app so the report
+        # offer can be constructed with the correct vendor actor reference.
+        r = finder_tc.post(
+            "/api/v2/actors/",
+            json={
+                "type": "Organization",
+                "name": "Vendor",
+                "id": vendor_id,
+            },
+        )
+        # 409 is OK — vendor may already be registered; 200/201 also fine.
+
+        # Vendor registers Finder as a peer on Vendor's app.
+        r = vendor_tc.post(
+            "/api/v2/actors/",
+            json={
+                "type": "Organization",
+                "name": "Finder",
+                "id": finder_id,
+            },
+        )
+
+        # Finder submits a report offer directly to Vendor's inbox.
+        _report, offer = demo.finder_submits_report(
+            vendor_client=vendor_dc,
+            finder=finder_actor,
+            vendor=vendor_actor,
+        )
+        assert offer.id_ is not None
+
+        # Vendor validates the report — this triggers BT nodes that create a
+        # VulnerabilityCase and add participants (including Finder).
+        vendor_actor_fresh = demo.get_actor_by_id(vendor_dc, vendor_id)
+        demo.vendor_validates_report(
+            vendor_client=vendor_dc,
+            vendor=vendor_actor_fresh,
+            offer_id=offer.id_,
+        )
+
+        # A VulnerabilityCase must now exist in Vendor's DataLayer.
+        case = demo.find_case_for_offer(vendor_dc, offer.id_)
+        assert (
+            case is not None
+        ), "Expected VulnerabilityCase on Vendor after validate-report"
+
+        # The case announcement should have been delivered to Finder's inbox
+        # via the outbox→_TestASGIRouter→inbox chain.  Finder's isolated
+        # DataLayer must contain the case.
+        finder_case = finder_isolated.dl.read(case.id_)
+        assert finder_case is not None, (
+            f"Expected VulnerabilityCase '{case.id_}' to be delivered to"
+            f" Finder's isolated DataLayer via the outbox→inbox path,"
+            f" but Finder's DataLayer has no record of it.  This indicates"
+            f" the delivery path is broken or the DataLayers are incorrectly"
+            f" shared (#530)."
+        )
