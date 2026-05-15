@@ -202,3 +202,8 @@ Once shared understanding is confirmed:
   (see those skills for exact commands).
 - Each run operates in a fresh context; do not carry forward assumptions from
   previous sessions.
+- **If the session is interrupted** (session ending, agent looping, developer
+  leaving, or any reason the fix cannot be completed now): invoke the
+  `bugfix-handoff` skill immediately. Do not attempt any further resolution.
+  The handoff skill commits WIP, documents all findings, and posts a structured
+  comment to the issue so the next agent can resume from a known state.
