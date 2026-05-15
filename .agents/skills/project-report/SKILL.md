@@ -51,10 +51,65 @@ Report files are **exempt from history immutability rules**.
 
 Run all of these simultaneously:
 
-1. **Git log**:
+1. **Git log** — commits merged within the date range:
 
-Use `ask_user` to show the draft. Offer:
+   ```bash
+   git log --oneline --after=<start_date> --until=<end_date> \
+     --merges --pretty=format:"%h %s"
+   ```
+
+2. **GitHub PRs** — all PRs merged during the period:
+
+   ```bash
+   gh pr list --repo CERTCC/Vultron \
+     --state merged \
+     --json number,title,mergedAt,body \
+     --jq '[.[] | select(.mergedAt >= "<start_date>T00:00:00Z"
+                     and .mergedAt <= "<end_date>T23:59:59Z")]'
+   ```
+
+3. **History entries** — read the `plan/history/<YYMM>/` folder(s) that
+   overlap the period. For multi-month periods, read each relevant YYMM
+   folder's index and entry files. Focus on `implementation/`, `priority/`,
+   and `learning/` subdirectories; skip `report/` entries.
+
+### Phase 3 — Analyze and group
+
+Review the gathered data against the theme heuristics in
+[REFERENCE.md](REFERENCE.md).
+
+1. Map each significant PR and history entry to one of the theme categories
+   (e.g., Protocol automation, Multi-actor scenarios, API / architecture,
+   Developer tooling, Bug fixes, Documentation, Dependencies).
+2. Identify the 4–7 most prominent themes of the period.
+3. Skip or aggregate trivial changes (single-line fixes, routine bumps).
+4. Plan a single aggregate sentence for dependency-only PRs — do not list
+   them individually.
+5. Note any significant work that started but did not finish in the period;
+   flag those with an "in progress" caveat.
+
+### Phase 4 — Draft the report
+
+Write the full report following the structure and tone guidelines in
+[REFERENCE.md](REFERENCE.md):
+
+- **Frontmatter**: `title`, `type`, `period_start`, `period_end`, `timestamp`
+- **Executive summary**: 2–4 sentences covering overall productivity, the
+  2–4 major themes, and any notable caveats
+- **Theme sections** (4–7): one H2 heading per theme; lead with the
+  user-visible capability or outcome; link significant PRs inline using
+  `[PR #NNN](https://github.com/CERTCC/Vultron/pull/NNN)`
+- **Footer line**: `*Report covers: <start> through <end> | Repository:
+  [CERTCC/Vultron](https://github.com/CERTCC/Vultron)*`
+
+Hold the draft in memory — do not write to the output path yet.
+
+### Phase 5 — Review with user
+
+Use `ask_user` to present the draft. Offer:
 `["Looks good — write it out", "I have feedback"]`
+
+If the user selects "I have feedback", incorporate the feedback and ask again.
 
 ### Phase 6 — Write to file
 
