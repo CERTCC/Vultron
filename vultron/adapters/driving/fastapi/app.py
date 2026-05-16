@@ -88,6 +88,10 @@ def _teardown_per_app_state(application: FastAPI) -> None:
     """Clean up per-app dispatcher and DataLayer state on lifespan shutdown."""
     from vultron.adapters.driven.datalayer import get_shared_dl
 
+    # Clear dispatcher BEFORE the early return: even when the DataLayer was
+    # supplied by a pre-registered override (app.state.shared_dl is None),
+    # the per-app dispatcher was still created by this lifespan and must be
+    # released so it cannot leak across lifespan restarts on the same app.
     application.state.dispatcher = None
     dl_to_close = getattr(application.state, "shared_dl", None)
     if dl_to_close is None:

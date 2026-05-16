@@ -121,9 +121,6 @@ def test_inbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
 
 def test_dispatch_uses_explicit_dispatcher(monkeypatch):
     """dispatch() should use the provided dispatcher, not the global."""
-    from types import SimpleNamespace
-    from typing import cast
-
     monkeypatch.setattr(ih, "_DISPATCHER", None)
     explicit_dispatcher = Mock()
     fake_event = cast(
