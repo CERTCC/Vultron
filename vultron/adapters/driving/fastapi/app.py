@@ -63,6 +63,45 @@ def configure_logging() -> None:
         uvicorn_access_logger.propagate = True
 
 
+def _auto_inject_isolated_datalayer(application: FastAPI) -> None:
+    """Auto-inject an in-memory DataLayer if none is already registered.
+
+    Called during :func:`_make_lifespan` startup when ``configure_globals``
+    is ``False``.  If the caller has already registered an override (e.g. a
+    test fixture's ``SqliteDataLayer``), it is left untouched.  Otherwise a
+    fresh in-memory database is created and stored on ``app.state.shared_dl``
+    so it can be closed on shutdown.
+    """
+    from vultron.adapters.driven.datalayer import get_shared_dl
+
+    if get_shared_dl in application.dependency_overrides:
+        return
+
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+    isolated_dl = SqliteDataLayer(db_url="sqlite:///:memory:")
+    application.dependency_overrides[get_shared_dl] = lambda: isolated_dl
+    application.state.shared_dl = isolated_dl
+
+
+def _teardown_per_app_state(application: FastAPI) -> None:
+    """Clean up per-app dispatcher and DataLayer state on lifespan shutdown."""
+    from vultron.adapters.driven.datalayer import get_shared_dl
+
+    # Clear dispatcher BEFORE the early return: even when the DataLayer was
+    # supplied by a pre-registered override (app.state.shared_dl is None),
+    # the per-app dispatcher was still created by this lifespan and must be
+    # released so it cannot leak across lifespan restarts on the same app.
+    application.state.dispatcher = None
+    dl_to_close = getattr(application.state, "shared_dl", None)
+    if dl_to_close is None:
+        return
+    application.state.shared_dl = None
+    if get_shared_dl in application.dependency_overrides:
+        del application.dependency_overrides[get_shared_dl]
+    dl_to_close.close()
+
+
 def _make_lifespan(
     *, configure_globals: bool = True, mount_prefix: str = "/api/v2"
 ):
@@ -93,11 +132,19 @@ def _make_lifespan(
         from vultron.adapters.driven.asgi_emitter import ASGIEmitter
         from vultron.adapters.driving.fastapi.inbox_handler import (
             init_dispatcher,
+            make_dispatcher,
         )
 
-        init_dispatcher()
+        if configure_globals:
+            init_dispatcher()
+        else:
+            application.state.dispatcher = make_dispatcher()
+
         emitter = ASGIEmitter(app=application, mount_prefix=mount_prefix)
         application.state.emitter = emitter
+
+        if not configure_globals:
+            _auto_inject_isolated_datalayer(application)
 
         monitor = None
         if configure_globals:
@@ -120,6 +167,9 @@ def _make_lifespan(
         # cannot leak between TestClient lifetimes on the same app
         # singleton (e.g. unit tests followed by integration tests).
         application.state.emitter = None
+
+        if not configure_globals:
+            _teardown_per_app_state(application)
 
     return _lifespan
 
@@ -168,14 +218,26 @@ def create_app(
     """Factory that creates a fresh, isolated FastAPI application instance.
 
     Each call produces an independent application with its own lifespan
-    context (emitter stored on ``app.state.emitter``).  Global singletons
-    (the module-level default emitter, ``OutboxMonitor``) are NOT modified
-    so that multiple ``create_app()`` instances can coexist in the same
-    process without contaminating each other.  The inbox dispatcher is
-    always initialised so inbox delivery works out of the box.
+    context.  During startup the lifespan automatically:
 
-    Override ``app.dependency_overrides[get_shared_dl]`` after calling this
-    factory to inject a per-actor in-memory DataLayer for full test isolation.
+    - Creates a per-app inbox dispatcher (stored on ``app.state.dispatcher``)
+      so that multiple ``create_app()`` instances in the same process never
+      share the module-level ``_DISPATCHER`` global (issue #534).
+    - Injects a fresh in-memory ``SqliteDataLayer`` via
+      ``app.dependency_overrides[get_shared_dl]`` when no override has
+      already been registered, giving each instance its own isolated
+      storage (issue #534).
+
+    If you need a specific DataLayer (e.g. a file-backed SQLite database or
+    a test-fixture instance), register the override *before* the lifespan
+    starts (i.e. before calling ``TestClient.__enter__()``):
+
+    .. code-block:: python
+
+        app = create_app(docs_url=None, openapi_url=None)
+        app.dependency_overrides[get_shared_dl] = lambda: my_dl
+        with TestClient(app) as client:
+            ...
 
     Args:
         title: OpenAPI title.

@@ -93,6 +93,32 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
 )
 
 
+def make_dispatcher() -> ActivityDispatcher:
+    """Create and return a new inbox dispatcher without mutating any global.
+
+    Use this in :func:`create_app` lifespans to build a per-app dispatcher
+    that is stored on ``app.state.dispatcher`` instead of the module-level
+    ``_DISPATCHER``.  Production code (``app_v2``) continues to call
+    :func:`init_dispatcher` so the global is set for backward-compatible
+    callers such as the CLI.
+    """
+    port_factories: dict = {
+        sem: _sync_port_factory for sem in _SYNC_PORT_SEMANTICS
+    }
+    port_factories.update(
+        {
+            sem: _trigger_activity_port_factory
+            for sem in _TRIGGER_ACTIVITY_PORT_SEMANTICS
+        }
+    )
+    d = get_dispatcher(
+        use_case_map=_use_case_map(),
+        port_factories=port_factories,
+    )
+    logger.debug("Created inbox dispatcher: %s", type(d).__name__)
+    return d
+
+
 def init_dispatcher(dl: DataLayer | None = None) -> None:
     """Initialise the module-level dispatcher.
 
@@ -105,31 +131,33 @@ def init_dispatcher(dl: DataLayer | None = None) -> None:
             passed at dispatch time via :func:`dispatch`.
     """
     global _DISPATCHER
-    port_factories = {sem: _sync_port_factory for sem in _SYNC_PORT_SEMANTICS}
-    port_factories.update(
-        {
-            sem: _trigger_activity_port_factory
-            for sem in _TRIGGER_ACTIVITY_PORT_SEMANTICS
-        }
-    )
-    _DISPATCHER = get_dispatcher(
-        use_case_map=_use_case_map(),
-        port_factories=port_factories,
-    )
+    _DISPATCHER = make_dispatcher()
     logger.info("Initialised inbox dispatcher: %s", type(_DISPATCHER).__name__)
 
 
-def dispatch(event: VultronEvent, dl: DataLayer) -> None:
-    """Dispatch the given domain event using the module-level dispatcher.
+def dispatch(
+    event: VultronEvent,
+    dl: DataLayer,
+    dispatcher: ActivityDispatcher | None = None,
+) -> None:
+    """Dispatch the given domain event.
+
+    Uses *dispatcher* when provided; otherwise falls back to the module-level
+    ``_DISPATCHER`` (set by :func:`init_dispatcher`).  Passing an explicit
+    dispatcher enables per-app isolation when multiple :func:`create_app`
+    instances coexist in the same process (issue #534).
 
     Args:
         event: The domain event to dispatch.
         dl: The DataLayer instance scoped to the current actor.
+        dispatcher: Optional per-app dispatcher.  When ``None`` the
+            module-level ``_DISPATCHER`` is used (backward-compatible).
     Raises:
-        RuntimeError: If the dispatcher has not been initialised via
-            :func:`init_dispatcher`.
+        RuntimeError: If no dispatcher is available (neither *dispatcher*
+            nor the module-level ``_DISPATCHER`` has been initialised).
     """
-    if _DISPATCHER is None:
+    _d = dispatcher or _DISPATCHER
+    if _d is None:
         raise RuntimeError(
             "Inbox dispatcher not initialised. "
             "Call init_dispatcher() during application startup."
@@ -139,16 +167,23 @@ def dispatch(event: VultronEvent, dl: DataLayer) -> None:
         event.activity_id,
         event.semantic_type,
     )
-    _DISPATCHER.dispatch(event, dl)
+    _d.dispatch(event, dl)
 
 
-def handle_inbox_item(actor_id: str, obj: as_Activity, dl: DataLayer) -> None:
+def handle_inbox_item(
+    actor_id: str,
+    obj: as_Activity,
+    dl: DataLayer,
+    dispatcher: ActivityDispatcher | None = None,
+) -> None:
     """Handle a single item in the Actor's inbox.
 
     Args:
         actor_id: The canonical URI of the Actor whose inbox is being processed.
         obj: The Activity item to process.
         dl: The DataLayer instance used for reads and dispatch.
+        dispatcher: Optional per-app dispatcher.  When ``None`` the
+            module-level ``_DISPATCHER`` is used (backward-compatible).
     """
     logger.info("Processing item '%s' for actor '%s'", obj.name, actor_id)
     logger.debug(
@@ -157,7 +192,7 @@ def handle_inbox_item(actor_id: str, obj: as_Activity, dl: DataLayer) -> None:
     )
     event = prepare_for_dispatch(activity=obj)
     event = event.model_copy(update={"receiving_actor_id": actor_id})
-    dispatch(event=event, dl=dl)
+    dispatch(event=event, dl=dl, dispatcher=dispatcher)
 
 
 def _activity_context_id(
@@ -217,6 +252,7 @@ def _dispatch_or_defer_inbox_item(
     obj: as_Activity,
     dl: DataLayer,
     queue_dl: DataLayer,
+    dispatcher: ActivityDispatcher | None = None,
 ) -> VultronEvent | None:
     """Dispatch an inbox item or defer it until its case replica exists."""
     event = prepare_for_dispatch(activity=obj)
@@ -236,7 +272,7 @@ def _dispatch_or_defer_inbox_item(
         _queue_pending_case_activity(queue_dl, case_id, event.activity_id)
         return None
 
-    dispatch(event=event, dl=dl)
+    dispatch(event=event, dl=dl, dispatcher=dispatcher)
     return event
 
 
@@ -263,6 +299,7 @@ def _process_inbox_item(
     item: as_Activity,
     dl: DataLayer,
     queue_dl: DataLayer,
+    dispatcher: ActivityDispatcher | None = None,
 ) -> bool:
     """Dispatch one inbox activity and return ``True`` on success."""
     _log_rehydrated_item(item)
@@ -273,6 +310,7 @@ def _process_inbox_item(
             obj=item,
             dl=dl,
             queue_dl=queue_dl,
+            dispatcher=dispatcher,
         )
         if event is not None:
             case_id = _activity_context_id(item, event)
@@ -300,6 +338,7 @@ async def inbox_handler(
     dl: DataLayer,
     actor_dl: DataLayer | None = None,
     emitter: ActivityEmitter | None = None,
+    dispatcher: ActivityDispatcher | None = None,
 ) -> None:
     """Process the inbox for the given actor.
 
@@ -321,6 +360,11 @@ async def inbox_handler(
             this emitter instead of the module-level default.  This enables
             per-app delivery routing so that co-located actors in the same
             process can each use their own isolated emitter configuration.
+        dispatcher: Optional per-app dispatcher (from
+            ``request.app.state.dispatcher``).  When provided, inbox items
+            are routed through this dispatcher instead of the module-level
+            ``_DISPATCHER``, giving each :func:`create_app` instance its
+            own fully isolated routing table (issue #534).
     """
     queue_dl = actor_dl if actor_dl is not None else dl
     actor = dl.read(actor_id)
@@ -359,6 +403,7 @@ async def inbox_handler(
             item=item,
             dl=dl,
             queue_dl=queue_dl,
+            dispatcher=dispatcher,
         ):
             err_count += 1
             if err_count > 3:
