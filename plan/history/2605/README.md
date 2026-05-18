@@ -4,6 +4,8 @@
 
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
+| 2026-05-18 | 15:57 | implementation | ISSUE-522 | PCR-07-006: Bootstrap sequence integration tests |
+| 2026-05-18 | 13:39 | implementation | ISSUE-489 | Extract shared demo helpers into vultron/demo/helpers/ |
 | 2026-05-15 | 23:29 | implementation | 534 | fix(#534): eliminate per-app singleton sharing in create_app() |
 | 2026-05-15 | 16:07 | implementation | issue-528 | Add pytest-timeout guardrail: 30s default per-test ceiling |
 | 2026-05-15 | 13:43 | implementation | GH-467 | Refactor AddParticipantStatus handler to Behavior Tree |
