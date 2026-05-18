@@ -338,10 +338,17 @@ class TriggerActivityAdapter:
         invite_id: str,
         actor: str,
     ) -> tuple[str, dict[str, Any]]:
-        """Create and persist an ``Accept(Invite)`` activity."""
+        """Create and persist an ``Accept(Invite)`` activity.
+
+        The ``to:`` field is derived from ``invite.actor`` (the original
+        sender of the invitation) so that OX-08-001 is satisfied and the
+        Accept is routable via the outbox handler.
+        """
         invite = cast(Any, self._dl.read(invite_id))
+        invite_actor = getattr(invite, "actor", None)
+        to = [str(invite_actor)] if invite_actor else None
         activity = rm_accept_invite_to_case_activity(
-            invite=invite, actor=actor
+            invite=invite, actor=actor, to=to
         )
         try:
             self._dl.create(activity)
