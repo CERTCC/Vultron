@@ -54,23 +54,17 @@ References: ``notes/multi-actor-architecture.md`` §4 G5,
 import logging
 import os
 import sys
-import time
 from typing import Optional, Tuple
-from urllib.parse import quote
-
-import requests  # type: ignore[import-untyped]
 
 from vultron.adapters.utils import parse_id
-from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.cs import CS_vfd
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
-)
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
@@ -94,6 +88,51 @@ from vultron.wire.as2.factories import (
     rm_submit_report_activity,
 )
 
+# Re-export shared helpers so that existing imports via this module continue to
+# work and the test suite (which patches symbols in this module's namespace)
+# remains unchanged.
+from vultron.demo.helpers.actions import (  # noqa: F401
+    actor_closes_case,
+    actor_notifies_fix_deployed,
+    actor_notifies_fix_ready,
+    actor_notifies_published,
+    actor_notifies_state_change,
+)
+from vultron.demo.helpers.polling import (  # noqa: F401
+    _poll_until,
+    wait_for_all_participants_rm_closed,
+    wait_for_case_em_terminated,
+    wait_for_case_on_container,
+    wait_for_case_participants,
+    wait_for_finder_case,
+    wait_for_finder_log_entry,
+    wait_for_note_in_case,
+    wait_for_participant_vfd_state,
+)
+from vultron.demo.helpers.seeding import (  # noqa: F401
+    _dl_key,
+    get_actor_by_id,
+    seed_containers,
+)
+from vultron.demo.helpers.sync import (  # noqa: F401
+    _extract_ref_id,
+    _get_log_entries_for_case,
+    trigger_log_commit,
+    verify_finder_replica_state,
+    verify_replica_state,
+)
+from vultron.demo.helpers.verification import (  # noqa: F401
+    _all_fetchable_participants_rm_closed,
+    _assert_case_notes,
+    _assert_participant_vfd_pxa,
+    _assert_vendor_case_status,
+    _assert_vendor_participant_state,
+    _check_participant_vfd_state_in,
+    _fetch_participant,
+    _fetch_participant_data,
+    _require_case_participant_id,
+)
+
 logger = logging.getLogger(__name__)
 
 # Default container base URLs — override via environment variables.
@@ -110,116 +149,6 @@ CASE_ACTOR_BASE_URL = os.environ.get(
 # Deterministic actor IDs from docker-compose-multi-actor.yml (D5-1-G3).
 FINDER_ACTOR_ID = "http://finder:7999/api/v2/actors/finder"
 VENDOR_ACTOR_ID = "http://vendor:7999/api/v2/actors/vendor"
-
-
-# ---------------------------------------------------------------------------
-# DataLayer path helpers
-# ---------------------------------------------------------------------------
-
-
-def _dl_key(key: str) -> str:
-    """URL-encode a DataLayer key for safe embedding in an API path segment.
-
-    Encodes characters that are illegal in URL path segments (e.g., colons in
-    URN-style keys like ``urn:uuid:...``).
-
-    Note: HTTP URL-based participant IDs (which contain literal slashes) cannot
-    be fetched via the single-segment ``/{key}`` DataLayer route even after
-    URL-encoding, because Starlette decodes ``%2F`` back to ``/`` before path
-    matching.  Such IDs must be handled via exception catching at the call site.
-    """
-    return quote(str(key), safe="")
-
-
-# ---------------------------------------------------------------------------
-# Seeding helpers
-# ---------------------------------------------------------------------------
-
-
-def seed_containers(
-    finder_client: DataLayerClient,
-    vendor_client: DataLayerClient,
-    reporter_actor_id: str | None = None,
-    vendor_actor_id: str | None = None,
-) -> Tuple[as_Actor, as_Actor]:
-    """Seed both containers: create actor records and register cross-container peers.
-
-    The seeding is done in two phases to avoid ordering issues:
-
-    1. Create the local actor on each container independently.
-    2. Register each actor as a known peer on the other container.
-
-    This function is idempotent: re-running it returns existing actors
-    unchanged (the ``POST /actors/`` endpoint is idempotent).
-
-    Args:
-        finder_client: Client connected to the Finder container.
-        vendor_client: Client connected to the Vendor container.
-        reporter_actor_id: Optional deterministic URI for the Finder actor.
-            When absent the server derives one from ``VULTRON_BASE_URL``.
-        vendor_actor_id: Optional deterministic URI for the Vendor actor.
-            When absent the server derives one from ``VULTRON_BASE_URL``.
-
-    Returns:
-        Tuple of ``(finder, vendor)`` ``as_Actor`` objects as created on their
-        respective containers.
-    """
-    logger.info("Phase 1: creating local actors on each container...")
-    finder = seed_actor(
-        client=finder_client,
-        name="Finder",
-        actor_type="Person",
-        actor_id=reporter_actor_id,
-    )
-    logger.info("Finder actor seeded on Finder container: %s", finder.id_)
-
-    vendor = seed_actor(
-        client=vendor_client,
-        name="Vendor",
-        actor_type="Organization",
-        actor_id=vendor_actor_id,
-    )
-    logger.info("Vendor actor seeded on Vendor container: %s", vendor.id_)
-
-    logger.info("Phase 2: registering cross-container peers...")
-    seed_actor(
-        client=finder_client,
-        name="Vendor",
-        actor_type="Organization",
-        actor_id=vendor.id_,
-    )
-    logger.info("Vendor peer registered on Finder container: %s", vendor.id_)
-
-    seed_actor(
-        client=vendor_client,
-        name="Finder",
-        actor_type="Person",
-        actor_id=finder.id_,
-    )
-    logger.info("Finder peer registered on Vendor container: %s", finder.id_)
-
-    return finder, vendor
-
-
-def get_actor_by_id(client: DataLayerClient, actor_id: str) -> as_Actor:
-    """Fetch an actor record from a container by its full URI.
-
-    Args:
-        client: Client connected to the target container.
-        actor_id: Full URI of the actor to fetch.
-
-    Returns:
-        The ``as_Actor`` object.
-
-    Raises:
-        ValueError: If the actor is not found.
-    """
-    actors = client.get("/actors/")
-    for a in actors:
-        actor = as_Actor.model_validate(a)
-        if actor.id_ == actor_id:
-            return actor
-    raise ValueError(f"Actor {actor_id!r} not found in container")
 
 
 def reset_containers(
@@ -367,49 +296,6 @@ def vendor_validates_report(
         )
     logger.info("Validate-report trigger result for actor %s", vendor_obj_id)
     return result
-
-
-def wait_for_note_in_case(
-    client: DataLayerClient,
-    case_id: str,
-    note_id: str,
-    timeout_seconds: float = 10.0,
-    poll_interval: float = 0.5,
-) -> None:
-    """Poll until *note_id* appears in the ``notes`` list of the case.
-
-    Used to confirm that an outbox-delivered note has been processed by
-    the receiving actor's inbox handler.
-
-    Args:
-        client: DataLayerClient for the container to poll.
-        case_id: Full URI of the case.
-        note_id: Full URI of the note to wait for.
-        timeout_seconds: Maximum time to wait before raising.
-        poll_interval: Seconds between DataLayer poll attempts.
-
-    Raises:
-        AssertionError: If *note_id* does not appear within *timeout_seconds*.
-    """
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        try:
-            case_data = client.get(f"/datalayer/{case_id}")
-            case = VulnerabilityCase(**case_data)
-            note_ids = [
-                n if isinstance(n, str) else getattr(n, "id_", str(n))
-                for n in case.notes
-            ]
-            if note_id in note_ids:
-                return
-        except Exception:  # noqa: BLE001
-            pass
-        time.sleep(poll_interval)
-
-    raise AssertionError(
-        f"Timed out waiting for note {note_id!r} to appear in case "
-        f"{case_id!r}"
-    )
 
 
 def finder_asks_question(
@@ -610,66 +496,6 @@ def find_case_for_offer(
     return None
 
 
-def _require_case_participant_id(
-    case: VulnerabilityCase,
-    actor_id: str,
-    label: str,
-) -> str:
-    participant_id = case.actor_participant_index.get(actor_id)
-    if participant_id is None:
-        raise AssertionError(
-            f"{label} actor is missing from actor_participant_index"
-        )
-    return participant_id
-
-
-def _assert_vendor_participant_state(
-    vendor_client: DataLayerClient,
-    participant_id: str,
-) -> None:
-    participant = CaseParticipant(
-        **vendor_client.get(f"/datalayer/{_dl_key(participant_id)}")
-    )
-    latest = participant.participant_status
-    if latest is None:
-        raise AssertionError("Vendor participant has no participant statuses")
-    if latest.rm_state != RM.ACCEPTED:
-        raise AssertionError(
-            "Vendor participant RM state did not transition to ACCEPTED"
-        )
-
-
-def _assert_vendor_case_status(case: VulnerabilityCase) -> None:
-    if case.current_status.em_state != EM.ACTIVE:
-        raise AssertionError(
-            f"Expected ACTIVE final EM state (default embargo activated at"
-            f" case creation per EP-04-001), found {case.current_status.em_state}"
-        )
-    if case.current_status.pxa_state != CS_pxa.pxa:
-        raise AssertionError(
-            f"Expected pxa final case state, found {case.current_status.pxa_state}"
-        )
-
-
-def _assert_case_notes(
-    case: VulnerabilityCase,
-    question_note_id: str | None,
-    reply_note_id: str | None,
-) -> None:
-    if question_note_id is None and reply_note_id is None:
-        return
-
-    note_ids = [ref_id(note) or str(note) for note in case.notes]
-    if question_note_id is not None and question_note_id not in note_ids:
-        raise AssertionError(
-            f"Question note {question_note_id!r} not found in case notes"
-        )
-    if reply_note_id is not None and reply_note_id not in note_ids:
-        raise AssertionError(
-            f"Reply note {reply_note_id!r} not found in case notes"
-        )
-
-
 def verify_vendor_case_state(
     vendor_client: DataLayerClient,
     case_id: str,
@@ -750,632 +576,6 @@ def verify_case_actor_unused(
         )
 
 
-def wait_for_case_participants(
-    vendor_client: DataLayerClient,
-    case_id: str,
-    expected_count: int,
-    timeout_seconds: float = 5.0,
-    poll_interval: float = 0.25,
-) -> None:
-    """Poll until the Vendor's case reflects the expected participant count."""
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        case_data = vendor_client.get(f"/datalayer/{case_id}")
-        case = VulnerabilityCase(**case_data)
-        if len(case.case_participants) >= expected_count:
-            return
-        time.sleep(poll_interval)
-
-    final_case = VulnerabilityCase(
-        **vendor_client.get(f"/datalayer/{case_id}")
-    )
-    raise AssertionError(
-        "Timed out waiting for participant count "
-        f"{expected_count}; found {len(final_case.case_participants)}"
-    )
-
-
-def wait_for_finder_case(
-    finder_client: DataLayerClient,
-    case_id: str,
-    timeout_seconds: float = 10.0,
-    poll_interval: float = 0.5,
-) -> None:
-    """Poll finder's DataLayer until *case_id* appears.
-
-    This proves that the Vendor's outbox successfully delivered the
-    ``Create(VulnerabilityCase)`` notification to the Finder and that the
-    Finder's inbox handler processed it (D5-6-DEMOAUDIT requirement).
-
-    In single-server integration tests both actors share the same DataLayer,
-    so the case is visible immediately.  In a multi-server Docker demo the
-    case arrives after the outbox background task completes and the Finder
-    inbox handler processes the inbound activity.
-
-    Args:
-        finder_client: Client connected to the Finder container.
-        case_id: Full URI of the ``VulnerabilityCase`` to wait for.
-        timeout_seconds: Maximum time to wait before raising.
-        poll_interval: Seconds between DataLayer poll attempts.
-
-    Raises:
-        AssertionError: If *case_id* does not appear within *timeout_seconds*.
-    """
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        raw = finder_client.get("/datalayer/VulnerabilityCases/")
-        # The endpoint returns a dict keyed by case ID (from by_type()).
-        if isinstance(raw, dict) and case_id in raw:
-            return
-        time.sleep(poll_interval)
-
-    raise AssertionError(
-        f"Timed out waiting for case {case_id!r} to appear in "
-        "finder's DataLayer — outbox delivery may not have completed"
-    )
-
-
-# ---------------------------------------------------------------------------
-# SYNC-2 log replication helpers
-# ---------------------------------------------------------------------------
-
-
-def trigger_log_commit(
-    client: DataLayerClient,
-    actor_id: str,
-    case_id: str,
-    event_type: str,
-    object_id: str | None = None,
-) -> str:
-    """Commit a log entry for *case_id* and return the entry hash.
-
-    POSTs to ``/actors/{actor_id}/demo/sync-log-entry`` and returns
-    the ``entry_hash`` from the response.  The entry is also fanned out
-    to all case participants via ``Announce(CaseLogEntry)`` activities
-    queued in the actor's outbox.
-
-    Args:
-        client: DataLayerClient connected to the CaseActor container.
-        actor_id: Full URI of the actor committing the log entry.
-        case_id: Full URI of the ``VulnerabilityCase``.
-        event_type: Short machine-readable event descriptor.
-        object_id: Optional URI of the primary object.  Defaults to
-            *case_id* when not supplied.
-
-    Returns:
-        The ``entry_hash`` of the newly committed log entry.
-
-    Spec: SYNC-02-002, SYNC-02-003.
-    """
-    result = post_to_trigger(
-        client=client,
-        actor_id=actor_id,
-        behavior="sync-log-entry",
-        body={
-            "case_id": case_id,
-            "object_id": object_id if object_id is not None else case_id,
-            "event_type": event_type,
-        },
-        path_prefix="demo",
-    )
-    entry_hash: str = result["entry_hash"]
-    logger.info(
-        "Log entry committed for case '%s': hash=%s, index=%d",
-        case_id,
-        entry_hash[:16],
-        result.get("log_index", -1),
-    )
-    return entry_hash
-
-
-def wait_for_finder_log_entry(
-    finder_client: DataLayerClient,
-    case_id: str,
-    entry_hash: str,
-    timeout_seconds: float = 15.0,
-    poll_interval: float = 0.5,
-) -> None:
-    """Poll finder's DataLayer until a ``CaseLogEntry`` with *entry_hash* appears.
-
-    Proves that the vendor's ``Announce(CaseLogEntry)`` outbox activity was
-    delivered to the finder's inbox and processed by
-    ``AnnounceLogEntryReceivedUseCase`` (SYNC-2 receive side).
-
-    Args:
-        finder_client: Client connected to the Finder container.
-        case_id: Full URI of the ``VulnerabilityCase`` (used for filtering).
-        entry_hash: ``entry_hash`` value of the expected log entry.
-        timeout_seconds: Maximum time to wait before raising.
-        poll_interval: Seconds between DataLayer poll attempts.
-
-    Raises:
-        AssertionError: If the entry does not appear within *timeout_seconds*.
-
-    Spec: SYNC-02-002.
-    """
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        raw = finder_client.get("/datalayer/CaseLogEntrys/")
-        if isinstance(raw, dict):
-            for v in raw.values():
-                if (
-                    isinstance(v, dict)
-                    and v.get("case_id") == case_id
-                    and v.get("entry_hash") == entry_hash
-                ):
-                    logger.info(
-                        "Log entry with hash=%s found in finder's DataLayer",
-                        entry_hash[:16],
-                    )
-                    return
-        time.sleep(poll_interval)
-
-    raise AssertionError(
-        f"Timed out waiting for log entry (hash={entry_hash!r}) for case "
-        f"{case_id!r} to appear in finder's DataLayer — replication may "
-        "not have completed"
-    )
-
-
-def _extract_ref_id(ref: object) -> Optional[str]:
-    """Extract the string ID from an object, ``as_Link``, or string reference."""
-    if ref is None:
-        return None
-    if isinstance(ref, str):
-        return ref
-    if hasattr(ref, "id_"):
-        return str(ref.id_)  # type: ignore[union-attr]
-    if hasattr(ref, "href"):
-        return str(ref.href)  # type: ignore[union-attr]
-    return str(ref)
-
-
-def _get_log_entries_for_case(
-    client: DataLayerClient, case_id: str
-) -> list[dict]:
-    """Return all ``CaseLogEntry`` dicts for *case_id* from the DataLayer."""
-    raw = client.get("/datalayer/CaseLogEntrys/")
-    if not isinstance(raw, dict):
-        return []
-    return [
-        v
-        for v in raw.values()
-        if isinstance(v, dict) and v.get("case_id") == case_id
-    ]
-
-
-def verify_finder_replica_state(
-    finder_client: DataLayerClient,
-    vendor_client: DataLayerClient,
-    case_id: str,
-    vendor_actor_id: str,
-    reporter_actor_id: str,
-) -> None:
-    """Verify that the finder's case replica matches the authoritative vendor state.
-
-    Checks four properties:
-
-    1. The same ``case_id`` exists in the finder's DataLayer.
-    2. ``actor_participant_index`` keys are identical (same participant set).
-    3. ``active_embargo`` references the same ID on both sides.
-    4. Log-state hash consistency: both sides share the same tail entry hash.
-
-    Args:
-        finder_client: Client connected to the Finder container.
-        vendor_client: Client connected to the Vendor container.
-        case_id: Full URI of the ``VulnerabilityCase`` being verified.
-        vendor_actor_id: Full URI of the Vendor actor (unused directly but
-            retained for symmetry with *reporter_actor_id*).
-        reporter_actor_id: Full URI of the Finder actor (unused directly but
-            retained for future participant-status checks).
-
-    Raises:
-        AssertionError: If any replica invariant is violated.
-
-    Spec: SYNC-02-002, D5-7-DEMOREPLCHECK-1.
-    """
-    vendor_case_data = vendor_client.get(f"/datalayer/{case_id}")
-    assert vendor_case_data, f"Vendor case {case_id!r} not found"
-    vendor_case = VulnerabilityCase.model_validate(vendor_case_data)
-
-    finder_case_data = finder_client.get(f"/datalayer/{case_id}")
-    assert finder_case_data, (
-        f"Finder does not have a copy of case {case_id!r} — "
-        "outbox delivery or inbox processing may have failed"
-    )
-    finder_case = VulnerabilityCase.model_validate(finder_case_data)
-
-    # 1. Same case ID
-    assert (
-        finder_case.id_ == case_id
-    ), f"Finder case ID mismatch: {finder_case.id_!r} != {case_id!r}"
-    logger.info("✓ Finder case ID matches: %s", case_id)
-
-    # 2. actor_participant_index keys match
-    vendor_index = vendor_case.actor_participant_index or {}
-    finder_index = finder_case.actor_participant_index or {}
-    assert set(vendor_index.keys()) == set(finder_index.keys()), (
-        "Finder actor_participant_index key set differs from vendor: "
-        f"finder={set(finder_index.keys())} "
-        f"vendor={set(vendor_index.keys())}"
-    )
-    logger.info(
-        "✓ Finder actor_participant_index matches (%d participants)",
-        len(finder_index),
-    )
-
-    # 3. active_embargo ID matches (if present on vendor)
-    vendor_embargo_id = _extract_ref_id(vendor_case.active_embargo)
-    finder_embargo_id = _extract_ref_id(finder_case.active_embargo)
-    if vendor_embargo_id is not None:
-        assert vendor_embargo_id == finder_embargo_id, (
-            f"Finder active_embargo {finder_embargo_id!r} != "
-            f"vendor active_embargo {vendor_embargo_id!r}"
-        )
-        logger.info("✓ Finder active_embargo matches: %s", vendor_embargo_id)
-
-    # 4. Log-state hash consistency
-    vendor_entries = _get_log_entries_for_case(vendor_client, case_id)
-    finder_entries = _get_log_entries_for_case(finder_client, case_id)
-    assert len(finder_entries) > 0, (
-        "Finder has no CaseLogEntry records for the case — "
-        "SYNC-2 replication did not complete"
-    )
-    vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
-    finder_tail = max(finder_entries, key=lambda e: e["log_index"])
-    assert vendor_tail["entry_hash"] == finder_tail["entry_hash"], (
-        f"Finder log tail hash {finder_tail['entry_hash']!r} != "
-        f"vendor log tail hash {vendor_tail['entry_hash']!r} — "
-        "hash-chain replication integrity failure"
-    )
-    logger.info(
-        "✓ Finder log tail hash matches vendor: %s… (index=%d)",
-        finder_tail["entry_hash"][:16],
-        finder_tail["log_index"],
-    )
-
-
-# ---------------------------------------------------------------------------
-# Fix-lifecycle and closure step functions
-# ---------------------------------------------------------------------------
-
-
-def actor_notifies_fix_ready(
-    client: DataLayerClient,
-    actor: as_Actor,
-    case_id: str,
-) -> dict:
-    """Self-report fix ready (CS.VFd) via the demo trigger endpoint.
-
-    Sends ``Add(ParticipantStatus(CS.VFd), target=Case)`` to the Case Manager
-    so the Case Actor can update participant state and broadcast to peers.
-
-    Args:
-        client: Client connected to the actor's container.
-        actor: The actor that has a fix ready.
-        case_id: Full URI of the ``VulnerabilityCase``.
-
-    Returns:
-        Response dict from the trigger endpoint.
-
-    Spec: DEMOMA-07-001.
-    """
-    with demo_step(f"Actor {ref_id(actor)} reports fix ready"):
-        return post_to_trigger(
-            client=client,
-            actor_id=actor.id_,
-            behavior="notify-fix-ready",
-            body={"case_id": case_id},
-            path_prefix="demo",
-        )
-
-
-def actor_notifies_fix_deployed(
-    client: DataLayerClient,
-    actor: as_Actor,
-    case_id: str,
-) -> dict:
-    """Self-report fix deployed (CS.VFD) via the demo trigger endpoint.
-
-    Args:
-        client: Client connected to the actor's container.
-        actor: The actor that has deployed a fix.
-        case_id: Full URI of the ``VulnerabilityCase``.
-
-    Returns:
-        Response dict from the trigger endpoint.
-
-    Spec: DEMOMA-07-001.
-    """
-    with demo_step(f"Actor {ref_id(actor)} reports fix deployed"):
-        return post_to_trigger(
-            client=client,
-            actor_id=actor.id_,
-            behavior="notify-fix-deployed",
-            body={"case_id": case_id},
-            path_prefix="demo",
-        )
-
-
-def actor_notifies_published(
-    client: DataLayerClient,
-    actor: as_Actor,
-    case_id: str,
-) -> dict:
-    """Self-report vulnerability publicly disclosed (CS.VFDPxa) via the
-    demo trigger endpoint.
-
-    When called by the CASE_OWNER (Vendor), the Case Actor automatically
-    initiates embargo teardown on receipt (DEMOMA-07-003 step 4).
-
-    Args:
-        client: Client connected to the actor's container.
-        actor: The actor reporting publication.
-        case_id: Full URI of the ``VulnerabilityCase``.
-
-    Returns:
-        Response dict from the trigger endpoint.
-
-    Spec: DEMOMA-07-001.
-    """
-    with demo_step(
-        f"Actor {ref_id(actor)} reports vulnerability publicly disclosed"
-    ):
-        return post_to_trigger(
-            client=client,
-            actor_id=actor.id_,
-            behavior="notify-published",
-            body={"case_id": case_id},
-            path_prefix="demo",
-        )
-
-
-def actor_closes_case(
-    client: DataLayerClient,
-    actor: as_Actor,
-    case_id: str,
-) -> dict:
-    """Self-report case closed (RM.CLOSED) via the demo trigger endpoint.
-
-    When all participants report RM.CLOSED, the Case Actor automatically
-    closes the case (DEMOMA-07-003 step 5).
-
-    Args:
-        client: Client connected to the actor's container.
-        actor: The actor closing the case.
-        case_id: Full URI of the ``VulnerabilityCase``.
-
-    Returns:
-        Response dict from the trigger endpoint.
-
-    Spec: DEMOMA-07-001.
-    """
-    with demo_step(f"Actor {ref_id(actor)} closes case"):
-        return post_to_trigger(
-            client=client,
-            actor_id=actor.id_,
-            behavior="close-case",
-            body={"case_id": case_id},
-            path_prefix="demo",
-        )
-
-
-# ---------------------------------------------------------------------------
-# Polling helpers for milestone verification
-# ---------------------------------------------------------------------------
-
-
-def _fetch_participant(
-    client: DataLayerClient,
-    case_id: str,
-    actor_id: str,
-) -> Optional[CaseParticipant]:
-    """Fetch the CaseParticipant record for *actor_id* in *case_id*.
-
-    Args:
-        client: DataLayerClient for the target container.
-        case_id: Full URI of the ``VulnerabilityCase``.
-        actor_id: Full URI of the actor whose participant record to fetch.
-
-    Returns:
-        The ``CaseParticipant`` or ``None`` if the actor or participant
-        record is not found.
-    """
-    try:
-        case_data = client.get(f"/datalayer/{case_id}")
-        case = VulnerabilityCase.model_validate(case_data)
-        participant_id = case.actor_participant_index.get(actor_id)
-        if participant_id is None:
-            return None
-        p_data = client.get(f"/datalayer/{_dl_key(participant_id)}")
-        return CaseParticipant(**p_data)
-    except (requests.HTTPError, AssertionError):
-        return None
-
-
-def wait_for_participant_vfd_state(
-    client: DataLayerClient,
-    case_id: str,
-    actor_id: str,
-    expected_states: "set[CS_vfd]",
-    timeout_seconds: float = 10.0,
-    poll_interval: float = 0.25,
-) -> None:
-    """Poll until the actor's latest participant ``vfd_state`` is in
-    *expected_states*.
-
-    Args:
-        client: DataLayerClient for the target container.
-        case_id: Full URI of the ``VulnerabilityCase``.
-        actor_id: Full URI of the actor to check.
-        expected_states: Set of ``CS_vfd`` values that satisfy the condition.
-        timeout_seconds: Maximum time to wait.
-        poll_interval: Seconds between DataLayer poll attempts.
-
-    Raises:
-        AssertionError: If the state is not reached within *timeout_seconds*.
-    """
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        participant = _fetch_participant(client, case_id, actor_id)
-        if participant is not None:
-            latest = participant.participant_status
-            if latest is not None and latest.vfd_state in expected_states:
-                return
-        time.sleep(poll_interval)
-
-    participant = _fetch_participant(client, case_id, actor_id)
-    latest = (
-        participant.participant_status if participant is not None else None
-    )
-    current = latest.vfd_state if latest is not None else "unknown"
-    raise AssertionError(
-        f"Timed out waiting for actor '{actor_id}' vfd_state to be in "
-        f"{expected_states!r}; current={current!r}"
-    )
-
-
-def wait_for_case_em_terminated(
-    client: DataLayerClient,
-    case_id: str,
-    timeout_seconds: float = 10.0,
-    poll_interval: float = 0.25,
-) -> None:
-    """Poll until the case EM state is ``EM.EXITED``.
-
-    After the Vendor (CASE_OWNER) reports public disclosure, the Case Actor
-    automatically initiates embargo teardown.  This helper waits for the
-    teardown to be reflected in the DataLayer.
-
-    Args:
-        client: DataLayerClient for the target container.
-        case_id: Full URI of the ``VulnerabilityCase``.
-        timeout_seconds: Maximum time to wait.
-        poll_interval: Seconds between DataLayer poll attempts.
-
-    Raises:
-        AssertionError: If EM.EXITED is not observed within *timeout_seconds*.
-    """
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        try:
-            case_data = client.get(f"/datalayer/{case_id}")
-            case = VulnerabilityCase.model_validate(case_data)
-            if case.current_status.em_state == EM.EXITED:
-                return
-        except Exception:  # noqa: BLE001
-            pass
-        time.sleep(poll_interval)
-
-    raise AssertionError(
-        f"Timed out waiting for case '{case_id}' EM state to reach EXITED"
-        " — embargo teardown may not have completed"
-    )
-
-
-def _fetch_participant_data(client: DataLayerClient, p_id: str) -> dict | None:
-    """Fetch a participant record, returning None for genuine 404s.
-
-    Re-raises for any non-404 error so failures are not silently swallowed.
-    """
-    try:
-        return client.get(f"/datalayer/{_dl_key(p_id)}")
-    except requests.HTTPError as e:
-        if e.response is not None and e.response.status_code == 404:
-            return None
-        raise
-    except AssertionError as e:
-        # TestClient compatibility: make_testclient_call raises AssertionError
-        # for 4xx responses; treat only genuine 404s as "not found".
-        if "404" in str(e):
-            return None
-        raise
-
-
-def _assert_participant_vfd_pxa(
-    participant: "CaseParticipant",
-    label: str,
-    vendor_actor_id: str,
-) -> None:
-    """Assert that *participant* (for *vendor_actor_id*) has VFD and a
-    public-aware pxa_state.  *label* is used in error messages."""
-    public_aware = {CS_pxa.Pxa, CS_pxa.PxA, CS_pxa.PXa, CS_pxa.PXA}
-    latest = participant.participant_status
-    if latest is None:
-        raise AssertionError(
-            f"M6 {label}: participant {vendor_actor_id!r} has no statuses"
-        )
-    if latest.vfd_state != CS_vfd.VFD:
-        raise AssertionError(
-            f"M6 {label}: vfd_state is not VFD, found {latest.vfd_state!r}"
-        )
-    cs = getattr(latest, "case_status", None)
-    pxa = getattr(cs, "pxa_state", None) if cs is not None else None
-    if pxa not in public_aware:
-        raise AssertionError(
-            f"M6 {label}: pxa_state is not public-aware, found {pxa!r}"
-        )
-
-
-def _all_fetchable_participants_rm_closed(
-    client: DataLayerClient,
-    case: VulnerabilityCase,
-) -> bool:
-    """Return True when every fetchable, non-coordinator participant is
-    RM.CLOSED."""
-    for p_id in case.actor_participant_index.values():
-        p_data = _fetch_participant_data(client, p_id)
-        if p_data is None:
-            continue  # remote container — not fetchable here
-        if not p_data:
-            return False
-        p = CaseParticipant(**p_data)
-        if CVDRole.CASE_MANAGER in (p.case_roles or []):
-            continue
-        latest = p.participant_status
-        if latest is None:
-            return False
-        if latest.rm_state != RM.CLOSED:
-            return False
-    return True
-
-
-def wait_for_all_participants_rm_closed(
-    client: DataLayerClient,
-    case_id: str,
-    timeout_seconds: float = 10.0,
-    poll_interval: float = 0.25,
-) -> None:
-    """Poll until all participants in *case_id* have ``RM.CLOSED`` as
-    their latest status.
-
-    Args:
-        client: DataLayerClient for the target container.
-        case_id: Full URI of the ``VulnerabilityCase``.
-        timeout_seconds: Maximum time to wait.
-        poll_interval: Seconds between DataLayer poll attempts.
-
-    Raises:
-        AssertionError: If any participant is not RM.CLOSED within
-            *timeout_seconds*.
-    """
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        try:
-            case_data = client.get(f"/datalayer/{case_id}")
-            case = VulnerabilityCase.model_validate(case_data)
-            if _all_fetchable_participants_rm_closed(client, case):
-                return
-        except Exception:  # noqa: BLE001
-            pass
-        time.sleep(poll_interval)
-
-    raise AssertionError(
-        f"Timed out waiting for all participants in case '{case_id}' "
-        "to reach RM.CLOSED"
-    )
-
-
 # ---------------------------------------------------------------------------
 # Milestone verification helpers
 # ---------------------------------------------------------------------------
@@ -1446,41 +646,6 @@ def verify_m1_state(
         "✓ M1 finder: case replica present, matching participant index "
         "and active embargo"
     )
-
-
-def _check_participant_vfd_state_in(
-    client: DataLayerClient,
-    case_id: str,
-    actor_id: str,
-    expected_states: "set[CS_vfd]",
-    label: str,
-) -> None:
-    """Assert actor's latest participant vfd_state is in *expected_states*.
-
-    Args:
-        client: DataLayerClient for the target container.
-        case_id: Full URI of the ``VulnerabilityCase``.
-        actor_id: Full URI of the actor to check.
-        expected_states: Set of acceptable ``CS_vfd`` values.
-        label: Human-readable label for AssertionError messages.
-    """
-    participant = _fetch_participant(client, case_id, actor_id)
-    if participant is None:
-        raise AssertionError(
-            f"{label}: participant for actor '{actor_id}' not found"
-        )
-    latest = participant.participant_status
-    if latest is None:
-        raise AssertionError(
-            f"{label}: participant for actor '{actor_id}' has no participant"
-            " statuses"
-        )
-    latest_vfd = latest.vfd_state
-    if latest_vfd not in expected_states:
-        raise AssertionError(
-            f"{label}: expected vfd_state in {expected_states!r}, "
-            f"found {latest_vfd!r}"
-        )
 
 
 def verify_m4_state(
