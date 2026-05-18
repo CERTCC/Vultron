@@ -74,7 +74,7 @@ def _poll_until(
 
 
 def wait_for_case_on_container(
-    finder_client: DataLayerClient,
+    client: DataLayerClient,
     case_id: str,
     timeout_seconds: float = 10.0,
     poll_interval: float = 0.5,
@@ -89,7 +89,7 @@ def wait_for_case_on_container(
     arrives after the outbox background task completes.
 
     Args:
-        finder_client: DataLayerClient connected to the container to poll.
+        client: DataLayerClient connected to the container to poll.
         case_id: Full URI of the ``VulnerabilityCase`` to wait for.
         timeout_seconds: Maximum time to wait before raising.
         poll_interval: Seconds between DataLayer poll attempts.
@@ -99,7 +99,7 @@ def wait_for_case_on_container(
     """
 
     def _check() -> bool:
-        raw = finder_client.get("/datalayer/VulnerabilityCases/")
+        raw = client.get("/datalayer/VulnerabilityCases/")
         return isinstance(raw, dict) and case_id in raw
 
     _poll_until(
@@ -107,13 +107,28 @@ def wait_for_case_on_container(
         timeout_seconds,
         poll_interval,
         f"Timed out waiting for case {case_id!r} to appear in DataLayer "
-        f"at {finder_client.base_url} — outbox delivery may not have completed",
+        f"at {client.base_url} — outbox delivery may not have completed",
         swallow_exceptions=True,
     )
 
 
-# Backward-compatible alias used by ``two_actor_demo.py`` and its tests.
-wait_for_finder_case = wait_for_case_on_container
+def wait_for_finder_case(
+    finder_client: DataLayerClient,
+    case_id: str,
+    timeout_seconds: float = 10.0,
+    poll_interval: float = 0.5,
+) -> None:
+    """Backward-compatible alias for :func:`wait_for_case_on_container`.
+
+    Args:
+        finder_client: DataLayerClient connected to the Finder container.
+        case_id: Full URI of the ``VulnerabilityCase`` to wait for.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between DataLayer poll attempts.
+    """
+    wait_for_case_on_container(
+        finder_client, case_id, timeout_seconds, poll_interval
+    )
 
 
 def wait_for_case_participants(
@@ -220,17 +235,6 @@ def wait_for_finder_log_entry(
 
     Spec: SYNC-02-002.
     """
-
-    def _check() -> bool:
-        raw = finder_client.get("/datalayer/CaseLogEntrys/")
-        if not isinstance(raw, dict):
-            return False
-        return any(
-            isinstance(v, dict)
-            and v.get("case_id") == case_id
-            and v.get("entry_hash") == entry_hash
-            for v in raw.values()
-        )
 
     def _check_with_log() -> bool:
         raw = finder_client.get("/datalayer/CaseLogEntrys/")

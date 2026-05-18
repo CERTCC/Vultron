@@ -125,6 +125,8 @@ testpaths = [
 filterwarnings = [
     "always::vultron.metadata.specs.UnknownSpecIdWarning",
     "error",
+    "ignore::DeprecationWarning:vultron.demo.scenario.three_actor_demo",
+    "ignore::DeprecationWarning:vultron.demo.scenario.multi_vendor_demo",
 ]
 markers = [
     "integration: marks tests as integration tests (exercise the full HTTP stack; deselected by default)",
