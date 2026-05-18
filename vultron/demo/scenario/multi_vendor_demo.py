@@ -44,6 +44,7 @@ This corresponds to Scenario 3 in ``specs/multi-actor-demo.yaml``
 import logging
 import os
 import sys
+import warnings
 
 from vultron.core.states.em import EM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -87,6 +88,14 @@ from vultron.demo.utils import (
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
     offer_case_ownership_transfer_activity,
+)
+
+warnings.warn(
+    "vultron.demo.scenario.multi_vendor_demo is deprecated and will be removed"
+    " in a future version. A replacement multi-actor scenario is under"
+    " development.",
+    DeprecationWarning,
+    stacklevel=1,
 )
 
 logger = logging.getLogger(__name__)
