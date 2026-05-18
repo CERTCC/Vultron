@@ -17,7 +17,9 @@ Provides :func:`trigger_log_commit` to commit a log entry and fan it out to
 all case participants, and :func:`verify_replica_state` to assert that a
 replica actor's case state matches the authoritative actor.
 
-``verify_finder_replica_state`` is kept as a backward-compatible alias.
+``verify_finder_replica_state`` is a backward-compatible wrapper that maps
+the two-actor demo roles (Vendor = authoritative, Finder = replica) onto
+the generic ``verify_replica_state`` parameters.
 """
 
 import logging
@@ -115,8 +117,8 @@ def trigger_log_commit(
 
 
 def verify_replica_state(
-    finder_client: DataLayerClient,
-    vendor_client: DataLayerClient,
+    auth_client: DataLayerClient,
+    replica_client: DataLayerClient,
     case_id: str,
     vendor_actor_id: str,
     reporter_actor_id: str,
@@ -131,8 +133,10 @@ def verify_replica_state(
     4. Log-state hash consistency: both sides share the same tail entry hash.
 
     Args:
-        finder_client: DataLayerClient connected to the authoritative container.
-        vendor_client: DataLayerClient connected to the replica container.
+        auth_client: DataLayerClient connected to the authoritative container
+            (the actor that owns/created the case).
+        replica_client: DataLayerClient connected to the replica container
+            (the actor that received a replicated copy).
         case_id: Full URI of the ``VulnerabilityCase`` being verified.
         vendor_actor_id: Full URI of the Vendor actor (retained for symmetry).
         reporter_actor_id: Full URI of the Reporter/Finder actor (retained for
@@ -143,11 +147,11 @@ def verify_replica_state(
 
     Spec: SYNC-02-002, D5-7-DEMOREPLCHECK-1.
     """
-    auth_case_data = finder_client.get(f"/datalayer/{case_id}")
+    auth_case_data = auth_client.get(f"/datalayer/{case_id}")
     assert auth_case_data, f"Authoritative case {case_id!r} not found"
     auth_case = VulnerabilityCase.model_validate(auth_case_data)
 
-    replica_case_data = vendor_client.get(f"/datalayer/{case_id}")
+    replica_case_data = replica_client.get(f"/datalayer/{case_id}")
     assert replica_case_data, (
         f"Replica does not have a copy of case {case_id!r} — "
         "outbox delivery or inbox processing may have failed"
@@ -184,8 +188,8 @@ def verify_replica_state(
         logger.info("✓ Replica active_embargo matches: %s", auth_embargo_id)
 
     # 4. Log-state hash consistency
-    auth_entries = _get_log_entries_for_case(finder_client, case_id)
-    replica_entries = _get_log_entries_for_case(vendor_client, case_id)
+    auth_entries = _get_log_entries_for_case(auth_client, case_id)
+    replica_entries = _get_log_entries_for_case(replica_client, case_id)
     assert len(replica_entries) > 0, (
         "Replica has no CaseLogEntry records for the case — "
         "SYNC-2 replication did not complete"
@@ -204,5 +208,30 @@ def verify_replica_state(
     )
 
 
-# Backward-compatible alias for code that calls verify_finder_replica_state.
-verify_finder_replica_state = verify_replica_state
+def verify_finder_replica_state(
+    finder_client: DataLayerClient,
+    vendor_client: DataLayerClient,
+    case_id: str,
+    vendor_actor_id: str,
+    reporter_actor_id: str,
+) -> None:
+    """Backward-compatible wrapper for :func:`verify_replica_state`.
+
+    In the two-actor demo the Vendor is the authoritative case owner and the
+    Finder holds a replicated copy, so *vendor_client* maps to *auth_client*
+    and *finder_client* maps to *replica_client*.
+
+    Args:
+        finder_client: DataLayerClient connected to the Finder (replica).
+        vendor_client: DataLayerClient connected to the Vendor (authoritative).
+        case_id: Full URI of the ``VulnerabilityCase`` being verified.
+        vendor_actor_id: Full URI of the Vendor actor.
+        reporter_actor_id: Full URI of the Reporter/Finder actor.
+    """
+    verify_replica_state(
+        auth_client=vendor_client,
+        replica_client=finder_client,
+        case_id=case_id,
+        vendor_actor_id=vendor_actor_id,
+        reporter_actor_id=reporter_actor_id,
+    )
