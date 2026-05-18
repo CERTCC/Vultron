@@ -4,7 +4,9 @@
 
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
+| 2026-05-15 | 23:29 | implementation | 534 | fix(#534): eliminate per-app singleton sharing in create_app() |
 | 2026-05-15 | 16:07 | implementation | issue-528 | Add pytest-timeout guardrail: 30s default per-test ceiling |
+| 2026-05-15 | 13:43 | implementation | GH-467 | Refactor AddParticipantStatus handler to Behavior Tree |
 | 2026-05-14 | 20:07 | learning | TASK-ARCHVIO-CLEANUP | ARCH-01-001 sync.py violation fix: SyncActivityPort implementation tasks (cleanup) |
 | 2026-05-13 | 20:28 | learning | PCR | PCR: Announce trust guard, actor-scoped deferral, report-to-case link |
 | 2026-05-13 | 20:27 | learning | TWO-ACTOR-DEMO-2 | Case Actor spawning: CASE_MANAGER role delegation automation (#469) |
