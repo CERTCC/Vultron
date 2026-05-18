@@ -144,7 +144,7 @@ class ActorCreateRequest(BaseModel):
         alias="id",
         description=(
             "Full URI for the actor.  Omit to let the server derive one "
-            "from ``VULTRON_BASE_URL``."
+            "from ``VULTRON_SERVER__BASE_URL``."
         ),
     )
 

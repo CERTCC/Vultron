@@ -2,7 +2,7 @@
 """
 Info endpoint for the Vultron API (D5-1-G1).
 
-Returns the configured ``VULTRON_BASE_URL`` and the list of actor IDs
+Returns the configured ``VULTRON_SERVER__BASE_URL`` and the list of actor IDs
 registered in the shared DataLayer so that demo scripts and operators
 can confirm container identity at startup.
 
@@ -45,7 +45,7 @@ _ACTOR_TABLE_NAMES = [
 def get_info(dl: DataLayer = Depends(get_shared_dl)) -> dict:
     """Returns server identity information (D5-1-G1).
 
-    Response includes the configured ``VULTRON_BASE_URL`` and the list of
+    Response includes the configured ``VULTRON_SERVER__BASE_URL`` and the list of
     actor IDs registered in this container's shared DataLayer.  Useful
     for demo scripts and operators to confirm which container they are
     talking to at startup.
