@@ -60,9 +60,17 @@ gh issue list --repo CERTCC/Vultron \
 
 ## Query: Ready-to-Build Count
 
-1. Read `plan/PRIORITIES.md` to identify the top-priority group label
-   (e.g., `group:architecture-hardening`).
-2. Query open leaf issues in that group with no open blockers:
+> ⚠️ **PRIORITIES.md is not authoritative for issue status.**
+> It is read **only** to extract the group label for the top-priority group.
+> Issue open/closed state MUST always be determined by the GitHub API.
+> Do NOT use ✅ markers, absence of ✅, or any other PRIORITIES.md text to
+> infer whether an issue is open or closed.
+
+1. Read `plan/PRIORITIES.md` to identify the **group label** for the
+   top-priority group (e.g., `group:architecture-hardening`). This is the
+   only information taken from the file.
+2. Query open leaf issues in that group with no open blockers using the
+   GitHub API:
 
 ```bash
 # Step 1: list open issues with the top-priority group label

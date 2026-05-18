@@ -39,7 +39,7 @@ Read these in parallel:
 | GitHub Issues — type: Concern | Count of open issues |
 | GitHub Issues — label: `group:unscheduled` | Count of open issues |
 | GitHub Pull Requests — open | Count of open PRs |
-| `plan/PRIORITIES.md` | Top group with ≥1 unblocked open issue |
+| `plan/PRIORITIES.md` | Extract group labels only — **never trust issue status from this file** |
 | `git log -- plan/PRIORITIES.md` | Days since last commit to PRIORITIES.md |
 
 See [REFERENCE.md](REFERENCE.md) for the exact `gh` and `git` commands.
@@ -69,7 +69,8 @@ PRIORITIES.md last updated: 3 days ago
 - **BUILD_LEARNINGS count**: number of `###` entry headers in the file
   (zero if only the preamble is present)
 - **Ready to build**: open leaf issues in the top-priority group that have no
-  open blockers
+  open blockers — determined entirely from the GitHub API, **not** from
+  PRIORITIES.md text or ✅ markers
 - **PRIORITIES.md staleness**: warn if last commit > 14 days ago
 
 ## Recommendation Logic
