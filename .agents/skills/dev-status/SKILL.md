@@ -36,7 +36,7 @@ Read these in parallel:
 | `plan/BUILD_LEARNINGS.md` | Non-empty beyond the header? |
 | GitHub Issues — type: Idea | Count of open issues |
 | GitHub Issues — type: Bug | Count of open issues |
-| GitHub Issues — type: Concern | Count of open issues |
+| GitHub Issues — type: Concern | Count of open issues — **this is the only concern source; do not read `docs/reference/codebase/CONCERNS.md`** |
 | GitHub Issues — label: `group:unscheduled` | Count of open issues |
 | GitHub Pull Requests — open | Count of open PRs |
 | `plan/PRIORITIES.md` | Extract group labels only — **never trust issue status from this file** |

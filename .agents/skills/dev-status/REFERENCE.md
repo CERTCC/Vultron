@@ -25,6 +25,13 @@ gh api graphql -f query='{
 
 ## Query: Open Issues by Type
 
+> ⚠️ **Do NOT read `docs/reference/codebase/CONCERNS.md` to count or assess
+> concerns.** That file is a raw codebase-scan artifact managed by the
+> `acquire-codebase-knowledge` and `process-concerns` skills. Its entries may
+> already be reflected in GitHub Concern issues, partially processed, or
+> outdated. The authoritative concern count is always the number of open
+> GitHub Issues of type **Concern**.
+
 ```bash
 # Open Idea issues
 gh issue list --repo CERTCC/Vultron \
