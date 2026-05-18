@@ -23,7 +23,7 @@ Sub-modules
 - :mod:`~vultron.demo.helpers.actions` — ``actor_notifies_state_change``
   and named CVD lifecycle action wrappers.
 - :mod:`~vultron.demo.helpers.seeding` — ``_dl_key``, ``get_actor_by_id``,
-  and ``seed_containers``.
+  ``seed_containers``, and ``reset_containers``.
 - :mod:`~vultron.demo.helpers.sync` — SYNC-2 ``trigger_log_commit`` and
   ``verify_replica_state``.
 - :mod:`~vultron.demo.helpers.verification` — lower-level participant and
@@ -68,6 +68,7 @@ from vultron.demo.helpers.polling import (  # noqa: F401
 from vultron.demo.helpers.seeding import (  # noqa: F401
     _dl_key,
     get_actor_by_id,
+    reset_containers,
     seed_containers,
 )
 from vultron.demo.helpers.sync import (  # noqa: F401

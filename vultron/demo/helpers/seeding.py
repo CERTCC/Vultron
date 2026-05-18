@@ -14,15 +14,23 @@
 """Container-seeding and actor-lookup helpers for demo workflows.
 
 Provides :func:`_dl_key` for safe DataLayer path encoding,
-:func:`get_actor_by_id` for actor look-ups, and :func:`seed_containers` for
-the two-phase seeding sequence used by multi-actor scenarios.
+:func:`get_actor_by_id` for actor look-ups, :func:`seed_containers` for
+the two-phase seeding sequence used by multi-actor scenarios, and
+:func:`reset_containers` for resetting an arbitrary set of containers to
+a clean baseline before a demo run.
 """
 
 import logging
-from typing import Tuple
+from collections.abc import Callable, Sequence
+from typing import Any, Tuple
 from urllib.parse import quote
 
-from vultron.demo.utils import DataLayerClient, seed_actor
+from vultron.demo.utils import (
+    DataLayerClient,
+    demo_check,
+    demo_step,
+    seed_actor,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 logger = logging.getLogger(__name__)
@@ -127,3 +135,45 @@ def seed_containers(
     logger.info("Finder peer registered on Vendor container: %s", finder.id_)
 
     return finder, vendor
+
+
+def reset_containers(
+    labeled_clients: Sequence[tuple[str, DataLayerClient]],
+    reset_fn: Callable[..., Any],
+) -> None:
+    """Reset a set of labeled containers to a clean baseline.
+
+    This generic helper iterates over *labeled_clients*, calling *reset_fn*
+    on each, then verifies that no ``VulnerabilityCase`` records remain.
+
+    Keeping the reset loop here (rather than in a scenario module) allows any
+    multi-container scenario to reuse it without importing from
+    ``two_actor_demo``.  Callers are responsible for supplying the concrete
+    ``reset_fn`` (typically ``reset_datalayer`` from their own module namespace
+    so that test-suite mock patches continue to intercept the call).
+
+    Args:
+        labeled_clients: Sequence of ``(label, client)`` pairs, one per
+            container.  *label* is used only in log and assertion messages.
+        reset_fn: Callable with the signature
+            ``reset_fn(client: DataLayerClient, init: bool) -> Any``.
+            Pass the module-local reference so test patches take effect.
+
+    Raises:
+        AssertionError: If any container still has ``VulnerabilityCase``
+            records after the reset.
+
+    Spec: D5-2.
+    """
+    with demo_step("Resetting actor containers to a clean baseline"):
+        for label, client in labeled_clients:
+            result = reset_fn(client=client, init=False)
+            logger.debug("%s reset result: %s", label, result)
+
+    with demo_check("All actor containers start with no persisted cases"):
+        for label, client in labeled_clients:
+            cases = client.get("/datalayer/VulnerabilityCases/")
+            if cases:
+                raise AssertionError(
+                    f"{label} container was not reset cleanly: {cases}"
+                )

@@ -82,6 +82,7 @@ from vultron.demo.helpers.polling import (  # noqa: F401
 from vultron.demo.helpers.seeding import (  # noqa: F401
     _dl_key,
     get_actor_by_id,
+    reset_containers as _reset_containers,
     seed_containers,
 )
 from vultron.demo.helpers.sync import (  # noqa: F401
@@ -137,11 +138,15 @@ def reset_containers(
     vendor_client: DataLayerClient,
     case_actor_client: DataLayerClient | None = None,
 ) -> None:
-    """Reset all containers used by the demo to a clean baseline.
+    """Reset all containers used by the two-actor demo to a clean baseline.
 
     D5-2 requires repeatable, single-command execution. Resetting each
     container's DataLayer at the start of the run ensures the demo does
     not depend on a prior ``docker compose down -v``.
+
+    The ``reset_datalayer`` reference is passed explicitly so that test-suite
+    patches on this module's ``reset_datalayer`` name are correctly intercepted
+    by the generic helper in ``vultron.demo.helpers.seeding``.
     """
     targets: list[tuple[str, DataLayerClient]] = [
         ("Finder", finder_client),
@@ -149,19 +154,7 @@ def reset_containers(
     ]
     if case_actor_client is not None:
         targets.append(("CaseActor", case_actor_client))
-
-    with demo_step("Resetting actor containers to a clean baseline"):
-        for label, client in targets:
-            result = reset_datalayer(client=client, init=False)
-            logger.debug("%s reset result: %s", label, result)
-
-    with demo_check("All actor containers start with no persisted cases"):
-        for label, client in targets:
-            cases = client.get("/datalayer/VulnerabilityCases/")
-            if cases:
-                raise AssertionError(
-                    f"{label} container was not reset cleanly: {cases}"
-                )
+    _reset_containers(targets, reset_fn=reset_datalayer)
 
 
 # ---------------------------------------------------------------------------
