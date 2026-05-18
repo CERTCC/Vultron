@@ -280,7 +280,7 @@ def _bootstrap_case_for_participant(
         "after SubmitReport inbox delivery, but none was found.  "
         "The create_receive_report_case_tree BT may not have run."
     )
-    case_id = all_cases[0]["id_"]
+    case_id: str = all_cases[0]["id_"]
 
     # Owner validates the report: this triggers the validate-report BT
     # and causes the CaseActor to emit Announce(VulnerabilityCase) to
