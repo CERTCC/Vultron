@@ -31,8 +31,8 @@ Both test methods in ``TestLateJoinerSequence`` run the complete
    (``create_receive_report_case_tree`` BT creates the case and the
    CaseActor).
 2. The owner validates the report (``trigger/validate-report``), which
-   causes the CaseActor to emit ``Announce(VulnerabilityCase)`` to the
-   reporter via the outbox.
+   triggers ``create_validate_report_tree`` and causes the CaseActor to
+   emit ``Create(VulnerabilityCase)`` to the reporter via the outbox.
 3. The owner triggers ``invite-actor-to-case`` for the late-joiner actor.
    The outbox is drained synchronously by the TestClient background task,
    delivering the ``Invite`` to the late-joiner's inbox.
@@ -41,19 +41,25 @@ Both test methods in ``TestLateJoinerSequence`` run the complete
    ``AcceptInviteActorToCaseReceivedUseCase``, adds the late-joiner as a
    participant, and queues ``Announce(VulnerabilityCase)`` in the *CaseActor's*
    outbox.
-5. The test manually drains the CaseActor's outbox (it is not drained
-   automatically) and delivers the ``Announce`` to the late-joiner's inbox.
+5. The CaseActor's outbox is drained via the real ``outbox_handler`` so the
+   Announce dispatch is exercised end-to-end (routing, recipient extraction,
+   OX-08-001 validation) before delivery to the late-joiner's inbox.
 
 AC-1 (``test_late_joiner_receives_case_replica``) asserts that a replica
 exists in late-joiner's DataLayer after the full sequence.
 
 AC-2 (``test_late_joiner_appears_as_participant``) asserts that the
-late-joiner's actor ID appears in ``replica.actor_participant_index``.
+late-joiner's actor ID appears in ``replica.actor_participant_index`` with a
+non-empty participant ID, and that the corresponding participant list entry
+is present in ``replica.case_participants``.
 """
+
+import asyncio
 
 import pytest
 
 from test.demo.conftest import _TestASGIRouter, create_isolated_actor_app
+from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
@@ -202,7 +208,7 @@ def _bootstrap_case(
        preliminary ``VulnerabilityCase`` with CaseActor.
     2. Owner validates the report (``trigger/validate-report``), which
        triggers ``create_validate_report_tree`` and causes the CaseActor to
-       emit ``Announce(VulnerabilityCase)`` to the reporter (the existing
+       emit ``Create(VulnerabilityCase)`` to the reporter (the existing
        case participant).
 
     Args:
@@ -285,41 +291,29 @@ def _find_case_actor_id_in_dl(dl, case_id: str) -> str | None:
     return None
 
 
-def _drain_case_actor_outbox(
-    owner_iso,
-    case_actor_id: str,
-    late_joiner_tc,
-    lj_actor_id: str,
-) -> None:
-    """Drain the CaseActor's outbox and deliver activities to late-joiner.
+def _drain_case_actor_outbox(owner_iso, case_actor_id: str) -> None:
+    """Drain the CaseActor's outbox via the real outbox_handler.
 
     After ``AcceptInviteActorToCaseReceivedUseCase`` processes an Accept, it
     calls ``_emit_announce_case()`` which queues ``Announce(VulnerabilityCase)``
     in the **CaseActor's** outbox (not the owner's or late-joiner's).  The
     background task triggered by ``trigger/accept-case-invite`` drains the
     accepting actor's outbox only, so the CaseActor's outbox must be drained
-    manually in tests.
+    explicitly in tests.
 
-    Reads each queued activity from ``owner_iso.dl`` (which rehydrates the
-    dehydrated ``object_`` field to a full ``VulnerabilityCase``) before
-    posting it to the late-joiner's inbox.
+    Uses the real ``outbox_handler`` (the same code path as a trigger
+    endpoint) so that recipient extraction, ``to:`` field validation
+    (OX-08-001), and emitter routing are all exercised end-to-end.  The
+    configured default emitter (the shared ``_TestASGIRouter``) routes the
+    ``Announce`` to the late-joiner's app via ASGI.
 
     Args:
-        owner_iso: Owner's ``IsolatedActorApp``.
+        owner_iso: Owner's ``IsolatedActorApp`` (contains the CaseActor's
+            outbox queue and the activity objects).
         case_actor_id: Full ID of the CaseActor.
-        late_joiner_tc: Late-joiner's ``TestClient``.
-        lj_actor_id: Full ID of the late-joiner actor.
     """
     case_actor_dl = owner_iso.dl.clone_for_actor(case_actor_id)
-    pending_ids = case_actor_dl.outbox_list()
-    lj_slug = _actor_slug(lj_actor_id)
-    for activity_id in pending_ids:
-        activity = owner_iso.dl.read(activity_id)
-        assert activity is not None, (
-            f"CaseActor outbox references activity '{activity_id}' "
-            f"but it could not be read from owner's DataLayer."
-        )
-        _post_to_inbox(late_joiner_tc, lj_slug, activity)
+    asyncio.run(outbox_handler(case_actor_id, case_actor_dl, owner_iso.dl))
 
 
 def _run_late_joiner_sequence(
@@ -345,8 +339,8 @@ def _run_late_joiner_sequence(
       5. Late-joiner triggers ``accept-case-invite``; the outbox drain
          delivers the ``Accept`` to owner's inbox.  Owner processes it and
          queues ``Announce(VulnerabilityCase)`` in the CaseActor's outbox.
-      6. CaseActor's outbox is drained manually; ``Announce`` is delivered to
-         late-joiner's inbox.
+      6. CaseActor's outbox is drained via ``outbox_handler``; ``Announce`` is
+         delivered to late-joiner's inbox via the configured emitter.
 
     Args:
         owner_iso: Owner's ``IsolatedActorApp``.
@@ -411,16 +405,16 @@ def _run_late_joiner_sequence(
         f"{resp.text}"
     )
 
-    # Step 6: drain CaseActor's outbox → deliver Announce to late-joiner
+    # Step 6: drain CaseActor's outbox via real outbox_handler
+    # Announce(VulnerabilityCase) is routed to late-joiner via the
+    # configured default emitter (_TestASGIRouter).
     case_actor_id = _find_case_actor_id_in_dl(owner_iso.dl, case_id)
     assert case_actor_id is not None, (
         f"Could not find CaseActor for case '{case_id}' in owner's "
         f"DataLayer.  CreateCaseActorNode may not have run during "
         f"create_receive_report_case_tree."
     )
-    _drain_case_actor_outbox(
-        owner_iso, case_actor_id, late_joiner_tc, lj_actor_id
-    )
+    _drain_case_actor_outbox(owner_iso, case_actor_id)
 
     return case_id, lj_actor_id
 
@@ -544,4 +538,22 @@ class TestLateJoinerSequence:
             f"AnnounceVulnerabilityCaseReceivedUseCase seeds the replica "
             f"with full participant data (PCR-07-007 AC-2).  "
             f"Participant index: {participant_index!r}"
+        )
+
+        participant_id = participant_index[lj_actor_id]
+        assert participant_id, (
+            f"actor_participant_index['{lj_actor_id}'] is empty — the "
+            f"participant ID was not recorded (PCR-07-007 AC-2)."
+        )
+
+        participant_ids_in_list = [
+            getattr(p, "id_", p) if not isinstance(p, str) else p
+            for p in getattr(replica, "case_participants", [])
+        ]
+        assert participant_id in participant_ids_in_list, (
+            f"Participant '{participant_id}' for late-joiner "
+            f"'{lj_actor_id}' appears in actor_participant_index but is "
+            f"missing from case_participants list — the replica is "
+            f"inconsistent (PCR-07-007 AC-2).  "
+            f"case_participants IDs: {participant_ids_in_list!r}"
         )

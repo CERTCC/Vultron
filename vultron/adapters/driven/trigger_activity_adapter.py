@@ -35,7 +35,8 @@ import logging
 from typing import Any, cast
 
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.errors import VultronNotFoundError
+from vultron.core.use_cases._helpers import _as_id
+from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.factories import (
     accept_actor_recommendation_activity,
     add_note_to_case_activity,
@@ -342,13 +343,20 @@ class TriggerActivityAdapter:
 
         The ``to:`` field is derived from ``invite.actor`` (the original
         sender of the invitation) so that OX-08-001 is satisfied and the
-        Accept is routable via the outbox handler.
+        Accept is routable via the outbox handler.  ``_as_id`` is used to
+        extract the URI whether the stored actor field is a plain string or a
+        hydrated AS2 object; a ``VultronValidationError`` is raised if the
+        invite carries no routable actor reference.
         """
         invite = cast(Any, self._dl.read(invite_id))
-        invite_actor = getattr(invite, "actor", None)
-        to = [str(invite_actor)] if invite_actor else None
+        invite_actor_id = _as_id(getattr(invite, "actor", None))
+        if not invite_actor_id:
+            raise VultronValidationError(
+                f"accept_case_invite: invite '{invite_id}' has no routable"
+                " actor field; cannot derive Accept recipient"
+            )
         activity = rm_accept_invite_to_case_activity(
-            invite=invite, actor=actor, to=to
+            invite=invite, actor=actor, to=[invite_actor_id]
         )
         try:
             self._dl.create(activity)
