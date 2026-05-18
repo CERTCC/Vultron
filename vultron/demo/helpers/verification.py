@@ -28,7 +28,7 @@ from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.states.roles import CVDRole
 from vultron.demo.helpers.seeding import _dl_key
-from vultron.demo.utils import DataLayerClient
+from vultron.demo.utils import DataLayerClient, ref_id
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
@@ -174,8 +174,6 @@ def _assert_case_notes(
     Raises:
         AssertionError: If a provided note ID is missing from the case.
     """
-    from vultron.demo.utils import ref_id  # noqa: PLC0415
-
     if question_note_id is None and reply_note_id is None:
         return
 
@@ -292,3 +290,119 @@ def _all_fetchable_participants_rm_closed(
         if latest.rm_state != RM.CLOSED:
             return False
     return True
+
+
+def verify_coordinator_case_state(
+    coordinator_client: DataLayerClient,
+    case_id: str,
+    report_id: str,
+    coordinator_actor_id: str,
+    reporter_actor_id: str,
+    question_note_id: Optional[str] = None,
+    reply_note_id: Optional[str] = None,
+) -> VulnerabilityCase:
+    """Assert the final authoritative case state on the coordinator container.
+
+    Verifies that the case references the submitted report, that all required
+    participants are present (coordinator, reporter, plus at least one Case
+    Actor), and that the coordinator participant has reached ``RM.ACCEPTED``
+    with ``EM.ACTIVE`` and ``pxa == CS_pxa.pxa``.  Optionally checks that
+    *question_note_id* and *reply_note_id* appear in the case notes.
+
+    Args:
+        coordinator_client: Client connected to the coordinator container.
+        case_id: Full URI of the ``VulnerabilityCase`` to verify.
+        report_id: Full URI of the submitted vulnerability report.
+        coordinator_actor_id: Full URI of the coordinator actor.
+        reporter_actor_id: Full URI of the reporter actor.
+        question_note_id: Optional URI of the question note to assert present.
+        reply_note_id: Optional URI of the reply note to assert present.
+
+    Returns:
+        The fetched and validated ``VulnerabilityCase``.
+
+    Raises:
+        AssertionError: If any invariant is violated.
+    """
+    final_case = VulnerabilityCase(
+        **coordinator_client.get(f"/datalayer/{case_id}")
+    )
+
+    # Verify required participants are present by ID rather than a raw count,
+    # so future changes to the participant set don't silently break CI.
+    required_ids = {coordinator_actor_id, reporter_actor_id}
+    missing = required_ids - set(final_case.actor_participant_index.keys())
+    if missing:
+        raise AssertionError(
+            f"Required participants missing from case: {missing}"
+        )
+    # At least one Case Actor must be present beyond coordinator and reporter.
+    other_actors = (
+        set(final_case.actor_participant_index.keys()) - required_ids
+    )
+    if not other_actors:
+        raise AssertionError(
+            "Expected at least one Case Actor participant in addition to"
+            " coordinator and reporter"
+        )
+
+    report_ids = [
+        ref_id(report) or str(report)
+        for report in final_case.vulnerability_reports
+    ]
+    if report_id not in report_ids:
+        raise AssertionError(
+            "Final case does not reference the submitted report"
+        )
+
+    coordinator_participant_id = _require_case_participant_id(
+        final_case,
+        coordinator_actor_id,
+        "Coordinator",
+    )
+    _require_case_participant_id(final_case, reporter_actor_id, "Reporter")
+    _assert_vendor_participant_state(
+        coordinator_client, coordinator_participant_id
+    )
+
+    event_types = [event.event_type for event in final_case.events]
+    if "participant_added" not in event_types:
+        raise AssertionError(
+            "Expected participant_added event after reporter was added to the"
+            " case"
+        )
+
+    _assert_vendor_case_status(final_case)
+    _assert_case_notes(final_case, question_note_id, reply_note_id)
+    return final_case
+
+
+def verify_case_actor_unused(
+    case_actor_client: Optional[DataLayerClient],
+    case_id: str,
+) -> None:
+    """Verify the dedicated CaseActor container remains unused in D5-2.
+
+    Per D5-1-G3, the per-case ``VultronCaseActor`` co-locates in the
+    coordinator container for D5-2.  The standalone ``case-actor`` service
+    participates in the Docker topology but should not hold the created
+    ``VulnerabilityCase``.
+
+    Args:
+        case_actor_client: Optional client connected to the dedicated
+            CaseActor container.  When ``None`` the check is skipped.
+        case_id: Full URI of the case that should be absent.
+
+    Raises:
+        AssertionError: If the case is unexpectedly present on the dedicated
+            CaseActor container.
+    """
+    if case_actor_client is None:
+        return
+
+    case_actor_cases = case_actor_client.get("/datalayer/VulnerabilityCases/")
+    if case_id in case_actor_cases:
+        raise AssertionError(
+            "Dedicated case-actor container unexpectedly persisted the D5-2"
+            " case"
+        )

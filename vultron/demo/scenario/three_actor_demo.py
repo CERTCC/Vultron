@@ -35,6 +35,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 import os
 import sys
+import warnings
 
 from vultron.core.states.em import EM
 from vultron.demo.scenario.two_actor_demo import (
@@ -69,6 +70,14 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 from vultron.wire.as2.factories import (
     rm_submit_report_activity,
+)
+
+warnings.warn(
+    "vultron.demo.scenario.three_actor_demo is deprecated and will be removed"
+    " in a future version. A replacement multi-actor scenario is under"
+    " development.",
+    DeprecationWarning,
+    stacklevel=1,
 )
 
 logger = logging.getLogger(__name__)

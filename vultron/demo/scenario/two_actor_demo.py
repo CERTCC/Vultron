@@ -15,40 +15,10 @@
 
 """Two-actor (Finder + Vendor) multi-container CVD workflow demo.
 
-Orchestrates a complete CVD workflow across two separate API server containers:
-a Finder who discovers a vulnerability and a Vendor who validates and engages
-the case.  CaseActor is co-located in the Vendor container for this two-actor
-scenario (D5-1-G3).
-
-Environment variables
----------------------
-``VULTRON_FINDER_BASE_URL``
-    Base URL of the Finder container API
-    (default: ``http://localhost:7901/api/v2``).
-``VULTRON_VENDOR_BASE_URL``
-    Base URL of the Vendor container API
-    (default: ``http://localhost:7902/api/v2``).
-
-Workflow
---------
-1. **Reset**: Clear all container state to a known clean baseline.
-2. **Seed**: Create actor records and register peers on both containers.
-3. **Submit**: Finder submits a vulnerability report to the Vendor's inbox.
-4. **Validate**: Vendor validates the report via the ``validate-report``
-   trigger endpoint.
-5. **Engage**: Validation automatically cascades to engage the case
-   (RM.VALID → RM.ACCEPTED) without a separate trigger call
-   (D5-7-AUTOENG-2).
-6. **Add Participant**: Vendor directly adds the Finder as a case participant
-   (the Finder expressed intent to participate by submitting the report;
-   no invite/accept flow is required for initial participants).
-7. **Notes Exchange**: Finder posts a question note to the case; Vendor replies
-   and the case forwards the reply to the Finder.
-8. **Verify**: The Vendor container holds the authoritative case state with
-   two participants and two case notes.
-
-References: ``notes/multi-actor-architecture.md`` §4 G5,
-``specs/multi-actor-demo.yaml`` DEMOMA-03-001 through DEMOMA-04-002.
+Orchestrates the full VFDPxa lifecycle across separate Finder and Vendor
+containers. The scenario module now delegates common workflow, notes, and
+milestone logic to the generic helper modules under ``vultron.demo.helpers``
+while preserving the public API used by the existing test suite.
 """
 
 import logging
@@ -56,19 +26,15 @@ import os
 import sys
 from typing import Optional, Tuple
 
-from vultron.adapters.utils import parse_id
 from vultron.core.states.cs import CS_vfd
-from vultron.core.states.em import EM
-from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
+
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -83,10 +49,6 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     seed_actor,
     verify_object_stored,
 )
-from vultron.wire.as2.factories import (
-    parse_submit_report_offer,
-    rm_submit_report_activity,
-)
 
 # Re-export shared helpers so that existing imports via this module continue to
 # work and the test suite (which patches symbols in this module's namespace)
@@ -98,6 +60,14 @@ from vultron.demo.helpers.actions import (  # noqa: F401
     actor_notifies_published,
     actor_notifies_state_change,
 )
+from vultron.demo.helpers.milestones import (
+    verify_case_active,
+    verify_case_closed,
+    verify_fix_deployed,
+    verify_fix_ready,
+    verify_publicly_disclosed,
+)
+from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (  # noqa: F401
     _poll_until,
     wait_for_all_participants_rm_closed,
@@ -131,6 +101,15 @@ from vultron.demo.helpers.verification import (  # noqa: F401
     _fetch_participant,
     _fetch_participant_data,
     _require_case_participant_id,
+    verify_case_actor_unused,
+    verify_coordinator_case_state,
+)
+from vultron.demo.helpers.workflow import (  # noqa: F401
+    _load_case_from_datalayer,
+    _report_id_from_offer_data,
+    coordinator_validates_report,
+    find_case_for_offer,
+    reporter_submits_report,
 )
 
 logger = logging.getLogger(__name__)
@@ -150,6 +129,8 @@ CASE_ACTOR_BASE_URL = os.environ.get(
 FINDER_ACTOR_ID = "http://finder:7999/api/v2/actors/finder"
 VENDOR_ACTOR_ID = "http://vendor:7999/api/v2/actors/vendor"
 
+_load_vendor_case = _load_case_from_datalayer
+
 
 def reset_containers(
     finder_client: DataLayerClient,
@@ -160,7 +141,7 @@ def reset_containers(
 
     D5-2 requires repeatable, single-command execution. Resetting each
     container's DataLayer at the start of the run ensures the demo does
-    not depend on a prior `docker compose down -v`.
+    not depend on a prior ``docker compose down -v``.
     """
     targets: list[tuple[str, DataLayerClient]] = [
         ("Finder", finder_client),
@@ -184,7 +165,7 @@ def reset_containers(
 
 
 # ---------------------------------------------------------------------------
-# Workflow step functions
+# Backward-compatible scenario wrappers
 # ---------------------------------------------------------------------------
 
 
@@ -194,81 +175,17 @@ def finder_submits_report(
     vendor: as_Actor,
     finder_client: Optional[DataLayerClient] = None,
 ) -> Tuple[VulnerabilityReport, as_Offer]:
-    """Finder creates a vulnerability report and submits it to the Vendor's inbox.
+    """Scenario alias for :func:`~vultron.demo.helpers.workflow.reporter_submits_report`.
 
-    When ``finder_client`` is provided (e.g. in a multi-container Docker demo),
-    the report and offer are created via the Finder container's
-    ``submit-report`` trigger endpoint so that Finder container logs tell the
-    full process-flow story (D5-6a).  The resulting offer is then delivered to
-    the Vendor container's inbox.
-
-    When ``finder_client`` is ``None`` (e.g. single-container integration
-    tests), the report and offer are constructed in memory and posted directly
-    to the Vendor container (backward-compatible path).
-
-    Args:
-        vendor_client: Client connected to the Vendor container.
-        finder: Finder ``as_Actor``.
-        vendor: Vendor ``as_Actor``.
-        finder_client: Optional client connected to the Finder container.
-            When provided, the submit-report trigger is called on the Finder
-            container; when absent the legacy in-memory path is used.
-
-    Returns:
-        Tuple of ``(report, offer)``.
+    Maintained for backward compatibility; prefer ``reporter_submits_report``
+    in new scenarios.
     """
-    if finder_client is not None:
-        report_name = "Remote Code Execution in Network Stack"
-        report_content = (
-            "A critical remote code execution vulnerability was discovered "
-            "in the network stack component. An attacker can exploit this "
-            "issue to execute arbitrary code with elevated privileges."
-        )
-        with demo_step(
-            "Finder submits vulnerability report to Vendor's inbox"
-        ):
-            result = post_to_trigger(
-                client=finder_client,
-                actor_id=finder.id_,
-                behavior="submit-report",
-                body={
-                    "report_name": report_name,
-                    "report_content": report_content,
-                    "recipient_id": vendor.id_,
-                },
-            )
-        offer_dict = result.get("offer", {})
-        report, offer = parse_submit_report_offer(offer_dict)
-        # Deliver the offer from the Finder to the Vendor's inbox.
-        # Per ADR-0012 (per-actor DataLayer isolation) the trigger stores the
-        # offer only in the Finder's namespace; the Vendor must receive it
-        # explicitly via inbox delivery so SubmitReportReceivedUseCase runs and
-        # creates the case at RM.RECEIVED (ADR-0015).
-        with demo_step("Deliver Finder's offer to Vendor's inbox"):
-            post_to_inbox_and_wait(vendor_client, vendor.id_, offer)
-    else:
-        report = VulnerabilityReport(
-            attributed_to=finder.id_,
-            name="Remote Code Execution in Network Stack",
-            content=(
-                "A critical remote code execution vulnerability was discovered "
-                "in the network stack component. An attacker can exploit this "
-                "issue to execute arbitrary code with elevated privileges."
-            ),
-        )
-        offer = rm_submit_report_activity(
-            report, actor=finder.id_, target=vendor.id_, to=vendor.id_
-        )
-        with demo_step(
-            "Finder submits vulnerability report to Vendor's inbox"
-        ):
-            post_to_inbox_and_wait(vendor_client, vendor.id_, offer)
-    with demo_check("Report stored in Vendor's DataLayer"):
-        verify_object_stored(vendor_client, report.id_)
-    with demo_check("Offer stored in Vendor's DataLayer"):
-        verify_object_stored(vendor_client, offer.id_)
-    logger.info("Report submitted: %s", ref_id(report))
-    return report, offer
+    return reporter_submits_report(
+        coordinator_client=vendor_client,
+        reporter=finder,
+        coordinator=vendor,
+        reporter_client=finder_client,
+    )
 
 
 def vendor_validates_report(
@@ -276,26 +193,16 @@ def vendor_validates_report(
     vendor: as_Actor,
     offer_id: str,
 ) -> dict:
-    """Vendor validates the submitted report via the trigger endpoint.
+    """Scenario alias for :func:`~vultron.demo.helpers.workflow.coordinator_validates_report`.
 
-    Args:
-        vendor_client: Client connected to the Vendor container.
-        vendor: Vendor ``as_Actor``.
-        offer_id: Full URI of the submit-report ``as_Offer`` to validate.
-
-    Returns:
-        Response dict from the trigger endpoint (contains the validate activity).
+    Maintained for backward compatibility; prefer
+    ``coordinator_validates_report`` in new scenarios.
     """
-    vendor_obj_id = parse_id(vendor.id_)["object_id"]
-    with demo_step("Vendor validates the vulnerability report"):
-        result = post_to_trigger(
-            client=vendor_client,
-            actor_id=vendor.id_,
-            behavior="validate-report",
-            body={"offer_id": offer_id},
-        )
-    logger.info("Validate-report trigger result for actor %s", vendor_obj_id)
-    return result
+    return coordinator_validates_report(
+        coordinator_client=vendor_client,
+        coordinator=vendor,
+        offer_id=offer_id,
+    )
 
 
 def finder_asks_question(
@@ -305,55 +212,23 @@ def finder_asks_question(
     finder: as_Actor,
     case: VulnerabilityCase,
 ) -> as_Note:
-    """Finder posts a question note to the case via the trigger endpoint.
+    """Scenario alias: finder adds a question note to the case.
 
-    Uses the finder's ``add-note-to-case`` trigger so the note flows through
-    the finder's outbox to the vendor's inbox — reflecting real deployment
-    behavior (D5-7-DEMONOTECLEAN-1).
-
-    Args:
-        vendor_client: Client connected to the Vendor container.
-        finder_client: Client connected to the Finder container.
-        vendor: Vendor ``as_Actor`` (the case host / case actor).
-        finder: Finder ``as_Actor`` (posting the question).
-        case: The ``VulnerabilityCase`` the note belongs to.
-
-    Returns:
-        The ``as_Note`` question note fetched from the Vendor's DataLayer.
+    Maintained for backward compatibility; prefer
+    :func:`~vultron.demo.helpers.notes.participant_adds_note_to_case` in new
+    scenarios.
     """
-    note_name = "Question from Finder"
-    note_content = (
-        "Is there a workaround available while waiting for the patch? "
-        "Our security team needs to provide interim guidance to users."
+    return participant_adds_note_to_case(
+        posting_client=finder_client,
+        watching_client=vendor_client,
+        poster=finder,
+        case=case,
+        note_name="Question from Finder",
+        note_content=(
+            "Is there a workaround available while waiting for the patch? "
+            "Our security team needs to provide interim guidance to users."
+        ),
     )
-
-    with demo_step("Finder posts a question note to the case"):
-        result = post_to_trigger(
-            client=finder_client,
-            actor_id=finder.id_,
-            behavior="add-note-to-case",
-            body={
-                "case_id": case.id_,
-                "note_name": note_name,
-                "note_content": note_content,
-            },
-            path_prefix="demo",
-        )
-
-    note_id = result.get("note", {}).get("id")
-    if note_id is None:
-        raise AssertionError(
-            "add-note-to-case trigger did not return a note ID"
-        )
-
-    with demo_check("Question note delivered to Vendor's DataLayer"):
-        wait_for_note_in_case(vendor_client, case.id_, note_id)
-        verify_object_stored(vendor_client, note_id)
-
-    logger.info("Question note posted to case: %s", note_id)
-
-    note_data = vendor_client.get(f"/datalayer/{note_id}")
-    return as_Note(**note_data)
 
 
 def vendor_replies_to_question(
@@ -364,136 +239,25 @@ def vendor_replies_to_question(
     case: VulnerabilityCase,
     question_note: as_Note,
 ) -> as_Note:
-    """Vendor posts a reply note to the case via the trigger endpoint.
+    """Scenario alias: vendor adds a reply note to the case.
 
-    Uses the vendor's ``add-note-to-case`` trigger so the note flows through
-    the vendor's outbox — reflecting real deployment behavior
-    (D5-7-DEMONOTECLEAN-1).  The case host (CaseActor) then automatically
-    broadcasts the note to all participants via the note broadcast mechanism
-    (CM-06-005).
-
-    Args:
-        vendor_client: Client connected to the Vendor container.
-        finder_client: Client connected to the Finder container.
-        vendor: Vendor ``as_Actor``.
-        finder: Finder ``as_Actor`` (the reply recipient).
-        case: The ``VulnerabilityCase`` the note belongs to.
-        question_note: The original question note being replied to.
-
-    Returns:
-        The ``as_Note`` reply note fetched from the Vendor's DataLayer.
+    Maintained for backward compatibility; prefer
+    :func:`~vultron.demo.helpers.notes.participant_adds_note_to_case` in new
+    scenarios.
     """
-    note_name = "Vendor Response"
-    note_content = (
-        "Yes, disabling the affected network stack component is an effective "
-        "workaround. A patched version is expected within 30 days. "
-        "We will notify all case participants when it is available."
+    return participant_adds_note_to_case(
+        posting_client=vendor_client,
+        watching_client=vendor_client,
+        poster=vendor,
+        case=case,
+        note_name="Vendor Response",
+        note_content=(
+            "Yes, disabling the affected network stack component is an effective "
+            "workaround. A patched version is expected within 30 days. "
+            "We will notify all case participants when it is available."
+        ),
+        in_reply_to=question_note.id_,
     )
-
-    with demo_step("Vendor posts a reply note to the case"):
-        result = post_to_trigger(
-            client=vendor_client,
-            actor_id=vendor.id_,
-            behavior="add-note-to-case",
-            body={
-                "case_id": case.id_,
-                "note_name": note_name,
-                "note_content": note_content,
-                "in_reply_to": question_note.id_,
-            },
-            path_prefix="demo",
-        )
-
-    note_id = result.get("note", {}).get("id")
-    if note_id is None:
-        raise AssertionError(
-            "add-note-to-case trigger did not return a note ID"
-        )
-
-    with demo_check("Reply note stored in Vendor's DataLayer"):
-        verify_object_stored(vendor_client, note_id)
-
-    logger.info("Reply note posted to case: %s", note_id)
-
-    note_data = vendor_client.get(f"/datalayer/{note_id}")
-    return as_Note(**note_data)
-
-
-def _report_id_from_offer_data(
-    offer_data: dict[str, object],
-    offer_id: str,
-) -> str | None:
-    offer_object = offer_data.get("object")
-    if isinstance(offer_object, str):
-        return offer_object
-    if isinstance(offer_object, dict):
-        return offer_object.get("id")
-
-    report_id = ref_id(offer_object)
-    if report_id:
-        return report_id
-
-    logger.warning("Offer %s does not reference a report object", offer_id)
-    return None
-
-
-def _load_vendor_case(
-    vendor_client: DataLayerClient,
-    item: str | dict[str, object],
-) -> VulnerabilityCase | None:
-    if not isinstance(item, str):
-        return VulnerabilityCase.model_validate(item)
-
-    try:
-        return VulnerabilityCase.model_validate(
-            vendor_client.get(f"/datalayer/{item}")
-        )
-    except Exception as exc:
-        logger.warning("Could not fetch case %s: %s", item, exc)
-        return None
-
-
-def find_case_for_offer(
-    vendor_client: DataLayerClient,
-    offer_id: str,
-) -> Optional[VulnerabilityCase]:
-    """Find the VulnerabilityCase associated with a report offer in the Vendor container.
-
-    Args:
-        vendor_client: Client connected to the Vendor container.
-        offer_id: Full URI of the ``VultronActivity`` offer.
-
-    Returns:
-        The matching ``VulnerabilityCase``, or ``None`` if not found.
-    """
-    offer_data = vendor_client.get(f"/datalayer/{offer_id}")
-    if not offer_data:
-        return None
-
-    report_id = _report_id_from_offer_data(offer_data, offer_id)
-    if not report_id:
-        return None
-
-    cases_data = vendor_client.get("/datalayer/VulnerabilityCases/")
-    if not cases_data:
-        return None
-
-    for item in cases_data:
-        case = _load_vendor_case(vendor_client, item)
-        if case is None:
-            continue
-
-        report_ids = [
-            (
-                report
-                if isinstance(report, str)
-                else getattr(report, "id_", str(report))
-            )
-            for report in (case.vulnerability_reports or [])
-        ]
-        if report_id in report_ids:
-            return case
-    return None
 
 
 def verify_vendor_case_state(
@@ -502,83 +266,23 @@ def verify_vendor_case_state(
     report_id: str,
     vendor_actor_id: str,
     reporter_actor_id: str,
-    question_note_id: str | None = None,
-    reply_note_id: str | None = None,
+    question_note_id: Optional[str] = None,
+    reply_note_id: Optional[str] = None,
 ) -> VulnerabilityCase:
-    """Assert the final authoritative case state stored on the Vendor container."""
-    final_case = VulnerabilityCase(
-        **vendor_client.get(f"/datalayer/{case_id}")
-    )
+    """Scenario alias for :func:`~vultron.demo.helpers.verification.verify_coordinator_case_state`.
 
-    # Verify required participants are present by ID rather than a raw count,
-    # so future changes to the participant set don't silently break CI.
-    required_ids = {vendor_actor_id, reporter_actor_id}
-    missing = required_ids - set(final_case.actor_participant_index.keys())
-    if missing:
-        raise AssertionError(
-            f"Required participants missing from case: {missing}"
-        )
-    # At least one Case Actor must be present beyond vendor and finder.
-    other_actors = (
-        set(final_case.actor_participant_index.keys()) - required_ids
-    )
-    if not other_actors:
-        raise AssertionError(
-            "Expected at least one Case Actor participant in addition to"
-            " vendor and finder"
-        )
-
-    report_ids = [
-        ref_id(report) or str(report)
-        for report in final_case.vulnerability_reports
-    ]
-    if report_id not in report_ids:
-        raise AssertionError(
-            "Final case does not reference the submitted report"
-        )
-
-    vendor_participant_id = _require_case_participant_id(
-        final_case,
-        vendor_actor_id,
-        "Vendor",
-    )
-    _require_case_participant_id(final_case, reporter_actor_id, "Finder")
-    _assert_vendor_participant_state(vendor_client, vendor_participant_id)
-
-    event_types = [event.event_type for event in final_case.events]
-    if "participant_added" not in event_types:
-        raise AssertionError(
-            "Expected participant_added event after Finder was added to the case"
-        )
-
-    _assert_vendor_case_status(final_case)
-    _assert_case_notes(final_case, question_note_id, reply_note_id)
-    return final_case
-
-
-def verify_case_actor_unused(
-    case_actor_client: DataLayerClient | None,
-    case_id: str,
-) -> None:
-    """Verify the dedicated CaseActor container remains unused in D5-2.
-
-    Per D5-1-G3, the per-case `VultronCaseActor` co-locates in the Vendor
-    container for D5-2. The standalone `case-actor` service participates in
-    the Docker topology but should not hold the created `VulnerabilityCase`.
+    Maintained for backward compatibility; prefer
+    ``verify_coordinator_case_state`` in new scenarios.
     """
-    if case_actor_client is None:
-        return
-
-    case_actor_cases = case_actor_client.get("/datalayer/VulnerabilityCases/")
-    if case_id in case_actor_cases:
-        raise AssertionError(
-            "Dedicated case-actor container unexpectedly persisted the D5-2 case"
-        )
-
-
-# ---------------------------------------------------------------------------
-# Milestone verification helpers
-# ---------------------------------------------------------------------------
+    return verify_coordinator_case_state(
+        coordinator_client=vendor_client,
+        case_id=case_id,
+        report_id=report_id,
+        coordinator_actor_id=vendor_actor_id,
+        reporter_actor_id=reporter_actor_id,
+        question_note_id=question_note_id,
+        reply_note_id=reply_note_id,
+    )
 
 
 def verify_m1_state(
@@ -588,63 +292,17 @@ def verify_m1_state(
     vendor_actor_id: str,
     reporter_actor_id: str,
 ) -> None:
-    """Verify milestone M1: required participants present, EM.ACTIVE, finder has case replica.
+    """Scenario alias for :func:`~vultron.demo.helpers.milestones.verify_case_active`.
 
-    Checks the Vendor DataLayer for the required participants (Vendor and
-    Reporter) plus at least one Case Actor (≥3 total) with an active embargo,
-    then verifies the Reporter DataLayer has a matching case replica.
-
-    Spec: DEMOMA-06-002, DEMOMA-06-003.
+    Maintained for backward compatibility; prefer ``verify_case_active`` in
+    new scenarios.
     """
-    # Vendor side
-    case_data = vendor_client.get(f"/datalayer/{case_id}")
-    assert case_data, f"M1: Vendor case {case_id!r} not found"
-    case = VulnerabilityCase.model_validate(case_data)
-
-    required = {vendor_actor_id, reporter_actor_id}
-    missing = required - set(case.actor_participant_index.keys())
-    if missing:
-        raise AssertionError(
-            f"M1: Required participants missing from vendor case: {missing}"
-        )
-    other_actors = set(case.actor_participant_index.keys()) - required
-    if not other_actors:
-        raise AssertionError(
-            "M1: Expected a Case Actor participant in addition to vendor and finder"
-        )
-    if case.current_status.em_state != EM.ACTIVE:
-        raise AssertionError(
-            f"M1 vendor: expected EM.ACTIVE, found {case.current_status.em_state}"
-        )
-    if case.active_embargo is None:
-        raise AssertionError("M1 vendor: case has no active_embargo")
-    logger.info(
-        "✓ M1 vendor: required participants (vendor, finder) + case-actor "
-        "present, EM.ACTIVE, embargo present"
-    )
-
-    # Finder side: replica must exist with matching participant index and embargo
-    finder_case_data = finder_client.get(f"/datalayer/{case_id}")
-    if not finder_case_data:
-        raise AssertionError(
-            f"M1: Finder does not have case replica for {case_id!r} — "
-            "outbox delivery may not have completed"
-        )
-    finder_case = VulnerabilityCase.model_validate(finder_case_data)
-
-    vendor_embargo_id = _extract_ref_id(case.active_embargo)
-    finder_embargo_id = _extract_ref_id(finder_case.active_embargo)
-    if (
-        vendor_embargo_id is not None
-        and vendor_embargo_id != finder_embargo_id
-    ):
-        raise AssertionError(
-            f"M1: Finder active_embargo {finder_embargo_id!r} != "
-            f"vendor active_embargo {vendor_embargo_id!r}"
-        )
-    logger.info(
-        "✓ M1 finder: case replica present, matching participant index "
-        "and active embargo"
+    return verify_case_active(
+        coordinator_client=vendor_client,
+        reporter_client=finder_client,
+        case_id=case_id,
+        coordinator_actor_id=vendor_actor_id,
+        reporter_actor_id=reporter_actor_id,
     )
 
 
@@ -654,26 +312,13 @@ def verify_m4_state(
     case_id: str,
     vendor_actor_id: str,
 ) -> None:
-    """Verify milestone M4: both replicas show CS includes F (fix ready).
-
-    Spec: DEMOMA-06-002.
-    """
-    fix_ready_states = {CS_vfd.VFd, CS_vfd.VFD}
-    _check_participant_vfd_state_in(
-        vendor_client,
-        case_id,
-        vendor_actor_id,
-        fix_ready_states,
-        "M4 vendor",
+    """Scenario alias for :func:`~vultron.demo.helpers.milestones.verify_fix_ready`."""
+    return verify_fix_ready(
+        coordinator_client=vendor_client,
+        reporter_client=finder_client,
+        case_id=case_id,
+        coordinator_actor_id=vendor_actor_id,
     )
-    _check_participant_vfd_state_in(
-        finder_client,
-        case_id,
-        vendor_actor_id,
-        fix_ready_states,
-        "M4 finder replica",
-    )
-    logger.info("✓ M4: both replicas show CS includes F (fix ready)")
 
 
 def verify_m5_state(
@@ -682,22 +327,13 @@ def verify_m5_state(
     case_id: str,
     vendor_actor_id: str,
 ) -> None:
-    """Verify milestone M5: both replicas show CS includes D (fix deployed).
-
-    Spec: DEMOMA-06-002.
-    """
-    deployed_state = {CS_vfd.VFD}
-    _check_participant_vfd_state_in(
-        vendor_client, case_id, vendor_actor_id, deployed_state, "M5 vendor"
+    """Scenario alias for :func:`~vultron.demo.helpers.milestones.verify_fix_deployed`."""
+    return verify_fix_deployed(
+        coordinator_client=vendor_client,
+        reporter_client=finder_client,
+        case_id=case_id,
+        coordinator_actor_id=vendor_actor_id,
     )
-    _check_participant_vfd_state_in(
-        finder_client,
-        case_id,
-        vendor_actor_id,
-        deployed_state,
-        "M5 finder replica",
-    )
-    logger.info("✓ M5: both replicas show CS includes D (fix deployed)")
 
 
 def verify_m6_state(
@@ -706,39 +342,13 @@ def verify_m6_state(
     case_id: str,
     vendor_actor_id: str,
 ) -> None:
-    """Verify milestone M6: both replicas CS.VFDPxa and EM terminated.
-
-    Checks:
-    - Both DataLayers reflect ``EM.EXITED`` on the case.
-    - Vendor participant's latest status has ``vfd_state == VFD`` and
-      a public-aware ``pxa_state``.
-
-    Spec: DEMOMA-06-002.
-    """
-    for label, client in [
-        ("vendor", vendor_client),
-        ("finder", finder_client),
-    ]:
-        case_data = client.get(f"/datalayer/{case_id}")
-        assert case_data, f"M6 {label}: case {case_id!r} not found"
-        case = VulnerabilityCase.model_validate(case_data)
-        if case.current_status.em_state != EM.EXITED:
-            raise AssertionError(
-                f"M6 {label}: expected EM.EXITED, "
-                f"found {case.current_status.em_state}"
-            )
-        logger.info("✓ M6 %s: EM.EXITED", label)
-
-    # Verify vendor participant's latest status is VFD + public-aware pxa
-    # on both the vendor's and finder's DataLayer replicas.
-    for label, c in [("vendor", vendor_client), ("finder", finder_client)]:
-        p = _fetch_participant(c, case_id, vendor_actor_id)
-        if p is None:
-            raise AssertionError(
-                f"M6 {label}: vendor participant {vendor_actor_id!r} not found"
-            )
-        _assert_participant_vfd_pxa(p, label, vendor_actor_id)
-    logger.info("✓ M6: both replicas CS.VFDPxa and EM.EXITED")
+    """Scenario alias for :func:`~vultron.demo.helpers.milestones.verify_publicly_disclosed`."""
+    return verify_publicly_disclosed(
+        coordinator_client=vendor_client,
+        reporter_client=finder_client,
+        case_id=case_id,
+        coordinator_actor_id=vendor_actor_id,
+    )
 
 
 def verify_m7_state(
@@ -746,98 +356,44 @@ def verify_m7_state(
     finder_client: DataLayerClient,
     case_id: str,
 ) -> None:
-    """Verify milestone M7: all participants RM.CLOSED on both replicas.
-
-    The Case Actor automatically closes the case once all participants report
-    RM.CLOSED (DEMOMA-07-003 step 5).  This helper verifies the terminal
-    participant state on both DataLayers.
-
-    Spec: DEMOMA-06-002.
-    """
-    for label, client in [
-        ("vendor", vendor_client),
-        ("finder", finder_client),
-    ]:
-        case_data = client.get(f"/datalayer/{case_id}")
-        assert case_data, f"M7 {label}: case {case_id!r} not found"
-        case = VulnerabilityCase.model_validate(case_data)
-        for a_id, p_id in case.actor_participant_index.items():
-            p_data = _fetch_participant_data(client, p_id)
-            if p_data is None:
-                continue  # remote container — not fetchable here
-            p = CaseParticipant(**p_data)
-            # Case Manager is a coordinator; skip RM closure check.
-            if CVDRole.CASE_MANAGER in (p.case_roles or []):
-                continue
-            latest = p.participant_status
-            if latest is None:
-                raise AssertionError(
-                    f"M7 {label}: actor '{a_id}' has no participant statuses"
-                )
-            rm = latest.rm_state
-            if rm != RM.CLOSED:
-                raise AssertionError(
-                    f"M7 {label}: actor '{a_id}' RM state is "
-                    f"{rm!r}, expected RM.CLOSED"
-                )
-        logger.info("✓ M7 %s: all participants RM.CLOSED", label)
-    logger.info("✓ M7: all participants RM.CLOSED on both replicas")
+    """Scenario alias for :func:`~vultron.demo.helpers.milestones.verify_case_closed`."""
+    return verify_case_closed(
+        coordinator_client=vendor_client,
+        reporter_client=finder_client,
+        case_id=case_id,
+    )
 
 
 # ---------------------------------------------------------------------------
-# Main workflow orchestration
+# Phase helpers
 # ---------------------------------------------------------------------------
 
 
-def run_two_actor_demo(
+def _phase_report_submission(
     finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    case_actor_client: DataLayerClient | None = None,
-    finder_id: str | None = None,
-    vendor_id: str | None = None,
-) -> None:
-    """Orchestrate the complete two-actor (Finder + Vendor) CVD workflow.
+    case_actor_client: DataLayerClient | None,
+    finder_id: str | None,
+    vendor_id: str | None,
+) -> tuple[
+    as_Actor,
+    as_Actor,
+    as_Actor,
+    VulnerabilityReport,
+    as_Offer,
+    VulnerabilityCase,
+]:
+    """Run reset, seeding, report submission, validation, and M1 verification."""
+    logger.info("─" * 80)
+    logger.info("Phase 1: Report submission and case activation")
+    logger.info("─" * 80)
 
-    Exercises the full VFDPxa lifecycle (M1 → M7) in the D5-1-G5 topology:
-
-    - Phase 1 (M1): Report submission → validation → case creation, default
-      embargo, required participants (Vendor + Finder + Case Actor ≥3 total),
-      EM.ACTIVE.
-    - Phase 2 (M2): Finder receives case replica via outbox delivery; log
-      tail hashes match (SYNC-2).
-    - Phase 3 (M3): Notes exchange — Finder asks a question, Vendor replies.
-    - Phase 4 (M4 → M5): Vendor self-reports fix ready (CS.VFd), then fix
-      deployed (CS.VFD).  Both replicas are verified after each transition.
-    - Phase 5 (M6): Vendor (CASE_OWNER) and Finder report public disclosure.
-      Case Actor triggers embargo teardown (EM.EXITED) automatically.
-    - Phase 6 (M7): Vendor and Finder close their cases (RM.CLOSED).  Case
-      Actor automatically closes the case when all participants report closed.
-
-    Args:
-        finder_client: Client connected to the Finder container.
-        vendor_client: Client connected to the Vendor container.
-        case_actor_client: Optional client connected to a dedicated CaseActor
-            container.  When provided, the demo verifies it remains unused
-            (per D5-2: CaseActor co-locates in Vendor).
-        finder_id: Optional deterministic URI for the Finder actor.
-        vendor_id: Optional deterministic URI for the Vendor actor.
-    """
-    logger.info("=" * 80)
-    logger.info("TWO-ACTOR DEMO: Finder + Vendor CVD Workflow (VFDPxa)")
-    logger.info("=" * 80)
-    logger.info("Finder container: %s", finder_client.base_url)
-    logger.info("Vendor container: %s", vendor_client.base_url)
-    if case_actor_client is not None:
-        logger.info("CaseActor container: %s", case_actor_client.base_url)
-
-    # ── Step 0: Reset containers ───────────────────────────────────────────
     reset_containers(
         finder_client=finder_client,
         vendor_client=vendor_client,
         case_actor_client=case_actor_client,
     )
 
-    # ── Step 1: Seed containers ───────────────────────────────────────────
     with demo_step("Seeding both containers with actor records"):
         finder, vendor = seed_containers(
             finder_client=finder_client,
@@ -846,29 +402,19 @@ def run_two_actor_demo(
             vendor_actor_id=vendor_id,
         )
 
-    # Fetch vendor as seen from the vendor container (same actor, same ID).
     vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
-
-    # ── Step 2: Finder submits report ─────────────────────────────────────
-    report, offer = finder_submits_report(
-        vendor_client=vendor_client,
-        finder=finder,
-        vendor=vendor_in_vendor,
-        finder_client=finder_client,
+    report, offer = reporter_submits_report(
+        coordinator_client=vendor_client,
+        reporter=finder,
+        coordinator=vendor_in_vendor,
+        reporter_client=finder_client,
     )
-
-    # ── Step 3: Vendor validates report ──────────────────────────────────
-    # Per ADR-0015, case creation and participant seeding now happen at
-    # RM.RECEIVED (finder_submits_report above).  validate-report advances
-    # the vendor's RM state from RECEIVED to VALID and then automatically
-    # cascades to engage-case (VALID → ACCEPTED) per D5-7-AUTOENG-2.
-    vendor_validates_report(
-        vendor_client=vendor_client,
-        vendor=vendor_in_vendor,
+    coordinator_validates_report(
+        coordinator_client=vendor_client,
+        coordinator=vendor_in_vendor,
         offer_id=offer.id_,
     )
 
-    # ── Step 3b: Confirm case exists (engage-case now auto-cascades) ──────
     with demo_check("VulnerabilityCase exists in Vendor's DataLayer"):
         case = find_case_for_offer(vendor_client, offer.id_)
         if case is None:
@@ -883,10 +429,6 @@ def run_two_actor_demo(
         expected_count=3,
     )
 
-    # Verify the Finder's container received the case via outbox delivery.
-    # The validate-report trigger queues a Create(VulnerabilityCase) activity
-    # to the Vendor's outbox; the outbox BackgroundTask delivers it to the
-    # Finder's inbox, which then runs CreateCaseReceivedUseCase.
     with demo_check(
         "Finder's DataLayer received case via Vendor outbox delivery"
     ):
@@ -899,30 +441,39 @@ def run_two_actor_demo(
             case.id_,
         )
 
-    # ── Milestone M1: 3 participants, EM.ACTIVE, finder has case replica ──
     with demo_check(
-        "M1: required participants (vendor + finder + case-actor, ≥3), EM.ACTIVE, "
-        "finder has case replica"
+        "M1: required participants (vendor + finder + case-actor, ≥3), "
+        "EM.ACTIVE, finder has case replica"
     ):
-        verify_m1_state(
-            vendor_client=vendor_client,
-            finder_client=finder_client,
+        verify_case_active(
+            coordinator_client=vendor_client,
+            reporter_client=finder_client,
             case_id=case.id_,
-            vendor_actor_id=vendor.id_,
+            coordinator_actor_id=vendor.id_,
             reporter_actor_id=finder.id_,
         )
 
-    # Refresh case after BT completes.
-    case_data = vendor_client.get(f"/datalayer/{case.id_}")
-    case = VulnerabilityCase(**case_data)
+    case = VulnerabilityCase.model_validate(
+        vendor_client.get(f"/datalayer/{case.id_}")
+    )
+    return finder, vendor, vendor_in_vendor, report, offer, case
 
-    # ── Phase 3 (M3): Notes exchange ─────────────────────────────────────
+
+def _phase_notes_exchange(
+    finder_client: DataLayerClient,
+    vendor_client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
+    vendor_in_vendor: as_Actor,
+    case: VulnerabilityCase,
+    report: VulnerabilityReport,
+) -> tuple[as_Note, as_Note, VulnerabilityCase, as_Actor]:
+    """Run the question-and-reply note exchange and verify M3 state."""
     logger.info("─" * 80)
     logger.info("Phase 3: Notes exchange")
     logger.info("─" * 80)
-    # Finder actor from the Finder container.
-    finder_in_finder = get_actor_by_id(finder_client, finder.id_)
 
+    finder_in_finder = get_actor_by_id(finder_client, finder.id_)
     question_note = finder_asks_question(
         vendor_client=vendor_client,
         finder_client=finder_client,
@@ -930,7 +481,6 @@ def run_two_actor_demo(
         finder=finder_in_finder,
         case=case,
     )
-
     reply_note = vendor_replies_to_question(
         vendor_client=vendor_client,
         finder_client=finder_client,
@@ -940,26 +490,36 @@ def run_two_actor_demo(
         question_note=question_note,
     )
 
-    # ── M3: Verify notes are attached to case after exchange ──────────────
     with demo_check(
         "M3: Vendor container holds the authoritative final case state"
     ):
-        final_case = verify_vendor_case_state(
-            vendor_client=vendor_client,
+        final_case = verify_coordinator_case_state(
+            coordinator_client=vendor_client,
             case_id=case.id_,
             report_id=report.id_,
-            vendor_actor_id=vendor.id_,
+            coordinator_actor_id=vendor.id_,
             reporter_actor_id=finder.id_,
             question_note_id=question_note.id_,
             reply_note_id=reply_note.id_,
         )
         logger.info("Final case state (Vendor): %s", logfmt(final_case))
 
-    # ── M2: Commit log entry + verify finder replica ──────────────────────
-    # Per SYNC-2, the CaseActor (co-located in the Vendor container for the
-    # D5-2 topology) commits a log entry that fans out to the Finder via
-    # Announce(CaseLogEntry).  We then poll the Finder for the entry and
-    # compare replica state against the authoritative Vendor view.
+    return question_note, reply_note, final_case, finder_in_finder
+
+
+def _phase_sync_verification(
+    finder_client: DataLayerClient,
+    vendor_client: DataLayerClient,
+    vendor: as_Actor,
+    finder: as_Actor,
+    case: VulnerabilityCase,
+    case_actor_client: DataLayerClient | None,
+) -> None:
+    """Verify SYNC-2 replication and confirm the dedicated case actor is unused."""
+    logger.info("─" * 80)
+    logger.info("Phase 2: Replica synchronization verification")
+    logger.info("─" * 80)
+
     with demo_step("Committing case log entry on Vendor (CaseActor)"):
         entry_hash = trigger_log_commit(
             client=vendor_client,
@@ -984,19 +544,26 @@ def run_two_actor_demo(
             reporter_actor_id=finder.id_,
         )
 
-    logger.info("✓ M2: Finder DataLayer synchronized (SYNC-2 verified)")
-
     with demo_check("Dedicated CaseActor container remains unused for D5-2"):
         verify_case_actor_unused(case_actor_client, case.id_)
 
-    # ── Phase 4: Fix lifecycle (M4 → M5) ─────────────────────────────────
+    logger.info("✓ M2: Finder DataLayer synchronized (SYNC-2 verified)")
+
+
+def _phase_fix_lifecycle(
+    finder_client: DataLayerClient,
+    vendor_client: DataLayerClient,
+    vendor: as_Actor,
+    vendor_in_vendor: as_Actor,
+    case: VulnerabilityCase,
+) -> None:
+    """Advance the case through fix-ready and fix-deployed milestones."""
     logger.info("─" * 80)
     logger.info(
         "Phase 4: Fix lifecycle — VFd (fix ready) → VFD (fix deployed)"
     )
     logger.info("─" * 80)
 
-    # Step 10: Vendor reports fix ready (CS.vfd → CS.VFd)
     actor_notifies_fix_ready(
         client=vendor_client,
         actor=vendor_in_vendor,
@@ -1018,14 +585,13 @@ def run_two_actor_demo(
             actor_id=vendor.id_,
             expected_states={CS_vfd.VFd, CS_vfd.VFD},
         )
-        verify_m4_state(
-            vendor_client=vendor_client,
-            finder_client=finder_client,
+        verify_fix_ready(
+            coordinator_client=vendor_client,
+            reporter_client=finder_client,
             case_id=case.id_,
-            vendor_actor_id=vendor.id_,
+            coordinator_actor_id=vendor.id_,
         )
 
-    # Step 11: Vendor reports fix deployed (CS.VFd → CS.VFD)
     actor_notifies_fix_deployed(
         client=vendor_client,
         actor=vendor_in_vendor,
@@ -1039,22 +605,30 @@ def run_two_actor_demo(
             actor_id=vendor.id_,
             expected_states={CS_vfd.VFD},
         )
-        verify_m5_state(
-            vendor_client=vendor_client,
-            finder_client=finder_client,
+        verify_fix_deployed(
+            coordinator_client=vendor_client,
+            reporter_client=finder_client,
             case_id=case.id_,
-            vendor_actor_id=vendor.id_,
+            coordinator_actor_id=vendor.id_,
         )
 
-    # ── Phase 5: Publication and embargo teardown (M6) ───────────────────
+
+def _phase_publication(
+    finder_client: DataLayerClient,
+    vendor_client: DataLayerClient,
+    vendor: as_Actor,
+    vendor_in_vendor: as_Actor,
+    finder: as_Actor,
+    finder_in_finder: as_Actor,
+    case: VulnerabilityCase,
+) -> None:
+    """Run publication notifications and verify public disclosure state."""
     logger.info("─" * 80)
     logger.info(
         "Phase 5: Publication — CS.VFDPxa + embargo teardown (EM.EXITED)"
     )
     logger.info("─" * 80)
 
-    # Step 12: Vendor (CASE_OWNER) reports public disclosure.
-    # This triggers automatic embargo teardown by the Case Actor.
     actor_notifies_published(
         client=vendor_client,
         actor=vendor_in_vendor,
@@ -1069,7 +643,6 @@ def run_two_actor_demo(
             case_id=case.id_,
         )
 
-    # Step 13: Finder (Reporter) also reports public disclosure.
     actor_notifies_published(
         client=finder_client,
         actor=finder_in_finder,
@@ -1077,32 +650,40 @@ def run_two_actor_demo(
     )
 
     with demo_check(
-        "M6: both replicas CS.VFDPxa, EM.EXITED, vendor participant is public-aware"
+        "M6: both replicas CS.VFDPxa, EM.EXITED, vendor participant is "
+        "public-aware"
     ):
         wait_for_case_em_terminated(
             client=finder_client,
             case_id=case.id_,
         )
-        verify_m6_state(
-            vendor_client=vendor_client,
-            finder_client=finder_client,
+        verify_publicly_disclosed(
+            coordinator_client=vendor_client,
+            reporter_client=finder_client,
             case_id=case.id_,
-            vendor_actor_id=vendor.id_,
+            coordinator_actor_id=vendor.id_,
         )
 
-    # ── Phase 6: Case closure (M7) ───────────────────────────────────────
+
+def _phase_case_closure(
+    finder_client: DataLayerClient,
+    vendor_client: DataLayerClient,
+    vendor: as_Actor,
+    vendor_in_vendor: as_Actor,
+    finder: as_Actor,
+    finder_in_finder: as_Actor,
+    case: VulnerabilityCase,
+) -> None:
+    """Close the case from both participants and verify terminal state."""
     logger.info("─" * 80)
     logger.info("Phase 6: Case closure — all participants RM.CLOSED")
     logger.info("─" * 80)
 
-    # Step 14: Vendor closes case.
     actor_closes_case(
         client=vendor_client,
         actor=vendor_in_vendor,
         case_id=case.id_,
     )
-
-    # Step 15: Finder (Reporter) closes case.
     actor_closes_case(
         client=finder_client,
         actor=finder_in_finder,
@@ -1118,11 +699,85 @@ def run_two_actor_demo(
             client=finder_client,
             case_id=case.id_,
         )
-        verify_m7_state(
-            vendor_client=vendor_client,
-            finder_client=finder_client,
+        verify_case_closed(
+            coordinator_client=vendor_client,
+            reporter_client=finder_client,
             case_id=case.id_,
         )
+
+
+# ---------------------------------------------------------------------------
+# Main workflow orchestration
+# ---------------------------------------------------------------------------
+
+
+def run_two_actor_demo(
+    finder_client: DataLayerClient,
+    vendor_client: DataLayerClient,
+    case_actor_client: DataLayerClient | None = None,
+    finder_id: str | None = None,
+    vendor_id: str | None = None,
+) -> None:
+    """Orchestrate the complete two-actor (Finder + Vendor) CVD workflow."""
+    logger.info("=" * 80)
+    logger.info("TWO-ACTOR DEMO: Reporter + Coordinator CVD Workflow (VFDPxa)")
+    logger.info("=" * 80)
+    logger.info("Finder container: %s", finder_client.base_url)
+    logger.info("Vendor container: %s", vendor_client.base_url)
+    if case_actor_client is not None:
+        logger.info("CaseActor container: %s", case_actor_client.base_url)
+
+    finder, vendor, vendor_in_vendor, report, offer, case = (
+        _phase_report_submission(
+            finder_client,
+            vendor_client,
+            case_actor_client,
+            finder_id,
+            vendor_id,
+        )
+    )
+    _, _, _, finder_in_finder = _phase_notes_exchange(
+        finder_client,
+        vendor_client,
+        finder,
+        vendor,
+        vendor_in_vendor,
+        case,
+        report,
+    )
+    _phase_sync_verification(
+        finder_client,
+        vendor_client,
+        vendor,
+        finder,
+        case,
+        case_actor_client,
+    )
+    _phase_fix_lifecycle(
+        finder_client,
+        vendor_client,
+        vendor,
+        vendor_in_vendor,
+        case,
+    )
+    _phase_publication(
+        finder_client,
+        vendor_client,
+        vendor,
+        vendor_in_vendor,
+        finder,
+        finder_in_finder,
+        case,
+    )
+    _phase_case_closure(
+        finder_client,
+        vendor_client,
+        vendor,
+        vendor_in_vendor,
+        finder,
+        finder_in_finder,
+        case,
+    )
 
     logger.info("=" * 80)
     logger.info("TWO-ACTOR DEMO COMPLETE ✓  (VFDPxa full lifecycle)")
