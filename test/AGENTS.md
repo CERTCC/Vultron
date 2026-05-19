@@ -247,3 +247,72 @@ failure even if pytest exits 0.
 ordering in the full suite can leave state from a prior test that affects
 `test_vultrabot`. Clear `py_trees.blackboard.Blackboard.storage` in fixtures
 that use behavior trees.
+
+---
+
+## Demo Integration Test Isolation
+
+### Per-Actor DataLayer Isolation (MUST)
+
+Each actor in a demo integration test MUST use a **distinct `DataLayer`
+instance**. Sharing one `DataLayer` across actors (e.g., by patching
+`DataLayerClient.call` at the class level so all clients route to the same
+in-memory database) bypasses the outbox → inbox delivery path entirely:
+objects created by Actor A become immediately visible to Actor B without
+any delivery occurring. This makes the integration test unreliable and hides
+real cross-actor bugs.
+
+**Wrong pattern** — one app, class-level client patch (wrong signature too):
+
+```python
+# ❌ Both clients share the same DataLayer; delivery path never exercised
+client = TestClient(api_app)
+# Wrong: ignores `method` and `path` signature; routes all calls to .get()
+DataLayerClient.call = lambda self, *a, **kw: client.get(*a, **kw)
+finder_client = _make_client("http://finder:7999")
+vendor_client = _make_client("http://vendor:7999")
+```
+
+**Correct pattern** — separate apps, per-instance call wrapper (see
+`test/demo/_helpers.py::make_testclient_call` for the full helper):
+
+```python
+# ✅ Each actor has its own isolated app and DataLayer
+finder_app = create_app(docs_url=None, openapi_url=None)
+vendor_app = create_app(docs_url=None, openapi_url=None)
+finder_client = TestClient(finder_app)
+vendor_client = TestClient(vendor_app)
+
+# Wire per-instance DataLayerClient.call so each client routes to its own app
+# make_testclient_call(client, base) returns a method(self, method, path, **kw)
+finder_app.state.dl_call = make_testclient_call(finder_client, "http://finder:7999")
+vendor_app.state.dl_call = make_testclient_call(vendor_client, "http://vendor:7999")
+```
+
+**Formal requirements**: `specs/multi-actor-demo.yaml` DEMOMA-01-004,
+DEMOMA-01-005; `notes/asgi-emitter.md` § "Co-located actor isolation".
+
+### Polling-Helper Patching Rule (MUST)
+
+Demo scenario polling helpers (e.g., `wait_for_finder_case`,
+`wait_for_vendor_case`) MUST be patched at the **instance level**, not the
+class level. Class-level patching routes all calls — regardless of which
+actor they target — to the same underlying transport, masking delivery
+failures.
+
+### Integration Tests and `@pytest.mark.integration`
+
+Demo integration tests that exercise the full outbox → inbox delivery path
+MUST be marked `@pytest.mark.integration`. The default local `pytest` run
+excludes these tests; CI always runs them (`pytest -m ""`). If you touch
+any file under `vultron/demo/` or `test/demo/`, run the full suite before
+committing:
+
+```bash
+uv run pytest -m "" --tb=short 2>&1 | tail -5
+```
+
+Polling helpers that use real `time.sleep()` in integration tests MUST use
+`@pytest.mark.timeout(N)` with a comment explaining why the 5-second default
+is insufficient. Do not bypass the timeout with arbitrary large values;
+identify and fix root causes of long waits.

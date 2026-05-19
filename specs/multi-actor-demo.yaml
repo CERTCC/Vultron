@@ -36,6 +36,36 @@ groups:
     statement: >-
       Demo startup MUST automatically reset all actor state to a known clean baseline before
       the scenario executes, without requiring manual user intervention
+  - id: DEMOMA-01-004
+    priority: MUST
+    statement: >-
+      Each call to `create_app()` MUST create fresh per-app instances of the dispatcher,
+      emitter, and DataLayer stored on `app.state`; `create_app()` MUST NOT mutate
+      module-level singleton globals such as `_default_emitter`, `_DISPATCHER`, or
+      `_shared_instance`
+    rationale: >-
+      When multiple Vultron actors are co-located in the same Python process (e.g., a
+      report-receiver actor and its spawned Case Actor), each call to `create_app()` must
+      produce a fully isolated application. If `create_app()` mutates module-level globals,
+      the last lifespan to call `configure_default_emitter()` or `init_dispatcher()`
+      silently overwrites all prior actors' state, causing cross-actor data leakage.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-01-001
+  - id: DEMOMA-01-005
+    priority: MUST
+    statement: >-
+      Co-located actors (multiple FastAPI app instances in the same process) MUST each have
+      a dedicated `DataLayer` instance registered in their `app.dependency_overrides`; no
+      two co-located apps in the same process MAY share a `DataLayer` instance
+    rationale: >-
+      Sharing a `DataLayer` instance across co-located actors bypasses the outbox → inbox
+      delivery path: objects created by Actor A become immediately visible to Actor B
+      without any delivery occurring. This makes integration tests unreliable and hides
+      real cross-actor delivery bugs.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-01-001
 - id: DEMOMA-02
   title: Container Orchestration
   specs:
@@ -213,3 +243,18 @@ groups:
       initialization BT: establish the default embargo with both Vendor and Reporter
       immediately as SIGNATORY (no invite/accept round-trip), and set EM state to ACTIVE
       before the trust bootstrap is sent to the Reporter
+  - id: DEMOMA-08-005
+    priority: MUST
+    statement: >-
+      All nested domain objects in the bootstrap `Create(VulnerabilityCase)` activity (e.g.,
+      `CaseParticipant` objects in `case_participants`) MUST be embedded as full inline
+      objects, not as bare URI string references
+    rationale: >-
+      Receiving handlers store nested objects by iterating the embedded collection and
+      persisting each object individually. Bare URI string references cannot be deserialized
+      to typed domain objects; the referenced objects are never written to the receiver's
+      DataLayer. Downstream BT nodes (e.g., `CheckParticipantExists`) then fail because
+      participant records are absent.
+    relationships:
+    - rel_type: refines
+      spec_id: CBT-01-007
