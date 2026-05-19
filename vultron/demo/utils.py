@@ -423,7 +423,7 @@ def seed_actor(
         name: Display name for the actor.
         actor_type: ActivityStreams actor type string (default: ``"Organization"``).
         actor_id: Optional full URI for the actor.  When absent the server
-            derives one from ``VULTRON_BASE_URL``.
+            derives one from ``VULTRON_SERVER__BASE_URL``.
 
     Returns:
         The created (or pre-existing) ``as_Actor`` object.

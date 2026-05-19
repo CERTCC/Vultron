@@ -1,0 +1,61 @@
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Python artifacts
+__pycache__
+**/__pycache__
+*.py[cod]
+*$py.class
+*.egg-info
+vultron.egg-info
+.eggs
+
+# Virtual environments
+.venv
+**/.venv
+
+# Build and test caches
+.pytest_cache
+**/.pytest_cache
+.mypy_cache
+**/.mypy_cache
+.ruff_cache
+.coverage
+coverage.xml
+htmlcov
+
+# MkDocs build output
+site
+
+# Node.js
+node_modules
+package-lock.json
+
+# IDE / editor metadata
+.idea
+.vscode
+
+# Database files (runtime data, not source)
+*.db
+*.sqlite
+
+# Log files
+*.log
+devlogs
+diosts.log
+
+# Notes and docs not needed in runtime images
+archived_notes
+wip_notes
+
+# macOS metadata
+.DS_Store
+**/.DS_Store
+
+# Dev-environment files
+.env
+.agents
+.github
+.copilot

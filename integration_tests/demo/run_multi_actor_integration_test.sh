@@ -9,9 +9,14 @@
 # outcome.
 #
 # Usage:
-#   ./integration_tests/demo/run_multi_actor_integration_test.sh [SCENARIO]
+#   ./integration_tests/demo/run_multi_actor_integration_test.sh [--no-build] [SCENARIO]
 #
-#   SCENARIO   One of: two-actor (default), three-actor, multi-vendor
+#   --no-build  Skip the image build step.  Use this when images are already
+#               up to date (e.g., only vultron/ source changed and the actor
+#               services use a bind mount) to save significant startup time.
+#               Run without --no-build at least once, or after changing
+#               pyproject.toml, uv.lock, or docker/Dockerfile.
+#   SCENARIO    One of: two-actor (default), three-actor, multi-vendor
 #
 # Environment variables:
 #   DEMO                  Alternative way to specify the scenario (overridden by
@@ -54,7 +59,27 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 COMPOSE_FILE="${REPO_ROOT}/docker/docker-compose-multi-actor.yml"
 COLORIZER="${SCRIPT_DIR}/colorize_compose_logs.py"
 PROJECT_NAME="${PROJECT_NAME:-vultron-it}"
-DEMO="${1:-${DEMO:-two-actor}}"
+
+# Parse arguments: optional --no-build flag followed by optional scenario name.
+NO_BUILD=false
+SCENARIO_ARG=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --no-build)
+            NO_BUILD=true
+            shift
+            ;;
+        -*)
+            echo "ERROR: unknown flag '$1'. Valid flags: --no-build" >&2
+            exit 1
+            ;;
+        *)
+            SCENARIO_ARG="$1"
+            shift
+            ;;
+    esac
+done
+DEMO="${SCENARIO_ARG:-${DEMO:-two-actor}}"
 
 VALID_SCENARIOS="two-actor three-actor multi-vendor"
 if ! echo "${VALID_SCENARIOS}" | grep -qw "${DEMO}"; then
@@ -74,13 +99,20 @@ cleanup() {
 }
 trap cleanup EXIT
 
-log "Scenario : ${DEMO}"
-log "Project  : ${PROJECT_NAME}"
-log "Compose  : ${COMPOSE_FILE}"
+log "Scenario  : ${DEMO}"
+log "Project   : ${PROJECT_NAME}"
+log "Compose   : ${COMPOSE_FILE}"
+log "No-build  : ${NO_BUILD}"
 
 # Build all images required by the multi-actor stack.
-log "Building images..."
-docker compose -f "${COMPOSE_FILE}" -p "${PROJECT_NAME}" build
+# Skip with --no-build when images are already current (e.g., only
+# vultron/ source changed and the actor services use a bind mount).
+if [ "${NO_BUILD}" = false ]; then
+    log "Building images..."
+    docker compose -f "${COMPOSE_FILE}" -p "${PROJECT_NAME}" build
+else
+    log "Skipping image build (--no-build)."
+fi
 
 # Start the full stack.  demo-runner declares condition: service_healthy for
 # every actor service (DEMO-MA-02-002), so it only launches once all actors

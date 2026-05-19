@@ -13,7 +13,7 @@
 
 """Tests for the /info endpoint (D5-1-G1).
 
-Verifies that GET /info returns the configured VULTRON_BASE_URL and the
+Verifies that GET /info returns the configured VULTRON_SERVER__BASE_URL and the
 list of actor IDs registered in the shared DataLayer.
 """
 

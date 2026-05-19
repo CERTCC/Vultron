@@ -28,7 +28,7 @@ Environment variables
     ``"Organization"``).
 ``VULTRON_ACTOR_ID``
     Optional full URI for the local actor.  When absent the server derives
-    one from ``VULTRON_BASE_URL``.
+    one from ``VULTRON_SERVER__BASE_URL``.
 ``VULTRON_SEED_CONFIG``
     Path to a YAML file that overrides the individual env-var values above
     (see ``SeedConfig`` for the expected schema).
@@ -61,7 +61,7 @@ class LocalActorConfig(ActorConfig):
         alias="id",
         description=(
             "Full URI of the local actor. "
-            "Omit to let the server derive one from ``VULTRON_BASE_URL``."
+            "Omit to let the server derive one from ``VULTRON_SERVER__BASE_URL``."
         ),
     )
 

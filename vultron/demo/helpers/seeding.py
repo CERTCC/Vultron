@@ -92,9 +92,9 @@ def seed_containers(
         finder_client: DataLayerClient connected to the Finder container.
         vendor_client: DataLayerClient connected to the Vendor container.
         reporter_actor_id: Optional deterministic URI for the Finder actor.
-            When absent the server derives one from ``VULTRON_BASE_URL``.
+            When absent the server derives one from ``VULTRON_SERVER__BASE_URL``.
         vendor_actor_id: Optional deterministic URI for the Vendor actor.
-            When absent the server derives one from ``VULTRON_BASE_URL``.
+            When absent the server derives one from ``VULTRON_SERVER__BASE_URL``.
 
     Returns:
         Tuple of ``(finder, vendor)`` ``as_Actor`` objects as created on their

@@ -29,13 +29,22 @@
 #   COMPOSE_PROJECT_NAME  Docker Compose project name   (default: vultron)
 #
 # ─── Per-service environment variables (set below) ────────────────────────
-#   VULTRON_BASE_URL    Full base URL for this container's API server.
+#   VULTRON_SERVER__BASE_URL
+#                       Full base URL for this container's API server.
 #                       Must use the Docker service name as hostname so that
 #                       peer containers can route to it (e.g.,
 #                       http://finder:7999/api/v2/).
-#   VULTRON_DB_URL      SQLAlchemy connection URL for the DataLayer (default: sqlite:////app/data/mydb.sqlite).
+#                       Corresponds to ServerConfig.base_url in vultron/config.py.
+#                       Uses pydantic-settings env_nested_delimiter='__'
+#                       (for example: VULTRON_SERVER__BASE_URL).
+#   VULTRON_DATABASE__DB_URL
+#                       SQLAlchemy connection URL for the DataLayer
+#                       (default: sqlite:////app/data/mydb.sqlite).
 #                       Each service mounts a named volume at /app/data so
 #                       the database persists across container restarts.
+#                       Corresponds to DatabaseConfig.db_url in vultron/config.py.
+#                       Uses pydantic-settings env_nested_delimiter='__'
+#                       (for example: VULTRON_DATABASE__DB_URL).
 #   VULTRON_ACTOR_ID    Deterministic full URI for the local actor (D5-1-G3).
 #                       Pre-configured so peer containers can register each
 #                       other without discovery.  The ID is stable across
@@ -98,9 +107,9 @@ services:
       - PYTHONPATH=/app
       # Identity: each container gets a unique base URL so peer actors can
       # derive inbox URLs using the Docker service name as hostname.
-      - VULTRON_BASE_URL=http://finder:7999/api/v2/
+      - VULTRON_SERVER__BASE_URL=http://finder:7999/api/v2/
       # DataLayer: persist the SQLite file under the named volume.
-      - VULTRON_DB_URL=sqlite:////app/data/mydb.sqlite
+      - VULTRON_DATABASE__DB_URL=sqlite:////app/data/mydb.sqlite
       # Deterministic actor ID (D5-1-G3): fixed URI used by vultron-demo seed
       # so peer containers can pre-register this actor without discovery.
       - VULTRON_ACTOR_ID=http://finder:7999/api/v2/actors/finder
@@ -108,6 +117,9 @@ services:
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-finder.yaml
       - LOG_LEVEL=INFO
     volumes:
+      # Bind-mount application source so code changes take effect without
+      # rebuilding the image.  uvicorn --reload picks them up automatically.
+      - "../vultron:/app/vultron"
       - finder-data:/app/data
     ports:
       # Ephemeral host port (auto-assigned by Docker) → container 7999.
@@ -121,12 +133,13 @@ services:
     <<: *actor-service
     environment:
       - PYTHONPATH=/app
-      - VULTRON_BASE_URL=http://vendor:7999/api/v2/
-      - VULTRON_DB_URL=sqlite:////app/data/mydb.sqlite
+      - VULTRON_SERVER__BASE_URL=http://vendor:7999/api/v2/
+      - VULTRON_DATABASE__DB_URL=sqlite:////app/data/mydb.sqlite
       - VULTRON_ACTOR_ID=http://vendor:7999/api/v2/actors/vendor
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-vendor.yaml
       - LOG_LEVEL=INFO
     volumes:
+      - "../vultron:/app/vultron"
       - vendor-data:/app/data
     ports:
       # Ephemeral host port → container 7999.  Set VENDOR_HOST_PORT to pin.
@@ -137,12 +150,13 @@ services:
     <<: *actor-service
     environment:
       - PYTHONPATH=/app
-      - VULTRON_BASE_URL=http://coordinator:7999/api/v2/
-      - VULTRON_DB_URL=sqlite:////app/data/mydb.sqlite
+      - VULTRON_SERVER__BASE_URL=http://coordinator:7999/api/v2/
+      - VULTRON_DATABASE__DB_URL=sqlite:////app/data/mydb.sqlite
       - VULTRON_ACTOR_ID=http://coordinator:7999/api/v2/actors/coordinator
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-coordinator.yaml
       - LOG_LEVEL=INFO
     volumes:
+      - "../vultron:/app/vultron"
       - coordinator-data:/app/data
     ports:
       # Ephemeral host port → container 7999.  Set COORDINATOR_HOST_PORT to pin.
@@ -165,12 +179,13 @@ services:
     <<: *actor-service
     environment:
       - PYTHONPATH=/app
-      - VULTRON_BASE_URL=http://case-actor:7999/api/v2/
-      - VULTRON_DB_URL=sqlite:////app/data/mydb.sqlite
+      - VULTRON_SERVER__BASE_URL=http://case-actor:7999/api/v2/
+      - VULTRON_DATABASE__DB_URL=sqlite:////app/data/mydb.sqlite
       - VULTRON_ACTOR_ID=http://case-actor:7999/api/v2/actors/case-actor
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-case-actor.yaml
       - LOG_LEVEL=INFO
     volumes:
+      - "../vultron:/app/vultron"
       - case-actor-data:/app/data
     ports:
       # Host port → container port 7999 (for debugging from host only).
@@ -185,12 +200,13 @@ services:
     <<: *actor-service
     environment:
       - PYTHONPATH=/app
-      - VULTRON_BASE_URL=http://vendor2:7999/api/v2/
-      - VULTRON_DB_URL=sqlite:////app/data/mydb.sqlite
+      - VULTRON_SERVER__BASE_URL=http://vendor2:7999/api/v2/
+      - VULTRON_DATABASE__DB_URL=sqlite:////app/data/mydb.sqlite
       - VULTRON_ACTOR_ID=http://vendor2:7999/api/v2/actors/vendor2
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-vendor2.yaml
       - LOG_LEVEL=INFO
     volumes:
+      - "../vultron:/app/vultron"
       - vendor2-data:/app/data
     ports:
       # Ephemeral host port → container 7999.  Set VENDOR2_HOST_PORT to pin.
@@ -244,7 +260,7 @@ networks:
 
 # ─── Named volumes ────────────────────────────────────────────────────────
 # One volume per actor service.  Each volume stores the SQLite database at
-# /app/data/mydb.sqlite (controlled by VULTRON_DB_URL).
+# /app/data/mydb.sqlite (controlled by VULTRON_DATABASE__DB_URL).
 #
 # To reset all actor state between demo runs:
 #   docker compose -f docker-compose-multi-actor.yml down -v

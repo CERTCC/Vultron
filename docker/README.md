@@ -111,8 +111,8 @@ variable to use a fixed host port, or inspect the assigned port with
 |:----------------------|:--------------------------|:--------------------------------------|
 | `PROJECT_NAME`        | `vultron`                 | Docker resource name prefix           |
 | `COMPOSE_PROJECT_NAME`| `vultron`                 | Docker Compose project name           |
-| `VULTRON_BASE_URL`    | *(set per service)*       | Container's own API base URL          |
-| `VULTRON_DB_URL`      | `sqlite:////app/data/mydb.sqlite` | SQLAlchemy connection URL for the DataLayer |
+| `VULTRON_SERVER__BASE_URL` | *(set per service)*       | Container's own API base URL          |
+| `VULTRON_DATABASE__DB_URL` | `sqlite:////app/data/mydb.sqlite` | SQLAlchemy connection URL for the DataLayer |
 | `VULTRON_ACTOR_ID`    | *(set per service)*       | Deterministic full actor URI          |
 | `VULTRON_SEED_CONFIG` | *(set per service)*       | Seed config JSON for local + peers    |
 
@@ -234,7 +234,7 @@ The containers communicate via a dedicated Docker bridge network
 service name `api-dev` as the hostname, which Docker resolves internally.
 
 For multi-actor setups, each container uses its service name as the hostname
-in `VULTRON_BASE_URL` (e.g., `http://finder:7999/api/v2/`) so that peer
+in `VULTRON_SERVER__BASE_URL` (e.g., `http://finder:7999/api/v2/`) so that peer
 containers can derive inbox URLs that route correctly on the Docker network.
 
 ## Customizing the docker setup
