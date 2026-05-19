@@ -23,14 +23,21 @@ from vultron.core.use_cases.received.actor import (
 )
 from vultron.wire.as2.factories import announce_vulnerability_case_activity
 from vultron.wire.as2.vocab.objects.case_actor import CaseActor
+from vultron.wire.as2.vocab.objects.case_participant import (
+    CaseActorParticipant,
+    CaseParticipant,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 _OWNER_ID = "https://example.org/actors/owner"
 _CASE_ACTOR_ID = "https://example.org/actors/case-actor"
 _IMPOSTER_ID = "https://example.org/actors/imposter"
+_VENDOR_ID = "https://example.org/actors/vendor"
 _CASE_ID = "https://example.org/cases/case-ann-001"
 _CASE_ID2 = "https://example.org/cases/case-ann-002"
 _REPORT_ID = "https://example.org/reports/report-ann-001"
+_CASE_ACTOR_PARTICIPANT_ID = f"{_CASE_ID}/participants/case-actor"
+_VENDOR_PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor"
 
 
 @pytest.fixture()
@@ -200,3 +207,143 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         assert dl.read(_CASE_ID) is None
+
+
+# ---------------------------------------------------------------------------
+# #566: Embedded participants must be stored during Announce seeding
+# ---------------------------------------------------------------------------
+
+
+class TestAnnounceStoresEmbeddedParticipants:
+    """Announce(VulnerabilityCase) seeding must store embedded participants.
+
+    Regression tests for #566: ``AnnounceVulnerabilityCaseReceivedUseCase``
+    was not calling ``_store_embedded_participants`` after saving the case,
+    so late-joiner replicas never had independent ``CaseParticipant`` records.
+    BT nodes (``CheckParticipantExists``, ``AppendParticipantStatusNode``)
+    would then fail with participant-not-found on the Announce path.
+    """
+
+    @pytest.fixture()
+    def case_with_participants(self):
+        """VulnerabilityCase with two embedded participants (inline objects)."""
+        case_actor_p = CaseActorParticipant(
+            id_=_CASE_ACTOR_PARTICIPANT_ID,
+            attributed_to=_CASE_ACTOR_ID,
+            context=_CASE_ID,
+        )
+        vendor_p = CaseParticipant(
+            id_=_VENDOR_PARTICIPANT_ID,
+            attributed_to=_VENDOR_ID,
+            context=_CASE_ID,
+        )
+        case = VulnerabilityCase(
+            id_=_CASE_ID,
+            name="DR-10 Announce Case with Participants",
+            case_participants=[case_actor_p, vendor_p],
+        )
+        case.actor_participant_index[_CASE_ACTOR_ID] = (
+            _CASE_ACTOR_PARTICIPANT_ID
+        )
+        case.actor_participant_index[_VENDOR_ID] = _VENDOR_PARTICIPANT_ID
+        return case, case_actor_p, vendor_p
+
+    @pytest.fixture()
+    def announce_with_participants_event(
+        self, make_payload, case_with_participants
+    ):
+        case, _, _ = case_with_participants
+        activity = announce_vulnerability_case_activity(
+            case,
+            actor=_CASE_ACTOR_ID,
+            context=_CASE_ID,
+        )
+        return make_payload(activity)
+
+    def test_embedded_case_actor_participant_stored_after_announce(
+        self, dl, announce_with_participants_event
+    ):
+        """CaseActorParticipant embedded in Announce payload is stored
+        independently (#566 — Announce path mirrors Create bootstrap path)."""
+        AnnounceVulnerabilityCaseReceivedUseCase(
+            dl, announce_with_participants_event
+        ).execute()
+
+        stored = dl.read(_CASE_ACTOR_PARTICIPANT_ID)
+        assert stored is not None, (
+            "CaseActorParticipant must be stored as an independent DataLayer "
+            "record after Announce seeding (#566)"
+        )
+
+    def test_embedded_vendor_participant_stored_after_announce(
+        self, dl, announce_with_participants_event
+    ):
+        """Vendor CaseParticipant embedded in Announce payload is stored
+        independently — BT nodes can then look it up by UUID (#566)."""
+        AnnounceVulnerabilityCaseReceivedUseCase(
+            dl, announce_with_participants_event
+        ).execute()
+
+        stored = dl.read(_VENDOR_PARTICIPANT_ID)
+        assert stored is not None, (
+            "Vendor CaseParticipant must be stored as an independent DataLayer "
+            "record after Announce seeding (#566)"
+        )
+
+    def test_string_participant_refs_not_stored_as_objects(
+        self, dl, make_payload
+    ):
+        """String ID refs in case_participants are skipped (no object to store).
+
+        Only inline participant objects are stored; bare ID strings are left
+        as-is (they reference objects the receiver doesn't have locally).
+        """
+        case = VulnerabilityCase(
+            id_=_CASE_ID,
+            name="Announce with string participants",
+            case_participants=[_VENDOR_PARTICIPANT_ID],  # bare string ref
+        )
+        activity = announce_vulnerability_case_activity(
+            case, actor=_CASE_ACTOR_ID, context=_CASE_ID
+        )
+        event = make_payload(activity)
+
+        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+
+        # The bare string ref must NOT cause a spurious record to appear
+        stored = dl.read(_VENDOR_PARTICIPANT_ID)
+        assert (
+            stored is None
+        ), "String participant refs must not create spurious DataLayer records"
+
+    def test_embedded_participants_stored_when_case_already_exists(
+        self,
+        dl,
+        announce_with_participants_event,
+        case_with_participants,
+    ):
+        """Participants are stored even when the case already exists locally.
+
+        Regression: the inbox router's ``_store_nested_inbox_object`` can seed
+        the case before dispatch, so the Announce use-case may enter the
+        idempotent early-return path.  Embedded participants must still be
+        persisted on that path (#566).
+        """
+        case, _, _ = case_with_participants
+        # Pre-seed the case so the use-case hits the existing-case branch.
+        dl.create(case)
+
+        AnnounceVulnerabilityCaseReceivedUseCase(
+            dl, announce_with_participants_event
+        ).execute()
+
+        stored_ca = dl.read(_CASE_ACTOR_PARTICIPANT_ID)
+        stored_vendor = dl.read(_VENDOR_PARTICIPANT_ID)
+        assert stored_ca is not None, (
+            "CaseActorParticipant must be stored even when the case already "
+            "exists (idempotent early-return path, #566)"
+        )
+        assert stored_vendor is not None, (
+            "Vendor CaseParticipant must be stored even when the case already "
+            "exists (idempotent early-return path, #566)"
+        )

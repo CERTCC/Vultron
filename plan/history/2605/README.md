@@ -4,6 +4,7 @@
 
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
+| 2026-05-19 | 18:14 | implementation | GH-566 | Store embedded participants on Announce seeding (#566) |
 | 2026-05-18 | 20:49 | implementation | 546 | Fix multi-actor compose env var names (issue #546) |
 | 2026-05-18 | 15:57 | implementation | ISSUE-522 | PCR-07-006: Bootstrap sequence integration tests |
 | 2026-05-18 | 13:39 | implementation | ISSUE-489 | Extract shared demo helpers into vultron/demo/helpers/ |
