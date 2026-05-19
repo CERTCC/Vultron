@@ -154,5 +154,5 @@ dev = [
     "pytest>=9.0.3",
     "pytest-timeout>=0.5",
     "types-networkx>=3.6.1.20260513",
-    "types-pyyaml>=6.0.12.20260510",
+    "types-pyyaml>=6.0.12.20260518",
 ]
