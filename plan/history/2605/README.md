@@ -4,6 +4,7 @@
 
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
+| 2026-05-19 | 18:50 | idea | IDEA-560 | GitHub workflow to build and run demo containers on PRs against main |
 | 2026-05-19 | 18:14 | implementation | GH-566 | Store embedded participants on Announce seeding (#566) |
 | 2026-05-19 | 17:58 | implementation | GH-563 | M4 regression test for AddParticipantStatus after bootstrap (#563) |
 | 2026-05-18 | 20:49 | implementation | 546 | Fix multi-actor compose env var names (issue #546) |
