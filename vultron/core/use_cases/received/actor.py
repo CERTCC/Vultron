@@ -780,6 +780,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 " — skipping (idempotent, MV-10-004)",
                 case_id,
             )
+            _store_embedded_participants(case_obj, self._dl, case_id)
             _link_report_case_links(self._dl, case_obj)
             return
 

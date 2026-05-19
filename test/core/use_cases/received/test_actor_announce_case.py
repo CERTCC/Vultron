@@ -315,3 +315,35 @@ class TestAnnounceStoresEmbeddedParticipants:
         assert (
             stored is None
         ), "String participant refs must not create spurious DataLayer records"
+
+    def test_embedded_participants_stored_when_case_already_exists(
+        self,
+        dl,
+        announce_with_participants_event,
+        case_with_participants,
+    ):
+        """Participants are stored even when the case already exists locally.
+
+        Regression: the inbox router's ``_store_nested_inbox_object`` can seed
+        the case before dispatch, so the Announce use-case may enter the
+        idempotent early-return path.  Embedded participants must still be
+        persisted on that path (#566).
+        """
+        case, _, _ = case_with_participants
+        # Pre-seed the case so the use-case hits the existing-case branch.
+        dl.create(case)
+
+        AnnounceVulnerabilityCaseReceivedUseCase(
+            dl, announce_with_participants_event
+        ).execute()
+
+        stored_ca = dl.read(_CASE_ACTOR_PARTICIPANT_ID)
+        stored_vendor = dl.read(_VENDOR_PARTICIPANT_ID)
+        assert stored_ca is not None, (
+            "CaseActorParticipant must be stored even when the case already "
+            "exists (idempotent early-return path, #566)"
+        )
+        assert stored_vendor is not None, (
+            "Vendor CaseParticipant must be stored even when the case already "
+            "exists (idempotent early-return path, #566)"
+        )
