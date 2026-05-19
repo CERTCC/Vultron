@@ -87,6 +87,7 @@ Load additional files only when the task touches the relevant area. See the
 | Event-driven control flow / cascade model | `event-driven-control-flow.yaml`, `notes/event-driven-control-flow.md` |
 | Observability | `observability.yaml` |
 | Security / CI | `ci-security.yaml`, `encryption.yaml` |
+| Demo CI / GitHub Actions demo workflow | `demo-ci.yaml` |
 | Agentic API | `agentic-readiness.yaml` |
 | Documentation work | `diataxis-requirements.yaml`, `project-documentation.yaml`, `traceability.yaml` |
 | Build/bugfix workflow / learnings queue | `build-workflow.yaml` |
@@ -272,6 +273,11 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   unit and integration test requirements
 - **`multi-actor-demo.yaml`** - Multi-actor demo scenarios: Docker Compose orchestration,
   actor isolation, acceptance tests, scenario coverage (DEMOMA-01 through DEMOMA-04)
+- **`demo-ci.yaml`** - GitHub Actions workflow for running demo containers on PRs:
+  demo runner failure signalling (DemoFailureError, 404 detection, error accumulation),
+  workflow trigger and path-filter rules, Dependabot skip condition, Docker layer caching,
+  log artifact on failure, extensibility pattern for future scenarios
+  (DEMOCI-01 through DEMOCI-03)
 
 ### Actor Profiles and Policies
 
