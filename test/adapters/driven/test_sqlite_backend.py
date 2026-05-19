@@ -959,3 +959,89 @@ class TestListMethod:
 
         assert len(results) == 1
         assert isinstance(results[0], as_Invite)
+
+
+# ---------------------------------------------------------------------------
+# hydrate() tests (CBT-05-005)
+# ---------------------------------------------------------------------------
+
+
+def test_hydrate_expands_list_ref_field(dl):
+    """hydrate() resolves case_participants string IDs to stored objects."""
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        VulnerabilityCase,
+    )
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        CaseActorParticipant,
+    )
+
+    case_actor_id = "https://example.org/actors/case-actor-hydrate"
+    case = VulnerabilityCase()
+
+    participant = CaseActorParticipant(
+        attributed_to=case_actor_id,
+        context=case.id_,
+        name="test-participant",
+    )
+    dl.save(participant)
+
+    # Store case with participant as string ID (as it is stored in practice)
+    case.case_participants = [participant.id_]
+    dl.save(case)
+
+    # Read case back — still has string ID
+    stored_case = dl.read(case.id_)
+    assert stored_case is not None
+    assert isinstance(stored_case.case_participants[0], str)
+
+    # hydrate() should resolve the string to the full participant object
+    hydrated = dl.hydrate(stored_case)
+    assert hydrated is not stored_case  # new object returned
+    assert len(hydrated.case_participants) == 1
+    # dl.read reconstructs from storage as the base CaseParticipant type
+    from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+
+    assert isinstance(hydrated.case_participants[0], CaseParticipant)
+    assert hydrated.case_participants[0].id_ == participant.id_
+
+
+def test_hydrate_leaves_already_expanded_participants_unchanged(dl):
+    """hydrate() leaves non-string participants unchanged."""
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        VulnerabilityCase,
+    )
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        CaseActorParticipant,
+    )
+
+    case_actor_id = "https://example.org/actors/case-actor-noop"
+    case = VulnerabilityCase()
+    participant = CaseActorParticipant(
+        attributed_to=case_actor_id,
+        context=case.id_,
+        name="already-expanded",
+    )
+    dl.save(participant)
+    case.case_participants = [participant]
+    dl.save(case)
+
+    stored_case = dl.read(case.id_)
+    # Even if stored_case has string IDs after round-trip, hydrate must not fail
+    hydrated = dl.hydrate(stored_case)
+    assert len(hydrated.case_participants) == 1
+
+
+def test_hydrate_keeps_unresolvable_string_ids(dl):
+    """hydrate() keeps participant IDs that don't exist in the DataLayer."""
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        VulnerabilityCase,
+    )
+
+    missing_id = "urn:uuid:00000000-0000-0000-0000-000000000000"
+    case = VulnerabilityCase()
+    case.case_participants = [missing_id]
+    dl.save(case)
+
+    stored_case = dl.read(case.id_)
+    hydrated = dl.hydrate(stored_case)
+    assert hydrated.case_participants[0] == missing_id

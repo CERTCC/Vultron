@@ -27,8 +27,10 @@ run as isolated processes with no direct access to each other's DataLayers.
 import logging
 from typing import cast
 
+from pydantic import BaseModel
 from vultron.adapters.driven.delivery_queue import DeliveryQueueAdapter
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.emitter import ActivityEmitter
 from vultron.errors import (
@@ -96,13 +98,6 @@ _STUB_OBJECT_TYPES: frozenset[str] = frozenset({"VulnerabilityCase"})
 
 _INLINE_OBJECT_ACTIVITY_TYPES: frozenset[str] = frozenset(
     {"Create", "Announce", "Add", "Invite", "Accept"}
-)
-
-# Activity types that carry a VulnerabilityCase as ``object_`` and therefore
-# need participant expansion before delivery so the recipient can seed their
-# local DataLayer (CBT-05-005, fixes #561 and #562).
-_CASE_SNAPSHOT_ACTIVITY_TYPES: frozenset[str] = frozenset(
-    {"Create", "Announce"}
 )
 
 
@@ -401,8 +396,9 @@ async def handle_outbox_item(
         dl,
     )
     _validate_inline_object(activity_id, activity_type, activity_object)
-    if activity_type in _CASE_SNAPSHOT_ACTIVITY_TYPES:
-        _expand_case_participants(activity_object, dl)
+    if isinstance(activity_object, BaseModel):
+        activity_object = dl.hydrate(cast(PersistableModel, activity_object))
+        outbound_activity.object_ = activity_object
 
     recipients = _extract_recipients(outbound_activity)
     if not recipients:

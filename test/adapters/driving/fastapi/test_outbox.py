@@ -858,84 +858,34 @@ def test_handle_outbox_item_no_warning_when_only_to_set(caplog):
 
 
 # ---------------------------------------------------------------------------
-# _expand_case_participants (CBT-05-005, fixes #561 and #562)
+# DataLayer.hydrate() integration via handle_outbox_item (CBT-05-005)
 # ---------------------------------------------------------------------------
 
 
-def test_expand_case_participants_replaces_string_with_full_object():
-    """_expand_case_participants resolves participant ID strings to objects."""
-    participant_id = "urn:uuid:participant-001"
-    full_participant = SimpleNamespace(
-        id_=participant_id, type_="CaseParticipant"
-    )
-    case_obj = SimpleNamespace(
-        case_participants=[participant_id, "urn:uuid:participant-missing"]
-    )
+def test_handle_outbox_item_calls_hydrate_on_inline_object():
+    """handle_outbox_item calls dl.hydrate() on the inline object_ and uses
+    the returned (fully-hydrated) object for delivery."""
+    from vultron.core.models.activity import VultronActivity as _VA
+    from unittest.mock import MagicMock as _MM, AsyncMock as _AM
 
-    mock_dl = MagicMock()
-    mock_dl.read.side_effect = lambda id_: (
-        full_participant if id_ == participant_id else None
-    )
-
-    oh._expand_case_participants(case_obj, mock_dl)
-
-    # First participant resolved to full object; second (not found) kept as string
-    assert case_obj.case_participants[0] is full_participant
-    assert case_obj.case_participants[1] == "urn:uuid:participant-missing"
-
-
-def test_expand_case_participants_skips_already_expanded_objects():
-    """_expand_case_participants leaves non-string participants unchanged."""
-    existing_obj = SimpleNamespace(
-        id_="urn:uuid:p-002", type_="CaseParticipant"
-    )
-    case_obj = SimpleNamespace(case_participants=[existing_obj])
-
-    mock_dl = MagicMock()
-
-    oh._expand_case_participants(case_obj, mock_dl)
-
-    assert case_obj.case_participants[0] is existing_obj
-    mock_dl.read.assert_not_called()
-
-
-def test_expand_case_participants_noop_when_no_attribute():
-    """_expand_case_participants does nothing if object has no case_participants."""
-    case_obj = SimpleNamespace(some_other_field="value")
-    mock_dl = MagicMock()
-
-    oh._expand_case_participants(case_obj, mock_dl)  # must not raise
-
-    mock_dl.read.assert_not_called()
-
-
-def test_handle_outbox_item_expands_case_participants_for_create():
-    """handle_outbox_item expands participant strings for Create activities."""
     recipient = "https://example.org/actors/alice"
-    participant_id = "urn:uuid:participant-abc"
-    full_participant = SimpleNamespace(
-        id_=participant_id, type_="CaseParticipant"
-    )
-    case_obj = SimpleNamespace(
-        id_="urn:uuid:case-001",
-        type_="VulnerabilityCase",
-        case_participants=[participant_id],
-    )
+    case_obj = _VA.__new__(_VA)  # a PersistableModel subclass
+    hydrated_case = _VA.__new__(_VA)
+
     activity = VultronActivity(
-        id_="urn:test:act-create-with-participants",
+        id_="urn:test:act-hydrate-call",
         type_="Create",
         actor="https://example.org/actors/vendor",
         to=[recipient],
     )
     activity.object_ = case_obj
 
-    mock_dl = MagicMock()
+    mock_dl = _MM()
     mock_dl.read.side_effect = lambda id_: (
-        activity
-        if id_ == activity.id_
-        else (full_participant if id_ == participant_id else None)
+        activity if id_ == activity.id_ else None
     )
-    mock_emitter = AsyncMock()
+    mock_dl.hydrate.return_value = hydrated_case
+    mock_emitter = _AM()
 
     asyncio.run(
         oh.handle_outbox_item(
@@ -943,6 +893,7 @@ def test_handle_outbox_item_expands_case_participants_for_create():
         )
     )
 
+    mock_dl.hydrate.assert_called_once_with(case_obj)
     mock_emitter.emit.assert_called_once()
     emitted_activity, _ = mock_emitter.emit.call_args[0]
-    assert emitted_activity.object_.case_participants[0] is full_participant
+    assert emitted_activity.object_ is hydrated_case
