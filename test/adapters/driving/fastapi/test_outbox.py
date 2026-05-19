@@ -855,3 +855,94 @@ def test_handle_outbox_item_no_warning_when_only_to_set(caplog):
     assert not any(
         any(f in msg for f in ("cc", "bto", "bcc")) for msg in warning_texts
     )
+
+
+# ---------------------------------------------------------------------------
+# _expand_case_participants (CBT-05-005, fixes #561 and #562)
+# ---------------------------------------------------------------------------
+
+
+def test_expand_case_participants_replaces_string_with_full_object():
+    """_expand_case_participants resolves participant ID strings to objects."""
+    participant_id = "urn:uuid:participant-001"
+    full_participant = SimpleNamespace(
+        id_=participant_id, type_="CaseParticipant"
+    )
+    case_obj = SimpleNamespace(
+        case_participants=[participant_id, "urn:uuid:participant-missing"]
+    )
+
+    mock_dl = MagicMock()
+    mock_dl.read.side_effect = lambda id_: (
+        full_participant if id_ == participant_id else None
+    )
+
+    oh._expand_case_participants(case_obj, mock_dl)
+
+    # First participant resolved to full object; second (not found) kept as string
+    assert case_obj.case_participants[0] is full_participant
+    assert case_obj.case_participants[1] == "urn:uuid:participant-missing"
+
+
+def test_expand_case_participants_skips_already_expanded_objects():
+    """_expand_case_participants leaves non-string participants unchanged."""
+    existing_obj = SimpleNamespace(
+        id_="urn:uuid:p-002", type_="CaseParticipant"
+    )
+    case_obj = SimpleNamespace(case_participants=[existing_obj])
+
+    mock_dl = MagicMock()
+
+    oh._expand_case_participants(case_obj, mock_dl)
+
+    assert case_obj.case_participants[0] is existing_obj
+    mock_dl.read.assert_not_called()
+
+
+def test_expand_case_participants_noop_when_no_attribute():
+    """_expand_case_participants does nothing if object has no case_participants."""
+    case_obj = SimpleNamespace(some_other_field="value")
+    mock_dl = MagicMock()
+
+    oh._expand_case_participants(case_obj, mock_dl)  # must not raise
+
+    mock_dl.read.assert_not_called()
+
+
+def test_handle_outbox_item_expands_case_participants_for_create():
+    """handle_outbox_item expands participant strings for Create activities."""
+    recipient = "https://example.org/actors/alice"
+    participant_id = "urn:uuid:participant-abc"
+    full_participant = SimpleNamespace(
+        id_=participant_id, type_="CaseParticipant"
+    )
+    case_obj = SimpleNamespace(
+        id_="urn:uuid:case-001",
+        type_="VulnerabilityCase",
+        case_participants=[participant_id],
+    )
+    activity = VultronActivity(
+        id_="urn:test:act-create-with-participants",
+        type_="Create",
+        actor="https://example.org/actors/vendor",
+        to=[recipient],
+    )
+    activity.object_ = case_obj
+
+    mock_dl = MagicMock()
+    mock_dl.read.side_effect = lambda id_: (
+        activity
+        if id_ == activity.id_
+        else (full_participant if id_ == participant_id else None)
+    )
+    mock_emitter = AsyncMock()
+
+    asyncio.run(
+        oh.handle_outbox_item(
+            "actor-vendor", activity.id_, mock_dl, mock_emitter
+        )
+    )
+
+    mock_emitter.emit.assert_called_once()
+    emitted_activity, _ = mock_emitter.emit.call_args[0]
+    assert emitted_activity.object_.case_participants[0] is full_participant
