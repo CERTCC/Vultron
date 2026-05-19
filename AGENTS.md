@@ -361,12 +361,13 @@ provides unique ID constraints. Report handlers (`create_report`,
   See `notes/asgi-emitter.md`; spec: `specs/multi-actor-demo.yaml` DEMOMA-01-004.
 - **Bootstrap Activities Must Embed Nested Objects Inline, Not as URI Strings** —
   `Create(VulnerabilityCase)` bootstrap payloads MUST include `CaseParticipant`
-  objects as full inline dicts. Bare URI strings in `case_participants` cause the
-  receiving handler to see an empty collection; participant records are never stored
-  in the receiver's DataLayer, and downstream BT nodes (`CheckParticipantExists`)
-  fail. Use `model_dump(..., serialize_as_any=True)` when serializing the case
+  objects as full inline dicts. `ActivityStreamRef` allows bare URI strings so
+  Pydantic accepts them without error, but handlers only persist non-string
+  entries; participant records are never stored in the receiver's DataLayer,
+  and downstream BT nodes (`CheckParticipantExists`) fail. Use
+  `model_dump(..., serialize_as_any=True)` when serializing the case
   snapshot. Spec: `specs/case-bootstrap-trust.yaml` CBT-01-007.
-  See `notes/activitystreams-semantics.md` § "Bootstrap Embedded-Object Contract".
+  See `notes/activitystreams-semantics.md` § "Bootstrap Embedded-Object vs. URI-String Contract".
 - **BT Failure Reason: Use `get_failure_reason()`, Not Generic Error Logs** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Dead-Letter vs. No-Pattern: Two Distinct UNKNOWN Failure Modes** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **Accept.object_ Must Be the Invite Activity, Not the Case Object** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)

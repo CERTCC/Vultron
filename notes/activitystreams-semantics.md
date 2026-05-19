@@ -603,16 +603,18 @@ included as **full inline objects**, not as bare URI string references.
 
 Receiving use-case handlers store nested objects by iterating the embedded
 collection and persisting each object individually to the local DataLayer.
-A bare URI string (e.g., `"urn:uuid:786aaff1-..."`) is not deserializable
-as a `CaseParticipant`; Pydantic model validation produces an empty collection
-rather than raising an error. The referenced objects are never written to the
-receiver's DataLayer.
+`ActivityStreamRef` allows bare URI strings, so Pydantic accepts the field
+without error — but the handler only persists non-`str` entries (materialized
+objects). A bare URI string (e.g., `"urn:uuid:786aaff1-..."`) is silently
+skipped; the referenced `CaseParticipant` is never written to the receiver's
+DataLayer.
 
 **Cascading failure mode (bug #561/#562):**
 
 ```text
 1. Vendor sends Create(VulnerabilityCase) with case_participants as URI strings.
-2. Finder's create_case_received handler iterates case.case_participants → [].
+2. Finder's create_case_received handler iterates case.case_participants —
+   strings are accepted by the model but skipped during persistence.
 3. Vendor's CaseParticipant object is never stored in Finder's DataLayer.
 4. Vendor sends RmEngageCase (Join) to Finder.
 5. EngageCaseBT on Finder runs → CheckParticipantExists fails (no record).

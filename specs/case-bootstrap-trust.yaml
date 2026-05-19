@@ -87,11 +87,13 @@ groups:
         rationale: >-
           Receiving handlers store nested objects by iterating the embedded
           collection and persisting each object individually to the local
-          DataLayer. Bare URI strings are not deserializable to typed domain
-          objects and result in empty collections; the referenced objects are
-          never written to the receiver's DataLayer, causing downstream BT
-          failures (e.g., `CheckParticipantExists` returns FAILURE for a
-          participant the receiver was never told about).
+          DataLayer. ActivityStreamRef allows bare URI strings, so Pydantic
+          accepts the field without error — but handlers only persist
+          non-string entries (materialized objects). Bare URI strings are
+          silently skipped; the receiver cannot seed CaseParticipant records
+          from string-only refs, causing downstream BT failures (e.g.,
+          `CheckParticipantExists` returns FAILURE for a participant the
+          receiver was never told about).
         relationships:
           - rel_type: refines
             spec_id: CBT-01-002

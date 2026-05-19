@@ -262,25 +262,31 @@ objects created by Actor A become immediately visible to Actor B without
 any delivery occurring. This makes the integration test unreliable and hides
 real cross-actor bugs.
 
-**Wrong pattern** — one app, class-level client patch:
+**Wrong pattern** — one app, class-level client patch (wrong signature too):
 
 ```python
 # ❌ Both clients share the same DataLayer; delivery path never exercised
 client = TestClient(api_app)
+# Wrong: ignores `method` and `path` signature; routes all calls to .get()
 DataLayerClient.call = lambda self, *a, **kw: client.get(*a, **kw)
 finder_client = _make_client("http://finder:7999")
 vendor_client = _make_client("http://vendor:7999")
 ```
 
-**Correct pattern** — separate apps, per-instance isolation:
+**Correct pattern** — separate apps, per-instance call wrapper (see
+`test/demo/_helpers.py::make_testclient_call` for the full helper):
 
 ```python
 # ✅ Each actor has its own isolated app and DataLayer
-finder_app = create_app(configure_globals=False)
-vendor_app = create_app(configure_globals=False)
+finder_app = create_app(docs_url=None, openapi_url=None)
+vendor_app = create_app(docs_url=None, openapi_url=None)
 finder_client = TestClient(finder_app)
 vendor_client = TestClient(vendor_app)
-# Wire delivery: vendor → finder and finder → vendor via distinct transports
+
+# Wire per-instance DataLayerClient.call so each client routes to its own app
+# make_testclient_call(client, base) returns a method(self, method, path, **kw)
+finder_app.state.dl_call = make_testclient_call(finder_client, "http://finder:7999")
+vendor_app.state.dl_call = make_testclient_call(vendor_client, "http://vendor:7999")
 ```
 
 **Formal requirements**: `specs/multi-actor-demo.yaml` DEMOMA-01-004,

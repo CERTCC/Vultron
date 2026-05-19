@@ -93,7 +93,6 @@ stripping occurs and the full path is forwarded as-is.
 ```python
 configure_default_emitter(
     ASGIEmitter(app=router_app, mount_prefix="/api/v2"),
-    application=app,
 )
 ```
 
@@ -141,11 +140,17 @@ This was the root cause of bug #534 (PR #540).
 ### Correct wiring pattern
 
 ```python
-# In create_app():
-app = FastAPI(lifespan=_make_lifespan(configure_globals=False))
-# DataLayer registered via app.dependency_overrides, never a module global.
-# Dispatcher created in _make_lifespan, stored on app.state.dispatcher.
-# Emitter created in _make_lifespan, stored on app.state.emitter.
+# Each create_app() call produces an independent FastAPI instance with its own
+# lifespan. The lifespan automatically:
+#   - Creates a fresh per-app dispatcher stored on app.state.dispatcher.
+#   - Injects a fresh SqliteDataLayer via app.dependency_overrides[get_shared_dl]
+#     when no override has been registered.
+# Do NOT share DataLayer or dispatcher globals across create_app() calls.
+app = create_app(docs_url=None, openapi_url=None)
+# Optionally register a specific DataLayer before the lifespan starts:
+# app.dependency_overrides[get_shared_dl] = lambda: my_dl
+with TestClient(app) as client:
+    ...
 ```
 
 ### Co-located actor isolation (DEMOMA-01-005)
