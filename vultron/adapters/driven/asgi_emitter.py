@@ -158,9 +158,17 @@ class ASGIEmitter:
         token = _asgi_delivery_depth.set(depth + 1)
         try:
             transport = httpx.ASGITransport(app=self._app)
+            # Use scheme+netloc only (no path) so that httpx sends
+            # ``inbox_path`` as-is to the ASGI app.  Using the full
+            # ``base_url`` (e.g. ``http://host/api/v2``) causes httpx to
+            # *append* ``inbox_path`` to the base path, producing a double
+            # prefix (``/api/v2/actors/…``) that does not match ``app_v2``
+            # routes (fix for #557/#558).
+            parsed_base = urlparse(self._base_url)
+            asgi_base_url = f"{parsed_base.scheme}://{parsed_base.netloc}"
             async with httpx.AsyncClient(
                 transport=transport,
-                base_url=self._base_url,
+                base_url=asgi_base_url,
             ) as client:
                 response = await client.post(
                     inbox_path,
