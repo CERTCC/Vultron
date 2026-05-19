@@ -35,14 +35,16 @@
 #                       peer containers can route to it (e.g.,
 #                       http://finder:7999/api/v2/).
 #                       Corresponds to ServerConfig.base_url in vultron/config.py.
-#                       (pydantic-settings nested delimiter: VULTRON_SERVER__BASE_URL)
+#                       Uses pydantic-settings env_nested_delimiter='__'
+#                       (for example: VULTRON_SERVER__BASE_URL).
 #   VULTRON_DATABASE__DB_URL
 #                       SQLAlchemy connection URL for the DataLayer
 #                       (default: sqlite:////app/data/mydb.sqlite).
 #                       Each service mounts a named volume at /app/data so
 #                       the database persists across container restarts.
 #                       Corresponds to DatabaseConfig.db_url in vultron/config.py.
-#                       (pydantic-settings nested delimiter: VULTRON_DATABASE__DB_URL)
+#                       Uses pydantic-settings env_nested_delimiter='__'
+#                       (for example: VULTRON_DATABASE__DB_URL).
 #   VULTRON_ACTOR_ID    Deterministic full URI for the local actor (D5-1-G3).
 #                       Pre-configured so peer containers can register each
 #                       other without discovery.  The ID is stable across
