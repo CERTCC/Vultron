@@ -29,6 +29,7 @@ The fix is to use only the scheme+netloc (no path component) as the
 """
 
 import asyncio
+from typing import cast
 
 from fastapi import FastAPI
 
@@ -77,10 +78,13 @@ class TestASGIEmitterPathDelivery:
         )
 
         async def _run() -> bool:
-            return await emitter._try_deliver_local(
-                json_body='{"type": "Offer", "id": "urn:test:1"}',
-                recipient_id="http://testserver/api/v2/actors/case-actor-abc",
-                activity_id="urn:test:1",
+            return cast(
+                bool,
+                await emitter._try_deliver_local(
+                    json_body='{"type": "Offer", "id": "urn:test:1"}',
+                    recipient_id="http://testserver/api/v2/actors/case-actor-abc",
+                    activity_id="urn:test:1",
+                ),
             )
 
         result = asyncio.run(_run())
@@ -118,10 +122,13 @@ class TestASGIEmitterPathDelivery:
         )
 
         async def _run() -> bool:
-            return await emitter._try_deliver_local(
-                json_body='{"type": "Offer", "id": "urn:test:2"}',
-                recipient_id="http://testserver/api/v2/actors/vendor",
-                activity_id="urn:test:2",
+            return cast(
+                bool,
+                await emitter._try_deliver_local(
+                    json_body='{"type": "Offer", "id": "urn:test:2"}',
+                    recipient_id="http://testserver/api/v2/actors/vendor",
+                    activity_id="urn:test:2",
+                ),
             )
 
         result = asyncio.run(_run())
