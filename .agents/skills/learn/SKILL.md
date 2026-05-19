@@ -47,8 +47,9 @@ entries that should be promoted into durable docs.
    their source file and close each resolved GitHub Concern issue with a
    resolution comment.
 8. Invoke `format-markdown`.
-9. Create a branch, commit (including updated `docs/reference/codebase/`
-   files), push, and open a docs-only PR with `specs-notes` label.
+9. Commit (including updated `docs/reference/codebase/` files), push, and
+   open a docs-only PR with `specs-notes` label. (Branch is created at the
+   end of Phase 3, before any files are written.)
 
 ## Workflow
 
@@ -122,6 +123,17 @@ with a recommended answer before writing anything:
 
 Answer questions from codebase exploration where possible.
 
+**After grill-me completes — create the task branch before writing any files:**
+
+```bash
+FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
+[ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
+git switch -c learn/<YYYYMMDD>-<slug>
+```
+
+All file writes (Phases 4–7) happen on this branch so they are never at risk
+from a subsequent `git reset --hard`.
+
 ### Phase 4 — Refine Specifications (`specs/`)
 
 - Clarify, split, merge, or remove requirements; keep each atomic, specific,
@@ -194,12 +206,10 @@ Do **not** reference `plan/BUILD_LEARNINGS.md` from durable docs.
    Fix all errors.
 2. If a requirement conflict cannot be resolved, add a note to
    `plan/BUILD_LEARNINGS.md` and **stop before committing**.
-3. Create a branch, stage, commit, push, and open a docs-only PR:
+3. Stage, commit, push, and open a docs-only PR (branch was created at the
+   end of Phase 3):
 
    ```bash
-   FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
-   [ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
-   git switch -c learn/<YYYYMMDD>-<slug>
    git add specs/<changed-files> notes/<changed-files> AGENTS.md \
        plan/BUILD_LEARNINGS.md docs/reference/codebase/
    git commit -m "docs: promote BUILD_LEARNINGS — <topic>

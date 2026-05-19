@@ -95,6 +95,19 @@ Invoke the `grill-me` skill. Follow its instructions to walk every design
 decision branch one at a time using `ask_user`, providing a recommendation
 for each question. Reach shared understanding before writing anything.
 
+### 4b. Create the task branch
+
+**Do this before writing any files.** Freshen the slot to the latest
+`origin/main`, then create the task branch. All file writes (steps 5–7)
+happen on this branch so they are never at risk from a subsequent
+`git reset --hard`:
+
+```bash
+FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
+[ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
+git switch -c ingest/idea-<IDEA_NUMBER>-<slug>
+```
+
 ### 5. Write the spec file
 
 Create or modify `specs/<topic>.yaml` following `specs/meta-specifications.yaml`
@@ -166,14 +179,11 @@ gh issue close "${IDEA_NUMBER}" --repo CERTCC/Vultron
 
 ### 10. Open a docs-only PR
 
-Create a branch, commit all spec/notes/README changes, and open a PR
-carrying the `specs-notes` label. Reference the originating idea issue in
-the PR body so GitHub auto-links them:
+Commit all spec/notes/README changes and open a PR carrying the
+`specs-notes` label. The branch was already created in step 4b.
+Reference the originating idea issue in the PR body so GitHub auto-links them:
 
 ```bash
-FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
-[ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
-git switch -c ingest/idea-<IDEA_NUMBER>-<slug>
 git add specs/<topic>.yaml notes/<topic>.md specs/README.md
 git commit -m "specs: ingest idea #<IDEA_NUMBER> — <short title>
 
