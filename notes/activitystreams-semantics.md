@@ -588,3 +588,41 @@ Setting `inReplyTo` directly on invite accept/reject activity models (as a
 constructor parameter with a default that reads the invite ID) is a safer
 invariant than relying on every trigger/demo/example call site to wire the
 original invite ID correctly. Model-level defaults prevent accidental omission.
+
+---
+
+## Bootstrap Embedded-Object vs. URI-String Contract
+
+(BUG-26051902, 2026-05-19)
+
+All nested domain objects in a `Create(VulnerabilityCase)` bootstrap
+activity (e.g., `CaseParticipant` records in `case_participants`) MUST be
+included as **full inline objects**, not as bare URI string references.
+
+**Why bare strings fail:**
+
+Receiving use-case handlers store nested objects by iterating the embedded
+collection and persisting each object individually to the local DataLayer.
+A bare URI string (e.g., `"urn:uuid:786aaff1-..."`) is not deserializable
+as a `CaseParticipant`; Pydantic model validation produces an empty collection
+rather than raising an error. The referenced objects are never written to the
+receiver's DataLayer.
+
+**Cascading failure mode (bug #561/#562):**
+
+```text
+1. Vendor sends Create(VulnerabilityCase) with case_participants as URI strings.
+2. Finder's create_case_received handler iterates case.case_participants → [].
+3. Vendor's CaseParticipant object is never stored in Finder's DataLayer.
+4. Vendor sends RmEngageCase (Join) to Finder.
+5. EngageCaseBT on Finder runs → CheckParticipantExists fails (no record).
+6. RM-state update is never recorded in Finder's case replica.
+```
+
+**Fix**: When constructing the bootstrap case snapshot, serialize the
+`VulnerabilityCase` with `model_dump(..., serialize_as_any=True)` to ensure
+subtype fields (e.g., all `CaseParticipant` fields, not just base-type fields)
+are retained. See also "Base-Typed Activity Serialization Can Drop Inline
+Subtype Fields" in this file.
+
+**Formal requirement**: `specs/case-bootstrap-trust.yaml` CBT-01-007.

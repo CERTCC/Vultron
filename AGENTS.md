@@ -344,6 +344,29 @@ provides unique ID constraints. Report handlers (`create_report`,
   startup code MUST call `configure_default_emitter(ASGIEmitter(app=…))` so the outbox
   handler routes in-process deliveries via ASGI rather than HTTP.
   See `notes/architecture-ports-and-adapters.md` (Dispatch vs Emit section).
+- **ASGIEmitter Path Construction: Use Scheme+Netloc Only as `httpx` Base URL** — When
+  `ASGIEmitter` is constructed with a `base_url` that includes a path component (e.g.,
+  `http://host/api/v2`), passing the full URL to `httpx.AsyncClient` doubles the path
+  prefix and causes HTTP 404 on every local delivery. The fix is to extract only
+  `scheme://netloc` for the `httpx` base URL and pass `inbox_path` (after stripping
+  `mount_prefix`) separately. Always pass `mount_prefix` to `ASGIEmitter` when the
+  actor sub-app is mounted under a path prefix.
+  See `notes/asgi-emitter.md`.
+- **`create_app()` MUST NOT Mutate Module-Level Singletons** — When multiple co-located
+  actors share a Python process, each call to `create_app()` must produce a fully
+  isolated app. Storing dispatcher, emitter, or DataLayer in module-level globals
+  (e.g., `_default_emitter`, `_DISPATCHER`, `_shared_instance`) causes the last
+  lifespan to overwrite prior actors' resources silently. Store all per-app state on
+  `app.state` and register the DataLayer via `app.dependency_overrides`.
+  See `notes/asgi-emitter.md`; spec: `specs/multi-actor-demo.yaml` DEMOMA-01-004.
+- **Bootstrap Activities Must Embed Nested Objects Inline, Not as URI Strings** —
+  `Create(VulnerabilityCase)` bootstrap payloads MUST include `CaseParticipant`
+  objects as full inline dicts. Bare URI strings in `case_participants` cause the
+  receiving handler to see an empty collection; participant records are never stored
+  in the receiver's DataLayer, and downstream BT nodes (`CheckParticipantExists`)
+  fail. Use `model_dump(..., serialize_as_any=True)` when serializing the case
+  snapshot. Spec: `specs/case-bootstrap-trust.yaml` CBT-01-007.
+  See `notes/activitystreams-semantics.md` § "Bootstrap Embedded-Object Contract".
 - **BT Failure Reason: Use `get_failure_reason()`, Not Generic Error Logs** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Dead-Letter vs. No-Pattern: Two Distinct UNKNOWN Failure Modes** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **Accept.object_ Must Be the Invite Activity, Not the Case Object** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
