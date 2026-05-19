@@ -408,8 +408,9 @@ class TestM4AddParticipantStatusAfterBootstrap:
     Regression test for #563: M4 timeout in two-actor demo.
 
     Before the fix (PRs #561, #562):
-    - Finder bootstrapped the case but ``_store_embedded_participants`` was not
-      called, so vendor's ``CaseParticipant`` was never stored independently.
+    - ``_store_embedded_participants`` did not persist each embedded participant
+      as an independent DataLayer record, so vendor's ``CaseParticipant`` could
+      not be found by its UUID after bootstrap.
     - ``AppendParticipantStatusNode`` did ``dl.read(vendor_participant_id)``
       → ``None`` → ``FAILURE``, leaving finder's replica without the vendor's
       ``vfd_state`` update.
@@ -480,12 +481,14 @@ class TestM4AddParticipantStatusAfterBootstrap:
         # Step 3: case-actor broadcasts Add(ParticipantStatus, vendor_p) to
         # finder.  actor=_CASE_ACTOR_ID so VerifySenderIsParticipantNode passes
         # (case.actor_participant_index contains _CASE_ACTOR_ID).
+        # The status is NOT pre-created — it arrives inline in the activity, so
+        # AppendParticipantStatusNode must resolve it from the fallback and
+        # persist it independently.
         status = ParticipantStatus(
             id_=_vfd_status_id,
             context=_CASE_ID,
             vfd_state=CS_vfd.VFd,
         )
-        dl.create(status)
         activity = add_status_to_participant_activity(
             status,
             target=vendor_p,
@@ -507,4 +510,10 @@ class TestM4AddParticipantStatusAfterBootstrap:
         assert _vfd_status_id in status_ids, (
             "Vendor participant must have the VFd status after M4 broadcast "
             "(regression for #563)"
+        )
+        # The status object must also exist as an independent DataLayer record.
+        stored_status = dl.read(_vfd_status_id)
+        assert stored_status is not None, (
+            "ParticipantStatus must be persisted as an independent DataLayer"
+            " record by AddParticipantStatusToParticipantReceivedUseCase"
         )
