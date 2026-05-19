@@ -305,3 +305,82 @@ class TestAnnounceValidatedByTrustedCaseActorId:
 
         result = _find_case_actor_id(dl, _CASE_ID)
         assert result == _CASE_ACTOR_ID
+
+
+# ---------------------------------------------------------------------------
+# CBT-05-005: Embedded participants are stored as separate DataLayer records
+# ---------------------------------------------------------------------------
+
+
+class TestBootstrapParticipantStorage:
+    """CBT-05-005 — bootstrap Create stores embedded participants in DataLayer.
+
+    BT nodes ``CheckParticipantExists`` (#561) and ``AppendParticipantStatus``
+    (#562) look up participants by UUID via ``datalayer.read(participant_id)``.
+    After a bootstrap ``Create(VulnerabilityCase)`` those participant records
+    MUST exist as independent DataLayer entries so the BT nodes can find them.
+    """
+
+    def test_embedded_participant_stored_after_bootstrap(
+        self, dl, create_event
+    ):
+        """Embedded CaseParticipant is stored as an independent DataLayer
+        record after a valid bootstrap (CBT-05-005, fixes #561 and #562).
+        """
+        link = _build_link()
+        dl.save(link)
+
+        CreateCaseReceivedUseCase(dl, create_event).execute()
+
+        stored = dl.read(_PARTICIPANT_ID)
+        assert stored is not None, (
+            "Embedded CaseActorParticipant must be stored as an independent "
+            "DataLayer record after bootstrap so BT nodes can look it up by ID"
+        )
+
+    def test_participant_stored_when_case_already_existed(
+        self, dl, create_event, case_with_participant
+    ):
+        """Participants are stored even when the case replica was already seeded
+        (e.g. by ``_store_nested_inbox_object`` before dispatch) — #561, #562.
+        """
+        link = _build_link()
+        dl.save(link)
+
+        # Pre-seed the case to trigger the idempotency guard in _handle_bootstrap
+        case, _ = case_with_participant
+        dl.create(case)
+
+        CreateCaseReceivedUseCase(dl, create_event).execute()
+
+        stored = dl.read(_PARTICIPANT_ID)
+        assert stored is not None, (
+            "Participant must be stored even when the case was already seeded "
+            "before _handle_bootstrap ran"
+        )
+
+    def test_save_failure_propagates_from_store_embedded_participants(
+        self, dl, create_event, case_with_participant
+    ):
+        """A DataLayer failure in _store_embedded_participants propagates as an
+        exception rather than being silently swallowed (leaves replica
+        consistent — fail loudly instead of leaving participants missing).
+        """
+        import unittest.mock as mock
+
+        link = _build_link()
+        dl.save(link)
+
+        # Patch dl.save to raise after the first successful call (link save)
+        original_save = dl.save
+        call_count = {"n": 0}
+
+        def _patched_save(obj):
+            call_count["n"] += 1
+            if call_count["n"] > 1:
+                raise RuntimeError("storage failure")
+            return original_save(obj)
+
+        with mock.patch.object(dl, "save", side_effect=_patched_save):
+            with pytest.raises(RuntimeError, match="storage failure"):
+                CreateCaseReceivedUseCase(dl, create_event).execute()

@@ -855,3 +855,45 @@ def test_handle_outbox_item_no_warning_when_only_to_set(caplog):
     assert not any(
         any(f in msg for f in ("cc", "bto", "bcc")) for msg in warning_texts
     )
+
+
+# ---------------------------------------------------------------------------
+# DataLayer.hydrate() integration via handle_outbox_item (CBT-05-005)
+# ---------------------------------------------------------------------------
+
+
+def test_handle_outbox_item_calls_hydrate_on_inline_object():
+    """handle_outbox_item calls dl.hydrate() on the inline object_ and uses
+    the returned (fully-hydrated) object for delivery."""
+    from vultron.core.models.activity import VultronActivity as _VA
+    from unittest.mock import MagicMock as _MM, AsyncMock as _AM
+
+    recipient = "https://example.org/actors/alice"
+    case_obj = _VA.__new__(_VA)  # a PersistableModel subclass
+    hydrated_case = _VA.__new__(_VA)
+
+    activity = VultronActivity(
+        id_="urn:test:act-hydrate-call",
+        type_="Create",
+        actor="https://example.org/actors/vendor",
+        to=[recipient],
+    )
+    activity.object_ = case_obj
+
+    mock_dl = _MM()
+    mock_dl.read.side_effect = lambda id_: (
+        activity if id_ == activity.id_ else None
+    )
+    mock_dl.hydrate.return_value = hydrated_case
+    mock_emitter = _AM()
+
+    asyncio.run(
+        oh.handle_outbox_item(
+            "actor-vendor", activity.id_, mock_dl, mock_emitter
+        )
+    )
+
+    mock_dl.hydrate.assert_called_once_with(case_obj)
+    mock_emitter.emit.assert_called_once()
+    emitted_activity, _ = mock_emitter.emit.call_args[0]
+    assert emitted_activity.object_ is hydrated_case

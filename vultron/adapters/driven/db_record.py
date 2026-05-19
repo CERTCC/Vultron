@@ -40,6 +40,15 @@ _AS_OBJECT_REF_FIELDS: frozenset[str] = frozenset(
     }
 )
 
+# Fields that hold a *list* of object references (ID strings or inline
+# objects).  Used by ``DataLayer.hydrate()`` to expand bare ID strings to
+# full domain objects — the list analogue of ``_AS_OBJECT_REF_FIELDS``.
+_AS_LIST_REF_FIELDS: frozenset[str] = frozenset(
+    {
+        "case_participants",  # list[CaseParticipantRef] on VulnerabilityCase
+    }
+)
+
 
 def _dehydrate_data(data: dict[str, Any]) -> dict[str, Any]:
     """Replace ``as_ObjectRef``-typed fields with their ID string.

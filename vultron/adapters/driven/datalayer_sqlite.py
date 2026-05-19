@@ -39,6 +39,7 @@ from sqlmodel import Field, Session, SQLModel, col, create_engine, select
 
 from vultron.adapters.driven.db_record import (
     Record,
+    _AS_LIST_REF_FIELDS,
     _AS_OBJECT_REF_FIELDS,
     object_to_record,
     record_to_object,
@@ -254,6 +255,61 @@ class SqliteDataLayer:
                 )
                 continue
             updates[field_name] = nested
+        if updates:
+            obj = obj.model_copy(update=updates)
+        return obj
+
+    def hydrate(self, obj: PersistableModel) -> PersistableModel:
+        """Deep-hydrate all reference fields in *obj*, including list fields.
+
+        Extends :meth:`_rehydrate_fields` (which handles scalar object-ref
+        fields such as ``object_``, ``target``, ``origin``) to also expand
+        fields listed in ``_AS_LIST_REF_FIELDS`` (e.g. ``case_participants``),
+        where each list item may be a bare ID string rather than a full domain
+        object.
+
+        Called by the outbox handler at delivery time so that bootstrap
+        payloads (``Create``/``Announce`` activities whose ``object_`` is a
+        ``VulnerabilityCase``) carry embedded participant objects that
+        recipients can store in their own DataLayer.
+
+        Args:
+            obj: A fully-constructed domain object (Pydantic model) whose
+                 list reference fields may still contain bare ID strings.
+
+        Returns:
+            A new model instance with all resolvable ID strings replaced by
+            the corresponding domain objects.  Unresolvable IDs are left as
+            strings and logged at DEBUG level.
+        """
+        obj = self._rehydrate_fields(obj)
+        updates: dict[str, object] = {}
+        for field_name in _AS_LIST_REF_FIELDS:
+            items = getattr(obj, field_name, None)
+            if not isinstance(items, list):
+                continue
+            expanded: list[Any] = []
+            changed = False
+            for item in items:
+                if isinstance(item, str) and item:
+                    resolved = self.read(item)
+                    if resolved is not None:
+                        expanded.append(resolved)
+                        changed = True
+                    else:
+                        logger.warning(
+                            "Could not hydrate list item %r in field %r"
+                            " on %r; sending bare ID string to recipient"
+                            " (participant may be missing from sender DataLayer).",
+                            item,
+                            field_name,
+                            type(obj).__name__,
+                        )
+                        expanded.append(item)
+                else:
+                    expanded.append(item)
+            if changed:
+                updates[field_name] = expanded
         if updates:
             obj = obj.model_copy(update=updates)
         return obj
