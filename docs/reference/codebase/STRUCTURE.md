@@ -20,23 +20,30 @@
 ### 2) Entry Points
 
 - Main runtime entry: `vultron/adapters/driving/fastapi/main.py:app`
-- Secondary entry points (worker/cli/jobs): `vultron/adapters/driving/fastapi/app.py:app_v2`,
-  `vultron/demo/cli.py:main`, MCP adapter functions in
+- Sub-application/app-factory entries:
+  `vultron/adapters/driving/fastapi/app.py:app_v2` and
+  `vultron/adapters/driving/fastapi/app.py:create_app`
+- CLI/tool entry points: `vultron/demo/cli.py:main`,
+  `vultron/scripts/vultrabot.py:main`, and metadata/spec-history CLIs declared
+  under `[project.scripts]` in `pyproject.toml`
+- MCP trigger surface: tool functions in
   `vultron/adapters/driving/mcp_server.py`
 - How entry is selected (script/config): Docker runs
-  `uvicorn vultron.adapters.driving.fastapi.main:app`; CLI entry points are
-  declared under `[project.scripts]` in `pyproject.toml`.
+  `uvicorn vultron.adapters.driving.fastapi.main:app`; packaged CLI entry
+  points are declared under `[project.scripts]` in `pyproject.toml`.
 
 ### 3) Module Boundaries
 
 | Boundary | What belongs here | What must not be here |
 |----------|-------------------|------------------------|
-| `vultron/core/` | Domain models, ports, dispatch, use cases, behavior trees | FastAPI imports, adapter types, direct AS2 parsing |
+| `vultron/core/` | Domain models, ports, dispatch, use cases, core behavior trees | FastAPI imports, adapter types, direct AS2 parsing |
 | `vultron/wire/` | AS2 parsing, vocabulary, semantic extraction, rehydration | Case-handling business logic |
 | `vultron/adapters/driving/` | HTTP/MCP-facing translation into core calls | Persistent domain state ownership |
-| `vultron/adapters/driven/` | Persistence, outbound HTTP delivery, ASGI-first co-located delivery, sync/trigger activity adapters | Framework-facing request handling |
-| `vultron/scripts/` | Standalone CLI scripts (e.g., ontology-to-markdown generation) | Core domain logic |
-| `vultron/demo/` | CLI demos and workflow scripts | Authoritative domain interfaces |
+| `vultron/adapters/driven/` | Persistence, outbound delivery, and domain→wire activity translation | Framework-facing request handling |
+| `vultron/metadata/` | Spec, note, and history tooling plus CLI entry points | Runtime protocol behavior |
+| `vultron/scripts/` | Standalone CLI scripts such as `vultrabot` wrappers and ontology tooling | Core domain logic |
+| `vultron/demo/` | Demo orchestration, exchange scripts, and scenario verification helpers | Authoritative domain interfaces |
+| `vultron/bt/` | Legacy and experimental behavior-tree packages still shipped with the repo | FastAPI adapters or new core use-case orchestration |
 | `test/` | Mirrored test modules and fixture layers | Production runtime code |
 
 Notable adapter files added since last scan:
@@ -50,8 +57,10 @@ Notable adapter files added since last scan:
 
 - File naming pattern: snake_case Python modules, for example
   `datalayer_sqlite.py`, `outbox_monitor.py`, `three_actor_demo.py`
-- Directory organization pattern: primarily layer/domain based
-  (`core/`, `wire/`, `adapters/`, `demo/`, `metadata/`)
+- Directory organization pattern: the canonical runtime layout under
+  `vultron/` is `adapters/`, `core/`, `wire/`, `demo/`, `metadata/`, and
+  `scripts/`; legacy BT packages remain under `bt/` alongside
+  `core/behaviors/`
 - Import aliasing or path conventions: package-qualified imports dominate;
   thin re-export modules exist for convenience, for example
   `vultron.adapters.driven.datalayer` and

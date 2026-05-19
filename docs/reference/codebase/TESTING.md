@@ -4,17 +4,21 @@
 
 ### 1) Test Stack and Commands
 
-- Primary test framework: `pytest` (declared in dev dependencies)
+- Primary test framework: `pytest` with `pytest-timeout`
+  (declared in dev dependencies)
 - Assertion/mocking tools: builtin `assert`, `monkeypatch`, `caplog`,
   FastAPI dependency overrides, local `conftest.py` fixtures
 - Commands:
 
 ```bash
 uv run pytest --tb=short 2>&1 | tail -5
-uv run pytest
+uv run pytest test/test_semantic_activity_patterns.py -v
 uv run pytest -m integration
-make integration-test
+uv run pytest -m "" --tb=short 2>&1 | tail -5
 ```
+
+Default local `pytest` runs exclude `@pytest.mark.integration`; CI runs the
+full suite with `-m ""`.
 
 ### 2) Test Layout
 
@@ -37,19 +41,23 @@ make integration-test
 - Main mocking approach: `monkeypatch`, dependency overrides, and fixture-based
   DataLayer setup
 - Isolation guarantees: root test config sets `VULTRON_DB_URL` to in-memory
-  SQLite and resets cached DataLayer instances before and after the session
-- Common failure mode in tests: fixture scope matters because shared and
+  SQLite, resets cached DataLayer instances before and after the session, and
+  multi-actor integration tests require a distinct `DataLayer` per actor
+- Common failure modes in tests: fixture scope matters because shared and
   actor-scoped DataLayer seams are injected through layered `conftest.py`
-  files
+  files; the default timeout is 5 seconds unless a test opts into a longer
+  `@pytest.mark.timeout(...)`
 
 ### 5) Coverage and Quality Signals
 
-- Coverage tool + threshold: threshold expectations are documented in
-  `test/AGENTS.md` (80%+ overall; 100% on several critical paths); coverage
-  tool/config file is `[TODO]`
-- Current reported coverage: `[TODO]` no committed coverage report was found
-- Known gaps/flaky areas: acceptance tests in `integration_tests/` are manual
-  and not part of the default pytest run
+- Coverage tool + threshold: no committed `pytest-cov` or coverage-report
+  configuration was found; coverage expectations are documented in
+  `test/AGENTS.md` and `specs/testability.yaml` (80%+ overall, 100% for
+  critical paths)
+- Current reported coverage: no committed coverage report was found
+- Known gaps/flaky areas: acceptance tests in `integration_tests/` are manual,
+  and demo/integration tests are excluded from the default local pytest run
+  unless invoked with `-m integration`, `test/demo/`, or `-m ""`
 
 ### 6) Evidence
 
