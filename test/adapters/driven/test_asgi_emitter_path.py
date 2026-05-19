@@ -43,7 +43,7 @@ def _make_stub_subapp(received_actor_ids: list[str]) -> FastAPI:
     subapp = FastAPI()
 
     @subapp.post("/actors/{actor_id}/inbox/")
-    async def inbox(actor_id: str) -> dict:  # type: ignore[return]
+    async def inbox(actor_id: str) -> dict[str, str]:
         received_actor_ids.append(actor_id)
         return {"actor_id": actor_id}
 
@@ -107,7 +107,7 @@ class TestASGIEmitterPathDelivery:
         app_with_prefix = FastAPI()
 
         @app_with_prefix.post("/api/v2/actors/{actor_id}/inbox/")
-        async def inbox(actor_id: str) -> dict:  # type: ignore[return]
+        async def inbox(actor_id: str) -> dict[str, str]:
             received.append(actor_id)
             return {"actor_id": actor_id}
 
