@@ -443,6 +443,17 @@ provides unique ID constraints. Report handlers (`create_report`,
 
 > **Parallelism and Single-Agent Testing** has moved to `test/AGENTS.md`.
 >
+- **Adding a New Pitfall: Check the Routing Policy First** — Before appending
+  a new entry to root `AGENTS.md`, ask: is this guidance specific to one
+  subdirectory (`vultron/core/`, `vultron/wire/as2/`, `vultron/adapters/`,
+  `test/`)? If yes, it belongs in that directory's `AGENTS.md` instead.
+  If it warrants a detailed write-up with context and rationale, it belongs
+  in `notes/<topic>.md` with a one-line summary + link here.
+  Root `AGENTS.md` target is ≤ 400 lines; if it exceeds that, run the
+  `condense-agents-md` skill. See
+  [notes/agents-md-structure.md](notes/agents-md-structure.md) for the
+  full routing decision tree.
+
 ## Skill Interaction Rules
 
 When a skill requires user input or asks the user a question:
