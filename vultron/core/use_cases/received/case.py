@@ -122,6 +122,44 @@ def _check_participant_embargo_acceptance(
     return excluded
 
 
+def _store_embedded_participants(
+    case_obj: CaseModel, dl: CasePersistence, case_id: str
+) -> None:
+    """Persist embedded participant objects from a case snapshot.
+
+    When a bootstrapped or announced ``VulnerabilityCase`` carries fully
+    materialised participant objects (not just ID strings), each is stored
+    as an independent DataLayer record.  This ensures BT nodes such as
+    ``CheckParticipantExists`` (#561) and ``AppendParticipantStatusNode``
+    (#562, #566) can retrieve them by their UUID.
+
+    Called from:
+    - ``CreateCaseReceivedUseCase._handle_bootstrap`` (Create path, CBT-05-005)
+    - ``AnnounceVulnerabilityCaseReceivedUseCase.execute`` (Announce path, #566)
+
+    Idempotent: ``dl.save()`` upserts so repeated calls are safe.
+
+    Args:
+        case_obj: The bootstrapped or announced case domain object.
+        dl: DataLayer to persist participants into.
+        case_id: ID of the case (for log context).
+    """
+    participants = getattr(case_obj, "case_participants", []) or []
+    for participant_ref in participants:
+        if isinstance(participant_ref, str):
+            continue
+        pid = getattr(participant_ref, "id_", None)
+        if pid is None:
+            continue
+        dl.save(participant_ref)
+        logger.info(
+            "store_embedded_participants: stored participant '%s'"
+            " for case '%s' (CBT-05-005, #566)",
+            pid,
+            case_id,
+        )
+
+
 class CreateCaseReceivedUseCase:
     """Process a bootstrap ``Create(VulnerabilityCase)`` from a remote actor.
 
@@ -267,39 +305,7 @@ class CreateCaseReceivedUseCase:
         # find them by UUID via ``datalayer.read(participant_id)``.
         # This must happen regardless of the idempotency guard above because
         # the inbox router may have already seeded the case before dispatch.
-        self._store_embedded_participants(case_obj, case_id)
-
-    def _store_embedded_participants(
-        self, case_obj: CaseModel, case_id: str
-    ) -> None:
-        """Persist embedded participant objects from the bootstrap snapshot.
-
-        When the bootstrap ``Create(VulnerabilityCase)`` carries fully
-        materialised participant objects (not just ID strings), each is stored
-        as an independent DataLayer record.  This ensures BT nodes such as
-        ``CheckParticipantExists`` (#561) and ``AppendParticipantStatusNode``
-        (#562) can retrieve them by their UUID.
-
-        Idempotent: ``dl.save()`` upserts so repeated calls are safe.
-
-        Args:
-            case_obj: The bootstrapped case domain object.
-            case_id: ID of the case (for log context).
-        """
-        participants = getattr(case_obj, "case_participants", []) or []
-        for participant_ref in participants:
-            if isinstance(participant_ref, str):
-                continue
-            pid = getattr(participant_ref, "id_", None)
-            if pid is None:
-                continue
-            self._dl.save(participant_ref)
-            logger.info(
-                "create_case_received: stored participant '%s'"
-                " for case '%s' (CBT-05-005)",
-                pid,
-                case_id,
-            )
+        _store_embedded_participants(case_obj, self._dl, case_id)
 
 
 class UpdateCaseReceivedUseCase:
