@@ -293,22 +293,13 @@ class CreateCaseReceivedUseCase:
             pid = getattr(participant_ref, "id_", None)
             if pid is None:
                 continue
-            try:
-                self._dl.save(participant_ref)
-                logger.info(
-                    "create_case_received: stored participant '%s'"
-                    " for case '%s' (CBT-05-005)",
-                    pid,
-                    case_id,
-                )
-            except Exception as exc:
-                logger.warning(
-                    "create_case_received: could not store participant"
-                    " '%s' for case '%s': %s",
-                    pid,
-                    case_id,
-                    exc,
-                )
+            self._dl.save(participant_ref)
+            logger.info(
+                "create_case_received: stored participant '%s'"
+                " for case '%s' (CBT-05-005)",
+                pid,
+                case_id,
+            )
 
 
 class UpdateCaseReceivedUseCase:

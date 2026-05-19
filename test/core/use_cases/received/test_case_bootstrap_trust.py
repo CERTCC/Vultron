@@ -358,3 +358,29 @@ class TestBootstrapParticipantStorage:
             "Participant must be stored even when the case was already seeded "
             "before _handle_bootstrap ran"
         )
+
+    def test_save_failure_propagates_from_store_embedded_participants(
+        self, dl, create_event, case_with_participant
+    ):
+        """A DataLayer failure in _store_embedded_participants propagates as an
+        exception rather than being silently swallowed (leaves replica
+        consistent — fail loudly instead of leaving participants missing).
+        """
+        import unittest.mock as mock
+
+        link = _build_link()
+        dl.save(link)
+
+        # Patch dl.save to raise after the first successful call (link save)
+        original_save = dl.save
+        call_count = {"n": 0}
+
+        def _patched_save(obj):
+            call_count["n"] += 1
+            if call_count["n"] > 1:
+                raise RuntimeError("storage failure")
+            return original_save(obj)
+
+        with mock.patch.object(dl, "save", side_effect=_patched_save):
+            with pytest.raises(RuntimeError, match="storage failure"):
+                CreateCaseReceivedUseCase(dl, create_event).execute()

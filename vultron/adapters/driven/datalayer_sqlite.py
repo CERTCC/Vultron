@@ -297,9 +297,10 @@ class SqliteDataLayer:
                         expanded.append(resolved)
                         changed = True
                     else:
-                        logger.debug(
+                        logger.warning(
                             "Could not hydrate list item %r in field %r"
-                            " on %r; keeping string reference.",
+                            " on %r; sending bare ID string to recipient"
+                            " (participant may be missing from sender DataLayer).",
                             item,
                             field_name,
                             type(obj).__name__,

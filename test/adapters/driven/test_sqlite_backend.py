@@ -1045,3 +1045,26 @@ def test_hydrate_keeps_unresolvable_string_ids(dl):
     stored_case = dl.read(case.id_)
     hydrated = dl.hydrate(stored_case)
     assert hydrated.case_participants[0] == missing_id
+
+
+def test_hydrate_warns_for_unresolvable_string_ids(dl, caplog):
+    """hydrate() logs a WARNING when a list item ID cannot be resolved."""
+    import logging
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        VulnerabilityCase,
+    )
+
+    missing_id = "urn:uuid:00000000-0000-0000-0000-000000000001"
+    case = VulnerabilityCase()
+    case.case_participants = [missing_id]
+    dl.save(case)
+
+    stored_case = dl.read(case.id_)
+    with caplog.at_level(logging.WARNING):
+        dl.hydrate(stored_case)
+
+    assert any(
+        missing_id in record.message
+        for record in caplog.records
+        if record.levelname == "WARNING"
+    ), "Expected a WARNING log mentioning the unresolvable participant ID"
