@@ -79,9 +79,16 @@ class BtNode:
     def setup(self) -> None:
         """Sets up the node and its children.
 
+        Propagates the blackboard reference from parent to this node and
+        recursively to all children. Skips setup if already completed to
+        avoid redundant O(N²) traversals on every tick.
+
         Returns:
             None
         """
+        if self._setup_complete:
+            return
+
         if self.parent is not None:
             self.bb = self.parent.bb
         for child in self.children:
