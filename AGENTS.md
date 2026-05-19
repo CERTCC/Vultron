@@ -262,6 +262,39 @@ to relevant tests and design notes.
 See each skill's SKILL.md for the exact commands. If the pre-commit hook
 reformats files: `git add -A && git commit -m "Same message"`.
 
+**After a PR merges**, if working in a named worktree slot, reset the slot
+so it is ready for the next task:
+
+```bash
+bash "$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh" reset <slot-name>
+```
+
+---
+
+## Parallel Development (Worktree Slots)
+
+Multiple agents can work on different issues simultaneously using named git
+worktree **slots**. Each slot is a separate working directory on its own
+`wt/<name>` placeholder branch, sharing the same `.git` object store.
+
+```bash
+# One-time setup (run from any checkout of this repo)
+SCRIPT="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
+bash "$SCRIPT" create blinky inky pinky clyde
+
+# Check slot status
+bash "$SCRIPT" status
+# blinky  IDLE  wt/blinky  ...
+# inky    BUSY  bug/561-actor-id-not-stored  fix: actor id not stored
+```
+
+Open a separate terminal (or agent session) in each slot directory
+(`<parent>/<repo-name>_wt/<slot-name>`) and run any skill normally.
+Skills call `freshen` automatically before creating a task branch, so
+slots always branch from the latest `origin/main`.
+
+See `~/.copilot/skills/manage-worktree/SKILL.md` for the full reference.
+
 ---
 
 > **Specification Usage Guidance** has moved to `specs/AGENTS.md`.

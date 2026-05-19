@@ -171,6 +171,8 @@ carrying the `specs-notes` label. Reference the originating idea issue in
 the PR body so GitHub auto-links them:
 
 ```bash
+FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
+[ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
 git switch -c ingest/idea-<IDEA_NUMBER>-<slug>
 git add specs/<topic>.yaml notes/<topic>.md specs/README.md
 git commit -m "specs: ingest idea #<IDEA_NUMBER> — <short title>

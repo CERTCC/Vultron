@@ -62,6 +62,13 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
    (`method: get` then `method: get_comments`). Use the combined content as
    implementation context throughout Phases 3–5.
 5. **Claim the Issue**:
+   - Freshen the worktree slot if running in one:
+
+     ```bash
+     FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
+     [ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
+     ```
+
    - Create a branch: `git switch -c task/<issue-number>-<slug>`
    - If the branch already exists, abort — the task is already claimed.
    - Assign the Issue to the triggering user:

@@ -197,6 +197,8 @@ Do **not** reference `plan/BUILD_LEARNINGS.md` from durable docs.
 3. Create a branch, stage, commit, push, and open a docs-only PR:
 
    ```bash
+   FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
+   [ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
    git switch -c learn/<YYYYMMDD>-<slug>
    git add specs/<changed-files> notes/<changed-files> AGENTS.md \
        plan/BUILD_LEARNINGS.md docs/reference/codebase/

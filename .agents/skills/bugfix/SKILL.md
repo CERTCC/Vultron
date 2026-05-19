@@ -66,6 +66,13 @@ bug is being fixed and why.
    - One-sentence description of the observed vs. expected behaviour
    - The file(s) / component(s) most likely involved
 6. **Claim the issue**:
+   - Freshen the worktree slot if running in one:
+
+     ```bash
+     FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
+     [ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
+     ```
+
    - Create a branch: `git switch -c bug/<issue-number>-<slug>`
    - If the branch already exists, abort — the bug is already claimed.
    - Assign the issue to the triggering user:
