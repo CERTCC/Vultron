@@ -373,6 +373,15 @@ flowchart and future BT automation notes.
 **Load when**: understanding or evolving the agent skill pipeline, automating
 the development loop, or deciding which skill to run next.
 
+**`agents-md-structure.md`**
+Routing policy for `AGENTS.md` content: the decision tree for whether new
+guidance belongs in root `AGENTS.md`, a per-directory `AGENTS.md` file
+(e.g., `vultron/core/`, `vultron/wire/as2/`, `vultron/adapters/`, `test/`),
+or a `notes/<topic>.md` design note. Explains the 400-line threshold for
+root AGENTS.md and the migration pattern using `condense-agents-md`.
+**Load when**: adding a new pitfall or convention to any AGENTS.md file,
+deciding where to place new agent guidance, or running `condense-agents-md`.
+
 ---
 
 ## Documentation and Traceability
