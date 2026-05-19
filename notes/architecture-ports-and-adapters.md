@@ -485,7 +485,9 @@ Two emitter adapters are provided:
   Falls back to `DeliveryQueueAdapter` for recipients whose inbox URL is not
   hosted on the same server. Wired at app startup by `configure_default_emitter()`
   in `adapters/driving/fastapi/outbox_handler.py`. This is the **production
-  default** for the FastAPI application.
+  default** for the FastAPI application. See `notes/asgi-emitter.md` for the
+  path construction rule (`mount_prefix` stripping, scheme+netloc-only `httpx`
+  base URL) and the `create_app()` per-app state isolation contract.
 
 Key rules:
 

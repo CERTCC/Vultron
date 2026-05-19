@@ -175,6 +175,25 @@ class AppendParticipantStatusNode(DataLayerAction):
         self.participant_id = participant_id
         self.status_obj_fallback = status_obj_fallback
 
+    def _resolve_status(self) -> "PersistableModel | None":
+        """Resolve the status object by ID, persisting the fallback when needed.
+
+        Tries the DataLayer first; if not found, uses ``status_obj_fallback``,
+        saves it, then re-reads the canonical wire-format record.  Returns
+        ``None`` when neither source can provide the status.
+        """
+        dl = self.datalayer
+        assert dl is not None  # checked by caller
+        status_obj = dl.read(self.status_id)
+        if not hasattr(status_obj, "id_"):
+            status_obj = self.status_obj_fallback
+            if status_obj is not None:
+                dl.save(status_obj)
+                # Re-read so we get the canonical wire-format object
+                # (correct type_ enum) rather than the domain fallback.
+                status_obj = dl.read(self.status_id) or status_obj
+        return status_obj if hasattr(status_obj, "id_") else None
+
     def update(self) -> Status:
         if self.datalayer is None:
             self.feedback_message = "DataLayer not available"
@@ -200,9 +219,7 @@ class AppendParticipantStatusNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        status_obj = self.datalayer.read(self.status_id)
-        if not hasattr(status_obj, "id_"):
-            status_obj = self.status_obj_fallback
+        status_obj = self._resolve_status()
         if status_obj is None:
             self.feedback_message = f"Status '{self.status_id}' not found"
             self.logger.warning(

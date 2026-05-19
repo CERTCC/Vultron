@@ -1,0 +1,190 @@
+id: DEMOCI
+title: Demo CI — GitHub Actions Demo Integration Workflow
+description: >-
+  Requirements for a GitHub Actions workflow that builds and runs Vultron demo
+  containers on pull requests against main, and for hardening the demo runner
+  to exit non-zero when the demo fails. Closes the gap where all pytest tests
+  can pass while the actual demo produces 404 errors or other silent failures
+  (see issue #557). Source: IDEA-560.
+version: 1.0.0
+kind: implementation
+scope:
+  - prototype
+  - production
+groups:
+  - id: DEMOCI-01
+    title: Demo Runner Failure Signalling
+    specs:
+      - id: DEMOCI-01-001
+        priority: MUST
+        statement: >-
+          The demo runner MUST exit with a non-zero exit code when the demo
+          scenario fails, regardless of whether the Python process itself
+          raised an unhandled exception.
+        rationale: >-
+          docker compose --exit-code-from demo-runner requires a non-zero exit
+          to surface failures in CI; a process that logs errors but exits 0 is
+          indistinguishable from a successful run at the CI level.
+
+      - id: DEMOCI-01-002
+        priority: MUST
+        statement: >-
+          The demo runner MUST treat any HTTP 404 response from an actor
+          endpoint as a demo failure.
+        rationale: >-
+          A 404 from an actor inbox or trigger endpoint means the target route
+          does not exist, which is a protocol error, not a transient condition.
+
+      - id: DEMOCI-01-003
+        priority: MUST
+        statement: >-
+          The demo runner MUST accumulate all errors encountered during the
+          scenario and raise a typed DemoFailureError at the end of the
+          scenario run, rather than halting at the first error.
+        rationale: >-
+          Accumulating errors produces a complete diagnostic picture of all
+          failures in a single run; stopping at the first error obscures
+          subsequent steps that may also be failing.
+
+      - id: DEMOCI-01-004
+        priority: MUST
+        statement: >-
+          Error detection and accumulation MUST be implemented by extending
+          the existing demo_step and demo_check context managers in
+          vultron/demo/utils.py.
+        rationale: >-
+          All demo workflow steps and verification blocks already use these
+          context managers; centralising error accumulation there minimises
+          the change surface.
+
+      - id: DEMOCI-01-005
+        priority: MUST
+        statement: >-
+          DemoFailureError MUST be a subclass of VultronError and MUST be
+          defined in vultron/errors.py.
+        relationships:
+          - rel_type: refines
+            spec_id: EH-01-001
+            note: error-handling.yaml
+
+  - id: DEMOCI-02
+    title: GitHub Actions Demo Workflow
+    specs:
+      - id: DEMOCI-02-001
+        priority: MUST
+        statement: >-
+          A dedicated GitHub Actions workflow file
+          (.github/workflows/demo-integration.yml) MUST exist for running
+          the demo integration tests. It MUST NOT be merged into
+          python-app.yml.
+        rationale: >-
+          Keeping the demo workflow separate avoids adding Docker-compose
+          build time to the existing linting and unit-test pipeline and
+          allows the two workflows to run concurrently on PRs.
+
+      - id: DEMOCI-02-002
+        priority: MUST
+        statement: >-
+          The demo workflow MUST trigger on pull_request events targeting the
+          main branch and on workflow_dispatch events.
+
+      - id: DEMOCI-02-003
+        priority: MUST
+        statement: >-
+          The pull_request trigger MUST include a paths filter covering:
+          vultron/**, docker/**, integration_tests/**, pyproject.toml, and
+          uv.lock.
+        rationale: >-
+          These are the files whose changes can affect demo container behaviour.
+          Filtering avoids running the expensive workflow on pure docs or
+          spec changes.
+
+      - id: DEMOCI-02-004
+        priority: MUST
+        statement: >-
+          The demo workflow job MUST be skipped for Dependabot pull requests,
+          detected via the condition
+          `if: "!startsWith(github.head_ref, 'dependabot/')"`.
+        rationale: >-
+          Dependabot PRs arrive in waves (e.g., weekly dependency bumps) and
+          are unlikely to break the demo; running the full container stack on
+          each one wastes CI resources. The python-app.yml test suite still
+          guards against broken dependencies on Dependabot PRs.
+
+      - id: DEMOCI-02-005
+        priority: MUST
+        statement: >-
+          The demo workflow MUST build the Docker images using
+          docker/docker-compose-multi-actor.yml and run the two-actor demo
+          scenario (DEMO=two-actor) as the initial CI scenario.
+
+      - id: DEMOCI-02-006
+        priority: MUST
+        statement: >-
+          Demo failure MUST be detected via the exit code of the demo-runner
+          container, using the docker compose flag
+          `--abort-on-container-exit --exit-code-from demo-runner`.
+
+      - id: DEMOCI-02-007
+        priority: MUST
+        statement: >-
+          The workflow MUST use GitHub Actions Docker layer caching to avoid
+          rebuilding unchanged dependency layers on every run.
+
+      - id: DEMOCI-02-008
+        priority: MUST
+        statement: >-
+          The workflow MUST upload all container logs as a CI artifact when
+          the demo job fails, and MUST NOT upload logs on success.
+        rationale: >-
+          Logs are diagnostic information; uploading them only on failure
+          keeps successful run artifacts clean while providing full context
+          for debugging broken runs.
+
+      - id: DEMOCI-02-009
+        priority: MUST
+        statement: >-
+          The demo workflow job MUST have a timeout of 15 minutes
+          (timeout-minutes: 15).
+        rationale: >-
+          The two-actor demo currently takes 3–5 minutes; a 15-minute cap
+          prevents an indefinite CI hang if a container gets stuck, while
+          providing sufficient headroom for slow runners.
+
+      - id: DEMOCI-02-010
+        priority: MUST
+        statement: >-
+          The workflow MUST include a teardown step that runs
+          `docker compose down -v` after the demo job (success or failure)
+          to release Docker volumes and stop all containers.
+        rationale: >-
+          GitHub Actions self-hosted runners and persistent environments
+          accumulate stale Docker state if teardown is skipped.
+
+  - id: DEMOCI-03
+    title: Extensibility for Additional Demo Scenarios
+    specs:
+      - id: DEMOCI-03-001
+        priority: SHOULD
+        statement: >-
+          The demo workflow SHOULD be extended to include additional demo
+          scenarios (e.g., three-actor, multi-vendor) as each scenario
+          reaches a stable, reproducible state.
+        rationale: >-
+          Starting with the two-actor scenario lets CI run reliably while
+          more complex scenarios are still being developed. Additional
+          scenarios add coverage without blocking CI on unstable demos.
+
+      - id: DEMOCI-03-002
+        priority: MUST
+        statement: >-
+          When a new demo scenario is added to the codebase, the demo CI
+          workflow MUST be updated in the same PR to include that scenario
+          in the demo-integration.yml trigger.
+
+      - id: DEMOCI-03-003
+        priority: SHOULD
+        statement: >-
+          Each demo scenario added to CI SHOULD be run as a separate job
+          (or matrix entry) so that failures are independently reported and
+          one scenario failure does not prevent other scenarios from running.

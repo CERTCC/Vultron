@@ -23,10 +23,13 @@ Covers:
               in the bootstrap snapshot and recorded in the ReportCaseLink.
 """
 
+from typing import cast
+
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.states.cs import CS_vfd
 from vultron.core.use_cases.received.actor import (
     AnnounceVulnerabilityCaseReceivedUseCase,
     _find_case_actor_id,
@@ -34,13 +37,19 @@ from vultron.core.use_cases.received.actor import (
 from vultron.core.use_cases.received.case import (
     CreateCaseReceivedUseCase,
 )
+from vultron.core.use_cases.received.status import (
+    AddParticipantStatusToParticipantReceivedUseCase,
+)
 from vultron.wire.as2.factories import (
+    add_status_to_participant_activity,
     announce_vulnerability_case_activity,
     create_case_activity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import (
     CaseActorParticipant,
+    CaseParticipant,
 )
+from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 # ---------------------------------------------------------------------------
@@ -51,9 +60,11 @@ _CREATOR_ID = "https://example.org/actors/creator"
 _REPORTER_ID = "https://example.org/actors/reporter"
 _IMPOSTER_ID = "https://example.org/actors/imposter"
 _CASE_ACTOR_ID = "https://example.org/actors/case-actor"
+_VENDOR_ID = "https://example.org/actors/vendor"
 _CASE_ID = "https://example.org/cases/cbt-test-001"
 _REPORT_ID = "https://example.org/reports/cbt-report-001"
 _PARTICIPANT_ID = f"{_CASE_ID}/participants/case-actor"
+_VENDOR_PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor"
 
 
 # ---------------------------------------------------------------------------
@@ -384,3 +395,125 @@ class TestBootstrapParticipantStorage:
         with mock.patch.object(dl, "save", side_effect=_patched_save):
             with pytest.raises(RuntimeError, match="storage failure"):
                 CreateCaseReceivedUseCase(dl, create_event).execute()
+
+
+# ---------------------------------------------------------------------------
+# CBT-05-006: M4 AddParticipantStatusBT succeeds after bootstrap (#563)
+# ---------------------------------------------------------------------------
+
+
+class TestM4AddParticipantStatusAfterBootstrap:
+    """CBT-05-006 — AddParticipantStatusBT succeeds on finder's replica.
+
+    Regression test for #563: M4 timeout in two-actor demo.
+
+    Before the fix (PRs #561, #562):
+    - ``_store_embedded_participants`` did not persist each embedded participant
+      as an independent DataLayer record, so vendor's ``CaseParticipant`` could
+      not be found by its UUID after bootstrap.
+    - ``AppendParticipantStatusNode`` did ``dl.read(vendor_participant_id)``
+      → ``None`` → ``FAILURE``, leaving finder's replica without the vendor's
+      ``vfd_state`` update.
+    - Finder's M4 poll returned 404 until timeout.
+
+    After the fix:
+    - ``_store_embedded_participants`` stores all embedded participant objects
+      during bootstrap (CBT-05-005).
+    - ``AppendParticipantStatusNode`` finds the participant and appends the
+      status successfully.
+    - M4 completes without timeout.
+    """
+
+    @pytest.fixture()
+    def case_with_two_participants(self):
+        """VulnerabilityCase with a CASE_MANAGER participant and a vendor
+        participant, both embedded inline as in a real bootstrap snapshot."""
+        case_actor_p = CaseActorParticipant(
+            id_=_PARTICIPANT_ID,
+            attributed_to=_CASE_ACTOR_ID,
+            context=_CASE_ID,
+        )
+        vendor_p = CaseParticipant(
+            id_=_VENDOR_PARTICIPANT_ID,
+            attributed_to=_VENDOR_ID,
+            context=_CASE_ID,
+        )
+        case = VulnerabilityCase(
+            id_=_CASE_ID,
+            name="CBT-05-006 M4 regression case",
+            case_participants=[case_actor_p, vendor_p],
+        )
+        case.actor_participant_index[_CASE_ACTOR_ID] = _PARTICIPANT_ID
+        case.actor_participant_index[_VENDOR_ID] = _VENDOR_PARTICIPANT_ID
+        return case, case_actor_p, vendor_p
+
+    @pytest.fixture()
+    def bootstrap_m4_event(self, make_payload, case_with_two_participants):
+        case, _, _ = case_with_two_participants
+        activity = create_case_activity(case, actor=_CREATOR_ID)
+        return make_payload(activity)
+
+    def test_add_participant_status_succeeds_after_bootstrap(
+        self, dl, make_payload, bootstrap_m4_event, case_with_two_participants
+    ):
+        """AddParticipantStatusBT appends VFd status on finder's replica.
+
+        Full M4 path: bootstrap → verify participant stored → receive
+        Add(ParticipantStatus) from case-actor → assert VFd status on vendor
+        participant.  Regression for #563.
+        """
+        _vfd_status_id = f"{_VENDOR_PARTICIPANT_ID}/statuses/vfd-s1"
+        _, _, vendor_p = case_with_two_participants
+
+        link = _build_link()
+        dl.save(link)
+
+        # Step 1: bootstrap — _store_embedded_participants saves vendor's
+        # CaseParticipant as an independent DataLayer record (CBT-05-005).
+        CreateCaseReceivedUseCase(dl, bootstrap_m4_event).execute()
+
+        # Step 2: confirm vendor participant is independently stored (core fix).
+        stored_p = dl.read(_VENDOR_PARTICIPANT_ID)
+        assert (
+            stored_p is not None
+        ), "Vendor CaseParticipant must be stored during bootstrap (CBT-05-005)"
+
+        # Step 3: case-actor broadcasts Add(ParticipantStatus, vendor_p) to
+        # finder.  actor=_CASE_ACTOR_ID so VerifySenderIsParticipantNode passes
+        # (case.actor_participant_index contains _CASE_ACTOR_ID).
+        # The status is NOT pre-created — it arrives inline in the activity, so
+        # AppendParticipantStatusNode must resolve it from the fallback and
+        # persist it independently.
+        status = ParticipantStatus(
+            id_=_vfd_status_id,
+            context=_CASE_ID,
+            vfd_state=CS_vfd.VFd,
+        )
+        activity = add_status_to_participant_activity(
+            status,
+            target=vendor_p,
+            actor=_CASE_ACTOR_ID,
+        )
+        event = make_payload(activity)
+
+        AddParticipantStatusToParticipantReceivedUseCase(dl, event).execute()
+
+        # Step 4: vendor participant now has the VFd status — M4 can observe it.
+        updated_p = dl.read(_VENDOR_PARTICIPANT_ID)
+        assert (
+            updated_p is not None
+        ), "Vendor participant must still exist after AddParticipantStatus"
+        updated_p = cast(CaseParticipant, updated_p)
+        status_ids = [
+            getattr(s, "id_", s) for s in updated_p.participant_statuses
+        ]
+        assert _vfd_status_id in status_ids, (
+            "Vendor participant must have the VFd status after M4 broadcast "
+            "(regression for #563)"
+        )
+        # The status object must also exist as an independent DataLayer record.
+        stored_status = dl.read(_vfd_status_id)
+        assert stored_status is not None, (
+            "ParticipantStatus must be persisted as an independent DataLayer"
+            " record by AddParticipantStatusToParticipantReceivedUseCase"
+        )

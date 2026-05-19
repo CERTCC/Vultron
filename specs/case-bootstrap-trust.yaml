@@ -77,6 +77,26 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: PCR-05-001
+      - id: CBT-01-007
+        priority: MUST
+        statement: >-
+          All nested domain objects in the bootstrap `Create(VulnerabilityCase)`
+          payload (e.g., `CaseParticipant` objects in `case_participants`) MUST
+          be embedded as full inline objects; bare URI string references MUST
+          NOT be used for nested objects in this activity.
+        rationale: >-
+          Receiving handlers store nested objects by iterating the embedded
+          collection and persisting each object individually to the local
+          DataLayer. ActivityStreamRef allows bare URI strings, so Pydantic
+          accepts the field without error — but handlers only persist
+          non-string entries (materialized objects). Bare URI strings are
+          silently skipped; the receiver cannot seed CaseParticipant records
+          from string-only refs, causing downstream BT failures (e.g.,
+          `CheckParticipantExists` returns FAILURE for a participant the
+          receiver was never told about).
+        relationships:
+          - rel_type: refines
+            spec_id: CBT-01-002
   - id: CBT-02
     title: Post-Bootstrap Update Authority
     specs:

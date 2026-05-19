@@ -6,13 +6,13 @@
 
 | System | Type (API/DB/Queue/etc) | Purpose | Auth model | Criticality | Evidence |
 |--------|---------------------------|---------|------------|-------------|----------|
-| SQLite via SQLModel | DB | Persist Vultron objects and inbox/outbox queue entries | Local file or in-memory DB URL; no separate DB auth shown | high | `vultron/adapters/driven/datalayer_sqlite.py`, `docker/docker-compose-multi-actor.yml` |
-| ASGIEmitter (in-process) | API | Deliver outbound AS2 activities to co-located actors via ASGI, bypassing HTTP | None required (same-process) | high | `vultron/adapters/driven/asgi_emitter.py`, `vultron/adapters/driving/fastapi/app.py` |
-| Peer actor inboxes | API | Deliver outbound AS2 activities to remote actors with HTTP POST | `[TODO]` no auth/signing shown in sampled delivery code | high | `vultron/adapters/driven/delivery_queue.py` |
+| SQLite via SQLModel | DB | Persist Vultron objects plus inbox/outbox queue entries | Local file or in-memory DB URL; no separate DB auth shown | high | `vultron/adapters/driven/datalayer_sqlite.py`, `docker/docker-compose-multi-actor.yml` |
+| ASGIEmitter (in-process) | API | Deliver outbound AS2 activities to co-located actors via ASGI, stripping mount prefixes when mounted under `/api/v2` | None required (same-process) | high | `vultron/adapters/driven/asgi_emitter.py`, `vultron/adapters/driving/fastapi/main.py`, `notes/asgi-emitter.md` |
+| Peer actor inboxes via `DeliveryQueueAdapter` | API | Deliver outbound AS2 activities, including bootstrap and follow-on case-sync traffic, to remote actors with HTTP POST | No auth/signing is implemented in the current adapter | high | `vultron/adapters/driven/delivery_queue.py`, `specs/case-bootstrap-trust.yaml` |
 | HTTP delivery (stub) | API | Future signed HTTP delivery to remote inboxes | Intended to use HTTP Signature signing; not yet implemented | medium | `vultron/adapters/driven/http_delivery.py` |
-| Shared inbox (stub) | API | ActivityPub shared-inbox fan-out to multiple local actors | HTTP Signature validation planned; not yet implemented | medium | `vultron/adapters/driving/shared_inbox.py` |
-| Demo client to local API | API | Drive seeded/demo scenarios over HTTP | None shown beyond local base URL config | medium | `vultron/demo/utils.py`, `vultron/demo/cli.py` |
-| MCP trigger adapter | Tool/API surface | Expose trigger use cases to MCP-compatible callers once registered | `[TODO]` not shown in current file | low | `vultron/adapters/driving/mcp_server.py` |
+| Shared inbox (stub) | API | Future ActivityPub shared-inbox fan-out to multiple local actors | HTTP Signature validation planned; not yet implemented | medium | `vultron/adapters/driving/shared_inbox.py` |
+| Demo HTTP clients (`requests`) | API client | Drive seeded/demo scenarios and verification helpers over HTTP | None shown beyond base URL config | medium | `vultron/demo/utils.py`, `vultron/demo/helpers/verification.py` |
+| MCP trigger adapter functions | Tool/API surface | Expose trigger use cases as in-process tool functions pending MCP SDK registration | None; no network transport is registered in-tree yet | low | `vultron/adapters/driving/mcp_server.py` |
 
 ### 2) Data Stores
 
@@ -32,11 +32,15 @@
 
 ### 4) Reliability and Failure Behavior
 
-- Retry/backoff behavior: implemented for outbound HTTP delivery with
-  exponential backoff and per-recipient failure isolation
-- Timeout policy: outbound inbox delivery uses a 5.0 second HTTP timeout;
-  Docker health checks define 2-5 second probe timeouts
-- Circuit-breaker or fallback behavior: none found in sampled runtime files
+- Retry/backoff behavior: remote HTTP delivery retries with exponential
+  backoff (defaults: 3 retries, 0.5s initial delay, 2x multiplier, 30s max)
+  and per-recipient failure isolation
+- Timeout policy: local ASGI delivery uses a 10.0 second timeout; remote HTTP
+  delivery uses a 5.0 second timeout; Docker health checks probe readiness with
+  short `curl -f` timeouts
+- Circuit-breaker or fallback behavior: `ASGIEmitter` falls back to
+  `DeliveryQueueAdapter` on 404 or other local-delivery failures; no broader
+  circuit breaker was found
 
 ### 5) Observability for Integrations
 
@@ -52,7 +56,13 @@
 - `vultron/adapters/driven/datalayer_sqlite.py`
 - `vultron/adapters/driven/delivery_queue.py`
 - `vultron/adapters/driven/asgi_emitter.py`
+- `vultron/adapters/driven/http_delivery.py`
+- `vultron/adapters/driving/shared_inbox.py`
+- `vultron/adapters/driving/mcp_server.py`
 - `vultron/demo/utils.py`
+- `vultron/demo/helpers/verification.py`
+- `notes/asgi-emitter.md`
+- `specs/case-bootstrap-trust.yaml`
 - `docker/docker-compose.yml`
 - `docker/docker-compose-multi-actor.yml`
 - `.env.example`

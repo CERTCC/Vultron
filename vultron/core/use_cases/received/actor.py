@@ -33,6 +33,7 @@ from vultron.core.states.participant_embargo_consent import (
 )
 from vultron.core.states.rm import RM
 from vultron.core.states.roles import CVDRole
+from vultron.core.use_cases.received.case import _store_embedded_participants
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 
 if TYPE_CHECKING:
@@ -779,11 +780,13 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 " — skipping (idempotent, MV-10-004)",
                 case_id,
             )
+            _store_embedded_participants(case_obj, self._dl, case_id)
             _link_report_case_links(self._dl, case_obj)
             return
 
         try:
             self._dl.save(case_obj)
+            _store_embedded_participants(case_obj, self._dl, case_id)
             _link_report_case_links(self._dl, case_obj)
             logger.info(
                 "AnnounceVulnerabilityCase: seeded case '%s' from actor '%s'",

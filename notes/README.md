@@ -26,6 +26,16 @@ paths.
 **Load when**: designing new components, adding adapters, reviewing layer
 boundaries, or investigating an import-layering violation.
 
+**`asgi-emitter.md`**
+Design rules for `ASGIEmitter` (`adapters/driven/asgi_emitter.py`): the
+path construction rule (use scheme+netloc only as `httpx` base URL; strip
+`mount_prefix` from inbox paths before routing into the sub-app), the
+`create_app()` per-app state isolation contract (no module-level singleton
+mutation), and co-located actor DataLayer isolation requirements.
+**Load when**: implementing or debugging `ASGIEmitter`, wiring up co-located
+actors in the same process, or investigating ASGI delivery 404s or
+cross-actor data leakage.
+
 **`datalayer-design.md`**
 DataLayer design decisions: auto-rehydration contract (`dl.read()` / `dl.list()`
 must return fully typed domain objects), storage record evaluation, vocabulary
