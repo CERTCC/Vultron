@@ -19,6 +19,7 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.base import VultronObject
+from vultron.core.models.case import VultronCase
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events import MessageSemantics
@@ -26,6 +27,7 @@ from vultron.core.models.events.case import (
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
 )
+from vultron.core.models.participant import VultronParticipant
 from vultron.core.use_cases.received.case import (
     DeferCaseReceivedUseCase,
     EngageCaseReceivedUseCase,
@@ -524,4 +526,91 @@ class TestEngageDeferCaseBTFailureReason:
         assert reason, (
             "DeferCaseBT warning must include a non-empty failure reason; "
             f"got: {records[0].message!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# #573: EngageCaseReceivedUseCase must store embedded participants
+# ---------------------------------------------------------------------------
+
+
+class TestEngageCaseStoresEmbeddedParticipants:
+    """EngageCaseReceivedUseCase must call _store_embedded_participants (#573).
+
+    Regression tests: when Join(VulnerabilityCase) arrives with inline
+    participant objects, those objects must be persisted as independent
+    DataLayer records before the BT runs — matching the pattern already
+    established for Create (#564) and Announce (#566) paths.
+    """
+
+    _ACTOR_ID = "https://vendor.example.org/actors/vendor"
+    _CASE_ID = "https://example.org/cases/case-573-001"
+    _PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor"
+
+    @pytest.fixture
+    def dl(self):
+        return SqliteDataLayer("sqlite:///:memory:")
+
+    @pytest.fixture
+    def case_with_inline_participant(self):
+        """VultronCase carrying a fully inline VultronParticipant."""
+        participant = VultronParticipant(
+            id_=self._PARTICIPANT_ID,
+            attributed_to=self._ACTOR_ID,
+            context=self._CASE_ID,
+        )
+        case = VultronCase(id_=self._CASE_ID)
+        case.case_participants = [participant]
+        return case
+
+    @pytest.fixture
+    def engage_event_with_inline_case(self, case_with_inline_participant):
+        return EngageCaseReceivedEvent(
+            activity_id="https://example.org/activities/engage-573",
+            actor_id=self._ACTOR_ID,
+            object_=case_with_inline_participant,
+            semantic_type=MessageSemantics.ENGAGE_CASE,
+        )
+
+    def test_inline_participant_stored_even_when_bt_fails(
+        self, dl, engage_event_with_inline_case
+    ):
+        """Embedded CaseParticipant is persisted before EngageCaseBT runs.
+
+        Even when the BT fails (no pre-registered participant in the DataLayer),
+        _store_embedded_participants must run first and persist the inline
+        participant object (#573 regression).
+        """
+        EngageCaseReceivedUseCase(dl, engage_event_with_inline_case).execute()
+
+        stored = dl.read(self._PARTICIPANT_ID)
+        assert stored is not None, (
+            "CaseParticipant embedded in Join(VulnerabilityCase) must be "
+            "stored as an independent DataLayer record before the BT runs "
+            "(EngageCaseReceivedUseCase regression #573)"
+        )
+
+    def test_bare_string_participant_is_not_stored(self, dl):
+        """When case_participants contains bare strings, nothing is stored.
+
+        _store_embedded_participants is idempotent on strings; no error and
+        no false record is created (#573 does not regress bare-string path).
+        """
+        case_str_participants = VultronCase(id_=self._CASE_ID)
+        case_str_participants.case_participants = [
+            self._PARTICIPANT_ID
+        ]  # bare string
+        event = EngageCaseReceivedEvent(
+            activity_id="https://example.org/activities/engage-573-str",
+            actor_id=self._ACTOR_ID,
+            object_=case_str_participants,
+            semantic_type=MessageSemantics.ENGAGE_CASE,
+        )
+        EngageCaseReceivedUseCase(dl, event).execute()
+
+        stored = dl.read(self._PARTICIPANT_ID)
+        assert stored is None, (
+            "_store_embedded_participants must skip bare string participant "
+            "refs — no VultronParticipant record should be created for a bare "
+            "string"
         )

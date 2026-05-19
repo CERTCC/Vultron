@@ -400,6 +400,11 @@ async def handle_outbox_item(
         activity_object = dl.hydrate(cast(PersistableModel, activity_object))
         outbound_activity.object_ = activity_object
 
+    # Expand bare participant URI strings to inline objects before delivery so
+    # recipients can seed their DataLayer with independent participant records
+    # (CBT-01-007, CBT-05-005).  This is a no-op for non-case payloads.
+    _expand_case_participants(activity_object, dl)
+
     recipients = _extract_recipients(outbound_activity)
     if not recipients:
         logger.debug(

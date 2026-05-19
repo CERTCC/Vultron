@@ -453,6 +453,14 @@ class EngageCaseReceivedUseCase:
             logger.warning("engage_case: missing case_id on request")
             return
 
+        # Persist any inline participant objects carried in the case snapshot
+        # so BT nodes (CheckParticipantExists, AppendParticipantStatusNode) can
+        # locate them by UUID.  Mirrors the Create (#564) and Announce (#566)
+        # paths (CBT-05-005, fixes #573).
+        case_obj = request.case
+        if is_case_model(case_obj):
+            _store_embedded_participants(case_obj, self._dl, case_id)
+
         logger.info(
             "Actor '%s' engages case '%s' (RM → ACCEPTED)",
             actor_id,
