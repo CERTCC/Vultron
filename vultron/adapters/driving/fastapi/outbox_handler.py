@@ -308,34 +308,6 @@ def _expand_inline_object(
     return full_obj
 
 
-def _expand_case_participants(case_obj: object, dl: DataLayer) -> None:
-    """Expand participant ID strings to inline objects in a case snapshot.
-
-    Called at delivery time for ``Create`` and ``Announce`` activities whose
-    ``object_`` is a ``VulnerabilityCase``.  Replaces bare participant ID
-    strings in ``case_participants`` with the full participant objects read
-    from the sender's DataLayer so the recipient can seed their DataLayer
-    with independent participant records (CBT-05-005, fixes #561, #562).
-
-    Operates in-place on ``case_obj``; the DataLayer is not modified.
-
-    Args:
-        case_obj: The outbound case object (duck-typed; must have
-            ``case_participants``).
-        dl: The sender's DataLayer to resolve participant IDs from.
-    """
-    if not hasattr(case_obj, "case_participants"):
-        return
-    expanded = []
-    for participant_ref in getattr(case_obj, "case_participants", []):
-        if isinstance(participant_ref, str):
-            obj = dl.read(participant_ref)
-            expanded.append(obj if obj is not None else participant_ref)
-        else:
-            expanded.append(participant_ref)
-    setattr(case_obj, "case_participants", expanded)
-
-
 def _validate_inline_object(
     activity_id: str,
     activity_type: str,
@@ -399,11 +371,6 @@ async def handle_outbox_item(
     if isinstance(activity_object, BaseModel):
         activity_object = dl.hydrate(cast(PersistableModel, activity_object))
         outbound_activity.object_ = activity_object
-
-    # Expand bare participant URI strings to inline objects before delivery so
-    # recipients can seed their DataLayer with independent participant records
-    # (CBT-01-007, CBT-05-005).  This is a no-op for non-case payloads.
-    _expand_case_participants(activity_object, dl)
 
     recipients = _extract_recipients(outbound_activity)
     if not recipients:

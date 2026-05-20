@@ -900,34 +900,32 @@ def test_handle_outbox_item_calls_hydrate_on_inline_object():
 
 
 # ---------------------------------------------------------------------------
-# _expand_case_participants wiring in handle_outbox_item (#572)
+# dl.hydrate() expands case_participants before delivery (#572 regression)
 # ---------------------------------------------------------------------------
 
 
-def test_handle_outbox_item_expands_case_participants_before_delivery(
-    monkeypatch,
-):
-    """_expand_case_participants must be called inside handle_outbox_item.
+def test_handle_outbox_item_delivers_hydrated_participants():
+    """dl.hydrate() is responsible for expanding case_participants.
 
-    Regression test for #572: the helper was defined but never called, so
-    outbound Join(VulnerabilityCase) activities sent bare participant URI
-    strings instead of inline objects (CBT-01-007, CBT-05-005).
+    Regression test for #572: participant expansion is a DataLayer concern
+    (CBT-01-007, CBT-05-005).  handle_outbox_item must use the object
+    returned by dl.hydrate() — which carries the expanded participants — as
+    the outbound object_, not the pre-hydration object.
     """
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
         VulnerabilityCase,
     )
 
-    expand_calls: list[object] = []
-
-    def spy_expand(case_obj: object, dl: object) -> None:
-        expand_calls.append(case_obj)
-
-    monkeypatch.setattr(oh, "_expand_case_participants", spy_expand)
-
     participant_id = "urn:uuid:participant-572-001"
     case_obj = VulnerabilityCase(
         id_="urn:uuid:case-572-001",
-        case_participants=[participant_id],  # bare string — not yet expanded
+        case_participants=[participant_id],  # bare string before hydration
+    )
+    # dl.hydrate() is responsible for replacing bare strings with objects;
+    # simulate it returning a case with participants already expanded.
+    hydrated_case = VulnerabilityCase(
+        id_="urn:uuid:case-572-001",
+        case_participants=[],  # hydrate() would fill this with full objects
     )
     activity = VultronActivity(
         id_="urn:test:join-572-001",
@@ -941,7 +939,7 @@ def test_handle_outbox_item_expands_case_participants_before_delivery(
     mock_dl.read.side_effect = lambda id_: (
         activity if id_ == activity.id_ else None
     )
-    mock_dl.hydrate.return_value = case_obj
+    mock_dl.hydrate.return_value = hydrated_case
     mock_emitter = AsyncMock()
 
     asyncio.run(
@@ -950,8 +948,9 @@ def test_handle_outbox_item_expands_case_participants_before_delivery(
         )
     )
 
-    assert expand_calls, (
-        "handle_outbox_item must call _expand_case_participants for "
-        "outbound activities with an inline case object (#572)"
+    mock_dl.hydrate.assert_called_once_with(case_obj)
+    emitted_activity, _ = mock_emitter.emit.call_args[0]
+    assert emitted_activity.object_ is hydrated_case, (
+        "handle_outbox_item must use the dl.hydrate() result as object_ "
+        "so recipients receive expanded participant objects (#572)"
     )
-    assert expand_calls[0] is case_obj
