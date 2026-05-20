@@ -63,7 +63,7 @@ all subsequent writes land on a clean, up-to-date baseline:
 ```bash
 FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
 [ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
-```
+```text
 
 Do this **before** `acquire-codebase-knowledge` runs — the scan regenerates
 files in `docs/reference/codebase/` (uncommitted), and those outputs must not
@@ -93,9 +93,9 @@ that the cost of a full scan is justified on every invocation.
      --state open \
      --label concern \
      --json number,title,body
-   ```
+   ```text
 
-3. Invoke the `study-project-docs` skill for full context: specs JSON,
+1. Invoke the `study-project-docs` skill for full context: specs JSON,
    plan files, docs/adr/, notes/, AGENTS.md, and a code scan. Because
    Phase 0 has already refreshed the codebase docs, `study-project-docs`
    will read up-to-date architecture and structure information.
@@ -141,7 +141,7 @@ Answer questions from codebase exploration where possible.
 
 ```bash
 git switch -c learn/<YYYYMMDD>-<slug>
-```
+```text
 
 The worktree was already freshened in Phase 0. All file writes (Phases 4–7)
 happen on this branch so they are never at risk from a `git reset --hard`.
@@ -173,30 +173,30 @@ Promote recurring implementation patterns and conventions from
 `BUILD_LEARNINGS.md` into `AGENTS.md`. Keep entries precise, actionable,
 and minimal.
 
-### Phase 7 — Archive and Close Processed Entries
+### Phase 7 — Prepare Archive Content and Close Processed Entries
 
 For each BUILD_LEARNINGS entry and each resolved GitHub Concern issue that
 has been fully promoted to `specs/`, `notes/`, or `AGENTS.md`:
 
-1. Archive the entry via `uv run append-history learning`:
+1. Draft the archive body for each item (store in memory — the actual
+   `archive-history` invocations happen in Phase 9 after the PR URL is known):
 
-   ```bash
-   cat <<'EOF' | uv run append-history learning \
-       --title "<short observation title>" \
-       --source "<label from the entry header, e.g. LABEL>"
+   ```text
 
-   <full original entry text here>
+   TYPE    = learning
+   TITLE   = <short observation title>
+   SOURCE  = <label from the entry header, e.g. LABEL>
+   BODY    = <full original BUILD_LEARNINGS entry or Concern body>
+             + "**Promoted**: YYYY-MM-DD — captured in <destination file(s)>."
+             + "Docs PR: <PR_URL>."  ← filled in after PR is opened
 
-   **Promoted**: YYYY-MM-DD — captured in <destination file(s)>.
-   EOF
-   ```
+   ```text
 
 2. **For BUILD_LEARNINGS entries**: delete the entry from
    `plan/BUILD_LEARNINGS.md` entirely — no strike-through, no tombstone.
 
 3. **For resolved GitHub Concern issues**: close the issue and add a
-   resolution comment linking to the docs PR and the spec/notes files it
-   was promoted into. Do this after the PR is open (so the URL is known):
+   resolution comment after the PR is open (step in Phase 9):
 
    ```bash
    gh issue comment "${ISSUE_NUMBER}" --repo CERTCC/Vultron \
@@ -208,7 +208,7 @@ has been fully promoted to `specs/`, `notes/`, or `AGENTS.md`:
    Design decisions are now captured in durable documentation."
 
    gh issue close "${ISSUE_NUMBER}" --repo CERTCC/Vultron
-   ```
+   ```text
 
 Do **not** reference `plan/BUILD_LEARNINGS.md` from durable docs.
 
@@ -223,11 +223,11 @@ Do **not** reference `plan/BUILD_LEARNINGS.md` from durable docs.
 
    ```bash
    git add specs/<changed-files> notes/<changed-files> AGENTS.md \
-       plan/BUILD_LEARNINGS.md plan/history/ docs/reference/codebase/
+       plan/BUILD_LEARNINGS.md docs/reference/codebase/
    git commit -m "docs: promote BUILD_LEARNINGS — <topic>
 
    - <bullet: what was promoted and where>
-   - Archive <N> entr[y/ies] via append-history learning
+   - Archive <N> entr[y/ies] via archive-history (after PR)
    - Close <N> resolved GitHub Concern issue(s) with resolution comments
    - Refresh docs/reference/codebase/ via acquire-codebase-knowledge
 
@@ -241,11 +241,31 @@ Do **not** reference `plan/BUILD_LEARNINGS.md` from durable docs.
 
    No .py files changed." \
      --label "specs-notes"
-   ```
+   ```text
 
    Use multiple commits for thematically distinct changes (e.g., spec
    refinements, notes promoted, AGENTS.md updates). This PR carries the
    `specs-notes` label for reviewer awareness.
+
+### Phase 9 — Archive Entries and Close Issues
+
+Now that the PR URL is known, archive each item by invoking the
+`archive-history` skill once per entry. For each item, pass:
+
+```text
+TYPE    = learning
+TITLE   = <short observation title>
+SOURCE  = <label from the BUILD_LEARNINGS header>
+BODY    = <full original entry text>
+          + "**Promoted**: YYYY-MM-DD — captured in <destination file(s)>."
+          + "Docs PR: <PR_URL>."
+```text
+
+The `archive-history` skill runs `uv run append-history`, lints the new
+files, stages `plan/history/`, commits, and pushes — once per entry.
+
+For resolved GitHub Concern issues, post the resolution comment and close
+the issue (see Phase 7 step 3 for the comment template).
 
 ## Constraints
 
@@ -253,7 +273,8 @@ Do **not** reference `plan/BUILD_LEARNINGS.md` from durable docs.
 - Do not process GitHub Idea-type issues — that is `ingest-idea`'s domain.
 - Do not skip the grill-me phase — it must complete before any writing.
 - Do not reference `plan/BUILD_LEARNINGS.md` from durable docs.
-- Archive processed entries via `uv run append-history learning`; do not
-  leave them in the file after promoting.
+- Archive processed entries via the `archive-history` skill; do not
+  call `uv run append-history` directly or leave entries in the file
+  after promoting.
 - Verify assumptions against the codebase; do not assert absence without
   evidence.

@@ -24,7 +24,7 @@ close the concern.
 REPO           = CERTCC/Vultron
 REPO_NODE_ID   = R_kgDOIn77fA
 CONCERN_TYPE   = IT_kwDOAjf0s84B_2VT
-```
+```text
 
 ---
 
@@ -45,7 +45,7 @@ gh issue list \
   --limit 200 \
   --json number,title,issueType \
   --jq '.[] | select(.issueType.name == "Concern") | "#\(.number): \(.title)"'
-```
+```text
 
 Build a `choices` array from the results and wait for the user's selection.
 
@@ -57,7 +57,7 @@ Fetch the full issue:
 gh issue view "${CONCERN_NUMBER}" \
   --repo CERTCC/Vultron \
   --json number,title,body,labels
-```
+```text
 
 Use the title and body as source material for all subsequent steps.
 
@@ -139,7 +139,7 @@ $([ -n "${NOTES_FILE}" ] && echo "Notes: \`notes/${NOTES_FILE}\`")" \
     # Add --blocked-by N for sequenced issues
 )
 echo "Created impl issue #${IMPL_ISSUE_NUMBER}"
-```
+```text
 
 Set `size:` based on AC count: 1–2 → `size:S`; 3–6 → `size:M`; 7+ → `size:L`.
 
@@ -156,7 +156,7 @@ Only if Phase 4 produced file changes:
 FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
 [ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
 git switch -c ingest/concern-${CONCERN_NUMBER}-<slug>
-git add specs/ notes/ AGENTS.md plan/history/
+git add specs/ notes/ AGENTS.md
 git commit -m "docs: ingest concern #${CONCERN_NUMBER} — <short title>
 
 - <bullet: what spec/notes/AGENTS.md was added or changed>
@@ -174,25 +174,24 @@ Ref #${CONCERN_NUMBER}
 
 No .py files changed." \
   --label "specs-notes"
-```
+```text
 
 ### Phase 8 — Archive and Close the Concern
 
-Archive the concern via `uv run append-history learning`:
+Invoke the `archive-history` skill now that the PR URL is known:
 
-```bash
-cat <<'EOF' | uv run append-history learning \
-    --title "<short concern title>" \
-    --source "CONCERN-${CONCERN_NUMBER}"
+```text
+TYPE    = learning
+TITLE   = <short concern title>
+SOURCE  = CONCERN-<CONCERN_NUMBER>
+BODY    = Full original concern body
+          + "**Resolved**: YYYY-MM-DD — implementation tracked in
+            #<IMPL_ISSUE_NUMBER>."
+          + "Docs PR: <PR_URL>." (if docs-only PR was opened)
+```text
 
-## #${CONCERN_NUMBER} <concern title>
-
-<full original concern body here>
-
-**Resolved**: YYYY-MM-DD — implementation tracked in #${IMPL_ISSUE_NUMBER}.
-$([ -n "${PR_URL}" ] && echo "Docs PR: ${PR_URL}.")
-EOF
-```
+The `archive-history` skill handles `uv run append-history`, mdlint,
+`git add plan/history/`, commit, and push.
 
 Then post a resolution comment and close the concern:
 
@@ -208,18 +207,7 @@ $([ -n "${SPEC_FILE}" ] && echo "Spec: \`specs/${SPEC_FILE}\`.")
 $([ -n "${NOTES_FILE}" ] && echo "Notes: \`notes/${NOTES_FILE}\`.")"
 
 gh issue close "${CONCERN_NUMBER}" --repo CERTCC/Vultron
-```
-
-Then stage and push the history entry to the PR branch (or to `main` directly
-if no docs-only PR was opened):
-
-```bash
-git add plan/history/
-git commit -m "history: archive concern #${CONCERN_NUMBER} via append-history
-
-Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
-git push
-```
+```text
 
 ---
 
@@ -236,8 +224,8 @@ git push
   with `group:unscheduled` + `size:` labels; concern wired as parent
 - [ ] Docs-only PR opened with `specs-notes` label — or skipped (no doc
   changes)
-- [ ] Concern archived via `uv run append-history learning
-  --source "CONCERN-<N>"`; history files staged and pushed to branch
+- [ ] Concern archived via `archive-history` skill (after PR creation, so
+  entry body includes PR URL); history files staged and pushed to branch
 - [ ] Concern issue commented with impl issue(s) + optional PR URL, then
   closed
 
@@ -248,7 +236,8 @@ git push
 - **Branch name**: `ingest/concern-<N>-<slug>` (only created if docs changed)
 - **History source ID**: `CONCERN-<github_issue_number>`
   (e.g., `CONCERN-42`)
-- **`append-history` command**: `uv run append-history learning`
+- **`append-history` command**: use the `archive-history` skill — do not
+  call `uv run append-history` directly
   (same category as `learn` — resolved concerns are learning outcomes)
 - **Spec file names**: lowercase hyphenated `.yaml` in `specs/`
 - **Notes file names**: same base name as spec, `.md` in `notes/`

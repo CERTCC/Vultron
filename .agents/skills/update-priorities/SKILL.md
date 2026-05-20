@@ -59,16 +59,25 @@ When a priority group is fully completed:
 
 1. Select the priority to archive
 2. Confirm all linked issues are closed
-3. Run `uv run append-history priority` (auto-generates history entry with timestamp)
-4. Remove from `plan/PRIORITIES.md`
-5. Stage all changes and commit:
+3. Invoke the `archive-history` skill:
+
+   ```text
+   TYPE    = priority
+   TITLE   = <priority group title>
+   SOURCE  = PRIORITY-<number>
+   BODY    = <priority summary, linked issues, completion notes>
+   ```text
+
+   The skill runs `uv run append-history priority`, lints the new history
+   files, stages `plan/history/`, commits, and pushes.
+4. Remove from `plan/PRIORITIES.md` and commit that change separately:
 
    ```bash
-   git add plan/PRIORITIES.md plan/history/
-   git commit -m "plan: archive completed priority — <title>
+   git add plan/PRIORITIES.md
+   git commit -m "plan: remove completed priority <N> — <title>
 
    Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
-   ```
+   ```text
 
 ### View Current State
 
@@ -80,7 +89,7 @@ Priority | Title                          | Issues | Status
 470      | Two-Actor Demo Redesign        | 5      | 🟡 In Progress
 475      | Participant Case Replica Safety| 1      | 🟡 In Progress
 476      | Bug Fixes and Demo Polish      | 7      | 🟢 On Track
-```
+```text
 
 ## Priority Number Assignment
 

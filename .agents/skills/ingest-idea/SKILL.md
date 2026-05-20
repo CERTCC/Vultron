@@ -33,7 +33,7 @@ gh issue list --repo CERTCC/Vultron \
   --limit 200 \
   --json number,title,issueType \
   --jq '.[] | select(.issueType.name == "Idea") | "#\(.number): \(.title)"'
-```
+```text
 
 Build a `choices` array from the results (e.g. `["#42: Actor discovery",
 "#51: Config refactor", "Create a new idea"]`). Wait for the user's
@@ -68,7 +68,7 @@ mutation {
   }
 }" --jq '.data.createIssue.issue.number')
 echo "Created idea issue #${IDEA_NUMBER}"
-```
+```text
 
 Continue with step 2 using `IDEA_NUMBER`.
 
@@ -78,7 +78,7 @@ Fetch the idea from GitHub:
 
 ```bash
 gh issue view "${IDEA_NUMBER}" --repo CERTCC/Vultron --json number,title,body
-```
+```text
 
 Use the issue title and body as the idea content for all subsequent steps.
 
@@ -106,7 +106,7 @@ happen on this branch so they are never at risk from a subsequent
 FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
 [ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
 git switch -c ingest/idea-<IDEA_NUMBER>-<slug>
-```
+```text
 
 ### 5. Write the spec file
 
@@ -140,52 +140,14 @@ Add the new spec to both:
 Invoke the `format-markdown` skill on all new/modified markdown files. Fix
 any errors before proceeding.
 
-### 9. Archive the idea
-
-Build the entry body — the full original idea text with a `**Processed**`
-line at the end — and pipe it to `uv run append-history idea` with
-`--title` and `--source` flags. Use `IDEA-<number>` (the GitHub issue
-number) as the source identifier:
-
-```bash
-cat <<'ENDOFENTRY' | uv run append-history idea \
-    --title "<short idea title>" \
-    --source "IDEA-<IDEA_NUMBER>"
-
-## #<IDEA_NUMBER> <short title>
-
-<full idea title and body here>
-
-**Processed**: YYYY-MM-DD — design decisions captured in
-`specs/<topic>.yaml` (ID-01 through ID-NN) and `notes/<topic>.md`.
-ENDOFENTRY
-```
-
-Then close the idea issue with a comment linking to the docs-only PR and
-the implementation issue. (Create the PR first in step 10, then add the
-comment after step 11 once both numbers are known.)
-
-```bash
-gh issue comment "${IDEA_NUMBER}" --repo CERTCC/Vultron \
-  --body "✅ Ingested.
-
-- Docs PR: <PR_URL>
-- Implementation issue: #<IMPL_ISSUE_NUMBER>
-
-Design decisions captured in \`specs/<topic>.yaml\` and \`notes/<topic>.md\`."
-
-gh issue close "${IDEA_NUMBER}" --repo CERTCC/Vultron
-```
-
-### 10. Open a docs-only PR
+### 9. Open a docs-only PR
 
 Commit all spec/notes/README changes and open a PR carrying the
 `specs-notes` label. The branch was already created in step 4b.
 Reference the originating idea issue in the PR body so GitHub auto-links them:
 
 ```bash
-git add specs/<topic>.yaml notes/<topic>.md specs/README.md \
-    plan/history/
+git add specs/<topic>.yaml notes/<topic>.md specs/README.md
 git commit -m "specs: ingest idea #<IDEA_NUMBER> — <short title>
 
 - Add specs/<topic>.yaml (ID-01 through ID-NN)
@@ -203,7 +165,7 @@ Ref #<IDEA_NUMBER>
 
 No .py files changed." \
   --label "specs-notes"
-```
+```text
 
 This PR carries the `specs-notes` label for reviewer awareness. This ensures
 spec and notes files are on `main` and
@@ -238,7 +200,7 @@ Notes: \`notes/<topic>.md\`" \
   --parent "${IDEA_NUMBER}")
   # Add --blocked-by N if this issue has known blockers at creation time
 echo "Created implementation issue #${IMPL_ISSUE_NUMBER}"
-```
+```text
 
 Set the `size:` label based on AC checkbox count:
 1–2 ACs → `size:S`; 3–6 ACs → `size:M`; 7+ ACs → `size:L`.
@@ -246,8 +208,23 @@ Set the `size:` label based on AC checkbox count:
 The implementation Issue sits in `group:unscheduled` until a human runs
 `review-priorities` to slot it into `plan/PRIORITIES.md`.
 
-After creating the implementation issue, post the closing comment on the
-idea issue and close it (see end of step 9):
+### 12. Archive the idea and close the issue
+
+Now that both the PR URL and implementation issue number are known, invoke
+the `archive-history` skill with the full original idea body:
+
+```text
+TYPE    = idea
+TITLE   = <short idea title>
+SOURCE  = IDEA-<IDEA_NUMBER>
+BODY    = Full original idea text
+          + "**Processed**: YYYY-MM-DD — design decisions captured in
+            `specs/<topic>.yaml` (ID-01 through ID-NN) and `notes/<topic>.md`."
+          + "Docs PR: <PR_URL>. Implementation tracked in #<IMPL_ISSUE_NUMBER>."
+```text
+
+After the `archive-history` skill completes, post the closing comment and
+close the idea issue:
 
 ```bash
 gh issue comment "${IDEA_NUMBER}" --repo CERTCC/Vultron \
@@ -259,7 +236,7 @@ gh issue comment "${IDEA_NUMBER}" --repo CERTCC/Vultron \
 Design decisions captured in \`specs/<topic>.yaml\` and \`notes/<topic>.md\`."
 
 gh issue close "${IDEA_NUMBER}" --repo CERTCC/Vultron
-```
+```text
 
 ## Checklist
 
@@ -272,7 +249,8 @@ gh issue close "${IDEA_NUMBER}" --repo CERTCC/Vultron
 - [ ] `notes/<topic>.md` created with decision table + examples
 - [ ] `specs/README.md` updated (both tables)
 - [ ] Markdown lint clean
-- [ ] Idea archived via `uv run append-history idea --source "IDEA-<number>"`
+- [ ] Idea archived via `archive-history` skill (after PR + impl issue created,
+  so entry body includes PR URL and impl issue number)
 - [ ] Docs-only PR opened with `specs-notes` label and `Ref #<idea_number>`
   in body
 - [ ] Implementation GitHub Issue created via `manage-github-issue` with
@@ -289,9 +267,9 @@ gh issue close "${IDEA_NUMBER}" --repo CERTCC/Vultron
 - **Notes file name**: same as spec file name with `.md` extension, in `notes/`
   instead of `specs/` (e.g., `configuration.md`, `actor-discovery.md`)
 - **History source ID**: use `IDEA-<github_issue_number>` (e.g., `IDEA-42`)
-  as the `--source` argument to `uv run append-history idea`
-- **History archiving**: use `uv run append-history idea` to archive processed
-  ideas — do not append directly to any `plan/history/*.md` file
+  as the `--source` argument to the `archive-history` skill
+- **History archiving**: use the `archive-history` skill — do not call
+  `uv run append-history` directly or append to `plan/history/*.md` files
 
 ## Creating a New Idea Issue
 
@@ -318,7 +296,7 @@ mutation {
     issue { number url }
   }
 }"
-```
+```text
 
 The issue will appear as an Idea type in GitHub and will be picked up by
 `ingest-idea` the next time it runs.
