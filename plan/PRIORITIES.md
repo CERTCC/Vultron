@@ -40,18 +40,20 @@ groups DEMOMA-06, DEMOMA-07, DEMOMA-08 for formal requirements.
   `tuple[Any, Any]` ✅
 - [#467](https://github.com/CERTCC/Vultron/issues/467) — BT refactor: AddParticipantStatusToParticipant handler (also fixes RM
   transition validation regression) ✅
-- [#489](https://github.com/CERTCC/Vultron/issues/489) — Extract shared helpers into vultron/demo/helpers/
+- [#489](https://github.com/CERTCC/Vultron/issues/489) — Extract shared helpers into vultron/demo/helpers/ ✅
 - [#521](https://github.com/CERTCC/Vultron/issues/521) — PCR-07: Integration tests for case-replica bootstrap and late-joiner
-  sequences (parent)
-  - [#522](https://github.com/CERTCC/Vultron/issues/522) — PCR-07-006: bootstrap sequence (Create → Announce → replica)
+  sequences (parent) ✅
+  - [#522](https://github.com/CERTCC/Vultron/issues/522) — PCR-07-006: bootstrap sequence (Create → Announce → replica) ✅
   - [#523](https://github.com/CERTCC/Vultron/issues/523) — PCR-07-007: late-joiner sequence (Invite → Accept → Announce →
-    replica)
+    replica) ✅
 - [#527](https://github.com/CERTCC/Vultron/issues/527) — Integration demo suite takes 17+ min in CI — polling helpers not
   patched ✅
 - [#530](https://github.com/CERTCC/Vultron/issues/530) — Demo integration tests share a single DataLayer across actors —
-  delivery path untested
+  delivery path untested ✅
 - [#534](https://github.com/CERTCC/Vultron/issues/534) — Co-located actors in same process share module-level singletons
-  (emitter, dispatcher, DataLayer)
+  (emitter, dispatcher, DataLayer) ✅
+- [#570](https://github.com/CERTCC/Vultron/issues/570) — Demo CI: GitHub Actions integration workflow + demo runner
+  hardening
 - [#466](https://github.com/CERTCC/Vultron/issues/466) — Docs: two-actor-demo tutorial + technical reference (blocked by demo
   running end-to-end)
 - [#471](https://github.com/CERTCC/Vultron/issues/471) — Tutorial: docs/tutorials/two-actor-demo.md
@@ -83,12 +85,14 @@ Fix issues affecting demo execution and correctness.
 - [#487](https://github.com/CERTCC/Vultron/issues/487) — examples.py: add
   actor subtype example endpoints (VultronPerson, VultronOrganization, etc.)
 - [#501](https://github.com/CERTCC/Vultron/issues/501) — Demo HTTP calls use
-  `requests` which is not declared in `project.dependencies`
+  `requests` which is not declared in `project.dependencies` ✅
 - [#517](https://github.com/CERTCC/Vultron/issues/517) — Migrate demo HTTP
   calls from `requests` to `httpx` (child of #501)
 - [#518](https://github.com/CERTCC/Vultron/issues/518) — Document
   `vultron.adapters.driving.fastapi.main:app` as canonical deployment entry
   point
+- [#584](https://github.com/CERTCC/Vultron/issues/584) — Implement
+  docs-build-check.yml: narrowed triggers and conditional link-check step
 
 ## Priority 480 — CBT-03: Pre-Bootstrap Queue Expiry
 
@@ -132,6 +136,8 @@ outbox polling, and oversized centralized dispatch tables.
   testable boundary
 - [#538](https://github.com/CERTCC/Vultron/issues/538) — RFC: Introduce
   `EmbargoLifecycle` service to consolidate fragmented embargo state management
+- [#586](https://github.com/CERTCC/Vultron/issues/586) — Concern:
+  `VultronActivity.object_` typed as `Any|None` causes dict round-trip bypass
 
 ## Priority 490 — Test File Refactoring
 
@@ -209,7 +215,7 @@ to make agent guidance more durable and easier to keep current. Note:
 `AGENTS.md` and spec files, which are harder to keep in sync.
 
 - [#507](https://github.com/CERTCC/Vultron/issues/507) — Planning and
-  specification files change so frequently that agent guidance goes stale
+  specification files change so frequently that agent guidance goes stale ✅
 - [#512](https://github.com/CERTCC/Vultron/issues/512) — `plan/`
   documentation is highly volatile and frequently causes stale context for
   agents
