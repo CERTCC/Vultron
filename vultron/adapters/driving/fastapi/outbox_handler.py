@@ -38,6 +38,7 @@ from vultron.errors import (
     VultronOutboxToFieldMissingError,
 )
 from vultron.wire.as2.vocab.base.links import as_Link
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,13 @@ _STUB_KEYS: frozenset[str] = frozenset({"id", "type", "summary", "@context"})
 # AS2 object types that are intentional stubs and must be preserved in-line
 # rather than collapsed to a bare URI string.
 _STUB_OBJECT_TYPES: frozenset[str] = frozenset({"VulnerabilityCase"})
+
+# Maps AS2 type strings to their wire-layer model classes for dict recovery.
+# Used in handle_outbox_item to reconstruct typed models from plain dicts that
+# result from the model_dump() → VultronActivity.model_validate() round-trip.
+_STUB_OBJECT_MODEL_MAP: dict[str, type[BaseModel]] = {
+    "VulnerabilityCase": VulnerabilityCase,
+}
 
 _INLINE_OBJECT_ACTIVITY_TYPES: frozenset[str] = frozenset(
     {"Create", "Announce", "Add", "Invite", "Accept", "Offer", "Join"}
@@ -378,22 +386,34 @@ async def handle_outbox_item(
     # dl.hydrate() is never called — participant expansion is skipped
     # (see #585).
     #
-    # Only recover types listed in _STUB_OBJECT_TYPES (e.g.
-    # VulnerabilityCase) — other dict payloads (e.g. CaseLogEntry) are
-    # intentionally carried as dicts and must not be replaced.
+    # Reconstruct the typed model from the dict itself (not from dl.read())
+    # so the emitted object reflects exactly what was queued, not a
+    # potentially-updated DB snapshot.
+    #
+    # Skip intentional stubs (keys ⊆ _STUB_KEYS) and non-recoverable types
+    # (e.g. CaseLogEntry) — these are passed through as dicts.
     if isinstance(activity_object, dict) and not isinstance(
         activity_object, BaseModel
     ):
-        obj_id = activity_object.get("id")
         obj_type = activity_object.get("type", "")
-        if obj_id and obj_type in _STUB_OBJECT_TYPES:
-            full_obj = dl.read(obj_id)
-            if full_obj is not None and isinstance(full_obj, BaseModel):
+        is_stub = activity_object.keys() <= _STUB_KEYS
+        model_class = _STUB_OBJECT_MODEL_MAP.get(obj_type)
+        if not is_stub and model_class is not None:
+            try:
+                full_obj = model_class.model_validate(activity_object)
                 activity_object = full_obj
                 outbound_activity.object_ = activity_object
                 logger.debug(
                     "Recovered typed %s from dict for %s activity '%s'.",
-                    type(full_obj).__name__,
+                    model_class.__name__,
+                    activity_type,
+                    activity_id,
+                )
+            except Exception:
+                logger.warning(
+                    "Failed to reconstruct %s model for %s activity '%s';"
+                    " hydration will be skipped.",
+                    obj_type,
                     activity_type,
                     activity_id,
                 )
