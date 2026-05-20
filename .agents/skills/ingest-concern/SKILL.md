@@ -5,7 +5,7 @@ description: >
   runs a grill-me interview to understand root cause, options, and fix scope,
   then creates one or more GitHub implementation issues and optionally updates
   specs/ or notes/ when the concern reveals missing documentation. Archives the
-  concern via `uv run append-history learning`, comments resolution links on
+  concern via the `archive-history` skill, comments resolution links on
   the concern issue, and closes it. Opens a docs-only PR (specs-notes label)
   only when specs/notes/AGENTS.md files are changed. Use when the user says
   "ingest concern", references an open Concern-type GitHub issue number, or
@@ -24,7 +24,7 @@ close the concern.
 REPO           = CERTCC/Vultron
 REPO_NODE_ID   = R_kgDOIn77fA
 CONCERN_TYPE   = IT_kwDOAjf0s84B_2VT
-```text
+```
 
 ---
 
@@ -45,21 +45,34 @@ gh issue list \
   --limit 200 \
   --json number,title,issueType \
   --jq '.[] | select(.issueType.name == "Concern") | "#\(.number): \(.title)"'
-```text
+```
 
 Build a `choices` array from the results and wait for the user's selection.
 
-### Phase 1 — Read the Concern
+### Phase 1 — Read and Validate the Concern
 
-Fetch the full issue:
+Fetch the full issue and validate it is an open Concern before proceeding:
 
 ```bash
-gh issue view "${CONCERN_NUMBER}" \
+ISSUE_JSON=$(gh issue view "${CONCERN_NUMBER}" \
   --repo CERTCC/Vultron \
-  --json number,title,body,labels
-```text
+  --json number,title,body,labels,state,issueType)
 
-Use the title and body as source material for all subsequent steps.
+ISSUE_STATE=$(echo "${ISSUE_JSON}" | jq -r '.state')
+ISSUE_TYPE=$(echo "${ISSUE_JSON}"  | jq -r '.issueType.name // ""')
+
+if [ "${ISSUE_STATE}" != "OPEN" ] || [ "${ISSUE_TYPE}" != "Concern" ]; then
+  echo "Error: #${CONCERN_NUMBER} is not an open Concern issue \
+(state=${ISSUE_STATE}, type=${ISSUE_TYPE}). Stopping."
+  exit 1
+fi
+```
+
+Stop here (do not proceed to Phase 2) if validation fails. Report the actual
+state and type to the user so they can correct the issue number.
+
+Use the title and body from `${ISSUE_JSON}` as source material for all
+subsequent steps.
 
 ### Phase 2 — Study Context
 
@@ -89,6 +102,22 @@ Invoke the `grill-me` skill. Resolve every decision branch one at a time via
 
 Do **not** write anything until grill-me is complete.
 
+### Phase 3b — Create Task Branch (if docs changes are expected)
+
+If Phase 3 established a concrete spec, notes, or `AGENTS.md` gap (i.e.,
+Phase 4 will produce file writes), create the task branch **now** — before
+writing any files — so uncommitted changes are never at risk of being
+clobbered by `freshen`:
+
+```bash
+FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
+[ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
+git switch -c ingest/concern-${CONCERN_NUMBER}-<slug>
+```
+
+If Phase 3 found no doc gaps (Phase 4 will be skipped entirely), skip
+this step. The branch is only needed when there are files to commit.
+
 ### Phase 4 — Update Specs / Notes (optional)
 
 Only proceed if Phase 3 established a concrete spec or notes gap.
@@ -106,6 +135,14 @@ Only proceed if Phase 3 established a concrete spec or notes gap.
 
 Skip this phase entirely if grill-me did not surface a documentation gap.
 
+After completing any file writes, record the created filenames for use in
+later phases:
+
+```bash
+SPEC_FILE="<topic>.yaml"    # e.g., "actor-discovery.yaml"; leave empty if no spec created
+NOTES_FILE="<topic>.md"     # e.g., "actor-discovery.md"; leave empty if no notes created
+```
+
 ### Phase 5 — Create Implementation Issues
 
 Create one GitHub issue per distinct cluster of acceptance criteria identified
@@ -116,8 +153,12 @@ Wire the concern issue as the **parent** of each implementation issue. If the
 implementation issues have a natural sequence, wire the later ones as
 `--blocked-by` the earlier ones.
 
+Accumulate all created issue numbers in a list:
+
 ```bash
-IMPL_ISSUE_NUMBER=$(
+IMPL_ISSUE_NUMBERS=()   # will hold one or more issue numbers
+
+NEW_ISSUE=$(
   .agents/skills/manage-github-issue/manage_github_issue.sh \
     --title "<Implementation title from grill-me>" \
     --body "## Summary
@@ -138,8 +179,10 @@ $([ -n "${NOTES_FILE}" ] && echo "Notes: \`notes/${NOTES_FILE}\`")" \
     --parent "${CONCERN_NUMBER}"
     # Add --blocked-by N for sequenced issues
 )
-echo "Created impl issue #${IMPL_ISSUE_NUMBER}"
-```text
+IMPL_ISSUE_NUMBERS+=("${NEW_ISSUE}")
+echo "Created impl issue #${NEW_ISSUE}"
+# Repeat for each additional issue
+```
 
 Set `size:` based on AC count: 1–2 → `size:S`; 3–6 → `size:M`; 7+ → `size:L`.
 
@@ -153,9 +196,6 @@ new/modified markdown files. Fix all errors before proceeding.
 Only if Phase 4 produced file changes:
 
 ```bash
-FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
-[ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
-git switch -c ingest/concern-${CONCERN_NUMBER}-<slug>
 git add specs/ notes/ AGENTS.md
 git commit -m "docs: ingest concern #${CONCERN_NUMBER} — <short title>
 
@@ -165,16 +205,19 @@ git commit -m "docs: ingest concern #${CONCERN_NUMBER} — <short title>
 Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
 git push -u origin ingest/concern-${CONCERN_NUMBER}-<slug>
 
+IMPL_REFS=$(printf 'Implementation tracked in #%s\n' "${IMPL_ISSUE_NUMBERS[@]}" \
+  | paste -sd ', ')
+
 gh pr create --repo CERTCC/Vultron \
   --title "docs: ingest concern #${CONCERN_NUMBER} — <short title>" \
   --body "Docs-only PR: addresses concern #${CONCERN_NUMBER} at the spec/notes
-level. Implementation tracked in #${IMPL_ISSUE_NUMBER}.
+level. ${IMPL_REFS}.
 
 Ref #${CONCERN_NUMBER}
 
 No .py files changed." \
   --label "specs-notes"
-```text
+```
 
 ### Phase 8 — Archive and Close the Concern
 
@@ -186,9 +229,9 @@ TITLE   = <short concern title>
 SOURCE  = CONCERN-<CONCERN_NUMBER>
 BODY    = Full original concern body
           + "**Resolved**: YYYY-MM-DD — implementation tracked in
-            #<IMPL_ISSUE_NUMBER>."
+            #<N> [, #<M> ...]."
           + "Docs PR: <PR_URL>." (if docs-only PR was opened)
-```text
+```
 
 The `archive-history` skill handles `uv run append-history`, mdlint,
 `git add plan/history/`, commit, and push.
@@ -200,21 +243,22 @@ gh issue comment "${CONCERN_NUMBER}" --repo CERTCC/Vultron \
   --body "✅ Ingested.
 
 $([ -n "${PR_URL}" ] && echo "- Docs PR: ${PR_URL}")
-$(for n in ${IMPL_ISSUE_NUMBERS}; do echo "- Implementation issue: #${n}"; done)
+$(for n in "${IMPL_ISSUE_NUMBERS[@]}"; do echo "- Implementation issue: #${n}"; done)
 
 Root cause and fix plan captured via grill-me session.
 $([ -n "${SPEC_FILE}" ] && echo "Spec: \`specs/${SPEC_FILE}\`.")
 $([ -n "${NOTES_FILE}" ] && echo "Notes: \`notes/${NOTES_FILE}\`.")"
 
 gh issue close "${CONCERN_NUMBER}" --repo CERTCC/Vultron
-```text
+```
 
 ---
 
 ## Checklist
 
 - [ ] Concern issue identified (user-specified or selected from list)
-- [ ] Concern body fetched from GitHub
+- [ ] Concern body fetched from GitHub; issue validated as open + type:Concern
+- [ ] Task branch created (if doc gaps identified in grill-me) — before any file writes
 - [ ] `study-project-docs` invoked; evidence files explored
 - [ ] All grill-me branches resolved (root cause, options, ACs, doc gaps)
 - [ ] `specs/` and/or `notes/` updated — or consciously skipped
