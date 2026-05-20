@@ -266,7 +266,7 @@ to demonstrate the core behavior tree and coordination logic.
 ## Priority 3000: Miscellaneous tasks
 
 - [#442](https://github.com/CERTCC/Vultron/issues/442) — Clean up orphaned
-  BT-2.2/BT-2.3 placeholder references in PRIORITIES.md
+  BT-2.2/BT-2.3 placeholder references in PRIORITIES.md ✅
 - [#505](https://github.com/CERTCC/Vultron/issues/505) — Triage 15
   outstanding TODO/FIXME/XXX markers in production code
 
