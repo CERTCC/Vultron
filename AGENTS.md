@@ -83,28 +83,13 @@ Do NOT introduce alternative frameworks or package managers without approval.
 
 ### Naming Conventions
 
-- **ActivityStreams class names**: Use `as_` prefix (e.g., `as_Activity`,
-  `as_Actor`) — in the wire layer (`vultron/wire/as2/`) only
-- **Wire-layer and core field names**: Use trailing underscore for fields
-  whose plain name collides with a Python builtin or reserved word
-  (e.g., `id_`, `type_`, `object_`, `context_`) with a Pydantic alias
-  for the JSON key (e.g., `id_: str = Field(alias="id")`). See CS-07-002,
-  CS-07-003. Do NOT use `as_`-prefixed field names anywhere.
 - **Domain class names**: Use CVD-domain vocabulary, not wire-format parallels
   (e.g., `CaseTransferOffer` not `VultronOffer`). See CS-12-001.
 - **Vulnerability**: Abbreviated as `vul` (not `vuln`)
-- **Handler functions**: Named after semantic action (e.g., `create_report`,
-  `accept_invite_actor_to_case`)
-- **Handler use cases** (processing received messages): Use `Received` suffix
-  (e.g., `CreateReportReceivedUseCase`). See CS-12-002.
-- **Trigger use cases** (actor-initiated actions): Use `Svc` prefix
-  (e.g., `SvcEngageCaseUseCase`). See CS-12-002.
-- **Trigger service functions** in `trigger_services/`: Use a `_trigger`
-  **suffix** (not an `svc_` prefix). For example: `engage_case_trigger`
-  not `svc_engage_case`. The `Svc` prefix is reserved for use-case class
-  names only.
-- **Pattern objects**: Descriptive CamelCase (e.g., `CreateReport`,
-  `AcceptInviteToEmbargoOnCase`)
+- Wire-layer naming (as\_ prefix, trailing underscore, pattern objects) →
+  see [`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md)
+- Use-case / handler naming (Received suffix, Svc prefix, \_trigger suffix)
+  → see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
 
 ### Validation and Type Safety
 
@@ -130,9 +115,8 @@ Do NOT introduce alternative frameworks or package managers without approval.
 
 ### Decorator Usage
 
-- Semantic type validation is performed at dispatch time by the `USE_CASE_MAP`
-  key lookup in `vultron/core/dispatcher.py`
-- Unrecognised semantic types raise `VultronApiHandlerNotFoundError`
+See [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md) — use-case protocol
+and dispatcher routing.
 
 ### Code Organization
 
@@ -169,56 +153,27 @@ and `actor_id` when available. See `specs/structured-logging.yaml`.
 
 ### Adding a New Message Type
 
-1. Add `MessageSemantics` enum value in `vultron/core/models/events.py`
-2. Define an `ActivityPattern` named `<TypeName>Pattern` in
-   `vultron/wire/as2/extractor.py`
-3. Add pattern to `SEMANTICS_ACTIVITY_PATTERNS` in
-   `vultron/wire/as2/extractor.py` (order matters — specific before general)
-4. Implement a use-case class in `vultron/core/use_cases/`:
-   - Follow `UseCase[Req, Res]` Protocol; accept `(dl, request)` in `__init__`
-   - Implement `execute() -> None`
-5. Register in `USE_CASE_MAP` in
-   `vultron/core/use_cases/use_case_map.py`
-6. Add tests:
-   - Pattern matching in `test/test_semantic_activity_patterns.py`
-   - Routing coverage in `test/test_semantic_handler_map.py`
-   - Use-case logic in `test/core/use_cases/`
+See [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md) for the full
+six-step checklist (enum → pattern → use-case → map → tests).
 
 ### Key Files Map
 
-- **Enums**: `vultron/enums.py` — re-exports `MessageSemantics`; defined in
-  `vultron/core/models/events.py`
-- **Patterns**: `vultron/wire/as2/extractor.py` — `ActivityPattern` defs
-  (`*Pattern` names), `SEMANTICS_ACTIVITY_PATTERNS`, `find_matching_semantics()`
-- **Use-Case Map**: `vultron/core/use_cases/use_case_map.py` — `USE_CASE_MAP`
-  (`MessageSemantics` → use-case callable)
-- **Dispatcher**: `vultron/core/dispatcher.py` — `DirectActivityDispatcher`,
-  `get_dispatcher()`; port: `vultron/core/ports/dispatcher.py`
+- **Enums / MessageSemantics**: `vultron/core/models/events.py`
+- **Dispatcher**: `vultron/core/dispatcher.py`
 - **Inbox**: `vultron/adapters/driving/fastapi/routers/actors.py`
-- **Triggers**: `vultron/adapters/driving/fastapi/routers/trigger_*.py`
-- **Errors**: `vultron/errors.py`, `vultron/adapters/driving/fastapi/errors.py`
-- **Data Layer port**: `vultron/core/ports/datalayer.py` — `DataLayer` Protocol
-- **TinyDB adapter**: `vultron/adapters/driven/datalayer_tinydb.py`
-- **BT Bridge**: `vultron/core/behaviors/bridge.py`
-- **BT nodes/trees**: `vultron/core/behaviors/report/`, `case/`, `helpers.py`
-- **Case Event Log**: `vultron/wire/as2/vocab/objects/case_event.py` — use
-  `VulnerabilityCase.record_event(object_id, event_type)`
-- **Vocab Examples**: `vultron/wire/as2/vocab/examples/` — reference for
-  message semantics and test fixtures
-- **Demo**: `vultron/demo/cli.py` (entry point), `utils.py` (shared helpers),
-  `vultron/demo/*_demo.py` (workflow scripts)
-- **Case States**: `vultron/case_states/` — enums are authoritative; update
-  docs, not enums, when they conflict
+- **Errors**: `vultron/errors.py`
+- **Demo**: `vultron/demo/cli.py` (entry point)
+- **Case States**: `vultron/case_states/` — enums are authoritative
+
+Full core-layer map → [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md).
+Full wire-layer map → [`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md).
+Full adapter-layer map → [`vultron/adapters/AGENTS.md`](vultron/adapters/AGENTS.md).
 
 ### Constructing Outbound Activities
 
-All outbound Vultron activities MUST be constructed via the factory functions
-in `vultron.wire.as2.factories`. Code outside
-`vultron/wire/as2/vocab/activities/` and `vultron/wire/as2/factories/` MUST
-NOT import internal activity subclasses (e.g., `RmCreateReportActivity`)
-directly. Use the corresponding factory function instead (e.g.,
-`rm_create_report_activity()`). This boundary is enforced by
-`test/architecture/test_activity_factory_imports.py`.
+All outbound activities MUST use factory functions in
+`vultron.wire.as2.factories`. See
+[`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md) for details.
 
 ### GitHub Issue Labels
 
@@ -273,27 +228,10 @@ bash "$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh" reset <s
 
 ## Parallel Development (Worktree Slots)
 
-Multiple agents can work on different issues simultaneously using named git
-worktree **slots**. Each slot is a separate working directory on its own
-`wt/<name>` placeholder branch, sharing the same `.git` object store.
-
-```bash
-# One-time setup (run from any checkout of this repo)
-SCRIPT="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
-bash "$SCRIPT" create blinky inky pinky clyde
-
-# Check slot status
-bash "$SCRIPT" status
-# blinky  IDLE  wt/blinky  ...
-# inky    BUSY  bug/561-actor-id-not-stored  fix: actor id not stored
-```
-
-Open a separate terminal (or agent session) in each slot directory
-(`<parent>/<repo-name>_wt/<slot-name>`) and run any skill normally.
-Skills call `freshen` automatically before creating a task branch, so
-slots always branch from the latest `origin/main`.
-
-See `~/.copilot/skills/manage-worktree/SKILL.md` for the full reference.
+Multiple agents can work concurrently using named git worktree **slots**.
+See [`notes/parallel-development.md`](notes/parallel-development.md) for
+the GitHub Issue-based coordination model and
+`~/.copilot/skills/manage-worktree/SKILL.md` for slot setup and commands.
 
 ---
 
@@ -330,13 +268,8 @@ If instructions are ambiguous:
 Key pitfall write-ups are in the `notes/` files.
 Short entries are reproduced here; longer ones are referenced below.
 
-### Idempotency Responsibility Chain
-
-Layered: Inbox MAY detect duplicates (IE-10); Message Validation SHOULD
-detect duplicate submissions (MV-08); Handlers SHOULD implement idempotent
-logic — check for existing records before creating (HP-07-001). Data Layer
-provides unique ID constraints. Report handlers (`create_report`,
-`submit_report`) already follow this pattern.
+- **Idempotency Responsibility Chain** — see
+  [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
 
 ---
 
@@ -368,39 +301,10 @@ provides unique ID constraints. Report handlers (`create_report`,
 - **Avoid `BaseModel` in Port/Adapter Type Hints** — see [notes/architecture-ports-and-adapters.md](notes/architecture-ports-and-adapters.md)
 - **Activity `name` Field Must Not Use `repr()` or `str()`** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **Actor IDs Must Always Be Full URIs** — see [notes/codebase-structure.md](notes/codebase-structure.md)
-- **Co-located Actor IDs Must Be HTTP-Routable; Wire Up `ASGIEmitter` at Startup** — An
-  actor whose ID uses a non-HTTP scheme (e.g. `urn:uuid:…/actors/case-actor`) cannot
-  receive deliveries via `DeliveryQueueAdapter` — outbound activities are logged at
-  WARNING/ERROR level but the exception is not raised, so inbox handlers are never called.
-  Co-located actors (e.g. a Case Actor hosted in the same server process) **MUST** have
-  HTTP-routable IDs (e.g. `{base_url}/actors/case-actor-{slug}`), **and** the app
-  startup code MUST call `configure_default_emitter(ASGIEmitter(app=…))` so the outbox
-  handler routes in-process deliveries via ASGI rather than HTTP.
-  See `notes/architecture-ports-and-adapters.md` (Dispatch vs Emit section).
-- **ASGIEmitter Path Construction: Use Scheme+Netloc Only as `httpx` Base URL** — When
-  `ASGIEmitter` is constructed with a `base_url` that includes a path component (e.g.,
-  `http://host/api/v2`), passing the full URL to `httpx.AsyncClient` doubles the path
-  prefix and causes HTTP 404 on every local delivery. The fix is to extract only
-  `scheme://netloc` for the `httpx` base URL and pass `inbox_path` (after stripping
-  `mount_prefix`) separately. Always pass `mount_prefix` to `ASGIEmitter` when the
-  actor sub-app is mounted under a path prefix.
-  See `notes/asgi-emitter.md`.
-- **`create_app()` MUST NOT Mutate Module-Level Singletons** — When multiple co-located
-  actors share a Python process, each call to `create_app()` must produce a fully
-  isolated app. Storing dispatcher, emitter, or DataLayer in module-level globals
-  (e.g., `_default_emitter`, `_DISPATCHER`, `_shared_instance`) causes the last
-  lifespan to overwrite prior actors' resources silently. Store all per-app state on
-  `app.state` and register the DataLayer via `app.dependency_overrides`.
-  See `notes/asgi-emitter.md`; spec: `specs/multi-actor-demo.yaml` DEMOMA-01-004.
-- **Bootstrap Activities Must Embed Nested Objects Inline, Not as URI Strings** —
-  `Create(VulnerabilityCase)` bootstrap payloads MUST include `CaseParticipant`
-  objects as full inline dicts. `ActivityStreamRef` allows bare URI strings so
-  Pydantic accepts them without error, but handlers only persist non-string
-  entries; participant records are never stored in the receiver's DataLayer,
-  and downstream BT nodes (`CheckParticipantExists`) fail. Use
-  `model_dump(..., serialize_as_any=True)` when serializing the case
-  snapshot. Spec: `specs/case-bootstrap-trust.yaml` CBT-01-007.
-  See `notes/activitystreams-semantics.md` § "Bootstrap Embedded-Object vs. URI-String Contract".
+- **Co-located Actor IDs Must Be HTTP-Routable; Wire Up `ASGIEmitter` at Startup** — see [notes/architecture-ports-and-adapters.md](notes/architecture-ports-and-adapters.md)
+- **ASGIEmitter Path Construction: Use Scheme+Netloc Only as `httpx` Base URL** — see [notes/asgi-emitter.md](notes/asgi-emitter.md)
+- **`create_app()` MUST NOT Mutate Module-Level Singletons** — see [notes/asgi-emitter.md](notes/asgi-emitter.md)
+- **Bootstrap Activities Must Embed Nested Objects Inline, Not as URI Strings** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **BT Failure Reason: Use `get_failure_reason()`, Not Generic Error Logs** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Dead-Letter vs. No-Pattern: Two Distinct UNKNOWN Failure Modes** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **Accept.object_ Must Be the Invite Activity, Not the Case Object** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
@@ -413,46 +317,14 @@ provides unique ID constraints. Report handlers (`create_report`,
 - **Scenario Demos Must Puppeteer via Trigger Endpoints, Not Spoof Inboxes** — see [notes/event-driven-control-flow.md](notes/event-driven-control-flow.md)
 - **Role Taxonomies Must Not Leak Into Parameter Names** — When renaming a role concept (e.g., "finder" → "reporter"), search adapter and demo layers as well as core. Demo helpers often mirror public parameter names; leaving them behind creates naming inconsistency. See `notes/bugfix-workflow.md`.
 - **Close Bugs With Evidence, Not Assumption** — see [notes/bt-integration.md](notes/bt-integration.md)
-- **Use `isinstance` for Pyright Attribute Narrowing, Not `# type: ignore`** — When
-  accessing an attribute that exists on a subtype but not its base type (pyright
-  `[attr-defined]` error), narrow with a runtime `isinstance` assertion rather than
-  suppressing the error with `# type: ignore`. Example: if `as_Question` does not have
-  `one_of` but `ChoosePreferredEmbargoActivity` does, add
-  `assert isinstance(activity, ChoosePreferredEmbargoActivity)` before accessing
-  `activity.one_of`. This keeps the type checker accurate and makes implicit subtype
-  assumptions explicit and runtime-verified.
-- **Untyped Closures Are Invisible to mypy — Extract to Named Functions** — When
-  refactoring or extracting logic from an untyped function body or closure (e.g.,
-  inside `extractor.py`), mypy does not check the body of untyped functions.
-  Hidden type errors only surface once the code is promoted to a named, typed
-  function. Always extract closures to named, fully-typed helper functions; do not
-  leave logic inside untyped lambda or nested-function bodies. Specifically: AS2
-  fields that carry an object or ID reference (e.g., `context`, `origin`,
-  `in_reply_to`) MUST be converted to `str | None` using `_get_id(field)` before
-  assigning to a `NonEmptyString | None` snapshot field — passing the raw AS2
-  object directly is a type error that mypy will catch only after extraction.
-- **CI Runs All Tests; Default Local Run Omits Integration** — `pytest` (default
-  local, via `addopts`) excludes `@pytest.mark.integration` tests. CI always
-  runs `pytest -m ""` which includes them. Demo scenario files
-  (`vultron/demo/scenario/`) contain assertion functions (e.g.,
-  `verify_vendor_case_state`) with hardcoded participant counts and state
-  expectations that break silently in the unit suite but fail in CI. Whenever
-  you touch any file under `vultron/demo/` or `test/demo/`, you MUST run the
-  full suite before committing: `uv run pytest -m "" --tb=short 2>&1 | tail -5`.
-  See the Commit Workflow section above.
+- **Use `isinstance` for Pyright Attribute Narrowing, Not `# type: ignore`** — see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
+- **Untyped Closures Are Invisible to mypy — Extract to Named Functions** — see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
+- **CI Runs All Tests; Default Local Run Omits Integration** — see `test/AGENTS.md` § Integration Tests and Commit Workflow above
 
 > **Parallelism and Single-Agent Testing** has moved to `test/AGENTS.md`.
 >
-- **Adding a New Pitfall: Check the Routing Policy First** — Before appending
-  a new entry to root `AGENTS.md`, ask: is this guidance specific to one
-  subdirectory (`vultron/core/`, `vultron/wire/as2/`, `vultron/adapters/`,
-  `test/`)? If yes, it belongs in that directory's `AGENTS.md` instead.
-  If it warrants a detailed write-up with context and rationale, it belongs
-  in `notes/<topic>.md` with a one-line summary + link here.
-  Root `AGENTS.md` target is ≤ 400 lines; if it exceeds that, run the
-  `condense-agents-md` skill. See
-  [notes/agents-md-structure.md](notes/agents-md-structure.md) for the
-  full routing decision tree.
+- **Adding a New Pitfall: Check the Routing Policy First** — see
+  [notes/agents-md-structure.md](notes/agents-md-structure.md)
 
 ## Skill Interaction Rules
 
@@ -506,9 +378,8 @@ the `docs/` root. Run `uv run mkdocs build --strict` before committing any
 
 ### Demo script lifecycle logging
 
-Use `demo_step` / `demo_check` context managers (`vultron/demo/utils.py`) to
-wrap every workflow step and verification block. See `notes/codebase-structure.md`
-"Demo Script Lifecycle Logging" for the full pattern.
+See [`vultron/adapters/AGENTS.md`](vultron/adapters/AGENTS.md) for the
+`demo_step` / `demo_check` pattern.
 
 ### Archiving IMPLEMENTATION_PLAN.md
 
