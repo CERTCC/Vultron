@@ -471,11 +471,13 @@ def _make_activity_with_bare_object(
     return act
 
 
-@pytest.mark.parametrize("activity_type", ["Add", "Invite", "Accept"])
+@pytest.mark.parametrize(
+    "activity_type", ["Add", "Invite", "Accept", "Offer", "Join"]
+)
 def test_handle_outbox_item_expands_bare_object_for_new_types(
     activity_type, caplog
 ):
-    """handle_outbox_item expands bare-string object_ for Add/Invite/Accept."""
+    """handle_outbox_item expands bare-string object_ for inline-object types."""
     recipient = "https://example.org/actors/alice"
     activity = _make_activity_with_bare_object(
         activity_type, f"urn:test:act-{activity_type.lower()}", recipient
@@ -508,12 +510,14 @@ def test_handle_outbox_item_expands_bare_object_for_new_types(
     assert "Expanded" in caplog.text
 
 
-@pytest.mark.parametrize("activity_type", ["Add", "Invite", "Accept"])
+@pytest.mark.parametrize(
+    "activity_type", ["Add", "Invite", "Accept", "Offer", "Join"]
+)
 def test_handle_outbox_item_raises_integrity_error_when_expansion_fails(
     activity_type,
 ):
     """handle_outbox_item raises VultronOutboxObjectIntegrityError when the
-    inner object is not found for Add/Invite/Accept activities."""
+    inner object is not found for inline-object activity types."""
     recipient = "https://example.org/actors/alice"
     activity = _make_activity_with_bare_object(
         activity_type, f"urn:test:act-{activity_type.lower()}-fail", recipient

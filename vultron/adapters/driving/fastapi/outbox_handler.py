@@ -97,7 +97,7 @@ _STUB_KEYS: frozenset[str] = frozenset({"id", "type", "summary", "@context"})
 _STUB_OBJECT_TYPES: frozenset[str] = frozenset({"VulnerabilityCase"})
 
 _INLINE_OBJECT_ACTIVITY_TYPES: frozenset[str] = frozenset(
-    {"Create", "Announce", "Add", "Invite", "Accept"}
+    {"Create", "Announce", "Add", "Invite", "Accept", "Offer", "Join"}
 )
 
 
@@ -368,6 +368,36 @@ async def handle_outbox_item(
         dl,
     )
     _validate_inline_object(activity_id, activity_type, activity_object)
+
+    # Recover typed model when object_ is a raw dict.
+    #
+    # _load_outbound_activity round-trips through model_dump() →
+    # VultronActivity.model_validate(), which stores the nested object
+    # as a plain dict (VultronActivity.object_ is Any | None).
+    # Without this recovery step, isinstance(…, BaseModel) is False and
+    # dl.hydrate() is never called — participant expansion is skipped
+    # (see #585).
+    #
+    # Only recover types listed in _STUB_OBJECT_TYPES (e.g.
+    # VulnerabilityCase) — other dict payloads (e.g. CaseLogEntry) are
+    # intentionally carried as dicts and must not be replaced.
+    if isinstance(activity_object, dict) and not isinstance(
+        activity_object, BaseModel
+    ):
+        obj_id = activity_object.get("id")
+        obj_type = activity_object.get("type", "")
+        if obj_id and obj_type in _STUB_OBJECT_TYPES:
+            full_obj = dl.read(obj_id)
+            if full_obj is not None and isinstance(full_obj, BaseModel):
+                activity_object = full_obj
+                outbound_activity.object_ = activity_object
+                logger.debug(
+                    "Recovered typed %s from dict for %s activity '%s'.",
+                    type(full_obj).__name__,
+                    activity_type,
+                    activity_id,
+                )
+
     if isinstance(activity_object, BaseModel):
         activity_object = dl.hydrate(cast(PersistableModel, activity_object))
         outbound_activity.object_ = activity_object
