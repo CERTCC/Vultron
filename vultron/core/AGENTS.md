@@ -33,12 +33,13 @@ class CreateReportReceivedUseCase:
         self._dl = dl
         self._request = request
 
-    def execute(self) -> None:
+    def execute(self) -> Any:  # use None for fire-and-forget
         ...
 ```
 
-- Accept `(dl, request)` in `__init__`; implement `execute() -> None`
-- Register in `USE_CASE_MAP` (`vultron/core/use_cases/use_case_map.py`)
+- Accept `(dl, request)` in `__init__`; implement `execute() -> Any`
+  (use `None` for fire-and-forget cases; see `vultron/core/ports/use_case.py`)
+- Register in `SEMANTIC_REGISTRY` (`vultron/semantic_registry.py`)
 - Dispatcher raises `VultronApiHandlerNotFoundError` for unrecognised
   semantic types; do **not** add per-handler type validation decorators
 
@@ -46,30 +47,30 @@ class CreateReportReceivedUseCase:
 
 ## Adding a New Message Type
 
-1. Add `MessageSemantics` enum value in `vultron/core/models/events.py`
+1. Add `MessageSemantics` enum value in `vultron/core/models/events/base.py`
 2. Define an `ActivityPattern` named `<TypeName>Pattern` in
    `vultron/wire/as2/extractor.py`
-3. Add pattern to `SEMANTICS_ACTIVITY_PATTERNS` in
-   `vultron/wire/as2/extractor.py` (**order matters** — specific before
+3. Add a `SemanticEntry` to `SEMANTIC_REGISTRY` in
+   `vultron/semantic_registry.py` (**order matters** — specific before
    general)
 4. Implement a use-case class in `vultron/core/use_cases/`:
    - Follow `UseCase[Req, Res]` Protocol; accept `(dl, request)` in
-     `__init__`; implement `execute() -> None`
-5. Register in `USE_CASE_MAP` in
-   `vultron/core/use_cases/use_case_map.py`
+     `__init__`; implement `execute() -> Any`
+5. Register in `SEMANTIC_REGISTRY` in
+   `vultron/semantic_registry.py`
 6. Add tests:
    - Pattern matching in `test/test_semantic_activity_patterns.py`
-   - Routing coverage in `test/test_semantic_handler_map.py`
+   - Routing coverage in `test/test_semantic_registry.py`
    - Use-case logic in `test/core/use_cases/`
 
 ---
 
 ## Key Files Map — core layer
 
-- **Enums**: `vultron/enums.py` — re-exports `MessageSemantics`; defined in
-  `vultron/core/models/events.py`
-- **Use-Case Map**: `vultron/core/use_cases/use_case_map.py` — `USE_CASE_MAP`
-  (`MessageSemantics` → use-case callable)
+- **Enums**: `vultron/core/models/events/__init__.py` — re-exports
+  `MessageSemantics`; defined in `vultron/core/models/events/base.py`
+- **Semantic Registry**: `vultron/semantic_registry.py` — `SEMANTIC_REGISTRY`
+  (ordered list), `find_matching_semantics()`, `use_case_map()`
 - **Dispatcher**: `vultron/core/dispatcher.py` — `DirectActivityDispatcher`,
   `get_dispatcher()`; port: `vultron/core/ports/dispatcher.py`
 - **Data Layer port**: `vultron/core/ports/datalayer.py` — `DataLayer`

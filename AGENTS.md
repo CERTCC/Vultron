@@ -158,7 +158,7 @@ six-step checklist (enum → pattern → use-case → map → tests).
 
 ### Key Files Map
 
-- **Enums / MessageSemantics**: `vultron/core/models/events.py`
+- **Enums / MessageSemantics**: `vultron/core/models/events/base.py`
 - **Dispatcher**: `vultron/core/dispatcher.py`
 - **Inbox**: `vultron/adapters/driving/fastapi/routers/actors.py`
 - **Errors**: `vultron/errors.py`
@@ -319,7 +319,7 @@ Short entries are reproduced here; longer ones are referenced below.
 - **Close Bugs With Evidence, Not Assumption** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Use `isinstance` for Pyright Attribute Narrowing, Not `# type: ignore`** — see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
 - **Untyped Closures Are Invisible to mypy — Extract to Named Functions** — see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
-- **CI Runs All Tests; Default Local Run Omits Integration** — see `test/AGENTS.md` § Integration Tests and Commit Workflow above
+- **CI Runs All Tests; Default Local Run Omits Integration** — see `test/AGENTS.md` § Integration Tests
 
 > **Parallelism and Single-Agent Testing** has moved to `test/AGENTS.md`.
 >
