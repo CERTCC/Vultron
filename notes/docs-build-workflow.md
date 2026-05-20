@@ -17,7 +17,7 @@ and `notes/` that have no effect on the published MkDocs site.
 
 | Question | Decision | Rationale |
 |---|---|---|
-| Split into two workflow files or keep as one? | One workflow file | Two jobs on the same runner share the filesystem, avoiding artifact upload/download overhead and keeping the build step DRY |
+| Split into two workflow files or keep as one? | One workflow file | Multiple steps within the same job share the workspace, avoiding artifact upload/download overhead and keeping the build step DRY |
 | Should the build step always run? | Yes | Python macro/plugin failures (e.g., `pyproject.toml` or `mkdocs.yml` changes) need to be caught even if no `docs/` content changed |
 | When should the link-check step run? | Only when `docs/**` changed (or `workflow_dispatch`) | Link-checking crawls the entire site and is slow; triggering it on every pyproject.toml bump is wasteful |
 | How to detect if `docs/` changed? | `git diff --name-only` against the PR base | No third-party action needed; keeps the SHA-pinned `uses:` surface minimal (CISEC-01-001) |
@@ -139,7 +139,7 @@ on:
 | `python-app.yml` | Python tests + linters | `vultron/**`, `test/**`, Python config |
 | `docs-build-check.yml` | MkDocs build + link check | `docs/**`, `mkdocs.yml`, Python config |
 | `lint_md_all.yml` | Markdown lint | `**/*.md` |
-| `demo-ci.yaml` | Docker integration demo | `vultron/**`, `docker/**`, etc. |
+| `demo-integration.yml` | Docker integration demo | `vultron/**`, `docker/**`, etc. |
 | `deploy_site.yml` | Deploy to GitHub Pages | Push to `publish` branch |
 
 Note: `lint_md_all.yml` intentionally retains `**/*.md` as its trigger

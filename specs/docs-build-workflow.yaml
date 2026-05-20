@@ -5,7 +5,8 @@ description: >
   builds cleanly and that all links in the published documentation are valid.
   The workflow lives at `.github/workflows/docs-build-check.yml`.
   It is distinct from `python-app.yml` (Python unit tests and linting) and
-  `demo-ci.yaml` (demo container integration tests).
+  `.github/workflows/demo-integration.yml` (demo container integration tests,
+  specified in `specs/demo-ci.yaml`).
 version: 1.0.0
 kind: general
 scope:
