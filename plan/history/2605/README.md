@@ -5,6 +5,7 @@
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
 | 2026-05-20 | 13:54 | idea | IDEA-582 | Optimize linkchecker.yml: separate build-site and link-check triggers |
+| 2026-05-19 | 20:20 | implementation | BUGFIX-572-573-574 | Fix #585/#572/#573/#574: add Offer/Join to inline-object types, recover dict objects for hydration, and store embedded participants in EngageCaseReceivedUseCase |
 | 2026-05-19 | 19:09 | learning | GitHub Concern #568 | Demo construction spec gaps: isolation, routing, embedding (#568) |
 | 2026-05-19 | 18:50 | idea | IDEA-560 | GitHub workflow to build and run demo containers on PRs against main |
 | 2026-05-19 | 18:14 | implementation | GH-566 | Store embedded participants on Announce seeding (#566) |

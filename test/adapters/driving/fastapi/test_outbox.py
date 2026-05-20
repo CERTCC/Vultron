@@ -471,11 +471,13 @@ def _make_activity_with_bare_object(
     return act
 
 
-@pytest.mark.parametrize("activity_type", ["Add", "Invite", "Accept"])
+@pytest.mark.parametrize(
+    "activity_type", ["Add", "Invite", "Accept", "Offer", "Join"]
+)
 def test_handle_outbox_item_expands_bare_object_for_new_types(
     activity_type, caplog
 ):
-    """handle_outbox_item expands bare-string object_ for Add/Invite/Accept."""
+    """handle_outbox_item expands bare-string object_ for inline-object types."""
     recipient = "https://example.org/actors/alice"
     activity = _make_activity_with_bare_object(
         activity_type, f"urn:test:act-{activity_type.lower()}", recipient
@@ -508,12 +510,14 @@ def test_handle_outbox_item_expands_bare_object_for_new_types(
     assert "Expanded" in caplog.text
 
 
-@pytest.mark.parametrize("activity_type", ["Add", "Invite", "Accept"])
+@pytest.mark.parametrize(
+    "activity_type", ["Add", "Invite", "Accept", "Offer", "Join"]
+)
 def test_handle_outbox_item_raises_integrity_error_when_expansion_fails(
     activity_type,
 ):
     """handle_outbox_item raises VultronOutboxObjectIntegrityError when the
-    inner object is not found for Add/Invite/Accept activities."""
+    inner object is not found for inline-object activity types."""
     recipient = "https://example.org/actors/alice"
     activity = _make_activity_with_bare_object(
         activity_type, f"urn:test:act-{activity_type.lower()}-fail", recipient
@@ -897,3 +901,60 @@ def test_handle_outbox_item_calls_hydrate_on_inline_object():
     mock_emitter.emit.assert_called_once()
     emitted_activity, _ = mock_emitter.emit.call_args[0]
     assert emitted_activity.object_ is hydrated_case
+
+
+# ---------------------------------------------------------------------------
+# dl.hydrate() expands case_participants before delivery (#572 regression)
+# ---------------------------------------------------------------------------
+
+
+def test_handle_outbox_item_delivers_hydrated_participants():
+    """dl.hydrate() is responsible for expanding case_participants.
+
+    Regression test for #572: participant expansion is a DataLayer concern
+    (CBT-01-007, CBT-05-005).  handle_outbox_item must use the object
+    returned by dl.hydrate() — which carries the expanded participants — as
+    the outbound object_, not the pre-hydration object.
+    """
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        VulnerabilityCase,
+    )
+
+    participant_id = "urn:uuid:participant-572-001"
+    case_obj = VulnerabilityCase(
+        id_="urn:uuid:case-572-001",
+        case_participants=[participant_id],  # bare string before hydration
+    )
+    # dl.hydrate() is responsible for replacing bare strings with objects;
+    # simulate it returning a case with participants already expanded.
+    hydrated_case = VulnerabilityCase(
+        id_="urn:uuid:case-572-001",
+        case_participants=[],  # hydrate() would fill this with full objects
+    )
+    activity = VultronActivity(
+        id_="urn:test:join-572-001",
+        type_="Join",
+        actor="https://vendor.example.org/actors/vendor",
+        to=["https://finder.example.org/actors/finder"],
+    )
+    activity.object_ = case_obj  # type: ignore[assignment]
+
+    mock_dl = MagicMock()
+    mock_dl.read.side_effect = lambda id_: (
+        activity if id_ == activity.id_ else None
+    )
+    mock_dl.hydrate.return_value = hydrated_case
+    mock_emitter = AsyncMock()
+
+    asyncio.run(
+        oh.handle_outbox_item(
+            "actor-vendor", activity.id_, mock_dl, mock_emitter
+        )
+    )
+
+    mock_dl.hydrate.assert_called_once_with(case_obj)
+    emitted_activity, _ = mock_emitter.emit.call_args[0]
+    assert emitted_activity.object_ is hydrated_case, (
+        "handle_outbox_item must use the dl.hydrate() result as object_ "
+        "so recipients receive expanded participant objects (#572)"
+    )
