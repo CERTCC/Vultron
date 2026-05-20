@@ -31,30 +31,45 @@ entries that should be promoted into durable docs.
 
 ## Quick Start
 
-1. Invoke `acquire-codebase-knowledge` — full scan, refreshes all 7 docs
+1. **Freshen** the worktree slot (before any writes): `manage_worktree.sh freshen`
+2. Invoke `acquire-codebase-knowledge` — full scan, refreshes all 7 docs
    in `docs/reference/codebase/`.
-2. Read `plan/BUILD_LEARNINGS.md` and query GitHub for open `type:Concern`
+3. Read `plan/BUILD_LEARNINGS.md` and query GitHub for open `type:Concern`
    issues (both are input queues).
-3. Invoke `study-project-docs` for full context (specs, notes, code) — it
+4. Invoke `study-project-docs` for full context (specs, notes, code) — it
    now reads the freshly updated codebase docs.
-4. Analyze what the build process has learned vs. what specs and notes capture.
-5. Invoke `grill-me` to align on scope and decisions — before writing anything.
+5. Analyze what the build process has learned vs. what specs and notes capture.
+6. Invoke `grill-me` to align on scope and decisions — before writing anything.
    Include GitHub Concern issue triage in this phase (no separate triage step
    needed).
-6. Write to `specs/`, `notes/`, and `AGENTS.md`.
-7. Archive each processed BUILD_LEARNINGS entry and each resolved Concern issue
+7. **Create the task branch**: `git switch -c learn/<YYYYMMDD>-<slug>`
+   (worktree was already freshened in step 1; branch here after slug is known)
+8. Write to `specs/`, `notes/`, and `AGENTS.md`.
+9. Archive each processed BUILD_LEARNINGS entry and each resolved Concern issue
    via `uv run append-history learning`; delete BUILD_LEARNINGS entries from
    their source file and close each resolved GitHub Concern issue with a
    resolution comment.
-8. Invoke `format-markdown`.
-9. Create a branch, commit (including updated `docs/reference/codebase/`
-   files), push, and open a docs-only PR with `specs-notes` label.
+10. Invoke `format-markdown`.
+11. Commit (including updated `docs/reference/codebase/` files), push, and
+    open a docs-only PR with `specs-notes` label.
 
 ## Workflow
 
-### Phase 0 — Refresh Codebase Knowledge
+### Phase 0 — Freshen and Refresh Codebase Knowledge
 
-Invoke the `acquire-codebase-knowledge` skill (full scan, no focus area
+**First, freshen the worktree slot** (if running in a `wt/*` slot) so
+all subsequent writes land on a clean, up-to-date baseline:
+
+```bash
+FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
+[ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
+```
+
+Do this **before** `acquire-codebase-knowledge` runs — the scan regenerates
+files in `docs/reference/codebase/` (uncommitted), and those outputs must not
+be clobbered by a later `git reset --hard`.
+
+Then invoke the `acquire-codebase-knowledge` skill (full scan, no focus area
 restriction). This regenerates all seven files in `docs/reference/codebase/`
 from the current state of the repository before any gap analysis begins,
 ensuring `study-project-docs` in Phase 1 reads an accurate baseline.
@@ -121,6 +136,15 @@ with a recommended answer before writing anything:
 - Does any spec change require code verification first?
 
 Answer questions from codebase exploration where possible.
+
+**After grill-me completes — create the task branch before writing any files:**
+
+```bash
+git switch -c learn/<YYYYMMDD>-<slug>
+```
+
+The worktree was already freshened in Phase 0. All file writes (Phases 4–7)
+happen on this branch so they are never at risk from a `git reset --hard`.
 
 ### Phase 4 — Refine Specifications (`specs/`)
 
@@ -194,12 +218,10 @@ Do **not** reference `plan/BUILD_LEARNINGS.md` from durable docs.
    Fix all errors.
 2. If a requirement conflict cannot be resolved, add a note to
    `plan/BUILD_LEARNINGS.md` and **stop before committing**.
-3. Create a branch, stage, commit, push, and open a docs-only PR:
+3. Stage, commit, push, and open a docs-only PR (branch was created at the
+   end of Phase 3):
 
    ```bash
-   FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
-   [ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
-   git switch -c learn/<YYYYMMDD>-<slug>
    git add specs/<changed-files> notes/<changed-files> AGENTS.md \
        plan/BUILD_LEARNINGS.md docs/reference/codebase/
    git commit -m "docs: promote BUILD_LEARNINGS — <topic>
