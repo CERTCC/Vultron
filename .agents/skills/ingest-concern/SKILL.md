@@ -156,7 +156,7 @@ Only if Phase 4 produced file changes:
 FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
 [ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
 git switch -c ingest/concern-${CONCERN_NUMBER}-<slug>
-git add specs/ notes/ AGENTS.md
+git add specs/ notes/ AGENTS.md plan/history/
 git commit -m "docs: ingest concern #${CONCERN_NUMBER} — <short title>
 
 - <bullet: what spec/notes/AGENTS.md was added or changed>
@@ -210,6 +210,17 @@ $([ -n "${NOTES_FILE}" ] && echo "Notes: \`notes/${NOTES_FILE}\`.")"
 gh issue close "${CONCERN_NUMBER}" --repo CERTCC/Vultron
 ```
 
+Then stage and push the history entry to the PR branch (or to `main` directly
+if no docs-only PR was opened):
+
+```bash
+git add plan/history/
+git commit -m "history: archive concern #${CONCERN_NUMBER} via append-history
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
+git push
+```
+
 ---
 
 ## Checklist
@@ -226,7 +237,7 @@ gh issue close "${CONCERN_NUMBER}" --repo CERTCC/Vultron
 - [ ] Docs-only PR opened with `specs-notes` label — or skipped (no doc
   changes)
 - [ ] Concern archived via `uv run append-history learning
-  --source "CONCERN-<N>"`
+  --source "CONCERN-<N>"`; history files staged and pushed to branch
 - [ ] Concern issue commented with impl issue(s) + optional PR URL, then
   closed
 

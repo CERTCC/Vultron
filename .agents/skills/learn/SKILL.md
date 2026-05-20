@@ -223,7 +223,7 @@ Do **not** reference `plan/BUILD_LEARNINGS.md` from durable docs.
 
    ```bash
    git add specs/<changed-files> notes/<changed-files> AGENTS.md \
-       plan/BUILD_LEARNINGS.md docs/reference/codebase/
+       plan/BUILD_LEARNINGS.md plan/history/ docs/reference/codebase/
    git commit -m "docs: promote BUILD_LEARNINGS — <topic>
 
    - <bullet: what was promoted and where>

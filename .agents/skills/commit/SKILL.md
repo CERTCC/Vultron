@@ -55,3 +55,6 @@ Commit message conventions:
 - Never amend an existing commit unless the user explicitly asks.
 - Run all validation (`format-code`, `run-linters`, `run-tests`,
   `format-markdown`) and complete all finalization before calling this skill.
+- **Always include `plan/history/` when `append-history` was called** — the
+  tool creates new entry files and regenerates `plan/history/YYMM/README.md`;
+  both must be staged.

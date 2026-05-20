@@ -184,7 +184,8 @@ Commit all spec/notes/README changes and open a PR carrying the
 Reference the originating idea issue in the PR body so GitHub auto-links them:
 
 ```bash
-git add specs/<topic>.yaml notes/<topic>.md specs/README.md
+git add specs/<topic>.yaml notes/<topic>.md specs/README.md \
+    plan/history/
 git commit -m "specs: ingest idea #<IDEA_NUMBER> — <short title>
 
 - Add specs/<topic>.yaml (ID-01 through ID-NN)

@@ -177,8 +177,9 @@ Invoke the `code-review` agent against the current branch diff relative to
    (e.g., `### 2026-04-28 LABEL — Short description`). Do **not** write
    completion summaries here.
 
-6. Invoke the `commit` skill if any local files (BUILD_LEARNINGS.md) were
-   updated. The implementation changes themselves are on the PR branch.
+6. Invoke the `commit` skill to stage and commit any locally modified files
+   (BUILD_LEARNINGS.md and the new `plan/history/` entry). The implementation
+   changes themselves are on the PR branch.
 
 ### Phase 8 - Merge conflict recovery (if needed)
 

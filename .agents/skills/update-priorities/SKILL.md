@@ -61,7 +61,14 @@ When a priority group is fully completed:
 2. Confirm all linked issues are closed
 3. Run `uv run append-history priority` (auto-generates history entry with timestamp)
 4. Remove from `plan/PRIORITIES.md`
-5. Commit
+5. Stage all changes and commit:
+
+   ```bash
+   git add plan/PRIORITIES.md plan/history/
+   git commit -m "plan: archive completed priority — <title>
+
+   Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
+   ```
 
 ### View Current State
 
