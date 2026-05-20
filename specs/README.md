@@ -88,6 +88,7 @@ Load additional files only when the task touches the relevant area. See the
 | Observability | `observability.yaml` |
 | Security / CI | `ci-security.yaml`, `encryption.yaml` |
 | Demo CI / GitHub Actions demo workflow | `demo-ci.yaml` |
+| Docs build and link-check CI workflow | `docs-build-workflow.yaml`, `notes/docs-build-workflow.md` |
 | Agentic API | `agentic-readiness.yaml` |
 | Documentation work | `diataxis-requirements.yaml`, `project-documentation.yaml`, `traceability.yaml` |
 | Build/bugfix workflow / learnings queue | `build-workflow.yaml` |
@@ -293,6 +294,9 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 - **`ci-security.yaml`** - GitHub Actions security: SHA pinning, secrets
   management, artifact integrity (CISEC-01 through CISEC-04)
+- **`docs-build-workflow.yaml`** - Docs Build and Link Check workflow:
+  trigger conditions, job structure, docs-changed filter, link-check
+  conditionality, and security compliance (DOCBW-01 through DOCBW-05)
 - **`encryption.yaml`** - ActivityPub encryption and key management (`PROD_ONLY`)
 
 ### Code Standards
@@ -419,6 +423,7 @@ is reserved for `testability.yaml`).
 | `BTND` | `behavior-tree-node-design.yaml` |
 | `BW` | `build-workflow.yaml` |
 | `CISEC` | `ci-security.yaml` |
+| `DOCBW` | `docs-build-workflow.yaml` |
 | `CLP` | `case-log-processing.yaml` |
 | `CM` | `case-management.yaml` |
 | `CS` | `code-style.yaml` |
