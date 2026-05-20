@@ -214,6 +214,11 @@ to relevant tests and design notes.
 4. `build-docs` — only when `docs/` files were modified
 5. `commit` skill — include Co-authored-by trailer
 
+**Always stage `plan/history/` when `append-history` was called.** The tool
+creates a new entry file and regenerates `plan/history/YYMM/README.md` — both
+are untracked until staged. Omitting them is the most common cause of history
+files being left out of PRs.
+
 See each skill's SKILL.md for the exact commands. If the pre-commit hook
 reformats files: `git add -A && git commit -m "Same message"`.
 

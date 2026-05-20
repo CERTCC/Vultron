@@ -54,11 +54,12 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
        }
      }
    }'
-   ```
+   ```text
 
    An issue is unblocked only if all entries in `blockedBy.nodes` have
    `state: CLOSED`.
 4. Fetch the Issue body and comments using `github-mcp-server-issue_read`
+
    (`method: get` then `method: get_comments`). Use the combined content as
    implementation context throughout Phases 3–5.
 5. **Claim the Issue**:
@@ -67,9 +68,10 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
      ```bash
      FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
      [ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
-     ```
+     ```text
 
    - Create a branch: `git switch -c task/<issue-number>-<slug>`
+
    - If the branch already exists, abort — the task is already claimed.
    - Assign the Issue to the triggering user:
      `gh issue edit <N> --add-assignee @me --repo CERTCC/Vultron`
@@ -148,9 +150,10 @@ Invoke the `code-review` agent against the current branch diff relative to
 
    <summary of changes>" \
      --label "size:<X>"
-   ```
+   ```text
 
 3. If there were `[ADVISORY]` findings from the code review, post them as a
+
    PR comment:
 
    ```bash
@@ -158,19 +161,17 @@ Invoke the `code-review` agent against the current branch diff relative to
      --body "Code review advisory findings: ..."
    ```
 
-4. Append a completion summary to `plan/history/` using the `append-history`
-   tool:
+4. Invoke the `archive-history` skill now that the PR URL is known:
 
-   ```bash
-   cat <<'EOF' | uv run append-history implementation \
-       --title "<short task title>" \
-       --source "https://github.com/CERTCC/Vultron/issues/<N>"
-
-   ## Issue #<N> — <title>
-
-   <completion summary: what was done, outcome, PR link>
-   EOF
+   ```text
+   TYPE    = implementation
+   TITLE   = <short task title>
+   SOURCE  = ISSUE-<N>
+   BODY    = "## Issue #<N> — <title>\n\n<completion summary, PR link>"
    ```
+
+   The skill runs `uv run append-history implementation`, lints the new
+   history files, stages `plan/history/`, commits, and pushes.
 
 5. Record **observations, open questions, and constraints** discovered during
    implementation in `plan/BUILD_LEARNINGS.md`. Use a dated header per entry
@@ -189,9 +190,10 @@ If the PR reports merge conflicts:
    ```bash
    git fetch origin main
    git rebase origin/main
-   ```
+   ```text
 
 2. If the rebase succeeds: `git push --force-with-lease`. CI re-runs.
+
 3. If the rebase fails: post a comment on the PR explaining the conflict, add
    the `needs-rebase` label, and stop. Human intervention is required.
 
@@ -221,4 +223,4 @@ When creating prerequisite Issues or updating `group:` labels on any issue:
     --repo CERTCC/Vultron \
     --description "<Priority group title (no number)>" \
     --color "#1d76db"
-  ```
+  ```text
