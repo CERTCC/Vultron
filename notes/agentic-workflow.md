@@ -8,6 +8,7 @@ description: >
 related_notes:
   - notes/append-only-file-handling.md
   - notes/bugfix-workflow.md
+  - notes/agents-md-structure.md
 related_specs:
   - specs/build-workflow.yaml
   - specs/history-management.yaml

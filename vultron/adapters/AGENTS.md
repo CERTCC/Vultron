@@ -1,0 +1,71 @@
+# AGENTS.md — vultron/adapters/
+
+> For project-wide conventions see the root
+> [AGENTS.md](../../AGENTS.md). This file covers rules specific to the
+> adapters layer: FastAPI driving adapters, driven adapters (DataLayer
+> implementations), and demo scripts.
+
+---
+
+## FastAPI Driving Adapter Conventions
+
+- **202 immediately**: Inbox endpoints MUST return HTTP 202 within ~100 ms.
+  Schedule actual work with `BackgroundTasks`. Do not block the response
+  on message processing.
+- **Layer boundary**: Routers in `vultron/adapters/driving/fastapi/routers/`
+  MUST NOT import from `vultron/core/` directly except through the
+  dispatcher port. No business logic in routers.
+- **response\_model filtering**: FastAPI's `response_model=` strips fields
+  not declared on the model. Use a wide-enough model or `response_model=None`
+  when returning subtype objects.
+  See [notes/codebase-structure.md](../../notes/codebase-structure.md)
+  § FastAPI response\_model Filtering.
+
+---
+
+## Key Files Map — adapters layer
+
+- **Inbox**: `vultron/adapters/driving/fastapi/routers/actors.py`
+- **Triggers**: `vultron/adapters/driving/fastapi/routers/trigger_*.py`
+- **Errors**: `vultron/errors.py`,
+  `vultron/adapters/driving/fastapi/errors.py`
+- **TinyDB adapter**: `vultron/adapters/driven/datalayer_tinydb.py`
+- **ASGI Emitter**: `vultron/adapters/driven/asgi_emitter.py` — routes
+  in-process deliveries via ASGI; see
+  [notes/asgi-emitter.md](../../notes/asgi-emitter.md)
+
+---
+
+## Demo Script Conventions
+
+Use `demo_step` / `demo_check` context managers (`vultron/demo/utils.py`) to
+wrap every workflow step and verification block. See
+[notes/codebase-structure.md](../../notes/codebase-structure.md) §
+"Demo Script Lifecycle Logging" for the full pattern.
+
+Scenario demos MUST puppeteer via trigger endpoints, not spoof inboxes
+directly. See
+[notes/event-driven-control-flow.md](../../notes/event-driven-control-flow.md).
+
+---
+
+## Common Pitfalls — adapters layer
+
+See [notes/architecture-ports-and-adapters.md](../../notes/architecture-ports-and-adapters.md)
+for:
+
+- Avoid `BaseModel` in Port/Adapter Type Hints
+- Co-located Actor IDs Must Be HTTP-Routable; Wire Up `ASGIEmitter` at
+  Startup
+- ASGIEmitter Path Construction: Use Scheme+Netloc Only as `httpx` Base URL
+- `create_app()` MUST NOT Mutate Module-Level Singletons
+
+See [notes/codebase-structure.md](../../notes/codebase-structure.md) for:
+
+- Circular Imports
+- FastAPI response\_model Filtering
+- Health Check Readiness Gap
+- Docker Health Check Coordination
+- Actor IDs Must Always Be Full URIs
+- Actor ID Normalization in Trigger Paths: Resolve Path Params Before Outbox
+- Black Can Invalidate Inline pyright Suppressions on Wrapped Fields
