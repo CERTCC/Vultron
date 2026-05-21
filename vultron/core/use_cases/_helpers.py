@@ -15,6 +15,7 @@ from vultron.core.models.protocols import (
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.rm import RM
+from vultron.core.states.roles import CVDRole
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -184,6 +185,30 @@ def update_participant_rm_state(
         case_id,
     )
     return False
+
+
+def _resolve_case_manager_id(
+    case: CaseModel, dl: CasePersistence
+) -> str | None:
+    """Return the actor ID of the Case Manager (CVDRole.CASE_MANAGER).
+
+    Iterates over all participants in the case's ``actor_participant_index``
+    and returns the ``attributed_to`` actor ID of the first participant that
+    holds ``CVDRole.CASE_MANAGER``.  Returns ``None`` when no Case Manager
+    participant is found.
+
+    This is the correct recipient for all participant-originated outbound
+    activities after case creation (PCR-08-001, PCR-08-002).
+    """
+    for p_id in case.actor_participant_index.values():
+        p = dl.read(p_id)
+        if p is None:
+            continue
+        roles = getattr(p, "case_roles", [])
+        if CVDRole.CASE_MANAGER in roles:
+            manager_actor_id = getattr(p, "attributed_to", None)
+            return str(manager_actor_id) if manager_actor_id else None
+    return None
 
 
 def case_addressees(case: CaseModel, excluding_actor_id: str) -> list[str]:

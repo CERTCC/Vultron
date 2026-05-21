@@ -41,7 +41,7 @@ from vultron.core.states.participant_embargo_consent import (
     PEC_Trigger,
     apply_pec_trigger,
 )
-from vultron.core.use_cases._helpers import _as_id, case_addressees
+from vultron.core.use_cases._helpers import _as_id, _resolve_case_manager_id
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,
     find_embargo_proposal,
@@ -392,11 +392,12 @@ class SvcProposeEmbargoUseCase:
                 "SvcProposeEmbargoUseCase requires a TriggerActivityPort"
             )
 
+        case_manager_id = _resolve_case_manager_id(case, dl)
         proposal_id, proposal_dict = self._trigger_activity.propose_embargo(
             embargo_id=embargo.id_,
             case_id=case.id_,
             actor=actor_id,
-            to=case_addressees(case, actor_id) or None,
+            to=[case_manager_id] if case_manager_id else None,
         )
 
         case.current_status.em_state = new_em_state
@@ -465,11 +466,12 @@ class SvcAcceptEmbargoUseCase:
                 "SvcAcceptEmbargoUseCase requires a TriggerActivityPort"
             )
 
+        case_manager_id = _resolve_case_manager_id(case, dl)
         accept_id, accept_dict = self._trigger_activity.accept_embargo(
             proposal_id=proposal.id_,
             case_id=case.id_,
             actor=actor_id,
-            to=case_addressees(case, actor_id) or None,
+            to=[case_manager_id] if case_manager_id else None,
         )
 
         em_state = case.current_status.em_state
@@ -582,11 +584,12 @@ class SvcTerminateEmbargoUseCase:
                 "SvcTerminateEmbargoUseCase requires a TriggerActivityPort"
             )
 
+        case_manager_id = _resolve_case_manager_id(case, dl)
         announce_id, announce_dict = self._trigger_activity.terminate_embargo(
             embargo_id=embargo_id,
             case_id=case.id_,
             actor=actor_id,
-            to=case_addressees(case, actor_id) or None,
+            to=[case_manager_id] if case_manager_id else None,
         )
 
         case.current_status.em_state = EM(adapter.state)
@@ -650,11 +653,12 @@ class SvcRejectEmbargoUseCase:
                 "SvcRejectEmbargoUseCase requires a TriggerActivityPort"
             )
 
+        case_manager_id = _resolve_case_manager_id(case, dl)
         reject_id, reject_dict = self._trigger_activity.reject_embargo(
             proposal_id=proposal.id_,
             case_id=case.id_,
             actor=actor_id,
-            to=case_addressees(case, actor_id) or None,
+            to=[case_manager_id] if case_manager_id else None,
         )
 
         _update_participant_embargo_rejection(case, actor_id, embargo_id, dl)
@@ -766,11 +770,12 @@ class SvcProposeEmbargoRevisionUseCase:
                 " TriggerActivityPort"
             )
 
+        case_manager_id = _resolve_case_manager_id(case, dl)
         proposal_id, proposal_dict = self._trigger_activity.propose_embargo(
             embargo_id=embargo.id_,
             case_id=case.id_,
             actor=actor_id,
-            to=case_addressees(case, actor_id) or None,
+            to=[case_manager_id] if case_manager_id else None,
         )
 
         case.current_status.em_state = new_em_state
