@@ -15,7 +15,10 @@
 from typing import Any, cast
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.protocols import is_log_entry_model
 from vultron.core.use_cases.received.note import (
     AddNoteToCaseReceivedUseCase,
     CreateNoteReceivedUseCase,
@@ -401,3 +404,130 @@ class TestNoteUseCases:
         assert refreshed is not None
         refreshed = cast(VulnerabilityCase, refreshed)
         assert note.id_ in refreshed.notes
+
+    # ------------------------------------------------------------------
+    # CaseLogEntry cascade tests (PCR-08-003, PCR-08-004) — AC-1
+    # ------------------------------------------------------------------
+
+    def test_add_note_commits_log_entry_when_sync_port_provided(
+        self, make_payload
+    ):
+        """AddNoteToCaseReceivedUseCase commits a CaseLogEntry (PCR-08-003).
+
+        When a sync_port is injected and receiving_actor_id is set, the use
+        case MUST commit one VultronCaseLogEntry after accepting a note
+        addition.
+        """
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case_actor_id = "https://example.org/cases/case_le1/actor"
+        author_id = "https://example.org/users/vendor"
+        participant_id = "https://example.org/users/finder"
+        case_id = "https://example.org/cases/case_le1"
+
+        case_actor = VultronCaseActor(
+            id_=case_actor_id,
+            name="CaseActor le1",
+            attributed_to=author_id,
+            context=case_id,
+        )
+        dl.create(case_actor)
+
+        case = VulnerabilityCase(
+            id_=case_id,
+            name="Log Entry Cascade Case",
+            attributed_to=author_id,
+        )
+        case.actor_participant_index[author_id] = (
+            "https://example.org/participants/p-le1-vendor"
+        )
+        case.actor_participant_index[participant_id] = (
+            "https://example.org/participants/p-le1-finder"
+        )
+        dl.create(case)
+
+        note = as_Note(
+            id_="https://example.org/notes/note_le1",
+            content="Log entry cascade note",
+            context=case_id,
+        )
+        dl.create(note)
+
+        activity = add_note_to_case_activity(
+            note, target=case, actor=author_id
+        )
+        event = make_payload(activity, receiving_actor_id=case_actor_id)
+
+        sync_port = SyncActivityAdapter(dl)
+        AddNoteToCaseReceivedUseCase(dl, event, sync_port=sync_port).execute()
+
+        # Exactly one CaseLogEntry should be persisted for this case.
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLogEntry")
+            if is_log_entry_model(obj)
+            and cast(VultronCaseLogEntry, obj).case_id == case_id
+        ]
+        assert len(entries) == 1
+        entry = cast(VultronCaseLogEntry, entries[0])
+        assert entry.event_type == "add_note_to_case"
+        assert entry.log_object_id == note.id_
+
+    def test_add_note_no_fanout_without_sync_port(self, make_payload):
+        """No fan-out Announce(CaseLogEntry) is sent when sync_port is None.
+
+        The log entry IS committed locally, but no outbox messages are queued
+        for delivery to participants.
+        """
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case_actor_id = "https://example.org/cases/case_le2/actor"
+        author_id = "https://example.org/users/vendor"
+        participant_id = "https://example.org/users/finder"
+        case_id = "https://example.org/cases/case_le2"
+
+        case_actor = VultronCaseActor(
+            id_=case_actor_id,
+            name="CaseActor le2",
+            attributed_to=author_id,
+            context=case_id,
+        )
+        dl.create(case_actor)
+
+        case = VulnerabilityCase(
+            id_=case_id,
+            name="No Sync Port Case",
+            attributed_to=author_id,
+        )
+        case.actor_participant_index[author_id] = (
+            "https://example.org/participants/p-le2-vendor"
+        )
+        case.actor_participant_index[participant_id] = (
+            "https://example.org/participants/p-le2-finder"
+        )
+        dl.create(case)
+
+        note = as_Note(
+            id_="https://example.org/notes/note_le2",
+            content="No cascade note",
+            context=case_id,
+        )
+        dl.create(note)
+
+        activity = add_note_to_case_activity(
+            note, target=case, actor=author_id
+        )
+        event = make_payload(activity, receiving_actor_id=case_actor_id)
+
+        # No sync_port — log entry is committed but fan-out is skipped.
+        AddNoteToCaseReceivedUseCase(dl, event, sync_port=None).execute()
+
+        # Log entry MUST be committed locally even without a sync_port.
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLogEntry")
+            if is_log_entry_model(obj)
+            and cast(VultronCaseLogEntry, obj).case_id == case_id
+        ]
+        assert len(entries) == 1
+
+        # But no outbox activities should be queued for fan-out.
+        assert dl.outbox_list() == []

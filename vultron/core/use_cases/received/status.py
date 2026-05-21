@@ -23,6 +23,7 @@ from vultron.core.models.protocols import (
 )
 
 if TYPE_CHECKING:
+    from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
@@ -192,10 +193,12 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: AddParticipantStatusToParticipantReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: AddParticipantStatusToParticipantReceivedEvent = request
         self._trigger_activity = trigger_activity
+        self._sync_port = sync_port
 
     def execute(self) -> None:
         request = self._request
@@ -231,3 +234,77 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                 request.activity_id,
                 reason or result.feedback_message,
             )
+            # Do NOT cascade on BT failure here.  Unlike RemoveEmbargo (where
+            # FAILURE means "already cleared" — an idempotent, non-error
+            # outcome), a status-update BT failure means the update itself was
+            # rejected (e.g., participant not found, invalid state transition).
+            # Broadcasting a log entry for a rejected update would mislead
+            # peers into believing the status was accepted.
+            return
+
+        self._commit_log_cascade()
+
+    def _commit_log_cascade(self) -> None:
+        """Commit a CaseLogEntry and fan it out to all participants (PCR-08-003).
+
+        Derives case_id from the inline status object's ``context`` field.
+        Uses ``receiving_actor_id`` (the CaseActor's canonical ID) when
+        available, falling back to a DataLayer lookup for the Service object
+        whose ``context`` matches *case_id*.
+        """
+        from vultron.core.use_cases.received.actor import _find_case_actor_id
+        from vultron.core.use_cases.triggers.sync import (
+            commit_log_entry_trigger,
+        )
+
+        request = self._request
+
+        # Derive case_id from the inline status object (same approach as BT).
+        case_id: str | None = None
+        if request.status is not None:
+            context = getattr(request.status, "context", None)
+            if context:
+                case_id = str(context)
+
+        # Fallback 1: activity-level context (populated when activity.context
+        # is set to the case object by the caller, e.g. add_status_to_participant
+        # sets context=case).
+        if case_id is None:
+            case_id = request.context_id
+
+        # Fallback 2: read the stored ParticipantStatus and check its context.
+        # Handles cases where the inline object was omitted and the BT resolved
+        # it via a DataLayer lookup (VerifySenderIsParticipantNode._resolve_case_id).
+        if case_id is None and request.status_id:
+            stored_status = self._dl.read(request.status_id)
+            if stored_status is not None:
+                ctx = getattr(stored_status, "context", None)
+                if ctx:
+                    case_id = str(ctx)
+
+        if case_id is None:
+            logger.warning(
+                "add_participant_status: cannot determine case_id"
+                " — skipping log entry cascade (PCR-08-003)"
+            )
+            return
+
+        actor_id = request.receiving_actor_id
+        if actor_id is None:
+            actor_id = _find_case_actor_id(self._dl, case_id)
+        if actor_id is None:
+            logger.warning(
+                "add_participant_status: cannot resolve CaseActor for case '%s'"
+                " — skipping log entry cascade (PCR-08-003)",
+                case_id,
+            )
+            return
+
+        commit_log_entry_trigger(
+            case_id=case_id,
+            object_id=request.status_id or request.activity_id,
+            event_type="add_participant_status",
+            actor_id=actor_id,
+            dl=self._dl,
+            sync_port=self._sync_port,
+        )

@@ -17,6 +17,11 @@ from typing import Any, cast
 from unittest.mock import MagicMock
 
 from vultron.adapters.driven.db_record import StorableRecord
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.protocols import is_log_entry_model
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     AnnounceEmbargoEventToCaseReceivedUseCase,
@@ -43,6 +48,8 @@ from vultron.wire.as2.factories import (
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 
 class TestEmbargoUseCases:
@@ -709,4 +716,295 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
         assert any(
             "no receiver-side state change required" in r.message
             for r in caplog.records
+        )
+
+
+# ---------------------------------------------------------------------------
+# CaseLogEntry cascade tests (PCR-08-003, PCR-08-004) — AC-3
+# ---------------------------------------------------------------------------
+
+
+def _make_embargo_case_with_actor(
+    case_id: str,
+    author_id: str,
+    extra_participants: list[str] | None = None,
+) -> tuple[SqliteDataLayer, VultronCaseActor, VulnerabilityCase, EmbargoEvent]:
+    """Return (dl, case_actor, case, embargo) ready for cascade tests.
+
+    Also creates ``CaseParticipant`` objects so actor → participant lookups
+    in the embargo handlers succeed.
+    """
+    from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+
+    dl = SqliteDataLayer("sqlite:///:memory:")
+    case_actor_id = f"{case_id}/actor"
+
+    case_actor = VultronCaseActor(
+        id_=case_actor_id,
+        name=f"CaseActor for {case_id}",
+        attributed_to=author_id,
+        context=case_id,
+    )
+    dl.create(case_actor)
+
+    case = VulnerabilityCase(
+        id_=case_id,
+        name="Embargo Cascade Case",
+        attributed_to=author_id,
+    )
+    p1_id = f"{case_id}/participants/p1"
+    case.actor_participant_index[author_id] = p1_id
+    p1 = CaseParticipant(id_=p1_id, context=case_id, attributed_to=author_id)
+    dl.create(p1)
+
+    for pid in extra_participants or []:
+        short = pid.rsplit("/", 1)[-1]
+        pn_id = f"{case_id}/participants/{short}"
+        case.actor_participant_index[pid] = pn_id
+        pn = CaseParticipant(id_=pn_id, context=case_id, attributed_to=pid)
+        dl.create(pn)
+
+    dl.create(case)
+
+    embargo = EmbargoEvent(
+        id_=f"{case_id}/embargo_events/e1",
+        content="Cascade test embargo",
+        context=case_id,
+    )
+    dl.create(embargo)
+
+    return dl, case_actor, case, embargo
+
+
+class TestEmbargoLogEntryCascade:
+    """CaseLogEntry cascade for each embargo received-side handler (AC-3)."""
+
+    def test_add_embargo_event_commits_log_entry(self, make_payload):
+        """AddEmbargoEventToCaseReceivedUseCase commits a CaseLogEntry."""
+        author_id = "https://example.org/users/coord"
+        case_id = "https://example.org/cases/em_cas_add"
+        dl, case_actor, case, embargo = _make_embargo_case_with_actor(
+            case_id, author_id
+        )
+        case = cast(VulnerabilityCase, dl.read(case.id_))
+        assert case is not None
+        case.current_status.em_state = EM.PROPOSED
+        dl.save(case)
+
+        activity = add_embargo_to_case_activity(
+            embargo, target=case, actor=author_id
+        )
+        event = make_payload(activity, receiving_actor_id=case_actor.id_)
+        sync_port = SyncActivityAdapter(dl)
+        AddEmbargoEventToCaseReceivedUseCase(
+            dl, event, sync_port=sync_port
+        ).execute()
+
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLogEntry")
+            if is_log_entry_model(obj)
+            and cast(VultronCaseLogEntry, obj).case_id == case_id
+        ]
+        assert len(entries) == 1
+        assert cast(VultronCaseLogEntry, entries[0]).event_type == (
+            "add_embargo_event_to_case"
+        )
+
+    def test_remove_embargo_event_commits_log_entry(self, make_payload):
+        """RemoveEmbargoEventFromCaseReceivedUseCase commits a CaseLogEntry."""
+        import py_trees
+
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+        py_trees.blackboard.Blackboard.storage.clear()
+
+        author_id = "https://example.org/users/coord"
+        case_id = "https://example.org/cases/em_cas_rem"
+        dl, case_actor, case, embargo = _make_embargo_case_with_actor(
+            case_id, author_id
+        )
+        case = cast(VulnerabilityCase, dl.read(case.id_))
+        assert case is not None
+        case.current_status.em_state = EM.ACTIVE
+        case.proposed_embargoes.append(embargo.id_)
+        case.active_embargo = embargo.id_  # type: ignore[assignment]
+        dl.save(case)
+
+        activity = remove_embargo_from_case_activity(
+            embargo, origin=case, actor=author_id
+        )
+        event = make_payload(activity, receiving_actor_id=case_actor.id_)
+        sync_port = SyncActivityAdapter(dl)
+        RemoveEmbargoEventFromCaseReceivedUseCase(
+            dl, event, sync_port=sync_port
+        ).execute()
+
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLogEntry")
+            if is_log_entry_model(obj)
+            and cast(VultronCaseLogEntry, obj).case_id == case_id
+        ]
+        assert len(entries) == 1
+        assert cast(VultronCaseLogEntry, entries[0]).event_type == (
+            "remove_embargo_event_from_case"
+        )
+
+    def test_remove_embargo_commits_log_entry_on_bt_failure(
+        self, make_payload
+    ):
+        """RemoveEmbargoEventFromCaseReceivedUseCase cascades even when BT fails.
+
+        BT FAILURE means "embargo already cleared" — it is not an error. The
+        CaseLogEntry MUST be committed regardless so participants learn the
+        current state.
+        """
+        import py_trees
+
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+        py_trees.blackboard.Blackboard.storage.clear()
+
+        author_id = "https://example.org/users/coord"
+        case_id = "https://example.org/cases/em_cas_rem_fail"
+        dl, case_actor, case, embargo = _make_embargo_case_with_actor(
+            case_id, author_id
+        )
+        # EM.NONE: no active embargo — BT will FAIL (IsActiveEmbargoNode)
+        case = cast(VulnerabilityCase, dl.read(case.id_))
+        assert case is not None
+        case.current_status.em_state = EM.NONE
+        dl.save(case)
+
+        activity = remove_embargo_from_case_activity(
+            embargo, origin=case, actor=author_id
+        )
+        event = make_payload(activity, receiving_actor_id=case_actor.id_)
+        sync_port = SyncActivityAdapter(dl)
+        RemoveEmbargoEventFromCaseReceivedUseCase(
+            dl, event, sync_port=sync_port
+        ).execute()
+
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLogEntry")
+            if is_log_entry_model(obj)
+            and cast(VultronCaseLogEntry, obj).case_id == case_id
+        ]
+        # Cascade must fire even on BT FAILURE.
+        assert len(entries) == 1
+
+    def test_invite_to_embargo_commits_log_entry(self, make_payload):
+        """InviteToEmbargoOnCaseReceivedUseCase commits a CaseLogEntry."""
+        author_id = "https://example.org/users/coord"
+        case_id = "https://example.org/cases/em_cas_invite"
+        invitee_id = "https://example.org/users/vendor"
+        dl, case_actor, case, embargo = _make_embargo_case_with_actor(
+            case_id, author_id, extra_participants=[invitee_id]
+        )
+
+        proposal = em_propose_embargo_activity(
+            embargo,
+            context=case_id,
+            actor=author_id,
+            id_=f"{case_id}/embargo_proposals/1",
+        )
+        dl.create(proposal)
+
+        # receiving_actor_id must be a participant actor so the handler can
+        # look up the participant's consent state.
+        event = make_payload(proposal, receiving_actor_id=invitee_id)
+        sync_port = SyncActivityAdapter(dl)
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, sync_port=sync_port
+        ).execute()
+
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLogEntry")
+            if is_log_entry_model(obj)
+            and cast(VultronCaseLogEntry, obj).case_id == case_id
+        ]
+        assert len(entries) == 1
+        assert cast(VultronCaseLogEntry, entries[0]).event_type == (
+            "invite_to_embargo_on_case"
+        )
+
+    def test_accept_invite_to_embargo_commits_log_entry(self, make_payload):
+        """AcceptInviteToEmbargoOnCaseReceivedUseCase commits a CaseLogEntry."""
+        coordinator_id = "https://example.org/users/coordinator"
+        case_id = "https://example.org/cases/em_cas_accept"
+        dl, case_actor, case, embargo = _make_embargo_case_with_actor(
+            case_id, coordinator_id
+        )
+        case = cast(VulnerabilityCase, dl.read(case.id_))
+        assert case is not None
+        case.current_status.em_state = EM.PROPOSED
+        dl.save(case)
+
+        proposal = em_propose_embargo_activity(
+            embargo,
+            context=case,
+            actor="https://example.org/users/vendor",
+            id_=f"{case_id}/embargo_proposals/1",
+        )
+        dl.create(proposal)
+
+        accept = em_accept_embargo_activity(
+            proposal,
+            context=case,
+            actor=coordinator_id,
+        )
+        event = make_payload(accept, receiving_actor_id=case_actor.id_)
+        sync_port = SyncActivityAdapter(dl)
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, sync_port=sync_port
+        ).execute()
+
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLogEntry")
+            if is_log_entry_model(obj)
+            and cast(VultronCaseLogEntry, obj).case_id == case_id
+        ]
+        assert len(entries) == 1
+        assert cast(VultronCaseLogEntry, entries[0]).event_type == (
+            "accept_invite_to_embargo_on_case"
+        )
+
+    def test_reject_invite_to_embargo_commits_log_entry(self, make_payload):
+        """RejectInviteToEmbargoOnCaseReceivedUseCase commits a CaseLogEntry."""
+        coordinator_id = "https://example.org/users/coordinator"
+        case_id = "https://example.org/cases/em_cas_reject"
+        dl, case_actor, case, embargo = _make_embargo_case_with_actor(
+            case_id, coordinator_id
+        )
+
+        proposal = em_propose_embargo_activity(
+            embargo,
+            context=case_id,
+            actor="https://example.org/users/vendor",
+            id_=f"{case_id}/embargo_proposals/1",
+        )
+        dl.create(proposal)
+
+        reject = em_reject_embargo_activity(
+            proposal,
+            context=case_id,
+            actor=coordinator_id,
+        )
+        event = make_payload(reject, receiving_actor_id=case_actor.id_)
+        sync_port = SyncActivityAdapter(dl)
+        RejectInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, sync_port=sync_port
+        ).execute()
+
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLogEntry")
+            if is_log_entry_model(obj)
+            and cast(VultronCaseLogEntry, obj).case_id == case_id
+        ]
+        assert len(entries) == 1
+        assert cast(VultronCaseLogEntry, entries[0]).event_type == (
+            "reject_invite_to_embargo_on_case"
         )
