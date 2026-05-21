@@ -187,7 +187,7 @@ def create_actor(
 
 
 @router.get(
-    "/{actor_id}/profile",
+    "/{actor_id:path}/profile",
     response_model_exclude_none=True,
     summary="Get Actor Profile",
     description=(
@@ -225,7 +225,7 @@ def get_actor_profile(
 
 
 @router.get(
-    "/{actor_id}/cases/{case_id}/action-rules",
+    "/{actor_id:path}/cases/{case_id}/action-rules",
     summary="Get CVD Action Rules for an Actor in a Case",
     description=(
         "Returns the set of valid CVD actions available to an actor in a "
@@ -256,7 +256,7 @@ def get_action_rules(
 
 
 @router.get(
-    "/{actor_id}/inbox",
+    "/{actor_id:path}/inbox",
     response_model=as_OrderedCollection,
     response_model_exclude_none=True,
     summary="Get Actor Inbox",
@@ -393,7 +393,7 @@ def _record_inbox_receipt(
 
 
 @router.post(
-    "/{actor_id}/inbox/",
+    "/{actor_id:path}/inbox/",
     summary="Add an Activity to the Actor's Inbox.",
     description="Adds an Activity to the Actor's Inbox. (stub implementation).",
     status_code=status.HTTP_202_ACCEPTED,
@@ -452,7 +452,7 @@ def post_actor_inbox(
 
 
 @router.post(
-    "/{actor_id}/outbox/",
+    "/{actor_id:path}/outbox/",
     summary="Add an Activity to the Actor's Outbox.",
     description="Adds an Activity to the Actor's Outbox. (stub implementation).",
     status_code=status.HTTP_200_OK,
