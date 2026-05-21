@@ -97,7 +97,7 @@ after case creation:
 
 ```python
 # ❌ WRONG — sends to all participants directly, bypassing Case Actor
-addressees = case_addressees(case, actor_id)   # [vendor, finder, case_actor]
+addressees = case_addressees(case, actor_id)   # [vendor, finder]  (excludes caller)
 activity = add_note_to_case_activity(
     note=note, target=case_id, actor=actor_id, to=addressees
 )
@@ -153,11 +153,11 @@ The expected flow:
    `Announce(CaseLogEntry)` to all participants via Case Actor outbox).
 4. `OutboxMonitor` drains the Case Actor outbox → delivers to each
    participant's inbox.
-5. Participant's `AnnounceVulnerabilityCaseReceivedUseCase` (or future
-   `AnnounceCaseLogEntryReceivedUseCase`) processes the entry and updates
-   the local replica.
+5. Participant's `AnnounceLogEntryReceivedUseCase` (`received/sync.py`)
+   processes the entry and updates the local replica.
 
-The `demo/demo_triggers.py` `sync-log-entry` endpoint exists only as a
+The `vultron/adapters/driving/fastapi/routers/demo_triggers.py`
+`sync-log-entry` endpoint exists only as a
 **test scaffold** for manually injecting log entries during demo
 verification. It MUST NOT be part of the normal message flow — the
 cascade must fire automatically as a consequence of any accepted
