@@ -99,7 +99,15 @@ def dl(actor_and_dl):
 
 @pytest.fixture
 def client_demo(dl):
-    """Test client with only the demo router mounted."""
+    """Test client with only the demo router mounted.
+
+    Patches ``get_default_emitter`` with a no-op ``AsyncMock`` so that the
+    ``outbox_handler`` background task completes immediately without making
+    real HTTP delivery attempts (which would add retry-backoff delays and
+    exceed the CI per-test timeout).
+    """
+    from unittest.mock import AsyncMock, patch
+
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter,
     )
@@ -113,7 +121,12 @@ def client_demo(dl):
     )
     app.dependency_overrides[get_trigger_dl] = lambda: dl
     app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
-    yield TestClient(app)
+    mock_emitter = AsyncMock()
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_handler.get_default_emitter",
+        return_value=mock_emitter,
+    ):
+        yield TestClient(app)
     app.dependency_overrides = {}
 
 
