@@ -30,7 +30,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 _ACTOR_ID = "https://example.org/actors/alice"
 
-# Use urn:uuid IDs for HTTP endpoint tests to avoid path-segment issues.
+# URN IDs used in action-rules tests (retain urn: format for those routes
+# which still have single-segment path params for actor_id sub-paths).
 _HTTP_ACTOR_ID = "urn:uuid:aaaaaaaa-0000-0000-0000-000000000001"
 _HTTP_CASE_ID = "urn:uuid:aaaaaaaa-0000-0000-0000-000000000003"
 _HTTP_PARTICIPANT_ID = "urn:uuid:aaaaaaaa-0000-0000-0000-000000000004"
@@ -318,8 +319,43 @@ class TestCreateActor:
             "id": custom_id,
         }
         client_actors.post("/actors/", json=payload)
-        # GET /actors/{short_id} — path parameters cannot contain '/', so use
-        # the last URL segment; find_actor_by_short_id resolves to the full ID.
+        # Short-ID lookup still works; find_actor_by_short_id resolves to the full ID.
         resp = client_actors.get("/actors/fetchable")
         assert resp.status_code == status.HTTP_200_OK
         assert resp.json()["id"] == custom_id
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for #610: HTTP URL actor IDs must be fetchable
+# ---------------------------------------------------------------------------
+
+_HTTP_URL_ACTOR_ID = "http://vendor:7999/api/v2/actors/alice"
+
+
+def test_get_actor_by_http_url_id_returns_actor(client_actors, dl):
+    """GET /actors/{url-encoded-http-id} must return the stored actor.
+
+    Regression: Starlette decodes %2F to / before routing, so single-segment
+    /{actor_id} never matched HTTP URL actor IDs.  Fix: /{actor_id:path}.
+    """
+    from urllib.parse import quote
+
+    from vultron.adapters.driven.db_record import object_to_record
+    from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+
+    actor = as_Organization(id_=_HTTP_URL_ACTOR_ID, name="VendorActor")
+    dl.create(object_to_record(actor))
+
+    encoded = quote(_HTTP_URL_ACTOR_ID, safe="")
+    resp = client_actors.get(f"/actors/{encoded}")
+    assert resp.status_code == status.HTTP_200_OK
+    assert resp.json()["id"] == _HTTP_URL_ACTOR_ID
+
+
+def test_specific_actor_routes_not_shadowed_by_catch_all(
+    client_actors, created_actors
+):
+    """Sub-routes like /{actor_id}/profile still resolve correctly."""
+    for actor in created_actors:
+        resp = client_actors.get(f"/actors/{actor.id_}/profile")
+        assert resp.status_code == status.HTTP_200_OK

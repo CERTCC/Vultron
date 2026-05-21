@@ -37,20 +37,6 @@ router = APIRouter(prefix="/datalayer", tags=["datalayer"])
 
 
 @router.get(
-    "/{key}",
-    description="Returns a specific object by key.",
-    operation_id="datalayer_get_by_key",
-)
-def get_object_by_key(key: str, datalayer: DataLayer = Depends(get_shared_dl)):
-    obj = datalayer.read(key)
-
-    if not obj:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-
-    return obj
-
-
-@router.get(
     "/{object_type}/{object_id}",
     description="Returns a specific object by type and ID.",
     operation_id="datalayer_get_by_type_and_id",
@@ -239,3 +225,18 @@ def reset_datalayer(
         "status": "datalayer reset successfully",
         "n_items": datalayer.count_all(),
     }
+
+
+@router.get(
+    "/{key:path}",
+    description="Returns a specific object by key. Accepts any key including "
+    "HTTP URL keys with percent-encoded slashes.",
+    operation_id="datalayer_get_by_key",
+)
+def get_object_by_key(key: str, datalayer: DataLayer = Depends(get_shared_dl)):
+    obj = datalayer.read(key)
+
+    if not obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    return obj

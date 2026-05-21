@@ -40,13 +40,9 @@ def _dl_key(key: str) -> str:
     """URL-encode a DataLayer key for safe embedding in an API path segment.
 
     Encodes characters that are illegal in URL path segments (e.g., colons in
-    URN-style keys like ``urn:uuid:...``).
-
-    Note: HTTP URL-based participant IDs (which contain literal slashes)
-    cannot be fetched via the single-segment ``/{key}`` DataLayer route even
-    after URL-encoding, because Starlette decodes ``%2F`` back to ``/`` before
-    path matching.  Such IDs must be handled via exception catching at the
-    call site.
+    URN-style keys like ``urn:uuid:...``) and slashes in HTTP URL keys.
+    The DataLayer ``/{key:path}`` route accepts percent-encoded slashes and
+    correctly reconstructs the original key before the DataLayer lookup.
     """
     return quote(str(key), safe="")
 

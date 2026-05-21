@@ -11,9 +11,12 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from urllib.parse import quote
+
 from fastapi import status
 
 from vultron.adapters.driven.db_record import object_to_record
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 
 
 def test_get_offers_returns_empty_dict_when_no_offers(client_datalayer):
@@ -102,3 +105,47 @@ def test_reset_endpoint_clears_all_data(client_datalayer, dl, report, offer):
     resp_reports = client_datalayer.get("/datalayer/Reports/")
     assert resp_reports.status_code == status.HTTP_200_OK
     assert len(resp_reports.json()) == 0
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for #610: URL-format (HTTP URL) keys must be fetchable
+# ---------------------------------------------------------------------------
+
+_HTTP_PARTICIPANT_ID = (
+    "http://vendor:7999/api/v2/actors/case-actor-abc/participant"
+)
+
+
+def test_get_by_http_url_key_returns_stored_record(client_datalayer, dl):
+    """GET /datalayer/{url-encoded-http-id} must return the stored record.
+
+    Regression: Starlette decodes %2F to / before routing, so single-segment
+    /{key} never matched URL-format IDs.  Fix: use /{key:path} as catch-all.
+    """
+    participant = CaseParticipant(id_=_HTTP_PARTICIPANT_ID)
+    dl.create(object_to_record(participant))
+
+    encoded = quote(_HTTP_PARTICIPANT_ID, safe="")
+    response = client_datalayer.get(f"/datalayer/{encoded}")
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["id"] == _HTTP_PARTICIPANT_ID
+
+
+def test_get_by_http_url_key_not_found_returns_404(client_datalayer):
+    """Non-existent HTTP URL key returns 404 (not a routing error)."""
+    encoded = quote(
+        "http://vendor:7999/api/v2/actors/missing/participant", safe=""
+    )
+    response = client_datalayer.get(f"/datalayer/{encoded}")
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_specific_routes_not_shadowed_by_catch_all(
+    client_datalayer, dl, offer
+):
+    """Specific routes (e.g. /Offers/) still resolve correctly after fix."""
+    dl.create(object_to_record(offer))
+    response = client_datalayer.get("/datalayer/Offers/")
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert offer.id_ in data

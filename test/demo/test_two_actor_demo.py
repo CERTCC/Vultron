@@ -874,14 +874,16 @@ class TestWaitForAllParticipantsRmClosed:
     def test_url_based_participant_id_handled_gracefully(
         self, client: TestClient, base: str
     ):
-        """URL-based participant IDs (HTTP URLs with slashes) are handled gracefully.
+        """URL-based participant IDs (HTTP URLs with slashes) are now fetchable.
 
-        The Case Actor's participant ID is an HTTP URL.  The DataLayer
-        ``/{key}`` route cannot serve it — Starlette decodes ``%2F`` before
-        path matching, so encoded slashes still break the single-segment route.
-        ``_all_fetchable_participants_rm_closed`` must catch the resulting
-        exception and skip the participant rather than propagating the error.
+        Regression test for #610.  The Case Actor's participant ID is an HTTP
+        URL.  After the fix (``/{key:path}`` catch-all route), the DataLayer
+        endpoint correctly decodes the URL key and returns the stored record.
+        ``_all_fetchable_participants_rm_closed`` must also handle URL-based
+        IDs without error.
         """
+        from urllib.parse import quote
+
         finder_client, vendor_client, finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
@@ -899,14 +901,18 @@ class TestWaitForAllParticipantsRmClosed:
         assert (
             url_based_ids
         ), "Expected at least one URL-based participant ID (Case Actor)"
-        # Confirm that a direct fetch of the URL-based participant ID raises an
-        # exception — slashes make the /{key} route unreachable.
-        p_id = url_based_ids[0]
-        with pytest.raises(Exception):
-            vendor_client.get(f"/datalayer/{p_id}")
 
-        # _all_fetchable_participants_rm_closed must not propagate the
-        # exception; it catches and skips unfetchable participant IDs.
+        # After fix: URL-based participant IDs must be fetchable via
+        # the DataLayer endpoint with percent-encoded slashes.
+        p_id = url_based_ids[0]
+        encoded = quote(p_id, safe="")
+        result = vendor_client.get(f"/datalayer/{encoded}")
+        assert (
+            isinstance(result, dict) and result.get("id") == p_id
+        ), f"Expected participant record for URL-format ID {p_id!r}, got {result!r}"
+
+        # _all_fetchable_participants_rm_closed must also handle URL-based
+        # participant IDs without error.
         try:
             demo._all_fetchable_participants_rm_closed(
                 vendor_client, fetched_case
