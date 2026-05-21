@@ -207,7 +207,7 @@ def _resolve_case_manager_id(
         roles = getattr(p, "case_roles", [])
         if CVDRole.CASE_MANAGER in roles:
             manager_actor_id = getattr(p, "attributed_to", None)
-            return str(manager_actor_id) if manager_actor_id else None
+            return _as_id(manager_actor_id)
     return None
 
 

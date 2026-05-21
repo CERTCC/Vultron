@@ -11,6 +11,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
 )
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases.triggers.embargo import (
     SvcAcceptEmbargoUseCase,
     SvcRejectEmbargoUseCase,
@@ -58,6 +59,7 @@ def _build_active_embargo_case(
         embargo_consent_state=PEC.SIGNATORY.value,
         accepted_embargo_ids=[embargo.id_],
     )
+    owner_participant.add_role(CVDRole.CASE_MANAGER)
     participant = FinderParticipant(
         attributed_to=participant_id,
         context=case.id_,

@@ -40,9 +40,26 @@ from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+
+
+def _add_case_manager(case: VulnerabilityCase, dl) -> as_Service:
+    """Add a CASE_MANAGER participant to *case* and return the case actor."""
+    case_actor = as_Service(name=f"Case Actor for {case.name}")
+    dl.create(case_actor)
+    cm_participant = CaseParticipant(
+        attributed_to=case_actor.id_,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(cm_participant)
+    case.actor_participant_index[case_actor.id_] = cm_participant.id_
+    dl.save(case)
+    return case_actor
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -126,6 +143,7 @@ def case_with_actor(dl, actor):
     case_obj.actor_participant_index[actor.id_] = participant.id_
     dl.create(case_obj)
     dl.create(participant)
+    _add_case_manager(case_obj, dl)
     return case_obj
 
 

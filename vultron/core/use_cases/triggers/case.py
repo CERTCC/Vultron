@@ -79,11 +79,16 @@ class SvcEngageCaseUseCase:
             )
 
         case_manager_id = _resolve_case_manager_id(case, dl)
+        if case_manager_id is None:
+            raise VultronValidationError(
+                f"Cannot route engage-case activity: no Case Manager participant"
+                f" found in case '{case_id}'"
+            )
 
         activity_id, activity_dict = self._trigger_activity.engage_case(
             case_id=case_id,
             actor=actor_id,
-            to=[case_manager_id] if case_manager_id else None,
+            to=[case_manager_id],
         )
 
         update_participant_rm_state(case.id_, actor_id, RM.ACCEPTED, dl)
@@ -129,11 +134,16 @@ class SvcDeferCaseUseCase:
             )
 
         case_manager_id = _resolve_case_manager_id(case, dl)
+        if case_manager_id is None:
+            raise VultronValidationError(
+                f"Cannot route defer-case activity: no Case Manager participant"
+                f" found in case '{case_id}'"
+            )
 
         activity_id, activity_dict = self._trigger_activity.defer_case(
             case_id=case_id,
             actor=actor_id,
-            to=[case_manager_id] if case_manager_id else None,
+            to=[case_manager_id],
         )
 
         update_participant_rm_state(case.id_, actor_id, RM.DEFERRED, dl)

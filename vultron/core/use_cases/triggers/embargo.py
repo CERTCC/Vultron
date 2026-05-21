@@ -393,11 +393,16 @@ class SvcProposeEmbargoUseCase:
             )
 
         case_manager_id = _resolve_case_manager_id(case, dl)
+        if case_manager_id is None:
+            raise VultronValidationError(
+                f"Cannot route propose-embargo activity: no Case Manager"
+                f" participant found in case '{case.id_}'"
+            )
         proposal_id, proposal_dict = self._trigger_activity.propose_embargo(
             embargo_id=embargo.id_,
             case_id=case.id_,
             actor=actor_id,
-            to=[case_manager_id] if case_manager_id else None,
+            to=[case_manager_id],
         )
 
         case.current_status.em_state = new_em_state
@@ -467,11 +472,16 @@ class SvcAcceptEmbargoUseCase:
             )
 
         case_manager_id = _resolve_case_manager_id(case, dl)
+        if case_manager_id is None:
+            raise VultronValidationError(
+                f"Cannot route accept-embargo activity: no Case Manager"
+                f" participant found in case '{case.id_}'"
+            )
         accept_id, accept_dict = self._trigger_activity.accept_embargo(
             proposal_id=proposal.id_,
             case_id=case.id_,
             actor=actor_id,
-            to=[case_manager_id] if case_manager_id else None,
+            to=[case_manager_id],
         )
 
         em_state = case.current_status.em_state
@@ -585,11 +595,16 @@ class SvcTerminateEmbargoUseCase:
             )
 
         case_manager_id = _resolve_case_manager_id(case, dl)
+        if case_manager_id is None:
+            raise VultronValidationError(
+                f"Cannot route terminate-embargo activity: no Case Manager"
+                f" participant found in case '{case.id_}'"
+            )
         announce_id, announce_dict = self._trigger_activity.terminate_embargo(
             embargo_id=embargo_id,
             case_id=case.id_,
             actor=actor_id,
-            to=[case_manager_id] if case_manager_id else None,
+            to=[case_manager_id],
         )
 
         case.current_status.em_state = EM(adapter.state)
@@ -654,11 +669,16 @@ class SvcRejectEmbargoUseCase:
             )
 
         case_manager_id = _resolve_case_manager_id(case, dl)
+        if case_manager_id is None:
+            raise VultronValidationError(
+                f"Cannot route reject-embargo activity: no Case Manager"
+                f" participant found in case '{case.id_}'"
+            )
         reject_id, reject_dict = self._trigger_activity.reject_embargo(
             proposal_id=proposal.id_,
             case_id=case.id_,
             actor=actor_id,
-            to=[case_manager_id] if case_manager_id else None,
+            to=[case_manager_id],
         )
 
         _update_participant_embargo_rejection(case, actor_id, embargo_id, dl)
@@ -771,11 +791,16 @@ class SvcProposeEmbargoRevisionUseCase:
             )
 
         case_manager_id = _resolve_case_manager_id(case, dl)
+        if case_manager_id is None:
+            raise VultronValidationError(
+                f"Cannot route propose-embargo-revision activity: no Case"
+                f" Manager participant found in case '{case.id_}'"
+            )
         proposal_id, proposal_dict = self._trigger_activity.propose_embargo(
             embargo_id=embargo.id_,
             case_id=case.id_,
             actor=actor_id,
-            to=[case_manager_id] if case_manager_id else None,
+            to=[case_manager_id],
         )
 
         case.current_status.em_state = new_em_state

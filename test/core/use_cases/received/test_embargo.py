@@ -593,6 +593,7 @@ class TestEmbargoUseCases:
         )
         from vultron.wire.as2.vocab.base.objects.actors import (
             as_Actor as Actor,
+            as_Service,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -622,6 +623,27 @@ class TestEmbargoUseCases:
         dl.create(case)
         dl.create(embargo)
         dl.create(proposal)
+
+        # Add a Case Manager participant so routing proceeds to the
+        # EM-state validation check (the test's actual assertion target).
+        from vultron.core.states.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant as CP,
+        )
+
+        case_actor = as_Service(
+            id_="https://example.org/actors/case-manager",
+            name="Case Manager",
+        )
+        dl.create(case_actor)
+        cm_p = CP(
+            attributed_to=case_actor.id_,
+            context=case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(cm_p)
+        case.actor_participant_index[case_actor.id_] = cm_p.id_
+        dl.save(case)
 
         request = AcceptEmbargoTriggerRequest(
             actor_id=actor.id_,

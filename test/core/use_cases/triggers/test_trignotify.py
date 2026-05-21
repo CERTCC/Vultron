@@ -28,6 +28,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
 )
 from vultron.core.states.em import EM
 from vultron.core.states.roles import CVDRole
+from vultron.errors import VultronValidationError
 from vultron.core.use_cases.triggers.case import (
     SvcDeferCaseUseCase,
     SvcEngageCaseUseCase,
@@ -247,8 +248,8 @@ class TestCaseTriggerToField:
         assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
 
-    def test_engage_case_to_field_none_when_no_case_manager(self):
-        """SvcEngageCaseUseCase sets to=None when case has no CASE_MANAGER."""
+    def test_engage_case_raises_when_no_case_manager(self):
+        """SvcEngageCaseUseCase raises VultronValidationError when no CASE_MANAGER."""
         case_solo = VulnerabilityCase(name="Solo Case")
         case_solo.actor_participant_index[self.vendor.id_] = (
             f"{case_solo.id_}/participants/vendor"
@@ -259,16 +260,12 @@ class TestCaseTriggerToField:
             actor_id=self.vendor.id_,
             case_id=case_solo.id_,
         )
-        result = SvcEngageCaseUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
-        ).execute()
-
-        _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
-        recipients = _to_field(act_obj)
-
-        assert (
-            not recipients
-        ), "to should be empty/None when no Case Manager participant"
+        with pytest.raises(VultronValidationError):
+            SvcEngageCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
 
 
 # ---------------------------------------------------------------------------

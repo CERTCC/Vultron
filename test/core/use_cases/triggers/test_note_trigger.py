@@ -36,6 +36,7 @@ from vultron.core.use_cases.triggers.note import SvcAddNoteToCaseUseCase
 from vultron.core.use_cases.triggers.requests import (
     AddNoteToCaseTriggerRequest,
 )
+from vultron.errors import VultronValidationError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
     CaseParticipant,
@@ -275,8 +276,8 @@ class TestSvcAddNoteToCaseUseCase:
             self.vendor.id_ not in recipients
         ), "Actor must not address themselves"
 
-    def test_to_field_is_none_when_no_case_manager(self):
-        """to is None when the case has no CASE_MANAGER participant."""
+    def test_raises_when_no_case_manager(self):
+        """SvcAddNoteToCaseUseCase raises VultronValidationError when no CASE_MANAGER."""
         solo_case = VulnerabilityCase(name="No Manager Case")
         solo_case.actor_participant_index[self.vendor.id_] = (
             f"{solo_case.id_}/participants/vendor"
@@ -289,17 +290,12 @@ class TestSvcAddNoteToCaseUseCase:
             note_name=self.NOTE_NAME,
             note_content=self.NOTE_CONTENT,
         )
-        result = SvcAddNoteToCaseUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
-        ).execute()
-
-        activity_id = result["activity"].get("id")
-        act_obj = self.dl.read(activity_id)
-        recipients = _to_field(act_obj)
-
-        assert (
-            not recipients
-        ), "to should be empty/None when no Case Manager exists"
+        with pytest.raises(VultronValidationError):
+            SvcAddNoteToCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
 
     # ------------------------------------------------------------------
     # Optional in_reply_to field

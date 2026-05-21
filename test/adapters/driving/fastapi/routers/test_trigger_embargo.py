@@ -39,11 +39,29 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.core.states.em import EM
+from vultron.core.states.roles import CVDRole
 
 FUTURE_END_TIME = "2099-12-01T00:00:00Z"
+
+
+def _add_case_manager(case: VulnerabilityCase, dl) -> as_Service:
+    """Add a CASE_MANAGER participant to *case* and return the case actor."""
+    case_actor = as_Service(name=f"Case Actor for {case.name}")
+    dl.create(case_actor)
+    cm_participant = CaseParticipant(
+        attributed_to=case_actor.id_,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(cm_participant)
+    case.actor_participant_index[case_actor.id_] = cm_participant.id_
+    dl.save(case)
+    return case_actor
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -103,9 +121,10 @@ def client_triggers(dl):
 
 @pytest.fixture
 def case_without_participant(dl):
-    """Create a VulnerabilityCase with no CaseParticipant for the actor."""
+    """A VulnerabilityCase with a Case Manager but no participant for the actor."""
     case_obj = VulnerabilityCase(name="TEST-CASE-NO-PARTICIPANT")
     dl.create(case_obj)
+    _add_case_manager(case_obj, dl)
     return case_obj
 
 
@@ -118,6 +137,7 @@ def case_with_embargo(dl, actor):
     case_obj.set_embargo(embargo.id_)
     case_obj.current_status.em_state = EM.ACTIVE
     dl.create(case_obj)
+    _add_case_manager(case_obj, dl)
     return case_obj, embargo
 
 
@@ -134,6 +154,7 @@ def case_with_proposal(dl, actor):
     case_obj.current_status.em_state = EM.PROPOSED
     case_obj.proposed_embargoes.append(embargo.id_)
     dl.create(case_obj)
+    _add_case_manager(case_obj, dl)
     return case_obj, proposal, embargo
 
 
