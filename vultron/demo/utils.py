@@ -69,7 +69,7 @@ def assert_demo_success() -> None:
     """
     if _demo_failures:
         raise DemoFailureError(
-            f"{len(_demo_failures)} demo step(s) failed",
+            f"{len(_demo_failures)} demo failure(s)",
             failures=list(_demo_failures),
         )
 
@@ -107,7 +107,7 @@ def demo_step(description: str) -> Generator[None, None, None]:
         yield
         logger.info(f"🟢 {description}")
     except Exception as exc:
-        logger.error(f"🔴 {description}: {exc}")
+        logger.error(f"🔴 {description}: {exc}", exc_info=True)
         _demo_failures.append(f"STEP FAILED: {description} — {exc}")
 
 
@@ -126,7 +126,7 @@ def demo_check(description: str) -> Generator[None, None, None]:
         yield
         logger.info(f"✅ {description}")
     except Exception as exc:
-        logger.error(f"❌ {description}: {exc}")
+        logger.error(f"❌ {description}: {exc}", exc_info=True)
         _demo_failures.append(f"CHECK FAILED: {description} — {exc}")
 
 
@@ -189,9 +189,9 @@ class DataLayerClient(BaseModel):
             logger.error(f"Response text: {response.text}")
 
         if response.status_code == 404:
-            msg = f"HTTP 404 from {response.url} ({method.upper()} {path})"
-            logger.error(msg)
-            _demo_failures.append(msg)
+            logger.error(
+                f"HTTP 404 from {response.url} ({method.upper()} {path})"
+            )
 
         if not response.ok:
             logger.error(f"Error response: {response.text}")

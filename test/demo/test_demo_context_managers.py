@@ -238,7 +238,7 @@ class TestDemoAccumulator:
 
     def test_assert_success_message_includes_count(self):
         demo_utils._demo_failures.extend(["f1", "f2"])
-        with pytest.raises(DemoFailureError, match="2 demo step"):
+        with pytest.raises(DemoFailureError, match="2 demo failure"):
             assert_demo_success()
 
     def test_is_subclass_of_vultron_error(self):
