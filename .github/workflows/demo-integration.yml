@@ -46,11 +46,14 @@ jobs:
       # cache-from/cache-to through to BuildKit, which writes/reads the GHA
       # cache natively.  --load ensures all built images are available to the
       # docker daemon for the subsequent docker compose up step.
+      # Run from the docker/ directory so that context: .. resolves to the
+      # repo root and ../docker/Dockerfile resolves to docker/Dockerfile.
       - name: Build Docker images
+        working-directory: docker
         run: |
           docker buildx bake \
             --allow=fs.read=.. \
-            -f docker/docker-compose-multi-actor.yml \
+            -f docker-compose-multi-actor.yml \
             --set "*.cache-from=type=gha" \
             --set "*.cache-to=type=gha,mode=max" \
             --load
