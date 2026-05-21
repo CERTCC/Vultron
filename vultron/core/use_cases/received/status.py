@@ -234,6 +234,12 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                 request.activity_id,
                 reason or result.feedback_message,
             )
+            # Do NOT cascade on BT failure here.  Unlike RemoveEmbargo (where
+            # FAILURE means "already cleared" — an idempotent, non-error
+            # outcome), a status-update BT failure means the update itself was
+            # rejected (e.g., participant not found, invalid state transition).
+            # Broadcasting a log entry for a rejected update would mislead
+            # peers into believing the status was accepted.
             return
 
         self._commit_log_cascade()
