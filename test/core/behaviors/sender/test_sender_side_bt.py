@@ -56,14 +56,6 @@ ACTIVITY_ID = "https://example.org/activities/act-01"
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(autouse=True)
-def clear_blackboard():
-    """Clear py_trees global blackboard state between tests."""
-    yield
-    py_trees.blackboard.Blackboard.enable_activity_stream()
-    py_trees.blackboard.Blackboard.storage.clear()
-
-
 @pytest.fixture
 def dl():
     actor = as_Service(name="finder")

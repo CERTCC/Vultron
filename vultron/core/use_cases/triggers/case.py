@@ -88,6 +88,8 @@ class SvcEngageCaseUseCase:
                 "SvcEngageCaseUseCase requires a TriggerActivityPort"
             )
 
+        update_participant_rm_state(case_id, actor_id, RM.ACCEPTED, dl)
+
         factory = self._trigger_activity
         captured: dict = {}
 
@@ -110,8 +112,6 @@ class SvcEngageCaseUseCase:
             raise VultronValidationError(
                 f"EngageCase failed: {BTBridge.get_failure_reason(tree)}"
             )
-
-        update_participant_rm_state(case_id, actor_id, RM.ACCEPTED, dl)
 
         logger.info(
             "Actor '%s' engaged case '%s' (RM → ACCEPTED)",
@@ -155,6 +155,8 @@ class SvcDeferCaseUseCase:
                 "SvcDeferCaseUseCase requires a TriggerActivityPort"
             )
 
+        update_participant_rm_state(case_id, actor_id, RM.DEFERRED, dl)
+
         factory = self._trigger_activity
         captured: dict = {}
 
@@ -177,8 +179,6 @@ class SvcDeferCaseUseCase:
             raise VultronValidationError(
                 f"DeferCase failed: {BTBridge.get_failure_reason(tree)}"
             )
-
-        update_participant_rm_state(case_id, actor_id, RM.DEFERRED, dl)
 
         logger.info(
             "Actor '%s' deferred case '%s' (RM → DEFERRED)",

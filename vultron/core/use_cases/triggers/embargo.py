@@ -430,6 +430,12 @@ class SvcProposeEmbargoUseCase:
                 "SvcProposeEmbargoUseCase requires a TriggerActivityPort"
             )
 
+        self._apply_em_propose_transition(
+            actor_id, case, em_state, new_em_state, embargo.id_, dl
+        )
+        case.proposed_embargoes.append(embargo.id_)
+        dl.save(case)
+
         factory = self._trigger_activity
         captured: dict = {}
 
@@ -453,12 +459,6 @@ class SvcProposeEmbargoUseCase:
             raise VultronValidationError(
                 f"ProposeEmbargo failed: {BTBridge.get_failure_reason(tree)}"
             )
-
-        self._apply_em_propose_transition(
-            actor_id, case, em_state, new_em_state, embargo.id_, dl
-        )
-        case.proposed_embargoes.append(embargo.id_)
-        dl.save(case)
 
         return {"activity": captured.get("activity")}
 
@@ -501,6 +501,17 @@ class SvcAcceptEmbargoUseCase:
                 "SvcAcceptEmbargoUseCase requires a TriggerActivityPort"
             )
 
+        em_state = case.current_status.em_state
+        new_em_state, owner_activated = _apply_owner_embargo_acceptance(
+            case,
+            actor_id,
+            proposal.id_,
+            embargo_id,
+        )
+
+        _update_participant_embargo_acceptance(case, actor_id, embargo_id, dl)
+        dl.save(case)
+
         factory = self._trigger_activity
         captured: dict = {}
 
@@ -524,17 +535,6 @@ class SvcAcceptEmbargoUseCase:
             raise VultronValidationError(
                 f"AcceptEmbargo failed: {BTBridge.get_failure_reason(tree)}"
             )
-
-        em_state = case.current_status.em_state
-        new_em_state, owner_activated = _apply_owner_embargo_acceptance(
-            case,
-            actor_id,
-            proposal.id_,
-            embargo_id,
-        )
-
-        _update_participant_embargo_acceptance(case, actor_id, embargo_id, dl)
-        dl.save(case)
 
         if owner_activated:
             logger.info(
@@ -638,6 +638,12 @@ class SvcTerminateEmbargoUseCase:
                 "SvcTerminateEmbargoUseCase requires a TriggerActivityPort"
             )
 
+        case.current_status.em_state = EM(adapter.state)
+        case.active_embargo = None
+        # Reset all participants' embargo consent state.
+        _cascade_pec_reset(case, dl)
+        dl.save(case)
+
         factory = self._trigger_activity
         captured: dict = {}
 
@@ -661,12 +667,6 @@ class SvcTerminateEmbargoUseCase:
             raise VultronValidationError(
                 f"TerminateEmbargo failed: {BTBridge.get_failure_reason(tree)}"
             )
-
-        case.current_status.em_state = EM(adapter.state)
-        case.active_embargo = None
-        # Reset all participants' embargo consent state.
-        _cascade_pec_reset(case, dl)
-        dl.save(case)
 
         logger.info(
             "Actor '%s' terminated embargo '%s' on case '%s' (EM %s → %s)",
@@ -722,6 +722,9 @@ class SvcRejectEmbargoUseCase:
                 "SvcRejectEmbargoUseCase requires a TriggerActivityPort"
             )
 
+        _update_participant_embargo_rejection(case, actor_id, embargo_id, dl)
+        dl.save(case)
+
         factory = self._trigger_activity
         captured: dict = {}
 
@@ -745,9 +748,6 @@ class SvcRejectEmbargoUseCase:
             raise VultronValidationError(
                 f"RejectEmbargo failed: {BTBridge.get_failure_reason(tree)}"
             )
-
-        _update_participant_embargo_rejection(case, actor_id, embargo_id, dl)
-        dl.save(case)
 
         if owner_rejected:
             logger.info(
@@ -854,6 +854,10 @@ class SvcProposeEmbargoRevisionUseCase:
                 " TriggerActivityPort"
             )
 
+        case.current_status.em_state = new_em_state
+        case.proposed_embargoes.append(embargo.id_)
+        dl.save(case)
+
         factory = self._trigger_activity
         captured: dict = {}
 
@@ -878,10 +882,6 @@ class SvcProposeEmbargoRevisionUseCase:
                 f"ProposeEmbargoRevision failed:"
                 f" {BTBridge.get_failure_reason(tree)}"
             )
-
-        case.current_status.em_state = new_em_state
-        case.proposed_embargoes.append(embargo.id_)
-        dl.save(case)
 
         logger.info(
             "Actor '%s' proposed embargo revision '%s' on case '%s'"

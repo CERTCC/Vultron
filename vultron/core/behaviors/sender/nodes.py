@@ -26,7 +26,6 @@ Provides the three nodes that compose the SenderSideBT sequence:
 Per specs/participant-case-replica.yaml PCR-08-001, PCR-08-002.
 """
 
-import logging
 from typing import Callable
 
 import py_trees
@@ -36,8 +35,6 @@ from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.protocols import is_case_model
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
 from vultron.core.use_cases.triggers._helpers import add_activity_to_outbox
-
-logger = logging.getLogger(__name__)
 
 
 class ResolveCaseManagerNode(DataLayerAction):
