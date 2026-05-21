@@ -4,6 +4,7 @@
 
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
+| 2026-05-21 | 23:05 | implementation | GH-624 | Fix #624: Reporter participant RM.START causes M6 AddParticipantStatusBT failure |
 | 2026-05-21 | 21:34 | implementation | GH-609 | Fix TypeError in remove_embargo_from_case BT (inline CaseParticipant in case_participants) |
 | 2026-05-21 | 21:04 | implementation | ISSUE-595 | Cascade CaseLogEntry + Announce to all Case Actor received handlers |
 | 2026-05-21 | 20:57 | implementation | ISSUE-596 | Refactor sender-side trigger use cases into SenderSideBT |

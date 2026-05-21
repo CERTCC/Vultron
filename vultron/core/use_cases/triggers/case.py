@@ -472,6 +472,23 @@ class SvcAddParticipantStatusUseCase:
         except ValueError:
             dl.save(status)
 
+        # Append the newly emitted status to the sender's own participant
+        # record so that _resolve_current_participant_state reads the actual
+        # latest state on future calls (not a stale bootstrap seed).
+        # Read back the persisted status via the vocabulary registry so that
+        # the type matches what the participant container expects.
+        participant_obj = dl.read(participant_id)
+        wire_status = dl.read(status.id_)
+        participant_statuses = (
+            getattr(participant_obj, "participant_statuses", None)
+            if participant_obj is not None
+            else None
+        )
+        if participant_statuses is not None and wire_status is not None:
+            participant_statuses.append(wire_status)
+            if participant_obj is not None:
+                dl.save(participant_obj)
+
         # Find Case Manager ID to address activity
         case_manager_id = _resolve_case_manager_id(case, dl)
 
