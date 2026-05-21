@@ -23,6 +23,7 @@ Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
 import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
+from unittest.mock import AsyncMock, patch
 
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
@@ -61,6 +62,32 @@ def _add_case_manager(case: VulnerabilityCase, dl) -> as_Service:
     case.actor_participant_index[case_actor.id_] = cm_participant.id_
     dl.save(case)
     return case_actor
+
+
+# ---------------------------------------------------------------------------
+# Module-level fixture: suppress outbox delivery retries
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _no_outbox_delivery():
+    """Suppress real outbox delivery for every test in this module.
+
+    ``outbox_handler`` uses HTTP with exponential-backoff retries. When
+    tests run with non-existent recipient URLs the retry sleeps add ~3.5 s
+    per test. Patching to a no-op ``AsyncMock`` eliminates that overhead
+    while keeping the scheduler logic testable.
+
+    Tests in ``TestCaseTriggerOutboxScheduling`` that need a trackable mock
+    use ``unittest.mock.patch`` as a context manager inside the test body,
+    which overrides this fixture's patch for the duration of that context.
+    """
+    with patch(
+        "vultron.adapters.driving.fastapi.routers"
+        ".trigger_case.outbox_handler",
+        new_callable=AsyncMock,
+    ):
+        yield
 
 
 # ---------------------------------------------------------------------------
