@@ -4,6 +4,7 @@
 
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
+| 2026-05-21 | 16:33 | learning | CONCERN-593 | Case Actor outbound routing model |
 | 2026-05-21 | 14:58 | implementation | ISSUE-570 | Demo CI: GitHub Actions integration workflow + demo runner hardening |
 | 2026-05-20 | 13:54 | idea | IDEA-582 | Optimize linkchecker.yml: separate build-site and link-check triggers |
 | 2026-05-20 | 13:31 | implementation | ISSUE-576 | AGENTS.md per-directory files + root condensed to 398 lines |
