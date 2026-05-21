@@ -38,6 +38,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     BASE_URL,
     DataLayerClient,
+    assert_demo_success,
     check_server_availability,
     demo_check,
     demo_step,
@@ -46,6 +47,7 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     post_to_trigger,
     ref_id,
     reset_datalayer,
+    reset_demo_failures,
     seed_actor,
     verify_object_stored,
 )
@@ -801,6 +803,8 @@ def main(
         finder_id: Optional deterministic URI for the Finder actor.
         vendor_id: Optional deterministic URI for the Vendor actor.
     """
+    reset_demo_failures()
+
     f_url = finder_url or FINDER_BASE_URL
     v_url = vendor_url or VENDOR_BASE_URL
     c_url = case_actor_url or CASE_ACTOR_BASE_URL
@@ -836,14 +840,8 @@ def main(
             finder_id=finder_id,
             vendor_id=vendor_id,
         )
-    except Exception as exc:
-        logger.error("Two-actor demo failed: %s", exc, exc_info=True)
-        logger.error("=" * 80)
-        logger.error("ERROR SUMMARY")
-        logger.error("=" * 80)
-        logger.error("%s", exc)
-        logger.error("=" * 80)
-        sys.exit(1)
+    finally:
+        assert_demo_success()
 
 
 def _setup_logging() -> None:

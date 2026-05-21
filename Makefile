@@ -105,14 +105,6 @@ docker_api_dev: docker_up  ## Start API server in Docker in development mode
 integration-test:  ## Run demo integration tests (requires Docker)
 	./integration_tests/demo/run_demo_integration_test.sh
 
-.PHONY: integration-test-multi-actor
-integration-test-multi-actor:  ## Run two-actor multi-container integration test (requires Docker)
+.PHONY: demo-2-test
+demo-2-test:  ## Run two-actor multi-container integration test (requires Docker)
 	./integration_tests/demo/run_multi_actor_integration_test.sh two-actor
-
-.PHONY: integration-test-three-actor
-integration-test-three-actor:  ## Run three-actor multi-container integration test (requires Docker)
-	./integration_tests/demo/run_multi_actor_integration_test.sh three-actor
-
-.PHONY: integration-test-multi-vendor
-integration-test-multi-vendor:  ## Run multi-vendor multi-container integration test (requires Docker)
-	./integration_tests/demo/run_multi_actor_integration_test.sh multi-vendor

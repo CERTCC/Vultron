@@ -136,3 +136,18 @@ class VultronActivityConstructionError(VultronError):
     exception to keep internal activity class names out of public error
     messages.  See ``specs/activity-factories.yaml`` AF-04-001, AF-04-002.
     """
+
+
+class DemoFailureError(VultronError):
+    """Raised when a demo scenario completes with one or more step failures.
+
+    Accumulates all failures from ``demo_step`` and ``demo_check`` context
+    managers in ``vultron.demo.utils``.  Raised by ``assert_demo_success()``
+    at the end of a scenario run so that ``docker compose --exit-code-from``
+    can detect failure.  See ``specs/demo-ci.yaml`` DEMOCI-01-001,
+    DEMOCI-01-005.
+    """
+
+    def __init__(self, message: str, failures: list[str]) -> None:
+        super().__init__(message)
+        self.failures = failures
