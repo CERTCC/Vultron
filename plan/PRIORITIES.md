@@ -54,6 +54,14 @@ groups DEMOMA-06, DEMOMA-07, DEMOMA-08 for formal requirements.
   (emitter, dispatcher, DataLayer) ✅
 - [#570](https://github.com/CERTCC/Vultron/issues/570) — Demo CI: GitHub Actions integration workflow + demo runner
   hardening
+- [#589](https://github.com/CERTCC/Vultron/issues/589) — SvcAddParticipantStatusUseCase sends RM.START after notify-published
+- [#593](https://github.com/CERTCC/Vultron/issues/593) — Post-case-creation participant messages bypass Case Actor —
+  outbound routing model missing from spec and broken in implementation
+  - [#594](https://github.com/CERTCC/Vultron/issues/594) — Fix outbound routing: participant trigger use cases must address
+    Case Actor only, not all participants
+  - [#595](https://github.com/CERTCC/Vultron/issues/595) — Implement automatic CaseLogEntry + Announce(CaseLogEntry)
+    broadcast cascade in all Case Actor received handlers
+  - [#596](https://github.com/CERTCC/Vultron/issues/596) — Refactor sender-side trigger use cases into Behavior Trees
 - [#466](https://github.com/CERTCC/Vultron/issues/466) — Docs: two-actor-demo tutorial + technical reference (blocked by demo
   running end-to-end)
 - [#471](https://github.com/CERTCC/Vultron/issues/471) — Tutorial: docs/tutorials/two-actor-demo.md
@@ -139,13 +147,14 @@ outbox polling, and oversized centralized dispatch tables.
 - [#586](https://github.com/CERTCC/Vultron/issues/586) — Concern:
   `VultronActivity.object_` typed as `Any|None` causes dict round-trip bypass
 
-## Priority 490 — Test File Refactoring
+## Priority 490 — Epic #611: Test File Refactoring
 
 Refactor the largest test files to split by concern and consolidate duplicated
 fixture code. The 10 largest files account for ~9,000 of 45,000+ test lines;
 targeted splits improve navigation, reduce duplication, and make failures
 easier to diagnose.
 
+- Epic: [#611](https://github.com/CERTCC/Vultron/issues/611)
 - [#491](https://github.com/CERTCC/Vultron/issues/491) — Refactor largest
   test files: split by concern and consolidate fixtures (parent)
 - [#492](https://github.com/CERTCC/Vultron/issues/492) — P1: Consolidate
@@ -163,12 +172,13 @@ easier to diagnose.
 - [#498](https://github.com/CERTCC/Vultron/issues/498) — P7 (optional):
   Light cleanup of test\_two\_actor\_demo.py
 
-## Priority 495 — Production Source Refactoring
+## Priority 495 — Epic #612: Production Source Refactoring
 
 Split the largest production source files by concern to reduce merge conflicts,
 improve navigability, and make tests more targeted. Complements P490 (test
 file refactoring).
 
+- Epic: [#612](https://github.com/CERTCC/Vultron/issues/612)
 - [#504](https://github.com/CERTCC/Vultron/issues/504) — Several source files
   exceed 500 lines and mix multiple responsibilities
 - [#514](https://github.com/CERTCC/Vultron/issues/514) — `vultron/core/behaviors/case/nodes.py`
@@ -206,7 +216,7 @@ non-technical audiences (government funders, industry practitioners).
 - [#533](https://github.com/CERTCC/Vultron/issues/533) — Idea: Interactive
   ReactFlow Demo UI with CYOA scenarios for stakeholder presentations
 
-## Priority 520 — Agent Guidance Freshness
+## Priority 520 — Epic #613: Agent Guidance Freshness
 
 The spec files and `AGENTS.md` change frequently as the codebase evolves,
 causing agent sessions to start with stale context. This group tracks work
@@ -214,6 +224,7 @@ to make agent guidance more durable and easier to keep current. Note:
 `PRIORITIES.md` is actively maintained; the concern is primarily with
 `AGENTS.md` and spec files, which are harder to keep in sync.
 
+- Epic: [#613](https://github.com/CERTCC/Vultron/issues/613)
 - [#507](https://github.com/CERTCC/Vultron/issues/507) — Planning and
   specification files change so frequently that agent guidance goes stale ✅
 - [#512](https://github.com/CERTCC/Vultron/issues/512) — `plan/`
@@ -248,6 +259,35 @@ who are directing them to perform specific tasks.
 We will need to design the system in a way that allows for either of these
 possibilities to be implemented in the future without requiring major refactoring.
 
+## Priority 1500 — Epic #607: Documentation — Align with Diataxis Framework
+
+Reorganize the documentation site to align with the
+[Diataxis framework](https://diataxis.fr/): Tutorials, How-to Guides,
+Explanation, and Reference. Adds audience-oriented entry points for CVD
+practitioners, software developers, and contributors. Addresses content
+misplacement, staleness, and gaps (especially the tutorial and developer
+how-to sections).
+
+- Epic: [#607](https://github.com/CERTCC/Vultron/issues/607)
+- [#598](https://github.com/CERTCC/Vultron/issues/598) — Nav restructure:
+  rename sections to diataxis terminology and add homepage persona entry points
+- [#599](https://github.com/CERTCC/Vultron/issues/599) — Move misplaced
+  Explanation content to Reference
+- [#600](https://github.com/CERTCC/Vultron/issues/600) — Move
+  worked\_example.md from Explanation to How-to Guides
+- [#601](https://github.com/CERTCC/Vultron/issues/601) — Remove/review
+  obsolete and aspirational content
+- [#602](https://github.com/CERTCC/Vultron/issues/602) — Audit
+  howto/activitypub/ for accuracy against current implementation
+- [#603](https://github.com/CERTCC/Vultron/issues/603) — Tutorial: Submit a
+  vulnerability report to a Vultron-speaking actor *(blocked by #602)*
+- [#604](https://github.com/CERTCC/Vultron/issues/604) — How-to: Developer
+  contributing guide
+- [#605](https://github.com/CERTCC/Vultron/issues/605) — Reference:
+  consolidated per-message-type reference pages *(blocked by #602)*
+- [#606](https://github.com/CERTCC/Vultron/issues/606) — Reference: Protocol
+  Quick Reference page *(blocked by #605, #599)*
+
 ## Priority 2000: Upgrade former "fuzzer" nodes to full implementations
 
 See `notes/bt-fuzzer-nodes.md` for details on a set of fuzzer nodes that
@@ -263,20 +303,22 @@ to demonstrate the core behavior tree and coordination logic.
 - [#441](https://github.com/CERTCC/Vultron/issues/441) — Upgrade
   external-decision fuzzer nodes to full implementations
 
-## Priority 3000: Miscellaneous tasks
+## Priority 3000 — Epic #614: Miscellaneous Tasks
 
+- Epic: [#614](https://github.com/CERTCC/Vultron/issues/614)
 - [#442](https://github.com/CERTCC/Vultron/issues/442) — Clean up orphaned
   BT-2.2/BT-2.3 placeholder references in PRIORITIES.md ✅
 - [#505](https://github.com/CERTCC/Vultron/issues/505) — Triage 15
   outstanding TODO/FIXME/XXX markers in production code
 
-## Priority 95000: Documentation Enhancements — Crosswalks and Framework Integration
+## Priority 95000 — Epic #615: Documentation Enhancements — Crosswalks and Framework Integration
 
 Low-priority documentation work to expand coverage of related frameworks
 and scoring systems. These will be addressed as part of a broader
 documentation refresh, after higher-priority code and architecture work is
 complete.
 
+- Epic: [#615](https://github.com/CERTCC/Vultron/issues/615)
 - [#5](https://github.com/CERTCC/Vultron/issues/5) — Integrate FIRST services frameworks
 - [#6](https://github.com/CERTCC/Vultron/issues/6) — Add CVSSv4 crosswalk
 
