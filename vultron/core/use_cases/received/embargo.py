@@ -104,7 +104,10 @@ def _commit_embargo_log_cascade(
 def _reset_case_participant_embargo_consent(
     dl: CasePersistence, case: CaseModel
 ) -> None:
-    for participant_id in case.case_participants:
+    for entry in case.case_participants:
+        participant_id = _as_id(entry)
+        if participant_id is None:
+            continue
         participant = dl.read(participant_id)
         if not is_participant_model(participant):
             continue
