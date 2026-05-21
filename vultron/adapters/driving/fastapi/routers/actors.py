@@ -187,32 +187,7 @@ def create_actor(
 
 
 @router.get(
-    "/{actor_id}",
-    response_model=as_Actor,
-    response_model_exclude_none=True,
-    description="Returns an Actor. (stub implementation).",
-    operation_id="actors_get",
-)
-def get_actor(
-    actor_id: str, datalayer: DataLayer = Depends(get_shared_dl)
-) -> as_Actor:
-    """Returns an Actor example based on the provided actor_id."""
-    actor = datalayer.read(actor_id)
-
-    # If not found by full ID, try to resolve as short ID
-    if not actor:
-        actor = datalayer.find_actor_by_short_id(actor_id)
-
-    if not actor:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
-        )
-
-    return as_Actor.model_validate(actor)
-
-
-@router.get(
-    "/{actor_id}/profile",
+    "/{actor_id:path}/profile",
     response_model_exclude_none=True,
     summary="Get Actor Profile",
     description=(
@@ -250,7 +225,7 @@ def get_actor_profile(
 
 
 @router.get(
-    "/{actor_id}/cases/{case_id}/action-rules",
+    "/{actor_id:path}/cases/{case_id}/action-rules",
     summary="Get CVD Action Rules for an Actor in a Case",
     description=(
         "Returns the set of valid CVD actions available to an actor in a "
@@ -281,7 +256,7 @@ def get_action_rules(
 
 
 @router.get(
-    "/{actor_id}/inbox",
+    "/{actor_id:path}/inbox",
     response_model=as_OrderedCollection,
     response_model_exclude_none=True,
     summary="Get Actor Inbox",
@@ -418,7 +393,7 @@ def _record_inbox_receipt(
 
 
 @router.post(
-    "/{actor_id}/inbox/",
+    "/{actor_id:path}/inbox/",
     summary="Add an Activity to the Actor's Inbox.",
     description="Adds an Activity to the Actor's Inbox. (stub implementation).",
     status_code=status.HTTP_202_ACCEPTED,
@@ -477,7 +452,7 @@ def post_actor_inbox(
 
 
 @router.post(
-    "/{actor_id}/outbox/",
+    "/{actor_id:path}/outbox/",
     summary="Add an Activity to the Actor's Outbox.",
     description="Adds an Activity to the Actor's Outbox. (stub implementation).",
     status_code=status.HTTP_200_OK,
@@ -542,3 +517,32 @@ def post_actor_outbox(
     )
 
     return None
+
+
+@router.get(
+    "/{actor_id:path}",
+    response_model=as_Actor,
+    response_model_exclude_none=True,
+    description="Returns an Actor by full ID including HTTP URL IDs.",
+    operation_id="actors_get",
+)
+def get_actor(
+    actor_id: str, datalayer: DataLayer = Depends(get_shared_dl)
+) -> as_Actor:
+    """Returns an Actor by actor_id.
+
+    Accepts any actor ID including HTTP URL IDs with percent-encoded slashes.
+    Falls back to short-ID resolution for backwards compatibility.
+    """
+    actor = datalayer.read(actor_id)
+
+    # If not found by full ID, try to resolve as short ID
+    if not actor:
+        actor = datalayer.find_actor_by_short_id(actor_id)
+
+    if not actor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
+        )
+
+    return as_Actor.model_validate(actor)
