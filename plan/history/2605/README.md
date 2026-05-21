@@ -4,6 +4,7 @@
 
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
+| 2026-05-21 | 21:04 | implementation | ISSUE-595 | Cascade CaseLogEntry + Announce to all Case Actor received handlers |
 | 2026-05-21 | 20:57 | implementation | ISSUE-596 | Refactor sender-side trigger use cases into SenderSideBT |
 | 2026-05-21 | 19:19 | implementation | 610 | Fix DataLayer and actors endpoints for HTTP URL keys (#610) |
 | 2026-05-21 | 18:10 | implementation | ISSUE-594 | Fix outbound routing: participant triggers address Case Actor only |
