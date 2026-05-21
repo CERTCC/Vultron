@@ -40,9 +40,26 @@ from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+
+
+def _add_case_manager(case: VulnerabilityCase, dl) -> as_Service:
+    """Add a CASE_MANAGER participant to *case* and return the case actor."""
+    case_actor = as_Service(name=f"Case Actor for {case.name}")
+    dl.create(case_actor)
+    cm_participant = CaseParticipant(
+        attributed_to=case_actor.id_,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(cm_participant)
+    case.actor_participant_index[case_actor.id_] = cm_participant.id_
+    dl.save(case)
+    return case_actor
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -82,7 +99,15 @@ def dl(actor_and_dl):
 
 @pytest.fixture
 def client_demo(dl):
-    """Test client with only the demo router mounted."""
+    """Test client with only the demo router mounted.
+
+    Patches ``get_default_emitter`` with a no-op ``AsyncMock`` so that the
+    ``outbox_handler`` background task completes immediately without making
+    real HTTP delivery attempts (which would add retry-backoff delays and
+    exceed the CI per-test timeout).
+    """
+    from unittest.mock import AsyncMock, patch
+
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter,
     )
@@ -96,7 +121,12 @@ def client_demo(dl):
     )
     app.dependency_overrides[get_trigger_dl] = lambda: dl
     app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
-    yield TestClient(app)
+    mock_emitter = AsyncMock()
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_handler.get_default_emitter",
+        return_value=mock_emitter,
+    ):
+        yield TestClient(app)
     app.dependency_overrides = {}
 
 
@@ -126,6 +156,7 @@ def case_with_actor(dl, actor):
     case_obj.actor_participant_index[actor.id_] = participant.id_
     dl.create(case_obj)
     dl.create(participant)
+    _add_case_manager(case_obj, dl)
     return case_obj
 
 

@@ -24,7 +24,8 @@ from typing import TYPE_CHECKING
 
 from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import case_addressees
+from vultron.core.use_cases._helpers import _resolve_case_manager_id
+from vultron.errors import VultronValidationError
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,
     resolve_actor,
@@ -99,7 +100,13 @@ class SvcAddNoteToCaseUseCase:
                     case_id,
                 )
 
-        addressees = case_addressees(case, actor_id) or None
+        case_manager_id = _resolve_case_manager_id(case, dl)
+        if case_manager_id is None:
+            raise VultronValidationError(
+                f"Cannot route note activity: no Case Manager participant"
+                f" found in case '{case_id}'"
+            )
+        addressees = [case_manager_id]
 
         create_activity_id = factory.create_note_activity(
             actor=actor_id,

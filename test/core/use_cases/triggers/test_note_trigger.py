@@ -14,13 +14,14 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-Tests for SvcAddNoteToCaseUseCase (D5-7-DEMONOTECLEAN-1).
+Tests for SvcAddNoteToCaseUseCase.
 
 Verifies that the add-note-to-case trigger:
 - creates the note in the DataLayer,
 - adds the note ID to the actor's local case.notes list,
 - queues Create(Note) and AddNoteToCase activities in the actor's outbox,
-- populates the ``to`` field with case participants (excluding the actor),
+- addresses the Add(Note) activity only to the Case Actor (PCR-08-001),
+- does NOT address any non-CaseActor participant directly,
 - handles the optional in_reply_to field correctly.
 """
 
@@ -30,18 +31,24 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases.triggers.note import SvcAddNoteToCaseUseCase
 from vultron.core.use_cases.triggers.requests import (
     AddNoteToCaseTriggerRequest,
 )
+from vultron.errors import VultronValidationError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.objects.case_participant import (
+    CaseParticipant,
+    FinderParticipant,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 
 # ---------------------------------------------------------------------------
-# Helpers (mirrors pattern in test_trignotify.py)
+# Helpers
 # ---------------------------------------------------------------------------
 
 
@@ -56,15 +63,43 @@ def _make_actor_dl(actor_name: str):
     return actor, dl
 
 
-def _make_two_actor_case(
-    dl, actor1_id: str, actor2_id: str
-) -> VulnerabilityCase:
-    """Create a VulnerabilityCase with two actors in actor_participant_index."""
+def _make_case_with_case_manager(
+    dl: SqliteDataLayer,
+    actor_id: str,
+    finder_id: str,
+    case_actor_id: str,
+) -> tuple[VulnerabilityCase, CaseParticipant]:
+    """Create a VulnerabilityCase with a Finder participant and a Case Actor
+    participant (CVDRole.CASE_MANAGER).
+
+    Returns the case and the Case Manager CaseParticipant.
+    """
     case = VulnerabilityCase(name="Test Case")
-    case.actor_participant_index[actor1_id] = f"{case.id_}/participants/actor1"
-    case.actor_participant_index[actor2_id] = f"{case.id_}/participants/actor2"
+
+    finder_participant = FinderParticipant(
+        attributed_to=finder_id,
+        context=case.id_,
+    )
+    case_manager_participant = CaseParticipant(
+        attributed_to=case_actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    actor_participant = CaseParticipant(
+        attributed_to=actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.VENDOR],
+    )
+
+    case.actor_participant_index[actor_id] = actor_participant.id_
+    case.actor_participant_index[finder_id] = finder_participant.id_
+    case.actor_participant_index[case_actor_id] = case_manager_participant.id_
+
     dl.create(case)
-    return case
+    dl.create(finder_participant)
+    dl.create(case_manager_participant)
+    dl.create(actor_participant)
+    return case, case_manager_participant
 
 
 def _to_field(activity_obj) -> list[str] | None:
@@ -86,9 +121,6 @@ def _to_field(activity_obj) -> list[str] | None:
 
 def _outbox_activity_ids(actor_id: str, dl: SqliteDataLayer) -> list[str]:
     """Return all activity IDs in the actor's outbox."""
-    # Create a scoped view sharing dl's engine.  The temporary in-memory
-    # engine allocated by __init__ is disposed immediately before being
-    # replaced, so no sqlite3 connection leaks.
     scoped = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
     scoped._engine.dispose()
     scoped._engine = dl._engine
@@ -111,13 +143,20 @@ class TestSvcAddNoteToCaseUseCase:
     def setup(self):
         self.vendor, self.dl = _make_actor_dl("Vendor Co")
         self.finder, _ = _make_actor_dl("Finder Co")
-        self.case = _make_two_actor_case(
-            self.dl, self.vendor.id_, self.finder.id_
+        self.case_actor, _ = _make_actor_dl("Case Actor")
+        self.case, self.case_manager_participant = (
+            _make_case_with_case_manager(
+                self.dl,
+                self.vendor.id_,
+                self.finder.id_,
+                self.case_actor.id_,
+            )
         )
         yield
         self.dl.clear_all()
         reset_datalayer(self.vendor.id_)
         reset_datalayer(self.finder.id_)
+        reset_datalayer(self.case_actor.id_)
 
     def _execute(self, actor_id=None, in_reply_to=None):
         """Build and execute the use case; return the result dict."""
@@ -198,11 +237,11 @@ class TestSvcAddNoteToCaseUseCase:
             assert self.dl.read(activity_id) is not None
 
     # ------------------------------------------------------------------
-    # ``to`` field population
+    # ``to`` field: must address Case Actor only (PCR-08-001)
     # ------------------------------------------------------------------
 
-    def test_add_note_activity_to_field_contains_other_participant(self):
-        """AddNoteToCase activity has to=[finder.id_] (excludes the actor)."""
+    def test_add_note_activity_to_field_addresses_case_actor_only(self):
+        """AddNoteToCase activity has to=[case_actor.id_] (PCR-08-001)."""
         result = self._execute(actor_id=self.vendor.id_)
         activity_id = result["activity"].get("id")
         assert activity_id is not None
@@ -211,13 +250,35 @@ class TestSvcAddNoteToCaseUseCase:
         recipients = _to_field(act_obj)
 
         assert recipients is not None, "to field must not be None"
-        assert len(recipients) > 0, "to field must be non-empty"
-        assert self.finder.id_ in recipients
-        assert self.vendor.id_ not in recipients
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: "
+            f"{recipients}"
+        )
+        assert recipients[0] == self.case_actor.id_, (
+            f"Expected Case Actor '{self.case_actor.id_}' as sole recipient, "
+            f"got {recipients}"
+        )
 
-    def test_to_field_is_none_when_actor_is_only_participant(self):
-        """to is empty/None when the actor is the sole case participant."""
-        solo_case = VulnerabilityCase(name="Solo Case")
+    def test_add_note_activity_does_not_address_non_case_actor_participants(
+        self,
+    ):
+        """AddNoteToCase must not include finder or vendor in the to field."""
+        result = self._execute(actor_id=self.vendor.id_)
+        activity_id = result["activity"].get("id")
+        act_obj = self.dl.read(activity_id)
+        recipients = _to_field(act_obj) or []
+
+        assert self.finder.id_ not in recipients, (
+            "Finder must not be directly addressed — routing goes through"
+            " Case Actor"
+        )
+        assert (
+            self.vendor.id_ not in recipients
+        ), "Actor must not address themselves"
+
+    def test_raises_when_no_case_manager(self):
+        """SvcAddNoteToCaseUseCase raises VultronValidationError when no CASE_MANAGER."""
+        solo_case = VulnerabilityCase(name="No Manager Case")
         solo_case.actor_participant_index[self.vendor.id_] = (
             f"{solo_case.id_}/participants/vendor"
         )
@@ -229,17 +290,12 @@ class TestSvcAddNoteToCaseUseCase:
             note_name=self.NOTE_NAME,
             note_content=self.NOTE_CONTENT,
         )
-        result = SvcAddNoteToCaseUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
-        ).execute()
-
-        activity_id = result["activity"].get("id")
-        act_obj = self.dl.read(activity_id)
-        recipients = _to_field(act_obj)
-
-        assert (
-            not recipients
-        ), "to should be empty/None for solo-participant case"
+        with pytest.raises(VultronValidationError):
+            SvcAddNoteToCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
 
     # ------------------------------------------------------------------
     # Optional in_reply_to field
@@ -254,7 +310,6 @@ class TestSvcAddNoteToCaseUseCase:
 
     def test_in_reply_to_set_when_provided(self):
         """Note carries the supplied in_reply_to value."""
-        # Create a parent note to reply to.
         from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
         parent = as_Note(
@@ -275,13 +330,9 @@ class TestSvcAddNoteToCaseUseCase:
 
     def test_duplicate_execute_does_not_duplicate_note_in_case(self):
         """Calling execute() twice with the same note does not add it twice."""
-        # We need to execute the same request twice — reuse _execute(), which
-        # creates a new note each time (different IDs). Test the idempotency
-        # guard for note IDs already in case.notes instead.
         result = self._execute()
         note_id = result["note"]["id"]
 
-        # Manually call the idempotency guard path by appending note_id again.
         case_obj = self.dl.read(self.case.id_)
         assert isinstance(case_obj, VulnerabilityCase)
         count_before = sum(
@@ -292,7 +343,6 @@ class TestSvcAddNoteToCaseUseCase:
         )
         assert count_before == 1
 
-        # Simulate a second save attempt via the use case guard logic.
         existing_ids = [
             n if isinstance(n, str) else getattr(n, "id_", str(n))
             for n in case_obj.notes
@@ -301,7 +351,6 @@ class TestSvcAddNoteToCaseUseCase:
             case_obj.notes.append(note_id)
             self.dl.save(case_obj)
 
-        # Re-read and confirm still exactly one occurrence.
         case_obj2 = self.dl.read(self.case.id_)
         assert isinstance(case_obj2, VulnerabilityCase)
         count_after = sum(

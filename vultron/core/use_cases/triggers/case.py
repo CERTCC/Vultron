@@ -27,7 +27,7 @@ from vultron.core.states.cs import CS_vfd
 from vultron.core.states.rm import RM
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import update_participant_rm_state
-from vultron.core.use_cases._helpers import case_addressees
+from vultron.core.use_cases._helpers import _resolve_case_manager_id
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,
     resolve_actor,
@@ -78,10 +78,17 @@ class SvcEngageCaseUseCase:
                 "SvcEngageCaseUseCase requires a TriggerActivityPort"
             )
 
+        case_manager_id = _resolve_case_manager_id(case, dl)
+        if case_manager_id is None:
+            raise VultronValidationError(
+                f"Cannot route engage-case activity: no Case Manager participant"
+                f" found in case '{case_id}'"
+            )
+
         activity_id, activity_dict = self._trigger_activity.engage_case(
             case_id=case_id,
             actor=actor_id,
-            to=case_addressees(case, actor_id) or None,
+            to=[case_manager_id],
         )
 
         update_participant_rm_state(case.id_, actor_id, RM.ACCEPTED, dl)
@@ -126,10 +133,17 @@ class SvcDeferCaseUseCase:
                 "SvcDeferCaseUseCase requires a TriggerActivityPort"
             )
 
+        case_manager_id = _resolve_case_manager_id(case, dl)
+        if case_manager_id is None:
+            raise VultronValidationError(
+                f"Cannot route defer-case activity: no Case Manager participant"
+                f" found in case '{case_id}'"
+            )
+
         activity_id, activity_dict = self._trigger_activity.defer_case(
             case_id=case_id,
             actor=actor_id,
-            to=case_addressees(case, actor_id) or None,
+            to=[case_manager_id],
         )
 
         update_participant_rm_state(case.id_, actor_id, RM.DEFERRED, dl)
@@ -429,17 +443,7 @@ class SvcAddParticipantStatusUseCase:
             dl.save(status)
 
         # Find Case Manager ID to address activity
-        from vultron.core.states.roles import CVDRole
-
-        case_manager_id: str | None = None
-        for p_id in case.actor_participant_index.values():
-            p = dl.read(p_id)
-            roles = getattr(p, "case_roles", [])
-            if CVDRole.CASE_MANAGER in roles:
-                case_manager_id = getattr(p, "attributed_to", None)
-                if case_manager_id:
-                    case_manager_id = str(case_manager_id)
-                break
+        case_manager_id = _resolve_case_manager_id(case, dl)
 
         if case_manager_id is None:
             raise VultronNotFoundError(

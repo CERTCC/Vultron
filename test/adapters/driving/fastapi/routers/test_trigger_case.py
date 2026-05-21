@@ -38,9 +38,30 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.utils import parse_id
 from vultron.core.states.rm import RM
+from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _add_case_manager(case: VulnerabilityCase, dl) -> as_Service:
+    """Add a CASE_MANAGER participant to *case* and return the case actor."""
+    case_actor = as_Service(name=f"Case Actor for {case.name}")
+    dl.create(case_actor)
+    cm_participant = CaseParticipant(
+        attributed_to=case_actor.id_,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(cm_participant)
+    case.actor_participant_index[case_actor.id_] = cm_participant.id_
+    dl.save(case)
+    return case_actor
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -119,14 +140,16 @@ def case_with_participant(dl, actor):
     case_obj.case_participants.append(participant.id_)
     dl.create(case_obj)
     dl.create(participant)
+    _add_case_manager(case_obj, dl)
     return case_obj
 
 
 @pytest.fixture
 def case_without_participant(dl):
-    """Create a VulnerabilityCase with no CaseParticipant for the actor."""
+    """Create a VulnerabilityCase with a Case Manager but no participant for the actor."""
     case_obj = VulnerabilityCase(name="TEST-CASE-NO-PARTICIPANT")
     dl.create(case_obj)
+    _add_case_manager(case_obj, dl)
     return case_obj
 
 
