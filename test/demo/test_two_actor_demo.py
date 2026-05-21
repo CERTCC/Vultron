@@ -707,16 +707,25 @@ class TestActorNotifiesFixReady:
         assert result is not None
 
     def test_raises_on_invalid_case(self, client: TestClient, base: str):
-        """Raises when actor or case is not found."""
+        """Records failure when case is not found (accumulate-not-reraise, DEMOCI-01-003)."""
+        import vultron.demo.utils as demo_utils
+        from vultron.demo.utils import reset_demo_failures
+
+        reset_demo_failures()
         finder_client, vendor_client, finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
-        with pytest.raises(Exception):
-            demo.actor_notifies_fix_ready(
-                client=vendor_client,
-                actor=vendor,
-                case_id="https://example.org/does-not-exist",
-            )
+        # With the accumulator pattern, no exception propagates; failure is recorded.
+        demo.actor_notifies_fix_ready(
+            client=vendor_client,
+            actor=vendor,
+            case_id="https://example.org/does-not-exist",
+        )
+        assert any(
+            "does-not-exist" in f or "404" in f or "STEP FAILED" in f
+            for f in demo_utils._demo_failures
+        )
+        reset_demo_failures()
 
 
 class TestActorNotifiesFixDeployed:

@@ -115,7 +115,7 @@ services:
       - VULTRON_ACTOR_ID=http://finder:7999/api/v2/actors/finder
       # Seed config: registers local actor + peers on first seed run.
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-finder.yaml
-      - LOG_LEVEL=INFO
+      - VULTRON_SERVER__LOG_LEVEL=INFO
     volumes:
       # Bind-mount application source so code changes take effect without
       # rebuilding the image.  uvicorn --reload picks them up automatically.
@@ -137,7 +137,7 @@ services:
       - VULTRON_DATABASE__DB_URL=sqlite:////app/data/mydb.sqlite
       - VULTRON_ACTOR_ID=http://vendor:7999/api/v2/actors/vendor
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-vendor.yaml
-      - LOG_LEVEL=INFO
+      - VULTRON_SERVER__LOG_LEVEL=INFO
     volumes:
       - "../vultron:/app/vultron"
       - vendor-data:/app/data
@@ -154,7 +154,7 @@ services:
       - VULTRON_DATABASE__DB_URL=sqlite:////app/data/mydb.sqlite
       - VULTRON_ACTOR_ID=http://coordinator:7999/api/v2/actors/coordinator
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-coordinator.yaml
-      - LOG_LEVEL=INFO
+      - VULTRON_SERVER__LOG_LEVEL=INFO
     volumes:
       - "../vultron:/app/vultron"
       - coordinator-data:/app/data
@@ -183,7 +183,7 @@ services:
       - VULTRON_DATABASE__DB_URL=sqlite:////app/data/mydb.sqlite
       - VULTRON_ACTOR_ID=http://case-actor:7999/api/v2/actors/case-actor
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-case-actor.yaml
-      - LOG_LEVEL=INFO
+      - VULTRON_SERVER__LOG_LEVEL=INFO
     volumes:
       - "../vultron:/app/vultron"
       - case-actor-data:/app/data
@@ -204,7 +204,7 @@ services:
       - VULTRON_DATABASE__DB_URL=sqlite:////app/data/mydb.sqlite
       - VULTRON_ACTOR_ID=http://vendor2:7999/api/v2/actors/vendor2
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-vendor2.yaml
-      - LOG_LEVEL=INFO
+      - VULTRON_SERVER__LOG_LEVEL=INFO
     volumes:
       - "../vultron:/app/vultron"
       - vendor2-data:/app/data

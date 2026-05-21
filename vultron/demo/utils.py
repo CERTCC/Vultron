@@ -36,6 +36,7 @@ from pydantic import BaseModel
 
 # Vultron imports
 from vultron.adapters.utils import parse_id
+from vultron.errors import DemoFailureError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -43,6 +44,35 @@ from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 logger = logging.getLogger(__name__)
+
+# Module-level failure accumulator.  reset_demo_failures() clears it at the
+# start of each scenario; assert_demo_success() raises DemoFailureError if
+# any failures were recorded.  See specs/demo-ci.yaml DEMOCI-01-003.
+_demo_failures: list[str] = []
+
+
+def reset_demo_failures() -> None:
+    """Clear the demo failure accumulator.
+
+    Call at the start of each scenario entry point to ensure failures from a
+    previous run do not pollute the current one.  See DEMOCI-01-003.
+    """
+    _demo_failures.clear()
+
+
+def assert_demo_success() -> None:
+    """Raise DemoFailureError if any demo step or check failures were recorded.
+
+    Call at the end of each scenario entry point.  Raises with the full list
+    of accumulated failure messages so that ``docker compose --exit-code-from``
+    can surface the non-zero exit to CI.  See DEMOCI-01-001, DEMOCI-01-003.
+    """
+    if _demo_failures:
+        raise DemoFailureError(
+            f"{len(_demo_failures)} demo step(s) failed",
+            failures=list(_demo_failures),
+        )
+
 
 BASE_URL = os.environ.get(
     "VULTRON_API_BASE_URL", "http://localhost:7999/api/v2"
@@ -63,33 +93,41 @@ def ref_id(value: object) -> str | None:
 
 
 @contextmanager
-def demo_step(description: str):
+def demo_step(description: str) -> Generator[None, None, None]:
     """Context manager for declaring workflow steps in demo logs.
 
-    Logs 🚥 at INFO on entry, 🟢 at INFO on clean exit, 🔴 at ERROR on exception.
+    Logs 🚥 at INFO on entry, 🟢 at INFO on clean exit, 🔴 at ERROR on
+    exception.  On exception the failure is appended to the module-level
+    ``_demo_failures`` accumulator and execution continues (no re-raise).
+    Call ``assert_demo_success()`` at the end of the scenario to surface
+    accumulated failures.  See DEMOCI-01-003, DEMOCI-01-004.
     """
     logger.info(f"🚥 {description}")
     try:
         yield
         logger.info(f"🟢 {description}")
-    except Exception:
-        logger.error(f"🔴 {description}")
-        raise
+    except Exception as exc:
+        logger.error(f"🔴 {description}: {exc}")
+        _demo_failures.append(f"STEP FAILED: {description} — {exc}")
 
 
 @contextmanager
-def demo_check(description: str):
+def demo_check(description: str) -> Generator[None, None, None]:
     """Context manager for declaring side-effect checks in demo logs.
 
-    Logs 📋 at INFO on entry, ✅ at INFO on clean exit, ❌ at ERROR on exception.
+    Logs 📋 at INFO on entry, ✅ at INFO on clean exit, ❌ at ERROR on
+    exception.  On exception the failure is appended to the module-level
+    ``_demo_failures`` accumulator and execution continues (no re-raise).
+    Call ``assert_demo_success()`` at the end of the scenario to surface
+    accumulated failures.  See DEMOCI-01-003, DEMOCI-01-004.
     """
     logger.info(f"📋 {description}")
     try:
         yield
         logger.info(f"✅ {description}")
-    except Exception:
-        logger.error(f"❌ {description}")
-        raise
+    except Exception as exc:
+        logger.error(f"❌ {description}: {exc}")
+        _demo_failures.append(f"CHECK FAILED: {description} — {exc}")
 
 
 def logfmt(obj: object) -> str:
@@ -149,6 +187,11 @@ class DataLayerClient(BaseModel):
         except Exception as e:
             logger.error(f"Exception: {e}")
             logger.error(f"Response text: {response.text}")
+
+        if response.status_code == 404:
+            msg = f"HTTP 404 from {response.url} ({method.upper()} {path})"
+            logger.error(msg)
+            _demo_failures.append(msg)
 
         if not response.ok:
             logger.error(f"Error response: {response.text}")

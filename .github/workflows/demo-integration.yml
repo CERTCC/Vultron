@@ -1,0 +1,99 @@
+# Demo Integration — build and run the two-actor Vultron demo on PRs.
+#
+# Kept separate from python-app.yml so that the Docker-compose build time
+# does not block the unit-test and lint pipeline; both workflows run
+# concurrently on PRs.  See specs/demo-ci.yaml DEMOCI-02-001.
+#
+# Triggers: PRs to main (path-filtered) and workflow_dispatch.
+# Dependabot PRs are skipped — python-app.yml still guards broken deps.
+# See DEMOCI-02-002, DEMOCI-02-003, DEMOCI-02-004.
+
+name: Demo Integration
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "vultron/**"
+      - "docker/**"
+      - "integration_tests/**"
+      - "pyproject.toml"
+      - "uv.lock"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  demo:
+    name: Two-Actor Demo Integration
+    runs-on: ubuntu-latest
+    # DEMOCI-02-009: 15-minute cap to prevent indefinite hangs.
+    timeout-minutes: 15
+    # DEMOCI-02-004: skip Dependabot PRs; python-app.yml guards broken deps.
+    if: "!startsWith(github.head_ref, 'dependabot/')"
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      # DEMOCI-02-007: Docker layer caching to avoid rebuilding unchanged layers.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4.0.0
+
+      - name: Cache Docker layers
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: /tmp/.buildx-cache
+          key: >-
+            ${{ runner.os }}-buildx-${{
+              hashFiles('docker/Dockerfile', 'pyproject.toml', 'uv.lock')
+            }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Build Docker images
+        run: |
+          docker compose -f docker/docker-compose-multi-actor.yml build \
+            --build-arg BUILDKIT_INLINE_CACHE=1
+
+      # DEMOCI-02-005, DEMOCI-02-006: run two-actor demo; detect failure via
+      # exit code of the demo-runner container.
+      # DEMOCI-02-008: set DEBUG log level at CI runtime so actor containers
+      # emit full tracebacks and state-machine detail.
+      - name: Run two-actor demo
+        run: |
+          DEMO=two-actor \
+          VULTRON_SERVER__LOG_LEVEL=DEBUG \
+            docker compose -f docker/docker-compose-multi-actor.yml \
+            up --abort-on-container-exit --exit-code-from demo-runner
+
+      # DEMOCI-02-008: collect combined stream and per-service logs on failure.
+      - name: Collect container logs
+        if: failure()
+        run: |
+          COMPOSE_FILE=docker/docker-compose-multi-actor.yml
+          mkdir -p /tmp/demo-logs
+          docker compose -f "$COMPOSE_FILE" logs \
+            > /tmp/demo-logs/combined.log 2>&1
+          for svc in finder vendor coordinator case-actor vendor2 demo-runner; do
+            docker compose -f "$COMPOSE_FILE" logs "$svc" \
+              > "/tmp/demo-logs/${svc}.log" 2>&1 || true
+          done
+
+      - name: Upload container logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: demo-container-logs
+          path: /tmp/demo-logs/
+          retention-days: 7
+
+      # DEMOCI-02-010: always tear down containers and volumes.
+      - name: Tear down containers and volumes
+        if: always()
+        run: |
+          docker compose -f docker/docker-compose-multi-actor.yml down -v
+
+# Future scenarios to add when stable:
+#   - three-actor  (multi-coordinator; add as matrix entry per DEMOCI-03-003)
+#   - multi-vendor (add as matrix entry per DEMOCI-03-003)
