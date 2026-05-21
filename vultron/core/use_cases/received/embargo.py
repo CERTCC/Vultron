@@ -318,12 +318,45 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
         self._request: AnnounceEmbargoEventToCaseReceivedEvent = request
 
     def execute(self) -> None:
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.embargo.announce_teardown_tree import (
+            announce_embargo_teardown_tree,
+        )
+
         request = self._request
+        case_id = request.case_id
+        if case_id is None:
+            logger.warning(
+                "announce_embargo_event_to_case: missing case_id for"
+                " activity '%s'",
+                request.activity_id,
+            )
+            return
+
         logger.info(
             "Received embargo announcement '%s' on case '%s'",
             request.activity_id,
-            request.case_id,
+            case_id,
         )
+
+        tree = announce_embargo_teardown_tree(case_id=case_id)
+        bridge = BTBridge(datalayer=self._dl)
+        result = bridge.execute_with_setup(
+            tree=tree,
+            actor_id=request.actor_id,
+            activity=request,
+        )
+
+        if result.status != Status.SUCCESS:
+            reason = BTBridge.get_failure_reason(tree)
+            logger.warning(
+                "AnnounceEmbargoTeardownBT did not succeed for activity"
+                " '%s': %s",
+                request.activity_id,
+                reason or result.feedback_message,
+            )
 
 
 class InviteToEmbargoOnCaseReceivedUseCase:

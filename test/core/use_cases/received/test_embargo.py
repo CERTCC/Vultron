@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 from vultron.adapters.driven.db_record import StorableRecord
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
+    AnnounceEmbargoEventToCaseReceivedUseCase,
     CreateEmbargoEventReceivedUseCase,
     AddEmbargoEventToCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
@@ -33,6 +34,7 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.factories import (
     add_embargo_to_case_activity,
+    announce_embargo_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
@@ -624,3 +626,203 @@ class TestEmbargoUseCases:
             SvcAcceptEmbargoUseCase(
                 dl, request, trigger_activity=TriggerActivityAdapter(dl)
             ).execute()
+
+
+class TestAnnounceEmbargoEventToCaseReceivedUseCase:
+    """Tests for AnnounceEmbargoEventToCaseReceivedUseCase."""
+
+    def test_announce_embargo_transitions_em_to_exited(self, make_payload):
+        """execute() transitions case EM state from ACTIVE to EXITED."""
+        import py_trees
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+        py_trees.blackboard.Blackboard.storage.clear()
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/case_aem1",
+            name="Announce Embargo Teardown Test",
+        )
+        embargo = EmbargoEvent(
+            id_="https://example.org/cases/case_aem1/embargo_events/e1",
+            context=case.id_,
+        )
+        case.active_embargo = embargo.id_
+        case.current_status.em_state = EM.ACTIVE
+        dl.create(case)
+
+        activity = announce_embargo_activity(
+            embargo=embargo,
+            context=case,
+            actor="https://example.org/users/vendor",
+        )
+        event = make_payload(activity)
+
+        AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
+
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated is not None
+        assert updated.current_status.em_state == EM.EXITED
+        assert updated.active_embargo is None
+
+    def test_announce_embargo_clears_active_embargo(self, make_payload):
+        """execute() clears active_embargo on the case."""
+        import py_trees
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+        py_trees.blackboard.Blackboard.storage.clear()
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/case_aem2",
+            name="Announce Embargo Clear Test",
+        )
+        embargo = EmbargoEvent(
+            id_="https://example.org/cases/case_aem2/embargo_events/e2",
+            context=case.id_,
+        )
+        case.active_embargo = embargo.id_
+        case.current_status.em_state = EM.ACTIVE
+        dl.create(case)
+
+        activity = announce_embargo_activity(
+            embargo=embargo,
+            context=case,
+            actor="https://example.org/users/vendor",
+        )
+        event = make_payload(activity)
+
+        AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
+
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated is not None
+        assert updated.active_embargo is None
+
+    def test_announce_embargo_resets_participant_consent(self, make_payload):
+        """execute() resets participant embargo consent states to NO_EMBARGO."""
+        import py_trees
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.core.states.participant_embargo_consent import PEC
+
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+        py_trees.blackboard.Blackboard.storage.clear()
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/case_aem3",
+            name="Announce Embargo Participant Reset Test",
+        )
+        embargo = EmbargoEvent(
+            id_="https://example.org/cases/case_aem3/embargo_events/e3",
+            context=case.id_,
+        )
+        participant = CaseParticipant(
+            id_="https://example.org/cases/case_aem3/participants/p1",
+            attributed_to="https://example.org/users/finder",
+        )
+        participant.embargo_consent_state = PEC.SIGNATORY.value
+        case.active_embargo = embargo.id_
+        case.current_status.em_state = EM.ACTIVE
+        case.case_participants.append(participant.id_)
+        case.actor_participant_index["https://example.org/users/finder"] = (
+            participant.id_
+        )
+        dl.create(case)
+        dl.create(participant)
+
+        activity = announce_embargo_activity(
+            embargo=embargo,
+            context=case,
+            actor="https://example.org/users/vendor",
+        )
+        event = make_payload(activity)
+
+        AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
+
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant as CP,
+        )
+
+        updated_p = cast(CP, dl.read(participant.id_))
+        assert updated_p is not None
+        assert updated_p.embargo_consent_state == PEC.NO_EMBARGO.value
+
+    def test_announce_embargo_idempotent_when_already_exited(
+        self, make_payload
+    ):
+        """execute() is a no-op when case EM state is already EXITED."""
+        import py_trees
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+        py_trees.blackboard.Blackboard.storage.clear()
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/case_aem4",
+            name="Announce Embargo Idempotent Test",
+        )
+        embargo = EmbargoEvent(
+            id_="https://example.org/cases/case_aem4/embargo_events/e4",
+            context=case.id_,
+        )
+        case.active_embargo = None
+        case.current_status.em_state = EM.EXITED
+        dl.create(case)
+
+        activity = announce_embargo_activity(
+            embargo=embargo,
+            context=case,
+            actor="https://example.org/users/vendor",
+        )
+        event = make_payload(activity)
+
+        # Should not raise and case state should remain EXITED
+        AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
+
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated is not None
+        assert updated.current_status.em_state == EM.EXITED
+
+    def test_announce_embargo_missing_case_id_logs_warning(
+        self, make_payload, caplog
+    ):
+        """execute() logs a warning and exits early if case_id is missing."""
+        import py_trees
+        from unittest.mock import MagicMock
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+        py_trees.blackboard.Blackboard.storage.clear()
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        mock_event = MagicMock()
+        mock_event.case_id = None
+        mock_event.activity_id = "https://example.org/activities/ann1"
+        mock_event.actor_id = "https://example.org/users/vendor"
+
+        with caplog.at_level(logging.WARNING):
+            AnnounceEmbargoEventToCaseReceivedUseCase(dl, mock_event).execute()
+
+        assert any("missing case_id" in r.message for r in caplog.records)
