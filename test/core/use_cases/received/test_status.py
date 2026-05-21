@@ -15,6 +15,10 @@
 from typing import cast
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.protocols import is_log_entry_model
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.status import (
     AddCaseStatusToCaseReceivedUseCase,
@@ -265,3 +269,129 @@ class TestStatusUseCases:
             getattr(s, "id_", s) for s in participant.participant_statuses
         ]
         assert pstatus.id_ in status_ids
+
+
+# ---------------------------------------------------------------------------
+# CaseLogEntry cascade tests (PCR-08-003, PCR-08-004) — AC-2
+# ---------------------------------------------------------------------------
+
+
+class TestParticipantStatusLogEntryCascade:
+    """CaseLogEntry cascade for AddParticipantStatusToParticipantReceivedUseCase."""
+
+    def _make_dl(self, case_id: str, actor_id: str) -> tuple:
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case_actor_id = f"{case_id}/actor"
+        case_actor = VultronCaseActor(
+            id_=case_actor_id,
+            name=f"CaseActor for {case_id}",
+            attributed_to=actor_id,
+            context=case_id,
+        )
+        dl.create(case_actor)
+
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        case = VulnerabilityCase(
+            id_=case_id,
+            name="Status Cascade Case",
+            attributed_to=actor_id,
+        )
+        case.case_participants.append(f"{case_id}/participants/p1")
+        case.actor_participant_index[actor_id] = f"{case_id}/participants/p1"
+        dl.create(case)
+
+        participant = CaseParticipant(
+            id_=f"{case_id}/participants/p1",
+            context=case_id,
+            attributed_to=actor_id,
+        )
+        dl.create(participant)
+
+        pstatus = ParticipantStatus(
+            id_=f"{case_id}/participants/p1/statuses/s1",
+            context=case_id,
+        )
+        dl.create(pstatus)
+
+        return dl, case_actor_id, participant, pstatus
+
+    def test_cascade_commits_log_entry_on_success(self, make_payload):
+        """Cascade commits a CaseLogEntry when BT succeeds (AC-2)."""
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        actor_id = "https://example.org/users/vendor"
+        case_id = "https://example.org/cases/st_le1"
+        dl, case_actor_id, participant, pstatus = self._make_dl(
+            case_id, actor_id
+        )
+        case = cast(VulnerabilityCase, dl.read(case_id))
+        assert case is not None
+
+        activity = add_status_to_participant_activity(
+            pstatus,
+            target=participant,
+            actor=actor_id,
+            context=case,
+        )
+        event = make_payload(activity, receiving_actor_id=case_actor_id)
+        sync_port = SyncActivityAdapter(dl)
+        AddParticipantStatusToParticipantReceivedUseCase(
+            dl, event, sync_port=sync_port
+        ).execute()
+
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLogEntry")
+            if is_log_entry_model(obj)
+            and cast(VultronCaseLogEntry, obj).case_id == case_id
+        ]
+        assert len(entries) == 1
+        assert cast(VultronCaseLogEntry, entries[0]).event_type == (
+            "add_participant_status"
+        )
+
+    def test_no_fanout_without_sync_port(self, make_payload):
+        """No fan-out Announce(CaseLogEntry) is sent when sync_port is None.
+
+        The log entry IS committed locally, but no outbox messages are queued
+        for delivery to participants.
+        """
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        actor_id = "https://example.org/users/vendor"
+        case_id = "https://example.org/cases/st_le2"
+        dl, case_actor_id, participant, pstatus = self._make_dl(
+            case_id, actor_id
+        )
+        case = cast(VulnerabilityCase, dl.read(case_id))
+        assert case is not None
+
+        activity = add_status_to_participant_activity(
+            pstatus,
+            target=participant,
+            actor=actor_id,
+            context=case,
+        )
+        event = make_payload(activity, receiving_actor_id=case_actor_id)
+        AddParticipantStatusToParticipantReceivedUseCase(
+            dl, event, sync_port=None
+        ).execute()
+
+        # Log entry MUST be committed locally even without a sync_port.
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLogEntry")
+            if is_log_entry_model(obj)
+            and cast(VultronCaseLogEntry, obj).case_id == case_id
+        ]
+        assert len(entries) == 1
+
+        # But no outbox activities should be queued for fan-out.
+        assert dl.outbox_list() == []

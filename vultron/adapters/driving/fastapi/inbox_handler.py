@@ -76,8 +76,15 @@ def _trigger_activity_port_factory(dl: DataLayer) -> dict[str, Any]:
 
 _SYNC_PORT_SEMANTICS = frozenset(
     {
+        MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE,
+        MessageSemantics.ADD_NOTE_TO_CASE,
+        MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
+        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY,
+        MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.REJECT_CASE_LOG_ENTRY,
+        MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
+        MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
     }
 )
 

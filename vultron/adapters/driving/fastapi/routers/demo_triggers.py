@@ -128,6 +128,12 @@ def demo_sync_log_entry(
         TRIG-09-001, TRIG-09-004, TRIG-10-004,
         SYNC-02-002, SYNC-02-003, TB-01-001, TB-01-002, TB-04-001,
         TB-06-001, TB-06-002, TB-07-001
+
+    TEST SCAFFOLD ONLY — do not call from normal protocol flows.
+    In production, CaseLogEntry commits fire automatically as a cascade
+    consequence of every accepted participant message (PCR-08-003, PCR-08-004).
+    This endpoint exists only to let demo/test scripts inject log entries
+    manually during verification.
     """
     actor = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
     canonical_actor_id = (

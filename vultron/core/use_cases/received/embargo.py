@@ -1,6 +1,7 @@
 """Use cases for embargo management activities."""
 
 import logging
+from typing import TYPE_CHECKING
 
 from vultron.core.states.em import (
     EM,
@@ -20,7 +21,10 @@ from vultron.core.models.events.embargo import (
     RejectInviteToEmbargoOnCaseReceivedEvent,
     RemoveEmbargoEventFromCaseReceivedEvent,
 )
-from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.ports.case_persistence import (
+    CasePersistence,
+    CaseOutboxPersistence,
+)
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 from vultron.core.models.protocols import (
     CaseModel,
@@ -29,7 +33,58 @@ from vultron.core.models.protocols import (
     is_participant_model,
 )
 
+if TYPE_CHECKING:
+    from vultron.core.ports.sync_activity import SyncActivityPort
+
 logger = logging.getLogger(__name__)
+
+
+def _commit_embargo_log_cascade(
+    case_id: str | None,
+    object_id: str | None,
+    event_type: str,
+    dl: CaseOutboxPersistence,
+    receiving_actor_id: str | None,
+    sync_port: "SyncActivityPort | None",
+) -> None:
+    """Commit a CaseLogEntry and fan it out to all case participants.
+
+    Shared helper for all embargo received-side handlers that need to fire
+    the ``commit_log_entry → fan_out`` cascade after accepting an embargo
+    operation (PCR-08-003, PCR-08-004).
+
+    Silently skips when *case_id* or *object_id* is ``None``, or when no
+    CaseActor can be resolved.
+    """
+    from vultron.core.use_cases.received.actor import _find_case_actor_id
+    from vultron.core.use_cases.triggers.sync import commit_log_entry_trigger
+
+    if case_id is None or object_id is None:
+        logger.warning(
+            "embargo cascade: missing case_id or object_id"
+            " — skipping log entry cascade (PCR-08-003)"
+        )
+        return
+
+    actor_id = receiving_actor_id
+    if actor_id is None:
+        actor_id = _find_case_actor_id(dl, case_id)
+    if actor_id is None:
+        logger.warning(
+            "embargo cascade: cannot resolve CaseActor for case '%s'"
+            " — skipping log entry cascade (PCR-08-003)",
+            case_id,
+        )
+        return
+
+    commit_log_entry_trigger(
+        case_id=case_id,
+        object_id=object_id,
+        event_type=event_type,
+        actor_id=actor_id,
+        dl=dl,
+        sync_port=sync_port,
+    )
 
 
 def _reset_case_participant_embargo_consent(
@@ -176,10 +231,14 @@ class CreateEmbargoEventReceivedUseCase:
 
 class AddEmbargoEventToCaseReceivedUseCase:
     def __init__(
-        self, dl: CasePersistence, request: AddEmbargoEventToCaseReceivedEvent
+        self,
+        dl: CaseOutboxPersistence,
+        request: AddEmbargoEventToCaseReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: AddEmbargoEventToCaseReceivedEvent = request
+        self._sync_port = sync_port
 
     def execute(self) -> None:
         request = self._request
@@ -225,15 +284,26 @@ class AddEmbargoEventToCaseReceivedUseCase:
         self._dl.save(case)
         logger.info("Activated embargo '%s' on case '%s'", embargo_id, case_id)
 
+        _commit_embargo_log_cascade(
+            case_id=case_id,
+            object_id=embargo_id,
+            event_type="add_embargo_event_to_case",
+            dl=self._dl,
+            receiving_actor_id=request.receiving_actor_id,
+            sync_port=self._sync_port,
+        )
+
 
 class RemoveEmbargoEventFromCaseReceivedUseCase:
     def __init__(
         self,
-        dl: CasePersistence,
+        dl: CaseOutboxPersistence,
         request: RemoveEmbargoEventFromCaseReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: RemoveEmbargoEventFromCaseReceivedEvent = request
+        self._sync_port = sync_port
 
     def execute(self) -> None:
         from py_trees.common import Status
@@ -272,6 +342,18 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
                 result.feedback_message,
             )
 
+        # Always commit a log entry regardless of BT result.  FAILURE means
+        # the embargo was already cleared or only in proposed_embargoes —
+        # both are non-error outcomes that still require fan-out (PCR-08-003).
+        _commit_embargo_log_cascade(
+            case_id=case_id,
+            object_id=embargo_id,
+            event_type="remove_embargo_event_from_case",
+            dl=self._dl,
+            receiving_actor_id=request.receiving_actor_id,
+            sync_port=self._sync_port,
+        )
+
 
 class AnnounceEmbargoEventToCaseReceivedUseCase:
     def __init__(
@@ -292,10 +374,14 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
 
 class InviteToEmbargoOnCaseReceivedUseCase:
     def __init__(
-        self, dl: CasePersistence, request: InviteToEmbargoOnCaseReceivedEvent
+        self,
+        dl: CaseOutboxPersistence,
+        request: InviteToEmbargoOnCaseReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: InviteToEmbargoOnCaseReceivedEvent = request
+        self._sync_port = sync_port
 
     def execute(self) -> None:
         request = self._request
@@ -311,7 +397,7 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         # Advance the invitee's consent state to INVITED so they can later
         # accept or decline via the PEC machine.
         invitee_id = request.receiving_actor_id
-        case_id = _as_id(getattr(request.activity, "context_", None))
+        case_id = request.context_id
         if not invitee_id or not case_id:
             return
 
@@ -340,15 +426,26 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             case_id,
         )
 
+        _commit_embargo_log_cascade(
+            case_id=case_id,
+            object_id=request.activity_id,
+            event_type="invite_to_embargo_on_case",
+            dl=self._dl,
+            receiving_actor_id=request.receiving_actor_id,
+            sync_port=self._sync_port,
+        )
+
 
 class AcceptInviteToEmbargoOnCaseReceivedUseCase:
     def __init__(
         self,
-        dl: CasePersistence,
+        dl: CaseOutboxPersistence,
         request: AcceptInviteToEmbargoOnCaseReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: AcceptInviteToEmbargoOnCaseReceivedEvent = request
+        self._sync_port = sync_port
 
     def execute(self) -> None:
         request = self._request
@@ -386,15 +483,26 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             case.id_,
         )
 
+        _commit_embargo_log_cascade(
+            case_id=case.id_,
+            object_id=embargo_id,
+            event_type="accept_invite_to_embargo_on_case",
+            dl=self._dl,
+            receiving_actor_id=request.receiving_actor_id,
+            sync_port=self._sync_port,
+        )
+
 
 class RejectInviteToEmbargoOnCaseReceivedUseCase:
     def __init__(
         self,
-        dl: CasePersistence,
+        dl: CaseOutboxPersistence,
         request: RejectInviteToEmbargoOnCaseReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: RejectInviteToEmbargoOnCaseReceivedEvent = request
+        self._sync_port = sync_port
 
     def execute(self) -> None:
         request = self._request
@@ -413,7 +521,7 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         if invite_id:
             invite = self._dl.read(invite_id)
             if invite is not None:
-                case_id = _as_id(getattr(invite, "context_", None))
+                case_id = _as_id(getattr(invite, "context", None))
                 embargo_id = _as_id(getattr(invite, "object_", None))
 
         if not case_id:
@@ -443,4 +551,13 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             "Set participant '%s' (actor '%s') embargo consent to DECLINED",
             participant_id,
             rejecting_actor_id,
+        )
+
+        _commit_embargo_log_cascade(
+            case_id=case_id,
+            object_id=invite_id or request.activity_id,
+            event_type="reject_invite_to_embargo_on_case",
+            dl=self._dl,
+            receiving_actor_id=request.receiving_actor_id,
+            sync_port=self._sync_port,
         )
