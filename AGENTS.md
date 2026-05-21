@@ -321,6 +321,14 @@ Short entries are reproduced here; longer ones are referenced below.
 - **Invite Response Parsing Requires Recursive Rehydration** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **Scenario Demos Must Puppeteer via Trigger Endpoints, Not Spoof Inboxes** — see [notes/event-driven-control-flow.md](notes/event-driven-control-flow.md)
 - **Role Taxonomies Must Not Leak Into Parameter Names** — When renaming a role concept (e.g., "finder" → "reporter"), search adapter and demo layers as well as core. Demo helpers often mirror public parameter names; leaving them behind creates naming inconsistency. See `notes/bugfix-workflow.md`.
+- **`case_addressees()` Is the Wrong Recipient for Participant Outbound Messages** — After
+  case creation, participant-originated activities MUST be addressed only to the Case Actor
+  (`CVDRole.CASE_MANAGER` participant's `attributed_to`), not to `case_addressees()`.
+  Using `case_addressees()` on the sender side bypasses the CaseActor and violates the
+  `participant → CaseActor → CaseLogEntry → broadcast → participants` model
+  (PCR-08-001, PCR-08-002). `case_addressees()` is correct only on the Case Actor's
+  **outbound fan-out** side (broadcasting to all participants). See
+  [notes/case-communication-model.md](notes/case-communication-model.md).
 - **Close Bugs With Evidence, Not Assumption** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Use `isinstance` for Pyright Attribute Narrowing, Not `# type: ignore`** — see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
 - **Untyped Closures Are Invisible to mypy — Extract to Named Functions** — see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)

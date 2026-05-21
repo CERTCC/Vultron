@@ -224,6 +224,17 @@ lifecycle, pre-case event backfill, and multi-vendor action rules.
 embargo status transitions, adding `record_event()` calls, or debugging action
 rule filtering.
 
+**`case-communication-model.md`**
+Canonical communication model for post-case-creation participant messaging:
+all messages route through the Case Actor only
+(`participant → CaseActor → CaseLogEntry → broadcast → participants`). Covers
+the routing rule, its rationale, the `case_addressees()` antipattern, how to
+resolve the Case Actor ID, and the automatic `CaseLogEntry + broadcast`
+cascade. Normative requirements: `specs/participant-case-replica.yaml` PCR-08.
+**Load when**: implementing any trigger use case or BT that causes a
+participant to send a case-scoped message, debugging out-of-band note or
+embargo delivery, or auditing outbound activity addressing.
+
 **`case-log-authority.md`**
 Assertion recording model for report / proto-case / case flows: implicit
 participant assertions, `CaseActor`-authored `CaseLogEntry`, local audit log
