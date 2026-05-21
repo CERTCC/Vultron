@@ -22,8 +22,11 @@ No HTTP framework imports permitted here.
 import logging
 from typing import TYPE_CHECKING, Any
 
+from py_trees.common import Status
 from transitions import MachineError
 
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.models.embargo_event import VultronEmbargoEvent
 from vultron.core.states.em import EM, EMAdapter, create_em_machine
 from vultron.core.models.protocols import (
@@ -41,9 +44,8 @@ from vultron.core.states.participant_embargo_consent import (
     PEC_Trigger,
     apply_pec_trigger,
 )
-from vultron.core.use_cases._helpers import _as_id, _resolve_case_manager_id
+from vultron.core.use_cases._helpers import _as_id
 from vultron.core.use_cases.triggers._helpers import (
-    add_activity_to_outbox,
     find_embargo_proposal,
     resolve_actor,
     resolve_case,
@@ -327,7 +329,11 @@ def _apply_owner_embargo_rejection(
 
 
 class SvcProposeEmbargoUseCase:
-    """Propose an embargo on a case."""
+    """Propose an embargo on a case.
+
+    Validates the EM state transition, creates the EmbargoEvent, and
+    sends a Propose(Embargo) activity to the Case Actor via SenderSideBT.
+    """
 
     def __init__(
         self,
@@ -338,6 +344,38 @@ class SvcProposeEmbargoUseCase:
         self._dl = dl
         self._request: ProposeEmbargoTriggerRequest = request
         self._trigger_activity = trigger_activity
+
+    def _apply_em_propose_transition(
+        self,
+        actor_id: str,
+        case: Any,
+        em_state: Any,
+        new_em_state: Any,
+        embargo_id: str,
+        dl: "CaseOutboxPersistence",
+    ) -> None:
+        """Apply EM state update, cascade revise if needed, and log."""
+        case.current_status.em_state = new_em_state
+        if em_state == EM.ACTIVE and new_em_state == EM.REVISE:
+            _cascade_pec_revise(case, dl)
+        if new_em_state != em_state:
+            logger.info(
+                "Actor '%s' proposed embargo '%s' on case '%s' (EM %s → %s)",
+                actor_id,
+                embargo_id,
+                case.id_,
+                em_state,
+                new_em_state,
+            )
+        else:
+            logger.info(
+                "Actor '%s' counter-proposed embargo '%s' on case '%s'"
+                " (EM %s, no state change)",
+                actor_id,
+                embargo_id,
+                case.id_,
+                em_state,
+            )
 
     def execute(self) -> dict:
         request = self._request
@@ -392,53 +430,45 @@ class SvcProposeEmbargoUseCase:
                 "SvcProposeEmbargoUseCase requires a TriggerActivityPort"
             )
 
-        case_manager_id = _resolve_case_manager_id(case, dl)
-        if case_manager_id is None:
-            raise VultronValidationError(
-                f"Cannot route propose-embargo activity: no Case Manager"
-                f" participant found in case '{case.id_}'"
+        factory = self._trigger_activity
+        captured: dict = {}
+
+        def _build_activities(case_manager_id: str) -> list[str]:
+            proposal_id, proposal_dict = factory.propose_embargo(
+                embargo_id=embargo.id_,
+                case_id=case.id_,
+                actor=actor_id,
+                to=[case_manager_id],
             )
-        proposal_id, proposal_dict = self._trigger_activity.propose_embargo(
-            embargo_id=embargo.id_,
-            case_id=case.id_,
-            actor=actor_id,
-            to=[case_manager_id],
+            captured["activity"] = proposal_dict
+            return [proposal_id]
+
+        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        tree = sender_side_bt(
+            case_id=case.id_, activity_builder=_build_activities
         )
+        result = bridge.execute_with_setup(tree, actor_id=actor_id)
 
-        case.current_status.em_state = new_em_state
-        # When transitioning from ACTIVE to REVISE, all current signatories
-        # lapse — the embargo terms are being renegotiated.
-        if em_state == EM.ACTIVE and new_em_state == EM.REVISE:
-            _cascade_pec_revise(case, dl)
-        if new_em_state != em_state:
-            logger.info(
-                "Actor '%s' proposed embargo '%s' on case '%s' (EM %s → %s)",
-                actor_id,
-                embargo.id_,
-                case.id_,
-                em_state,
-                new_em_state,
-            )
-        else:
-            logger.info(
-                "Actor '%s' counter-proposed embargo '%s' on case '%s'"
-                " (EM %s, no state change)",
-                actor_id,
-                embargo.id_,
-                case.id_,
-                em_state,
+        if result.status != Status.SUCCESS:
+            raise VultronValidationError(
+                f"ProposeEmbargo failed: {BTBridge.get_failure_reason(tree)}"
             )
 
+        self._apply_em_propose_transition(
+            actor_id, case, em_state, new_em_state, embargo.id_, dl
+        )
         case.proposed_embargoes.append(embargo.id_)
         dl.save(case)
 
-        add_activity_to_outbox(actor_id, proposal_id, dl)
-
-        return {"activity": proposal_dict}
+        return {"activity": captured.get("activity")}
 
 
 class SvcAcceptEmbargoUseCase:
-    """Accept an embargo proposal (accept-embargo)."""
+    """Accept an embargo proposal (accept-embargo).
+
+    Validates the proposal, applies EM state transitions, and sends an
+    Accept(Proposal) activity to the Case Actor via SenderSideBT.
+    """
 
     def __init__(
         self,
@@ -471,18 +501,29 @@ class SvcAcceptEmbargoUseCase:
                 "SvcAcceptEmbargoUseCase requires a TriggerActivityPort"
             )
 
-        case_manager_id = _resolve_case_manager_id(case, dl)
-        if case_manager_id is None:
-            raise VultronValidationError(
-                f"Cannot route accept-embargo activity: no Case Manager"
-                f" participant found in case '{case.id_}'"
+        factory = self._trigger_activity
+        captured: dict = {}
+
+        def _build_activities(case_manager_id: str) -> list[str]:
+            accept_id, accept_dict = factory.accept_embargo(
+                proposal_id=proposal.id_,
+                case_id=case.id_,
+                actor=actor_id,
+                to=[case_manager_id],
             )
-        accept_id, accept_dict = self._trigger_activity.accept_embargo(
-            proposal_id=proposal.id_,
-            case_id=case.id_,
-            actor=actor_id,
-            to=[case_manager_id],
+            captured["activity"] = accept_dict
+            return [accept_id]
+
+        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        tree = sender_side_bt(
+            case_id=case.id_, activity_builder=_build_activities
         )
+        result = bridge.execute_with_setup(tree, actor_id=actor_id)
+
+        if result.status != Status.SUCCESS:
+            raise VultronValidationError(
+                f"AcceptEmbargo failed: {BTBridge.get_failure_reason(tree)}"
+            )
 
         em_state = case.current_status.em_state
         new_em_state, owner_activated = _apply_owner_embargo_acceptance(
@@ -494,7 +535,6 @@ class SvcAcceptEmbargoUseCase:
 
         _update_participant_embargo_acceptance(case, actor_id, embargo_id, dl)
         dl.save(case)
-        add_activity_to_outbox(actor_id, accept_id, dl)
 
         if owner_activated:
             logger.info(
@@ -519,11 +559,15 @@ class SvcAcceptEmbargoUseCase:
                 new_em_state,
             )
 
-        return {"activity": accept_dict}
+        return {"activity": captured.get("activity")}
 
 
 class SvcTerminateEmbargoUseCase:
-    """Terminate the active embargo on a case."""
+    """Terminate the active embargo on a case.
+
+    Validates the EM state transition, applies PEC resets, and sends a
+    Terminate(Embargo) activity to the Case Actor via SenderSideBT.
+    """
 
     def __init__(
         self,
@@ -594,26 +638,35 @@ class SvcTerminateEmbargoUseCase:
                 "SvcTerminateEmbargoUseCase requires a TriggerActivityPort"
             )
 
-        case_manager_id = _resolve_case_manager_id(case, dl)
-        if case_manager_id is None:
-            raise VultronValidationError(
-                f"Cannot route terminate-embargo activity: no Case Manager"
-                f" participant found in case '{case.id_}'"
+        factory = self._trigger_activity
+        captured: dict = {}
+
+        def _build_activities(case_manager_id: str) -> list[str]:
+            announce_id, announce_dict = factory.terminate_embargo(
+                embargo_id=embargo_id,
+                case_id=case.id_,
+                actor=actor_id,
+                to=[case_manager_id],
             )
-        announce_id, announce_dict = self._trigger_activity.terminate_embargo(
-            embargo_id=embargo_id,
-            case_id=case.id_,
-            actor=actor_id,
-            to=[case_manager_id],
+            captured["activity"] = announce_dict
+            return [announce_id]
+
+        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        tree = sender_side_bt(
+            case_id=case.id_, activity_builder=_build_activities
         )
+        result = bridge.execute_with_setup(tree, actor_id=actor_id)
+
+        if result.status != Status.SUCCESS:
+            raise VultronValidationError(
+                f"TerminateEmbargo failed: {BTBridge.get_failure_reason(tree)}"
+            )
 
         case.current_status.em_state = EM(adapter.state)
         case.active_embargo = None
         # Reset all participants' embargo consent state.
         _cascade_pec_reset(case, dl)
         dl.save(case)
-
-        add_activity_to_outbox(actor_id, announce_id, dl)
 
         logger.info(
             "Actor '%s' terminated embargo '%s' on case '%s' (EM %s → %s)",
@@ -624,7 +677,7 @@ class SvcTerminateEmbargoUseCase:
             adapter.state,
         )
 
-        return {"activity": announce_dict}
+        return {"activity": captured.get("activity")}
 
 
 # Backward-compatible alias
@@ -635,6 +688,7 @@ class SvcRejectEmbargoUseCase:
     """Reject an embargo proposal (reject-embargo).
 
     Valid EM transitions: PROPOSED → NO_EMBARGO or REVISE → ACTIVE.
+    Sends a Reject(Proposal) activity to the Case Actor via SenderSideBT.
     """
 
     def __init__(
@@ -668,23 +722,32 @@ class SvcRejectEmbargoUseCase:
                 "SvcRejectEmbargoUseCase requires a TriggerActivityPort"
             )
 
-        case_manager_id = _resolve_case_manager_id(case, dl)
-        if case_manager_id is None:
-            raise VultronValidationError(
-                f"Cannot route reject-embargo activity: no Case Manager"
-                f" participant found in case '{case.id_}'"
+        factory = self._trigger_activity
+        captured: dict = {}
+
+        def _build_activities(case_manager_id: str) -> list[str]:
+            reject_id, reject_dict = factory.reject_embargo(
+                proposal_id=proposal.id_,
+                case_id=case.id_,
+                actor=actor_id,
+                to=[case_manager_id],
             )
-        reject_id, reject_dict = self._trigger_activity.reject_embargo(
-            proposal_id=proposal.id_,
-            case_id=case.id_,
-            actor=actor_id,
-            to=[case_manager_id],
+            captured["activity"] = reject_dict
+            return [reject_id]
+
+        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        tree = sender_side_bt(
+            case_id=case.id_, activity_builder=_build_activities
         )
+        result = bridge.execute_with_setup(tree, actor_id=actor_id)
+
+        if result.status != Status.SUCCESS:
+            raise VultronValidationError(
+                f"RejectEmbargo failed: {BTBridge.get_failure_reason(tree)}"
+            )
 
         _update_participant_embargo_rejection(case, actor_id, embargo_id, dl)
         dl.save(case)
-
-        add_activity_to_outbox(actor_id, reject_id, dl)
 
         if owner_rejected:
             logger.info(
@@ -708,7 +771,7 @@ class SvcRejectEmbargoUseCase:
                 new_em_state,
             )
 
-        return {"activity": reject_dict}
+        return {"activity": captured.get("activity")}
 
 
 class SvcProposeEmbargoRevisionUseCase:
@@ -717,6 +780,7 @@ class SvcProposeEmbargoRevisionUseCase:
     Valid EM transitions: ACTIVE → REVISE or REVISE → REVISE.
     Rejects with an invalid-state error if EM state is NO_EMBARGO or PROPOSED
     (use propose-embargo for initial proposals).
+    Sends a Propose(Embargo) activity to the Case Actor via SenderSideBT.
     """
 
     def __init__(
@@ -790,24 +854,34 @@ class SvcProposeEmbargoRevisionUseCase:
                 " TriggerActivityPort"
             )
 
-        case_manager_id = _resolve_case_manager_id(case, dl)
-        if case_manager_id is None:
-            raise VultronValidationError(
-                f"Cannot route propose-embargo-revision activity: no Case"
-                f" Manager participant found in case '{case.id_}'"
+        factory = self._trigger_activity
+        captured: dict = {}
+
+        def _build_activities(case_manager_id: str) -> list[str]:
+            proposal_id, proposal_dict = factory.propose_embargo(
+                embargo_id=embargo.id_,
+                case_id=case.id_,
+                actor=actor_id,
+                to=[case_manager_id],
             )
-        proposal_id, proposal_dict = self._trigger_activity.propose_embargo(
-            embargo_id=embargo.id_,
-            case_id=case.id_,
-            actor=actor_id,
-            to=[case_manager_id],
+            captured["activity"] = proposal_dict
+            return [proposal_id]
+
+        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        tree = sender_side_bt(
+            case_id=case.id_, activity_builder=_build_activities
         )
+        result = bridge.execute_with_setup(tree, actor_id=actor_id)
+
+        if result.status != Status.SUCCESS:
+            raise VultronValidationError(
+                f"ProposeEmbargoRevision failed:"
+                f" {BTBridge.get_failure_reason(tree)}"
+            )
 
         case.current_status.em_state = new_em_state
         case.proposed_embargoes.append(embargo.id_)
         dl.save(case)
-
-        add_activity_to_outbox(actor_id, proposal_id, dl)
 
         logger.info(
             "Actor '%s' proposed embargo revision '%s' on case '%s'"
@@ -819,4 +893,4 @@ class SvcProposeEmbargoRevisionUseCase:
             new_em_state,
         )
 
-        return {"activity": proposal_dict}
+        return {"activity": captured.get("activity")}

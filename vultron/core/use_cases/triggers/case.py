@@ -22,12 +22,18 @@ No HTTP framework imports permitted here.
 import logging
 from typing import TYPE_CHECKING, Any
 
+from py_trees.common import Status
+
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.models.case import VultronCase
 from vultron.core.states.cs import CS_vfd
 from vultron.core.states.rm import RM
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import update_participant_rm_state
-from vultron.core.use_cases._helpers import _resolve_case_manager_id
+from vultron.core.use_cases._helpers import (
+    _resolve_case_manager_id,
+    update_participant_rm_state,
+)
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,
     resolve_actor,
@@ -50,7 +56,11 @@ logger = logging.getLogger(__name__)
 
 
 class SvcEngageCaseUseCase:
-    """Engage a case (RM → ACCEPTED)."""
+    """Engage a case (RM → ACCEPTED).
+
+    Updates the actor's RM state to ACCEPTED and sends an Engage(Case)
+    activity to the Case Actor via SenderSideBT (PCR-08-001).
+    """
 
     def __init__(
         self,
@@ -71,41 +81,53 @@ class SvcEngageCaseUseCase:
         actor = resolve_actor(actor_id, dl)
         actor_id = actor.id_
 
-        case = resolve_case(case_id, dl)
+        resolve_case(case_id, dl)
 
         if self._trigger_activity is None:
             raise RuntimeError(
                 "SvcEngageCaseUseCase requires a TriggerActivityPort"
             )
 
-        case_manager_id = _resolve_case_manager_id(case, dl)
-        if case_manager_id is None:
+        factory = self._trigger_activity
+        captured: dict = {}
+
+        def _build_activities(case_manager_id: str) -> list[str]:
+            activity_id, activity_dict = factory.engage_case(
+                case_id=case_id,
+                actor=actor_id,
+                to=[case_manager_id],
+            )
+            captured["activity"] = activity_dict
+            return [activity_id]
+
+        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        tree = sender_side_bt(
+            case_id=case_id, activity_builder=_build_activities
+        )
+        result = bridge.execute_with_setup(tree, actor_id=actor_id)
+
+        if result.status != Status.SUCCESS:
             raise VultronValidationError(
-                f"Cannot route engage-case activity: no Case Manager participant"
-                f" found in case '{case_id}'"
+                f"EngageCase failed: {BTBridge.get_failure_reason(tree)}"
             )
 
-        activity_id, activity_dict = self._trigger_activity.engage_case(
-            case_id=case_id,
-            actor=actor_id,
-            to=[case_manager_id],
-        )
-
-        update_participant_rm_state(case.id_, actor_id, RM.ACCEPTED, dl)
-
-        add_activity_to_outbox(actor_id, activity_id, dl)
+        update_participant_rm_state(case_id, actor_id, RM.ACCEPTED, dl)
 
         logger.info(
             "Actor '%s' engaged case '%s' (RM → ACCEPTED)",
             actor_id,
-            case.id_,
+            case_id,
         )
 
-        return {"activity": activity_dict}
+        return {"activity": captured.get("activity")}
 
 
 class SvcDeferCaseUseCase:
-    """Defer a case (RM → DEFERRED)."""
+    """Defer a case (RM → DEFERRED).
+
+    Updates the actor's RM state to DEFERRED and sends a Defer(Case)
+    activity to the Case Actor via SenderSideBT (PCR-08-001).
+    """
 
     def __init__(
         self,
@@ -126,37 +148,45 @@ class SvcDeferCaseUseCase:
         actor = resolve_actor(actor_id, dl)
         actor_id = actor.id_
 
-        case = resolve_case(case_id, dl)
+        resolve_case(case_id, dl)
 
         if self._trigger_activity is None:
             raise RuntimeError(
                 "SvcDeferCaseUseCase requires a TriggerActivityPort"
             )
 
-        case_manager_id = _resolve_case_manager_id(case, dl)
-        if case_manager_id is None:
+        factory = self._trigger_activity
+        captured: dict = {}
+
+        def _build_activities(case_manager_id: str) -> list[str]:
+            activity_id, activity_dict = factory.defer_case(
+                case_id=case_id,
+                actor=actor_id,
+                to=[case_manager_id],
+            )
+            captured["activity"] = activity_dict
+            return [activity_id]
+
+        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        tree = sender_side_bt(
+            case_id=case_id, activity_builder=_build_activities
+        )
+        result = bridge.execute_with_setup(tree, actor_id=actor_id)
+
+        if result.status != Status.SUCCESS:
             raise VultronValidationError(
-                f"Cannot route defer-case activity: no Case Manager participant"
-                f" found in case '{case_id}'"
+                f"DeferCase failed: {BTBridge.get_failure_reason(tree)}"
             )
 
-        activity_id, activity_dict = self._trigger_activity.defer_case(
-            case_id=case_id,
-            actor=actor_id,
-            to=[case_manager_id],
-        )
-
-        update_participant_rm_state(case.id_, actor_id, RM.DEFERRED, dl)
-
-        add_activity_to_outbox(actor_id, activity_id, dl)
+        update_participant_rm_state(case_id, actor_id, RM.DEFERRED, dl)
 
         logger.info(
             "Actor '%s' deferred case '%s' (RM → DEFERRED)",
             actor_id,
-            case.id_,
+            case_id,
         )
 
-        return {"activity": activity_dict}
+        return {"activity": captured.get("activity")}
 
 
 class SvcCreateCaseUseCase:

@@ -22,12 +22,14 @@ No HTTP framework imports permitted here.
 import logging
 from typing import TYPE_CHECKING
 
+from py_trees.common import Status
+
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import _resolve_case_manager_id
 from vultron.errors import VultronValidationError
 from vultron.core.use_cases.triggers._helpers import (
-    add_activity_to_outbox,
     resolve_actor,
     resolve_case,
 )
@@ -46,7 +48,10 @@ class SvcAddNoteToCaseUseCase:
 
     Creates the note in the actor's datalayer, adds it to the actor's local
     copy of the case, and queues Create(Note) and AddNoteToCase(Note, Case)
-    activities in the actor's outbox for delivery to case participants.
+    activities in the actor's outbox for delivery to the Case Actor.
+
+    Routing (CASE_MANAGER resolution), activity construction, and outbox
+    queueing are delegated to :func:`sender_side_bt` per PCR-08-001.
     """
 
     def __init__(
@@ -68,7 +73,7 @@ class SvcAddNoteToCaseUseCase:
         actor = resolve_actor(actor_id, dl)
         actor_id = actor.id_
 
-        case = resolve_case(case_id, dl)
+        resolve_case(case_id, dl)
 
         if self._trigger_activity is None:
             raise RuntimeError(
@@ -100,30 +105,34 @@ class SvcAddNoteToCaseUseCase:
                     case_id,
                 )
 
-        case_manager_id = _resolve_case_manager_id(case, dl)
-        if case_manager_id is None:
-            raise VultronValidationError(
-                f"Cannot route note activity: no Case Manager participant"
-                f" found in case '{case_id}'"
-            )
-        addressees = [case_manager_id]
+        # Mutable capture so the closure can pass back the activity dict.
+        captured: dict = {}
 
-        create_activity_id = factory.create_note_activity(
-            actor=actor_id,
-            note_id=note_id,
-            to=addressees,
-        )
-        add_note_activity_id, add_note_activity_dict = (
-            factory.add_note_to_case(
+        def _build_activities(case_manager_id: str) -> list[str]:
+            create_id = factory.create_note_activity(
+                actor=actor_id,
+                note_id=note_id,
+                to=[case_manager_id],
+            )
+            add_id, add_dict = factory.add_note_to_case(
                 note_id=note_id,
                 case_id=case_id,
                 actor=actor_id,
-                to=addressees,
+                to=[case_manager_id],
             )
-        )
+            captured["activity"] = add_dict
+            return [create_id, add_id]
 
-        for activity_id in (create_activity_id, add_note_activity_id):
-            add_activity_to_outbox(actor_id, activity_id, dl)
+        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        tree = sender_side_bt(
+            case_id=case_id, activity_builder=_build_activities
+        )
+        result = bridge.execute_with_setup(tree, actor_id=actor_id)
+
+        if result.status != Status.SUCCESS:
+            raise VultronValidationError(
+                f"AddNoteToCase failed: {BTBridge.get_failure_reason(tree)}"
+            )
 
         logger.info(
             "Actor '%s' added note '%s' to case '%s'",
@@ -134,5 +143,5 @@ class SvcAddNoteToCaseUseCase:
 
         return {
             "note": note_dict,
-            "activity": add_note_activity_dict,
+            "activity": captured.get("activity"),
         }
