@@ -49,6 +49,7 @@ jobs:
       - name: Build Docker images
         run: |
           docker buildx bake \
+            --allow=fs.read=.. \
             -f docker/docker-compose-multi-actor.yml \
             --set "*.cache-from=type=gha" \
             --set "*.cache-to=type=gha,mode=max" \
