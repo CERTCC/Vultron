@@ -66,7 +66,21 @@ def _commit_embargo_log_cascade(
         )
         return
 
-    actor_id = receiving_actor_id
+    # Resolve the CaseActor ID.  Only use receiving_actor_id if it
+    # resolves to a Service (CaseActor) whose context matches case_id.
+    # Some handlers (e.g. InviteToEmbargoOnCaseReceivedUseCase) set
+    # receiving_actor_id to the invitee's actor ID; using that would
+    # attribute the log entry to the wrong actor and exclude the wrong
+    # recipient from fan-out.
+    actor_id: str | None = None
+    if receiving_actor_id is not None:
+        obj = dl.read(receiving_actor_id)
+        if (
+            obj is not None
+            and getattr(obj, "type_", None) == "Service"
+            and str(getattr(obj, "context", None)) == case_id
+        ):
+            actor_id = receiving_actor_id
     if actor_id is None:
         actor_id = _find_case_actor_id(dl, case_id)
     if actor_id is None:

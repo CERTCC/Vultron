@@ -266,6 +266,22 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             if context:
                 case_id = str(context)
 
+        # Fallback 1: activity-level context (populated when activity.context
+        # is set to the case object by the caller, e.g. add_status_to_participant
+        # sets context=case).
+        if case_id is None:
+            case_id = request.context_id
+
+        # Fallback 2: read the stored ParticipantStatus and check its context.
+        # Handles cases where the inline object was omitted and the BT resolved
+        # it via a DataLayer lookup (VerifySenderIsParticipantNode._resolve_case_id).
+        if case_id is None and request.status_id:
+            stored_status = self._dl.read(request.status_id)
+            if stored_status is not None:
+                ctx = getattr(stored_status, "context", None)
+                if ctx:
+                    case_id = str(ctx)
+
         if case_id is None:
             logger.warning(
                 "add_participant_status: cannot determine case_id"
