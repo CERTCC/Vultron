@@ -95,7 +95,10 @@ def _cascade_pec_revise(
     """
     if not is_case_model(case):
         return
-    for participant_id in case.case_participants:
+    for entry in case.case_participants:
+        participant_id = _as_id(entry)
+        if participant_id is None:
+            continue
         participant = dl.read(participant_id)
         if not is_participant_model(participant):
             continue
@@ -115,7 +118,10 @@ def _cascade_pec_reset(
     """
     if not is_case_model(case):
         return
-    for participant_id in case.case_participants:
+    for entry in case.case_participants:
+        participant_id = _as_id(entry)
+        if participant_id is None:
+            continue
         participant = dl.read(participant_id)
         if not is_participant_model(participant):
             continue
