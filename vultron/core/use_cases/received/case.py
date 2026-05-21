@@ -13,6 +13,8 @@ from vultron.core.models.events.case import (
     EngageCaseReceivedEvent,
     UpdateCaseReceivedEvent,
 )
+from vultron.core.models.participant import VultronParticipant
+from vultron.core.models.participant_status import VultronParticipantStatus
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.vultron_types import VultronActivity
 from vultron.core.ports.case_persistence import (
@@ -157,6 +159,100 @@ def _store_embedded_participants(
             " for case '%s' (CBT-05-005, #566)",
             pid,
             case_id,
+        )
+
+
+def _ensure_reporter_participant(
+    dl: CasePersistence,
+    link: VultronReportCaseLink,
+    case_obj: CaseModel,
+    case_id: str,
+) -> None:
+    """Seed the reporter's participant record at RM.ACCEPTED if absent (#589).
+
+    When ``Create(VulnerabilityCase)`` carries participant IDs as bare
+    strings, ``_store_embedded_participants`` skips them.  Without an
+    explicit participant record in the DataLayer,
+    ``SvcAddParticipantStatusUseCase._resolve_current_participant_state``
+    falls back to ``RM.START``, causing the Vendor's Case Actor to reject the
+    subsequent ``Add(ParticipantStatus)`` as a backwards transition.
+
+    The reporter submitted the original report, which implies they have
+    already ``RM.ACCEPTED`` from their own perspective.  We infer this and
+    create the missing record with that initial state.
+
+    Idempotent: no-op when the participant already exists in the DataLayer
+    (e.g., it was embedded as a full object and saved by
+    ``_store_embedded_participants``).
+
+    Args:
+        dl: The reporter's local DataLayer.
+        link: The ``VultronReportCaseLink`` associating the report to this
+            case bootstrap.
+        case_obj: The bootstrapped ``VulnerabilityCase`` snapshot.
+        case_id: ID of the case (for log context and status context).
+    """
+    report = dl.read(link.report_id)
+    if report is None:
+        logger.warning(
+            "ensure_reporter_participant: report '%s' not found "
+            "— cannot seed reporter participant (#589)",
+            link.report_id,
+        )
+        return
+
+    reporter_actor_id = _as_id(getattr(report, "attributed_to", None))
+    if not reporter_actor_id:
+        logger.warning(
+            "ensure_reporter_participant: report '%s' has no attributed_to "
+            "— cannot seed reporter participant (#589)",
+            link.report_id,
+        )
+        return
+
+    index = getattr(case_obj, "actor_participant_index", {}) or {}
+    participant_id = index.get(reporter_actor_id)
+    if not participant_id:
+        logger.warning(
+            "ensure_reporter_participant: reporter '%s' not in "
+            "actor_participant_index for case '%s' — skipping (#589)",
+            reporter_actor_id,
+            case_id,
+        )
+        return
+
+    if dl.read(participant_id) is not None:
+        logger.debug(
+            "ensure_reporter_participant: participant '%s' already exists "
+            "— skipping (#589)",
+            participant_id,
+        )
+        return
+
+    status = VultronParticipantStatus(
+        rm_state=RM.ACCEPTED,
+        context=case_id,
+        attributed_to=reporter_actor_id,
+    )
+    participant = VultronParticipant(
+        id_=participant_id,
+        attributed_to=reporter_actor_id,
+        context=case_id,
+        participant_statuses=[status],
+    )
+    try:
+        dl.create(participant)
+        logger.info(
+            "ensure_reporter_participant: created participant '%s' for "
+            "reporter '%s' at RM.ACCEPTED (#589)",
+            participant_id,
+            reporter_actor_id,
+        )
+    except ValueError:
+        logger.debug(
+            "ensure_reporter_participant: participant '%s' was concurrently "
+            "created — idempotent (#589)",
+            participant_id,
         )
 
 
@@ -306,6 +402,12 @@ class CreateCaseReceivedUseCase:
         # This must happen regardless of the idempotency guard above because
         # the inbox router may have already seeded the case before dispatch.
         _store_embedded_participants(case_obj, self._dl, case_id)
+
+        # #589: when participants arrive as bare string IDs (the common case),
+        # _store_embedded_participants cannot create records for them.  Ensure
+        # the reporter's own participant is seeded at RM.ACCEPTED — inferred
+        # from the fact that they submitted a report.
+        _ensure_reporter_participant(self._dl, link, case_obj, case_id)
 
 
 class UpdateCaseReceivedUseCase:
