@@ -19,6 +19,8 @@ import py_trees
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoTeardownNode,
+    IsActiveEmbargoNode,
+    RemoveFromProposedEmbargoesNode,
     ValidateCaseExistsNode,
 )
 from vultron.core.states.em import EM
@@ -200,6 +202,115 @@ class TestApplyEmbargoTeardownNode:
 
         node = ApplyEmbargoTeardownNode(
             case_id="https://example.org/cases/nonexistent"
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.FAILURE
+
+
+class TestIsActiveEmbargoNode:
+    """Tests for IsActiveEmbargoNode."""
+
+    def test_returns_success_when_embargo_is_active(self):
+        """Node returns SUCCESS when case.active_embargo matches embargo_id."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, embargo = _make_case_and_embargo("ian1", em_state=EM.ACTIVE)
+        dl.create(case)
+
+        _setup_blackboard(dl)
+        node = IsActiveEmbargoNode(case_id=case.id_, embargo_id=embargo.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+
+    def test_returns_failure_when_embargo_not_active(self):
+        """Node returns FAILURE when active_embargo does not match."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, embargo = _make_case_and_embargo("ian2", em_state=EM.PROPOSED)
+        case.active_embargo = None
+        dl.create(case)
+
+        _setup_blackboard(dl)
+        node = IsActiveEmbargoNode(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.FAILURE
+
+    def test_returns_failure_when_case_missing(self):
+        """Node returns FAILURE when the case ID is not in the DataLayer."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        _setup_blackboard(dl)
+
+        node = IsActiveEmbargoNode(
+            case_id="https://example.org/cases/nonexistent",
+            embargo_id="https://example.org/cases/nonexistent/embargo_events/e1",
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.FAILURE
+
+
+class TestRemoveFromProposedEmbargoesNode:
+    """Tests for RemoveFromProposedEmbargoesNode."""
+
+    def test_removes_embargo_from_proposed_list(self):
+        """Node removes embargo_id from proposed_embargoes and returns SUCCESS."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, embargo = _make_case_and_embargo("rfp1", em_state=EM.PROPOSED)
+        case.proposed_embargoes.append(embargo.id_)
+        dl.create(case)
+
+        _setup_blackboard(dl)
+        node = RemoveFromProposedEmbargoesNode(
+            case_id=case.id_, embargo_id=embargo.id_
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert embargo.id_ not in [
+            e if isinstance(e, str) else getattr(e, "id_", None)
+            for e in updated.proposed_embargoes
+        ]
+
+    def test_idempotent_when_not_in_proposed(self):
+        """Node returns SUCCESS even if embargo_id is not in proposed_embargoes."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, embargo = _make_case_and_embargo("rfp2", em_state=EM.ACTIVE)
+        # embargo NOT in proposed_embargoes
+        dl.create(case)
+
+        _setup_blackboard(dl)
+        node = RemoveFromProposedEmbargoesNode(
+            case_id=case.id_, embargo_id=embargo.id_
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+
+    def test_returns_failure_when_case_missing(self):
+        """Node returns FAILURE when the case ID is not in the DataLayer."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        _setup_blackboard(dl)
+
+        node = RemoveFromProposedEmbargoesNode(
+            case_id="https://example.org/cases/nonexistent",
+            embargo_id="https://example.org/cases/nonexistent/embargo_events/e1",
         )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()

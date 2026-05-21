@@ -374,3 +374,17 @@ class TriggerActivityPort(Protocol):
         Returns ``(activity_id, activity_dict)``.
         """
         ...
+
+    def terminate_embargo(
+        self,
+        embargo_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a ``Remove(EmbargoEvent, origin=case)`` ET activity.
+
+        Corresponds to the ET (Embargo Termination) protocol message.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...

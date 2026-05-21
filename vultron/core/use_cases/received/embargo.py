@@ -2,12 +2,8 @@
 
 import logging
 
-from transitions import MachineError
-
 from vultron.core.states.em import (
     EM,
-    EMAdapter,
-    create_em_machine,
     is_valid_em_transition,
 )
 from vultron.core.states.participant_embargo_consent import (
@@ -48,26 +44,6 @@ def _reset_case_participant_embargo_consent(
                 PEC(participant.embargo_consent_state), PEC_Trigger.RESET
             )
             dl.save(participant)
-
-
-def _resolve_removed_embargo_state(em_state: EM, case_id: str) -> EM:
-    adapter = EMAdapter(em_state)
-    em_machine = create_em_machine()
-    em_machine.add_model(adapter, initial=em_state)
-
-    try:
-        getattr(adapter, "reject")()
-        return EM(adapter.state)
-    except MachineError:
-        if em_state != EM.NONE:
-            logger.warning(
-                "Admin override: resetting EM state from '%s' to NONE on case "
-                "'%s' (no valid machine transition available; use "
-                "SvcTerminateEmbargoUseCase for normal termination)",
-                em_state,
-                case_id,
-            )
-        return EM.NONE
 
 
 def _resolve_case_for_embargo_acceptance(
@@ -260,52 +236,41 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
         self._request: RemoveEmbargoEventFromCaseReceivedEvent = request
 
     def execute(self) -> None:
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.embargo.announce_teardown_tree import (
+            remove_embargo_from_case_tree,
+        )
+
         request = self._request
         embargo_id = request.embargo_id
         case_id = request.case_id
         if embargo_id is None or case_id is None:
             logger.warning(
-                "remove_embargo_event_from_case: missing embargo_id or case_id"
-            )
-            return
-        case = self._dl.read(case_id)
-
-        if not is_case_model(case):
-            logger.warning(
-                "remove_embargo_event_from_case: case '%s' not found",
-                case_id,
+                "remove_embargo_from_case: missing embargo_id or case_id"
             )
             return
 
-        proposed = [_as_id(e) for e in case.proposed_embargoes]
-        if embargo_id in proposed:
-            case.proposed_embargoes = [
-                e for e in case.proposed_embargoes if _as_id(e) != embargo_id
-            ]
-            logger.info(
-                "Removed embargo '%s' from proposed_embargoes of case '%s'",
+        tree = remove_embargo_from_case_tree(
+            case_id=case_id, embargo_id=embargo_id
+        )
+        bridge = BTBridge(datalayer=self._dl)
+        result = bridge.execute_with_setup(
+            tree=tree,
+            actor_id=request.actor_id,
+            activity=request,
+        )
+
+        if result.status != Status.SUCCESS:
+            logger.debug(
+                "remove_embargo_from_case: BT did not fully succeed for"
+                " embargo '%s' on case '%s' (msg: '%s') — embargo may have"
+                " been in proposed_embargoes only",
                 embargo_id,
                 case_id,
+                result.feedback_message,
             )
-
-        current_embargo_id = _as_id(case.active_embargo)
-        if current_embargo_id != embargo_id:
-            self._dl.save(case)
-            return
-
-        em_state = case.current_status.em_state
-        new_em_state = _resolve_removed_embargo_state(em_state, case_id)
-        case.active_embargo = None  # type: ignore[attr-defined]
-        case.current_status.em_state = new_em_state
-        _reset_case_participant_embargo_consent(self._dl, case)
-        self._dl.save(case)
-        logger.info(
-            "Removed active embargo '%s' from case '%s' (EM %s → %s)",
-            embargo_id,
-            case_id,
-            em_state,
-            new_em_state,
-        )
 
 
 class AnnounceEmbargoEventToCaseReceivedUseCase:
@@ -318,45 +283,11 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
         self._request: AnnounceEmbargoEventToCaseReceivedEvent = request
 
     def execute(self) -> None:
-        from py_trees.common import Status
-
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.embargo.announce_teardown_tree import (
-            announce_embargo_teardown_tree,
-        )
-
-        request = self._request
-        case_id = request.case_id
-        if case_id is None:
-            logger.warning(
-                "announce_embargo_event_to_case: missing case_id for"
-                " activity '%s'",
-                request.activity_id,
-            )
-            return
-
         logger.info(
-            "Received embargo announcement '%s' on case '%s'",
-            request.activity_id,
-            case_id,
+            "Received embargo announcement '%s' — no receiver-side state"
+            " change required",
+            self._request.activity_id,
         )
-
-        tree = announce_embargo_teardown_tree(case_id=case_id)
-        bridge = BTBridge(datalayer=self._dl)
-        result = bridge.execute_with_setup(
-            tree=tree,
-            actor_id=request.actor_id,
-            activity=request,
-        )
-
-        if result.status != Status.SUCCESS:
-            reason = BTBridge.get_failure_reason(tree)
-            logger.warning(
-                "AnnounceEmbargoTeardownBT did not succeed for activity"
-                " '%s': %s",
-                request.activity_id,
-                reason or result.feedback_message,
-            )
 
 
 class InviteToEmbargoOnCaseReceivedUseCase:

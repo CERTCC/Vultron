@@ -48,6 +48,7 @@ from vultron.wire.as2.factories import (
     em_propose_embargo_activity,
     em_reject_embargo_activity,
     recommend_actor_activity,
+    remove_embargo_from_case_activity,
     rm_accept_invite_to_case_activity,
     rm_close_report_activity,
     rm_defer_case_activity,
@@ -644,6 +645,27 @@ class TriggerActivityAdapter:
         except ValueError:
             logger.warning(
                 "announce_embargo: activity '%s' already exists — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
+    def terminate_embargo(
+        self,
+        embargo_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a ``Remove(EmbargoEvent, origin=case)`` ET activity."""
+        embargo = cast(EmbargoEvent, self._dl.read(embargo_id))
+        activity = remove_embargo_from_case_activity(
+            embargo=embargo, origin=case_id, actor=actor, to=to
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "terminate_embargo: activity '%s' already exists — skipping",
                 activity.id_,
             )
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)

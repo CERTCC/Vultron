@@ -582,7 +582,7 @@ class SvcTerminateEmbargoUseCase:
                 "SvcTerminateEmbargoUseCase requires a TriggerActivityPort"
             )
 
-        announce_id, announce_dict = self._trigger_activity.announce_embargo(
+        announce_id, announce_dict = self._trigger_activity.terminate_embargo(
             embargo_id=embargo_id,
             case_id=case.id_,
             actor=actor_id,
