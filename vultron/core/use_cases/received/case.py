@@ -201,7 +201,7 @@ def _ensure_reporter_participant(
         )
         return
 
-    reporter_actor_id = getattr(report, "attributed_to", None)
+    reporter_actor_id = _as_id(getattr(report, "attributed_to", None))
     if not reporter_actor_id:
         logger.warning(
             "ensure_reporter_participant: report '%s' has no attributed_to "
