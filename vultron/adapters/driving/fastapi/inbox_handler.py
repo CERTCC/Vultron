@@ -124,6 +124,24 @@ def make_dispatcher() -> ActivityDispatcher:
     :func:`init_dispatcher` so the global is set for backward-compatible
     callers such as the CLI.
     """
+    # Guard: the three semantics sets must be mutually disjoint.  An overlap
+    # would cause a silent dict.update() overwrite — exactly the class of bug
+    # that #628 introduced — so fail fast with an actionable message.
+    _all_sets = (
+        _SYNC_PORT_SEMANTICS,
+        _TRIGGER_ACTIVITY_PORT_SEMANTICS,
+        _SYNC_AND_TRIGGER_PORT_SEMANTICS,
+    )
+    for i, left in enumerate(_all_sets):
+        for right in _all_sets[i + 1 :]:
+            overlap = left & right
+            if overlap:
+                raise AssertionError(
+                    f"Port-semantics sets overlap: {overlap!r}. "
+                    "Add the semantic to _SYNC_AND_TRIGGER_PORT_SEMANTICS "
+                    "and remove it from both individual sets."
+                )
+
     port_factories: dict = {
         sem: _sync_port_factory for sem in _SYNC_PORT_SEMANTICS
     }

@@ -141,7 +141,15 @@ def test_make_dispatcher_add_participant_status_has_both_ports(monkeypatch):
     factory for this semantic, leaving sync_port=None and silently skipping the
     log-entry fan-out (issue #628).
     """
-    mock_dl = MagicMock()
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+
+    real_dl = SqliteDataLayer("sqlite:///:memory:")
 
     # Capture which port_factories map was supplied to get_dispatcher
     captured: dict = {}
@@ -160,14 +168,37 @@ def test_make_dispatcher_add_participant_status_has_both_ports(monkeypatch):
     ), f"{sem} must have a port factory registered"
 
     factory = captured["port_factories"][sem]
-    kwargs = factory(mock_dl)
+    kwargs = factory(real_dl)
 
     assert (
         "sync_port" in kwargs
     ), "ADD_PARTICIPANT_STATUS_TO_PARTICIPANT factory must provide sync_port"
+    assert isinstance(
+        kwargs["sync_port"], SyncActivityAdapter
+    ), "sync_port must be a SyncActivityAdapter instance, not None"
     assert (
         "trigger_activity" in kwargs
     ), "ADD_PARTICIPANT_STATUS_TO_PARTICIPANT factory must provide trigger_activity"
+    assert isinstance(
+        kwargs["trigger_activity"], TriggerActivityAdapter
+    ), "trigger_activity must be a TriggerActivityAdapter instance, not None"
+
+
+def test_make_dispatcher_overlapping_semantics_raises(monkeypatch):
+    """make_dispatcher() must raise AssertionError when semantics sets overlap.
+
+    This guards against a recurrence of issue #628, where a silent dict.update()
+    overwrite dropped a required port.
+    """
+    from vultron.core.models.events import MessageSemantics
+
+    # Inject an artificial overlap: put one sync-only semantic into the
+    # trigger set as well.
+    overlapping = frozenset({MessageSemantics.ADD_NOTE_TO_CASE})
+    monkeypatch.setattr(ih, "_TRIGGER_ACTIVITY_PORT_SEMANTICS", overlapping)
+
+    with pytest.raises(AssertionError, match="overlap"):
+        ih.make_dispatcher()
 
 
 def test_make_dispatcher_does_not_mutate_global(monkeypatch):
