@@ -8,6 +8,7 @@ from vultron.core.behaviors.sync.nodes import (
     CheckIsOwnCaseActorNode,
     CheckIsNotOwnCaseActorNode,
     CheckLogEntryAlreadyStoredNode,
+    ApplyLogEntryEventEffectsNode,
     LogDeliveryConfirmationNode,
     PersistReceivedLogEntryNode,
     ReconstructChainTailNode,
@@ -50,6 +51,7 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
         children=[
             CheckIsNotOwnCaseActorNode(name="CheckIsNotOwnCaseActor"),
             participant_flow,
+            ApplyLogEntryEventEffectsNode(name="ApplyLogEntryEventEffects"),
         ],
     )
     return py_trees.composites.Selector(

@@ -18,12 +18,17 @@ from vultron.core.models.case_log import GENESIS_HASH, CaseLogEntry
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.states.em import EM
 from vultron.core.use_cases.triggers.sync import _to_persistable_entry
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_log_entry import (
     CaseLogEntry as WireCaseLogEntry,
 )
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+
+# Populate vocabulary registry as side-effect.
+_ = VulnerabilityCase
 
 OWNER_ACTOR_ID = "https://example.org/actors/vendor"
 PARTICIPANT_ACTOR_ID = "https://example.org/actors/reporter"
@@ -153,3 +158,92 @@ def test_hash_mismatch_sends_reject_and_does_not_store(
     assert result.status == Status.FAILURE
     assert datalayer.read(bad_entry.id_) is None
     sync_port.send_reject_log_entry.assert_called_once()
+
+
+def _make_remove_embargo_entry(
+    log_index: int, prev_hash: str
+) -> VultronCaseLogEntry:
+    return _to_persistable_entry(
+        CaseLogEntry(
+            case_id=CASE_ID,
+            log_index=log_index,
+            object_id=f"https://example.org/activities/log-{log_index}",
+            event_type="remove_embargo_event_from_case",
+            payload_snapshot={"log_index": log_index},
+            prev_log_hash=prev_hash,
+        )
+    )
+
+
+def _make_case_with_em_active(datalayer: SqliteDataLayer) -> VulnerabilityCase:
+    case = VulnerabilityCase(id_=CASE_ID, name="Test Case")
+    case.current_status.em_state = EM.ACTIVE
+    datalayer.create(case)
+    return case
+
+
+class TestAnnounceLogEntryAppliesEmbargoTeardown:
+    """Participant receiving remove_embargo log entry must reach EM.EXITED."""
+
+    def test_participant_reaches_em_exited_on_remove_embargo_entry(
+        self, bridge, datalayer, case_actor
+    ):
+        """BT applies EM.EXITED when entry has remove_embargo_event_from_case."""
+        _make_case_with_em_active(datalayer)
+        entry = _make_remove_embargo_entry(0, GENESIS_HASH)
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(CASE_ID)
+        assert updated is not None
+        assert updated.current_status.em_state == EM.EXITED
+
+    def test_already_stored_entry_still_applies_em_exited(
+        self, bridge, datalayer, case_actor
+    ):
+        """Even if log entry is already stored, EM.EXITED must be applied."""
+        _make_case_with_em_active(datalayer)
+        entry = _make_remove_embargo_entry(0, GENESIS_HASH)
+        datalayer.save(
+            entry
+        )  # pre-store to trigger CheckLogEntryAlreadyStored
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(CASE_ID)
+        assert updated is not None
+        assert updated.current_status.em_state == EM.EXITED
+
+    def test_em_exited_is_idempotent(self, bridge, datalayer, case_actor):
+        """Running BT when case is already EM.EXITED must succeed silently."""
+        case = VulnerabilityCase(id_=CASE_ID, name="Test Case")
+        case.current_status.em_state = EM.EXITED
+        datalayer.create(case)
+        entry = _make_remove_embargo_entry(0, GENESIS_HASH)
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(CASE_ID)
+        assert updated is not None
+        assert updated.current_status.em_state == EM.EXITED
