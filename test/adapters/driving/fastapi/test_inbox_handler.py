@@ -133,6 +133,43 @@ def test_dispatch_uses_explicit_dispatcher(monkeypatch):
     explicit_dispatcher.dispatch.assert_called_once_with(fake_event, mock_dl)
 
 
+def test_make_dispatcher_add_participant_status_has_both_ports(monkeypatch):
+    """make_dispatcher() must inject *both* sync_port and trigger_activity for
+    ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.
+
+    Before the fix, dict.update() overwrote the sync factory with the trigger
+    factory for this semantic, leaving sync_port=None and silently skipping the
+    log-entry fan-out (issue #628).
+    """
+    mock_dl = MagicMock()
+
+    # Capture which port_factories map was supplied to get_dispatcher
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+
+    ih.make_dispatcher()
+
+    sem = MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
+    assert (
+        sem in captured["port_factories"]
+    ), f"{sem} must have a port factory registered"
+
+    factory = captured["port_factories"][sem]
+    kwargs = factory(mock_dl)
+
+    assert (
+        "sync_port" in kwargs
+    ), "ADD_PARTICIPANT_STATUS_TO_PARTICIPANT factory must provide sync_port"
+    assert (
+        "trigger_activity" in kwargs
+    ), "ADD_PARTICIPANT_STATUS_TO_PARTICIPANT factory must provide trigger_activity"
+
+
 def test_make_dispatcher_does_not_mutate_global(monkeypatch):
     """make_dispatcher() must not touch the module-level _DISPATCHER."""
     sentinel = object()

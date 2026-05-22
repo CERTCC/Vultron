@@ -74,11 +74,20 @@ def _trigger_activity_port_factory(dl: DataLayer) -> dict[str, Any]:
     return {"trigger_activity": TriggerActivityAdapter(dl)}
 
 
+def _sync_and_trigger_port_factory(dl: DataLayer) -> dict[str, Any]:
+    """Create both a ``SyncActivityAdapter`` and a ``TriggerActivityAdapter``.
+
+    Used for semantics that require both ports — specifically
+    ``ADD_PARTICIPANT_STATUS_TO_PARTICIPANT``, which must sync the log entry to
+    participants *and* trigger the downstream participant-status activity.
+    """
+    return {**_sync_port_factory(dl), **_trigger_activity_port_factory(dl)}
+
+
 _SYNC_PORT_SEMANTICS = frozenset(
     {
         MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE,
         MessageSemantics.ADD_NOTE_TO_CASE,
-        MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY,
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
@@ -91,11 +100,17 @@ _SYNC_PORT_SEMANTICS = frozenset(
 _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
     {
         MessageSemantics.ACCEPT_CASE_MANAGER_ROLE,
-        MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
         MessageSemantics.OFFER_CASE_MANAGER_ROLE,
         MessageSemantics.SUBMIT_REPORT,
         MessageSemantics.SUGGEST_ACTOR_TO_CASE,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
+    }
+)
+
+# Semantics that require both a sync port and a trigger-activity port.
+_SYNC_AND_TRIGGER_PORT_SEMANTICS = frozenset(
+    {
+        MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
     }
 )
 
@@ -116,6 +131,12 @@ def make_dispatcher() -> ActivityDispatcher:
         {
             sem: _trigger_activity_port_factory
             for sem in _TRIGGER_ACTIVITY_PORT_SEMANTICS
+        }
+    )
+    port_factories.update(
+        {
+            sem: _sync_and_trigger_port_factory
+            for sem in _SYNC_AND_TRIGGER_PORT_SEMANTICS
         }
     )
     d = get_dispatcher(
