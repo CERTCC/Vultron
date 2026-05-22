@@ -667,16 +667,15 @@ class FanOutLogEntryNode(DataLayerAction):
 _REMOVE_EMBARGO_EVENT = "remove_embargo_event_from_case"
 
 
-class ApplyLogEntryEventEffectsNode(DataLayerAction):
-    """Apply semantic side-effects of a received log entry's event_type.
+class IsNotRemoveEmbargoEventNode(DataLayerCondition):
+    """Guard: return SUCCESS when this log entry is *not* a remove-embargo event.
 
-    Runs after the participant flow (whether the entry was freshly stored or
-    already existed), dispatching on ``event_type``:
-
-    - ``remove_embargo_event_from_case``: transitions the local case replica's
-      EM state from ACTIVE/REVISE → EXITED, clears ``active_embargo``, and
-      resets participant embargo consent.  Idempotent if already EXITED.
-    - All other event types: no-op (returns SUCCESS).
+    Used as the first child of the ``LogEntryEventEffects`` Selector in
+    ``AnnounceLogEntryReceivedBT``.  When the event type does *not* require
+    any side-effects (i.e. it is not ``remove_embargo_event_from_case``), the
+    Selector short-circuits to SUCCESS without running the teardown branch.
+    When the event *is* a remove-embargo event, FAILURE is returned so the
+    Selector proceeds to ``ApplyEmbargoTeardownNode``.
 
     Per specs/behavior-tree-integration.yaml BT-06-001.
     """
@@ -688,57 +687,7 @@ class ApplyLogEntryEventEffectsNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
-
         entry = _require_log_entry(self.blackboard.activity, self.name)
         if entry.event_type != _REMOVE_EMBARGO_EVENT:
             return Status.SUCCESS
-
-        case_id = entry.case_id
-        case = self.datalayer.read(case_id)
-        if not is_case_model(case):
-            self.logger.warning(
-                "%s: case '%s' not found — cannot apply EM effects",
-                self.name,
-                case_id,
-            )
-            return Status.FAILURE
-
-        from vultron.core.states.em import EM, is_valid_em_transition
-
-        current_em = case.current_status.em_state
-        if current_em == EM.EXITED:
-            self.logger.info(
-                "%s: case '%s' EM already EXITED — idempotent no-op",
-                self.name,
-                case_id,
-            )
-            return Status.SUCCESS
-
-        if not is_valid_em_transition(current_em, EM.EXITED):
-            self.logger.warning(
-                "%s: EM %s → EXITED is not a standard transition"
-                " for case '%s'; applying state-sync override",
-                self.name,
-                current_em,
-                case_id,
-            )
-
-        case.current_status.em_state = EM.EXITED
-        case.active_embargo = None
-
-        from vultron.core.use_cases.received.embargo import (
-            _reset_case_participant_embargo_consent,
-        )
-
-        _reset_case_participant_embargo_consent(self.datalayer, case)
-        self.datalayer.save(case)
-        self.logger.info(
-            "%s: applied EM teardown on case '%s' (%s → EXITED)",
-            self.name,
-            case_id,
-            current_em,
-        )
-        return Status.SUCCESS
+        return Status.FAILURE
