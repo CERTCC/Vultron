@@ -195,8 +195,13 @@ class TestApplyEmbargoTeardownNode:
         updated_p = cast(CaseParticipant, dl.read(participant.id_))
         assert updated_p.embargo_consent_state == PEC.NO_EMBARGO.value
 
-    def test_returns_failure_when_case_missing(self):
-        """Node returns FAILURE when the case ID is not in the DataLayer."""
+    def test_returns_success_when_case_missing(self):
+        """Node returns SUCCESS when the case ID is not in the DataLayer.
+
+        In the sync context (Announce log entry fan-out), a missing case is
+        not an error — the entry may reference a case the participant does not
+        know about yet.  The Sequence should not fail in this situation.
+        """
         dl = SqliteDataLayer("sqlite:///:memory:")
         _setup_blackboard(dl)
 
@@ -207,7 +212,7 @@ class TestApplyEmbargoTeardownNode:
         bt.setup()
         bt.tick()
 
-        assert node.status == py_trees.common.Status.FAILURE
+        assert node.status == py_trees.common.Status.SUCCESS
 
 
 class TestIsActiveEmbargoNode:

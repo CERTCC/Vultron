@@ -4,6 +4,7 @@
 
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
+| 2026-05-22 | 03:50 | implementation | GH-629 | Fix #629: AnnounceLogEntryReceivedBT does not apply EM.EXITED on remove_embargo_event_from_case |
 | 2026-05-22 | 03:44 | implementation | GH-628 | fix: ADD_PARTICIPANT_STATUS_TO_PARTICIPANT port factory overwrite (issue #628) |
 | 2026-05-21 | 23:05 | implementation | GH-624 | Fix #624: Reporter participant RM.START causes M6 AddParticipantStatusBT failure |
 | 2026-05-21 | 21:34 | implementation | GH-609 | Fix TypeError in remove_embargo_from_case BT (inline CaseParticipant in case_participants) |

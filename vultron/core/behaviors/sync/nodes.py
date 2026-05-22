@@ -662,3 +662,32 @@ class FanOutLogEntryNode(DataLayerAction):
             len(recipients),
         )
         return Status.SUCCESS
+
+
+_REMOVE_EMBARGO_EVENT = "remove_embargo_event_from_case"
+
+
+class IsNotRemoveEmbargoEventNode(DataLayerCondition):
+    """Guard: return SUCCESS when this log entry is *not* a remove-embargo event.
+
+    Used as the first child of the ``LogEntryEventEffects`` Selector in
+    ``AnnounceLogEntryReceivedBT``.  When the event type does *not* require
+    any side-effects (i.e. it is not ``remove_embargo_event_from_case``), the
+    Selector short-circuits to SUCCESS without running the teardown branch.
+    When the event *is* a remove-embargo event, FAILURE is returned so the
+    Selector proceeds to ``ApplyEmbargoTeardownNode``.
+
+    Per specs/behavior-tree-integration.yaml BT-06-001.
+    """
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        entry = _require_log_entry(self.blackboard.activity, self.name)
+        if entry.event_type != _REMOVE_EMBARGO_EVENT:
+            return Status.SUCCESS
+        return Status.FAILURE

@@ -25,9 +25,16 @@ of a ``Remove(EmbargoEvent)`` activity (protocol ET message):
     ├─ IsActiveEmbargoNode             # guard: is this the active embargo?
     └─ ApplyEmbargoTeardownNode        # ACTIVE/REVISE→EXITED, clear, reset PEC
 
+``ApplyEmbargoTeardownNode`` is also used in the
+``AnnounceLogEntryReceivedBT`` participant subtree (via
+``announce_tree.create_announce_log_entry_tree``), where it reads the
+``case_id`` from the log entry on the blackboard instead of receiving it
+at construction time.
+
 Per specs/behavior-tree-integration.yaml BT-06-001.
 """
 
+import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
@@ -75,47 +82,66 @@ class ApplyEmbargoTeardownNode(DataLayerAction):
     For unexpected EM states a state-sync override is applied (the sender
     is authoritative) with a WARNING log entry, mirroring the pattern used
     by ``AddEmbargoEventToCaseReceivedUseCase``.
+
+    When ``case_id`` is not provided at construction (``None``), the node
+    reads it from the log entry in the blackboard ``activity`` key.  This
+    allows the node to be shared between the ``RemoveEmbargoFromCaseBT``
+    (construction-time ``case_id``) and the
+    ``AnnounceLogEntryReceivedBT`` participant subtree (blackboard
+    ``activity``).
     """
 
-    def __init__(self, case_id: str, name: str | None = None):
+    def __init__(self, case_id: str | None = None, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
+
+    def setup(self, **kwargs: object) -> None:
+        super().setup(**kwargs)
+        if self.case_id is None:
+            self.blackboard.register_key(
+                key="activity", access=py_trees.common.Access.READ
+            )
 
     def update(self) -> Status:
         if self.datalayer is None:
             self.feedback_message = "DataLayer not available"
             return Status.FAILURE
 
-        case = self.datalayer.read(self.case_id)
+        if self.case_id is not None:
+            case_id = self.case_id
+        else:
+            from vultron.core.behaviors.sync.nodes import _require_log_entry
+
+            entry = _require_log_entry(self.blackboard.activity, self.name)
+            case_id = entry.case_id
+
+        case = self.datalayer.read(case_id)
         if not is_case_model(case):
-            self.feedback_message = f"Case '{self.case_id}' not found"
-            self.logger.warning(
-                "ApplyEmbargoTeardown: %s", self.feedback_message
-            )
-            return Status.FAILURE
+            self.feedback_message = f"Case '{case_id}' not found"
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
 
         current_em = case.current_status.em_state
 
         if current_em == EM.EXITED:
             self.feedback_message = (
-                f"Case '{self.case_id}' EM already EXITED — idempotent no-op"
+                f"Case '{case_id}' EM already EXITED — idempotent no-op"
             )
-            self.logger.info("ApplyEmbargoTeardown: %s", self.feedback_message)
+            self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
         if not is_valid_em_transition(current_em, EM.EXITED):
             self.logger.warning(
-                "ApplyEmbargoTeardown: EM transition %s → EXITED is not a"
-                " standard machine transition for case '%s';"
-                " applying state-sync override",
+                "%s: EM transition %s → EXITED is not a standard machine"
+                " transition for case '%s'; applying state-sync override",
+                self.name,
                 current_em,
-                self.case_id,
+                case_id,
             )
 
         case.current_status.em_state = EM.EXITED
         case.active_embargo = None
 
-        # Reset all participants' embargo consent state to NO_EMBARGO.
         # Lazy import avoids a direct dependency on the received use-case
         # module from within the BT node layer.
         from vultron.core.use_cases.received.embargo import (
@@ -126,10 +152,10 @@ class ApplyEmbargoTeardownNode(DataLayerAction):
         self.datalayer.save(case)
 
         self.feedback_message = (
-            f"Embargo teardown applied on case '{self.case_id}'"
+            f"Embargo teardown applied on case '{case_id}'"
             f" (EM {current_em} → EXITED)"
         )
-        self.logger.info("ApplyEmbargoTeardown: %s", self.feedback_message)
+        self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
 
 
