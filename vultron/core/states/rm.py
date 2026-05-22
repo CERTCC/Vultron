@@ -182,6 +182,21 @@ def is_monotonic_rm_forward(source: RM, dest: RM) -> bool:
     return _RM_PROGRESS.get(dest, 0) > _RM_PROGRESS.get(source, 0)
 
 
+def is_rm_at_least(state: RM, threshold: RM) -> bool:
+    """Return True if *state* is at or beyond *threshold* on the RM progress scale.
+
+    Used to guard "already at ACCEPTED or beyond" checks without coupling call
+    sites to the private ``_RM_PROGRESS`` mapping.
+
+    Examples::
+
+        is_rm_at_least(RM.ACCEPTED, RM.ACCEPTED)  # True
+        is_rm_at_least(RM.CLOSED,   RM.ACCEPTED)  # True
+        is_rm_at_least(RM.START,    RM.ACCEPTED)  # False
+    """
+    return _RM_PROGRESS.get(state, 0) >= _RM_PROGRESS.get(threshold, 0)
+
+
 def create_rm_machine() -> Machine:
     """
     Generates a new Report Management State Machine object

@@ -26,7 +26,7 @@ from vultron.core.models.protocols import (
     is_case_model,
     is_participant_model,
 )
-from vultron.core.states.rm import RM
+from vultron.core.states.rm import RM, is_rm_at_least
 from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases._helpers import _as_id, update_participant_rm_state
 
@@ -168,7 +168,7 @@ def _ensure_reporter_participant(
     case_obj: CaseModel,
     case_id: str,
 ) -> None:
-    """Seed the reporter's participant record at RM.ACCEPTED if absent (#589).
+    """Ensure the reporter's participant record is at RM.ACCEPTED (#589, #624).
 
     When ``Create(VulnerabilityCase)`` carries participant IDs as bare
     strings, ``_store_embedded_participants`` skips them.  Without an
@@ -178,12 +178,22 @@ def _ensure_reporter_participant(
     subsequent ``Add(ParticipantStatus)`` as a backwards transition.
 
     The reporter submitted the original report, which implies they have
-    already ``RM.ACCEPTED`` from their own perspective.  We infer this and
-    create the missing record with that initial state.
+    already ``RM.ACCEPTED`` from their own perspective.  The reporter is
+    identified as ``attributed_to`` of the ``Offer(Report)`` activity
+    (``report.attributed_to``).  Their ``START→RECEIVED→VALID→ACCEPTED`` arc
+    is hidden from the protocol — their first observable action already
+    implies ``RM.ACCEPTED`` (#624).
 
-    Idempotent: no-op when the participant already exists in the DataLayer
-    (e.g., it was embedded as a full object and saved by
-    ``_store_embedded_participants``).
+    This function:
+
+    * Creates the participant record at ``RM.ACCEPTED`` if it is absent.
+    * Upgrades an existing participant from any state below ``RM.ACCEPTED``
+      (e.g. ``RM.START`` seeded by the wire-layer default) to ``RM.ACCEPTED``.
+    * No-ops if the participant is already at or beyond ``RM.ACCEPTED``.
+
+    This invariant applies **only** to the reporter/finder.  All other
+    participants enter through a visible protocol interaction and their RM
+    lifecycle proceeds normally from ``RM.RECEIVED``.
 
     Args:
         dl: The reporter's local DataLayer.
@@ -221,11 +231,19 @@ def _ensure_reporter_participant(
         )
         return
 
-    if dl.read(participant_id) is not None:
-        logger.debug(
-            "ensure_reporter_participant: participant '%s' already exists "
-            "— skipping (#589)",
-            participant_id,
+    existing = dl.read(participant_id)
+    if existing is not None:
+        statuses = getattr(existing, "participant_statuses", []) or []
+        latest_rm = statuses[-1].rm_state if statuses else RM.START
+        if is_rm_at_least(latest_rm, RM.ACCEPTED):
+            logger.debug(
+                "ensure_reporter_participant: participant '%s' already "
+                "≥ RM.ACCEPTED — skipping (#589, #624)",
+                participant_id,
+            )
+            return
+        _upgrade_participant_to_accepted(
+            dl, existing, participant_id, case_id, reporter_actor_id, latest_rm
         )
         return
 
@@ -254,6 +272,45 @@ def _ensure_reporter_participant(
             "created — idempotent (#589)",
             participant_id,
         )
+
+
+def _upgrade_participant_to_accepted(
+    dl: CasePersistence,
+    existing: Any,
+    participant_id: str,
+    case_id: str,
+    reporter_actor_id: str,
+    latest_rm: "RM",
+) -> None:
+    """Upgrade an existing participant record from below RM.ACCEPTED to RM.ACCEPTED.
+
+    Saves the new status as an independent DataLayer record, then reads it back
+    via the vocabulary registry so the serialised type matches what the
+    participant container expects.  This avoids wire/domain type mismatches when
+    appending to ``CaseParticipant.participant_statuses``.
+    """
+    upgrade_status = VultronParticipantStatus(
+        rm_state=RM.ACCEPTED,
+        context=case_id,
+        attributed_to=reporter_actor_id,
+    )
+    try:
+        dl.create(upgrade_status)
+    except ValueError:
+        dl.save(upgrade_status)
+    wire_status = dl.read(upgrade_status.id_)
+    participant_statuses = getattr(existing, "participant_statuses", None)
+    if participant_statuses is not None:
+        participant_statuses.append(
+            wire_status if wire_status is not None else upgrade_status
+        )
+    dl.save(existing)
+    logger.info(
+        "ensure_reporter_participant: upgraded participant '%s' from "
+        "%s to RM.ACCEPTED (#589, #624)",
+        participant_id,
+        latest_rm,
+    )
 
 
 class CreateCaseReceivedUseCase:
