@@ -263,9 +263,12 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
 
         self.trigger_activity = TriggerActivityAdapter(self.dl)
         yield
-        self.dl.clear_all()
-        reset_datalayer(actor_id)
-        reset_datalayer(self.case_actor.id_)
+        try:
+            self.dl.clear_all()
+        finally:
+            self.dl.close()
+            reset_datalayer(actor_id)
+            reset_datalayer(self.case_actor.id_)
 
     def test_execute_appends_status_to_sender_participant(self):
         """After execute(), sender's participant_statuses contains the new status.

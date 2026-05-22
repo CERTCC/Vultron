@@ -26,7 +26,7 @@ from vultron.core.models.protocols import (
     is_case_model,
     is_participant_model,
 )
-from vultron.core.states.rm import RM, _RM_PROGRESS
+from vultron.core.states.rm import RM, is_rm_at_least
 from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases._helpers import _as_id, update_participant_rm_state
 
@@ -235,7 +235,7 @@ def _ensure_reporter_participant(
     if existing is not None:
         statuses = getattr(existing, "participant_statuses", []) or []
         latest_rm = statuses[-1].rm_state if statuses else RM.START
-        if _RM_PROGRESS.get(latest_rm, 0) >= _RM_PROGRESS[RM.ACCEPTED]:
+        if is_rm_at_least(latest_rm, RM.ACCEPTED):
             logger.debug(
                 "ensure_reporter_participant: participant '%s' already "
                 "≥ RM.ACCEPTED — skipping (#589, #624)",
