@@ -1,0 +1,1508 @@
+import { useState, useCallback, useEffect, useRef } from 'react'
+import './App.css'
+
+// Define swimlane layout
+const LANE_HEIGHT = 280
+const ACTOR_PANEL_WIDTH = 300
+
+// Animated node component for consequence nodes
+interface AnimatedNodeProps {
+  event: TimelineEvent
+  allEvents: TimelineEvent[]
+  isHovered: boolean
+  fillColor: string
+  onMouseEnter: () => void
+  onMouseLeave: () => void
+}
+
+function AnimatedNode({ event, allEvents, isHovered, fillColor, onMouseEnter, onMouseLeave }: AnimatedNodeProps) {
+  const gRef = useRef<SVGGElement>(null)
+  const isDecision = event.type === 'decision'
+  const y = event.lane * LANE_HEIGHT + LANE_HEIGHT / 2
+  const width = isHovered ? 130 : 120
+  const height = isHovered ? 77 : 70
+  const rectX = event.x - width / 2
+  const rectY = y - height / 2
+
+  useEffect(() => {
+    // Only animate if this is a consequence node that was just created (within 100ms)
+    const isNewEvent = event.timestamp && (Date.now() - event.timestamp < 100)
+
+    if (!isDecision && event.causedBy && isNewEvent && gRef.current) {
+      const causeEvent = allEvents.find(e => e.id === event.causedBy)
+      if (causeEvent) {
+        const causeY = causeEvent.lane * LANE_HEIGHT + LANE_HEIGHT / 2
+        const offsetY = causeY - y
+
+        // Use Web Animations API for reliable animation
+        gRef.current.animate([
+          { transform: `translate(0, ${offsetY}px)`, opacity: 0 },
+          { transform: 'translate(0, 0)', opacity: 1 }
+        ], {
+          duration: 1500,
+          easing: 'ease-out',
+          fill: 'forwards'
+        })
+      }
+    }
+  }, [event.timestamp, isDecision, event.causedBy, allEvents, y])
+
+  return (
+    <g ref={gRef}>
+      <rect
+        x={rectX}
+        y={rectY}
+        width={width}
+        height={height}
+        rx="8"
+        ry="8"
+        fill={fillColor}
+        stroke="none"
+        strokeWidth="0"
+        style={{ cursor: 'pointer', transition: 'all 0.2s' }}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+      />
+      <text
+        x={event.x}
+        y={y + 5}
+        textAnchor="middle"
+        fontSize="11"
+        fill={isDecision ? "white" : "black"}
+        fontWeight="bold"
+        style={{ pointerEvents: 'none', userSelect: 'none' }}
+      >
+        {event.label}
+      </text>
+    </g>
+  )
+}
+
+interface ActorPanelProps {
+  name: string
+  role: string
+  color: string
+  rmState: string
+  emState?: string
+  vfdState?: string
+  actions: Array<{
+    id: string
+    label: string
+    description: string
+    enabled: boolean
+  }>
+  onActionClick: (actionId: string) => void
+}
+
+function ActorPanel({ name, role, color, rmState, emState, vfdState, actions, onActionClick }: ActorPanelProps) {
+  return (
+    <div
+      style={{
+        height: LANE_HEIGHT,
+        minHeight: LANE_HEIGHT,
+        maxHeight: LANE_HEIGHT,
+        background: color,
+        borderBottom: '2px solid #ddd',
+        padding: '1rem',
+        display: 'flex',
+        flexDirection: 'column',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+      }}
+    >
+      <div style={{ marginBottom: '0.5rem' }}>
+        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 'bold' }}>
+          {name}
+        </h3>
+        <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: '#666' }}>
+          {role}
+        </p>
+      </div>
+
+      {/* State indicators */}
+      <div
+        style={{
+          marginBottom: '0.5rem',
+          padding: '0.5rem',
+          background: 'rgba(255,255,255,0.6)',
+          borderRadius: '4px',
+          fontSize: '0.7rem',
+        }}
+      >
+        <div><strong>RM:</strong> {rmState}</div>
+        {emState && <div><strong>EM:</strong> {emState}</div>}
+        {vfdState && <div><strong>VFD:</strong> {vfdState}</div>}
+      </div>
+
+      {/* Actions */}
+      {actions.length > 0 && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {actions.map((action) => (
+            <button
+              key={action.id}
+              onClick={() => onActionClick(action.id)}
+              disabled={!action.enabled}
+              title={action.description}
+              style={{
+                padding: '0.5rem',
+                fontSize: '0.75rem',
+                textAlign: 'left',
+                background: action.enabled ? '#4CAF50' : '#ccc',
+                color: action.enabled ? 'white' : '#666',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: action.enabled ? 'pointer' : 'not-allowed',
+                opacity: action.enabled ? 1 : 0.5,
+              }}
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface TimelineEvent {
+  id: string
+  actor: string
+  label: string
+  x: number  // horizontal position
+  lane: number  // which swimlane (0=finder, 1=vendor, 2=caseactor)
+  type: 'decision' | 'consequence'
+  consequences: string[]  // what happened (for hover)
+  causedBy?: string  // ID of the decision that caused this consequence
+  enablesNext?: boolean  // True if this consequence enables a next decision (dark green), false for tracking only (pale orange)
+  timestamp?: number  // When this event was created, for animation
+}
+
+// Demo state machine
+interface DemoState {
+  phase: string
+  finderRmState: string
+  vendorRmState: string
+  emState: string
+  vendorVfdState: string
+  timelineEvents: TimelineEvent[]
+  eventLog: string[]
+  vendorVisible: boolean
+  caseActorVisible: boolean
+  nextXPosition: number  // Track x position for uniform spacing
+  finderHasClosed: boolean
+  vendorHasClosed: boolean
+}
+
+function App() {
+  const [demoState, setDemoState] = useState<DemoState>({
+    phase: 'start',
+    finderRmState: 'START',
+    vendorRmState: 'START',
+    emState: 'NONE',
+    vendorVfdState: 'vfd',
+    timelineEvents: [],
+    eventLog: [],
+    vendorVisible: false,
+    caseActorVisible: false,
+    nextXPosition: 100,  // Start at 100px, increment by 250px for each decision column
+    finderHasClosed: false,
+    vendorHasClosed: false,
+  })
+
+  const [hoveredEvent, setHoveredEvent] = useState<string | null>(null)
+  const [stateHistory, setStateHistory] = useState<DemoState[]>([])
+  const timelineScrollRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to show the most recent event (only after 4+ decision nodes)
+  useEffect(() => {
+    if (timelineScrollRef.current && demoState.timelineEvents.length > 0) {
+      // Count decision nodes
+      const decisionCount = demoState.timelineEvents.filter(e => e.type === 'decision').length
+
+      // Only auto-scroll if we have more than 4 decision nodes
+      if (decisionCount > 4) {
+        const mostRecentEvent = demoState.timelineEvents[demoState.timelineEvents.length - 1]
+        // Scroll to show the most recent event with some padding
+        const scrollLeft = mostRecentEvent.x - 200
+        timelineScrollRef.current.scrollTo({
+          left: Math.max(0, scrollLeft),
+          behavior: 'smooth'
+        })
+      }
+    }
+  }, [demoState.timelineEvents.length])
+
+  // Undo handler
+  const handleUndo = useCallback(() => {
+    if (stateHistory.length === 0) return
+
+    const previousState = stateHistory[stateHistory.length - 1]
+    const newHistory = stateHistory.slice(0, -1)
+
+    setDemoState(previousState)
+    setStateHistory(newHistory)
+  }, [stateHistory])
+
+  // Start Over handler
+  const handleStartOver = useCallback(() => {
+    setDemoState({
+      phase: 'start',
+      finderRmState: 'START',
+      vendorRmState: 'START',
+      emState: 'NONE',
+      vendorVfdState: 'vfd',
+      timelineEvents: [],
+      eventLog: [],
+      vendorVisible: false,
+      caseActorVisible: false,
+      nextXPosition: 100,
+      finderHasClosed: false,
+      vendorHasClosed: false,
+    })
+    setStateHistory([])
+  }, [])
+
+  // Action handler
+  const handleAction = useCallback((actorId: string, actionId: string) => {
+    console.log(`Action: ${actorId} -> ${actionId}`)
+
+    // Save current state to history before making changes
+    setStateHistory(prev => [...prev, demoState])
+
+    // Handle different actions
+    if (actionId === 'submit-report') {
+      // Finder submits report
+      const nextX = demoState.nextXPosition
+      const submitEventId = 'event-1'
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'report-submitted',
+        vendorRmState: 'RECEIVED',
+        vendorVisible: true,
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Decision node in Finder lane
+          {
+            id: submitEventId,
+            actor: 'Finder',
+            label: 'Submit Report',
+            x: nextX,
+            lane: 0,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'VulnerabilityReport object created',
+              'Offer(VulnerabilityReport) activity created',
+              'Offer sent to Vendor\'s inbox',
+              'Triggers automatic effects on Vendor',
+            ],
+          },
+          // Consequence node in Vendor lane (enables Validate Report)
+          {
+            id: `${submitEventId}-vendor-consequence`,
+            actor: 'Vendor',
+            label: 'Report Received',
+            x: nextX,
+            lane: 1,
+            type: 'consequence',
+            causedBy: submitEventId,
+            enablesNext: true,  // Enables Validate Report decision
+            timestamp: now,
+            consequences: [
+              'Offer received in inbox',
+              'SubmitReportReceived handler triggered',
+              'VulnerabilityReport stored in DataLayer',
+              'Vendor\'s RM state → RECEIVED',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          'Finder submitted report to Vendor',
+        ],
+      }))
+    } else if (actionId === 'validate-report') {
+      // Vendor validates report
+      const nextX = demoState.nextXPosition
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'report-validated',
+        vendorRmState: 'VALID',
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          {
+            id: `event-${prev.timelineEvents.length + 1}`,
+            actor: 'Vendor',
+            label: 'Validate Report',
+            x: nextX,
+            lane: 1,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'Accept(Offer) activity created',
+              'Vendor\'s RM state → VALID',
+              'Case creation triggered',
+            ],
+          },
+        ],
+        eventLog: [...prev.eventLog, 'Vendor validated the report'],
+      }))
+    } else if (actionId === 'create-case') {
+      // Case automatically created (this button just triggers display of consequences)
+      const nextX = demoState.nextXPosition
+      const caseEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'case-created',
+        vendorRmState: 'ACCEPTED',
+        finderRmState: 'ACCEPTED',
+        emState: 'ACTIVE',
+        vendorVfdState: 'Vfd',
+        caseActorVisible: true,
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Main decision node (Vendor lane)
+          {
+            id: caseEventId,
+            actor: 'Vendor',
+            label: 'Case Created',
+            x: nextX,
+            lane: 1,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'VulnerabilityCase created (attributed_to: Vendor)',
+              'Three participants created',
+              'EmbargoPolicy created → EM.ACTIVE',
+              'Vendor\'s RM → ACCEPTED, VFD → Vfd',
+              'Triggers consequences for Finder and CaseActor',
+            ],
+          },
+          // Consequence node in Finder lane
+          {
+            id: `${caseEventId}-finder-consequence`,
+            actor: 'Finder',
+            label: 'Case Received',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: caseEventId,
+            consequences: [
+              'Announce(Case) received in inbox',
+              'Case replica created in DataLayer',
+              'Finder participant record created',
+              'Finder\'s RM → ACCEPTED',
+              'Finder\'s EM → ACTIVE',
+              'Trust established with CaseActor',
+            ],
+          },
+          // Consequence node in CaseActor lane
+          {
+            id: `${caseEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'Participant Created',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: caseEventId,
+            consequences: [
+              'CaseActor participant created',
+              'Role: COORDINATOR, CASE_MANAGER',
+              'Now tracks case state',
+              'Acts as authoritative ledger',
+              'Virtual actor (co-located with Vendor)',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          '✓ M1 REACHED: Case active with 3 participants, embargo active',
+        ],
+      }))
+    } else if (actionId === 'commit-log') {
+      // Vendor commits log entry for replica sync verification
+      const nextX = demoState.nextXPosition
+      const logEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'log-committed',
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Decision node in Vendor lane (GREEN)
+          {
+            id: logEventId,
+            actor: 'Vendor',
+            label: 'Commit Log',
+            x: nextX,
+            lane: 1,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'CaseEvent created with hash',
+              'Announce(CaseEvent) activity created',
+              'Sent to participants',
+              'Triggers replica sync and Case Actor tracking',
+            ],
+          },
+          // Consequence node in Finder lane (enables Ask Question)
+          {
+            id: `${logEventId}-finder-consequence`,
+            actor: 'Finder',
+            label: 'Replica Synced',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: logEventId,
+            enablesNext: true,  // Enables Ask Question decision
+            consequences: [
+              'Announce received in inbox',
+              'CaseEvent stored in DataLayer',
+              'Finder\'s replica synchronized',
+              'Hash verified',
+              '✓ M2 REACHED: Replica state verified (SYNC-2)',
+            ],
+          },
+          // Consequence node in CaseActor lane (BLUE)
+          {
+            id: `${logEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'Event Logged',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: logEventId,
+            consequences: [
+              'CaseEvent tracked by Case Actor',
+              'Event hash recorded',
+              'Authoritative ledger updated',
+              'Event becomes part of case history',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          '✓ M2 REACHED: Finder replica synchronized',
+        ],
+      }))
+    } else if (actionId === 'finder-add-note') {
+      // Finder asks question
+      const nextX = demoState.nextXPosition
+      const noteEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'finder-asked',
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Decision node in Finder lane (GREEN)
+          {
+            id: noteEventId,
+            actor: 'Finder',
+            label: 'Ask Question',
+            x: nextX,
+            lane: 0,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'Note created: "Question from Finder"',
+              'Content: "Is there a workaround available?"',
+              'Add(Note, target=Case) activity created',
+              'Activity sent via Finder\'s outbox',
+              'Triggers delivery to participants',
+            ],
+          },
+          // Consequence node in Vendor lane (enables Reply)
+          {
+            id: `${noteEventId}-vendor-consequence`,
+            actor: 'Vendor',
+            label: 'Note Received',
+            x: nextX,
+            lane: 1,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: noteEventId,
+            enablesNext: true,  // Enables Reply decision
+            consequences: [
+              'Add(Note) received in inbox',
+              'Note delivered to Vendor\'s DataLayer',
+              'Vendor can now see question',
+            ],
+          },
+          // Consequence node in CaseActor lane (BLUE)
+          {
+            id: `${noteEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'Note Tracked',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: noteEventId,
+            consequences: [
+              'Note tracked by Case Actor',
+              'Note added to case history',
+              'Authoritative ledger updated',
+              'Part of case audit trail',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          'Finder asked: "Is there a workaround available?"',
+        ],
+      }))
+    } else if (actionId === 'vendor-reply-note') {
+      // Vendor replies
+      const nextX = demoState.nextXPosition
+      const replyEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'vendor-replied',
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Decision node in Vendor lane (GREEN)
+          {
+            id: replyEventId,
+            actor: 'Vendor',
+            label: 'Reply',
+            x: nextX,
+            lane: 1,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'Note created: "Vendor Response"',
+              'Content: "Yes, disable the network stack component"',
+              'inReplyTo: previous note',
+              'Add(Note, target=Case) activity created',
+              'Activity sent via Vendor\'s outbox',
+              'Triggers delivery to participants',
+            ],
+          },
+          // Consequence node in Finder lane (BLUE)
+          {
+            id: `${replyEventId}-finder-consequence`,
+            actor: 'Finder',
+            label: 'Reply Received',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: replyEventId,
+            consequences: [
+              'Add(Note) received in inbox',
+              'Reply delivered to Finder\'s DataLayer',
+              'Finder can now see workaround',
+              '✓ M3 REACHED: Notes exchanged',
+            ],
+          },
+          // Consequence node in CaseActor lane (BLUE)
+          {
+            id: `${replyEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'Reply Tracked',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: replyEventId,
+            consequences: [
+              'Reply tracked by Case Actor',
+              'Reply added to case history',
+              'Authoritative ledger updated',
+              'Case state finalized',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          'Vendor replied with workaround guidance',
+          '✓ M3 REACHED: Notes exchanged successfully',
+        ],
+      }))
+    } else if (actionId === 'notify-fix-ready') {
+      // Vendor notifies fix is ready
+      const nextX = demoState.nextXPosition
+      const fixReadyEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'fix-ready',
+        vendorVfdState: 'VFd',
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Decision node in Vendor lane (GREEN)
+          {
+            id: fixReadyEventId,
+            actor: 'Vendor',
+            label: 'Notify Fix Ready',
+            x: nextX,
+            lane: 1,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'Vendor creates UpdateParticipantStatus',
+              'vfd_state → VFd (fix ready)',
+              'Announce activity sent to participants',
+              'Triggers state update on Finder and Case Actor',
+            ],
+          },
+          // Consequence node in Finder lane (BLUE)
+          {
+            id: `${fixReadyEventId}-finder-consequence`,
+            actor: 'Finder',
+            label: 'Fix Ready Noted',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: fixReadyEventId,
+            consequences: [
+              'Announce received in inbox',
+              'Vendor participant status updated',
+              'Finder sees fix is ready',
+              '✓ M4 REACHED: Fix ready on both replicas',
+            ],
+          },
+          // Consequence node in CaseActor lane (BLUE)
+          {
+            id: `${fixReadyEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'Fix Status Tracked',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: fixReadyEventId,
+            consequences: [
+              'Vendor participant status updated',
+              'VFD state tracked: VFd',
+              'Authoritative ledger updated',
+              'Case shows fix ready',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          '✓ M4 REACHED: Fix ready',
+        ],
+      }))
+    } else if (actionId === 'notify-fix-deployed') {
+      // Vendor notifies fix is deployed
+      const nextX = demoState.nextXPosition
+      const fixDeployedEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'fix-deployed',
+        vendorVfdState: 'VFD',
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Decision node in Vendor lane (GREEN)
+          {
+            id: fixDeployedEventId,
+            actor: 'Vendor',
+            label: 'Notify Fix Deployed',
+            x: nextX,
+            lane: 1,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'Vendor creates UpdateParticipantStatus',
+              'vfd_state → VFD (fix deployed)',
+              'Announce activity sent to participants',
+              'Triggers state update on Finder and Case Actor',
+            ],
+          },
+          // Consequence node in Finder lane (BLUE)
+          {
+            id: `${fixDeployedEventId}-finder-consequence`,
+            actor: 'Finder',
+            label: 'Fix Deployed Noted',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: fixDeployedEventId,
+            consequences: [
+              'Announce received in inbox',
+              'Vendor participant status updated',
+              'Finder sees fix is deployed',
+              '✓ M5 REACHED: Fix deployed on both replicas',
+            ],
+          },
+          // Consequence node in CaseActor lane (BLUE)
+          {
+            id: `${fixDeployedEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'Deployment Tracked',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: fixDeployedEventId,
+            consequences: [
+              'Vendor participant status updated',
+              'VFD state tracked: VFD',
+              'Authoritative ledger updated',
+              'Case shows fix deployed',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          '✓ M5 REACHED: Fix deployed',
+        ],
+      }))
+    } else if (actionId === 'vendor-notify-published') {
+      // Vendor notifies publication
+      const nextX = demoState.nextXPosition
+      const vendorPubEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'vendor-published',
+        emState: 'EXITED',
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Decision node in Vendor lane (GREEN)
+          {
+            id: vendorPubEventId,
+            actor: 'Vendor',
+            label: 'Notify Published',
+            x: nextX,
+            lane: 1,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'Vendor creates UpdateParticipantStatus',
+              'pxa_state → public-aware',
+              'EM → EXITED (embargo terminated)',
+              'Announce activity sent to participants',
+            ],
+          },
+          // Consequence node in Finder lane (enables Acknowledge Publication)
+          {
+            id: `${vendorPubEventId}-finder-consequence`,
+            actor: 'Finder',
+            label: 'Publication Noted',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: vendorPubEventId,
+            enablesNext: true,  // Enables Acknowledge Publication decision
+            consequences: [
+              'Announce received in inbox',
+              'Vendor participant status updated',
+              'Embargo terminated (EM.EXITED)',
+              'Finder sees publication',
+            ],
+          },
+          // Consequence node in CaseActor lane (BLUE)
+          {
+            id: `${vendorPubEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'Publication Tracked',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: vendorPubEventId,
+            consequences: [
+              'Vendor participant pxa_state updated',
+              'Embargo state: EM.EXITED',
+              'Authoritative ledger updated',
+              'Case shows public disclosure',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          'Vendor notified publication',
+        ],
+      }))
+    } else if (actionId === 'finder-notify-published') {
+      // Finder acknowledges publication
+      const nextX = demoState.nextXPosition
+      const finderPubEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'finder-published',
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Decision node in Finder lane (GREEN)
+          {
+            id: finderPubEventId,
+            actor: 'Finder',
+            label: 'Acknowledge Publication',
+            x: nextX,
+            lane: 0,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'Finder creates UpdateParticipantStatus',
+              'pxa_state → public-aware',
+              'Announce activity sent to participants',
+              '✓ M6 REACHED: CS.VFDPxa, EM.EXITED',
+            ],
+          },
+          // Consequence node in Vendor lane (enables Close Case)
+          {
+            id: `${finderPubEventId}-vendor-consequence`,
+            actor: 'Vendor',
+            label: 'Ack Received',
+            x: nextX,
+            lane: 1,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: finderPubEventId,
+            enablesNext: true,  // Enables Close Case decision
+            consequences: [
+              'Announce received in inbox',
+              'Finder participant status updated',
+              'Both participants public-aware',
+            ],
+          },
+          // Consequence node in CaseActor lane (BLUE)
+          {
+            id: `${finderPubEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'Full Disclosure',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: finderPubEventId,
+            consequences: [
+              'Finder participant pxa_state updated',
+              'All participants public-aware',
+              'CS.VFDPxa state achieved',
+              '✓ M6: Public disclosure complete',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          '✓ M6 REACHED: Publicly disclosed',
+        ],
+      }))
+    } else if (actionId === 'vendor-close-case') {
+      // Vendor closes case
+      const nextX = demoState.nextXPosition
+      const vendorCloseEventId = `event-${demoState.timelineEvents.length + 1}`
+      const bothClosed = demoState.finderHasClosed  // Will both be closed after this action?
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: bothClosed ? 'case-closed' : 'vendor-closed',
+        vendorRmState: 'CLOSED',
+        vendorHasClosed: true,
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Decision node in Vendor lane (GREEN)
+          {
+            id: vendorCloseEventId,
+            actor: 'Vendor',
+            label: 'Close Case',
+            x: nextX,
+            lane: 1,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'Vendor creates UpdateParticipantStatus',
+              'rm_state → CLOSED',
+              'Announce activity sent to participants',
+            ],
+          },
+          // Consequence node in Finder lane (enables Close Case if not already closed)
+          {
+            id: `${vendorCloseEventId}-finder-consequence`,
+            actor: 'Finder',
+            label: 'Closure Noted',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: vendorCloseEventId,
+            enablesNext: true,  // Enables Close Case decision
+            consequences: [
+              'Announce received in inbox',
+              'Vendor participant status updated',
+              'Vendor RM → CLOSED',
+            ],
+          },
+          // Consequence node in CaseActor lane (BLUE)
+          {
+            id: `${vendorCloseEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'Closure Tracked',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: vendorCloseEventId,
+            consequences: [
+              'Vendor participant RM → CLOSED',
+              'Authoritative ledger updated',
+              'Waiting for all participants to close',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          bothClosed ? '✓ M7 REACHED: Case closed' : 'Vendor closed case',
+        ],
+      }))
+    } else if (actionId === 'finder-close-case') {
+      // Finder closes case
+      const nextX = demoState.nextXPosition
+      const finderCloseEventId = `event-${demoState.timelineEvents.length + 1}`
+      const bothClosed = demoState.vendorHasClosed  // Will both be closed after this action?
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: bothClosed ? 'case-closed' : 'finder-closed',
+        finderRmState: 'CLOSED',
+        finderHasClosed: true,
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Decision node in Finder lane (GREEN)
+          {
+            id: finderCloseEventId,
+            actor: 'Finder',
+            label: 'Close Case',
+            x: nextX,
+            lane: 0,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'Finder creates UpdateParticipantStatus',
+              'rm_state → CLOSED',
+              'Announce activity sent to participants',
+              '✓ M7 REACHED: All participants closed',
+            ],
+          },
+          // Consequence node in Vendor lane (BLUE)
+          {
+            id: `${finderCloseEventId}-vendor-consequence`,
+            actor: 'Vendor',
+            label: 'Closure Complete',
+            x: nextX,
+            lane: 1,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: finderCloseEventId,
+            consequences: [
+              'Announce received in inbox',
+              'Finder participant status updated',
+              'All participants RM.CLOSED',
+            ],
+          },
+          // Consequence node in CaseActor lane (BLUE)
+          {
+            id: `${finderCloseEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'Case Closed',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: finderCloseEventId,
+            consequences: [
+              'Finder participant RM → CLOSED',
+              'All participants RM.CLOSED',
+              'Case Actor closes case',
+              '✓ M7: Case closure complete',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          bothClosed ? '✓ M7 REACHED: Case closed' : 'Finder closed case',
+        ],
+      }))
+    }
+  }, [demoState.timelineEvents.length])
+
+  return (
+    <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* Header */}
+      <div style={{ padding: '1rem', background: '#f5f5f5', borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#666' }}>
+            Vultron Interactive Demo — Two-Actor CVD
+          </h1>
+          <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem', color: '#666' }}>
+            CERT/CC — Research Prototype | Click actions on actors to progress through the demo
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <button
+            onClick={handleStartOver}
+            style={{
+              padding: '0.75rem 1.5rem',
+              fontSize: '0.9rem',
+              background: '#2196F3',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#1976D2'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = '#2196F3'
+            }}
+          >
+            ↺ Start Over
+          </button>
+          <button
+            onClick={handleUndo}
+            disabled={stateHistory.length === 0}
+            style={{
+              padding: '0.75rem 1.5rem',
+              fontSize: '0.9rem',
+              background: stateHistory.length > 0 ? '#ff9800' : '#ccc',
+              color: stateHistory.length > 0 ? 'white' : '#666',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: stateHistory.length > 0 ? 'pointer' : 'not-allowed',
+              fontWeight: 'bold',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              if (stateHistory.length > 0) {
+                e.currentTarget.style.background = '#f57c00'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (stateHistory.length > 0) {
+                e.currentTarget.style.background = '#ff9800'
+              }
+            }}
+          >
+            ← Go Back
+          </button>
+        </div>
+      </div>
+
+      {/* Main content area */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* Left panel: Actor controls */}
+        <div style={{ width: ACTOR_PANEL_WIDTH, borderRight: '3px solid #333', flexShrink: 0 }}>
+          <ActorPanel
+            name="Finder"
+            role="REPORTER"
+            color="#e3f2fd"
+            rmState={demoState.finderRmState}
+            emState={demoState.emState}
+            actions={
+              demoState.phase === 'start' ? [{
+                id: 'submit-report',
+                label: 'Submit Report',
+                description: 'Create and submit a vulnerability report to the Vendor',
+                enabled: true,
+              }] : demoState.phase === 'log-committed' ? [{
+                id: 'finder-add-note',
+                label: 'Ask Question',
+                description: 'Add a note to the case asking for information',
+                enabled: true,
+              }] : demoState.phase === 'vendor-published' ? [{
+                id: 'finder-notify-published',
+                label: 'Acknowledge Publication',
+                description: 'Finder acknowledges publication',
+                enabled: true,
+              }] : (demoState.phase === 'finder-published' || demoState.phase === 'vendor-closed') && !demoState.finderHasClosed ? [{
+                id: 'finder-close-case',
+                label: 'Close Case',
+                description: 'Finder closes their participation in the case',
+                enabled: true,
+              }] : []
+            }
+            onActionClick={(actionId) => handleAction('finder', actionId)}
+          />
+          {demoState.vendorVisible && (
+            <ActorPanel
+              name="Vendor"
+              role="VENDOR, CASE_OWNER"
+              color="#f3e5f5"
+              rmState={demoState.vendorRmState}
+              emState={demoState.emState}
+              vfdState={demoState.vendorVfdState}
+              actions={
+                demoState.phase === 'report-submitted' ? [{
+                  id: 'validate-report',
+                  label: 'Validate Report',
+                  description: 'Mark the report as valid',
+                  enabled: true,
+                }, {
+                  id: 'invalidate-report',
+                  label: 'Invalidate Report',
+                  description: 'Mark the report as invalid',
+                  enabled: true,
+                }] : demoState.phase === 'report-validated' ? [{
+                  id: 'create-case',
+                  label: 'Create Case',
+                  description: 'System creates case with 3 participants',
+                  enabled: true,
+                }] : demoState.phase === 'case-created' ? [{
+                  id: 'commit-log',
+                  label: 'Commit Log Entry',
+                  description: 'Create log entry for replica synchronization verification',
+                  enabled: true,
+                }] : demoState.phase === 'finder-asked' ? [{
+                  id: 'vendor-reply-note',
+                  label: 'Reply to Question',
+                  description: 'Respond to Finder\'s question about workarounds',
+                  enabled: true,
+                }] : demoState.phase === 'vendor-replied' ? [{
+                  id: 'notify-fix-ready',
+                  label: 'Notify Fix Ready',
+                  description: 'Vendor notifies that a fix is ready',
+                  enabled: true,
+                }] : demoState.phase === 'fix-ready' ? [{
+                  id: 'notify-fix-deployed',
+                  label: 'Notify Fix Deployed',
+                  description: 'Vendor notifies that the fix has been deployed',
+                  enabled: true,
+                }] : demoState.phase === 'fix-deployed' ? [{
+                  id: 'vendor-notify-published',
+                  label: 'Notify Published',
+                  description: 'Vendor notifies that vulnerability is publicly disclosed',
+                  enabled: true,
+                }] : (demoState.phase === 'vendor-published' || demoState.phase === 'finder-published' || demoState.phase === 'finder-closed') && !demoState.vendorHasClosed ? [{
+                  id: 'vendor-close-case',
+                  label: 'Close Case',
+                  description: 'Vendor closes their participation in the case',
+                  enabled: true,
+                }] : []
+              }
+              onActionClick={(actionId) => handleAction('vendor', actionId)}
+            />
+          )}
+          {demoState.caseActorVisible && (
+            <ActorPanel
+              name="Case Actor"
+              role="COORDINATOR, CASE_MANAGER (virtual)"
+              color="#fff3e0"
+              rmState="N/A"
+              emState={demoState.emState}
+              actions={[]}
+              onActionClick={() => {}}
+            />
+          )}
+        </div>
+
+        {/* Right panel: Timeline visualization */}
+        <div ref={timelineScrollRef} style={{ flex: 1, position: 'relative', background: '#fafafa', overflowX: 'auto', overflowY: 'hidden' }}>
+          {/* Calculate required width based on events */}
+          {(() => {
+            const maxX = demoState.timelineEvents.length > 0
+              ? Math.max(...demoState.timelineEvents.map(e => e.x)) + 500
+              : 2000
+            const minWidth = Math.max(maxX, 2000)
+
+            return (
+              <>
+                {/* Swimlane backgrounds - extend to minWidth */}
+                <div style={{ position: 'absolute', top: 0, left: 0, width: minWidth, height: LANE_HEIGHT, background: '#e3f2fd', opacity: 0.3 }} />
+                {demoState.vendorVisible && (
+                  <div style={{ position: 'absolute', top: LANE_HEIGHT, left: 0, width: minWidth, height: LANE_HEIGHT, background: '#f3e5f5', opacity: 0.3 }} />
+                )}
+                {demoState.caseActorVisible && (
+                  <div style={{ position: 'absolute', top: LANE_HEIGHT * 2, left: 0, width: minWidth, height: LANE_HEIGHT, background: '#fff3e0', opacity: 0.3 }} />
+                )}
+
+                {/* Timeline events */}
+                <svg style={{ position: 'absolute', top: 0, left: 0, width: minWidth, height: LANE_HEIGHT * 3 }}>
+            <defs>
+              <marker
+                id="arrowhead"
+                markerWidth="10"
+                markerHeight="10"
+                refX="9"
+                refY="3"
+                orient="auto"
+              >
+                <polygon points="0 0, 10 3, 0 6" fill="#666" />
+              </marker>
+              <marker
+                id="arrowhead-blue"
+                markerWidth="10"
+                markerHeight="10"
+                refX="9"
+                refY="3"
+                orient="auto"
+              >
+                <polygon points="0 0, 10 3, 0 6" fill="#BBDEFB" />
+              </marker>
+              <marker
+                id="arrowhead-purple"
+                markerWidth="10"
+                markerHeight="10"
+                refX="9"
+                refY="3"
+                orient="auto"
+              >
+                <polygon points="0 0, 10 3, 0 6" fill="#E1BEE7" />
+              </marker>
+              <marker
+                id="arrowhead-orange"
+                markerWidth="10"
+                markerHeight="10"
+                refX="9"
+                refY="3"
+                orient="auto"
+              >
+                <polygon points="0 0, 10 3, 0 6" fill="#FFE0B2" />
+              </marker>
+            </defs>
+
+            {/* Draw connecting arrows */}
+            {demoState.timelineEvents.map((event, idx) => {
+              // Draw vertical arrow from decision to consequence
+              if (event.type === 'consequence' && event.causedBy) {
+                const causeEvent = demoState.timelineEvents.find(e => e.id === event.causedBy)
+                if (causeEvent) {
+                  const y1 = causeEvent.lane * LANE_HEIGHT + LANE_HEIGHT / 2
+                  const y2 = event.lane * LANE_HEIGHT + LANE_HEIGHT / 2
+
+                  // Adjust endpoints to account for rectangle height (70px / 2 = 35px from center)
+                  const rectHalfHeight = 35
+                  const direction = y2 > y1 ? 1 : -1  // downward or upward
+                  const adjustedY1 = y1 + (rectHalfHeight * direction)
+                  const adjustedY2 = y2 - (rectHalfHeight * direction)
+
+                  // Arrow color matches the target lane (lighter for consequences)
+                  let arrowColor: string
+                  let arrowMarker: string
+                  if (event.lane === 0) {  // Finder
+                    arrowColor = '#BBDEFB'
+                    arrowMarker = 'url(#arrowhead-blue)'
+                  } else if (event.lane === 1) {  // Vendor
+                    arrowColor = '#E1BEE7'
+                    arrowMarker = 'url(#arrowhead-purple)'
+                  } else {  // CaseActor
+                    arrowColor = '#FFE0B2'
+                    arrowMarker = 'url(#arrowhead-orange)'
+                  }
+
+                  return (
+                    <g key={`arrow-vertical-${event.id}`}>
+                      <line
+                        x1={event.x}
+                        y1={adjustedY1}
+                        x2={event.x}
+                        y2={adjustedY2}
+                        stroke={arrowColor}
+                        strokeWidth={2}
+                        strokeDasharray="5,5"
+                        markerEnd={arrowMarker}
+                      />
+                    </g>
+                  )
+                }
+              }
+
+              return null
+            })}
+
+            {/* Draw horizontal flow arrows within each lane */}
+            {demoState.timelineEvents.map((event) => {
+              // Find next node in the SAME lane with a DIFFERENT x position
+              const eventIdx = demoState.timelineEvents.indexOf(event)
+              const nextInLane = demoState.timelineEvents.find(
+                (e, i) => i > eventIdx && e.lane === event.lane && e.x !== event.x
+              )
+              if (!nextInLane) return null
+
+              // Only draw arrow if it represents an enabling relationship:
+              // - consequence → decision (consequence enables actor to make decision)
+              // - decision → decision (one decision leads to another)
+              // Don't draw:
+              // - decision → consequence (caused by other actor, shown by vertical arrow)
+              // - consequence → consequence (no direct enabling)
+              const shouldDrawArrow =
+                (event.type === 'consequence' && nextInLane.type === 'decision') ||
+                (event.type === 'decision' && nextInLane.type === 'decision')
+
+              if (!shouldDrawArrow) return null
+
+              const y = event.lane * LANE_HEIGHT + LANE_HEIGHT / 2
+              const startX = event.x + 60 // Start from edge of rectangle (width/2)
+              const endX = nextInLane.x - 60 // End at edge of next rectangle
+
+              return (
+                <g key={`arrow-horizontal-${event.id}`}>
+                  <line
+                    x1={startX}
+                    y1={y}
+                    x2={endX}
+                    y2={y}
+                    stroke="#666"
+                    strokeWidth={2}
+                    markerEnd="url(#arrowhead)"
+                  />
+                </g>
+              )
+            })}
+
+            {/* Draw nodes (decisions and consequences) */}
+            {demoState.timelineEvents.map((event) => {
+              const isHovered = hoveredEvent === event.id
+              const isDecision = event.type === 'decision'
+
+              // Color based on lane and node type
+              let fillColor: string
+              if (event.lane === 0) {  // Finder lane
+                if (isDecision) {
+                  fillColor = isHovered ? '#1565C0' : '#1976D2'  // Dark blue for decisions
+                } else {
+                  fillColor = isHovered ? '#90CAF9' : '#BBDEFB'  // Light blue for consequences
+                }
+              } else if (event.lane === 1) {  // Vendor lane
+                if (isDecision) {
+                  fillColor = isHovered ? '#6A1B9A' : '#7B1FA2'  // Dark purple for decisions
+                } else {
+                  fillColor = isHovered ? '#CE93D8' : '#E1BEE7'  // Light purple for consequences
+                }
+              } else {  // CaseActor lane
+                if (isDecision) {
+                  fillColor = isHovered ? '#E65100' : '#F57C00'  // Dark orange for decisions
+                } else {
+                  fillColor = isHovered ? '#FFCC80' : '#FFE0B2'  // Light orange for consequences
+                }
+              }
+
+              return (
+                <AnimatedNode
+                  key={`${event.id}-${event.timestamp || 0}`}
+                  event={event}
+                  allEvents={demoState.timelineEvents}
+                  isHovered={isHovered}
+                  fillColor={fillColor}
+                  onMouseEnter={() => setHoveredEvent(event.id)}
+                  onMouseLeave={() => setHoveredEvent(null)}
+                />
+              )
+            })}
+          </svg>
+
+          {/* Consequences tooltip */}
+          {hoveredEvent && (() => {
+            const event = demoState.timelineEvents.find(e => e.id === hoveredEvent)
+            if (!event) return null
+
+            const isDecision = event.type === 'decision'
+            let titleColor: string
+            if (event.lane === 0) {  // Finder
+              titleColor = isDecision ? '#1976D2' : '#90CAF9'
+            } else if (event.lane === 1) {  // Vendor
+              titleColor = isDecision ? '#7B1FA2' : '#CE93D8'
+            } else {  // CaseActor
+              titleColor = isDecision ? '#F57C00' : '#FFCC80'
+            }
+
+            return (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: event.x + 40,
+                  top: event.lane * LANE_HEIGHT + 50,
+                  background: '#fff',
+                  border: `2px solid ${titleColor}`,
+                  borderRadius: '8px',
+                  padding: '1rem',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                  maxWidth: '400px',
+                  zIndex: 1000,
+                }}
+              >
+                {!isDecision && (
+                  <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem', color: titleColor }}>
+                    Effects on this Actor:
+                  </h4>
+                )}
+                <ul style={{ margin: 0, padding: '0 0 0 1.25rem', fontSize: '0.8rem', lineHeight: '1.5' }}>
+                  {event.consequences.map((consequence, idx) => (
+                    <li key={idx} style={{ marginBottom: '0.25rem' }}>
+                      {consequence}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          })()}
+              </>
+            )
+          })()}
+        </div>
+      </div>
+
+      {/* Bottom: Event log */}
+      <div
+        style={{
+          height: '150px',
+          background: '#fff',
+          borderTop: '2px solid #ddd',
+          padding: '1rem',
+          overflowY: 'auto',
+        }}
+      >
+        <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem' }}>Event Timeline</h3>
+        {demoState.eventLog.length === 0 ? (
+          <p style={{ color: '#999', fontStyle: 'italic' }}>
+            No events yet. Click "Submit Report" on the Finder to begin.
+          </p>
+        ) : (
+          <ul style={{ margin: 0, padding: '0 0 0 1.5rem', fontSize: '0.85rem' }}>
+            {demoState.eventLog.map((event, idx) => (
+              <li key={idx} style={{ marginBottom: '0.25rem' }}>
+                {event}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default App
