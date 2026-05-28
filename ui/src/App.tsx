@@ -85,6 +85,7 @@ interface ActorPanelProps {
   rmState: string
   emState?: string
   vfdState?: string
+  pxaState?: string
   actions: Array<{
     id: string
     label: string
@@ -94,7 +95,7 @@ interface ActorPanelProps {
   onActionClick: (actionId: string) => void
 }
 
-function ActorPanel({ name, role, color, rmState, emState, vfdState, actions, onActionClick }: ActorPanelProps) {
+function ActorPanel({ name, role, color, rmState, emState, vfdState, pxaState, actions, onActionClick }: ActorPanelProps) {
   return (
     <div
       style={{
@@ -132,6 +133,7 @@ function ActorPanel({ name, role, color, rmState, emState, vfdState, actions, on
         <div><strong>RM:</strong> {rmState}</div>
         {emState && <div><strong>EM:</strong> {emState}</div>}
         {vfdState && <div><strong>VFD:</strong> {vfdState}</div>}
+        {pxaState && <div><strong>PXA:</strong> {pxaState}</div>}
       </div>
 
       {/* Actions */}
@@ -184,6 +186,7 @@ interface DemoState {
   vendorRmState: string
   emState: string
   vendorVfdState: string
+  pxaState: string  // Case-level PXA state (Public/eXploit/Attacks)
   timelineEvents: TimelineEvent[]
   eventLog: string[]
   vendorVisible: boolean
@@ -200,6 +203,7 @@ function App() {
     vendorRmState: 'START',
     emState: 'NONE',
     vendorVfdState: 'vfd',
+    pxaState: 'pxa',  // Start with no public, no exploit, no attacks
     timelineEvents: [],
     eventLog: [],
     vendorVisible: false,
@@ -251,6 +255,7 @@ function App() {
       vendorRmState: 'START',
       emState: 'NONE',
       vendorVfdState: 'vfd',
+      pxaState: 'pxa',
       timelineEvents: [],
       eventLog: [],
       vendorVisible: false,
@@ -364,7 +369,7 @@ function App() {
         phase: 'case-created',
         vendorRmState: 'ACCEPTED',
         finderRmState: 'ACCEPTED',
-        emState: 'ACTIVE',
+        emState: 'NONE',  // Embargo negotiation happens next
         vendorVfdState: 'Vfd',
         caseActorVisible: true,
         nextXPosition: prev.nextXPosition + 250,
@@ -382,9 +387,9 @@ function App() {
             consequences: [
               'VulnerabilityCase created (attributed_to: Vendor)',
               'Three participants created',
-              'EmbargoPolicy created → EM.ACTIVE',
               'Vendor\'s RM → ACCEPTED, VFD → Vfd',
               'Triggers consequences for Finder and CaseActor',
+              'Embargo negotiation to follow',
             ],
           },
           // Consequence node in Finder lane
@@ -402,8 +407,8 @@ function App() {
               'Case replica created in DataLayer',
               'Finder participant record created',
               'Finder\'s RM → ACCEPTED',
-              'Finder\'s EM → ACTIVE',
               'Trust established with CaseActor',
+              'Awaiting embargo negotiation',
             ],
           },
           // Consequence node in CaseActor lane
@@ -427,7 +432,285 @@ function App() {
         ],
         eventLog: [
           ...prev.eventLog,
+          'Case created with 3 participants (M1 pending embargo negotiation)',
+        ],
+      }))
+    } else if (actionId === 'propose-embargo') {
+      // CaseActor proposes embargo
+      const nextX = demoState.nextXPosition
+      const proposeEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'embargo-proposed',
+        emState: 'PROPOSED',
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Decision node in CaseActor lane
+          {
+            id: proposeEventId,
+            actor: 'CaseActor',
+            label: 'Propose Embargo',
+            x: nextX,
+            lane: 2,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'EmbargoEvent created (90-day proposal)',
+              'EmProposeEmbargoActivity created',
+              'Proposal sent to Vendor inbox',
+              'EM state → PROPOSED',
+              'Awaiting Vendor decision',
+            ],
+          },
+          // Consequence node in Vendor lane (enables Accept/Reject)
+          {
+            id: `${proposeEventId}-vendor-consequence`,
+            actor: 'Vendor',
+            label: 'Proposal Received',
+            x: nextX,
+            lane: 1,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: proposeEventId,
+            enablesNext: true,  // Enables Accept/Reject decision
+            consequences: [
+              'EmProposeEmbargoActivity received',
+              'EmbargoEvent stored in DataLayer',
+              'Vendor sees 90-day embargo proposal',
+              'Can accept or reject',
+            ],
+          },
+          // Consequence node in Finder lane
+          {
+            id: `${proposeEventId}-finder-consequence`,
+            actor: 'Finder',
+            label: 'Proposal Noted',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: proposeEventId,
+            consequences: [
+              'Finder notified of embargo proposal',
+              'EM state → PROPOSED',
+              'Awaiting negotiation outcome',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          'CaseActor proposed 90-day embargo',
+        ],
+      }))
+    } else if (actionId === 'accept-embargo') {
+      // Vendor accepts embargo proposal
+      const nextX = demoState.nextXPosition
+      const acceptEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'embargo-accepted',
+        emState: 'ACTIVE',
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Decision node in Vendor lane
+          {
+            id: acceptEventId,
+            actor: 'Vendor',
+            label: 'Accept Embargo',
+            x: nextX,
+            lane: 1,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'EmAcceptEmbargoActivity created',
+              'Acceptance sent to CaseActor',
+              'ActivateEmbargoActivity triggered',
+              'EM state → ACTIVE',
+              'Triggers announcement to participants',
+            ],
+          },
+          // Consequence node in CaseActor lane (enables next action)
+          {
+            id: `${acceptEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'Embargo Activated',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: acceptEventId,
+            enablesNext: true,
+            consequences: [
+              'EmAcceptEmbargoActivity received',
+              'ActivateEmbargoActivity processed',
+              'Case active_embargo set',
+              'EM state → ACTIVE',
+              'Authoritative ledger updated',
+            ],
+          },
+          // Consequence node in Finder lane
+          {
+            id: `${acceptEventId}-finder-consequence`,
+            actor: 'Finder',
+            label: 'Embargo Active',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: acceptEventId,
+            consequences: [
+              'AnnounceEmbargoActivity received',
+              'Finder\'s EM state → ACTIVE',
+              '90-day embargo now in effect',
+              '✓ M1 REACHED: Case active, embargo established',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
           '✓ M1 REACHED: Case active with 3 participants, embargo active',
+        ],
+      }))
+    } else if (actionId === 'reject-embargo') {
+      // Vendor rejects embargo proposal
+      const nextX = demoState.nextXPosition
+      const rejectEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'embargo-rejected',
+        emState: 'NONE',
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Decision node in Vendor lane
+          {
+            id: rejectEventId,
+            actor: 'Vendor',
+            label: 'Reject Embargo',
+            x: nextX,
+            lane: 1,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'EmRejectEmbargoActivity created',
+              'Rejection sent to CaseActor',
+              'EM state → NONE',
+              'No embargo will be activated',
+            ],
+          },
+          // Consequence node in CaseActor lane (enables repropose)
+          {
+            id: `${rejectEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'Embargo Rejected',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: rejectEventId,
+            enablesNext: true,
+            consequences: [
+              'EmRejectEmbargoActivity received',
+              'Embargo proposal discarded',
+              'EM state → NONE',
+              'Can repropose with revised terms',
+              'Or Vendor can proceed without embargo',
+            ],
+          },
+          // Consequence node in Finder lane
+          {
+            id: `${rejectEventId}-finder-consequence`,
+            actor: 'Finder',
+            label: 'Embargo Rejected',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: rejectEventId,
+            consequences: [
+              'Finder notified of rejection',
+              'EM state remains NONE',
+              'Awaiting reproposal or continuation',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          'Vendor rejected embargo proposal (can be reproposed)',
+        ],
+      }))
+    } else if (actionId === 'proceed-no-embargo') {
+      // Vendor decides to proceed without embargo after rejection
+      const nextX = demoState.nextXPosition
+      const proceedEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'proceed-no-embargo',
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Decision node in Vendor lane
+          {
+            id: proceedEventId,
+            actor: 'Vendor',
+            label: 'Proceed No Embargo',
+            x: nextX,
+            lane: 1,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'Vendor decides to continue without embargo',
+              'EM state remains NONE',
+              'Case workflow continues',
+              'No further embargo negotiation',
+            ],
+          },
+          // Consequence node in CaseActor lane
+          {
+            id: `${proceedEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'No Embargo Confirmed',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: proceedEventId,
+            consequences: [
+              'Case confirmed to proceed without embargo',
+              'EM state remains NONE',
+              'Authoritative ledger updated',
+            ],
+          },
+          // Consequence node in Finder lane
+          {
+            id: `${proceedEventId}-finder-consequence`,
+            actor: 'Finder',
+            label: 'Continuing Unembargoed',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: proceedEventId,
+            consequences: [
+              'Finder notified: no embargo',
+              'Case continues without embargo protection',
+              '✓ M1 REACHED: Case active, no embargo',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          'Vendor decided to proceed without embargo',
         ],
       }))
     } else if (actionId === 'commit-log') {
@@ -788,6 +1071,7 @@ function App() {
         ...prev,
         phase: 'vendor-published',
         emState: 'EXITED',
+        pxaState: 'Pxa',  // Public awareness achieved
         nextXPosition: prev.nextXPosition + 250,
         timelineEvents: [
           ...prev.timelineEvents,
@@ -804,6 +1088,7 @@ function App() {
               'Vendor creates UpdateParticipantStatus',
               'pxa_state → public-aware',
               'EM → EXITED (embargo terminated)',
+              'Case PXA → Pxa (public awareness)',
               'Announce activity sent to participants',
             ],
           },
@@ -838,6 +1123,7 @@ function App() {
             consequences: [
               'Vendor participant pxa_state updated',
               'Embargo state: EM.EXITED',
+              'Case PXA state: Pxa (public awareness)',
               'Authoritative ledger updated',
               'Case shows public disclosure',
             ],
@@ -906,6 +1192,7 @@ function App() {
             consequences: [
               'Finder participant pxa_state updated',
               'All participants public-aware',
+              'Case PXA state: Pxa (public awareness)',
               'CS.VFDPxa state achieved',
               '✓ M6: Public disclosure complete',
             ],
@@ -923,9 +1210,12 @@ function App() {
       const bothClosed = demoState.finderHasClosed  // Will both be closed after this action?
       const now = Date.now()
 
+      // Determine new phase based on current state
+      let newPhase = bothClosed ? 'case-closed' : 'vendor-closed'
+
       setDemoState(prev => ({
         ...prev,
-        phase: bothClosed ? 'case-closed' : 'vendor-closed',
+        phase: newPhase,
         vendorRmState: 'CLOSED',
         vendorHasClosed: true,
         nextXPosition: prev.nextXPosition + 250,
@@ -992,9 +1282,12 @@ function App() {
       const bothClosed = demoState.vendorHasClosed  // Will both be closed after this action?
       const now = Date.now()
 
+      // Determine new phase based on current state
+      let newPhase = bothClosed ? 'case-closed' : 'finder-closed'
+
       setDemoState(prev => ({
         ...prev,
-        phase: bothClosed ? 'case-closed' : 'finder-closed',
+        phase: newPhase,
         finderRmState: 'CLOSED',
         finderHasClosed: true,
         nextXPosition: prev.nextXPosition + 250,
@@ -1144,10 +1437,20 @@ function App() {
                 label: 'Ask Question',
                 description: 'Add a note to the case asking for information',
                 enabled: true,
+              }] : (demoState.phase === 'fix-deployed' || demoState.phase === 'vendor-closed') && !demoState.finderHasClosed ? [{
+                id: 'finder-close-case',
+                label: 'Close Case',
+                description: 'Finder closes their participation in the case',
+                enabled: true,
               }] : demoState.phase === 'vendor-published' ? [{
                 id: 'finder-notify-published',
                 label: 'Acknowledge Publication',
                 description: 'Finder acknowledges publication',
+                enabled: true,
+              }, {
+                id: 'finder-close-case',
+                label: 'Close Case',
+                description: 'Finder closes their participation in the case',
                 enabled: true,
               }] : (demoState.phase === 'finder-published' || demoState.phase === 'vendor-closed') && !demoState.finderHasClosed ? [{
                 id: 'finder-close-case',
@@ -1182,7 +1485,27 @@ function App() {
                   label: 'Create Case',
                   description: 'System creates case with 3 participants',
                   enabled: true,
-                }] : demoState.phase === 'case-created' ? [{
+                }] : demoState.phase === 'embargo-proposed' ? [{
+                  id: 'accept-embargo',
+                  label: 'Accept Embargo',
+                  description: 'Accept the 90-day embargo proposal',
+                  enabled: true,
+                }, {
+                  id: 'reject-embargo',
+                  label: 'Reject Embargo',
+                  description: 'Reject the embargo proposal',
+                  enabled: true,
+                }] : demoState.phase === 'embargo-accepted' ? [{
+                  id: 'commit-log',
+                  label: 'Commit Log Entry',
+                  description: 'Create log entry for replica synchronization verification',
+                  enabled: true,
+                }] : demoState.phase === 'embargo-rejected' ? [{
+                  id: 'proceed-no-embargo',
+                  label: 'Proceed Without Embargo',
+                  description: 'Continue case workflow without an embargo',
+                  enabled: true,
+                }] : demoState.phase === 'proceed-no-embargo' ? [{
                   id: 'commit-log',
                   label: 'Commit Log Entry',
                   description: 'Create log entry for replica synchronization verification',
@@ -1207,6 +1530,11 @@ function App() {
                   label: 'Notify Published',
                   description: 'Vendor notifies that vulnerability is publicly disclosed',
                   enabled: true,
+                }, {
+                  id: 'vendor-close-case',
+                  label: 'Close Case',
+                  description: 'Vendor closes their participation in the case',
+                  enabled: true,
                 }] : (demoState.phase === 'vendor-published' || demoState.phase === 'finder-published' || demoState.phase === 'finder-closed') && !demoState.vendorHasClosed ? [{
                   id: 'vendor-close-case',
                   label: 'Close Case',
@@ -1224,8 +1552,18 @@ function App() {
               color="#fff3e0"
               rmState="N/A"
               emState={demoState.emState}
-              actions={[]}
-              onActionClick={() => {}}
+              pxaState={demoState.pxaState}
+              actions={
+                (demoState.phase === 'case-created' || demoState.phase === 'embargo-rejected') ? [{
+                  id: 'propose-embargo',
+                  label: demoState.phase === 'embargo-rejected' ? 'Repropose Embargo' : 'Propose Embargo',
+                  description: demoState.phase === 'embargo-rejected'
+                    ? 'Propose a revised embargo to the Vendor'
+                    : 'Propose a 90-day embargo to the Vendor',
+                  enabled: true,
+                }] : []
+              }
+              onActionClick={(actionId) => handleAction('caseactor', actionId)}
             />
           )}
         </div>
@@ -1451,7 +1789,7 @@ function App() {
                   borderRadius: '8px',
                   padding: '1rem',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                  maxWidth: '400px',
+                  width: '400px',
                   zIndex: 1000,
                 }}
               >
