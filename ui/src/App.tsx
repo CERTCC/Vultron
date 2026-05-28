@@ -1432,10 +1432,12 @@ function App() {
                 label: 'Submit Report',
                 description: 'Create and submit a vulnerability report to the Vendor',
                 enabled: true,
-              }] : demoState.phase === 'log-committed' ? [{
+              }] : (demoState.phase === 'log-committed' || demoState.phase === 'vendor-replied') ? [{
                 id: 'finder-add-note',
-                label: 'Ask Question',
-                description: 'Add a note to the case asking for information',
+                label: demoState.phase === 'vendor-replied' ? 'Ask Another Question' : 'Ask Question',
+                description: demoState.phase === 'vendor-replied'
+                  ? 'Add another note to the case asking for more information'
+                  : 'Add a note to the case asking for information',
                 enabled: true,
               }] : (demoState.phase === 'fix-deployed' || demoState.phase === 'vendor-closed') && !demoState.finderHasClosed ? [{
                 id: 'finder-close-case',
