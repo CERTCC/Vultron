@@ -867,3 +867,59 @@ internal activity subclasses are not imported directly except from the
 allowed locations: `vultron/wire/as2/vocab/activities/`,
 `vultron/wire/as2/factories/`, `test/wire/as2/vocab/`,
 `test/architecture/`, and `vultron/semantic_registry.py`.
+
+---
+
+## DataLayer Scope Boundaries
+
+### Shared vs. Actor-Scoped DataLayer
+
+`SqliteDataLayer` operates in two modes controlled by the `actor_id`
+constructor argument:
+
+- **Shared** (`actor_id=None`): A global view — `read`, `save`, and `list`
+  operations see all rows regardless of which actor wrote them. Used for
+  domain object storage (Cases, Activities, Actors, Reports) and for the
+  trigger service.
+- **Actor-scoped** (`actor_id="https://example.org/actors/alice"`): Filters
+  all reads and writes to rows belonging to that actor. **Required for
+  inbox and outbox queue operations.**
+
+Queue methods (`inbox_list`, `inbox_pop`, `inbox_append`, `outbox_list`,
+`outbox_pop`) use `self._actor_id` as the queue key. Calling these on a
+shared DataLayer (`_actor_id=None`) silently operates on a queue keyed by
+`""` — not any actor's real queue. Items will be written and read from a
+phantom queue, making the actor's real queue appear perpetually empty.
+
+See `specs/architecture.yaml` ARCH-13-001 through ARCH-13-002.
+
+### The Identity Contract — Canonical URI Must Match
+
+`record_outbox_item(actor_id, activity_id)` writes a queue row keyed by
+the string value of `actor_id`. Later, `outbox_list()` on an actor-scoped
+DataLayer looks for rows where the stored key equals `self._actor_id`
+exactly (plain string equality — no normalization). If the two strings
+differ in any way — including `"alice"` vs.
+`"https://example.org/actors/alice"` — the outbox appears empty and the
+outbound activity is silently dropped.
+
+**Rule**: The actor_id used to construct an `ActorScopedDataLayer` for
+queue reads MUST be the actor's canonical URI (`actor.id_`), and it must
+match exactly the string passed to `record_outbox_item` by the use case.
+Use `get_canonical_actor_dl()` in `deps.py` (which resolves the short-UUID
+path parameter to `actor.id_` before constructing the scoped DataLayer)
+rather than passing the raw path segment.
+
+This bug was fixed for trigger routes in BUG-2026040901. Any new trigger
+route or inbox handler that constructs an actor-scoped DataLayer manually
+MUST follow the same normalization pattern.
+
+See `specs/architecture.yaml` ARCH-13-003 through ARCH-13-004.
+
+### Future: ActorScopedDataLayer Protocol
+
+`ARCH-13-005` requires that `ActorScopedDataLayer` be defined as a formal
+Protocol type in `vultron/core/ports/datalayer.py` so that mypy and
+pyright can enforce the scope boundary at type-check time. Until that is
+implemented, the scope contract is enforced by convention and by the
+regression tests in `test/adapters/driven/test_datalayer_isolation.py`.
