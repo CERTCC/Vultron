@@ -216,6 +216,7 @@ nav:
       - ISO 30111: 'reference/iso_crosswalks/iso_30111_2019.md'
       - ISO 29147: 'reference/iso_crosswalks/iso_29147_2018.md'
       - ISO 5895: 'reference/iso_crosswalks/iso_5895_2022.md'
+    - Two-Actor Demo Protocol: 'reference/two-actor-demo-protocol.md'
     - SSVC Crosswalk: 'reference/ssvc_crosswalk.md'
     - Decision Records:
       - 'adr/index.md'
