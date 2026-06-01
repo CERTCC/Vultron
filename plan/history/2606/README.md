@@ -4,6 +4,7 @@
 
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
+| 2026-06-01 | 18:01 | implementation | 412 | Fix _is_case_owner fail-open (issue #412) |
 | 2026-06-01 | 15:43 | implementation | ISSUE-471 | Two-actor demo tutorial |
 | 2026-06-01 | 13:51 | implementation | ISSUE-472 | Two-actor demo technical reference documentation |
 | 2026-06-01 | 13:47 | learning | ISSUE-610 | Starlette {key:path} for URL-keyed endpoints |

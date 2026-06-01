@@ -27,7 +27,7 @@ Workflow (five containers: finder, vendor, coordinator, vendor2, case-actor):
     (case.attributed_to = Vendor).
 5.  Vendor links the report to the case.
 6.  Vendor invites Finder to the case; Finder accepts.
-7.  Vendor proposes an embargo; Finder accepts; Vendor self-accepts.
+7.  Vendor proposes an embargo; Vendor self-accepts; Finder accepts.
 8.  Vendor offers case ownership to Coordinator; Coordinator accepts
     (case.attributed_to is updated to Coordinator on the CaseActor).
 9.  Coordinator invites Vendor2 to the case; Vendor2 accepts.
@@ -610,16 +610,17 @@ def run_multi_vendor_demo(
         recipient=finder_in_finder,
         proposal=embargo_proposal,
     )
-    actor_accepts_embargo(
-        case_actor_client=case_actor_client,
-        actor=finder_in_finder,
-        case=case,
-        proposal=embargo_proposal,
-    )
-    # Vendor also accepts the embargo they proposed.
+    # Vendor (case owner) self-accepts the embargo they proposed first.
     actor_accepts_embargo(
         case_actor_client=case_actor_client,
         actor=vendor_in_vendor,
+        case=case,
+        proposal=embargo_proposal,
+    )
+    # Finder accepts the delivered proposal (non-owner participant).
+    actor_accepts_embargo(
+        case_actor_client=case_actor_client,
+        actor=finder_in_finder,
         case=case,
         proposal=embargo_proposal,
     )
