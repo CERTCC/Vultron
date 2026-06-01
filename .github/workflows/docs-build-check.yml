@@ -1,0 +1,61 @@
+name: Docs Build and Link Check
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'overrides/**'
+      - 'references.bib'
+      - 'mkdocs.yml'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'CONTRIBUTING.md'
+      - 'ContributionInstructions.md'
+      - 'LICENSE.md'
+      - 'Acknowledgements.md'
+      - '.github/workflows/docs-build-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docs-build-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Check if docs/ changed
+        id: filter
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "docs_changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "origin/$BASE_REF"...HEAD \
+               | grep -q '^docs/'; then
+            echo "docs_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip uv
+          uv sync --dev
+
+      - name: Build Site
+        run: |
+          uv run mkdocs build --verbose --clean --config-file mkdocs.yml
+
+      - name: Check links
+        if: steps.filter.outputs.docs_changed == 'true'
+        run: |
+          uv run linkchecker site/index.html
