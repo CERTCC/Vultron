@@ -62,7 +62,7 @@ def _adr_exists(adr_dir: Path, adr_number: str) -> bool:
     ADR files follow the naming convention ``NNNN-<slug>.md``, so
     ``ADR-0009`` resolves to any file matching ``0009-*.md``.
     """
-    return bool(list(adr_dir.glob(f"{adr_number}-*.md")))
+    return any(adr_dir.glob(f"{adr_number}-*.md"))
 
 
 def _check_adr_references(
@@ -82,16 +82,15 @@ def _check_adr_references(
         suppressed = set(spec.lint_suppress or [])
         if LintWarningCode.DANGLING_ADR_REF in suppressed:
             continue
-        for text in (spec.rationale or "",):
-            for match in _ADR_REF_RE.finditer(text):
-                adr_number = match.group(1)
-                if not _adr_exists(adr_dir, adr_number):
-                    warnings.append(
-                        f"[WARN] {spec_id}: rationale references "
-                        f"ADR-{adr_number} but no matching file found in "
-                        f"'{adr_dir}' "
-                        f"(suppress with lint_suppress: [dangling_adr_ref])"
-                    )
+        seen = set(_ADR_REF_RE.findall(spec.rationale or ""))
+        for adr_number in seen:
+            if not _adr_exists(adr_dir, adr_number):
+                warnings.append(
+                    f"[WARN] {spec_id}: rationale references "
+                    f"ADR-{adr_number} but no matching file found in "
+                    f"'{adr_dir}' "
+                    f"(suppress with lint_suppress: [dangling_adr_ref])"
+                )
     return warnings
 
 

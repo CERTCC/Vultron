@@ -124,7 +124,7 @@ a new ADR. The key signal for an ADR is that a meaningful alternative was
 evaluated and rejected. If so, draft `docs/adr/NNNN-<slug>.md` alongside the
 spec file and cross-reference both (MS-11-003, MS-11-004):
 
-- In the spec's `rationale` field: cite the ADR (e.g., `"Derived from ADR-NNNN"`).
+- In the spec's `rationale` field (the per-requirement field, per MS-11-004 — not the spec-group `description`): cite the ADR (e.g., `"Derived from ADR-NNNN"`).
 - In the ADR's "More Information" section: list the generated spec IDs.
 
 If the idea is uncontested with no evaluated alternatives, a spec file alone

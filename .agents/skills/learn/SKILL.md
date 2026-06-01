@@ -161,9 +161,9 @@ happen on this branch so they are never at risk from a `git reset --hard`.
 heuristic in `notes/specs-vs-adrs.md` to decide whether the underlying design
 choice also warrants a new ADR. Write an ADR when a meaningful alternative was
 evaluated and rejected; skip it for uncontested rules (MS-11-002, MS-11-005).
-When both are created, cross-reference them: cite the ADR in the spec's
-`rationale` field, and list the generated spec IDs in the ADR's "More
-Information" section (MS-11-004).
+When both are created, cross-reference them: cite the ADR in the spec's per-requirement
+`rationale` field (per MS-11-004 — not the spec-group `description`), and list the
+generated spec IDs in the ADR's "More Information" section (MS-11-004).
 
 ### Phase 5 — Update Design Notes (`notes/`)
 
