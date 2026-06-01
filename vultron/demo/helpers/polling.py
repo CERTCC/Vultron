@@ -274,18 +274,24 @@ def wait_for_participant_vfd_state(
     case_id: str,
     actor_id: str,
     expected_states: "set",
-    timeout_seconds: float = 10.0,
+    timeout_seconds: float = 30.0,
     poll_interval: float = 0.25,
 ) -> None:
     """Poll until *actor_id*'s latest participant ``vfd_state`` is in
     *expected_states*.
+
+    The default timeout is 30 s to accommodate cross-container propagation
+    latency: after a trigger fires the outbox monitor delivers the activity
+    asynchronously (up to ~1 s polling lag), then the receiving container
+    processes its inbox and persists the updated participant status.  10 s was
+    too tight under CI load.
 
     Args:
         client: DataLayerClient for the target container.
         case_id: Full URI of the ``VulnerabilityCase``.
         actor_id: Full URI of the actor to check.
         expected_states: Set of ``CS_vfd`` values that satisfy the condition.
-        timeout_seconds: Maximum time to wait.
+        timeout_seconds: Maximum time to wait (default: 30 s).
         poll_interval: Seconds between DataLayer poll attempts.
 
     Raises:
@@ -310,6 +316,17 @@ def wait_for_participant_vfd_state(
         participant.participant_status if participant is not None else None
     )
     current = latest.vfd_state if latest is not None else "unknown"
+    rm_state = latest.rm_state if latest is not None else "unknown"
+    logger.debug(
+        "wait_for_participant_vfd_state timed out after %.1f s: "
+        "actor=%r case=%r vfd_state=%r rm_state=%r expected=%r",
+        timeout_seconds,
+        actor_id,
+        case_id,
+        current,
+        rm_state,
+        expected_states,
+    )
     raise AssertionError(
         f"Timed out waiting for actor '{actor_id}' vfd_state to be in "
         f"{expected_states!r}; current={current!r}"
