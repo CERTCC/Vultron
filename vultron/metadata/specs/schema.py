@@ -131,6 +131,7 @@ class LintWarningCode(StrEnum):
     TESTABLE_WITHOUT_STEPS = "testable_without_steps"
     RATIONALE_TOO_LONG = "rationale_too_long"
     MISSING_TAGS = "missing_tags"
+    DANGLING_ADR_REF = "dangling_adr_ref"
 
 
 class Relationship(BaseModel):

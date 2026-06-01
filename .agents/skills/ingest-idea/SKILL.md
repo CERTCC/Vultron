@@ -118,6 +118,18 @@ conventions:
 - Include an overview section with source reference and scope note
 - Organize by category with clear section headings
 
+**ADR decision (MS-11):** Before writing the spec file, apply the decision-tree
+heuristic in `notes/specs-vs-adrs.md` to decide whether this idea also warrants
+a new ADR. The key signal for an ADR is that a meaningful alternative was
+evaluated and rejected. If so, draft `docs/adr/NNNN-<slug>.md` alongside the
+spec file and cross-reference both (MS-11-003, MS-11-004):
+
+- In the spec's `rationale` field (the per-requirement field, per MS-11-004 — not the spec-group `description`): cite the ADR (e.g., `"Derived from ADR-NNNN"`).
+- In the ADR's "More Information" section: list the generated spec IDs.
+
+If the idea is uncontested with no evaluated alternatives, a spec file alone
+suffices (MS-11-005).
+
 ### 6. Write the notes file
 
 Create or modify `notes/<topic>.md` with implementation guidance:

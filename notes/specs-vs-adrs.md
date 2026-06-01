@@ -22,7 +22,7 @@ MS-11-001 through MS-11-006.
 | When to create both | When a significant architectural decision also generates recurring testable requirements | The ADR answers "why?"; the spec answers "what must I do?" |
 | When a spec alone suffices | When the approach is uncontested — no real fork existed | Creating an ADR for an obvious choice adds noise to the decision log |
 | When an ADR alone suffices | When the decision is a one-time structural/process choice with no per-change requirement | Not every decision produces enforceable requirements |
-| Cross-referencing | Spec description SHOULD cite the ADR; ADR "More Information" SHOULD list spec IDs | Bidirectional links preserve traceability in both directions |
+| Cross-referencing | Spec `rationale` field SHOULD cite the ADR; ADR "More Information" SHOULD list spec IDs | Bidirectional links preserve traceability in both directions |
 
 ---
 
@@ -87,10 +87,10 @@ Use this self-check before committing a change:
 
 When creating both an ADR and spec entries, wire them together:
 
-**In the spec description field:**
+**In the spec `rationale` field** (MS-11-004 — use the per-requirement `rationale`, not the spec-group `description`):
 
 ```yaml
-description: >
+rationale: >
   Rules for DataLayer writes derived from ADR-0016
   (docs/adr/0016-sqlmodel-sqlite-datalayer.md).
 ```

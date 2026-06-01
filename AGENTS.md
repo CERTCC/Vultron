@@ -200,7 +200,9 @@ When making non-trivial changes, agents SHOULD:
 
 Do not produce speculative or exploratory code unless requested. For proposed
 architectural changes, draft an ADR (use `docs/adr/_adr-template.md`) and link
-to relevant tests and design notes.
+to relevant tests and design notes. Use the decision-tree heuristic in
+`notes/specs-vs-adrs.md` (MS-11-001 through MS-11-006) to decide whether a
+change warrants a new ADR, a new spec entry, or both.
 
 ### Commit Workflow
 

@@ -78,3 +78,9 @@ Chosen option: "{title of option 1}", because
  define when this decision when and how the decision should be realized and if/when it should be re-visited and/or
  how the decision is validated.
  Links to other decisions and resources might here appear as well.}
+
+<!-- MS-11-004: If this decision generated recurring testable requirements, list
+     the spec IDs here so traceability is bidirectional (ADR → spec and spec → ADR).
+     Example: "Generated spec requirements: `architecture.yaml` ARCH-01 through ARCH-12."
+     If this is a one-time structural choice with no per-change requirements, omit. -->
+Generated spec requirements: {list spec IDs here, or remove this line if none}
