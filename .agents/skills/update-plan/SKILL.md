@@ -5,7 +5,7 @@ description: >
   create GitHub Issues for any untracked gaps and update PRIORITIES.md
   references as needed. Observations and open questions go directly to
   notes/ files. Use after learn or ingest-idea has updated specs/notes, and
-  before running build. Does not write new tasks to IMPLEMENTATION_PLAN.md.
+  before running build.
 ---
 
 # Skill: Update Plan
@@ -13,8 +13,8 @@ description: >
 Perform a gap analysis between the current specifications, design notes, and
 the actual codebase, then create GitHub Issues for any untracked gaps.
 
-**Constraint**: Do not write new tasks to `plan/IMPLEMENTATION_PLAN.md` — it
-is a read-only index. All new work items MUST be GitHub Issues. Do not change
+**Constraint**: Do not write new tasks to the plan — all new work items MUST be
+GitHub Issues. Do not change
 code, tests, `specs/`, or `notes/` (except when writing gap-analysis
 observations). Do **not** write to `plan/BUILD_LEARNINGS.md` — that file is
 reserved for `build` and `bugfix`.
@@ -98,7 +98,7 @@ echo "Created gap issue #${ISSUE_NUMBER}"
 Set the `size:` label from AC count: 1–2 → `size:S`; 3–6 → `size:M`;
 7+ → `size:L`.
 
-Do **not** add tasks to `plan/IMPLEMENTATION_PLAN.md`.
+Do **not** add tasks to GitHub Issues outside the standard workflow.
 
 **Grouping related gaps (PAD-01-002, PAD-01-003):** When the gap analysis
 identifies **2 or more closely related gaps** in the same spec area (e.g.,
@@ -148,7 +148,6 @@ specific message (e.g.,
 
 - Do not modify code or tests.
 - Do not write to `plan/BUILD_LEARNINGS.md`.
-- Do not write new tasks to `plan/IMPLEMENTATION_PLAN.md`.
 - Do not speculate about missing functionality; verify with code search first.
 - Do not implement anything — that is `build`'s domain.
 - Use `uv run append-history implementation` only via `build` — never from

@@ -294,7 +294,7 @@ objects to an adapter and receive wire-format objects back, without directly
 calling wire-layer methods.
 
 This fix MUST NOT be included in the factory function migration — the scopes
-are separate. The violation is tracked in `plan/IMPLEMENTATION_PLAN.md`.
+are separate.
 
 ---
 

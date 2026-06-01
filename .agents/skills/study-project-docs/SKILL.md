@@ -33,14 +33,7 @@ Read all of the following in parallel (do **not** recurse into `plan/history/`):
 
 - `plan/PRIORITIES.md` — authoritative priority ordering
 - `plan/BUILD_LEARNINGS.md` — ephemeral build/bugfix observations (queue for `learn`)
-- `plan/IMPLEMENTATION_PLAN.md` — read-only index; tasks have moved to GitHub
-  Issues. Read only for historical context or to check deferred items; do not
-  treat it as the task source.
 
-> **Tasks live in GitHub Issues.** The `build` skill selects work by querying
-> GitHub for open leaf Issues in the top-priority group from PRIORITIES.md.
-> IMPLEMENTATION_PLAN.md is a read-only index, not the authoritative task list.
->
 > **`plan/history/` is excluded from this step.** It is an archive of
 > completed work, not active planning context. Read it only when specifically
 > investigating historical changes or extracting lessons from prior

@@ -15,8 +15,7 @@ relevant_packages:
 
 # Sync Log Replication — Design Notes
 
-**Relates to**: `specs/sync-log-replication.yaml`, `plan/IMPLEMENTATION_PLAN.md`
-PRIORITY-400 (SYNC-1 through SYNC-4)
+**Relates to**: `specs/sync-log-replication.yaml`
 
 ---
 
@@ -336,6 +335,5 @@ is handled gracefully without patching.
 - `specs/sync-log-replication.yaml` — normative requirements
 - `specs/case-log-processing.yaml` — assertion recording and canonical
   `CaseLogEntry` requirements
-- `plan/IMPLEMENTATION_PLAN.md` — SYNC-1 through SYNC-4 tasks
 - `docs/adr/` — architectural decisions for CaseActor, per-actor DataLayer
 - `notes/case-state-model.md` — CaseEvent model and trusted timestamps

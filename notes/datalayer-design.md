@@ -65,9 +65,6 @@ For new or refactored core code, prefer:
 - dedicated typed helper methods when a generic query would otherwise expose
   raw persistence details
 
-The cleanup task is tracked in `plan/IMPLEMENTATION_PLAN.md` as
-`TASK-CP-CLEANUP`.
-
 ### CaseOutboxPersistence as a smell marker
 
 `CaseOutboxPersistence` exists for the small amount of core code that must both
@@ -126,8 +123,6 @@ coercion code in use cases MUST be removed. Search targets:
   coercion before passing to `RejectLogEntryActivity`
 - Any other site calling `model_validate` after `dl.read()` to recover nested
   object type information
-
-**Implementation task**: `DL-REHYDRATE` in `plan/IMPLEMENTATION_PLAN.md`.
 
 **Spec**: `specs/datalayer.yaml` DL-01-001 through DL-01-004.
 

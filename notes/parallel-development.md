@@ -15,11 +15,11 @@ related_specs:
 ## Overview
 
 The project has shifted from a single-developer, file-based task list
-(`IMPLEMENTATION_PLAN.md`) to a GitHub Issue-based coordination model that
+to a GitHub Issue-based coordination model that
 supports multiple parallel AI agents and human developers.
 
 **Formal requirements**: `specs/parallel-development.yaml` PAD-01 through
-PAD-15.
+PAD-14.
 
 **Distinct from agentic readiness** (`specs/agentic-readiness.yaml`):
 `agentic-readiness.yaml` is about making the Vultron *protocol code itself*
@@ -40,7 +40,7 @@ building Vultron.
 | Stale-claim threshold | 3 days since last branch commit | Short enough to keep the queue clean; tune if agent sessions are longer |
 | Diff-size thresholds | ≤50 lines = S, 51–300 = M, 301+ = L | Common open-source convention; aligns with maintainability expectations |
 | Two-pass code review? | Single-pass with [BLOCKING]/[ADVISORY] tags | Same signal, less process theater; build agent acts on tags |
-| Where do `update-plan` gap findings go? | GitHub Issues (group:unscheduled) | Consistent with the new model; no new tasks in IMPLEMENTATION_PLAN.md |
+| Where do `update-plan` gap findings go? | GitHub Issues (group:unscheduled) | Consistent with the GitHub Issues model |
 
 ---
 
@@ -147,29 +147,11 @@ PR-time detection is sufficient.
 
 | Skill | Change |
 |---|---|
-| `build` | Phase 2: select from GitHub Issues (not IMPLEMENTATION_PLAN.md); add claiming, pre-PR code review ([BLOCKING]/[ADVISORY]), size labeling, PR creation, auto-rebase |
+| `build` | Phase 2: select from GitHub Issues; add claiming, pre-PR code review ([BLOCKING]/[ADVISORY]), size labeling, PR creation, auto-rebase |
 | `ingest-idea` | Add: open docs-only PR with `specs-notes` label; create GitHub Issue with `group:unscheduled` |
 | `review-priorities` | Add Phase 2.5: fetch `group:unscheduled` Issues, interview user for placement |
-| `study-project-docs` | Step 2: downgrade IMPLEMENTATION_PLAN.md to secondary/archive; note task source is GitHub Issues |
-| `update-plan` | Rewrite: create GitHub Issues for gaps (not IMPLEMENTATION_PLAN.md entries) |
-
----
-
-## IMPLEMENTATION_PLAN.md Post-Migration
-
-After migration, `plan/IMPLEMENTATION_PLAN.md` becomes a read-only index:
-
-```markdown
-# Implementation Plan — Read-Only Index
-
-Tasks have moved to GitHub Issues. See:
-
-- [CERTCC/Vultron Issues](https://github.com/CERTCC/Vultron/issues)
-- [PRIORITIES.md](PRIORITIES.md) for priority ordering
-```
-
-Do not add tasks to this file. Any previously deferred items are tracked as
-GitHub Issues with appropriate labels.
+| `study-project-docs` | Task source is GitHub Issues (read from PRIORITIES.md + GitHub query) |
+| `update-plan` | Rewrite: create GitHub Issues for gaps |
 
 ---
 
@@ -222,4 +204,3 @@ Load this file when:
 - Creating GitHub Issues for new work items
 - Implementing or modifying the stale-claim sweeper GitHub Actions workflow
 - Debugging task-selection or claiming behavior in the `build` skill
-- Reviewing why IMPLEMENTATION_PLAN.md is now a read-only index

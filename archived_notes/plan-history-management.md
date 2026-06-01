@@ -1,6 +1,12 @@
 ---
 title: Plan / History Management Contract
-status: active
+status: superseded
+superseded_by: specs/history-management.yaml
+archive_reason: >
+  Entirely described management of IMPLEMENTATION_PLAN.md (PLAN) alongside
+  plan/history/ (HISTORY). IMPLEMENTATION_PLAN.md has been removed; the
+  history-management contract is now fully covered by specs/history-management.yaml
+  and the append-history tool.
 description: >
   Authoritative rules for managing IMPLEMENTATION_PLAN.md (forward roadmap)
   and the plan/history/ entry files (written via append-history).

@@ -8,34 +8,6 @@ scope:
 - prototype
 - production
 groups:
-- id: PD-02
-  title: Documentation Files Overview
-  kind: general
-  specs:
-  - id: PD-02-001
-    priority: MUST
-    statement: Completed task history MUST be stored exclusively in the append-only `plan/IMPLEMENTATION_HISTORY.md` archive.
-  - id: PD-02-002
-    priority: MUST
-    statement: '*(superseded)* — The tombstone one-liner format is **abolished**. See PD-02-003 through PD-02-006 for the
-      replacement rules.'
-  - id: PD-02-003
-    priority: MUST_NOT
-    statement: '**Core Invariant**: A task in DONE state MUST NOT exist in PLAN in any form — not as a checked item, not as
-      a tombstone, not as a one-liner summary.'
-  - id: PD-02-004
-    priority: MUST_NOT
-    statement: '**Atomic Completion**: Completing a task is a two-phase atomic operation: (1) append the completed task record
-      to `plan/IMPLEMENTATION_HISTORY.md`, then (2) delete the task from `plan/IMPLEMENTATION_PLAN.md`. Both steps MUST happen
-      together — a task MUST NOT remain in PLAN after its HISTORY entry is written.'
-  - id: PD-02-005
-    priority: MUST
-    statement: '**No Tombstones**: Completed tasks MUST be removed entirely from `plan/IMPLEMENTATION_PLAN.md`. No tombstone
-      entries, ~~strikethrough~~ items, `[x]` checkboxes, or "→ see HISTORY" one-liners are permitted.'
-  - id: PD-02-006
-    priority: SHOULD
-    statement: '**Bounded Plan**: `plan/IMPLEMENTATION_PLAN.md` SHOULD contain no more than 20 active tasks at any time. When
-      new work is identified, either add it as a pending task (removing a lower-priority item if needed) or queue it externally.'
 - id: PD-01
   title: File Size Guidelines
   specs:
@@ -104,76 +76,43 @@ groups:
 - id: PD-06
   title: Plan Section Organization (MUST/SHOULD)
   specs:
-  - id: PD-06-001
-    priority: MUST_NOT
-    statement: '`plan/IMPLEMENTATION_PLAN.md` section headings MUST use the format `## TASK-FOO — Short description`, where
-      `FOO` is a short topic-specific identifier. Priority numbers MUST NOT appear in section headings.'
-  - id: PD-06-002
-    priority: MUST_NOT
-    statement: The `TASK-` prefix is a namespace reserved for `plan/IMPLEMENTATION_PLAN.md` section identifiers. `TASK-FOO`
-      topic identifiers MUST NOT conflict with any spec prefix listed in the prefix registry in `specs/README.md`.
-  - id: PD-06-003
-    priority: MUST
-    statement: 'Individual task items within a `TASK-FOO` section MUST be identified using dot notation: `FOO.1`, `FOO.2`,
-      `FOO.2.3.1a` (dots only, no dashes). This structurally distinguishes plan task IDs from spec requirement IDs (`PREFIX-NN-NNN`,
-      which use dashes).'
   - id: PD-06-004
     priority: MUST_NOT
-    statement: Priority ordering is the sole responsibility of `plan/PRIORITIES.md`. `plan/IMPLEMENTATION_PLAN.md` MUST NOT
-      encode priority information in section headings or rely on section order to imply priority.
+    statement: Priority ordering is the sole responsibility of `plan/PRIORITIES.md`. Task IDs MUST NOT
+      encode priority information in headings or rely on ordering to imply priority.
   - id: PD-06-005
     priority: SHOULD
-    statement: '`plan/PRIORITIES.md` entries SHOULD reference the relevant `TASK-FOO` identifiers or section names to link
+    statement: '`plan/PRIORITIES.md` entries SHOULD reference the relevant GitHub Issue numbers to link
       priority assignments to implementation work. No rigid format is required because PRIORITIES.md is primarily human-edited;
-      a brief reference to the section name or topic ID is sufficient.'
-  - id: PD-06-006
-    priority: MUST_NOT
-    statement: When priorities change, only `plan/PRIORITIES.md` needs to be updated. `plan/IMPLEMENTATION_PLAN.md` section
-      identifiers, headings, and task IDs MUST NOT change when priorities change.
+      a brief reference to the issue number or topic is sufficient.'
 - id: PD-09
   title: Task Granularity and GitHub Issues Coordination
   kind: general
   specs:
   - id: PD-09-001
     priority: SHOULD
-    statement: Each `TASK-FOO` section in `plan/IMPLEMENTATION_PLAN.md` SHOULD be scoped to approximately one GitHub Issue
-      or Pull Request worth of work — a set of changes that can be reviewed and merged in a single PR.
-    rationale: This sizing keeps individual plan sections reviewable, linkable, and trackable within the GitHub Issues UI.
-      Sections that span multiple PRs are difficult to close cleanly and obscure progress visibility.
+    statement: Each GitHub Issue SHOULD be scoped to approximately one Pull Request worth of work — a set
+      of changes that can be reviewed and merged in a single PR.
+    rationale: This sizing keeps individual issues reviewable, linkable, and trackable within the GitHub
+      Issues UI. Issues that span multiple PRs are difficult to close cleanly and obscure progress
+      visibility.
     tags:
     - documentation
   - id: PD-09-002
     priority: SHOULD
-    statement: When a `TASK-FOO` section would require more than one Pull Request to complete, it SHOULD either be split into
-      multiple PR-sized sections or elevated to a parent GitHub Issue with GitHub sub-issues representing each PR-sized chunk.
-    rationale: A task that spans multiple PRs cannot be closed atomically. Splitting or elevating preserves the one-PR-per-section
-      invariant without forcing artificial scope reduction.
+    statement: When an Issue would require more than one Pull Request to complete, it SHOULD either be
+      split into multiple PR-sized Issues or elevated to a parent Epic Issue with GitHub sub-issues
+      representing each PR-sized chunk.
+    rationale: An issue that spans multiple PRs cannot be closed atomically. Splitting or elevating
+      preserves the one-PR-per-issue invariant without forcing artificial scope reduction.
     tags:
     - documentation
   - id: PD-09-003
     priority: SHOULD
-    statement: Multi-step work items requiring coordinated effort across several `TASK-FOO` sections or external visibility
-      SHOULD have a corresponding GitHub Issue. GitHub sub-issues SHOULD be used to link the parent Issue to the individual
-      `TASK-FOO` sections in `plan/IMPLEMENTATION_PLAN.md`.
-    rationale: GitHub sub-issues provide granular traceability within the GitHub UI, making progress visible to collaborators
-      who do not read `plan/IMPLEMENTATION_PLAN.md` directly.
-    tags:
-    - documentation
-  - id: PD-09-004
-    priority: SHOULD
-    statement: 'When a GitHub Issue exists for a `TASK-FOO` section, the section SHOULD include a reference to that issue
-      number (e.g., `GitHub: #123` or `Closes #123`) for traceability between the local plan and the remote issue tracker.'
-    rationale: Cross-referencing avoids duplication of context and allows navigation between the plan and the issue thread
-      without a manual search. Implementation MUST NOT be blocked on the prior existence of an issue; this is a documentation
-      courtesy, not a gate.
-    tags:
-    - documentation
-  - id: PD-09-005
-    priority: MAY
-    statement: During prototype development, `plan/IMPLEMENTATION_PLAN.md` MAY serve as a monolithic registry of all currently
-      identified tasks across all areas. Gradual migration toward the three-tier model (GitHub Issues → `TASK-FOO` sections
-      → individual checklist items) is the target state and does not need to happen all at once.
-    rationale: Process viscosity must be minimised. The three-tier model is an aspiration for improved external visibility,
-      not a gating requirement. Requiring a GitHub Issue before starting implementation increases friction without benefit.
+    statement: Multi-step work items requiring coordinated effort across several Issues or external
+      visibility SHOULD have a parent Epic GitHub Issue. GitHub sub-issues SHOULD be used to link the
+      Epic to the individual Task Issues.
+    rationale: GitHub sub-issues provide granular traceability within the GitHub UI, making progress
+      visible to collaborators.
     tags:
     - documentation
