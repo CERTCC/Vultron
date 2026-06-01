@@ -320,7 +320,7 @@ the object graph. This mirrors ActivityPub practice of using
 
 ## Starlette Path-Type Parameters for URL-Keyed Endpoints
 
-(DR-10, 2026-05-21 — fixed in #610/#617)
+(DR-10, 2026-05-21 — fixed in #617, which resolves #610)
 
 When a FastAPI/Starlette endpoint needs to accept keys that may contain
 literal forward slashes (e.g., full HTTP URL IDs such as
@@ -608,6 +608,9 @@ start, not application readiness
 3. Implement retry logic in client code (defense in depth):
 
    ```python
+   import httpx
+   import time
+
    def check_server_availability(url, max_retries=30, retry_delay=1.0):
        for attempt in range(max_retries):
            try:
