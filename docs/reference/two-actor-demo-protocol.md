@@ -220,6 +220,7 @@ The demo runner calls trigger endpoints on both actors:
 2. Outbox delivery delivers the `Announce(CaseLogEntry)` to the Finder.
 3. **Finder** processes the log entry and updates its local replica.
 4. The demo runner verifies the Finder replica matches the authoritative Vendor state (SYNC-2).
+
 ### Example: Announce(CaseLogEntry)
 
 ```json
@@ -301,6 +302,7 @@ POST /api/v2/actors/{vendor_id}/demo/add-note-to-case
 | Vendor container holds authoritative final case state | ✓ |
 
 ---
+
 ## Phase 4 — Fix Lifecycle
 
 ### What the demo runner does
