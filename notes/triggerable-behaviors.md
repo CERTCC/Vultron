@@ -22,8 +22,7 @@ relevant_packages:
 
 **Cross-references**: `plan/PRIORITIES.md` PRIORITY 30,
 `specs/behavior-tree-integration.yaml` BT-08,
-`docs/topics/behavior_logic/` (reference behavior tree docs),
-`plan/IMPLEMENTATION_PLAN.md` Phase PRIORITY-30
+`docs/topics/behavior_logic/` (reference behavior tree docs)
 
 ---
 
@@ -82,8 +81,7 @@ Content-Type: application/json
 ```
 
 The formal spec is `specs/triggerable-behaviors.yaml` (TRIG-01 through
-TRIG-07). See `plan/IMPLEMENTATION_PLAN.md` Phase PRIORITY-30 for
-implementation status.
+TRIG-07).
 
 ---
 

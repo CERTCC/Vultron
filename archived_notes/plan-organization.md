@@ -1,11 +1,18 @@
 ---
 title: "Plan Organization: Topic-Based Sections with Decoupled Priorities"
-status: active
+status: superseded
+superseded_by: notes/parallel-development.md
 description: >
   Topic-based plan organization with decoupled priorities;
   IMPLEMENTATION_PLAN.md vs PRIORITIES.md separation rationale.
 related_specs:
   - specs/project-documentation.yaml
+archived: "2026-06-01"
+archive_reason: >
+  Archived because plan/IMPLEMENTATION_PLAN.md has been removed from the
+  repository. All work is now tracked as GitHub Issues. The TASK-FOO naming
+  scheme and section-organization rules described here are obsolete.
+  See notes/parallel-development.md for the current GitHub Issue-based model.
 ---
 
 # Plan Organization: Topic-Based Sections with Decoupled Priorities

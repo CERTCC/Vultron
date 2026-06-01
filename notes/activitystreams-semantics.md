@@ -299,9 +299,9 @@ invite = RmInviteToCaseActivity.model_validate(raw.model_dump(by_alias=True))
 accept = RmAcceptInviteToCase(actor=actor.id_, object_=invite)
 ```
 
-> **Note**: Once `DL-REHYDRATE` is implemented (`plan/IMPLEMENTATION_PLAN.md`),
-> `dl.read()` will return fully rehydrated typed objects automatically and the
-> manual `model_validate` coercion step above will no longer be needed.
+> **Note**: `DL-REHYDRATE` is implemented (`vultron/wire/as2/rehydration.py`).
+> Call `rehydrate(obj, dl=dl)` on `dl.read()` results to recover nested typed
+> objects; the manual `model_validate` coercion step is no longer needed.
 
 This applies to all `Accept`/`Reject`/`TentativeReject` responses to
 `Invite`/`Offer` activities.

@@ -31,7 +31,7 @@ groups:
           insights dilutes the signal and creates noise for `learn` to filter.
         relationships:
           - rel_type: depends_on
-            spec_id: PD-02-001
+            spec_id: HM-03-001
             note: >-
               Completion summaries belong in `append-history implementation`,
               not in BUILD_LEARNINGS.md.

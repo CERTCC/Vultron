@@ -20,9 +20,7 @@ groups:
         priority: MUST
         statement: >-
           Tasks MUST be represented as GitHub Issues in the CERTCC/Vultron
-          repository. IMPLEMENTATION_PLAN.md MUST NOT be used as the
-          authoritative task list; it is a read-only index linking to GitHub
-          Issues and PRIORITIES.md.
+          repository. All work is tracked exclusively as GitHub Issues.
       - id: PAD-01-002
         priority: MUST
         statement: >-
@@ -132,7 +130,6 @@ groups:
           When the `build` skill selects a task, it MUST read PRIORITIES.md
           once to determine the current top-priority group name, then query
           GitHub for open, unblocked leaf Issues with that `group:` label.
-          It MUST NOT use IMPLEMENTATION_PLAN.md as a task source.
 
   - id: PAD-04
     title: Task Claiming Protocol
@@ -219,8 +216,7 @@ groups:
           The `build` skill MUST select work by querying GitHub for open,
           unblocked leaf Issues in the top-priority group (as determined by
           reading PRIORITIES.md), filtered to exclude Issues with
-          `stale-claim` or that are already assigned. It MUST NOT select
-          tasks from IMPLEMENTATION_PLAN.md.
+          `stale-claim` or that are already assigned.
       - id: PAD-08-002
         priority: MUST
         statement: >-
@@ -333,19 +329,13 @@ groups:
         statement: >-
           When the `update-plan` skill identifies a new implementation gap (a
           spec requirement with no corresponding code or test), it MUST create
-          a GitHub Issue rather than add a task to IMPLEMENTATION_PLAN.md.
+          a GitHub Issue for the gap.
       - id: PAD-13-002
         priority: MUST
         statement: >-
           Issues created by `update-plan` MUST carry the `group:unscheduled`
           label and the appropriate initial `size:` label (from AC count per
           PAD-05-001).
-      - id: PAD-13-003
-        priority: MUST_NOT
-        statement: >-
-          The `update-plan` skill MUST NOT write new tasks to
-          IMPLEMENTATION_PLAN.md. IMPLEMENTATION_PLAN.md is a read-only index
-          after the hard cutover migration (PAD-15).
 
   - id: PAD-14
     title: GitHub Actions Requirements
@@ -358,33 +348,3 @@ groups:
           `workflow_dispatch`, scan for orphaned claims per PAD-10-001,
           apply `stale-claim` label and post comment per PAD-10-002.
 
-  - id: PAD-15
-    title: Migration
-    specs:
-      - id: PAD-15-001
-        priority: MUST
-        statement: >-
-          Before migrating tasks, `review-priorities` MUST be run to triage
-          and clean up PRIORITIES.md, ensuring no stale or mis-ordered tasks
-          are promoted to Issues.
-      - id: PAD-15-002
-        priority: MUST
-        statement: >-
-          All tasks in IMPLEMENTATION_PLAN.md MUST be migrated to GitHub
-          Issues in a single pass using the
-          `create-github-issues-feature-from-implementation-plan` skill or a
-          bulk script. Each task group → Epic Issue; each task → child Issue;
-          dependency prose → `Blocked by #N` notation.
-      - id: PAD-15-003
-        priority: MUST
-        statement: >-
-          After migration, IMPLEMENTATION_PLAN.md MUST be converted to a
-          read-only index: a short header note stating that tasks have moved
-          to GitHub Issues, with links to the relevant Epic Issues and to
-          PRIORITIES.md.
-      - id: PAD-15-004
-        priority: MUST_NOT
-        statement: >-
-          After the hard cutover, agents and humans MUST NOT add new tasks
-          to IMPLEMENTATION_PLAN.md. All new work items MUST be created as
-          GitHub Issues.

@@ -515,7 +515,6 @@ ceb3f0db Merge commit '4101391e77b111d559632b0a27a21c423719412c' into bug/546-ac
 8023838b chore(deps-dev): Bump types-pyyaml
 
 === HIGH-CHURN FILES (last 90 days, top 20) ===
- 375 plan/IMPLEMENTATION_PLAN.md
  286 plan/IMPLEMENTATION_NOTES.md
  206 plan/IMPLEMENTATION_HISTORY.md
  113 plan/IDEAS.md

@@ -97,8 +97,7 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
    echo "Created prerequisite #${NEW_ISSUE}"
    ```
 
-   Record the dependency in `plan/BUILD_LEARNINGS.md` and stop. Do not add
-   prerequisite tasks to `plan/IMPLEMENTATION_PLAN.md`.
+   Record the dependency in `plan/BUILD_LEARNINGS.md` and stop.
 4. If more than one prerequisite is required, or the prerequisite work is
    non-trivial, update `plan/BUILD_LEARNINGS.md` with details and stop.
 
@@ -204,8 +203,6 @@ If the PR reports merge conflicts:
 - Do not skip validation or the pre-PR code review.
 - Each run starts in a fresh context.
 - Do not commit directly to `main`. All work goes through a PR.
-- Do not add tasks to `plan/IMPLEMENTATION_PLAN.md`. New work items are GitHub
-  Issues.
 
 ## Label Naming Rules (PAD-02-007)
 

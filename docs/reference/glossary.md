@@ -231,10 +231,10 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
 | **RFC** | Request for Comments; an architecture improvement proposal tracked as a GitHub Issue (e.g., RFC-400, RFC-403) | Architecture proposal, enhancement |
-| **TASK** | An implementation task tracked in `plan/IMPLEMENTATION_PLAN.md` (e.g., `TASK-AF`, `TASK-CP-CLEANUP`) | Implementation work, story |
-| **Subtask** | A smaller decomposed unit of work within a **TASK** (e.g., AF.1, AF.2, CP-CLEANUP.1) | Sub-work, phase, step |
-| **Blocker** | A dependency or prerequisite that prevents a **TASK** from starting (e.g., TASK-AF blocks TASK-ARCHVIO) | Dependency, prerequisite |
-| **Acceptance Criteria** | The must-satisfy conditions for a **TASK** or **Subtask** to be considered complete | Definition of done, requirements |
+| **Issue** | An implementation task tracked as a GitHub Issue in the CERTCC/Vultron repository | Implementation work, story, TASK |
+| **Subtask** | A smaller decomposed unit of work within a parent Issue (tracked as a GitHub sub-issue) | Sub-work, phase, step |
+| **Blocker** | A dependency or prerequisite that prevents an **Issue** from starting | Dependency, prerequisite |
+| **Acceptance Criteria** | The must-satisfy conditions for an **Issue** or **Subtask** to be considered complete | Definition of done, requirements |
 | **Priority 473** | Architecture Hardening: an initiative to deepen module design, reduce coupling, and improve testability via RFCs and narrowing ports | Sprint, milestone, epic |
 
 ---
@@ -342,11 +342,11 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
 - A **Port** is implemented by one or more **Adapters**.
 - **Inbound Activities** are matched by **ActivityPatterns** to extract **MessageSemantics** (formal protocol **Message Type**).
 - **Outbound Activities** are constructed by **Factory Functions** (not by core calling `from_core()`).
-- A **TASK** may be blocked by another **TASK** via a **Blocker**.
-- A **TASK** contains one or more **Subtasks** with **Acceptance Criteria**.
+- An **Issue** may be blocked by another **Issue** via a **Blocker**.
+- An **Issue** may contain one or more sub-**Issues** with **Acceptance Criteria**.
 - **CasePersistence** and **CaseOutboxPersistence** replace the broad **DataLayer** interface for core use cases.
 - **Rehydration** converts raw persisted dicts (from **DataLayer**) into typed domain objects.
-- A **Participant** has zero or more **CVDRoles** (represented as **CVDRoles** bitmask; will become `list[CVDRoles]` after TASK-BTND5.4).
+- A **Participant** has zero or more **CVDRoles** (represented as **CVDRoles** bitmask).
 - A **BT Node** reads from and writes to the **Blackboard** and may emit **Outbound Activities**.
 
 ---

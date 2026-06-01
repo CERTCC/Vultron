@@ -1,6 +1,11 @@
 ---
 title: Work Granularity and GitHub Issues Coordination
-status: active
+status: superseded
+superseded_by: specs/project-documentation.yaml
+archive_reason: >
+  Described a three-tier model (GitHub Issue → TASK-FOO in IMPLEMENTATION_PLAN.md
+  → checklist items). IMPLEMENTATION_PLAN.md has been removed; work is now
+  tracked directly in GitHub Issues per specs/project-documentation.yaml PD-09.
 related_specs:
 - specs/project-documentation.yaml
 ---

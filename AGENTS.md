@@ -394,13 +394,6 @@ the `docs/` root. Run `uv run mkdocs build --strict` before committing any
 See [`vultron/adapters/AGENTS.md`](vultron/adapters/AGENTS.md) for the
 `demo_step` / `demo_check` pattern.
 
-### Archiving IMPLEMENTATION_PLAN.md
-
-`plan/IMPLEMENTATION_PLAN.md` is the forward-looking roadmap (target < 400
-lines). Completed phase details belong in `plan/history/` via the
-`append-history` tool. See `specs/project-documentation.yaml` `PD-02-001`
-and `specs/history-management.yaml` HM-03.
-
 ### Writing project history entries
 
 History entries live under `plan/history/YYMM/<type>/<entry-id>.md`. Use the

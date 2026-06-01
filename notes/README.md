@@ -329,23 +329,6 @@ is demo-specific or protocol-general, or working on trigger routing in
 
 ## Project Management and Planning
 
-**`plan-history-management.md`**
-Authoritative rules for managing `plan/IMPLEMENTATION_PLAN.md` (PLAN) and
-history entries written to `plan/history/` (HISTORY): Core Invariant (no DONE
-tasks in PLAN), No Tombstones rule, atomic two-phase completion protocol,
-bounded PLAN size (≤ 20 tasks), failure modes, and entry formats.
-**Load when**: completing a task and updating PLAN/HISTORY, reviewing the
-`plan/history/` archive, or auditing PLAN for stale completed items.
-
-**`plan-organization.md`**
-Conventions for `plan/IMPLEMENTATION_PLAN.md` section structure and
-`plan/PRIORITIES.md` coupling: `TASK-FOO` section IDs, dot-notation task IDs,
-`TASK-` namespace to avoid spec-prefix collisions, migration examples, and
-guidance for choosing a new `TASK-FOO` identifier.
-**Load when**: adding a new section to IMPLEMENTATION_PLAN.md, assigning
-or changing priorities, auditing plan sections for old priority-heading or
-dash-notation task IDs.
-
 **`history-management.md`**
 Design decisions and implementation guidance for the chunked per-entry history
 file system introduced on 2026-04-28. Covers the `plan/history/YYMM/<type>/`
@@ -354,12 +337,19 @@ the migration from monolithic `plan/*HISTORY.md` files.
 **Load when**: using or modifying the `append-history` tool, adding a new
 `HistoryEntryType`, or understanding the `plan/history/` directory structure.
 
-**`work-granularity.md`**
-Design decisions for scoping implementation tasks to approximately one GitHub
-Issue or PR. Decision table for when to split vs. group tasks, guidance on
-coordinating with GitHub Issues, and the `TASK-FOO` ↔ Issue linking convention.
-**Load when**: sizing a new TASK-FOO section, deciding whether to split or
-merge tasks, or setting up GitHub Issue tracking for a planned work item.
+**`plan-history-management.md`** *(archived — see `archived_notes/`)*
+Superseded by `specs/history-management.yaml` and the `append-history` tool.
+The IMPLEMENTATION_PLAN.md management rules it described are no longer relevant.
+
+**`plan-organization.md`** *(archived — see `archived_notes/`)*
+Superseded — described the now-retired `TASK-FOO` naming scheme for
+`plan/IMPLEMENTATION_PLAN.md`. All work is tracked as GitHub Issues.
+See `notes/parallel-development.md` for the current model.
+
+**`work-granularity.md`** *(archived — see `archived_notes/`)*
+Superseded — described the three-tier model (GitHub Issue → TASK-FOO →
+checklist items). IMPLEMENTATION_PLAN.md has been removed; see
+`specs/project-documentation.yaml` PD-09 for current guidance.
 
 **`append-only-file-handling.md`** *(archived — see `archived_notes/`)*
 Superseded by `specs/history-management.yaml` and the `append-history` tool

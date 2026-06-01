@@ -103,7 +103,6 @@ Use these questions to classify a section:
 | Notes frontmatter maintenance | KEEP |
 | Docs links must be relative | KEEP (short) |
 | Demo script lifecycle logging | REF:notes/codebase-structure.md |
-| Archiving IMPLEMENTATION_PLAN.md | KEEP (short) |
 | Writing project history entries | KEEP |
 
 ---
