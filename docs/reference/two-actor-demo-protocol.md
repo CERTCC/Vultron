@@ -31,8 +31,7 @@ log and coordinates state across all participants.
 
 ## Protocol Phases
 
-The demo progresses through six phases, each verified by a numbered
-milestone (M1–M7). The sequence diagram below shows every
+The demo progresses through six phases, verified by numbered milestones (M1–M7). The sequence diagram below shows every
 ActivityStreams activity exchanged between actors.
 
 ### Message-by-Message Sequence Diagram
@@ -57,11 +56,10 @@ sequenceDiagram
     deactivate V
     note over F,CA: ✓ M1 — Case exists, 3 participants, EM.ACTIVE
 
-    note over F,CA: Phase 2 — Replica Synchronization
+    note over F,CA: Phase 2 — Replica Synchronization Verification
 
-    note right of V: trigger: validate-report
-    V->>CA: Add(ParticipantStatus)<br/>[RM: RECEIVED→VALID→ACCEPTED]
-    CA->>F: Announce(CaseLogEntry)
+    note right of V: trigger: sync-log-entry
+    V->>F: Announce(CaseLogEntry)<br/>[SYNC-2 verification]
     note over F,CA: ✓ M2 — Finder replica synchronized (SYNC-2)
 
     note over F,CA: Phase 3 — Notes Exchange
@@ -70,6 +68,8 @@ sequenceDiagram
     CA->>V: Announce(CaseLogEntry)<br/>[note broadcast]
     V->>CA: Add(Note, target=Case)<br/>[reply]
     CA->>F: Announce(CaseLogEntry)<br/>[reply broadcast]
+
+    note over F,CA: ✓ M3 — Vendor holds authoritative final case state
 
     note over F,CA: Phase 4 — Fix Lifecycle
 
@@ -112,11 +112,10 @@ sequenceDiagram
 
 ### What the demo runner does
 
-The demo runner calls the Finder's trigger endpoint:
+The demo runner calls trigger endpoints on both actors:
 
-```text
-POST /api/v2/actors/{finder_id}/demo/submit-report
-```
+    POST /api/v2/actors/{finder_id}/trigger/submit-report
+    POST /api/v2/actors/{vendor_id}/trigger/validate-report
 
 ### What happens internally
 
@@ -209,36 +208,30 @@ POST /api/v2/actors/{finder_id}/demo/submit-report
 
 ---
 
-## Phase 2 — Report Validation and Replica Sync
+## Phase 2 — Replica Synchronization Verification
 
 ### What the demo runner does
 
-```text
-POST /api/v2/actors/{vendor_id}/trigger/validate-report
-```
+    POST /api/v2/actors/{vendor_id}/demo/sync-log-entry
 
 ### What happens internally
 
-1. **Vendor's BT** advances the report RM state:
-   `RECEIVED` → `VALID` → `ACCEPTED` (automatic cascade via
-   engage-case).
-2. Vendor queues state-change activities to its outbox.
-3. **Case Actor** receives the updates and broadcasts
-   `Announce(CaseLogEntry)` to all participants.
-4. **Finder** receives the log entry and updates its local replica.
-
+1. **Vendor** commits a demo verification case log entry and queues `Announce(CaseLogEntry)` in its outbox.
+2. Outbox delivery delivers the `Announce(CaseLogEntry)` to the Finder.
+3. **Finder** processes the log entry and updates its local replica.
+4. The demo runner verifies the Finder replica matches the authoritative Vendor state (SYNC-2).
 ### Example: Announce(CaseLogEntry)
 
 ```json
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Announce",
-  "actor": "http://vendor:7999/api/v2/actors/{ca-uuid}",
+  "actor": "http://vendor:7999/api/v2/actors/vendor",
   "to": ["http://finder:7999/api/v2/actors/finder"],
   "object": {
     "type": "CaseLogEntry",
     "id": "http://vendor:7999/api/v2/datalayer/{entry-uuid}",
-    "content": "Report validated",
+    "content": "SYNC-2 replication verification",
     "hash": "sha256:..."
   },
   "target": {
@@ -301,8 +294,13 @@ POST /api/v2/actors/{vendor_id}/demo/add-note-to-case
 }
 ```
 
----
+### Milestone M3 verification
 
+| Check | Both replicas |
+|:------|:-------------|
+| Vendor container holds authoritative final case state | ✓ |
+
+---
 ## Phase 4 — Fix Lifecycle
 
 ### What the demo runner does
