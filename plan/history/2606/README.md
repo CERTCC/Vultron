@@ -4,6 +4,7 @@
 
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
+| 2026-06-01 | 18:33 | implementation | ISSUE-437 | Enforce spec vs. ADR delineation guidelines (MS-11) |
 | 2026-06-01 | 18:04 | implementation | ISSUE-584 | Rename linkchecker.yml to docs-build-check.yml with narrowed triggers |
 | 2026-06-01 | 18:01 | implementation | 412 | Fix _is_case_owner fail-open (issue #412) |
 | 2026-06-01 | 17:56 | priority | Priority 470 | Priority 470: Two-Actor Demo Redesign |
