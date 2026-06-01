@@ -7,8 +7,8 @@ Vendor (software maintainer).
 
 By the end of this tutorial, we will have:
 
-- started two Vultron API containers — Finder and Vendor — representing
-  distinct CVD participants,
+- started a multi-container Vultron stack (Finder, Vendor, Coordinator,
+  Case Actor, and Vendor2) representing distinct CVD participants,
 - watched the actors exchange ActivityStreams messages across container
   boundaries driven by trigger-based puppeteering, and
 - followed the case through all seven milestones: report submission, case
@@ -268,25 +268,27 @@ TWO-ACTOR DEMO COMPLETE ✓  (VFDPxa full lifecycle)
 
 ### The demo-runner exits immediately with an error
 
-The actor containers may not have finished starting up. Verify all three
+The actor containers may not have finished starting up. Verify all five
 actor services are healthy:
 
 ```bash
 docker compose -f docker/docker-compose-multi-actor.yml \
-    ps finder vendor case-actor
+    ps finder vendor coordinator case-actor vendor2
 ```
 
-All three should show `healthy` status. If a service shows `starting` or
+All five should show `healthy` status. If any service shows `starting` or
 `unhealthy`, wait a moment and retry.
 
-### A milestone check fails with `✗`
+### A milestone check fails with `❌`
 
-Read the failure message for the check that failed. Check the vendor and
-finder logs for API errors:
+Read the failure message for the check that failed. Check the demo-runner
+and actor logs for errors:
 
 ```bash
+docker compose -f docker/docker-compose-multi-actor.yml logs demo-runner
 docker compose -f docker/docker-compose-multi-actor.yml logs vendor
 docker compose -f docker/docker-compose-multi-actor.yml logs finder
+docker compose -f docker/docker-compose-multi-actor.yml logs coordinator
 ```
 
 Look for `ERROR` or `500` status lines that correspond to the failing step.
@@ -325,7 +327,8 @@ docker compose -f docker/docker-compose-multi-actor.yml down -v
 
 We have:
 
-- cloned the Vultron repository and started a two-container Vultron stack,
+- cloned the Vultron repository and started a multi-container Vultron stack
+  (Finder, Vendor, Coordinator, Case Actor, and Vendor2),
 - run a complete CVD workflow from report submission through case closure,
   exercising the full VFDPxa lifecycle, and
 - observed the seven milestones (M1–M7) logged and verified by the demo
