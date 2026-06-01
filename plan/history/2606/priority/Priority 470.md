@@ -1,5 +1,5 @@
 ---
-source: PRIORITIES.md#470
+source: Priority 470
 timestamp: '2026-06-01T17:56:24.617105+00:00'
 title: 'Priority 470: Two-Actor Demo Redesign'
 type: priority
