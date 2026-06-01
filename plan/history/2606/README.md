@@ -4,6 +4,7 @@
 
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
+| 2026-06-01 | 19:11 | implementation | 659-vfd-timeout-increase | fix: increase wait_for_participant_vfd_state timeout to 30 s (#659) |
 | 2026-06-01 | 18:47 | learning | CONCERN-502 | Actor-scoped vs shared DataLayer scope boundaries |
 | 2026-06-01 | 18:33 | implementation | ISSUE-437 | Enforce spec vs. ADR delineation guidelines (MS-11) |
 | 2026-06-01 | 18:04 | implementation | ISSUE-584 | Rename linkchecker.yml to docs-build-check.yml with narrowed triggers |
