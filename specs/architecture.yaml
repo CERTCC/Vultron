@@ -196,3 +196,57 @@ groups:
   - id: ARCH-11-001
     priority: SHOULD
     statement: Core ports SHOULD be organized into inbound (driving) and outbound (driven) categories
+- id: ARCH-13
+  title: DataLayer Scope Contract
+  specs:
+  - id: ARCH-13-001
+    priority: MUST
+    statement: >
+      The base `DataLayer` protocol MUST be used only for shared object storage operations
+      (read, write, save, list). It MUST NOT be passed to functions that perform
+      inbox or outbox queue operations.
+    rationale: >
+      Inbox and outbox queue operations are actor-scoped; using the shared DataLayer
+      (actor_id=None) silently operates on a phantom queue keyed by the empty string
+      ("") rather than the actor's real queue, causing reads to appear empty and
+      writes to be unreadable by the correct actor.
+  - id: ARCH-13-002
+    priority: MUST
+    statement: >
+      Inbox and outbox queue operations (inbox_list, inbox_pop, inbox_append,
+      outbox_list, outbox_pop, outbox_append) MUST be performed on an `ActorScopedDataLayer`
+      instance — a DataLayer whose actor_id is set to a non-empty canonical URI.
+    rationale: >
+      Queue rows are stored with actor_id as a column key; an unscoped DataLayer
+      (actor_id=None) cannot address per-actor queue rows correctly.
+  - id: ARCH-13-003
+    priority: MUST
+    statement: >
+      The actor_id used when constructing an `ActorScopedDataLayer` MUST be the
+      actor's canonical URI (the value of actor.id_), not a short ID, UUID
+      path segment, or any other derived identifier.
+    rationale: >
+      record_outbox_item writes queue rows keyed by the actor_id string it receives.
+      If outbox_list is called on a DataLayer scoped to a different string (e.g., a
+      short UUID when the writer used a full URI), the queue appears empty and
+      outbound activities are silently dropped (see BUG-2026040901).
+  - id: ARCH-13-004
+    priority: MUST
+    statement: >
+      The actor_id argument passed to record_outbox_item MUST match exactly the
+      actor_id used to construct the `ActorScopedDataLayer` that will later call
+      outbox_list or outbox_pop for that actor.
+    rationale: >
+      The queue key is a plain string equality check. Any mismatch — including
+      full-URI vs. short-UUID — produces a silent empty read.
+  - id: ARCH-13-005
+    priority: SHOULD
+    statement: >
+      The `ActorScopedDataLayer` protocol type SHOULD be defined in
+      `vultron/core/ports/datalayer.py` as a refinement of `DataLayer` so that
+      type-checkers (mypy, pyright) can enforce scope boundaries at
+      function-signature level.
+    rationale: >
+      An explicit Protocol type converts a convention-only rule into a
+      compile-time-enforced boundary, making violations visible without running
+      the code.
