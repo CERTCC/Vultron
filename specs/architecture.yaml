@@ -207,12 +207,14 @@ groups:
       inbox or outbox queue operations.
     rationale: >
       Inbox and outbox queue operations are actor-scoped; using the shared DataLayer
-      (actor_id=None) for queue reads silently returns an empty queue and discards items.
+      (actor_id=None) silently operates on a phantom queue keyed by the empty string
+      ("") rather than the actor's real queue, causing reads to appear empty and
+      writes to be unreadable by the correct actor.
   - id: ARCH-13-002
     priority: MUST
     statement: >
       Inbox and outbox queue operations (inbox_list, inbox_pop, inbox_append,
-      outbox_list, outbox_pop) MUST be performed on an `ActorScopedDataLayer`
+      outbox_list, outbox_pop, outbox_append) MUST be performed on an `ActorScopedDataLayer`
       instance — a DataLayer whose actor_id is set to a non-empty canonical URI.
     rationale: >
       Queue rows are stored with actor_id as a column key; an unscoped DataLayer

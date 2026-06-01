@@ -877,16 +877,16 @@ allowed locations: `vultron/wire/as2/vocab/activities/`,
 `SqliteDataLayer` operates in two modes controlled by the `actor_id`
 constructor argument:
 
-- **Shared** (`actor_id=None`): A global view — `read`, `save`, and `list`
-  operations see all rows regardless of which actor wrote them. Used for
-  domain object storage (Cases, Activities, Actors, Reports) and for the
-  trigger service.
+- **Shared** (`actor_id=None`): A global view — `read` and `list`
+  operations see all rows regardless of which actor wrote them; `save` and
+  `create` write rows with `actor_id=None`. Used for domain object storage
+  (Cases, Activities, Actors, Reports) and for the trigger service.
 - **Actor-scoped** (`actor_id="https://example.org/actors/alice"`): Filters
   all reads and writes to rows belonging to that actor. **Required for
   inbox and outbox queue operations.**
 
 Queue methods (`inbox_list`, `inbox_pop`, `inbox_append`, `outbox_list`,
-`outbox_pop`) use `self._actor_id` as the queue key. Calling these on a
+`outbox_pop`, `outbox_append`) use `self._actor_id` as the queue key. Calling these on a
 shared DataLayer (`_actor_id=None`) silently operates on a queue keyed by
 `""` — not any actor's real queue. Items will be written and read from a
 phantom queue, making the actor's real queue appear perpetually empty.

@@ -60,9 +60,10 @@ for:
 - ASGIEmitter Path Construction: Use Scheme+Netloc Only as `httpx` Base URL
 - `create_app()` MUST NOT Mutate Module-Level Singletons
 - **DataLayer Scope Boundaries: Shared vs. Actor-Scoped** — queue methods
-  (`inbox_list`, `inbox_pop`, `outbox_list`, `outbox_pop`) MUST use an
-  actor-scoped DataLayer, not the shared one. An unscoped DL silently
-  operates on the wrong (empty) queue.
+  (`inbox_list`, `inbox_pop`, `inbox_append`, `outbox_list`, `outbox_pop`,
+  `outbox_append`) MUST use an actor-scoped DataLayer, not the shared one.
+  An unscoped DL (`actor_id=None`) silently operates on a phantom queue
+  keyed by `""` — not any actor's real queue.
 - **DataLayer Identity Contract: Canonical URI Must Match** — the actor_id
   used to construct an actor-scoped DataLayer for queue reads MUST be the
   actor's canonical URI (`actor.id_`), and MUST exactly match the string
