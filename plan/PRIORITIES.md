@@ -16,58 +16,7 @@ own child issues, etc.) The list of child issues in GitHub is
 authoritative regardless what is listed below, this file is a high-level
 index and summary.
 
-## Priority 470 — Two-Actor Demo Redesign
-
-Redesign the two-actor (Reporter + Vendor) CVD demo to implement a complete,
-correct end-to-end CVD workflow: report submission, case creation with Case
-Actor handoff, embargo bootstrap, fix lifecycle (VF → VFD → VFDPxa),
-embargo teardown, and case closure.
-
-See `notes/two-actor-demo.md` for the authoritative design; `specs/multi-actor-demo.yaml`
-groups DEMOMA-06, DEMOMA-07, DEMOMA-08 for formal requirements.
-
-- Epic: [#464](https://github.com/CERTCC/Vultron/issues/464)
-- [#460](https://github.com/CERTCC/Vultron/issues/460) — Sub-issue A: Documentation and spec updates ✅
-- [#461](https://github.com/CERTCC/Vultron/issues/461) — Sub-issue B: Core capabilities ✅
-- [#462](https://github.com/CERTCC/Vultron/issues/462) — Sub-issue C: CASE_MANAGER role delegation protocol ✅
-- [#469](https://github.com/CERTCC/Vultron/issues/469) — Case Actor spawning and CASE_MANAGER delegation automation ✅
-- [#463](https://github.com/CERTCC/Vultron/issues/463) — Sub-issue D: Demo replacement ✅
-- [#475](https://github.com/CERTCC/Vultron/issues/475) — Case Actor URN-based ID makes it unreachable via HTTP delivery ✅
-- [#476](https://github.com/CERTCC/Vultron/issues/476) — Remove spec-violating workarounds from SvcAddParticipantStatusUseCase ✅
-- [#483](https://github.com/CERTCC/Vultron/issues/483) — two\_actor\_demo.py: participant fetch, status check, and exception
-  handling bugs ✅
-- [#484](https://github.com/CERTCC/Vultron/issues/484) — Type narrowing: `_resolve_current_participant_state()` returns
-  `tuple[Any, Any]` ✅
-- [#467](https://github.com/CERTCC/Vultron/issues/467) — BT refactor: AddParticipantStatusToParticipant handler (also fixes RM
-  transition validation regression) ✅
-- [#489](https://github.com/CERTCC/Vultron/issues/489) — Extract shared helpers into vultron/demo/helpers/ ✅
-- [#521](https://github.com/CERTCC/Vultron/issues/521) — PCR-07: Integration tests for case-replica bootstrap and late-joiner
-  sequences (parent) ✅
-  - [#522](https://github.com/CERTCC/Vultron/issues/522) — PCR-07-006: bootstrap sequence (Create → Announce → replica) ✅
-  - [#523](https://github.com/CERTCC/Vultron/issues/523) — PCR-07-007: late-joiner sequence (Invite → Accept → Announce →
-    replica) ✅
-- [#527](https://github.com/CERTCC/Vultron/issues/527) — Integration demo suite takes 17+ min in CI — polling helpers not
-  patched ✅
-- [#530](https://github.com/CERTCC/Vultron/issues/530) — Demo integration tests share a single DataLayer across actors —
-  delivery path untested ✅
-- [#534](https://github.com/CERTCC/Vultron/issues/534) — Co-located actors in same process share module-level singletons
-  (emitter, dispatcher, DataLayer) ✅
-- [#570](https://github.com/CERTCC/Vultron/issues/570) — Demo CI: GitHub Actions integration workflow + demo runner
-  hardening ✅
-- [#589](https://github.com/CERTCC/Vultron/issues/589) — SvcAddParticipantStatusUseCase sends RM.START after notify-published ✅
-- [#593](https://github.com/CERTCC/Vultron/issues/593) — Post-case-creation participant messages bypass Case Actor —
-  outbound routing model missing from spec and broken in implementation ✅
-  - [#594](https://github.com/CERTCC/Vultron/issues/594) — Fix outbound routing: participant trigger use cases must address
-    Case Actor only, not all participants ✅
-  - [#595](https://github.com/CERTCC/Vultron/issues/595) — Implement automatic CaseLogEntry + Announce(CaseLogEntry)
-    broadcast cascade in all Case Actor received handlers ✅
-  - [#596](https://github.com/CERTCC/Vultron/issues/596) — Refactor sender-side trigger use cases into Behavior Trees ✅
-- [#466](https://github.com/CERTCC/Vultron/issues/466) — Docs: two-actor-demo tutorial + technical reference (blocked by demo
-  running end-to-end)
-- [#471](https://github.com/CERTCC/Vultron/issues/471) — Tutorial: docs/tutorials/two-actor-demo.md
-- [#472](https://github.com/CERTCC/Vultron/issues/472) — Technical reference: docs/reference/two-actor-demo-protocol.md
-
-## Priority 476 — Bug Fixes and Demo Polish
+## Priority 476 — Epic #446: Bug Fixes and Demo Polish
 
 Fix issues affecting demo execution and correctness.
 
@@ -115,7 +64,7 @@ CBT-05-003 and `notes/case-bootstrap-trust.md` §Out-of-Order Handling.
 - [#500](https://github.com/CERTCC/Vultron/issues/500) — CBT-03: Implement
   bounded pre-bootstrap queue expiry and replay request
 
-## Priority 485 — Architecture Hardening
+## Priority 485 — Epic #539: Architecture Hardening
 
 Resolve structural fragilities in the core architecture: import boundary
 violations, order-sensitive dispatch, fragile DataLayer scope conventions,
@@ -154,6 +103,10 @@ outbox polling, and oversized centralized dispatch tables.
   should be in the BT
 - [#632](https://github.com/CERTCC/Vultron/issues/632) — Concern:
   BT idiom audit: pervasive anti-patterns across use cases and BT nodes
+- [#643](https://github.com/CERTCC/Vultron/issues/643) — SYNC-07-002/003:
+  Integration tests for single-peer log replication cycle
+- [#644](https://github.com/CERTCC/Vultron/issues/644) — TRACE-01-003:
+  Update user-stories traceability matrix for newer spec topics
 
 ## Priority 490 — Epic #611: Test File Refactoring
 
