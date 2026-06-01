@@ -53,15 +53,15 @@ groups DEMOMA-06, DEMOMA-07, DEMOMA-08 for formal requirements.
 - [#534](https://github.com/CERTCC/Vultron/issues/534) — Co-located actors in same process share module-level singletons
   (emitter, dispatcher, DataLayer) ✅
 - [#570](https://github.com/CERTCC/Vultron/issues/570) — Demo CI: GitHub Actions integration workflow + demo runner
-  hardening
-- [#589](https://github.com/CERTCC/Vultron/issues/589) — SvcAddParticipantStatusUseCase sends RM.START after notify-published
+  hardening ✅
+- [#589](https://github.com/CERTCC/Vultron/issues/589) — SvcAddParticipantStatusUseCase sends RM.START after notify-published ✅
 - [#593](https://github.com/CERTCC/Vultron/issues/593) — Post-case-creation participant messages bypass Case Actor —
-  outbound routing model missing from spec and broken in implementation
+  outbound routing model missing from spec and broken in implementation ✅
   - [#594](https://github.com/CERTCC/Vultron/issues/594) — Fix outbound routing: participant trigger use cases must address
-    Case Actor only, not all participants
+    Case Actor only, not all participants ✅
   - [#595](https://github.com/CERTCC/Vultron/issues/595) — Implement automatic CaseLogEntry + Announce(CaseLogEntry)
-    broadcast cascade in all Case Actor received handlers
-  - [#596](https://github.com/CERTCC/Vultron/issues/596) — Refactor sender-side trigger use cases into Behavior Trees
+    broadcast cascade in all Case Actor received handlers ✅
+  - [#596](https://github.com/CERTCC/Vultron/issues/596) — Refactor sender-side trigger use cases into Behavior Trees ✅
 - [#466](https://github.com/CERTCC/Vultron/issues/466) — Docs: two-actor-demo tutorial + technical reference (blocked by demo
   running end-to-end)
 - [#471](https://github.com/CERTCC/Vultron/issues/471) — Tutorial: docs/tutorials/two-actor-demo.md
@@ -146,6 +146,14 @@ outbox polling, and oversized centralized dispatch tables.
   `EmbargoLifecycle` service to consolidate fragmented embargo state management
 - [#586](https://github.com/CERTCC/Vultron/issues/586) — Concern:
   `VultronActivity.object_` typed as `Any|None` causes dict round-trip bypass
+- [#618](https://github.com/CERTCC/Vultron/issues/618) — Concern:
+  Full-URI actor/case IDs embedded in URL path segments cause routing
+  fragility
+- [#622](https://github.com/CERTCC/Vultron/issues/622) — Concern:
+  Trigger-side `execute()` methods contain inline state machine logic that
+  should be in the BT
+- [#632](https://github.com/CERTCC/Vultron/issues/632) — Concern:
+  BT idiom audit: pervasive anti-patterns across use cases and BT nodes
 
 ## Priority 490 — Epic #611: Test File Refactoring
 
@@ -310,6 +318,8 @@ to demonstrate the core behavior tree and coordination logic.
   BT-2.2/BT-2.3 placeholder references in PRIORITIES.md ✅
 - [#505](https://github.com/CERTCC/Vultron/issues/505) — Triage 15
   outstanding TODO/FIXME/XXX markers in production code
+- [#627](https://github.com/CERTCC/Vultron/issues/627) — Use
+  `SqliteDataLayer` as a context manager in yield-based test fixtures
 
 ## Priority 95000 — Epic #615: Documentation Enhancements — Crosswalks and Framework Integration
 
