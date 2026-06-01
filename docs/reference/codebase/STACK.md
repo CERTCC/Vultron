@@ -15,8 +15,8 @@
 
 | Dependency | Version | Role in system | Evidence |
 |------------|---------|----------------|----------|
-| `fastapi` | `>=0.136.1` | HTTP API and router layer | `pyproject.toml`, `vultron/adapters/driving/fastapi/app.py` |
-| `uvicorn` | `>=0.47.0` | ASGI server for the API | `pyproject.toml`, `docker/Dockerfile` |
+| `fastapi` | `>=0.136.3` | HTTP API and router layer | `pyproject.toml`, `vultron/adapters/driving/fastapi/app.py` |
+| `uvicorn` | `>=0.48.0` | ASGI server for the API | `pyproject.toml`, `docker/Dockerfile` |
 | `pydantic` | `==2.13.4` | Model validation and typed request/object models | `pyproject.toml`, `vultron/core/ports/datalayer.py` |
 | `pydantic-settings` | `>=2.14.1` | Environment-variable config loading | `pyproject.toml`, `vultron/config.py` |
 | `sqlmodel` | `>=0.0.38` | SQLite-backed persistence adapter | `pyproject.toml`, `vultron/adapters/driven/datalayer_sqlite.py` |
@@ -25,12 +25,12 @@
 | `transitions` | `>=0.9.3` | State-machine support | `pyproject.toml` |
 | `pyyaml` | `>=6.0` | YAML-backed config and metadata loading | `pyproject.toml`, `vultron/demo/cli.py` |
 | `python-frontmatter` | `>=1.1.0` | YAML frontmatter parsing for notes/metadata tooling | `pyproject.toml`, `vultron/metadata/notes/` |
-| `click` | `>=8.3.3` | CLI framework for demo and script entry points | `pyproject.toml`, `vultron/demo/cli.py` |
+| `click` | `>=8.4.1` | CLI framework for demo and script entry points | `pyproject.toml`, `vultron/demo/cli.py` |
 | `isodate` | `>=0.7.2` | ISO 8601 duration/date parsing | `pyproject.toml` |
 | `networkx` | `>=3.5` | Graph computations for case-state hypercube | `pyproject.toml`, `vultron/core/case_states/hypercube.py` |
 | `owlready2` | `>=0.48` | OWL ontology loading and querying | `pyproject.toml`, `vultron/scripts/ontology2md.py` |
 | `rdflib` | `>=7.2.1` | RDF graph support (used with owlready2/ontology tooling) | `pyproject.toml`, `vultron/scripts/ontology2md.py` |
-| `pandas` | `>=3.0.2` | Tabular data for analysis and reporting | `pyproject.toml`, `vultron/demo/vultrabot.py` |
+| `pandas` | `>=3.0.3` | Tabular data for analysis and reporting | `pyproject.toml`, `vultron/demo/vultrabot.py` |
 | `scipy` | `>=1.16.2` | Scientific computing support for analysis | `pyproject.toml`, `vultron/demo/vultrabot.py` |
 | `griffelib` | `>=2.0.0` | mkdocstrings support library | `pyproject.toml` |
 | `mkdocs` + Material plugins | mixed | Built documentation site and reference docs | `pyproject.toml`, `mkdocs.yml` |
@@ -39,11 +39,11 @@
 
 | Tool | Purpose | Evidence |
 |------|---------|----------|
-| `black` | Python formatting | `pyproject.toml`, `.pre-commit-config.yaml` |
+| `black` (`>=26.5.1`) | Python formatting | `pyproject.toml`, `.pre-commit-config.yaml` |
 | `flake8` | Python linting | `pyproject.toml`, `.flake8`, `.github/workflows/python-app.yml` |
-| `mypy` | Static type checking (`>=2.1.0`) | `pyproject.toml`, `.github/workflows/python-app.yml` |
-| `pyright` | Static type checking | `pyproject.toml`, `pyrightconfig.json`, `.github/workflows/python-app.yml` |
-| `pytest` | Automated tests | `pyproject.toml`, `test/AGENTS.md` |
+| `mypy` (`>=2.1.0`) | Static type checking | `pyproject.toml`, `.github/workflows/python-app.yml` |
+| `pyright` (`>=1.1.409`) | Static type checking | `pyproject.toml`, `pyrightconfig.json`, `.github/workflows/python-app.yml` |
+| `pytest` (`>=9.0.3`) | Automated tests | `pyproject.toml`, `test/AGENTS.md` |
 | `markdownlint-cli2` | Markdown linting/fixing via `./mdlint.sh` | `mdlint.sh`, `.pre-commit-config.yaml`, `.markdownlint-cli2.yaml` |
 | `pre-commit` | Hook orchestration | `pyproject.toml`, `.pre-commit-config.yaml` |
 

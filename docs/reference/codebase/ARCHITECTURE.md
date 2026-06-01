@@ -73,6 +73,11 @@ Evidence-backed flow:
   matter for the mounted production-style path.
 - Shared-vs-actor-scoped DataLayer behavior remains subtle and requires
   canonical actor-ID normalization to keep inbox/outbox operations consistent.
+- Full-URI actor/case IDs are embedded directly in FastAPI URL path segments.
+  Starlette's `{param:path}` converter is the current tactical mitigation (used
+  throughout `routers/actors.py` and `routers/datalayer.py`), but the deeper
+  architectural resolution — separating routing identity from object identity
+  via a surrogate key — remains open (see GitHub concern #618).
 
 ### 6) Evidence
 
