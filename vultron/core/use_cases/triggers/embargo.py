@@ -135,14 +135,14 @@ def _cascade_pec_reset(
 def _is_case_owner(case: PersistableModel | None, actor_id: str) -> bool:
     """Return True when ``actor_id`` matches the case owner.
 
-    Cases created before owner attribution was consistently populated still
-    need a sensible single-actor default, so ``None`` falls back to treating
-    the triggering actor as the owner.
+    This check is fail-closed: when ``attributed_to`` is ``None`` (ownership
+    unknown), no actor is treated as the owner. Only an exact match between
+    the resolved owner ID and the given ``actor_id`` returns True.
     """
     if not is_case_model(case):
         return False
     owner_id = _as_id(case.attributed_to)
-    return owner_id is None or owner_id == actor_id
+    return owner_id is not None and owner_id == actor_id
 
 
 def _update_participant_embargo_acceptance(

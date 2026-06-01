@@ -608,6 +608,7 @@ class TestEmbargoUseCases:
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_eval_invalid",
             name="Evaluate Invalid EM State",
+            attributed_to=actor.id_,
         )
         embargo = EmbargoEvent(
             id_="https://example.org/cases/case_eval_invalid/embargo_events/e1",

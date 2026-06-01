@@ -221,7 +221,10 @@ def case_with_embargo(dl, actor):
 
 @pytest.fixture
 def case_with_proposal(dl, actor):
-    case_obj = VulnerabilityCase(name="PROPOSAL-CASE-001")
+    case_obj = VulnerabilityCase(
+        name="PROPOSAL-CASE-001",
+        attributed_to=actor.id_,
+    )
     embargo = EmbargoEvent(context=case_obj.id_)
     dl.create(embargo)
     proposal = em_propose_embargo_activity(

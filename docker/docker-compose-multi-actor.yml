@@ -1,7 +1,7 @@
 # Multi-Actor Vultron Demo — Docker Compose Configuration
 #
-# Defines four isolated actor services (finder, vendor, coordinator,
-# case-actor), each
+# Defines five isolated actor services (finder, vendor, coordinator,
+# coordinator2, case-actor), each
 # with its own DataLayer volume, health check, and network membership.
 #
 # DEMO-MA-02-001: Each actor service has a /health/ready healthcheck.
@@ -59,11 +59,10 @@
 #   vultron-network   Shared bridge network connecting all services.
 #
 # ─── Startup and seeding ──────────────────────────────────────────────────
-# The API server containers (finder, vendor, coordinator, case-actor) do NOT
-# auto-seed
-# actor records on startup.  The `demo-runner` two-actor scenario resets
-# the relevant containers and seeds Finder/Vendor automatically, producing
-# a deterministic acceptance run with a single `docker compose up
+# The API server containers (finder, vendor, coordinator, coordinator2,
+# case-actor) do NOT auto-seed actor records on startup. The `demo-runner`
+# service resets the relevant containers and seeds actors automatically,
+# producing a deterministic acceptance run with a single `docker compose up
 # --abort-on-container-exit demo-runner` command. Manual seed commands
 # remain available when debugging individual services. Each service's
 # seed configuration is pre-built in docker/seed-configs/ and mounted
