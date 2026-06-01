@@ -69,3 +69,23 @@ See [notes/codebase-structure.md](../../notes/codebase-structure.md) for:
 - Actor IDs Must Always Be Full URIs
 - Actor ID Normalization in Trigger Paths: Resolve Path Params Before Outbox
 - Black Can Invalidate Inline pyright Suppressions on Wrapped Fields
+
+### URL-Keyed IDs in FastAPI Path Segments
+
+When an endpoint accepts an object ID that may be a full HTTP URL (e.g.,
+`http://host:port/api/v2/actors/case-actor-{uuid}/participant`), use the
+Starlette `{param:path}` converter — **not** `{param}`:
+
+```python
+# ✅ Accepts keys with embedded slashes (e.g., full HTTP URL IDs)
+@router.get("/{key:path}")
+def get_object_by_key(key: str, ...): ...
+```
+
+Starlette decodes `%2F` → `/` before route matching, so percent-encoding is
+not a client-side fix. Register `{param:path}` catch-all routes **last** so
+that specific literal routes (`/Offers/`, `/Actors/`) are matched first.
+
+See
+[notes/codebase-structure.md](../../notes/codebase-structure.md)
+§ Starlette Path-Type Parameters for URL-Keyed Endpoints.

@@ -285,28 +285,77 @@ structure). Docker Compose services are in `docker/docker-compose.yml`.
 
 ## Technical Debt: Object IDs Should Be URL-Like, Not Bare UUIDs
 
-The `datalayer.read(key)` method and the `/datalayer/{key}` route use
+The `datalayer.read(key)` method and the `/datalayer/{key:path}` route use
 `as_id` as the lookup key. Currently `generate_new_id()` returns a bare
 UUID-4 string (e.g., `2196cbb2-fb6f-407c-b473-1ed8ae806578`) rather than a
 full URL (e.g., `https://vultron.example/participants/2196cbb2-...`).
 
 **Why bare UUIDs were used**: Avoids URL-encoding/escaping issues when
 using object IDs as path segments in API routes (a full URL contains `/`
-characters that require percent-encoding as `%2F`).
+characters that are treated as path-segment separators by Starlette, even
+after percent-encoding as `%2F`).
 
-**What should be done**: Object IDs should be proper URL-like identifiers
-per the ActivityStreams spec. API routes should accept URL-encoded IDs or
-use a different lookup mechanism (e.g., query parameter `?id=<url>`, or
-base64url encoding).
+**Current tactical fix**: The `/{key:path}` Starlette path converter is used
+throughout the FastAPI routers (actors, datalayer) to accept URL-form keys
+with embedded slashes. See
+[Starlette Path-Type Parameters for URL-Keyed Endpoints](#starlette-path-type-parameters-for-url-keyed-endpoints)
+below.
+
+**Deeper architectural goal**: Object IDs should be proper URL-like identifiers
+per the ActivityStreams spec. The long-term resolution is to separate routing
+identity from object identity by assigning each actor and case a stable,
+locally-unique, routing-safe surrogate key (e.g., a UUID or slug) used in all
+URL path segments while keeping the full IRI as the canonical `id` field inside
+the object graph. This mirrors ActivityPub practice of using
+`preferredUsername` for routing while the full actor IRI lives in the payload.
 
 **Affected areas**:
 
 - `generate_new_id()` in `vultron/wire/as2/vocab/base/utils.py` — add a default
   `prefix` based on object type
 - Demo scripts and tests that assert on `as_id` format
-- `/datalayer/{key}` route in
-  `vultron/adapters/driving/fastapi/routers/datalayer.py`
 - Any handler that constructs participant or case IDs inline
+
+---
+
+## Starlette Path-Type Parameters for URL-Keyed Endpoints
+
+(DR-10, 2026-05-21 — fixed in #610/#617)
+
+When a FastAPI/Starlette endpoint needs to accept keys that may contain
+literal forward slashes (e.g., full HTTP URL IDs such as
+`http://vendor:7999/api/v2/actors/case-actor-{uuid}/participant`), use the
+`{param:path}` path converter instead of the plain `{param}` converter.
+
+```python
+# ✅ Correct: accepts keys with embedded slashes
+@router.get("/{key:path}")
+def get_object_by_key(key: str, ...): ...
+
+# ❌ Broken: Starlette decodes %2F → / before route matching,
+#    so percent-encoding does not work as a workaround
+@router.get("/{key}")
+def get_object_by_key(key: str, ...): ...
+```
+
+**Rule**: Register catch-all `/{param:path}` routes **last** in the router so
+that specific literal routes (e.g., `/Offers/`, `/Actors/`) are matched first.
+Starlette matches routes in registration order; a catch-all at the top shadows
+all subsequent routes.
+
+**Why percent-encoding fails**: Starlette decodes `%2F` back to `/` before
+route matching, so there is no client-side workaround. Only the server-side
+`path` converter fixes the root cause.
+
+**Implemented in**:
+
+- `vultron/adapters/driving/fastapi/routers/datalayer.py` — `/{key:path}`
+- `vultron/adapters/driving/fastapi/routers/actors.py` —
+  `/{actor_id:path}/inbox`, `/{actor_id:path}/outbox/`, `/{actor_id:path}`
+
+**See also**: GitHub concern #618 (Full-URI IDs in URL path segments —
+deeper architectural issue of separating routing identity from object
+identity remains open).
 
 ---
 
@@ -562,14 +611,16 @@ start, not application readiness
    def check_server_availability(url, max_retries=30, retry_delay=1.0):
        for attempt in range(max_retries):
            try:
-               response = requests.get(url, timeout=2)
-               if response.ok:
+               response = httpx.get(url, timeout=2)
+               if response.is_success:
                    return True
-           except RequestException:
+           except httpx.RequestError:
                if attempt < max_retries - 1:
                    time.sleep(retry_delay)
        return False
    ```
+
+   Note: use `httpx` (the declared runtime dependency), not `requests`.
 
 The pitfall above is self-contained. The three-layer solution (Docker health
 check, `condition: service_healthy`, and client retry) is the recommended
