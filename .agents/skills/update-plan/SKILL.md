@@ -98,7 +98,8 @@ echo "Created gap issue #${ISSUE_NUMBER}"
 Set the `size:` label from AC count: 1–2 → `size:S`; 3–6 → `size:M`;
 7+ → `size:L`.
 
-Do **not** add tasks to GitHub Issues outside the standard workflow.
+Do **not** add tasks to GitHub Issues outside the `manage-github-issue`
+workflow documented above.
 
 **Grouping related gaps (PAD-01-002, PAD-01-003):** When the gap analysis
 identifies **2 or more closely related gaps** in the same spec area (e.g.,

@@ -300,8 +300,8 @@ accept = RmAcceptInviteToCase(actor=actor.id_, object_=invite)
 ```
 
 > **Note**: `DL-REHYDRATE` is implemented (`vultron/wire/as2/rehydration.py`).
-> Call `rehydrate()` on `dl.read()` results to recover nested typed objects;
-> the manual `model_validate` coercion step is no longer needed.
+> Call `rehydrate(obj, dl=dl)` on `dl.read()` results to recover nested typed
+> objects; the manual `model_validate` coercion step is no longer needed.
 
 This applies to all `Accept`/`Reject`/`TentativeReject` responses to
 `Invite`/`Offer` activities.

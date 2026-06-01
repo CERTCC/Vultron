@@ -337,7 +337,7 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   as distributed lock), size labeling (AC count + diff-based update), auto-merge
   rules, pre-PR code review with `[BLOCKING]`/`[ADVISORY]` tags, stale-claim
   sweeper, merge conflict recovery, and GitHub Issue-based task coordination
-  (PAD-01 through PAD-15). See also `notes/parallel-development.md`.
+  (PAD-01 through PAD-14). See also `notes/parallel-development.md`.
   Distinct from `agentic-readiness.yaml` (AR), which covers making the
   Vultron protocol code integrable with external agentic tools.
 - **`project-documentation.yaml`** - Documentation file structure and purpose;

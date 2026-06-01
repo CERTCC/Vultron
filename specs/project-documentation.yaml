@@ -78,8 +78,9 @@ groups:
   specs:
   - id: PD-06-004
     priority: MUST_NOT
-    statement: Priority ordering is the sole responsibility of `plan/PRIORITIES.md`. Task IDs MUST NOT
-      encode priority information in headings or rely on ordering to imply priority.
+    statement: Priority ordering is the sole responsibility of `plan/PRIORITIES.md`. GitHub Issue
+      titles and `plan/PRIORITIES.md` headings MUST NOT encode priority information as numeric
+      prefixes or rely on ordering to imply priority.
   - id: PD-06-005
     priority: SHOULD
     statement: '`plan/PRIORITIES.md` entries SHOULD reference the relevant GitHub Issue numbers to link

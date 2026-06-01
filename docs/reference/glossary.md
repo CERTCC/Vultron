@@ -342,8 +342,8 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
 - A **Port** is implemented by one or more **Adapters**.
 - **Inbound Activities** are matched by **ActivityPatterns** to extract **MessageSemantics** (formal protocol **Message Type**).
 - **Outbound Activities** are constructed by **Factory Functions** (not by core calling `from_core()`).
-- A **Issue** may be blocked by another **Issue** via a **Blocker**.
-- A **Issue** may contain one or more sub-**Issues** with **Acceptance Criteria**.
+- An **Issue** may be blocked by another **Issue** via a **Blocker**.
+- An **Issue** may contain one or more sub-**Issues** with **Acceptance Criteria**.
 - **CasePersistence** and **CaseOutboxPersistence** replace the broad **DataLayer** interface for core use cases.
 - **Rehydration** converts raw persisted dicts (from **DataLayer**) into typed domain objects.
 - A **Participant** has zero or more **CVDRoles** (represented as **CVDRoles** bitmask).
