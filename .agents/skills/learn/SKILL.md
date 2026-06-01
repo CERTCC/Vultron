@@ -157,6 +157,14 @@ happen on this branch so they are never at risk from a `git reset --hard`.
 - Update `specs/README.md` to reflect all file additions, removals, renames,
   and topic reorganizations.
 
+**ADR decision (MS-11):** When adding new spec entries, apply the decision-tree
+heuristic in `notes/specs-vs-adrs.md` to decide whether the underlying design
+choice also warrants a new ADR. Write an ADR when a meaningful alternative was
+evaluated and rejected; skip it for uncontested rules (MS-11-002, MS-11-005).
+When both are created, cross-reference them: cite the ADR in the spec's
+`rationale` field, and list the generated spec IDs in the ADR's "More
+Information" section (MS-11-004).
+
 ### Phase 5 — Update Design Notes (`notes/`)
 
 - Promote insights, tradeoffs, and lessons from `BUILD_LEARNINGS.md` and

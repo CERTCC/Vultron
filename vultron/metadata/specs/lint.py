@@ -9,6 +9,7 @@ Usage::
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from vultron.metadata.specs.registry import SpecRegistry, load_registry
 from vultron.metadata.specs.schema import BehavioralSpec, LintWarningCode
 
 _RATIONALE_WARN_CHARS = 500
+_ADR_REF_RE = re.compile(r"\bADR-(\d{4})\b")
 
 
 def _check_prefix_consistency(registry: SpecRegistry) -> list[str]:
@@ -54,7 +56,46 @@ def _check_spec_id_prefix_consistency(registry: SpecRegistry) -> list[str]:
     return errors
 
 
-def lint(spec_dir: Path) -> int:
+def _adr_exists(adr_dir: Path, adr_number: str) -> bool:
+    """Return True if an ADR file for ``adr_number`` exists in ``adr_dir``.
+
+    ADR files follow the naming convention ``NNNN-<slug>.md``, so
+    ``ADR-0009`` resolves to any file matching ``0009-*.md``.
+    """
+    return bool(list(adr_dir.glob(f"{adr_number}-*.md")))
+
+
+def _check_adr_references(
+    registry: SpecRegistry, adr_dir: Path | None
+) -> list[str]:
+    """Emit advisory warnings for spec rationale fields that cite an ADR that
+    does not exist in ``adr_dir`` (MS-11-004).
+
+    Returns an empty list when ``adr_dir`` is None or does not exist so that
+    the check degrades gracefully in environments without a docs/ tree.
+    """
+    if adr_dir is None or not adr_dir.is_dir():
+        return []
+
+    warnings: list[str] = []
+    for spec_id, spec in registry.all_specs.items():
+        suppressed = set(spec.lint_suppress or [])
+        if LintWarningCode.DANGLING_ADR_REF in suppressed:
+            continue
+        for text in (spec.rationale or "",):
+            for match in _ADR_REF_RE.finditer(text):
+                adr_number = match.group(1)
+                if not _adr_exists(adr_dir, adr_number):
+                    warnings.append(
+                        f"[WARN] {spec_id}: rationale references "
+                        f"ADR-{adr_number} but no matching file found in "
+                        f"'{adr_dir}' "
+                        f"(suppress with lint_suppress: [dangling_adr_ref])"
+                    )
+    return warnings
+
+
+def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
     """Validate the spec registry in ``spec_dir``.
 
     Hard errors cause exit code 1.  Advisory warnings are printed but do not
@@ -62,10 +103,18 @@ def lint(spec_dir: Path) -> int:
 
     Args:
         spec_dir: Directory containing ``*.yaml`` spec files.
+        adr_dir: Directory containing ADR markdown files.  When ``None``
+            (the default), falls back to ``spec_dir.parent / "docs" / "adr"``
+            so that ``uv run spec-lint`` from the repository root picks up
+            ``docs/adr/`` automatically.  To skip the ADR-reference check,
+            pass a path that does not exist on disk.
 
     Returns:
         ``0`` if no hard errors, ``1`` if any hard errors found.
     """
+    if adr_dir is None:
+        adr_dir = spec_dir.parent / "docs" / "adr"
+
     hard_errors: list[str] = []
     warnings: list[str] = []
 
@@ -107,6 +156,8 @@ def lint(spec_dir: Path) -> int:
         tags = spec.tags or []
         if not tags and LintWarningCode.MISSING_TAGS not in suppressed:
             warnings.append(f"[WARN] {spec_id}: no tags defined")
+
+    warnings.extend(_check_adr_references(registry, adr_dir))
 
     for w in warnings:
         print(w)
