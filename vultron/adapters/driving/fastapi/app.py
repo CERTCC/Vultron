@@ -210,7 +210,6 @@ app_v2 = FastAPI(
     openapi_tags=tags_metadata,
     lifespan=_make_lifespan(configure_globals=True),
 )
-app_v2.include_router(router)
 
 
 def create_app(
@@ -261,11 +260,11 @@ def create_app(
         openapi_url=openapi_url,
         lifespan=_make_lifespan(configure_globals=False, mount_prefix=""),
     )
-    application.include_router(router, prefix="/api/v2")
     if get_config().mode == RunMode.PROTOTYPE:
         from vultron.adapters.driving.fastapi.routers import demo_triggers
 
         application.include_router(demo_triggers.router, prefix="/api/v2")
+    application.include_router(router, prefix="/api/v2")
     return application
 
 
@@ -277,3 +276,4 @@ if get_config().mode == RunMode.PROTOTYPE:
     from vultron.adapters.driving.fastapi.routers import demo_triggers
 
     app_v2.include_router(demo_triggers.router)
+app_v2.include_router(router)
