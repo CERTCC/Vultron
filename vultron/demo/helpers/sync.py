@@ -52,7 +52,14 @@ def _extract_ref_id(ref: object) -> Optional[str]:
 def _get_log_entries_for_case(
     client: DataLayerClient, case_id: str
 ) -> list[dict]:
-    """Return all ``CaseLogEntry`` dicts for *case_id* from the DataLayer."""
+    """Return all ``CaseLogEntry`` dicts for *case_id* from the DataLayer.
+
+    .. deprecated::
+        This function performs client-side filtering over the full DataLayer
+        dump.  Prefer the server-side endpoint instead:
+        ``GET /actors/{actor_id}/demo/cases/{case_id}/log``
+        (see ``demo_triggers.demo_get_case_log``).
+    """
     raw = client.get("/datalayer/CaseLogEntrys/")
     if not isinstance(raw, dict):
         return []
