@@ -51,7 +51,7 @@ directly. See
 
 ## Common Pitfalls — adapters layer
 
-See [notes/architecture-ports-and-adapters.md](../../notes/architecture-ports-and-adapters.md)
+See [notes/architecture-adapters.md](../../notes/architecture-adapters.md)
 for:
 
 - Avoid `BaseModel` in Port/Adapter Type Hints
