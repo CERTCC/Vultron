@@ -25,6 +25,11 @@ Agents MUST follow these rules when generating, modifying, or reviewing code.
   (`vultron/core/use_cases/`).
 - Use-Case Protocol: `__init__(dl, request)` + `execute() -> None`; routing
   is via `USE_CASE_MAP` key lookup, not per-handler decorators.
+- FastAPI deployment entrypoint: use
+  `vultron.adapters.driving.fastapi.main:app` for uvicorn/ASGI startup.
+  The mounted `app_v2` object in
+  `vultron.adapters.driving.fastapi.app` is for local test/dev patterns
+  (for example, isolated app-factory tests).
 - Tests: `uv run pytest --tb=short 2>&1 | tail -5` — run **once**, read output.
   See `.agents/skills/run-tests/SKILL.md` for the single-run rule and suite
   variants (unit / integration / all).

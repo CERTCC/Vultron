@@ -11,6 +11,13 @@ together to coordinate appropriate responses to vulnerabilities.
 
 Vultron is a collection of ideas, models, code, and work in progress, and is not yet ready for production use.
 
+## API entrypoint reference
+
+For uvicorn/ASGI deployment, use
+`vultron.adapters.driving.fastapi.main:app` as the canonical API entrypoint.
+The `app_v2` object in `vultron.adapters.driving.fastapi.app` is the mounted
+sub-application commonly used directly in local development and tests.
+
 ## Background and related work
 
 Vultron is a continuation of the [CERT/CC](https://www.sei.cmu.edu/about/divisions/cert/index.cfm)'s work on improving the coordination of vulnerability disclosure and response.

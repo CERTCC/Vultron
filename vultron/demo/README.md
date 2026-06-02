@@ -95,8 +95,13 @@ First install the package and start the API server:
 
 ```bash
 uv pip install -e .
-uv run uvicorn vultron.api.main:app --host localhost --port 7999 --reload
+uv run uvicorn vultron.adapters.driving.fastapi.main:app --host localhost --port 7999 --reload
 ```
+
+`vultron.adapters.driving.fastapi.main:app` is the canonical deployment
+entrypoint. `app_v2` in
+`vultron.adapters.driving.fastapi.app` is the mounted sub-app used directly
+in local dev/test patterns.
 
 Then in a separate terminal, run the unified CLI:
 
