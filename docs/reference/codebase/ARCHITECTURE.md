@@ -82,7 +82,9 @@ Evidence-backed flow:
 ### 6) Evidence
 
 - `AGENTS.md`
-- `notes/architecture-ports-and-adapters.md`
+- `notes/architecture-hexagonal.md`
+- `notes/architecture-ports.md`
+- `notes/architecture-adapters.md`
 - `notes/asgi-emitter.md`
 - `specs/multi-actor-demo.yaml`
 - `specs/case-bootstrap-trust.yaml`

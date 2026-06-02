@@ -7,7 +7,7 @@ description: >
 related_specs:
   - specs/multi-actor-demo.yaml
 related_notes:
-  - notes/architecture-ports-and-adapters.md
+  - notes/architecture-adapters.md
 relevant_packages:
   - vultron/adapters/driven/asgi_emitter.py
   - vultron/adapters/driving/fastapi/app.py
@@ -23,7 +23,7 @@ HTTP entirely) and falls back to `DeliveryQueueAdapter` (HTTP POST) for
 remote recipients.
 
 **References**: `specs/multi-actor-demo.yaml` DEMOMA-01-004, DEMOMA-01-005;
-`notes/architecture-ports-and-adapters.md` § "Dispatch vs Emit Terminology".
+`notes/architecture-ports.md` § "Dispatch vs Emit Terminology".
 
 ---
 

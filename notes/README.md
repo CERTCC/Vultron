@@ -17,14 +17,28 @@ decide what to pull for your task. In most cases you need only 1–3 files.
 
 ## Architecture and Design
 
-**`architecture-ports-and-adapters.md`**
-Authoritative spec for Vultron's hexagonal (Ports and Adapters) architecture:
-layer model (core / wire / adapter), adapter categories (driving / driven /
-connector), file layout, Rules 1–8, dispatch/emit terminology, and compliance
-checklist. Includes a "Compliance Reference" appendix of currently-clean code
-paths.
-**Load when**: designing new components, adding adapters, reviewing layer
-boundaries, or investigating an import-layering violation.
+**`architecture-hexagonal.md`**
+Hexagonal architecture overview: layer model (core / wire / adapters), inbound
+and outbound pipelines, The Hexagon diagram, file layout, Rules 1–9, design
+constraints/invariants, and review checklist.
+**Load when**: orienting to architecture boundaries, reviewing layering
+violations, or validating core/wire separation.
+
+**`architecture-ports.md`**
+Port-focused architecture guidance: inbound vs outbound port taxonomy,
+dispatch-vs-emit terminology, use-cases-as-incoming-ports note,
+`SyncActivityPort`, `TriggerActivityPort`, and server-level inbox deferred
+decision.
+**Load when**: working in `vultron/core/ports/`, clarifying dispatch/emit
+semantics, or designing new port interfaces.
+
+**`architecture-adapters.md`**
+Adapter-focused architecture guidance: adapter category discipline, outbound
+delivery invariants, ASGI emitter patterns, driven-port baton-pass pattern,
+long-term BT flow direction, remaining ARCH-01-001 violation context, future
+delivery stubs, boundary ratchet tests, and DataLayer scope boundaries.
+**Load when**: implementing adapters, debugging delivery behavior, or auditing
+adapter/core boundary compliance.
 
 **`asgi-emitter.md`**
 Design rules for `ASGIEmitter` (`adapters/driven/asgi_emitter.py`): the

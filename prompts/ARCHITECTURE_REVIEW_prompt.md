@@ -1,5 +1,6 @@
 You are reviewing this codebase for adherence to the architecture described in
-`notes/architecture-ports-and-adapters.md`, as refined in
+`notes/architecture-hexagonal.md`, `notes/architecture-ports.md`, and
+`notes/architecture-adapters.md`, as refined in
 `specs/architecture.yaml`. Additional notes from a previous review are found
 in `archived_notes/architecture-review.md`. Read those document in full
 before examining any code. Use it as your ground truth throughout.
@@ -103,8 +104,8 @@ not yet addressed in the code. Produce your findings in three sections:
 For each violation:
 
 - File and function/line
-- Which rule it breaks (by number, from
-  `notes/architecture-ports-and-adapters.md` and `specs/architecture.yaml`)
+- Which rule it breaks (by number, from `notes/architecture-hexagonal.md`
+  and `specs/architecture.yaml`)
 - Severity: Critical (core depends on wire format or framework), Major (logic in
   wrong layer), Minor (convention or organisation)
 - One sentence explaining why it is a violation

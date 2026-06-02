@@ -2,7 +2,7 @@
 status: accepted
 date: 2026-03-19
 deciders: ahouseholder
-consulted: notes/domain-model-separation.md, notes/architecture-ports-and-adapters.md
+consulted: notes/domain-model-separation.md, notes/architecture-adapters.md, notes/architecture-ports.md
 informed: plan/IMPLEMENTATION_PLAN.md
 ---
 
@@ -223,7 +223,7 @@ clear and avoids implementing delivery against a still-changing DataLayer.
 
 - `notes/domain-model-separation.md` — "Per-Actor DataLayer Isolation Options"
   and "Production Path: MongoDB Community Edition" sections.
-- `notes/architecture-ports-and-adapters.md` — "Dispatch vs Emit Terminology"
+- `notes/architecture-ports.md` — "Dispatch vs Emit Terminology"
   and port/adapter separation rationale.
 - `plan/IMPLEMENTATION_PLAN.md` — ACT-1, ACT-2, ACT-3, VCR-014, OX-1.1–OX-1.4.
 - `specs/case-management.yaml` — CM-01-001 (actor isolation requirement).

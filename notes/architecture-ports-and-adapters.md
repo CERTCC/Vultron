@@ -1,9 +1,12 @@
 ---
 title: Architecture Spec
-status: active
+status: superseded
+superseded_by: notes/architecture-hexagonal.md
 description: "Hexagonal Architecture (Ports and Adapters): core domain isolation, layer rules, adapter patterns, and violation inventory."
 related_notes:
   - notes/federation_ideas.md
+  - notes/architecture-ports.md
+  - notes/architecture-adapters.md
 relevant_packages:
   - fastapi
   - pydantic
@@ -14,6 +17,11 @@ relevant_packages:
 ---
 
 # Architecture Spec
+
+> **Superseded note:** This monolithic note is retained as a historical
+> landmark. New architecture guidance is split across:
+> `notes/architecture-hexagonal.md`, `notes/architecture-ports.md`, and
+> `notes/architecture-adapters.md`.
 
 ## Overview
 
