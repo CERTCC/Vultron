@@ -410,3 +410,48 @@ def test_get_failure_reason_finds_first_failing_child():
     root.tick_once()
     result = BTBridge.get_failure_reason(root)
     assert result == "Failure"
+
+
+# Log-level tests
+
+
+def test_final_bt_state_logged_at_info_on_success(
+    bridge, test_actor_id, caplog
+):
+    """Final BT state tree visualization is logged at INFO on SUCCESS."""
+    import logging
+
+    tree = AlwaysSucceed()
+    bt = bridge.setup_tree(tree=tree, actor_id=test_actor_id)
+
+    with caplog.at_level(logging.DEBUG):
+        bridge.execute_tree(bt)
+
+    final_state_records = [
+        r for r in caplog.records if "Final BT state" in r.message
+    ]
+    assert final_state_records, "Expected 'Final BT state' log entry"
+    assert all(
+        r.levelno == logging.INFO for r in final_state_records
+    ), f"Expected INFO but got {final_state_records[0].levelname}"
+
+
+def test_final_bt_state_logged_at_info_on_failure(
+    bridge, test_actor_id, caplog
+):
+    """Final BT state tree visualization is logged at INFO on FAILURE."""
+    import logging
+
+    tree = AlwaysFail()
+    bt = bridge.setup_tree(tree=tree, actor_id=test_actor_id)
+
+    with caplog.at_level(logging.DEBUG):
+        bridge.execute_tree(bt)
+
+    final_state_records = [
+        r for r in caplog.records if "Final BT state" in r.message
+    ]
+    assert final_state_records, "Expected 'Final BT state' log entry"
+    assert all(
+        r.levelno == logging.INFO for r in final_state_records
+    ), f"Expected INFO but got {final_state_records[0].levelname}"
