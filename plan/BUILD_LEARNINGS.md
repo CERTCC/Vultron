@@ -32,3 +32,10 @@ The code-review agent identified two tree creation functions in receive_report_c
   and notes. This task updated onboarding docs only; script help-text cleanup
   remains a separate follow-up candidate if those strings become user-facing
   blockers.
+
+### 2026-06-02 ISSUE-663 — Case-actor-only broadcast guard
+
+- `BroadcastStatusToPeersNode` needs the current executing actor to match the
+  Case Manager before it should fan out participant status updates.
+- Tests for the positive broadcast path need a third participant so the case
+  manager has at least one non-sender peer to address.
