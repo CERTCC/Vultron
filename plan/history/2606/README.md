@@ -4,6 +4,7 @@
 
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
+| 2026-06-02 | 17:46 | implementation | ISSUE-667 | Tune logging levels for demo clarity |
 | 2026-06-02 | 17:42 | implementation | 487 | Add actor-subtype example endpoints (#487) |
 | 2026-06-02 | 17:02 | learning | CONCERN-658 | Split notes/architecture-ports-and-adapters.md monolith into focused sub-files |
 | 2026-06-02 | 16:38 | implementation | BUG-659-FIX2 | Bug #659 follow-up — participant_status append-order fix |
