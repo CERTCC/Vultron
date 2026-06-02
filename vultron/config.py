@@ -161,11 +161,19 @@ class AppConfig(BaseSettings):
         server: HTTP server settings.
         database: Database connection settings.
         mode: Operational mode (``prototype`` or ``prod``).
+        pre_bootstrap_queue_timeout_seconds: How long (in seconds) a
+            pre-bootstrap inbox queue is held before it expires.  When the
+            window lapses, queued activity IDs are dropped and a replay
+            ``Question`` is sent to the case creator (CBT-03-003,
+            CBT-03-004).  Override via
+            ``VULTRON_PRE_BOOTSTRAP_QUEUE_TIMEOUT_SECONDS``.  Defaults to
+            300 (5 minutes).
     """
 
     server: ServerConfig = ServerConfig()
     database: DatabaseConfig = DatabaseConfig()
     mode: RunMode = RunMode.PROTOTYPE
+    pre_bootstrap_queue_timeout_seconds: int = 300
 
     model_config = SettingsConfigDict(
         env_prefix="VULTRON_",
