@@ -4,7 +4,6 @@
 
 | Date | Time (UTC) | Type | Source | Title |
 |------|------------|------|--------|-------|
-
 | 2026-06-02 | 16:38 | implementation | BUG-659-FIX2 | Bug #659 follow-up — participant_status append-order fix |
 | 2026-06-02 | 15:22 | implementation | BUG-659 | BUG-659 — Fix SQLite read-after-write staleness causing M4 timeout |
 | 2026-06-02 | 13:41 | implementation | ISSUE-517 | Issue #517 migrate demo HTTP calls from requests to httpx |
