@@ -42,9 +42,9 @@ Invoke the `study-project-docs` skill. It loads all specs, reads all plan/,
 docs/adr/, notes/, AGENTS.md, and scans vultron/ and test/.
 
 To understand what has recently been completed and avoid re-adding finished
-work, read the current month's index at `plan/history/YYMM/README.md` (where
-`YYMM` is the current year-month, e.g. `2604`). Open individual entry files
-only when their titles suggest they contain relevant context.
+work, run `uv run show-history --month YYMM` (replacing `YYMM` with the
+current year-month, e.g. `2604`) to see what has recently been completed.
+Open individual entry files only when their titles suggest relevant context.
 
 ### Phase 1b — Resolve GitHub Issues
 

@@ -216,10 +216,11 @@ change warrants a new ADR, a new spec entry, or both.
 4. `build-docs` — only when `docs/` files were modified
 5. `commit` skill — include Co-authored-by trailer
 
-**Always stage `plan/history/` when `append-history` was called.** The tool
-creates a new entry file and regenerates `plan/history/YYMM/README.md` — both
-are untracked until staged. Omitting them is the most common cause of history
-files being left out of PRs.
+**Always stage the new entry file when `append-history` was called.** The tool
+creates a new entry file under `plan/history/YYMM/<type>/` — stage it with
+`git add plan/history/`. The monthly `plan/history/YYMM/README.md` is
+**gitignored**; do **not** stage it. Omitting the entry file is the most
+common cause of history files being left out of PRs.
 
 See each skill's SKILL.md for the exact commands. If the pre-commit hook
 reformats files: `git add -A && git commit -m "Same message"`.

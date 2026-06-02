@@ -123,9 +123,9 @@ open GitHub Concern issues:
    but are not yet in `AGENTS.md`.
 5. Open GitHub `type:Concern` issues that reveal missing spec requirements or
    durable design notes.
-6. Recent completed-task insights — when needed, read relevant monthly index
-   files in `plan/history/` (e.g., `plan/history/YYMM/README.md`) to identify
-   which history entries contain architectural lessons, then open those files.
+6. Recent completed-task insights — when needed, run `uv run show-history
+   --month YYMM` to identify which history entries contain architectural
+   lessons, then open those entry files.
 
 ### Phase 3 — Interview with Grill-Me
 

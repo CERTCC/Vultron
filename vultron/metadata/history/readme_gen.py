@@ -1,7 +1,12 @@
 """README generator for monthly history directories.
 
-Scans ``plan/history/YYMM/`` for entry files, reads their YAML frontmatter,
-and writes a summary table to ``plan/history/YYMM/README.md``.
+Scans ``plan/history/YYMM/<type>/`` subdirectories for entry files, reads
+their YAML frontmatter, and produces a summary table.  The table may be
+written to ``plan/history/YYMM/README.md`` (via :func:`regenerate_readme`)
+or printed to stdout (via :func:`format_month_index`).
+
+Monthly ``README.md`` files are **not committed to git** — they are local
+generated artifacts.  Use ``uv run show-history`` to view the index on demand.
 
 See ``specs/history-management.yaml`` HM-01-003, HM-02-004, HM-03-006,
 HM-06-006.
@@ -17,6 +22,7 @@ import frontmatter
 from pydantic import ValidationError
 
 from vultron.metadata.history.models import HistoryEntryFrontmatter
+from vultron.metadata.history.types import HistoryEntryType
 
 
 @dataclass
@@ -81,23 +87,39 @@ def _month_label(yymm: str) -> str:
         return yymm
 
 
-def regenerate_readme(month_dir: Path) -> Path:
-    """Scan *month_dir* for entry files and write a summary README.
+def _collect_entries(month_dir: Path) -> list[_EntryMeta]:
+    """Scan *month_dir* for entry files and return parsed metadata.
+
+    Only scans known :class:`~vultron.metadata.history.types.HistoryEntryType`
+    subdirectories (``idea/``, ``implementation/``, ``learning/``,
+    ``priority/``).  Subdirectories with other names (e.g. ``report/``) are
+    intentionally skipped so that non-standard frontmatter does not crash the
+    generator (HM-03-006).
+    """
+    entries: list[_EntryMeta] = []
+    for entry_type in HistoryEntryType:
+        type_dir = month_dir / entry_type.value
+        if not type_dir.is_dir():
+            continue
+        for md_file in sorted(type_dir.glob("*.md")):
+            meta = _parse_entry(md_file)
+            entries.append(meta)
+    return entries
+
+
+def format_month_index(month_dir: Path) -> str:
+    """Return a markdown history index table for *month_dir* as a string.
+
+    Scans all known-type entry files, sorts them by timestamp descending, and
+    returns a formatted markdown table with a heading.  Does not write to disk.
 
     Args:
         month_dir: Path to ``plan/history/YYMM/``.
 
     Returns:
-        Path to the written ``README.md`` file.
+        Markdown string (heading + table).
     """
-    readme_path = month_dir / "README.md"
-    entries: list[_EntryMeta] = []
-
-    for md_file in sorted(month_dir.rglob("*.md")):
-        if md_file.name == "README.md":
-            continue
-        meta = _parse_entry(md_file)
-        entries.append(meta)
+    entries = _collect_entries(month_dir)
 
     # Sort by timestamp descending (HM-06-006).
     entries.sort(key=lambda e: e.timestamp, reverse=True)
@@ -124,5 +146,22 @@ def regenerate_readme(month_dir: Path) -> Path:
             f" | {_cell(entry.source)} | {_cell(entry.title)} |"
         )
 
-    readme_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return "\n".join(lines) + "\n"
+
+
+def regenerate_readme(month_dir: Path) -> Path:
+    """Scan *month_dir* for entry files and write a summary README.
+
+    Delegates formatting to :func:`format_month_index` and writes the result
+    to ``plan/history/YYMM/README.md``.  The generated file is gitignored and
+    serves only as a local convenience cache.
+
+    Args:
+        month_dir: Path to ``plan/history/YYMM/``.
+
+    Returns:
+        Path to the written ``README.md`` file.
+    """
+    readme_path = month_dir / "README.md"
+    readme_path.write_text(format_month_index(month_dir), encoding="utf-8")
     return readme_path

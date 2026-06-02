@@ -55,6 +55,6 @@ Commit message conventions:
 - Never amend an existing commit unless the user explicitly asks.
 - Run all validation (`format-code`, `run-linters`, `run-tests`,
   `format-markdown`) and complete all finalization before calling this skill.
-- **Always include `plan/history/` when `append-history` was called** — the
-  tool creates new entry files and regenerates `plan/history/YYMM/README.md`;
-  both must be staged.
+- **Always stage the new entry file when `append-history` was called** — the
+  tool creates a new file under `plan/history/YYMM/<type>/`; stage it with
+  `git add plan/history/`. The monthly `README.md` is gitignored — do not stage it.
