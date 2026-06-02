@@ -297,12 +297,38 @@ def wait_for_participant_vfd_state(
     )
 
     deadline = time.monotonic() + timeout_seconds
+    poll_count = 0
     while time.monotonic() < deadline:
+        poll_count += 1
         participant = _fetch_participant(client, case_id, actor_id)
         if participant is not None:
             latest = participant.participant_status
+            n_statuses = len(participant.participant_statuses or [])
+            latest_vfd = latest.vfd_state if latest is not None else None
+            latest_rm = latest.rm_state if latest is not None else None
+            logger.debug(
+                "wait_for_participant_vfd_state poll #%d: "
+                "actor=%r case=%r participant=%r "
+                "n_statuses=%d latest_vfd=%r latest_rm=%r expected=%r",
+                poll_count,
+                actor_id,
+                case_id,
+                participant.id_,
+                n_statuses,
+                latest_vfd,
+                latest_rm,
+                expected_states,
+            )
             if latest is not None and latest.vfd_state in expected_states:
                 return
+        else:
+            logger.debug(
+                "wait_for_participant_vfd_state poll #%d: "
+                "actor=%r case=%r participant=<not found>",
+                poll_count,
+                actor_id,
+                case_id,
+            )
         time.sleep(poll_interval)
 
     participant = _fetch_participant(client, case_id, actor_id)

@@ -87,6 +87,35 @@ class QueueEntry(SQLModel, table=True):
     activity_id: str
 
 
+def _participant_status_summary(data: Any) -> str:
+    """Return a short debug summary of a CaseParticipant row's status list.
+
+    Used by adapter logging on read/save to make read-after-write
+    visibility issues directly diagnosable from container logs without
+    dumping full JSON. Returns ``""`` (empty string) for non-participant
+    rows or malformed data so callers can branch cheaply.
+    """
+    if not isinstance(data, dict):
+        return ""
+    statuses = data.get("participant_statuses") or data.get(
+        "participantStatuses"
+    )
+    if not isinstance(statuses, list):
+        return ""
+    if not statuses:
+        return "n_statuses=0"
+    last = statuses[-1]
+    if not isinstance(last, dict):
+        return f"n_statuses={len(statuses)}"
+    return (
+        f"n_statuses={len(statuses)} "
+        f"last_vfd={last.get('vfd_state') or last.get('vfdState')!r} "
+        f"last_rm={last.get('rm_state') or last.get('rmState')!r} "
+        f"last_pub={last.get('published')!r} "
+        f"last_upd={last.get('updated')!r}"
+    )
+
+
 def _json_default(obj: Any) -> Any:
     """JSON encoder fallback that serializes ``datetime`` / ``date`` objects."""
     if isinstance(obj, (datetime, date)):
@@ -484,6 +513,16 @@ class SqliteDataLayer:
                 )
                 row = session.exec(stmt).first()
                 if row is not None:
+                    if row.type_ == "CaseParticipant":
+                        summary = _participant_status_summary(row.data)
+                        logger.debug(
+                            "DataLayer read CaseParticipant '%s' (row "
+                            "actor_id=%r dl_actor_id=%r): %s",
+                            row.id_,
+                            row.actor_id,
+                            self._actor_id,
+                            summary,
+                        )
                     obj = self._from_row(row)
                     if obj is not None:
                         return obj
@@ -609,6 +648,13 @@ class SqliteDataLayer:
             session.add(row)
             session.commit()
         logger.info("DataLayer saved %s '%s'", rec.type_, rec.id_)
+        if rec.type_ == "CaseParticipant":
+            logger.debug(
+                "DataLayer saved CaseParticipant '%s' (dl_actor_id=%r): %s",
+                rec.id_,
+                self._actor_id,
+                _participant_status_summary(rec.data_),
+            )
 
     def delete(self, table: str, id_: str) -> bool:
         """Delete a record by type and ID.
