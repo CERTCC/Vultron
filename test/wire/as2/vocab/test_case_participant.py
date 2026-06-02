@@ -203,5 +203,89 @@ class TestCaseParticipantNameField(unittest.TestCase):
         assert "must be a non-empty string" in str(exc_info.value)
 
 
+class TestParticipantStatusProperty(unittest.TestCase):
+    """Tests for CaseParticipant.participant_status selection (bug #659).
+
+    The property must return the most recently *appended* status, which
+    represents this replica's current view. Wire-layer timestamps
+    (``published``/``updated``) on appended statuses are sender-authored
+    and cannot be relied on to order strictly after locally-constructed
+    defaults (e.g. the initial vfd status auto-created by
+    ``init_participant_status_if_empty``).
+    """
+
+    def setUp(self):
+        from datetime import datetime, timezone
+
+        from vultron.core.states.cs import CS_vfd
+        from vultron.core.states.rm import RM
+        from vultron.wire.as2.vocab.objects.case_status import (
+            ParticipantStatus,
+        )
+
+        self.CS_vfd = CS_vfd
+        self.RM = RM
+        self.ParticipantStatus = ParticipantStatus
+        self.dt = datetime
+        self.tz = timezone
+        self.actor_id = "https://example.org/actors/vendor"
+        self.case_id = "https://example.org/cases/case-001"
+
+    def test_returns_last_appended_even_when_earlier_status_has_newer_timestamp(
+        self,
+    ):
+        """Bug #659: tiebreaker must prefer append-order over timestamp.
+
+        Initial vfd status is created locally with ``published=now()``.
+        A subsequently appended VFd status carries a sender-supplied
+        ``published`` that may be *earlier* than the local initial value
+        (clock skew, batched processing, etc.). The property must still
+        return the appended VFd entry.
+        """
+        appended = self.ParticipantStatus(
+            context=self.case_id,
+            attributed_to=self.actor_id,
+            rm_state=self.RM.ACCEPTED,
+            vfd_state=self.CS_vfd.VFd,
+            published=self.dt(2026, 6, 2, 16, 26, 48, tzinfo=self.tz.utc),
+            updated=self.dt(2026, 6, 2, 16, 26, 48, tzinfo=self.tz.utc),
+        )
+        # Construct participant with empty list so the validator creates
+        # the initial vfd with published=now() (which will be > appended's).
+        participant = CaseParticipant(
+            attributed_to=self.actor_id, context=self.case_id
+        )
+        self.assertEqual(1, len(participant.participant_statuses))
+        participant.participant_statuses.append(appended)
+
+        latest = participant.participant_status
+        self.assertIsNotNone(latest)
+        assert latest is not None  # narrow for type checker
+        self.assertEqual(self.CS_vfd.VFd, latest.vfd_state)
+        self.assertEqual(self.RM.ACCEPTED, latest.rm_state)
+
+    def test_returns_none_when_empty(self):
+        """participant_status returns None when the list is empty."""
+        participant = CaseParticipant(
+            attributed_to=self.actor_id, context=self.case_id
+        )
+        # init_participant_status_if_empty populates one status by default;
+        # explicitly clear to exercise the empty branch.
+        participant.participant_statuses = []
+        self.assertIsNone(participant.participant_status)
+
+    def test_returns_single_status_when_only_one_present(self):
+        only = self.ParticipantStatus(
+            context=self.case_id,
+            attributed_to=self.actor_id,
+        )
+        participant = CaseParticipant(
+            attributed_to=self.actor_id,
+            context=self.case_id,
+            participant_statuses=[only],
+        )
+        self.assertIs(only, participant.participant_status)
+
+
 if __name__ == "__main__":
     unittest.main()
