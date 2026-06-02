@@ -107,11 +107,17 @@ Do **not** write anything until grill-me is complete.
 If Phase 3 established a concrete spec, notes, or `AGENTS.md` gap (i.e.,
 Phase 4 will produce file writes), create the task branch **now** — before
 writing any files — so uncommitted changes are never at risk of being
-clobbered by `freshen`:
+clobbered by `git reset --hard`:
 
 ```bash
-FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
-[ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
+SCRIPT="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
+if [ -f "$SCRIPT" ]; then
+  bash "$SCRIPT" ensure-synced || { echo "❌ Aborted — sync check failed." >&2; exit 1; }
+else
+  git fetch origin --quiet 2>/dev/null || true
+  BEHIND=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+  [ "$BEHIND" -gt 0 ] && { echo "❌ Aborted: $BEHIND commit(s) behind origin/main. Run: git rebase origin/main" >&2; exit 1; }
+fi
 git switch -c ingest/concern-${CONCERN_NUMBER}-<slug>
 ```
 
