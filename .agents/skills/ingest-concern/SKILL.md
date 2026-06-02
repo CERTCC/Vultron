@@ -219,7 +219,7 @@ gh pr create --repo CERTCC/Vultron \
   --body "Docs-only PR: addresses concern #${CONCERN_NUMBER} at the spec/notes
 level. ${IMPL_REFS}.
 
-Ref #${CONCERN_NUMBER}
+Closes #${CONCERN_NUMBER}
 
 No .py files changed." \
   --label "specs-notes"
@@ -255,7 +255,12 @@ Root cause and fix plan captured via grill-me session.
 $([ -n "${SPEC_FILE}" ] && echo "Spec: \`specs/${SPEC_FILE}\`.")
 $([ -n "${NOTES_FILE}" ] && echo "Notes: \`notes/${NOTES_FILE}\`.")"
 
-gh issue close "${CONCERN_NUMBER}" --repo CERTCC/Vultron
+# Only close directly when no docs PR was opened.
+# If a PR was created, `Closes #N` in the PR body closes the concern on merge —
+# closing it directly here would prematurely close it if the PR is later rejected.
+if [ -z "${PR_URL}" ]; then
+  gh issue close "${CONCERN_NUMBER}" --repo CERTCC/Vultron
+fi
 ```
 
 ---
@@ -276,8 +281,9 @@ gh issue close "${CONCERN_NUMBER}" --repo CERTCC/Vultron
   changes)
 - [ ] Concern archived via `archive-history` skill (after PR creation, so
   entry body includes PR URL); history files staged and pushed to branch
-- [ ] Concern issue commented with impl issue(s) + optional PR URL, then
-  closed
+- [ ] Concern issue commented with impl issue(s) + optional PR URL; closed
+  **directly** only when no docs PR was opened — if a docs PR was opened,
+  the `Closes #N` keyword in the PR body closes the concern on merge
 
 ---
 
