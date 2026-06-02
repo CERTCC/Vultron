@@ -66,14 +66,26 @@ bug is being fixed and why.
    - One-sentence description of the observed vs. expected behaviour
    - The file(s) / component(s) most likely involved
 6. **Claim the issue**:
-   - Freshen the worktree slot if running in one:
+   - Ensure the worktree is synced to `origin/main` before branching:
 
      ```bash
-     FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
-     [ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
-     ```
+     SCRIPT="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
+     if [ -f "$SCRIPT" ]; then
+       bash "$SCRIPT" ensure-synced || { echo "❌ Bugfix aborted — sync check failed." >&2; exit 1; }
+     else
+       git fetch origin --quiet 2>/dev/null || true
+       BEHIND=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+       if [ "$BEHIND" -gt 0 ]; then
+         echo "❌ Bugfix aborted: $BEHIND commit(s) behind origin/main. Run: git rebase origin/main" >&2
+         exit 1
+       fi
+     fi
+     ```text
+
+     If `ensure-synced` exits non-zero, **abort immediately** — do not create the bug branch.
 
    - Create a branch: `git switch -c bug/<issue-number>-<slug>`
+
    - If the branch already exists, abort — the bug is already claimed.
    - Assign the issue to the triggering user:
      `gh issue edit <N> --add-assignee @me --repo CERTCC/Vultron`

@@ -31,7 +31,7 @@ entries that should be promoted into durable docs.
 
 ## Quick Start
 
-1. **Freshen** the worktree slot (before any writes): `manage_worktree.sh freshen`
+1. **Ensure synced** (before any writes): `manage_worktree.sh ensure-synced`
 2. Invoke `acquire-codebase-knowledge` — full scan, refreshes all 7 docs
    in `docs/reference/codebase/`.
 3. Read `plan/BUILD_LEARNINGS.md` and query GitHub for open `type:Concern`
@@ -43,7 +43,7 @@ entries that should be promoted into durable docs.
    Include GitHub Concern issue triage in this phase (no separate triage step
    needed).
 7. **Create the task branch**: `git switch -c learn/<YYYYMMDD>-<slug>`
-   (worktree was already freshened in step 1; branch here after slug is known)
+   (worktree was already synced in step 1; branch here after slug is known)
 8. Write to `specs/`, `notes/`, and `AGENTS.md`.
 9. Archive each processed BUILD_LEARNINGS entry and each resolved Concern issue
    via `uv run append-history learning`; delete BUILD_LEARNINGS entries from
@@ -55,14 +55,20 @@ entries that should be promoted into durable docs.
 
 ## Workflow
 
-### Phase 0 — Freshen and Refresh Codebase Knowledge
+### Phase 0 — Sync and Refresh Codebase Knowledge
 
-**First, freshen the worktree slot** (if running in a `wt/*` slot) so
-all subsequent writes land on a clean, up-to-date baseline:
+**First, ensure the worktree is synced to `origin/main`** before any file
+writes, so all subsequent changes land on an up-to-date baseline:
 
 ```bash
-FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
-[ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
+SCRIPT="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
+if [ -f "$SCRIPT" ]; then
+  bash "$SCRIPT" ensure-synced || { echo "❌ Aborted — sync check failed." >&2; exit 1; }
+else
+  git fetch origin --quiet 2>/dev/null || true
+  BEHIND=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+  [ "$BEHIND" -gt 0 ] && { echo "❌ Aborted: $BEHIND commit(s) behind origin/main. Run: git rebase origin/main" >&2; exit 1; }
+fi
 ```text
 
 Do this **before** `acquire-codebase-knowledge` runs — the scan regenerates
@@ -143,7 +149,7 @@ Answer questions from codebase exploration where possible.
 git switch -c learn/<YYYYMMDD>-<slug>
 ```text
 
-The worktree was already freshened in Phase 0. All file writes (Phases 4–7)
+The worktree was already synced to `origin/main` in Phase 0. All file writes (Phases 4–7)
 happen on this branch so they are never at risk from a `git reset --hard`.
 
 ### Phase 4 — Refine Specifications (`specs/`)

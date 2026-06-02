@@ -63,12 +63,23 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
    (`method: get` then `method: get_comments`). Use the combined content as
    implementation context throughout Phases 3–5.
 5. **Claim the Issue**:
-   - Freshen the worktree slot if running in one:
+   - Ensure the worktree is synced to `origin/main` before branching:
 
      ```bash
-     FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
-     [ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
+     SCRIPT="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
+     if [ -f "$SCRIPT" ]; then
+       bash "$SCRIPT" ensure-synced || { echo "❌ Build aborted — sync check failed." >&2; exit 1; }
+     else
+       git fetch origin --quiet 2>/dev/null || true
+       BEHIND=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+       if [ "$BEHIND" -gt 0 ]; then
+         echo "❌ Build aborted: $BEHIND commit(s) behind origin/main. Run: git rebase origin/main" >&2
+         exit 1
+       fi
+     fi
      ```text
+
+     If `ensure-synced` exits non-zero, **abort immediately** — do not create the task branch.
 
    - Create a branch: `git switch -c task/<issue-number>-<slug>`
 

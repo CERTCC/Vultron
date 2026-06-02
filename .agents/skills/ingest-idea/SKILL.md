@@ -97,14 +97,20 @@ for each question. Reach shared understanding before writing anything.
 
 ### 4b. Create the task branch
 
-**Do this before writing any files.** Freshen the slot to the latest
-`origin/main`, then create the task branch. All file writes (steps 5–7)
+**Do this before writing any files.** Ensure the worktree is synced to the
+latest `origin/main`, then create the task branch. All file writes (steps 5–7)
 happen on this branch so they are never at risk from a subsequent
 `git reset --hard`:
 
 ```bash
-FRESHEN="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
-[ -f "$FRESHEN" ] && bash "$FRESHEN" freshen
+SCRIPT="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
+if [ -f "$SCRIPT" ]; then
+  bash "$SCRIPT" ensure-synced || { echo "❌ Aborted — sync check failed." >&2; exit 1; }
+else
+  git fetch origin --quiet 2>/dev/null || true
+  BEHIND=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+  [ "$BEHIND" -gt 0 ] && { echo "❌ Aborted: $BEHIND commit(s) behind origin/main. Run: git rebase origin/main" >&2; exit 1; }
+fi
 git switch -c ingest/idea-<IDEA_NUMBER>-<slug>
 ```text
 
