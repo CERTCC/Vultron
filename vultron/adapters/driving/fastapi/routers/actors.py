@@ -49,20 +49,19 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Actor,
-    as_Application,
-    as_Group,
 )
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.collections import (
     as_OrderedCollection,
 )
-from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 from vultron.wire.as2.errors import (
     VultronParseError,
     VultronParseMissingTypeError,
 )
 from vultron.wire.as2.parser import parse_activity as _parse_activity
 from vultron.wire.as2.vocab.objects.vultron_actor import (
+    VultronApplication,
+    VultronGroup,
     VultronOrganization,
     VultronPerson,
     VultronService,
@@ -75,14 +74,13 @@ router = APIRouter(prefix="/actors", tags=["Actors"])
 
 @router.get(
     "/",
-    response_model=list[as_Actor],
     response_model_exclude_none=True,
     description="Returns a list of Actor examples.",
     operation_id="actors_list",
 )
 def get_actors(
     datalayer: DataLayer = Depends(get_shared_dl),
-) -> list[as_Actor]:
+):
     """Returns a list of Actor examples."""
     types = [
         "Actor",
@@ -100,15 +98,78 @@ def get_actors(
 
     objects: list[as_Actor] = []
     for rec in results:
-        try:
-            cls = find_in_vocabulary(rec["type_"])
-        except KeyError:
-            continue
-        obj = cls.model_validate(rec["data_"])
+        cls = _actor_class_for_record(rec)
+        obj = cls.model_validate(rec.get("data_", {}))
         if isinstance(obj, as_Actor):
             objects.append(obj)
 
-    return objects
+    return [
+        o.model_dump(mode="json", by_alias=True, exclude_none=True)
+        for o in objects
+    ]
+
+
+_ACTOR_RECORD_TYPES = [
+    "Actor",
+    "Application",
+    "Group",
+    "Organization",
+    "Person",
+    "Service",
+]
+
+
+def _find_actor_record_by_id(
+    datalayer: DataLayer, actor_id: str
+) -> dict[str, object] | None:
+    for actor_type in _ACTOR_RECORD_TYPES:
+        rec = datalayer.get(actor_type, actor_id)
+        if isinstance(rec, dict):
+            return rec
+    return None
+
+
+def _actor_class_for_record(rec: dict[str, Any]) -> type[as_Actor]:
+    data = rec.get("data_", {})
+    payload_type = None
+    if isinstance(data, dict):
+        payload_type = data.get("type_") or data.get("type")
+
+    if isinstance(payload_type, str) and payload_type in _ACTOR_TYPE_MAP:
+        return _ACTOR_TYPE_MAP[payload_type]
+
+    record_type = rec.get("type_")
+    if isinstance(record_type, str) and record_type in _ACTOR_TYPE_MAP:
+        return _ACTOR_TYPE_MAP[record_type]
+
+    return as_Actor
+
+
+def _find_actor_record(
+    datalayer: DataLayer, actor_id: str
+) -> dict[str, object] | None:
+    """Return raw actor record for full-ID or short-ID lookup."""
+    rec = _find_actor_record_by_id(datalayer, actor_id)
+    if rec is not None:
+        return rec
+
+    # Preserve DataLayer.read() fallback behavior (e.g., bare UUID -> urn:uuid:).
+    resolved = datalayer.read(actor_id)
+    if resolved is not None:
+        resolved_id = getattr(resolved, "id_", None)
+        if isinstance(resolved_id, str):
+            rec = _find_actor_record_by_id(datalayer, resolved_id)
+            if rec is not None:
+                return rec
+
+    for actor_type in _ACTOR_RECORD_TYPES:
+        for candidate in datalayer.get_all(actor_type):
+            rec_id = candidate.get("id_")
+            if isinstance(rec_id, str) and (
+                rec_id == actor_id or rec_id.endswith(f"/{actor_id}")
+            ):
+                return candidate
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -119,8 +180,8 @@ _ACTOR_TYPE_MAP: dict[str, type[as_Actor]] = {
     "Person": VultronPerson,
     "Organization": VultronOrganization,
     "Service": VultronService,
-    "Application": as_Application,
-    "Group": as_Group,
+    "Application": VultronApplication,
+    "Group": VultronGroup,
 }
 
 
@@ -167,23 +228,25 @@ def create_actor(
     request: ActorCreateRequest,
     response: Response,
     datalayer: DataLayer = Depends(get_shared_dl),
-) -> as_Actor:
+):
     """Create (or return existing) actor record."""
     actor_id = request.id_ or make_id("actors")
 
     # Idempotency: return existing record unchanged.
-    existing = datalayer.read(actor_id)
-    if existing is None:
-        existing = datalayer.find_actor_by_short_id(actor_id)
+    existing = _find_actor_record(datalayer, actor_id)
     if existing is not None:
         response.status_code = status.HTTP_200_OK
-        return as_Actor.model_validate(existing)
+        cls = _actor_class_for_record(existing)
+        data = existing.get("data_", {})
+        return cls.model_validate(data).model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        )
 
     actor_cls = _ACTOR_TYPE_MAP.get(request.actor_type, VultronOrganization)
     actor = actor_cls(id_=actor_id, name=request.name)
     datalayer.create(object_to_record(cast(PersistableModel, actor)))
     logger.info("Created actor %s (type=%s)", actor_id, request.actor_type)
-    return actor
+    return actor.model_dump(mode="json", by_alias=True, exclude_none=True)
 
 
 @router.get(
@@ -207,17 +270,14 @@ def get_actor_profile(
     The `inbox` and `outbox` fields are returned as URL strings, not
     embedded collection objects.
     """
-    actor = datalayer.read(actor_id)
-
-    if not actor:
-        actor = datalayer.find_actor_by_short_id(actor_id)
-
-    if not actor:
+    actor_record = _find_actor_record(datalayer, actor_id)
+    if not actor_record:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
         )
 
-    as_actor = as_Actor.model_validate(actor)
+    actor_cls = _actor_class_for_record(actor_record)
+    as_actor = actor_cls.model_validate(actor_record.get("data_", {}))
     profile = as_actor.model_dump(by_alias=True, exclude_none=True)
     profile["inbox"] = as_actor.inbox.id_
     profile["outbox"] = as_actor.outbox.id_
@@ -521,28 +581,24 @@ def post_actor_outbox(
 
 @router.get(
     "/{actor_id:path}",
-    response_model=as_Actor,
     response_model_exclude_none=True,
     description="Returns an Actor by full ID including HTTP URL IDs.",
     operation_id="actors_get",
 )
-def get_actor(
-    actor_id: str, datalayer: DataLayer = Depends(get_shared_dl)
-) -> as_Actor:
+def get_actor(actor_id: str, datalayer: DataLayer = Depends(get_shared_dl)):
     """Returns an Actor by actor_id.
 
     Accepts any actor ID including HTTP URL IDs with percent-encoded slashes.
     Falls back to short-ID resolution for backwards compatibility.
     """
-    actor = datalayer.read(actor_id)
-
-    # If not found by full ID, try to resolve as short ID
-    if not actor:
-        actor = datalayer.find_actor_by_short_id(actor_id)
-
+    actor = _find_actor_record(datalayer, actor_id)
     if not actor:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
         )
 
-    return as_Actor.model_validate(actor)
+    cls = _actor_class_for_record(actor)
+    data = actor.get("data_", {})
+    return cls.model_validate(data).model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
