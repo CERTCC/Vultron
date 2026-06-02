@@ -49,7 +49,7 @@ ENDOFENTRY
 ```text
 
 The tool writes `plan/history/YYMM/<type>/<source>.md` and regenerates
-`plan/history/YYMM/README.md`.
+`plan/history/YYMM/README.md` locally (the README is gitignored).
 
 ### Step 2 — Lint the new history files
 
