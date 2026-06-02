@@ -120,3 +120,41 @@ groups:
     statement: >-
       If an outbound activity carries non-empty `cc:`, `bto:`, or `bcc:` fields, the outbox
       handler SHOULD log a WARNING
+- id: OX-09
+  title: Outbox Monitor Efficiency
+  rationale: >-
+    Fixed-interval polling grows O(N) with actor count: every tick iterates all registered
+    actor DataLayers regardless of queue depth. Event-driven wakeup eliminates idle
+    iteration cost and scales to large deployments.
+  specs:
+  - id: OX-09-001
+    priority: SHOULD
+    statement: >-
+      The outbox monitor SHOULD use event-driven wakeup so that it drains actor outboxes
+      immediately when an activity is enqueued, rather than waiting for the next fixed
+      polling interval
+    rationale: >-
+      Reduces median delivery latency from up to poll_interval to near-zero at no extra
+      CPU cost
+  - id: OX-09-002
+    priority: MUST
+    statement: >-
+      Even when event-driven wakeup is enabled, the outbox monitor MUST retain a
+      safety-net polling interval so that outbox items are eventually delivered even if
+      an enqueue notification is missed
+  - id: OX-09-003
+    priority: SHOULD
+    statement: >-
+      The enqueue notification mechanism SHOULD be injected into the DataLayer adapter as
+      a callback so that the DataLayer does not import from the monitor layer
+    rationale: Preserves the hexagonal architecture boundary between driven adapters
+  - id: OX-09-004
+    priority: SHOULD
+    statement: >-
+      The outbox monitor SHOULD log the total number of pending outbox items across all
+      actors at DEBUG level on each drain pass
+  - id: OX-09-005
+    priority: SHOULD
+    statement: >-
+      If any single actor's outbox depth exceeds a configurable threshold, the outbox
+      monitor SHOULD emit a WARNING-level log entry identifying the actor and depth
