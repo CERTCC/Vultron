@@ -30,7 +30,7 @@ from http import HTTPMethod
 from typing import Any, Generator, Optional, Sequence, Tuple, cast
 
 # Third-party imports
-import requests  # type: ignore[import-untyped]
+import httpx
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 
@@ -150,7 +150,7 @@ def postfmt(obj: object) -> dict[str, object]:
 class DataLayerClient(BaseModel):
     """HTTP client for the Vultron DataLayer REST API.
 
-    Wraps ``requests`` with convenience methods for GET, PUT, POST, and DELETE
+    Wraps ``httpx`` with convenience methods for GET, PUT, POST, and DELETE
     calls to the DataLayer endpoint, with automatic JSON parsing and error logging.
     """
 
@@ -162,29 +162,27 @@ class DataLayerClient(BaseModel):
         Args:
             method: HTTP method (GET, PUT, POST, DELETE).
             path: API path relative to ``base_url``.
-            **kwargs: Additional keyword arguments forwarded to ``requests.request``.
+            **kwargs: Additional keyword arguments forwarded to ``httpx.request``.
 
         Returns:
             Parsed JSON response body as a dict.
 
         Raises:
-            requests.HTTPError: When the response status is not OK.
+            httpx.HTTPStatusError: When the response status is not OK.
         """
         if method.upper() not in HTTPMethod.__members__:
             raise ValueError(f"Unsupported HTTP method: {method}")
 
         url = f"{self.base_url}{path}"
         logger.debug(f"Calling {method.upper()} {url}")
-        response = requests.request(method, url, **kwargs)
+        response = httpx.request(method, url, **kwargs)
         logger.debug(f"Response status: {response.status_code}")
 
         data = {}
         try:
             data = response.json()
             logger.debug(f"Response JSON: {json.dumps(data, indent=2)}")
-        except requests.exceptions.HTTPError as e:
-            logger.error(f"HTTP error: {e}")
-        except Exception as e:
+        except ValueError as e:
             logger.error(f"Exception: {e}")
             logger.error(f"Response text: {response.text}")
 
@@ -193,7 +191,7 @@ class DataLayerClient(BaseModel):
                 f"HTTP 404 from {response.url} ({method.upper()} {path})"
             )
 
-        if not response.ok:
+        if not response.is_success:
             logger.error(f"Error response: {response.text}")
             response.raise_for_status()
 
@@ -347,7 +345,7 @@ def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
         The retrieved ``as_Object``.
 
     Raises:
-        requests.HTTPError: If the object is not found.
+        httpx.HTTPStatusError: If the object is not found.
     """
 
     def _drop_nulls(value: object) -> object:
@@ -498,12 +496,12 @@ def check_server_availability(
             logger.debug(
                 f"Checking server at: {url} (attempt {attempt + 1}/{max_retries})"
             )
-            response = requests.get(url, timeout=2)
+            response = httpx.get(url, timeout=2)
             if response.status_code == 200:
                 return True
-        except requests.exceptions.ConnectionError:
+        except httpx.ConnectError:
             pass
-        except requests.exceptions.Timeout:
+        except httpx.TimeoutException:
             pass
         except Exception:
             pass
