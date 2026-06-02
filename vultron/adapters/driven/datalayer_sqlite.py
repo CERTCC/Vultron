@@ -32,9 +32,9 @@ from datetime import date, datetime
 from typing import Any, cast
 
 from pydantic import ValidationError
-from sqlalchemy import Column, Engine, func
+from sqlalchemy import Column, Engine, event, func
 from sqlalchemy.dialects.sqlite import JSON
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool, StaticPool
 from sqlmodel import Field, Session, SQLModel, col, create_engine, select
 
 from vultron.adapters.driven.db_record import (
@@ -106,6 +106,14 @@ def _make_engine(db_url: str) -> Engine:
 
     For in-memory databases uses ``StaticPool`` so every connection
     shares the same in-memory database instead of creating a fresh one.
+    For file-backed SQLite uses ``NullPool`` (one fresh connection per
+    ``Session``) and enables WAL mode so that concurrent readers always
+    observe the most recently committed writes. Together these prevent
+    read-after-write staleness in the asyncio + ``BackgroundTasks`` +
+    SQLite combination used by the FastAPI driving adapter, which
+    otherwise can return stale rows for tens of seconds under CI load
+    (see issue #659).
+
     A custom ``json_serializer`` ensures that ``datetime`` values stored in
     JSON columns are serialised as ISO-8601 strings instead of raising
     ``TypeError``.
@@ -120,9 +128,29 @@ def _make_engine(db_url: str) -> Engine:
         "connect_args": {"check_same_thread": False},
         "json_serializer": _json_serializer,
     }
-    if db_url == "sqlite:///:memory:":
+    is_memory = db_url == "sqlite:///:memory:"
+    if is_memory:
         kwargs["poolclass"] = StaticPool
-    return create_engine(db_url, **kwargs)
+    else:
+        # NullPool gives a fresh DB-API connection per Session. This avoids
+        # the SingletonThreadPool default in which a BackgroundTask and a
+        # concurrent GET handler can share one SQLite connection and observe
+        # stale data across transactions.
+        kwargs["poolclass"] = NullPool
+    engine = create_engine(db_url, **kwargs)
+    if not is_memory:
+        # Enable WAL + NORMAL synchronous on every new connection so that
+        # committed writes are immediately visible to subsequent readers.
+        @event.listens_for(engine, "connect")
+        def _set_sqlite_pragmas(dbapi_connection: Any, _record: Any) -> None:
+            cursor = dbapi_connection.cursor()
+            try:
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA synchronous=NORMAL")
+            finally:
+                cursor.close()
+
+    return engine
 
 
 class SqliteDataLayer:
