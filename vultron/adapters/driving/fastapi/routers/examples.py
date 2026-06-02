@@ -16,6 +16,7 @@ Vultron API Object Examples
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import random
+from datetime import timedelta
 
 from fastapi import APIRouter
 
@@ -27,11 +28,32 @@ from vultron.wire.as2.vocab.objects.case_status import (
     ParticipantStatus,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+from vultron.wire.as2.vocab.objects.embargo_policy import EmbargoPolicy
+from vultron.wire.as2.vocab.objects.vultron_actor import (
+    VultronApplication,
+    VultronGroup,
+    VultronOrganization,
+    VultronPerson,
+    VultronService,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
 from vultron.wire.as2.vocab.examples import vocab_examples
+
+_ACTORS_BASE = "https://example.org/actors"
+_PREFERRED_DURATION = timedelta(days=90)
+
+
+def _embargo_policy(actor_id: str) -> EmbargoPolicy:
+    """Build a minimal EmbargoPolicy for the given actor ID."""
+    return EmbargoPolicy(
+        actor_id=actor_id,
+        inbox=f"{actor_id}/inbox",
+        preferred_duration=_PREFERRED_DURATION,
+    )
+
 
 router = APIRouter(
     prefix="/examples",
@@ -69,6 +91,91 @@ def get_example_actor() -> as_Actor:
 def validate_actor(actor: as_Actor) -> as_Actor:
     """Validates an Actor object."""
     return actor
+
+
+@router.get(
+    "/actors/person",
+    response_model=VultronPerson,
+    response_model_exclude_none=True,
+    description="Get an example VultronPerson actor object.",
+    operation_id="examples_get_actor_person",
+)
+def get_example_actor_person() -> VultronPerson:
+    """Returns an example VultronPerson actor with an inline EmbargoPolicy."""
+    actor_id = f"{_ACTORS_BASE}/alice"
+    return VultronPerson(
+        id_=actor_id,
+        name="Alice (Example Person)",
+        embargo_policy=_embargo_policy(actor_id),
+    )
+
+
+@router.get(
+    "/actors/organization",
+    response_model=VultronOrganization,
+    response_model_exclude_none=True,
+    description="Get an example VultronOrganization actor object.",
+    operation_id="examples_get_actor_organization",
+)
+def get_example_actor_organization() -> VultronOrganization:
+    """Returns an example VultronOrganization actor with an inline EmbargoPolicy."""
+    actor_id = f"{_ACTORS_BASE}/acme-inc"
+    return VultronOrganization(
+        id_=actor_id,
+        name="ACME Inc. (Example Organization)",
+        embargo_policy=_embargo_policy(actor_id),
+    )
+
+
+@router.get(
+    "/actors/service",
+    response_model=VultronService,
+    response_model_exclude_none=True,
+    description="Get an example VultronService actor object.",
+    operation_id="examples_get_actor_service",
+)
+def get_example_actor_service() -> VultronService:
+    """Returns an example VultronService actor with an inline EmbargoPolicy."""
+    actor_id = f"{_ACTORS_BASE}/vultron-bot"
+    return VultronService(
+        id_=actor_id,
+        name="Vultron Bot (Example Service)",
+        embargo_policy=_embargo_policy(actor_id),
+    )
+
+
+@router.get(
+    "/actors/application",
+    response_model=VultronApplication,
+    response_model_exclude_none=True,
+    description="Get an example VultronApplication actor object.",
+    operation_id="examples_get_actor_application",
+)
+def get_example_actor_application() -> VultronApplication:
+    """Returns an example VultronApplication actor with an inline EmbargoPolicy."""
+    actor_id = f"{_ACTORS_BASE}/vultron-app"
+    return VultronApplication(
+        id_=actor_id,
+        name="Vultron App (Example Application)",
+        embargo_policy=_embargo_policy(actor_id),
+    )
+
+
+@router.get(
+    "/actors/group",
+    response_model=VultronGroup,
+    response_model_exclude_none=True,
+    description="Get an example VultronGroup actor object.",
+    operation_id="examples_get_actor_group",
+)
+def get_example_actor_group() -> VultronGroup:
+    """Returns an example VultronGroup actor with an inline EmbargoPolicy."""
+    actor_id = f"{_ACTORS_BASE}/security-team"
+    return VultronGroup(
+        id_=actor_id,
+        name="Security Team (Example Group)",
+        embargo_policy=_embargo_policy(actor_id),
+    )
 
 
 @router.get(
