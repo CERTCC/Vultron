@@ -283,10 +283,10 @@ class AppendParticipantStatusNode(DataLayerAction):
 class BroadcastStatusToPeersNode(DataLayerAction):
     """Step 3: Broadcast Add(ParticipantStatus, CaseParticipant) to peers.
 
-    The Case Manager re-sends the status update to all other participants
-    (excluding the original sender).  Skips silently when no
-    ``trigger_activity_factory`` is available or when there are no eligible
-    recipients.
+    The current actor re-sends the status update to all other participants,
+    excluding the original sender, itself, and the Case Manager. Skips
+    silently when no ``trigger_activity_factory`` is available or when there
+    are no eligible recipients.
 
     Always returns SUCCESS (failure to broadcast is not fatal).
 
@@ -342,7 +342,11 @@ class BroadcastStatusToPeersNode(DataLayerAction):
         recipient_ids = [
             a_id
             for a_id in case.actor_participant_index.keys()
-            if a_id != self.sender_actor_id and a_id != case_manager_id
+            if (
+                a_id != self.sender_actor_id
+                and a_id != self.actor_id
+                and a_id != case_manager_id
+            )
         ]
         if not recipient_ids:
             self.logger.debug(

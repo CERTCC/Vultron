@@ -25,6 +25,8 @@ Covers all five DEMOMA-07-003 steps:
 Per specs/multi-actor-demo.yaml DEMOMA-07-003.
 """
 
+from unittest.mock import MagicMock
+
 import py_trees
 import pytest
 from py_trees.common import Status
@@ -336,6 +338,74 @@ class TestBroadcastStatusToPeersNode:
         )
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
+
+    def test_skips_when_current_actor_is_the_only_peer(self, populated_dl):
+        trigger_activity = MagicMock()
+        peer_actor_id = "https://example.org/actors/finder"
+        peer_participant_id = (
+            "https://example.org/cases/case-01/participants/finder"
+        )
+        peer_participant = CaseParticipant(
+            id_=peer_participant_id,
+            context=CASE_ID,
+            attributed_to=peer_actor_id,
+            case_roles=[CVDRole.FINDER],
+        )
+        populated_dl.create(peer_participant)
+        case = populated_dl.read(CASE_ID)
+        assert case is not None
+        case.actor_participant_index[peer_actor_id] = peer_participant_id
+        populated_dl.save(case)
+        bridge = BTBridge(
+            datalayer=populated_dl, trigger_activity=trigger_activity
+        )
+        node = BroadcastStatusToPeersNode(
+            status_id=STATUS_ID,
+            participant_id=PARTICIPANT_ID,
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=peer_actor_id)
+        assert result.status == Status.SUCCESS
+        trigger_activity.add_participant_status_to_participant.assert_not_called()
+
+    def test_broadcasts_from_case_manager_only(self, populated_dl):
+        trigger_activity = MagicMock()
+        trigger_activity.add_participant_status_to_participant.return_value = (
+            "urn:uuid:activity-1"
+        )
+        peer_actor_id = "https://example.org/actors/finder"
+        peer_participant_id = (
+            "https://example.org/cases/case-01/participants/finder"
+        )
+        peer_participant = CaseParticipant(
+            id_=peer_participant_id,
+            context=CASE_ID,
+            attributed_to=peer_actor_id,
+            case_roles=[CVDRole.FINDER],
+        )
+        populated_dl.create(peer_participant)
+        case = populated_dl.read(CASE_ID)
+        assert case is not None
+        case.actor_participant_index[peer_actor_id] = peer_participant_id
+        populated_dl.save(case)
+        bridge = BTBridge(
+            datalayer=populated_dl, trigger_activity=trigger_activity
+        )
+        node = BroadcastStatusToPeersNode(
+            status_id=STATUS_ID,
+            participant_id=PARTICIPANT_ID,
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.SUCCESS
+        trigger_activity.add_participant_status_to_participant.assert_called_once_with(
+            status_id=STATUS_ID,
+            participant_id=PARTICIPANT_ID,
+            actor=CASE_MANAGER_ID,
+            to=[peer_actor_id],
+        )
 
 
 # ---------------------------------------------------------------------------
