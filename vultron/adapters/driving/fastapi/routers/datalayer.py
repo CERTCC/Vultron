@@ -17,6 +17,7 @@ Provides a backend API router for basic Vultron data layer operations.
 """
 
 from copy import deepcopy
+from typing import Any
 
 from fastapi import APIRouter, Depends, status, HTTPException
 
@@ -26,6 +27,13 @@ from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.adapters.driven.datalayer import get_shared_dl
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.vultron_actor import (
+    VultronApplication,
+    VultronGroup,
+    VultronOrganization,
+    VultronPerson,
+    VultronService,
+)
 from vultron.wire.as2.vocab.base.objects.collections import (
     as_OrderedCollection,
 )
@@ -149,6 +157,22 @@ def get_reports(
     }
 
 
+_DATALAYER_ACTOR_TYPE_MAP: dict[str, type[as_Actor]] = {
+    "Person": VultronPerson,
+    "Organization": VultronOrganization,
+    "Service": VultronService,
+    "Application": VultronApplication,
+    "Group": VultronGroup,
+}
+
+
+def _actor_class_for_payload(payload: dict[str, Any]) -> type[as_Actor]:
+    payload_type = payload.get("type_") or payload.get("type")
+    if isinstance(payload_type, str):
+        return _DATALAYER_ACTOR_TYPE_MAP.get(payload_type, as_Actor)
+    return as_Actor
+
+
 @router.get(
     "/Actors/",
     description="Returns all Actor objects.",
@@ -156,10 +180,15 @@ def get_reports(
 )
 def get_actors(
     datalayer: DataLayer = Depends(get_shared_dl),
-) -> dict[str, as_Actor]:
+):
     results = datalayer.by_type("Actor")
 
-    return {k: as_Actor.model_validate(v) for k, v in results.items()}
+    return {
+        k: _actor_class_for_payload(v)
+        .model_validate(v)
+        .model_dump(mode="json", by_alias=True, exclude_none=True)
+        for k, v in results.items()
+    }
 
 
 @router.get(

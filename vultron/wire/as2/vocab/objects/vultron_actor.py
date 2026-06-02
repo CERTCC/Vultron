@@ -33,12 +33,14 @@ Per ``specs/embargo-policy.yaml`` EP-01-001.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import TypeAlias
+from typing import Annotated, TypeAlias, Union
 
 from pydantic import BaseModel, Field
 
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.actors import (
+    as_Application,
+    as_Group,
     as_Organization,
     as_Person,
     as_Service,
@@ -92,3 +94,39 @@ class VultronService(VultronActorMixin, as_Service):
 
 
 VultronServiceRef: TypeAlias = ActivityStreamRef[VultronService]
+
+
+class VultronApplication(VultronActorMixin, as_Application):
+    """
+    An ActivityStreams Application extended with Vultron profile fields.
+
+    Retains ``type_ == "Application"`` for ActivityPub interoperability.
+    """
+
+
+VultronApplicationRef: TypeAlias = ActivityStreamRef[VultronApplication]
+
+
+class VultronGroup(VultronActorMixin, as_Group):
+    """
+    An ActivityStreams Group extended with Vultron profile fields.
+
+    Retains ``type_ == "Group"`` for ActivityPub interoperability.
+    """
+
+
+VultronGroupRef: TypeAlias = ActivityStreamRef[VultronGroup]
+
+
+ActorUnion: TypeAlias = Annotated[
+    Union[
+        VultronPerson,
+        VultronOrganization,
+        VultronService,
+        VultronApplication,
+        VultronGroup,
+    ],
+    Field(
+        description="A concrete Vultron actor (Person, Organization, Service, Application, or Group)."
+    ),
+]
