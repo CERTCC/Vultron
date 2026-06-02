@@ -201,6 +201,32 @@ def test_get_actor_by_id_includes_embargo_policy(
     )
 
 
+@pytest.mark.parametrize(
+    "fixture_name,actor_type",
+    [
+        ("vultron_person", "Person"),
+        ("vultron_organization", "Organization"),
+        ("vultron_service", "Service"),
+        ("vultron_application", "Application"),
+        ("vultron_group", "Group"),
+    ],
+)
+def test_get_actor_profile_includes_embargo_policy(
+    client_actors, datalayer, request, fixture_name, actor_type
+):
+    """GET /actors/{actor_id}/profile MUST preserve subtype fields."""
+    actor = request.getfixturevalue(fixture_name)
+    datalayer.create(object_to_record(actor))
+
+    resp = client_actors.get(f"/actors/{actor.id_}/profile")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "embargoPolicy" in data, (
+        f"Response for {actor_type} actor profile missing 'embargoPolicy' field. "
+        f"Keys: {list(data.keys())}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # POST /actors/ serialization tests
 # ---------------------------------------------------------------------------

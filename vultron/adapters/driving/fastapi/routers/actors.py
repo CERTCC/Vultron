@@ -270,17 +270,14 @@ def get_actor_profile(
     The `inbox` and `outbox` fields are returned as URL strings, not
     embedded collection objects.
     """
-    actor = datalayer.read(actor_id)
-
-    if not actor:
-        actor = datalayer.find_actor_by_short_id(actor_id)
-
-    if not actor:
+    actor_record = _find_actor_record(datalayer, actor_id)
+    if not actor_record:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
         )
 
-    as_actor = as_Actor.model_validate(actor)
+    actor_cls = _actor_class_for_record(actor_record)
+    as_actor = actor_cls.model_validate(actor_record.get("data_", {}))
     profile = as_actor.model_dump(by_alias=True, exclude_none=True)
     profile["inbox"] = as_actor.inbox.id_
     profile["outbox"] = as_actor.outbox.id_
