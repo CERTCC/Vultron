@@ -72,7 +72,7 @@ def create_note_tree(
             AttachNoteToCaseNode(note_id=note_obj.id_, case_id=case_id),
         ],
     )
-    logger.debug(
+    logger.info(
         f"Created CreateNoteBT for note={note_obj.id_}, case={case_id}"
     )
     return root

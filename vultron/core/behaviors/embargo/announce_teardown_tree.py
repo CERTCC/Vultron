@@ -78,7 +78,7 @@ def remove_embargo_from_case_tree(
             ApplyEmbargoTeardownNode(case_id=case_id),
         ],
     )
-    logger.debug(
+    logger.info(
         "Created RemoveEmbargoFromCaseBT for case=%s embargo=%s",
         case_id,
         embargo_id,
