@@ -116,5 +116,5 @@ def create_create_case_tree(
         ],
     )
 
-    logger.debug(f"Created CreateCaseBT for case={case_id}, actor={actor_id}")
+    logger.info(f"Created CreateCaseBT for case={case_id}, actor={actor_id}")
     return root

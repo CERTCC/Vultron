@@ -160,7 +160,7 @@ def create_validate_report_tree(
         ],
     )
 
-    logger.debug(
+    logger.info(
         f"Created ValidateReportBT for report={report_id}, offer={offer_id}"
     )
     return root
