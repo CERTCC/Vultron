@@ -338,7 +338,7 @@ def main(
 
 def _setup_logging():
     """Configure console logging for standalone script execution."""
-    logging.getLogger("requests").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     logger_ = logging.getLogger()
     hdlr = logging.StreamHandler(sys.stdout)
     formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
