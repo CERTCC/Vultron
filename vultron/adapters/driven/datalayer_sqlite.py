@@ -104,16 +104,19 @@ def _participant_status_summary(data: Any) -> str:
         return ""
     if not statuses:
         return "n_statuses=0"
-    last = statuses[-1]
-    if not isinstance(last, dict):
-        return f"n_statuses={len(statuses)}"
-    return (
-        f"n_statuses={len(statuses)} "
-        f"last_vfd={last.get('vfd_state') or last.get('vfdState')!r} "
-        f"last_rm={last.get('rm_state') or last.get('rmState')!r} "
-        f"last_pub={last.get('published')!r} "
-        f"last_upd={last.get('updated')!r}"
-    )
+    entries = []
+    for i, s in enumerate(statuses):
+        if isinstance(s, dict):
+            vfd = s.get("vfd_state") or s.get("vfdState")
+            rm = s.get("rm_state") or s.get("rmState")
+            pub = s.get("published")
+            upd = s.get("updated")
+            entries.append(
+                f"[{i}]vfd={vfd!r},rm={rm!r},pub={pub!r},upd={upd!r}"
+            )
+        else:
+            entries.append(f"[{i}]<{type(s).__name__}>")
+    return f"n_statuses={len(statuses)} " + " ".join(entries)
 
 
 def _json_default(obj: Any) -> Any:
