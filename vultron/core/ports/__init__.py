@@ -18,7 +18,7 @@ Core ports package.
 
 Contains port (interface) definitions for the core domain layer.
 Ports are discriminated by direction following the Hexagonal Architecture
-pattern (see ``notes/architecture-ports-and-adapters.md``
+pattern (see ``notes/architecture-ports.md``
 "Core Port Taxonomy: Inbound vs Outbound").
 
 **Inbound (driving) ports** — external adapters call into core:

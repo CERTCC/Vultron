@@ -119,7 +119,7 @@ an adapter of a particular external system.
 - Violations V-01 through V-12 (see `archived_notes/architecture-review.md`)
   serve as the acceptance criteria: each is tracked and remediated
   incrementally.
-- The review checklist in `notes/architecture-ports-and-adapters.md`
+- The review checklist in `notes/architecture-hexagonal.md`
   (Core, Wire, Adapters, Connectors, Tests sections) is applied during code
   review.
 - Import boundary rules are enforced by code review and, where practical,
@@ -167,7 +167,7 @@ The following structural move is deferred to PRIORITY-60 and is tracked
 in `plan/IMPLEMENTATION_PLAN.md`:
 
 - **P60-3**: Stub the `vultron/adapters/` package per the target layout in
-  `notes/architecture-ports-and-adapters.md`.
+  `notes/architecture-hexagonal.md`.
 
 ## Pros and Cons of the Options
 
@@ -201,8 +201,12 @@ in `plan/IMPLEMENTATION_PLAN.md`:
 
 ## More Information
 
-- `notes/architecture-ports-and-adapters.md` — canonical layer model,
-  file layout target, code patterns, and review checklist.
+- `notes/architecture-hexagonal.md` — canonical layer model, file layout
+  target, rules, and review checklist.
+- `notes/architecture-ports.md` — inbound/outbound port taxonomy and
+  dispatch-vs-emit terminology.
+- `notes/architecture-adapters.md` — adapter boundaries and delivery
+  invariants.
 - `archived_notes/architecture-review.md` — full violation inventory (V-01 to V-12)
   and remediation plans (R-01 to R-06).
 - `specs/architecture.yaml` — testable requirements derived from this decision

@@ -76,8 +76,8 @@ Do NOT introduce alternative frameworks or package managers without approval.
 
 ---
 
-> **Architecture details** (layer rules, hexagonal architecture, message pipeline):
-> see [notes/architecture-ports-and-adapters.md](notes/architecture-ports-and-adapters.md).
+> **Architecture details** (layer rules, hexagonal architecture, message
+> pipeline): see [notes/architecture-hexagonal.md](notes/architecture-hexagonal.md).
 
 ## Coding Rules (Non-Negotiable)
 
@@ -305,10 +305,10 @@ Short entries are reproduced here; longer ones are referenced below.
 - **Black Can Invalidate Inline pyright Suppressions on Wrapped Fields** — see [notes/codebase-structure.md](notes/codebase-structure.md)
 - **Pytest `filterwarnings = ["error"]` Does Not Catch All Warnings** — moved to `test/AGENTS.md`
 - **Pytest Helper Enums Must Not Use `Test*` Names** — moved to `test/AGENTS.md`
-- **Avoid `BaseModel` in Port/Adapter Type Hints** — see [notes/architecture-ports-and-adapters.md](notes/architecture-ports-and-adapters.md)
+- **Avoid `BaseModel` in Port/Adapter Type Hints** — see [notes/architecture-ports.md](notes/architecture-ports.md)
 - **Activity `name` Field Must Not Use `repr()` or `str()`** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **Actor IDs Must Always Be Full URIs** — see [notes/codebase-structure.md](notes/codebase-structure.md)
-- **Co-located Actor IDs Must Be HTTP-Routable; Wire Up `ASGIEmitter` at Startup** — see [notes/architecture-ports-and-adapters.md](notes/architecture-ports-and-adapters.md)
+- **Co-located Actor IDs Must Be HTTP-Routable; Wire Up `ASGIEmitter` at Startup** — see [notes/architecture-adapters.md](notes/architecture-adapters.md)
 - **ASGIEmitter Path Construction: Use Scheme+Netloc Only as `httpx` Base URL** — see [notes/asgi-emitter.md](notes/asgi-emitter.md)
 - **`create_app()` MUST NOT Mutate Module-Level Singletons** — see [notes/asgi-emitter.md](notes/asgi-emitter.md)
 - **Bootstrap Activities Must Embed Nested Objects Inline, Not as URI Strings** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)

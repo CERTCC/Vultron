@@ -26,7 +26,7 @@ provides.
 
 No adapter-layer types (``Record``, ``TinyDB``, etc.) appear here.
 
-See also: ``notes/architecture-ports-and-adapters.md`` "Core Port Taxonomy".
+See also: ``notes/architecture-ports.md`` "Core Port Taxonomy".
 """
 
 from collections.abc import Iterable
