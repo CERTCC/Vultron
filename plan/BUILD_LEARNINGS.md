@@ -22,3 +22,13 @@ The code-review agent identified two tree creation functions in receive_report_c
 - `.github/scripts/mkdocs-build-strict.sh` suppresses several known griffe
   false positives but still treats unknown-key warnings like `context` and
   `pytest` as real build failures.
+
+### 2026-06-02 ISSUE-518 — Entrypoint docs drift in demo-facing text
+
+- The canonical API deployment entrypoint is
+  `vultron.adapters.driving.fastapi.main:app`, but demo-facing text can drift
+  back to legacy module paths if not centrally referenced.
+- We found stale `vultron.api.main:app` strings in demo exchange script output
+  and notes. This task updated onboarding docs only; script help-text cleanup
+  remains a separate follow-up candidate if those strings become user-facing
+  blockers.
