@@ -852,7 +852,10 @@ def run_two_actor_demo(
         finder=finder,
         vendor=vendor,
         case=case,
-        case_actor_client=case_actor_client,
+        # The two-actor demo uses the vendor container as case manager;
+        # the dedicated case-actor service carries no log entries for this
+        # case, so we only dump finder and vendor.
+        case_actor_client=None,
     )
 
     logger.info("=" * 80)
