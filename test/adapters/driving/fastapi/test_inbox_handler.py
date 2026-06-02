@@ -334,3 +334,144 @@ def test_inbox_handler_replays_deferred_items_after_case_announce(monkeypatch):
 
     assert dispatched == [announce_id, note_id]
     assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is None
+
+
+# ---------------------------------------------------------------------------
+# CBT-03 / CBT-05-003: Pre-bootstrap queue expiry tests (issue #500)
+# ---------------------------------------------------------------------------
+
+
+def test_pre_bootstrap_activity_queued_not_dispatched(monkeypatch):
+    """AC-5: Pre-bootstrap CaseActor activities are queued but NOT dispatched.
+
+    Covers CBT-05-003 (first bullet): pre-bootstrap messages remain unapplied.
+    """
+    actor_id = "https://example.org/actors/reporter"
+    case_id = "https://example.org/cases/cbt-ac5"
+    activity_id = "https://example.org/activities/cbt-ac5-note"
+    shared_dl = SqliteDataLayer("sqlite:///:memory:")
+    queue_dl = shared_dl.clone_for_actor(actor_id)
+
+    item = as_Activity(
+        id_=activity_id,
+        type_="Add",
+        actor="https://example.org/actors/case-actor",
+        context=case_id,
+        name="pre-bootstrap-note",
+    )
+    fake_event = VultronEvent(
+        semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
+        activity_id=activity_id,
+        actor_id="https://example.org/actors/case-actor",
+    )
+    monkeypatch.setattr(
+        ih, "prepare_for_dispatch", lambda activity: fake_event
+    )
+    mock_dispatcher = Mock()
+    monkeypatch.setattr(ih, "_DISPATCHER", mock_dispatcher)
+
+    result = ih._dispatch_or_defer_inbox_item(
+        actor_id=actor_id,
+        obj=item,
+        dl=shared_dl,
+        queue_dl=queue_dl,
+    )
+
+    assert (
+        result is None
+    ), "Pre-bootstrap activity should be deferred, not dispatched"
+    mock_dispatcher.dispatch.assert_not_called()
+
+    pending = queue_dl.read(VultronPendingCaseInbox.build_id(case_id))
+    assert isinstance(pending, VultronPendingCaseInbox)
+    assert activity_id in pending.activity_ids
+    assert pending.case_actor_id == "https://example.org/actors/case-actor"
+
+
+def test_pending_case_queue_expires_drops_and_warns(monkeypatch, caplog):
+    """AC-6: Expired pre-bootstrap queue is dropped with a WARNING.
+
+    Covers CBT-05-003 (second bullet): expire safely.
+    """
+    import logging
+    from datetime import datetime, timedelta, timezone
+
+    actor_id = "https://example.org/actors/reporter"
+    case_id = "https://example.org/cases/cbt-ac6"
+    activity_id = "https://example.org/activities/cbt-ac6-note"
+    shared_dl = SqliteDataLayer("sqlite:///:memory:")
+    queue_dl = shared_dl.clone_for_actor(actor_id)
+
+    # Create a pending queue entry that is already "old" (queued 10 minutes ago)
+    old_time = datetime.now(timezone.utc) - timedelta(minutes=10)
+    pending = VultronPendingCaseInbox(
+        case_id=case_id,
+        activity_ids=[activity_id],
+        case_actor_id="https://example.org/actors/case-actor",
+    )
+    pending.queued_at = old_time
+    queue_dl.save(pending)
+
+    with caplog.at_level(logging.WARNING, logger="vultron"):
+        expired = ih._expire_pending_case_activities(
+            case_id=case_id,
+            actor_id=actor_id,
+            dl=shared_dl,
+            queue_dl=queue_dl,
+            timeout_seconds=60,  # 1 minute; queue is 10 minutes old
+        )
+
+    assert expired is True
+    assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is None
+    assert any("Dropping expired" in r.message for r in caplog.records)
+    assert any(activity_id in r.message for r in caplog.records)
+
+
+def test_pending_case_queue_expiry_emits_question(monkeypatch):
+    """AC-7: A replay Question is appended to the actor outbox on expiry.
+
+    Covers CBT-05-003 (third bullet): generate a replay request.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    actor_id = "https://example.org/actors/reporter"
+    case_id = "https://example.org/cases/cbt-ac7"
+    activity_id = "https://example.org/activities/cbt-ac7-note"
+    case_actor_id = "https://example.org/actors/case-actor"
+    shared_dl = SqliteDataLayer("sqlite:///:memory:")
+    queue_dl = shared_dl.clone_for_actor(actor_id)
+
+    old_time = datetime.now(timezone.utc) - timedelta(minutes=10)
+    pending = VultronPendingCaseInbox(
+        case_id=case_id,
+        activity_ids=[activity_id],
+        case_actor_id=case_actor_id,
+    )
+    pending.queued_at = old_time
+    queue_dl.save(pending)
+
+    expired = ih._expire_pending_case_activities(
+        case_id=case_id,
+        actor_id=actor_id,
+        dl=shared_dl,
+        queue_dl=queue_dl,
+        timeout_seconds=60,
+    )
+
+    assert expired is True
+
+    outbox = queue_dl.outbox_list()
+    assert (
+        len(outbox) == 1
+    ), "One Question should have been queued in the outbox"
+
+    question_id = outbox[0]
+    from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
+        as_Question,
+    )
+
+    question = shared_dl.read(question_id)
+    assert isinstance(question, as_Question)
+    assert question.context == case_id
+    assert question.actor == actor_id
+    assert question.to == case_actor_id

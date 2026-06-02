@@ -17,15 +17,21 @@
 from __future__ import annotations
 
 import urllib.parse
+from datetime import datetime
 from typing import Literal
 
 from pydantic import Field, model_validator
 
+from vultron.core.models._helpers import _now_utc
 from vultron.core.models.base import UriString, VultronObject
 
 
 class VultronPendingCaseInbox(VultronObject):
-    """Store deferred inbox activity IDs keyed by case ID."""
+    """Store deferred inbox activity IDs keyed by case ID.
+
+    Tracks when the queue was created (``queued_at``) so that a bounded
+    expiry window can be enforced (CBT-03-001, CBT-03-003).
+    """
 
     type_: Literal["PendingCaseInbox"] = Field(  # type: ignore[assignment]
         default="PendingCaseInbox",
@@ -36,6 +42,18 @@ class VultronPendingCaseInbox(VultronObject):
     activity_ids: list[UriString] = Field(
         default_factory=list,
         description="Deferred inbox activity IDs awaiting the case replica",
+    )
+    queued_at: datetime = Field(
+        default_factory=_now_utc,
+        description="UTC timestamp when the first activity was queued for this case",
+    )
+    case_actor_id: UriString | None = Field(
+        default=None,
+        description=(
+            "URI of the actor that sent the first pre-bootstrap activity. "
+            "Used as the replay-request target when bootstrap times out "
+            "(CBT-03-004)."
+        ),
     )
 
     @classmethod
