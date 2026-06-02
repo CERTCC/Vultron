@@ -247,9 +247,11 @@ services:
       # Run the selected multi-actor demo non-interactively. Override DEMO
       # at runtime (for example, DEMO=three-actor) to switch scenarios.
       - DEMO=${DEMO:-two-actor}
+      - DEVLOGS_DIR=/app/devlogs
     volumes:
       - "../vultron:/app/vultron"
       - "/app/.venv"
+      - "../devlogs:/app/devlogs"
     networks:
       - vultron-network
 

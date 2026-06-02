@@ -156,7 +156,7 @@ class DataLayerClient(BaseModel):
 
     base_url: str = BASE_URL
 
-    def call(self, method: HTTPMethod, path: str, **kwargs: Any) -> dict:
+    def call(self, method: HTTPMethod, path: str, **kwargs: Any) -> Any:
         """Make an HTTP request to the DataLayer API.
 
         Args:
@@ -165,7 +165,8 @@ class DataLayerClient(BaseModel):
             **kwargs: Additional keyword arguments forwarded to ``httpx.request``.
 
         Returns:
-            Parsed JSON response body as a dict.
+            Parsed JSON response body.  Most endpoints return a ``dict``, but
+            list endpoints (e.g. the case-log endpoint) return a ``list``.
 
         Raises:
             httpx.HTTPStatusError: When the response status is not OK.
@@ -178,7 +179,7 @@ class DataLayerClient(BaseModel):
         response = httpx.request(method, url, **kwargs)
         logger.debug(f"Response status: {response.status_code}")
 
-        data = {}
+        data: Any = {}
         try:
             data = response.json()
             logger.debug(f"Response JSON: {json.dumps(data, indent=2)}")
@@ -197,21 +198,43 @@ class DataLayerClient(BaseModel):
 
         return data
 
-    def get(self, path: str, **kwargs) -> dict:
+    def get(self, path: str, **kwargs: Any) -> dict:
         """Send an HTTP GET request."""
-        return self.call(HTTPMethod.GET, path, **kwargs)
+        return cast(dict, self.call(HTTPMethod.GET, path, **kwargs))
 
-    def put(self, path: str, **kwargs) -> dict:
+    def get_list(self, path: str, **kwargs: Any) -> list[Any]:
+        """Send an HTTP GET request that expects a JSON array response.
+
+        Args:
+            path: API path relative to ``base_url``.
+            **kwargs: Additional keyword arguments forwarded to ``httpx.request``.
+
+        Returns:
+            Parsed JSON response body as a list.
+
+        Raises:
+            ValueError: When the response body is not a JSON array.
+            httpx.HTTPStatusError: When the response status is not OK.
+        """
+        data = self.call(HTTPMethod.GET, path, **kwargs)
+        if not isinstance(data, list):
+            raise ValueError(
+                f"Expected JSON array from GET {path}, "
+                f"got {type(data).__name__}"
+            )
+        return data
+
+    def put(self, path: str, **kwargs: Any) -> dict:
         """Send an HTTP PUT request."""
-        return self.call(HTTPMethod.PUT, path, **kwargs)
+        return cast(dict, self.call(HTTPMethod.PUT, path, **kwargs))
 
-    def post(self, path: str, **kwargs) -> dict:
+    def post(self, path: str, **kwargs: Any) -> dict:
         """Send an HTTP POST request."""
-        return self.call(HTTPMethod.POST, path, **kwargs)
+        return cast(dict, self.call(HTTPMethod.POST, path, **kwargs))
 
-    def delete(self, path: str, **kwargs) -> dict:
+    def delete(self, path: str, **kwargs: Any) -> dict:
         """Send an HTTP DELETE request."""
-        return self.call(HTTPMethod.DELETE, path, **kwargs)
+        return cast(dict, self.call(HTTPMethod.DELETE, path, **kwargs))
 
 
 def reset_datalayer(client: DataLayerClient, init: bool = True) -> dict:
@@ -302,8 +325,6 @@ def post_to_trigger(
     path_prefix: str = "trigger",
 ) -> dict:
     """POST to a trigger endpoint and return the response body.
-
-    Trigger endpoints allow the local actor to initiate a behavior
     proactively (e.g. validate-report, engage-case) rather than
     reacting to an inbound activity.
 

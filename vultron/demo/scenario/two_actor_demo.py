@@ -21,8 +21,10 @@ milestone logic to the generic helper modules under ``vultron.demo.helpers``
 while preserving the public API used by the existing test suite.
 """
 
+import json
 import logging
 import os
+import pathlib
 import sys
 from typing import Optional, Tuple
 
@@ -702,8 +704,79 @@ def _phase_case_closure(
 
 
 # ---------------------------------------------------------------------------
-# Main workflow orchestration
+# Case log export
 # ---------------------------------------------------------------------------
+
+
+def _phase_dump_case_logs(
+    finder_client: DataLayerClient,
+    vendor_client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
+    case: VulnerabilityCase,
+    case_actor_client: DataLayerClient | None = None,
+    demo_name: str = "two-actor",
+) -> None:
+    """Dump case log entries from each actor container to JSONL files.
+
+    Reads ``DEVLOGS_DIR`` from the environment (default ``/app/devlogs``) and
+    writes one JSONL file per actor under::
+
+        {DEVLOGS_DIR}/{demo_name}/{actor_name}/{case_id_slug}-case-log.jsonl
+
+    The case-actor container is included only when *case_actor_client* is
+    provided.  Each dump step is wrapped in ``demo_step`` so that a failure
+    is recorded and ultimately surfaced by ``assert_demo_success()``.
+
+    Args:
+        finder_client: DataLayerClient for the Finder container.
+        vendor_client: DataLayerClient for the Vendor container.
+        finder: Finder actor object (used to derive the actor object ID).
+        vendor: Vendor actor object (used to derive the actor object ID).
+        case: The VulnerabilityCase whose log entries are to be exported.
+        case_actor_client: Optional DataLayerClient for the CaseActor container.
+        demo_name: Sub-directory name under the output root (default
+            ``"two-actor"``).
+    """
+    logger.info("─" * 80)
+    logger.info("Phase: Case log JSONL export")
+    logger.info("─" * 80)
+
+    output_root = pathlib.Path(os.environ.get("DEVLOGS_DIR", "/app/devlogs"))
+    case_id = case.id_ or ""
+    case_id_slug = (
+        case_id.replace("://", "_")
+        .replace("/", "_")
+        .replace(":", "_")
+        .strip("_")
+    )
+
+    actors: list[tuple[str, DataLayerClient]] = [
+        ("finder", finder_client),
+        ("vendor", vendor_client),
+    ]
+    if case_actor_client is not None:
+        actors.append(("case-actor", case_actor_client))
+
+    for actor_name, client in actors:
+        with demo_step(f"Dumping case log for {actor_name}"):
+            log_path = f"/actors/{actor_name}/demo/cases/{case_id}/log"
+            entries = client.get_list(log_path)
+            if not entries:
+                raise ValueError(
+                    f"No case log entries for actor={actor_name!r}, "
+                    f"case_id={case_id!r}"
+                )
+
+            out_dir = output_root / demo_name / actor_name
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_file = out_dir / f"{case_id_slug}-case-log.jsonl"
+
+            with out_file.open("w", encoding="utf-8") as fh:
+                for entry in entries:
+                    fh.write(json.dumps(entry) + "\n")
+
+            logger.info("Wrote %d log entries → %s", len(entries), out_file)
 
 
 def run_two_actor_demo(
@@ -772,6 +845,14 @@ def run_two_actor_demo(
         finder,
         finder_in_finder,
         case,
+    )
+    _phase_dump_case_logs(
+        finder_client=finder_client,
+        vendor_client=vendor_client,
+        finder=finder,
+        vendor=vendor,
+        case=case,
+        case_actor_client=case_actor_client,
     )
 
     logger.info("=" * 80)
