@@ -16,42 +16,7 @@ own child issues, etc.) The list of child issues in GitHub is
 authoritative regardless what is listed below, this file is a high-level
 index and summary.
 
-## Priority 476 — Epic #446: Bug Fixes and Demo Polish
-
-Fix issues affecting demo execution and correctness.
-
-- Epic: [#446](https://github.com/CERTCC/Vultron/issues/446)
-- [#412](https://github.com/CERTCC/Vultron/issues/412) — mislabeled demo
-  (docker-compose multi-vendor label mismatch)
-- [#437](https://github.com/CERTCC/Vultron/issues/437) — Enforce spec vs.
-  ADR delineation guidelines (MS-11)
-- [#449](https://github.com/CERTCC/Vultron/issues/449) — Actor inbox
-  endpoints return HTTP 404 during demo delivery ✅
-- [#450](https://github.com/CERTCC/Vultron/issues/450) — Outbound activities
-  missing required `to:` field (OX-08-001 violation) ✅
-- [#451](https://github.com/CERTCC/Vultron/issues/451) — Invalid PEC state
-  machine transition: `accept` trigger in NO_EMBARGO state ✅
-- [#452](https://github.com/CERTCC/Vultron/issues/452) — Demo times out
-  waiting for case to propagate to finder DataLayer ✅
-- [#453](https://github.com/CERTCC/Vultron/issues/453) — Outbox processing
-  aborts after too many `to:` field errors ✅
-- [#454](https://github.com/CERTCC/Vultron/issues/454) — Coordinator actor
-  unexpectedly persists the authoritative case ✅
-- [#486](https://github.com/CERTCC/Vultron/issues/486) — HTTP-08-001
-  violation: actors.py response\_model strips subclass fields
-- [#487](https://github.com/CERTCC/Vultron/issues/487) — examples.py: add
-  actor subtype example endpoints (VultronPerson, VultronOrganization, etc.)
-- [#501](https://github.com/CERTCC/Vultron/issues/501) — Demo HTTP calls use
-  `requests` which is not declared in `project.dependencies` ✅
-- [#517](https://github.com/CERTCC/Vultron/issues/517) — Migrate demo HTTP
-  calls from `requests` to `httpx` (child of #501)
-- [#518](https://github.com/CERTCC/Vultron/issues/518) — Document
-  `vultron.adapters.driving.fastapi.main:app` as canonical deployment entry
-  point
-- [#584](https://github.com/CERTCC/Vultron/issues/584) — Implement
-  docs-build-check.yml: narrowed triggers and conditional link-check step
-
-## Priority 480 — CBT-03: Pre-Bootstrap Queue Expiry
+## Priority 480 — Epic #675: CBT-03: Pre-Bootstrap Queue Expiry
 
 The pre-bootstrap inbox queue (`VultronPendingCaseInbox`) exists and can defer
 activities when a case replica is not yet trusted, but has no bounded expiry.
@@ -61,8 +26,12 @@ warn on expiry) and CBT-03-004 (replay request to original report receiver).
 See `specs/case-bootstrap-trust.yaml` CBT-03-001 through CBT-03-004,
 CBT-05-003 and `notes/case-bootstrap-trust.md` §Out-of-Order Handling.
 
+- Epic: [#675](https://github.com/CERTCC/Vultron/issues/675)
 - [#500](https://github.com/CERTCC/Vultron/issues/500) — CBT-03: Implement
   bounded pre-bootstrap queue expiry and replay request
+- [#663](https://github.com/CERTCC/Vultron/issues/663) —
+  BroadcastStatusToPeersNode: participants re-broadcast to themselves
+  (self-loop)
 
 ## Priority 485 — Epic #539: Architecture Hardening
 
@@ -107,6 +76,18 @@ outbox polling, and oversized centralized dispatch tables.
   Integration tests for single-peer log replication cycle
 - [#644](https://github.com/CERTCC/Vultron/issues/644) — TRACE-01-003:
   Update user-stories traceability matrix for newer spec topics
+- [#649](https://github.com/CERTCC/Vultron/issues/649) — Demo HTTP helpers
+  use `requests`, which is not a declared runtime dependency
+- [#650](https://github.com/CERTCC/Vultron/issues/650) — Remote HTTP delivery
+  and shared-inbox are architectural stubs with no implementation
+- [#654](https://github.com/CERTCC/Vultron/issues/654) — Implement
+  ActivityPub surrogate-key routing to replace Starlette path-converter
+  workaround
+- [#655](https://github.com/CERTCC/Vultron/issues/655) — Introduce
+  ActorScopedDataLayer protocol to enforce DataLayer scope at type level
+- [#656](https://github.com/CERTCC/Vultron/issues/656) — Add regression tests
+  for DataLayer scope: get\_canonical\_actor\_dl and inbox\_handler dual-DL
+  path
 
 ## Priority 490 — Epic #611: Test File Refactoring
 
@@ -146,6 +127,15 @@ file refactoring).
   is the highest-churn source file at 1502+ lines
 - [#516](https://github.com/CERTCC/Vultron/issues/516) — `vultron/core/use_cases/triggers/embargo.py`
   is a 792-line high-churn file with mixed responsibilities
+- [#651](https://github.com/CERTCC/Vultron/issues/651) —
+  `vultron/core/behaviors/report/nodes.py` is high-churn (31 commits/90d)
+  alongside case BT nodes
+- [#652](https://github.com/CERTCC/Vultron/issues/652) —
+  `vultron/core/use_cases/triggers/case.py` is high-churn (31 commits/90d)
+  and co-evolves with embargo logic
+- [#653](https://github.com/CERTCC/Vultron/issues/653) —
+  `vultron/adapters/driving/fastapi/outbox_handler.py` is high-churn (29
+  commits/90d) as delivery model evolves
 
 ## Priority 500: Re-implement "fuzzer" nodes from the original simulator
 
@@ -166,7 +156,7 @@ it in the new codebase using `py_trees` as the foundation. The underlying
 - [#427](https://github.com/CERTCC/Vultron/issues/427) — FUZZ-00:
   Re-implement fuzzer nodes from original simulator
 
-## Priority 510 — Interactive Demo UI
+## Priority 510 — Epic #676: Interactive Demo UI
 
 Build an interactive web UI for stakeholder presentations that visualizes
 Vultron protocol state in real time across all running actor containers and
@@ -174,8 +164,13 @@ lets a presenter (or viewer) make real protocol decisions at key branch
 points. Replaces log-scrolling demos with a polished experience aimed at
 non-technical audiences (government funders, industry practitioners).
 
+- Epic: [#676](https://github.com/CERTCC/Vultron/issues/676)
 - [#533](https://github.com/CERTCC/Vultron/issues/533) — Idea: Interactive
   ReactFlow Demo UI with CYOA scenarios for stakeholder presentations
+- [#664](https://github.com/CERTCC/Vultron/issues/664) — Add case log REST
+  endpoints: ordered list and single-entry lookup
+- [#665](https://github.com/CERTCC/Vultron/issues/665) — Add SSE stream
+  endpoint for live case log updates
 
 ## Priority 520 — Epic #613: Agent Guidance Freshness
 
