@@ -28,6 +28,7 @@ argument to :func:`get_datalayer` to override the config value, e.g. for
 
 import json
 import logging
+from collections.abc import Callable
 from datetime import date, datetime
 from typing import Any, cast
 
@@ -192,10 +193,12 @@ class SqliteDataLayer:
         self,
         db_url: str = "sqlite:///:memory:",
         actor_id: str | None = None,
+        enqueue_callback: Callable[[str], None] | None = None,
     ) -> None:
         self._engine = _make_engine(db_url)
         self._actor_id = actor_id
         self._owns_engine: bool = True
+        self._enqueue_callback: Callable[[str], None] | None = enqueue_callback
         SQLModel.metadata.create_all(self._engine)
 
     def close(self) -> None:
@@ -226,7 +229,23 @@ class SqliteDataLayer:
         clone._engine = self._engine
         clone._actor_id = actor_id
         clone._owns_engine = False
+        clone._enqueue_callback = self._enqueue_callback
         return clone
+
+    def set_enqueue_callback(
+        self, callback: Callable[[str], None] | None
+    ) -> None:
+        """Set the callback invoked when an item is added to the outbox.
+
+        Used by :class:`~vultron.adapters.driving.fastapi.outbox_monitor\
+.OutboxMonitor` to register an event-driven wakeup notification.  Pass
+        ``None`` to clear a previously registered callback.
+
+        Args:
+            callback: Callable that receives ``actor_id`` when an outbox
+                item is enqueued, or ``None`` to disable notification.
+        """
+        self._enqueue_callback = callback
 
     def __enter__(self) -> "SqliteDataLayer":
         """Support ``with SqliteDataLayer(...) as dl:`` usage."""
@@ -1010,6 +1029,14 @@ class SqliteDataLayer:
                 )
             )
             session.commit()
+        if self._enqueue_callback is not None:
+            try:
+                self._enqueue_callback(actor)
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "outbox_append: enqueue_callback raised for actor '%s'",
+                    actor,
+                )
 
     def outbox_list(self) -> list[str]:
         """Return all activity IDs in this actor's outbox, in insertion order."""
@@ -1070,6 +1097,15 @@ class SqliteDataLayer:
                 )
             )
             session.commit()
+        if self._enqueue_callback is not None:
+            try:
+                self._enqueue_callback(actor_id)
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "record_outbox_item: enqueue_callback raised"
+                    " for actor '%s'",
+                    actor_id,
+                )
 
 
 # ---------------------------------------------------------------------------

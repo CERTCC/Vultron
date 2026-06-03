@@ -1068,3 +1068,101 @@ def test_hydrate_warns_for_unresolvable_string_ids(dl, caplog):
         for record in caplog.records
         if record.levelname == "WARNING"
     ), "Expected a WARNING log mentioning the unresolvable participant ID"
+
+
+# ---------------------------------------------------------------------------
+# enqueue_callback — outbox_append and record_outbox_item (AC-1)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def scoped_dl():
+    """Actor-scoped in-memory SqliteDataLayer for callback tests."""
+    instance = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://example.org/alice",
+    )
+    yield instance
+    instance.clear_all()
+    instance.close()
+
+
+def test_outbox_append_calls_callback_with_actor_id(scoped_dl):
+    """outbox_append fires the enqueue_callback with the actor_id."""
+    calls: list[str] = []
+    scoped_dl.set_enqueue_callback(calls.append)
+    scoped_dl.outbox_append("urn:test:act-001")
+    assert calls == ["https://example.org/alice"]
+
+
+def test_outbox_append_no_callback_by_default():
+    """outbox_append does not raise when no callback is set (default)."""
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:", actor_id="https://example.org/bob"
+    )
+    dl.outbox_append("urn:test:act-001")  # should not raise
+    dl.clear_all()
+    dl.close()
+
+
+def test_outbox_append_callback_cleared_by_set_none(scoped_dl):
+    """set_enqueue_callback(None) disables future notifications."""
+    calls: list[str] = []
+    scoped_dl.set_enqueue_callback(calls.append)
+    scoped_dl.set_enqueue_callback(None)
+    scoped_dl.outbox_append("urn:test:act-001")
+    assert calls == []
+
+
+def test_record_outbox_item_calls_callback_with_actor_id():
+    """record_outbox_item fires the enqueue_callback with the explicit actor_id."""
+    dl = SqliteDataLayer("sqlite:///:memory:")
+    calls: list[str] = []
+    dl.set_enqueue_callback(calls.append)
+    dl.record_outbox_item("https://example.org/carol", "urn:test:act-002")
+    assert calls == ["https://example.org/carol"]
+    dl.clear_all()
+    dl.close()
+
+
+def test_record_outbox_item_no_callback_by_default():
+    """record_outbox_item does not raise when no callback is set."""
+    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl.record_outbox_item("https://example.org/carol", "urn:test:act-002")
+    dl.clear_all()
+    dl.close()
+
+
+def test_clone_for_actor_inherits_callback():
+    """clone_for_actor() inherits the parent's enqueue_callback."""
+    calls: list[str] = []
+    parent = SqliteDataLayer("sqlite:///:memory:")
+    parent.set_enqueue_callback(calls.append)
+    clone = parent.clone_for_actor("https://example.org/alice")
+    clone.outbox_append("urn:test:act-003")
+    assert calls == ["https://example.org/alice"]
+    parent.clear_all()
+    parent.close()
+
+
+def test_enqueue_callback_exception_does_not_propagate(scoped_dl):
+    """A callback that raises must not abort the outbox_append operation."""
+
+    def bad_callback(actor_id: str) -> None:
+        raise RuntimeError("callback failure")
+
+    scoped_dl.set_enqueue_callback(bad_callback)
+    # Should not raise; the item must still be enqueued
+    scoped_dl.outbox_append("urn:test:act-001")
+    assert "urn:test:act-001" in scoped_dl.outbox_list()
+
+
+def test_set_enqueue_callback_replaces_previous(scoped_dl):
+    """set_enqueue_callback replaces any previously registered callback."""
+    calls_a: list[str] = []
+    calls_b: list[str] = []
+    scoped_dl.set_enqueue_callback(calls_a.append)
+    scoped_dl.set_enqueue_callback(calls_b.append)
+    scoped_dl.outbox_append("urn:test:act-001")
+    assert calls_a == []
+    assert calls_b == ["https://example.org/alice"]
