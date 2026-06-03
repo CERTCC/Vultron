@@ -220,12 +220,11 @@ class BTBridge:
                 if root_status in (Status.SUCCESS, Status.FAILURE):
                     feedback = bt.root.feedback_message
 
-                    # Log transition result at INFO; final structure at DEBUG
                     self.logger.info(
                         f"BT execution completed: {root_status} after {iteration} ticks - {feedback}"
                     )
                     tree_repr = unicode_tree(bt.root, show_status=True)
-                    self.logger.debug(f"Final BT state:\n{tree_repr}")
+                    self.logger.info(f"Final BT state:\n{tree_repr}")
 
                     return BTExecutionResult(
                         status=root_status,
