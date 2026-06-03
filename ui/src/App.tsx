@@ -289,7 +289,7 @@ function App() {
 
       setDemoState(prev => ({
         ...prev,
-        phase: 'case-created',
+        phase: 'report-received',
         vendorRmState: 'RECEIVED',
         finderRmState: 'RECEIVED',
         emState: 'NONE',
@@ -375,6 +375,142 @@ function App() {
           ...prev.eventLog,
           'Finder submitted report to Vendor',
           'Case created automatically (at RM.RECEIVED)',
+        ],
+      }))
+    } else if (actionId === 'validate-report') {
+      // Vendor validates report (RM: RECEIVED → VALID)
+      const nextX = demoState.nextXPosition
+      const validateEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'report-validated',
+        vendorRmState: 'VALID',
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Decision node in Vendor lane
+          {
+            id: validateEventId,
+            actor: 'Vendor',
+            label: 'Validate Report',
+            x: nextX,
+            lane: 1,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'Accept(Offer) activity created',
+              'ValidateReportReceivedUseCase executes',
+              'Vendor RM state: RECEIVED → VALID',
+              'Report deemed legitimate',
+              'Can proceed with case work',
+            ],
+          },
+          // Consequence node in Finder lane
+          {
+            id: `${validateEventId}-finder-consequence`,
+            actor: 'Finder',
+            label: 'Validation Noted',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: validateEventId,
+            consequences: [
+              'Accept activity received',
+              'Vendor has validated the report',
+              'Case work can proceed',
+            ],
+          },
+          // Consequence node in CaseActor lane
+          {
+            id: `${validateEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'Validation Tracked',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: validateEventId,
+            consequences: [
+              'Vendor participant RM → VALID',
+              'Authoritative ledger updated',
+              'Case ready for embargo negotiation',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          'Vendor validated the report (RM → VALID)',
+        ],
+      }))
+    } else if (actionId === 'invalidate-report') {
+      // Vendor invalidates report (RM: RECEIVED → INVALID)
+      const nextX = demoState.nextXPosition
+      const invalidateEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'report-invalidated',
+        vendorRmState: 'INVALID',
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Decision node in Vendor lane
+          {
+            id: invalidateEventId,
+            actor: 'Vendor',
+            label: 'Invalidate Report',
+            x: nextX,
+            lane: 1,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'TentativeReject(Offer) activity created',
+              'InvalidateReportReceivedUseCase executes',
+              'Vendor RM state: RECEIVED → INVALID',
+              'Report deemed not legitimate',
+              'Can be re-validated or closed',
+            ],
+          },
+          // Consequence node in Finder lane
+          {
+            id: `${invalidateEventId}-finder-consequence`,
+            actor: 'Finder',
+            label: 'Invalidation Noted',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: invalidateEventId,
+            consequences: [
+              'TentativeReject activity received',
+              'Vendor has invalidated the report',
+              'Report held, may be reconsidered',
+            ],
+          },
+          // Consequence node in CaseActor lane
+          {
+            id: `${invalidateEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'Invalidation Tracked',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: invalidateEventId,
+            consequences: [
+              'Vendor participant RM → INVALID',
+              'Authoritative ledger updated',
+              'Case held, no further action',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          'Vendor invalidated the report (RM → INVALID)',
         ],
       }))
     } else if (actionId === 'propose-embargo') {
@@ -1670,7 +1806,17 @@ function App() {
               emState={demoState.emState}
               vfdState={demoState.vendorVfdState}
               actions={
-                demoState.phase === 'embargo-proposed' && !demoState.vendorEmbargoAccepted ? [{
+                demoState.phase === 'report-received' ? [{
+                  id: 'validate-report',
+                  label: 'Validate Report',
+                  description: 'Mark the report as valid (RM: RECEIVED → VALID)',
+                  enabled: true,
+                }, {
+                  id: 'invalidate-report',
+                  label: 'Invalidate Report',
+                  description: 'Mark the report as invalid (RM: RECEIVED → INVALID)',
+                  enabled: true,
+                }] : demoState.phase === 'embargo-proposed' && !demoState.vendorEmbargoAccepted ? [{
                   id: 'accept-embargo',
                   label: 'Accept Embargo',
                   description: 'Accept the 90-day embargo proposal',
@@ -1734,7 +1880,7 @@ function App() {
               emState={demoState.emState}
               pxaState={demoState.pxaState}
               actions={
-                (demoState.phase === 'case-created' || demoState.phase === 'embargo-rejected') ? [{
+                (demoState.phase === 'report-validated' || demoState.phase === 'embargo-rejected') ? [{
                   id: 'propose-embargo',
                   label: demoState.phase === 'embargo-rejected' ? 'Repropose Embargo' : 'Propose Embargo',
                   description: demoState.phase === 'embargo-rejected'
