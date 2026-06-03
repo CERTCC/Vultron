@@ -1001,6 +1001,7 @@ function App() {
 
       setDemoState(prev => ({
         ...prev,
+        // Always set to finder-asked when a question is asked
         phase: 'finder-asked',
         nextXPosition: prev.nextXPosition + 250,
         timelineEvents: [
@@ -1070,6 +1071,7 @@ function App() {
 
       setDemoState(prev => ({
         ...prev,
+        // Keep track that vendor replied, but don't block VFD progression
         phase: 'vendor-replied',
         nextXPosition: prev.nextXPosition + 250,
         timelineEvents: [
@@ -1141,7 +1143,8 @@ function App() {
 
       setDemoState(prev => ({
         ...prev,
-        phase: 'fix-ready',
+        // Keep Q&A phase if in one, otherwise move to fix-ready
+        phase: ['finder-asked', 'vendor-replied'].includes(prev.phase) ? prev.phase : 'fix-ready',
         vendorVfdState: 'VFd',
         nextXPosition: prev.nextXPosition + 250,
         timelineEvents: [
@@ -1210,6 +1213,7 @@ function App() {
 
       setDemoState(prev => ({
         ...prev,
+        // Move to fix-deployed (Q&A can still continue but now publication is also available)
         phase: 'fix-deployed',
         vendorVfdState: 'VFD',
         nextXPosition: prev.nextXPosition + 250,
@@ -1279,7 +1283,8 @@ function App() {
 
       setDemoState(prev => ({
         ...prev,
-        phase: 'vendor-published',
+        // Preserve Q&A phase if in one, otherwise just mark as published
+        phase: prev.phase === 'finder-asked' ? 'finder-asked' : 'vendor-published',
         emState: 'EXITED',
         pxaState: 'Pxa',  // Public awareness achieved
         nextXPosition: prev.nextXPosition + 250,
@@ -1696,14 +1701,23 @@ function App() {
                 label: 'Reject Embargo',
                 description: 'Reject the embargo proposal',
                 enabled: true,
-              }] : (demoState.phase === 'embargo-accepted' || demoState.phase === 'vendor-replied') ? [{
-                id: 'finder-add-note',
-                label: demoState.phase === 'vendor-replied' ? 'Ask Another Question' : 'Ask Question',
-                description: demoState.phase === 'vendor-replied'
-                  ? 'Add another note to the case asking for more information'
-                  : 'Add a note to the case asking for information',
-                enabled: true,
-              }] : (demoState.phase === 'fix-deployed' || demoState.phase === 'vendor-closed') && !demoState.finderHasClosed ? [{
+              }] : (['embargo-accepted', 'finder-asked', 'vendor-replied', 'fix-ready', 'fix-deployed'].includes(demoState.phase)) ? [
+                {
+                  id: 'finder-add-note',
+                  label: demoState.phase === 'vendor-replied' ? 'Ask Another Question' : 'Ask Question',
+                  description: demoState.phase === 'vendor-replied'
+                    ? 'Add another note to the case asking for more information'
+                    : 'Add a note to the case asking for information',
+                  enabled: true,
+                },
+                // Allow closing case once fix is deployed
+                ...(demoState.phase === 'fix-deployed' && !demoState.finderHasClosed ? [{
+                  id: 'finder-close-case',
+                  label: 'Close Case',
+                  description: 'Finder closes their participation in the case',
+                  enabled: true,
+                }] : [])
+              ] : (demoState.phase === 'vendor-closed') && !demoState.finderHasClosed ? [{
                 id: 'finder-close-case',
                 label: 'Close Case',
                 description: 'Finder closes their participation in the case',
@@ -1756,42 +1770,61 @@ function App() {
                   label: 'Reject Embargo',
                   description: 'Reject the embargo proposal',
                   enabled: true,
-                }] : (demoState.phase === 'embargo-accepted' || demoState.phase === 'vendor-replied') ? [{
-                  id: 'notify-fix-ready',
-                  label: 'Notify Fix Ready',
-                  description: 'Vendor notifies that a fix is ready',
-                  enabled: true,
-                }] : demoState.phase === 'finder-asked' ? [{
-                  id: 'vendor-reply-note',
-                  label: 'Reply to Question',
-                  description: 'Respond to Finder\'s question about workarounds',
-                  enabled: true,
-                }] : demoState.phase === 'vendor-replied' ? [{
-                  id: 'notify-fix-ready',
-                  label: 'Notify Fix Ready',
-                  description: 'Vendor notifies that a fix is ready',
-                  enabled: true,
-                }] : demoState.phase === 'fix-ready' ? [{
-                  id: 'notify-fix-deployed',
-                  label: 'Notify Fix Deployed',
-                  description: 'Vendor notifies that the fix has been deployed',
-                  enabled: true,
-                }] : demoState.phase === 'fix-deployed' ? [{
-                  id: 'vendor-notify-published',
-                  label: 'Notify Published',
-                  description: 'Vendor notifies that vulnerability is publicly disclosed',
-                  enabled: true,
-                }, {
-                  id: 'vendor-close-case',
-                  label: 'Close Case',
-                  description: 'Vendor closes their participation in the case',
-                  enabled: true,
-                }] : (demoState.phase === 'vendor-published' || demoState.phase === 'finder-published' || demoState.phase === 'finder-closed') && !demoState.vendorHasClosed ? [{
-                  id: 'vendor-close-case',
-                  label: 'Close Case',
-                  description: 'Vendor closes their participation in the case',
-                  enabled: true,
-                }] : []
+                }] : (['embargo-accepted', 'finder-asked', 'vendor-replied', 'fix-ready', 'fix-deployed'].includes(demoState.phase)) ? [
+                  // Reply to questions if there are any outstanding
+                  ...(demoState.phase === 'finder-asked' ? [{
+                    id: 'vendor-reply-note',
+                    label: 'Reply to Question',
+                    description: 'Respond to Finder\'s question about workarounds',
+                    enabled: true,
+                  }] : []),
+                  // Show "Notify Fix Ready" in all embargo-active phases except when already notified
+                  ...(demoState.vendorVfdState === 'Vfd' && ['embargo-accepted', 'finder-asked', 'vendor-replied'].includes(demoState.phase) ? [{
+                    id: 'notify-fix-ready',
+                    label: 'Notify Fix Ready',
+                    description: 'Vendor notifies that a fix is ready',
+                    enabled: true,
+                  }] : []),
+                  // Show "Notify Fix Deployed" after fix is ready but not yet deployed
+                  ...(demoState.vendorVfdState === 'VFd' ? [{
+                    id: 'notify-fix-deployed',
+                    label: 'Notify Fix Deployed',
+                    description: 'Vendor notifies that the fix has been deployed',
+                    enabled: true,
+                  }] : []),
+                  // After fix deployed, show publication option if not yet published
+                  ...(demoState.vendorVfdState === 'VFD' && demoState.pxaState === 'pxa' ? [
+                    {
+                      id: 'vendor-notify-published',
+                      label: 'Notify Published',
+                      description: 'Vendor notifies that vulnerability is publicly disclosed',
+                      enabled: true,
+                    }
+                  ] : []),
+                  // After fix deployed, always show close option (can close with or without publication)
+                  ...(demoState.vendorVfdState === 'VFD' ? [
+                    {
+                      id: 'vendor-close-case',
+                      label: 'Close Case',
+                      description: 'Vendor closes their participation in the case',
+                      enabled: true,
+                    }
+                  ] : [])
+                ] : (['vendor-published', 'finder-published', 'finder-closed'].includes(demoState.phase) && !demoState.vendorHasClosed) ? [
+                  // Can still reply to questions even after publication
+                  ...(demoState.phase === 'finder-asked' ? [{
+                    id: 'vendor-reply-note',
+                    label: 'Reply to Question',
+                    description: 'Respond to Finder\'s question',
+                    enabled: true,
+                  }] : []),
+                  {
+                    id: 'vendor-close-case',
+                    label: 'Close Case',
+                    description: 'Vendor closes their participation in the case',
+                    enabled: true,
+                  }
+                ] : []
               }
               onActionClick={(actionId) => handleAction('vendor', actionId)}
             />
