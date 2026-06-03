@@ -1455,14 +1455,14 @@ function App() {
               'Announce activity sent to participants',
             ],
           },
-          // Consequence node in Finder lane (enables Close Case if not already closed)
-          {
+          // Consequence node in Finder lane (only if Finder hasn't closed/left)
+          ...(prev.finderHasClosed ? [] : [{
             id: `${vendorCloseEventId}-finder-consequence`,
             actor: 'Finder',
             label: 'Closure Noted',
             x: nextX,
             lane: 0,
-            type: 'consequence',
+            type: 'consequence' as const,
             timestamp: now + 1,
             causedBy: vendorCloseEventId,
             enablesNext: true,  // Enables Close Case decision
@@ -1471,7 +1471,7 @@ function App() {
               'Vendor participant status updated',
               'Vendor RM → CLOSED',
             ],
-          },
+          }] as TimelineEvent[]),
           // Consequence node in CaseActor lane (BLUE)
           {
             id: `${vendorCloseEventId}-caseactor-consequence`,
@@ -1528,14 +1528,14 @@ function App() {
               '✓ M7 REACHED: All participants closed',
             ],
           },
-          // Consequence node in Vendor lane (BLUE)
-          {
+          // Consequence node in Vendor lane (only if Vendor hasn't closed/left)
+          ...(prev.vendorHasClosed ? [] : [{
             id: `${finderCloseEventId}-vendor-consequence`,
             actor: 'Vendor',
             label: 'Closure Complete',
             x: nextX,
             lane: 1,
-            type: 'consequence',
+            type: 'consequence' as const,
             timestamp: now + 1,
             causedBy: finderCloseEventId,
             consequences: [
@@ -1543,7 +1543,7 @@ function App() {
               'Finder participant status updated',
               'All participants RM.CLOSED',
             ],
-          },
+          }] as TimelineEvent[]),
           // Consequence node in CaseActor lane (BLUE)
           {
             id: `${finderCloseEventId}-caseactor-consequence`,
