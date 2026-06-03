@@ -1705,7 +1705,7 @@ function App() {
                 label: 'Reject Embargo',
                 description: 'Reject the embargo proposal',
                 enabled: true,
-              }] : (['report-invalidated', 'embargo-accepted', 'finder-asked', 'vendor-replied', 'fix-ready', 'fix-deployed'].includes(demoState.phase)) ? [
+              }] : (['report-invalidated', 'embargo-accepted', 'finder-asked', 'vendor-replied', 'fix-ready', 'fix-deployed'].includes(demoState.phase) && !demoState.finderHasClosed) ? [
                 {
                   id: 'finder-add-note',
                   label: demoState.phase === 'vendor-replied' ? 'Ask Another Question' : 'Ask Question',
@@ -1733,7 +1733,7 @@ function App() {
                 label: 'Close Case',
                 description: 'Finder closes their participation in the case',
                 enabled: true,
-              }] : demoState.phase === 'vendor-published' ? [
+              }] : (demoState.phase === 'vendor-published' && !demoState.finderHasClosed) ? [
                 {
                   id: 'finder-add-note',
                   label: 'Ask Question',
