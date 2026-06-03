@@ -66,6 +66,10 @@ General information about architectural decision records is available at <https:
   Comments](0014-sha-pin-github-actions.md)
 - [ADR-0015 Create VulnerabilityCase at Report Receipt
   (RM.RECEIVED)](0015-create-case-at-report-receipt.md)
+- [ADR-0016 Replace TinyDB with SQLModel/SQLite DataLayer
+  Adapter](0016-sqlmodel-sqlite-datalayer.md)
+- [ADR-0017 Domain/Wire Object Separation: Parallel Core Class
+  Hierarchy](0017-domain-wire-object-separation.md)
 
 ## Proposed ADRs
 
