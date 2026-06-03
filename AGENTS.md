@@ -323,6 +323,13 @@ Short entries are reproduced here; longer ones are referenced below.
 - **Accept.object_ Must Be the Invite Activity, Not the Case Object** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **Actor ID Normalization in Trigger Paths: Resolve Path Params Before Outbox** — see [notes/codebase-structure.md](notes/codebase-structure.md)
 - **Trigger-Side Embargo Ownership Gate (Owner vs. Participant)** — see [notes/participant-embargo-consent.md](notes/participant-embargo-consent.md)
+- **Inline `EMAdapter` Instantiation Is an Anti-Pattern** — Trigger and received
+  use cases MUST NOT instantiate `create_em_machine()` + `EMAdapter` inline in
+  `execute()` methods. Once `EmbargoLifecycle` (#538) lands, delegate all EM +
+  PEC transitions to it. Until then, add a `# TODO(#538)` comment so the
+  duplication is discoverable. Always cascade PEC alongside EM transitions
+  (`_cascade_pec_revise` on `ACTIVE → REVISE`; `_cascade_pec_reset` on
+  termination). See [notes/embargo-lifecycle.md](notes/embargo-lifecycle.md).
 - **Note Attachment Idempotency: Check `case.notes`, Not DataLayer Existence** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Transitive Activity `object_` Contract at Base Type** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **Base-Typed Serialization Drops Subtype Fields: Use `serialize_as_any=True`** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
