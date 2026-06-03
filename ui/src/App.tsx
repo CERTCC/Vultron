@@ -289,9 +289,13 @@ function App() {
 
       setDemoState(prev => ({
         ...prev,
-        phase: 'report-submitted',
+        phase: 'case-created',
         vendorRmState: 'RECEIVED',
+        finderRmState: 'RECEIVED',
+        emState: 'NONE',
+        vendorVfdState: 'Vfd',
         vendorVisible: true,
+        caseActorVisible: true,
         nextXPosition: prev.nextXPosition + 250,
         timelineEvents: [
           ...prev.timelineEvents,
@@ -308,10 +312,10 @@ function App() {
               'VulnerabilityReport object created',
               'Offer(VulnerabilityReport) activity created',
               'Offer sent to Vendor\'s inbox',
-              'Triggers automatic effects on Vendor',
+              'Triggers automatic case creation',
             ],
           },
-          // Consequence node in Vendor lane (enables Validate Report)
+          // Consequence node in Vendor lane
           {
             id: `${submitEventId}-vendor-consequence`,
             actor: 'Vendor',
@@ -320,125 +324,57 @@ function App() {
             lane: 1,
             type: 'consequence',
             causedBy: submitEventId,
-            enablesNext: true,  // Enables Validate Report decision
-            timestamp: now,
+            enablesNext: true,
+            timestamp: now + 1,
             consequences: [
               'Offer received in inbox',
               'SubmitReportReceived handler triggered',
               'VulnerabilityReport stored in DataLayer',
               'Vendor\'s RM state → RECEIVED',
+              'Case creation BT executes automatically',
+            ],
+          },
+          // Consequence node in CaseActor lane (automatic case creation)
+          {
+            id: `${submitEventId}-case-consequence`,
+            actor: 'CaseActor',
+            label: 'Case Created',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            causedBy: submitEventId,
+            timestamp: now + 2,
+            consequences: [
+              'VulnerabilityCase created automatically',
+              'Case creation BT: create_receive_report_case_tree',
+              'Vendor participant created (attributed_to: Vendor)',
+              'Vendor\'s RM → RECEIVED, VFD → Vfd',
+              'Case Actor acts as authoritative ledger',
+            ],
+          },
+          // Consequence node in Finder lane (case announced to finder)
+          {
+            id: `${submitEventId}-finder-case-consequence`,
+            actor: 'Finder',
+            label: 'Case Announced',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            causedBy: submitEventId,
+            timestamp: now + 3,
+            consequences: [
+              'Announce(Case) received in inbox',
+              'Case replica created in DataLayer',
+              'Finder participant record created',
+              'Finder\'s RM → RECEIVED',
+              'Trust established with CaseActor',
             ],
           },
         ],
         eventLog: [
           ...prev.eventLog,
           'Finder submitted report to Vendor',
-        ],
-      }))
-    } else if (actionId === 'validate-report') {
-      // Vendor validates report
-      const nextX = demoState.nextXPosition
-      const now = Date.now()
-
-      setDemoState(prev => ({
-        ...prev,
-        phase: 'report-validated',
-        vendorRmState: 'VALID',
-        nextXPosition: prev.nextXPosition + 250,
-        timelineEvents: [
-          ...prev.timelineEvents,
-          {
-            id: `event-${prev.timelineEvents.length + 1}`,
-            actor: 'Vendor',
-            label: 'Validate Report',
-            x: nextX,
-            lane: 1,
-            type: 'decision',
-            timestamp: now,
-            consequences: [
-              'Accept(Offer) activity created',
-              'Vendor\'s RM state → VALID',
-              'Case creation triggered',
-            ],
-          },
-        ],
-        eventLog: [...prev.eventLog, 'Vendor validated the report'],
-      }))
-    } else if (actionId === 'create-case') {
-      // Case automatically created (this button just triggers display of consequences)
-      const nextX = demoState.nextXPosition
-      const caseEventId = `event-${demoState.timelineEvents.length + 1}`
-      const now = Date.now()
-
-      setDemoState(prev => ({
-        ...prev,
-        phase: 'case-created',
-        vendorRmState: 'ACCEPTED',
-        finderRmState: 'ACCEPTED',
-        emState: 'NONE',  // Embargo negotiation happens next
-        vendorVfdState: 'Vfd',
-        caseActorVisible: true,
-        nextXPosition: prev.nextXPosition + 250,
-        timelineEvents: [
-          ...prev.timelineEvents,
-          // Main decision node (Vendor lane)
-          {
-            id: caseEventId,
-            actor: 'Vendor',
-            label: 'Case Created',
-            x: nextX,
-            lane: 1,
-            type: 'decision',
-            timestamp: now,
-            consequences: [
-              'VulnerabilityCase created (attributed_to: Vendor)',
-              'Three participants created',
-              'Vendor\'s RM → ACCEPTED, VFD → Vfd',
-              'Triggers consequences for Finder and CaseActor',
-              'Embargo negotiation to follow',
-            ],
-          },
-          // Consequence node in Finder lane
-          {
-            id: `${caseEventId}-finder-consequence`,
-            actor: 'Finder',
-            label: 'Case Received',
-            x: nextX,
-            lane: 0,
-            type: 'consequence',
-            timestamp: now + 1,
-            causedBy: caseEventId,
-            consequences: [
-              'Announce(Case) received in inbox',
-              'Case replica created in DataLayer',
-              'Finder participant record created',
-              'Finder\'s RM → ACCEPTED',
-              'Trust established with CaseActor',
-              'Awaiting embargo negotiation',
-            ],
-          },
-          // Consequence node in CaseActor lane
-          {
-            id: `${caseEventId}-caseactor-consequence`,
-            actor: 'CaseActor',
-            label: 'Participant Created',
-            x: nextX,
-            lane: 2,
-            type: 'consequence',
-            timestamp: now + 2,
-            causedBy: caseEventId,
-            consequences: [
-              'CaseActor participant created',
-              'Role: COORDINATOR, CASE_MANAGER',
-              'Now tracks case state',
-              'Acts as authoritative ledger',
-              'Virtual actor (co-located with Vendor)',
-            ],
-          },
-        ],
-        eventLog: [
-          ...prev.eventLog,
-          'Case created with 3 participants (M1 pending embargo negotiation)',
+          'Case created automatically (at RM.RECEIVED)',
         ],
       }))
     } else if (actionId === 'propose-embargo') {
@@ -1734,22 +1670,7 @@ function App() {
               emState={demoState.emState}
               vfdState={demoState.vendorVfdState}
               actions={
-                demoState.phase === 'report-submitted' ? [{
-                  id: 'validate-report',
-                  label: 'Validate Report',
-                  description: 'Mark the report as valid',
-                  enabled: true,
-                }, {
-                  id: 'invalidate-report',
-                  label: 'Invalidate Report',
-                  description: 'Mark the report as invalid',
-                  enabled: true,
-                }] : demoState.phase === 'report-validated' ? [{
-                  id: 'create-case',
-                  label: 'Create Case',
-                  description: 'System creates case with 3 participants',
-                  enabled: true,
-                }] : demoState.phase === 'embargo-proposed' && !demoState.vendorEmbargoAccepted ? [{
+                demoState.phase === 'embargo-proposed' && !demoState.vendorEmbargoAccepted ? [{
                   id: 'accept-embargo',
                   label: 'Accept Embargo',
                   description: 'Accept the 90-day embargo proposal',
