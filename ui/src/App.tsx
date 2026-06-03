@@ -993,76 +993,6 @@ function App() {
           'Attacks observed in the wild (external event)',
         ],
       }))
-    } else if (actionId === 'commit-log') {
-      // Vendor commits log entry for replica sync verification
-      const nextX = demoState.nextXPosition
-      const logEventId = `event-${demoState.timelineEvents.length + 1}`
-      const now = Date.now()
-
-      setDemoState(prev => ({
-        ...prev,
-        phase: 'log-committed',
-        nextXPosition: prev.nextXPosition + 250,
-        timelineEvents: [
-          ...prev.timelineEvents,
-          // Decision node in Vendor lane (GREEN)
-          {
-            id: logEventId,
-            actor: 'Vendor',
-            label: 'Commit Log',
-            x: nextX,
-            lane: 1,
-            type: 'decision',
-            timestamp: now,
-            consequences: [
-              'CaseEvent created with hash',
-              'Announce(CaseEvent) activity created',
-              'Sent to participants',
-              'Triggers replica sync and Case Actor tracking',
-            ],
-          },
-          // Consequence node in Finder lane (enables Ask Question)
-          {
-            id: `${logEventId}-finder-consequence`,
-            actor: 'Finder',
-            label: 'Replica Synced',
-            x: nextX,
-            lane: 0,
-            type: 'consequence',
-            timestamp: now + 1,
-            causedBy: logEventId,
-            enablesNext: true,  // Enables Ask Question decision
-            consequences: [
-              'Announce received in inbox',
-              'CaseEvent stored in DataLayer',
-              'Finder\'s replica synchronized',
-              'Hash verified',
-              '✓ M2 REACHED: Replica state verified (SYNC-2)',
-            ],
-          },
-          // Consequence node in CaseActor lane (BLUE)
-          {
-            id: `${logEventId}-caseactor-consequence`,
-            actor: 'CaseActor',
-            label: 'Event Logged',
-            x: nextX,
-            lane: 2,
-            type: 'consequence',
-            timestamp: now + 2,
-            causedBy: logEventId,
-            consequences: [
-              'CaseEvent tracked by Case Actor',
-              'Event hash recorded',
-              'Authoritative ledger updated',
-              'Event becomes part of case history',
-            ],
-          },
-        ],
-        eventLog: [
-          ...prev.eventLog,
-          '✓ M2 REACHED: Finder replica synchronized',
-        ],
-      }))
     } else if (actionId === 'finder-add-note') {
       // Finder asks question
       const nextX = demoState.nextXPosition
@@ -1766,7 +1696,7 @@ function App() {
                 label: 'Reject Embargo',
                 description: 'Reject the embargo proposal',
                 enabled: true,
-              }] : (demoState.phase === 'log-committed' || demoState.phase === 'vendor-replied') ? [{
+              }] : (demoState.phase === 'embargo-accepted' || demoState.phase === 'vendor-replied') ? [{
                 id: 'finder-add-note',
                 label: demoState.phase === 'vendor-replied' ? 'Ask Another Question' : 'Ask Question',
                 description: demoState.phase === 'vendor-replied'
@@ -1826,12 +1756,7 @@ function App() {
                   label: 'Reject Embargo',
                   description: 'Reject the embargo proposal',
                   enabled: true,
-                }] : demoState.phase === 'embargo-accepted' ? [{
-                  id: 'commit-log',
-                  label: 'Commit Log Entry',
-                  description: 'Create log entry for replica synchronization verification',
-                  enabled: true,
-                }] : demoState.phase === 'log-committed' ? [{
+                }] : (demoState.phase === 'embargo-accepted' || demoState.phase === 'vendor-replied') ? [{
                   id: 'notify-fix-ready',
                   label: 'Notify Fix Ready',
                   description: 'Vendor notifies that a fix is ready',
