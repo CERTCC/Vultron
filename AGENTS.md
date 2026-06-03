@@ -347,6 +347,13 @@ Short entries are reproduced here; longer ones are referenced below.
 - **Use `isinstance` for Pyright Attribute Narrowing, Not `# type: ignore`** — see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
 - **Untyped Closures Are Invisible to mypy — Extract to Named Functions** — see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
 - **CI Runs All Tests; Default Local Run Omits Integration** — see `test/AGENTS.md` § Integration Tests
+- **Superseded `notes/*.md` Files Must Move to `archived_notes/`, Not Stay in `notes/`** — A file
+  with `status: superseded` in its frontmatter MUST be moved to `archived_notes/` using `git mv`.
+  Leaving it in `notes/` causes agents to load outdated guidance as active context and pollutes
+  `notes/README.md` navigation. When moving, update `archived_notes/README.md` and remove any
+  reference to the file from `notes/README.md`. Future-stub items referenced in the superseded file
+  MUST have tracked GitHub Issues before archiving. See `specs/project-documentation.yaml`
+  PD-03-004 and PD-03-005.
 
 > **Parallelism and Single-Agent Testing** has moved to `test/AGENTS.md`.
 >

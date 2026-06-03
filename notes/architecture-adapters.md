@@ -79,7 +79,7 @@ Track ongoing violations in the associated ARCH-01-001 issue and spec links.
 
 ### Future delivery stubs
 
-Architectural placeholders exist:
+Architectural placeholders exist (tracked in GitHub issue #650):
 
 - `adapters/driven/http_delivery.py` (future signed remote HTTP delivery).
 - `adapters/driving/shared_inbox.py` (future ActivityPub shared-inbox fan-out).
@@ -108,7 +108,7 @@ The actor URI used for queue write paths and actor-scoped read paths must match
 exactly (string-equal). Normalize to canonical actor IDs before constructing
 actor-scoped DataLayers.
 
-### Future: `ActorScopedDataLayer` protocol
+### Future: `ActorScopedDataLayer` protocol (tracked in #655)
 
 A dedicated protocol is planned for static enforcement of scope boundaries.
 Until then, tests enforce the contract behavior.
