@@ -81,8 +81,15 @@ Track ongoing violations in the associated ARCH-01-001 issue and spec links.
 
 Architectural placeholders exist (tracked in GitHub issue #650):
 
-- `adapters/driven/http_delivery.py` (future signed remote HTTP delivery).
-- `adapters/driving/shared_inbox.py` (future ActivityPub shared-inbox fan-out).
+- `adapters/driven/http_delivery.py` — future signed remote HTTP delivery
+  (`specs/outbox.yaml` OX-10-001–OX-10-004). **Must raise `NotImplementedError`
+  if instantiated until implemented** (OX-10-004).
+- `adapters/driving/shared_inbox.py` — future ActivityPub shared-inbox fan-out
+  (`specs/outbox.yaml` OX-11-001–OX-11-004). **Must raise `NotImplementedError`
+  if instantiated until implemented** (OX-11-004).
+
+Both stubs are transport-only concerns. The core layer must not reference them
+directly; they are driven/driving adapter responsibilities only.
 
 ### Architecture boundary ratchet test
 
