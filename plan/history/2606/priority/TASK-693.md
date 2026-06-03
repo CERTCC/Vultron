@@ -1,3 +1,10 @@
+---
+source: TASK-693
+timestamp: '2026-06-03T16:08:00+00:00'
+title: 'PRIORITIES.md archived: migrating to GitHub Project board (project #24)'
+type: priority
+---
+
 # Priorities
 
 ## Important note about priority numbers
