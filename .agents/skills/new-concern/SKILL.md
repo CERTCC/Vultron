@@ -4,9 +4,9 @@ description: >
   Create a single GitHub Concern-type issue from a freeform description.
   Runs a grill-me interview to flesh out category, severity, evidence, impact,
   and suggested action, then creates the issue using the concern.md template
-  format with the group:unscheduled and concern labels. Use when a developer
-  spots a concern that isn't in the current CONCERNS.md scan, or wants to
-  capture a concern immediately without running process-concerns.
+  format with the `concern` label. Use when a developer spots a concern that
+  isn't in the current CONCERNS.md scan, or wants to capture a concern
+  immediately without running process-concerns.
 ---
 
 # Skill: New Concern
@@ -130,18 +130,13 @@ TITLE_JSON=$(printf '%s' "${TITLE}" \
 BODY_JSON=$(printf '%s' "${BODY}" \
   | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
 
-# Ensure labels exist before applying them
-gh label create "group:unscheduled" \
-  --repo CERTCC/Vultron \
-  --description "Not yet scheduled in PRIORITIES.md" \
-  --color "#e4e669" 2>/dev/null || true
-
+# Ensure concern label exists before applying it
 gh label create "concern" \
   --repo CERTCC/Vultron \
   --description "Technical risk, debt, or fragile area" \
   --color "#d93f0b" 2>/dev/null || true
 
-ISSUE_NUMBER=$(gh api graphql -f query="
+RESULT=$(gh api graphql -f query="
 mutation {
   createIssue(input: {
     repositoryId: \"${REPO_NODE_ID}\"
@@ -149,13 +144,33 @@ mutation {
     body: ${BODY_JSON}
     issueTypeId: \"${CONCERN_TYPE}\"
   }) {
-    issue { number url }
+    issue { number id url }
   }
-}" --jq '.data.createIssue.issue.number')
+}")
+ISSUE_NUMBER=$(echo "${RESULT}" | python3 -c \
+  "import json,sys; print(json.load(sys.stdin)['data']['createIssue']['issue']['number'])")
+ISSUE_NODE_ID=$(echo "${RESULT}" | python3 -c \
+  "import json,sys; print(json.load(sys.stdin)['data']['createIssue']['issue']['id'])")
 
 gh issue edit "${ISSUE_NUMBER}" \
   --repo CERTCC/Vultron \
-  --add-label "group:unscheduled,concern"
+  --add-label "concern"
+
+# Add to Project #24 with Schedule=Someday
+ITEM_ID=$(gh api graphql -f query="mutation {
+  addProjectV2ItemById(input: {
+    projectId: \"PVT_kwDOAjf0s84BZnre\"
+    contentId: \"${ISSUE_NODE_ID}\"
+  }) { item { id } }
+}" --jq '.data.addProjectV2ItemById.item.id')
+gh api graphql -f query="mutation {
+  updateProjectV2ItemFieldValue(input: {
+    projectId: \"PVT_kwDOAjf0s84BZnre\"
+    itemId: \"${ITEM_ID}\"
+    fieldId: \"PVTSSF_lADOAjf0s84BZnrezhUlFOM\"
+    value: { singleSelectOptionId: \"fcffa79d\" }
+  }) { projectV2Item { id } }
+}" >/dev/null
 
 echo "Created concern issue #${ISSUE_NUMBER}"
 ```
@@ -201,6 +216,6 @@ Print a one-line confirmation:
 - [ ] If near-duplicate found, user chose create-new or update-existing
 - [ ] All template fields resolved via grill-me interview
 - [ ] Issue body built from concern template format
-- [ ] Issue created (with `group:unscheduled` + `concern` labels) or
+- [ ] Issue created (with `concern` label, added to Project #24) or
       updated (with refresh comment)
 - [ ] Confirmation URL printed

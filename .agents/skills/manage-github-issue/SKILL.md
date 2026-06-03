@@ -27,7 +27,7 @@ Use the structured GitHub relationship APIs documented here instead.
 | `ISSUE_NUMBER` | — | Issue # to update; omit to create a new issue |
 | `TITLE` | — | Issue title (required for create, optional for update) |
 | `BODY` | — | Issue body markdown |
-| `LABELS` | — | Comma-separated label names (e.g. `group:unscheduled,size:M`) |
+| `LABELS` | — | Comma-separated label names (e.g. `size:M`) |
 | `ASSIGNEES` | — | Comma-separated GitHub usernames |
 | `ISSUE_TYPE_ID` | — | GraphQL node ID of the issue type (see Constants) |
 | `PARENT_ISSUE` | — | Parent issue number (sets parent/child sub-issue link) |

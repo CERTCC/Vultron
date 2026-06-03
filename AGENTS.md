@@ -182,13 +182,12 @@ All outbound activities MUST use factory functions in
 
 ### GitHub Issue Labels
 
-When adding a `group:` label to an issue, the label name MUST NOT include a
-priority number (PAD-02-007). Use a short, descriptive kebab-case slug derived
-from the priority group title — e.g., `group:architecture-hardening`, never
-`group:473-architecture-hardening`. Priority numbers in `plan/PRIORITIES.md`
-can be reordered; label names must remain stable. Before assigning a
-`group:` label, verify it exists on GitHub and create it with `gh label create`
-if not. See `notes/parallel-development.md` §Group Label Conventions.
+Priority tracking is managed via **GitHub Project #24 ("Vultron Planning")**
+using a `Schedule` field with values: `Now`, `Next`, `Later`, `Someday`.
+New issues are added to the project with `Schedule=Someday` by default.
+Reprioritize by updating the `Schedule` field via the API or by dragging cards
+on the board. `group:` labels are no longer used — do not create or assign them.
+See `notes/parallel-development.md` for the project board model and API reference.
 
 ## Change Protocol
 

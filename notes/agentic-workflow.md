@@ -78,9 +78,9 @@ codebase, then create GitHub Issues for any untracked gaps.
 | | |
 |---|---|
 | **Trigger** | `specs/` or `notes/` have changed since the last plan update |
-| **Input** | `specs/`, `notes/`, `vultron/`, `test/`, `plan/PRIORITIES.md`, open GitHub Issues |
-| **Process** | Load context → gap analysis → create GitHub Issues for gaps → write observations to `notes/` |
-| **Output** | New GitHub Issues (group:unscheduled), updated `notes/` |
+| **Input** | `specs/`, `notes/`, `vultron/`, `test/`, Project #24 board, open GitHub Issues |
+| **Process** | Load context → gap analysis → create GitHub Issues → add to board → write observations to `notes/` |
+| **Output** | New GitHub Issues (added to Project #24 with Schedule=Someday), updated `notes/` |
 | **Side effects** | None — does not commit code or close issues |
 
 `update-plan` is the **third-priority** skill. It translates the current
@@ -151,7 +151,7 @@ flowchart TD
 | `specs/*.yaml` | Authoritative requirements | Permanent |
 | `notes/*.md` | Durable design insights | Permanent |
 | `AGENTS.md` | Agent conventions and patterns | Permanent |
-| `plan/PRIORITIES.md` | Authoritative priority ordering | Permanent |
+| GitHub Project #24 | Authoritative priority scheduling (Now/Next/Later/Someday) | Live — updated via API |
 | GitHub Task/Subtask Issues | Pending + in-progress tasks | Yes — closed when PR merges |
 | `plan/BUILD_LEARNINGS.md` | Ephemeral build/bugfix observations | Yes — processed and archived by `learn` |
 | `vultron/`, `test/` | Implementation | Permanent |

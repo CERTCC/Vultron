@@ -4,48 +4,54 @@ title: check-priority-status Reference
 
 # Check Priority Status — Reference
 
-Technical details, configuration, and implementation notes for the priority status check.
+Technical details, configuration, and implementation notes for the priority
+status check.
+
+## Project Board Constants
+
+| Name | Value |
+|---|---|
+| Project node ID | `PVT_kwDOAjf0s84BZnre` |
+| Schedule field ID | `PVTSSF_lADOAjf0s84BZnrezhUlFOM` |
+| Schedule: Now | `1e84189c` |
+| Schedule: Next | `9fca00b2` |
+| Schedule: Later | `e2149d3e` |
+| Schedule: Someday | `fcffa79d` |
 
 ## Data Model
 
-### Priority Group Structure
+### Board Item Structure
 
-Parsed from `plan/PRIORITIES.md`:
+Queried from Project #24:
 
 ```yaml
-Priority: <number>
-Title: <string>
-Description: <string>
-Issues:
-  - Epic or root issue (GitHub URL or #<number>)
-  - Child issues (sub-tasks, linked via GitHub sub-issue relationships)
-  - Related issues (mentioned in description, marked as related)
-Dependencies:
-  - Prerequisite issues (noted as "Prerequisite:")
-  - Blocked items (issues with "blocked by" annotation)
+ScheduleTier: Now | Next | Later | Someday | null
+IssueNumber: <int>
+IssueTitle: <string>
+IssueState: open | closed
+IssueType: Epic | Task | Bug | Concern | Idea
+SubIssues: (for Epics) list of child issue numbers
 ```
+
+Items with `ScheduleTier = null` are on the board but have no Schedule value
+set — treat as uncategorized.
 
 ### Issue State
 
-For each issue linked to a priority:
+For each issue on the board:
 
-- **State**: Open, closed
-- **Type**: Epic, bug, feature, chore
+- **State**: open, closed
+- **Type**: Epic, Task, Bug, Concern, Idea
 - **Activity**: Last update timestamp, last actor
 - **PRs**: List of open/closed PRs that reference this issue
-- **Sub-issues**: For epics, aggregated state of linked issues
-- **Blockers**: Explicit dependencies or prerequisite tags
+- **Sub-issues**: For Epics, aggregated state of linked issues
+- **Blockers**: Formal "blocked by" relationships
 
 ### Blocker Detection
 
 Blockers are sourced **exclusively** from formal GitHub issue relationship
-metadata — specifically the "blocked by" relationship on an issue (as set via
-GitHub's issue relationship feature). Body text mentioning "blocked by" is
-**not** parsed and MUST NOT be used as a blocker source.
-
-`PRIORITIES.md` MUST NOT contain blocker or dependency text. Any blocker
-information found there is stale and should be ignored; the authoritative
-source is GitHub issue relationships.
+metadata — specifically the "blocked by" relationship on an issue.
+Body text mentioning "blocked by" is **not** parsed.
 
 For each issue with a "blocked by" relationship:
 
@@ -55,29 +61,30 @@ For each issue with a "blocked by" relationship:
 
 ### Coverage Analysis
 
-**Uncovered issues**:
+**Issues not on board**:
 
 ```text
-Open issues (all types) NOT in any priority group
-= All open issues - Union of all issues linked to priorities
-```text
+Open issues (all types) NOT in Project #24
+= All open issues − Union of all issues on the board
+```
 
-**Empty priorities**:
+**Empty tiers**:
 
 ```text
-Priorities with:
-- Zero linked open issues (all linked issues are closed)
-- No open PRs addressing the priority
+Schedule tiers with no open issues
+```
+
+**Epics with no open sub-issues**:
+
 ```text
+Epic issues on the board where all sub-issues are closed or none exist
+```
 
 **Orphaned PRs**:
 
 ```text
-Open PRs where:
-- PR does not reference any GitHub issue
-- PR references only closed issues
-- Referenced issue(s) not in any priority group
-```text
+Open PRs where referenced issue(s) are not in Project #24
+```
 
 ### Activity Age
 
@@ -89,20 +96,20 @@ Measured from **most recent event** among:
 
 Does **not** include creation date.
 
-**Stale threshold**: 1 week (7 days) — items inactive for 7+ days are flagged
+**Stale threshold**: 1 week (7 days)
 
 ### Progress Calculation
 
-For each priority group (or epic):
+For each Epic (or tier):
 
 ```text
-Done         = Count of closed issues
-Pending      = Count of open issues with no PR (and not blocked by an open issue)
-PR Pending   = Count of open issues with ≥1 open PR
-Blocked      = Count of issues with ≥1 open "blocked by" relationship
+Done         = Count of closed sub-issues
+Pending      = Count of open sub-issues with no PR (not blocked)
+PR Pending   = Count of open sub-issues with ≥1 open PR
+Blocked      = Count of sub-issues with ≥1 open "blocked by" relationship
 Total        = Done + Pending + PR Pending + Blocked
 
-% Complete = Done / (Done + Pending + PR Pending + Blocked)
+% Complete = Done / Total
 Status:
   🟢 ≥75% done OR all sub-items have active PRs
   🟡 25–75% done with some pending items
@@ -111,124 +118,93 @@ Status:
 
 ### Readiness
 
-A priority group is **actionable** (eligible for "Next up") only when ALL of
-the following are true:
+A Now-tier Epic is **actionable** ("Next up") only when it has at least one
+unblocked open sub-issue with no open PR.
 
-1. It has at least one unblocked pending issue (open, no open "blocked by"
-   relationship, no open PR yet).
-2. Every priority group with a **lower priority number** (higher urgency) has
-   no unblocked pending work — i.e., all their open issues are either blocked,
-   have open PRs, or are closed.
+## GitHub Query Examples
 
-The **"Next up"** callout in the Summary names the single group with the lowest
-priority number that satisfies both conditions.
-
-## Configuration
-
-### Staleness Threshold
-
-Environment variable or config file:
-
-```text
-PRIORITY_STATUS_STALE_DAYS=7  # Default: 1 week
-```
-
-Activity age measured from status change, commit, or comment—not creation date.
-
-### Date Range Filtering
-
-Optional: Report only on activity within a date range:
-
-```text
-PRIORITY_STATUS_FROM=2025-01-01
-PRIORITY_STATUS_TO=2025-12-31
-```
-
-### Issue Type Filters
-
-By default, all types (bug, feature, chore, epic) are included. To focus on specific types:
-
-```text
-PRIORITY_STATUS_TYPES=bug,epic  # Comma-separated
-```
-
-## Computation
-
-### GitHub Query Examples
-
-**All open issues in a repo**:
+### All items in Project #24 with Schedule tier
 
 ```graphql
-GET /repos/{owner}/{repo}/issues?state=open&per_page=100
-```text
-
-**Issues linked to an epic** (via GitHub GraphQL):
-
-```graphql
-query {
-  repository(name: "Vultron", owner: "CERTCC") {
-    issue(number: 464) {
-      epic {
-        issues(first: 20) {
-          edges {
-            node { number, title, state }
+{
+  node(id: "PVT_kwDOAjf0s84BZnre") {
+    ... on ProjectV2 {
+      items(first: 100) {
+        nodes {
+          content {
+            ... on Issue { number title state }
+          }
+          fieldValueByName(name: "Schedule") {
+            ... on ProjectV2ItemFieldSingleSelectValue { name optionId }
           }
         }
       }
     }
   }
 }
-```text
+```
 
-**PRs referencing an issue**:
+### Sub-issues of an Epic
 
 ```graphql
-GET /repos/{owner}/{repo}/issues/{issue_number}/pull_requests
+{
+  repository(owner:"CERTCC", name:"Vultron") {
+    issue(number: <N>) {
+      subIssues(first: 50) {
+        nodes { number title state }
+      }
+    }
+  }
+}
 ```
+
+### All open issues in repo
+
+```bash
+gh issue list --repo CERTCC/Vultron \
+  --state open --json number,title,labels --limit 500
+```
+
+### PRs referencing an issue
+
+```bash
+gh pr list --repo CERTCC/Vultron \
+  --search "linked:issue:<number>" --json number,title,state
+```
+
+## Configuration
+
+### Staleness Threshold
+
+Default: 7 days. Items with no activity (status change, commit, comment)
+for 7+ days are flagged as stale.
 
 ## Limitations
 
-- **Stale is approximate**: Activity age is based on visible GitHub events; local work not pushed is invisible.
-- **Nested epics not flattened**: If an epic contains child epics, only direct child issues are counted (not transitive).
-- **Manual dependencies**: Dependencies noted in text (e.g., "Prerequisite: #440") are parsed via regex; format must be consistent.
-- **Cross-repo dependencies**: If Vultron has dependencies on other repos, those are not tracked.
+- **Stale is approximate**: Activity age is based on visible GitHub events;
+  local work not pushed is invisible.
+- **Nested Epics not flattened**: Only direct sub-issues are counted, not
+  transitive.
+- **Cross-repo dependencies**: External repo dependencies are not tracked.
+- **100-item pagination**: Board queries fetch up to 100 items by default;
+  paginate if the board grows beyond that.
 
-## Extending the Skill
+## Hard Stop
 
-### Custom Report Sections
-
-Add a new section by:
-
-1. Write a query function to gather data (e.g., `fetch_recent_label_changes()`)
-2. Add a section render function
-3. Insert into report output sequence
-
-Extend output to JSON, CSV, or Markdown table for downstream tooling:
-
-```text
-check-priority-status --format json --output report.json
-```
-
-### Hard Stop
-
-This skill MUST stop after delivering its report. It MUST NOT invoke any other
-skill or take any follow-up action. The report is the complete, final output.
+This skill MUST stop after delivering its report. It MUST NOT invoke any
+other skill or take any follow-up action. The report is the complete,
+final output.
 
 ## Troubleshooting
 
 ### Issue not showing in report
 
-1. Check `plan/PRIORITIES.md` has correct GitHub issue links (format: `#123` or full URL)
-2. Verify the issue is open (closed issues should appear under "Done", not "pending")
-3. Check GitHub API token has sufficient permissions (`repo` scope required)
+1. Check that the issue is in Project #24 (visit the board or run the
+   items query above).
+2. Verify the issue is open (closed issues appear under "Done").
+3. Check that your GitHub token has sufficient permissions (`repo` scope).
 
 ### Stale items showing as active
 
-Activity age is computed from GitHub events. If a PR has been stale locally but not pushed, it won't show as stale. Push regularly to keep the report accurate.
-
-### Empty priority with open PRs
-
-This indicates PRs are not linked to the priority's issues. Add a link by:
-
-1. Update PR description to reference the issue: `Fixes #<issue_number>`
-2. Re-run the check
+Activity age is computed from GitHub events. Push branches regularly to
+keep the report accurate.

@@ -6,9 +6,10 @@ description: >
   and create a GitHub implementation Issue as a sub-issue of the idea issue.
   Runs a structured interview (grill-me), writes specs/<topic>.yaml and
   notes/<topic>.md, archives the idea via `uv run append-history idea`, opens
-  a docs-only PR with the specs-notes label, and creates a GitHub Issue tagged
-  group:unscheduled. Use when the user says "ingest idea", references a GitHub
-  Idea issue number, or wants to convert an idea into spec and notes files.
+  a docs-only PR with the specs-notes label, and creates a GitHub Issue added
+  to Project #24 with Schedule=Someday. Use when the user says "ingest idea",
+  references a GitHub Idea issue number, or wants to convert an idea into spec
+  and notes files.
 ---
 
 # Skill: Ingest Idea
@@ -214,7 +215,7 @@ IMPL_ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
 
 Spec: \`specs/<topic>.yaml\` (ID-01 through ID-NN)
 Notes: \`notes/<topic>.md\`" \
-  --label "group:unscheduled,size:<S|M|L>" \
+  --label "size:<S|M|L>" \
   --parent "${IDEA_NUMBER}")
   # Add --blocked-by N if this issue has known blockers at creation time
 echo "Created implementation issue #${IMPL_ISSUE_NUMBER}"
@@ -223,8 +224,32 @@ echo "Created implementation issue #${IMPL_ISSUE_NUMBER}"
 Set the `size:` label based on AC checkbox count:
 1–2 ACs → `size:S`; 3–6 ACs → `size:M`; 7+ ACs → `size:L`.
 
-The implementation Issue sits in `group:unscheduled` until a human runs
-`review-priorities` to slot it into `plan/PRIORITIES.md`.
+Then add the implementation Issue to Project #24 with `Schedule=Someday`:
+
+```bash
+NODE_ID=$(gh api graphql -f query='{
+  repository(owner:"CERTCC", name:"Vultron") {
+    issue(number: '"${IMPL_ISSUE_NUMBER}"') { id }
+  }
+}' --jq '.data.repository.issue.id')
+ITEM_ID=$(gh api graphql -f query="mutation {
+  addProjectV2ItemById(input: {
+    projectId: \"PVT_kwDOAjf0s84BZnre\"
+    contentId: \"${NODE_ID}\"
+  }) { item { id } }
+}" --jq '.data.addProjectV2ItemById.item.id')
+gh api graphql -f query="mutation {
+  updateProjectV2ItemFieldValue(input: {
+    projectId: \"PVT_kwDOAjf0s84BZnre\"
+    itemId: \"${ITEM_ID}\"
+    fieldId: \"PVTSSF_lADOAjf0s84BZnrezhUlFOM\"
+    value: { singleSelectOptionId: \"fcffa79d\" }
+  }) { projectV2Item { id } }
+}" >/dev/null
+```
+
+The issue appears in the "Triage" view of Project #24 until a human runs
+`review-priorities` to move it to Now/Next/Later.
 
 ### 12. Archive the idea and close the issue
 
@@ -272,7 +297,7 @@ gh issue close "${IDEA_NUMBER}" --repo CERTCC/Vultron
 - [ ] Docs-only PR opened with `specs-notes` label and `Ref #<idea_number>`
   in body
 - [ ] Implementation GitHub Issue created via `manage-github-issue` with
-  `group:unscheduled` and `size:` labels; idea issue wired as parent;
+  `size:` labels; idea issue wired as parent;
   other blockers wired as structured relationships
 - [ ] Idea issue commented with links to PR and implementation issue, then
   closed
@@ -319,20 +344,8 @@ mutation {
 The issue will appear as an Idea type in GitHub and will be picked up by
 `ingest-idea` the next time it runs.
 
-## Label Naming Rules (PAD-02-007)
+## Project Board
 
-All new Issues created by this skill use `group:unscheduled` by default — no
-priority number or slug is needed at creation time. However, if you are
-assigning a specific `group:` label for any reason:
-
-- **Never include a priority number** in the label name.
-  Use `group:architecture-hardening`, **not** `group:473-architecture-hardening`.
-- **Derive the slug** from the priority group title in kebab-case.
-- **Check for label existence** before assigning. Create it if missing:
-
-  ```bash
-  gh label create "group:<slug>" \
-    --repo CERTCC/Vultron \
-    --description "<Priority group title (no number)>" \
-    --color "#1d76db"
-  ```
+All new Issues created by this skill are added to Project #24 ("Vultron
+Planning") with `Schedule=Someday`. Use `review-priorities` to move them
+to Now/Next/Later when they are ready to be scheduled.

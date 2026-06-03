@@ -6,206 +6,138 @@ title: review-priorities Reference
 
 Technical implementation details for the combined audit-and-update workflow.
 
-## Architecture: Daisy-Chained Skills
+## Architecture
 
 ```text
-review-priorities (outer coordinator)
+review-priorities (coordinator)
   ├─ Phase 1: Invoke check-priority-status
-  │  └─ Output: Detailed status report
-  ├─ Phase 2: Parse report findings
-  │  ├─ Extract uncovered issues
-  │  ├─ Identify empty priorities
-  │  ├─ Flag stale items
-  │  └─ Summarize for user
-  ├─ Phase 3: Offer interactive updates
-  │  └─ For each action: Invoke update-priorities workflows
-  │     ├─ Add new priority
-  │     ├─ Refine existing
-  │     └─ Remove priority
-  └─ Phase 4: Commit (if changes made)
+  │  └─ Output: Status report (by tier, per Epic, coverage, health)
+  ├─ Phase 2: Summarize significant findings for user
+  ├─ Phase 3: Interactive update loop (ask_user per action)
+  │  ├─ Move item between tiers (API mutation)
+  │  ├─ Promote triage item (API mutation)
+  │  ├─ Create Epic (invoke create-epic skill)
+  │  └─ Archive Epic (invoke archive-history, close issue)
+  └─ Phase 4: Commit if notes/history files changed
 ```
 
-### Phase 1: Run check-priority-status
+## Project Board Constants
 
-Call the `check-priority-status` skill (or invoke its logic directly):
+| Name | Value |
+|---|---|
+| Project node ID | `PVT_kwDOAjf0s84BZnre` |
+| Schedule field ID | `PVTSSF_lADOAjf0s84BZnrezhUlFOM` |
+| Now option ID | `1e84189c` |
+| Next option ID | `9fca00b2` |
+| Later option ID | `e2149d3e` |
+| Someday option ID | `fcffa79d` |
 
-```python
-status_report = check_priority_status()
-# Returns structured report with:
-#   - summary (coverage %, status distribution)
-#   - per_priority_progress (table data)
-#   - uncovered_issues (list)
-#   - empty_priorities (list)
-#   - orphaned_prs (list)
-#   - stale_items (list)
-#   - health_flags (list of concerns)
+## Phase 1: Run check-priority-status
+
+Invoke the `check-priority-status` skill and capture its output. The report
+provides:
+
+- Items per tier (Now/Next/Later/Someday)
+- Per-Epic sub-issue progress
+- Coverage (issues on board vs. off board)
+- Triage count (Someday items needing scheduling)
+- Stale items (>7 days no activity)
+- Orphaned PRs
+
+## Phase 2: Summarize Findings
+
+Surface significant findings via plain text before asking for action:
+
+```text
+📊 Board status:
+  Now:     3 Epics (12 open sub-issues, 2 blocked)
+  Next:    2 Epics (8 open sub-issues)
+  Later:   1 Epic  (4 open sub-issues)
+  Someday: 7 items (triage needed)
+
+⚠ 14 open issues not yet on board
+⚠ 3 stale items (>1 week inactive)
 ```
 
-### Phase 2: Analyze Findings
+## Phase 3: Interactive Update Loop
 
-Extract key insights from report:
-
-```python
-def summarize_findings(report):
-    """Return user-facing summary of significant findings."""
-    issues = []
-
-    if len(report['uncovered_issues']) > 5:
-        issues.append(f"⚠ {len(report['uncovered_issues'])} uncovered open issues")
-
-    if report['empty_priorities']:
-        issues.append(f"⚠ {len(report['empty_priorities'])} priorities with no active work")
-
-    if len(report['stale_items']) > 2:
-        issues.append(f"⚠ {len(report['stale_items'])} items stale (>1 week)")
-
-    return issues  # Sorted by severity
-```
-
-### Phase 3: Interactive Update Loop
-
-After showing report, offer update options:
+Use `ask_user` for every choice — never ask questions in plain text.
 
 ```python
 while True:
-    action = ask_user([
-        "Add new priority group",
-        "Refine existing priority",
-        "Remove a priority",
-        "No changes, exit"
-    ])
-
-    if action == "Add new priority group":
-        # Delegate to update-priorities logic
-        add_priority_workflow()
-        modified = True
-    elif action == "Refine existing priority":
-        refine_priority_workflow()
-        modified = True
-    elif action == "Remove a priority":
-        remove_priority_workflow()
-        modified = True
-    else:
+    action = ask_user(
+        question="What would you like to do?",
+        choices=[
+            "Move item(s) between Schedule tiers (Recommended)",
+            "Promote Triage items to Now/Next/Later",
+            "Create a new Epic for uncovered issues",
+            "Archive a completed Epic",
+            "No changes, exit",
+        ]
+    )
+    if action == "No changes, exit":
         break
+    # ... delegate to sub-workflow
 ```
 
-Within each action, reuse `update-priorities` logic:
+### Move Item Between Tiers
 
-- Gather input (title, description, issues, dependencies)
-- Validate (GitHub API checks, link validation)
-- Apply changes in-memory
-- Offer "Another change? [Yes/No]"
+1. Ask which issue/Epic number to move.
+2. Ask which tier (Now / Next / Later / Someday).
+3. Look up the item's project item ID via board items query.
+4. Call `updateProjectV2ItemFieldValue` with the chosen option ID.
+5. Confirm to user.
 
-### Phase 4: Unified Preview & Commit
+### Promote Triage Items
 
-After all updates, show single diff of all changes:
+1. List all Someday items for user to choose from.
+2. Ask which tier to promote to.
+3. Apply the move (same mutation as above).
 
-```diff
---- plan/PRIORITIES.md (before)
-+++ plan/PRIORITIES.md (after)
+### Create Epic
 
-  ## Priority 475 — Participant Case Replica Safety
-  ...
--  - [#440](...)
-+  - [#440](...)
-+  - [#500](...)
+1. Ask for Epic title and description.
+2. Ask which leaf issues to include.
+3. Invoke `create-epic` skill.
+4. Wire sub-issues via `manage-github-issue`.
 
-+ ## Priority 480 — New Feature
-+
-+ Description...
+### Archive Completed Epic
 
-  ## Priority 476 — Bug Fixes
-```
+1. Confirm all sub-issues are closed.
+2. Invoke `archive-history` skill with type `priority`.
+3. Close the Epic: `gh issue close <N> --repo CERTCC/Vultron`.
 
-Then:
+## Phase 4: Commit (if needed)
 
-1. Ask: "Write these changes?"
-2. If yes:
-   - Generate commit message: `"Review and update priorities\n\nAdded: 1 group\nModified: 1 group\nRemoved: 0 groups"`
-   - Add co-author trailer
-   - Commit
-3. If no:
-   - Save draft to session workspace
-   - Exit
+Board changes (Schedule field updates) happen live via API — no file commit
+needed.
 
-## Integration Points
-
-### With check-priority-status
-
-- Call its core logic (or invoke via subprocess if separate implementation)
-- Parse its report format
-- Summarize findings in user-friendly language
-
-### With update-priorities
-
-- Reuse all validation logic (GitHub API, link checking, format validation)
-- Reuse all user prompts and workflows
-- Share diff generation logic
-- Share commit message templates
+If `archive-history` was invoked (creates a file under `plan/history/`),
+or if notes files were modified, invoke the `commit` skill.
 
 ## Error Handling
 
-### If check-priority-status Fails
+### GitHub API Failure
 
 ```text
-❌ Failed to fetch GitHub issues
-   Likely cause: No GitHub token or insufficient permissions
-   Action: Exit with guidance ("Check your GITHUB_TOKEN environment variable")
+❌ Failed to fetch board items
+   Cause: No token or insufficient permissions
+   Action: Exit with guidance ("Check your GitHub token")
 ```
 
-### If update-priorities Validation Fails
+### Item Not on Board
 
-User is already in an update workflow. Offer to:
-
-- Fix the issue (e.g., correct a typo)
-- Skip this change (go back to menu)
-- Abort (exit without writing)
-
-## Performance Considerations
-
-- **check-priority-status**: May take 10–30s to fetch all issues and compute aggregates (GitHub API rate limits)
-- **update-priorities workflows**: Fast (mostly user input gathering), validation happens async
-- **Overall**: Expect 30–60s for a full session (status check + 1–2 updates)
+If the user references an issue not in Project #24, offer to add it first
+with `Schedule=Someday` before moving it to the desired tier.
 
 ## Configuration
 
-Environment variables (optional):
-
 ```bash
-GITHUB_TOKEN=ghp_...                  # Required for API access
-PRIORITY_STATUS_STALE_DAYS=7          # Staleness threshold (default: 7)
-PRIORITY_GITHUB_OWNER=CERTCC          # GitHub org (default: CERTCC)
-PRIORITY_GITHUB_REPO=Vultron          # GitHub repo (default: Vultron)
+GITHUB_TOKEN=ghp_...   # Required for API access
 ```
 
-## State Management
+## Rollback
 
-### In-Memory Changes
-
-During interactive update loop, accumulate changes in-memory:
-
-```python
-changes = {
-    'added': [],      # New priority groups
-    'modified': {},   # Existing groups and their changes
-    'removed': []     # Removed priority IDs
-}
-```
-
-Before committing, reconstruct full `plan/PRIORITIES.md` from original + changes.
-
-### Rollback
-
-- If user cancels before commit: changes are discarded (in-memory only)
-- If commit fails: changes are not lost but file state uncertain; user should check Git status
-- If commit succeeds: tracked in Git (use `git revert` to undo)
-
-## Extensibility
-
-Future enhancements:
-
-- **Batch import**: Load priorities from CSV/JSON file
-- **Priority renumbering**: Consolidate gaps in priority numbers
-- **Report export**: Save findings to JSON/CSV for external tools
-- **Scheduled checks**: Hook into CI to run status check on PRs/pushes
-- **Integration with project boards**: Auto-sync GitHub project board based on priorities
+- Board moves: re-run the move mutation with the previous tier option ID.
+- Closed Epics: `gh issue reopen <N> --repo CERTCC/Vultron`.
+- History entries: immutable; document corrections in a new entry.
