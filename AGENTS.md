@@ -358,6 +358,14 @@ Short entries are reproduced here; longer ones are referenced below.
 
 > **Parallelism and Single-Agent Testing** has moved to `test/AGENTS.md`.
 >
+- **Stub Adapter Files Must Raise `NotImplementedError`, Not Silently No-Op** — Adapter
+  files that are intentional future-work placeholders (e.g.,
+  `adapters/driven/http_delivery.py`, `adapters/driving/shared_inbox.py`) MUST contain
+  a class or function that raises `NotImplementedError` when called, so any code that
+  accidentally references the stub gets an immediate, explicit signal instead of a
+  silent no-op. A docstring-only stub is indistinguishable from a real empty module
+  and can hide integration gaps in production-like deployments. See
+  `specs/outbox.yaml` OX-10-004, OX-11-004.
 - **Adding a New Pitfall: Check the Routing Policy First** — see
   [notes/agents-md-structure.md](notes/agents-md-structure.md)
 
