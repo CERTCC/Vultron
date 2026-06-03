@@ -1310,14 +1310,14 @@ function App() {
               'Announce activity sent to participants',
             ],
           },
-          // Consequence node in Finder lane (enables Acknowledge Publication)
-          {
+          // Consequence node in Finder lane (only if Finder hasn't closed)
+          ...(prev.finderHasClosed ? [] : [{
             id: `${vendorPubEventId}-finder-consequence`,
             actor: 'Finder',
             label: 'Publication Noted',
             x: nextX,
             lane: 0,
-            type: 'consequence',
+            type: 'consequence' as const,
             timestamp: now + 1,
             causedBy: vendorPubEventId,
             enablesNext: true,  // Enables Acknowledge Publication decision
@@ -1327,7 +1327,7 @@ function App() {
               'Embargo terminated (EM.EXITED)',
               'Finder sees publication',
             ],
-          },
+          }] as TimelineEvent[]),
           // Consequence node in CaseActor lane (BLUE)
           {
             id: `${vendorPubEventId}-caseactor-consequence`,
