@@ -88,6 +88,12 @@ outbox polling, and oversized centralized dispatch tables.
 - [#656](https://github.com/CERTCC/Vultron/issues/656) — Add regression tests
   for DataLayer scope: get\_canonical\_actor\_dl and inbox\_handler dual-DL
   path
+- [#689](https://github.com/CERTCC/Vultron/issues/689) — Case actor spawning
+  architecture: vendor container should not own case actor
+  (violates DEMAMA-01-001)
+- [#690](https://github.com/CERTCC/Vultron/issues/690) — Fix case log
+  observability: missing case-actor log, empty payloadSnapshot, replication
+  gaps (violates CLP-02-003)
 
 ## Priority 490 — Epic #611: Test File Refactoring
 
@@ -156,21 +162,26 @@ it in the new codebase using `py_trees` as the foundation. The underlying
 - [#427](https://github.com/CERTCC/Vultron/issues/427) — FUZZ-00:
   Re-implement fuzzer nodes from original simulator
 
-## Priority 510 — Epic #676: Interactive Demo UI
+## Priority 510 — Epic #676: Interactive Demo UI Frontend
 
-Build an interactive web UI for stakeholder presentations that visualizes
+Build the interactive demo UI frontend: an SSE-backed live display and a
+polished ReactFlow web UI for stakeholder presentations. The UI visualizes
 Vultron protocol state in real time across all running actor containers and
 lets a presenter (or viewer) make real protocol decisions at key branch
-points. Replaces log-scrolling demos with a polished experience aimed at
+points. Replaces log-scrolling demos with an experience aimed at
 non-technical audiences (government funders, industry practitioners).
 
+Note: backend correctness prerequisites — case actor spawning architecture
+([#689](https://github.com/CERTCC/Vultron/issues/689)) and case log
+observability fixes
+([#690](https://github.com/CERTCC/Vultron/issues/690)) — have been moved
+to P485.
+
 - Epic: [#676](https://github.com/CERTCC/Vultron/issues/676)
-- [#533](https://github.com/CERTCC/Vultron/issues/533) — Idea: Interactive
-  ReactFlow Demo UI with CYOA scenarios for stakeholder presentations
-- [#664](https://github.com/CERTCC/Vultron/issues/664) — Add case log REST
-  endpoints: ordered list and single-entry lookup
 - [#665](https://github.com/CERTCC/Vultron/issues/665) — Add SSE stream
   endpoint for live case log updates
+- [#533](https://github.com/CERTCC/Vultron/issues/533) — Idea: Interactive
+  ReactFlow Demo UI with CYOA scenarios for stakeholder presentations
 
 ## Priority 520 — Epic #613: Agent Guidance Freshness
 
