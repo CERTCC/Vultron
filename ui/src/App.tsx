@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import './App.css'
 
 // Define swimlane layout
-const LANE_HEIGHT = 280
+const LANE_HEIGHT = 295
 const ACTOR_PANEL_WIDTH = 300
 
 // Animated node component for consequence nodes
@@ -1839,7 +1839,8 @@ function App() {
                     enabled: true,
                   }] : []),
                   // After fix deployed, show publication option if not yet published
-                  ...(demoState.vendorVfdState === 'VFD' && demoState.pxaState === 'pxa' ? [
+                  // Per Vultron logic: PUBLISH_VULNERABILITY is valid when X or A are present but P is not
+                  ...(demoState.vendorVfdState === 'VFD' && !demoState.pxaState.includes('P') ? [
                     {
                       id: 'vendor-notify-published',
                       label: 'Notify Published',
@@ -1865,7 +1866,8 @@ function App() {
                     enabled: true,
                   }] : []),
                   // Can still publish even if Finder closed (publication is independent of RM state)
-                  ...(demoState.vendorVfdState === 'VFD' && demoState.pxaState === 'pxa' && demoState.phase === 'finder-closed' ? [
+                  // Per Vultron logic: PUBLISH_VULNERABILITY is valid when X or A are present but P is not
+                  ...(demoState.vendorVfdState === 'VFD' && !demoState.pxaState.includes('P') && demoState.phase === 'finder-closed' ? [
                     {
                       id: 'vendor-notify-published',
                       label: 'Notify Published',
