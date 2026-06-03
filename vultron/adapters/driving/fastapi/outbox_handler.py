@@ -31,7 +31,7 @@ from pydantic import BaseModel
 from vultron.adapters.driven.delivery_queue import DeliveryQueueAdapter
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.protocols import PersistableModel
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.core.ports.emitter import ActivityEmitter
 from vultron.errors import (
     VultronOutboxObjectIntegrityError,
@@ -447,7 +447,7 @@ async def handle_outbox_item(
 
 async def outbox_handler(
     actor_id: str,
-    dl: DataLayer,
+    dl: ActorScopedDataLayer,
     shared_dl: DataLayer | None = None,
     emitter: ActivityEmitter | None = None,
 ) -> None:

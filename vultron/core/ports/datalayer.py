@@ -24,6 +24,18 @@ Port direction: **outbound (driven)** — core calls ``read()``,
 retrieve domain objects through whatever storage backend the adapter
 provides.
 
+Two protocols are defined here:
+
+:class:`DataLayer`
+    Base port for shared object storage (read, write, save, list).  This
+    type MUST NOT be passed to functions that call inbox or outbox queue
+    operations (ARCH-13-001).
+
+:class:`ActorScopedDataLayer`
+    Refinement of :class:`DataLayer` that adds inbox/outbox queue methods.
+    Obtained by calling :meth:`DataLayer.clone_for_actor`.  All callers
+    that perform queue operations MUST declare this type (ARCH-13-002).
+
 No adapter-layer types (``Record``, ``TinyDB``, etc.) appear here.
 
 See also: ``notes/architecture-ports.md`` "Core Port Taxonomy".
@@ -88,18 +100,6 @@ class DataLayer(Protocol):
 
     def ping(self) -> bool: ...
 
-    def inbox_append(self, activity_id: str) -> None: ...
-
-    def inbox_list(self) -> list[str]: ...
-
-    def inbox_pop(self) -> str | None: ...
-
-    def outbox_append(self, activity_id: str) -> None: ...
-
-    def outbox_list(self) -> list[str]: ...
-
-    def outbox_pop(self) -> str | None: ...
-
     def record_outbox_item(self, actor_id: str, activity_id: str) -> None: ...
 
     def by_type(self, type_: str) -> dict[str, dict[str, Any]]: ...
@@ -122,4 +122,36 @@ class DataLayer(Protocol):
 
     def list_objects(self, type_key: str) -> Iterable[PersistableModel]: ...
 
-    def clone_for_actor(self, actor_id: str) -> "DataLayer": ...
+    def clone_for_actor(self, actor_id: str) -> "ActorScopedDataLayer": ...
+
+
+class ActorScopedDataLayer(DataLayer, Protocol):
+    """Refinement of :class:`DataLayer` that exposes actor-scoped queue operations.
+
+    Inbox and outbox queue operations are actor-scoped — calling them on the
+    shared DataLayer (``actor_id=None``) silently operates on a phantom queue
+    keyed by ``""`` rather than any actor's real queue (ARCH-13-001).
+
+    All callers that perform inbox or outbox queue operations MUST accept this
+    type rather than the base :class:`DataLayer` (ARCH-13-002).
+
+    :meth:`DataLayer.clone_for_actor` returns an instance of this type.
+    ``SqliteDataLayer`` satisfies both :class:`DataLayer` and
+    :class:`ActorScopedDataLayer` structurally — no declaration needed.
+
+    See also:
+        - ``specs/architecture.yaml`` ARCH-13-001 through ARCH-13-005
+        - ``notes/architecture-adapters.md`` § DataLayer Scope Boundaries
+    """
+
+    def inbox_append(self, activity_id: str) -> None: ...
+
+    def inbox_list(self) -> list[str]: ...
+
+    def inbox_pop(self) -> str | None: ...
+
+    def outbox_append(self, activity_id: str) -> None: ...
+
+    def outbox_list(self) -> list[str]: ...
+
+    def outbox_pop(self) -> str | None: ...

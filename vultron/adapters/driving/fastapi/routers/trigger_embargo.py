@@ -36,7 +36,7 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     RejectEmbargoRequest,
     TerminateEmbargoRequest,
 )
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.core.ports.trigger_service import TriggerServicePort
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
@@ -61,7 +61,7 @@ def trigger_propose_embargo(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the propose-embargo behavior for the given actor.
@@ -97,7 +97,7 @@ def trigger_accept_embargo(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the accept-embargo behavior for the given actor.
@@ -131,7 +131,7 @@ def trigger_reject_embargo(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the reject-embargo behavior for the given actor.
@@ -167,7 +167,7 @@ def trigger_propose_embargo_revision(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the propose-embargo-revision behavior for the given actor.
@@ -204,7 +204,7 @@ def trigger_terminate_embargo(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the terminate-embargo behavior for the given actor.
