@@ -539,7 +539,7 @@ simulation — it is a live protocol run.
 | `vultron/adapters/driving/fastapi/routers/actors.py` | Inbox endpoint |
 | `vultron/wire/as2/extractor.py` | Activity pattern matching (AS2 → MessageSemantics) |
 | `vultron/core/dispatcher.py` | Message routing (MessageSemantics → use case) |
-| `vultron/semantic_registry.py` | Use-case registry (`USE_CASE_MAP`) |
+| `vultron/semantic_registry/` | Use-case registry (`USE_CASE_MAP`) |
 | `docker/docker-compose-multi-actor.yml` | Multi-container topology |
 | `docker/seed-configs/` | Per-container actor seed configurations |
 

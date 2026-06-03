@@ -2,7 +2,7 @@
 title: Semantic Registry Design Notes
 status: active
 description: >
-  Design decisions for SEMANTIC_REGISTRY in vultron/semantic_registry.py:
+  Design decisions for SEMANTIC_REGISTRY in vultron/semantic_registry/:
   ordering rules, group structure, the import-time order guard, and
   how ActivityPattern definitions in extractor.py relate to the registry.
 related_specs:
@@ -11,7 +11,7 @@ related_notes:
   - notes/activitystreams-semantics.md
   - notes/architecture-hexagonal.md
 relevant_packages:
-  - vultron/semantic_registry.py
+  - vultron/semantic_registry/
   - vultron/wire/as2/extractor.py
   - test/test_semantic_activity_patterns.py
 ---
@@ -20,13 +20,14 @@ relevant_packages:
 
 ## Overview
 
-`SEMANTIC_REGISTRY` in `vultron/semantic_registry.py` is the single ordered
+`SEMANTIC_REGISTRY` in `vultron/semantic_registry/` is the single ordered
 list that maps every AS2 activity structure to a `MessageSemantics` value,
 a `VultronEvent` subclass, and a use-case class. It is iterated by
 `find_matching_semantics()`, which returns the **first** match.
 
 `ActivityPattern` objects — one per `MessageSemantics` value — are defined in
-`vultron/wire/as2/extractor.py` and imported into `semantic_registry.py`.
+`vultron/wire/as2/extractor.py` and imported into the `semantic_registry`
+package submodules.
 
 ---
 
@@ -70,7 +71,7 @@ specific than an existing entry in the same `activity_` group, place it
 ## Import-Time Order Guard
 
 Because a misplaced pattern fails silently at runtime,
-`semantic_registry.py` calls `_validate_registry_order(SEMANTIC_REGISTRY)`
+`semantic_registry/__init__.py` calls `_validate_registry_order(SEMANTIC_REGISTRY)`
 at module load time. If any less-specific entry precedes a more-specific
 one within the same `activity_` group, the validator raises
 `RegistryOrderError` (defined in `vultron/errors.py`) immediately on import.
@@ -119,6 +120,6 @@ errors that the runtime validator might not catch in all edge cases.
 | File | Role |
 |---|---|
 | `vultron/wire/as2/extractor.py` | `ActivityPattern` class + all `*Pattern` instances |
-| `vultron/semantic_registry.py` (current) / `vultron/semantic_registry/` (planned split — see concern #508 impl issues) | `SEMANTIC_REGISTRY`, `find_matching_semantics()`, `_validate_registry_order()` |
+| `vultron/semantic_registry/` | `SEMANTIC_REGISTRY`, `find_matching_semantics()`, `_validate_registry_order()` |
 | `vultron/errors.py` | `RegistryOrderError(VultronError)` |
 | `test/test_semantic_activity_patterns.py` | Pattern ordering + dispatch tests |
