@@ -74,6 +74,19 @@ state and type to the user so they can correct the issue number.
 Use the title and body from `${ISSUE_JSON}` as source material for all
 subsequent steps.
 
+Also query the concern's parent issue (its epic, if any):
+
+```bash
+EPIC_NUMBER=$(gh api graphql -f query='{
+  repository(owner:"CERTCC", name:"Vultron") {
+    issue(number: '"${CONCERN_NUMBER}"') {
+      parent { number }
+    }
+  }
+}' --jq '.data.repository.issue.parent.number // ""')
+# EPIC_NUMBER is empty when the concern has no parent
+```
+
 ### Phase 2 — Study Context
 
 Invoke the `study-project-docs` skill. It loads all specs, reads `plan/`,
@@ -155,14 +168,25 @@ Create one GitHub issue per distinct cluster of acceptance criteria identified
 in Phase 3. Use the `manage-github-issue` skill for each issue so structured
 relationships are wired correctly.
 
-Wire the concern issue as the **parent** of each implementation issue. If the
-implementation issues have a natural sequence, wire the later ones as
-`--blocked-by` the earlier ones.
+Wire each implementation issue as:
+
+- **child of the concern's epic** (if the concern has a parent issue) — this
+  keeps impl issues at the same depth as the concern in the epic hierarchy
+- **blocked-by the concern** — so impl issues are unavailable until the concern
+  closes; GitHub removes this block automatically when the concern is closed
+
+If the concern has **no parent epic**, create impl issues with no parent (just
+`blocked-by concern`). If impl issues have a natural sequence, wire the later
+ones as `--blocked-by` the earlier impl issue as well.
 
 Accumulate all created issue numbers in a list:
 
 ```bash
 IMPL_ISSUE_NUMBERS=()   # will hold one or more issue numbers
+
+# Build parent arg: use epic parent if available, else no --parent flag
+PARENT_ARG=""
+[ -n "${EPIC_NUMBER}" ] && PARENT_ARG="--parent ${EPIC_NUMBER}"
 
 NEW_ISSUE=$(
   .agents/skills/manage-github-issue/manage_github_issue.sh \
@@ -182,8 +206,9 @@ Concern: #${CONCERN_NUMBER}
 $([ -n "${SPEC_FILE}" ] && echo "Spec: \`specs/${SPEC_FILE}\`")
 $([ -n "${NOTES_FILE}" ] && echo "Notes: \`notes/${NOTES_FILE}\`")" \
     --label "size:<S|M|L>" \
-    --parent "${CONCERN_NUMBER}"
-    # Add --blocked-by N for sequenced issues
+    ${PARENT_ARG} \
+    --blocked-by "${CONCERN_NUMBER}"
+    # Add --blocked-by N for sequenced impl issues (in addition to concern)
 )
 IMPL_ISSUE_NUMBERS+=("${NEW_ISSUE}")
 echo "Created impl issue #${NEW_ISSUE}"
@@ -301,7 +326,8 @@ fi
 - [ ] Markdown lint clean (if docs changed)
 - [ ] One or more implementation issues created via `manage-github-issue`
   with `size:` label, added to Project #24 with `Schedule=Someday`;
-  concern wired as parent
+  each impl issue wired as **blocked-by concern** and **child of the epic**
+  (if the concern has a parent epic; otherwise no parent, just blocked-by)
 - [ ] Docs-only PR opened with `specs-notes` label — or skipped (no doc
   changes)
 - [ ] Concern archived via `archive-history` skill (after PR creation, so
