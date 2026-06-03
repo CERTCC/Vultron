@@ -23,12 +23,12 @@
 
 ## Semantic Extraction — Pattern Ordering Rules
 
-`SEMANTIC_REGISTRY` in `vultron/semantic_registry.py` is **order-sensitive**.
+`SEMANTIC_REGISTRY` in `vultron/semantic_registry/` is **order-sensitive**.
 Specific patterns MUST appear before more general ones. A pattern placed
 after a more general match will never be reached.
 
 - `ActivityPattern` instances are defined in `vultron/wire/as2/extractor.py`
-  and imported into `vultron/semantic_registry.py`
+  and imported into the domain sub-modules under `vultron/semantic_registry/`
 - Always `rehydrate()` on incoming activities before pattern matching
 - Add new `ActivityPattern` objects named `<TypeName>Pattern`
 - Test every new pattern in `test/test_semantic_activity_patterns.py`
@@ -53,8 +53,9 @@ by `test/architecture/test_activity_factory_imports.py`.
 
 - **Patterns**: `vultron/wire/as2/extractor.py` — `ActivityPattern` class
   and `*Pattern` instance definitions
-- **Semantic Registry**: `vultron/semantic_registry.py` — `SEMANTIC_REGISTRY`
-  (ordered list), `find_matching_semantics()`, `use_case_map()`
+- **Semantic Registry**: `vultron/semantic_registry/` — domain-split package;
+  `SEMANTIC_REGISTRY` (ordered list), `find_matching_semantics()`,
+  `use_case_map()`
 - **Vocab Examples**: `vultron/wire/as2/vocab/examples/` — reference for
   message semantics and test fixtures
 - **Factories**: `vultron/wire/as2/factories/` — canonical constructors for

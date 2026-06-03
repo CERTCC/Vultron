@@ -39,7 +39,7 @@ class CreateReportReceivedUseCase:
 
 - Accept `(dl, request)` in `__init__`; implement `execute() -> Any`
   (use `None` for fire-and-forget cases; see `vultron/core/ports/use_case.py`)
-- Register in `SEMANTIC_REGISTRY` (`vultron/semantic_registry.py`)
+- Register in `SEMANTIC_REGISTRY` (`vultron/semantic_registry/`)
 - Dispatcher raises `VultronApiHandlerNotFoundError` for unrecognised
   semantic types; do **not** add per-handler type validation decorators
 
@@ -50,15 +50,14 @@ class CreateReportReceivedUseCase:
 1. Add `MessageSemantics` enum value in `vultron/core/models/events/base.py`
 2. Define an `ActivityPattern` named `<TypeName>Pattern` in
    `vultron/wire/as2/extractor.py`
-3. Add a `SemanticEntry` to `SEMANTIC_REGISTRY` in
-   `vultron/semantic_registry.py` (**order matters** — specific before
-   general)
+3. Add a `SemanticEntry` to the **domain sub-module** under
+   `vultron/semantic_registry/` (e.g., `report.py`, `case.py`, `embargo.py`).
+   **Do NOT add it directly to `__init__.py`** — see pitfall below.
+   (**Order matters within the sub-module** — specific before general.)
 4. Implement a use-case class in `vultron/core/use_cases/`:
    - Follow `UseCase[Req, Res]` Protocol; accept `(dl, request)` in
      `__init__`; implement `execute() -> Any`
-5. Register in `SEMANTIC_REGISTRY` in
-   `vultron/semantic_registry.py`
-6. Add tests:
+5. Add tests:
    - Pattern matching in `test/test_semantic_activity_patterns.py`
    - Routing coverage in `test/test_semantic_registry.py`
    - Use-case logic in `test/core/use_cases/`
@@ -69,8 +68,9 @@ class CreateReportReceivedUseCase:
 
 - **Enums**: `vultron/core/models/events/__init__.py` — re-exports
   `MessageSemantics`; defined in `vultron/core/models/events/base.py`
-- **Semantic Registry**: `vultron/semantic_registry.py` — `SEMANTIC_REGISTRY`
-  (ordered list), `find_matching_semantics()`, `use_case_map()`
+- **Semantic Registry**: `vultron/semantic_registry/` — domain-split package;
+  `SEMANTIC_REGISTRY` (ordered list), `find_matching_semantics()`,
+  `use_case_map()`
 - **Dispatcher**: `vultron/core/dispatcher.py` — `DirectActivityDispatcher`,
   `get_dispatcher()`; port: `vultron/core/ports/dispatcher.py`
 - **Data Layer port**: `vultron/core/ports/datalayer.py` — `DataLayer`
@@ -132,6 +132,17 @@ is a layer-boundary violation. Do **not** add new cross-layer imports from
 core is tracked in issue #539. See
 [notes/domain-model-separation.md](../../notes/domain-model-separation.md)
 for the full architectural direction.
+
+### Adding SemanticEntry: Use Domain Sub-Module, Not `__init__.py`
+
+`vultron/semantic_registry/` is a package whose `__init__.py` assembles
+sub-module entry lists in the correct order and appends the `UNKNOWN`
+fallback entries last. When adding a new message type, add the `SemanticEntry`
+to the **domain sub-module** (`report.py`, `case.py`, `actor.py`,
+`embargo.py`, `note.py`, `status.py`, or `sync.py`), not to `__init__.py`
+directly. Editing `__init__.py` for individual entry additions defeats the
+purpose of the split (reducing merge conflicts) and risks silently corrupting
+the ordering invariant that keeps the `UNKNOWN` fallback last.
 
 ### BT-related pitfalls
 
