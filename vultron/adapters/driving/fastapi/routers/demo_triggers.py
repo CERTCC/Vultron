@@ -27,9 +27,20 @@ In ``RunMode.PROD`` these paths are simply not registered, so any request to
 Spec: TRIG-08-004, TRIG-09-001 through TRIG-09-005, TRIG-10-003, TRIG-10-004.
 """
 
+import json
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Path,
+    Query,
+    Request,
+    status,
+)
+from fastapi.responses import JSONResponse, Response
 
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
@@ -45,6 +56,10 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     NotifyFixReadyRequest,
     NotifyPublishedRequest,
     SyncLogEntryRequest,
+)
+from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.wire.as2.vocab.objects.case_log_entry import (
+    CaseLogEntry as WireCaseLogEntry,
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.trigger_service import TriggerServicePort
@@ -302,3 +317,101 @@ def demo_close_case(
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
+
+
+@router.get(
+    "/{actor_id}/demo/cases/{case_id:path}/log",
+    status_code=status.HTTP_200_OK,
+    summary="[Demo] List all case log entries for a case, sorted by log_index.",
+    description=(
+        "Demo-only read endpoint. "
+        "Returns all ``VultronCaseLogEntry`` objects for the specified case, "
+        "sorted ascending by ``log_index``. "
+        "Default response is ``application/json``. "
+        "Request ``Accept: application/x-ndjson`` or pass ``?format=ndjson`` "
+        "to receive NDJSON — one JSON object per line — suitable for direct "
+        "file capture (``curl ... > case.jsonl``). "
+        "This endpoint is for demo tooling, test scripts, and live display "
+        "only. It MUST NOT be used as a participant-facing log-replication "
+        "mechanism (use the ActivityStreams inbox channel per SYNC-07). "
+        "Only available in ``RunMode.PROTOTYPE``. "
+        "Spec: TRIG-09-001, SYNC-01-002, SYNC-02-003."
+    ),
+    operation_id="actors_demo_get_case_log",
+)
+def demo_get_case_log(
+    actor_id: str,  # noqa: ARG001
+    case_id: str,
+    request: Request,
+    fmt: str | None = Query(
+        default=None,
+        alias="format",
+        description="Response format: 'ndjson' for NDJSON output.",
+    ),
+    dl: DataLayer = Depends(get_trigger_dl),
+) -> Response:
+    """Return ordered case log entries for a case (demo scaffold).
+
+    Implements:
+        TRIG-09-001, SYNC-01-002, SYNC-02-003.
+
+    Demo/observability only — do not expose as a participant-facing endpoint.
+    """
+    raw_entries = [
+        e
+        for e in dl.list_objects("CaseLogEntry")
+        if isinstance(e, (VultronCaseLogEntry, WireCaseLogEntry))
+        and e.case_id == case_id
+    ]
+    raw_entries.sort(key=lambda e: e.log_index)
+    payloads = [e.model_dump(mode="json", by_alias=True) for e in raw_entries]
+
+    accept = request.headers.get("accept", "")
+    if fmt == "ndjson" or "application/x-ndjson" in accept:
+        content = "\n".join(json.dumps(p) for p in payloads)
+        return Response(content=content, media_type="application/x-ndjson")
+    return JSONResponse(content=payloads)
+
+
+@router.get(
+    "/{actor_id}/demo/cases/{case_id:path}/log/{index}",
+    status_code=status.HTTP_200_OK,
+    summary="[Demo] Get a single case log entry by log_index.",
+    description=(
+        "Demo-only read endpoint. "
+        "Returns the single ``VultronCaseLogEntry`` at the given ``log_index`` "
+        "for the specified case. "
+        "Returns HTTP 404 if no entry exists at that index. "
+        "Only available in ``RunMode.PROTOTYPE``. "
+        "Spec: TRIG-09-001, SYNC-01-002, SYNC-02-003."
+    ),
+    operation_id="actors_demo_get_case_log_entry",
+)
+def demo_get_case_log_entry(
+    actor_id: str,  # noqa: ARG001
+    case_id: str,
+    index: int = Path(ge=0, description="Zero-based log entry index."),
+    dl: DataLayer = Depends(get_trigger_dl),
+) -> dict[str, Any]:
+    """Return the case log entry at the given index (demo scaffold).
+
+    Implements:
+        TRIG-09-001, SYNC-01-002, SYNC-02-003.
+
+    Demo/observability only — do not expose as a participant-facing endpoint.
+    """
+    entry_id = f"{case_id}/log/{index}"
+    obj = dl.read(entry_id)
+    if not isinstance(obj, (VultronCaseLogEntry, WireCaseLogEntry)):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "status": 404,
+                "error": "NotFound",
+                "message": (
+                    f"No log entry at index {index} for case {case_id!r}."
+                ),
+                "activity_id": None,
+            },
+        )
+    return obj.model_dump(mode="json", by_alias=True)

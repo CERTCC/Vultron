@@ -62,12 +62,23 @@ jobs:
       # exit code of the demo-runner container.
       # DEMOCI-02-008: set DEBUG log level at CI runtime so actor containers
       # emit full tracebacks and state-machine detail.
+      - name: Create devlogs directory
+        run: mkdir -p devlogs
+
       - name: Run two-actor demo
         run: |
           DEMO=two-actor \
           VULTRON_SERVER__LOG_LEVEL=DEBUG \
             docker compose -f docker/docker-compose-multi-actor.yml \
             up --abort-on-container-exit --exit-code-from demo-runner
+
+      - name: Upload case log JSONL files
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: two-actor-case-logs
+          path: devlogs/
+          retention-days: 30
 
       # DEMOCI-02-008: collect combined stream and per-service logs on failure.
       - name: Collect container logs

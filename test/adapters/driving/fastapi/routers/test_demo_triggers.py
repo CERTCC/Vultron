@@ -325,3 +325,212 @@ class TestDemoSyncLogEntry:
             },
         )
         assert response.status_code == status.HTTP_202_ACCEPTED
+
+
+# ---------------------------------------------------------------------------
+# Fixtures and helpers for case log endpoint tests
+# ---------------------------------------------------------------------------
+
+
+def _make_log_entry(dl, case_id: str, log_index: int) -> object:
+    """Create and save a VultronCaseLogEntry directly to the DataLayer."""
+    from vultron.core.models.case_log_entry import VultronCaseLogEntry
+
+    entry = VultronCaseLogEntry(
+        case_id=case_id,
+        log_index=log_index,
+        log_object_id=f"{case_id}/objects/{log_index}",
+        event_type=f"test_event_{log_index}",
+    )
+    dl.save(entry)
+    return entry
+
+
+# ---------------------------------------------------------------------------
+# Tests: GET /actors/{actor_id}/demo/cases/{case_id:path}/log
+# ---------------------------------------------------------------------------
+
+
+class TestDemoGetCaseLog:
+    """Tests for GET /actors/{actor_id}/demo/cases/{case_id:path}/log."""
+
+    def test_returns_200_empty_list_when_no_entries(
+        self, client_demo: TestClient, actor, case_with_actor
+    ):
+        """Returns HTTP 200 and empty array when no log entries exist."""
+        response = client_demo.get(
+            f"/actors/{actor.id_}/demo/cases/{case_with_actor.id_}/log"
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == []
+
+    def test_returns_entries_sorted_by_log_index(
+        self, client_demo: TestClient, actor, case_with_actor, dl
+    ):
+        """Returns entries in ascending log_index order."""
+        _make_log_entry(dl, case_with_actor.id_, log_index=2)
+        _make_log_entry(dl, case_with_actor.id_, log_index=0)
+        _make_log_entry(dl, case_with_actor.id_, log_index=1)
+
+        response = client_demo.get(
+            f"/actors/{actor.id_}/demo/cases/{case_with_actor.id_}/log"
+        )
+        assert response.status_code == status.HTTP_200_OK
+        entries = response.json()
+        assert len(entries) == 3
+        assert [e["logIndex"] for e in entries] == [0, 1, 2]
+
+    def test_only_returns_entries_for_requested_case(
+        self, client_demo: TestClient, actor, case_with_actor, dl
+    ):
+        """Entries from other cases are not included in the response."""
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        other_case = VulnerabilityCase(name="OTHER-CASE")
+        dl.create(other_case)
+        _make_log_entry(dl, case_with_actor.id_, log_index=0)
+        _make_log_entry(dl, other_case.id_, log_index=0)
+
+        response = client_demo.get(
+            f"/actors/{actor.id_}/demo/cases/{case_with_actor.id_}/log"
+        )
+        entries = response.json()
+        assert len(entries) == 1
+        assert entries[0]["caseId"] == case_with_actor.id_
+
+    def test_ndjson_via_accept_header(
+        self, client_demo: TestClient, actor, case_with_actor, dl
+    ):
+        """Returns NDJSON when Accept: application/x-ndjson is requested."""
+        import json as _json
+
+        _make_log_entry(dl, case_with_actor.id_, log_index=0)
+        _make_log_entry(dl, case_with_actor.id_, log_index=1)
+
+        response = client_demo.get(
+            f"/actors/{actor.id_}/demo/cases/{case_with_actor.id_}/log",
+            headers={"accept": "application/x-ndjson"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.headers["content-type"].startswith(
+            "application/x-ndjson"
+        )
+        lines = response.text.strip().split("\n")
+        assert len(lines) == 2
+        parsed = [_json.loads(line) for line in lines]
+        assert parsed[0]["logIndex"] == 0
+        assert parsed[1]["logIndex"] == 1
+
+    def test_ndjson_via_format_query_param(
+        self, client_demo: TestClient, actor, case_with_actor, dl
+    ):
+        """Returns NDJSON when ?format=ndjson query param is set."""
+        import json as _json
+
+        _make_log_entry(dl, case_with_actor.id_, log_index=0)
+
+        response = client_demo.get(
+            f"/actors/{actor.id_}/demo/cases/{case_with_actor.id_}/log",
+            params={"format": "ndjson"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.headers["content-type"].startswith(
+            "application/x-ndjson"
+        )
+        parsed = _json.loads(response.text.strip())
+        assert parsed["logIndex"] == 0
+
+    def test_list_with_http_url_case_id(
+        self, client_demo: TestClient, actor, dl
+    ):
+        """Handles case IDs containing slashes (HTTP URLs) in the path."""
+        http_case_id = "https://example.org/cases/demo/123"
+        _make_log_entry(dl, http_case_id, log_index=0)
+        _make_log_entry(dl, http_case_id, log_index=1)
+
+        response = client_demo.get(
+            f"/actors/{actor.id_}/demo/cases/{http_case_id}/log"
+        )
+        assert response.status_code == status.HTTP_200_OK
+        entries = response.json()
+        assert len(entries) == 2
+        assert all(e["caseId"] == http_case_id for e in entries)
+        assert [e["logIndex"] for e in entries] == [0, 1]
+
+
+# ---------------------------------------------------------------------------
+# Tests: GET /actors/{actor_id}/demo/cases/{case_id:path}/log/{index}
+# ---------------------------------------------------------------------------
+
+
+class TestDemoGetCaseLogEntry:
+    """Tests for GET /actors/{actor_id}/demo/cases/{case_id:path}/log/{index}."""
+
+    def test_returns_correct_entry(
+        self, client_demo: TestClient, actor, case_with_actor, dl
+    ):
+        """Returns HTTP 200 and the correct log entry for a valid index."""
+        _make_log_entry(dl, case_with_actor.id_, log_index=0)
+        _make_log_entry(dl, case_with_actor.id_, log_index=1)
+
+        response = client_demo.get(
+            f"/actors/{actor.id_}/demo/cases/{case_with_actor.id_}/log/1"
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["logIndex"] == 1
+        assert data["caseId"] == case_with_actor.id_
+        assert data["eventType"] == "test_event_1"
+
+    def test_returns_404_for_missing_index(
+        self, client_demo: TestClient, actor, case_with_actor
+    ):
+        """Returns HTTP 404 when no entry exists at the given index."""
+        response = client_demo.get(
+            f"/actors/{actor.id_}/demo/cases/{case_with_actor.id_}/log/99"
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_negative_index_returns_422(
+        self, client_demo: TestClient, actor, case_with_actor
+    ):
+        """Negative index returns HTTP 422 (Path(ge=0) validation)."""
+        response = client_demo.get(
+            f"/actors/{actor.id_}/demo/cases/{case_with_actor.id_}/log/-1"
+        )
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+    def test_single_entry_with_http_url_case_id(
+        self, client_demo: TestClient, actor, dl
+    ):
+        """Handles case IDs containing slashes (HTTP URLs) in the path."""
+        http_case_id = "https://example.org/cases/demo/456"
+        _make_log_entry(dl, http_case_id, log_index=0)
+
+        response = client_demo.get(
+            f"/actors/{actor.id_}/demo/cases/{http_case_id}/log/0"
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["logIndex"] == 0
+        assert data["caseId"] == http_case_id
+
+    def test_response_uses_camelcase_aliases(
+        self, client_demo: TestClient, actor, case_with_actor, dl
+    ):
+        """Response uses camelCase serialization aliases (by_alias=True)."""
+        _make_log_entry(dl, case_with_actor.id_, log_index=0)
+
+        response = client_demo.get(
+            f"/actors/{actor.id_}/demo/cases/{case_with_actor.id_}/log/0"
+        )
+        data = response.json()
+        # camelCase aliases should be present
+        assert "logObjectId" in data
+        assert "eventType" in data
+        assert "logIndex" in data
+        assert "caseId" in data
+        assert "log_object_id" not in data
+        assert "event_type" not in data
