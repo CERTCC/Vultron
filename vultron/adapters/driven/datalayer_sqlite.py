@@ -206,6 +206,10 @@ class SqliteDataLayer:
     def clone_for_actor(self, actor_id: str) -> "SqliteDataLayer":
         """Return a new actor-scoped instance sharing this instance's engine.
 
+        The concrete return type is ``SqliteDataLayer``, which satisfies the
+        :class:`~vultron.core.ports.datalayer.ActorScopedDataLayer` Protocol
+        structurally at both type-check and runtime (ARCH-13-003).
+
         The returned instance borrows the underlying engine (it does not own
         it) so its :meth:`close` / ``__del__`` will not dispose the engine.
         The original instance remains responsible for engine lifecycle.
@@ -214,8 +218,9 @@ class SqliteDataLayer:
             actor_id: The actor URI to scope the new instance to.
 
         Returns:
-            A :class:`SqliteDataLayer` scoped to *actor_id* that reads and
-            writes to the same database as this instance.
+            A :class:`SqliteDataLayer` scoped to *actor_id* (satisfies
+            :class:`~vultron.core.ports.datalayer.ActorScopedDataLayer`)
+            that reads and writes to the same database as this instance.
         """
         clone = SqliteDataLayer.__new__(SqliteDataLayer)
         clone._engine = self._engine

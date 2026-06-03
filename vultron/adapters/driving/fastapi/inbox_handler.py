@@ -27,7 +27,8 @@ from vultron.wire.as2.rehydration import rehydrate
 from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.events import MessageSemantics, VultronEvent
 from vultron.core.models.protocols import is_case_model
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.core.ports.emitter import ActivityEmitter
 from vultron.semantic_registry import (
@@ -60,21 +61,33 @@ _DISPATCHER: ActivityDispatcher | None = None
 
 
 def _sync_port_factory(dl: DataLayer) -> dict[str, Any]:
-    """Create a ``SyncActivityAdapter`` from the current DataLayer."""
+    """Create a ``SyncActivityAdapter`` from the current DataLayer.
+
+    ``dl`` at runtime is an ``ActorScopedDataLayer`` (satisfies
+    ``CaseOutboxPersistence``) — the cast is safe (ARCH-13-002).
+    """
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter,
     )
 
-    return {"sync_port": SyncActivityAdapter(dl)}
+    return {"sync_port": SyncActivityAdapter(cast(CaseOutboxPersistence, dl))}
 
 
 def _trigger_activity_port_factory(dl: DataLayer) -> dict[str, Any]:
-    """Create a ``TriggerActivityAdapter`` from the current DataLayer."""
+    """Create a ``TriggerActivityAdapter`` from the current DataLayer.
+
+    ``dl`` at runtime is an ``ActorScopedDataLayer`` (satisfies
+    ``CaseOutboxPersistence``) — the cast is safe (ARCH-13-002).
+    """
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
 
-    return {"trigger_activity": TriggerActivityAdapter(dl)}
+    return {
+        "trigger_activity": TriggerActivityAdapter(
+            cast(CaseOutboxPersistence, dl)
+        )
+    }
 
 
 def _sync_and_trigger_port_factory(dl: DataLayer) -> dict[str, Any]:
@@ -289,7 +302,7 @@ def _expire_pending_case_activities(
     case_id: str,
     actor_id: str,
     dl: DataLayer,
-    queue_dl: DataLayer,
+    queue_dl: ActorScopedDataLayer,
     timeout_seconds: int | None = None,
 ) -> bool:
     """Drop an expired pre-bootstrap queue and emit a replay ``Question``.
@@ -394,7 +407,7 @@ def _expire_pending_case_activities(
 def _replay_pending_case_activities(
     case_id: str,
     dl: DataLayer,
-    queue_dl: DataLayer,
+    queue_dl: ActorScopedDataLayer,
     actor_id: str | None = None,
 ) -> None:
     """Move deferred activities for *case_id* back onto the live inbox queue.
@@ -449,7 +462,7 @@ def _dispatch_or_defer_inbox_item(
     actor_id: str,
     obj: as_Activity,
     dl: DataLayer,
-    queue_dl: DataLayer,
+    queue_dl: ActorScopedDataLayer,
     dispatcher: ActivityDispatcher | None = None,
 ) -> VultronEvent | None:
     """Dispatch an inbox item or defer it until its case replica exists.
@@ -523,7 +536,7 @@ def _process_inbox_item(
     item_id: str,
     item: as_Activity,
     dl: DataLayer,
-    queue_dl: DataLayer,
+    queue_dl: ActorScopedDataLayer,
     dispatcher: ActivityDispatcher | None = None,
 ) -> bool:
     """Dispatch one inbox activity and return ``True`` on success."""
@@ -563,7 +576,7 @@ def _process_inbox_item(
 async def inbox_handler(
     actor_id: str,
     dl: DataLayer,
-    actor_dl: DataLayer | None = None,
+    actor_dl: ActorScopedDataLayer | None = None,
     emitter: ActivityEmitter | None = None,
     dispatcher: ActivityDispatcher | None = None,
 ) -> None:
@@ -593,7 +606,9 @@ async def inbox_handler(
             ``_DISPATCHER``, giving each :func:`create_app` instance its
             own fully isolated routing table (issue #534).
     """
-    queue_dl = actor_dl if actor_dl is not None else dl
+    queue_dl: ActorScopedDataLayer = cast(
+        ActorScopedDataLayer, actor_dl if actor_dl is not None else dl
+    )
     actor = dl.read(actor_id)
     if actor is None:
         actor = dl.find_actor_by_short_id(actor_id)

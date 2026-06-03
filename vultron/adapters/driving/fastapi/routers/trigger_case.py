@@ -35,7 +35,7 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     CaseTriggerRequest,
     CreateCaseRequest,
 )
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.core.ports.trigger_service import TriggerServicePort
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
@@ -59,7 +59,7 @@ def trigger_engage_case(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the engage-case behavior for the given actor.
@@ -92,7 +92,7 @@ def trigger_defer_case(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the defer-case behavior for the given actor.
@@ -127,7 +127,7 @@ def trigger_add_object_to_case(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """Add an existing AS2 object to a case.
 
@@ -163,7 +163,7 @@ def trigger_create_case(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the create-case behavior for the given actor.
@@ -199,7 +199,7 @@ def trigger_add_report_to_case(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the add-report-to-case behavior for the given actor.

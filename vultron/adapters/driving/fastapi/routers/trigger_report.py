@@ -36,7 +36,7 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     SubmitReportRequest,
     ValidateReportRequest,
 )
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.core.ports.trigger_service import TriggerServicePort
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
@@ -59,7 +59,7 @@ def trigger_validate_report(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the validate-report behavior for the given actor.
@@ -93,7 +93,7 @@ def trigger_invalidate_report(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the invalidate-report behavior for the given actor.
@@ -128,7 +128,7 @@ def trigger_reject_report(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the reject-report (hard-close) behavior for the given actor.
@@ -166,7 +166,7 @@ def trigger_close_report(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the close-report (RM → CLOSED) behavior for the given actor.
@@ -199,7 +199,7 @@ def trigger_submit_report(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: DataLayer = Depends(get_canonical_actor_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """Create a VulnerabilityReport and offer it to a recipient."""
     with domain_error_translation():
