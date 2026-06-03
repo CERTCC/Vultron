@@ -1729,17 +1729,26 @@ function App() {
                 label: 'Close Case',
                 description: 'Finder closes their participation in the case',
                 enabled: true,
-              }] : demoState.phase === 'vendor-published' ? [{
-                id: 'finder-notify-published',
-                label: 'Acknowledge Publication',
-                description: 'Finder acknowledges publication',
-                enabled: true,
-              }, {
-                id: 'finder-close-case',
-                label: 'Close Case',
-                description: 'Finder closes their participation in the case',
-                enabled: true,
-              }] : (demoState.phase === 'finder-published' || demoState.phase === 'vendor-closed') && !demoState.finderHasClosed ? [{
+              }] : demoState.phase === 'vendor-published' ? [
+                {
+                  id: 'finder-add-note',
+                  label: 'Ask Question',
+                  description: 'Add a note to the case asking for information',
+                  enabled: true,
+                },
+                {
+                  id: 'finder-notify-published',
+                  label: 'Acknowledge Publication',
+                  description: 'Finder acknowledges publication',
+                  enabled: true,
+                },
+                {
+                  id: 'finder-close-case',
+                  label: 'Close Case',
+                  description: 'Finder closes their participation in the case',
+                  enabled: true,
+                }
+              ] : (demoState.phase === 'finder-published' || demoState.phase === 'vendor-closed') && !demoState.finderHasClosed ? [{
                 id: 'finder-close-case',
                 label: 'Close Case',
                 description: 'Finder closes their participation in the case',
