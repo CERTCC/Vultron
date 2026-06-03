@@ -289,6 +289,7 @@ Short entries are reproduced here; longer ones are referenced below.
 
 - **Circular Imports** — see [notes/codebase-structure.md](notes/codebase-structure.md)
 - **Pattern Matching with ActivityStreams** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
+- **`SEMANTIC_REGISTRY` Order Errors Fail Silently — `_validate_registry_order()` Required** — A misplaced pattern causes the wrong use case to run with no error. The import-time guard `_validate_registry_order()` raises `RegistryOrderError` immediately. Until it lands, always run `test/test_semantic_activity_patterns.py` after editing the registry. See [notes/semantic-registry.md](notes/semantic-registry.md)
 - **Test Data Quality** — moved to `test/AGENTS.md`
 - **All Protocol-Significant Behavior MUST Be in the BT** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Protocol Event Cascades (Cascading Automation)** — see [notes/bt-integration.md](notes/bt-integration.md)

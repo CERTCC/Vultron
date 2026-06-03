@@ -137,6 +137,14 @@ vocabulary examples.
 **Load when**: implementing any inbound or outbound message handler, debugging
 semantic extraction, or writing new ActivityStreams vocabulary classes.
 
+**`semantic-registry.md`**
+Design notes for `SEMANTIC_REGISTRY` in `vultron/semantic_registry.py`:
+ordering invariant (specific before general, `UNKNOWN` last), group
+structure, the import-time `_validate_registry_order()` guard, and
+the step-by-step checklist for adding a new `ActivityPattern`.
+**Load when**: adding or debugging a `SemanticEntry`, investigating a
+wrong-handler dispatch, or reasoning about pattern ordering.
+
 **`stub-objects.md`**
 Design notes for the AS2 minimalist object pattern (stub/stub-object): using
 minimal `{"id": "...", "type": "..."}` references to reduce wire verbosity,

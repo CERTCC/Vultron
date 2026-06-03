@@ -65,6 +65,16 @@ by `test/architecture/test_activity_factory_imports.py`.
 
 ## Common Pitfalls — wire layer
 
+**`SEMANTIC_REGISTRY` ordering errors fail silently — `_validate_registry_order()` required** —
+see [notes/semantic-registry.md](../../../notes/semantic-registry.md)
+
+A misplaced pattern (less-specific before more-specific within the same
+`activity_` group) causes the wrong use case to execute with no error signal.
+`_validate_registry_order()` raises `RegistryOrderError` at import time to
+make this impossible to miss. Until that guard lands, run
+`test/test_semantic_activity_patterns.py` immediately after editing the
+registry.
+
 See [notes/activitystreams-semantics.md](../../../notes/activitystreams-semantics.md)
 for:
 
