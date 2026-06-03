@@ -281,6 +281,16 @@ embargo meta-protocol delivery to `DECLINED`/`LAPSED` participants, and the
 embargo consent state machine in `vultron/core/states/`, or debugging
 `embargo_adherence` field semantics.
 
+**`embargo-lifecycle.md`**
+Target architecture for EM state management: the inline-`EMAdapter`
+instantiation anti-pattern, the current fragmentation across trigger use cases,
+received use cases, and BT behaviors, and the planned `EmbargoLifecycle`
+service (#538) that will consolidate all EM + PEC transitions.
+**Load when**: implementing any embargo state transition in trigger or received
+use cases, designing the `EmbargoLifecycle` service (#538), auditing inline
+`create_em_machine()` instantiations, or working on the post-#538
+`triggers/embargo.py` cleanup (#516).
+
 ---
 
 ## Codebase, Infrastructure, and Demos
