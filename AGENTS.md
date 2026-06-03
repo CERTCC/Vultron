@@ -294,6 +294,22 @@ Short entries are reproduced here; longer ones are referenced below.
 - **All Protocol-Significant Behavior MUST Be in the BT** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Protocol Event Cascades (Cascading Automation)** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Post-BT Procedural Cascade Anti-Pattern** — see [notes/bt-integration.md](notes/bt-integration.md)
+- **BT Node MUST NOT Call a Use Case** — A BT node's `update()` MUST NOT
+  instantiate or call a use-case class. Use cases create BTs; BT nodes are
+  leaves of those trees. Calling a use case from inside a node creates an
+  auditable-breaking BT→UseCase→BT chain. Compose the sub-behavior as a
+  child subtree instead. See [notes/bt-integration.md](notes/bt-integration.md)
+  § "DO NOT: BT node calling a use case".
+- **BT Node MUST NOT Import From Use Case Modules** — Dependency direction is
+  `use_cases/ → behaviors/`, never the reverse. If a helper is needed in
+  both layers, extract it to a shared utility. See
+  [notes/bt-integration.md](notes/bt-integration.md)
+  § "DO NOT: BT node importing from use case modules".
+- **Avoid God BT Nodes: `update()` MUST Stay Small** — An `update()` method
+  exceeding ~20–30 lines is a god node. Decompose into a named subtree of
+  simple leaf nodes; the tree structure becomes the workflow documentation.
+  See [notes/bt-integration.md](notes/bt-integration.md)
+  § "DO NOT: God BT nodes with long `update()` methods".
 - **py_trees Blackboard Global State** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **py_trees `blackboard.get()` Raises KeyError for Unwritten READ Keys** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Duplicate Method Definitions Silently Shadow Correct BT Logic** — see [notes/bt-integration.md](notes/bt-integration.md)

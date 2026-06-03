@@ -640,6 +640,89 @@ def create_validate_and_prioritize_tree(report_id, offer_id):
 The full behavior — validate then prioritize (engage or defer) — is visible
 by reading the tree. No domain logic lives in `execute()`.
 
+#### DO NOT: BT node calling a use case
+
+(BT-IDM-01, 2026-06-03)
+
+A BT node's `update()` method MUST NOT directly instantiate and call a use
+case. Use cases are the handlers that *create* BTs, not work items *inside*
+BTs. Calling a use case from inside a BT node creates a BT→UseCase→BT→UseCase
+call chain that is impossible to audit or preempt.
+
+```python
+# BAD — BT node calling a use case (PublicDisclosureBranchNode anti-pattern)
+class PublicDisclosureBranchNode(py_trees.behaviour.Behaviour):
+    def update(self):
+        # ...
+        SvcTerminateEmbargoUseCase(self._dl, ...).execute()  # ANTI-PATTERN
+        return Status.SUCCESS
+```
+
+Instead, compose the behavior as a child subtree of the calling BT. The
+sub-behavior becomes a set of leaf nodes in a `Sequence` or `Selector` — not
+a use case call embedded inside another node.
+
+**Rule**: BT leaf nodes MUST NOT instantiate or call use-case classes.
+If a node needs to trigger a multi-step workflow, that workflow MUST be
+modeled as a child subtree of the current tree. See BT-06-001 and
+BT-06-006.
+
+---
+
+#### DO NOT: BT node importing from use case modules
+
+(BT-IDM-02, 2026-06-03)
+
+BT nodes in `vultron/core/behaviors/` MUST NOT import private helpers or
+functions from `vultron/core/use_cases/`. The dependency direction MUST be:
+
+```text
+use_cases/ → behaviors/ (use cases call BTs)
+```
+
+Not:
+
+```text
+behaviors/ → use_cases/ (BT nodes importing from use cases — WRONG)
+```
+
+**Why**: Importing a use-case helper into a BT node inverts the layer
+boundary and creates circular dependency risk. If a helper is needed in
+both a use case and a BT node, it MUST be extracted to a shared utility
+module (e.g., `vultron/core/behaviors/shared/` or a domain-model method).
+
+Example violation: `ApplyEmbargoTeardownNode` in
+`vultron/core/behaviors/embargo/nodes.py` imported
+`_reset_case_participant_embargo_consent` from
+`vultron.core.use_cases.received.embargo`. Fix: move the helper to a
+shared location importable by both layers.
+
+---
+
+#### DO NOT: God BT nodes with long `update()` methods
+
+(BT-IDM-03, 2026-06-03)
+
+A BT leaf node's `update()` method SHOULD NOT exceed ~20–30 lines of
+logic. If a node's `update()` is 60–100+ lines, it is doing too much and
+defeats the core purpose of BTs: simple, auditable, composable leaves with
+the complexity visible in tree *structure*, not in individual nodes.
+
+**Smell signals** that a node is a god node:
+
+- More than 3–4 distinct responsibilities (read, validate, create,
+  persist, broadcast, …)
+- Multiple `dl.save()` calls in one `update()`
+- Boolean constructor parameters (`advance_to_accepted=True`) that
+  silently activate optional branches
+- Internal `if/else` chains that should be separate `Sequence`/`Selector`
+  child nodes
+
+**Fix**: Decompose into a named subtree of simple leaf nodes, each with a
+single responsibility. The subtree factory function becomes the visible
+documentation of the workflow. See also `specs/behavior-tree-node-design.yaml`
+BTND-02-001 and `notes/bt-design-patterns.md`.
+
 ---
 
 ### BT Failure Reason Propagation
