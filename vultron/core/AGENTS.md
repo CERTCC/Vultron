@@ -116,6 +116,23 @@ bodies. Specifically: AS2 fields that carry an object or ID reference (e.g.,
 field — passing the raw AS2 object directly is a type error that mypy will
 catch only after extraction.
 
+### Domain Objects Belong in `core/models/`, Not `wire/as2/vocab/objects/`
+
+`VulnerabilityCase`, `VulnerabilityReport`, `CaseParticipant`,
+`EmbargoPolicy`, `CaseStatus`, `CaseLogEntry`, and `VulnerabilityRecord` are
+**domain objects**. They currently live in `vultron/wire/as2/vocab/objects/`
+because the codebase was built wire-first, but their correct home is
+`vultron/core/models/`. The wire layer should import and project from core,
+not the other way around.
+
+Consequence: `VultronActivity.object_` is typed `Any | None` because core
+cannot import wire types. Referencing wire-layer domain objects in core code
+is a layer-boundary violation. Do **not** add new cross-layer imports from
+`vultron/core/` into `vultron/wire/as2/`. The migration of these objects to
+core is tracked in issue #539. See
+[notes/domain-model-separation.md](../../notes/domain-model-separation.md)
+for the full architectural direction.
+
 ### BT-related pitfalls
 
 See [notes/bt-integration.md](../../notes/bt-integration.md) for:
