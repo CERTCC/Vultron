@@ -1710,11 +1710,18 @@ function App() {
                     : 'Add a note to the case asking for information',
                   enabled: true,
                 },
-                // Allow closing case once fix is deployed
-                ...(demoState.phase === 'fix-deployed' && !demoState.finderHasClosed ? [{
+                // Allow closing case once fix is deployed (VFD state, regardless of publication)
+                ...(demoState.vendorVfdState === 'VFD' && !demoState.finderHasClosed ? [{
                   id: 'finder-close-case',
                   label: 'Close Case',
                   description: 'Finder closes their participation in the case',
+                  enabled: true,
+                }] : []),
+                // Allow acknowledging publication if vendor published
+                ...(demoState.pxaState === 'Pxa' && demoState.vendorVfdState === 'VFD' ? [{
+                  id: 'finder-notify-published',
+                  label: 'Acknowledge Publication',
+                  description: 'Finder acknowledges publication',
                   enabled: true,
                 }] : [])
               ] : (demoState.phase === 'vendor-closed') && !demoState.finderHasClosed ? [{
