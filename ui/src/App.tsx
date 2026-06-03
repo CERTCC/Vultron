@@ -1719,8 +1719,8 @@ function App() {
                     : 'Add a note to the case asking for information',
                   enabled: true,
                 },
-                // Allow closing case once fix is deployed (VFD state, regardless of publication)
-                ...(demoState.vendorVfdState === 'VFD' && !demoState.finderHasClosed ? [{
+                // Allow closing case once fix is deployed AND published (per CLOSE_CASE action rules)
+                ...(demoState.vendorVfdState === 'VFD' && demoState.pxaState.includes('P') && !demoState.finderHasClosed ? [{
                   id: 'finder-close-case',
                   label: 'Close Case',
                   description: 'Finder closes their participation in the case',
@@ -1733,7 +1733,7 @@ function App() {
                   description: 'Finder acknowledges publication',
                   enabled: true,
                 }] : [])
-              ] : (demoState.phase === 'vendor-closed') && !demoState.finderHasClosed ? [{
+              ] : (demoState.phase === 'vendor-closed' && !demoState.finderHasClosed && demoState.pxaState.includes('P')) ? [{
                 id: 'finder-close-case',
                 label: 'Close Case',
                 description: 'Finder closes their participation in the case',
@@ -1752,12 +1752,13 @@ function App() {
                   description: 'Finder acknowledges publication',
                   enabled: true,
                 }]),
-                {
+                // Close case only if published (per CLOSE_CASE action rules)
+                ...(demoState.pxaState.includes('P') ? [{
                   id: 'finder-close-case',
                   label: 'Close Case',
                   description: 'Finder closes their participation in the case',
                   enabled: true,
-                }
+                }] : [])
               ] : (['finder-published', 'vendor-closed'].includes(demoState.phase) && !demoState.finderHasClosed) ? [
                 {
                   id: 'finder-add-note',
@@ -1765,12 +1766,13 @@ function App() {
                   description: 'Add a note to the case asking for information',
                   enabled: true,
                 },
-                {
+                // Close case only if published (per CLOSE_CASE action rules)
+                ...(demoState.pxaState.includes('P') ? [{
                   id: 'finder-close-case',
                   label: 'Close Case',
                   description: 'Finder closes their participation in the case',
                   enabled: true,
-                }
+                }] : [])
               ] : []
             }
             onActionClick={(actionId) => handleAction('finder', actionId)}
@@ -1845,8 +1847,8 @@ function App() {
                       enabled: true,
                     }
                   ] : []),
-                  // After fix deployed, always show close option (can close with or without publication)
-                  ...(demoState.vendorVfdState === 'VFD' ? [
+                  // After fix deployed AND published, show close option (per CLOSE_CASE action rules)
+                  ...(demoState.vendorVfdState === 'VFD' && demoState.pxaState.includes('P') ? [
                     {
                       id: 'vendor-close-case',
                       label: 'Close Case',
@@ -1871,12 +1873,15 @@ function App() {
                       enabled: true,
                     }
                   ] : []),
-                  {
-                    id: 'vendor-close-case',
-                    label: 'Close Case',
-                    description: 'Vendor closes their participation in the case',
-                    enabled: true,
-                  }
+                  // Close case only if published (per CLOSE_CASE action rules)
+                  ...(demoState.vendorVfdState === 'VFD' && demoState.pxaState.includes('P') ? [
+                    {
+                      id: 'vendor-close-case',
+                      label: 'Close Case',
+                      description: 'Vendor closes their participation in the case',
+                      enabled: true,
+                    }
+                  ] : [])
                 ] : []
               }
               onActionClick={(actionId) => handleAction('vendor', actionId)}
