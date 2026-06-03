@@ -1705,7 +1705,7 @@ function App() {
                 label: 'Reject Embargo',
                 description: 'Reject the embargo proposal',
                 enabled: true,
-              }] : (['embargo-accepted', 'finder-asked', 'vendor-replied', 'fix-ready', 'fix-deployed'].includes(demoState.phase)) ? [
+              }] : (['report-invalidated', 'embargo-accepted', 'finder-asked', 'vendor-replied', 'fix-ready', 'fix-deployed'].includes(demoState.phase)) ? [
                 {
                   id: 'finder-add-note',
                   label: demoState.phase === 'vendor-replied' ? 'Ask Another Question' : 'Ask Question',
@@ -1788,6 +1788,16 @@ function App() {
                   id: 'invalidate-report',
                   label: 'Invalidate Report',
                   description: 'Mark the report as invalid (RM: RECEIVED → INVALID)',
+                  enabled: true,
+                }] : demoState.phase === 'report-invalidated' ? [{
+                  id: 'validate-report',
+                  label: 'Re-validate Report',
+                  description: 'Mark the report as valid after reconsideration (RM: INVALID → VALID)',
+                  enabled: true,
+                }, {
+                  id: 'vendor-close-case',
+                  label: 'Close Invalid Report',
+                  description: 'Close the case for this invalid report (RM: INVALID → CLOSED)',
                   enabled: true,
                 }] : demoState.phase === 'embargo-proposed' && !demoState.vendorEmbargoAccepted ? [{
                   id: 'accept-embargo',
