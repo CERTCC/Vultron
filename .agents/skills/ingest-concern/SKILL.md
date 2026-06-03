@@ -181,7 +181,7 @@ NEW_ISSUE=$(
 Concern: #${CONCERN_NUMBER}
 $([ -n "${SPEC_FILE}" ] && echo "Spec: \`specs/${SPEC_FILE}\`")
 $([ -n "${NOTES_FILE}" ] && echo "Notes: \`notes/${NOTES_FILE}\`")" \
-    --label "group:unscheduled,size:<S|M|L>" \
+    --label "size:<S|M|L>" \
     --parent "${CONCERN_NUMBER}"
     # Add --blocked-by N for sequenced issues
 )
@@ -191,6 +191,30 @@ echo "Created impl issue #${NEW_ISSUE}"
 ```
 
 Set `size:` based on AC count: 1–2 → `size:S`; 3–6 → `size:M`; 7+ → `size:L`.
+
+Then add each new issue to Project #24 with `Schedule=Someday`:
+
+```bash
+NODE_ID=$(gh api graphql -f query='{
+  repository(owner:"CERTCC", name:"Vultron") {
+    issue(number: '"${NEW_ISSUE}"') { id }
+  }
+}' --jq '.data.repository.issue.id')
+ITEM_ID=$(gh api graphql -f query="mutation {
+  addProjectV2ItemById(input: {
+    projectId: \"PVT_kwDOAjf0s84BZnre\"
+    contentId: \"${NODE_ID}\"
+  }) { item { id } }
+}" --jq '.data.addProjectV2ItemById.item.id')
+gh api graphql -f query="mutation {
+  updateProjectV2ItemFieldValue(input: {
+    projectId: \"PVT_kwDOAjf0s84BZnre\"
+    itemId: \"${ITEM_ID}\"
+    fieldId: \"PVTSSF_lADOAjf0s84BZnrezhUlFOM\"
+    value: { singleSelectOptionId: \"fcffa79d\" }
+  }) { projectV2Item { id } }
+}" >/dev/null
+```
 
 ### Phase 6 — Lint Markdown (if docs changed)
 
@@ -276,7 +300,8 @@ fi
 - [ ] `AGENTS.md` updated — or consciously skipped
 - [ ] Markdown lint clean (if docs changed)
 - [ ] One or more implementation issues created via `manage-github-issue`
-  with `group:unscheduled` + `size:` labels; concern wired as parent
+  with `size:` label, added to Project #24 with `Schedule=Someday`;
+  concern wired as parent
 - [ ] Docs-only PR opened with `specs-notes` label — or skipped (no doc
   changes)
 - [ ] Concern archived via `archive-history` skill (after PR creation, so
@@ -297,17 +322,9 @@ fi
   (same category as `learn` — resolved concerns are learning outcomes)
 - **Spec file names**: lowercase hyphenated `.yaml` in `specs/`
 - **Notes file names**: same base name as spec, `.md` in `notes/`
-- **Label rules** (PAD-02-007): `group:unscheduled` by default; if a
-  specific `group:` label is needed, derive slug from priority title in
-  kebab-case — no priority numbers in label names. Create the label if
-  missing:
-
-  ```bash
-  gh label create "group:<slug>" \
-    --repo CERTCC/Vultron \
-    --description "<Priority group title>" \
-    --color "#1d76db"
-  ```
+- **Project board**: Add all new issues to Project #24 ("Vultron Planning")
+  with `Schedule=Someday`. Use `review-priorities` to promote them to
+  Now/Next/Later when they are ready to be scheduled.
 
 ## Relationship to Other Skills
 

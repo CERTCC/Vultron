@@ -5,9 +5,10 @@ description: >
   issues. Optionally runs a focused acquire-codebase-knowledge scan first.
   Deduplicates against existing open Concern issues — updating the body and
   appending a refresh comment on matches, creating new issues otherwise.
-  Handles the [ASK USER] Questions section interactively. Labels all new
-  issues group:unscheduled. Does not write to specs/, notes/, or open a PR.
-  Use when you want to turn a codebase scan into a set of tracked GitHub issues.
+  Handles the [ASK USER] Questions section interactively. Adds all new
+  issues to Project #24 with Schedule=Someday. Does not write to specs/,
+  notes/, or open a PR. Use when you want to turn a codebase scan into a
+  set of tracked GitHub issues.
 ---
 
 # Skill: Process Concerns
@@ -125,18 +126,13 @@ TITLE_JSON=$(printf '%s' "${TITLE}" \
 BODY_JSON=$(printf '%s' "${BODY}" \
   | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
 
-# Ensure labels exist before applying them
-gh label create "group:unscheduled" \
-  --repo CERTCC/Vultron \
-  --description "Not yet scheduled in PRIORITIES.md" \
-  --color "#e4e669" 2>/dev/null || true
-
+# Ensure concern label exists before applying it
 gh label create "concern" \
   --repo CERTCC/Vultron \
   --description "Technical risk, debt, or fragile area" \
   --color "#d93f0b" 2>/dev/null || true
 
-ISSUE_NUMBER=$(gh api graphql -f query="
+RESULT=$(gh api graphql -f query="
 mutation {
   createIssue(input: {
     repositoryId: \"${REPO_NODE_ID}\"
@@ -144,13 +140,33 @@ mutation {
     body: ${BODY_JSON}
     issueTypeId: \"${CONCERN_TYPE}\"
   }) {
-    issue { number url }
+    issue { number id url }
   }
-}" --jq '.data.createIssue.issue.number')
+}")
+ISSUE_NUMBER=$(echo "${RESULT}" | python3 -c \
+  "import json,sys; print(json.load(sys.stdin)['data']['createIssue']['issue']['number'])")
+ISSUE_NODE_ID=$(echo "${RESULT}" | python3 -c \
+  "import json,sys; print(json.load(sys.stdin)['data']['createIssue']['issue']['id'])")
 
 gh issue edit "${ISSUE_NUMBER}" \
   --repo CERTCC/Vultron \
-  --add-label "group:unscheduled,concern"
+  --add-label "concern"
+
+# Add to Project #24 with Schedule=Someday
+ITEM_ID=$(gh api graphql -f query="mutation {
+  addProjectV2ItemById(input: {
+    projectId: \"PVT_kwDOAjf0s84BZnre\"
+    contentId: \"${ISSUE_NODE_ID}\"
+  }) { item { id } }
+}" --jq '.data.addProjectV2ItemById.item.id')
+gh api graphql -f query="mutation {
+  updateProjectV2ItemFieldValue(input: {
+    projectId: \"PVT_kwDOAjf0s84BZnre\"
+    itemId: \"${ITEM_ID}\"
+    fieldId: \"PVTSSF_lADOAjf0s84BZnrezhUlFOM\"
+    value: { singleSelectOptionId: \"fcffa79d\" }
+  }) { projectV2Item { id } }
+}" >/dev/null
 
 echo "Created concern issue #${ISSUE_NUMBER}"
 ```
@@ -164,14 +180,19 @@ user's response:
 - If the question reveals a **Concern** (a technical risk or gap) →
   create a `type:Concern` issue using the same flow as Phase 3c.
 - If the question reveals a **Task** (a decision or action item) →
-  create a `type:Task` issue using:
+  create a `type:Task` issue and add to Project #24 with Schedule=Someday:
 
   ```bash
-  gh issue create \
+  RESULT=$(gh issue create \
     --repo CERTCC/Vultron \
     --title "${TITLE}" \
     --body "${BODY}" \
-    --label "group:unscheduled"
+    --json number,id)
+  TASK_NUMBER=$(echo "${RESULT}" | python3 -c \
+    "import json,sys; print(json.load(sys.stdin)['number'])")
+  TASK_NODE_ID=$(echo "${RESULT}" | python3 -c \
+    "import json,sys; print(json.load(sys.stdin)['id'])")
+  # Then add to project with Schedule=Someday (same snippet as above)
   ```
 
 - If the question is resolved by the user's answer (no issue needed) →
@@ -258,8 +279,8 @@ Map CONCERNS.md section names to Category checkboxes:
 - [ ] CONCERNS.md parsed into per-row items
 - [ ] Each item deduplicated against open issues (by title similarity)
 - [ ] Matched items: body updated + refresh comment added
-- [ ] New items: Concern issue created with `group:unscheduled` + `concern`
-      labels
+- [ ] New items: Concern issue created with `concern` label, added to
+      Project #24 with Schedule=Someday
 - [ ] `[ASK USER]` questions surfaced via `ask_user`; issues created or
       decisions noted
 - [ ] Summary table printed

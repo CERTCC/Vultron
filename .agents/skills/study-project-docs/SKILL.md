@@ -29,10 +29,46 @@ output. Do **not** read raw `specs/*.yaml` files directly.
 
 ### Step 2 — Read plan context
 
-Read all of the following in parallel (do **not** recurse into `plan/history/`):
+Read the following (do **not** recurse into `plan/history/`):
 
-- `plan/PRIORITIES.md` — authoritative priority ordering
 - `plan/BUILD_LEARNINGS.md` — ephemeral build/bugfix observations (queue for `learn`)
+
+Then query Project #24 ("Vultron Planning") for open items with `Schedule=Now`
+to understand current top-priority work:
+
+```bash
+gh api graphql --jq '
+  .data.node.items.nodes[]
+  | select(.content.state == "OPEN")
+  | {
+      number: .content.number,
+      title:  .content.title,
+      type:   .content.issueType.name,
+      schedule: (
+        .fieldValues.nodes[]
+        | select(.field.name == "Schedule")
+        | .name
+      )
+    }
+  | select(.schedule == "Now")
+  | "#\(.number) [\(.type)]: \(.title)"
+' -f query='{
+  node(id: "PVT_kwDOAjf0s84BZnre") {
+    ... on ProjectV2 {
+      items(first: 100) {
+        nodes {
+          content { ... on Issue { number title state issueType { name } } }
+          fieldValues(first: 10) { nodes {
+            ... on ProjectV2ItemFieldSingleSelectValue {
+              name field { ... on ProjectV2SingleSelectField { name } }
+            }
+          }}
+        }
+      }
+    }
+  }
+}'
+```
 
 > **`plan/history/` is excluded from this step.** It is an archive of
 > completed work, not active planning context. Read it only when specifically

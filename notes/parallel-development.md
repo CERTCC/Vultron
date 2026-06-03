@@ -34,22 +34,22 @@ building Vultron.
 | Question | Decision | Rationale |
 |---|---|---|
 | What is the task coordination primitive? | GitHub Issues | Native assignment, labels, PR linking, dependency notation — no new infra |
-| What is the authoritative priority ordering? | PRIORITIES.md | Human-readable, freely reorderable without touching GitHub API |
+| What is the authoritative priority ordering? | GitHub Project #24 Schedule field | Live board in the browser; single source of truth; no file to maintain |
 | How are tasks claimed? | Branch creation (`task/<N>-slug`) | Git branch creation is atomic — ideal distributed lock |
 | Should there be a `claimed` label? | No | Adds a second source of truth that can drift from branch state |
 | Stale-claim threshold | 3 days since last branch commit | Short enough to keep the queue clean; tune if agent sessions are longer |
 | Diff-size thresholds | ≤50 lines = S, 51–300 = M, 301+ = L | Common open-source convention; aligns with maintainability expectations |
 | Two-pass code review? | Single-pass with [BLOCKING]/[ADVISORY] tags | Same signal, less process theater; build agent acts on tags |
-| Where do `update-plan` gap findings go? | GitHub Issues (group:unscheduled) | Consistent with the GitHub Issues model |
+| Where do `update-plan` gap findings go? | GitHub Issues (added to Project #24) | Consistent with the GitHub Issues model |
 
 ---
 
 ## Issue Hierarchy
 
 ```text
-Epic Issue (group:<name>)        ← maps to a PRIORITIES.md group
-  └── Task Issue                 ← coherent unit of work
-        └── Subtask Issue        ← atomic PR-sized chunk (leaf = claimable)
+Epic Issue                           ← on Project #24 board, grouped by Schedule tier
+  └── Task Issue                     ← coherent unit of work
+        └── Subtask Issue            ← atomic PR-sized chunk (leaf = claimable)
 ```
 
 Use minimum depth. Many Epics will have leaf Tasks with no Subtasks.
@@ -60,22 +60,25 @@ Use minimum depth. Many Epics will have leaf Tasks with no Subtasks.
 
 | Label | Applied by | Meaning |
 |---|---|---|
-| `group:<name>` | ingest-idea, update-plan, agents | Priority group membership |
-| `group:unscheduled` | ingest-idea, update-plan, agents | Not yet in PRIORITIES.md |
 | `size:S` | Agent at issue creation + PR open | ≤2 ACs or ≤50 diff lines |
 | `size:M` | Agent at issue creation + PR open | 3–6 ACs or 51–300 diff lines |
 | `size:L` | Agent at issue creation + PR open | 7+ ACs or 301+ diff lines |
 | `stale-claim` | Stale-claim sweeper (GH Actions) | Orphaned claim; skip until human clears |
 | `needs-rebase` | Build agent | PR has unresolvable merge conflicts |
 | `specs-notes` | ingest-idea, learn | Docs-only PR containing only specs/ and notes/ changes |
+| `concern` | process-concerns, new-concern, ingest-concern | Technical risk, debt, or fragile area |
+
+**Note**: `group:<name>` and `group:unscheduled` labels were retired in June
+2026. Priority grouping is now tracked via GitHub Project #24 Schedule field
+and Epic sub-issue relationships instead of labels.
 
 ---
 
 ## Task Claiming Protocol
 
 ```text
-1. Read PRIORITIES.md → identify top-priority group name
-2. Query GitHub: open leaf Issues with that group: label,
+1. Query Project #24 → identify first Epic in Now tier
+2. Query GitHub: open leaf Issues that are sub-issues of that Epic,
    no stale-claim, unassigned
 3. Pick the highest-priority unblocked leaf Issue
 4. git switch -c task/<issue-number>-<slug>
@@ -148,36 +151,36 @@ PR-time detection is sufficient.
 | Skill | Change |
 |---|---|
 | `build` | Phase 2: select from GitHub Issues; add claiming, pre-PR code review ([BLOCKING]/[ADVISORY]), size labeling, PR creation, auto-rebase |
-| `ingest-idea` | Add: open docs-only PR with `specs-notes` label; create GitHub Issue with `group:unscheduled` |
-| `review-priorities` | Add Phase 2.5: fetch `group:unscheduled` Issues, interview user for placement |
-| `study-project-docs` | Task source is GitHub Issues (read from PRIORITIES.md + GitHub query) |
-| `update-plan` | Rewrite: create GitHub Issues for gaps |
+| `ingest-idea` | Add: open docs-only PR with `specs-notes` label; create GitHub Issue; add to Project #24 |
+| `review-priorities` | Rewritten: audit Project #24 board tiers; move items via API instead of editing PRIORITIES.md |
+| `study-project-docs` | Task source is GitHub Issues (query Project #24 Now tier) |
+| `update-plan` | Rewrite: create GitHub Issues for gaps; add to Project #24 |
 
 ---
 
-## Group Label Conventions (gap-analysis finding, 2026-05-05)
+## Project Board Conventions (updated June 2026)
 
-A `group:<name>` label MUST correspond to exactly one priority group in
-`PRIORITIES.md`. Labels MUST use descriptive names only — **never embed a
-priority number** in the label name or description. Priority ordering lives
-in `PRIORITIES.md` and can change without touching issue labels.
+`group:<name>` labels and `plan/PRIORITIES.md` were retired in June 2026.
+Priority grouping and scheduling are now tracked via:
 
-### Implications
+1. **GitHub Project #24** ("Vultron Planning") — the authoritative
+   scheduling board.
+2. **Schedule field** (Now / Next / Later / Someday) on Epics and issues —
+   the single source of truth for priority ordering within each tier.
+3. **Epic sub-issue relationships** — group leaf issues under an Epic rather
+   than using `group:` labels.
 
-- Each `group:*` label maps to one entry in `PRIORITIES.md`. If two priority
-  entries need separate work-streams, create two labels.
-- The label description should name the work-stream (e.g.,
-  "Re-implement fuzzer nodes from original simulator"), not the priority
-  number. This was corrected for `group:fuzzer-nodes` in May 2026.
-- `group:unscheduled` is the holding label for Issues not yet slotted into
-  `PRIORITIES.md`. Use `review-priorities` to assign them.
+### Triage
 
-### Label compliance for older issues
+Issues added to Project #24 receive `Schedule=Someday` by default. These
+appear in the "Triage" view. Use `review-priorities` to promote them to
+Now/Next/Later when they are ready to be scheduled.
 
-Issues predating the PAD label requirements (opened before Priority 473
-work began) may lack `group:*` and/or `size:*` labels. These are not
-retroactively wrong — they should be updated when touched. Issues #5, #6,
-and #294 were missing labels and were updated in May 2026.
+### Previous conventions (archived)
+
+Before June 2026, issues used `group:<slug>` labels to mark priority group
+membership and `group:unscheduled` to mark items not yet in `PRIORITIES.md`.
+These labels have been deleted. Do not recreate them.
 
 ---
 

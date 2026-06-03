@@ -36,28 +36,73 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
 
 ### Phase 2 - Select and claim work
 
-1. Read `plan/PRIORITIES.md` to identify the current top-priority group name.
-2. Query GitHub for open, unblocked **leaf Issues** (no sub-issues) with that
-   `group:` label, excluding Issues that have `stale-claim` set or are already
-   assigned. Use `github-mcp-server-list_issues` with the appropriate label
-   filter.
-3. From the resulting list, pick the highest-priority unblocked Issue. Account
-   for blockers, prerequisites, and whether the work fits in a single run.
-   **Detect blockers via the structured GraphQL API** — do not parse the issue
-   body for text markers like `Blocked by #N`:
+1. Query Project #24 ("Vultron Planning") for open Epics with `Schedule=Now`,
+   ordered by board position. The top-priority group is the first such Epic
+   that has at least one unblocked open leaf sub-issue:
+
+   ```bash
+   gh api graphql --jq '
+     .data.node.items.nodes[]
+     | select(
+         .content.state == "OPEN" and
+         .content.issueType.name == "Epic" and
+         (
+           .fieldValues.nodes[]
+           | select(.field.name == "Schedule")
+           | .name
+         ) == "Now"
+       )
+     | "#\(.content.number): \(.content.title)"
+   ' -f query='{
+     node(id: "PVT_kwDOAjf0s84BZnre") {
+       ... on ProjectV2 {
+         items(first: 100) {
+           nodes {
+             content {
+               ... on Issue {
+                 number title state
+                 issueType { name }
+               }
+             }
+             fieldValues(first: 10) { nodes {
+               ... on ProjectV2ItemFieldSingleSelectValue {
+                 name field { ... on ProjectV2SingleSelectField { name } }
+               }
+             }}
+           }
+         }
+       }
+     }
+   }'
+   ```
+
+2. Query GitHub for open, unblocked **leaf Issues** (no sub-issues) that are
+   sub-issues of the top-priority Now-Epic, excluding Issues with `stale-claim`
+   set or already assigned:
 
    ```bash
    gh api graphql -f query='{
      repository(owner:"CERTCC", name:"Vultron") {
-       issue(number: <N>) {
-         blockedBy(first: 50) { nodes { number title state } }
+       issue(number: <EPIC_NUMBER>) {
+         subIssues(first: 50) {
+           nodes {
+             number title state
+             assignees(first: 1) { nodes { login } }
+             blockedBy(first: 10) { nodes { number state } }
+             subIssues(first: 1) { totalCount }
+             labels(first: 10) { nodes { name } }
+           }
+         }
        }
      }
    }'
-   ```text
+   ```
 
-   An issue is unblocked only if all entries in `blockedBy.nodes` have
-   `state: CLOSED`.
+   An issue is a candidate if: `state=OPEN`, no assignees, no `stale-claim`
+   label, all `blockedBy` entries are `CLOSED`, and `subIssues.totalCount==0`.
+
+3. From the resulting list, pick the highest-priority unblocked Issue.
+
 4. Fetch the Issue body and comments using `github-mcp-server-issue_read`
 
    (`method: get` then `method: get_comments`). Use the combined content as
@@ -94,18 +139,39 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
 1. Search `vultron/` and `test/` to confirm the current implementation.
 2. Do not assume missing functionality; verify it in code.
 3. If a blocking prerequisite is discovered, create a new GitHub Issue for it
-   with `group:unscheduled` and the appropriate `size:` label, then
-   immediately link it as a sub-issue of the current task Issue
-   (PAD-01-003). Use the `manage-github-issue` skill to create the issue
-   and wire the sub-issue relationship in one step:
+   with the appropriate `size:` label, then immediately link it as a sub-issue
+   of the current task Issue (PAD-01-003). Use the `manage-github-issue` skill
+   to create and wire the issue, then add it to Project #24 with
+   `Schedule=Someday`:
 
    ```bash
    NEW_ISSUE=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
      --title "<prerequisite title>" \
      --body "<description>" \
-     --label "group:unscheduled,size:<S|M|L>" \
+     --label "size:<S|M|L>" \
      --parent <CURRENT_TASK_NUMBER>)
    echo "Created prerequisite #${NEW_ISSUE}"
+
+   # Add to Project #24 with Schedule=Someday
+   NODE_ID=$(gh api graphql -f query='{
+     repository(owner:"CERTCC", name:"Vultron") {
+       issue(number: '"${NEW_ISSUE}"') { id }
+     }
+   }' --jq '.data.repository.issue.id')
+   ITEM_ID=$(gh api graphql -f query="mutation {
+     addProjectV2ItemById(input: {
+       projectId: \"PVT_kwDOAjf0s84BZnre\"
+       contentId: \"${NODE_ID}\"
+     }) { item { id } }
+   }" --jq '.data.addProjectV2ItemById.item.id')
+   gh api graphql -f query="mutation {
+     updateProjectV2ItemFieldValue(input: {
+       projectId: \"PVT_kwDOAjf0s84BZnre\"
+       itemId: \"${ITEM_ID}\"
+       fieldId: \"PVTSSF_lADOAjf0s84BZnrezhUlFOM\"
+       value: { singleSelectOptionId: \"fcffa79d\" }
+     }) { projectV2Item { id } }
+   }" >/dev/null
    ```
 
    Record the dependency in `plan/BUILD_LEARNINGS.md` and stop.
@@ -214,21 +280,3 @@ If the PR reports merge conflicts:
 - Do not skip validation or the pre-PR code review.
 - Each run starts in a fresh context.
 - Do not commit directly to `main`. All work goes through a PR.
-
-## Label Naming Rules (PAD-02-007)
-
-When creating prerequisite Issues or updating `group:` labels on any issue:
-
-- **Never include a priority number** in the `group:` label name.
-  Use `group:architecture-hardening`, **not** `group:473-architecture-hardening`.
-  Priority numbers in PRIORITIES.md can change; label names must remain stable.
-- **Derive the slug** from the priority group title in kebab-case
-  (e.g., "Bug Fixes and Demo Polish" → `group:bug-fixes-demo-polish`).
-- **Check for label existence** before assigning. Create it if missing:
-
-  ```bash
-  gh label create "group:<slug>" \
-    --repo CERTCC/Vultron \
-    --description "<Priority group title (no number)>" \
-    --color "#1d76db"
-  ```text

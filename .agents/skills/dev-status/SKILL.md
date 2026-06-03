@@ -37,10 +37,9 @@ Read these in parallel:
 | GitHub Issues — type: Idea | Count of open issues |
 | GitHub Issues — type: Bug | Count of open issues |
 | GitHub Issues — type: Concern | Count of open issues — **this is the only concern source; do not read `docs/reference/codebase/CONCERNS.md`** |
-| GitHub Issues — label: `group:unscheduled` | Count of open issues |
+| GitHub Project #24 — `Schedule=Someday` (Triage) | Count of issues needing scheduling |
 | GitHub Pull Requests — open | Count of open PRs |
-| `plan/PRIORITIES.md` | Extract group labels only — **never trust issue status from this file** |
-| `git log -- plan/PRIORITIES.md` | Days since last commit to PRIORITIES.md |
+| GitHub Project #24 — `Schedule=Now` Epics | List of open Epics driving current work |
 
 See [REFERENCE.md](REFERENCE.md) for the exact `gh` and `git` commands.
 
@@ -58,20 +57,20 @@ Print a single table followed by a "Next up" callout:
 | Bugs (open)            |   3   | bugfix               |
 | Concerns (open)        |   0   | —                    |
 | Open PRs               |   2   | pr-comprehensive-fix |
-| Unscheduled issues     |   5   | review-priorities    |
+| Triage (Someday)       |   5   | review-priorities    |
 | Ready to build         |   4   | build                |
 
-PRIORITIES.md last updated: 3 days ago
+Now: #691 Migrate project tracking | #476 Bug Fixes and Demo Polish
 
 **Next up**: learn — BUILD_LEARNINGS.md has unprocessed entries.
 ```
 
 - **BUILD_LEARNINGS count**: number of `###` entry headers in the file
   (zero if only the preamble is present)
-- **Ready to build**: open leaf issues in the top-priority group that have no
-  open blockers — determined entirely from the GitHub API, **not** from
-  PRIORITIES.md text or ✅ markers
-- **PRIORITIES.md staleness**: warn if last commit > 14 days ago
+- **Ready to build**: open leaf issues in a Now-scheduled Epic that have no
+  open blockers — determined entirely from the GitHub API
+- **Triage**: issues in Project #24 with `Schedule=Someday` and no Epic parent
+- **Now** line: titles of all open Epics with `Schedule=Now` on Project #24
 
 ## Recommendation Logic
 
@@ -83,7 +82,7 @@ list all non-zero conditions as `ask_user` choices):
 3. `ingest-idea` — open Idea issues
 4. `bugfix` — open Bug issues
 5. `pr-comprehensive-fix` — open PRs > 0
-6. `review-priorities` — unscheduled issues > 0
+6. `review-priorities` — triage items > 0 (Schedule=Someday with no Epic)
 7. `build` — ready-to-build count > 0
 8. *(stop)* — all queues empty, nothing actionable
 
