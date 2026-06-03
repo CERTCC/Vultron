@@ -1857,6 +1857,15 @@ function App() {
                     description: 'Respond to Finder\'s question',
                     enabled: true,
                   }] : []),
+                  // Can still publish even if Finder closed (publication is independent of RM state)
+                  ...(demoState.vendorVfdState === 'VFD' && demoState.pxaState === 'pxa' && demoState.phase === 'finder-closed' ? [
+                    {
+                      id: 'vendor-notify-published',
+                      label: 'Notify Published',
+                      description: 'Vendor notifies that vulnerability is publicly disclosed',
+                      enabled: true,
+                    }
+                  ] : []),
                   {
                     id: 'vendor-close-case',
                     label: 'Close Case',
