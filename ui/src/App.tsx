@@ -1459,7 +1459,7 @@ function App() {
           ...(prev.finderHasClosed ? [] : [{
             id: `${vendorCloseEventId}-finder-consequence`,
             actor: 'Finder',
-            label: 'Closure Noted',
+            label: bothClosed ? 'Closure Complete' : 'Vendor Closed',
             x: nextX,
             lane: 0,
             type: 'consequence' as const,
@@ -1470,13 +1470,14 @@ function App() {
               'Announce received in inbox',
               'Vendor participant status updated',
               'Vendor RM → CLOSED',
+              ...(bothClosed ? ['All participants RM.CLOSED'] : ['Finder can continue or close']),
             ],
           }] as TimelineEvent[]),
           // Consequence node in CaseActor lane (BLUE)
           {
             id: `${vendorCloseEventId}-caseactor-consequence`,
             actor: 'CaseActor',
-            label: 'Closure Tracked',
+            label: bothClosed ? 'Case Closed' : 'Vendor Closed',
             x: nextX,
             lane: 2,
             type: 'consequence',
@@ -1485,7 +1486,10 @@ function App() {
             consequences: [
               'Vendor participant RM → CLOSED',
               'Authoritative ledger updated',
-              'Waiting for all participants to close',
+              ...(bothClosed
+                ? ['All participants RM.CLOSED', '✓ M7: Case closure complete']
+                : ['Finder participant still active', 'Case remains open']
+              ),
             ],
           },
         ],
@@ -1525,14 +1529,14 @@ function App() {
               'Finder creates UpdateParticipantStatus',
               'rm_state → CLOSED',
               'Announce activity sent to participants',
-              '✓ M7 REACHED: All participants closed',
+              ...(bothClosed ? ['✓ M7 REACHED: All participants closed'] : ['Finder has left the case']),
             ],
           },
           // Consequence node in Vendor lane (only if Vendor hasn't closed/left)
           ...(prev.vendorHasClosed ? [] : [{
             id: `${finderCloseEventId}-vendor-consequence`,
             actor: 'Vendor',
-            label: 'Closure Complete',
+            label: bothClosed ? 'Closure Complete' : 'Finder Closed',
             x: nextX,
             lane: 1,
             type: 'consequence' as const,
@@ -1541,14 +1545,14 @@ function App() {
             consequences: [
               'Announce received in inbox',
               'Finder participant status updated',
-              'All participants RM.CLOSED',
+              ...(bothClosed ? ['All participants RM.CLOSED'] : ['Finder RM → CLOSED', 'Vendor can continue or close']),
             ],
           }] as TimelineEvent[]),
           // Consequence node in CaseActor lane (BLUE)
           {
             id: `${finderCloseEventId}-caseactor-consequence`,
             actor: 'CaseActor',
-            label: 'Case Closed',
+            label: bothClosed ? 'Case Closed' : 'Finder Closed',
             x: nextX,
             lane: 2,
             type: 'consequence',
@@ -1556,9 +1560,10 @@ function App() {
             causedBy: finderCloseEventId,
             consequences: [
               'Finder participant RM → CLOSED',
-              'All participants RM.CLOSED',
-              'Case Actor closes case',
-              '✓ M7: Case closure complete',
+              ...(bothClosed
+                ? ['All participants RM.CLOSED', 'Case Actor closes case', '✓ M7: Case closure complete']
+                : ['Vendor participant still active', 'Authoritative ledger updated', 'Case remains open']
+              ),
             ],
           },
         ],
