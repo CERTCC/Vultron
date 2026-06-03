@@ -23,7 +23,17 @@ groups:
   - id: PD-03-002
     priority: SHOULD
     statement: '`notes/*.md` files that are purely historical and contain no durable design guidance SHOULD be archived in
-      `docs/archived_notes/` with a brief rationale, rather than deleted'
+      `archived_notes/` with a brief rationale, rather than deleted'
+  - id: PD-03-004
+    priority: MUST
+    statement: '`notes/*.md` files with `status: superseded` in their frontmatter MUST be moved to `archived_notes/` promptly
+      after the superseding notes file is stable. A superseded file MUST NOT remain in `notes/` indefinitely — it creates
+      noise for agents scanning that directory and risks outdated guidance being loaded as active context.'
+  - id: PD-03-005
+    priority: MUST
+    statement: When moving a file to `archived_notes/`, agents MUST update `archived_notes/README.md` with a new row in the
+      Archived Files table, including the file name, archive date, reason for archiving, and any open items that were rescued
+      to GitHub Issues before the move.
   - id: PD-03-003
     priority: MUST
     statement: Module paths referenced in `notes/` MUST be updated to reflect canonical current locations whenever those paths

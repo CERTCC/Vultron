@@ -28,6 +28,7 @@ reference only. Any open items were rescued to GitHub Issues before archiving.
 | `plan-history-management.md` | 2026-06-01 | Described management of IMPLEMENTATION_PLAN.md (PLAN) alongside plan/history/ (HISTORY). IMPLEMENTATION_PLAN.md deleted; history contract is fully covered by `specs/history-management.yaml` and the `append-history` tool. | None — captured in HM spec |
 | `work-granularity.md` | 2026-06-01 | Described a three-tier model (GitHub Issue → TASK-FOO in IMPLEMENTATION_PLAN.md → checklist items). IMPLEMENTATION_PLAN.md deleted; work is tracked directly in GitHub Issues per `specs/project-documentation.yaml` PD-09. | None — scheme fully retired |
 | `append-only-file-handling.md` | 2026-04-28 | Superseded by `specs/history-management.yaml` (HM-01–HM-05) and the `append-history` CLI tool; the manual `cat >>` append procedure is no longer used | None — all requirements captured in HM spec |
+| `architecture-ports-and-adapters.md` | 2026-06-03 | 933-line monolith split into `notes/architecture-hexagonal.md`, `notes/architecture-ports.md`, and `notes/architecture-adapters.md` (concern #658, issue #666); `status: superseded` since that split; file left in `notes/` causing agent confusion (concern #506) | All live content preserved in successor files; future-stub items tracked as #650 (delivery stubs) and #655 (ActorScopedDataLayer) |
 
 ---
 
