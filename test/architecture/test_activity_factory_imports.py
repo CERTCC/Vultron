@@ -65,7 +65,7 @@ ALLOWED_PREFIXES: tuple[str, ...] = (
     "vultron/wire/as2/factories/",
     "test/wire/as2/vocab/",
     "test/architecture/",
-    "vultron/semantic_registry.py",
+    "vultron/semantic_registry/",
 )
 
 # ---------------------------------------------------------------------------

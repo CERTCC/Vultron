@@ -138,7 +138,7 @@ vocabulary examples.
 semantic extraction, or writing new ActivityStreams vocabulary classes.
 
 **`semantic-registry.md`**
-Design notes for `SEMANTIC_REGISTRY` in `vultron/semantic_registry.py`:
+Design notes for `SEMANTIC_REGISTRY` in `vultron/semantic_registry/`:
 ordering invariant (specific before general, `UNKNOWN` last), group
 structure, the import-time `_validate_registry_order()` guard, and
 the step-by-step checklist for adding a new `ActivityPattern`.
