@@ -71,6 +71,9 @@ outbox polling, and oversized centralized dispatch tables.
   `EmbargoLifecycle` service to consolidate fragmented embargo state management
 - [#586](https://github.com/CERTCC/Vultron/issues/586) — Concern:
   `VultronActivity.object_` typed as `Any|None` causes dict round-trip bypass
+- [#699](https://github.com/CERTCC/Vultron/issues/699) — Migrate domain
+  objects from `wire/as2/vocab/objects/` to `core/models/` and type
+  `VultronActivity.object_` as discriminated union
 - [#618](https://github.com/CERTCC/Vultron/issues/618) — Concern:
   Full-URI actor/case IDs embedded in URL path segments cause routing
   fragility
