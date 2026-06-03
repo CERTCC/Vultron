@@ -196,6 +196,7 @@ interface DemoState {
   vendorHasClosed: boolean
   finderEmbargoAccepted: boolean  // Track if finder accepted current embargo proposal
   vendorEmbargoAccepted: boolean  // Track if vendor accepted current embargo proposal
+  finderHasPublished: boolean  // Track if finder has acknowledged publication
 }
 
 function App() {
@@ -215,6 +216,7 @@ function App() {
     vendorHasClosed: false,
     finderEmbargoAccepted: false,
     vendorEmbargoAccepted: false,
+    finderHasPublished: false,
   })
 
   const [hoveredEvent, setHoveredEvent] = useState<string | null>(null)
@@ -269,6 +271,7 @@ function App() {
       vendorHasClosed: false,
       finderEmbargoAccepted: false,
       vendorEmbargoAccepted: false,
+      finderHasPublished: false,
     })
     setStateHistory([])
   }, [])
@@ -1358,6 +1361,7 @@ function App() {
       setDemoState(prev => ({
         ...prev,
         phase: 'finder-published',
+        finderHasPublished: true,
         nextXPosition: prev.nextXPosition + 250,
         timelineEvents: [
           ...prev.timelineEvents,
@@ -1717,8 +1721,8 @@ function App() {
                   description: 'Finder closes their participation in the case',
                   enabled: true,
                 }] : []),
-                // Allow acknowledging publication if vendor published
-                ...(demoState.pxaState === 'Pxa' && demoState.vendorVfdState === 'VFD' ? [{
+                // Allow acknowledging publication if vendor published and finder hasn't already acknowledged
+                ...(demoState.pxaState === 'Pxa' && demoState.vendorVfdState === 'VFD' && !demoState.finderHasPublished ? [{
                   id: 'finder-notify-published',
                   label: 'Acknowledge Publication',
                   description: 'Finder acknowledges publication',
@@ -1736,10 +1740,24 @@ function App() {
                   description: 'Add a note to the case asking for information',
                   enabled: true,
                 },
-                {
+                // Only show acknowledge if finder hasn't already acknowledged
+                ...(demoState.finderHasPublished ? [] : [{
                   id: 'finder-notify-published',
                   label: 'Acknowledge Publication',
                   description: 'Finder acknowledges publication',
+                  enabled: true,
+                }]),
+                {
+                  id: 'finder-close-case',
+                  label: 'Close Case',
+                  description: 'Finder closes their participation in the case',
+                  enabled: true,
+                }
+              ] : (['finder-published', 'vendor-closed'].includes(demoState.phase) && !demoState.finderHasClosed) ? [
+                {
+                  id: 'finder-add-note',
+                  label: 'Ask Question',
+                  description: 'Add a note to the case asking for information',
                   enabled: true,
                 },
                 {
@@ -1748,12 +1766,7 @@ function App() {
                   description: 'Finder closes their participation in the case',
                   enabled: true,
                 }
-              ] : (demoState.phase === 'finder-published' || demoState.phase === 'vendor-closed') && !demoState.finderHasClosed ? [{
-                id: 'finder-close-case',
-                label: 'Close Case',
-                description: 'Finder closes their participation in the case',
-                enabled: true,
-              }] : []
+              ] : []
             }
             onActionClick={(actionId) => handleAction('finder', actionId)}
           />
