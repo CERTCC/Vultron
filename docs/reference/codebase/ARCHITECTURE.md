@@ -56,7 +56,7 @@ Evidence-backed flow:
 | Pattern | Where found | Why it exists |
 |---------|-------------|---------------|
 | Port/adapter split | `vultron/core/ports/datalayer.py`, `vultron/adapters/driven/datalayer.py` | Keep core independent of storage implementation |
-| Dispatcher + routing table | `vultron/core/dispatcher.py`, `vultron/semantic_registry.py` | Route semantic events to use cases without router-specific logic |
+| Dispatcher + routing table | `vultron/core/dispatcher.py`, `vultron/semantic_registry/` | Route semantic events to use cases without router-specific logic |
 | Dependency injection | `vultron/adapters/driving/fastapi/deps.py` | Centralize shared/shared-scoped DataLayer and TriggerService seams |
 | Background worker loop | `vultron/adapters/driving/fastapi/outbox_monitor.py` (polls; calls `outbox_handler.py`) | Drain outboxes asynchronously for all actors |
 | ASGI-first delivery with mount-prefix stripping | `vultron/adapters/driven/asgi_emitter.py`, `vultron/adapters/driving/fastapi/main.py`, `notes/asgi-emitter.md` | Deliver to co-located actors in-process, strip mount prefixes correctly, and avoid double-prefix ASGI URLs |
@@ -92,7 +92,7 @@ Evidence-backed flow:
 - `vultron/adapters/driving/fastapi/app.py`
 - `vultron/adapters/driving/fastapi/inbox_handler.py`
 - `vultron/core/dispatcher.py`
-- `vultron/semantic_registry.py`
+- `vultron/semantic_registry/`
 - `vultron/adapters/driving/fastapi/outbox_monitor.py`
 - `vultron/adapters/driving/fastapi/outbox_handler.py`
 - `vultron/adapters/driven/asgi_emitter.py`
