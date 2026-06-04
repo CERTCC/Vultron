@@ -16,6 +16,7 @@
 """Unit tests for report participant transition nodes."""
 
 import pytest
+from typing import Any, cast
 
 from vultron.core.behaviors.report.nodes.participant import (
     TransitionParticipantRMtoAccepted,
@@ -98,7 +99,7 @@ def test_transition_participant_rm_to_accepted(
     )
     bt_scenario.assert_success(result)
 
-    updated_participant = bt_scenario.dl.read(participant.id_)
+    updated_participant = cast(Any, bt_scenario.dl.read(participant.id_))
     assert updated_participant is not None
     assert updated_participant.participant_statuses[-1].rm_state == RM.ACCEPTED
 
@@ -130,7 +131,7 @@ def test_transition_participant_rm_to_accepted_is_idempotent(
         )
     )
 
-    updated_participant = bt_scenario.dl.read(participant.id_)
+    updated_participant = cast(Any, bt_scenario.dl.read(participant.id_))
     assert updated_participant is not None
     accepted_entries = [
         status
@@ -171,7 +172,7 @@ def test_transition_participant_rm_to_deferred(
     )
     bt_scenario.assert_success(result)
 
-    updated_participant = bt_scenario.dl.read(participant.id_)
+    updated_participant = cast(Any, bt_scenario.dl.read(participant.id_))
     assert updated_participant is not None
     assert updated_participant.participant_statuses[-1].rm_state == RM.DEFERRED
 
@@ -203,7 +204,7 @@ def test_transition_participant_rm_to_deferred_is_idempotent(
         )
     )
 
-    updated_participant = bt_scenario.dl.read(participant.id_)
+    updated_participant = cast(Any, bt_scenario.dl.read(participant.id_))
     assert updated_participant is not None
     deferred_entries = [
         status

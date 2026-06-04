@@ -16,6 +16,7 @@
 """Unit tests for report emit nodes."""
 
 import pytest
+from typing import Any, cast
 
 from vultron.core.behaviors.report.nodes.emit import (
     EmitDeferCaseActivity,
@@ -86,12 +87,12 @@ def test_emit_engage_case_activity(
     )
     bt_scenario.assert_success(result)
 
-    updated_actor = bt_scenario.dl.read(actor.id_)
+    updated_actor = cast(Any, bt_scenario.dl.read(actor.id_))
     assert updated_actor is not None
     assert len(updated_actor.outbox.items) == 1
 
     activity_id = updated_actor.outbox.items[0]
-    activity = bt_scenario.dl.read(activity_id)
+    activity = cast(Any, bt_scenario.dl.read(activity_id))
     assert activity is not None
     assert str(getattr(activity, "type_", "")) == "Join"
     assert activity.to == [peer_actor.id_]
@@ -113,12 +114,12 @@ def test_emit_defer_case_activity(
     )
     bt_scenario.assert_success(result)
 
-    updated_actor = bt_scenario.dl.read(actor.id_)
+    updated_actor = cast(Any, bt_scenario.dl.read(actor.id_))
     assert updated_actor is not None
     assert len(updated_actor.outbox.items) == 1
 
     activity_id = updated_actor.outbox.items[0]
-    activity = bt_scenario.dl.read(activity_id)
+    activity = cast(Any, bt_scenario.dl.read(activity_id))
     assert activity is not None
     assert str(getattr(activity, "type_", "")) == "Ignore"
     assert activity.to == [peer_actor.id_]
