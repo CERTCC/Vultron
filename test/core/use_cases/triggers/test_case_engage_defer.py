@@ -170,6 +170,7 @@ class TestEngageCaseRMTransitionViaBT:
         # Re-read participant from DataLayer to confirm BT wrote the change
         updated = self.dl.read(self.vendor_participant.id_)
         assert updated is not None
+        assert isinstance(updated, CaseParticipant)
         assert (
             updated.participant_statuses
         ), "Expected at least one ParticipantStatus after engage"
@@ -246,6 +247,7 @@ class TestDeferCaseRMTransitionViaBT:
         # Re-read participant from DataLayer to confirm BT wrote the change
         updated = self.dl.read(self.vendor_participant.id_)
         assert updated is not None
+        assert isinstance(updated, CaseParticipant)
         assert (
             updated.participant_statuses
         ), "Expected at least one ParticipantStatus after defer"
@@ -307,6 +309,7 @@ class TestAddNoteToCaseViaBT:
         # The case's notes list should contain the new note id
         updated_case = self.dl.read(self.case.id_)
         assert updated_case is not None
+        assert isinstance(updated_case, VulnerabilityCase)
         assert (
             len(updated_case.notes) >= 1
         ), "Expected case.notes to contain the new note after BT-driven attachment"
