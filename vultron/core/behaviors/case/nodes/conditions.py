@@ -18,12 +18,18 @@ Condition nodes for case management behavior trees.
 
 Provides idempotency guard conditions for the create_case workflow.
 Per specs/idempotency.yaml ID-04-004.
+
+Note: ``ValidateCaseObject`` was removed in issue #716.  ``VultronBase.id_``
+is typed ``NonEmptyString`` with a ``default_factory=_new_urn``, so Pydantic
+rejects invalid ``id_`` values at construction time (ARCH-10-001 fail-fast
+domain objects).  A factory function that calls ``case_obj.id_`` before
+constructing the tree would raise ``AttributeError`` before any BT node runs,
+making a runtime validation node unreachable and redundant.
 """
 
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerCondition
-from vultron.core.models.vultron_types import VultronCase
 
 
 class CheckCaseAlreadyExists(DataLayerCondition):
@@ -131,36 +137,4 @@ class CheckCaseExistsForReport(DataLayerCondition):
             self.logger.error(
                 f"{self.name}: Error checking case existence: {e}"
             )
-            return Status.FAILURE
-
-
-class ValidateCaseObject(DataLayerCondition):
-    """
-    Validate the incoming VulnerabilityCase object has required fields.
-
-    Returns SUCCESS if the case object passes validation.
-    Returns FAILURE if required fields are missing.
-    """
-
-    def __init__(self, case_obj: VultronCase, name: str | None = None):
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_obj = case_obj
-
-    def update(self) -> Status:
-        try:
-            if self.case_obj is None:
-                self.logger.error(f"{self.name}: case_obj is None")
-                return Status.FAILURE
-
-            if not getattr(self.case_obj, "id_", None):
-                self.logger.error(f"{self.name}: Case object missing id_")
-                return Status.FAILURE
-
-            self.logger.debug(
-                f"{self.name}: Case {self.case_obj.id_} passes validation"
-            )
-            return Status.SUCCESS
-
-        except Exception as e:
-            self.logger.error(f"{self.name}: Error validating case: {e}")
             return Status.FAILURE
