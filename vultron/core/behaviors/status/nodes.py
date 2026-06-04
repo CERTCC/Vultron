@@ -14,9 +14,11 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-BT nodes for the AddParticipantStatusToParticipant workflow.
+BT nodes for status-related workflows.
 
-Implements all five steps of DEMOMA-07-003:
+Contains nodes for two workflows:
+
+AddParticipantStatusToParticipant (DEMOMA-07-003):
   1. Verify the activity actor is a known case participant.
   2. Append the ParticipantStatus to the CaseParticipant record.
   3. Announce the update to all other case participants.
@@ -24,8 +26,10 @@ Implements all five steps of DEMOMA-07-003:
   5. If all participants are RM.CLOSED, close the case automatically
      (log-only for prototype).
 
-These nodes are composed by ``add_participant_status_tree`` into the
-``AddParticipantStatusBT`` sequence.
+AddCaseStatusToCase (issue #758):
+  1. Check idempotency: CaseStatus not yet in case.case_statuses.
+  2. Validate EM/PXA state transitions.
+  3. Append CaseStatus to the VulnerabilityCase record.
 
 Per specs/multi-actor-demo.yaml DEMOMA-07-003,
     specs/behavior-tree-integration.yaml BT-06-001.
@@ -44,6 +48,8 @@ from vultron.core.models.protocols import (
     is_case_model,
     is_participant_model,
 )
+from vultron.core.states.cs import is_valid_pxa_transition
+from vultron.core.states.em import is_valid_em_transition
 from vultron.core.states.rm import (
     RM,
     is_monotonic_rm_forward,
@@ -51,6 +57,11 @@ from vultron.core.states.rm import (
 )
 from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases._helpers import _as_id
+
+# Stable sentinel used as feedback_message when a CaseStatus duplicate is
+# detected.  The use case imports this constant to distinguish idempotent
+# no-ops (log at INFO) from real failures (log at WARNING).
+CASE_STATUS_ALREADY_PRESENT = "case_status_already_present"
 
 if TYPE_CHECKING:
     from vultron.core.ports.case_persistence import CasePersistence
@@ -583,6 +594,227 @@ class AutoCloseBranchNode(DataLayerAction):
             "AutoCloseBranch: Case Manager '%s' auto-closing case '%s'"
             " — all participants CLOSED (DEMOMA-07-003 step 5)",
             case_manager_id,
+            self.case_id,
+        )
+        return Status.SUCCESS
+
+
+# ---------------------------------------------------------------------------
+# AddCaseStatusToCase nodes (issue #758)
+# ---------------------------------------------------------------------------
+
+
+class CheckCaseStatusIdempotencyNode(DataLayerCondition):
+    """AC-1: Verify the CaseStatus has not already been added to the case.
+
+    Returns FAILURE with ``feedback_message == CASE_STATUS_ALREADY_PRESENT``
+    when *status_id* is already in ``case.case_statuses`` — a benign no-op.
+
+    Returns FAILURE with a distinct message when the case itself is not found.
+
+    Returns SUCCESS when the status is not yet present and the Sequence should
+    continue.
+
+    Per issue #758 AC-1.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        status_id: str,
+        name: str | None = None,
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.status_id = status_id
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+
+        case = self.datalayer.read(self.case_id)
+        if not is_case_model(case):
+            self.feedback_message = f"Case '{self.case_id}' not found"
+            self.logger.warning(
+                "CheckCaseStatusIdempotency: %s", self.feedback_message
+            )
+            return Status.FAILURE
+
+        existing_ids = [_as_id(s) for s in case.case_statuses]
+        if self.status_id in existing_ids:
+            self.feedback_message = CASE_STATUS_ALREADY_PRESENT
+            self.logger.debug(
+                "CheckCaseStatusIdempotency: status '%s' already in case '%s'"
+                " — skipping (idempotent)",
+                self.status_id,
+                self.case_id,
+            )
+            return Status.FAILURE
+
+        return Status.SUCCESS
+
+
+class ValidateCaseStatusTransitionNode(DataLayerCondition):
+    """AC-2: Validate that the new CaseStatus represents a legal state transition.
+
+    Uses ``case.current_status`` as the reference point.  When the case has no
+    current status (first status ever), the transition is unconditionally
+    allowed.  Otherwise both the EM state and PXA state transitions are
+    validated independently.
+
+    Returns SUCCESS when the transition is valid (or there is no prior status).
+    Returns FAILURE when an invalid EM or PXA transition is detected.
+
+    Per issue #758 AC-2.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        status_id: str,
+        status_obj_fallback: PersistableModel | None,
+        name: str | None = None,
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.status_id = status_id
+        self.status_obj_fallback = status_obj_fallback
+
+    def _resolve_status(self) -> object | None:
+        assert self.datalayer is not None
+        status_obj = self.datalayer.read(self.status_id)
+        if hasattr(status_obj, "id_"):
+            return status_obj
+        return self.status_obj_fallback
+
+    def _check_transition(
+        self,
+        label: str,
+        current: object,
+        new: object,
+        validator: Any,
+    ) -> bool:
+        if new is None or current == new:
+            return True
+        if validator(current, new):
+            return True
+        self.feedback_message = (
+            f"Invalid {label} transition {current} → {new}"
+            f" for case '{self.case_id}'"
+        )
+        self.logger.warning(
+            "ValidateCaseStatusTransition: %s — rejecting",
+            self.feedback_message,
+        )
+        return False
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+
+        case = self.datalayer.read(self.case_id)
+        if not is_case_model(case):
+            self.feedback_message = f"Case '{self.case_id}' not found"
+            self.logger.warning(
+                "ValidateCaseStatusTransition: %s", self.feedback_message
+            )
+            return Status.FAILURE
+
+        current_status = getattr(case, "current_status", None)
+        if current_status is None:
+            return Status.SUCCESS
+
+        status_obj = self._resolve_status()
+        if status_obj is None:
+            self.feedback_message = f"Status '{self.status_id}' not found"
+            self.logger.warning(
+                "ValidateCaseStatusTransition: %s", self.feedback_message
+            )
+            return Status.FAILURE
+
+        if not self._check_transition(
+            "EM",
+            current_status.em_state,
+            getattr(status_obj, "em_state", None),
+            is_valid_em_transition,
+        ):
+            return Status.FAILURE
+
+        if not self._check_transition(
+            "PXA",
+            current_status.pxa_state,
+            getattr(status_obj, "pxa_state", None),
+            is_valid_pxa_transition,
+        ):
+            return Status.FAILURE
+
+        return Status.SUCCESS
+
+
+class AppendCaseStatusToCaseNode(DataLayerAction):
+    """Append the resolved CaseStatus to ``case.case_statuses`` and persist.
+
+    Resolves the status object from the DataLayer first; if not found there,
+    saves the inline fallback and re-reads so the stored canonical record is
+    used.
+
+    Returns SUCCESS on successful append.
+    Returns FAILURE if the case or status cannot be resolved.
+
+    Per issue #758 AC-1.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        status_id: str,
+        status_obj_fallback: PersistableModel | None,
+        name: str | None = None,
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.status_id = status_id
+        self.status_obj_fallback = status_obj_fallback
+
+    def _resolve_status(self) -> "PersistableModel | None":
+        assert self.datalayer is not None
+        status_obj = self.datalayer.read(self.status_id)
+        if hasattr(status_obj, "id_"):
+            return status_obj
+        status_obj = self.status_obj_fallback
+        if status_obj is not None:
+            self.datalayer.save(status_obj)
+            status_obj = self.datalayer.read(self.status_id) or status_obj
+        return status_obj if hasattr(status_obj, "id_") else None
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+
+        case = self.datalayer.read(self.case_id)
+        if not is_case_model(case):
+            self.feedback_message = f"Case '{self.case_id}' not found"
+            self.logger.warning(
+                "AppendCaseStatusToCase: %s", self.feedback_message
+            )
+            return Status.FAILURE
+
+        status_obj = self._resolve_status()
+        if status_obj is None:
+            self.feedback_message = f"Status '{self.status_id}' not found"
+            self.logger.warning(
+                "AppendCaseStatusToCase: %s", self.feedback_message
+            )
+            return Status.FAILURE
+
+        case.case_statuses.append(status_obj)
+        self.datalayer.save(case)
+        self.logger.info(
+            "AppendCaseStatusToCase: added status '%s' to case '%s'",
+            self.status_id,
             self.case_id,
         )
         return Status.SUCCESS
