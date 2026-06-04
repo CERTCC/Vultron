@@ -16,10 +16,11 @@
 """Domain representation of an EmbargoEvent."""
 
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 
 from pydantic import Field
 
-from vultron.core.models.base import NonEmptyString, VultronObject
+from vultron.core.models.base import CoreObject, NonEmptyString
 
 
 def _now_utc() -> datetime:
@@ -32,14 +33,16 @@ def _45_days_hence() -> datetime:
     return _now_utc() + timedelta(days=45)
 
 
-class VultronEmbargoEvent(VultronObject):
+class EmbargoEvent(CoreObject):
     """Domain representation of an EmbargoEvent.
 
+    Canonical core type for the Vultron ``EmbargoEvent`` object.
     ``type_`` is ``"EmbargoEvent"`` to match the wire vocabulary key, enabling
-    proper DataLayer round-trips via ``dl.read()`` and ``dl.list_objects()``.
+    proper DataLayer round-trips via ``dl.read()`` and ``dl.list_objects()``,
+    and to auto-register this class in :data:`CORE_VOCABULARY`.
     """
 
-    type_: str = Field(
+    type_: Literal["EmbargoEvent"] = Field(
         default="EmbargoEvent",
         validation_alias="type",
         serialization_alias="type",
@@ -47,3 +50,7 @@ class VultronEmbargoEvent(VultronObject):
     start_time: datetime = Field(default_factory=_now_utc)
     end_time: datetime = Field(default_factory=_45_days_hence)
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
+
+
+# Backward-compatibility alias
+VultronEmbargoEvent = EmbargoEvent

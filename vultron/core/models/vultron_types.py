@@ -24,7 +24,8 @@ Import directly from those modules for new code:
 - ``vultron.core.models.case_actor`` — VultronCaseActor, VultronOutbox
 - ``vultron.core.models.case_event`` — VultronCaseEvent
 - ``vultron.core.models.case_status`` — CaseStatus
-- ``vultron.core.models.embargo_event`` — VultronEmbargoEvent
+- ``vultron.core.models.embargo_event`` — EmbargoEvent (VultronEmbargoEvent is an alias)
+- ``vultron.core.models.embargo_policy`` — EmbargoPolicy
 - ``vultron.core.models.note`` — VultronNote
 - ``vultron.core.models.participant`` — VultronParticipant
 - ``vultron.core.models.participant_status`` — ParticipantStatus
@@ -41,7 +42,8 @@ from vultron.core.models.case import VultronCase
 from vultron.core.models.case_actor import VultronCaseActor, VultronOutbox
 from vultron.core.models.case_event import VultronCaseEvent
 from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.embargo_event import VultronEmbargoEvent
+from vultron.core.models.embargo_event import EmbargoEvent, VultronEmbargoEvent
+from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.note import VultronNote
 from vultron.core.models.participant import VultronParticipant
 from vultron.core.models.participant_status import ParticipantStatus
@@ -54,6 +56,8 @@ __all__ = [
     "VultronCaseActor",
     "VultronCaseEvent",
     "CaseStatus",
+    "EmbargoEvent",
+    "EmbargoPolicy",
     "VultronCreateCaseActivity",
     "VultronEmbargoEvent",
     "VultronNote",

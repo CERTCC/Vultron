@@ -29,7 +29,7 @@ from vultron.core.models.vultron_types import (
     VultronActivity,
     VultronCase,
     CaseStatus,
-    VultronEmbargoEvent,
+    EmbargoEvent,
     VultronNote,
     VultronParticipant,
     ParticipantStatus,
@@ -559,7 +559,7 @@ def _build_embargo_event_object(
         }
         if isinstance(raw_start, datetime):
             kwargs["start_time"] = raw_start
-        return {"object_": VultronEmbargoEvent(**kwargs)}
+        return {"object_": EmbargoEvent(**kwargs)}
     return {}
 
 

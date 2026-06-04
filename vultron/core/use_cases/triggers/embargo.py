@@ -27,7 +27,7 @@ from transitions import MachineError
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
-from vultron.core.models.embargo_event import VultronEmbargoEvent
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.states.em import EM, EMAdapter, create_em_machine
 from vultron.core.models.protocols import (
     CaseModel,
@@ -402,14 +402,12 @@ class SvcProposeEmbargoUseCase:
         if end_time is not None:
             embargo_kwargs["end_time"] = end_time
 
-        embargo = VultronEmbargoEvent(**embargo_kwargs)
+        embargo = EmbargoEvent(**embargo_kwargs)
 
         try:
             dl.create(embargo)
         except ValueError:
-            logger.warning(
-                "VultronEmbargoEvent '%s' already exists", embargo.id_
-            )
+            logger.warning("EmbargoEvent '%s' already exists", embargo.id_)
 
         if self._trigger_activity is None:
             raise RuntimeError(
@@ -825,14 +823,12 @@ class SvcProposeEmbargoRevisionUseCase:
         if end_time is not None:
             embargo_kwargs["end_time"] = end_time
 
-        embargo = VultronEmbargoEvent(**embargo_kwargs)
+        embargo = EmbargoEvent(**embargo_kwargs)
 
         try:
             dl.create(embargo)
         except ValueError:
-            logger.warning(
-                "VultronEmbargoEvent '%s' already exists", embargo.id_
-            )
+            logger.warning("EmbargoEvent '%s' already exists", embargo.id_)
 
         if self._trigger_activity is None:
             raise RuntimeError(
