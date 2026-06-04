@@ -1105,8 +1105,8 @@ class TestResetEmbargoConsentWithInlineParticipants:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.protocols import is_case_model
         from vultron.core.states.participant_embargo_consent import PEC
-        from vultron.core.use_cases.received.embargo import (
-            _reset_case_participant_embargo_consent,
+        from vultron.core.use_cases._helpers import (
+            reset_case_participant_embargo_consent as _reset_case_participant_embargo_consent,
         )
         from vultron.wire.as2.vocab.objects.case_participant import (
             CaseParticipant,

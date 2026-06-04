@@ -101,23 +101,6 @@ def _commit_embargo_log_cascade(
     )
 
 
-def _reset_case_participant_embargo_consent(
-    dl: CasePersistence, case: CaseModel
-) -> None:
-    for entry in case.case_participants:
-        participant_id = _as_id(entry)
-        if participant_id is None:
-            continue
-        participant = dl.read(participant_id)
-        if not is_participant_model(participant):
-            continue
-        if participant.embargo_consent_state != PEC.NO_EMBARGO.value:
-            participant.embargo_consent_state = apply_pec_trigger(
-                PEC(participant.embargo_consent_state), PEC_Trigger.RESET
-            )
-            dl.save(participant)
-
-
 def _resolve_case_for_embargo_acceptance(
     dl: CasePersistence, request: AcceptInviteToEmbargoOnCaseReceivedEvent
 ) -> PersistableModel | None:

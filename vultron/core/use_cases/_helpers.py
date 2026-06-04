@@ -14,6 +14,11 @@ from vultron.core.models.protocols import (
     is_participant_model,
 )
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.states.participant_embargo_consent import (
+    PEC,
+    PEC_Trigger,
+    apply_pec_trigger,
+)
 from vultron.core.states.rm import RM
 from vultron.core.states.roles import CVDRole
 from vultron.errors import VultronNotFoundError, VultronValidationError
@@ -209,6 +214,36 @@ def _resolve_case_manager_id(
             manager_actor_id = getattr(p, "attributed_to", None)
             return _as_id(manager_actor_id)
     return None
+
+
+def reset_case_participant_embargo_consent(
+    dl: CasePersistence, case: CaseModel
+) -> None:
+    """Reset all participants' embargo consent state to NO_EMBARGO.
+
+    Called when an embargo is terminated or removed.  Iterates over all
+    participants in *case* and applies ``PEC_Trigger.RESET`` to any
+    participant whose embargo_consent_state is not already ``NO_EMBARGO``.
+    Tolerates both string IDs and inline ``CaseParticipant`` objects in
+    ``case.case_participants`` (regression #609).
+
+    This is the single authoritative implementation; the former duplicates
+    ``_reset_case_participant_embargo_consent`` (received layer) and
+    ``_cascade_pec_reset`` (triggers layer) have been removed in favour of
+    this shared helper.
+    """
+    for entry in case.case_participants:
+        participant_id = _as_id(entry)
+        if participant_id is None:
+            continue
+        participant = dl.read(participant_id)
+        if not is_participant_model(participant):
+            continue
+        if participant.embargo_consent_state != PEC.NO_EMBARGO.value:
+            participant.embargo_consent_state = apply_pec_trigger(
+                PEC(participant.embargo_consent_state), PEC_Trigger.RESET
+            )
+            dl.save(participant)
 
 
 def case_addressees(case: CaseModel, excluding_actor_id: str) -> list[str]:

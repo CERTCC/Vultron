@@ -34,8 +34,10 @@ Per specs/multi-actor-demo.yaml DEMOMA-07-003,
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
+import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.embargo.nodes import TerminateEmbargoNode
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
 from vultron.core.models.protocols import (
     PersistableModel,
@@ -391,20 +393,17 @@ class BroadcastStatusToPeersNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class PublicDisclosureBranchNode(DataLayerAction):
-    """Step 4: Trigger embargo teardown if public disclosure is detected.
+class _PublicDisclosureSkipConditionNode(DataLayerCondition):
+    """Inner guard for :class:`PublicDisclosureBranchNode`.
 
-    Condition: the new ParticipantStatus has CS.P (public-aware) set AND
-    the sender holds the CASE_OWNER role.
+    Returns SUCCESS (skip teardown) when:
+    - The new status is NOT public-aware (CS.P not set), OR
+    - DataLayer or case_id is unavailable, OR
+    - The sender is not a known case participant, OR
+    - The sender does NOT hold the CASE_OWNER role.
 
-    When the condition is met, delegates to ``SvcTerminateEmbargoUseCase``.
-    Skips silently if conditions are not met or trigger_activity_factory
-    is unavailable.
-
-    Always returns SUCCESS (failure to initiate teardown is not fatal to
-    the parent sequence).
-
-    Per DEMOMA-07-003 step 4.
+    Returns FAILURE (proceed to teardown) when the sender IS a CASE_OWNER
+    who has sent a public-aware status update.
     """
 
     def __init__(
@@ -459,51 +458,52 @@ class PublicDisclosureBranchNode(DataLayerAction):
         if CVDRole.CASE_OWNER not in roles:
             return Status.SUCCESS
 
-        case_manager_id = _find_case_manager_id(self.datalayer, case)
-        if case_manager_id is None:
-            self.logger.warning(
-                "PublicDisclosureBranch: no Case Manager found"
-                " — cannot initiate embargo teardown for case '%s'",
-                self.case_id,
-            )
-            return Status.SUCCESS
+        # Condition met: sender is CASE_OWNER reporting public awareness.
+        return Status.FAILURE
 
-        self.logger.info(
-            "PublicDisclosureBranch: public disclosure detected from"
-            " CASE_OWNER '%s' — initiating embargo teardown for case '%s'"
-            " (DEMOMA-07-003 step 4)",
-            self.sender_actor_id,
-            self.case_id,
+
+class PublicDisclosureBranchNode(py_trees.composites.Selector):
+    """Step 4: Trigger embargo teardown if public disclosure is detected.
+
+    Condition: the new ParticipantStatus has CS.P (public-aware) set AND
+    the sender holds the CASE_OWNER role.
+
+    When the condition is met, delegates to :class:`TerminateEmbargoNode`.
+    Skips silently if conditions are not met or trigger_activity_factory
+    is unavailable.
+
+    Always returns SUCCESS (failure to initiate teardown is not fatal to
+    the parent sequence).
+
+    Implemented as a ``py_trees.composites.Selector`` (memory=False):
+    - Child 1 ``_PublicDisclosureSkipConditionNode``: SUCCESS → skip teardown.
+    - Child 2 ``TerminateEmbargoNode``: always SUCCESS → teardown attempted.
+
+    Per DEMOMA-07-003 step 4.
+    """
+
+    def __init__(
+        self,
+        status_obj: PersistableModel | None,
+        sender_actor_id: str,
+        case_id: str | None,
+        name: str | None = None,
+    ):
+        super().__init__(name=name or self.__class__.__name__, memory=False)
+        self.add_children(
+            [
+                _PublicDisclosureSkipConditionNode(
+                    status_obj=status_obj,
+                    sender_actor_id=sender_actor_id,
+                    case_id=case_id,
+                    name="SkipCondition",
+                ),
+                TerminateEmbargoNode(
+                    case_id=case_id,
+                    name="TerminateEmbargo",
+                ),
+            ]
         )
-        try:
-            from vultron.core.use_cases.triggers.embargo import (
-                SvcTerminateEmbargoUseCase,
-            )
-            from vultron.core.use_cases.triggers.requests import (
-                TerminateEmbargoTriggerRequest,
-            )
-            from vultron.core.ports.case_persistence import (
-                CaseOutboxPersistence,
-            )
-
-            req = TerminateEmbargoTriggerRequest(
-                actor_id=case_manager_id,
-                case_id=self.case_id,
-            )
-            SvcTerminateEmbargoUseCase(
-                cast(CaseOutboxPersistence, self.datalayer),
-                req,
-                trigger_activity=self.trigger_activity_factory,
-            ).execute()
-        except Exception as exc:
-            self.logger.warning(
-                "PublicDisclosureBranch: embargo teardown failed for"
-                " case '%s': %s",
-                self.case_id,
-                exc,
-            )
-
-        return Status.SUCCESS
 
 
 class AutoCloseBranchNode(DataLayerAction):

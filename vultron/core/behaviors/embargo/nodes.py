@@ -34,12 +34,26 @@ at construction time.
 Per specs/behavior-tree-integration.yaml BT-06-001.
 """
 
+from typing import cast
+
 import py_trees
 from py_trees.common import Status
+from transitions import MachineError
 
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
-from vultron.core.models.protocols import is_case_model
-from vultron.core.states.em import EM, is_valid_em_transition
+from vultron.core.models.protocols import CaseModel, is_case_model
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.states.em import (
+    EM,
+    EMAdapter,
+    create_em_machine,
+    is_valid_em_transition,
+)
+from vultron.core.use_cases._helpers import (
+    _resolve_case_manager_id,
+    reset_case_participant_embargo_consent,
+)
+from vultron.core.use_cases.triggers._helpers import add_activity_to_outbox
 
 
 class ValidateCaseExistsNode(DataLayerCondition):
@@ -141,14 +155,7 @@ class ApplyEmbargoTeardownNode(DataLayerAction):
 
         case.current_status.em_state = EM.EXITED
         case.active_embargo = None
-
-        # Lazy import avoids a direct dependency on the received use-case
-        # module from within the BT node layer.
-        from vultron.core.use_cases.received.embargo import (
-            _reset_case_participant_embargo_consent,
-        )
-
-        _reset_case_participant_embargo_consent(self.datalayer, case)
+        reset_case_participant_embargo_consent(self.datalayer, case)
         self.datalayer.save(case)
 
         self.feedback_message = (
@@ -243,3 +250,124 @@ class RemoveFromProposedEmbargoesNode(DataLayerAction):
             )
 
         return Status.SUCCESS
+
+
+class TerminateEmbargoNode(DataLayerAction):
+    """Trigger-side embargo teardown for a given case.
+
+    Applies the ACTIVE/REVISE → EXITED EM state transition via the state
+    machine, clears ``active_embargo``, resets all participant embargo
+    consent states, and queues a ``Terminate(EmbargoEvent)`` activity when a
+    ``trigger_activity_factory`` is available.
+
+    Always returns SUCCESS.  Failures (no active embargo, invalid EM
+    transition, activity dispatch errors) are logged as WARNING and are
+    treated as non-fatal.
+    """
+
+    def __init__(self, case_id: str | None, name: str | None = None):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        if self.datalayer is None or not self.case_id:
+            return Status.SUCCESS
+
+        case = self.datalayer.read(self.case_id)
+        if not is_case_model(case):
+            return Status.SUCCESS
+
+        if case.active_embargo is None:
+            self.logger.info(
+                "%s: no active embargo on case '%s' — skipping",
+                self.name,
+                self.case_id,
+            )
+            return Status.SUCCESS
+
+        em_state = case.current_status.em_state
+        adapter = EMAdapter(em_state)
+        em_machine = create_em_machine()
+        em_machine.add_model(adapter, initial=em_state)
+
+        try:
+            getattr(adapter, "terminate")()
+        except MachineError:
+            self.logger.warning(
+                "%s: EM %s → EXITED blocked for case '%s'",
+                self.name,
+                em_state,
+                self.case_id,
+            )
+            return Status.SUCCESS
+
+        embargo_id = (
+            case.active_embargo
+            if isinstance(case.active_embargo, str)
+            else getattr(case.active_embargo, "id_", None)
+        )
+        case_manager_id = _resolve_case_manager_id(
+            cast(CaseModel, case), self.datalayer
+        )
+
+        case.current_status.em_state = EM(adapter.state)
+        case.active_embargo = None
+        reset_case_participant_embargo_consent(self.datalayer, case)
+        self.datalayer.save(case)
+
+        self.logger.info(
+            "%s: embargo terminated on case '%s' (EM %s → %s)",
+            self.name,
+            self.case_id,
+            em_state,
+            adapter.state,
+        )
+
+        self._dispatch_activity(embargo_id, case_manager_id)
+        return Status.SUCCESS
+
+    def _dispatch_activity(
+        self, embargo_id: str | None, case_manager_id: str | None
+    ) -> None:
+        """Queue a Terminate(EmbargoEvent) activity to the case manager's outbox.
+
+        No-ops when ``trigger_activity_factory`` is unavailable, ``embargo_id``
+        is missing, or the case manager cannot be resolved.  Activity dispatch
+        failures are logged as WARNING and do not affect the BT return value.
+        """
+        if (
+            self.trigger_activity_factory is None
+            or embargo_id is None
+            or self.datalayer is None
+        ):
+            return
+
+        if case_manager_id is None:
+            self.logger.warning(
+                "%s: no CASE_MANAGER found for case '%s'"
+                " — activity dispatch skipped",
+                self.name,
+                self.case_id,
+            )
+            return
+
+        try:
+            case_id: str = self.case_id  # type: ignore[assignment]  # guarded above
+            announce_id, _ = self.trigger_activity_factory.terminate_embargo(
+                embargo_id=embargo_id,
+                case_id=case_id,
+                actor=case_manager_id,
+                to=[case_manager_id],
+            )
+            add_activity_to_outbox(
+                case_manager_id,
+                announce_id,
+                cast(CaseOutboxPersistence, self.datalayer),
+            )
+        except Exception as exc:
+            self.logger.warning(
+                "%s: activity dispatch failed for case '%s': %s",
+                self.name,
+                self.case_id,
+                exc,
+            )
