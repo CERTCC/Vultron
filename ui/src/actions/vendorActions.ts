@@ -156,28 +156,52 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
         bothAccepted ? 'Both parties accepted - embargo is now ACTIVE' : 'Awaiting Finder acceptance',
       ],
     },
-  ]
-
-  if (bothAccepted) {
-    events.push({
-      id: `${eventId}-case-consequence`,
+    // Consequence node in CaseActor lane - always created
+    {
+      id: `${eventId}-caseactor-consequence`,
       actor: 'CaseActor',
       participantId: 'caseactor',
-      label: 'M1 REACHED',
+      label: bothAccepted ? 'M1 REACHED' : `${vendor.name} Accepted`,
       x: nextX,
       lane: 2,
       type: 'consequence',
       causedBy: eventId,
       timestamp: now + 1,
-      enablesNext: true,
-      consequences: [
+      enablesNext: bothAccepted,
+      consequences: bothAccepted ? [
         '✓ M1 REACHED: Case active',
         'Embargo: ACTIVE',
-        '3 participants engaged',
-        'Coordinated disclosure timeline begins',
+        'EmAcceptEmbargoActivity received from both',
+        'ActivateEmbargoActivity processed',
+        'Authoritative ledger updated',
+      ] : [
+        `${vendor.name} EmAcceptEmbargoActivity received`,
+        'Awaiting Finder acceptance',
+        'EM state remains PROPOSED',
       ],
-    })
-  }
+    },
+    // Consequence node in Finder lane - always created
+    {
+      id: `${eventId}-finder-consequence`,
+      actor: 'Finder',
+      participantId: 'finder',
+      label: bothAccepted ? 'Embargo Active' : `${vendor.name} Accepted`,
+      x: nextX,
+      lane: 0,
+      type: 'consequence',
+      causedBy: eventId,
+      timestamp: now + 2,
+      consequences: bothAccepted ? [
+        'AnnounceEmbargoActivity received',
+        'Embargo is now ACTIVE',
+        'Coordinated disclosure begins',
+      ] : [
+        `Notified: ${vendor.name} accepted embargo`,
+        'Awaiting own acceptance decision',
+        'EM state remains PROPOSED',
+      ],
+    },
+  ]
 
   newState = addTimelineEvents(newState, events)
   newState = addEventLogEntries(newState, [

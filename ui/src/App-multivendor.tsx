@@ -415,6 +415,60 @@ function App() {
 
               {/* SVG for nodes and edges */}
               <svg style={{ position: 'absolute', top: 0, left: 0, width: minWidth, height: LANE_HEIGHT * totalLanes }}>
+                {/* Arrow marker definitions */}
+                <defs>
+                  <marker
+                    id="arrowhead"
+                    markerWidth="10"
+                    markerHeight="10"
+                    refX="9"
+                    refY="3"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 10 3, 0 6" fill="#666" />
+                  </marker>
+                  <marker
+                    id="arrowhead-blue"
+                    markerWidth="10"
+                    markerHeight="10"
+                    refX="9"
+                    refY="3"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 10 3, 0 6" fill="#BBDEFB" />
+                  </marker>
+                  <marker
+                    id="arrowhead-purple"
+                    markerWidth="10"
+                    markerHeight="10"
+                    refX="9"
+                    refY="3"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 10 3, 0 6" fill="#E1BEE7" />
+                  </marker>
+                  <marker
+                    id="arrowhead-green"
+                    markerWidth="10"
+                    markerHeight="10"
+                    refX="9"
+                    refY="3"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 10 3, 0 6" fill="#C8E6C9" />
+                  </marker>
+                  <marker
+                    id="arrowhead-orange"
+                    markerWidth="10"
+                    markerHeight="10"
+                    refX="9"
+                    refY="3"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 10 3, 0 6" fill="#FFE0B2" />
+                  </marker>
+                </defs>
+
                 {/* Draw edges */}
                 {demoState.timelineEvents.map((event) => {
                   if (event.causedBy) {
@@ -422,21 +476,97 @@ function App() {
                     if (causeEvent) {
                       const y1 = causeEvent.lane * LANE_HEIGHT + LANE_HEIGHT / 2
                       const y2 = event.lane * LANE_HEIGHT + LANE_HEIGHT / 2
+
+                      // Adjust endpoints to account for rectangle height (70px / 2 = 35px from center)
+                      const rectHalfHeight = 35
+                      const direction = y2 > y1 ? 1 : -1  // downward or upward
+                      const adjustedY1 = y1 + (rectHalfHeight * direction)
+                      const adjustedY2 = y2 - (rectHalfHeight * direction)
+
+                      // Find the participant for the TARGET (consequence) event
+                      const targetParticipant = activeLanes.find(p => p.laneIndex === event.lane)
+
+                      // Determine arrow color based on target participant (consequence node color)
+                      let arrowColor: string
+                      let arrowMarker: string
+                      if (targetParticipant) {
+                        if (targetParticipant.id === 'finder') {
+                          arrowColor = '#BBDEFB'
+                          arrowMarker = 'url(#arrowhead-blue)'
+                        } else if (targetParticipant.id === 'vendor-1') {
+                          arrowColor = '#E1BEE7'
+                          arrowMarker = 'url(#arrowhead-purple)'
+                        } else if (targetParticipant.id === 'vendor-2') {
+                          arrowColor = '#C8E6C9'
+                          arrowMarker = 'url(#arrowhead-green)'
+                        } else if (targetParticipant.id === 'caseactor') {
+                          arrowColor = '#FFE0B2'
+                          arrowMarker = 'url(#arrowhead-orange)'
+                        } else {
+                          arrowColor = '#999'
+                          arrowMarker = ''
+                        }
+                      } else {
+                        arrowColor = '#999'
+                        arrowMarker = ''
+                      }
+
                       return (
                         <line
                           key={`edge-${event.id}`}
                           x1={causeEvent.x}
-                          y1={y1}
+                          y1={adjustedY1}
                           x2={event.x}
-                          y2={y2}
-                          stroke="#999"
+                          y2={adjustedY2}
+                          stroke={arrowColor}
                           strokeWidth="2"
                           strokeDasharray="5,5"
+                          markerEnd={arrowMarker}
                         />
                       )
                     }
                   }
                   return null
+                })}
+
+                {/* Draw horizontal flow arrows within each lane */}
+                {demoState.timelineEvents.map((event) => {
+                  // Find next node in the SAME lane with a DIFFERENT x position
+                  const eventIdx = demoState.timelineEvents.indexOf(event)
+                  const nextInLane = demoState.timelineEvents.find(
+                    (e, i) => i > eventIdx && e.lane === event.lane && e.x !== event.x
+                  )
+                  if (!nextInLane) return null
+
+                  // Only draw arrow if it represents an enabling relationship:
+                  // - consequence → decision (consequence enables actor to make decision)
+                  // - decision → decision (one decision leads to another)
+                  // Don't draw:
+                  // - decision → consequence (caused by other actor, shown by vertical arrow)
+                  // - consequence → consequence (no direct enabling)
+                  const shouldDrawArrow =
+                    (event.type === 'consequence' && nextInLane.type === 'decision') ||
+                    (event.type === 'decision' && nextInLane.type === 'decision')
+
+                  if (!shouldDrawArrow) return null
+
+                  const y = event.lane * LANE_HEIGHT + LANE_HEIGHT / 2
+                  const startX = event.x + 60 // Start from edge of rectangle (width/2)
+                  const endX = nextInLane.x - 60 // End at edge of next rectangle
+
+                  return (
+                    <g key={`arrow-horizontal-${event.id}`}>
+                      <line
+                        x1={startX}
+                        y1={y}
+                        x2={endX}
+                        y2={y}
+                        stroke="#666"
+                        strokeWidth={2}
+                        markerEnd="url(#arrowhead)"
+                      />
+                    </g>
+                  )
                 })}
 
                 {/* Draw timeline nodes */}

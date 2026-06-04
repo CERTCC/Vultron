@@ -150,28 +150,53 @@ export function handleFinderAcceptEmbargo(state: DemoState): DemoState {
         bothAccepted ? 'Both parties accepted - embargo is now ACTIVE' : 'Awaiting Vendor acceptance',
       ],
     },
-  ]
-
-  if (bothAccepted) {
-    events.push({
-      id: `${eventId}-case-consequence`,
+    // Consequence node in Vendor lane - always created
+    {
+      id: `${eventId}-vendor-consequence`,
+      actor: 'Vendor',
+      participantId: 'vendor-1',
+      label: bothAccepted ? 'Embargo Active' : 'Finder Accepted',
+      x: nextX,
+      lane: 1,
+      type: 'consequence',
+      causedBy: eventId,
+      timestamp: now + 1,
+      consequences: bothAccepted ? [
+        'AnnounceEmbargoActivity received',
+        'Vendor\'s EM state → ACTIVE',
+        '90-day embargo now in effect',
+        '✓ M1 REACHED: Case active, embargo established',
+      ] : [
+        'Finder has accepted embargo',
+        'Vendor must still accept or reject',
+        'EM state remains PROPOSED',
+      ],
+    },
+    // Consequence node in CaseActor lane - always created
+    {
+      id: `${eventId}-caseactor-consequence`,
       actor: 'CaseActor',
       participantId: 'caseactor',
-      label: 'M1 REACHED',
+      label: bothAccepted ? 'M1 REACHED' : 'Finder Accepted',
       x: nextX,
       lane: 2,
       type: 'consequence',
       causedBy: eventId,
-      timestamp: now + 1,
-      enablesNext: true,
-      consequences: [
+      timestamp: now + 2,
+      enablesNext: bothAccepted,
+      consequences: bothAccepted ? [
         '✓ M1 REACHED: Case active',
         'Embargo: ACTIVE',
-        '3 participants engaged',
-        'Coordinated disclosure timeline begins',
+        'EmAcceptEmbargoActivity received from both',
+        'ActivateEmbargoActivity processed',
+        'Authoritative ledger updated',
+      ] : [
+        'Finder EmAcceptEmbargoActivity received',
+        'Awaiting Vendor acceptance',
+        'EM state remains PROPOSED',
       ],
-    })
-  }
+    },
+  ]
 
   newState = addTimelineEvents(newState, events)
 
