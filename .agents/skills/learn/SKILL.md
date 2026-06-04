@@ -9,7 +9,7 @@ description: >
   to specs/, notes/, and AGENTS.md, opens a docs-only PR with the
   specs-notes label, and archives processed entries. Use when build
   execution has produced insights that should be reflected in specs or
-  notes. For external ideas (GitHub Idea-type issues), use ingest-idea
+  notes. For external ideas (GitHub Idea-type issues), use `plan-issue`
   instead.
 ---
 
@@ -27,7 +27,7 @@ and YAML spec files in `specs/`. Do not modify code or tests.
 **Trigger**: Use this skill when `plan/BUILD_LEARNINGS.md` has unprocessed
 entries that should be promoted into durable docs.
 
-> For new external ideas (GitHub Idea-type issues), use `ingest-idea` instead.
+> For new external ideas (GitHub Idea-type issues), use `plan-issue` instead.
 
 ## Quick Start
 
@@ -36,8 +36,8 @@ entries that should be promoted into durable docs.
    in `docs/reference/codebase/`.
 3. Read `plan/BUILD_LEARNINGS.md` and query GitHub for open `type:Concern`
    issues (both are input queues).
-4. Invoke `study-project-docs` for full context (specs, notes, code) — it
-   now reads the freshly updated codebase docs.
+4. Invoke `orient-agent` then `deepen-context` for full context (specs,
+   notes, code) — it now reads the freshly updated codebase docs.
 5. Analyze what the build process has learned vs. what specs and notes capture.
 6. Invoke `grill-me` to align on scope and decisions — before writing anything.
    Include GitHub Concern issue triage in this phase (no separate triage step
@@ -78,7 +78,7 @@ be clobbered by a later `git reset --hard`.
 Then invoke the `acquire-codebase-knowledge` skill (full scan, no focus area
 restriction). This regenerates all seven files in `docs/reference/codebase/`
 from the current state of the repository before any gap analysis begins,
-ensuring `study-project-docs` in Phase 1 reads an accurate baseline.
+ensuring `orient-agent` in Phase 1 reads an accurate baseline.
 
 Always run this phase unconditionally — `learn` runs infrequently enough
 that the cost of a full scan is justified on every invocation.
@@ -101,9 +101,9 @@ that the cost of a full scan is justified on every invocation.
      --json number,title,body
    ```text
 
-1. Invoke the `study-project-docs` skill for full context: specs JSON,
+1. Invoke `orient-agent` then `deepen-context` for full context: specs JSON,
    plan files, docs/adr/, notes/, AGENTS.md, and a code scan. Because
-   Phase 0 has already refreshed the codebase docs, `study-project-docs`
+   Phase 0 has already refreshed the codebase docs, `orient-agent`/`deepen-context`
    will read up-to-date architecture and structure information.
 
 > `BUILD_LEARNINGS.md` is an ephemeral queue. Entries are deleted after
@@ -284,7 +284,7 @@ the issue (see Phase 7 step 3 for the comment template).
 ## Constraints
 
 - Do not modify code or tests.
-- Do not process GitHub Idea-type issues — that is `ingest-idea`'s domain.
+- Do not process GitHub Idea-type issues — use `plan-issue` for those.
 - Do not skip the grill-me phase — it must complete before any writing.
 - Do not reference `plan/BUILD_LEARNINGS.md` from durable docs.
 - Archive processed entries via the `archive-history` skill; do not
