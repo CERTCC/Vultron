@@ -25,14 +25,16 @@ from typing import TYPE_CHECKING, Any
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.sender.send_tree import sender_side_bt
+from vultron.core.behaviors.case.engage_defer_trigger_tree import (
+    defer_case_trigger_bt,
+    engage_case_trigger_bt,
+)
 from vultron.core.models.case import VultronCase
 from vultron.core.states.cs import CS_vfd
 from vultron.core.states.rm import RM
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import (
     _resolve_case_manager_id,
-    update_participant_rm_state,
 )
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,
@@ -88,8 +90,6 @@ class SvcEngageCaseUseCase:
                 "SvcEngageCaseUseCase requires a TriggerActivityPort"
             )
 
-        update_participant_rm_state(case_id, actor_id, RM.ACCEPTED, dl)
-
         factory = self._trigger_activity
         captured: dict = {}
 
@@ -103,8 +103,10 @@ class SvcEngageCaseUseCase:
             return [activity_id]
 
         bridge = BTBridge(datalayer=dl, trigger_activity=factory)
-        tree = sender_side_bt(
-            case_id=case_id, activity_builder=_build_activities
+        tree = engage_case_trigger_bt(
+            case_id=case_id,
+            actor_id=actor_id,
+            activity_builder=_build_activities,
         )
         result = bridge.execute_with_setup(tree, actor_id=actor_id)
 
@@ -155,8 +157,6 @@ class SvcDeferCaseUseCase:
                 "SvcDeferCaseUseCase requires a TriggerActivityPort"
             )
 
-        update_participant_rm_state(case_id, actor_id, RM.DEFERRED, dl)
-
         factory = self._trigger_activity
         captured: dict = {}
 
@@ -170,8 +170,10 @@ class SvcDeferCaseUseCase:
             return [activity_id]
 
         bridge = BTBridge(datalayer=dl, trigger_activity=factory)
-        tree = sender_side_bt(
-            case_id=case_id, activity_builder=_build_activities
+        tree = defer_case_trigger_bt(
+            case_id=case_id,
+            actor_id=actor_id,
+            activity_builder=_build_activities,
         )
         result = bridge.execute_with_setup(tree, actor_id=actor_id)
 

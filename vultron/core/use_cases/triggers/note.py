@@ -25,8 +25,9 @@ from typing import TYPE_CHECKING
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.sender.send_tree import sender_side_bt
-from vultron.core.models.protocols import is_case_model
+from vultron.core.behaviors.note.add_note_trigger_tree import (
+    add_note_to_case_trigger_bt,
+)
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.errors import VultronValidationError
 from vultron.core.use_cases.triggers._helpers import (
@@ -81,34 +82,12 @@ class SvcAddNoteToCaseUseCase:
             )
         factory = self._trigger_activity
 
-        note_id, note_dict = factory.create_note(
-            name=request.note_name,
-            content=request.note_content,
-            context_id=case_id,
-            attributed_to=actor_id,
-            in_reply_to=request.in_reply_to,
-        )
-
-        # Add note to the actor's local copy of the case.
-        case_obj = dl.read(case_id)
-        if is_case_model(case_obj):
-            existing_ids = [
-                n if isinstance(n, str) else getattr(n, "id_", str(n))
-                for n in case_obj.notes
-            ]
-            if note_id not in existing_ids:
-                case_obj.notes.append(note_id)
-                dl.save(case_obj)
-                logger.debug(
-                    "AddNoteToCase: added note '%s' to local case '%s'",
-                    note_id,
-                    case_id,
-                )
-
-        # Mutable capture so the closure can pass back the activity dict.
-        captured: dict = {}
+        # result_out is written by CreateNoteNode and AttachNoteFromResultNode
+        # inside the BT; the closure and the return statement read from it.
+        result_out: dict = {}
 
         def _build_activities(case_manager_id: str) -> list[str]:
+            note_id = result_out["note_id"]
             create_id = factory.create_note_activity(
                 actor=actor_id,
                 note_id=note_id,
@@ -120,20 +99,26 @@ class SvcAddNoteToCaseUseCase:
                 actor=actor_id,
                 to=[case_manager_id],
             )
-            captured["activity"] = add_dict
+            result_out["activity"] = add_dict
             return [create_id, add_id]
 
         bridge = BTBridge(datalayer=dl, trigger_activity=factory)
-        tree = sender_side_bt(
-            case_id=case_id, activity_builder=_build_activities
+        tree = add_note_to_case_trigger_bt(
+            case_id=case_id,
+            note_name=request.note_name,
+            note_content=request.note_content,
+            in_reply_to=request.in_reply_to,
+            result_out=result_out,
+            activity_builder=_build_activities,
         )
-        result = bridge.execute_with_setup(tree, actor_id=actor_id)
+        result_status = bridge.execute_with_setup(tree, actor_id=actor_id)
 
-        if result.status != Status.SUCCESS:
+        if result_status.status != Status.SUCCESS:
             raise VultronValidationError(
                 f"AddNoteToCase failed: {BTBridge.get_failure_reason(tree)}"
             )
 
+        note_id = result_out.get("note_id", "")
         logger.info(
             "Actor '%s' added note '%s' to case '%s'",
             actor_id,
@@ -142,6 +127,6 @@ class SvcAddNoteToCaseUseCase:
         )
 
         return {
-            "note": note_dict,
-            "activity": captured.get("activity"),
+            "note": result_out.get("note_dict"),
+            "activity": result_out.get("activity"),
         }

@@ -73,7 +73,15 @@ def _make_case_with_case_manager(
     participant (CVDRole.CASE_MANAGER).
 
     Returns the case and the Case Manager CaseParticipant.
+
+    The actor participant is pre-initialized to RM.VALID so that
+    engage (→ ACCEPTED) and defer (→ DEFERRED) transitions are valid.
     """
+    from vultron.core.states.rm import RM
+    from vultron.wire.as2.vocab.objects.case_status import (
+        ParticipantStatus as WireParticipantStatus,
+    )
+
     case = VulnerabilityCase(name="Test Case")
 
     finder_participant = FinderParticipant(
@@ -90,10 +98,22 @@ def _make_case_with_case_manager(
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
     )
+    # Pre-advance actor to RM.VALID so engage/defer transitions will succeed
+
+    actor_participant.participant_statuses.append(
+        WireParticipantStatus(context=case.id_, rm_state=RM.RECEIVED)
+    )
+    actor_participant.participant_statuses.append(
+        WireParticipantStatus(context=case.id_, rm_state=RM.VALID)
+    )
 
     case.actor_participant_index[actor_id] = actor_participant.id_
     case.actor_participant_index[finder_id] = finder_participant.id_
     case.actor_participant_index[case_actor_id] = case_manager_participant.id_
+
+    case.case_participants.append(actor_participant.id_)
+    case.case_participants.append(finder_participant.id_)
+    case.case_participants.append(case_manager_participant.id_)
 
     dl.create(case)
     dl.create(finder_participant)
