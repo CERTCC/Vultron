@@ -23,7 +23,7 @@ queueing. Core modules MUST NOT import wire-layer types directly
 See also:
     - ``vultron/adapters/driven/sync_activity_adapter.py`` — adapter
     - ``specs/architecture.yaml`` ARCH-01-001
-    - ``notes/activity-factories.md`` — Architecture Violation section
+    - ``vultron/wire/as2/factories/AGENTS.md`` — Architecture Violation section
 """
 
 from typing import Protocol

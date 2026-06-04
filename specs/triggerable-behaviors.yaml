@@ -3,7 +3,7 @@ title: Triggerable Behaviors
 description: Requirements for the trigger API that allows an actor to initiate protocol behaviors based on their own internal
   state, rather than reacting to an inbound ActivityStreams message. Triggerable behaviors are the **outgoing counterpart**
   to the inbound handler pipeline. The full CVD protocol cannot be demonstrated without them; a complete implementation requires
-  both reactive and triggerable sides. `notes/triggerable-behaviors.md` (design notes), `notes/trigger-classification.md`
+  both reactive and triggerable sides. `notes/triggerable-behaviors.md` (design notes), `vultron/core/use_cases/triggers/AGENTS.md`
   (classification decisions), `docs/topics/behavior_logic/` (reference behavior tree docs) `case-management.md` (CM-01), `handler-protocol.md`
   (HP-00-001), `outbox.md` (OX-02-001), `agentic-readiness.md` (AR-04, AR-08), `configuration.md` (CFG-04)
 version: 1.0.0

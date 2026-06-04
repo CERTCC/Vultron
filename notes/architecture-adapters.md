@@ -6,8 +6,8 @@ description: >
   DataLayer scope boundaries, and ASGI emitter architecture patterns.
 related_notes:
   - notes/architecture-hexagonal.md
-  - notes/architecture-ports.md
-  - notes/asgi-emitter.md
+  - vultron/core/ports/AGENTS.md
+  - vultron/adapters/driven/AGENTS.md
 relevant_packages:
   - vultron/adapters
   - vultron/adapters/driven
@@ -45,7 +45,7 @@ If a feature requires both directions, keep separate modules in
 - Strips mount prefix when routing into mounted sub-apps.
 - Preserves per-app isolation (`create_app()` must not mutate globals).
 
-See `notes/asgi-emitter.md` for implementation rules.
+See `vultron/adapters/driven/AGENTS.md` for implementation rules.
 
 ---
 

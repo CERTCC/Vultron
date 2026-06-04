@@ -59,8 +59,8 @@ Evidence-backed flow:
 | Dispatcher + routing table | `vultron/core/dispatcher.py`, `vultron/semantic_registry/` | Route semantic events to use cases without router-specific logic |
 | Dependency injection | `vultron/adapters/driving/fastapi/deps.py` | Centralize shared/shared-scoped DataLayer and TriggerService seams |
 | Background worker loop | `vultron/adapters/driving/fastapi/outbox_monitor.py` (polls; calls `outbox_handler.py`) | Drain outboxes asynchronously for all actors |
-| ASGI-first delivery with mount-prefix stripping | `vultron/adapters/driven/asgi_emitter.py`, `vultron/adapters/driving/fastapi/main.py`, `notes/asgi-emitter.md` | Deliver to co-located actors in-process, strip mount prefixes correctly, and avoid double-prefix ASGI URLs |
-| Per-app app-factory isolation | `vultron/adapters/driving/fastapi/app.py:create_app`, `notes/asgi-emitter.md`, `specs/multi-actor-demo.yaml` | Keep co-located apps from sharing dispatcher, emitter, or DataLayer state |
+| ASGI-first delivery with mount-prefix stripping | `vultron/adapters/driven/asgi_emitter.py`, `vultron/adapters/driving/fastapi/main.py`, `vultron/adapters/driven/AGENTS.md` | Deliver to co-located actors in-process, strip mount prefixes correctly, and avoid double-prefix ASGI URLs |
+| Per-app app-factory isolation | `vultron/adapters/driving/fastapi/app.py:create_app`, `vultron/adapters/driven/AGENTS.md`, `specs/multi-actor-demo.yaml` | Keep co-located apps from sharing dispatcher, emitter, or DataLayer state |
 | Behavior trees | `docs/adr/0002-model-processes-with-behavior-trees.md`, `AGENTS.md` | Model multi-state CVD workflows and automation paths |
 | Single-translation-point adapters | `vultron/adapters/driven/sync_activity_adapter.py`, `vultron/adapters/driven/trigger_activity_adapter.py` | Each adapter is the sole domain→wire translation point for its port, enforcing ARCH-01-001 (no wire-layer imports in core) |
 
@@ -83,9 +83,9 @@ Evidence-backed flow:
 
 - `AGENTS.md`
 - `notes/architecture-hexagonal.md`
-- `notes/architecture-ports.md`
+- `vultron/core/ports/AGENTS.md`
 - `notes/architecture-adapters.md`
-- `notes/asgi-emitter.md`
+- `vultron/adapters/driven/AGENTS.md`
 - `specs/multi-actor-demo.yaml`
 - `specs/case-bootstrap-trust.yaml`
 - `vultron/adapters/driving/fastapi/main.py`

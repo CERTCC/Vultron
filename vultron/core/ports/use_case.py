@@ -24,7 +24,7 @@ Port direction: **inbound (driving)** — the dispatcher calls
 event from a driving adapter (inbox handler, CLI, MCP server).
 
 See also: ``core/ports/dispatcher.py`` (inbound, higher-level dispatch
-contract) and ``notes/architecture-ports.md`` "Core Port
+contract) and ``vultron/core/ports/AGENTS.md`` "Core Port
 Taxonomy".
 
 Usage::

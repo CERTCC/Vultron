@@ -292,7 +292,7 @@ Do not close these issues before implementation confirms their status.
 
 ## Related Archived Notes
 
-- `notes/demo-review-26042001.md` — archived; point-in-time bug analysis
+- `archived_notes/demo-review-26042001.md` — archived; point-in-time bug analysis
   from 2026-04-20 that informed the demo redesign
 - `archived_notes/two-actor-feedback.md` — detailed bug feedback from
   earlier demo runs

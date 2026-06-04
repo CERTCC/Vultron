@@ -5,7 +5,7 @@ description: >
   Hexagonal architecture layer model, boundaries, rules, and review checklist
   for Vultron.
 related_notes:
-  - notes/architecture-ports.md
+  - vultron/core/ports/AGENTS.md
   - notes/architecture-adapters.md
 relevant_packages:
   - vultron/core

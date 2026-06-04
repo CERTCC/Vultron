@@ -28,7 +28,7 @@ of wire-layer factory imports (ARCH-01-001).
 See also:
     - ``vultron/core/ports/trigger_activity.py`` — port Protocol
     - ``vultron/wire/as2/factories/`` — factory functions
-    - ``notes/activity-factories.md``
+    - ``vultron/wire/as2/factories/AGENTS.md``
 """
 
 import logging

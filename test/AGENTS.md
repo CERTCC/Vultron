@@ -290,7 +290,7 @@ vendor_app.state.dl_call = make_testclient_call(vendor_client, "http://vendor:79
 ```
 
 **Formal requirements**: `specs/multi-actor-demo.yaml` DEMOMA-01-004,
-DEMOMA-01-005; `notes/asgi-emitter.md` § "Co-located actor isolation".
+DEMOMA-01-005; `vultron/adapters/driven/AGENTS.md` § "Co-located actor isolation".
 
 ### Polling-Helper Patching Rule (MUST)
 

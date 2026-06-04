@@ -117,7 +117,6 @@ related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/behavior-tree-node-design.yaml
 related_notes:
-  - notes/bt-reusability.md
   - notes/bt-composability.md
 relevant_packages:
   - py_trees

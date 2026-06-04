@@ -1,5 +1,5 @@
 You are reviewing this codebase for adherence to the architecture described in
-`notes/architecture-hexagonal.md`, `notes/architecture-ports.md`, and
+`notes/architecture-hexagonal.md`, `vultron/core/ports/AGENTS.md`, and
 `notes/architecture-adapters.md`, as refined in
 `specs/architecture.yaml`. Additional notes from a previous review are found
 in `archived_notes/architecture-review.md`. Read those document in full

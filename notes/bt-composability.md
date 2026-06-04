@@ -1,21 +1,23 @@
 ---
-title: Behavior Tree Composability Design Notes
+title: Behavior Tree Composability and Reusability Design Notes
 status: active
 description: >
   Vultron's fractal composability principle for behavior trees; concrete
-  patterns for composing behavioral subtrees.
+  patterns for composing and reusing behavioral subtrees; anti-patterns to avoid.
 related_specs:
   - specs/bt-composability.yaml
+  - specs/behavior-tree-integration.yaml
+  - specs/behavior-tree-node-design.yaml
 related_notes:
   - notes/bt-integration.md
-  - notes/bt-reusability.md
+  - notes/use-case-behavior-trees.md
 relevant_packages:
   - py_trees
   - vultron/bt
   - vultron/core/behaviors
 ---
 
-# Behavior Tree Composability Design Notes
+# Behavior Tree Composability and Reusability Design Notes
 
 ## Overview
 
@@ -28,8 +30,6 @@ logic in `vultron/core/behaviors/`.
 
 **See also**:
 
-- `notes/bt-reusability.md` — anti-patterns, parameterization guidelines,
-  node design checklist
 - `notes/bt-integration.md` — key design decisions, trunk-removed branches
   model, DataLayer integration
 - `notes/vultron-bt.txt` — full canonical simulation tree dump
@@ -341,10 +341,231 @@ This keeps each child node simple and testable in isolation.
 ## Related Reading
 
 - `specs/bt-composability.yaml` — formal BTC-01 through BTC-04 requirements
-- `notes/bt-reusability.md` — anti-patterns and node design checklist
+- `specs/behavior-tree-integration.yaml` — formal requirements (BT-06-*)
+- `specs/behavior-tree-node-design.yaml` — node design specification
+  (BTND-01 through BTND-05)
 - `notes/bt-integration.md` — design decisions, trunk-removed branches model
 - `notes/vultron-bt.txt` — canonical simulation BT structure (full dump)
 - `vultron/bt/embargo_management/behaviors.py` — TerminateEmbargoBt,
   EmbargoManagementBt (canonical reference for embargo behaviors)
 - `vultron/bt/report_management/_behaviors/` — RMValidateBt, RMPrioritizeBt,
   RMCloseBt, RMDoWorkBt (canonical reference for report behaviors)
+
+---
+
+## Reusability Patterns and Anti-Patterns
+
+### Foundational Concepts
+
+#### Trunk-Removed Branches Model
+
+Vultron's prototype uses an **event-driven** architecture: one incoming
+ActivityStreams activity triggers one use-case handler, which runs a focused
+behavior tree and completes.
+
+The **canonical simulation BT** (`vultron/bt/`) is a single large
+`CvdProtocolRoot` tree that ticks continuously, branching on every cycle.
+The prototype cannot replicate this — it receives discrete messages and
+must respond synchronously.
+
+**Solution: Remove the trunk, keep the branches.**
+
+Each use-case handler in `vultron/core/use_cases/` maps to a named subtree
+in the canonical BT. When an activity arrives:
+
+1. The dispatcher identifies the semantic type (CreateReport, ProposeEmbargo,
+   etc.)
+2. The corresponding use-case handler is invoked
+3. The handler orchestrates a py_trees BT that implements the canonical subtree
+4. The BT executes to completion and returns
+
+**Visual mapping:**
+
+```text
+Canonical tree:               Prototype:
+CvdProtocolRoot               (trunk removed)
+  ├─ ReceiveMessages    ──►   CreateReportReceivedUseCase
+  │    └─ HandleRS      ──►   → ReceiveReportBT (subtree)
+  │    └─ HandleEP      ──►   ProposeEmbargoReceivedUseCase
+  │                           → ReceiveEmbargoBT (subtree)
+  └─ PrioritizeBt       ──►   SvcEngageCaseUseCase
+       └─ EngageFlow    ──►   → PrioritizeBT (subtree)
+```
+
+**Key implication**: The canonical tree structure IS the documentation. If
+the tree shows that behavior B is a child of behavior A, then B MUST be
+implemented as a BT subtree within A's tree — not as a procedural call after
+A's BT completes.
+
+---
+
+### Fractal Composability Pattern
+
+**Fractal composability** means BT nodes and subtrees are self-contained,
+parameterized components that can be nested at multiple levels of abstraction
+without losing coherence or correctness.
+
+A fractal BT is one where:
+
+- Each subtree IS a complete, meaningful behavior (e.g., "engage the case",
+  "validate the report", "emit an activity")
+- The subtree can be triggered independently (via use-case entry point)
+- The same subtree can also be composed as a child within a larger tree
+- **Identity and role are constructor parameters**, not hard-coded constants
+
+#### Example: Parameterized Participant Creation
+
+**Reusable subtree:**
+
+```python
+def create_case_participant_tree(
+    case_id: str,
+    actor_id: str,
+    participant_role: str,  # ← role is parameterized
+) -> py_trees.behaviour.Behaviour:
+    return py_trees.composites.Sequence(
+        name=f"CreateParticipant_{participant_role}",
+        memory=False,
+        children=[
+            ValidateParticipantRole(role=participant_role),
+            CreateParticipantRecord(
+                case_id=case_id, actor_id=actor_id, role=participant_role
+            ),
+            EmitAddParticipantActivity(case_id=case_id, actor_id=actor_id),
+            UpdateOutbox(),
+        ],
+    )
+```
+
+**Anti-pattern (non-reusable):**
+
+```python
+def create_finder_participant_node(case_id: str) -> py_trees.behaviour.Behaviour:
+    """❌ WRONG — hard-coded to finder role only."""
+    return py_trees.composites.Sequence(
+        name="CreateFinderParticipant",  # ← role embedded in name
+        children=[
+            CreateParticipantRecord(
+                case_id=case_id,
+                actor_id="FINDER_ACTOR_ID",  # ← hard-coded
+                role="finder",              # ← hard-coded
+            ),
+            ...
+        ],
+    )
+```
+
+---
+
+### Anti-Patterns to Avoid
+
+#### 1. Hard-Coded Actor Roles
+
+```python
+# ❌ Hard-coded
+def emit_invite_node() -> py_trees.behaviour.Behaviour:
+    return CreateInviteActivity(actor_id="urn:example.org:actors:coordinator")
+
+# ✅ Parameterized
+def emit_invite_node(actor_id: str) -> py_trees.behaviour.Behaviour:
+    return CreateInviteActivity(actor_id=actor_id)
+```
+
+Different actors (coordinator, vendor, finder) may need the same activity
+type. Parameterize so one node serves all.
+
+#### 2. Demo-Specific Logic in Reusable Nodes
+
+BT nodes MUST NOT depend on demo-specific modules or environment variables.
+If a node needs to log, use Python's standard `logging` module.
+
+```python
+# ❌ Demo-specific import
+from vultron.demo.utils import demo_logger
+
+class SomeNode(py_trees.behaviour.Behaviour):
+    def update(self) -> Status:
+        demo_logger.demo_step(f"Doing work: {self.name}")
+
+# ✅ Standard logger
+import logging
+logger = logging.getLogger(__name__)
+
+class SomeNode(py_trees.behaviour.Behaviour):
+    def update(self) -> Status:
+        logger.info(f"Doing work: {self.name}")
+```
+
+#### 3. One-Off Subtrees Hard-Coded to Specific Workflows
+
+Separate generic reusable logic from activity-specific integration logic.
+Generic logic is composable; activity-specific logic is the entry point.
+
+#### 4. Duplicate Subtrees with Slight Variations
+
+Violates DRY. Extract a parameterized helper used by all variants.
+
+---
+
+### Node Design Guidelines
+
+#### Parameterization
+
+All BT nodes MUST take required values as constructor parameters. Do NOT
+look up values from global state, environment variables, or implicit context.
+
+#### Blackboard Key Naming
+
+BT blackboard keys MUST use simplified names following `{noun}_{id_segment}`
+pattern, where `id_segment` is the last path component of the object's URI.
+
+```python
+# ✅ Correct
+bb.set("case_abc123", case_obj)
+bb.set("embargo_def456", embargo_obj)
+
+# ❌ Avoid (slashes cause py_trees hierarchical parsing issues)
+bb.set("https://example.org/cases/abc123", case_obj)
+```
+
+#### ActorConfig-Driven Roles
+
+The local actor's default CVD roles MUST be sourced from `ActorConfig`
+rather than hardcoded in BT nodes.
+
+`ActorConfig` is a neutral Pydantic model in `vultron/core/models/` (or
+`vultron/config.py`) — **not** inside `vultron/demo/`. This ensures BT
+nodes can import it without violating the no-demo-layer-imports rule
+(BTND-04-002, CFG-07-001).
+
+See also: `specs/behavior-tree-node-design.yaml` BTND-05-001 through
+BTND-05-003, `specs/configuration.yaml` CFG-07-001 through CFG-07-004.
+
+---
+
+### Testing Composability
+
+1. **Test in isolation**: Create minimal fixtures that invoke the node without
+   external context
+2. **Test parameterization**: Verify that changing parameters produces expected
+   behavior variations
+3. **Test composition**: Verify nodes work correctly when composed into parent
+   trees
+4. **Avoid fixture coupling**: Do not embed demo-specific test data in fixtures
+
+---
+
+### Anti-Pattern Reference (Quick Checklist)
+
+Before adding a new BT node or subtree:
+
+- [ ] **No hard-coded actor roles** — actor identities are constructor
+  parameters
+- [ ] **No demo-specific imports** — no imports from `vultron.demo`
+- [ ] **No environment-variable dependencies** — use constructor parameters
+- [ ] **No singleton patterns** — all state is parameter-passed or in
+  DataLayer
+- [ ] **No duplicate logic** — similar operations are parameterized helpers
+- [ ] **Blackboard keys avoid slashes** — use `{noun}_{id_segment}` pattern
+- [ ] **Composable in parent trees** — subtree can be added as a child
+- [ ] **Testable in isolation** — no external setup required

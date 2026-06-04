@@ -203,7 +203,7 @@ in `plan/IMPLEMENTATION_PLAN.md`:
 
 - `notes/architecture-hexagonal.md` — canonical layer model, file layout
   target, rules, and review checklist.
-- `notes/architecture-ports.md` — inbound/outbound port taxonomy and
+- `vultron/core/ports/AGENTS.md` — inbound/outbound port taxonomy and
   dispatch-vs-emit terminology.
 - `notes/architecture-adapters.md` — adapter boundaries and delivery
   invariants.

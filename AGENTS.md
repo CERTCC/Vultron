@@ -289,7 +289,7 @@ Short entries are reproduced here; longer ones are referenced below.
 
 - **Circular Imports** — see [notes/codebase-structure.md](notes/codebase-structure.md)
 - **Pattern Matching with ActivityStreams** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
-- **`SEMANTIC_REGISTRY` Order Errors Fail Silently — `_validate_registry_order()` Required** — A misplaced pattern causes the wrong use case to run with no error. The import-time guard `_validate_registry_order()` raises `RegistryOrderError` immediately. Until it lands, always run `test/test_semantic_activity_patterns.py` after editing the registry. See [notes/semantic-registry.md](notes/semantic-registry.md)
+- **`SEMANTIC_REGISTRY` Order Errors Fail Silently — `_validate_registry_order()` Required** — A misplaced pattern causes the wrong use case to run with no error. The import-time guard `_validate_registry_order()` raises `RegistryOrderError` immediately. Until it lands, always run `test/test_semantic_activity_patterns.py` after editing the registry. See [vultron/wire/as2/AGENTS.md](vultron/wire/as2/AGENTS.md)
 - **Test Data Quality** — moved to `test/AGENTS.md`
 - **All Protocol-Significant Behavior MUST Be in the BT** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Protocol Event Cascades (Cascading Automation)** — see [notes/bt-integration.md](notes/bt-integration.md)
@@ -340,12 +340,12 @@ Short entries are reproduced here; longer ones are referenced below.
 - **Black Can Invalidate Inline pyright Suppressions on Wrapped Fields** — see [notes/codebase-structure.md](notes/codebase-structure.md)
 - **Pytest `filterwarnings = ["error"]` Does Not Catch All Warnings** — moved to `test/AGENTS.md`
 - **Pytest Helper Enums Must Not Use `Test*` Names** — moved to `test/AGENTS.md`
-- **Avoid `BaseModel` in Port/Adapter Type Hints** — see [notes/architecture-ports.md](notes/architecture-ports.md)
+- **Avoid `BaseModel` in Port/Adapter Type Hints** — see [vultron/core/ports/AGENTS.md](vultron/core/ports/AGENTS.md)
 - **Activity `name` Field Must Not Use `repr()` or `str()`** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **Actor IDs Must Always Be Full URIs** — see [notes/codebase-structure.md](notes/codebase-structure.md)
 - **Co-located Actor IDs Must Be HTTP-Routable; Wire Up `ASGIEmitter` at Startup** — see [notes/architecture-adapters.md](notes/architecture-adapters.md)
-- **ASGIEmitter Path Construction: Use Scheme+Netloc Only as `httpx` Base URL** — see [notes/asgi-emitter.md](notes/asgi-emitter.md)
-- **`create_app()` MUST NOT Mutate Module-Level Singletons** — see [notes/asgi-emitter.md](notes/asgi-emitter.md)
+- **ASGIEmitter Path Construction: Use Scheme+Netloc Only as `httpx` Base URL** — see [vultron/adapters/driven/AGENTS.md](vultron/adapters/driven/AGENTS.md)
+- **`create_app()` MUST NOT Mutate Module-Level Singletons** — see [vultron/adapters/driven/AGENTS.md](vultron/adapters/driven/AGENTS.md)
 - **Bootstrap Activities Must Embed Nested Objects Inline, Not as URI Strings** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **BT Failure Reason: Use `get_failure_reason()`, Not Generic Error Logs** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Dead-Letter vs. No-Pattern: Two Distinct UNKNOWN Failure Modes** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
