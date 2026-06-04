@@ -199,7 +199,7 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   }
 
   // Active embargo phases
-  const embargoPhases = ['embargo-accepted', 'finder-asked', 'vendor-replied', 'fix-ready', 'fix-deployed']
+  const embargoPhases = ['embargo-accepted', 'finder-asked', 'vendor-replied', 'fix-ready', 'fix-deployed', 'vendor-published']
   if (embargoPhases.includes(state.phase)) {
     const actions: Action[] = []
 
@@ -252,8 +252,8 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
       })
     }
 
-    // Close case
-    if (vendor.vfdState === 'VFD' && state.pxaState.includes('P')) {
+    // Close case - available after both fix deployed (VFD) AND published (P)
+    if (vendor.vfdState === 'VFD' && state.pxaState.includes('P') && !vendor.hasClosed) {
       actions.push({
         id: 'vendor-close-case',
         label: 'Close Case',

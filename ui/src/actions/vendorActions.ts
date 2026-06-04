@@ -270,7 +270,7 @@ export function handleNotifyFixReady(state: DemoState, vendorId: string): DemoSt
       label: 'Notify Fix Ready',
       x: nextX,
       lane: vendor.laneIndex,
-      type: 'decision',
+      type: 'decision' as const,
       timestamp: now,
       consequences: [
         `${vendor.name} VFD state: Vfd → VFd`,
@@ -278,6 +278,24 @@ export function handleNotifyFixReady(state: DemoState, vendorId: string): DemoSt
         'Fix is ready but not yet deployed',
       ],
     },
+    // Consequence node in Finder lane
+    {
+      id: `${eventId}-finder-consequence`,
+      actor: 'Finder',
+      participantId: 'finder',
+      label: 'Fix Ready',
+      x: nextX,
+      lane: 0,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + 1,
+      consequences: [
+        'Finder notified: Fix is ready',
+        `${vendor.name} VFD → VFd`,
+        'Awaiting fix deployment',
+      ],
+    },
+    // Consequence node in CaseActor lane
     {
       id: `${eventId}-case-consequence`,
       actor: 'CaseActor',
@@ -285,8 +303,8 @@ export function handleNotifyFixReady(state: DemoState, vendorId: string): DemoSt
       label: 'M4 Tracked',
       x: nextX,
       lane: 2,
-      type: 'consequence',
-      timestamp: now + 1,
+      type: 'consequence' as const,
+      timestamp: now + 2,
       causedBy: eventId,
       consequences: [
         '✓ M4 REACHED: Fix ready',
@@ -323,7 +341,7 @@ export function handleNotifyFixDeployed(state: DemoState, vendorId: string): Dem
       label: 'Notify Fix Deployed',
       x: nextX,
       lane: vendor.laneIndex,
-      type: 'decision',
+      type: 'decision' as const,
       timestamp: now,
       consequences: [
         `${vendor.name} VFD state: VFd → VFD`,
@@ -331,6 +349,24 @@ export function handleNotifyFixDeployed(state: DemoState, vendorId: string): Dem
         'Fix is now available to users',
       ],
     },
+    // Consequence node in Finder lane
+    {
+      id: `${eventId}-finder-consequence`,
+      actor: 'Finder',
+      participantId: 'finder',
+      label: 'Fix Deployed',
+      x: nextX,
+      lane: 0,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + 1,
+      consequences: [
+        'Finder notified: Fix is deployed',
+        `${vendor.name} VFD → VFD`,
+        'Users can now apply the fix',
+      ],
+    },
+    // Consequence node in CaseActor lane
     {
       id: `${eventId}-case-consequence`,
       actor: 'CaseActor',
@@ -338,8 +374,8 @@ export function handleNotifyFixDeployed(state: DemoState, vendorId: string): Dem
       label: 'M5 Tracked',
       x: nextX,
       lane: 2,
-      type: 'consequence',
-      timestamp: now + 1,
+      type: 'consequence' as const,
+      timestamp: now + 2,
       causedBy: eventId,
       consequences: [
         '✓ M5 REACHED: Fix deployed',
@@ -391,7 +427,7 @@ export function handleVendorNotifyPublished(state: DemoState, vendorId: string):
       label: 'Notify Published',
       x: nextX,
       lane: vendor.laneIndex,
-      type: 'decision',
+      type: 'decision' as const,
       timestamp: now,
       consequences: [
         `${vendor.name} publishes vulnerability details`,
@@ -400,6 +436,24 @@ export function handleVendorNotifyPublished(state: DemoState, vendorId: string):
         '✓ M6 REACHED: Public disclosure',
       ],
     },
+    // Consequence node in Finder lane
+    {
+      id: `${eventId}-finder-consequence`,
+      actor: 'Finder',
+      participantId: 'finder',
+      label: 'Publication Noted',
+      x: nextX,
+      lane: 0,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + 1,
+      consequences: [
+        'Finder notified: Vulnerability published',
+        `Case PXA state: ${newPxa}`,
+        'Public disclosure (P) is now active',
+      ],
+    },
+    // Consequence node in CaseActor lane
     {
       id: `${eventId}-case-consequence`,
       actor: 'CaseActor',
@@ -407,8 +461,8 @@ export function handleVendorNotifyPublished(state: DemoState, vendorId: string):
       label: 'Publication Tracked',
       x: nextX,
       lane: 2,
-      type: 'consequence',
-      timestamp: now + 1,
+      type: 'consequence' as const,
+      timestamp: now + 2,
       causedBy: eventId,
       consequences: [
         '✓ M6 REACHED: Public disclosure',
@@ -445,12 +499,50 @@ export function handleVendorReplyNote(state: DemoState, vendorId: string): DemoS
       label: 'Reply to Question',
       x: nextX,
       lane: vendor.laneIndex,
-      type: 'decision',
+      type: 'decision' as const,
       timestamp: now,
       consequences: [
-        'Note added to case',
-        `${vendor.name} replied to Finder's question`,
-        'E.g., "Workaround: disable feature X until patch is available"',
+        'Note created: "Vendor Response"',
+        'Content: "Yes, disable the network stack component"',
+        'inReplyTo: previous note',
+        'Add(Note, target=Case) activity created',
+        'Activity sent via Vendor\'s outbox',
+        'Triggers delivery to participants',
+      ],
+    },
+    // Consequence node in Finder lane
+    {
+      id: `${eventId}-finder-consequence`,
+      actor: 'Finder',
+      participantId: 'finder',
+      label: 'Reply Received',
+      x: nextX,
+      lane: 0,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + 1,
+      consequences: [
+        'Add(Note) received in inbox',
+        'Reply delivered to Finder\'s DataLayer',
+        'Finder can now see workaround',
+        '✓ M3 REACHED: Notes exchanged',
+      ],
+    },
+    // Consequence node in CaseActor lane
+    {
+      id: `${eventId}-caseactor-consequence`,
+      actor: 'CaseActor',
+      participantId: 'caseactor',
+      label: 'Reply Tracked',
+      x: nextX,
+      lane: 2,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + 2,
+      consequences: [
+        'Reply note tracked by Case Actor',
+        'Note thread updated in case history',
+        'Authoritative ledger updated',
       ],
     },
   ])
@@ -482,13 +574,48 @@ export function handleVendorCloseCase(state: DemoState, vendorId: string): DemoS
       label: 'Close Case',
       x: nextX,
       lane: vendor.laneIndex,
-      type: 'decision',
+      type: 'decision' as const,
       timestamp: now,
       consequences: [
         `${vendor.name} RM state: → CLOSED`,
         `${vendor.name} leaves the case (ActivityPub: Leave)`,
         `No further actions available for ${vendor.name}`,
         'Other participants can still continue',
+      ],
+    },
+    // Consequence node in Finder lane
+    {
+      id: `${eventId}-finder-consequence`,
+      actor: 'Finder',
+      participantId: 'finder',
+      label: `${vendor.name} Closed`,
+      x: nextX,
+      lane: 0,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + 1,
+      consequences: [
+        `Finder notified: ${vendor.name} closed`,
+        `${vendor.name} participant RM → CLOSED`,
+        'Finder can still continue work',
+      ],
+    },
+    // Consequence node in CaseActor lane
+    {
+      id: `${eventId}-caseactor-consequence`,
+      actor: 'CaseActor',
+      participantId: 'caseactor',
+      label: `${vendor.name} Closed`,
+      x: nextX,
+      lane: 2,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + 2,
+      consequences: [
+        `${vendor.name} participant RM → CLOSED`,
+        'Leave activity tracked',
+        'Authoritative ledger updated',
+        'Case remains open for other participants',
       ],
     },
   ])
