@@ -41,7 +41,6 @@ REQUIRED_KWARGS: dict[type, dict] = {
     VultronNote: {"content": "test content"},
     VultronParticipant: {
         "context": "urn:uuid:case-123",
-        "attributed_to": "urn:uuid:actor-456",
     },
     CaseStatus: {
         "context": "urn:uuid:case-123",
@@ -151,15 +150,20 @@ def test_vultron_note_content_required():
 
 
 def test_vultron_participant_required_fields():
-    with pytest.raises(Exception):
-        VultronParticipant()
-    with pytest.raises(Exception):
-        VultronParticipant(context="urn:uuid:case-123")
+    """CaseParticipant has no required fields (migrated to CoreObject).
+
+    Both context and attributed_to are optional; when attributed_to is
+    provided, name is auto-derived from it.
+    """
+    p_empty = VultronParticipant()
+    assert p_empty.context is None
+
     p = VultronParticipant(
         context="urn:uuid:case-123", attributed_to="urn:uuid:actor-456"
     )
     assert p.context == "urn:uuid:case-123"
     assert p.attributed_to == "urn:uuid:actor-456"
+    assert p.name == "urn:uuid:actor-456"
 
 
 def test_vultron_case_status_required_fields():

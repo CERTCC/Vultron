@@ -14,10 +14,11 @@
 import unittest
 
 import vultron.wire.as2.vocab.activities as activities  # noqa: F401
+from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.vocab.activities.case_participant import (
     _CreateParticipantActivity,
 )
-from vultron.wire.as2.vocab.objects.case_participant import VendorParticipant
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 
 
 class MyTestCase(unittest.TestCase):
@@ -39,9 +40,10 @@ class TestCreateParticipantName(unittest.TestCase):
         self.case_id = "https://vultron.example/cases/1"
         self.attributed_to = "https://vultron.example/users/finndervul"
 
-        self.participant = VendorParticipant(
+        self.participant = CaseParticipant(
             attributed_to=self.attributed_to,
             context=self.case_id,
+            case_roles=[CVDRole.VENDOR],
         )
         self.activity = _CreateParticipantActivity(
             actor=self.actor_id,

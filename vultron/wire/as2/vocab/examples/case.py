@@ -31,7 +31,8 @@ from vultron.wire.as2.vocab.examples._base import (
     gen_report,
     vendor,
 )
-from vultron.wire.as2.vocab.objects.case_participant import VendorParticipant
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
     add_report_to_case_activity,
@@ -48,8 +49,11 @@ from vultron.wire.as2.factories import (
 def create_case() -> as_Create:
     _case = case()
     _case.add_report(_REPORT.id_)
-    participant = VendorParticipant(
-        attributed_to=_VENDOR.id_, name=_VENDOR.name, context=_case.id_
+    participant = CaseParticipant(
+        case_roles=[CVDRole.VENDOR],
+        attributed_to=_VENDOR.id_,
+        name=_VENDOR.name,
+        context=_case.id_,
     )
     _case.add_participant(participant)
 

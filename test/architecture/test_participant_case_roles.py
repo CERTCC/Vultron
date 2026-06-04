@@ -5,8 +5,13 @@ from pathlib import Path
 
 # vultron/core/ root
 _CORE_ROOT = Path(__file__).parents[2] / "vultron" / "core"
-# The one module that is permitted to mutate case_roles directly
-_PARTICIPANT_MODULE = _CORE_ROOT / "models" / "participant.py"
+# The modules that are permitted to mutate case_roles directly
+_ALLOWED_MODULES = frozenset(
+    [
+        _CORE_ROOT / "models" / "participant.py",
+        _CORE_ROOT / "models" / "case_participant.py",
+    ]
+)
 
 # Patterns that indicate direct case_roles mutation on an instance:
 #   .case_roles = ...   (attribute assignment)
@@ -22,7 +27,7 @@ def test_no_direct_case_roles_mutation_in_core():
     """
     violations: list[str] = []
     for py_file in sorted(_CORE_ROOT.rglob("*.py")):
-        if py_file == _PARTICIPANT_MODULE:
+        if py_file in _ALLOWED_MODULES:
             continue
         text = py_file.read_text()
         for lineno, line in enumerate(text.splitlines(), 1):

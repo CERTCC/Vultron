@@ -53,9 +53,9 @@ from vultron.wire.as2.factories import (
     create_case_activity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseActorParticipant,
     CaseParticipant,
 )
+from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 # ---------------------------------------------------------------------------
@@ -85,7 +85,8 @@ def _case_with_case_actor_participant() -> tuple:
     participant is embedded INLINE in the case snapshot (not just an ID),
     matching what a real bootstrap ``Create(VulnerabilityCase)`` would carry.
     """
-    participant = CaseActorParticipant(
+    participant = CaseParticipant(
+        case_roles=[CVDRole.CASE_MANAGER],
         id_=_PARTICIPANT_ID,
         attributed_to=_CASE_ACTOR_ID,
         context=_CASE_ID,
@@ -94,7 +95,7 @@ def _case_with_case_actor_participant() -> tuple:
     case = VulnerabilityCase(
         id_=_CASE_ID,
         name="CBT test case",
-        case_participants=[participant],  # inline — as in a real bootstrap
+        case_participants=[participant],
     )
     return case, participant
 
@@ -434,7 +435,8 @@ class TestM4AddParticipantStatusAfterBootstrap:
     def case_with_two_participants(self):
         """VulnerabilityCase with a CASE_MANAGER participant and a vendor
         participant, both embedded inline as in a real bootstrap snapshot."""
-        case_actor_p = CaseActorParticipant(
+        case_actor_p = CaseParticipant(
+            case_roles=[CVDRole.CASE_MANAGER],
             id_=_PARTICIPANT_ID,
             attributed_to=_CASE_ACTOR_ID,
             context=_CASE_ID,
@@ -447,7 +449,10 @@ class TestM4AddParticipantStatusAfterBootstrap:
         case = VulnerabilityCase(
             id_=_CASE_ID,
             name="CBT-05-006 M4 regression case",
-            case_participants=[case_actor_p, vendor_p],
+            case_participants=[
+                case_actor_p,
+                vendor_p,
+            ],
         )
         case.actor_participant_index[_CASE_ACTOR_ID] = _PARTICIPANT_ID
         case.actor_participant_index[_VENDOR_ID] = _VENDOR_PARTICIPANT_ID
@@ -580,7 +585,8 @@ class TestBootstrapCreateReporterParticipant:
         The fixture also includes a CASE_MANAGER participant inline so that
         the bootstrap trust path extracts a trusted_case_actor_id.
         """
-        case_actor_participant = CaseActorParticipant(
+        case_actor_participant = CaseParticipant(
+            case_roles=[CVDRole.CASE_MANAGER],
             id_=self._VENDOR_PARTICIPANT_ID,
             attributed_to=self._VENDOR_ID,
             context=self._CASE_ID,
@@ -697,7 +703,8 @@ class TestBootstrapReporterUpgradesFromStart:
 
     @pytest.fixture()
     def case_with_string_participants(self):
-        case_actor_participant = CaseActorParticipant(
+        case_actor_participant = CaseParticipant(
+            case_roles=[CVDRole.CASE_MANAGER],
             id_=self._VENDOR_PARTICIPANT_ID,
             attributed_to=self._VENDOR_ID,
             context=self._CASE_ID,

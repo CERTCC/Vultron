@@ -971,14 +971,14 @@ def test_hydrate_expands_list_ref_field(dl):
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
         VulnerabilityCase,
     )
-    from vultron.wire.as2.vocab.objects.case_participant import (
-        CaseActorParticipant,
-    )
+    from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+    from vultron.core.states.roles import CVDRole
 
     case_actor_id = "https://example.org/actors/case-actor-hydrate"
     case = VulnerabilityCase()
 
-    participant = CaseActorParticipant(
+    participant = CaseParticipant(
+        case_roles=[CVDRole.CASE_MANAGER],
         attributed_to=case_actor_id,
         context=case.id_,
         name="test-participant",
@@ -1010,13 +1010,13 @@ def test_hydrate_leaves_already_expanded_participants_unchanged(dl):
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
         VulnerabilityCase,
     )
-    from vultron.wire.as2.vocab.objects.case_participant import (
-        CaseActorParticipant,
-    )
+    from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+    from vultron.core.states.roles import CVDRole
 
     case_actor_id = "https://example.org/actors/case-actor-noop"
     case = VulnerabilityCase()
-    participant = CaseActorParticipant(
+    participant = CaseParticipant(
+        case_roles=[CVDRole.CASE_MANAGER],
         attributed_to=case_actor_id,
         context=case.id_,
         name="already-expanded",

@@ -27,15 +27,11 @@ from vultron.wire.as2.vocab.examples._base import (
 from vultron.wire.as2.vocab.examples.status import (
     participant_status,
 )
-from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
-    CoordinatorParticipant,
-    FinderReporterParticipant,
-    VendorParticipant,
-)
-from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
-from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_vfd
+from vultron.core.states.rm import RM
+from vultron.core.states.roles import CVDRole
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
 from vultron.wire.as2.factories import (
     add_participant_to_case_activity,
     remove_participant_from_case_activity,
@@ -50,11 +46,12 @@ def add_vendor_participant_to_case() -> as_Add:
     _case = case()
 
     shortname = _vendor.id_.split("/")[-1]
-    _vendor_participant = VendorParticipant(
+    _vendor_participant = CaseParticipant(
         id_=f"{_case.id_}/participants/{shortname}",
         name=_vendor.name,
         attributed_to=_vendor.id_,
         context=_case.id_,
+        case_roles=[CVDRole.VENDOR],
     )
 
     _pstatus = ParticipantStatus(
@@ -80,11 +77,12 @@ def add_finder_participant_to_case() -> as_Add:
 
     _finder = finder()
     shortname = _finder.id_.split("/")[-1]
-    _finder_participant = FinderReporterParticipant(
+    _finder_participant = CaseParticipant(
         id_=f"{_case.id_}/participants/{shortname}",
         name=_finder.name,
         attributed_to=_finder.id_,
         context=_case.id_,
+        case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
     )
 
     activity = add_participant_to_case_activity(
@@ -102,11 +100,12 @@ def add_coordinator_participant_to_case() -> as_Add:
 
     _coordinator = _COORDINATOR
     shortname = _coordinator.id_.split("/")[-1]
-    _coordinator_participant = CoordinatorParticipant(
+    _coordinator_participant = CaseParticipant(
         id_=f"{_case.id_}/participants/{shortname}",
         name=_coordinator.name,
         attributed_to=_coordinator.id_,
         context=_case.id_,
+        case_roles=[CVDRole.COORDINATOR],
     )
 
     activity = add_participant_to_case_activity(
@@ -165,11 +164,12 @@ def create_participant():
     _vendor = vendor()
     _case = case()
     _coordinator = _COORDINATOR
-    _coord_participant = CoordinatorParticipant(
+    _coord_participant = CaseParticipant(
         id_=f"{_case.id_}/participants/{_coordinator.id_}",
         name=_coordinator.name,
         attributed_to=_coordinator.id_,
         context=_case.id_,
+        case_roles=[CVDRole.COORDINATOR],
     )
     _activity = as_Create(
         actor=_vendor.id_,
@@ -181,11 +181,12 @@ def create_participant():
 
 
 def case_participant() -> CaseParticipant:
-    participant = VendorParticipant(
+    participant = CaseParticipant(
         id_="https://vultron.example/cases/1/participants/vendor",
         name="Vendor",
         attributed_to="https://vultron.example/organizations/vendor",
         context="https://vultron.example/cases/1",
+        case_roles=[CVDRole.VENDOR],
         participant_statuses=[participant_status()],
     )
     return participant
@@ -195,11 +196,12 @@ def coordinator_participant() -> CaseParticipant:
     _actor = _COORDINATOR
     _case = case()
 
-    participant = CoordinatorParticipant(
+    participant = CaseParticipant(
         id_=f"{_case.id_}/participants/coordinator",
         name=_actor.name,
         attributed_to=_actor.id_,
         context=_case.id_,
+        case_roles=[CVDRole.COORDINATOR],
     )
     return participant
 

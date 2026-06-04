@@ -40,7 +40,6 @@ from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
     FinderParticipant,
     VendorParticipant,
 )
@@ -76,7 +75,7 @@ def _make_case_with_case_manager(
     store: SqliteDataLayer,
     actor_id: str,
     case_actor_id: str,
-) -> tuple[VulnerabilityCase, CaseParticipant]:
+) -> tuple[VulnerabilityCase, VendorParticipant]:
     """Create a case with a CASE_MANAGER participant (for routing tests)."""
     case = VulnerabilityCase(name="Test Case")
 

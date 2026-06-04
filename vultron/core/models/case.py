@@ -21,8 +21,8 @@ from pydantic import Field, model_validator
 
 from vultron.core.models.base import VultronObject
 from vultron.core.models.case_event import VultronCaseEvent
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.participant import VultronParticipant
 
 
 class VultronCase(VultronObject):
@@ -49,7 +49,7 @@ class VultronCase(VultronObject):
         validation_alias="type",
         serialization_alias="type",
     )
-    case_participants: list[str | VultronParticipant] = Field(
+    case_participants: list[str | CaseParticipant] = Field(
         default_factory=list
     )
     actor_participant_index: dict[str, str] = Field(default_factory=dict)

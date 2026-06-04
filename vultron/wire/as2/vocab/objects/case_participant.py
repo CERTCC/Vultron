@@ -23,7 +23,18 @@ from typing import TypeAlias, cast
 
 from pydantic import Field, field_serializer, field_validator, model_validator
 
-from vultron.core.models.participant import VultronParticipant
+from vultron.core.models.case_participant import (
+    CaseActorParticipant,
+    CaseParticipant as CoreCaseParticipant,
+    CoordinatorParticipant,
+    DeployerParticipant,
+    FinderParticipant,
+    FinderReporterParticipant,
+    OtherParticipant,
+    ReporterParticipant,
+    VendorParticipant,
+    VultronParticipant,
+)
 from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.core.states.roles import CVDRole, serialize_roles, validate_roles
 from vultron.core.models.base import NonEmptyString
@@ -33,7 +44,28 @@ from vultron.wire.as2.vocab.objects.base import (
     VultronAS2Object,
     _scalar_ref_id_or_value,
 )
-from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
+from vultron.wire.as2.vocab.objects.case_status import (
+    ParticipantStatus as WireParticipantStatus,
+)
+
+# Re-export core role subclasses so existing ``from wire import XxxParticipant``
+# imports continue to work without modification.
+__all__ = [
+    "CaseActorParticipant",
+    "CaseParticipant",
+    "CaseParticipantRef",
+    "CoordinatorParticipant",
+    "DeployerParticipant",
+    "FinderParticipant",
+    "FinderReporterParticipant",
+    "OtherParticipant",
+    "ReporterParticipant",
+    "VendorParticipant",
+    "VultronParticipant",
+]
+
+# Keep the wire name to avoid shadowing the core alias used inside this module.
+ParticipantStatus = WireParticipantStatus
 
 logger = logging.getLogger(__name__)
 
@@ -246,10 +278,10 @@ class CaseParticipant(VultronAS2Object):
         return list(self.case_roles)
 
     @classmethod
-    def from_core(cls, core_obj: VultronParticipant) -> "CaseParticipant":
+    def from_core(cls, core_obj: CoreCaseParticipant) -> "CaseParticipant":
         return cast("CaseParticipant", super().from_core(core_obj))
 
-    def to_core(self) -> VultronParticipant:
+    def to_core(self) -> CoreCaseParticipant:
         data = self._to_core_data()
         data["attributed_to"] = _scalar_ref_id_or_value(
             data.get("attributed_to")
@@ -258,163 +290,21 @@ class CaseParticipant(VultronAS2Object):
         data["participant_statuses"] = [
             (
                 status.to_core()
-                if isinstance(status, ParticipantStatus)
+                if isinstance(status, WireParticipantStatus)
                 else status
             )
             for status in self.participant_statuses
         ]
-        return VultronParticipant.model_validate(data)
+        return CoreCaseParticipant.model_validate(data)
 
 
-class FinderParticipant(CaseParticipant):
-    """
-    A FinderParticipant is a CaseParticipant that has the FINDER role in a VulnerabilityCase.
-    """
+# ---------------------------------------------------------------------------
+# Role subclasses are defined in the core layer and re-exported from here
+# so that existing ``from vultron.wire.as2.vocab.objects.case_participant
+# import XxxParticipant`` imports continue to work unmodified.
+# ---------------------------------------------------------------------------
 
-    @model_validator(mode="after")
-    def set_role(self):
-        """Set the FINDER role."""
-        self.case_roles = []
-        self.add_role(CVDRole.FINDER)
-        return self
-
-
-class ReporterParticipant(CaseParticipant):
-    """
-    A ReporterParticipant is a CaseParticipant that has the REPORTER role in a VulnerabilityCase.
-    """
-
-    @model_validator(mode="after")
-    def set_role(self):
-        """Set the REPORTER role."""
-        self.case_roles = []
-        self.add_role(CVDRole.REPORTER)
-        return self
-
-    @model_validator(mode="after")
-    def set_accepted_status(self):
-        # by definition, to be a reporter, you must have accepted the report
-        pstatus = ParticipantStatus(
-            context=self.context or self.id_,
-            attributed_to=self.attributed_to,
-            rm_state=RM.ACCEPTED,
-        )
-        self.participant_statuses = [pstatus]
-
-        return self
-
-
-class FinderReporterParticipant(CaseParticipant):
-    """
-    A FinderReporterParticipant is a CaseParticipant that has both the FINDER and REPORTER roles in a
-    VulnerabilityCase.
-    """
-
-    @model_validator(mode="after")
-    def set_roles(self) -> FinderReporterParticipant:
-        """Set both FINDER and REPORTER roles."""
-        self.case_roles = []
-        self.add_role(CVDRole.FINDER)
-        self.add_role(CVDRole.REPORTER)
-        return self
-
-    @model_validator(mode="after")
-    def set_accepted_status(self) -> FinderReporterParticipant:
-        """
-        Set the participant status to ACCEPTED, since by definition,
-        to be a reporter, you must have accepted the report
-        """
-        pstatus = ParticipantStatus(
-            context=self.context or self.id_,
-            attributed_to=self.attributed_to,
-            rm_state=RM.ACCEPTED,
-        )
-        self.participant_statuses = [pstatus]
-
-        return self
-
-
-class VendorParticipant(CaseParticipant):
-    """
-    A VendorParticipant is a CaseParticipant that has the VENDOR role in a VulnerabilityCase.
-    """
-
-    @model_validator(mode="after")
-    def set_role(self):
-        """Set the VENDOR role."""
-        self.case_roles = []
-        self.add_role(CVDRole.VENDOR)
-        return self
-
-
-class DeployerParticipant(CaseParticipant):
-    """
-    A DeployerParticipant is a CaseParticipant that has the DEPLOYER role in a VulnerabilityCase.
-    """
-
-    @model_validator(mode="after")
-    def set_role(self) -> DeployerParticipant:
-        """Set the DEPLOYER role."""
-        self.case_roles = []
-        self.add_role(CVDRole.DEPLOYER)
-        return self
-
-
-class CoordinatorParticipant(CaseParticipant):
-    """
-    A CoordinatorParticipant is a CaseParticipant that has the COORDINATOR role in a VulnerabilityCase.
-    """
-
-    @model_validator(mode="after")
-    def set_role(self):
-        """Set the COORDINATOR role."""
-        self.case_roles = []
-        self.add_role(CVDRole.COORDINATOR)
-        return self
-
-
-class OtherParticipant(CaseParticipant):
-    """
-    An OtherParticipant is a CaseParticipant that has the OTHER role in a VulnerabilityCase.
-    """
-
-    @model_validator(mode="after")
-    def set_role(self):
-        """Set the OTHER role."""
-        self.case_roles = []
-        self.add_role(CVDRole.OTHER)
-        return self
-
-
-class CaseActorParticipant(CaseParticipant):
-    """A participant that acts as the CaseActor service for a VulnerabilityCase.
-
-    Holds both ``COORDINATOR`` and ``CASE_MANAGER`` roles (CBT-01-003).  The
-    ``attributed_to`` field identifies the ActivityStreams Service URI that
-    will send ``Announce(VulnerabilityCase)`` updates on behalf of the case
-    owner.  Receivers use this participant to establish trusted CaseActor
-    identity during bootstrap.
-    """
-
-    @model_validator(mode="after")
-    def set_role(self):
-        """Set both COORDINATOR and CASE_MANAGER roles."""
-        self.case_roles = []
-        self.add_role(CVDRole.COORDINATOR)
-        self.add_role(CVDRole.CASE_MANAGER)
-        return self
-
-
-CaseParticipantRef: TypeAlias = ActivityStreamRef[
-    CaseParticipant
-    | FinderParticipant
-    | ReporterParticipant
-    | VendorParticipant
-    | DeployerParticipant
-    | CoordinatorParticipant
-    | CaseActorParticipant
-    | OtherParticipant
-]
+CaseParticipantRef: TypeAlias = ActivityStreamRef[CaseParticipant]
 
 
 def main():
@@ -426,24 +316,6 @@ def main():
     print()
     print(cp.to_json(indent=2))
     print()
-    print()
-
-    for role in [
-        FinderParticipant,
-        ReporterParticipant,
-        VendorParticipant,
-        DeployerParticipant,
-        CoordinatorParticipant,
-        OtherParticipant,
-    ]:
-        obj = role(
-            attributed_to=actor, context="https://for.example/case/99999"
-        )
-        print(f"### {obj.type_} ###")
-        print()
-        print(obj.to_json(indent=2))
-        print()
-        print()
 
 
 if __name__ == "__main__":
