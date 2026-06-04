@@ -13,19 +13,26 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Core domain model for a canonical case log entry (SYNC-2).
 
-:class:`VultronCaseLogEntry` is the authoritative domain representation of a
+:class:`CaseLogEntry` is the authoritative domain representation of a
 single hash-chained log entry used for replication via
 ``Announce(CaseLogEntry)`` activities.
 
-It extends :class:`~vultron.core.models.base.VultronObject` so that it can be
+It extends :class:`~vultron.core.models.base.CoreObject` so that it can be
 placed in :attr:`~vultron.core.models.events.base.VultronEvent.object_` and
 used by :class:`~vultron.core.use_cases.received.sync.AnnounceLogEntryReceivedUseCase`.
 
 The wire-layer module ``vultron.wire.as2.vocab.objects.case_log_entry``
-re-exports this class and registers it in the wire vocabulary under the
-``"CaseLogEntry"`` key so that DataLayer round-trips work correctly.
+imports this class and registers the wire projection in the wire vocabulary
+under the ``"CaseLogEntry"`` key so that DataLayer round-trips work correctly.
 
 Spec: SYNC-01-002, SYNC-02-003, SYNC-03-001 through SYNC-03-003.
+
+.. note::
+   :class:`CaseLogEntry` (this module) is the wire-serialisable domain
+   model.  :class:`~vultron.core.models.case_log.CaseLogEntry` in
+   ``vultron.core.models.case_log`` is a distinct in-memory hash-chain
+   record used for local SYNC processing; the two types serve different
+   abstraction layers.
 """
 
 from __future__ import annotations
@@ -36,12 +43,18 @@ from typing import Any, Literal, TypeAlias
 from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import _now_utc
-from vultron.core.models.base import VultronObject
+from vultron.core.models.base import CoreObject
 from vultron.core.models.case_log import GENESIS_HASH
 
 
-class VultronCaseLogEntry(VultronObject):
+class CaseLogEntry(CoreObject):
     """Core domain model for a single canonical case log entry.
+
+    .. note::
+       The similarly-named :class:`~vultron.core.models.case_log.CaseLogEntry`
+       in ``vultron.core.models.case_log`` is a distinct in-memory log record
+       used for local hash-chain processing.  This class is the
+       wire-serialisable counterpart.
 
     The ``id_`` is auto-computed as ``{case_id}/log/{log_index}`` when not
     explicitly provided.
@@ -134,13 +147,16 @@ class VultronCaseLogEntry(VultronObject):
     )
 
     @model_validator(mode="after")
-    def _set_id_from_case(self) -> "VultronCaseLogEntry":
+    def _set_id_from_case(self) -> "CaseLogEntry":
         """Compute ``id_`` from ``case_id`` and ``log_index``."""
         self.id_ = f"{self.case_id}/log/{self.log_index}"
         return self
 
 
-#: Convenience type alias for optional references in use-case code.
-VultronCaseLogEntryRef: TypeAlias = VultronCaseLogEntry | None
+#: Backward-compatibility alias; prefer :class:`CaseLogEntry` in new code.
+VultronCaseLogEntry = CaseLogEntry
 
-__all__ = ["VultronCaseLogEntry", "VultronCaseLogEntryRef"]
+#: Convenience type alias for optional references in use-case code.
+VultronCaseLogEntryRef: TypeAlias = CaseLogEntry | None
+
+__all__ = ["CaseLogEntry", "VultronCaseLogEntry", "VultronCaseLogEntryRef"]

@@ -13,8 +13,10 @@ from vultron.core.models import (
 )
 from vultron.core.models.base import VultronBase
 from vultron.core.models.case import VultronCase
+from vultron.core.models.case_log_entry import CaseLogEntry as CoreCaseLogEntry
 from vultron.core.models.note import VultronNote
-from vultron.core.models.report import VultronReport
+from vultron.core.models.report import VulnerabilityReport, VultronReport
+from vultron.core.models.vulnerability_record import VulnerabilityRecord
 
 # --- Inheritance shape ------------------------------------------------------
 
@@ -191,15 +193,47 @@ def test_registry_robust_under_future_annotations(tmp_path, isolated_vocab):
 
 
 def test_legacy_vultron_stubs_do_not_inherit_core_object():
-    """AC-4: existing Vultron* core stubs are not migrated yet.
+    """AC-4: existing Vultron* core stubs not yet migrated.
 
-    They must still inherit from VultronObject (not CoreObject), and
-    therefore must not appear in CORE_VOCABULARY.
+    VultronCase and VultronNote still inherit VultronObject (not CoreObject)
+    and must not appear in CORE_VOCABULARY.  VultronReport is now an alias
+    for VulnerabilityReport (migrated in #727) so it IS a CoreObject.
     """
-    for cls in (VultronCase, VultronReport, VultronNote):
+    for cls in (VultronCase, VultronNote):
         assert issubclass(cls, VultronObject)
         assert not issubclass(cls, CoreObject), (
             f"{cls.__name__} prematurely inherits CoreObject; "
-            "issue #724 AC-4 forbids migrating legacy stubs in this change."
+            "it has not been migrated yet."
         )
         assert cls.__name__ not in CORE_VOCABULARY
+
+
+# --- AC-1/#727: migrated types inherit CoreObject ---------------------------
+
+
+def test_vulnerability_report_inherits_core_object():
+    """VulnerabilityReport (migrated in #727) must be a CoreObject subclass."""
+    assert issubclass(VulnerabilityReport, CoreObject)
+    assert "VulnerabilityReport" in CORE_VOCABULARY
+    assert CORE_VOCABULARY["VulnerabilityReport"] is VulnerabilityReport
+
+
+def test_vultron_report_alias_is_vulnerability_report():
+    """VultronReport backward-compat alias must resolve to VulnerabilityReport."""
+    assert VultronReport is VulnerabilityReport
+
+
+def test_vulnerability_record_inherits_core_object():
+    """VulnerabilityRecord (new in #727) must be a CoreObject subclass."""
+    assert issubclass(VulnerabilityRecord, CoreObject)
+    assert "VulnerabilityRecord" in CORE_VOCABULARY
+    assert CORE_VOCABULARY["VulnerabilityRecord"] is VulnerabilityRecord
+
+
+def test_core_case_log_entry_inherits_core_object():
+    """CaseLogEntry from case_log_entry (migrated in #727) must be a CoreObject
+    subclass.
+    """
+    assert issubclass(CoreCaseLogEntry, CoreObject)
+    assert "CaseLogEntry" in CORE_VOCABULARY
+    assert CORE_VOCABULARY["CaseLogEntry"] is CoreCaseLogEntry

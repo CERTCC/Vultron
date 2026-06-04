@@ -48,6 +48,7 @@ from pydantic import Field
 from vultron.core.models._helpers import _now_utc
 from vultron.core.models.case_log import GENESIS_HASH
 from vultron.core.models.case_log_entry import (
+    CaseLogEntry as CoreCaseLogEntry,
     VultronCaseLogEntry,
     VultronCaseLogEntryRef,
 )
@@ -140,17 +141,19 @@ class CaseLogEntry(VultronAS2Object):
     )
 
     @classmethod
-    def from_core(cls, entry: VultronCaseLogEntry) -> "CaseLogEntry":
+    def from_core(cls, entry: CoreCaseLogEntry) -> "CaseLogEntry":
         """Create a wire :class:`CaseLogEntry` from a domain
-        :class:`~vultron.core.models.case_log_entry.VultronCaseLogEntry`.
+        :class:`~vultron.core.models.case_log_entry.CaseLogEntry`.
 
         Conversion ownership belongs in the wire layer so that core modules
         do not embed wire-format knowledge (ARCH-01-001).
         """
         return cls.model_validate(entry.model_dump(mode="json"))
 
-    def to_core(self) -> VultronCaseLogEntry:
-        return VultronCaseLogEntry.model_validate(self._to_core_data())
+    def to_core(self) -> CoreCaseLogEntry:
+        data = self._to_core_data()
+        data.pop("context_", None)  # context_ is a wire/JSON-LD concern
+        return CoreCaseLogEntry.model_validate(data)
 
 
 __all__ = ["CaseLogEntry", "VultronCaseLogEntry", "VultronCaseLogEntryRef"]

@@ -19,16 +19,21 @@ from typing import Literal
 
 from pydantic import Field
 
-from vultron.core.models.base import VultronObject
+from vultron.core.models.base import CoreObject
 
 
-class VultronReport(VultronObject):
+class VulnerabilityReport(CoreObject):
     """Domain representation of a vulnerability report.
 
-    Mirrors the Vultron-specific fields of ``VulnerabilityReport``.
-    Policy implementations receive this type when evaluating credibility and
-    validity.
-    ``type_`` is ``"VulnerabilityReport"`` to match the wire value.
+    Canonical core type for the Vultron ``VulnerabilityReport`` object.
+    ``type_`` is ``"VulnerabilityReport"`` to match the wire value and to
+    auto-register this class in :data:`CORE_VOCABULARY`.
+
+    Policy implementations receive this type when evaluating credibility
+    and validity.  The wire-layer class in
+    ``vultron.wire.as2.vocab.objects.vulnerability_report`` re-exports
+    this type and adds AS2-specific serialization via :meth:`from_core`
+    and :meth:`to_core`.
     """
 
     type_: Literal["VulnerabilityReport"] = Field(
@@ -36,3 +41,10 @@ class VultronReport(VultronObject):
         validation_alias="type",
         serialization_alias="type",
     )
+
+
+#: Backward-compatibility alias; prefer :class:`VulnerabilityReport` in new code.
+VultronReport = VulnerabilityReport
+
+
+__all__ = ["VulnerabilityReport", "VultronReport"]
