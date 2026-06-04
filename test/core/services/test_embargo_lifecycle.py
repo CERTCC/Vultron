@@ -360,7 +360,7 @@ def test_accept_embargo_invite_owner_strict_valid(
     embargo = _make_embargo(dl, case.id_)
 
     # Seed owner to INVITED so ACCEPT transition is valid
-    owner_p = dl.read(owner_participant_id)
+    owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
     owner_p.embargo_consent_state = PEC.INVITED.value
     dl.save(owner_p)
 
@@ -375,7 +375,7 @@ def test_accept_embargo_invite_owner_strict_valid(
     assert result.em_after == EM.ACTIVE
     assert result.case_embargo_changed is True
 
-    owner_participant = dl.read(owner_participant_id)
+    owner_participant = cast(CaseParticipant, dl.read(owner_participant_id))
     assert owner_participant.embargo_consent_state == PEC.SIGNATORY.value
 
 
@@ -396,7 +396,7 @@ def test_accept_embargo_invite_non_owner_strict(
     # Seed finder to INVITED so ACCEPT transition is valid
     finder_participant_id = case.actor_participant_index.get(finder.id_)
     assert finder_participant_id is not None
-    finder_p = dl.read(finder_participant_id)
+    finder_p = cast(CaseParticipant, dl.read(finder_participant_id))
     finder_p.embargo_consent_state = PEC.INVITED.value
     dl.save(finder_p)
 
@@ -411,7 +411,7 @@ def test_accept_embargo_invite_non_owner_strict(
     assert result.em_after == EM.PROPOSED
     assert result.case_embargo_changed is False
 
-    finder_participant = dl.read(finder_participant_id)
+    finder_participant = cast(CaseParticipant, dl.read(finder_participant_id))
     assert finder_participant.embargo_consent_state == PEC.SIGNATORY.value
 
 
@@ -475,7 +475,7 @@ def test_accept_embargo_invite_observed_already_active_syncs_embargo(
     # EM stays ACTIVE (already there)
     assert result.em_after == EM.ACTIVE
     # But active_embargo must be updated to point at the new embargo
-    refreshed_case = dl.read(case.id_)
+    refreshed_case = cast(VulnerabilityCase, dl.read(case.id_))
     assert _as_id(refreshed_case.active_embargo) == new_embargo.id_
 
 
@@ -489,7 +489,7 @@ def test_accept_embargo_invite_idempotent(
     embargo = _make_embargo(dl, case.id_)
 
     # Seed as INVITED so first ACCEPT is valid
-    owner_p = dl.read(owner_participant_id)
+    owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
     owner_p.embargo_consent_state = PEC.INVITED.value
     dl.save(owner_p)
 
@@ -508,7 +508,7 @@ def test_accept_embargo_invite_idempotent(
         transition_mode=TransitionMode.OBSERVED,
     )
 
-    owner_participant = dl.read(owner_participant_id)
+    owner_participant = cast(CaseParticipant, dl.read(owner_participant_id))
     # accepted_embargo_ids should not contain duplicates
     assert owner_participant.accepted_embargo_ids.count(embargo.id_) == 1
 
@@ -528,7 +528,7 @@ def test_reject_embargo_invite_owner_proposed_to_none(
     embargo = _make_embargo(dl, case.id_)
 
     # Seed owner to INVITED so DECLINE transition is valid
-    owner_p = dl.read(owner_participant_id)
+    owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
     owner_p.embargo_consent_state = PEC.INVITED.value
     dl.save(owner_p)
 
@@ -543,7 +543,7 @@ def test_reject_embargo_invite_owner_proposed_to_none(
     assert result.em_after == EM.NONE
     assert result.case_changed is True
 
-    owner_participant = dl.read(owner_participant_id)
+    owner_participant = cast(CaseParticipant, dl.read(owner_participant_id))
     assert owner_participant.embargo_consent_state == PEC.DECLINED.value
 
 
@@ -583,7 +583,7 @@ def test_reject_embargo_invite_non_owner_strict(
     # Seed finder to INVITED so DECLINE transition is valid
     finder_participant_id = case.actor_participant_index.get(finder.id_)
     assert finder_participant_id is not None
-    finder_p = dl.read(finder_participant_id)
+    finder_p = cast(CaseParticipant, dl.read(finder_participant_id))
     finder_p.embargo_consent_state = PEC.INVITED.value
     dl.save(finder_p)
 
@@ -596,7 +596,7 @@ def test_reject_embargo_invite_non_owner_strict(
 
     assert result.em_after == EM.PROPOSED  # EM unchanged
 
-    finder_participant = dl.read(finder_participant_id)
+    finder_participant = cast(CaseParticipant, dl.read(finder_participant_id))
     assert finder_participant.embargo_consent_state == PEC.DECLINED.value
 
 
@@ -659,7 +659,7 @@ def test_terminate_active_embargo_strict_active_to_exited(
     dl.save(case)
 
     # Set owner PEC to SIGNATORY to verify it gets reset
-    owner_participant = dl.read(owner_participant_id)
+    owner_participant = cast(CaseParticipant, dl.read(owner_participant_id))
     owner_participant.embargo_consent_state = PEC.SIGNATORY.value
     dl.save(owner_participant)
 
@@ -673,7 +673,9 @@ def test_terminate_active_embargo_strict_active_to_exited(
     assert result.em_after == EM.EXITED
     assert result.pec_reset is True
 
-    refreshed_owner_participant = dl.read(owner_participant_id)
+    refreshed_owner_participant = cast(
+        CaseParticipant, dl.read(owner_participant_id)
+    )
     assert (
         refreshed_owner_participant.embargo_consent_state
         == PEC.NO_EMBARGO.value
@@ -768,7 +770,7 @@ def test_record_participant_consent_accept_trigger(
     embargo = _make_embargo(dl, case.id_)
 
     # Set owner participant to INVITED so ACCEPT is valid
-    owner_p = dl.read(owner_participant_id)
+    owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
     owner_p.embargo_consent_state = PEC.INVITED.value
     dl.save(owner_p)
 
@@ -783,7 +785,7 @@ def test_record_participant_consent_accept_trigger(
     assert result.case_changed is False
     assert result.case_embargo_changed is False
 
-    refreshed = dl.read(owner_participant_id)
+    refreshed = cast(CaseParticipant, dl.read(owner_participant_id))
     assert refreshed.embargo_consent_state == PEC.SIGNATORY.value
     assert embargo.id_ in refreshed.accepted_embargo_ids
 
@@ -798,7 +800,7 @@ def test_record_participant_consent_decline_trigger(
     embargo = _make_embargo(dl, case.id_)
 
     # Seed as LAPSED (SIGNATORY → LAPSED after revise) with accepted embargo
-    owner_p = dl.read(owner_participant_id)
+    owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
     owner_p.embargo_consent_state = PEC.LAPSED.value
     owner_p.accepted_embargo_ids = [embargo.id_]
     dl.save(owner_p)
@@ -811,7 +813,7 @@ def test_record_participant_consent_decline_trigger(
         pec_trigger=PEC_Trigger.DECLINE,
     )
 
-    refreshed = dl.read(owner_participant_id)
+    refreshed = cast(CaseParticipant, dl.read(owner_participant_id))
     assert refreshed.embargo_consent_state == PEC.DECLINED.value
     assert embargo.id_ not in refreshed.accepted_embargo_ids
 
