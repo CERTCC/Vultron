@@ -14,41 +14,27 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-Tests for case behavior tree nodes (P360-FIX-1, P360-FIX-2, P360-FIX-3).
+Tests for participant management behavior tree nodes.
 
 Covers:
-- UpdateActorOutbox re-export via case.nodes and report.nodes (P360-FIX-1)
 - _create_and_attach_participant shared helper (P360-FIX-2)
-- CreateCaseOwnerParticipant and CreateCaseParticipantNode use of helper
-- RecordCaseCreationEvents blackboard key contract (P360-FIX-3)
+- CreateCaseOwnerParticipant uses shared helper
+- CreateCaseParticipantNode uses shared helper
 
-Uses BTTestScenario (from ``test.core.behaviors.bt_harness``) as the single
-execution path for BT node tests; no direct ``node.update()`` /
-``node.blackboard.register_key()`` calls appear here.
-
-Per specs/behavior-tree-node-design.yaml BTND-02-001, BTND-03-001, BTND-04-001
-and GitHub issue #401.
+Per specs/behavior-tree-node-design.yaml BTND-05-002 and GitHub issue #401.
 """
 
 import logging
-from typing import cast, Any
-from unittest.mock import MagicMock
+from typing import Any, cast
 
 import pytest
 
 from vultron.core.behaviors.case.nodes import (
     CreateCaseOwnerParticipant,
     CreateCaseParticipantNode,
-    RecordCaseCreationEvents,
-    UpdateActorOutbox,
     _create_and_attach_participant,
 )
-from vultron.core.behaviors.helpers import (
-    UpdateActorOutbox as UpdateActorOutboxHelper,
-)
-from vultron.core.behaviors.report.nodes import (
-    UpdateActorOutbox as UpdateActorOutboxReport,
-)
+from vultron.core.models.actor_config import ActorConfig
 from vultron.core.models.vultron_types import (
     VultronCase,
     VultronCaseActor,
@@ -79,10 +65,7 @@ def actor(bt_scenario: BTTestScenario, actor_id: str) -> VultronCaseActor:
 
 @pytest.fixture
 def report(bt_scenario: BTTestScenario) -> VultronReport:
-    obj = VultronReport(
-        name="TEST-001",
-        content="Test vulnerability report",
-    )
+    obj = VultronReport(name="TEST-001", content="Test vulnerability report")
     bt_scenario.dl.create(obj)
     return obj
 
@@ -98,29 +81,6 @@ def case_obj(
     )
     bt_scenario.dl.create(case)
     return case
-
-
-# ---------------------------------------------------------------------------
-# P360-FIX-1: UpdateActorOutbox re-export tests
-# ---------------------------------------------------------------------------
-
-
-class TestUpdateActorOutboxReExport:
-    """UpdateActorOutbox is the same object in all three modules (BTND-04-001)."""
-
-    def test_case_nodes_re_exports_from_helpers(self) -> None:
-        assert UpdateActorOutbox is UpdateActorOutboxHelper
-
-    def test_report_nodes_re_exports_from_helpers(self) -> None:
-        assert UpdateActorOutboxReport is UpdateActorOutboxHelper
-
-    def test_shared_class_is_not_duplicate(self) -> None:
-        """There is exactly one UpdateActorOutbox class definition."""
-        assert (
-            UpdateActorOutbox
-            is UpdateActorOutboxReport
-            is UpdateActorOutboxHelper
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -325,8 +285,6 @@ class TestCreateCaseOwnerParticipant:
         actor_id: str,
     ) -> None:
         """Default (no actor_config) assigns only CASE_OWNER role (CFG-07-002)."""
-        from typing import cast, Any
-
         bt_scenario.run(
             CreateCaseOwnerParticipant(),
             actor_id=actor_id,
@@ -357,9 +315,6 @@ class TestCreateCaseOwnerParticipant:
         actor_id: str,
     ) -> None:
         """config roles + CASE_OWNER appear in participant roles (CFG-07-004)."""
-        from typing import cast, Any
-        from vultron.core.models.actor_config import ActorConfig
-
         config = ActorConfig(default_case_roles=[CVDRole.COORDINATOR])
         bt_scenario.run(
             CreateCaseOwnerParticipant(actor_config=config),
@@ -486,293 +441,3 @@ class TestCreateCaseParticipantNode:
         stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
         event_types = [e.event_type for e in stored_case.events]
         assert "participant_added" not in event_types
-
-
-# ---------------------------------------------------------------------------
-# P360-FIX-3: RecordCaseCreationEvents blackboard key contract
-# ---------------------------------------------------------------------------
-
-
-class TestRecordCaseCreationEvents:
-    """Blackboard keys are declared; activity key is optional (BTND-03-001/02)."""
-
-    def test_activity_key_optional_node_succeeds_without_it(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        case_obj: VultronCase,
-        actor_id: str,
-    ) -> None:
-        """Node runs successfully with no 'activity' on the blackboard.
-
-        This behavioral test verifies BTND-03-001: if the 'activity' key were
-        not properly registered by setup(), accessing it would raise
-        AttributeError (unregistered) rather than being handled gracefully.
-        Succeeding without an activity proves the key contract is correct.
-        """
-        result = bt_scenario.run(
-            RecordCaseCreationEvents(case_obj=case_obj),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-        )
-        bt_scenario.assert_success(result)
-
-    def test_records_case_created_event_without_activity(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        case_obj: VultronCase,
-        actor_id: str,
-    ) -> None:
-        """Without activity on blackboard, case_created event is recorded."""
-        result = bt_scenario.run(
-            RecordCaseCreationEvents(case_obj=case_obj),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-        )
-        bt_scenario.assert_success(result)
-
-        stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
-        event_types = [e.event_type for e in stored_case.events]
-        assert "case_created" in event_types
-
-    def test_records_offer_received_event_when_activity_has_in_reply_to(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        case_obj: VultronCase,
-        report: VultronReport,
-        actor_id: str,
-    ) -> None:
-        """With activity.in_reply_to set, offer_received event is backfilled."""
-        offer_mock = MagicMock()
-        offer_mock.id_ = "https://example.org/activities/offer-001"
-        activity_mock = MagicMock()
-        activity_mock.in_reply_to = offer_mock
-
-        result = bt_scenario.run(
-            RecordCaseCreationEvents(case_obj=case_obj),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-            activity=activity_mock,
-        )
-        bt_scenario.assert_success(result)
-
-        stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
-        event_types = [e.event_type for e in stored_case.events]
-        assert "offer_received" in event_types
-        assert "case_created" in event_types
-
-    def test_no_offer_received_when_activity_lacks_in_reply_to(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        case_obj: VultronCase,
-        actor_id: str,
-    ) -> None:
-        """Activity without in_reply_to produces only case_created event."""
-        activity_mock = MagicMock()
-        activity_mock.in_reply_to = None
-
-        result = bt_scenario.run(
-            RecordCaseCreationEvents(case_obj=case_obj),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-            activity=activity_mock,
-        )
-        bt_scenario.assert_success(result)
-
-        stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
-        event_types = [e.event_type for e in stored_case.events]
-        assert "offer_received" not in event_types
-        assert "case_created" in event_types
-
-
-# ---------------------------------------------------------------------------
-# CreateCaseActorNode (blackboard variant) tests
-# ---------------------------------------------------------------------------
-
-
-class TestCreateCaseActorNodeBlackboard:
-    """CreateCaseActorNode reads case_id from blackboard when not given at construction."""
-
-    def test_creates_case_actor_from_blackboard_case_id(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        actor_id: str,
-        case_obj: VultronCase,
-    ) -> None:
-        """CreateCaseActorNode() (no args) succeeds and creates a CaseActor entity."""
-        from vultron.core.behaviors.case.nodes import CreateCaseActorNode
-
-        result = bt_scenario.run(
-            CreateCaseActorNode(),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-        )
-        bt_scenario.assert_success(result)
-
-        # A Service (VultronCaseActor) should exist in the DataLayer.
-        services = list(bt_scenario.dl.list_objects("Service"))
-        case_actor_services = [
-            s for s in services if getattr(s, "context", None) == case_obj.id_
-        ]
-        assert len(case_actor_services) >= 1
-
-    def test_writes_case_actor_id_to_blackboard(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        actor_id: str,
-        case_obj: VultronCase,
-    ) -> None:
-        """CreateCaseActorNode() writes case_actor_id to the blackboard."""
-        import py_trees
-        from vultron.core.behaviors.case.nodes import CreateCaseActorNode
-
-        bt_scenario.run(
-            CreateCaseActorNode(),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-        )
-
-        # py_trees stores global keys with a leading "/" prefix.
-        stored = py_trees.blackboard.Blackboard.storage.get("/case_actor_id")
-        assert stored is not None
-        assert isinstance(stored, str)
-
-    def test_registers_case_actor_participant(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        actor_id: str,
-        case_obj: VultronCase,
-    ) -> None:
-        """CreateCaseActorNode registers a CASE_MANAGER participant in the case."""
-        from vultron.core.behaviors.case.nodes import CreateCaseActorNode
-
-        bt_scenario.run(
-            CreateCaseActorNode(),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-        )
-
-        # Case Actor participant ID uses flat HTTP URL, not URN-based path.
-        import hashlib
-
-        case_id = case_obj.id_
-        if case_id.startswith("urn:uuid:"):
-            case_slug = case_id[len("urn:uuid:") :]
-        else:
-            case_slug = hashlib.sha256(case_id.encode()).hexdigest()[:12]
-
-        from vultron.config import get_config
-
-        base_url = get_config().server.base_url.rstrip("/")
-        expected_participant_id = (
-            f"{base_url}/actors/case-actor-{case_slug}/participant"
-        )
-        participant = bt_scenario.dl.read(expected_participant_id)
-        assert participant is not None
-
-    def test_fails_without_case_id(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        actor_id: str,
-    ) -> None:
-        """CreateCaseActorNode() fails when case_id is not in blackboard."""
-        import py_trees
-        from vultron.core.behaviors.case.nodes import CreateCaseActorNode
-
-        result = bt_scenario.run(
-            CreateCaseActorNode(),
-            actor_id=actor_id,
-            # No case_id supplied
-        )
-        assert result.status == py_trees.common.Status.FAILURE
-
-
-# ---------------------------------------------------------------------------
-# SendOfferCaseManagerRoleNode tests
-# ---------------------------------------------------------------------------
-
-
-class TestSendOfferCaseManagerRoleNode:
-    """SendOfferCaseManagerRoleNode queues Offer(CaseManagerRole) to Case Actor."""
-
-    def test_queues_offer_and_writes_activity_id(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        actor_id: str,
-        case_obj: VultronCase,
-    ) -> None:
-        """SendOfferCaseManagerRoleNode writes activity_id to blackboard after Offer."""
-        import py_trees
-        from vultron.core.behaviors.case.nodes import (
-            CreateCaseActorNode,
-            SendOfferCaseManagerRoleNode,
-        )
-
-        # Run CreateCaseActorNode first to populate the DataLayer with the
-        # Case Actor entity and participant.
-        bt_scenario.run(
-            CreateCaseActorNode(),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-        )
-
-        # Retrieve the case_actor_id that was written to the blackboard.
-        case_actor_id = py_trees.blackboard.Blackboard.storage.get(
-            "/case_actor_id"
-        )
-        assert (
-            case_actor_id is not None
-        ), "CreateCaseActorNode must write case_actor_id"
-
-        case_actor_participant_id = py_trees.blackboard.Blackboard.storage.get(
-            "/case_actor_participant_id"
-        )
-        assert (
-            case_actor_participant_id is not None
-        ), "CreateCaseActorNode must write case_actor_participant_id"
-
-        # Now run SendOfferCaseManagerRoleNode with the needed blackboard context.
-        result = bt_scenario.run(
-            SendOfferCaseManagerRoleNode(),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-            case_actor_id=case_actor_id,
-            case_actor_participant_id=case_actor_participant_id,
-        )
-        bt_scenario.assert_success(result)
-
-        activity_id = py_trees.blackboard.Blackboard.storage.get(
-            "/activity_id"
-        )
-        assert activity_id is not None
-
-    def test_fails_without_case_actor_id_in_blackboard(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        actor_id: str,
-        case_obj: VultronCase,
-    ) -> None:
-        """SendOfferCaseManagerRoleNode fails if case_actor_id is not in blackboard."""
-        import py_trees
-        from vultron.core.behaviors.case.nodes import (
-            SendOfferCaseManagerRoleNode,
-        )
-
-        # Provide case_id but no case_actor_id — the participant exists in DL
-        # but the blackboard is missing the case_actor_id key.
-        result = bt_scenario.run(
-            SendOfferCaseManagerRoleNode(),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-            # case_actor_id intentionally omitted
-        )
-        assert result.status == py_trees.common.Status.FAILURE
