@@ -28,9 +28,9 @@ from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.vultron_types import VultronCaseActor
 
 _FACTORY_PATH = (
-    "vultron.core.behaviors.case.nodes.create_commit_log_entry_tree"
+    "vultron.core.behaviors.case.nodes.lifecycle.create_commit_log_entry_tree"
 )
-_INNER_BRIDGE_PATH = "vultron.core.behaviors.case.nodes.BTBridge"
+_INNER_BRIDGE_PATH = "vultron.core.behaviors.case.nodes.lifecycle.BTBridge"
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/case-001"
