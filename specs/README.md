@@ -70,6 +70,7 @@ Load additional files only when the task touches the relevant area. See the
 | Case bootstrap trust establishment | `case-bootstrap-trust.yaml`, `participant-case-replica.yaml`, `actor-knowledge-model.yaml` |
 | DataLayer adapter | `datalayer.md` |
 | Handler pipeline | `inbox-endpoint.yaml`, `message-validation.yaml`, `semantic-extraction.yaml`, `dispatch-routing.yaml` |
+| Inbox pipeline testability | `inbox-pipeline.yaml` |
 | Behavior Trees | `behavior-tree-integration.yaml`, `behavior-tree-node-design.yaml`, `bt-composability.yaml`, `triggerable-behaviors.yaml`, `notes/trigger-classification.md` |
 | Case / state management | `case-management.yaml`, `state-machine.yaml`, `case-log-processing.yaml` |
 | Protocol conformance | `vultron-protocol-spec.yaml`, `vultron-as2-mapping.yaml` |
@@ -139,6 +140,10 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 3. **`semantic-extraction.yaml`** - Pattern matching to determine message semantics
 4. **`dispatch-routing.yaml`** - Routing DispatchEvent to handler functions
 5. **`handler-protocol.yaml`** - Handler function contract and implementation patterns
+
+- **`inbox-pipeline.yaml`** - `InboxPipeline` class contract and `build_test_pipeline()`
+  factory that surface the `inbox_handler → dispatcher` seam as a testable unit;
+  routing-safety-net test coverage requirements (IBP-01 through IBP-04)
 
 **DataLayer Port**:
 
@@ -434,6 +439,7 @@ is reserved for `testability.yaml`).
 | `EP` | `embargo-policy.yaml` |
 | `HP` | `handler-protocol.yaml` |
 | `HTTP` | `http-protocol.yaml` |
+| `IBP` | `inbox-pipeline.yaml` |
 | `IE` | `inbox-endpoint.yaml` |
 | `IMPLTS` | `tech-stack.yaml` |
 | `MV` | `message-validation.yaml` |
