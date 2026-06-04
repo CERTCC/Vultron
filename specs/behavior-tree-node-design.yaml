@@ -7,6 +7,7 @@ description: >-
 version: 1.0.0
 kind: pattern
 scope:
+
 - prototype
 - production
 groups:
@@ -248,3 +249,46 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BT-06-004
+- id: BTND-07
+  title: BT Node Module Organization
+  kind: pattern
+  specs:
+  - id: BTND-07-001
+    priority: SHOULD
+    statement: >-
+      (**SHOULD**) BT node classes for a given protocol step SHOULD be organized into a
+      `nodes/` subpackage rather than a single flat `nodes.py` module. Submodules MUST
+      be grouped by semantic concern (e.g., `conditions.py`, `case_setup.py`,
+      `participant.py`, `embargo.py`, `communication.py`, `lifecycle.py`). The package
+      `__init__.py` MUST re-export all public node names to preserve import compatibility
+      with callers.
+    rationale: >-
+      A flat `nodes.py` accumulating ten or more BT node classes becomes a high-churn,
+      high-blast-radius file where every change — regardless of which workflow step it
+      touches — modifies the same module. This makes code review shallow, increases the
+      risk of duplicate method definitions silently shadowing correct logic, and degrades
+      test maintainability. Grouping by semantic concern reduces diff scope, improves
+      discoverability, and lets reviewers focus on the affected concern in isolation.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-004
+    verification: >-
+      Any `nodes.py` containing ten or more BT node classes SHOULD be flagged for
+      refactoring into a `nodes/` subpackage. CI or a codebase-scan tool MAY enforce this
+      threshold.
+  - id: BTND-07-002
+    priority: SHOULD
+    statement: >-
+      (**SHOULD**) The test suite for a `nodes/` subpackage SHOULD mirror the subpackage
+      structure: a `test/…/nodes/` directory with one `test_<submodule>.py` per submodule,
+      so that each concern's tests are co-located and independently runnable.
+    rationale: >-
+      A monolithic `test_nodes.py` grows in parallel with the flat `nodes.py` and
+      inherits the same blast-radius problem. Mirrored test files scope test failures to
+      the affected concern and make it easier to add focused per-node unit tests.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-07-001
+    verification: >-
+      For any `nodes/` subpackage, confirm that a matching `test/…/nodes/` directory
+      exists with per-submodule test files.
