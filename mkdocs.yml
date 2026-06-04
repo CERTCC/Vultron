@@ -243,6 +243,8 @@ not_in_nav: |
   *diagram*.md
   *table*.md
   *.ttl
+exclude_docs: |
+  docs/developer/
 theme:
   logo: 'assets/Software_Engineering_Institute_Unitmark_White.svg'
   name: 'material'
