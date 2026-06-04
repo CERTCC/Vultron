@@ -1,6 +1,7 @@
 ---
 title: Codebase Structure Notes
 status: active
+tags: [architecture, codebase, circular-imports, fastapi, docker, health-check, actor-ids]
 description: >
   Overview of the Vultron codebase structure, module organization, and
   hexagonal architecture layout.

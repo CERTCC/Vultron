@@ -1,6 +1,7 @@
 ---
 title: ActivityStreams Semantics in Vultron
 status: active
+tags: [as2, activitystreams, wire, semantics, extractor, rehydration, accept-reject]
 description: >
   Activities as state-change statements, not commands; inbound/outbound
   semantics, Accept/Reject object rules, and rehydration.

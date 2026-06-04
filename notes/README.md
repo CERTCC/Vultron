@@ -60,14 +60,28 @@ post-P75-2 architectural findings.
 **Load when**: refactoring `VulnerabilityCase` or related models, evaluating
 DataLayer backends, or planning domain/wire layer decoupling.
 
+**`datalayer-design.md`**
+DataLayer architecture notes: `DataLayer` vs. `CasePersistence` narrowing,
+deprecated `get()`/`by_type()` methods, `CaseOutboxPersistence` as a smell
+marker, auto-rehydration contract (`dl.read()` MUST return typed objects),
+storage record re-evaluation, and vocabulary registry entanglement. Operating
+rules are in `vultron/core/ports/AGENTS.md`.
+**Load when**: working on `DataLayer` adapters, `CasePersistence` protocol,
+rehydration of nested objects, or storage record migration.
+
 **`vultron/wire/as2/factories/AGENTS.md`**
-Factory-function guidance for outbound Vultron protocol activities:
-package layout, factory signatures, `VultronActivityConstructionError`,
-migration from direct subclass instantiation, import rules, and the full
-factory inventory. See also `specs/activity-factories.yaml` (TASK-AF).
-**Load when**: implementing outbound activity construction, migrating
-call sites away from direct `vocab/activities/` subclass instantiation,
-or debugging `ValidationError` during activity construction.
+Factory-function operating rules for outbound Vultron protocol activities.
+See `notes/activity-factories.md` for the full design rationale and inventory.
+**Load when**: implementing outbound activity construction or debugging factory errors.
+
+**`activity-factories.md`**
+Full design rationale, factory inventory (all 31 factory functions with return
+types and internal classes), migration guide, before/after call-site examples,
+and testing patterns for the factory-function layer. Operating rules are in
+`vultron/wire/as2/factories/AGENTS.md`.
+**Load when**: implementing or migrating outbound activity construction, reviewing
+the full factory inventory, or understanding the `VultronActivityConstructionError`
+wrapping pattern.
 
 **`outbox.md`**
 Outbox addressing requirements: `to:` field enforcement, `VultronOutboxToFieldMissingError`
@@ -126,6 +140,14 @@ state-change notifications (not commands): inbound vs outbound semantics,
 vocabulary examples.
 **Load when**: implementing any inbound or outbound message handler, debugging
 semantic extraction, or writing new ActivityStreams vocabulary classes.
+
+**`vocabulary-registry.md`**
+Design decisions and migration path for the AS2 vocabulary registry refactor:
+auto-registration via `__init_subclass__`, flat registry dict, `VocabNamespace`
+enum, fail-fast on unknown types, and dynamic discovery at startup. Operating
+rules are in `vultron/wire/as2/vocab/AGENTS.md`.
+**Load when**: adding new vocabulary classes, debugging deserialization failures,
+or planning the `@activitystreams_object` decorator removal migration.
 
 **`vultron/wire/as2/AGENTS.md`**
 Wire-layer semantic extraction guidance: pattern ordering invariant,
