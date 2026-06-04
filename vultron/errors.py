@@ -138,6 +138,17 @@ class VultronActivityConstructionError(VultronError):
     """
 
 
+class RegistryOrderError(VultronError):
+    """Raised when ``SEMANTIC_REGISTRY`` contains a less-specific pattern
+    that precedes a more-specific one in the same ``activity_`` group.
+
+    Raised at import time by ``_validate_registry_order()`` in
+    ``vultron.semantic_registry`` so that ordering violations fail fast and
+    are impossible to miss.  See ``specs/semantic-extraction.yaml`` SE-03-002
+    and ``notes/semantic-registry.md``.
+    """
+
+
 class DemoFailureError(VultronError):
     """Raised when a demo scenario completes with one or more step failures.
 
