@@ -1,7 +1,7 @@
 """Use cases for case and participant status activities."""
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from py_trees.common import Status
 
@@ -15,76 +15,13 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
 )
-from vultron.core.states.cs import is_valid_pxa_transition
-from vultron.core.states.em import is_valid_em_transition
-from vultron.core.use_cases._helpers import _as_id, _idempotent_create
-from vultron.core.models.protocols import (
-    is_case_model,
-)
+from vultron.core.use_cases._helpers import _idempotent_create
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
-
-
-def _resolve_case_status_object(
-    dl: CasePersistence,
-    status_id: str,
-    request: AddCaseStatusToCaseReceivedEvent,
-) -> object:
-    status_obj = dl.read(status_id)
-    if hasattr(status_obj, "id_"):
-        return status_obj
-    return request.status
-
-
-def _validate_case_status_transition(
-    case: object, status_obj: object, case_id: str
-) -> bool:
-    current_status = getattr(case, "current_status", None)
-    if current_status is None:
-        return True
-
-    if not _validate_optional_case_transition(
-        "EM",
-        current_status.em_state,
-        getattr(status_obj, "em_state", None),
-        case_id,
-        is_valid_em_transition,
-    ):
-        return False
-
-    return _validate_optional_case_transition(
-        "PXA",
-        current_status.pxa_state,
-        getattr(status_obj, "pxa_state", None),
-        case_id,
-        is_valid_pxa_transition,
-    )
-
-
-def _validate_optional_case_transition(
-    label: str,
-    current_state: object,
-    new_state: object,
-    case_id: str,
-    validator: Any,
-) -> bool:
-    if new_state is None or current_state == new_state:
-        return True
-    if validator(current_state, new_state):
-        return True
-
-    logger.warning(
-        "Invalid %s transition %s → %s for case '%s'; skipping status append",
-        label,
-        current_state,
-        new_state,
-        case_id,
-    )
-    return False
 
 
 class CreateCaseStatusReceivedUseCase:
@@ -122,32 +59,40 @@ class AddCaseStatusToCaseReceivedUseCase:
                 "add_case_status_to_case: missing status_id or case_id"
             )
             return
-        case = self._dl.read(case_id)
 
-        if not is_case_model(case):
-            logger.warning(
-                "add_case_status_to_case: case '%s' not found", case_id
-            )
-            return
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.status.add_case_status_tree import (
+            add_case_status_tree,
+        )
+        from vultron.core.behaviors.status.nodes import (
+            CASE_STATUS_ALREADY_PRESENT,
+        )
 
-        existing_ids = [_as_id(s) for s in case.case_statuses]
-        if status_id in existing_ids:
-            logger.info(
-                "CaseStatus '%s' already in case '%s' — skipping (idempotent)",
-                status_id,
-                case_id,
-            )
-            return
+        tree = add_case_status_tree(request=request)
+        bridge = BTBridge(datalayer=self._dl)
+        result = bridge.execute_with_setup(
+            tree=tree,
+            actor_id=request.actor_id,
+            activity=request,
+        )
 
-        status_obj = _resolve_case_status_object(self._dl, status_id, request)
-        if case.case_statuses and not _validate_case_status_transition(
-            case, status_obj, case_id
-        ):
-            return
-
-        case.case_statuses.append(status_obj)
-        self._dl.save(case)
-        logger.info("Added CaseStatus '%s' to case '%s'", status_id, case_id)
+        if result.status != Status.SUCCESS:
+            reason = BTBridge.get_failure_reason(tree)
+            reason_str = reason or result.feedback_message or ""
+            if reason_str == CASE_STATUS_ALREADY_PRESENT:
+                logger.info(
+                    "CaseStatus '%s' already in case '%s'"
+                    " — skipping (idempotent)",
+                    status_id,
+                    case_id,
+                )
+            else:
+                logger.warning(
+                    "AddCaseStatusToCaseBT did not succeed for activity"
+                    " '%s': %s",
+                    request.activity_id,
+                    reason_str,
+                )
 
 
 class CreateParticipantStatusReceivedUseCase:
