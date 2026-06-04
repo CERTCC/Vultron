@@ -28,6 +28,71 @@ from vultron.core.use_cases._helpers import (
 )
 
 
+def _transition_case_participant_rm(
+    node: "DataLayerAction",
+    report_id: str | None,
+    new_rm_state: RM,
+) -> "Status":
+    """Shared logic for case-participant RM transitions triggered by report.
+
+    Finds the VulnerabilityCase associated with *report_id* and advances the
+    actor's RM state in that case.
+
+    Soft-passes (SUCCESS) when no report_id is provided or when no case is
+    found for the report — matching the log-and-continue behavior of the
+    original procedural handlers.  Returns FAILURE only when a case is found
+    but ``update_participant_rm_state`` reports the transition was blocked.
+
+    Args:
+        node: Calling DataLayerAction node (provides datalayer and actor_id).
+        report_id: ID of the VulnerabilityReport; may be None.
+        new_rm_state: Target RM state to transition the participant to.
+
+    Returns:
+        SUCCESS or FAILURE (py_trees Status).
+    """
+    from py_trees.common import Status
+
+    if not report_id:
+        node.logger.debug(
+            "%s: no report_id — skipping RM transition", node.name
+        )
+        return Status.SUCCESS
+
+    if node.datalayer is None:
+        node.logger.error("%s: DataLayer not available", node.name)
+        return Status.FAILURE
+
+    case = node.datalayer.find_case_by_report_id(report_id)
+    if not is_case_model(case):
+        node.logger.warning(
+            "%s: no case found for report '%s' — RM state not updated",
+            node.name,
+            report_id,
+        )
+        return Status.SUCCESS
+
+    actor_id = node.actor_id
+    if actor_id is None:
+        node.logger.error("%s: actor_id not set on blackboard", node.name)
+        return Status.FAILURE
+
+    ok = update_participant_rm_state(
+        case.id_, actor_id, new_rm_state, node.datalayer
+    )
+    if not ok:
+        node.logger.warning(
+            "%s: RM transition to %s blocked for actor '%s' in case '%s'",
+            node.name,
+            new_rm_state,
+            actor_id,
+            case.id_,
+        )
+        return Status.FAILURE
+
+    return Status.SUCCESS
+
+
 class TransitionRMtoValid(DataLayerAction):
     """
     Transition report to RM.VALID and offer to ACCEPTED.
@@ -172,3 +237,81 @@ class TransitionRMtoInvalid(DataLayerAction):
                 f"{self.name}: Error transitioning to INVALID: {e}"
             )
             return Status.FAILURE
+
+
+class TransitionCaseParticipantRMtoClosed(DataLayerAction):
+    """Transition the actor's RM state to CLOSED in the case for a report.
+
+    Looks up the VulnerabilityCase by ``report_id`` and advances the actor's
+    RM state to ``RM.CLOSED`` via ``update_participant_rm_state``.
+
+    Soft-passes (SUCCESS) when no ``report_id`` is set or no case is found,
+    matching the log-and-continue behavior of ``CloseReportReceivedUseCase``.
+    """
+
+    def __init__(self, report_id: str | None, name: str | None = None):
+        """Initialize TransitionCaseParticipantRMtoClosed.
+
+        Args:
+            report_id: ID of the VulnerabilityReport whose case should be
+                updated; may be None for a no-op soft pass.
+            name: Optional custom node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+
+    def update(self) -> Status:
+        """Transition participant RM state → CLOSED.
+
+        Returns:
+            SUCCESS if transitioned (or no case found — soft pass);
+            FAILURE if the DataLayer is unavailable or the transition is
+            blocked.
+        """
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                "%s: DataLayer or actor_id not available", self.name
+            )
+            return Status.FAILURE
+
+        return _transition_case_participant_rm(self, self.report_id, RM.CLOSED)
+
+
+class TransitionCaseParticipantRMtoInvalid(DataLayerAction):
+    """Transition the actor's RM state to INVALID in the case for a report.
+
+    Looks up the VulnerabilityCase by ``report_id`` and advances the actor's
+    RM state to ``RM.INVALID`` via ``update_participant_rm_state``.
+
+    Soft-passes (SUCCESS) when no ``report_id`` is set or no case is found,
+    matching the log-and-continue behavior of ``InvalidateReportReceivedUseCase``.
+    """
+
+    def __init__(self, report_id: str | None, name: str | None = None):
+        """Initialize TransitionCaseParticipantRMtoInvalid.
+
+        Args:
+            report_id: ID of the VulnerabilityReport whose case should be
+                updated; may be None for a no-op soft pass.
+            name: Optional custom node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+
+    def update(self) -> Status:
+        """Transition participant RM state → INVALID.
+
+        Returns:
+            SUCCESS if transitioned (or no case found — soft pass);
+            FAILURE if the DataLayer is unavailable or the transition is
+            blocked.
+        """
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                "%s: DataLayer or actor_id not available", self.name
+            )
+            return Status.FAILURE
+
+        return _transition_case_participant_rm(
+            self, self.report_id, RM.INVALID
+        )

@@ -14,8 +14,6 @@ from vultron.core.models.events.report import (
 from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases.received.case import (
-    CloseCaseUseCase,
-    InvalidateCaseUseCase,
     ValidateCaseUseCase,
 )
 from vultron.errors import VultronValidationError
@@ -155,38 +153,28 @@ class CreateReportReceivedUseCase:
         self._request: CreateReportReceivedEvent = request
 
     def execute(self) -> None:
-        request = self._request
-        obj_to_store = request.report
-        if obj_to_store is not None:
-            try:
-                self._dl.create(obj_to_store)
-                logger.info(
-                    "Stored VulnerabilityReport with ID: %s", request.report_id
-                )
-            except ValueError as e:
-                # The inbox endpoint pre-stores inline nested objects before
-                # dispatching (actors.py), so a duplicate here is expected
-                # and not an error condition.
-                logger.debug(
-                    "VulnerabilityReport %s already exists (pre-stored by "
-                    "inbox endpoint): %s",
-                    request.report_id,
-                    e,
-                )
+        from py_trees.common import Status
 
-        if request.activity is not None:
-            try:
-                self._dl.create(request.activity)
-                logger.info(
-                    "Stored CreateReport activity with ID: %s",
-                    request.activity_id,
-                )
-            except ValueError as e:
-                logger.warning(
-                    "CreateReport activity %s already exists: %s",
-                    request.activity_id,
-                    e,
-                )
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.report.received_report_trees import (
+            create_create_report_received_tree,
+        )
+
+        request = self._request
+        tree = create_create_report_received_tree(request)
+        bridge = BTBridge(datalayer=self._dl)
+        result = bridge.execute_with_setup(
+            tree=tree,
+            actor_id=request.actor_id,
+            activity=request,
+        )
+        if result.status != Status.SUCCESS:
+            reason = BTBridge.get_failure_reason(tree)
+            logger.warning(
+                "CreateReportReceivedBT did not succeed for activity '%s': %s",
+                request.activity_id,
+                reason or result.feedback_message or "",
+            )
 
 
 class SubmitReportReceivedUseCase:
@@ -285,39 +273,29 @@ class InvalidateReportReceivedUseCase:
         self._request: InvalidateReportReceivedEvent = request
 
     def execute(self) -> None:
-        request = self._request
-        actor_id = request.actor_id
-        logger.info(
-            "Actor '%s' tentatively rejects offer '%s' of "
-            "VulnerabilityReport '%s'",
-            actor_id,
-            request.offer_id,
-            request.report_id,
-        )
-        if request.activity is not None:
-            try:
-                self._dl.create(request.activity)
-                logger.info(
-                    "Stored InvalidateReport activity with ID: %s",
-                    request.activity_id,
-                )
-            except ValueError as e:
-                logger.warning(
-                    "InvalidateReport activity %s already exists: %s",
-                    request.activity_id,
-                    e,
-                )
+        from py_trees.common import Status
 
-        if request.report_id:
-            case = self._dl.find_case_by_report_id(request.report_id)
-            if is_case_model(case):
-                InvalidateCaseUseCase(self._dl, case.id_, actor_id).execute()
-            else:
-                logger.warning(
-                    "InvalidateReportReceivedUseCase: no case found for "
-                    "report '%s' — RM state not updated",
-                    request.report_id,
-                )
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.report.received_report_trees import (
+            create_invalidate_report_received_tree,
+        )
+
+        request = self._request
+        tree = create_invalidate_report_received_tree(request)
+        bridge = BTBridge(datalayer=self._dl)
+        result = bridge.execute_with_setup(
+            tree=tree,
+            actor_id=request.actor_id,
+            activity=request,
+        )
+        if result.status != Status.SUCCESS:
+            reason = BTBridge.get_failure_reason(tree)
+            logger.warning(
+                "InvalidateReportReceivedBT did not succeed for activity"
+                " '%s': %s",
+                request.activity_id,
+                reason or result.feedback_message or "",
+            )
 
 
 class AckReportReceivedUseCase:
@@ -328,27 +306,28 @@ class AckReportReceivedUseCase:
         self._request: AckReportReceivedEvent = request
 
     def execute(self) -> None:
-        request = self._request
-        logger.info(
-            "Actor '%s' acknowledges receipt of offer '%s' of "
-            "VulnerabilityReport '%s'",
-            request.actor_id,
-            request.offer_id,
-            request.report_id,
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.report.received_report_trees import (
+            create_ack_report_received_tree,
         )
-        if request.activity is not None:
-            try:
-                self._dl.create(request.activity)
-                logger.info(
-                    "Stored AckReport activity with ID: %s",
-                    request.activity_id,
-                )
-            except ValueError as e:
-                logger.warning(
-                    "AckReport activity %s already exists: %s",
-                    request.activity_id,
-                    e,
-                )
+
+        request = self._request
+        tree = create_ack_report_received_tree(request)
+        bridge = BTBridge(datalayer=self._dl)
+        result = bridge.execute_with_setup(
+            tree=tree,
+            actor_id=request.actor_id,
+            activity=request,
+        )
+        if result.status != Status.SUCCESS:
+            reason = BTBridge.get_failure_reason(tree)
+            logger.warning(
+                "AckReportReceivedBT did not succeed for activity '%s': %s",
+                request.activity_id,
+                reason or result.feedback_message or "",
+            )
 
 
 class CloseReportReceivedUseCase:
@@ -359,35 +338,25 @@ class CloseReportReceivedUseCase:
         self._request: CloseReportReceivedEvent = request
 
     def execute(self) -> None:
-        request = self._request
-        actor_id = request.actor_id
-        logger.info(
-            "Actor '%s' rejects offer '%s' of VulnerabilityReport '%s'",
-            actor_id,
-            request.offer_id,
-            request.report_id,
-        )
-        if request.activity is not None:
-            try:
-                self._dl.create(request.activity)
-                logger.info(
-                    "Stored CloseReport activity with ID: %s",
-                    request.activity_id,
-                )
-            except ValueError as e:
-                logger.warning(
-                    "CloseReport activity %s already exists: %s",
-                    request.activity_id,
-                    e,
-                )
+        from py_trees.common import Status
 
-        if request.report_id:
-            case = self._dl.find_case_by_report_id(request.report_id)
-            if is_case_model(case):
-                CloseCaseUseCase(self._dl, case.id_, actor_id).execute()
-            else:
-                logger.warning(
-                    "CloseReportReceivedUseCase: no case found for report "
-                    "'%s' — RM state not updated",
-                    request.report_id,
-                )
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.report.received_report_trees import (
+            create_close_report_received_tree,
+        )
+
+        request = self._request
+        tree = create_close_report_received_tree(request)
+        bridge = BTBridge(datalayer=self._dl)
+        result = bridge.execute_with_setup(
+            tree=tree,
+            actor_id=request.actor_id,
+            activity=request,
+        )
+        if result.status != Status.SUCCESS:
+            reason = BTBridge.get_failure_reason(tree)
+            logger.warning(
+                "CloseReportReceivedBT did not succeed for activity '%s': %s",
+                request.activity_id,
+                reason or result.feedback_message or "",
+            )
