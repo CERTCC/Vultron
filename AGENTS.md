@@ -310,6 +310,19 @@ Short entries are reproduced here; longer ones are referenced below.
   simple leaf nodes; the tree structure becomes the workflow documentation.
   See [notes/bt-integration.md](notes/bt-integration.md)
   § "DO NOT: God BT nodes with long `update()` methods".
+- **Flat `nodes.py` with 10+ BT Classes Is a Code Smell** — A single
+  `nodes.py` accumulating ten or more BT node classes is a high-churn,
+  high-blast-radius module. Every change — regardless of which workflow step
+  it touches — modifies the same file, making review shallow and increasing
+  the risk of duplicate method definitions silently shadowing correct logic.
+  When a `nodes.py` reaches this threshold, convert it to a `nodes/`
+  subpackage with submodules grouped by semantic concern (e.g.,
+  `conditions.py`, `case_setup.py`, `participant.py`, `embargo.py`,
+  `communication.py`, `lifecycle.py`). The `__init__.py` MUST re-export all
+  public names to preserve caller import paths. Mirror the split in the test
+  suite: a `test/…/nodes/` directory with one `test_<submodule>.py` per
+  submodule. See `specs/behavior-tree-node-design.yaml` BTND-07-001 and
+  BTND-07-002.
 - **py_trees Blackboard Global State** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **py_trees `blackboard.get()` Raises KeyError for Unwritten READ Keys** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Duplicate Method Definitions Silently Shadow Correct BT Logic** — see [notes/bt-integration.md](notes/bt-integration.md)
