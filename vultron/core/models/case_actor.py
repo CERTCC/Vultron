@@ -19,7 +19,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from vultron.core.models.base import VultronObject
+from vultron.core.models.base import CoreObject
 
 
 class VultronOutbox(BaseModel):
@@ -28,14 +28,20 @@ class VultronOutbox(BaseModel):
     items: list[str] = Field(default_factory=list)
 
 
-class VultronCaseActor(VultronObject):
+class CaseActor(CoreObject):
     """Domain representation of a CaseActor service.
 
     Mirrors the Vultron-specific fields of ``CaseActor`` (which inherits
     ``as_Service``).  The ``outbox`` field carries the actor's outgoing
     activity IDs and is required so that ``UpdateActorOutbox`` can append
     to it via ``datalayer.save``.
-    ``type_`` is ``"Service"`` to match ``CaseActor``'s wire value.
+
+    ``type_`` is ``"Service"`` to match ``CaseActor``'s wire value, which
+    means this class registers in :data:`CORE_VOCABULARY` under the key
+    ``"CaseActor"`` (``cls.__name__``), not ``"Service"``.  DataLayer
+    reconstitution still routes through the wire :data:`VOCABULARY` for
+    ``"Service"`` objects; core ``CaseActor`` is used when constructing
+    domain objects directly.  See ADR-0017 and issue #729.
     """
 
     type_: Literal["Service"] = Field(
@@ -44,3 +50,7 @@ class VultronCaseActor(VultronObject):
         serialization_alias="type",
     )
     outbox: VultronOutbox = Field(default_factory=VultronOutbox)
+
+
+#: Backward-compatibility alias.  New code should import :class:`CaseActor`.
+VultronCaseActor = CaseActor

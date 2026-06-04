@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 """
-Provides a CaseEvent model for trusted-timestamp event logging on VulnerabilityCase objects.
+Re-exports CaseEvent from the core domain layer.
+
+CaseEvent has been migrated to ``vultron.core.models.case_event`` (step 6
+of issue #699).  This module re-exports it for backward compatibility so
+existing ``from vultron.wire.as2.vocab.objects.case_event import CaseEvent``
+imports continue to work unmodified.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -16,58 +21,6 @@ Provides a CaseEvent model for trusted-timestamp event logging on VulnerabilityC
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from datetime import datetime, timezone
+from vultron.core.models.case_event import CaseEvent  # noqa: F401
 
-from pydantic import BaseModel, Field, field_serializer, field_validator
-
-from vultron.core.models.base import NonEmptyString
-from vultron.wire.as2.vocab.base.dt_utils import now_utc
-
-
-def _now_utc() -> datetime:
-    return now_utc()
-
-
-class CaseEvent(BaseModel):
-    """Append-only event log entry for a VulnerabilityCase.
-
-    Records a state-changing event with a server-generated trusted timestamp
-    at the time of receipt.  The CaseActor is the sole trusted source of
-    event ordering within a case; ``received_at`` MUST be set by the handler
-    at time of receipt, never copied from an incoming activity payload.
-
-    Fields:
-        object_id: Full URI of the object being acted upon.
-        event_type: Short descriptor of the event kind
-            (e.g. ``"embargo_accepted"``, ``"participant_joined"``).
-        received_at: Server-generated TZ-aware UTC timestamp set at receipt;
-            defaults to the current UTC time.
-
-    Per specs/case-management.yaml CM-02-009, CM-10-002.
-    """
-
-    object_id: NonEmptyString = Field(
-        ...,
-        description="Full URI of the object being acted upon",
-    )
-    event_type: NonEmptyString = Field(
-        ...,
-        description="Short descriptor of the event kind",
-    )
-    received_at: datetime = Field(
-        default_factory=_now_utc,
-        description="Server-generated TZ-aware UTC timestamp set at receipt",
-    )
-
-    @field_validator("received_at", mode="before")
-    @classmethod
-    def parse_received_at(cls, v: datetime | str) -> datetime:
-        if isinstance(v, str):
-            return datetime.fromisoformat(v.replace("Z", "+00:00"))
-        return v
-
-    @field_serializer("received_at", when_used="json")
-    def serialize_received_at(self, value: datetime) -> str:
-        if value.tzinfo is None:
-            value = value.replace(tzinfo=timezone.utc)
-        return value.isoformat()
+__all__ = ["CaseEvent"]

@@ -15,20 +15,58 @@
 
 """Domain representation of a case event log entry."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer, field_validator
 
 from vultron.core.models._helpers import _now_utc
+from vultron.core.models.base import NonEmptyString
 
 
-class VultronCaseEvent(BaseModel):
-    """Domain representation of a case event log entry.
+class CaseEvent(BaseModel):
+    """Append-only event log entry for a VulnerabilityCase.
 
-    Mirrors ``CaseEvent`` from ``vultron.wire.as2.vocab.objects.case_event``
-    using identical field names for DataLayer round-trip compatibility.
+    Records a state-changing event with a server-generated trusted timestamp
+    at the time of receipt.  The CaseActor is the sole trusted source of
+    event ordering within a case; ``received_at`` MUST be set by the handler
+    at time of receipt, never copied from an incoming activity payload.
+
+    Fields:
+        object_id: Full URI of the object being acted upon.
+        event_type: Short descriptor of the event kind
+            (e.g. ``"embargo_accepted"``, ``"participant_joined"``).
+        received_at: Server-generated TZ-aware UTC timestamp set at receipt;
+            defaults to the current UTC time.
+
+    Per specs/case-management.yaml CM-02-009, CM-10-002.
     """
 
-    object_id: str
-    event_type: str
-    received_at: datetime = Field(default_factory=_now_utc)
+    object_id: NonEmptyString = Field(
+        ...,
+        description="Full URI of the object being acted upon",
+    )
+    event_type: NonEmptyString = Field(
+        ...,
+        description="Short descriptor of the event kind",
+    )
+    received_at: datetime = Field(
+        default_factory=_now_utc,
+        description="Server-generated TZ-aware UTC timestamp set at receipt",
+    )
+
+    @field_validator("received_at", mode="before")
+    @classmethod
+    def _parse_received_at(cls, v: datetime | str) -> datetime:
+        if isinstance(v, str):
+            return datetime.fromisoformat(v.replace("Z", "+00:00"))
+        return v
+
+    @field_serializer("received_at", when_used="json")
+    def _serialize_received_at(self, value: datetime) -> str:
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.isoformat()
+
+
+#: Backward-compatibility alias.  New code should import :class:`CaseEvent`.
+VultronCaseEvent = CaseEvent
