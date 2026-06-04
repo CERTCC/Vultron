@@ -7,7 +7,9 @@ from vultron.core.models.events.base import MessageSemantics, VultronEvent
 
 if TYPE_CHECKING:
     from vultron.core.models.case import VultronCase
-    from vultron.core.models.embargo_event import VultronEmbargoEvent
+    from vultron.core.models.embargo_event import (
+        EmbargoEvent as VultronEmbargoEvent,
+    )
 else:
     VultronCase = object
     VultronEmbargoEvent = object

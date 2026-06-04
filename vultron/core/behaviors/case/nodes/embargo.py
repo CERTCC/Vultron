@@ -33,7 +33,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.embargo_event import VultronEmbargoEvent
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.enums import VultronObjectType
 from vultron.core.models.protocols import CaseModel, is_case_model
 from vultron.core.ports.case_persistence import CasePersistence
@@ -95,7 +95,7 @@ class InitializeDefaultEmbargoNode(DataLayerAction):
 
     Looks up the actor's EmbargoPolicy from the DataLayer to determine the
     preferred duration (defaulting to 90 days if no policy is found).
-    Creates a ``VultronEmbargoEvent`` and attaches it to the case as
+    Creates a ``EmbargoEvent`` and attaches it to the case as
     ``active_embargo``.
 
     Participants learn about the embargo from ``VulnerabilityCase.active_embargo``
@@ -137,7 +137,7 @@ class InitializeDefaultEmbargoNode(DataLayerAction):
                 self.datalayer, self.name, self.logger
             )
             end_time = datetime.now(tz=timezone.utc) + duration
-            embargo = VultronEmbargoEvent(end_time=end_time, context=case_id)
+            embargo = EmbargoEvent(end_time=end_time, context=case_id)
 
             try:
                 self.datalayer.create(embargo)
