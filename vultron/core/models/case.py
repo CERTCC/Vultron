@@ -21,7 +21,7 @@ from pydantic import Field, model_validator
 
 from vultron.core.models.base import VultronObject
 from vultron.core.models.case_event import VultronCaseEvent
-from vultron.core.models.case_status import VultronCaseStatus
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.participant import VultronParticipant
 
 
@@ -39,7 +39,7 @@ class VultronCase(VultronObject):
     it via the wire vocabulary registry.
 
     When first created with an ``attributed_to`` actor and an empty
-    ``case_statuses`` list, an initial ``VultronCaseStatus`` is appended
+    ``case_statuses`` list, an initial ``CaseStatus`` is appended
     automatically so that ``current_status`` (on the wire
     ``VulnerabilityCase``) never encounters an empty history list.
     """
@@ -54,7 +54,7 @@ class VultronCase(VultronObject):
     )
     actor_participant_index: dict[str, str] = Field(default_factory=dict)
     vulnerability_reports: list[str] = Field(default_factory=list)
-    case_statuses: list[str | VultronCaseStatus] = Field(default_factory=list)
+    case_statuses: list[str | CaseStatus] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
     active_embargo: str | None = None
     proposed_embargoes: list[str] = Field(default_factory=list)
@@ -68,7 +68,7 @@ class VultronCase(VultronObject):
     def init_case_statuses(self) -> "VultronCase":
         if not self.case_statuses and self.attributed_to:
             self.case_statuses = [
-                VultronCaseStatus(
+                CaseStatus(
                     context=self.id_,
                     attributed_to=self.attributed_to,
                 )

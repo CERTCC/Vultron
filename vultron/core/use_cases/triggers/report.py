@@ -32,7 +32,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
-from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.report import VultronReport
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
@@ -215,7 +215,7 @@ class SvcInvalidateReportUseCase:
             to=_report_addressees(report.id_, actor_id, offer, dl),
         )
 
-        set_status_invalidate = VultronParticipantStatus(
+        set_status_invalidate = ParticipantStatus(
             id_=_report_phase_status_id(
                 actor_id, report.id_, RM.INVALID.value
             ),
@@ -280,7 +280,7 @@ class SvcRejectReportUseCase:
             to=_report_addressees(report.id_, actor_id, offer, dl),
         )
 
-        set_status_reject = VultronParticipantStatus(
+        set_status_reject = ParticipantStatus(
             id_=_report_phase_status_id(actor_id, report.id_, RM.CLOSED.value),
             context=report.id_,
             attributed_to=actor_id,
@@ -359,7 +359,7 @@ class SvcCloseReportUseCase:
             to=_report_addressees(report.id_, actor_id, offer, dl),
         )
 
-        set_status_close = VultronParticipantStatus(
+        set_status_close = ParticipantStatus(
             id_=closed_id,
             context=report.id_,
             attributed_to=actor_id,

@@ -22,8 +22,10 @@ from typing import TypeAlias, cast
 
 from pydantic import Field, field_serializer, field_validator, model_validator
 
-from vultron.core.models.case_status import VultronCaseStatus
-from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
+from vultron.core.models.participant_status import (
+    ParticipantStatus as CoreParticipantStatus,
+)
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_pxa, CS_vfd
@@ -34,6 +36,7 @@ from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.objects.base import (
     VultronAS2Object,
     _scalar_ref_id_or_value,
+    _strip_core_context,
 )
 
 
@@ -82,10 +85,12 @@ class CaseStatus(VultronAS2Object):
         return self
 
     @classmethod
-    def from_core(cls, core_obj: VultronCaseStatus) -> "CaseStatus":
-        return cast("CaseStatus", super().from_core(core_obj))
+    def from_core(cls, core_obj: CoreCaseStatus) -> "CaseStatus":
+        data = core_obj.model_dump(mode="json")
+        _strip_core_context(data)
+        return cast("CaseStatus", cls.model_validate(data))
 
-    def to_core(self) -> VultronCaseStatus:
+    def to_core(self) -> CoreCaseStatus:
         data = self._to_core_data()
         data["attributed_to"] = _scalar_ref_id_or_value(
             data.get("attributed_to")
@@ -93,7 +98,7 @@ class CaseStatus(VultronAS2Object):
         data["context"] = _scalar_ref_id_or_value(data.get("context"))
         if isinstance(data.get("pxa_state"), str):
             data["pxa_state"] = CS_pxa[data["pxa_state"]]
-        return VultronCaseStatus.model_validate(data)
+        return CoreCaseStatus.model_validate(data)
 
 
 CaseStatusRef: TypeAlias = ActivityStreamRef[CaseStatus]
@@ -151,10 +156,9 @@ class ParticipantStatus(VultronAS2Object):
         return self
 
     @classmethod
-    def from_core(
-        cls, core_obj: VultronParticipantStatus
-    ) -> "ParticipantStatus":
+    def from_core(cls, core_obj: CoreParticipantStatus) -> "ParticipantStatus":
         data = core_obj.model_dump(mode="json")
+        _strip_core_context(data)
         case_status = data.get("case_status")
         if isinstance(case_status, str):
             # Legacy: case_status stored as bare ID string
@@ -163,18 +167,18 @@ class ParticipantStatus(VultronAS2Object):
                 context=data.get("context"),
                 attributed_to=data.get("attributed_to"),
             )
-        # If case_status is a dict (from VultronCaseStatus serialisation),
+        # If case_status is a dict (from CoreCaseStatus serialisation),
         # cls.model_validate will hydrate it into a CaseStatus instance.
         return cls.model_validate(data)
 
-    def to_core(self) -> VultronParticipantStatus:
+    def to_core(self) -> CoreParticipantStatus:
         data = self._to_core_data()
         data["attributed_to"] = _scalar_ref_id_or_value(
             data.get("attributed_to")
         )
         data["context"] = _scalar_ref_id_or_value(data.get("context"))
         # Convert embedded CaseStatus wire object (or its serialised dict) to
-        # VultronCaseStatus so pxa_state and em_state cross the boundary.
+        # CoreCaseStatus so pxa_state and em_state cross the boundary.
         wire_case_status = data.get("case_status")
         if isinstance(wire_case_status, CaseStatus):
             data["case_status"] = wire_case_status.to_core()
@@ -187,7 +191,7 @@ class ParticipantStatus(VultronAS2Object):
             data["case_status"] = None
         if isinstance(data.get("vfd_state"), str):
             data["vfd_state"] = CS_vfd[data["vfd_state"]]
-        return VultronParticipantStatus.model_validate(data)
+        return CoreParticipantStatus.model_validate(data)
 
 
 ParticipantStatusRef: TypeAlias = ActivityStreamRef[ParticipantStatus]

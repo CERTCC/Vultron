@@ -40,7 +40,7 @@ try:
 except ImportError:
     from pydantic_core import ValidationError as PydanticValidationError
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.use_cases._helpers import _report_phase_status_id
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -160,7 +160,7 @@ def accepted_report(report):
 
 @pytest.fixture
 def closed_report(dl, report, actor):
-    status = VultronParticipantStatus(
+    status = ParticipantStatus(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.CLOSED.value),
         context=report.id_,
         attributed_to=actor.id_,

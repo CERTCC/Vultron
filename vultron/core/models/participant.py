@@ -20,7 +20,7 @@ import logging
 from pydantic import Field, field_serializer, field_validator
 
 from vultron.core.models.base import NonEmptyString, VultronObject
-from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.core.states.roles import CVDRole, serialize_roles, validate_roles
@@ -45,9 +45,7 @@ class VultronParticipant(VultronObject):
     attributed_to: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     case_roles: list[CVDRole] = Field(default_factory=list)
-    participant_statuses: list[VultronParticipantStatus] = Field(
-        default_factory=list
-    )
+    participant_statuses: list[ParticipantStatus] = Field(default_factory=list)
     accepted_embargo_ids: list[NonEmptyString] = Field(default_factory=list)
     embargo_consent_state: PEC = Field(default=PEC.NO_EMBARGO)
     participant_case_name: NonEmptyString | None = None
@@ -62,7 +60,7 @@ class VultronParticipant(VultronObject):
         return validate_roles(value)
 
     def append_rm_state(self, rm_state: RM, actor: str, context: str) -> bool:
-        """Append a new VultronParticipantStatus with the given RM state.
+        """Append a new ParticipantStatus with the given RM state.
 
         Validates the transition against the RM state machine.
         Returns True when the status was appended, False when blocked.
@@ -81,7 +79,7 @@ class VultronParticipant(VultronObject):
             )
             return False
         self.participant_statuses.append(
-            VultronParticipantStatus(
+            ParticipantStatus(
                 rm_state=rm_state,
                 context=context,
                 attributed_to=actor,

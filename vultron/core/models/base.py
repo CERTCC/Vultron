@@ -136,6 +136,7 @@ class CoreObject(VultronObject):
         default=None,
         validation_alias="@context",
         serialization_alias="@context",
+        exclude=True,
     )
 
     def __init_subclass__(cls, **kwargs: object) -> None:

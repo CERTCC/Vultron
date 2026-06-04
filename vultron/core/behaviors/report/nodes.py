@@ -32,7 +32,7 @@ from py_trees.common import Status
 from vultron.core.models.vultron_types import (
     VultronCase,
     VultronCreateCaseActivity,
-    VultronParticipantStatus,
+    ParticipantStatus,
 )
 from vultron.core.models.protocols import (
     has_outbox,
@@ -295,7 +295,7 @@ class TransitionRMtoValid(DataLayerAction):
         """
         Update report and offer statuses.
 
-        Creates a standalone VultronParticipantStatus record for RM.VALID and
+        Creates a standalone ParticipantStatus record for RM.VALID and
         also updates the CaseParticipant.participant_statuses list (via
         ``update_participant_rm_state``) so that the engage-case trigger can
         advance to RM.ACCEPTED from VALID rather than RECEIVED.
@@ -310,7 +310,7 @@ class TransitionRMtoValid(DataLayerAction):
             return Status.FAILURE
 
         try:
-            status = VultronParticipantStatus(
+            status = ParticipantStatus(
                 id_=_report_phase_status_id(
                     self.actor_id, self.report_id, RM.VALID.value
                 ),
@@ -386,7 +386,7 @@ class TransitionRMtoInvalid(DataLayerAction):
             return Status.FAILURE
 
         try:
-            status = VultronParticipantStatus(
+            status = ParticipantStatus(
                 id_=_report_phase_status_id(
                     self.actor_id, self.report_id, RM.INVALID.value
                 ),

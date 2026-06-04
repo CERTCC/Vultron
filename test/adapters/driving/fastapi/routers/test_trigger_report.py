@@ -26,7 +26,7 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
-from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.use_cases._helpers import _report_phase_status_id
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
@@ -187,7 +187,7 @@ def accepted_report(report):
 @pytest.fixture
 def closed_report(dl, report, actor):
     """Put the report into RM.CLOSED state (triggers 409 on close-report)."""
-    status = VultronParticipantStatus(
+    status = ParticipantStatus(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.CLOSED.value),
         context=report.id_,
         attributed_to=actor.id_,

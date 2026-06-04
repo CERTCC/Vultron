@@ -32,7 +32,7 @@ from vultron.core.states.rm import RM
 
 
 class _FakeParticipantStatus:
-    """Minimal stand-in for VultronParticipantStatus."""
+    """Minimal stand-in for ParticipantStatus."""
 
     def __init__(self, rm_state: RM, vfd_state: CS_vfd) -> None:
         self.rm_state = rm_state

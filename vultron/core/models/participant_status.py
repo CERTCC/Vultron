@@ -17,24 +17,26 @@
 
 from typing import Literal
 
-from pydantic import Field, field_serializer
+from pydantic import Field, field_serializer, field_validator
 
 from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_vfd
-from vultron.core.models.base import NonEmptyString, VultronObject
-from vultron.core.models.case_status import VultronCaseStatus
+from vultron.core.models.base import CoreObject, NonEmptyString
+from vultron.core.models.case_status import CaseStatus
 
 
-class VultronParticipantStatus(VultronObject):
+class ParticipantStatus(CoreObject):
     """Domain representation of a participant RM-state status record.
 
-    Mirrors the Vultron-specific fields of ``ParticipantStatus``.
-    ``type_`` is ``"ParticipantStatus"`` to match the wire value.
+    Canonical core type for the Vultron ``ParticipantStatus`` object.
+    ``type_`` is ``"ParticipantStatus"`` to match the wire value and
+    to auto-register this class in :data:`CORE_VOCABULARY`.
 
-    ``context`` (case ID) is required, matching the wire type's constraint.
+    ``context`` (case ID) is required — a participant status is always
+    associated with a specific case.
 
     ``case_status`` embeds the participant's perspective on the case-level
-    state (em_state and pxa_state) via a nested ``VultronCaseStatus`` object.
+    state (em_state and pxa_state) via a nested :class:`CaseStatus` object.
     """
 
     type_: Literal["ParticipantStatus"] = Field(
@@ -48,8 +50,26 @@ class VultronParticipantStatus(VultronObject):
     case_engagement: bool = True
     embargo_adherence: bool = True
     tracking_id: NonEmptyString | None = None
-    case_status: VultronCaseStatus | None = None
+    case_status: CaseStatus | None = None
+
+    @field_serializer("rm_state")
+    def _serialize_rm_state(self, v: RM) -> str:
+        return v.name
 
     @field_serializer("vfd_state")
     def _serialize_vfd_state(self, v: CS_vfd) -> str:
         return v.name
+
+    @field_validator("rm_state", mode="before")
+    @classmethod
+    def _validate_rm_state(cls, v: object) -> RM:
+        if isinstance(v, str):
+            return RM[v]
+        return v  # type: ignore[return-value]
+
+    @field_validator("vfd_state", mode="before")
+    @classmethod
+    def _validate_vfd_state(cls, v: object) -> CS_vfd:
+        if isinstance(v, str):
+            return CS_vfd[v]
+        return v  # type: ignore[return-value]

@@ -364,7 +364,7 @@ class SvcAddReportToCaseUseCase:
 class SvcAddParticipantStatusUseCase:
     """Self-report actor RM/VFD/PXA state to the Case Manager.
 
-    Creates a VultronParticipantStatus object, saves it, then emits an
+    Creates a ParticipantStatus object, saves it, then emits an
     Add(ParticipantStatus, target=CaseParticipant) activity addressed to the
     Case Manager (DEMOMA-07-001).
     """
@@ -403,9 +403,9 @@ class SvcAddParticipantStatusUseCase:
 
     def execute(self) -> dict[str, Any]:
         from vultron.core.models.participant_status import (
-            VultronParticipantStatus,
+            ParticipantStatus,
         )
-        from vultron.core.models.case_status import VultronCaseStatus
+        from vultron.core.models.case_status import CaseStatus
 
         request = self._request
         actor_id = request.actor_id
@@ -432,14 +432,14 @@ class SvcAddParticipantStatusUseCase:
 
         # Build embedded CaseStatus if a participant-perspective pxa_state was
         # provided; inherit em_state from the current case-level status.
-        case_status: VultronCaseStatus | None = None
+        case_status: CaseStatus | None = None
         if request.pxa_state is not None:
             current_em = getattr(
                 getattr(case, "current_status", None), "em_state", None
             )
             from vultron.core.states.em import EM
 
-            case_status = VultronCaseStatus(
+            case_status = CaseStatus(
                 context=case_id,
                 attributed_to=actor_id,
                 em_state=current_em if current_em is not None else EM.NONE,
@@ -452,7 +452,7 @@ class SvcAddParticipantStatusUseCase:
         )
 
         # Build and persist the status object
-        status = VultronParticipantStatus(
+        status = ParticipantStatus(
             context=case_id,
             attributed_to=actor_id,
             rm_state=(

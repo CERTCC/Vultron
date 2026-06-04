@@ -32,7 +32,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.receive_report_case_tree import (
     create_receive_report_case_tree,
 )
-from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.vultron_types import (
     VultronCaseActor,
     VultronOffer,
@@ -98,7 +98,7 @@ def reporter_accepted_status(datalayer, reporter_actor_id, report):
 
     SubmitReportReceivedUseCase creates this record before the tree runs.
     """
-    status = VultronParticipantStatus(
+    status = ParticipantStatus(
         id_=_report_phase_status_id(
             reporter_actor_id, report.id_, RM.ACCEPTED.value
         ),
@@ -117,7 +117,7 @@ def vendor_received_status(datalayer, actor_id, report):
     CreateReportReceivedUseCase or AckReportReceivedUseCase creates this
     record before the tree runs.
     """
-    status = VultronParticipantStatus(
+    status = ParticipantStatus(
         id_=_report_phase_status_id(actor_id, report.id_, RM.RECEIVED.value),
         context=report.id_,
         attributed_to=actor_id,

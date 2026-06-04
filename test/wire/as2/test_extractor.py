@@ -240,7 +240,7 @@ def test_extract_intent_participant_case_roles():
 
 
 def test_extract_intent_case_status_name():
-    """VultronCaseStatus.name is populated from the wire CaseStatus."""
+    """CaseStatus.name is populated from the wire CaseStatus."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
@@ -261,7 +261,7 @@ def test_extract_intent_case_status_name():
 
 
 def test_extract_intent_participant_status_vfd_state():
-    """VultronParticipantStatus.vfd_state is populated from the wire ParticipantStatus."""
+    """ParticipantStatus.vfd_state is populated from the wire ParticipantStatus."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )

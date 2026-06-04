@@ -6,14 +6,14 @@ from vultron.core.models.events.base import MessageSemantics, VultronEvent
 
 if TYPE_CHECKING:
     from vultron.core.models.case import VultronCase
-    from vultron.core.models.case_status import VultronCaseStatus
+    from vultron.core.models.case_status import CaseStatus
     from vultron.core.models.participant import VultronParticipant
-    from vultron.core.models.participant_status import VultronParticipantStatus
+    from vultron.core.models.participant_status import ParticipantStatus
 else:
     VultronCase = object
-    VultronCaseStatus = object
+    CaseStatus = object
     VultronParticipant = object
-    VultronParticipantStatus = object
+    ParticipantStatus = object
 
 
 class CreateCaseStatusReceivedEvent(VultronEvent):
@@ -28,10 +28,8 @@ class CreateCaseStatusReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def status(self) -> "VultronCaseStatus | VultronParticipantStatus | None":
-        return cast(
-            "VultronCaseStatus | VultronParticipantStatus | None", self.object_
-        )
+    def status(self) -> "CaseStatus | ParticipantStatus | None":
+        return cast("CaseStatus | ParticipantStatus | None", self.object_)
 
 
 class AddCaseStatusToCaseReceivedEvent(VultronEvent):
@@ -46,10 +44,8 @@ class AddCaseStatusToCaseReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def status(self) -> "VultronCaseStatus | VultronParticipantStatus | None":
-        return cast(
-            "VultronCaseStatus | VultronParticipantStatus | None", self.object_
-        )
+    def status(self) -> "CaseStatus | ParticipantStatus | None":
+        return cast("CaseStatus | ParticipantStatus | None", self.object_)
 
     @property
     def case_id(self) -> str | None:
@@ -72,10 +68,8 @@ class CreateParticipantStatusReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def status(self) -> "VultronCaseStatus | VultronParticipantStatus | None":
-        return cast(
-            "VultronCaseStatus | VultronParticipantStatus | None", self.object_
-        )
+    def status(self) -> "CaseStatus | ParticipantStatus | None":
+        return cast("CaseStatus | ParticipantStatus | None", self.object_)
 
 
 class AddParticipantStatusToParticipantReceivedEvent(VultronEvent):
@@ -90,10 +84,8 @@ class AddParticipantStatusToParticipantReceivedEvent(VultronEvent):
         return self.object_id
 
     @property
-    def status(self) -> "VultronCaseStatus | VultronParticipantStatus | None":
-        return cast(
-            "VultronCaseStatus | VultronParticipantStatus | None", self.object_
-        )
+    def status(self) -> "CaseStatus | ParticipantStatus | None":
+        return cast("CaseStatus | ParticipantStatus | None", self.object_)
 
     @property
     def participant_id(self) -> str | None:

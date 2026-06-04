@@ -468,23 +468,18 @@ class TriggerActivityAdapter:
                 "ParticipantStatus",
                 f"status '{status_id}' not found",
             )
-        # Convert from core VultronParticipantStatus to wire ParticipantStatus
+        # Convert from core ParticipantStatus to wire ParticipantStatus
         # so that nested fields (case_status, pxa_state) survive the boundary.
-        if not isinstance(raw, ParticipantStatus):
-            from vultron.wire.as2.vocab.objects.case_status import (
-                ParticipantStatus as WirePS,
-            )
-            from vultron.core.models.participant_status import (
-                VultronParticipantStatus,
-            )
+        from vultron.core.models.participant_status import (
+            ParticipantStatus as CorePS,
+        )
 
-            if isinstance(raw, VultronParticipantStatus):
-                raw = WirePS.from_core(raw)
-            else:
-                raw = cast(ParticipantStatus, raw)
-        status: ParticipantStatus = raw
+        if isinstance(raw, CorePS):
+            wire_status: ParticipantStatus = ParticipantStatus.from_core(raw)
+        else:
+            wire_status = cast(ParticipantStatus, raw)
         activity = add_status_to_participant_activity(
-            status=status, target=participant_id, actor=actor, to=to
+            status=wire_status, target=participant_id, actor=actor, to=to
         )
         try:
             self._dl.create(activity)
