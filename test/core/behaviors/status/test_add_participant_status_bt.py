@@ -437,6 +437,71 @@ class TestPublicDisclosureBranchNode:
         )
         assert result.status == Status.SUCCESS
 
+    def test_skips_when_sender_is_not_case_owner(
+        self, populated_dl, populated_bridge, status_obj
+    ):
+        """CASE_MANAGER sender (not CASE_OWNER) → skips teardown, SUCCESS."""
+        from vultron.core.states.cs import CS_pxa
+        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
+
+        cs = CaseStatus()
+        cs.pxa_state = CS_pxa.Pxa  # public-aware
+        status_obj.case_status = cs
+        populated_dl.save(status_obj)
+
+        node = PublicDisclosureBranchNode(
+            status_obj=status_obj,
+            sender_actor_id=CASE_MANAGER_ID,  # not CASE_OWNER
+            case_id=CASE_ID,
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.SUCCESS
+
+    def test_triggers_teardown_on_public_aware_case_owner(
+        self, populated_dl, populated_bridge, case, status_obj
+    ):
+        """CS.P + CASE_OWNER sender → embargo terminated, EM=EXITED, PEC reset."""
+        from vultron.core.states.cs import CS_pxa
+        from vultron.core.states.em import EM
+        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+
+        # Give the case an active embargo in ACTIVE state
+        embargo = EmbargoEvent(
+            id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
+        )
+        case.active_embargo = embargo.id_
+        case.current_status.em_state = EM.ACTIVE
+        populated_dl.create(embargo)
+        populated_dl.save(case)
+
+        cs = CaseStatus()
+        cs.pxa_state = CS_pxa.Pxa  # public-aware
+        status_obj.case_status = cs
+        populated_dl.save(status_obj)
+
+        # ACTOR_ID holds CASE_OWNER role (see `participant` fixture)
+        node = PublicDisclosureBranchNode(
+            status_obj=status_obj,
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.SUCCESS
+
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+        from typing import cast as c
+
+        updated = c(VulnerabilityCase, populated_dl.read(CASE_ID))
+        assert updated.current_status.em_state == EM.EXITED
+        assert updated.active_embargo is None
+
 
 # ---------------------------------------------------------------------------
 # Step 5: AutoCloseBranchNode

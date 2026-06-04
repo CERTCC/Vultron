@@ -44,7 +44,10 @@ from vultron.core.states.participant_embargo_consent import (
     PEC_Trigger,
     apply_pec_trigger,
 )
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.use_cases._helpers import (
+    _as_id,
+    reset_case_participant_embargo_consent,
+)
 from vultron.core.use_cases.triggers._helpers import (
     find_embargo_proposal,
     resolve_actor,
@@ -105,29 +108,6 @@ def _cascade_pec_revise(
         if participant.embargo_consent_state == PEC.SIGNATORY.value:
             participant.embargo_consent_state = apply_pec_trigger(
                 PEC.SIGNATORY, PEC_Trigger.REVISE
-            )
-            dl.save(participant)
-
-
-def _cascade_pec_reset(
-    case: PersistableModel | None, dl: CasePersistence
-) -> None:
-    """Reset all participants' embargo consent state to NO_EMBARGO.
-
-    Called when an embargo is terminated or removed.
-    """
-    if not is_case_model(case):
-        return
-    for entry in case.case_participants:
-        participant_id = _as_id(entry)
-        if participant_id is None:
-            continue
-        participant = dl.read(participant_id)
-        if not is_participant_model(participant):
-            continue
-        if participant.embargo_consent_state != PEC.NO_EMBARGO.value:
-            participant.embargo_consent_state = apply_pec_trigger(
-                PEC(participant.embargo_consent_state), PEC_Trigger.RESET
             )
             dl.save(participant)
 
@@ -647,7 +627,7 @@ class SvcTerminateEmbargoUseCase:
         case.current_status.em_state = EM(adapter.state)
         case.active_embargo = None
         # Reset all participants' embargo consent state.
-        _cascade_pec_reset(case, dl)
+        reset_case_participant_embargo_consent(dl, case)
         dl.save(case)
 
         factory = self._trigger_activity
