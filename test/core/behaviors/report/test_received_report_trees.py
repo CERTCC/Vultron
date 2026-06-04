@@ -239,16 +239,16 @@ class TestStoreActivityNode:
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
-    def test_no_activity_obj_succeeds_with_warning(self, dl, bridge, caplog):
-        """StoreActivityNode with activity_obj=None logs warning → SUCCESS."""
+    def test_no_activity_obj_is_failure(self, dl, bridge, caplog):
+        """StoreActivityNode with activity_obj=None and a set id → FAILURE."""
         node = StoreActivityNode(
             activity_id=ACTIVITY_ID,
             activity_obj=None,
         )
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.ERROR):
             result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
-        assert result.status == Status.SUCCESS
+        assert result.status == Status.FAILURE
         assert dl.get_all("Create") == []
 
     def test_empty_activity_id_is_no_op(self, bridge):

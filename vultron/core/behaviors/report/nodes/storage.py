@@ -129,8 +129,9 @@ class StoreActivityNode(DataLayerAction):
         ``dl.create()`` always indicates a duplicate for activities.
 
         Returns:
-            SUCCESS always (including no-op if activity_id is empty or
-            activity_obj is None); FAILURE if the DataLayer is unavailable.
+            SUCCESS when the activity is stored (or already exists);
+            FAILURE if the DataLayer is unavailable or activity_obj is None
+            when activity_id is set (precondition violation).
         """
         if self.datalayer is None:
             self.logger.error("%s: DataLayer not available", self.name)
@@ -141,12 +142,12 @@ class StoreActivityNode(DataLayerAction):
             return Status.SUCCESS
 
         if self.activity_obj is None:
-            self.logger.warning(
-                "%s: activity_obj is None for id '%s' — skipping store",
+            self.logger.error(
+                "%s: activity_obj is None for id '%s' — cannot store",
                 self.name,
                 self.activity_id,
             )
-            return Status.SUCCESS
+            return Status.FAILURE
 
         try:
             self.datalayer.create(self.activity_obj)
