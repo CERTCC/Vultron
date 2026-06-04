@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Literal, cast
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 
 if TYPE_CHECKING:
-    from vultron.core.models.case import VultronCase
+    from vultron.core.models.case import VulnerabilityCase as VultronCase
     from vultron.core.models.case_status import CaseStatus
     from vultron.core.models.participant import VultronParticipant
     from vultron.core.models.participant_status import ParticipantStatus
