@@ -56,7 +56,11 @@ Public API
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from itertools import combinations
+from typing import Any
+
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.errors import RegistryOrderError
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from . import (
@@ -72,9 +76,138 @@ from . import (
 )
 
 # ---------------------------------------------------------------------------
+# Import-time order guard: ensures specific patterns precede general ones.
+# ---------------------------------------------------------------------------
+
+
+def _strip_description(d: dict[str, Any]) -> dict[str, Any]:
+    """Recursively remove ``description`` keys from a pattern dump dict.
+
+    ``ActivityPattern.description`` is a documentation annotation, not a
+    semantic constraint.  Removing it at all levels ensures subset comparisons
+    reflect only the fields that actually influence pattern matching.
+    """
+    result: dict[str, Any] = {}
+    for k, v in d.items():
+        if k == "description":
+            continue
+        if isinstance(v, dict):
+            result[k] = _strip_description(v)
+        else:
+            result[k] = v
+    return result
+
+
+def _elem_matches(a: Any, b: Any) -> bool:
+    """Return True if element *a* can be covered by element *b*.
+
+    Dicts: every key/value in *a* must appear in *b* (recursive).
+    Lists: every element in *a* must match some element in *b*.
+    Scalars: equality.
+    """
+    if isinstance(a, dict) and isinstance(b, dict):
+        return _is_subset(a, b)
+    if isinstance(a, list) and isinstance(b, list):
+        return all(
+            any(_elem_matches(item_a, item_b) for item_b in b) for item_a in a
+        )
+    return bool(a == b)
+
+
+def _is_subset(a: dict[str, Any], b: dict[str, Any]) -> bool:
+    """Return True if *a* is a subset of *b* — every key/value in *a* is
+    present in *b* (recursively).  Extra keys in *b* are ignored."""
+    if not set(a.keys()).issubset(b.keys()):
+        return False
+    return all(_elem_matches(a[k], b[k]) for k in a)
+
+
+def _check_group_order(
+    act_type: str, indexed_entries: list[tuple[int, SemanticEntry]]
+) -> None:
+    """Check ordering for one ``activity_`` group; raise ``RegistryOrderError``
+    if a less-specific entry precedes a more-specific one."""
+    enriched: list[tuple[int, SemanticEntry, dict[str, Any]]] = []
+    for idx, entry in indexed_entries:
+        if entry.pattern is None:
+            continue
+        try:
+            dump = _strip_description(
+                entry.pattern.model_dump(exclude_none=True)
+            )
+            enriched.append((idx, entry, dump))
+        except Exception:
+            continue
+
+    for (idx_a, entry_a, dump_a), (idx_b, entry_b, dump_b) in combinations(
+        enriched, 2
+    ):
+        # idx_a < idx_b by construction (combinations preserves order).
+        # If dump_a ⊂ dump_b strictly, then a is less specific but appears
+        # first — the more-specific b would never be reached.
+        if _is_subset(dump_a, dump_b) and not _is_subset(dump_b, dump_a):
+            raise RegistryOrderError(
+                f"Registry ordering violation in '{act_type}' group: "
+                f"{entry_a.semantics.name!r} (index {idx_a}) is less specific "
+                f"than {entry_b.semantics.name!r} (index {idx_b}) but appears "
+                f"first. Move {entry_b.semantics.name!r} before "
+                f"{entry_a.semantics.name!r}."
+            )
+
+
+def _validate_registry_order(registry: list[SemanticEntry]) -> None:
+    """Raise ``RegistryOrderError`` if any less-specific pattern precedes a
+    more-specific one within the same ``activity_`` group.
+
+    Called at module load time so that ordering violations are impossible to
+    miss.  A pattern *A* is considered less specific than *B* when
+    ``dump(A) ⊂ dump(B)`` strictly (A has fewer constraints than B).  When
+    A appears before B in the registry, ``find_matching_semantics()`` would
+    never reach B — the wrong use case would run silently.
+
+    See ``notes/semantic-registry.md`` for the ordering invariant and
+    ``specs/semantic-extraction.yaml`` SE-03-002.
+
+    Args:
+        registry: Ordered ``SemanticEntry`` list to validate.
+
+    Raises:
+        RegistryOrderError: When a more-specific entry appears after a
+            less-specific entry in the same ``activity_`` group.
+    """
+    groups: dict[str, list[tuple[int, SemanticEntry]]] = {}
+    for idx, entry in enumerate(registry):
+        if entry.pattern is None:
+            continue
+        act_type = str(entry.pattern.activity_)
+        groups.setdefault(act_type, []).append((idx, entry))
+
+    for act_type, indexed_entries in groups.items():
+        if len(indexed_entries) >= 2:
+            _check_group_order(act_type, indexed_entries)
+
+
+# ---------------------------------------------------------------------------
 # The registry.  Order matters: find_matching_semantics() returns the first
 # pattern that matches, so more specific patterns must appear before general
-# ones.  The unknown fallback entries (pattern=None) must be last.
+# ones.  The unknown fallback sentinels (pattern=None) must be last.
+#
+# Domain groups (in assembly order):
+#   1. Reports        — CREATE_REPORT, SUBMIT_REPORT, ACK_REPORT, …
+#   2. Cases          — CREATE_CASE, UPDATE_CASE, ENGAGE_CASE, DEFER_CASE, …
+#   3. Actors         — actor-related entries
+#   4. Embargo        — CREATE_EMBARGO_EVENT, INVITE_TO_EMBARGO, …
+#   5. Sync           — CLOSE_CASE, case-log sync entries
+#   6. Case members   — INVITE_ACTOR_TO_CASE, ACCEPT_INVITE_ACTOR_TO_CASE, …
+#   7. Notes          — CREATE_NOTE, ADD_NOTE_TO_CASE, REMOVE_NOTE_FROM_CASE
+#   8. Status         — participant status entries
+#   9. Fallback       — UNKNOWN_UNRESOLVABLE_OBJECT, UNKNOWN (must be last)
+#
+# Within each group, more-specific patterns MUST come before less-specific
+# ones.  The import-time call to _validate_registry_order() below enforces
+# this at module load, and test_non_overlapping_activity_patterns() in
+# test/test_semantic_activity_patterns.py provides belt-and-suspenders
+# coverage for edge cases.  See notes/semantic-registry.md SE-03-002.
 # ---------------------------------------------------------------------------
 
 SEMANTIC_REGISTRY: list[SemanticEntry] = (
@@ -88,6 +221,8 @@ SEMANTIC_REGISTRY: list[SemanticEntry] = (
     + status.ENTRIES
     + unknown.ENTRIES  # MUST be last — catch-all sentinels
 )
+
+_validate_registry_order(SEMANTIC_REGISTRY)
 
 # ---------------------------------------------------------------------------
 # Fast-lookup index: O(1) entry access by MessageSemantics value.
