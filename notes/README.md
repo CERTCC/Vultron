@@ -357,6 +357,15 @@ rules, naming conventions, and `ActorConfig`-driven trigger dispatch guidance.
 is demo-specific or protocol-general, or working on trigger routing in
 `vultron/adapters/driving/fastapi/routers/`.
 
+**`triggers-test-coverage.md`**
+Coverage expectations for trigger use cases in
+`vultron/core/use_cases/triggers/` and PR-scope discipline for files that
+co-evolve with embargo logic. Anchors which trigger use cases have dedicated
+tests and which are missing.
+**Load when**: adding a trigger use case, modifying `triggers/case.py` or
+`triggers/embargo.py`, or scoping a PR that touches both case and embargo
+triggers.
+
 ---
 
 ## Project Management and Planning

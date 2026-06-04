@@ -395,6 +395,18 @@ Short entries are reproduced here; longer ones are referenced below.
   silent no-op. A docstring-only stub is indistinguishable from a real empty module
   and can hide integration gaps in production-like deployments. See
   `specs/outbox.yaml` OX-10-004, OX-11-004.
+- **Trigger Use Cases Need Per-Use-Case Tests; Don't Bundle Case + Embargo
+  Trigger Changes in One PR** — Every use case in
+  `vultron/core/use_cases/triggers/` SHOULD have a dedicated unit test that
+  exercises its `execute()` path (state transition + outbox + documented
+  failure modes). Incidental coverage via `test_trignotify.py` or scenario
+  demos is insufficient — when `triggers/case.py` accumulated 26 commits in
+  90 days (#652), half its use cases had no dedicated test and regressions
+  in case logic shipped behind embargo fixes. Also avoid bundling
+  case-trigger and embargo-trigger changes in the same PR unless the change
+  is intrinsically cross-cutting; bundled diffs let reviewers miss
+  regressions in the half they aren't focused on. See
+  [notes/triggers-test-coverage.md](notes/triggers-test-coverage.md).
 - **Adding a New Pitfall: Check the Routing Policy First** — see
   [notes/agents-md-structure.md](notes/agents-md-structure.md)
 
