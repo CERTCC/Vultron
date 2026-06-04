@@ -1,14 +1,14 @@
-"""Boundary tests for EmbargoLifecycle.propose_embargo (STRICT mode).
+"""Boundary tests for EmbargoLifecycle operations.
 
 These tests exercise the service through a real in-memory SqliteDataLayer so
 that persistence invariants are validated without mocking internals.
 
-Coverage required by #746 AC-5:
-  - valid transition (NO_EMBARGO → PROPOSED)
-  - invalid transition raises VultronInvalidStateTransitionError
-  - idempotent re-propose (PROPOSED → PROPOSED)
-  - owner vs. non-owner actors (propose is not ownership-gated)
-  - ACTIVE → REVISE cascade (PEC signatory → lapsed)
+Coverage required by #746 AC-5 (propose_embargo STRICT) and #747 AC-1 to AC-7:
+  - propose_embargo STRICT (original) and OBSERVED mode
+  - accept_embargo_invite STRICT and OBSERVED, owner vs. non-owner
+  - reject_embargo_invite STRICT and OBSERVED, owner vs. non-owner
+  - terminate_active_embargo STRICT and OBSERVED, PEC cascade
+  - record_participant_consent for ACCEPT, DECLINE, INVITE, RESET triggers
 """
 
 from collections.abc import Generator
@@ -31,10 +31,11 @@ from vultron.core.services.embargo_lifecycle import (
     TransitionMode,
 )
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.states.roles import CVDRole
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.core.use_cases._helpers import _as_id
 from vultron.wire.as2.vocab.objects.case_participant import (
     CaseParticipant,
     FinderParticipant,
@@ -274,22 +275,25 @@ def test_propose_embargo_invalid_state_raises(
         )
 
 
-def test_propose_embargo_observed_mode_raises_not_implemented(
+def test_propose_embargo_observed_mode_syncs_invalid_state(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """OBSERVED mode is not yet implemented and must raise NotImplementedError."""
+    """OBSERVED mode on an invalid start state force-syncs to PROPOSED (no raise)."""
     owner, dl = owner_and_dl
-    case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
+    # EXITED cannot normally transition to PROPOSED; OBSERVED syncs anyway
+    case, _ = _make_case(dl, owner.id_, em_state=EM.EXITED)
     embargo = _make_embargo(dl, case.id_)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
-    with pytest.raises(NotImplementedError):
-        lifecycle.propose_embargo(
-            case_id=case.id_,
-            embargo_id=embargo.id_,
-            actor_id=owner.id_,
-            transition_mode=TransitionMode.OBSERVED,
-        )
+    result = lifecycle.propose_embargo(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+        transition_mode=TransitionMode.OBSERVED,
+    )
+
+    # Must not raise; OBSERVED falls back to PROPOSED
+    assert result.em_after == EM.PROPOSED
 
 
 # ---------------------------------------------------------------------------
@@ -339,3 +343,495 @@ def test_propose_embargo_non_owner_succeeds(
     )
 
     assert result.em_after == EM.PROPOSED
+
+
+# ---------------------------------------------------------------------------
+# Tests: accept_embargo_invite
+# ---------------------------------------------------------------------------
+
+
+def test_accept_embargo_invite_owner_strict_valid(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Owner accepts an embargo invite: PROPOSED → ACTIVE, PEC updated."""
+    owner, dl = owner_and_dl
+    case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    owner_participant_id = participants[0].id_
+    embargo = _make_embargo(dl, case.id_)
+
+    # Seed owner to INVITED so ACCEPT transition is valid
+    owner_p = dl.read(owner_participant_id)
+    owner_p.embargo_consent_state = PEC.INVITED.value
+    dl.save(owner_p)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.accept_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+    )
+
+    assert result.em_before == EM.PROPOSED
+    assert result.em_after == EM.ACTIVE
+    assert result.case_embargo_changed is True
+
+    owner_participant = dl.read(owner_participant_id)
+    assert owner_participant.embargo_consent_state == PEC.SIGNATORY.value
+
+
+def test_accept_embargo_invite_non_owner_strict(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Non-owner accepting invite: only PEC updated, EM state unchanged."""
+    owner, dl = owner_and_dl
+    finder = _make_actor(dl, "Finder Org")
+    case, _ = _make_case(
+        dl,
+        owner.id_,
+        extra_participant_ids=[finder.id_],
+        em_state=EM.PROPOSED,
+    )
+    embargo = _make_embargo(dl, case.id_)
+
+    # Seed finder to INVITED so ACCEPT transition is valid
+    finder_participant_id = case.actor_participant_index.get(finder.id_)
+    assert finder_participant_id is not None
+    finder_p = dl.read(finder_participant_id)
+    finder_p.embargo_consent_state = PEC.INVITED.value
+    dl.save(finder_p)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.accept_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=finder.id_,  # non-owner
+    )
+
+    # EM must not change: only owner drives the EM machine
+    assert result.em_after == EM.PROPOSED
+    assert result.case_embargo_changed is False
+
+    finder_participant = dl.read(finder_participant_id)
+    assert finder_participant.embargo_consent_state == PEC.SIGNATORY.value
+
+
+def test_accept_embargo_invite_strict_invalid_state_raises(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Owner accept from EXITED state raises VultronInvalidStateTransitionError."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.EXITED)
+    embargo = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    with pytest.raises(VultronInvalidStateTransitionError):
+        lifecycle.accept_embargo_invite(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            actor_id=owner.id_,
+        )
+
+
+def test_accept_embargo_invite_observed_invalid_state_no_raise(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """OBSERVED mode: invalid start state syncs to ACTIVE without raising."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.EXITED)
+    embargo = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.accept_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+        transition_mode=TransitionMode.OBSERVED,
+    )
+
+    assert result.em_after == EM.ACTIVE
+
+
+def test_accept_embargo_invite_observed_already_active_syncs_embargo(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """OBSERVED accept when EM already ACTIVE but active_embargo differs: syncs."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.ACTIVE)
+    old_embargo = _make_embargo(dl, case.id_)
+    # Simulate active_embargo pointing at a different (old) embargo
+    case.active_embargo = old_embargo.id_
+    dl.save(case)
+
+    new_embargo = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.accept_embargo_invite(
+        case_id=case.id_,
+        embargo_id=new_embargo.id_,
+        actor_id=owner.id_,
+        transition_mode=TransitionMode.OBSERVED,
+    )
+
+    # EM stays ACTIVE (already there)
+    assert result.em_after == EM.ACTIVE
+    # But active_embargo must be updated to point at the new embargo
+    refreshed_case = dl.read(case.id_)
+    assert _as_id(refreshed_case.active_embargo) == new_embargo.id_
+
+
+def test_accept_embargo_invite_idempotent(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Accepting the same embargo twice is idempotent for PEC."""
+    owner, dl = owner_and_dl
+    case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    owner_participant_id = participants[0].id_
+    embargo = _make_embargo(dl, case.id_)
+
+    # Seed as INVITED so first ACCEPT is valid
+    owner_p = dl.read(owner_participant_id)
+    owner_p.embargo_consent_state = PEC.INVITED.value
+    dl.save(owner_p)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    lifecycle.accept_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+    )
+    # Second call: EM now ACTIVE; owner is non-owner w.r.t. EM gate (ACTIVE can't accept again)
+    # The PEC side should still be idempotent
+    lifecycle.accept_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+        transition_mode=TransitionMode.OBSERVED,
+    )
+
+    owner_participant = dl.read(owner_participant_id)
+    # accepted_embargo_ids should not contain duplicates
+    assert owner_participant.accepted_embargo_ids.count(embargo.id_) == 1
+
+
+# ---------------------------------------------------------------------------
+# Tests: reject_embargo_invite
+# ---------------------------------------------------------------------------
+
+
+def test_reject_embargo_invite_owner_proposed_to_none(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Owner rejects from PROPOSED: EM → NO_EMBARGO, PEC updated."""
+    owner, dl = owner_and_dl
+    case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    owner_participant_id = participants[0].id_
+    embargo = _make_embargo(dl, case.id_)
+
+    # Seed owner to INVITED so DECLINE transition is valid
+    owner_p = dl.read(owner_participant_id)
+    owner_p.embargo_consent_state = PEC.INVITED.value
+    dl.save(owner_p)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.reject_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+    )
+
+    assert result.em_before == EM.PROPOSED
+    assert result.em_after == EM.NONE
+    assert result.case_changed is True
+
+    owner_participant = dl.read(owner_participant_id)
+    assert owner_participant.embargo_consent_state == PEC.DECLINED.value
+
+
+def test_reject_embargo_invite_owner_revise_stays_active(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Owner rejects from REVISE: EM → ACTIVE (not terminated)."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.REVISE)
+    embargo = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.reject_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+    )
+
+    assert result.em_before == EM.REVISE
+    assert result.em_after == EM.ACTIVE
+
+
+def test_reject_embargo_invite_non_owner_strict(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Non-owner rejecting: only PEC updated, EM state unchanged."""
+    owner, dl = owner_and_dl
+    finder = _make_actor(dl, "Finder Org")
+    case, _ = _make_case(
+        dl,
+        owner.id_,
+        extra_participant_ids=[finder.id_],
+        em_state=EM.PROPOSED,
+    )
+    embargo = _make_embargo(dl, case.id_)
+
+    # Seed finder to INVITED so DECLINE transition is valid
+    finder_participant_id = case.actor_participant_index.get(finder.id_)
+    assert finder_participant_id is not None
+    finder_p = dl.read(finder_participant_id)
+    finder_p.embargo_consent_state = PEC.INVITED.value
+    dl.save(finder_p)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.reject_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=finder.id_,
+    )
+
+    assert result.em_after == EM.PROPOSED  # EM unchanged
+
+    finder_participant = dl.read(finder_participant_id)
+    assert finder_participant.embargo_consent_state == PEC.DECLINED.value
+
+
+def test_reject_embargo_invite_strict_invalid_state_raises(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Reject from invalid EM state (NO_EMBARGO) raises in STRICT mode."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
+    embargo = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    with pytest.raises(VultronInvalidStateTransitionError):
+        lifecycle.reject_embargo_invite(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            actor_id=owner.id_,
+        )
+
+
+def test_reject_embargo_invite_observed_invalid_no_raise(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """OBSERVED mode: invalid start state syncs to fallback without raising."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
+    embargo = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.reject_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+        transition_mode=TransitionMode.OBSERVED,
+    )
+
+    assert result.em_after == EM.NONE
+
+
+# ---------------------------------------------------------------------------
+# Tests: terminate_active_embargo
+# ---------------------------------------------------------------------------
+
+
+def test_terminate_active_embargo_strict_active_to_exited(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Terminate from ACTIVE: EM → EXITED, PEC of all participants reset."""
+    owner, dl = owner_and_dl
+    finder = _make_actor(dl, "Finder Org")
+    case, participants = _make_case(
+        dl,
+        owner.id_,
+        extra_participant_ids=[finder.id_],
+        em_state=EM.ACTIVE,
+    )
+    owner_participant_id = participants[0].id_
+    embargo = _make_embargo(dl, case.id_)
+    case.active_embargo = embargo.id_
+    dl.save(case)
+
+    # Set owner PEC to SIGNATORY to verify it gets reset
+    owner_participant = dl.read(owner_participant_id)
+    owner_participant.embargo_consent_state = PEC.SIGNATORY.value
+    dl.save(owner_participant)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.terminate_active_embargo(
+        case_id=case.id_,
+        actor_id=owner.id_,
+    )
+
+    assert result.em_before == EM.ACTIVE
+    assert result.em_after == EM.EXITED
+    assert result.pec_reset is True
+
+    refreshed_owner_participant = dl.read(owner_participant_id)
+    assert (
+        refreshed_owner_participant.embargo_consent_state
+        == PEC.NO_EMBARGO.value
+    )
+
+
+def test_terminate_active_embargo_strict_revise_to_exited(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Terminate from REVISE: EM → EXITED."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.REVISE)
+    embargo = _make_embargo(dl, case.id_)
+    case.active_embargo = embargo.id_
+    dl.save(case)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.terminate_active_embargo(
+        case_id=case.id_,
+        actor_id=owner.id_,
+    )
+
+    assert result.em_after == EM.EXITED
+
+
+def test_terminate_active_embargo_strict_no_active_embargo_raises(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """STRICT terminate with no active_embargo raises VultronInvalidStateTransitionError."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.ACTIVE)
+    # active_embargo deliberately not set on the case
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    with pytest.raises(VultronInvalidStateTransitionError):
+        lifecycle.terminate_active_embargo(
+            case_id=case.id_,
+            actor_id=owner.id_,
+        )
+
+
+def test_terminate_active_embargo_strict_invalid_em_state_raises(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """STRICT terminate from PROPOSED (not ACTIVE/REVISE) raises."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    embargo = _make_embargo(dl, case.id_)
+    case.active_embargo = embargo.id_
+    dl.save(case)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    with pytest.raises(VultronInvalidStateTransitionError):
+        lifecycle.terminate_active_embargo(
+            case_id=case.id_,
+            actor_id=owner.id_,
+        )
+
+
+def test_terminate_active_embargo_observed_invalid_no_raise(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """OBSERVED mode: invalid EM state syncs to EXITED without raising."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    embargo = _make_embargo(dl, case.id_)
+    case.active_embargo = embargo.id_
+    dl.save(case)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.terminate_active_embargo(
+        case_id=case.id_,
+        actor_id=owner.id_,
+        transition_mode=TransitionMode.OBSERVED,
+    )
+
+    assert result.em_after == EM.EXITED
+
+
+# ---------------------------------------------------------------------------
+# Tests: record_participant_consent
+# ---------------------------------------------------------------------------
+
+
+def test_record_participant_consent_accept_trigger(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """ACCEPT trigger moves INVITED participant to SIGNATORY."""
+    owner, dl = owner_and_dl
+    case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    owner_participant_id = participants[0].id_
+    embargo = _make_embargo(dl, case.id_)
+
+    # Set owner participant to INVITED so ACCEPT is valid
+    owner_p = dl.read(owner_participant_id)
+    owner_p.embargo_consent_state = PEC.INVITED.value
+    dl.save(owner_p)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.record_participant_consent(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+        pec_trigger=PEC_Trigger.ACCEPT,
+    )
+
+    assert result.case_changed is False
+    assert result.case_embargo_changed is False
+
+    refreshed = dl.read(owner_participant_id)
+    assert refreshed.embargo_consent_state == PEC.SIGNATORY.value
+    assert embargo.id_ in refreshed.accepted_embargo_ids
+
+
+def test_record_participant_consent_decline_trigger(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """DECLINE trigger moves LAPSED participant to DECLINED and removes embargo ID."""
+    owner, dl = owner_and_dl
+    case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    owner_participant_id = participants[0].id_
+    embargo = _make_embargo(dl, case.id_)
+
+    # Seed as LAPSED (SIGNATORY → LAPSED after revise) with accepted embargo
+    owner_p = dl.read(owner_participant_id)
+    owner_p.embargo_consent_state = PEC.LAPSED.value
+    owner_p.accepted_embargo_ids = [embargo.id_]
+    dl.save(owner_p)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    lifecycle.record_participant_consent(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+        pec_trigger=PEC_Trigger.DECLINE,
+    )
+
+    refreshed = dl.read(owner_participant_id)
+    assert refreshed.embargo_consent_state == PEC.DECLINED.value
+    assert embargo.id_ not in refreshed.accepted_embargo_ids
+
+
+def test_record_participant_consent_actor_not_in_case(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Actor without a CaseParticipant: result has no pec changes, no crash."""
+    owner, dl = owner_and_dl
+    outsider = _make_actor(dl, "Outsider Org")
+    case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    embargo = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.record_participant_consent(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=outsider.id_,  # not in case
+        pec_trigger=PEC_Trigger.ACCEPT,
+    )
+
+    assert result.participant_changes == []
+    assert result.case_changed is False
