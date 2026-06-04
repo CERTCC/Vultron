@@ -11,7 +11,7 @@ related_specs:
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/case-state-model.md
-  - vultron/core/ports/AGENTS.md
+  - notes/datalayer-design.md
 relevant_packages:
   - pydantic
   - vultron/wire/as2
@@ -233,7 +233,7 @@ Before implementing the outbound path (domain event → AS2 activity), consider:
 - `specs/code-style.yaml` CS-10-001 — typed Pydantic objects at port/adapter boundaries
 - `specs/code-style.yaml` CS-10-002 — `FooActivity` vs `FooEvent` naming convention
 - `specs/datalayer.yaml` — DataLayer port requirements (auto-rehydration, type-safe writes)
-- `vultron/core/ports/AGENTS.md` — DataLayer design notes (auto-rehydration decision,
+- `notes/datalayer-design.md` — DataLayer design notes (auto-rehydration decision,
   storage record evaluation, vocabulary registry entanglement)
 - `notes/case-state-model.md` — CaseStatus/ParticipantStatus append-only
   history model
