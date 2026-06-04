@@ -29,7 +29,7 @@ Import directly from those modules for new code:
 - ``vultron.core.models.note`` — VultronNote
 - ``vultron.core.models.participant`` — VultronParticipant
 - ``vultron.core.models.participant_status`` — ParticipantStatus
-- ``vultron.core.models.report`` — VultronReport
+- ``vultron.core.models.report`` — VulnerabilityReport (VultronReport is an alias)
 """
 
 from vultron.core.models.activity import (
@@ -47,7 +47,7 @@ from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.note import VultronNote
 from vultron.core.models.participant import VultronParticipant
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.report import VultronReport
+from vultron.core.models.report import VulnerabilityReport, VultronReport
 
 __all__ = [
     "VultronAccept",
@@ -65,5 +65,6 @@ __all__ = [
     "VultronOutbox",
     "VultronParticipant",
     "ParticipantStatus",
+    "VulnerabilityReport",
     "VultronReport",
 ]
