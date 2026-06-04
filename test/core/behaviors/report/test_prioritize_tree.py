@@ -25,7 +25,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.vultron_types import (
     VultronCase,
     VultronCaseActor,
@@ -54,12 +54,12 @@ def _make_participant_in_valid_state(
         attributed_to=attributed_to,
         context=context,
         participant_statuses=[
-            VultronParticipantStatus(
+            ParticipantStatus(
                 attributed_to=attributed_to,
                 context=context,
                 rm_state=RM.RECEIVED,
             ),
-            VultronParticipantStatus(
+            ParticipantStatus(
                 attributed_to=attributed_to,
                 context=context,
                 rm_state=RM.VALID,

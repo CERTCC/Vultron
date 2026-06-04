@@ -28,7 +28,7 @@ from py_trees.composites import Sequence
 from typing import cast, Any
 
 from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.use_cases._helpers import _report_phase_status_id
 from vultron.core.models.vultron_types import (
     VultronOffer,
@@ -91,7 +91,7 @@ def test_check_rm_state_valid_when_valid(
     bt_scenario: BTTestScenario, actor: VultronCaseActor, report: VultronReport
 ) -> None:
     """CheckRMStateValid returns SUCCESS when report is VALID."""
-    status = VultronParticipantStatus(
+    status = ParticipantStatus(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.VALID.value),
         context=report.id_,
         attributed_to=actor.id_,
@@ -109,7 +109,7 @@ def test_check_rm_state_valid_when_received(
     bt_scenario: BTTestScenario, actor: VultronCaseActor, report: VultronReport
 ) -> None:
     """CheckRMStateValid returns FAILURE when report is RECEIVED (no VALID record)."""
-    status = VultronParticipantStatus(
+    status = ParticipantStatus(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.RECEIVED.value),
         context=report.id_,
         attributed_to=actor.id_,
@@ -137,7 +137,7 @@ def test_check_rm_state_received_or_invalid_when_received(
     bt_scenario: BTTestScenario, actor: VultronCaseActor, report: VultronReport
 ) -> None:
     """CheckRMStateReceivedOrInvalid returns SUCCESS when RECEIVED."""
-    status = VultronParticipantStatus(
+    status = ParticipantStatus(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.RECEIVED.value),
         context=report.id_,
         attributed_to=actor.id_,
@@ -155,7 +155,7 @@ def test_check_rm_state_received_or_invalid_when_invalid(
     bt_scenario: BTTestScenario, actor: VultronCaseActor, report: VultronReport
 ) -> None:
     """CheckRMStateReceivedOrInvalid returns SUCCESS when INVALID."""
-    status = VultronParticipantStatus(
+    status = ParticipantStatus(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.INVALID.value),
         context=report.id_,
         attributed_to=actor.id_,
@@ -173,7 +173,7 @@ def test_check_rm_state_received_or_invalid_when_valid(
     bt_scenario: BTTestScenario, actor: VultronCaseActor, report: VultronReport
 ) -> None:
     """CheckRMStateReceivedOrInvalid returns FAILURE when VALID."""
-    status = VultronParticipantStatus(
+    status = ParticipantStatus(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.VALID.value),
         context=report.id_,
         attributed_to=actor.id_,

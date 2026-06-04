@@ -26,7 +26,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.use_cases._helpers import _report_phase_status_id
 from vultron.core.models.vultron_types import (
     VultronCaseActor,
@@ -304,7 +304,7 @@ def test_tree_execution_early_exit_already_valid(
 ):
     """Tree short-circuits if report already in VALID state."""
     # Arrange: Set report to VALID state in DataLayer
-    valid_status = VultronParticipantStatus(
+    valid_status = ParticipantStatus(
         id_=_report_phase_status_id(actor_id, report.id_, RM.VALID.value),
         context=report.id_,
         attributed_to=actor_id,
@@ -333,7 +333,7 @@ def test_tree_execution_invalid_state_transitions_to_valid(
 ):
     """Tree can validate report from INVALID state."""
     # Arrange: Set report to INVALID state in DataLayer (no VALID record present)
-    invalid_status = VultronParticipantStatus(
+    invalid_status = ParticipantStatus(
         id_=_report_phase_status_id(actor_id, report.id_, RM.INVALID.value),
         context=report.id_,
         attributed_to=actor_id,

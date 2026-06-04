@@ -31,7 +31,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.actor_config import ActorConfig
 from vultron.core.models.enums import VultronObjectType
-from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import CaseModel, has_outbox, is_case_model
 from vultron.core.models.vultron_types import VultronCase, VultronParticipant
 from vultron.core.ports.case_persistence import (
@@ -138,7 +138,7 @@ def _build_owner_initial_status(
     case_id: str,
     report_id: str | None,
     initial_rm_state: RM,
-) -> VultronParticipantStatus:
+) -> ParticipantStatus:
     if report_id is not None:
         status_id = _report_phase_status_id(
             actor_id,
@@ -146,14 +146,14 @@ def _build_owner_initial_status(
             initial_rm_state.value,
         )
         if dl.read(status_id) is not None:
-            return VultronParticipantStatus(
+            return ParticipantStatus(
                 id_=status_id,
                 context=case_id,
                 rm_state=initial_rm_state,
                 attributed_to=actor_id,
             )
 
-    return VultronParticipantStatus(
+    return ParticipantStatus(
         context=case_id,
         rm_state=initial_rm_state,
         attributed_to=actor_id,
@@ -202,7 +202,7 @@ def _get_or_create_accepted_status(
     report_id: str | None,
     node_name: str,
     node_logger: logging.Logger,
-) -> VultronParticipantStatus | None:
+) -> ParticipantStatus | None:
     if report_id is None:
         return None
 
@@ -212,7 +212,7 @@ def _get_or_create_accepted_status(
         RM.ACCEPTED.value,
     )
     existing = dl.read(accepted_status_id)
-    if isinstance(existing, VultronParticipantStatus):
+    if isinstance(existing, ParticipantStatus):
         return existing
 
     node_logger.info(
@@ -221,7 +221,7 @@ def _get_or_create_accepted_status(
         node_name,
         actor_id,
     )
-    accepted_status = VultronParticipantStatus(
+    accepted_status = ParticipantStatus(
         id_=accepted_status_id,
         context=report_id,
         rm_state=RM.ACCEPTED,
@@ -310,7 +310,7 @@ class CreateCaseOwnerParticipant(DataLayerAction):
     ``report_id`` is provided, the node first looks for an existing status
     record in the DataLayer (created by an earlier use case) and reuses it
     to avoid duplicating history. If no existing record is found, a fresh
-    ``VultronParticipantStatus`` is created.
+    ``ParticipantStatus`` is created.
 
     Optionally advances the actor's RM to ACCEPTED
     (``advance_to_accepted=True``) after the participant is created — use
@@ -414,7 +414,7 @@ class CreateCaseParticipantNode(DataLayerAction):
     and ``roles`` (the CVD roles to assign).
 
     When ``report_id`` is supplied, the node reuses the deterministic
-    report-phase ``VultronParticipantStatus`` for ``RM.ACCEPTED`` that was
+    report-phase ``ParticipantStatus`` for ``RM.ACCEPTED`` that was
     created during ``SubmitReportReceivedUseCase``, preserving engagement
     history.
 

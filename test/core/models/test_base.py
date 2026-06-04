@@ -14,11 +14,11 @@ from vultron.core.models.activity import (
 from vultron.core.models.base import VultronObject
 from vultron.core.models.case import VultronCase
 from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.case_status import VultronCaseStatus
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import VultronEmbargoEvent
 from vultron.core.models.note import VultronNote
 from vultron.core.models.participant import VultronParticipant
-from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VultronReport
 
 DOMAIN_OBJECT_CLASSES = [
@@ -26,7 +26,7 @@ DOMAIN_OBJECT_CLASSES = [
     VultronCase,
     VultronNote,
     VultronParticipant,
-    VultronCaseStatus,
+    CaseStatus,
     VultronEmbargoEvent,
     VultronCaseActor,
     VultronActivity,
@@ -43,7 +43,7 @@ REQUIRED_KWARGS: dict[type, dict] = {
         "context": "urn:uuid:case-123",
         "attributed_to": "urn:uuid:actor-456",
     },
-    VultronCaseStatus: {
+    CaseStatus: {
         "context": "urn:uuid:case-123",
         "attributed_to": "urn:uuid:actor-456",
     },
@@ -95,9 +95,9 @@ def test_has_name_field(cls):
 
 def test_vultron_participant_status_context_required():
     with pytest.raises(ValidationError):
-        VultronParticipantStatus()
-    ps = VultronParticipantStatus(context="urn:uuid:case-123")
-    assert issubclass(VultronParticipantStatus, VultronObject)
+        ParticipantStatus()
+    ps = ParticipantStatus(context="urn:uuid:case-123")
+    assert issubclass(ParticipantStatus, VultronObject)
     assert ps.id_.startswith("urn:uuid:")
     assert ps.type_ == "ParticipantStatus"
     assert ps.context == "urn:uuid:case-123"
@@ -129,9 +129,7 @@ def test_domain_object_expected_as_types():
         == "CaseParticipant"
     )
     assert (
-        VultronCaseStatus(
-            context="urn:uuid:c", attributed_to="urn:uuid:a"
-        ).type_
+        CaseStatus(context="urn:uuid:c", attributed_to="urn:uuid:a").type_
         == "CaseStatus"
     )
     assert (
@@ -166,10 +164,12 @@ def test_vultron_participant_required_fields():
 
 def test_vultron_case_status_required_fields():
     with pytest.raises(Exception):
-        VultronCaseStatus()
-    with pytest.raises(Exception):
-        VultronCaseStatus(context="urn:uuid:case-123")
-    cs = VultronCaseStatus(
+        CaseStatus()
+    # attributed_to is optional; context alone is sufficient
+    cs_no_attr = CaseStatus(context="urn:uuid:case-123")
+    assert cs_no_attr.context == "urn:uuid:case-123"
+    assert cs_no_attr.attributed_to is None
+    cs = CaseStatus(
         context="urn:uuid:case-123", attributed_to="urn:uuid:actor-456"
     )
     assert cs.context == "urn:uuid:case-123"
@@ -196,7 +196,7 @@ def test_vultron_case_init_case_statuses():
 
     case_with_actor = VultronCase(attributed_to="urn:uuid:actor-123")
     assert len(case_with_actor.case_statuses) == 1
-    assert isinstance(case_with_actor.case_statuses[0], VultronCaseStatus)
+    assert isinstance(case_with_actor.case_statuses[0], CaseStatus)
     assert case_with_actor.case_statuses[0].context == case_with_actor.id_
     assert (
         case_with_actor.case_statuses[0].attributed_to == "urn:uuid:actor-123"
@@ -205,15 +205,13 @@ def test_vultron_case_init_case_statuses():
     case_existing_statuses = VultronCase(
         attributed_to="urn:uuid:actor-123",
         case_statuses=[
-            VultronCaseStatus(
+            CaseStatus(
                 context="urn:uuid:case-123", attributed_to="urn:uuid:actor-456"
             )
         ],
     )
     assert len(case_existing_statuses.case_statuses) == 1
-    assert isinstance(
-        case_existing_statuses.case_statuses[0], VultronCaseStatus
-    )
+    assert isinstance(case_existing_statuses.case_statuses[0], CaseStatus)
     assert case_existing_statuses.case_statuses[0].attributed_to is not None
     assert (
         case_existing_statuses.case_statuses[0].attributed_to

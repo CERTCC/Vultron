@@ -14,7 +14,7 @@ from vultron.core.models.events.case import (
     UpdateCaseReceivedEvent,
 )
 from vultron.core.models.participant import VultronParticipant
-from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.vultron_types import VultronActivity
 from vultron.core.ports.case_persistence import (
@@ -250,7 +250,7 @@ def _ensure_reporter_participant(
         )
         return
 
-    status = VultronParticipantStatus(
+    status = ParticipantStatus(
         rm_state=RM.ACCEPTED,
         context=case_id,
         attributed_to=reporter_actor_id,
@@ -292,7 +292,7 @@ def _upgrade_participant_to_accepted(
     participant container expects.  This avoids wire/domain type mismatches when
     appending to ``CaseParticipant.participant_statuses``.
     """
-    upgrade_status = VultronParticipantStatus(
+    upgrade_status = ParticipantStatus(
         rm_state=RM.ACCEPTED,
         context=case_id,
         attributed_to=reporter_actor_id,

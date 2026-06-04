@@ -12,7 +12,7 @@ import pytest
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import VultronObject
 from vultron.core.models.case import VultronCase
-from vultron.core.models.case_status import VultronCaseStatus
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import VultronEmbargoEvent
 from vultron.core.models.events.actor import (
     AcceptCaseManagerRoleReceivedEvent,
@@ -66,7 +66,7 @@ from vultron.core.models.events.status import (
 )
 from vultron.core.models.note import VultronNote
 from vultron.core.models.participant import VultronParticipant
-from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VultronReport
 
 # Shared required fields for all VultronEvent instances.
@@ -88,12 +88,12 @@ _participant = VultronParticipant(
     context=_CASE_URI,
     attributed_to=_ACTOR_URI,
 )
-_case_status = VultronCaseStatus(
+_case_status = CaseStatus(
     id_="https://example.org/statuses/cs1",
     context=_CASE_URI,
     attributed_to=_ACTOR_URI,
 )
-_participant_status = VultronParticipantStatus(
+_participant_status = ParticipantStatus(
     id_="https://example.org/statuses/ps1",
     context=_CASE_URI,
 )

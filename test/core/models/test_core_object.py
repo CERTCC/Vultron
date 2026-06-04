@@ -53,14 +53,22 @@ def test_core_object_default_instance():
     assert obj.updated is not None
 
 
-def test_core_object_context_alias_serializes_as_at_context():
+def test_core_object_context_alias_accepted_but_excluded_from_dump():
+    """@context is accepted on input but excluded from serialization.
+
+    ``context_`` is a wire-layer concern (JSON-LD ``@context``); it is
+    validated when present in incoming data but intentionally omitted from
+    ``model_dump()`` output so that core objects can be round-tripped
+    through the DataLayer without colliding with the wire base's required
+    ``context_: str`` field.
+    """
     obj = CoreObject.model_validate(
         {"@context": "https://www.w3.org/ns/activitystreams"}
     )
     assert obj.context_ == "https://www.w3.org/ns/activitystreams"
+    # excluded from serialization — neither alias nor field name appears
     dumped = obj.model_dump(by_alias=True, exclude_none=True)
-    assert "@context" in dumped
-    assert dumped["@context"] == "https://www.w3.org/ns/activitystreams"
+    assert "@context" not in dumped
     assert "context_" not in dumped
 
 

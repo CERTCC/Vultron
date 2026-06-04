@@ -84,7 +84,7 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
     from vultron.core.behaviors.case.receive_report_case_tree import (
         create_receive_report_case_tree,
     )
-    from vultron.core.models.participant_status import VultronParticipantStatus
+    from vultron.core.models.participant_status import ParticipantStatus
     from vultron.core.models.vultron_types import (
         VultronCaseActor,
         VultronOffer,
@@ -130,7 +130,7 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
     )
     dl.create(offer)
 
-    reporter_status = VultronParticipantStatus(
+    reporter_status = ParticipantStatus(
         id_=_report_phase_status_id(
             _reporter_actor_id, _report_id, RM.ACCEPTED.value
         ),
@@ -140,7 +140,7 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
     )
     dl.create(reporter_status)
 
-    vendor_status = VultronParticipantStatus(
+    vendor_status = ParticipantStatus(
         id_=_report_phase_status_id(_actor_id, _report_id, RM.RECEIVED.value),
         context=_report_id,
         attributed_to=_actor_id,

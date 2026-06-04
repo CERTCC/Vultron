@@ -29,7 +29,10 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.participant import VultronParticipant
-from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.wire.as2.vocab.objects.case_status import (
+    ParticipantStatus as WireParticipantStatus,
+)
 from vultron.core.models.report import VultronReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.cs import CS_vfd
@@ -53,7 +56,6 @@ from vultron.wire.as2.vocab.objects.case_participant import (
     CaseActorParticipant,
     CaseParticipant,
 )
-from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 # ---------------------------------------------------------------------------
@@ -488,7 +490,7 @@ class TestM4AddParticipantStatusAfterBootstrap:
         # The status is NOT pre-created — it arrives inline in the activity, so
         # AppendParticipantStatusNode must resolve it from the fallback and
         # persist it independently.
-        status = ParticipantStatus(
+        status = WireParticipantStatus(
             id_=_vfd_status_id,
             context=_CASE_ID,
             vfd_state=CS_vfd.VFd,
@@ -722,7 +724,7 @@ class TestBootstrapReporterUpgradesFromStart:
 
     def _pre_seed_participant(self, dl, rm_state: RM) -> VultronParticipant:
         """Store a finder participant at the given rm_state before bootstrap."""
-        status = VultronParticipantStatus(
+        status = ParticipantStatus(
             rm_state=rm_state,
             context=self._CASE_ID,
             attributed_to=self._FINDER_ID,
