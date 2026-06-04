@@ -39,7 +39,11 @@ from vultron.core.behaviors.status.add_participant_status_tree import (
 from vultron.core.behaviors.status.nodes import (
     AppendParticipantStatusNode,
     AutoCloseBranchNode,
+    BroadcastQueueToOutboxNode,
     BroadcastStatusToPeersNode,
+    CreateStatusBroadcastActivityNode,
+    FilterPeerRecipientsNode,
+    FindCaseManagerNode,
     PublicDisclosureBranchNode,
     VerifySenderIsParticipantNode,
 )
@@ -406,6 +410,286 @@ class TestBroadcastStatusToPeersNode:
             actor=CASE_MANAGER_ID,
             to=[peer_actor_id],
         )
+
+
+# ---------------------------------------------------------------------------
+# Step 3 leaf nodes: FindCaseManagerNode
+# ---------------------------------------------------------------------------
+
+
+PEER_ACTOR_ID = "https://example.org/actors/finder"
+PEER_PARTICIPANT_ID = "https://example.org/cases/case-01/participants/finder"
+
+
+@pytest.fixture
+def peer_participant():
+    return CaseParticipant(
+        id_=PEER_PARTICIPANT_ID,
+        context=CASE_ID,
+        attributed_to=PEER_ACTOR_ID,
+        case_roles=[CVDRole.FINDER],
+    )
+
+
+@pytest.fixture
+def populated_dl_with_peer(populated_dl, peer_participant):
+    """DataLayer with vendor, Case Manager, and a third peer participant."""
+    populated_dl.create(peer_participant)
+    case = populated_dl.read(CASE_ID)
+    assert case is not None
+    case.actor_participant_index[PEER_ACTOR_ID] = PEER_PARTICIPANT_ID
+    populated_dl.save(case)
+    return populated_dl
+
+
+class TestFindCaseManagerNode:
+    def test_returns_failure_without_case_id(self, populated_bridge):
+        """case_id=None → FAILURE (prerequisite missing)."""
+        node = FindCaseManagerNode(case_id=None)
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.FAILURE
+
+    def test_returns_failure_when_case_not_found(self, bridge):
+        """case_id set but no matching case in DataLayer → FAILURE."""
+        node = FindCaseManagerNode(case_id=CASE_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.FAILURE
+
+    def test_returns_failure_when_no_case_manager(self, dl):
+        """Case exists but has no CASE_MANAGER participant → FAILURE."""
+        case_no_mgr = VulnerabilityCase(id_=CASE_ID, name="No Manager")
+        participant_no_mgr = CaseParticipant(
+            id_=PARTICIPANT_ID,
+            context=CASE_ID,
+            attributed_to=ACTOR_ID,
+            case_roles=[CVDRole.CASE_OWNER],
+        )
+        case_no_mgr.actor_participant_index[ACTOR_ID] = PARTICIPANT_ID
+        dl.create(case_no_mgr)
+        dl.create(participant_no_mgr)
+        bridge_no_mgr = BTBridge(datalayer=dl)
+        node = FindCaseManagerNode(case_id=CASE_ID)
+        result = bridge_no_mgr.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+
+    def test_returns_success_and_writes_blackboard(self, populated_bridge):
+        """Happy path: writes broadcast_case_manager_id to blackboard."""
+        node = FindCaseManagerNode(case_id=CASE_ID)
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.SUCCESS
+        assert (
+            py_trees.blackboard.Blackboard.storage[
+                "/broadcast_case_manager_id"
+            ]
+            == CASE_MANAGER_ID
+        )
+
+
+# ---------------------------------------------------------------------------
+# Step 3 leaf nodes: FilterPeerRecipientsNode
+# ---------------------------------------------------------------------------
+
+
+class TestFilterPeerRecipientsNode:
+    def _run_find_then_filter(self, dl, actor_id, sender_actor_id=ACTOR_ID):
+        """Helper: run FindCaseManagerNode then FilterPeerRecipientsNode."""
+        seq = py_trees.composites.Sequence(
+            name="TestSeq",
+            memory=False,
+            children=[
+                FindCaseManagerNode(case_id=CASE_ID),
+                FilterPeerRecipientsNode(
+                    sender_actor_id=sender_actor_id, case_id=CASE_ID
+                ),
+            ],
+        )
+        bridge = BTBridge(datalayer=dl)
+        return bridge.execute_with_setup(tree=seq, actor_id=actor_id)
+
+    def test_returns_failure_without_case_id(self, populated_dl):
+        """case_id=None → FAILURE from FilterPeerRecipientsNode."""
+        seq = py_trees.composites.Sequence(
+            name="TestSeq",
+            memory=False,
+            children=[
+                FindCaseManagerNode(case_id=CASE_ID),
+                FilterPeerRecipientsNode(
+                    sender_actor_id=ACTOR_ID, case_id=None
+                ),
+            ],
+        )
+        bridge = BTBridge(datalayer=populated_dl)
+        result = bridge.execute_with_setup(tree=seq, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.FAILURE
+
+    def test_returns_failure_when_no_eligible_recipients(self, populated_dl):
+        """Only vendor and Case Manager in case → no peers after filtering."""
+        result = self._run_find_then_filter(
+            populated_dl,
+            actor_id=CASE_MANAGER_ID,
+            sender_actor_id=ACTOR_ID,
+        )
+        assert result.status == Status.FAILURE
+
+    def test_returns_success_with_eligible_peer(self, populated_dl_with_peer):
+        """Third peer exists and is not sender/self/manager → SUCCESS."""
+        result = self._run_find_then_filter(
+            populated_dl_with_peer,
+            actor_id=CASE_MANAGER_ID,
+            sender_actor_id=ACTOR_ID,
+        )
+        assert result.status == Status.SUCCESS
+        assert py_trees.blackboard.Blackboard.storage[
+            "/broadcast_peer_recipient_ids"
+        ] == [PEER_ACTOR_ID]
+
+    def test_excludes_sender_from_recipients(self, populated_dl_with_peer):
+        """Peer is the sender → excluded; vendor (ACTOR_ID) is still eligible."""
+        result = self._run_find_then_filter(
+            populated_dl_with_peer,
+            actor_id=CASE_MANAGER_ID,
+            sender_actor_id=PEER_ACTOR_ID,
+        )
+        # ACTOR_ID is not the sender, not self (CASE_MANAGER_ID), and not the
+        # Case Manager, so it remains as an eligible recipient.
+        assert result.status == Status.SUCCESS
+        assert py_trees.blackboard.Blackboard.storage[
+            "/broadcast_peer_recipient_ids"
+        ] == [ACTOR_ID]
+
+    def test_excludes_self_from_recipients(self, populated_dl_with_peer):
+        """Actor running as the peer → peer excluded from recipient list."""
+        result = self._run_find_then_filter(
+            populated_dl_with_peer,
+            actor_id=PEER_ACTOR_ID,
+            sender_actor_id=ACTOR_ID,
+        )
+        assert result.status == Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# Step 3 leaf nodes: CreateStatusBroadcastActivityNode
+# ---------------------------------------------------------------------------
+
+
+class TestCreateStatusBroadcastActivityNode:
+    def _run_to_create(self, dl, actor_id, trigger_activity=None):
+        """Run the three-node prefix ending at CreateStatusBroadcastActivityNode."""
+        seq = py_trees.composites.Sequence(
+            name="TestSeq",
+            memory=False,
+            children=[
+                FindCaseManagerNode(case_id=CASE_ID),
+                FilterPeerRecipientsNode(
+                    sender_actor_id=ACTOR_ID, case_id=CASE_ID
+                ),
+                CreateStatusBroadcastActivityNode(
+                    status_id=STATUS_ID,
+                    participant_id=PARTICIPANT_ID,
+                ),
+            ],
+        )
+        bridge = BTBridge(datalayer=dl, trigger_activity=trigger_activity)
+        return bridge.execute_with_setup(tree=seq, actor_id=actor_id)
+
+    def test_returns_failure_without_trigger_activity_factory(
+        self, populated_dl_with_peer
+    ):
+        """No trigger_activity → CreateStatusBroadcastActivityNode FAILURE."""
+        result = self._run_to_create(
+            populated_dl_with_peer, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.FAILURE
+
+    def test_calls_factory_with_correct_args(self, populated_dl_with_peer):
+        """Calls factory with case_manager as actor and peer as recipient."""
+        trigger_activity = MagicMock()
+        trigger_activity.add_participant_status_to_participant.return_value = (
+            "urn:uuid:activity-1"
+        )
+        result = self._run_to_create(
+            populated_dl_with_peer,
+            actor_id=CASE_MANAGER_ID,
+            trigger_activity=trigger_activity,
+        )
+        assert result.status == Status.SUCCESS
+        trigger_activity.add_participant_status_to_participant.assert_called_once_with(
+            status_id=STATUS_ID,
+            participant_id=PARTICIPANT_ID,
+            actor=CASE_MANAGER_ID,
+            to=[PEER_ACTOR_ID],
+        )
+
+    def test_returns_failure_on_vultron_error(self, populated_dl_with_peer):
+        """VultronError from factory → FAILURE (non-fatal for caller)."""
+        from vultron.errors import VultronError
+
+        trigger_activity = MagicMock()
+        trigger_activity.add_participant_status_to_participant.side_effect = (
+            VultronError("factory error")
+        )
+        result = self._run_to_create(
+            populated_dl_with_peer,
+            actor_id=CASE_MANAGER_ID,
+            trigger_activity=trigger_activity,
+        )
+        assert result.status == Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# Step 3 leaf nodes: BroadcastQueueToOutboxNode
+# ---------------------------------------------------------------------------
+
+
+class TestBroadcastQueueToOutboxNode:
+    def _run_full_broadcast_sequence(
+        self, dl, actor_id, trigger_activity=None
+    ):
+        """Run the full four-node broadcast inner sequence."""
+        seq = py_trees.composites.Sequence(
+            name="TestSeq",
+            memory=False,
+            children=[
+                FindCaseManagerNode(case_id=CASE_ID),
+                FilterPeerRecipientsNode(
+                    sender_actor_id=ACTOR_ID, case_id=CASE_ID
+                ),
+                CreateStatusBroadcastActivityNode(
+                    status_id=STATUS_ID,
+                    participant_id=PARTICIPANT_ID,
+                ),
+                BroadcastQueueToOutboxNode(),
+            ],
+        )
+        bridge = BTBridge(datalayer=dl, trigger_activity=trigger_activity)
+        return bridge.execute_with_setup(tree=seq, actor_id=actor_id)
+
+    def test_full_sequence_succeeds(self, populated_dl_with_peer):
+        """Full four-node broadcast sequence succeeds end-to-end."""
+        trigger_activity = MagicMock()
+        trigger_activity.add_participant_status_to_participant.return_value = (
+            "urn:uuid:activity-1"
+        )
+        result = self._run_full_broadcast_sequence(
+            populated_dl_with_peer,
+            actor_id=CASE_MANAGER_ID,
+            trigger_activity=trigger_activity,
+        )
+        assert result.status == Status.SUCCESS
+
+    def test_returns_failure_without_blackboard_keys(self):
+        """BroadcastQueueToOutboxNode returns FAILURE when broadcast blackboard
+        keys are missing (no prior FindCaseManagerNode run)."""
+        node = BroadcastQueueToOutboxNode()
+        dl_empty = SqliteDataLayer("sqlite:///:memory:")
+        bridge = BTBridge(datalayer=dl_empty)
+        # Without pre-populated blackboard keys the node returns FAILURE
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.FAILURE
 
 
 # ---------------------------------------------------------------------------
