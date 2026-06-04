@@ -42,7 +42,6 @@ from vultron.core.behaviors.case.nodes.communication import (
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckCaseAlreadyExists,
     CheckCaseExistsForReport,
-    ValidateCaseObject,
 )
 from vultron.core.behaviors.case.nodes.embargo import (
     InitializeDefaultEmbargoNode,
@@ -59,7 +58,6 @@ __all__ = [
     # conditions
     "CheckCaseAlreadyExists",
     "CheckCaseExistsForReport",
-    "ValidateCaseObject",
     # case_setup
     "PersistCase",
     "SetCaseAttributedTo",

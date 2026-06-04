@@ -16,17 +16,21 @@
 """
 Unit tests for case condition nodes.
 
-Covers CheckCaseAlreadyExists, CheckCaseExistsForReport, and ValidateCaseObject.
+Covers CheckCaseAlreadyExists and CheckCaseExistsForReport.
 Per specs/idempotency.yaml ID-04-004.
+
+Also covers the construction-time guarantee that VultronCase rejects
+invalid id_ values (ARCH-10-001), which made the former ValidateCaseObject
+BT node redundant (removed in issue #716).
 """
 
 import pytest
 from py_trees.common import Status
+from pydantic import ValidationError
 
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckCaseAlreadyExists,
     CheckCaseExistsForReport,
-    ValidateCaseObject,
 )
 from vultron.core.models.vultron_types import (
     VultronCase,
@@ -197,22 +201,26 @@ class TestCheckCaseExistsForReport:
 
 
 # ---------------------------------------------------------------------------
-# ValidateCaseObject
+# VultronCase construction-time id_ contract (ARCH-10-001)
 # ---------------------------------------------------------------------------
 
 
-class TestValidateCaseObject:
-    """ValidateCaseObject returns SUCCESS for valid cases, FAILURE otherwise."""
+class TestVultronCaseIdContract:
+    """VultronCase rejects invalid id_ at construction time (ARCH-10-001).
 
-    def test_succeeds_for_valid_case(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        actor_id: str,
-        case_obj: VultronCase,
-    ) -> None:
-        result = bt_scenario.run(
-            ValidateCaseObject(case_obj=case_obj),
-            actor_id=actor_id,
-        )
-        assert result.status == Status.SUCCESS
+    This guarantees that any VultronCase object that exists at runtime already
+    has a valid non-empty id_, making a runtime BT validation node redundant
+    (see issue #716).
+    """
+
+    def test_empty_id_raises_validation_error(self) -> None:
+        with pytest.raises(ValidationError):
+            VultronCase(id_="")
+
+    def test_whitespace_only_id_raises_validation_error(self) -> None:
+        with pytest.raises(ValidationError):
+            VultronCase(id_="   ")
+
+    def test_auto_generated_id_is_nonempty(self) -> None:
+        case = VultronCase()
+        assert case.id_ and case.id_.strip()
