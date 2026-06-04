@@ -322,10 +322,15 @@ def test_trigger_engage_case_updates_participant_rm_state(
     assert found_accepted, "Participant RM state was not updated to ACCEPTED"
 
 
-def test_trigger_engage_case_no_participant_returns_202_with_warning(
+def test_trigger_engage_case_no_participant_returns_422(
     client_triggers, actor, case_without_participant, caplog
 ):
-    """engage-case succeeds and warns when actor has no participant record."""
+    """engage-case returns 422 when actor has no participant record in the case.
+
+    Pre-#712: the RM update silently failed and 202 was returned anyway.
+    Post-#712: the RM transition node is inside the BT; when it fails the BT
+    raises VultronValidationError which the router translates to HTTP 422.
+    """
     import logging
 
     with caplog.at_level(logging.WARNING):
@@ -333,7 +338,7 @@ def test_trigger_engage_case_no_participant_returns_202_with_warning(
             f"/actors/{actor.id_}/trigger/engage-case",
             json={"case_id": case_without_participant.id_},
         )
-    assert resp.status_code == status.HTTP_202_ACCEPTED
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     assert any("participant" in r.message.lower() for r in caplog.records)
 
 
