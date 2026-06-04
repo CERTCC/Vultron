@@ -71,7 +71,7 @@ if [ "${ISSUE_TYPE}" != "Idea" ] && [ "${ISSUE_TYPE}" != "Concern" ]; then
 fi
 ```
 
-For **Concern** issues, also query the parent epic (if any):
+For both issue types, also query the parent epic (if any):
 
 ```bash
 EPIC_NUMBER=$(gh api graphql -f query='{
@@ -92,26 +92,32 @@ Invoke the `orient-agent` skill to load required baseline context.
 Invoke the `grill-me` skill. Resolve every decision branch one at a time
 via `ask_user`, providing a recommendation for each. Cover:
 
-**For Idea:**
+**Both types (shared base):**
 
-1. **Spec scope** — What requirements should be captured? What is out of scope?
+1. **Scope** — What is in scope? What is explicitly out of scope?
+2. **Acceptance criteria** — How do we verify this is fully addressed?
+   Drive one GitHub issue per distinct AC cluster.
+3. **ADR determination** — Apply the `notes/specs-vs-adrs.md` decision tree
+   (MS-11-001 through MS-11-006). Form a recommendation with reasoning
+   (e.g., "This warrants an ADR because alternative X was meaningfully
+   evaluated and rejected"). Present the recommendation to the user for
+   approval or refinement before proceeding.
+
+**For Idea (additional):**
+
+1. **Spec scope** — What requirements should be captured?
 2. **Design decisions** — What alternatives were considered? Which is recommended?
 3. **Notes scope** — What implementation guidance should be documented?
-4. **ADR needed?** — Apply the `notes/specs-vs-adrs.md` decision tree
-   (MS-11-001 through MS-11-006). If a meaningful alternative was evaluated
-   and rejected, an ADR is warranted alongside the spec.
-5. **Acceptance criteria** — How do we verify the idea is fully implemented?
 
-**For Concern:**
+**For Concern (additional):**
 
 1. **Root cause** — What is actually broken, risky, or missing?
 2. **Impact** — What fails or degrades if left unaddressed?
 3. **Options** — 2–3 ways to address this concern.
 4. **Recommended approach** — Which option and why.
-5. **Acceptance criteria** — Drive one GitHub issue per distinct AC cluster.
-6. **Spec/notes gaps** — Does this concern reveal missing requirements or
+5. **Spec/notes gaps** — Does this concern reveal missing requirements or
    design decisions? Which file(s) should be added or changed?
-7. **AGENTS.md gap** — Is there a recurring implementation pitfall to capture?
+6. **AGENTS.md gap** — Is there a recurring implementation pitfall to capture?
 
 Do **not** write anything until grill-me is complete.
 
@@ -135,8 +141,8 @@ in Phase 3 (e.g., "wire layer", "BT integration", "embargo lifecycle").
 
 ### Phase 5 — Update Docs (conditional)
 
-**For Idea** — REQUIRED: write both files.
-**For Concern** — OPTIONAL: only if Phase 3 established a concrete gap.
+**For both types** — only if Phase 3 identified a concrete gap (docs changes
+are optional; skip this phase if no gap was found).
 
 - **`specs/<topic>.yaml`** — Add or amend requirements. Follow
   `specs/meta-specifications.yaml` conventions (ID scheme `PREFIX-NN-NNN`,
@@ -146,8 +152,9 @@ in Phase 3 (e.g., "wire layer", "BT integration", "embargo lifecycle").
   `status`). Update `notes/README.md` if adding a new file.
 - **`AGENTS.md`** — Append a new pitfall entry to the
   **Common Pitfalls** section if Phase 3 identified a recurring agent gap.
-- **ADR** — Draft `docs/adr/NNNN-<slug>.md` alongside the spec if warranted
-  (Idea only; see `notes/specs-vs-adrs.md`).
+- **ADR** — Draft `docs/adr/NNNN-<slug>.md` alongside the spec if the ADR
+  determination in Phase 3 recommended one (applies to both Ideas and
+  Concerns; see `notes/specs-vs-adrs.md`).
 
 Track created filenames:
 
@@ -185,33 +192,16 @@ No .py files changed." \
 ```
 
 > For both Idea and Concern, `Closes #N` in the PR body closes the issue
-> on merge. If no docs PR is opened (Concern with no doc gaps), close the
-> issue directly in Phase 9 instead.
+> on merge. If no docs PR is opened, close the issue directly in Phase 9
+> instead (applies to both types).
 
 ### Phase 8 — Create Implementation Issue(s)
 
 Create one GitHub issue per distinct AC cluster from Phase 3.
 Use `manage-github-issue` for relationship wiring.
 
-**For Idea** — wire the impl issue as a **child of the idea issue**:
-
-```bash
-IMPL_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
-  --title "<Implementation title from spec>" \
-  --body "## Summary
-<Description>
-
-## Acceptance Criteria
-- [ ] AC-1: <from grill-me>
-
-## Reference
-Spec: \`specs/${SPEC_FILE}\`
-Notes: \`notes/${NOTES_FILE}\`" \
-  --label "size:<S|M|L>" \
-  --parent "${ISSUE_NUMBER}")
-```
-
-**For Concern** — wire as **blocked-by concern** and **child of epic** (if any):
+For both types, wire the impl issue as **blocked-by the source issue** and
+as **child of the parent epic** (if `EPIC_NUMBER` is non-empty):
 
 ```bash
 PARENT_ARG=""
@@ -226,7 +216,7 @@ IMPL_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
 - [ ] AC-1: <from grill-me>
 
 ## Reference
-Concern: #${ISSUE_NUMBER}
+Source: #${ISSUE_NUMBER}
 $([ -n "${SPEC_FILE}" ] && echo "Spec: \`specs/${SPEC_FILE}\`")
 $([ -n "${NOTES_FILE}" ] && echo "Notes: \`notes/${NOTES_FILE}\`")" \
   --label "size:<S|M|L>" \
@@ -254,9 +244,10 @@ TYPE    = idea
 TITLE   = <short idea title>
 SOURCE  = IDEA-<ISSUE_NUMBER>
 BODY    = Full original idea text
-          + "**Processed**: YYYY-MM-DD — design decisions captured in
-            `specs/${SPEC_FILE}` and `notes/${NOTES_FILE}`."
-          + "Docs PR: <PR_URL>. Implementation tracked in #<IMPL_NUMBER>."
+          + "**Processed**: YYYY-MM-DD — implementation tracked in #<IMPL_NUMBER>."
+          + "Docs PR: <PR_URL>." (if docs PR was opened)
+          + "Spec: `specs/${SPEC_FILE}`." (if spec was written)
+          + "Notes: `notes/${NOTES_FILE}`." (if notes were written)
 ```
 
 **Concern:**
@@ -269,6 +260,8 @@ BODY    = Full original concern body
           + "**Resolved**: YYYY-MM-DD — implementation tracked in #<N>
             [, #<M> ...]."
           + "Docs PR: <PR_URL>." (if docs PR was opened)
+          + "Spec: `specs/${SPEC_FILE}`." (if spec was written)
+          + "Notes: `notes/${NOTES_FILE}`." (if notes were written)
 ```
 
 Then post a resolution comment and close:
@@ -282,7 +275,7 @@ $(for n in "${IMPL_NUMBERS[@]}"; do echo "- Implementation issue: #${n}"; done)
 $([ -n "${SPEC_FILE}" ] && echo "Spec: \`specs/${SPEC_FILE}\`.")
 $([ -n "${NOTES_FILE}" ] && echo "Notes: \`notes/${NOTES_FILE}\`.")"
 
-# Only close directly when no docs PR was opened.
+# Only close directly when no docs PR was opened (applies to both types).
 # When a PR exists, Closes #N in the PR body closes the issue on merge.
 if [ -z "${PR_URL}" ]; then
   gh issue close "${ISSUE_NUMBER}" --repo CERTCC/Vultron
@@ -299,13 +292,11 @@ fi
 - [ ] `orient-agent` invoked
 - [ ] All grill-me branches resolved
 - [ ] `deepen-context` invoked with focus hints from grill-me
-- [ ] Docs updated — REQUIRED for Idea; optional for Concern (or consciously
-  skipped with a note)
+- [ ] Docs updated — optional for both types (or consciously skipped with a note)
 - [ ] Markdown lint clean (if docs changed)
 - [ ] Docs-only PR opened with `specs-notes` label — or skipped (no doc changes)
 - [ ] Implementation issue(s) created via `manage-github-issue` + `add-to-project.sh`
-- [ ] Idea: impl issue wired as child of idea issue
-- [ ] Concern: impl issues wired blocked-by concern + child of epic (if any)
+- [ ] Impl issues wired blocked-by source issue + child of epic (if any)
 - [ ] Issue archived via `archive-history` (after PR URL known)
 - [ ] Issue commented with impl issue(s) + optional PR URL; closed appropriately
 
@@ -319,7 +310,8 @@ fi
 - **Spec file names**: lowercase hyphenated `.yaml` in `specs/`
 - **Notes file names**: same base name as spec, `.md` in `notes/`
 - **Close behavior**: `Closes #N` in the PR body closes on merge for both
-  types. If no docs PR is opened (Concern only), close directly after archive.
+  types. If no docs PR is opened, close directly after archive (applies to
+  both types).
 - **Project board**: all new issues added with `Schedule=Someday` via
   `shared/add-to-project.sh`
 
@@ -327,7 +319,7 @@ fi
 
 | Skill | Input | Docs output | Closes issue? |
 |---|---|---|---|
-| `plan-issue` | One Idea or Concern issue | Idea: required specs+notes; Concern: optional | Yes |
+| `plan-issue` | One Idea or Concern issue | Optional specs+notes for both types | Yes |
 | `learn` | BUILD_LEARNINGS + all Concern issues | specs/notes/AGENTS | Yes (batch) |
 | `new-concern` | Freeform text | None | N/A (creates, not resolves) |
 | `process-concerns` | CONCERNS.md file | None | No |
