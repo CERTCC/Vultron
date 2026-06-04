@@ -1,0 +1,370 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Condition nodes for the report behavior tree."""
+
+from py_trees.common import Status
+
+from vultron.core.behaviors.helpers import DataLayerCondition
+from vultron.core.models.protocols import is_case_model, is_participant_model
+from vultron.core.states.rm import RM
+from vultron.core.use_cases._helpers import _report_phase_status_id
+
+
+class CheckRMStateValid(DataLayerCondition):
+    """
+    Check if report is already in RM.VALID state.
+
+    Returns SUCCESS if report status is RM.VALID (early exit optimization).
+    Returns FAILURE if report is in any other state.
+
+    This node implements the early-exit check from the simulation BT.
+    """
+
+    def __init__(self, report_id: str, name: str | None = None):
+        """
+        Initialize CheckRMStateValid node.
+
+        Args:
+            report_id: ID of VulnerabilityReport to check
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+
+    def update(self) -> Status:
+        """
+        Check if report is in RM.VALID state.
+
+        Returns:
+            SUCCESS if report is RM.VALID, FAILURE otherwise
+        """
+        if self.datalayer is None:
+            self.logger.error(f"{self.name}: DataLayer not available")
+            return Status.FAILURE
+        if self.actor_id is None:
+            self.logger.error(f"{self.name}: actor_id not available")
+            return Status.FAILURE
+
+        valid_id = _report_phase_status_id(
+            self.actor_id, self.report_id, RM.VALID.value
+        )
+        if self.datalayer.read(valid_id) is not None:
+            self.logger.debug(
+                f"{self.name}: Report {self.report_id} already VALID"
+            )
+            return Status.SUCCESS
+        self.logger.debug(
+            f"{self.name}: Report {self.report_id} not in VALID state"
+        )
+        return Status.FAILURE
+
+
+class CheckRMStateReceivedOrInvalid(DataLayerCondition):
+    """
+    Check if report is in RM.RECEIVED or RM.INVALID state.
+
+    Returns SUCCESS if report is in acceptable precondition state.
+    Returns FAILURE if report is in any other state (e.g., CLOSED, VALID).
+
+    This node implements the precondition check from the simulation BT.
+    """
+
+    def __init__(self, report_id: str, name: str | None = None):
+        """
+        Initialize CheckRMStateReceivedOrInvalid node.
+
+        Args:
+            report_id: ID of VulnerabilityReport to check
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+
+    def update(self) -> Status:
+        """
+        Check if report is in RM.RECEIVED or RM.INVALID state.
+
+        Returns:
+            SUCCESS if report is in acceptable state, FAILURE otherwise
+        """
+        if self.datalayer is None:
+            self.logger.error(f"{self.name}: DataLayer not available")
+            return Status.FAILURE
+        if self.actor_id is None:
+            self.logger.error(f"{self.name}: actor_id not available")
+            return Status.FAILURE
+
+        valid_id = _report_phase_status_id(
+            self.actor_id, self.report_id, RM.VALID.value
+        )
+        if self.datalayer.read(valid_id) is not None:
+            self.logger.debug(
+                f"{self.name}: Report {self.report_id} already VALID - precondition failed"
+            )
+            return Status.FAILURE
+
+        self.logger.debug(
+            f"{self.name}: Report {self.report_id} in acceptable state for validation"
+        )
+        return Status.SUCCESS
+
+
+class EnsureEmbargoExists(DataLayerCondition):
+    """
+    Check that the case linked to this report has an active embargo.
+
+    Returns SUCCESS if the case exists and has a non-None ``active_embargo``.
+    Returns FAILURE if the case is not found or its ``active_embargo`` is None.
+
+    This node implements DUR-07-004: an embargo end time MUST be established
+    before the case reaches RM.VALID. It runs after ``TransitionRMtoValid``
+    in ``ValidationActions`` to confirm that the default embargo seeded at
+    RM.RECEIVED (DUR-07-002, via ``InitializeDefaultEmbargoNode``) is
+    present before validation completes.
+    """
+
+    def __init__(self, report_id: str, name: str | None = None):
+        """
+        Initialize EnsureEmbargoExists node.
+
+        Args:
+            report_id: ID of VulnerabilityReport whose linked case to check
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+
+    def update(self) -> Status:
+        """
+        Verify the case linked to this report has an active embargo.
+
+        Returns:
+            SUCCESS if case has active_embargo, FAILURE otherwise
+        """
+        if self.datalayer is None:
+            self.logger.error(f"{self.name}: DataLayer not available")
+            return Status.FAILURE
+
+        case = self.datalayer.find_case_by_report_id(self.report_id)
+        if case is None:
+            self.logger.warning(
+                "%s: No case found for report %s",
+                self.name,
+                self.report_id,
+            )
+            return Status.FAILURE
+
+        if getattr(case, "active_embargo", None) is None:
+            self.logger.warning(
+                "%s: Case for report %s has no active embargo — "
+                "validation blocked (DUR-07-004)",
+                self.name,
+                self.report_id,
+            )
+            return Status.FAILURE
+
+        self.logger.debug(
+            "%s: Case for report %s has active embargo",
+            self.name,
+            self.report_id,
+        )
+        return Status.SUCCESS
+
+
+class EvaluateReportCredibility(DataLayerCondition):
+    """
+    Evaluate report credibility using policy.
+
+    Phase 1: Always returns SUCCESS (stub implementation).
+    Future: Implement configurable policy for credibility checks.
+
+    This node implements the credibility check from the simulation BT.
+    """
+
+    def __init__(self, report_id: str, name: str | None = None):
+        """
+        Initialize EvaluateReportCredibility node.
+
+        Args:
+            report_id: ID of VulnerabilityReport to evaluate
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+
+    def update(self) -> Status:
+        """
+        Evaluate report credibility (stub: always succeeds).
+
+        Returns:
+            SUCCESS (always, for Phase 1)
+        """
+        self.logger.info(
+            f"{self.name}: Evaluating credibility for report {self.report_id} (stub: always accepts)"
+        )
+        return Status.SUCCESS
+
+
+class EvaluateReportValidity(DataLayerCondition):
+    """
+    Evaluate report technical validity using policy.
+
+    Phase 1: Always returns SUCCESS (stub implementation).
+    Future: Implement configurable policy for validity checks.
+
+    This node implements the validity check from the simulation BT.
+    """
+
+    def __init__(self, report_id: str, name: str | None = None):
+        """
+        Initialize EvaluateReportValidity node.
+
+        Args:
+            report_id: ID of VulnerabilityReport to evaluate
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+
+    def update(self) -> Status:
+        """
+        Evaluate report validity (stub: always succeeds).
+
+        Returns:
+            SUCCESS (always, for Phase 1)
+        """
+        self.logger.info(
+            f"{self.name}: Evaluating validity for report {self.report_id} (stub: always accepts)"
+        )
+        return Status.SUCCESS
+
+
+class EvaluateCasePriority(DataLayerCondition):
+    """
+    Evaluate whether to engage or defer a case using prioritization policy.
+
+    Phase 1: Always returns SUCCESS (stub — always engage).
+    Future: Plug in SSVC or other priority framework via PrioritizationPolicy.
+
+    This node is used when the local actor is DECIDING whether to engage or
+    defer (i.e., generating an outgoing RmEngageCaseActivity or
+    RmDeferCaseActivity message), as opposed to the receive-side nodes above
+    which record a decision already made by the sending actor.
+
+    See specs/prototype-shortcuts.yaml PROTO-05-001 for SSVC deferral policy.
+    """
+
+    def __init__(self, case_id: str, name: str | None = None):
+        """
+        Initialize EvaluateCasePriority node.
+
+        Args:
+            case_id: ID of VulnerabilityCase to evaluate
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        """
+        Evaluate case priority (stub: always engage).
+
+        Returns:
+            SUCCESS (always, for Phase 1)
+        """
+        self.logger.info(
+            f"{self.name}: Evaluating priority for case {self.case_id} (stub: always engage)"
+        )
+        return Status.SUCCESS
+
+
+class CheckParticipantExists(DataLayerCondition):
+    """
+    Check if actor has a CaseParticipant record in the specified case.
+
+    Returns SUCCESS if the actor's CaseParticipant is found in
+    case.case_participants. Returns FAILURE if the case is not found or
+    the actor has no participant record.
+
+    This is the precondition for engage_case and defer_case BTs: RM state
+    for a case is tracked in CaseParticipant.participant_status, so a
+    participant record must exist before transitioning RM state.
+    """
+
+    def __init__(self, case_id: str, actor_id: str, name: str | None = None):
+        """
+        Initialize CheckParticipantExists node.
+
+        Args:
+            case_id: ID of VulnerabilityCase to check
+            actor_id: ID of Actor to find in case_participants
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.actor_id = actor_id
+
+    def update(self) -> Status:
+        """
+        Check whether actor has a CaseParticipant in the case.
+
+        Returns:
+            SUCCESS if participant found, FAILURE otherwise
+        """
+        if self.datalayer is None:
+            self.logger.error(f"{self.name}: DataLayer not available")
+            return Status.FAILURE
+
+        try:
+            case_obj = self.datalayer.read(
+                self.case_id, raise_on_missing=False
+            )
+            if not is_case_model(case_obj):
+                self.logger.debug(
+                    f"{self.name}: Case {self.case_id} not found"
+                )
+                return Status.FAILURE
+
+            for participant_ref in case_obj.case_participants:
+                if isinstance(participant_ref, str):
+                    participant_raw = self.datalayer.read(participant_ref)
+                    if participant_raw is None:
+                        continue
+                else:
+                    participant_raw = participant_ref
+                if not is_participant_model(participant_raw):
+                    continue
+                participant = participant_raw
+                actor_ref = participant.attributed_to
+                p_actor_id = (
+                    actor_ref
+                    if isinstance(actor_ref, str)
+                    else getattr(actor_ref, "id_", str(actor_ref))
+                )
+                if p_actor_id == self.actor_id:
+                    self.logger.debug(
+                        f"{self.name}: Participant found for actor {self.actor_id} in case {self.case_id}"
+                    )
+                    return Status.SUCCESS
+
+            self.logger.debug(
+                f"{self.name}: No participant for actor {self.actor_id} in case {self.case_id}"
+            )
+            return Status.FAILURE
+
+        except Exception as e:
+            self.logger.error(f"{self.name}: Error checking participant: {e}")
+            return Status.FAILURE
