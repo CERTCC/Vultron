@@ -355,14 +355,14 @@ function App() {
               'Case Actor acts as authoritative ledger',
             ],
           },
-          // Consequence node in Finder lane (case announced to finder)
+          // Decision node in Finder lane (case announced to finder)
           {
             id: `${submitEventId}-finder-case-consequence`,
             actor: 'Finder',
             label: 'Case Announced',
             x: nextX,
             lane: 0,
-            type: 'consequence',
+            type: 'decision',
             causedBy: submitEventId,
             timestamp: now + 3,
             consequences: [
