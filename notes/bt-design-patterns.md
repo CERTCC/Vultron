@@ -10,7 +10,6 @@ related_specs:
 related_notes:
   - notes/bt-composability.md
   - notes/bt-integration.md
-  - notes/bt-reusability.md
 relevant_packages:
   - py_trees
   - vultron/bt
@@ -42,7 +41,8 @@ Efficiency, Safety, and Robustness".
 - `notes/bt-integration.md` — Vultron-specific architecture decisions
 - `notes/bt-composability.md` — fractal composability and the
   trunk-removed-branches model
-- `notes/bt-reusability.md` — anti-patterns and node design checklist
+- `notes/bt-composability.md` — fractal composability, reusability
+  anti-patterns, and node design checklist
 
 ---
 

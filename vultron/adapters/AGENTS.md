@@ -32,7 +32,7 @@
 - **TinyDB adapter**: `vultron/adapters/driven/datalayer_tinydb.py`
 - **ASGI Emitter**: `vultron/adapters/driven/asgi_emitter.py` — routes
   in-process deliveries via ASGI; see
-  [notes/asgi-emitter.md](../../notes/asgi-emitter.md)
+  [vultron/adapters/driven/AGENTS.md](../../vultron/adapters/driven/AGENTS.md)
 
 ---
 

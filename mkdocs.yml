@@ -94,7 +94,9 @@ nav:
         - Situation Awareness: 'topics/other_uses/situation_awareness.md'
         - VEP: 'topics/other_uses/vep.md'
         - CVD Action Rules: 'topics/other_uses/action_rules.md'
-    - User Stories: 'topics/user_stories/index.md'
+    - User Stories:
+        - 'topics/user_stories/index.md'
+        - Traceability Matrix: 'topics/user_stories/traceability.md'
     - Future Work:
         - 'topics/future_work/index.md'
         - CS Model Limitations: 'topics/future_work/cs_model_limitations.md'

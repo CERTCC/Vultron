@@ -8,7 +8,7 @@ related_specs:
   - specs/event-driven-control-flow.yaml
 related_notes:
   - notes/bt-integration.md
-  - notes/bt-reusability.md
+  - notes/bt-composability.md
   - notes/protocol-event-cascades.md
 relevant_packages:
   - vultron/bt
@@ -30,7 +30,7 @@ through EDF-05)
 
 **Related notes**: `notes/protocol-event-cascades.md` (concrete cascade gap
 inventory and fix guidance), `notes/bt-integration.md` (BT design decisions),
-`notes/bt-reusability.md` (composable subtree patterns)
+`notes/bt-composability.md` (composable subtree patterns)
 
 ---
 

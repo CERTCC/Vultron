@@ -7,7 +7,7 @@
 | System | Type (API/DB/Queue/etc) | Purpose | Auth model | Criticality | Evidence |
 |--------|---------------------------|---------|------------|-------------|----------|
 | SQLite via SQLModel | DB | Persist Vultron objects plus inbox/outbox queue entries | Local file or in-memory DB URL; no separate DB auth shown | high | `vultron/adapters/driven/datalayer_sqlite.py`, `docker/docker-compose-multi-actor.yml` |
-| ASGIEmitter (in-process) | API | Deliver outbound AS2 activities to co-located actors via ASGI, stripping mount prefixes when mounted under `/api/v2` | None required (same-process) | high | `vultron/adapters/driven/asgi_emitter.py`, `vultron/adapters/driving/fastapi/main.py`, `notes/asgi-emitter.md` |
+| ASGIEmitter (in-process) | API | Deliver outbound AS2 activities to co-located actors via ASGI, stripping mount prefixes when mounted under `/api/v2` | None required (same-process) | high | `vultron/adapters/driven/asgi_emitter.py`, `vultron/adapters/driving/fastapi/main.py`, `vultron/adapters/driven/AGENTS.md` |
 | Peer actor inboxes via `DeliveryQueueAdapter` | API | Deliver outbound AS2 activities, including bootstrap and follow-on case-sync traffic, to remote actors with HTTP POST | No auth/signing is implemented in the current adapter | high | `vultron/adapters/driven/delivery_queue.py`, `specs/case-bootstrap-trust.yaml` |
 | HTTP delivery (stub) | API | Future signed HTTP delivery to remote inboxes | Intended to use HTTP Signature signing; not yet implemented | medium | `vultron/adapters/driven/http_delivery.py` |
 | Shared inbox (stub) | API | Future ActivityPub shared-inbox fan-out to multiple local actors | HTTP Signature validation planned; not yet implemented | medium | `vultron/adapters/driving/shared_inbox.py` |
@@ -61,7 +61,7 @@
 - `vultron/adapters/driving/mcp_server.py`
 - `vultron/demo/utils.py`
 - `vultron/demo/helpers/verification.py`
-- `notes/asgi-emitter.md`
+- `vultron/adapters/driven/AGENTS.md`
 - `specs/case-bootstrap-trust.yaml`
 - `docker/docker-compose.yml`
 - `docker/docker-compose-multi-actor.yml`

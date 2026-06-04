@@ -38,7 +38,7 @@ returns the serialized result.
 See also:
     - ``vultron/adapters/driven/trigger_activity_adapter.py`` — adapter
     - ``specs/architecture.yaml`` ARCH-01-001, ARCH-01-004
-    - ``notes/activity-factories.md``
+    - ``vultron/wire/as2/factories/AGENTS.md``
 """
 
 from typing import Any, Protocol

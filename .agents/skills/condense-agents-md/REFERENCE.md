@@ -25,7 +25,7 @@ Use these questions to classify a section:
    | Architecture / layer separation | `notes/architecture-hexagonal.md` |
    | Domain model separation | `notes/domain-model-separation.md` |
    | Codebase structure (actor IDs, demo lifecycle) | `notes/codebase-structure.md` |
-   | DataLayer design | `notes/datalayer-design.md` |
+   | DataLayer design | `vultron/core/ports/AGENTS.md` |
    | History management | `notes/history-management.md` |
 
 4. **Is it a pitfall with no notes/ home?**
@@ -91,7 +91,7 @@ Use these questions to classify a section:
 | Common Pitfalls: Black + pyright suppressions | NEW-NOTE:notes/codebase-structure.md |
 | Common Pitfalls: filterwarnings | MOVE:test/AGENTS.md |
 | Common Pitfalls: Pytest Helper Enums | MOVE:test/AGENTS.md |
-| Common Pitfalls: Avoid BaseModel in Ports | REF:notes/architecture-ports.md |
+| Common Pitfalls: Avoid BaseModel in Ports | REF:vultron/core/ports/AGENTS.md |
 | Common Pitfalls: Activity name Field | REF:notes/activitystreams-semantics.md |
 | Common Pitfalls: Actor IDs Must Be Full URIs | REF:notes/codebase-structure.md |
 | Common Pitfalls: BT Failure Reason | REF:notes/bt-integration.md |

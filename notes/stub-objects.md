@@ -8,7 +8,7 @@ related_specs:
   - specs/stub-objects.yaml
   - specs/message-validation.yaml
 related_notes:
-  - notes/datalayer-design.md
+  - vultron/core/ports/AGENTS.md
 relevant_packages:
   - vultron/wire/as2
 ---

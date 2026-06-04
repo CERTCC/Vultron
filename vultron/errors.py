@@ -145,7 +145,7 @@ class RegistryOrderError(VultronError):
     Raised at import time by ``_validate_registry_order()`` in
     ``vultron.semantic_registry`` so that ordering violations fail fast and
     are impossible to miss.  See ``specs/semantic-extraction.yaml`` SE-03-002
-    and ``notes/semantic-registry.md``.
+    and ``vultron/wire/as2/AGENTS.md``.
     """
 
 

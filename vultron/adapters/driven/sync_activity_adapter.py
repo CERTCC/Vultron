@@ -28,7 +28,7 @@ translation occurs, keeping ``vultron/core/`` free of wire-layer imports
 See also:
     - ``vultron/core/ports/sync_activity.py`` — port Protocol
     - ``vultron/wire/as2/factories/sync.py`` — factory functions
-    - ``notes/activity-factories.md``
+    - ``vultron/wire/as2/factories/AGENTS.md``
 """
 
 import logging

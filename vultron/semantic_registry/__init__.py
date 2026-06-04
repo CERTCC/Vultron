@@ -165,7 +165,7 @@ def _validate_registry_order(registry: list[SemanticEntry]) -> None:
     A appears before B in the registry, ``find_matching_semantics()`` would
     never reach B — the wrong use case would run silently.
 
-    See ``notes/semantic-registry.md`` for the ordering invariant and
+    See ``vultron/wire/as2/AGENTS.md`` for the ordering invariant and
     ``specs/semantic-extraction.yaml`` SE-03-002.
 
     Args:
@@ -207,7 +207,7 @@ def _validate_registry_order(registry: list[SemanticEntry]) -> None:
 # ones.  The import-time call to _validate_registry_order() below enforces
 # this at module load, and test_non_overlapping_activity_patterns() in
 # test/test_semantic_activity_patterns.py provides belt-and-suspenders
-# coverage for edge cases.  See notes/semantic-registry.md SE-03-002.
+# coverage for edge cases.  See vultron/wire/as2/AGENTS.md SE-03-002.
 # ---------------------------------------------------------------------------
 
 SEMANTIC_REGISTRY: list[SemanticEntry] = (

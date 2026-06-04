@@ -21,33 +21,9 @@ relevant_packages:
 
 # Codebase Structure Notes
 
-## Top-Level Module Reorganization Status
+## Top-Level Modules
 
-Several top-level modules in `vultron/` were created at the top level for
-development convenience but have since been reorganized as part of the
-hexagonal architecture refactoring.
-
-**Completed reorganizations (ARCH-CLEANUP-1 through P60-2):**
-
-- `vultron/activity_patterns.py` — merged into `vultron/wire/as2/extractor.py`
-- `vultron/semantic_map.py` — merged into `vultron/wire/as2/extractor.py`
-- `vultron/semantic_handler_map.py` — merged into
-  `vultron/wire/as2/extractor.py`; handler routing table moved to
-  `vultron/core/use_cases/use_case_map.py` (P75-2, REORG-1)
-- `vultron/as_vocab/` — moved to `vultron/wire/as2/vocab/` (P60-1)
-- `vultron/behaviors/` — moved to `vultron/core/behaviors/` (P60-2)
-- AS2 structural enums — moved from `vultron/enums.py` to
-  `vultron/wire/as2/enums.py` (ARCH-CLEANUP-2)
-- `MessageSemantics` — moved to `vultron/core/models/events.py` (ARCH-1.1)
-- `vultron/behavior_dispatcher.py` — moved to `vultron/core/dispatcher.py`
-  (P65-*)
-- `vultron/dispatcher_errors.py` — merged into `vultron/errors.py` and
-  `vultron/core/dispatcher.py` (P65-*)
-- `vultron/enums.py` — deleted; `MessageSemantics` is in
-  `vultron/core/models/events.py`; AS2 structural enums in
-  `vultron/wire/as2/enums.py` (VCR Batch C)
-
-**Still at top level:**
+A few modules remain at the top level of `vultron/` by necessity:
 
 - `vultron/errors.py` — top-level error base; adapter-layer errors live at
   `vultron/adapters/driving/fastapi/errors.py`
@@ -392,20 +368,6 @@ passes a short UUID to the DataLayer may appear to work. The same trigger
 use URL-form actor records to exercise the missing canonicalization path.
 Asserting both `outbox.items` mutation AND the absence of a warning log is a
 better guard than checking the queued activity alone.
-
----
-
-## Test Directory Layout (TECHDEBT-11, resolved)
-
-After P60-1 and P60-2 (package relocations), the test directories
-`test/as_vocab/` and `test/behaviors/` were migrated to their new locations.
-
-**Status**: All test directories now match the source layout:
-
-- `test/wire/as2/vocab/` ✅ — parallel to `vultron/wire/as2/vocab/`
-- `test/core/behaviors/` ✅ — parallel to `vultron/core/behaviors/`
-- `test/as_vocab/` — removed ✅
-- `test/behaviors/` — removed ✅
 
 ---
 
