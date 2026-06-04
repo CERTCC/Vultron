@@ -36,7 +36,7 @@ Usage::
     # result.em_before, result.em_after, result.case_changed, ...
 
 Tracked in: https://github.com/CERTCC/Vultron/issues/538
-This issue: https://github.com/CERTCC/Vultron/issues/746
+Scaffold (#746); full operations (#747)
 """
 
 import logging
@@ -159,15 +159,12 @@ class EmbargoLifecycle:
     instance once at construction.  ``SqliteDataLayer`` satisfies the protocol
     structurally.
 
-    Currently implemented (this issue #746):
-        - :meth:`propose_embargo` — ``STRICT`` mode only
-
-    Deferred to #747:
+    Public operations (all support ``STRICT`` and ``OBSERVED`` modes):
+        - :meth:`propose_embargo`
         - :meth:`accept_embargo_invite`
         - :meth:`reject_embargo_invite`
         - :meth:`terminate_active_embargo`
-        - :meth:`record_participant_consent`
-        - ``OBSERVED`` mode across all operations
+        - :meth:`record_participant_consent` (no EM transition; no mode param)
     """
 
     def __init__(self, persistence: CasePersistence) -> None:
@@ -203,24 +200,18 @@ class EmbargoLifecycle:
             actor_id: Optional ID of the actor initiating the proposal (used
                 for logging only; no ownership gate on propose).
             transition_mode: ``STRICT`` (default) enforces valid transitions.
-                ``OBSERVED`` is not yet implemented (tracked in #747).
+                ``OBSERVED`` syncs local state even when the transition would
+                not normally be valid, forcing ``PROPOSED`` (or ``REVISE``
+                when the local state is ``ACTIVE``/``REVISE``).
 
         Returns:
             :class:`EmbargoLifecycleResult` describing what changed.
 
         Raises:
-            NotImplementedError: If *transition_mode* is ``OBSERVED``
-                (deferred to #747).
             VultronNotFoundError: If *case_id* does not resolve to a case.
             VultronInvalidStateTransitionError: If the current EM state does
                 not allow a PROPOSE transition (``STRICT`` mode only).
         """
-        if transition_mode == TransitionMode.OBSERVED:
-            raise NotImplementedError(
-                "OBSERVED mode for propose_embargo is not yet implemented; "
-                "tracked in https://github.com/CERTCC/Vultron/issues/747"
-            )
-
         # Load and validate case
         case = self._persistence.read(case_id)
         if not is_case_model(case):
@@ -228,27 +219,18 @@ class EmbargoLifecycle:
 
         em_before = EM(case.current_status.em_state)
 
-        # Drive EM state machine
-        adapter = EMAdapter(em_before)
-        em_machine = create_em_machine()
-        em_machine.add_model(adapter, initial=em_before)
-
-        try:
-            getattr(adapter, EM_Trigger.PROPOSE)()
-        except MachineError:
-            logger.warning(
-                "Invalid EM transition: actor '%s' cannot PROPOSE on case"
-                " '%s' (EM state '%s').",
-                actor_id,
-                case_id,
-                em_before,
-            )
-            raise VultronInvalidStateTransitionError(
-                f"Cannot propose embargo: case '{case_id}' EM state"
-                f" '{em_before}' does not allow a PROPOSE transition."
-            )
-
-        em_after = EM(adapter.state)
+        # OBSERVED fallback: ACTIVE/REVISE stays in REVISE; otherwise PROPOSED
+        fallback = (
+            EM.REVISE if em_before in (EM.ACTIVE, EM.REVISE) else EM.PROPOSED
+        )
+        em_after = self._drive_em_transition(
+            case_id=case_id,
+            em_before=em_before,
+            trigger=EM_Trigger.PROPOSE,
+            transition_mode=transition_mode,
+            fallback_dest=fallback,
+            actor_id=actor_id,
+        )
 
         # Cascade PEC: ACTIVE → REVISE transitions SIGNATORY participants to LAPSED
         participant_changes: list[ParticipantPECChange] = []
@@ -301,9 +283,568 @@ class EmbargoLifecycle:
             participant_changes=participant_changes,
         )
 
+    def accept_embargo_invite(
+        self,
+        *,
+        case_id: str,
+        embargo_id: str,
+        actor_id: str,
+        transition_mode: TransitionMode = TransitionMode.STRICT,
+    ) -> EmbargoLifecycleResult:
+        """Accept an embargo invite on a case.
+
+        If *actor_id* is the case owner (``attributed_to``), drives the EM
+        state machine ``PROPOSED → ACTIVE`` (or ``REVISE → ACTIVE``) and
+        activates the embargo via ``case.set_embargo(embargo_id)``.  For any
+        actor (owner or not) the actor's participant record is updated:
+        PEC state transitions to ``SIGNATORY`` and *embargo_id* is added
+        idempotently to ``accepted_embargo_ids``.
+
+        Args:
+            case_id: ID of the ``VulnerabilityCase`` to update.
+            embargo_id: ID of the ``EmbargoEvent`` being accepted.
+            actor_id: ID of the accepting actor.
+            transition_mode: ``STRICT`` (default) or ``OBSERVED``.
+
+        Returns:
+            :class:`EmbargoLifecycleResult` describing what changed.
+
+        Raises:
+            VultronNotFoundError: If *case_id* does not resolve to a case.
+            VultronInvalidStateTransitionError: If the EM state does not allow
+                an ACCEPT transition (``STRICT`` mode, owner only).
+        """
+        case = self._persistence.read(case_id)
+        if not is_case_model(case):
+            raise VultronNotFoundError("VulnerabilityCase", case_id)
+
+        em_before = EM(case.current_status.em_state)
+        em_after = em_before
+        case_mutated = False
+        case_embargo_changed = False
+
+        is_owner = _as_id(case.attributed_to) == actor_id
+        active_embargo_id = _as_id(case.active_embargo)
+        already_active = (
+            em_before == EM.ACTIVE and active_embargo_id == embargo_id
+        )
+
+        if is_owner and not already_active:
+            em_after = self._drive_em_transition(
+                case_id=case_id,
+                em_before=em_before,
+                trigger=EM_Trigger.ACCEPT,
+                transition_mode=transition_mode,
+                fallback_dest=EM.ACTIVE,
+                actor_id=actor_id,
+            )
+            # Sync em_state and active_embargo whenever owner accepted
+            if em_after != em_before:
+                case.current_status.em_state = em_after
+                case_mutated = True
+            # Sync active_embargo independently: handle OBSERVED mode where
+            # em_after == em_before == ACTIVE but active_embargo points elsewhere
+            if active_embargo_id != embargo_id:
+                case.set_embargo(embargo_id)
+                case_mutated = True
+                case_embargo_changed = True
+
+        # Record acceptance in actor's participant record (owner or non-owner)
+        participant_changes = self._record_actor_pec_acceptance(
+            case, actor_id, embargo_id
+        )
+
+        if case_mutated or participant_changes:
+            self._persistence.save(case)
+
+        if is_owner and em_after != em_before:
+            logger.info(
+                "Actor '%s' accepted embargo '%s' on case '%s'"
+                " (EM %s → %s; embargo activated)",
+                actor_id,
+                embargo_id,
+                case_id,
+                em_before,
+                em_after,
+            )
+        else:
+            logger.info(
+                "Actor '%s' recorded consent for embargo '%s' on case '%s'"
+                " (EM unchanged at %s)",
+                actor_id,
+                embargo_id,
+                case_id,
+                em_after,
+            )
+
+        return EmbargoLifecycleResult(
+            em_before=em_before,
+            em_after=em_after,
+            case_changed=case_mutated or bool(participant_changes),
+            case_embargo_changed=case_embargo_changed,
+            pec_reset=False,
+            participant_changes=participant_changes,
+        )
+
+    def reject_embargo_invite(
+        self,
+        *,
+        case_id: str,
+        embargo_id: str,
+        actor_id: str,
+        transition_mode: TransitionMode = TransitionMode.STRICT,
+    ) -> EmbargoLifecycleResult:
+        """Reject an embargo proposal or revision on a case.
+
+        If *actor_id* is the case owner, drives the EM state machine:
+            - ``PROPOSED → NO_EMBARGO``  (initial proposal rejected)
+            - ``REVISE → ACTIVE``        (revision rejected; returns to active)
+
+        For any actor the actor's participant record is updated: PEC
+        transitions to ``DECLINED`` and *embargo_id* is removed from
+        ``accepted_embargo_ids`` (pocket-veto semantics).
+
+        Args:
+            case_id: ID of the ``VulnerabilityCase`` to update.
+            embargo_id: ID of the ``EmbargoEvent`` being rejected.
+            actor_id: ID of the rejecting actor.
+            transition_mode: ``STRICT`` (default) or ``OBSERVED``.
+
+        Returns:
+            :class:`EmbargoLifecycleResult` describing what changed.
+
+        Raises:
+            VultronNotFoundError: If *case_id* does not resolve to a case.
+            VultronInvalidStateTransitionError: If the EM state does not allow
+                a REJECT transition (``STRICT`` mode, owner only).
+        """
+        case = self._persistence.read(case_id)
+        if not is_case_model(case):
+            raise VultronNotFoundError("VulnerabilityCase", case_id)
+
+        em_before = EM(case.current_status.em_state)
+        em_after = em_before
+        case_mutated = False
+
+        is_owner = _as_id(case.attributed_to) == actor_id
+
+        if is_owner:
+            # OBSERVED fallback: REVISE reject → ACTIVE; otherwise → NO_EMBARGO
+            fallback = EM.ACTIVE if em_before == EM.REVISE else EM.NONE
+            em_after = self._drive_em_transition(
+                case_id=case_id,
+                em_before=em_before,
+                trigger=EM_Trigger.REJECT,
+                transition_mode=transition_mode,
+                fallback_dest=fallback,
+                actor_id=actor_id,
+            )
+            if em_after != em_before:
+                case.current_status.em_state = em_after
+                case_mutated = True
+
+        participant_changes = self._record_actor_pec_rejection(
+            case, actor_id, embargo_id
+        )
+
+        if case_mutated or participant_changes:
+            self._persistence.save(case)
+
+        logger.info(
+            "Actor '%s' rejected embargo '%s' on case '%s' (EM %s → %s)",
+            actor_id,
+            embargo_id,
+            case_id,
+            em_before,
+            em_after,
+        )
+
+        return EmbargoLifecycleResult(
+            em_before=em_before,
+            em_after=em_after,
+            case_changed=case_mutated or bool(participant_changes),
+            case_embargo_changed=False,
+            pec_reset=False,
+            participant_changes=participant_changes,
+        )
+
+    def terminate_active_embargo(
+        self,
+        *,
+        case_id: str,
+        actor_id: str | None = None,
+        transition_mode: TransitionMode = TransitionMode.STRICT,
+    ) -> EmbargoLifecycleResult:
+        """Terminate the active embargo on a case.
+
+        Drives ``ACTIVE → EXITED`` (or ``REVISE → EXITED``), clears
+        ``case.active_embargo``, and resets all participants' PEC state to
+        ``NO_EMBARGO`` via :meth:`_cascade_pec_reset`.
+
+        Args:
+            case_id: ID of the ``VulnerabilityCase`` to update.
+            actor_id: Optional ID of the terminating actor (logging only).
+            transition_mode: ``STRICT`` (default) or ``OBSERVED``.
+
+        Returns:
+            :class:`EmbargoLifecycleResult` describing what changed.
+            ``pec_reset`` is always ``True`` when this method succeeds.
+
+        Raises:
+            VultronNotFoundError: If *case_id* does not resolve to a case.
+            VultronInvalidStateTransitionError: In ``STRICT`` mode, if the EM
+                state does not allow TERMINATE or ``active_embargo`` is
+                ``None``.
+        """
+        case = self._persistence.read(case_id)
+        if not is_case_model(case):
+            raise VultronNotFoundError("VulnerabilityCase", case_id)
+
+        em_before = EM(case.current_status.em_state)
+
+        # In STRICT mode, require an active embargo to be identified
+        embargo_id = _as_id(case.active_embargo)
+        if transition_mode == TransitionMode.STRICT and embargo_id is None:
+            raise VultronInvalidStateTransitionError(
+                f"Case '{case_id}' has no active embargo to terminate."
+            )
+
+        em_after = self._drive_em_transition(
+            case_id=case_id,
+            em_before=em_before,
+            trigger=EM_Trigger.TERMINATE,
+            transition_mode=transition_mode,
+            fallback_dest=EM.EXITED,
+            actor_id=actor_id,
+        )
+
+        case.current_status.em_state = em_after
+        case.active_embargo = None
+
+        participant_changes = self._cascade_pec_reset(case)
+
+        self._persistence.save(case)
+
+        logger.info(
+            "Actor '%s' terminated embargo '%s' on case '%s' (EM %s → %s)",
+            actor_id,
+            embargo_id,
+            case_id,
+            em_before,
+            em_after,
+        )
+
+        return EmbargoLifecycleResult(
+            em_before=em_before,
+            em_after=em_after,
+            case_changed=True,
+            case_embargo_changed=True,
+            pec_reset=True,
+            participant_changes=participant_changes,
+        )
+
+    def record_participant_consent(
+        self,
+        *,
+        case_id: str,
+        actor_id: str,
+        pec_trigger: PEC_Trigger,
+        embargo_id: str | None = None,
+    ) -> EmbargoLifecycleResult:
+        """Apply a PEC trigger to a single participant without changing EM state.
+
+        Useful for recording individual consent signals (invite, accept,
+        decline) that do not drive the shared EM machine.  When *pec_trigger*
+        is ``ACCEPT`` and *embargo_id* is provided, the ID is added
+        idempotently to ``accepted_embargo_ids``; when it is ``DECLINE``,
+        the ID is removed.
+
+        Args:
+            case_id: ID of the ``VulnerabilityCase`` that owns the participant.
+            actor_id: ID of the actor whose participant record to update.
+            pec_trigger: The PEC trigger to apply.
+            embargo_id: Optional ID of the relevant ``EmbargoEvent``; used
+                to maintain ``accepted_embargo_ids`` on ACCEPT/DECLINE.
+
+        Returns:
+            :class:`EmbargoLifecycleResult` with ``em_before == em_after``
+            and ``case_changed == False`` (participant records are updated
+            separately).  ``participant_changes`` records the PEC state change
+            when the transition was valid.
+        """
+        case = self._persistence.read(case_id)
+        if not is_case_model(case):
+            raise VultronNotFoundError("VulnerabilityCase", case_id)
+
+        em_state = EM(case.current_status.em_state)
+
+        participant_id = case.actor_participant_index.get(actor_id)
+        if not participant_id:
+            logger.warning(
+                "record_participant_consent: actor '%s' has no participant"
+                " record in case '%s' — skipping",
+                actor_id,
+                case_id,
+            )
+            return EmbargoLifecycleResult(
+                em_before=em_state,
+                em_after=em_state,
+                case_changed=False,
+                case_embargo_changed=False,
+                pec_reset=False,
+            )
+
+        participant = self._persistence.read(participant_id)
+        if not is_participant_model(participant):
+            return EmbargoLifecycleResult(
+                em_before=em_state,
+                em_after=em_state,
+                case_changed=False,
+                case_embargo_changed=False,
+                pec_reset=False,
+            )
+
+        pec_before = participant.embargo_consent_state
+        current_pec = PEC(pec_before)
+        changed = False
+
+        new_pec = apply_pec_trigger(current_pec, pec_trigger)
+        if new_pec != current_pec:
+            participant.embargo_consent_state = new_pec
+            changed = True
+
+        if pec_trigger == PEC_Trigger.ACCEPT and embargo_id is not None:
+            if embargo_id not in participant.accepted_embargo_ids:
+                participant.accepted_embargo_ids = list(
+                    dict.fromkeys(
+                        participant.accepted_embargo_ids + [embargo_id]
+                    )
+                )
+                changed = True
+        elif pec_trigger == PEC_Trigger.DECLINE and embargo_id is not None:
+            if embargo_id in participant.accepted_embargo_ids:
+                participant.accepted_embargo_ids.remove(embargo_id)
+                changed = True
+
+        if changed:
+            self._persistence.save(participant)
+
+        participant_changes = (
+            [
+                ParticipantPECChange(
+                    participant_id=participant_id,
+                    pec_before=pec_before,
+                    pec_after=participant.embargo_consent_state,
+                )
+            ]
+            if changed
+            else []
+        )
+
+        logger.info(
+            "Recorded consent for actor '%s' on case '%s' (PEC %s → %s"
+            " via %s)",
+            actor_id,
+            case_id,
+            pec_before,
+            participant.embargo_consent_state,
+            pec_trigger,
+        )
+
+        return EmbargoLifecycleResult(
+            em_before=em_state,
+            em_after=em_state,
+            case_changed=False,
+            case_embargo_changed=False,
+            pec_reset=False,
+            participant_changes=participant_changes,
+        )
+
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+
+    def _drive_em_transition(
+        self,
+        *,
+        case_id: str,
+        em_before: EM,
+        trigger: EM_Trigger,
+        transition_mode: TransitionMode,
+        fallback_dest: EM,
+        actor_id: str | None = None,
+    ) -> EM:
+        """Drive an EM state-machine transition.
+
+        In ``STRICT`` mode raises
+        :exc:`~vultron.errors.VultronInvalidStateTransitionError` on failure.
+        In ``OBSERVED`` mode logs a warning and returns *fallback_dest*
+        instead of raising, enabling state-sync with a remote party.
+        """
+        adapter = EMAdapter(em_before)
+        em_machine = create_em_machine()
+        em_machine.add_model(adapter, initial=em_before)
+        try:
+            getattr(adapter, trigger)()
+            return EM(adapter.state)
+        except MachineError:
+            if transition_mode == TransitionMode.STRICT:
+                logger.warning(
+                    "Invalid EM transition: actor '%s' cannot %s on case"
+                    " '%s' (EM state '%s').",
+                    actor_id,
+                    trigger,
+                    case_id,
+                    em_before,
+                )
+                raise VultronInvalidStateTransitionError(
+                    f"Cannot apply '{trigger}' to embargo: case '{case_id}'"
+                    f" EM state '{em_before}' does not allow this transition."
+                )
+            else:
+                logger.warning(
+                    "OBSERVED mode: EM transition '%s' (trigger '%s') failed"
+                    " for case '%s' — forcing state-sync to '%s'",
+                    em_before,
+                    trigger,
+                    case_id,
+                    fallback_dest,
+                )
+                return fallback_dest
+
+    def _record_actor_pec_acceptance(
+        self, case: Any, actor_id: str, embargo_id: str
+    ) -> list[ParticipantPECChange]:
+        """Update a participant's PEC to SIGNATORY and track the embargo ID.
+
+        Idempotent: if the participant is already ``SIGNATORY``, only
+        ``accepted_embargo_ids`` is updated (if needed).
+        """
+        participant_id = case.actor_participant_index.get(actor_id)
+        if not participant_id:
+            logger.warning(
+                "Actor '%s' has no CaseParticipant in case '%s'"
+                " — cannot record embargo acceptance",
+                actor_id,
+                _as_id(case),
+            )
+            return []
+
+        participant = self._persistence.read(participant_id)
+        if not is_participant_model(participant):
+            return []
+
+        pec_before = participant.embargo_consent_state
+        current_pec = PEC(pec_before)
+        changed = False
+
+        if current_pec != PEC.SIGNATORY:
+            participant.embargo_consent_state = apply_pec_trigger(
+                current_pec, PEC_Trigger.ACCEPT
+            )
+            changed = True
+
+        if embargo_id not in participant.accepted_embargo_ids:
+            participant.accepted_embargo_ids = list(
+                dict.fromkeys(participant.accepted_embargo_ids + [embargo_id])
+            )
+            changed = True
+
+        if changed:
+            self._persistence.save(participant)
+
+        return (
+            [
+                ParticipantPECChange(
+                    participant_id=participant_id,
+                    pec_before=pec_before,
+                    pec_after=participant.embargo_consent_state,
+                )
+            ]
+            if changed
+            else []
+        )
+
+    def _record_actor_pec_rejection(
+        self, case: Any, actor_id: str, embargo_id: str
+    ) -> list[ParticipantPECChange]:
+        """Update a participant's PEC to DECLINED and remove the embargo ID.
+
+        Idempotent: if the participant is already ``DECLINED``, only
+        ``accepted_embargo_ids`` is updated (if needed).
+        """
+        participant_id = case.actor_participant_index.get(actor_id)
+        if not participant_id:
+            logger.warning(
+                "Actor '%s' has no CaseParticipant in case '%s'"
+                " — cannot record embargo rejection",
+                actor_id,
+                _as_id(case),
+            )
+            return []
+
+        participant = self._persistence.read(participant_id)
+        if not is_participant_model(participant):
+            return []
+
+        pec_before = participant.embargo_consent_state
+        current_pec = PEC(pec_before)
+        changed = False
+
+        if current_pec != PEC.DECLINED:
+            participant.embargo_consent_state = apply_pec_trigger(
+                current_pec, PEC_Trigger.DECLINE
+            )
+            changed = True
+
+        if embargo_id in participant.accepted_embargo_ids:
+            participant.accepted_embargo_ids.remove(embargo_id)
+            changed = True
+
+        if changed:
+            self._persistence.save(participant)
+
+        return (
+            [
+                ParticipantPECChange(
+                    participant_id=participant_id,
+                    pec_before=pec_before,
+                    pec_after=participant.embargo_consent_state,
+                )
+            ]
+            if changed
+            else []
+        )
+
+    def _cascade_pec_reset(self, case: Any) -> list[ParticipantPECChange]:
+        """Reset all participants' PEC state to NO_EMBARGO.
+
+        Called when an embargo is terminated.  Returns a list of
+        :class:`ParticipantPECChange` for every participant that was updated.
+        """
+        changes: list[ParticipantPECChange] = []
+        for entry in case.case_participants:
+            participant_id = _as_id(entry)
+            if participant_id is None:
+                continue
+            participant = self._persistence.read(participant_id)
+            if not is_participant_model(participant):
+                continue
+            if participant.embargo_consent_state == PEC.NO_EMBARGO.value:
+                continue
+            pec_before = participant.embargo_consent_state
+            participant.embargo_consent_state = apply_pec_trigger(
+                PEC(pec_before), PEC_Trigger.RESET
+            )
+            self._persistence.save(participant)
+            changes.append(
+                ParticipantPECChange(
+                    participant_id=participant_id,
+                    pec_before=pec_before,
+                    pec_after=participant.embargo_consent_state,
+                )
+            )
+        return changes
 
     def _cascade_pec_revise(self, case: Any) -> list[ParticipantPECChange]:
         """Transition all SIGNATORY participants to LAPSED.
