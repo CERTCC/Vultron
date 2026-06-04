@@ -36,7 +36,7 @@ from vultron.core.states.roles import CVDRole
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.core.use_cases._helpers import _as_id
-from vultron.wire.as2.vocab.objects.case_participant import (
+from vultron.core.models.case_participant import (
     CaseParticipant,
     FinderParticipant,
     VendorParticipant,
@@ -73,7 +73,7 @@ def _make_case(
     owner_participant = VendorParticipant(
         attributed_to=owner_id,
         context=case.id_,
-        embargo_consent_state=PEC.NO_EMBARGO.value,
+        embargo_consent_state=PEC.NO_EMBARGO,
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
 
@@ -85,7 +85,7 @@ def _make_case(
         p = FinderParticipant(
             attributed_to=pid,
             context=case.id_,
-            embargo_consent_state=PEC.NO_EMBARGO.value,
+            embargo_consent_state=PEC.NO_EMBARGO,
         )
         case.case_participants.append(p.id_)
         case.actor_participant_index[pid] = p.id_
@@ -205,7 +205,7 @@ def test_propose_embargo_active_to_revise_cascades_pec(
     )
     # Set both participants to SIGNATORY (active embargo consent)
     for p in participants:
-        p.embargo_consent_state = PEC.SIGNATORY.value
+        p.embargo_consent_state = PEC.SIGNATORY
         dl.save(p)
 
     embargo = _make_embargo(dl, case.id_)
@@ -361,7 +361,7 @@ def test_accept_embargo_invite_owner_strict_valid(
 
     # Seed owner to INVITED so ACCEPT transition is valid
     owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
-    owner_p.embargo_consent_state = PEC.INVITED.value
+    owner_p.embargo_consent_state = PEC.INVITED
     dl.save(owner_p)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -397,7 +397,7 @@ def test_accept_embargo_invite_non_owner_strict(
     finder_participant_id = case.actor_participant_index.get(finder.id_)
     assert finder_participant_id is not None
     finder_p = cast(CaseParticipant, dl.read(finder_participant_id))
-    finder_p.embargo_consent_state = PEC.INVITED.value
+    finder_p.embargo_consent_state = PEC.INVITED
     dl.save(finder_p)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -490,7 +490,7 @@ def test_accept_embargo_invite_idempotent(
 
     # Seed as INVITED so first ACCEPT is valid
     owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
-    owner_p.embargo_consent_state = PEC.INVITED.value
+    owner_p.embargo_consent_state = PEC.INVITED
     dl.save(owner_p)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -529,7 +529,7 @@ def test_reject_embargo_invite_owner_proposed_to_none(
 
     # Seed owner to INVITED so DECLINE transition is valid
     owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
-    owner_p.embargo_consent_state = PEC.INVITED.value
+    owner_p.embargo_consent_state = PEC.INVITED
     dl.save(owner_p)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -584,7 +584,7 @@ def test_reject_embargo_invite_non_owner_strict(
     finder_participant_id = case.actor_participant_index.get(finder.id_)
     assert finder_participant_id is not None
     finder_p = cast(CaseParticipant, dl.read(finder_participant_id))
-    finder_p.embargo_consent_state = PEC.INVITED.value
+    finder_p.embargo_consent_state = PEC.INVITED
     dl.save(finder_p)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -660,7 +660,7 @@ def test_terminate_active_embargo_strict_active_to_exited(
 
     # Set owner PEC to SIGNATORY to verify it gets reset
     owner_participant = cast(CaseParticipant, dl.read(owner_participant_id))
-    owner_participant.embargo_consent_state = PEC.SIGNATORY.value
+    owner_participant.embargo_consent_state = PEC.SIGNATORY
     dl.save(owner_participant)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -771,7 +771,7 @@ def test_record_participant_consent_accept_trigger(
 
     # Set owner participant to INVITED so ACCEPT is valid
     owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
-    owner_p.embargo_consent_state = PEC.INVITED.value
+    owner_p.embargo_consent_state = PEC.INVITED
     dl.save(owner_p)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
@@ -801,7 +801,7 @@ def test_record_participant_consent_decline_trigger(
 
     # Seed as LAPSED (SIGNATORY → LAPSED after revise) with accepted embargo
     owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
-    owner_p.embargo_consent_state = PEC.LAPSED.value
+    owner_p.embargo_consent_state = PEC.LAPSED
     owner_p.accepted_embargo_ids = [embargo.id_]
     dl.save(owner_p)
 

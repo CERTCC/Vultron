@@ -23,11 +23,13 @@ Import directly from those modules for new code:
 - ``vultron.core.models.case`` — VultronCase
 - ``vultron.core.models.case_actor`` — VultronCaseActor, VultronOutbox
 - ``vultron.core.models.case_event`` — VultronCaseEvent
+- ``vultron.core.models.case_participant`` — CaseParticipant (and role
+  subclasses), VultronParticipant (alias)
 - ``vultron.core.models.case_status`` — CaseStatus
 - ``vultron.core.models.embargo_event`` — EmbargoEvent (VultronEmbargoEvent is an alias)
 - ``vultron.core.models.embargo_policy`` — EmbargoPolicy
 - ``vultron.core.models.note`` — VultronNote
-- ``vultron.core.models.participant`` — VultronParticipant
+- ``vultron.core.models.participant`` — re-export shim (use case_participant)
 - ``vultron.core.models.participant_status`` — ParticipantStatus
 - ``vultron.core.models.report`` — VulnerabilityReport (VultronReport is an alias)
 """
@@ -46,6 +48,17 @@ from vultron.core.models.embargo_event import EmbargoEvent, VultronEmbargoEvent
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.note import VultronNote
 from vultron.core.models.participant import VultronParticipant
+from vultron.core.models.case_participant import (
+    CaseParticipant,
+    CaseActorParticipant,
+    CoordinatorParticipant,
+    DeployerParticipant,
+    FinderParticipant,
+    FinderReporterParticipant,
+    OtherParticipant,
+    ReporterParticipant,
+    VendorParticipant,
+)
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport, VultronReport
 
@@ -55,9 +68,18 @@ __all__ = [
     "VultronCase",
     "VultronCaseActor",
     "VultronCaseEvent",
+    "CaseActorParticipant",
+    "CaseParticipant",
     "CaseStatus",
+    "CoordinatorParticipant",
+    "DeployerParticipant",
     "EmbargoEvent",
     "EmbargoPolicy",
+    "FinderParticipant",
+    "FinderReporterParticipant",
+    "OtherParticipant",
+    "ReporterParticipant",
+    "VendorParticipant",
     "VultronCreateCaseActivity",
     "VultronEmbargoEvent",
     "VultronNote",

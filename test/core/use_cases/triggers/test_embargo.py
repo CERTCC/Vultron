@@ -57,14 +57,14 @@ def _build_active_embargo_case(
     owner_participant = VendorParticipant(
         attributed_to=owner_id,
         context=case.id_,
-        embargo_consent_state=PEC.SIGNATORY.value,
+        embargo_consent_state=PEC.SIGNATORY,
         accepted_embargo_ids=[embargo.id_],
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
     participant = FinderParticipant(
         attributed_to=participant_id,
         context=case.id_,
-        embargo_consent_state=PEC.INVITED.value,
+        embargo_consent_state=PEC.INVITED,
     )
 
     case.case_participants = [owner_participant.id_, participant.id_]
@@ -107,7 +107,7 @@ def _build_proposed_embargo_case_no_owner_attribution(
     case_manager_participant = VendorParticipant(
         attributed_to=case_manager_id,
         context=case.id_,
-        embargo_consent_state=PEC.SIGNATORY.value,
+        embargo_consent_state=PEC.SIGNATORY,
         accepted_embargo_ids=[embargo.id_],
     )
     case_manager_participant.add_role(CVDRole.CASE_MANAGER)
@@ -115,7 +115,7 @@ def _build_proposed_embargo_case_no_owner_attribution(
     actor_participant = FinderParticipant(
         attributed_to=actor_id,
         context=case.id_,
-        embargo_consent_state=PEC.INVITED.value,
+        embargo_consent_state=PEC.INVITED,
     )
 
     case.case_participants = [

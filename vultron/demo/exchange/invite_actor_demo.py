@@ -52,8 +52,9 @@ from typing import Callable, Optional, Sequence, Tuple
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import (
-    FinderReporterParticipant,
+    CaseParticipant,
 )
+from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
@@ -130,7 +131,8 @@ def _setup_initialized_case(
     )
     post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
 
-    participant = FinderReporterParticipant(
+    participant = CaseParticipant(
+        case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
         attributed_to=finder.id_,
         context=case.id_,
     )

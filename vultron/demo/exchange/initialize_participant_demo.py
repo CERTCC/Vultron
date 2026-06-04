@@ -47,9 +47,9 @@ from typing import Callable, Optional, Sequence, Tuple
 # Vultron imports
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CoordinatorParticipant,
-    FinderReporterParticipant,
+    CaseParticipant,
 )
+from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
@@ -173,7 +173,8 @@ def demo_initialize_participant(
     with demo_step(
         "Step 1: Vendor creates coordinator participant (standalone)"
     ):
-        coordinator_participant = CoordinatorParticipant(
+        coordinator_participant = CaseParticipant(
+            case_roles=[CVDRole.COORDINATOR],
             attributed_to=coordinator.id_,
             context=case.id_,
         )
@@ -212,7 +213,8 @@ def demo_initialize_participant(
     with demo_step(
         "Step 3: Vendor creates finder/reporter participant (standalone)"
     ):
-        finder_participant = FinderReporterParticipant(
+        finder_participant = CaseParticipant(
+            case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
             attributed_to=finder.id_,
             context=case.id_,
         )

@@ -23,10 +23,8 @@ from vultron.core.use_cases.received.actor import (
 )
 from vultron.wire.as2.factories import announce_vulnerability_case_activity
 from vultron.wire.as2.vocab.objects.case_actor import CaseActor
-from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseActorParticipant,
-    CaseParticipant,
-)
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 _OWNER_ID = "https://example.org/actors/owner"
@@ -227,7 +225,8 @@ class TestAnnounceStoresEmbeddedParticipants:
     @pytest.fixture()
     def case_with_participants(self):
         """VulnerabilityCase with two embedded participants (inline objects)."""
-        case_actor_p = CaseActorParticipant(
+        case_actor_p = CaseParticipant(
+            case_roles=[CVDRole.CASE_MANAGER],
             id_=_CASE_ACTOR_PARTICIPANT_ID,
             attributed_to=_CASE_ACTOR_ID,
             context=_CASE_ID,
@@ -240,7 +239,10 @@ class TestAnnounceStoresEmbeddedParticipants:
         case = VulnerabilityCase(
             id_=_CASE_ID,
             name="DR-10 Announce Case with Participants",
-            case_participants=[case_actor_p, vendor_p],
+            case_participants=[
+                case_actor_p,
+                vendor_p,
+            ],
         )
         case.actor_participant_index[_CASE_ACTOR_ID] = (
             _CASE_ACTOR_PARTICIPANT_ID
