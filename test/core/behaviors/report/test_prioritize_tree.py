@@ -135,7 +135,19 @@ def case_without_participant(datalayer, report):
 
 @pytest.fixture
 def bridge(datalayer):
-    return BTBridge(datalayer=datalayer)
+    from typing import cast
+
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.core.ports.case_persistence import CaseOutboxPersistence
+
+    return BTBridge(
+        datalayer=datalayer,
+        trigger_activity=TriggerActivityAdapter(
+            cast(CaseOutboxPersistence, datalayer)
+        ),
+    )
 
 
 # ============================================================================

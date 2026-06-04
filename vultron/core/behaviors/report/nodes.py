@@ -54,10 +54,6 @@ from vultron.core.use_cases._helpers import (
     case_addressees,
     update_participant_rm_state,
 )
-from vultron.wire.as2.factories import (
-    rm_defer_case_activity,
-    rm_engage_case_activity,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -922,6 +918,13 @@ class EmitEngageCaseActivity(DataLayerAction):
             )
             return Status.FAILURE
 
+        if self.trigger_activity_factory is None:
+            self.logger.warning(
+                "%s: no TriggerActivityPort — cannot emit EngageCase activity",
+                self.name,
+            )
+            return Status.FAILURE
+
         try:
             case = self.datalayer.read(self.case_id)
             addressees: list[str] | None = None
@@ -930,24 +933,15 @@ class EmitEngageCaseActivity(DataLayerAction):
                 if recipients:
                     addressees = recipients
 
-            activity = rm_engage_case_activity(
-                case=cast(Any, case),
+            activity_id, _ = self.trigger_activity_factory.engage_case(
+                case_id=self.case_id,
                 actor=self.actor_id,
                 to=addressees,
             )
 
-            try:
-                self.datalayer.create(activity)
-            except ValueError:
-                self.logger.warning(
-                    "%s: EngageCase activity '%s' already exists",
-                    self.name,
-                    activity.id_,
-                )
-
             actor_obj = self.datalayer.read(self.actor_id)
             if has_outbox(actor_obj):
-                actor_obj.outbox.items.append(activity.id_)
+                actor_obj.outbox.items.append(activity_id)
                 self.datalayer.save(actor_obj)
             else:
                 self.logger.warning(
@@ -957,7 +951,7 @@ class EmitEngageCaseActivity(DataLayerAction):
                 )
 
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity.id_
+                self.actor_id, activity_id
             )
             self.logger.info(
                 "Actor '%s' emitted RmEngageCaseActivity for case '%s'",
@@ -1012,6 +1006,13 @@ class EmitDeferCaseActivity(DataLayerAction):
             )
             return Status.FAILURE
 
+        if self.trigger_activity_factory is None:
+            self.logger.warning(
+                "%s: no TriggerActivityPort — cannot emit DeferCase activity",
+                self.name,
+            )
+            return Status.FAILURE
+
         try:
             case = self.datalayer.read(self.case_id)
             addressees: list[str] | None = None
@@ -1020,24 +1021,15 @@ class EmitDeferCaseActivity(DataLayerAction):
                 if recipients:
                     addressees = recipients
 
-            activity = rm_defer_case_activity(
-                case=cast(Any, case),
+            activity_id, _ = self.trigger_activity_factory.defer_case(
+                case_id=self.case_id,
                 actor=self.actor_id,
                 to=addressees,
             )
 
-            try:
-                self.datalayer.create(activity)
-            except ValueError:
-                self.logger.warning(
-                    "%s: DeferCase activity '%s' already exists",
-                    self.name,
-                    activity.id_,
-                )
-
             actor_obj = self.datalayer.read(self.actor_id)
             if has_outbox(actor_obj):
-                actor_obj.outbox.items.append(activity.id_)
+                actor_obj.outbox.items.append(activity_id)
                 self.datalayer.save(actor_obj)
             else:
                 self.logger.warning(
@@ -1047,7 +1039,7 @@ class EmitDeferCaseActivity(DataLayerAction):
                 )
 
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity.id_
+                self.actor_id, activity_id
             )
             self.logger.info(
                 "Actor '%s' emitted RmDeferCaseActivity for case '%s'",

@@ -1075,7 +1075,9 @@ class TestFullReportFlow:
         dl = self._setup_dl()
         SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
         ValidateReportReceivedUseCase(
-            dl, self._make_validate_event()
+            dl,
+            self._make_validate_event(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         case_obj = cast(

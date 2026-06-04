@@ -388,3 +388,20 @@ class TriggerActivityPort(Protocol):
         Returns ``(activity_id, activity_dict)``.
         """
         ...
+
+    def announce_vulnerability_case(
+        self,
+        case_id: str,
+        actor: str,
+        context_id: str,
+        to: list[str],
+    ) -> str:
+        """Create and persist an ``Announce(VulnerabilityCase)`` activity.
+
+        Sent by the case owner to a newly accepted participant after their
+        embargo consent is resolved (MV-10-003).  The full case object is
+        sent inline so the recipient can seed their local DataLayer.
+
+        Returns the activity ID.
+        """
+        ...

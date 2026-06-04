@@ -16,9 +16,13 @@ from typing import Any, cast
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
 from vultron.core.models.protocols import is_log_entry_model
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.received.note import (
     AddNoteToCaseReceivedUseCase,
     CreateNoteReceivedUseCase,
@@ -290,7 +294,13 @@ class TestNoteUseCases:
         )
         event = make_payload(activity)
 
-        AddNoteToCaseReceivedUseCase(dl, event).execute()
+        AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(
+                cast(CaseOutboxPersistence, dl)
+            ),
+        ).execute()
 
         # CaseActor outbox should contain the broadcast activity.
         refreshed_actor = dl.read(case_actor.id_)
@@ -356,7 +366,13 @@ class TestNoteUseCases:
         )
         event = make_payload(activity)
 
-        AddNoteToCaseReceivedUseCase(dl, event).execute()
+        AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(
+                cast(CaseOutboxPersistence, dl)
+            ),
+        ).execute()
 
         refreshed_actor = dl.read(case_actor.id_)
         assert refreshed_actor is not None

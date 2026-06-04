@@ -1,7 +1,7 @@
 """Use cases for vulnerability case activities."""
 
 import logging
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from py_trees.common import Status
 
@@ -29,6 +29,9 @@ from vultron.core.models.protocols import (
 from vultron.core.states.rm import RM, is_rm_at_least
 from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases._helpers import _as_id, update_participant_rm_state
+
+if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
@@ -594,10 +597,14 @@ class UpdateCaseReceivedUseCase:
 
 class EngageCaseReceivedUseCase:
     def __init__(
-        self, dl: CasePersistence, request: EngageCaseReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: EngageCaseReceivedEvent,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: EngageCaseReceivedEvent = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         request = self._request
@@ -626,7 +633,9 @@ class EngageCaseReceivedUseCase:
             case_id,
         )
 
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl, trigger_activity=self._trigger_activity
+        )
         tree = create_engage_case_tree(case_id=case_id, actor_id=actor_id)
         result = bridge.execute_with_setup(
             tree=tree, actor_id=actor_id, activity=request
@@ -643,10 +652,14 @@ class EngageCaseReceivedUseCase:
 
 class DeferCaseReceivedUseCase:
     def __init__(
-        self, dl: CasePersistence, request: DeferCaseReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: DeferCaseReceivedEvent,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: DeferCaseReceivedEvent = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         request = self._request
@@ -667,7 +680,9 @@ class DeferCaseReceivedUseCase:
             case_id,
         )
 
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl, trigger_activity=self._trigger_activity
+        )
         tree = create_defer_case_tree(case_id=case_id, actor_id=actor_id)
         result = bridge.execute_with_setup(
             tree=tree, actor_id=actor_id, activity=request
@@ -841,12 +856,14 @@ class ValidateCaseUseCase:
         report_id: str,
         offer_id: str,
         case_id: str | None = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._actor_id = actor_id
         self._report_id = report_id
         self._offer_id = offer_id
         self._case_id = case_id
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         from vultron.core.behaviors.bridge import BTBridge
@@ -861,7 +878,9 @@ class ValidateCaseUseCase:
             f" (case '{self._case_id}')" if self._case_id else "",
         )
 
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl, trigger_activity=self._trigger_activity
+        )
         tree = create_validate_report_tree(
             report_id=self._report_id,
             offer_id=self._offer_id,
