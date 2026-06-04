@@ -16,10 +16,10 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.models.protocols import is_case_model
 from vultron.core.use_cases._helpers import _as_id
-from vultron.wire.as2.factories import add_note_to_case_activity
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
@@ -70,10 +70,12 @@ class AddNoteToCaseReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: AddNoteToCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: AddNoteToCaseReceivedEvent = request
         self._sync_port = sync_port
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         request = self._request
@@ -125,6 +127,14 @@ class AddNoteToCaseReceivedUseCase:
         MUST broadcast the note to all participants (excluding the author).
         Recipients are derived from VulnerabilityCase.actor_participant_index.
         """
+        if self._trigger_activity is None:
+            logger.debug(
+                "add_note_to_case: no TriggerActivityPort for case '%s'"
+                " — skipping broadcast (CM-06-005)",
+                case_id,
+            )
+            return
+
         # Locate the CaseActor (type_="Service") for this case.
         case_actor_id: str | None = None
         for service in self._dl.list_objects("Service"):
@@ -153,28 +163,19 @@ class AddNoteToCaseReceivedUseCase:
             )
             return
 
-        broadcast = add_note_to_case_activity(
-            note=cast(Any, self._dl.read(note_id)),
-            target=case_id,
+        activity_id, _ = self._trigger_activity.add_note_to_case(
+            note_id=note_id,
+            case_id=case_id,
             actor=case_actor_id,
             to=recipient_ids,
         )
-        try:
-            self._dl.create(broadcast)
-        except ValueError:
-            logger.debug(
-                "add_note_to_case: broadcast activity %s already exists"
-                " — skipping",
-                broadcast.id_,
-            )
-            return
 
         case_actor_obj = self._dl.read(case_actor_id)
         if case_actor_obj is not None and hasattr(case_actor_obj, "outbox"):
-            cast(Any, case_actor_obj).outbox.items.append(broadcast.id_)
+            cast(Any, case_actor_obj).outbox.items.append(activity_id)
             self._dl.save(case_actor_obj)
 
-        self._dl.record_outbox_item(case_actor_id, broadcast.id_)
+        self._dl.record_outbox_item(case_actor_id, activity_id)
 
         logger.info(
             "add_note_to_case: CaseActor '%s' broadcast AddNoteToCase for"

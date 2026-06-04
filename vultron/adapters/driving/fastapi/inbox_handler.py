@@ -103,7 +103,6 @@ def _sync_and_trigger_port_factory(dl: DataLayer) -> dict[str, Any]:
 _SYNC_PORT_SEMANTICS = frozenset(
     {
         MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE,
-        MessageSemantics.ADD_NOTE_TO_CASE,
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY,
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
@@ -116,16 +115,20 @@ _SYNC_PORT_SEMANTICS = frozenset(
 _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
     {
         MessageSemantics.ACCEPT_CASE_MANAGER_ROLE,
+        MessageSemantics.DEFER_CASE,
+        MessageSemantics.ENGAGE_CASE,
         MessageSemantics.OFFER_CASE_MANAGER_ROLE,
         MessageSemantics.SUBMIT_REPORT,
         MessageSemantics.SUGGEST_ACTOR_TO_CASE,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
+        MessageSemantics.VALIDATE_REPORT,
     }
 )
 
 # Semantics that require both a sync port and a trigger-activity port.
 _SYNC_AND_TRIGGER_PORT_SEMANTICS = frozenset(
     {
+        MessageSemantics.ADD_NOTE_TO_CASE,
         MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
     }
 )

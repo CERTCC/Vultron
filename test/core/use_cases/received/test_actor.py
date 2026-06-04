@@ -262,7 +262,18 @@ class TestInviteActorUseCases:
             actor=invitee_id,
         )
         event = make_payload(accept)
-        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.ports.case_persistence import CaseOutboxPersistence
+
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(
+                cast(CaseOutboxPersistence, dl)
+            ),
+        ).execute()
 
         updated_case = cast(Any, dl.read(case.id_))
         participant_id = updated_case.actor_participant_index.get(invitee_id)
@@ -304,8 +315,18 @@ class TestInviteActorUseCases:
             actor=invitee_id,
         )
         event = make_payload(accept)
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
-        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(
+                cast(CaseOutboxPersistence, dl)
+            ),
+        ).execute()
 
         updated_actor = cast(Any, dl.read(invitee_id))
         assert updated_actor is not None

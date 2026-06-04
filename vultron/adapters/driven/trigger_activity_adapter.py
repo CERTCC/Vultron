@@ -59,6 +59,7 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.factories.case import (
     accept_case_manager_role_activity,
+    announce_vulnerability_case_activity,
     offer_case_manager_role_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -669,3 +670,40 @@ class TriggerActivityAdapter:
                 activity.id_,
             )
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
+    # -----------------------------------------------------------------------
+    # Cases (continued) — Announce
+    # -----------------------------------------------------------------------
+
+    def announce_vulnerability_case(
+        self,
+        case_id: str,
+        actor: str,
+        context_id: str,
+        to: list[str],
+    ) -> str:
+        """Create and persist an ``Announce(VulnerabilityCase)`` activity.
+
+        Reads the full case from the DataLayer, constructs the activity with
+        the case inline, and persists it.  Returns the activity ID for outbox
+        queueing.
+
+        Per MV-10-003: the case owner sends this after an ``Accept(Invite)``
+        is received and the invitee's embargo consent has been verified.
+        """
+        case = cast(VulnerabilityCase, self._dl.read(case_id))
+        activity = announce_vulnerability_case_activity(
+            case=case,
+            actor=actor,
+            context=context_id,
+            to=to,
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "announce_vulnerability_case: activity '%s' already exists"
+                " — skipping",
+                activity.id_,
+            )
+        return activity.id_

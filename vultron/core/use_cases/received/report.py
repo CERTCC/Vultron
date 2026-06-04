@@ -231,10 +231,14 @@ class SubmitReportReceivedUseCase:
 
 class ValidateReportReceivedUseCase:
     def __init__(
-        self, dl: CasePersistence, request: ValidateReportReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: ValidateReportReceivedEvent,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: ValidateReportReceivedEvent = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         request = self._request
@@ -269,6 +273,7 @@ class ValidateReportReceivedUseCase:
             report_id=report_id,
             offer_id=offer_id,
             case_id=case_id,
+            trigger_activity=self._trigger_activity,
         ).execute()
 
 

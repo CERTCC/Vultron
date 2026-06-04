@@ -653,9 +653,14 @@ class AcceptInviteActorToCaseReceivedUseCase:
         from vultron.core.use_cases.triggers._helpers import (
             add_activity_to_outbox,
         )
-        from vultron.wire.as2.factories import (
-            announce_vulnerability_case_activity,
-        )
+
+        if self._trigger_activity is None:
+            logger.warning(
+                "AcceptInviteActorToCase: no TriggerActivityPort;"
+                " cannot emit AnnounceVulnerabilityCase for case '%s'",
+                case_id,
+            )
+            return
 
         case_actor_id = _find_case_actor_id(self._dl, case_id)
         if case_actor_id is None:
@@ -667,17 +672,16 @@ class AcceptInviteActorToCaseReceivedUseCase:
             return
 
         try:
-            announce = announce_vulnerability_case_activity(
-                case=case,
+            activity_id = self._trigger_activity.announce_vulnerability_case(
+                case_id=case_id,
                 actor=case_actor_id,
-                context=case_id,
+                context_id=case_id,
                 to=[invitee_id],
             )
-            self._dl.create(announce)
-            add_activity_to_outbox(case_actor_id, announce.id_, self._dl)
+            add_activity_to_outbox(case_actor_id, activity_id, self._dl)
             logger.info(
                 "Emitted AnnounceVulnerabilityCase '%s' to '%s' for case '%s'",
-                announce.id_,
+                activity_id,
                 invitee_id,
                 case_id,
             )
