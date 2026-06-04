@@ -26,6 +26,7 @@ Submodules:
 - ``case_creation``: Case creation and Create(Case) activity nodes
 - ``participant``: Case participant RM transition action nodes
 - ``emit``: Outbound engage/defer activity emission nodes
+- ``storage``: Idempotent storage nodes for inbound report objects
 """
 
 from vultron.core.behaviors.helpers import UpdateActorOutbox  # noqa: F401
@@ -51,8 +52,14 @@ from vultron.core.behaviors.report.nodes.participant import (
     TransitionParticipantRMtoDeferred,
 )
 from vultron.core.behaviors.report.nodes.rm_transitions import (
+    TransitionCaseParticipantRMtoClosed,
+    TransitionCaseParticipantRMtoInvalid,
     TransitionRMtoInvalid,
     TransitionRMtoValid,
+)
+from vultron.core.behaviors.report.nodes.storage import (
+    StoreActivityNode,
+    StoreReportNode,
 )
 
 __all__ = [
@@ -67,6 +74,8 @@ __all__ = [
     # rm_transitions
     "TransitionRMtoValid",
     "TransitionRMtoInvalid",
+    "TransitionCaseParticipantRMtoClosed",
+    "TransitionCaseParticipantRMtoInvalid",
     # case_creation
     "CreateCaseNode",
     "CreateCaseActivity",
@@ -76,6 +85,9 @@ __all__ = [
     # emit
     "EmitEngageCaseActivity",
     "EmitDeferCaseActivity",
+    # storage
+    "StoreReportNode",
+    "StoreActivityNode",
     # re-exported from helpers (backward compat)
     "UpdateActorOutbox",
 ]

@@ -25,9 +25,12 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
 )
+from vultron.core.services.embargo_lifecycle import (
+    EmbargoLifecycle,
+    TransitionMode,
+)
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 from vultron.core.models.protocols import (
-    CaseModel,
     PersistableModel,
     is_case_model,
     is_participant_model,
@@ -130,84 +133,6 @@ def _resolve_case_for_embargo_acceptance(
         )
         return None
     return dl.read(context_id)
-
-
-def _apply_received_embargo_acceptance(
-    case: CaseModel,
-    embargo_id: str,
-    accepting_actor_id: str,
-) -> bool:
-    case_id = case.id_
-    is_case_owner = _as_id(case.attributed_to) == accepting_actor_id
-    case_already_active = _as_id(case.active_embargo) == embargo_id
-
-    if is_case_owner and not case_already_active:
-        current_em = case.current_status.em_state
-        if not is_valid_em_transition(current_em, EM.ACTIVE):
-            logger.warning(
-                "accept_invite_to_embargo_on_case: EM transition %s → ACTIVE "
-                "is not a standard machine transition for case '%s'; applying "
-                "state-sync override",
-                current_em,
-                case_id,
-            )
-        case.set_embargo(embargo_id)
-        case.current_status.em_state = EM.ACTIVE
-        return True
-
-    if not is_case_owner and not case_already_active:
-        logger.info(
-            "accept_invite_to_embargo_on_case: actor '%s' accepted embargo "
-            "'%s' on case '%s' but is not the case owner — recording consent "
-            "only (EM state unchanged)",
-            accepting_actor_id,
-            embargo_id,
-            case_id,
-        )
-        return False
-
-    logger.info(
-        "Case '%s' already has embargo '%s' active — still recording "
-        "participant acceptance",
-        case_id,
-        embargo_id,
-    )
-    return False
-
-
-def _record_received_embargo_acceptance(
-    dl: CasePersistence,
-    case: CaseModel,
-    accepting_actor_id: str,
-    embargo_id: str,
-) -> None:
-    participant_id = case.actor_participant_index.get(accepting_actor_id)
-    if not participant_id:
-        logger.warning(
-            "Accepting actor '%s' has no CaseParticipant in case '%s' — cannot "
-            "record embargo acceptance",
-            accepting_actor_id,
-            case.id_,
-        )
-        return
-
-    participant = dl.read(participant_id)
-    if not is_participant_model(participant):
-        return
-
-    if embargo_id not in participant.accepted_embargo_ids:
-        participant.accepted_embargo_ids.append(embargo_id)
-    new_state = apply_pec_trigger(
-        PEC(participant.embargo_consent_state), PEC_Trigger.ACCEPT
-    )
-    participant.embargo_consent_state = new_state
-    dl.save(participant)
-    logger.info(
-        "Recorded embargo acceptance '%s' for participant '%s' (consent state: %s)",
-        embargo_id,
-        accepting_actor_id,
-        new_state,
-    )
 
 
 class CreateEmbargoEventReceivedUseCase:
@@ -456,35 +381,52 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             )
             return
 
-        case = _resolve_case_for_embargo_acceptance(self._dl, request)
-        if not is_case_model(case):
+        _case = _resolve_case_for_embargo_acceptance(self._dl, request)
+        if not is_case_model(_case):
             logger.error("accept_invite_to_embargo_on_case: case not found")
             return
 
+        case_id = _case.id_
         accepting_actor_id = request.actor_id
-        if _apply_received_embargo_acceptance(
-            case, embargo_id, accepting_actor_id
-        ):
-            case.record_event(embargo_id, "embargo_accepted")
 
-        _record_received_embargo_acceptance(
-            self._dl,
-            case,
-            accepting_actor_id,
-            embargo_id,
+        service = EmbargoLifecycle(persistence=self._dl)
+        result = service.accept_embargo_invite(
+            case_id=case_id,
+            embargo_id=embargo_id,
+            actor_id=accepting_actor_id,
+            transition_mode=TransitionMode.OBSERVED,
         )
-        self._dl.save(case)
+
+        # Preserve warning for non-standard EM transitions (state-sync).
+        if result.em_after == EM.ACTIVE and result.em_before not in (
+            EM.PROPOSED,
+            EM.REVISE,
+        ):
+            logger.warning(
+                "accept_invite_to_embargo_on_case: EM transition %s → ACTIVE "
+                "is not a standard machine transition for case '%s'; applying "
+                "state-sync override",
+                result.em_before,
+                case_id,
+            )
+
+        if result.case_changed or result.case_embargo_changed:
+            updated_case = self._dl.read(case_id)
+            if is_case_model(updated_case):
+                updated_case.record_event(embargo_id, "embargo_accepted")
+                self._dl.save(updated_case)
+
         logger.info(
             "Accepted embargo proposal '%s'; actor '%s' recorded as SIGNATORY"
             " for embargo '%s' on case '%s'",
             request.invite_id,
             accepting_actor_id,
             embargo_id,
-            case.id_,
+            case_id,
         )
 
         _commit_embargo_log_cascade(
-            case_id=case.id_,
+            case_id=case_id,
             object_id=embargo_id,
             event_type="accept_invite_to_embargo_on_case",
             dl=self._dl,
