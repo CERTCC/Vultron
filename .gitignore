@@ -153,6 +153,9 @@ devlogs
 .codebase-scan.txt
 /demologs/
 
+# macOS system files
+.DS_Store
+
 # claude stuff
 .devcontainer
 .claude
