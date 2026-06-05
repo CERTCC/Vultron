@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import type { DemoState, ParticipantState } from './types'
 import './App.css'
-import { LANE_HEIGHT, ACTOR_PANEL_WIDTH, PARTICIPANT_COLORS, PARTICIPANT_ROLES, INITIAL_X_POSITION, NODE_COLORS } from './constants'
+import { LANE_HEIGHT, ACTOR_PANEL_WIDTH, PARTICIPANT_COLORS, PARTICIPANT_ROLES, INITIAL_X_POSITION, NODE_COLORS, NODE_WIDTH, NODE_HEIGHT } from './constants'
 import { ActorPanel, AnimatedNode } from './components'
 import {
   getActiveLanes,
@@ -562,8 +562,8 @@ function App() {
                       const y1 = causeEvent.lane * LANE_HEIGHT + LANE_HEIGHT / 2
                       const y2 = event.lane * LANE_HEIGHT + LANE_HEIGHT / 2
 
-                      // Adjust endpoints to account for rectangle height (70px / 2 = 35px from center)
-                      const rectHalfHeight = 35
+                      // Adjust endpoints to account for rectangle height
+                      const rectHalfHeight = NODE_HEIGHT / 2
                       const direction = y2 > y1 ? 1 : -1  // downward or upward
                       const adjustedY1 = y1 + (rectHalfHeight * direction)
                       const adjustedY2 = y2 - (rectHalfHeight * direction)
@@ -636,8 +636,9 @@ function App() {
                   if (!shouldDrawArrow) return null
 
                   const y = event.lane * LANE_HEIGHT + LANE_HEIGHT / 2
-                  const startX = event.x + 60 // Start from edge of rectangle (width/2)
-                  const endX = nextInLane.x - 60 // End at edge of next rectangle
+                  const rectHalfWidth = NODE_WIDTH / 2
+                  const startX = event.x + rectHalfWidth // Start from edge of rectangle
+                  const endX = nextInLane.x - rectHalfWidth // End at edge of next rectangle
 
                   return (
                     <g key={`arrow-horizontal-${event.id}`}>

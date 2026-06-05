@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { LANE_HEIGHT } from '../constants'
+import { LANE_HEIGHT, NODE_WIDTH, NODE_WIDTH_HOVER, NODE_HEIGHT, NODE_HEIGHT_HOVER } from '../constants'
 
 interface TimelineEvent {
   id: string
@@ -35,8 +35,8 @@ export function AnimatedNode({
   const gRef = useRef<SVGGElement>(null)
   const isDecision = event.type === 'decision'
   const y = event.lane * LANE_HEIGHT + LANE_HEIGHT / 2
-  const width = isHovered ? 130 : 120
-  const height = isHovered ? 77 : 70
+  const width = isHovered ? NODE_WIDTH_HOVER : NODE_WIDTH
+  const height = isHovered ? NODE_HEIGHT_HOVER : NODE_HEIGHT
   const rectX = event.x - width / 2
   const rectY = y - height / 2
 
@@ -84,7 +84,7 @@ export function AnimatedNode({
         x={event.x}
         y={y + 5}
         textAnchor="middle"
-        fontSize="11"
+        fontSize="13"
         fill={isDecision ? 'white' : 'black'}
         fontWeight="bold"
         style={{ pointerEvents: 'none', userSelect: 'none' }}

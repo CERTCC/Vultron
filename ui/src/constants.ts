@@ -5,6 +5,12 @@
 export const LANE_HEIGHT = 400
 export const ACTOR_PANEL_WIDTH = 300
 
+// Node dimensions
+export const NODE_WIDTH = 140
+export const NODE_WIDTH_HOVER = 150
+export const NODE_HEIGHT = 80
+export const NODE_HEIGHT_HOVER = 87
+
 export const PARTICIPANT_COLORS = {
   finder: '#e3f2fd',      // Light blue
   vendor1: '#f3e5f5',     // Light purple
