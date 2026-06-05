@@ -181,6 +181,34 @@ groups:
     statement: Core domain models MUST be as rich as or richer than their wire-layer counterparts
     rationale: A thinner core model forces piecemeal additions as handlers are implemented, causing boundary leakage and implementation
       drift
+  - id: ARCH-09-002
+    priority: MUST
+    statement: >-
+      Actor domain models (`CoreActor` and its concrete subclasses `VultronPerson`,
+      `VultronOrganization`, `VultronService`, `VultronApplication`, `VultronGroup`)
+      MUST be defined in `vultron/core/models/`. The wire layer (`vultron/wire/as2/`)
+      MUST re-export these types rather than defining its own parallel actor classes.
+    rationale: >-
+      Defining actor types only in core enforces the hexagonal boundary: the domain
+      model is not duplicated, and the wire layer cannot become the authoritative
+      source for domain concepts. Re-export (rather than subclassing) is required
+      because the core and wire object hierarchies have incompatible field definitions
+      that prevent diamond inheritance (see ARCH-12).
+    verification: >-
+      Confirm that `VultronPerson`, `VultronOrganization`, `VultronService`,
+      `VultronApplication`, and `VultronGroup` are defined in
+      `vultron/core/models/actor.py` and that
+      `vultron/wire/as2/vocab/objects/vultron_actor.py` contains only re-exports
+      plus VOCABULARY registration — no class definitions of its own.
+    relationships:
+      - rel_type: refines
+        spec_id: ARCH-09-001
+      - rel_type: depends_on
+        spec_id: ARCH-12-002
+        note: >-
+          ARCH-12 requires from_core()/to_core() on wire types; that pattern is
+          blocked for actor types due to incompatible field structures — re-export
+          is the approved workaround.
 - id: ARCH-10
   title: Fail-Fast Domain Objects
   specs:
