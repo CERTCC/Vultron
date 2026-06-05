@@ -18,9 +18,10 @@ import types as _types
 import typing as _typing
 from typing import ClassVar
 
-from pydantic import BaseModel, Field, model_validator, ConfigDict
+from pydantic import Field, model_validator, ConfigDict
 from pydantic.alias_generators import to_camel
 
+from vultron.core.models.base import VultronBase
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.registry import VOCABULARY
 from vultron.wire.as2.vocab.base.utils import generate_new_id
@@ -28,7 +29,7 @@ from vultron.wire.as2.vocab.base.utils import generate_new_id
 ACTIVITY_STREAMS_NS = "https://www.w3.org/ns/activitystreams"
 
 
-class as_Base(BaseModel):
+class as_Base(VultronBase):
     model_config = ConfigDict(
         alias_generator=to_camel,
         validate_by_name=True,

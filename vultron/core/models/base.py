@@ -82,15 +82,15 @@ class VultronObject(VultronBase):
     replies: Any | None = None
     url: NonEmptyString | None = None
     generator: Any | None = None
-    context: NonEmptyString | None = None
+    context: Any | None = None
     tag: Any | None = None
-    in_reply_to: NonEmptyString | None = None
+    in_reply_to: Any | None = None
 
     duration: timedelta | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
-    published: datetime = Field(default_factory=_now_utc)
-    updated: datetime = Field(default_factory=_now_utc)
+    published: datetime | None = Field(default_factory=_now_utc)
+    updated: datetime | None = Field(default_factory=_now_utc)
 
     # content
     content: Any | None = None
@@ -138,6 +138,12 @@ class CoreObject(VultronObject):
         serialization_alias="@context",
         exclude=True,
     )
+
+    # Re-narrow published/updated: the core branch guarantees these are always
+    # populated (default_factory ensures it).  VultronObject uses datetime|None
+    # (per ARCH-12-002: shared base must be lenient for the wire branch).
+    published: datetime = Field(default_factory=_now_utc)
+    updated: datetime = Field(default_factory=_now_utc)
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)  # type: ignore[arg-type]
