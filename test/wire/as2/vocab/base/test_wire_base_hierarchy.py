@@ -22,7 +22,7 @@ AC-4: All existing tests pass; inheritance chain confirmed here.
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -117,14 +117,24 @@ def test_as_object_datetime_roundtrip():
     assert obj.published.tzinfo is not None
 
 
-def test_as_object_attributed_to_is_any():
-    """Wire field attributed_to remains Any|None (not narrowed by VultronObject)."""
-    field = as_Object.model_fields["attributed_to"]
-    annotation = field.annotation
-    # as_Object re-declares attributed_to as Any | None; VultronObject has
-    # NonEmptyString | None.  The wire declaration must win.
-    args = getattr(annotation, "__args__", None)
-    assert annotation is Any or (args is not None and type(None) in args)
+def test_as_object_attributed_to_accepts_non_string():
+    """Wire field attributed_to remains Any|None — non-string values must be accepted.
+
+    VultronObject narrows attributed_to to NonEmptyString | None, but as_Object
+    re-declares it as Any | None.  The wire declaration must win via MRO so that
+    AS2 payloads carrying nested objects or dicts are accepted without validation
+    errors.  A plain annotation check (looking for NoneType in __args__) would
+    pass even if NonEmptyString | None took over, so we use a runtime round-trip.
+    """
+    # dict (inline AS2 object) must not raise
+    obj = as_Object.model_validate(
+        {"attributed_to": {"id": "https://example.org/alice"}}
+    )
+    assert obj.attributed_to == {"id": "https://example.org/alice"}
+
+    # integer must not raise (fully lenient Any)
+    obj2 = as_Object.model_validate({"attributed_to": 42})
+    assert obj2.attributed_to == 42
 
 
 def test_as_object_id_uses_wire_default():
