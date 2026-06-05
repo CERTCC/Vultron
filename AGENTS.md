@@ -407,6 +407,18 @@ Short entries are reproduced here; longer ones are referenced below.
   is intrinsically cross-cutting; bundled diffs let reviewers miss
   regressions in the half they aren't focused on. See
   [notes/triggers-test-coverage.md](notes/triggers-test-coverage.md).
+- **Two `CaseLogEntry` Classes With the Same Name** — There are two classes named
+  `CaseLogEntry` in `vultron/core/models/` that serve completely different purposes.
+  `vultron.core.models.case_log.CaseLogEntry` (`BaseModel`) is the in-memory
+  hash-chain record used by `CaseEventLog` for local SYNC-1 processing — it is
+  **not** persisted or shared over the wire. `vultron.core.models.case_log_entry.CaseLogEntry`
+  (`CoreObject`) is the wire-serialisable domain model used in
+  `Announce(CaseLogEntry)` replication activities — it has an auto-computed
+  `id_` and registers in `CORE_VOCABULARY`. Importing from the wrong module
+  silently produces incorrect behaviour. The local class is tracked for renaming
+  in issue #806 to eliminate this ambiguity. Until it is renamed, always import
+  by full module path and verify which class you need. See `specs/architecture.yaml`
+  ARCH-12-007 and concern #804.
 - **Adding a New Pitfall: Check the Routing Policy First** — see
   [notes/agents-md-structure.md](notes/agents-md-structure.md)
 
