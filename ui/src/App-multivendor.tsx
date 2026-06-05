@@ -287,39 +287,52 @@ function App() {
   const vendor2Pending = demoState.secondVendorInvited && !demoState.secondVendorAccepted
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header with buttons in upper right */}
-      <div style={{ background: '#1976d2', color: 'white', padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ padding: '1rem', background: '#f5f5f5', borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '1.5rem' }}>Vultron CVD Protocol Demo (Multi-Vendor)</h1>
-          <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem' }}>
-            Interactive demonstration of the Vultron Coordinated Vulnerability Disclosure protocol with multi-vendor support
+          <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#666' }}>
+            Vultron Interactive Demo (Multi-Vendor)
+          </h1>
+          <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem', color: '#666' }}>
+            CERT/CC — Research Prototype | Click actions on actors to progress through the demo
           </p>
         </div>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
           {/* External event triggers */}
           {externalActions.length > 0 && (
-            <div style={{ display: 'flex', gap: '0.5rem', marginRight: '1rem', paddingRight: '1rem', borderRight: '2px solid rgba(255,255,255,0.3)' }}>
-              {externalActions.map((action) => (
-                <button
-                  key={action.id}
-                  onClick={() => handleAction('external', action.id)}
-                  disabled={!action.enabled}
-                  title={action.description}
-                  style={{
-                    padding: '0.5rem 1rem',
-                    fontSize: '0.875rem',
-                    background: action.enabled ? '#f57c00' : '#ccc',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: action.enabled ? 'pointer' : 'not-allowed',
-                    fontWeight: 'bold',
-                  }}
-                >
-                  {action.label}
-                </button>
-              ))}
+            <div style={{ display: 'flex', gap: '0.5rem', marginRight: '1rem', paddingRight: '1rem', borderRight: '2px solid #ddd' }}>
+              <span style={{ fontSize: '0.85rem', color: '#666', alignSelf: 'center', fontWeight: 'bold' }}>
+                External Events:
+              </span>
+              {externalActions.map((action) => {
+                const isExploit = action.id === 'trigger-exploit'
+                const buttonColor = isExploit ? '#ff5722' : '#d32f2f'
+                const emoji = isExploit ? '⚠️' : '🔥'
+                const shortLabel = isExploit ? 'Exploit' : 'Attacks'
+
+                return (
+                  <button
+                    key={action.id}
+                    onClick={() => handleAction('external', action.id)}
+                    disabled={!action.enabled}
+                    title={action.description}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      fontSize: '0.85rem',
+                      background: action.enabled ? buttonColor : '#ccc',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: action.enabled ? 'pointer' : 'not-allowed',
+                      fontWeight: 'bold',
+                      opacity: action.enabled ? 1 : 0.5,
+                    }}
+                  >
+                    {emoji} {shortLabel}
+                  </button>
+                )
+              })}
             </div>
           )}
           <button
