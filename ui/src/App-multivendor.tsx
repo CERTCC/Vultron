@@ -504,53 +504,53 @@ function App() {
                 <defs>
                   <marker
                     id="arrowhead"
-                    markerWidth="10"
-                    markerHeight="10"
-                    refX="9"
-                    refY="3"
+                    markerWidth="16"
+                    markerHeight="16"
+                    refX="14"
+                    refY="5"
                     orient="auto"
                   >
-                    <polygon points="0 0, 10 3, 0 6" fill="#666" />
+                    <polygon points="0 0, 16 5, 0 10" fill="#666" />
                   </marker>
                   <marker
                     id="arrowhead-blue"
-                    markerWidth="10"
-                    markerHeight="10"
-                    refX="9"
-                    refY="3"
+                    markerWidth="16"
+                    markerHeight="16"
+                    refX="14"
+                    refY="5"
                     orient="auto"
                   >
-                    <polygon points="0 0, 10 3, 0 6" fill="#BBDEFB" />
+                    <polygon points="0 0, 16 5, 0 10" fill="#BBDEFB" />
                   </marker>
                   <marker
                     id="arrowhead-purple"
-                    markerWidth="10"
-                    markerHeight="10"
-                    refX="9"
-                    refY="3"
+                    markerWidth="16"
+                    markerHeight="16"
+                    refX="14"
+                    refY="5"
                     orient="auto"
                   >
-                    <polygon points="0 0, 10 3, 0 6" fill="#E1BEE7" />
+                    <polygon points="0 0, 16 5, 0 10" fill="#E1BEE7" />
                   </marker>
                   <marker
                     id="arrowhead-green"
-                    markerWidth="10"
-                    markerHeight="10"
-                    refX="9"
-                    refY="3"
+                    markerWidth="16"
+                    markerHeight="16"
+                    refX="14"
+                    refY="5"
                     orient="auto"
                   >
-                    <polygon points="0 0, 10 3, 0 6" fill="#C8E6C9" />
+                    <polygon points="0 0, 16 5, 0 10" fill="#C8E6C9" />
                   </marker>
                   <marker
                     id="arrowhead-orange"
-                    markerWidth="10"
-                    markerHeight="10"
-                    refX="9"
-                    refY="3"
+                    markerWidth="16"
+                    markerHeight="16"
+                    refX="14"
+                    refY="5"
                     orient="auto"
                   >
-                    <polygon points="0 0, 10 3, 0 6" fill="#FFE0B2" />
+                    <polygon points="0 0, 16 5, 0 10" fill="#FFE0B2" />
                   </marker>
                 </defs>
 
@@ -604,8 +604,8 @@ function App() {
                           x2={event.x}
                           y2={adjustedY2}
                           stroke={arrowColor}
-                          strokeWidth="2"
-                          strokeDasharray="5,5"
+                          strokeWidth="3"
+                          strokeDasharray="6,6"
                           markerEnd={arrowMarker}
                         />
                       )
@@ -648,7 +648,7 @@ function App() {
                         x2={endX}
                         y2={y}
                         stroke="#666"
-                        strokeWidth={2}
+                        strokeWidth={3}
                         markerEnd="url(#arrowhead)"
                       />
                     </g>
