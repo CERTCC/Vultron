@@ -197,8 +197,10 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   const vendorActivePhases = ['report-received', 'report-validated', 'report-invalidated', 'embargo-proposed', 'embargo-rejected', 'embargo-accepted', 'finder-asked', 'fix-ready', 'fix-deployed', 'vendor-published']
 
   // Per-participant RM state: vendor marked report as invalid
+  // Per Vultron protocol: INVALID can transition to VALID (reconsideration) or CLOSED
+  // While INVALID, vendors can communicate but should NOT progress VFD
   if (vendor.rmState === 'INVALID') {
-    return [{
+    const actions: Action[] = [{
       id: 'validate-report',
       label: 'Re-validate Report',
       description: 'Mark the report as valid after reconsideration (RM: INVALID → VALID)',
@@ -209,6 +211,18 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
       description: 'Close the case for this invalid report (RM: INVALID → CLOSED)',
       enabled: true,
     }]
+
+    // Allow replying to questions even while report is invalid
+    if (state.phase === 'finder-asked' && !vendor.hasRepliedToCurrentNote) {
+      actions.push({
+        id: 'vendor-reply-note',
+        label: 'Reply to Question',
+        description: 'Respond to Finder\'s question',
+        enabled: true,
+      })
+    }
+
+    return actions
   }
 
   // NOTE: Embargo handling is now moved into vendorActivePhases block below
@@ -272,7 +286,12 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
     }
 
     // VFD progression - each vendor can progress independently
-    if (vendor.vfdState === 'Vfd') {
+    // Per Vultron protocol: Fix Ready can only occur when vendor is in RM.ACCEPTED state
+    // Demo simplifies by allowing VALID state (skipping explicit ACCEPT action)
+    // Block VFD progression when report is INVALID, RECEIVED, or START
+    const canProgressVFD = vendor.rmState === 'VALID' || vendor.rmState === 'ACCEPTED' || vendor.rmState === 'DEFERRED'
+
+    if (vendor.vfdState === 'Vfd' && canProgressVFD) {
       actions.push({
         id: 'notify-fix-ready',
         label: 'Notify Fix Ready',
@@ -281,7 +300,7 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
       })
     }
 
-    if (vendor.vfdState === 'VFd') {
+    if (vendor.vfdState === 'VFd' && canProgressVFD) {
       actions.push({
         id: 'notify-fix-deployed',
         label: 'Notify Fix Deployed',
@@ -290,7 +309,9 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
       })
     }
 
-    // Publication - each vendor can publish independently
+    // Publication - triggers case-wide P (Public Awareness) transition
+    // Per Vultron protocol: P is a one-way case-wide state transition (pxa → Pxa)
+    // Once ANY participant publishes and P is set, the transition cannot occur again
     if (vendor.vfdState === 'VFD' && !state.pxaState.includes('P')) {
       actions.push({
         id: 'vendor-notify-published',
@@ -327,7 +348,7 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
       })
     }
 
-    // Publish if still not published
+    // Publish if case is not yet public
     if (vendor.vfdState === 'VFD' && !state.pxaState.includes('P') && state.phase === 'finder-closed') {
       actions.push({
         id: 'vendor-notify-published',
