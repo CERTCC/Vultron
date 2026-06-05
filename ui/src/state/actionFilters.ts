@@ -48,49 +48,42 @@ export function getFinderActions(state: DemoState): Action[] {
     return actions
   }
 
-  // Embargo proposed - accept/reject
-  if (state.phase === 'embargo-proposed' && !finder.embargoAccepted) {
-    const actions: Action[] = [{
-      id: 'finder-accept-embargo',
-      label: 'Accept Embargo',
-      description: 'Accept the 90-day embargo proposal',
-      enabled: true,
-    }, {
-      id: 'finder-reject-embargo',
-      label: 'Reject Embargo',
-      description: 'Reject the embargo proposal',
-      enabled: true,
-    }]
+  // NOTE: Embargo handling is now in activeCasePhases block below
+  // This ensures communication/VFD and EM are independent per Vultron protocol
 
-    // Finder can send report to additional vendors at any time after case exists
-    // This allows new vendors to participate in embargo negotiation
-    // Available even if all vendors have closed (e.g., to try another vendor)
-    if (!state.secondVendorInvited) {
+  // Active case phases
+  const activeCasePhases = ['report-validated', 'report-invalidated', 'embargo-proposed', 'embargo-accepted', 'finder-asked', 'fix-ready', 'fix-deployed']
+  if (activeCasePhases.includes(state.phase) && !finder.hasClosed) {
+    const actions: Action[] = []
+
+    // Embargo response actions (EM state machine - independent of other activities and phase)
+    // Check EM state, NOT phase, since phase changes with VFD progression
+    if (state.emState === 'PROPOSED' && !finder.embargoAccepted) {
       actions.push({
-        id: 'finder-invite-vendor',
-        label: 'Submit Report to Vendor 2',
-        description: 'Send the vulnerability report to another vendor',
+        id: 'finder-accept-embargo',
+        label: 'Accept Embargo',
+        description: 'Accept the 90-day embargo proposal',
+        enabled: true,
+      }, {
+        id: 'finder-reject-embargo',
+        label: 'Reject Embargo',
+        description: 'Reject the embargo proposal',
         enabled: true,
       })
     }
 
-    return actions
-  }
-
-  // Active case phases
-  const activeCasePhases = ['report-validated', 'report-invalidated', 'embargo-accepted', 'finder-asked', 'fix-ready', 'fix-deployed']
-  if (activeCasePhases.includes(state.phase) && !finder.hasClosed) {
     // Check if any vendor has replied to the current question
     const anyVendorReplied = activeVendors.some(v => v.hasRepliedToCurrentNote)
 
-    const actions: Action[] = [{
+    // Communication actions - available regardless of embargo status
+    actions.push({
       id: 'finder-add-note',
       label: anyVendorReplied ? 'Ask Another Question' : 'Ask Question',
       description: anyVendorReplied
         ? 'Add another note to the case asking for more information'
         : 'Add a note to the case asking for information',
       enabled: true,
-    }]
+    })
 
     // Add submit report to second vendor option if not already sent
     // Available even if all vendors have closed (e.g., to try another vendor)
@@ -201,7 +194,7 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   if (vendor.rmState === 'DECLINED') return []
 
   const isVendor1 = vendorId === 'vendor-1'
-  const vendorActivePhases = ['report-received', 'report-validated', 'report-invalidated', 'embargo-accepted', 'finder-asked', 'fix-ready', 'fix-deployed', 'vendor-published']
+  const vendorActivePhases = ['report-received', 'report-validated', 'report-invalidated', 'embargo-proposed', 'embargo-accepted', 'finder-asked', 'fix-ready', 'fix-deployed', 'vendor-published']
 
   // Per-participant RM state: vendor marked report as invalid
   if (vendor.rmState === 'INVALID') {
@@ -218,46 +211,28 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
     }]
   }
 
-  // Embargo proposed - accept/reject PLUS VFD actions (RM and VFD are independent!)
-  if (state.phase === 'embargo-proposed' && !vendor.embargoAccepted) {
-    const actions: Action[] = [{
-      id: 'accept-embargo',
-      label: 'Accept Embargo',
-      description: 'Accept the 90-day embargo proposal',
-      enabled: true,
-    }, {
-      id: 'reject-embargo',
-      label: 'Reject Embargo',
-      description: 'Reject the embargo proposal',
-      enabled: true,
-    }]
-
-    // Per Vultron protocol: VFD and EM are INDEPENDENT state machines
-    // Vendors can work on fixes while embargo is being negotiated
-    if (vendor.vfdState === 'Vfd') {
-      actions.push({
-        id: 'notify-fix-ready',
-        label: 'Notify Fix Ready',
-        description: 'Vendor notifies that a fix is ready',
-        enabled: true,
-      })
-    }
-
-    if (vendor.vfdState === 'VFd') {
-      actions.push({
-        id: 'notify-fix-deployed',
-        label: 'Notify Fix Deployed',
-        description: 'Vendor notifies that the fix has been deployed',
-        enabled: true,
-      })
-    }
-
-    return actions
-  }
+  // NOTE: Embargo handling is now moved into vendorActivePhases block below
+  // This ensures VFD and EM are independent per Vultron protocol
 
   // Active case phases for vendors (includes pre-embargo and embargo phases)
   if (vendorActivePhases.includes(state.phase)) {
     const actions: Action[] = []
+
+    // Embargo response actions (EM state machine - independent of VFD and phase)
+    // Check EM state, NOT phase, since phase changes with VFD progression
+    if (state.emState === 'PROPOSED' && !vendor.embargoAccepted) {
+      actions.push({
+        id: 'accept-embargo',
+        label: 'Accept Embargo',
+        description: 'Accept the 90-day embargo proposal',
+        enabled: true,
+      }, {
+        id: 'reject-embargo',
+        label: 'Reject Embargo',
+        description: 'Reject the embargo proposal',
+        enabled: true,
+      })
+    }
 
     // Per Vultron protocol: vendors can validate AND work on VFD simultaneously
     // Validation (RM) and fix development (VFD) are independent state machines
