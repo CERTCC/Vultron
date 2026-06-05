@@ -10,75 +10,32 @@ description: >
 
 # Skill: Build
 
-## Quick start
+## Quick Start
 
-1. Invoke the `study-project-docs` skill to load all specs and read project
-   context.
-2. Select the highest-priority unblocked leaf GitHub Issue in the top-priority
-   group (read from `plan/PRIORITIES.md`), then claim it by creating the task
-   branch.
-3. Verify the current implementation in `vultron/` and `test/` before coding.
-4. Implement only the selected task, then run the required validation.
-5. If validation succeeds, run a pre-PR code review, open a PR with
-   "Closes #N", and archive the completion summary.
-
-## Inputs
-
-- `repo_root` (optional, default `.`): repository root containing the plan,
-  specs, source, and tests.
+1. Invoke `orient-agent` to load baseline context.
+2. Select the highest-priority unblocked leaf Issue from the top Now-Epic.
+3. Invoke `deepen-context` with hints from the issue.
+4. Claim the issue and implement.
+5. Validate, code-review, open PR, archive.
 
 ## Workflow
 
-### Phase 1 - Review context
+### Phase 1 — Orient
 
-Invoke the `study-project-docs` skill. It loads all specs, reads all plan/,
-docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
+Invoke the `orient-agent` skill.
 
-### Phase 2 - Select and claim work
+### Phase 2 — Select and Claim
 
-1. Query Project #24 ("Vultron Planning") for open Epics with `Schedule=Now`,
-   ordered by board position. The top-priority group is the first such Epic
-   that has at least one unblocked open leaf sub-issue:
+1. List open Now-Epics:
 
    ```bash
-   gh api graphql --jq '
-     .data.node.items.nodes[]
-     | select(
-         .content.state == "OPEN" and
-         .content.issueType.name == "Epic" and
-         (
-           .fieldValues.nodes[]
-           | select(.field.name == "Schedule")
-           | .name
-         ) == "Now"
-       )
-     | "#\(.content.number): \(.content.title)"
-   ' -f query='{
-     node(id: "PVT_kwDOAjf0s84BZnre") {
-       ... on ProjectV2 {
-         items(first: 100) {
-           nodes {
-             content {
-               ... on Issue {
-                 number title state
-                 issueType { name }
-               }
-             }
-             fieldValues(first: 10) { nodes {
-               ... on ProjectV2ItemFieldSingleSelectValue {
-                 name field { ... on ProjectV2SingleSelectField { name } }
-               }
-             }}
-           }
-         }
-       }
-     }
-   }'
+   bash .agents/skills/shared/query-now-epics.sh
    ```
 
-2. Query GitHub for open, unblocked **leaf Issues** (no sub-issues) that are
-   sub-issues of the top-priority Now-Epic, excluding Issues with `stale-claim`
-   set or already assigned:
+   The top-priority group is the first Epic with at least one unblocked
+   open leaf sub-issue.
+
+2. Query leaf Issues of that Epic:
 
    ```bash
    gh api graphql -f query='{
@@ -98,51 +55,32 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
    }'
    ```
 
-   An issue is a candidate if: `state=OPEN`, no assignees, no `stale-claim`
-   label, all `blockedBy` entries are `CLOSED`, and `subIssues.totalCount==0`.
+   A candidate issue must: `state=OPEN`, no assignees, no `stale-claim`
+   label, all `blockedBy` entries `CLOSED`, `subIssues.totalCount==0`.
 
-3. From the resulting list, pick the highest-priority unblocked Issue.
+3. Pick the highest-priority candidate.
 
-4. Fetch the Issue body and comments using `github-mcp-server-issue_read`
+4. Fetch the issue body and comments. Use the content as implementation
+   context throughout Phases 3–5.
 
-   (`method: get` then `method: get_comments`). Use the combined content as
-   implementation context throughout Phases 3–5.
 5. **Claim the Issue**:
-   - Ensure the worktree is synced to `origin/main` before branching:
 
-     ```bash
-     SCRIPT="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
-     if [ -f "$SCRIPT" ]; then
-       bash "$SCRIPT" ensure-synced || { echo "❌ Build aborted — sync check failed." >&2; exit 1; }
-     else
-       git fetch origin --quiet 2>/dev/null || true
-       BEHIND=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
-       if [ "$BEHIND" -gt 0 ]; then
-         echo "❌ Build aborted: $BEHIND commit(s) behind origin/main. Run: git rebase origin/main" >&2
-         exit 1
-       fi
-     fi
-     ```text
+   ```bash
+   bash .agents/skills/shared/claim-issue.sh <N> task <slug>
+   ```
 
-     If `ensure-synced` exits non-zero, **abort immediately** — do not create the task branch.
+   Abort immediately if this exits non-zero.
 
-   - Create a branch: `git switch -c task/<issue-number>-<slug>`
+### Phase 3 — Deepen Context
 
-   - If the branch already exists, abort — the task is already claimed.
-   - Assign the Issue to the triggering user:
-     `gh issue edit <N> --add-assignee @me --repo CERTCC/Vultron`
-   - Post a claim comment:
-     `gh issue comment <N> --repo CERTCC/Vultron --body "Claimed by <agent-session> on branch task/<N>-<slug>"`
+Invoke `deepen-context` with focus hints derived from the issue body
+(e.g., `"wire layer"`, `"BT integration"`, `"embargo lifecycle"`).
 
-### Phase 3 - Verify before coding
+### Phase 4 — Verify Before Coding
 
-1. Search `vultron/` and `test/` to confirm the current implementation.
-2. Do not assume missing functionality; verify it in code.
-3. If a blocking prerequisite is discovered, create a new GitHub Issue for it
-   with the appropriate `size:` label, then immediately link it as a sub-issue
-   of the current task Issue (PAD-01-003). Use the `manage-github-issue` skill
-   to create and wire the issue, then add it to Project #24 with
-   `Schedule=Someday`:
+1. Search `vultron/` and `test/` to confirm the current state.
+2. Do not assume missing functionality; verify in code.
+3. If a blocking prerequisite is discovered, create and wire it:
 
    ```bash
    NEW_ISSUE=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
@@ -150,94 +88,55 @@ docs/adr/, notes/, and AGENTS.md files, and scans vultron/ and test/.
      --body "<description>" \
      --label "size:<S|M|L>" \
      --parent <CURRENT_TASK_NUMBER>)
-   echo "Created prerequisite #${NEW_ISSUE}"
-
-   # Add to Project #24 with Schedule=Someday
-   NODE_ID=$(gh api graphql -f query='{
-     repository(owner:"CERTCC", name:"Vultron") {
-       issue(number: '"${NEW_ISSUE}"') { id }
-     }
-   }' --jq '.data.repository.issue.id')
-   ITEM_ID=$(gh api graphql -f query="mutation {
-     addProjectV2ItemById(input: {
-       projectId: \"PVT_kwDOAjf0s84BZnre\"
-       contentId: \"${NODE_ID}\"
-     }) { item { id } }
-   }" --jq '.data.addProjectV2ItemById.item.id')
-   gh api graphql -f query="mutation {
-     updateProjectV2ItemFieldValue(input: {
-       projectId: \"PVT_kwDOAjf0s84BZnre\"
-       itemId: \"${ITEM_ID}\"
-       fieldId: \"PVTSSF_lADOAjf0s84BZnrezhUlFOM\"
-       value: { singleSelectOptionId: \"fcffa79d\" }
-     }) { projectV2Item { id } }
-   }" >/dev/null
+   bash .agents/skills/shared/add-to-project.sh "${NEW_ISSUE}"
    ```
 
    Record the dependency in `plan/BUILD_LEARNINGS.md` and stop.
-4. If more than one prerequisite is required, or the prerequisite work is
-   non-trivial, update `plan/BUILD_LEARNINGS.md` with details and stop.
 
-### Phase 4 - Implement
+4. If more than one prerequisite is required, or the work is non-trivial,
+   record details in `plan/BUILD_LEARNINGS.md` and stop.
+
+### Phase 5 — Implement
 
 1. Implement only the selected task.
-2. Follow project conventions and keep the change focused.
+2. Follow project conventions; keep the change focused.
 3. Add or update tests for new or changed behavior.
 4. Reuse existing helpers and keep the implementation DRY.
-5. Sub-agents may help with implementation, but main-agent validation is
-   mandatory.
+5. Sub-agents may help, but main-agent validation is mandatory.
 
-### Phase 5 - Validate
+### Phase 6 — Validate
 
-1. Invoke the `format-code` skill, then `run-linters`, then `run-tests`.
+1. Invoke `format-code`, then `run-linters`, then `run-tests`.
 2. Do not skip or delegate validation.
-3. If incidental bugs are discovered, file each as a Bug-type GitHub issue
-   via the `manage-github-issue` helper script with clear reproduction notes;
+3. File incidental bugs as Bug-type GitHub issues via `manage-github-issue`;
    do not pursue them unless they block the current task.
 
-### Phase 6 - Pre-PR code review
+### Phase 7 — Pre-PR Code Review
 
-Invoke the `code-review` agent against the current branch diff relative to
-`main`. Every finding will be tagged `[BLOCKING]` or `[ADVISORY]`:
+Invoke the `code-review` agent against the current branch diff vs `main`.
+Findings are tagged `[BLOCKING]` (fix before continuing) or `[ADVISORY]`
+(log in PR comment after opening).
 
-- `[BLOCKING]` — bugs and security issues. Fix **all** of these before
-  continuing. After fixing, re-run the code review to confirm no new
-  `[BLOCKING]` findings were introduced.
-- `[ADVISORY]` — style and quality observations. Do not block on these; log
-  them in a PR comment after the PR is opened (Phase 7 step 4).
+### Phase 8 — Open PR and Finalize
 
-### Phase 7 - Open PR and finalize
+1. Compute diff size: ≤50 lines → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
+   Update the `size:` label on the Issue.
 
-1. Compute the actual diff size (total lines added + removed across all changed
-   files):
-   - ≤50 lines → `size:S`
-   - 51–300 lines → `size:M`
-   - 301+ lines → `size:L`
-
-   Update the `size:` label on the Issue to match.
-
-2. Push the branch and open a PR:
+2. Push and open a PR:
 
    ```bash
-   git push -u origin task/<issue-number>-<slug>
+   git push -u origin task/<N>-<slug>
    gh pr create --repo CERTCC/Vultron \
      --title "<short title>" \
      --body "Closes #<N>
 
    <summary of changes>" \
      --label "size:<X>"
-   ```text
-
-3. If there were `[ADVISORY]` findings from the code review, post them as a
-
-   PR comment:
-
-   ```bash
-   gh pr comment <PR-number> --repo CERTCC/Vultron \
-     --body "Code review advisory findings: ..."
    ```
 
-4. Invoke the `archive-history` skill now that the PR URL is known:
+3. Post `[ADVISORY]` findings as a PR comment (if any).
+
+4. Invoke `archive-history`:
 
    ```text
    TYPE    = implementation
@@ -246,37 +145,22 @@ Invoke the `code-review` agent against the current branch diff relative to
    BODY    = "## Issue #<N> — <title>\n\n<completion summary, PR link>"
    ```
 
-   The skill runs `uv run append-history implementation`, lints the new
-   history files, stages `plan/history/`, commits, and pushes.
+5. Record observations in `plan/BUILD_LEARNINGS.md`
+   (`### YYYY-MM-DD LABEL — description`). Do not write completion summaries
+   here.
 
-5. Record **observations, open questions, and constraints** discovered during
-   implementation in `plan/BUILD_LEARNINGS.md`. Use a dated header per entry
-   (e.g., `### 2026-04-28 LABEL — Short description`). Do **not** write
-   completion summaries here.
+6. Invoke `commit` if `BUILD_LEARNINGS.md` was updated.
 
-6. Invoke the `commit` skill if any local files (BUILD_LEARNINGS.md) were
-   updated. The implementation changes themselves are on the PR branch.
+### Phase 9 — Merge Conflict Recovery (if needed)
 
-### Phase 8 - Merge conflict recovery (if needed)
-
-If the PR reports merge conflicts:
-
-1. Attempt an automatic rebase:
-
-   ```bash
-   git fetch origin main
-   git rebase origin/main
-   ```text
-
-2. If the rebase succeeds: `git push --force-with-lease`. CI re-runs.
-
-3. If the rebase fails: post a comment on the PR explaining the conflict, add
-   the `needs-rebase` label, and stop. Human intervention is required.
+```bash
+git fetch origin main && git rebase origin/main
+# Success: git push --force-with-lease
+# Failure: post PR comment, add needs-rebase label, stop.
+```
 
 ## Constraints
 
-- Preserve focus on a single task, or a tightly related set of trivial tasks.
-- Do not modify unrelated tasks.
+- One task per run (or a tightly related set of trivial tasks).
 - Do not skip validation or the pre-PR code review.
-- Each run starts in a fresh context.
 - Do not commit directly to `main`. All work goes through a PR.

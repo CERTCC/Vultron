@@ -4,7 +4,7 @@ description: >
   Perform a gap analysis between current specs/notes and the codebase, then
   create GitHub Issues for any untracked gaps and add them to Project #24.
   Observations and open questions go directly to notes/ files. Use after
-  learn or ingest-idea has updated specs/notes, and before running build.
+  learn or `plan-issue` has updated specs/notes, and before running build.
 ---
 
 # Skill: Update Plan
@@ -18,13 +18,13 @@ code, tests, `specs/`, or `notes/` (except when writing gap-analysis
 observations). Do **not** write to `plan/BUILD_LEARNINGS.md` — that file is
 reserved for `build` and `bugfix`.
 
-**Trigger**: Use after `learn` or `ingest-idea` has updated specs or notes,
+**Trigger**: Use after `learn` or `plan-issue` has updated specs or notes,
 to translate those changes into concrete GitHub Issues. Also run periodically
 to keep open Issues aligned with the codebase.
 
 ## Quick Start
 
-1. Invoke `study-project-docs` to load all specs and context.
+1. Invoke `orient-agent` then `deepen-context` to load all specs and context.
 2. Run a gap analysis: compare `specs/` + `notes/` against `vultron/` and
    `test/`.
 3. For each gap, create a GitHub Issue (added to Project #24 with
@@ -37,8 +37,8 @@ to keep open Issues aligned with the codebase.
 
 ### Phase 1 — Load Context
 
-Invoke the `study-project-docs` skill. It loads all specs, reads all plan/,
-docs/adr/, notes/, AGENTS.md, and scans vultron/ and test/.
+Invoke the `orient-agent` skill, then `deepen-context` to load all specs,
+relevant plan files, docs/adr/, notes/, AGENTS.md, and scan vultron/ and test/.
 
 To understand what has recently been completed and avoid re-adding finished
 work, run `uv run show-history --month YYMM` (replacing `YYMM` with the

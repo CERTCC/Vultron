@@ -188,7 +188,7 @@ the preamble — no actionable entries.
 | Queue                 | Count | Skill                |
 |-----------------------|-------|----------------------|
 | BUILD_LEARNINGS       |  {n}  | learn                |
-| Ideas (open)          |  {n}  | ingest-idea          |
+| Ideas (open)          |  {n}  | plan-issue           |
 | Bugs (open)           |  {n}  | bugfix               |
 | Concerns (open)       |  {n}  | process-concerns     |
 | Open PRs              |  {n}  | pr-comprehensive-fix |

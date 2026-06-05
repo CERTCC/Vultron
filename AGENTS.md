@@ -423,7 +423,7 @@ When a skill requires user input or asks the user a question:
   question at a time using `ask_user`. All skills that include an interview
   or clarification phase MUST follow the same pattern.
 - When skills compose (e.g., `learn` invokes `grill-me`, `build` invokes
-  `study-project-docs`), the `ask_user` rule applies transitively — each
+  `orient-agent`), the `ask_user` rule applies transitively — each
   invoked skill must also use `ask_user` for any user-facing questions.
 
 ---
@@ -470,6 +470,6 @@ See [`vultron/adapters/AGENTS.md`](vultron/adapters/AGENTS.md) for the
 History entries live under `plan/history/YYMM/<type>/<entry-id>.md`. Use the
 `append-history` CLI tool — **never** append directly to files in
 `plan/history/`. See `specs/history-management.yaml` (HM-01–HM-05) and
-`notes/history-management.md` for the format and usage. During `study-project-docs`,
+`notes/history-management.md` for the format and usage. During `orient-agent`,
 read only `plan/*.md` — access `plan/history/` only for investigating
 completed work.

@@ -88,25 +88,25 @@ Each caller skill should replace its inline `uv run append-history` +
 this skill. The caller is responsible for constructing the entry body;
 this skill owns the tool invocation, lint, stage, commit, and push.
 
-### ingest-idea
+### plan-issue (Idea)
 
 ```text
 TYPE    = idea
 TITLE   = <short idea title>
-SOURCE  = IDEA-<IDEA_NUMBER>
+SOURCE  = IDEA-<ISSUE_NUMBER>
 BODY    = Full original idea text + "**Processed**: YYYY-MM-DD — ..." line
           + "Docs PR: <PR_URL>."
-```text
+```
 
-### ingest-concern
+### plan-issue (Concern)
 
 ```text
 TYPE    = learning
 TITLE   = <short concern title>
-SOURCE  = CONCERN-<CONCERN_NUMBER>
+SOURCE  = CONCERN-<ISSUE_NUMBER>
 BODY    = Full original concern body + "**Resolved**: YYYY-MM-DD — ..."
           + "Docs PR: <PR_URL>. Implementation tracked in #<IMPL_ISSUE>."
-```text
+```
 
 ### learn
 
