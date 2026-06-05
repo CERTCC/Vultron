@@ -38,6 +38,10 @@ groups:
     priority: MUST
     statement: Module paths referenced in `notes/` MUST be updated to reflect canonical current locations whenever those paths
       change
+  - id: PD-03-006
+    priority: SHOULD
+    statement: Workflow or tooling PRs SHOULD update maintainer-facing documentation in the same PR; when this is not feasible,
+      the PR MUST include a linked follow-up docs issue before merge.
 - id: PD-04
   title: Documentation Build Validation
   specs:

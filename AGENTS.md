@@ -460,6 +460,11 @@ Links in `docs/` MUST be relative to the current file and MUST NOT go above
 the `docs/` root. Run `uv run mkdocs build --strict` before committing any
 `docs/` changes (see `build-docs` skill).
 
+Maintainer docs under `docs/developer/` are intentionally excluded from the
+published site (`mkdocs.yml`). To view or validate them locally, use
+`mkdocs.dev.yml` (for example: `uv run mkdocs serve --config-file
+mkdocs.dev.yml`).
+
 ### Demo script lifecycle logging
 
 See [`vultron/adapters/AGENTS.md`](vultron/adapters/AGENTS.md) for the

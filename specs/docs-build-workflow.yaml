@@ -34,7 +34,7 @@ groups:
         statement: >
           The workflow MUST trigger on `pull_request` events whose changed
           paths include at least one of: `docs/**`, `mkdocs.yml`,
-          `pyproject.toml`, `uv.lock`, or the workflow file itself
+          `mkdocs.dev.yml`, `pyproject.toml`, `uv.lock`, or the workflow file itself
           (`.github/workflows/docs-build-check.yml`).
         rationale: >
           These are the files that can break the site build or introduce
@@ -80,6 +80,16 @@ groups:
           significantly slower than the build step alone. Running it on
           every trigger (e.g., `pyproject.toml` bumps) wastes CI time
           without providing additional safety.
+      - id: DOCBW-03-004
+        priority: SHOULD
+        statement: >
+          The workflow SHOULD include a second MkDocs build step that validates
+          `mkdocs.dev.yml` in addition to the publish build (`mkdocs.yml`),
+          so dev-only documentation overlays remain buildable.
+        rationale: >
+          Maintainer-focused docs may be intentionally excluded from publish
+          builds. Validating the dev overlay in CI prevents local docs breakage
+          from going undetected.
 
   - id: DOCBW-04
     title: Docs-Changed Filter Step

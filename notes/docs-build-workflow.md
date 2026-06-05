@@ -21,7 +21,8 @@ and `notes/` that have no effect on the published MkDocs site.
 | Should the build step always run? | Yes | Python macro/plugin failures (e.g., `pyproject.toml` or `mkdocs.yml` changes) need to be caught even if no `docs/` content changed |
 | When should the link-check step run? | Only when `docs/**` changed (or `workflow_dispatch`) | Link-checking crawls the entire site and is slow; triggering it on every pyproject.toml bump is wasteful |
 | How to detect if `docs/` changed? | `git diff --name-only` against the PR base | No third-party action needed; keeps the SHA-pinned `uses:` surface minimal (CISEC-01-001) |
-| What paths trigger the workflow at all? | `docs/**`, `mkdocs.yml`, `pyproject.toml`, `uv.lock`, workflow file | These are the only files that can break the site build or introduce broken links |
+| What paths trigger the workflow at all? | `docs/**`, `mkdocs.yml`, `mkdocs.dev.yml`, `pyproject.toml`, `uv.lock`, workflow file | These are the files that can break the publish build or the dev overlay build |
+| Should dev-only docs overlays be validated in CI? | Yes | `mkdocs.dev.yml` changes can break local maintainer docs even when publish docs still build |
 | Should `**/*.md` remain as a trigger? | No — remove it | `plan/`, `specs/`, `notes/` changes never affect the built site; the old trigger caused excessive runs |
 | Workflow filename | `docs-build-check.yml` | More descriptive than `linkchecker.yml`; the file covers both build and link-check phases |
 | Workflow display name | `Docs Build and Link Check` | Matches the two-phase job structure |
@@ -38,6 +39,7 @@ on:
     paths:
       - 'docs/**'
       - 'mkdocs.yml'
+      - 'mkdocs.dev.yml'
       - 'pyproject.toml'
       - 'uv.lock'
       - '.github/workflows/docs-build-check.yml'
@@ -85,6 +87,10 @@ jobs:
         if: steps.filter.outputs.docs_changed == 'true'
         run: |
           uv run linkchecker site/index.html
+
+      - name: Build Developer Docs Overlay
+        run: |
+          uv run mkdocs build --verbose --clean --config-file mkdocs.dev.yml
 ```
 
 ### Why `fetch-depth: 0`
@@ -124,10 +130,13 @@ on:
 
 ### After (docs-build-check.yml)
 
-- Trigger narrowed to `docs/**`, `mkdocs.yml`, `pyproject.toml`,
+- Trigger narrowed to `docs/**`, `mkdocs.yml`, `mkdocs.dev.yml`,
+  `pyproject.toml`,
   `uv.lock`, and the workflow file itself.
 - Build Site step still runs on every trigger (guards against plugin
   breakage from `pyproject.toml`/`mkdocs.yml` changes).
+- Developer overlay build now runs on every trigger to keep local maintainer
+  docs (`docs/developer/`) buildable.
 - Link-check step only runs when `docs/` content actually changed.
 
 ---
@@ -137,7 +146,7 @@ on:
 | Workflow | Purpose | Trigger |
 |---|---|---|
 | `python-app.yml` | Python tests + linters | `vultron/**`, `test/**`, Python config |
-| `docs-build-check.yml` | MkDocs build + link check | `docs/**`, `mkdocs.yml`, Python config |
+| `docs-build-check.yml` | MkDocs build + link check | `docs/**`, `mkdocs*.yml`, Python config |
 | `lint_md_all.yml` | Markdown lint | `**/*.md` |
 | `demo-integration.yml` | Docker integration demo | `vultron/**`, `docker/**`, etc. |
 | `deploy_site.yml` | Deploy to GitHub Pages | Push to `publish` branch |

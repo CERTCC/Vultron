@@ -6,6 +6,7 @@ on:
       - 'overrides/**'
       - 'references.bib'
       - 'mkdocs.yml'
+      - 'mkdocs.dev.yml'
       - 'pyproject.toml'
       - 'uv.lock'
       - 'CONTRIBUTING.md'
@@ -59,3 +60,7 @@ jobs:
         if: steps.filter.outputs.docs_changed == 'true'
         run: |
           uv run linkchecker site/index.html
+
+      - name: Build Developer Docs Overlay
+        run: |
+          uv run mkdocs build --verbose --clean --config-file mkdocs.dev.yml
