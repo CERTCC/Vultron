@@ -214,9 +214,9 @@ Do **not** implement the fix before the test exists.
 Once the test fails and you've clarified scope with the skill:
 
 1. Modify **only** the code needed to make the test pass.
-2. Follow all Vultron conventions (see `AGENTS.md` § Naming Conventions and
-   [`vultron/core/AGENTS.md`](../../development/code-organization.md) for
-   layer-specific rules).
+2. Follow all Vultron conventions for naming and layer-specific rules. See
+   [How to find your way around the codebase](find-your-way-around.md) for
+   guidance on architecture layers and file organization.
 3. Do not pursue incidental bugs you discover — file them separately and focus
    on this one.
 
@@ -331,9 +331,8 @@ Follow the skill's guidance. Your PR is now ready for review.
 
 See also:
 
-- [`test/AGENTS.md`](../../../../test/AGENTS.md) — Testing expectations and patterns
-- [`AGENTS.md`](../../../AGENTS.md) § Common Pitfalls — Reference for tricky
-  scenarios (BT state, async, integration)
 - [How to run tests](run-tests.md) — Test execution details
 - [How to run linters and formatters](run-linters-and-formatters.md) — Full
   linting workflow
+- [How to find your way around the codebase](find-your-way-around.md) — Codebase
+  organization and key files
