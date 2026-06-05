@@ -3,9 +3,12 @@ status: accepted
 date: 2026-06-03
 deciders: Vultron maintainers
 consulted: notes/domain-model-separation.md
+amended: >-
+  2026-06-05 — Changed decision from Option B to Option D
+  (shared-base, two-branch hierarchy); see concern #796.
 ---
 
-# Domain/Wire Object Separation: Parallel Core Class Hierarchy
+# Domain/Wire Object Separation: Shared-Base, Two-Branch Hierarchy
 
 ## Context and Problem Statement
 
@@ -63,123 +66,139 @@ only the foundation; no per-type migrations occur in the same change.
   projections that re-export or wrap the core types.
 - **C. Move `as_Object` itself into `core/` and re-export from wire.**
   Domain types continue to inherit from a single shared base.
+- **D. Make the wire hierarchy inherit from the same lenient shared base
+  already used by the core hierarchy (`VultronBase` / `VultronObject`).**
+  Both branches share a root in `core/models/base.py`. The core branch
+  adds domain validators and required-field constraints; the wire branch
+  adds AS2 serialization concerns (`alias_generator=to_camel`, hardcoded
+  `@context`). No diamond inheritance at the concrete-type level;
+  translation between branches uses Pydantic's `model_validate()`
+  round-trip. No `from_core()` / `to_core()` protocol is required.
 
 ## Decision Outcome
 
-Chosen option: **B — introduce a `CoreObject` base in `core/models/`,
-parallel to `as_Object`**, because it cleanly satisfies the layer-
-boundary rule (core never imports wire), keeps wire-layer JSON-LD
-concerns (`@context`, AS2 vocabulary registry) out of the domain, and
-gives future per-type migrations a stable foundation to inherit from
-without duplicating the `id_`/`type_`/`published`/`updated`/`name`
-boilerplate that every domain object needs.
+Chosen option: **D — shared-base, two-branch hierarchy**, superseding the
+original Option B chosen when this ADR was first drafted.
+
+> **Amendment note (2026-06-05):** The original decision was Option B
+> (parallel independent `CoreObject` hierarchy). Option B was the correct
+> first step; its code artifacts (`CoreObject`, `CORE_VOCABULARY`, and the
+> migrated domain types from the #699 chain) are fully preserved and become
+> the **core branch** under Option D. Concern #796 and the post-merge
+> analysis of PR #794 revealed that completely independent hierarchies
+> block the `from_core()`/`to_core()` translation protocol defined by
+> ARCH-12 and force workarounds (`CoreActor | as_Actor` unions in adapters;
+> re-export instead of proper wire types). Option D resolves this by
+> connecting both branches at a shared lenient root.
 
 ### Decision details
 
-1. **Parallel hierarchy.** A new `CoreObject` class lives in
-   `vultron/core/models/base.py`. It inherits from the existing
-   `VultronObject` (so it transitively carries the AS2-derived fields
-   `id_`, `type_`, `name`, `attributed_to`, `published`, `updated`,
-   plus the broader set of optional fields that already exist on
-   `VultronObject`). It adds the JSON-LD `context_` field
-   (validation/serialization alias `@context`), which has no default —
-   the wire projection supplies the AS2 namespace at serialization
-   time. (`VultronObject` itself remains in place to keep the existing
-   `Vultron*` stubs untouched, per issue #724 AC-4.)
+1. **Shared root.** `VultronBase` and `VultronObject` (already in
+   `vultron/core/models/base.py`) are the shared root for both
+   hierarchies. They define all shared fields with the most lenient
+   types (`str | None`, `Any | None`, `datetime | None`). No AS2-specific
+   serialization concerns live in the shared root.
 
-   Concrete subclasses register themselves in `CORE_VOCABULARY` via
-   `__init_subclass__`. A subclass is registered only when it overrides
-   `type_` with a concrete (non-union) annotation, mirroring the
-   wire-layer `VOCABULARY` registration rule. The registry key is the
-   subclass's `__name__` verbatim — no prefix to strip, because core
-   classes have no `as_` prefix.
+2. **Core branch adds domain constraints.** `CoreObject` (and all migrated
+   domain types) inherit from `VultronObject`. The core branch narrows
+   inherited fields via Pydantic `AfterValidator` annotations (e.g.,
+   `NonEmptyString | None`) and enforces domain invariants (required fields,
+   URI validation). Core-branch types MUST NOT carry wire-specific concerns.
 
-2. **Core fields hold full objects, not refs.** Domain fields MUST NOT
-   use `Object | str | Link | None` unions. The "inline-or-ref"
-   polymorphism is a wire-format concern; the wire layer translates
-   bare-ID and `Link` forms into full embedded objects at the
-   deserialization boundary, and the `DataLayer` hydrates IDs on read.
-   The only intentional exception is a small set of cases where the
-   core legitimately needs an ID reference for a graph-cycle reason
-   — e.g., parent/child case linkage on `VulnerabilityCase`, where
-   embedding the parent object would either recurse infinitely or
-   prematurely materialize an entire case tree. Such cases MUST be
-   called out explicitly at the field site with a comment naming this
-   ADR.
+3. **Wire branch adds AS2 concerns.** `as_Base` inherits from `VultronBase`;
+   `as_Object` inherits from `VultronObject`. The wire branch adds
+   `alias_generator=to_camel`, the hardcoded `@context` AS2 namespace, and
+   lenient field types required by the AS2 vocabulary (`Any | None`).
+   Wire-branch types MUST NOT carry domain validators.
 
-3. **Naming convention.** Migrated core types use the canonical CVD
-   domain vocabulary without a `Vultron` prefix:
+4. **No diamond inheritance at concrete-type level.** Core and wire types
+   remain in separate branches. Concrete domain types live in the core
+   branch only; concrete wire types live in the wire branch only. The
+   re-export pattern (ARCH-09-002) is a transitional state, not the
+   long-term design: once wire-branch actor types are implemented, the
+   re-export is removed.
 
-   - `VulnerabilityCase` (not `VultronCase`)
-   - `VulnerabilityReport` (not `VultronReport`)
-   - `CaseStatus`, `CaseParticipant`, `EmbargoPolicy`,
-     `CaseLogEntry`, `VulnerabilityRecord`
+5. **Translation is `model_validate()`.** Both branches share field names
+   and the shared-base field types are compatible with the core branch's
+   narrowed types. Converting between a core object and its wire counterpart
+   uses `WireType.model_validate(core_obj.model_dump(mode="json"))`. No
+   explicit `from_core()` / `to_core()` classmethods are required; ARCH-12
+   is superseded by this decision.
 
-   "Wire-style" here means **the canonical Vultron domain vocabulary
-   already used in the wire layer's class names**, not "ownership by
-   the wire layer." After migration, the wire layer's domain-object
-   modules become thin projections that re-export the core types
-   (possibly wrapped in an AS2-flavored adapter when JSON-LD-specific
-   behavior is needed). The legacy `Vultron*` stubs in
-   `vultron/core/models/` (`VultronCase`, `VultronReport`,
-   `VultronNote`, etc.) are intentionally left in place by issue #724
-   and will be replaced as each type migrates under issue #699.
+6. **`inbox` / `outbox` are URI strings in the domain.** Actor `inbox` and
+   `outbox` fields carry endpoint URI strings (`str | None`) in the shared
+   base and core branch. AS2 `OrderedCollection` wrapping is a wire-only
+   serialization concern. `CoreActorCollection` is transitionally deprecated.
+
+7. **Naming and registry conventions are unchanged.** Core types continue
+   to use canonical CVD vocabulary names (no `Vultron` prefix) and register
+   in `CORE_VOCABULARY`. Wire types register in `VOCABULARY`. Both
+   conventions were established under Option B and carry forward.
+
+8. **Core fields hold full objects, not refs.** This rule from Option B is
+   unchanged. Domain fields MUST NOT use `Object | str | Link | None`
+   unions. The only intentional exception is graph-cycle linkage (e.g.,
+   parent/child `VulnerabilityCase`); such cases MUST include a comment
+   naming this ADR.
+
+9. **Implementation note.** The `CoreActor` type as shipped by the #699
+   chain carries wire concerns (`alias_generator=to_camel`, hardcoded
+   `@context`) because it was migrated before this amendment. Removing
+   those concerns and introducing proper wire actor types is tracked by
+   the implementation epic following concern #796.
 
 ### Consequences
 
-- Good, because `VultronActivity.object_` can be retyped as a Pydantic
-  discriminated union once at least the first few domain types
-  migrate, deleting `_STUB_OBJECT_MODEL_MAP` and the dict-recovery
-  block in `outbox_handler.py`.
-- Good, because core handlers and behavior-tree code stop seeing
-  `Object | str | Link | None` shapes; field types match the
-  developer's mental model.
-- Good, because the registry pattern proven in the wire layer carries
-  over without surprises and supports future bulk operations
-  (discriminated-union assembly, persistence mapping, schema export).
-- Bad, because two base classes (`VultronObject`, `CoreObject`) coexist
-  during the migration window, with `CoreObject` inheriting
-  `VultronObject` to honor issue #724 AC-2 and avoid disturbing the
-  existing stubs. Once #699 completes, `VultronObject` can fold into
-  `CoreObject` (or vice versa) in a follow-up cleanup.
-- Bad, because the `@context` field now exists on `CoreObject` even
-  though its only consumer is the wire layer; the default of `None`
-  keeps it inert in core code paths.
-- Neutral, because the registry is opt-in: only subclasses that supply
-  a concrete `type_` register, so future "abstract" intermediate
-  bases will not pollute `CORE_VOCABULARY`.
+- Good, because ARCH-12's `from_core()` / `to_core()` translation protocol
+  is superseded. Translation is simple `model_validate()` for the common
+  case, with no per-type stub required.
+- Good, because `CoreActor | as_Actor` union annotations in adapter
+  functions collapse to `CoreActor` once proper wire actor types are in
+  place and `VOCABULARY["Actor"]` is updated to `CoreActor`.
+- Good, because `CoreActorCollection` can be removed; `actor.inbox` and
+  `actor.outbox` become plain `str | None`, eliminating the most
+  structurally irreconcilable field-type conflict that blocked ARCH-12.
+- Good, because `VultronActivity.object_` can still be typed as a Pydantic
+  discriminated union — the #699 chain's primary goal — since
+  `CORE_VOCABULARY` carries all registered core types.
+- Bad, because the #699 migration placed wire concerns (`to_camel`,
+  `@context`) inside `CoreActor`; removing them requires a follow-up
+  implementation pass tracked by the new epic.
+- Neutral, because the two base classes (`VultronObject`, `CoreObject`)
+  and the registry pattern are unchanged; the additional wire-branch
+  inheritance wiring is new but small in surface area.
 
 ## Validation
 
-- `test/core/models/test_core_object.py` adds coverage for: `CoreObject`
-  subclass registration when `type_` is concrete; non-registration
-  when `type_` is omitted or union-typed; registry key equals
-  `cls.__name__`; existing `Vultron*` stubs do not appear in
-  `CORE_VOCABULARY` (they inherit `VultronObject`, not `CoreObject`);
-  and a PEP 563 regression test that exercises `from __future__
-  import annotations` to ensure the union-skip check is robust to
-  stringified annotations.
-- The migration of each domain type into core under issue #699 will
-  add a test that constructs the core type, serializes via wire, and
-  round-trips back through `model_validate()` with object identity
-  preserved.
-- The layer-boundary rule (core MUST NOT import wire) is already
+- `test/core/models/test_core_object.py` retains coverage for `CoreObject`
+  subclass registration, non-registration for abstract bases, and the
+  PEP 563 regression test — all established under Option B.
+- Implementation issues from the new epic will add tests verifying:
+  - `as_Base.__bases__` includes `VultronBase` (or a subclass thereof).
+  - `as_Object.__bases__` includes `VultronObject` (or a subclass thereof).
+  - `CoreActor` does not define `alias_generator` or a hardcoded `@context`.
+  - `CoreActor.inbox` and `CoreActor.outbox` are annotated `str | None`.
+  - A `model_validate()` round-trip from a core actor to a wire actor
+    preserves field values for all shared fields.
+- The layer-boundary rule (core MUST NOT import wire) continues to be
   enforced by `test/architecture/test_layer_boundaries.py`.
 
 ## More Information
 
+- Concern #796 — Architecture clarification for core & wire class hierarchy;
+  the driving observation for the amendment from Option B to Option D.
+- PR #794 — Migrated Vultron actor types to `core/models/`; post-merge
+  review surfaced the 17 field-type conflicts that prompted the amendment.
 - Issue #724 — Refactor #699 step 1: core base hierarchy + ADR for
-  domain/wire object separation (this ADR).
-- Issue #699 — Migrate domain objects from
-  `wire/as2/vocab/objects/` to `core/models/` and type
-  `VultronActivity.object_` as a discriminated union.
+  domain/wire object separation (established Option B).
+- Issue #699 — Migrate domain objects from `wire/as2/vocab/objects/` to
+  `core/models/` and type `VultronActivity.object_` as a discriminated
+  union. (Completed; created the core branch artifacts used by Option D.)
 - Concern #586 — original layer-boundary inversion report.
-- PR #577 — `_STUB_OBJECT_MODEL_MAP` workaround that this design
-  eventually deletes.
+- PR #577 — `_STUB_OBJECT_MODEL_MAP` workaround that the #699 chain deleted.
 - `notes/domain-model-separation.md` — full architectural direction,
   including the translation-boundary model
-  (Wire DTO → Domain Model → Persistence Model) and the
-  domain-events-as-bridge discussion.
+  (Wire DTO → Domain Model → Persistence Model).
 - `notes/codebase-structure.md` "Core Object Modules" — related
   file-splitting recommendation.
 - ADR-0009 — Hexagonal Architecture (Ports and Adapters), the

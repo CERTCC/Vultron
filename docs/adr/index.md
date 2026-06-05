@@ -68,7 +68,7 @@ General information about architectural decision records is available at <https:
   (RM.RECEIVED)](0015-create-case-at-report-receipt.md)
 - [ADR-0016 Replace TinyDB with SQLModel/SQLite DataLayer
   Adapter](0016-sqlmodel-sqlite-datalayer.md)
-- [ADR-0017 Domain/Wire Object Separation: Parallel Core Class
+- [ADR-0017 Domain/Wire Object Separation: Shared-Base, Two-Branch
   Hierarchy](0017-domain-wire-object-separation.md)
 - [ADR-0018 Canonical Case History Convergence on
   `CaseLogEntry`](0018-canonical-case-history-convergence.md)
