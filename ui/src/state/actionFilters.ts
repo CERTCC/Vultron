@@ -248,8 +248,7 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
       })
     }
 
-    // Per Vultron protocol: vendors can validate AND work on VFD simultaneously
-    // Validation (RM) and fix development (VFD) are independent state machines
+    // Validation actions - vendor must validate before progressing VFD
     if (vendor.rmState === 'RECEIVED') {
       actions.push({
         id: 'validate-report',
@@ -288,8 +287,9 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
     // VFD progression - each vendor can progress independently
     // Per Vultron protocol: Fix Ready can only occur when vendor is in RM.ACCEPTED state
     // Demo simplifies by allowing VALID state (skipping explicit ACCEPT action)
-    // Block VFD progression when report is INVALID, RECEIVED, or START
-    const canProgressVFD = vendor.rmState === 'VALID' || vendor.rmState === 'ACCEPTED' || vendor.rmState === 'DEFERRED'
+    // MUST block VFD progression when report is INVALID, RECEIVED, or START
+    const blockedRmStates = ['INVALID', 'RECEIVED', 'START', 'DECLINED']
+    const canProgressVFD = !blockedRmStates.includes(vendor.rmState)
 
     if (vendor.vfdState === 'Vfd' && canProgressVFD) {
       actions.push({

@@ -26,14 +26,14 @@ export function handleInviteSecondVendor(state: DemoState, inviterId: string = '
   // Create second vendor participant
   // Per Vultron protocol: inviting a vendor = sending them the vulnerability report
   // They start at RM.RECEIVED and VFD.Vfd, just like Vendor 1 did when the report was submitted
-  // Per protocol: "Vendors enter at Vfd (vendor aware) by definition"
+  // Vendor becomes aware (Vfd) but cannot announce fix ready until report is validated
   const vendor2 = {
     id: 'vendor-2',
     name: 'Vendor 2',
     role: PARTICIPANT_ROLES.vendor2,
     color: PARTICIPANT_COLORS.vendor2,
     rmState: 'RECEIVED',  // They received the vulnerability report
-    vfdState: 'Vfd',  // Vendor aware - can work on fix immediately
+    vfdState: 'Vfd',  // Vendor aware - must validate before progressing VFD
     embargoAccepted: state.emState === 'ACTIVE',  // Auto-accept embargo if already active
     hasPublished: false,
     hasClosed: false,
