@@ -3,10 +3,10 @@ name: orient-agent
 description: >
   Load the always-required baseline context before any implementation,
   planning, or documentation work. Reads the glossary, loads all specs,
-  reads AGENTS.md and notes/README.md, reads BUILD_LEARNINGS.md, and
-  queries Project #24 for Schedule=Now items. Run this at the start of
-  every workflow skill before selecting or reading a specific issue.
-  Replaces study-project-docs Phase A.
+  reads AGENTS.md, notes/README.md, and docs/adr/index.md, reads
+  BUILD_LEARNINGS.md, and queries Project #24 for Schedule=Now items.
+  Run this at the start of every workflow skill before selecting or
+  reading a specific issue. Replaces study-project-docs Phase A.
 ---
 
 # Skill: Orient Agent
@@ -25,13 +25,15 @@ Read `docs/reference/glossary.md` first to establish domain vocabulary.
 Run `uv run spec-dump`. Capture the JSON output. Do **not** read raw
 `specs/*.yaml` files directly.
 
-### Step 3 — Read agent rules and active notes index
+### Step 3 — Read agent rules, active notes index, and ADR index
 
 Read in parallel:
 
 - `AGENTS.md` — agent rules, conventions, and pitfalls
 - `notes/README.md` — index of active design notes (do not read individual
   notes files here; use `deepen-context` for task-specific notes)
+- `docs/adr/index.md` — overview of all ADRs (accepted, proposed, rejected,
+  superseded); used by `deepen-context` to decide which ADRs to load
 
 ### Step 4 — Read build observations
 

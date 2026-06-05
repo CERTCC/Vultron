@@ -42,8 +42,12 @@ rather than skip — missing context causes incorrect implementation.
 
 ### Step 2 — Read relevant ADRs
 
-Check `docs/adr/` for ADRs relevant to the task. Read any ADR that covers
-a decision in scope for the current issue.
+Using the ADR index loaded by `orient-agent` (`docs/adr/index.md`),
+identify and read any ADRs relevant to the current task. Focus on ADRs
+whose titles match the task's domain (e.g., behavior trees, hexagonal
+architecture, ActivityStreams, DataLayer). Read the full ADR file for
+any decision that is in scope — ADR context prevents re-litigating
+settled choices.
 
 ### Step 3 — Read relevant codebase reference files
 
