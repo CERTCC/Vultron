@@ -161,3 +161,22 @@ groups:
     priority: MUST
     statement: 'Reject-on-divergence: entries that do not extend the current hash chain MUST be rejected and MUST trigger
       resynchronization'
+- id: SYNC-10
+  title: Catch-Up Gate Before New Actions
+  specs:
+  - id: SYNC-10-001
+    priority: MUST
+    statement: >-
+      After actor process restart or recovery, an actor with case state in scope MUST re-establish
+      case-log freshness with the CaseActor before taking new protocol-significant case actions
+  - id: SYNC-10-002
+    priority: MUST
+    statement: >-
+      While catch-up freshness is not established, the actor MUST block or defer new
+      protocol-significant case actions and surface an explicit stale-or-catching-up condition
+  - id: SYNC-10-003
+    priority: SHOULD
+    statement: >-
+      Catch-up freshness checks SHOULD use the actor's last acknowledged canonical hash and
+      replay mechanisms so that action gating is based on canonical log position, not local
+      wall-clock assumptions

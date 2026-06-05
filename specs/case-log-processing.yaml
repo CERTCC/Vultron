@@ -146,3 +146,36 @@ groups:
       The system SHOULD provide a convenient way to retrieve the recorded-only history projection
       without requiring consumers to manually filter rejected entries from the broader audit
       log
+- id: CLP-06
+  title: Pending Assertion Suppression
+  specs:
+  - id: CLP-06-001
+    priority: SHOULD
+    statement: >-
+      Participant actors SHOULD maintain actor-local pending assertion state for recently
+      emitted case-scoped assertions that are awaiting canonical `CaseLogEntry` confirmation
+  - id: CLP-06-002
+    priority: MUST_NOT
+    statement: >-
+      Pending assertion state MUST NOT be treated as canonical case history and MUST NOT be
+      used as the authoritative source for participant membership or case state reconstruction
+  - id: CLP-06-003
+    priority: MUST
+    statement: >-
+      Implementations that provide pending assertion suppression MUST support a configurable
+      timeout; the default timeout SHOULD be 180 seconds
+  - id: CLP-06-004
+    priority: MUST
+    statement: >-
+      When a pending assertion reaches timeout without matching canonical confirmation, it MUST
+      transition to a timed-out state and the system MUST emit an error log
+  - id: CLP-06-005
+    priority: MUST_NOT
+    statement: >-
+      Pending assertion timeout handling MUST NOT automatically retry assertion emission;
+      follow-up emission decisions MUST be made by subsequent behavior evaluation
+  - id: CLP-06-006
+    priority: MUST
+    statement: >-
+      A pending assertion entry MUST be cleared when a matching canonical
+      `CaseLogEntry(recorded|rejected)` is observed
