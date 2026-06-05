@@ -416,7 +416,7 @@ Short entries are reproduced here; longer ones are referenced below.
   `Announce(CaseLogEntry)` replication activities — it has an auto-computed
   `id_` and registers in `CORE_VOCABULARY`. Importing from the wrong module
   silently produces incorrect behaviour. The local class is tracked for renaming
-  in issue #805 to eliminate this ambiguity. Until it is renamed, always import
+  in issue #806 to eliminate this ambiguity. Until it is renamed, always import
   by full module path and verify which class you need. See `specs/architecture.yaml`
   ARCH-12-007 and concern #804.
 - **Adding a New Pitfall: Check the Routing Policy First** — see
