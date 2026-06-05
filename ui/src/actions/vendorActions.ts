@@ -19,6 +19,8 @@ export function handleValidateReport(state: DemoState, vendorId: string): DemoSt
   const now = Date.now()
 
   const vendor = getParticipant(state, vendorId)
+  const finder = getParticipant(state, 'finder')
+  const caseactor = getParticipant(state, 'caseactor')
   if (!vendor) return state
 
   let newState = state
@@ -34,7 +36,7 @@ export function handleValidateReport(state: DemoState, vendorId: string): DemoSt
       label: 'Validate Report',
       x: nextX,
       lane: vendor.laneIndex,
-      type: 'decision',
+      type: 'decision' as const,
       timestamp: now,
       consequences: [
         'Accept(Offer) activity created',
@@ -50,8 +52,8 @@ export function handleValidateReport(state: DemoState, vendorId: string): DemoSt
       participantId: 'finder',
       label: 'Validation Noted',
       x: nextX,
-      lane: 0,
-      type: 'consequence',
+      lane: finder?.laneIndex ?? 0,
+      type: 'consequence' as const,
       timestamp: now + 1,
       causedBy: eventId,
       consequences: [
@@ -66,8 +68,8 @@ export function handleValidateReport(state: DemoState, vendorId: string): DemoSt
       participantId: 'caseactor',
       label: 'Validation Tracked',
       x: nextX,
-      lane: 2,
-      type: 'consequence',
+      lane: caseactor?.laneIndex ?? 2,
+      type: 'consequence' as const,
       timestamp: now + 2,
       causedBy: eventId,
       consequences: [
@@ -89,6 +91,8 @@ export function handleInvalidateReport(state: DemoState, vendorId: string): Demo
   const now = Date.now()
 
   const vendor = getParticipant(state, vendorId)
+  const finder = getParticipant(state, 'finder')
+  const caseactor = getParticipant(state, 'caseactor')
   if (!vendor) return state
 
   let newState = state
@@ -96,24 +100,71 @@ export function handleInvalidateReport(state: DemoState, vendorId: string): Demo
   newState = updateParticipant(newState, vendorId, { rmState: 'INVALID' })
   newState = setPhase(newState, 'report-invalidated')
 
-  newState = addTimelineEvents(newState, [
-    {
-      id: eventId,
-      actor: vendor.name,
-      participantId: vendorId,
-      label: 'Invalidate Report',
+  const events = []
+  let timestampOffset = 0
+
+  // Decision node in vendor's lane
+  events.push({
+    id: eventId,
+    actor: vendor.name,
+    participantId: vendorId,
+    label: 'Invalidate Report',
+    x: nextX,
+    lane: vendor.laneIndex,
+    type: 'decision' as const,
+    timestamp: now,
+    consequences: [
+      'Reject(Offer) activity created',
+      `${vendor.name} RM state: RECEIVED → INVALID`,
+      'Report deemed invalid',
+      'Case held until reconsideration or closure',
+    ],
+  })
+
+  timestampOffset++
+
+  // Consequence node in Finder's lane
+  if (finder) {
+    events.push({
+      id: `${eventId}-finder-consequence`,
+      actor: 'Finder',
+      participantId: 'finder',
+      label: 'Invalidation Noted',
       x: nextX,
-      lane: vendor.laneIndex,
-      type: 'decision',
-      timestamp: now,
+      lane: finder.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
       consequences: [
-        'Reject(Offer) activity created',
-        `${vendor.name} RM state: RECEIVED → INVALID`,
-        'Report deemed invalid',
-        'Case held until reconsideration or closure',
+        'TentativeReject activity received',
+        `${vendor.name} has invalidated the report`,
+        'Report held, may be reconsidered',
       ],
-    },
-  ])
+    })
+    timestampOffset++
+  }
+
+  // Consequence node in CaseActor's lane
+  if (caseactor) {
+    events.push({
+      id: `${eventId}-caseactor-consequence`,
+      actor: 'CaseActor',
+      participantId: 'caseactor',
+      label: 'Invalidation Tracked',
+      x: nextX,
+      lane: caseactor.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      consequences: [
+        `${vendor.name} participant RM → INVALID`,
+        'Report invalidation tracked',
+        'Authoritative ledger updated',
+      ],
+    })
+  }
+
+  newState = addTimelineEvents(newState, events)
 
   newState = addEventLogEntries(newState, [`${vendor.name} invalidated the report (RM → INVALID)`])
   newState = incrementXPosition(newState)
@@ -128,6 +179,7 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
 
   const vendor = getParticipant(state, vendorId)
   const finder = getParticipant(state, 'finder')
+  const caseactor = getParticipant(state, 'caseactor')
   if (!vendor) return state
 
   const bothAccepted = finder?.embargoAccepted
@@ -163,8 +215,8 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
       participantId: 'caseactor',
       label: bothAccepted ? 'M1 REACHED' : `${vendor.name} Accepted`,
       x: nextX,
-      lane: 2,
-      type: 'consequence',
+      lane: caseactor?.laneIndex ?? 2,
+      type: 'consequence' as const,
       causedBy: eventId,
       timestamp: now + 1,
       enablesNext: bothAccepted,
@@ -187,8 +239,8 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
       participantId: 'finder',
       label: bothAccepted ? 'Embargo Active' : `${vendor.name} Accepted`,
       x: nextX,
-      lane: 0,
-      type: 'consequence',
+      lane: finder?.laneIndex ?? 0,
+      type: 'consequence' as const,
       causedBy: eventId,
       timestamp: now + 2,
       consequences: bothAccepted ? [
@@ -221,29 +273,125 @@ export function handleRejectEmbargo(state: DemoState, vendorId: string): DemoSta
   const vendor = getParticipant(state, vendorId)
   if (!vendor) return state
 
+  const finder = getParticipant(state, 'finder')
+  const vendor1 = getParticipant(state, 'vendor-1')
+  const vendor2 = getParticipant(state, 'vendor-2')
+  const caseactor = getParticipant(state, 'caseactor')
+
   let newState = state
 
   newState = { ...newState, emState: 'NONE', phase: 'embargo-rejected' }
 
-  newState = addTimelineEvents(newState, [
-    {
-      id: eventId,
-      actor: vendor.name,
-      participantId: vendorId,
-      label: 'Reject Embargo',
-      x: nextX,
-      lane: vendor.laneIndex,
-      type: 'decision',
-      timestamp: now,
-      consequences: [
-        'EmRejectEmbargoActivity created',
-        `${vendor.name} rejects embargo proposal`,
-        'Case proceeds without embargo',
-      ],
-    },
-  ])
+  const events = []
+  let timestampOffset = 0
 
-  newState = addEventLogEntries(newState, [`${vendor.name} rejected embargo`])
+  // Decision node in rejecting vendor's lane
+  events.push({
+    id: eventId,
+    actor: vendor.name,
+    participantId: vendorId,
+    label: 'Reject Embargo',
+    x: nextX,
+    lane: vendor.laneIndex,
+    type: 'decision' as const,
+    timestamp: now,
+    consequences: [
+      'EmRejectEmbargoActivity created',
+      `${vendor.name} rejects embargo proposal`,
+      'Case proceeds without embargo',
+      'EM state → NONE',
+    ],
+  })
+
+  timestampOffset++
+
+  // Consequence node in CaseActor lane
+  if (caseactor) {
+    events.push({
+      id: `${eventId}-caseactor-consequence`,
+      actor: 'CaseActor',
+      participantId: 'caseactor',
+      label: 'Embargo Rejected',
+      x: nextX,
+      lane: caseactor.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      enablesNext: true,
+      consequences: [
+        'EmRejectEmbargoActivity received',
+        'Embargo proposal discarded',
+        'EM state → NONE',
+        'Can repropose with revised terms',
+      ],
+    })
+    timestampOffset++
+  }
+
+  // Consequence node in Finder's lane
+  if (finder) {
+    events.push({
+      id: `${eventId}-finder-consequence`,
+      actor: 'Finder',
+      participantId: 'finder',
+      label: 'Embargo Rejected',
+      x: nextX,
+      lane: finder.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      consequences: [
+        `${vendor.name} rejected embargo`,
+        'EM state → NONE',
+        'Awaiting reproposal or continuation',
+      ],
+    })
+    timestampOffset++
+  }
+
+  // Consequence nodes in other vendor lanes (not the rejecting vendor)
+  if (vendor1 && vendor1.visible && vendorId !== 'vendor-1') {
+    events.push({
+      id: `${eventId}-vendor1-consequence`,
+      actor: 'Vendor',
+      participantId: 'vendor-1',
+      label: 'Embargo Rejected',
+      x: nextX,
+      lane: vendor1.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      consequences: [
+        `${vendor.name} rejected embargo`,
+        'EM state → NONE',
+        'Awaiting reproposal or continuation',
+      ],
+    })
+    timestampOffset++
+  }
+
+  if (vendor2 && vendor2.visible && vendorId !== 'vendor-2') {
+    events.push({
+      id: `${eventId}-vendor2-consequence`,
+      actor: 'Vendor 2',
+      participantId: 'vendor-2',
+      label: 'Embargo Rejected',
+      x: nextX,
+      lane: vendor2.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      consequences: [
+        `${vendor.name} rejected embargo`,
+        'EM state → NONE',
+        'Awaiting reproposal or continuation',
+      ],
+    })
+  }
+
+  newState = addTimelineEvents(newState, events)
+
+  newState = addEventLogEntries(newState, [`${vendor.name} rejected embargo proposal`])
   newState = incrementXPosition(newState)
 
   return newState
@@ -257,62 +405,123 @@ export function handleNotifyFixReady(state: DemoState, vendorId: string): DemoSt
   const vendor = getParticipant(state, vendorId)
   if (!vendor) return state
 
+  const finder = getParticipant(state, 'finder')
+  const caseactor = getParticipant(state, 'caseactor')
+
+  // Get other vendors to notify them
+  const vendor1 = getParticipant(state, 'vendor-1')
+  const vendor2 = getParticipant(state, 'vendor-2')
+
   let newState = state
 
   newState = updateParticipant(newState, vendorId, { vfdState: 'VFd' })
   newState = setPhase(newState, 'fix-ready')
 
-  newState = addTimelineEvents(newState, [
-    {
-      id: eventId,
-      actor: vendor.name,
-      participantId: vendorId,
-      label: 'Notify Fix Ready',
-      x: nextX,
-      lane: vendor.laneIndex,
-      type: 'decision' as const,
-      timestamp: now,
-      consequences: [
-        `${vendor.name} VFD state: Vfd → VFd`,
-        '✓ M4 REACHED: Fix ready',
-        'Fix is ready but not yet deployed',
-      ],
-    },
-    // Consequence node in Finder lane
-    {
+  const events = []
+  let timestampOffset = 0
+
+  // Decision node in vendor's lane
+  events.push({
+    id: eventId,
+    actor: vendor.name,
+    participantId: vendorId,
+    label: 'Notify Fix Ready',
+    x: nextX,
+    lane: vendor.laneIndex,
+    type: 'decision' as const,
+    timestamp: now,
+    consequences: [
+      `${vendor.name} VFD state: Vfd → VFd`,
+      '✓ M4 REACHED: Fix ready',
+      'Fix is ready but not yet deployed',
+    ],
+  })
+
+  timestampOffset++
+
+  // Consequence node in Finder lane
+  if (finder) {
+    events.push({
       id: `${eventId}-finder-consequence`,
       actor: 'Finder',
       participantId: 'finder',
       label: 'Fix Ready',
       x: nextX,
-      lane: 0,
+      lane: finder.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
-      timestamp: now + 1,
+      timestamp: now + timestampOffset,
       consequences: [
         'Finder notified: Fix is ready',
         `${vendor.name} VFD → VFd`,
         'Awaiting fix deployment',
       ],
-    },
-    // Consequence node in CaseActor lane
-    {
+    })
+    timestampOffset++
+  }
+
+  // Consequence nodes in other vendor lanes (notify all other vendors)
+  if (vendor1 && vendor1.visible && vendorId !== 'vendor-1') {
+    events.push({
+      id: `${eventId}-vendor1-consequence`,
+      actor: 'Vendor',
+      participantId: 'vendor-1',
+      label: `${vendor.name} Fix Ready`,
+      x: nextX,
+      lane: vendor1.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      consequences: [
+        `${vendor.name} notified: Fix is ready`,
+        `${vendor.name} VFD → VFd`,
+        'Other vendor has completed fix',
+      ],
+    })
+    timestampOffset++
+  }
+
+  if (vendor2 && vendor2.visible && vendorId !== 'vendor-2') {
+    events.push({
+      id: `${eventId}-vendor2-consequence`,
+      actor: 'Vendor 2',
+      participantId: 'vendor-2',
+      label: `${vendor.name} Fix Ready`,
+      x: nextX,
+      lane: vendor2.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      consequences: [
+        `${vendor.name} notified: Fix is ready`,
+        `${vendor.name} VFD → VFd`,
+        'Other vendor has completed fix',
+      ],
+    })
+    timestampOffset++
+  }
+
+  // Consequence node in CaseActor lane
+  if (caseactor) {
+    events.push({
       id: `${eventId}-case-consequence`,
       actor: 'CaseActor',
       participantId: 'caseactor',
       label: 'M4 Tracked',
       x: nextX,
-      lane: 2,
+      lane: caseactor.laneIndex,
       type: 'consequence' as const,
-      timestamp: now + 2,
+      timestamp: now + timestampOffset,
       causedBy: eventId,
       consequences: [
         '✓ M4 REACHED: Fix ready',
         `${vendor.name} participant VFD → VFd`,
         'Authoritative ledger updated',
       ],
-    },
-  ])
+    })
+  }
+
+  newState = addTimelineEvents(newState, events)
 
   newState = addEventLogEntries(newState, [`✓ M4 REACHED: ${vendor.name} fix ready`])
   newState = incrementXPosition(newState)
@@ -326,6 +535,10 @@ export function handleNotifyFixDeployed(state: DemoState, vendorId: string): Dem
   const now = Date.now()
 
   const vendor = getParticipant(state, vendorId)
+  const finder = getParticipant(state, 'finder')
+  const caseactor = getParticipant(state, 'caseactor')
+  const vendor1 = getParticipant(state, 'vendor-1')
+  const vendor2 = getParticipant(state, 'vendor-2')
   if (!vendor) return state
 
   let newState = state
@@ -333,57 +546,111 @@ export function handleNotifyFixDeployed(state: DemoState, vendorId: string): Dem
   newState = updateParticipant(newState, vendorId, { vfdState: 'VFD' })
   newState = setPhase(newState, 'fix-deployed')
 
-  newState = addTimelineEvents(newState, [
-    {
-      id: eventId,
-      actor: vendor.name,
-      participantId: vendorId,
-      label: 'Notify Fix Deployed',
-      x: nextX,
-      lane: vendor.laneIndex,
-      type: 'decision' as const,
-      timestamp: now,
-      consequences: [
-        `${vendor.name} VFD state: VFd → VFD`,
-        '✓ M5 REACHED: Fix deployed',
-        'Fix is now available to users',
-      ],
-    },
-    // Consequence node in Finder lane
-    {
+  const events = []
+  let timestampOffset = 0
+
+  // Decision node in vendor's lane
+  events.push({
+    id: eventId,
+    actor: vendor.name,
+    participantId: vendorId,
+    label: 'Notify Fix Deployed',
+    x: nextX,
+    lane: vendor.laneIndex,
+    type: 'decision' as const,
+    timestamp: now,
+    consequences: [
+      `${vendor.name} VFD state: VFd → VFD`,
+      '✓ M5 REACHED: Fix deployed',
+      'Fix is now available to users',
+    ],
+  })
+
+  timestampOffset++
+
+  // Consequence node in Finder lane
+  if (finder) {
+    events.push({
       id: `${eventId}-finder-consequence`,
       actor: 'Finder',
       participantId: 'finder',
       label: 'Fix Deployed',
       x: nextX,
-      lane: 0,
+      lane: finder.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
-      timestamp: now + 1,
+      timestamp: now + timestampOffset,
       consequences: [
         'Finder notified: Fix is deployed',
         `${vendor.name} VFD → VFD`,
         'Users can now apply the fix',
       ],
-    },
-    // Consequence node in CaseActor lane
-    {
+    })
+    timestampOffset++
+  }
+
+  // Consequence nodes in other vendor lanes
+  if (vendor1 && vendor1.visible && vendorId !== 'vendor-1') {
+    events.push({
+      id: `${eventId}-vendor1-consequence`,
+      actor: 'Vendor',
+      participantId: 'vendor-1',
+      label: `${vendor.name} Fix Deployed`,
+      x: nextX,
+      lane: vendor1.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      consequences: [
+        `${vendor.name} notified: Fix is deployed`,
+        `${vendor.name} VFD → VFD`,
+        'Other vendor has deployed fix',
+      ],
+    })
+    timestampOffset++
+  }
+
+  if (vendor2 && vendor2.visible && vendorId !== 'vendor-2') {
+    events.push({
+      id: `${eventId}-vendor2-consequence`,
+      actor: 'Vendor 2',
+      participantId: 'vendor-2',
+      label: `${vendor.name} Fix Deployed`,
+      x: nextX,
+      lane: vendor2.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      consequences: [
+        `${vendor.name} notified: Fix is deployed`,
+        `${vendor.name} VFD → VFD`,
+        'Other vendor has deployed fix',
+      ],
+    })
+    timestampOffset++
+  }
+
+  // Consequence node in CaseActor lane
+  if (caseactor) {
+    events.push({
       id: `${eventId}-case-consequence`,
       actor: 'CaseActor',
       participantId: 'caseactor',
       label: 'M5 Tracked',
       x: nextX,
-      lane: 2,
+      lane: caseactor.laneIndex,
       type: 'consequence' as const,
-      timestamp: now + 2,
+      timestamp: now + timestampOffset,
       causedBy: eventId,
       consequences: [
         '✓ M5 REACHED: Fix deployed',
         `${vendor.name} participant VFD → VFD`,
         'Authoritative ledger updated',
       ],
-    },
-  ])
+    })
+  }
+
+  newState = addTimelineEvents(newState, events)
 
   newState = addEventLogEntries(newState, [`✓ M5 REACHED: ${vendor.name} fix deployed`])
   newState = incrementXPosition(newState)
@@ -397,6 +664,10 @@ export function handleVendorNotifyPublished(state: DemoState, vendorId: string):
   const now = Date.now()
 
   const vendor = getParticipant(state, vendorId)
+  const finder = getParticipant(state, 'finder')
+  const caseactor = getParticipant(state, 'caseactor')
+  const vendor1 = getParticipant(state, 'vendor-1')
+  const vendor2 = getParticipant(state, 'vendor-2')
   if (!vendor) return state
 
   let newState = state
@@ -419,50 +690,102 @@ export function handleVendorNotifyPublished(state: DemoState, vendorId: string):
 
   newState = setPxaState(newState, newPxa)
 
-  newState = addTimelineEvents(newState, [
-    {
-      id: eventId,
-      actor: vendor.name,
-      participantId: vendorId,
-      label: 'Notify Published',
-      x: nextX,
-      lane: vendor.laneIndex,
-      type: 'decision' as const,
-      timestamp: now,
-      consequences: [
-        `${vendor.name} publishes vulnerability details`,
-        `Case PXA state: ${currentPxa} → ${newPxa}`,
-        'Public becomes aware (P)',
-        '✓ M6 REACHED: Public disclosure',
-      ],
-    },
-    // Consequence node in Finder lane
-    {
+  const events = []
+  let timestampOffset = 0
+
+  // Decision node in vendor's lane
+  events.push({
+    id: eventId,
+    actor: vendor.name,
+    participantId: vendorId,
+    label: 'Notify Published',
+    x: nextX,
+    lane: vendor.laneIndex,
+    type: 'decision' as const,
+    timestamp: now,
+    consequences: [
+      `${vendor.name} publishes vulnerability details`,
+      `Case PXA state: ${currentPxa} → ${newPxa}`,
+      'Public becomes aware (P)',
+      '✓ M6 REACHED: Public disclosure',
+    ],
+  })
+
+  timestampOffset++
+
+  // Consequence node in Finder lane
+  if (finder) {
+    events.push({
       id: `${eventId}-finder-consequence`,
       actor: 'Finder',
       participantId: 'finder',
       label: 'Publication Noted',
       x: nextX,
-      lane: 0,
+      lane: finder.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
-      timestamp: now + 1,
+      timestamp: now + timestampOffset,
       consequences: [
         'Finder notified: Vulnerability published',
         `Case PXA state: ${newPxa}`,
         'Public disclosure (P) is now active',
       ],
-    },
-    // Consequence node in CaseActor lane
-    {
+    })
+    timestampOffset++
+  }
+
+  // Consequence nodes in other vendor lanes
+  if (vendor1 && vendor1.visible && vendorId !== 'vendor-1') {
+    events.push({
+      id: `${eventId}-vendor1-consequence`,
+      actor: 'Vendor',
+      participantId: 'vendor-1',
+      label: `${vendor.name} Published`,
+      x: nextX,
+      lane: vendor1.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      consequences: [
+        `${vendor.name} notified: Published`,
+        `Case PXA state: ${newPxa}`,
+        'Public disclosure (P) is now active',
+      ],
+    })
+    timestampOffset++
+  }
+
+  if (vendor2 && vendor2.visible && vendorId !== 'vendor-2') {
+    events.push({
+      id: `${eventId}-vendor2-consequence`,
+      actor: 'Vendor 2',
+      participantId: 'vendor-2',
+      label: `${vendor.name} Published`,
+      x: nextX,
+      lane: vendor2.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      consequences: [
+        `${vendor.name} notified: Published`,
+        `Case PXA state: ${newPxa}`,
+        'Public disclosure (P) is now active',
+      ],
+    })
+    timestampOffset++
+  }
+
+  // Consequence node in CaseActor lane
+  if (caseactor) {
+    events.push({
       id: `${eventId}-case-consequence`,
       actor: 'CaseActor',
       participantId: 'caseactor',
       label: 'Publication Tracked',
       x: nextX,
-      lane: 2,
+      lane: caseactor.laneIndex,
       type: 'consequence' as const,
-      timestamp: now + 2,
+      timestamp: now + timestampOffset,
       causedBy: eventId,
       consequences: [
         '✓ M6 REACHED: Public disclosure',
@@ -470,8 +793,10 @@ export function handleVendorNotifyPublished(state: DemoState, vendorId: string):
         'Authoritative ledger updated',
         'All participants notified',
       ],
-    },
-  ])
+    })
+  }
+
+  newState = addTimelineEvents(newState, events)
 
   newState = addEventLogEntries(newState, [`${vendor.name} published vulnerability (PXA → ${newPxa})`])
   newState = incrementXPosition(newState)
@@ -485,67 +810,125 @@ export function handleVendorReplyNote(state: DemoState, vendorId: string): DemoS
   const now = Date.now()
 
   const vendor = getParticipant(state, vendorId)
+  const finder = getParticipant(state, 'finder')
+  const vendor1 = getParticipant(state, 'vendor-1')
+  const vendor2 = getParticipant(state, 'vendor-2')
+  const caseactor = getParticipant(state, 'caseactor')
   if (!vendor) return state
 
   let newState = state
 
   newState = setPhase(newState, 'vendor-replied')
 
-  newState = addTimelineEvents(newState, [
-    {
-      id: eventId,
-      actor: vendor.name,
-      participantId: vendorId,
-      label: 'Reply to Question',
-      x: nextX,
-      lane: vendor.laneIndex,
-      type: 'decision' as const,
-      timestamp: now,
-      consequences: [
-        'Note created: "Vendor Response"',
-        'Content: "Yes, disable the network stack component"',
-        'inReplyTo: previous note',
-        'Add(Note, target=Case) activity created',
-        'Activity sent via Vendor\'s outbox',
-        'Triggers delivery to participants',
-      ],
-    },
-    // Consequence node in Finder lane
-    {
+  const events = []
+  let timestampOffset = 0
+
+  // Decision node in replying vendor's lane
+  events.push({
+    id: eventId,
+    actor: vendor.name,
+    participantId: vendorId,
+    label: 'Reply to Question',
+    x: nextX,
+    lane: vendor.laneIndex,
+    type: 'decision' as const,
+    timestamp: now,
+    consequences: [
+      'Note created: "Vendor Response"',
+      'Content: "Yes, disable the network stack component"',
+      'inReplyTo: previous note',
+      'Add(Note, target=Case) activity created',
+      'Activity sent via Vendor\'s outbox',
+      'Triggers delivery to participants',
+    ],
+  })
+
+  timestampOffset++
+
+  // Consequence node in Finder lane
+  if (finder) {
+    events.push({
       id: `${eventId}-finder-consequence`,
       actor: 'Finder',
       participantId: 'finder',
       label: 'Reply Received',
       x: nextX,
-      lane: 0,
+      lane: finder.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
-      timestamp: now + 1,
+      timestamp: now + timestampOffset,
       consequences: [
         'Add(Note) received in inbox',
         'Reply delivered to Finder\'s DataLayer',
         'Finder can now see workaround',
         '✓ M3 REACHED: Notes exchanged',
       ],
-    },
-    // Consequence node in CaseActor lane
-    {
+    })
+    timestampOffset++
+  }
+
+  // Consequence nodes in other vendor lanes (not the replying vendor)
+  if (vendor1 && vendor1.visible && vendor1.rmState !== 'DECLINED' && vendorId !== 'vendor-1') {
+    events.push({
+      id: `${eventId}-vendor1-consequence`,
+      actor: 'Vendor',
+      participantId: 'vendor-1',
+      label: 'Reply Received',
+      x: nextX,
+      lane: vendor1.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      consequences: [
+        `${vendor.name} replied to question`,
+        'Reply delivered to Vendor\'s DataLayer',
+        'Can see vendor response',
+      ],
+    })
+    timestampOffset++
+  }
+
+  if (vendor2 && vendor2.visible && vendor2.rmState !== 'DECLINED' && vendorId !== 'vendor-2') {
+    events.push({
+      id: `${eventId}-vendor2-consequence`,
+      actor: 'Vendor 2',
+      participantId: 'vendor-2',
+      label: 'Reply Received',
+      x: nextX,
+      lane: vendor2.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      consequences: [
+        `${vendor.name} replied to question`,
+        'Reply delivered to Vendor 2\'s DataLayer',
+        'Can see vendor response',
+      ],
+    })
+    timestampOffset++
+  }
+
+  // Consequence node in CaseActor lane
+  if (caseactor) {
+    events.push({
       id: `${eventId}-caseactor-consequence`,
       actor: 'CaseActor',
       participantId: 'caseactor',
       label: 'Reply Tracked',
       x: nextX,
-      lane: 2,
+      lane: caseactor.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
-      timestamp: now + 2,
+      timestamp: now + timestampOffset,
       consequences: [
         'Reply note tracked by Case Actor',
         'Note thread updated in case history',
         'Authoritative ledger updated',
       ],
-    },
-  ])
+    })
+  }
+
+  newState = addTimelineEvents(newState, events)
 
   newState = addEventLogEntries(newState, [`${vendor.name} replied to question`])
   newState = incrementXPosition(newState)
@@ -559,6 +942,10 @@ export function handleVendorCloseCase(state: DemoState, vendorId: string): DemoS
   const now = Date.now()
 
   const vendor = getParticipant(state, vendorId)
+  const finder = getParticipant(state, 'finder')
+  const vendor1 = getParticipant(state, 'vendor-1')
+  const vendor2 = getParticipant(state, 'vendor-2')
+  const caseactor = getParticipant(state, 'caseactor')
   if (!vendor) return state
 
   let newState = state
@@ -566,59 +953,113 @@ export function handleVendorCloseCase(state: DemoState, vendorId: string): DemoS
   newState = updateParticipant(newState, vendorId, { rmState: 'CLOSED', hasClosed: true })
   newState = setPhase(newState, 'vendor-closed')
 
-  newState = addTimelineEvents(newState, [
-    {
-      id: eventId,
-      actor: vendor.name,
-      participantId: vendorId,
-      label: 'Close Case',
-      x: nextX,
-      lane: vendor.laneIndex,
-      type: 'decision' as const,
-      timestamp: now,
-      consequences: [
-        `${vendor.name} RM state: → CLOSED`,
-        `${vendor.name} leaves the case (ActivityPub: Leave)`,
-        `No further actions available for ${vendor.name}`,
-        'Other participants can still continue',
-      ],
-    },
-    // Consequence node in Finder lane
-    {
+  const events = []
+  let timestampOffset = 0
+
+  // Decision node in closing vendor's lane
+  events.push({
+    id: eventId,
+    actor: vendor.name,
+    participantId: vendorId,
+    label: 'Close Case',
+    x: nextX,
+    lane: vendor.laneIndex,
+    type: 'decision' as const,
+    timestamp: now,
+    consequences: [
+      `${vendor.name} RM state: → CLOSED`,
+      `${vendor.name} leaves the case (ActivityPub: Leave)`,
+      `No further actions available for ${vendor.name}`,
+      'Other participants can still continue',
+    ],
+  })
+
+  timestampOffset++
+
+  // Consequence node in Finder lane
+  if (finder) {
+    events.push({
       id: `${eventId}-finder-consequence`,
       actor: 'Finder',
       participantId: 'finder',
       label: `${vendor.name} Closed`,
       x: nextX,
-      lane: 0,
+      lane: finder.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
-      timestamp: now + 1,
+      timestamp: now + timestampOffset,
       consequences: [
         `Finder notified: ${vendor.name} closed`,
         `${vendor.name} participant RM → CLOSED`,
         'Finder can still continue work',
       ],
-    },
-    // Consequence node in CaseActor lane
-    {
+    })
+    timestampOffset++
+  }
+
+  // Consequence nodes in other vendor lanes (not the closing vendor)
+  if (vendor1 && vendor1.visible && vendor1.rmState !== 'DECLINED' && vendorId !== 'vendor-1') {
+    events.push({
+      id: `${eventId}-vendor1-consequence`,
+      actor: 'Vendor',
+      participantId: 'vendor-1',
+      label: `${vendor.name} Closed`,
+      x: nextX,
+      lane: vendor1.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      consequences: [
+        `${vendor.name} closed their participation`,
+        `${vendor.name} participant RM → CLOSED`,
+        'Vendor can still continue work',
+      ],
+    })
+    timestampOffset++
+  }
+
+  if (vendor2 && vendor2.visible && vendor2.rmState !== 'DECLINED' && vendorId !== 'vendor-2') {
+    events.push({
+      id: `${eventId}-vendor2-consequence`,
+      actor: 'Vendor 2',
+      participantId: 'vendor-2',
+      label: `${vendor.name} Closed`,
+      x: nextX,
+      lane: vendor2.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      consequences: [
+        `${vendor.name} closed their participation`,
+        `${vendor.name} participant RM → CLOSED`,
+        'Vendor 2 can still continue work',
+      ],
+    })
+    timestampOffset++
+  }
+
+  // Consequence node in CaseActor lane
+  if (caseactor) {
+    events.push({
       id: `${eventId}-caseactor-consequence`,
       actor: 'CaseActor',
       participantId: 'caseactor',
       label: `${vendor.name} Closed`,
       x: nextX,
-      lane: 2,
+      lane: caseactor.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
-      timestamp: now + 2,
+      timestamp: now + timestampOffset,
       consequences: [
         `${vendor.name} participant RM → CLOSED`,
         'Leave activity tracked',
         'Authoritative ledger updated',
         'Case remains open for other participants',
       ],
-    },
-  ])
+    })
+  }
+
+  newState = addTimelineEvents(newState, events)
 
   newState = addEventLogEntries(newState, [`${vendor.name} closed their participation in the case`])
   newState = incrementXPosition(newState)

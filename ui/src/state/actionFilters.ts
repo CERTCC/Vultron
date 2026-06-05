@@ -150,7 +150,9 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   const vendor = getParticipant(state, vendorId)
   if (!vendor || !vendor.visible) return []
 
-  const activeVendors = getActiveVendors(state)
+  // If vendor declined invitation, they have no actions
+  if (vendor.rmState === 'DECLINED') return []
+
   const isVendor1 = vendorId === 'vendor-1'
 
   // Report received - validate or invalidate
@@ -223,8 +225,8 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
       })
     }
 
-    // VFD progression
-    if (vendor.vfdState === 'Vfd' && ['embargo-accepted', 'finder-asked', 'vendor-replied'].includes(state.phase)) {
+    // VFD progression - each vendor can progress independently
+    if (vendor.vfdState === 'Vfd') {
       actions.push({
         id: 'notify-fix-ready',
         label: 'Notify Fix Ready',
@@ -242,7 +244,7 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
       })
     }
 
-    // Publication
+    // Publication - each vendor can publish independently
     if (vendor.vfdState === 'VFD' && !state.pxaState.includes('P')) {
       actions.push({
         id: 'vendor-notify-published',
@@ -265,8 +267,8 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
     return actions
   }
 
-  // Post-publication phases
-  if (['vendor-published', 'finder-published', 'finder-closed'].includes(state.phase) && !vendor.hasClosed) {
+  // Post-publication phases (including when another vendor closed)
+  if (['vendor-published', 'finder-published', 'finder-closed', 'vendor-closed'].includes(state.phase) && !vendor.hasClosed) {
     const actions: Action[] = []
 
     // Reply to questions
@@ -302,41 +304,6 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
     return actions
   }
 
-  // Second vendor just joined - show their available actions
-  if (vendorId === 'vendor-2' && vendor.rmState === 'ACCEPTED') {
-    const actions: Action[] = []
-
-    // VFD progression for second vendor
-    if (vendor.vfdState === 'Vfd') {
-      actions.push({
-        id: 'notify-fix-ready',
-        label: 'Notify Fix Ready',
-        description: 'Vendor notifies that a fix is ready',
-        enabled: true,
-      })
-    }
-
-    if (vendor.vfdState === 'VFd') {
-      actions.push({
-        id: 'notify-fix-deployed',
-        label: 'Notify Fix Deployed',
-        description: 'Vendor notifies that the fix has been deployed',
-        enabled: true,
-      })
-    }
-
-    if (vendor.vfdState === 'VFD' && !state.pxaState.includes('P')) {
-      actions.push({
-        id: 'vendor-notify-published',
-        label: 'Notify Published',
-        description: 'Vendor notifies that vulnerability is publicly disclosed',
-        enabled: true,
-      })
-    }
-
-    return actions
-  }
-
   return []
 }
 
@@ -358,8 +325,11 @@ export function getCaseActorActions(state: DemoState): Action[] {
 }
 
 export function getExternalActions(state: DemoState): Action[] {
-  // External events available after embargo is active
-  if (state.emState === 'ACTIVE') {
+  // External events can happen at any time after a case exists
+  // They are independent of the EM state machine
+  // Per the Vultron protocol, PXA events represent real-world occurrences
+  // that are outside the control of any participant
+  if (state.phase !== 'start') {
     const actions: Action[] = []
 
     // Exploit publication (if not already published)

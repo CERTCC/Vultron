@@ -197,7 +197,20 @@ function App() {
         } else if (actionId === 'finder-close-case') {
           newState = finderActions.handleFinderCloseCase(newState)
         } else if (actionId === 'finder-invite-vendor') {
-          newState = inviteActions.handleInviteSecondVendor(newState)
+          newState = inviteActions.handleInviteSecondVendor(newState, 'finder')
+        }
+      } else if (participantId === 'vendor-2-pending') {
+        console.log('Handling vendor-2-pending action:', actionId)
+        if (actionId === 'accept-invite') {
+          console.log('Calling handleAcceptSecondVendorInvite')
+          newState = inviteActions.handleAcceptSecondVendorInvite(newState)
+          console.log('After handleAcceptSecondVendorInvite, vendor-2 visible:', newState.participants.get('vendor-2')?.visible)
+        } else if (actionId === 'reject-invite') {
+          newState = inviteActions.handleRejectSecondVendorInvite(newState)
+        }
+      } else if (participantId === 'caseactor') {
+        if (actionId === 'propose-embargo') {
+          newState = caseActorActions.handleProposeEmbargo(newState)
         }
       } else if (participantId.startsWith('vendor-')) {
         if (actionId === 'validate-report') {
@@ -219,16 +232,8 @@ function App() {
         } else if (actionId === 'vendor-close-case') {
           newState = vendorActions.handleVendorCloseCase(newState, participantId)
         } else if (actionId === 'vendor-invite-second-vendor') {
-          newState = inviteActions.handleInviteSecondVendor(newState)
+          newState = inviteActions.handleInviteSecondVendor(newState, participantId)
         }
-      } else if (participantId === 'caseactor') {
-        if (actionId === 'propose-embargo') {
-          newState = caseActorActions.handleProposeEmbargo(newState)
-        }
-      } else if (participantId === 'vendor-2-pending' && actionId === 'accept-invite') {
-        newState = inviteActions.handleAcceptSecondVendorInvite(newState)
-      } else if (participantId === 'vendor-2-pending' && actionId === 'reject-invite') {
-        newState = inviteActions.handleRejectSecondVendorInvite(newState)
       } else if (participantId === 'external') {
         if (actionId === 'trigger-exploit') {
           newState = externalActionHandlers.handleTriggerExploit(newState)
@@ -244,6 +249,22 @@ function App() {
 
   const activeLanes = getActiveLanes(demoState)
   const totalLanes = getTotalLaneCount(demoState)
+
+  // Debug: log participant lane indices when vendor-2 is invited
+  if (demoState.secondVendorInvited) {
+    console.log('Rendering with secondVendorInvited=true')
+    console.log('All participants:', Array.from(demoState.participants.entries()).map(([id, p]) =>
+      `${id}: lane ${p.laneIndex}, visible: ${p.visible}`
+    ))
+    console.log('Active lanes:', activeLanes.map(p => `${p.id}: lane ${p.laneIndex}`))
+  }
+
+  // Calculate max lane index to ensure SVG height accounts for all lanes with events
+  const maxLaneIndex = Math.max(
+    ...Array.from(demoState.participants.values()).map(p => p.laneIndex),
+    ...demoState.timelineEvents.map(e => e.lane)
+  )
+  const svgLaneCount = maxLaneIndex + 1  // +1 because indices are 0-based
   const minWidth = Math.max(2000, demoState.nextXPosition + 500)
   const externalActions = getExternalActions(demoState)
 
@@ -333,55 +354,70 @@ function App() {
             overflowY: 'auto',
           }}
         >
-          {activeLanes.map((participant) => (
-            <ActorPanel
-              key={participant.id}
-              name={participant.name}
-              role={participant.role}
-              color={participant.color}
-              rmState={participant.rmState}
-              emState={participant.id === 'caseactor' ? demoState.emState : undefined}
-              vfdState={participant.vfdState !== 'N/A' ? participant.vfdState : undefined}
-              pxaState={demoState.pxaState}
-              actions={
-                participant.id === 'finder'
-                  ? getFinderActions(demoState)
-                  : participant.id.startsWith('vendor-')
-                  ? getVendorActions(demoState, participant.id)
-                  : participant.id === 'caseactor'
-                  ? getCaseActorActions(demoState)
-                  : []
+          {/* Render panels in lane order, inserting pending vendor-2 at lane 2 */}
+          {Array.from(demoState.participants.values())
+            .sort((a, b) => a.laneIndex - b.laneIndex)
+            .map((participant) => {
+              // Skip vendor-2 if not visible - we'll render it separately as pending
+              if (participant.id === 'vendor-2' && !participant.visible) {
+                // Render pending vendor-2 panel at its correct position in lane order
+                if (vendor2Pending) {
+                  return (
+                    <ActorPanel
+                      key="vendor-2-pending"
+                      name="Vendor 2 (Invited)"
+                      role="VENDOR (pending)"
+                      color={PARTICIPANT_COLORS.vendor2}
+                      rmState="INVITED"
+                      vfdState="vfd"
+                      pxaState={demoState.pxaState}
+                      actions={[
+                        {
+                          id: 'accept-invite',
+                          label: 'Accept Invitation',
+                          description: 'Accept the invitation to join this case',
+                          enabled: true,
+                        },
+                        {
+                          id: 'reject-invite',
+                          label: 'Reject Invitation',
+                          description: 'Decline the invitation',
+                          enabled: true,
+                        },
+                      ]}
+                      onActionClick={(actionId) => handleAction('vendor-2-pending', actionId)}
+                    />
+                  )
+                }
+                return null
               }
-              onActionClick={(actionId) => handleAction(participant.id, actionId)}
-            />
-          ))}
 
-          {/* Show pending vendor-2 invite panel */}
-          {vendor2Pending && (
-            <ActorPanel
-              name="Vendor 2 (Invited)"
-              role="VENDOR (pending)"
-              color={PARTICIPANT_COLORS.vendor2}
-              rmState="INVITED"
-              vfdState="vfd"
-              pxaState={demoState.pxaState}
-              actions={[
-                {
-                  id: 'accept-invite',
-                  label: 'Accept Invitation',
-                  description: 'Accept the invitation to join this case',
-                  enabled: true,
-                },
-                {
-                  id: 'reject-invite',
-                  label: 'Reject Invitation',
-                  description: 'Decline the invitation',
-                  enabled: true,
-                },
-              ]}
-              onActionClick={(actionId) => handleAction('vendor-2-pending', actionId)}
-            />
-          )}
+              // Only render visible participants
+              if (!participant.visible) return null
+
+              return (
+                <ActorPanel
+                  key={participant.id}
+                  name={participant.name}
+                  role={participant.role}
+                  color={participant.color}
+                  rmState={participant.rmState}
+                  emState={participant.id === 'finder' || participant.id === 'caseactor' ? demoState.emState : undefined}
+                  vfdState={participant.id.startsWith('vendor-') && participant.vfdState !== 'N/A' ? participant.vfdState : undefined}
+                  pxaState={participant.id === 'caseactor' ? demoState.pxaState : undefined}
+                  actions={
+                    participant.id === 'finder'
+                      ? getFinderActions(demoState)
+                      : participant.id.startsWith('vendor-')
+                      ? getVendorActions(demoState, participant.id)
+                      : participant.id === 'caseactor'
+                      ? getCaseActorActions(demoState)
+                      : []
+                  }
+                  onActionClick={(actionId) => handleAction(participant.id, actionId)}
+                />
+              )
+            })}
         </div>
 
         {/* Right side - Timeline visualization */}
@@ -396,8 +432,8 @@ function App() {
               position: 'relative',
             }}
           >
-            <div style={{ position: 'relative', minWidth, height: LANE_HEIGHT * totalLanes }}>
-              {/* Swimlane backgrounds */}
+            <div style={{ position: 'relative', minWidth, height: LANE_HEIGHT * svgLaneCount }}>
+              {/* Swimlane backgrounds for visible participants */}
               {activeLanes.map((participant) => (
                 <div
                   key={`lane-${participant.id}`}
@@ -413,8 +449,26 @@ function App() {
                 />
               ))}
 
+              {/* Pending vendor-2 swimlane (dimmed) */}
+              {vendor2Pending && (
+                <div
+                  key="lane-vendor-2-pending"
+                  style={{
+                    position: 'absolute',
+                    top: 2 * LANE_HEIGHT,  // lane 2
+                    left: 0,
+                    width: minWidth,
+                    height: LANE_HEIGHT,
+                    background: PARTICIPANT_COLORS.vendor2,
+                    opacity: 0.15,  // More transparent to show it's pending
+                    borderTop: '2px dashed rgba(76, 175, 80, 0.5)',
+                    borderBottom: '2px dashed rgba(76, 175, 80, 0.5)',
+                  }}
+                />
+              )}
+
               {/* SVG for nodes and edges */}
-              <svg style={{ position: 'absolute', top: 0, left: 0, width: minWidth, height: LANE_HEIGHT * totalLanes }}>
+              <svg style={{ position: 'absolute', top: 0, left: 0, width: minWidth, height: LANE_HEIGHT * svgLaneCount }}>
                 {/* Arrow marker definitions */}
                 <defs>
                   <marker
@@ -574,8 +628,9 @@ function App() {
                   const isHovered = hoveredEvent === event.id
                   const isDecision = event.type === 'decision'
 
-                  // Find which participant this event's lane belongs to
-                  const participant = activeLanes.find(p => p.laneIndex === event.lane)
+                  // Find which participant this event's lane belongs to - search ALL participants, not just visible
+                  const allParticipants = Array.from(demoState.participants.values())
+                  const participant = allParticipants.find(p => p.laneIndex === event.lane)
 
                   // Determine node color based on participant and event type
                   let fillColor: string

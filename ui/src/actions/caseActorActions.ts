@@ -11,11 +11,16 @@ import {
   setEmState,
   updateParticipant,
 } from '../state/stateUpdaters'
+import { getParticipant } from '../state/participantHelpers'
 
 export function handleProposeEmbargo(state: DemoState): DemoState {
   const nextX = state.nextXPosition
   const eventId = `event-${state.timelineEvents.length + 1}`
   const now = Date.now()
+
+  const caseactor = getParticipant(state, 'caseactor')
+  const vendor1 = getParticipant(state, 'vendor-1')
+  const finder = getParticipant(state, 'finder')
 
   let newState = state
 
@@ -31,8 +36,8 @@ export function handleProposeEmbargo(state: DemoState): DemoState {
       participantId: 'caseactor',
       label: 'Propose Embargo',
       x: nextX,
-      lane: 2,
-      type: 'decision',
+      lane: caseactor?.laneIndex ?? 2,
+      type: 'decision' as const,
       timestamp: now,
       consequences: [
         'EmbargoEvent created (90-day proposal)',
@@ -48,8 +53,8 @@ export function handleProposeEmbargo(state: DemoState): DemoState {
       participantId: 'vendor-1',
       label: 'Proposal Received',
       x: nextX,
-      lane: 1,
-      type: 'consequence',
+      lane: vendor1?.laneIndex ?? 1,
+      type: 'consequence' as const,
       timestamp: now + 1,
       causedBy: eventId,
       enablesNext: true,
@@ -66,8 +71,8 @@ export function handleProposeEmbargo(state: DemoState): DemoState {
       participantId: 'finder',
       label: 'Proposal Received',
       x: nextX,
-      lane: 0,
-      type: 'consequence',
+      lane: finder?.laneIndex ?? 0,
+      type: 'consequence' as const,
       timestamp: now + 2,
       causedBy: eventId,
       enablesNext: true,

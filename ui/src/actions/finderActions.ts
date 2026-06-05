@@ -25,6 +25,11 @@ export function handleSubmitReport(state: DemoState): DemoState {
   newState = updateParticipant(newState, 'vendor-1', { rmState: 'RECEIVED', vfdState: 'Vfd', visible: true })
   newState = updateParticipant(newState, 'caseactor', { visible: true })
 
+  // Get participants for lane indices
+  const finder = getParticipant(newState, 'finder')
+  const vendor1 = getParticipant(newState, 'vendor-1')
+  const caseactor = getParticipant(newState, 'caseactor')
+
   // Update phase
   newState = setPhase(newState, 'report-received')
 
@@ -36,8 +41,8 @@ export function handleSubmitReport(state: DemoState): DemoState {
       participantId: 'finder',
       label: 'Submit Report',
       x: nextX,
-      lane: 0,
-      type: 'decision',
+      lane: finder?.laneIndex ?? 0,
+      type: 'decision' as const,
       timestamp: now,
       consequences: [
         'VulnerabilityReport object created',
@@ -52,8 +57,8 @@ export function handleSubmitReport(state: DemoState): DemoState {
       participantId: 'vendor-1',
       label: 'Report Received',
       x: nextX,
-      lane: 1,
-      type: 'consequence',
+      lane: vendor1?.laneIndex ?? 1,
+      type: 'consequence' as const,
       causedBy: submitEventId,
       enablesNext: true,
       timestamp: now + 1,
@@ -71,8 +76,8 @@ export function handleSubmitReport(state: DemoState): DemoState {
       participantId: 'caseactor',
       label: 'Case Created',
       x: nextX,
-      lane: 2,
-      type: 'consequence',
+      lane: caseactor?.laneIndex ?? 2,
+      type: 'consequence' as const,
       causedBy: submitEventId,
       timestamp: now + 2,
       consequences: [
@@ -89,8 +94,8 @@ export function handleSubmitReport(state: DemoState): DemoState {
       participantId: 'finder',
       label: 'Case Announced',
       x: nextX,
-      lane: 0,
-      type: 'decision',
+      lane: finder?.laneIndex ?? 0,
+      type: 'decision' as const,
       causedBy: submitEventId,
       timestamp: now + 3,
       consequences: [
@@ -120,7 +125,9 @@ export function handleFinderAcceptEmbargo(state: DemoState): DemoState {
   const eventId = `event-${state.timelineEvents.length + 1}`
   const now = Date.now()
 
+  const finder = getParticipant(state, 'finder')
   const vendor1 = getParticipant(state, 'vendor-1')
+  const caseactor = getParticipant(state, 'caseactor')
   const bothAccepted = vendor1?.embargoAccepted
 
   let newState = state
@@ -141,7 +148,7 @@ export function handleFinderAcceptEmbargo(state: DemoState): DemoState {
       participantId: 'finder',
       label: 'Accept Embargo',
       x: nextX,
-      lane: 0,
+      lane: finder?.laneIndex ?? 0,
       type: 'decision' as const,
       timestamp: now,
       consequences: [
@@ -157,8 +164,8 @@ export function handleFinderAcceptEmbargo(state: DemoState): DemoState {
       participantId: 'vendor-1',
       label: bothAccepted ? 'Embargo Active' : 'Finder Accepted',
       x: nextX,
-      lane: 1,
-      type: 'consequence',
+      lane: vendor1?.laneIndex ?? 1,
+      type: 'consequence' as const,
       causedBy: eventId,
       timestamp: now + 1,
       consequences: bothAccepted ? [
@@ -179,8 +186,8 @@ export function handleFinderAcceptEmbargo(state: DemoState): DemoState {
       participantId: 'caseactor',
       label: bothAccepted ? 'M1 REACHED' : 'Finder Accepted',
       x: nextX,
-      lane: 2,
-      type: 'consequence',
+      lane: caseactor?.laneIndex ?? 2,
+      type: 'consequence' as const,
       causedBy: eventId,
       timestamp: now + 2,
       enablesNext: bothAccepted,
@@ -215,29 +222,104 @@ export function handleFinderRejectEmbargo(state: DemoState): DemoState {
   const eventId = `event-${state.timelineEvents.length + 1}`
   const now = Date.now()
 
+  const finder = getParticipant(state, 'finder')
+  const vendor1 = getParticipant(state, 'vendor-1')
+  const vendor2 = getParticipant(state, 'vendor-2')
+  const caseactor = getParticipant(state, 'caseactor')
+
   let newState = state
 
   newState = { ...newState, emState: 'NONE', phase: 'embargo-rejected' }
 
-  newState = addTimelineEvents(newState, [
-    {
-      id: eventId,
-      actor: 'Finder',
-      participantId: 'finder',
-      label: 'Reject Embargo',
-      x: nextX,
-      lane: 0,
-      type: 'decision',
-      timestamp: now,
-      consequences: [
-        'EmRejectEmbargoActivity created',
-        'Finder rejects embargo proposal',
-        'Case proceeds without embargo',
-      ],
-    },
-  ])
+  const events = []
+  let timestampOffset = 0
 
-  newState = addEventLogEntries(newState, ['Finder rejected embargo'])
+  // Decision node in Finder's lane
+  events.push({
+    id: eventId,
+    actor: 'Finder',
+    participantId: 'finder',
+    label: 'Reject Embargo',
+    x: nextX,
+    lane: finder?.laneIndex ?? 0,
+    type: 'decision' as const,
+    timestamp: now,
+    consequences: [
+      'EmRejectEmbargoActivity created',
+      'Finder rejects embargo proposal',
+      'Case proceeds without embargo',
+      'EM state → NONE',
+    ],
+  })
+
+  timestampOffset++
+
+  // Consequence node in CaseActor lane
+  if (caseactor) {
+    events.push({
+      id: `${eventId}-caseactor-consequence`,
+      actor: 'CaseActor',
+      participantId: 'caseactor',
+      label: 'Embargo Rejected',
+      x: nextX,
+      lane: caseactor.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      enablesNext: true,
+      consequences: [
+        'EmRejectEmbargoActivity received',
+        'Embargo proposal discarded',
+        'EM state → NONE',
+        'Can repropose with revised terms',
+      ],
+    })
+    timestampOffset++
+  }
+
+  // Consequence nodes in all vendor lanes
+  if (vendor1 && vendor1.visible) {
+    events.push({
+      id: `${eventId}-vendor1-consequence`,
+      actor: 'Vendor',
+      participantId: 'vendor-1',
+      label: 'Embargo Rejected',
+      x: nextX,
+      lane: vendor1.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      consequences: [
+        'Finder rejected embargo',
+        'EM state → NONE',
+        'Awaiting reproposal or continuation',
+      ],
+    })
+    timestampOffset++
+  }
+
+  if (vendor2 && vendor2.visible) {
+    events.push({
+      id: `${eventId}-vendor2-consequence`,
+      actor: 'Vendor 2',
+      participantId: 'vendor-2',
+      label: 'Embargo Rejected',
+      x: nextX,
+      lane: vendor2.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      consequences: [
+        'Finder rejected embargo',
+        'EM state → NONE',
+        'Awaiting reproposal or continuation',
+      ],
+    })
+  }
+
+  newState = addTimelineEvents(newState, events)
+
+  newState = addEventLogEntries(newState, ['Finder rejected embargo proposal'])
   newState = incrementXPosition(newState)
 
   return newState
@@ -252,41 +334,48 @@ export function handleFinderAddNote(state: DemoState): DemoState {
 
   newState = setPhase(newState, 'finder-asked')
 
-  // Get vendor (vendor-1 by default, but could be any visible vendor)
-  const vendor = getParticipant(newState, 'vendor-1')
+  // Get participants for lane indices
+  const finder = getParticipant(newState, 'finder')
+  const vendor1 = getParticipant(newState, 'vendor-1')
+  const vendor2 = getParticipant(newState, 'vendor-2')
+  const caseactor = getParticipant(newState, 'caseactor')
 
-  const events = [
-    {
-      id: eventId,
-      actor: 'Finder',
-      participantId: 'finder',
-      label: 'Ask Question',
-      x: nextX,
-      lane: 0,
-      type: 'decision' as const,
-      timestamp: now,
-      consequences: [
-        'Note created: "Question from Finder"',
-        'Content: "Is there a workaround available?"',
-        'Add(Note, target=Case) activity created',
-        'Activity sent via Finder\'s outbox',
-        'Triggers delivery to participants',
-      ],
-    },
-  ]
+  const events = []
+  let timestampOffset = 0
 
-  // Add consequence node in Vendor lane if vendor exists
-  if (vendor) {
+  // Decision node in Finder's lane
+  events.push({
+    id: eventId,
+    actor: 'Finder',
+    participantId: 'finder',
+    label: 'Ask Question',
+    x: nextX,
+    lane: finder?.laneIndex ?? 0,
+    type: 'decision' as const,
+    timestamp: now,
+    consequences: [
+      'Note created: "Question from Finder"',
+      'Content: "Is there a workaround available?"',
+      'Add(Note, target=Case) activity created',
+      'Activity sent via Finder\'s outbox',
+      'Triggers delivery to participants',
+    ],
+  })
+
+  timestampOffset++
+
+  // Add consequence node in Vendor 1 lane if vendor exists and is active
+  if (vendor1 && vendor1.visible && vendor1.rmState !== 'DECLINED') {
     events.push({
-      id: `${eventId}-vendor-consequence`,
+      id: `${eventId}-vendor1-consequence`,
       actor: 'Vendor',
       participantId: 'vendor-1',
       label: 'Note Received',
       x: nextX,
-      lane: vendor.laneIndex,
+      lane: vendor1.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
-      timestamp: now + 1,
+      timestamp: now + timestampOffset,
       enablesNext: true,
       consequences: [
         'Add(Note) received in inbox',
@@ -294,26 +383,51 @@ export function handleFinderAddNote(state: DemoState): DemoState {
         'Vendor can now see question',
       ],
     })
+    timestampOffset++
+  }
+
+  // Add consequence node in Vendor 2 lane if vendor exists and is active
+  if (vendor2 && vendor2.visible && vendor2.rmState !== 'DECLINED') {
+    events.push({
+      id: `${eventId}-vendor2-consequence`,
+      actor: 'Vendor 2',
+      participantId: 'vendor-2',
+      label: 'Note Received',
+      x: nextX,
+      lane: vendor2.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      enablesNext: true,
+      consequences: [
+        'Add(Note) received in inbox',
+        'Note delivered to Vendor 2\'s DataLayer',
+        'Vendor 2 can now see question',
+      ],
+    })
+    timestampOffset++
   }
 
   // Add consequence node in CaseActor lane
-  events.push({
-    id: `${eventId}-caseactor-consequence`,
-    actor: 'CaseActor',
-    participantId: 'caseactor',
-    label: 'Note Tracked',
-    x: nextX,
-    lane: 2,
-    type: 'consequence' as const,
-    causedBy: eventId,
-    timestamp: now + 2,
-    consequences: [
-      'Note tracked by Case Actor',
-      'Note added to case history',
-      'Authoritative ledger updated',
-      'Part of case audit trail',
-    ],
-  })
+  if (caseactor) {
+    events.push({
+      id: `${eventId}-caseactor-consequence`,
+      actor: 'CaseActor',
+      participantId: 'caseactor',
+      label: 'Note Tracked',
+      x: nextX,
+      lane: caseactor.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      consequences: [
+        'Note tracked by Case Actor',
+        'Note added to case history',
+        'Authoritative ledger updated',
+        'Part of case audit trail',
+      ],
+    })
+  }
 
   newState = addTimelineEvents(newState, events)
 
@@ -338,56 +452,92 @@ export function handleFinderNotifyPublished(state: DemoState): DemoState {
     newState = setPxaState(newState, 'Pxa')
   }
 
-  const vendor = getParticipant(newState, 'vendor-1')
+  const finder = getParticipant(newState, 'finder')
+  const vendor1 = getParticipant(newState, 'vendor-1')
+  const vendor2 = getParticipant(newState, 'vendor-2')
+  const caseactor = getParticipant(newState, 'caseactor')
 
-  newState = addTimelineEvents(newState, [
-    {
-      id: eventId,
-      actor: 'Finder',
-      participantId: 'finder',
-      label: 'Acknowledge Publication',
-      x: nextX,
-      lane: 0,
-      type: 'decision' as const,
-      timestamp: now,
-      consequences: [
-        'Finder acknowledges publication',
-        'PXA: public awareness confirmed',
-      ],
-    },
-    // Consequence node in Vendor lane (if vendor exists)
-    ...(vendor ? [{
-      id: `${eventId}-vendor-consequence`,
+  const events = []
+  let timestampOffset = 0
+
+  // Decision node in Finder's lane
+  events.push({
+    id: eventId,
+    actor: 'Finder',
+    participantId: 'finder',
+    label: 'Acknowledge Publication',
+    x: nextX,
+    lane: finder?.laneIndex ?? 0,
+    type: 'decision' as const,
+    timestamp: now,
+    consequences: [
+      'Finder acknowledges publication',
+      'PXA: public awareness confirmed',
+    ],
+  })
+
+  timestampOffset++
+
+  // Consequence node in Vendor 1 lane (if exists)
+  if (vendor1 && vendor1.visible) {
+    events.push({
+      id: `${eventId}-vendor1-consequence`,
       actor: 'Vendor',
       participantId: 'vendor-1',
       label: 'Publication Noted',
       x: nextX,
-      lane: vendor.laneIndex,
+      lane: vendor1.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
-      timestamp: now + 1,
+      timestamp: now + timestampOffset,
       consequences: [
         'Vendor notified: Finder acknowledged publication',
         'PXA: public awareness confirmed',
       ],
-    }] : []),
-    // Consequence node in CaseActor lane
-    {
+    })
+    timestampOffset++
+  }
+
+  // Consequence node in Vendor 2 lane (if exists)
+  if (vendor2 && vendor2.visible) {
+    events.push({
+      id: `${eventId}-vendor2-consequence`,
+      actor: 'Vendor 2',
+      participantId: 'vendor-2',
+      label: 'Publication Noted',
+      x: nextX,
+      lane: vendor2.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      consequences: [
+        'Vendor 2 notified: Finder acknowledged publication',
+        'PXA: public awareness confirmed',
+      ],
+    })
+    timestampOffset++
+  }
+
+  // Consequence node in CaseActor lane
+  if (caseactor) {
+    events.push({
       id: `${eventId}-caseactor-consequence`,
       actor: 'CaseActor',
       participantId: 'caseactor',
       label: 'Publication Tracked',
       x: nextX,
-      lane: 2,
+      lane: caseactor.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
-      timestamp: now + 2,
+      timestamp: now + timestampOffset,
       consequences: [
         'Finder acknowledgment tracked',
         'Authoritative ledger updated',
       ],
-    },
-  ])
+    })
+  }
+
+  newState = addTimelineEvents(newState, events)
 
   newState = addEventLogEntries(newState, ['Finder acknowledged publication'])
   newState = incrementXPosition(newState)
@@ -405,61 +555,98 @@ export function handleFinderCloseCase(state: DemoState): DemoState {
   newState = updateParticipant(newState, 'finder', { rmState: 'CLOSED', hasClosed: true })
   newState = setPhase(newState, 'finder-closed')
 
-  const vendor = getParticipant(newState, 'vendor-1')
+  const finder = getParticipant(newState, 'finder')
+  const vendor1 = getParticipant(newState, 'vendor-1')
+  const vendor2 = getParticipant(newState, 'vendor-2')
+  const caseactor = getParticipant(newState, 'caseactor')
 
-  newState = addTimelineEvents(newState, [
-    {
-      id: eventId,
-      actor: 'Finder',
-      participantId: 'finder',
-      label: 'Close Case',
-      x: nextX,
-      lane: 0,
-      type: 'decision' as const,
-      timestamp: now,
-      consequences: [
-        'Finder RM state: → CLOSED',
-        'Finder leaves the case (ActivityPub: Leave)',
-        'No further actions available for Finder',
-        'Vendor can still continue case work',
-      ],
-    },
-    // Consequence node in Vendor lane (if vendor exists)
-    ...(vendor ? [{
-      id: `${eventId}-vendor-consequence`,
+  const events = []
+  let timestampOffset = 0
+
+  // Decision node in Finder's lane
+  events.push({
+    id: eventId,
+    actor: 'Finder',
+    participantId: 'finder',
+    label: 'Close Case',
+    x: nextX,
+    lane: finder?.laneIndex ?? 0,
+    type: 'decision' as const,
+    timestamp: now,
+    consequences: [
+      'Finder RM state: → CLOSED',
+      'Finder leaves the case (ActivityPub: Leave)',
+      'No further actions available for Finder',
+      'Vendors can still continue case work',
+    ],
+  })
+
+  timestampOffset++
+
+  // Consequence node in Vendor 1 lane (if exists)
+  if (vendor1 && vendor1.visible && vendor1.rmState !== 'DECLINED') {
+    events.push({
+      id: `${eventId}-vendor1-consequence`,
       actor: 'Vendor',
       participantId: 'vendor-1',
       label: 'Finder Closed',
       x: nextX,
-      lane: vendor.laneIndex,
+      lane: vendor1.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
-      timestamp: now + 1,
+      timestamp: now + timestampOffset,
       consequences: [
         'Vendor notified: Finder closed',
         'Finder participant RM → CLOSED',
         'Vendor can still continue work',
       ],
-    }] : []),
-    // Consequence node in CaseActor lane
-    {
+    })
+    timestampOffset++
+  }
+
+  // Consequence node in Vendor 2 lane (if exists)
+  if (vendor2 && vendor2.visible && vendor2.rmState !== 'DECLINED') {
+    events.push({
+      id: `${eventId}-vendor2-consequence`,
+      actor: 'Vendor 2',
+      participantId: 'vendor-2',
+      label: 'Finder Closed',
+      x: nextX,
+      lane: vendor2.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      consequences: [
+        'Vendor 2 notified: Finder closed',
+        'Finder participant RM → CLOSED',
+        'Vendor 2 can still continue work',
+      ],
+    })
+    timestampOffset++
+  }
+
+  // Consequence node in CaseActor lane
+  if (caseactor) {
+    events.push({
       id: `${eventId}-caseactor-consequence`,
       actor: 'CaseActor',
       participantId: 'caseactor',
       label: 'Finder Closed',
       x: nextX,
-      lane: 2,
+      lane: caseactor.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
-      timestamp: now + 2,
+      timestamp: now + timestampOffset,
       consequences: [
         'Finder participant RM → CLOSED',
         'Leave activity tracked',
         'Authoritative ledger updated',
         'Case remains open for other participants',
       ],
-    },
-  ])
+    })
+  }
+
+  newState = addTimelineEvents(newState, events)
 
   newState = addEventLogEntries(newState, ['Finder closed their participation in the case'])
   newState = incrementXPosition(newState)

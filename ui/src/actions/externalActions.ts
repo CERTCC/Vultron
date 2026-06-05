@@ -17,16 +17,18 @@ export function handleTriggerExploit(state: DemoState): DemoState {
   const now = Date.now()
 
   // Determine new PXA state
+  // Per Vultron protocol: exploit publication (X) automatically implies public awareness (P)
+  // States pXa and pXA are not valid - once an exploit is published, the public is aware
   const currentPxa = state.pxaState
   let newPxa = currentPxa
   if (currentPxa === 'pxa') {
-    newPxa = 'pXa'  // exploit published
+    newPxa = 'PXa'  // exploit published -> public becomes aware automatically
   } else if (currentPxa === 'Pxa') {
-    newPxa = 'PXa'  // public + exploit
+    newPxa = 'PXa'  // public + exploit (already public)
   } else if (currentPxa === 'pxA') {
-    newPxa = 'pXA'  // exploit + attacks
+    newPxa = 'PXA'  // exploit + attacks -> public becomes aware automatically
   } else if (currentPxa === 'PxA') {
-    newPxa = 'PXA'  // public + exploit + attacks
+    newPxa = 'PXA'  // public + exploit + attacks (already public)
   }
 
   let newState = state
@@ -35,6 +37,7 @@ export function handleTriggerExploit(state: DemoState): DemoState {
   const activeLanes = getActiveLanes(newState)
 
   // Create consequence nodes for all active participants
+  const publicBecameAware = !currentPxa.includes('P') && newPxa.includes('P')
   const events = activeLanes.map((participant, index) => ({
     id: `${eventId}-${participant.id}-consequence`,
     actor: participant.name,
@@ -46,7 +49,8 @@ export function handleTriggerExploit(state: DemoState): DemoState {
     timestamp: now + index,
     consequences: [
       'External event: exploit published',
-      `${participant.name} becomes aware`,
+      ...(publicBecameAware ? ['Public becomes aware (automatic with X)'] : []),
+      `${participant.name} observes exploit`,
       'Participant pxa_state updated',
       `Case PXA state: ${currentPxa} → ${newPxa}`,
       'Authoritative ledger updated',
@@ -54,7 +58,11 @@ export function handleTriggerExploit(state: DemoState): DemoState {
   }))
 
   newState = addTimelineEvents(newState, events)
-  newState = addEventLogEntries(newState, ['Exploit published in the wild (external event)'])
+  newState = addEventLogEntries(newState, [
+    publicBecameAware
+      ? 'Exploit published in the wild (external event) - public becomes aware'
+      : 'Exploit published in the wild (external event)'
+  ])
   newState = incrementXPosition(newState)
 
   return newState

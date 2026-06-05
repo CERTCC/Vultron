@@ -849,17 +849,21 @@ function App() {
       const now = Date.now()
 
       // Determine new PXA state
+      // Per Vultron protocol: exploit publication (X) automatically implies public awareness (P)
+      // States pXa and pXA are not valid - once an exploit is published, the public is aware
       const currentPxa = demoState.pxaState
       let newPxa = currentPxa
       if (currentPxa === 'pxa') {
-        newPxa = 'pXa'  // exploit published
+        newPxa = 'PXa'  // exploit published -> public becomes aware automatically
       } else if (currentPxa === 'pxA') {
-        newPxa = 'pXA'  // exploit + attacks
+        newPxa = 'PXA'  // exploit + attacks -> public becomes aware automatically
       } else if (currentPxa === 'Pxa') {
-        newPxa = 'PXa'  // public + exploit
+        newPxa = 'PXa'  // public + exploit (already public)
       } else if (currentPxa === 'PxA') {
-        newPxa = 'PXA'  // public + exploit + attacks
+        newPxa = 'PXA'  // public + exploit + attacks (already public)
       }
+
+      const publicBecameAware = !currentPxa.includes('P') && newPxa.includes('P')
 
       setDemoState(prev => ({
         ...prev,
@@ -878,8 +882,10 @@ function App() {
             timestamp: now,
             consequences: [
               'External event: exploit published in the wild',
-              'Finder becomes aware of exploit',
+              ...(publicBecameAware ? ['Public becomes aware (automatic with X)'] : []),
+              'Finder observes exploit',
               'Participant pxa_state updated',
+              `Case PXA state: ${currentPxa} → ${newPxa}`,
             ],
           },
           // Consequence node in Vendor lane
@@ -893,8 +899,10 @@ function App() {
             timestamp: now + 1,
             consequences: [
               'External event: exploit published in the wild',
-              'Vendor becomes aware of exploit',
+              ...(publicBecameAware ? ['Public becomes aware (automatic with X)'] : []),
+              'Vendor observes exploit',
               'Participant pxa_state updated',
+              `Case PXA state: ${currentPxa} → ${newPxa}`,
             ],
           },
           // Consequence node in CaseActor lane
@@ -908,7 +916,8 @@ function App() {
             timestamp: now + 2,
             consequences: [
               'External event: exploit published',
-              `Case PXA state: ${newPxa}`,
+              ...(publicBecameAware ? ['Public becomes aware (automatic with X)'] : []),
+              `Case PXA state: ${currentPxa} → ${newPxa}`,
               'Authoritative ledger updated',
               'All participants notified',
             ],
@@ -916,7 +925,9 @@ function App() {
         ],
         eventLog: [
           ...prev.eventLog,
-          'Exploit published in the wild (external event)',
+          publicBecameAware
+            ? 'Exploit published in the wild (external event) - public becomes aware'
+            : 'Exploit published in the wild (external event)',
         ],
       }))
     } else if (actionId === 'trigger-attacks') {
