@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
+from vultron.core.models.actor import CoreActor
 from vultron.core.models.base import VultronObject
 from vultron.core.models._helpers import _now_utc as _core_now_utc
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
@@ -89,7 +90,9 @@ def _match_activity_field(
         return True
     if activity_field is None:
         return False
-    if pattern_field == AOtype.ACTOR and isinstance(activity_field, as_Actor):
+    if pattern_field == AOtype.ACTOR and isinstance(
+        activity_field, (as_Actor, CoreActor)
+    ):
         return True
     if pattern_field == AOtype.EVENT and isinstance(activity_field, as_Event):
         return True
