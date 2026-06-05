@@ -1,24 +1,5 @@
 #!/usr/bin/env python
-"""
-Provides Vultron-extended Actor classes for the Vultron ActivityStreams
-Vocabulary.
-
-These subclasses extend the standard ActivityStreams actor types with optional
-Vultron-specific profile fields, such as an actor's embargo policy.
-
-The actor's ActivityStreams type (Person, Organization, Service) is preserved,
-ensuring interoperability with ActivityPub clients that do not understand
-Vultron extensions.
-
-JSON-LD Context Note
---------------------
-A fully interoperable implementation would extend the JSON-LD ``@context``
-to define Vultron terms such as ``embargoPolicy`` under a Vultron namespace
-(e.g., ``https://vultron.sei.cmu.edu/ns#``).  That wiring is deferred to a
-later milestone; see ``plan/IMPLEMENTATION_NOTES.md`` for details.
-
-Per ``specs/embargo-policy.yaml`` EP-01-001.
-"""
+"""Wire projections for the Vultron actor domain models."""
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -35,86 +16,30 @@ Per ``specs/embargo-policy.yaml`` EP-01-001.
 
 from typing import Annotated, TypeAlias, Union
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
-from vultron.wire.as2.vocab.base.links import ActivityStreamRef
-from vultron.wire.as2.vocab.base.objects.actors import (
-    as_Application,
-    as_Group,
-    as_Organization,
-    as_Person,
-    as_Service,
+from vultron.core.models.actor import (
+    CoreActor as VultronActorMixin,
+    VultronApplication,
+    VultronGroup,
+    VultronOrganization,
+    VultronPerson,
+    VultronService,
 )
-from vultron.wire.as2.vocab.objects.embargo_policy import EmbargoPolicyRef
+from vultron.wire.as2.vocab.base.links import ActivityStreamRef
+from vultron.wire.as2.vocab.base.registry import VOCABULARY
 
-
-class VultronActorMixin(BaseModel):
-    """
-    Mixin that adds Vultron-specific optional profile fields to any
-    ActivityStreams Actor subclass.
-
-    Intended for use via multiple inheritance alongside an actor type
-    (e.g., ``as_Person``, ``as_Organization``).
-    """
-
-    embargo_policy: EmbargoPolicyRef | None = Field(
-        default=None,
-        description="The actor's stated embargo preferences (EP-01-001)",
-    )
-
-
-class VultronPerson(VultronActorMixin, as_Person):
-    """
-    An ActivityStreams Person extended with Vultron profile fields.
-
-    Retains ``type_ == "Person"`` for ActivityPub interoperability.
-    """
+VOCABULARY["Person"] = VultronPerson
+VOCABULARY["Organization"] = VultronOrganization
+VOCABULARY["Service"] = VultronService
+VOCABULARY["Application"] = VultronApplication
+VOCABULARY["Group"] = VultronGroup
 
 
 VultronPersonRef: TypeAlias = ActivityStreamRef[VultronPerson]
-
-
-class VultronOrganization(VultronActorMixin, as_Organization):
-    """
-    An ActivityStreams Organization extended with Vultron profile fields.
-
-    Retains ``type_ == "Organization"`` for ActivityPub interoperability.
-    """
-
-
 VultronOrganizationRef: TypeAlias = ActivityStreamRef[VultronOrganization]
-
-
-class VultronService(VultronActorMixin, as_Service):
-    """
-    An ActivityStreams Service extended with Vultron profile fields.
-
-    Retains ``type_ == "Service"`` for ActivityPub interoperability.
-    """
-
-
 VultronServiceRef: TypeAlias = ActivityStreamRef[VultronService]
-
-
-class VultronApplication(VultronActorMixin, as_Application):
-    """
-    An ActivityStreams Application extended with Vultron profile fields.
-
-    Retains ``type_ == "Application"`` for ActivityPub interoperability.
-    """
-
-
 VultronApplicationRef: TypeAlias = ActivityStreamRef[VultronApplication]
-
-
-class VultronGroup(VultronActorMixin, as_Group):
-    """
-    An ActivityStreams Group extended with Vultron profile fields.
-
-    Retains ``type_ == "Group"`` for ActivityPub interoperability.
-    """
-
-
 VultronGroupRef: TypeAlias = ActivityStreamRef[VultronGroup]
 
 
@@ -129,4 +54,20 @@ ActorUnion: TypeAlias = Annotated[
     Field(
         description="A concrete Vultron actor (Person, Organization, Service, Application, or Group)."
     ),
+]
+
+
+__all__ = [
+    "ActorUnion",
+    "VultronActorMixin",
+    "VultronApplication",
+    "VultronApplicationRef",
+    "VultronGroup",
+    "VultronGroupRef",
+    "VultronOrganization",
+    "VultronOrganizationRef",
+    "VultronPerson",
+    "VultronPersonRef",
+    "VultronService",
+    "VultronServiceRef",
 ]

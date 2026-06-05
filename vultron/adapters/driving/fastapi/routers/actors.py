@@ -47,9 +47,7 @@ from vultron.adapters.driven.datalayer import get_shared_dl
 from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.links import as_Link
-from vultron.wire.as2.vocab.base.objects.actors import (
-    as_Actor,
-)
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.collections import (
     as_OrderedCollection,
@@ -59,6 +57,7 @@ from vultron.wire.as2.errors import (
     VultronParseMissingTypeError,
 )
 from vultron.wire.as2.parser import parse_activity as _parse_activity
+from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.vocab.objects.vultron_actor import (
     VultronApplication,
     VultronGroup,
@@ -66,6 +65,10 @@ from vultron.wire.as2.vocab.objects.vultron_actor import (
     VultronPerson,
     VultronService,
 )
+
+# AnyActor covers both migrated core types and the legacy as_Actor base
+# (VOCABULARY["Actor"] still maps to as_Actor for records stored before migration).
+AnyActor = CoreActor | as_Actor
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -96,12 +99,11 @@ def get_actors(
 
     logger.debug(f"get_actors: found {len(results)} actor records")
 
-    objects: list[as_Actor] = []
+    objects: list[AnyActor] = []
     for rec in results:
         cls = _actor_class_for_record(rec)
         obj = cls.model_validate(rec.get("data_", {}))
-        if isinstance(obj, as_Actor):
-            objects.append(obj)
+        objects.append(obj)
 
     return [
         o.model_dump(mode="json", by_alias=True, exclude_none=True)
@@ -129,7 +131,7 @@ def _find_actor_record_by_id(
     return None
 
 
-def _actor_class_for_record(rec: dict[str, Any]) -> type[as_Actor]:
+def _actor_class_for_record(rec: dict[str, Any]) -> type[CoreActor]:
     data = rec.get("data_", {})
     payload_type = None
     if isinstance(data, dict):
@@ -142,7 +144,7 @@ def _actor_class_for_record(rec: dict[str, Any]) -> type[as_Actor]:
     if isinstance(record_type, str) and record_type in _ACTOR_TYPE_MAP:
         return _ACTOR_TYPE_MAP[record_type]
 
-    return as_Actor
+    return CoreActor
 
 
 def _find_actor_record(
@@ -176,7 +178,7 @@ def _find_actor_record(
 # Actor type map — used by create_actor
 # ---------------------------------------------------------------------------
 
-_ACTOR_TYPE_MAP: dict[str, type[as_Actor]] = {
+_ACTOR_TYPE_MAP: dict[str, type[CoreActor]] = {
     "Person": VultronPerson,
     "Organization": VultronOrganization,
     "Service": VultronService,
@@ -277,10 +279,22 @@ def get_actor_profile(
         )
 
     actor_cls = _actor_class_for_record(actor_record)
-    as_actor = actor_cls.model_validate(actor_record.get("data_", {}))
+    as_actor = cast(
+        Any, actor_cls.model_validate(actor_record.get("data_", {}))
+    )
     profile = as_actor.model_dump(by_alias=True, exclude_none=True)
-    profile["inbox"] = as_actor.inbox.id_
-    profile["outbox"] = as_actor.outbox.id_
+    inbox = getattr(as_actor, "inbox", None)
+    outbox = getattr(as_actor, "outbox", None)
+    profile["inbox"] = (
+        inbox.get("id")
+        if isinstance(inbox, dict)
+        else getattr(inbox, "id_", None)
+    )
+    profile["outbox"] = (
+        outbox.get("id")
+        if isinstance(outbox, dict)
+        else getattr(outbox, "id_", None)
+    )
     return profile
 
 
@@ -339,10 +353,13 @@ def get_actor_inbox(
             detail="Actor not found.",
         )
 
-    actor = as_Actor.model_validate(actor_record)
-    actor_dl = datalayer.clone_for_actor(actor.id_)
+    from vultron.core.models.base import CoreObject as _CoreObject
+
+    actor = actor_record
+    actor_dl = datalayer.clone_for_actor(cast(Any, actor).id_)
     items = cast(
-        list[as_Object | as_Link | str | None], list(actor_dl.inbox_list())
+        list[as_Object | as_Link | str | _CoreObject | None],
+        list(actor_dl.inbox_list()),
     )
     return as_OrderedCollection(items=items)
 
@@ -382,7 +399,9 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
         )
 
 
-def _resolve_actor_or_404(actor_id: str, dl: DataLayer) -> as_Actor:
+def _resolve_actor_or_404(
+    actor_id: str, dl: DataLayer
+) -> CoreActor | as_Actor:
     actor_record = dl.read(actor_id)
     if actor_record is None:
         actor_record = dl.find_actor_by_short_id(actor_id)
@@ -390,14 +409,16 @@ def _resolve_actor_or_404(actor_id: str, dl: DataLayer) -> as_Actor:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
         )
-    return as_Actor.model_validate(actor_record)
+    return cast(CoreActor | as_Actor, actor_record)
 
 
-def _activity_already_received(actor: as_Actor, activity_id: str) -> bool:
+def _activity_already_received(
+    actor: CoreActor | as_Actor, activity_id: str
+) -> bool:
     return bool(
-        actor.inbox
-        and hasattr(actor.inbox, "items")
-        and activity_id in actor.inbox.items
+        getattr(actor, "inbox", None)
+        and hasattr(getattr(actor, "inbox", None), "items")
+        and activity_id in getattr(actor, "inbox").items
     )
 
 
@@ -431,19 +452,20 @@ def _store_inbox_activity(dl: DataLayer, activity: as_Activity) -> None:
 
 def _record_inbox_receipt(
     dl: DataLayer,
-    actor: as_Actor,
+    actor: CoreActor | as_Actor,
     activity_id: str,
     canonical_actor_id: str,
 ) -> None:
-    if not actor.inbox or not hasattr(actor.inbox, "items"):
+    inbox = getattr(actor, "inbox", None)
+    if not inbox or not hasattr(inbox, "items"):
         return
 
-    actor.inbox.items.append(activity_id)
+    inbox.items.append(activity_id)
     dl.update(
         actor.id_,
         StorableRecord(
             id_=actor.id_,
-            type_=actor.type_ or "Actor",
+            type_=getattr(actor, "type_", None) or "Actor",
             data_=actor.model_dump(mode="json"),
         ),
     )
@@ -537,7 +559,7 @@ def post_actor_outbox(
         HTTPException: If the Actor is not found.
     """
     actor_record = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
-    actor = as_Actor.model_validate(actor_record) if actor_record else None
+    actor = actor_record
 
     if not actor:
         raise HTTPException(
