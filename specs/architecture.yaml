@@ -209,6 +209,32 @@ groups:
       collection shape is an AS2 protocol concern, not a domain concern.
       This resolves the most structurally irreconcilable field-type conflict
       that blocked the original ARCH-12 from_core()/to_core() approach.
+  - id: ARCH-12-007
+    priority: MUST
+    statement: >-
+      All core domain objects that represent protocol-significant entities
+      (cases, reports, participants, actors, log entries, embargo policies,
+      etc.) MUST inherit from `CoreObject` (or `VultronObject` when
+      CORE_VOCABULARY registration is not needed). Objects that exist solely
+      as local configuration, transient dispatch envelopes, or internal
+      processing records that are never shared across the wire MAY remain
+      plain `BaseModel` subclasses; such classes MUST include a docstring
+      explaining the rationale for not inheriting from the shared-base
+      hierarchy.
+    rationale: >-
+      Consistent use of the shared-base hierarchy ensures that all
+      protocol-significant domain objects share aligned field names,
+      can participate in model_validate() round-trips (ARCH-12-005), and
+      are discoverable via CORE_VOCABULARY. Intentional BaseModel classes
+      are the exception, not the default; requiring a documented rationale
+      prevents accidental hierarchy bypass as the codebase evolves.
+    verification: >-
+      Static analysis or a test asserts that all classes in
+      `vultron/core/models/` that contain protocol-significant fields
+      (`id_`, `type_`, `published`, `attributed_to`) inherit from
+      `CoreObject` or `VultronObject`. Intentional `BaseModel` subclasses
+      are listed in a registry or identified by a marker mixin/comment
+      pattern.
 - id: ARCH-09
   title: Domain Model Richness Constraint
   specs:
