@@ -14,6 +14,7 @@ export interface ParticipantState {
   hasClosed: boolean
   visible: boolean
   laneIndex: number
+  hasRepliedToCurrentNote?: boolean  // Track if participant replied to current note
 }
 
 export interface TimelineEvent {

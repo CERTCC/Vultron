@@ -1721,7 +1721,7 @@ function App() {
                 label: 'Reject Embargo',
                 description: 'Reject the embargo proposal',
                 enabled: true,
-              }] : (['report-invalidated', 'embargo-accepted', 'finder-asked', 'vendor-replied', 'fix-ready', 'fix-deployed'].includes(demoState.phase) && !demoState.finderHasClosed) ? [
+              }] : (['report-validated', 'report-invalidated', 'embargo-accepted', 'finder-asked', 'vendor-replied', 'fix-ready', 'fix-deployed'].includes(demoState.phase) && !demoState.finderHasClosed) ? [
                 {
                   id: 'finder-add-note',
                   label: demoState.phase === 'vendor-replied' ? 'Ask Another Question' : 'Ask Question',
@@ -1827,7 +1827,7 @@ function App() {
                   label: 'Reject Embargo',
                   description: 'Reject the embargo proposal',
                   enabled: true,
-                }] : (['embargo-accepted', 'finder-asked', 'vendor-replied', 'fix-ready', 'fix-deployed'].includes(demoState.phase)) ? [
+                }] : (['report-validated', 'embargo-accepted', 'finder-asked', 'vendor-replied', 'fix-ready', 'fix-deployed'].includes(demoState.phase)) ? [
                   // Reply to questions if there are any outstanding
                   ...(demoState.phase === 'finder-asked' ? [{
                     id: 'vendor-reply-note',
@@ -1835,8 +1835,8 @@ function App() {
                     description: 'Respond to Finder\'s question about workarounds',
                     enabled: true,
                   }] : []),
-                  // Show "Notify Fix Ready" in all embargo-active phases except when already notified
-                  ...(demoState.vendorVfdState === 'Vfd' && ['embargo-accepted', 'finder-asked', 'vendor-replied'].includes(demoState.phase) ? [{
+                  // Show "Notify Fix Ready" when vendor is at Vfd (aware, working on fix)
+                  ...(demoState.vendorVfdState === 'Vfd' && ['report-validated', 'embargo-accepted', 'finder-asked', 'vendor-replied'].includes(demoState.phase) ? [{
                     id: 'notify-fix-ready',
                     label: 'Notify Fix Ready',
                     description: 'Vendor notifies that a fix is ready',

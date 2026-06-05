@@ -22,9 +22,34 @@ export function getFinderActions(state: DemoState): Action[] {
     }]
   }
 
+  // Report received phase - case is active, participants can communicate
+  if (state.phase === 'report-received' && !finder.hasClosed) {
+    const actions: Action[] = []
+
+    // Finder can ask questions once case exists (RM.RECEIVED is an active state)
+    actions.push({
+      id: 'finder-add-note',
+      label: 'Ask Question',
+      description: 'Add a note to the case asking for information',
+      enabled: true,
+    })
+
+    // Finder can send report to additional vendors at any time after case exists
+    if (!state.secondVendorInvited && activeVendors.length >= 1) {
+      actions.push({
+        id: 'finder-invite-vendor',
+        label: 'Submit Report to Vendor 2',
+        description: 'Send the vulnerability report to another vendor',
+        enabled: true,
+      })
+    }
+
+    return actions
+  }
+
   // Embargo proposed - accept/reject
   if (state.phase === 'embargo-proposed' && !finder.embargoAccepted) {
-    return [{
+    const actions: Action[] = [{
       id: 'finder-accept-embargo',
       label: 'Accept Embargo',
       description: 'Accept the 90-day embargo proposal',
@@ -35,26 +60,42 @@ export function getFinderActions(state: DemoState): Action[] {
       description: 'Reject the embargo proposal',
       enabled: true,
     }]
+
+    // Finder can send report to additional vendors at any time after case exists
+    // This allows new vendors to participate in embargo negotiation
+    if (!state.secondVendorInvited && activeVendors.length >= 1) {
+      actions.push({
+        id: 'finder-invite-vendor',
+        label: 'Submit Report to Vendor 2',
+        description: 'Send the vulnerability report to another vendor',
+        enabled: true,
+      })
+    }
+
+    return actions
   }
 
   // Active case phases
-  const activeCasePhases = ['report-invalidated', 'embargo-accepted', 'finder-asked', 'vendor-replied', 'fix-ready', 'fix-deployed']
+  const activeCasePhases = ['report-validated', 'report-invalidated', 'embargo-accepted', 'finder-asked', 'fix-ready', 'fix-deployed']
   if (activeCasePhases.includes(state.phase) && !finder.hasClosed) {
+    // Check if any vendor has replied to the current question
+    const anyVendorReplied = activeVendors.some(v => v.hasRepliedToCurrentNote)
+
     const actions: Action[] = [{
       id: 'finder-add-note',
-      label: state.phase === 'vendor-replied' ? 'Ask Another Question' : 'Ask Question',
-      description: state.phase === 'vendor-replied'
+      label: anyVendorReplied ? 'Ask Another Question' : 'Ask Question',
+      description: anyVendorReplied
         ? 'Add another note to the case asking for more information'
         : 'Add a note to the case asking for information',
       enabled: true,
     }]
 
-    // Add invite second vendor option if not already invited and at least one vendor is active
+    // Add submit report to second vendor option if not already sent and at least one vendor is active
     if (!state.secondVendorInvited && activeVendors.length >= 1) {
       actions.push({
         id: 'finder-invite-vendor',
-        label: 'Invite Second Vendor',
-        description: 'Invite another vendor to participate in this case',
+        label: 'Submit Report to Vendor 2',
+        description: 'Send the vulnerability report to another vendor',
         enabled: true,
       })
     }
@@ -150,28 +191,17 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   const vendor = getParticipant(state, vendorId)
   if (!vendor || !vendor.visible) return []
 
+  // If vendor has closed their participation, they have no actions
+  if (vendor.hasClosed) return []
+
   // If vendor declined invitation, they have no actions
   if (vendor.rmState === 'DECLINED') return []
 
   const isVendor1 = vendorId === 'vendor-1'
+  const vendorActivePhases = ['report-received', 'report-validated', 'report-invalidated', 'embargo-accepted', 'finder-asked', 'fix-ready', 'fix-deployed', 'vendor-published']
 
-  // Report received - validate or invalidate
-  if (state.phase === 'report-received') {
-    return [{
-      id: 'validate-report',
-      label: 'Validate Report',
-      description: 'Mark the report as valid (RM: RECEIVED → VALID)',
-      enabled: true,
-    }, {
-      id: 'invalidate-report',
-      label: 'Invalidate Report',
-      description: 'Mark the report as invalid (RM: RECEIVED → INVALID)',
-      enabled: true,
-    }]
-  }
-
-  // Report invalidated - re-validate or close
-  if (state.phase === 'report-invalidated') {
+  // Per-participant RM state: vendor marked report as invalid
+  if (vendor.rmState === 'INVALID') {
     return [{
       id: 'validate-report',
       label: 'Re-validate Report',
@@ -185,9 +215,9 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
     }]
   }
 
-  // Embargo proposed - accept/reject
+  // Embargo proposed - accept/reject PLUS VFD actions (RM and VFD are independent!)
   if (state.phase === 'embargo-proposed' && !vendor.embargoAccepted) {
-    return [{
+    const actions: Action[] = [{
       id: 'accept-embargo',
       label: 'Accept Embargo',
       description: 'Accept the 90-day embargo proposal',
@@ -198,29 +228,67 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
       description: 'Reject the embargo proposal',
       enabled: true,
     }]
-  }
 
-  // Active embargo phases
-  const embargoPhases = ['embargo-accepted', 'finder-asked', 'vendor-replied', 'fix-ready', 'fix-deployed', 'vendor-published']
-  if (embargoPhases.includes(state.phase)) {
-    const actions: Action[] = []
-
-    // Reply to questions
-    if (state.phase === 'finder-asked') {
+    // Per Vultron protocol: VFD and EM are INDEPENDENT state machines
+    // Vendors can work on fixes while embargo is being negotiated
+    if (vendor.vfdState === 'Vfd') {
       actions.push({
-        id: 'vendor-reply-note',
-        label: 'Reply to Question',
-        description: 'Respond to Finder\'s question about workarounds',
+        id: 'notify-fix-ready',
+        label: 'Notify Fix Ready',
+        description: 'Vendor notifies that a fix is ready',
         enabled: true,
       })
     }
 
-    // Invite second vendor (only first vendor can do this for now)
+    if (vendor.vfdState === 'VFd') {
+      actions.push({
+        id: 'notify-fix-deployed',
+        label: 'Notify Fix Deployed',
+        description: 'Vendor notifies that the fix has been deployed',
+        enabled: true,
+      })
+    }
+
+    return actions
+  }
+
+  // Active case phases for vendors (includes pre-embargo and embargo phases)
+  if (vendorActivePhases.includes(state.phase)) {
+    const actions: Action[] = []
+
+    // Per Vultron protocol: vendors can validate AND work on VFD simultaneously
+    // Validation (RM) and fix development (VFD) are independent state machines
+    if (vendor.rmState === 'RECEIVED') {
+      actions.push({
+        id: 'validate-report',
+        label: 'Validate Report',
+        description: 'Mark the report as valid (RM: RECEIVED → VALID)',
+        enabled: true,
+      }, {
+        id: 'invalidate-report',
+        label: 'Invalidate Report',
+        description: 'Mark the report as invalid (RM: RECEIVED → INVALID)',
+        enabled: true,
+      })
+    }
+
+    // Reply to questions - each vendor can reply independently
+    // Per Vultron protocol: notes are case-wide with inReplyTo relationships
+    if (state.phase === 'finder-asked' && !vendor.hasRepliedToCurrentNote) {
+      actions.push({
+        id: 'vendor-reply-note',
+        label: 'Reply to Question',
+        description: 'Respond to Finder\'s question',
+        enabled: true,
+      })
+    }
+
+    // Submit report to second vendor (only first vendor can do this for now)
     if (isVendor1 && !state.secondVendorInvited && !hasSecondVendor(state)) {
       actions.push({
         id: 'vendor-invite-second-vendor',
-        label: 'Invite Second Vendor',
-        description: 'Invite another vendor to collaborate on this case',
+        label: 'Submit Report to Vendor 2',
+        description: 'Send the vulnerability report to another vendor for collaboration',
         enabled: true,
       })
     }

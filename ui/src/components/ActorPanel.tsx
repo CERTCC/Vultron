@@ -42,7 +42,6 @@ export function ActorPanel({
         display: 'flex',
         flexDirection: 'column',
         boxSizing: 'border-box',
-        overflow: 'hidden',
       }}
     >
       <div style={{ marginBottom: '0.5rem' }}>

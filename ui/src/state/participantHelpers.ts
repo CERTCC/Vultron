@@ -13,12 +13,20 @@ export function getVendors(state: DemoState): ParticipantState[] {
 }
 
 export function getActiveVendors(state: DemoState): ParticipantState[] {
-  return getVendors(state).filter(v => v.visible)
+  return getVendors(state).filter(v => v.visible && !v.hasClosed)
 }
 
 export function getActiveLanes(state: DemoState): ParticipantState[] {
   return Array.from(state.participants.values())
     .filter(p => p.visible)
+    .sort((a, b) => a.laneIndex - b.laneIndex)
+}
+
+export function getActiveParticipants(state: DemoState): ParticipantState[] {
+  // Returns participants who are still active in the case (not closed)
+  // Use this for creating consequence nodes - closed participants shouldn't receive them
+  return Array.from(state.participants.values())
+    .filter(p => p.visible && !p.hasClosed)
     .sort((a, b) => a.laneIndex - b.laneIndex)
 }
 

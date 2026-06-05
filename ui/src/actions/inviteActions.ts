@@ -10,7 +10,7 @@ import {
   incrementXPosition,
   updateParticipant,
 } from '../state/stateUpdaters'
-import { getActiveLanes, getTotalLaneCount, getParticipant } from '../state/participantHelpers'
+import { getParticipant } from '../state/participantHelpers'
 
 export function handleInviteSecondVendor(state: DemoState, inviterId: string = 'vendor-1'): DemoState {
   const nextX = state.nextXPosition
@@ -24,17 +24,20 @@ export function handleInviteSecondVendor(state: DemoState, inviterId: string = '
   if (!inviter) return state
 
   // Create second vendor participant
+  // Per Vultron protocol: inviting a vendor = sending them the vulnerability report
+  // They start at RM.RECEIVED and VFD.Vfd, just like Vendor 1 did when the report was submitted
+  // Per protocol: "Vendors enter at Vfd (vendor aware) by definition"
   const vendor2 = {
     id: 'vendor-2',
     name: 'Vendor 2',
     role: PARTICIPANT_ROLES.vendor2,
     color: PARTICIPANT_COLORS.vendor2,
-    rmState: 'INVITED',
-    vfdState: 'vfd',
+    rmState: 'RECEIVED',  // They received the vulnerability report
+    vfdState: 'Vfd',  // Vendor aware - can work on fix immediately
     embargoAccepted: state.emState === 'ACTIVE',  // Auto-accept embargo if already active
     hasPublished: false,
     hasClosed: false,
-    visible: false,  // Will become visible when they accept
+    visible: true,  // Visible immediately - they have the report and need to validate
     laneIndex: 2,  // Insert between vendor-1 and caseactor
   }
 
@@ -64,7 +67,8 @@ export function handleInviteSecondVendor(state: DemoState, inviterId: string = '
     ...newState,
     participants: newParticipants,
     timelineEvents: updatedTimelineEvents,
-    secondVendorInvited: true
+    secondVendorInvited: true,
+    secondVendorAccepted: true  // Vendor 2 is immediately visible (they received the report)
   }
 
   // Get updated participant references from newState (after adjusting lane indices)
@@ -90,16 +94,16 @@ export function handleInviteSecondVendor(state: DemoState, inviterId: string = '
     id: eventId,
     actor: updatedInviter.name,
     participantId: inviterId,
-    label: 'Invite Vendor 2',
+    label: 'Submit Report to Vendor 2',
     x: nextX,
     lane: updatedInviter.laneIndex,
     type: 'decision' as const,
     timestamp: now,
     consequences: [
-      'InviteActorToCaseActivity created',
-      'Invitation sent to Vendor 2',
-      'Vendor 2 can accept or reject',
-      'ActivityPub: Invite activity',
+      'VulnerabilityReport sent to Vendor 2',
+      'Offer(VulnerabilityReport) activity created',
+      'Report sent to Vendor 2 inbox',
+      'Vendor 2 enters case at RM.RECEIVED',
     ],
   })
 
@@ -109,37 +113,37 @@ export function handleInviteSecondVendor(state: DemoState, inviterId: string = '
       id: `${eventId}-${otherActorId}-consequence`,
       actor: otherActor.name,
       participantId: otherActorId,
-      label: 'Invite Sent',
+      label: 'Report Sent to Vendor 2',
       x: nextX,
       lane: otherActor.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
       timestamp: now + 1,
       consequences: [
-        `${updatedInviter.name} invited Vendor 2`,
-        'Vendor 2 will receive invitation',
+        `${updatedInviter.name} sent report to Vendor 2`,
+        'Vendor 2 will receive report',
         'Case may expand to multiple vendors',
       ],
     })
   }
 
-  // Consequence node in Vendor 2's lane (they receive the invitation)
+  // Consequence node in Vendor 2's lane (they receive the report)
   const vendor2Updated = getParticipant(newState, 'vendor-2')
   inviteEvents.push({
     id: `${eventId}-vendor2-consequence`,
     actor: 'Vendor 2',
     participantId: 'vendor-2',
-    label: 'Invitation Received',
+    label: 'Report Received',
     x: nextX,
     lane: vendor2Updated?.laneIndex ?? 2,
     type: 'consequence' as const,
     causedBy: eventId,
     timestamp: now + 2,
     consequences: [
-      'InviteActorToCaseActivity received',
-      'Vendor 2 can accept or reject',
-      'Invitation appears in Vendor 2 inbox',
-      'ActivityPub: Invite received',
+      'Offer received in inbox',
+      'VulnerabilityReport stored in DataLayer',
+      'Vendor 2 RM state → RECEIVED',
+      'Vendor 2 VFD state → Vfd (aware)',
     ],
   })
 
@@ -148,15 +152,16 @@ export function handleInviteSecondVendor(state: DemoState, inviterId: string = '
     id: `${eventId}-caseactor-consequence`,
     actor: 'CaseActor',
     participantId: 'caseactor',
-    label: 'Invite Tracked',
+    label: 'Vendor 2 Added',
     x: nextX,
     lane: updatedCaseActorCheck.laneIndex,
     type: 'consequence' as const,
     causedBy: eventId,
     timestamp: now + 3,
     consequences: [
-      'InviteActorToCaseActivity tracked',
-      'Vendor 2 invitation pending',
+      'Vendor 2 participant created',
+      'Vendor 2 added to case participants',
+      'Case now has multiple vendors',
       'Authoritative ledger updated',
     ],
   })
@@ -165,7 +170,7 @@ export function handleInviteSecondVendor(state: DemoState, inviterId: string = '
 
   newState = addTimelineEvents(newState, inviteEvents)
 
-  newState = addEventLogEntries(newState, [`${inviter.name} invited Vendor 2 to the case`])
+  newState = addEventLogEntries(newState, [`${inviter.name} sent vulnerability report to Vendor 2`])
   newState = incrementXPosition(newState)
 
   return newState
@@ -180,11 +185,12 @@ export function handleAcceptSecondVendorInvite(state: DemoState): DemoState {
   let newState = state
 
   // Make vendor-2 visible and update their state
-  // Set vfdState to 'Vfd' (working on fix) since they're joining an active case
+  // NOTE: This handler is now obsolete since Vendor 2 becomes visible immediately when invited
+  // Keeping for backward compatibility if somehow the old "accept invitation" flow is triggered
   newState = updateParticipant(newState, 'vendor-2', {
     visible: true,
-    rmState: 'ACCEPTED',
-    vfdState: 'Vfd',
+    rmState: 'RECEIVED',  // They received the report and need to validate
+    vfdState: 'Vfd',  // Vendor aware - can work on fix immediately
   })
 
   newState = { ...newState, secondVendorAccepted: true }
@@ -210,8 +216,8 @@ export function handleAcceptSecondVendorInvite(state: DemoState): DemoState {
     consequences: [
       'AcceptInviteActorToCaseActivity created',
       'Vendor 2 joins the case',
-      'Vendor 2 RM → ACCEPTED',
-      'Can now work independently on the vulnerability',
+      'Vendor 2 RM: START → RECEIVED',
+      'Vendor 2 needs to validate the report',
     ],
   })
 

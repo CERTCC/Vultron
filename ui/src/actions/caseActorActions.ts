@@ -11,7 +11,7 @@ import {
   setEmState,
   updateParticipant,
 } from '../state/stateUpdaters'
-import { getParticipant } from '../state/participantHelpers'
+import { getParticipant, getActiveVendors } from '../state/participantHelpers'
 
 export function handleProposeEmbargo(state: DemoState): DemoState {
   const nextX = state.nextXPosition
@@ -19,61 +19,54 @@ export function handleProposeEmbargo(state: DemoState): DemoState {
   const now = Date.now()
 
   const caseactor = getParticipant(state, 'caseactor')
-  const vendor1 = getParticipant(state, 'vendor-1')
   const finder = getParticipant(state, 'finder')
+  const activeVendors = getActiveVendors(state)
 
   let newState = state
 
   newState = setPhase(newState, 'embargo-proposed')
   newState = setEmState(newState, 'PROPOSED')
   newState = updateParticipant(newState, 'finder', { embargoAccepted: false })
-  newState = updateParticipant(newState, 'vendor-1', { embargoAccepted: false })
 
-  newState = addTimelineEvents(newState, [
-    {
-      id: eventId,
-      actor: 'CaseActor',
-      participantId: 'caseactor',
-      label: 'Propose Embargo',
-      x: nextX,
-      lane: caseactor?.laneIndex ?? 2,
-      type: 'decision' as const,
-      timestamp: now,
-      consequences: [
-        'EmbargoEvent created (90-day proposal)',
-        'EmProposeEmbargoActivity created',
-        'Proposal sent to Vendor inbox',
-        'EM state → PROPOSED',
-        'Awaiting Vendor decision',
-      ],
-    },
-    {
-      id: `${eventId}-vendor-consequence`,
-      actor: 'Vendor',
-      participantId: 'vendor-1',
-      label: 'Proposal Received',
-      x: nextX,
-      lane: vendor1?.laneIndex ?? 1,
-      type: 'consequence' as const,
-      timestamp: now + 1,
-      causedBy: eventId,
-      enablesNext: true,
-      consequences: [
-        'EmProposeEmbargoActivity received',
-        'EmbargoEvent stored in DataLayer',
-        'Vendor sees 90-day embargo proposal',
-        'Must accept or reject',
-      ],
-    },
-    {
+  // Reset embargoAccepted for ALL active vendors
+  for (const vendor of activeVendors) {
+    newState = updateParticipant(newState, vendor.id, { embargoAccepted: false })
+  }
+
+  const events = []
+  let timestampOffset = 0
+
+  // Decision node in CaseActor's lane
+  events.push({
+    id: eventId,
+    actor: 'CaseActor',
+    participantId: 'caseactor',
+    label: 'Propose Embargo',
+    x: nextX,
+    lane: caseactor?.laneIndex ?? 2,
+    type: 'decision' as const,
+    timestamp: now,
+    consequences: [
+      'EmbargoEvent created (90-day proposal)',
+      'EmProposeEmbargoActivity created',
+      'Proposal sent to all participants',
+      'EM state → PROPOSED',
+      'Awaiting participant decisions',
+    ],
+  })
+  timestampOffset++
+
+  // Consequence node in Finder's lane
+  if (finder) {
+    events.push({
       id: `${eventId}-finder-consequence`,
       actor: 'Finder',
       participantId: 'finder',
       label: 'Proposal Received',
       x: nextX,
-      lane: finder?.laneIndex ?? 0,
+      lane: finder.laneIndex,
       type: 'consequence' as const,
-      timestamp: now + 2,
+      timestamp: now + timestampOffset,
       causedBy: eventId,
       enablesNext: true,
       consequences: [
@@ -82,9 +75,34 @@ export function handleProposeEmbargo(state: DemoState): DemoState {
         'EM state → PROPOSED',
         'Must accept or reject',
       ],
-    },
-  ])
+    })
+    timestampOffset++
+  }
 
+  // Consequence nodes for ALL active vendors
+  for (const vendor of activeVendors) {
+    events.push({
+      id: `${eventId}-${vendor.id}-consequence`,
+      actor: vendor.name,
+      participantId: vendor.id,
+      label: 'Proposal Received',
+      x: nextX,
+      lane: vendor.laneIndex,
+      type: 'consequence' as const,
+      timestamp: now + timestampOffset,
+      causedBy: eventId,
+      enablesNext: true,
+      consequences: [
+        'EmProposeEmbargoActivity received',
+        'EmbargoEvent stored in DataLayer',
+        `${vendor.name} sees 90-day embargo proposal`,
+        'Must accept or reject',
+      ],
+    })
+    timestampOffset++
+  }
+
+  newState = addTimelineEvents(newState, events)
   newState = addEventLogEntries(newState, ['CaseActor proposed 90-day embargo'])
   newState = incrementXPosition(newState)
 

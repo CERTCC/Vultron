@@ -11,7 +11,7 @@ import {
   setPhase,
   setPxaState,
 } from '../state/stateUpdaters'
-import { getParticipant } from '../state/participantHelpers'
+import { getParticipant, getActiveParticipants } from '../state/participantHelpers'
 
 export function handleValidateReport(state: DemoState, vendorId: string): DemoState {
   const nextX = state.nextXPosition
@@ -19,8 +19,6 @@ export function handleValidateReport(state: DemoState, vendorId: string): DemoSt
   const now = Date.now()
 
   const vendor = getParticipant(state, vendorId)
-  const finder = getParticipant(state, 'finder')
-  const caseactor = getParticipant(state, 'caseactor')
   if (!vendor) return state
 
   let newState = state
@@ -28,57 +26,56 @@ export function handleValidateReport(state: DemoState, vendorId: string): DemoSt
   newState = updateParticipant(newState, vendorId, { rmState: 'VALID' })
   newState = setPhase(newState, 'report-validated')
 
-  newState = addTimelineEvents(newState, [
-    {
-      id: eventId,
-      actor: vendor.name,
-      participantId: vendorId,
-      label: 'Validate Report',
-      x: nextX,
-      lane: vendor.laneIndex,
-      type: 'decision' as const,
-      timestamp: now,
-      consequences: [
-        'Accept(Offer) activity created',
-        'ValidateReportReceivedUseCase executes',
-        `${vendor.name} RM state: RECEIVED → VALID`,
-        'Report deemed legitimate',
-        'Can proceed with case work',
-      ],
-    },
-    {
-      id: `${eventId}-finder-consequence`,
-      actor: 'Finder',
-      participantId: 'finder',
-      label: 'Validation Noted',
-      x: nextX,
-      lane: finder?.laneIndex ?? 0,
-      type: 'consequence' as const,
-      timestamp: now + 1,
-      causedBy: eventId,
-      consequences: [
-        'Accept activity received',
-        `${vendor.name} has validated the report`,
-        'Case work can proceed',
-      ],
-    },
-    {
-      id: `${eventId}-case-consequence`,
-      actor: 'CaseActor',
-      participantId: 'caseactor',
-      label: 'Validation Tracked',
-      x: nextX,
-      lane: caseactor?.laneIndex ?? 2,
-      type: 'consequence' as const,
-      timestamp: now + 2,
-      causedBy: eventId,
-      consequences: [
-        `${vendor.name} participant RM → VALID`,
-        'Authoritative ledger updated',
-      ],
-    },
-  ])
+  // Per Vultron protocol: case state changes should broadcast to all participants
+  const activeLanes = getActiveParticipants(newState)
+  const events = []
+  let timestampOffset = 0
 
+  // Decision node in validating vendor's lane
+  events.push({
+    id: eventId,
+    actor: vendor.name,
+    participantId: vendorId,
+    label: 'Validate Report',
+    x: nextX,
+    lane: vendor.laneIndex,
+    type: 'decision' as const,
+    timestamp: now + timestampOffset++,
+    consequences: [
+      'Accept(Offer) activity created',
+      'ValidateReportReceivedUseCase executes',
+      `${vendor.name} RM state: RECEIVED → VALID`,
+      'Report deemed legitimate',
+      'Can proceed with case work',
+    ],
+  })
+
+  // Consequence nodes for ALL other active participants
+  activeLanes
+    .filter(p => p.id !== vendorId) // Exclude the validating vendor
+    .forEach(participant => {
+      events.push({
+        id: `${eventId}-${participant.id}-consequence`,
+        actor: participant.name,
+        participantId: participant.id,
+        label: 'Validation Noted',
+        x: nextX,
+        lane: participant.laneIndex,
+        type: 'consequence' as const,
+        timestamp: now + timestampOffset++,
+        causedBy: eventId,
+        consequences: [
+          'Accept activity received',
+          `${vendor.name} has validated the report`,
+          `${vendor.name} RM → VALID`,
+          participant.id === 'caseactor'
+            ? 'Authoritative ledger updated'
+            : 'Case work can proceed',
+        ],
+      })
+    })
+
+  newState = addTimelineEvents(newState, events)
   newState = addEventLogEntries(newState, [`${vendor.name} validated the report (RM → VALID)`])
   newState = incrementXPosition(newState)
 
@@ -91,8 +88,6 @@ export function handleInvalidateReport(state: DemoState, vendorId: string): Demo
   const now = Date.now()
 
   const vendor = getParticipant(state, vendorId)
-  const finder = getParticipant(state, 'finder')
-  const caseactor = getParticipant(state, 'caseactor')
   if (!vendor) return state
 
   let newState = state
@@ -100,10 +95,12 @@ export function handleInvalidateReport(state: DemoState, vendorId: string): Demo
   newState = updateParticipant(newState, vendorId, { rmState: 'INVALID' })
   newState = setPhase(newState, 'report-invalidated')
 
+  // Per Vultron protocol: case state changes should broadcast to all participants
+  const activeLanes = getActiveParticipants(newState)
   const events = []
   let timestampOffset = 0
 
-  // Decision node in vendor's lane
+  // Decision node in invalidating vendor's lane
   events.push({
     id: eventId,
     actor: vendor.name,
@@ -112,7 +109,7 @@ export function handleInvalidateReport(state: DemoState, vendorId: string): Demo
     x: nextX,
     lane: vendor.laneIndex,
     type: 'decision' as const,
-    timestamp: now,
+    timestamp: now + timestampOffset++,
     consequences: [
       'Reject(Offer) activity created',
       `${vendor.name} RM state: RECEIVED → INVALID`,
@@ -121,48 +118,30 @@ export function handleInvalidateReport(state: DemoState, vendorId: string): Demo
     ],
   })
 
-  timestampOffset++
-
-  // Consequence node in Finder's lane
-  if (finder) {
-    events.push({
-      id: `${eventId}-finder-consequence`,
-      actor: 'Finder',
-      participantId: 'finder',
-      label: 'Invalidation Noted',
-      x: nextX,
-      lane: finder.laneIndex,
-      type: 'consequence' as const,
-      causedBy: eventId,
-      timestamp: now + timestampOffset,
-      consequences: [
-        'TentativeReject activity received',
-        `${vendor.name} has invalidated the report`,
-        'Report held, may be reconsidered',
-      ],
+  // Consequence nodes for ALL other active participants
+  activeLanes
+    .filter(p => p.id !== vendorId) // Exclude the invalidating vendor
+    .forEach(participant => {
+      events.push({
+        id: `${eventId}-${participant.id}-consequence`,
+        actor: participant.name,
+        participantId: participant.id,
+        label: 'Invalidation Noted',
+        x: nextX,
+        lane: participant.laneIndex,
+        type: 'consequence' as const,
+        causedBy: eventId,
+        timestamp: now + timestampOffset++,
+        consequences: [
+          'TentativeReject activity received',
+          `${vendor.name} has invalidated the report`,
+          `${vendor.name} RM → INVALID`,
+          participant.id === 'caseactor'
+            ? 'Authoritative ledger updated'
+            : 'Report held, may be reconsidered',
+        ],
+      })
     })
-    timestampOffset++
-  }
-
-  // Consequence node in CaseActor's lane
-  if (caseactor) {
-    events.push({
-      id: `${eventId}-caseactor-consequence`,
-      actor: 'CaseActor',
-      participantId: 'caseactor',
-      label: 'Invalidation Tracked',
-      x: nextX,
-      lane: caseactor.laneIndex,
-      type: 'consequence' as const,
-      causedBy: eventId,
-      timestamp: now + timestampOffset,
-      consequences: [
-        `${vendor.name} participant RM → INVALID`,
-        'Report invalidation tracked',
-        'Authoritative ledger updated',
-      ],
-    })
-  }
 
   newState = addTimelineEvents(newState, events)
 
@@ -350,7 +329,7 @@ export function handleRejectEmbargo(state: DemoState, vendorId: string): DemoSta
   }
 
   // Consequence nodes in other vendor lanes (not the rejecting vendor)
-  if (vendor1 && vendor1.visible && vendorId !== 'vendor-1') {
+  if (vendor1 && vendor1.visible && !vendor1.hasClosed && vendorId !== 'vendor-1') {
     events.push({
       id: `${eventId}-vendor1-consequence`,
       actor: 'Vendor',
@@ -370,7 +349,7 @@ export function handleRejectEmbargo(state: DemoState, vendorId: string): DemoSta
     timestampOffset++
   }
 
-  if (vendor2 && vendor2.visible && vendorId !== 'vendor-2') {
+  if (vendor2 && vendor2.visible && !vendor2.hasClosed && vendorId !== 'vendor-2') {
     events.push({
       id: `${eventId}-vendor2-consequence`,
       actor: 'Vendor 2',
@@ -460,8 +439,8 @@ export function handleNotifyFixReady(state: DemoState, vendorId: string): DemoSt
     timestampOffset++
   }
 
-  // Consequence nodes in other vendor lanes (notify all other vendors)
-  if (vendor1 && vendor1.visible && vendorId !== 'vendor-1') {
+  // Consequence nodes in other vendor lanes (notify all other active vendors)
+  if (vendor1 && vendor1.visible && !vendor1.hasClosed && vendorId !== 'vendor-1') {
     events.push({
       id: `${eventId}-vendor1-consequence`,
       actor: 'Vendor',
@@ -481,7 +460,7 @@ export function handleNotifyFixReady(state: DemoState, vendorId: string): DemoSt
     timestampOffset++
   }
 
-  if (vendor2 && vendor2.visible && vendorId !== 'vendor-2') {
+  if (vendor2 && vendor2.visible && !vendor2.hasClosed && vendorId !== 'vendor-2') {
     events.push({
       id: `${eventId}-vendor2-consequence`,
       actor: 'Vendor 2',
@@ -590,7 +569,7 @@ export function handleNotifyFixDeployed(state: DemoState, vendorId: string): Dem
   }
 
   // Consequence nodes in other vendor lanes
-  if (vendor1 && vendor1.visible && vendorId !== 'vendor-1') {
+  if (vendor1 && vendor1.visible && !vendor1.hasClosed && vendorId !== 'vendor-1') {
     events.push({
       id: `${eventId}-vendor1-consequence`,
       actor: 'Vendor',
@@ -610,7 +589,7 @@ export function handleNotifyFixDeployed(state: DemoState, vendorId: string): Dem
     timestampOffset++
   }
 
-  if (vendor2 && vendor2.visible && vendorId !== 'vendor-2') {
+  if (vendor2 && vendor2.visible && !vendor2.hasClosed && vendorId !== 'vendor-2') {
     events.push({
       id: `${eventId}-vendor2-consequence`,
       actor: 'Vendor 2',
@@ -735,7 +714,7 @@ export function handleVendorNotifyPublished(state: DemoState, vendorId: string):
   }
 
   // Consequence nodes in other vendor lanes
-  if (vendor1 && vendor1.visible && vendorId !== 'vendor-1') {
+  if (vendor1 && vendor1.visible && !vendor1.hasClosed && vendorId !== 'vendor-1') {
     events.push({
       id: `${eventId}-vendor1-consequence`,
       actor: 'Vendor',
@@ -755,7 +734,7 @@ export function handleVendorNotifyPublished(state: DemoState, vendorId: string):
     timestampOffset++
   }
 
-  if (vendor2 && vendor2.visible && vendorId !== 'vendor-2') {
+  if (vendor2 && vendor2.visible && !vendor2.hasClosed && vendorId !== 'vendor-2') {
     events.push({
       id: `${eventId}-vendor2-consequence`,
       actor: 'Vendor 2',
@@ -818,7 +797,12 @@ export function handleVendorReplyNote(state: DemoState, vendorId: string): DemoS
 
   let newState = state
 
-  newState = setPhase(newState, 'vendor-replied')
+  // Mark this vendor as having replied to the current note
+  // Per Vultron protocol: each vendor can independently reply to notes
+  newState = updateParticipant(newState, vendorId, { hasRepliedToCurrentNote: true })
+
+  // Don't change phase - keep it as 'finder-asked' so other vendors can still reply
+  // Phase will change when Finder asks another question or case progresses for other reasons
 
   const events = []
   let timestampOffset = 0
@@ -868,7 +852,7 @@ export function handleVendorReplyNote(state: DemoState, vendorId: string): DemoS
   }
 
   // Consequence nodes in other vendor lanes (not the replying vendor)
-  if (vendor1 && vendor1.visible && vendor1.rmState !== 'DECLINED' && vendorId !== 'vendor-1') {
+  if (vendor1 && vendor1.visible && !vendor1.hasClosed && vendor1.rmState !== 'DECLINED' && vendorId !== 'vendor-1') {
     events.push({
       id: `${eventId}-vendor1-consequence`,
       actor: 'Vendor',
@@ -888,7 +872,7 @@ export function handleVendorReplyNote(state: DemoState, vendorId: string): DemoS
     timestampOffset++
   }
 
-  if (vendor2 && vendor2.visible && vendor2.rmState !== 'DECLINED' && vendorId !== 'vendor-2') {
+  if (vendor2 && vendor2.visible && !vendor2.hasClosed && vendor2.rmState !== 'DECLINED' && vendorId !== 'vendor-2') {
     events.push({
       id: `${eventId}-vendor2-consequence`,
       actor: 'Vendor 2',
@@ -951,7 +935,9 @@ export function handleVendorCloseCase(state: DemoState, vendorId: string): DemoS
   let newState = state
 
   newState = updateParticipant(newState, vendorId, { rmState: 'CLOSED', hasClosed: true })
-  newState = setPhase(newState, 'vendor-closed')
+  // Don't change phase - in multi-vendor scenarios, one vendor closing doesn't affect others
+  // Per Vultron protocol: RM state (including CLOSED) is participant-specific
+  // The case continues as long as other participants are active
 
   const events = []
   let timestampOffset = 0
@@ -998,7 +984,7 @@ export function handleVendorCloseCase(state: DemoState, vendorId: string): DemoS
   }
 
   // Consequence nodes in other vendor lanes (not the closing vendor)
-  if (vendor1 && vendor1.visible && vendor1.rmState !== 'DECLINED' && vendorId !== 'vendor-1') {
+  if (vendor1 && vendor1.visible && !vendor1.hasClosed && vendor1.rmState !== 'DECLINED' && vendorId !== 'vendor-1') {
     events.push({
       id: `${eventId}-vendor1-consequence`,
       actor: 'Vendor',
@@ -1018,7 +1004,7 @@ export function handleVendorCloseCase(state: DemoState, vendorId: string): DemoS
     timestampOffset++
   }
 
-  if (vendor2 && vendor2.visible && vendor2.rmState !== 'DECLINED' && vendorId !== 'vendor-2') {
+  if (vendor2 && vendor2.visible && !vendor2.hasClosed && vendor2.rmState !== 'DECLINED' && vendorId !== 'vendor-2') {
     events.push({
       id: `${eventId}-vendor2-consequence`,
       actor: 'Vendor 2',

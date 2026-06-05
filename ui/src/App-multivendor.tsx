@@ -84,6 +84,20 @@ function App() {
   const [hoveredEvent, setHoveredEvent] = useState<string | null>(null)
   const [stateHistory, setStateHistory] = useState<DemoState[]>([])
   const timelineScrollRef = useRef<HTMLDivElement>(null)
+  const sidebarScrollRef = useRef<HTMLDivElement>(null)
+
+  // Synchronize vertical scrolling between sidebar and timeline
+  const handleTimelineScroll = useCallback(() => {
+    if (timelineScrollRef.current && sidebarScrollRef.current) {
+      sidebarScrollRef.current.scrollTop = timelineScrollRef.current.scrollTop
+    }
+  }, [])
+
+  const handleSidebarScroll = useCallback(() => {
+    if (sidebarScrollRef.current && timelineScrollRef.current) {
+      timelineScrollRef.current.scrollTop = sidebarScrollRef.current.scrollTop
+    }
+  }, [])
 
   // Auto-scroll to show the most recent event
   useEffect(() => {
@@ -345,6 +359,8 @@ function App() {
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Left sidebar - Actor panels */}
         <div
+          ref={sidebarScrollRef}
+          onScroll={handleSidebarScroll}
           style={{
             width: ACTOR_PANEL_WIDTH,
             borderRight: '2px solid #ccc',
@@ -368,14 +384,14 @@ function App() {
                       name="Vendor 2 (Invited)"
                       role="VENDOR (pending)"
                       color={PARTICIPANT_COLORS.vendor2}
-                      rmState="INVITED"
+                      rmState="RECEIVED"
                       vfdState="vfd"
-                      pxaState={demoState.pxaState}
+                      pxaState={undefined}
                       actions={[
                         {
                           id: 'accept-invite',
                           label: 'Accept Invitation',
-                          description: 'Accept the invitation to join this case',
+                          description: 'Accept the invitation and receive the vulnerability report',
                           enabled: true,
                         },
                         {
@@ -402,7 +418,7 @@ function App() {
                   role={participant.role}
                   color={participant.color}
                   rmState={participant.rmState}
-                  emState={participant.id === 'finder' || participant.id === 'caseactor' ? demoState.emState : undefined}
+                  emState={demoState.emState}
                   vfdState={participant.id.startsWith('vendor-') && participant.vfdState !== 'N/A' ? participant.vfdState : undefined}
                   pxaState={participant.id === 'caseactor' ? demoState.pxaState : undefined}
                   actions={
@@ -425,6 +441,7 @@ function App() {
           {/* Swimlane timeline */}
           <div
             ref={timelineScrollRef}
+            onScroll={handleTimelineScroll}
             style={{
               flex: 1,
               overflowX: 'auto',

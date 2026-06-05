@@ -278,7 +278,7 @@ export function handleFinderRejectEmbargo(state: DemoState): DemoState {
   }
 
   // Consequence nodes in all vendor lanes
-  if (vendor1 && vendor1.visible) {
+  if (vendor1 && vendor1.visible && !vendor1.hasClosed) {
     events.push({
       id: `${eventId}-vendor1-consequence`,
       actor: 'Vendor',
@@ -298,7 +298,7 @@ export function handleFinderRejectEmbargo(state: DemoState): DemoState {
     timestampOffset++
   }
 
-  if (vendor2 && vendor2.visible) {
+  if (vendor2 && vendor2.visible && !vendor2.hasClosed) {
     events.push({
       id: `${eventId}-vendor2-consequence`,
       actor: 'Vendor 2',
@@ -334,6 +334,16 @@ export function handleFinderAddNote(state: DemoState): DemoState {
 
   newState = setPhase(newState, 'finder-asked')
 
+  // Reset hasRepliedToCurrentNote for all vendors when a new question is asked
+  // Per Vultron protocol: each vendor can independently reply to notes
+  const updatedParticipants = new Map(newState.participants)
+  for (const [id, participant] of updatedParticipants.entries()) {
+    if (id.startsWith('vendor-')) {
+      updatedParticipants.set(id, { ...participant, hasRepliedToCurrentNote: false })
+    }
+  }
+  newState = { ...newState, participants: updatedParticipants }
+
   // Get participants for lane indices
   const finder = getParticipant(newState, 'finder')
   const vendor1 = getParticipant(newState, 'vendor-1')
@@ -365,7 +375,7 @@ export function handleFinderAddNote(state: DemoState): DemoState {
   timestampOffset++
 
   // Add consequence node in Vendor 1 lane if vendor exists and is active
-  if (vendor1 && vendor1.visible && vendor1.rmState !== 'DECLINED') {
+  if (vendor1 && vendor1.visible && !vendor1.hasClosed && vendor1.rmState !== 'DECLINED') {
     events.push({
       id: `${eventId}-vendor1-consequence`,
       actor: 'Vendor',
@@ -387,7 +397,7 @@ export function handleFinderAddNote(state: DemoState): DemoState {
   }
 
   // Add consequence node in Vendor 2 lane if vendor exists and is active
-  if (vendor2 && vendor2.visible && vendor2.rmState !== 'DECLINED') {
+  if (vendor2 && vendor2.visible && !vendor2.hasClosed && vendor2.rmState !== 'DECLINED') {
     events.push({
       id: `${eventId}-vendor2-consequence`,
       actor: 'Vendor 2',
@@ -479,7 +489,7 @@ export function handleFinderNotifyPublished(state: DemoState): DemoState {
   timestampOffset++
 
   // Consequence node in Vendor 1 lane (if exists)
-  if (vendor1 && vendor1.visible) {
+  if (vendor1 && vendor1.visible && !vendor1.hasClosed) {
     events.push({
       id: `${eventId}-vendor1-consequence`,
       actor: 'Vendor',
@@ -499,7 +509,7 @@ export function handleFinderNotifyPublished(state: DemoState): DemoState {
   }
 
   // Consequence node in Vendor 2 lane (if exists)
-  if (vendor2 && vendor2.visible) {
+  if (vendor2 && vendor2.visible && !vendor2.hasClosed) {
     events.push({
       id: `${eventId}-vendor2-consequence`,
       actor: 'Vendor 2',
@@ -553,7 +563,9 @@ export function handleFinderCloseCase(state: DemoState): DemoState {
   let newState = state
 
   newState = updateParticipant(newState, 'finder', { rmState: 'CLOSED', hasClosed: true })
-  newState = setPhase(newState, 'finder-closed')
+  // Don't change phase - in multi-vendor scenarios, finder closing doesn't stop vendors
+  // Per Vultron protocol: RM state (including CLOSED) is participant-specific
+  // Vendors can continue working after finder closes
 
   const finder = getParticipant(newState, 'finder')
   const vendor1 = getParticipant(newState, 'vendor-1')
@@ -584,7 +596,7 @@ export function handleFinderCloseCase(state: DemoState): DemoState {
   timestampOffset++
 
   // Consequence node in Vendor 1 lane (if exists)
-  if (vendor1 && vendor1.visible && vendor1.rmState !== 'DECLINED') {
+  if (vendor1 && vendor1.visible && !vendor1.hasClosed && vendor1.rmState !== 'DECLINED') {
     events.push({
       id: `${eventId}-vendor1-consequence`,
       actor: 'Vendor',
@@ -605,7 +617,7 @@ export function handleFinderCloseCase(state: DemoState): DemoState {
   }
 
   // Consequence node in Vendor 2 lane (if exists)
-  if (vendor2 && vendor2.visible && vendor2.rmState !== 'DECLINED') {
+  if (vendor2 && vendor2.visible && !vendor2.hasClosed && vendor2.rmState !== 'DECLINED') {
     events.push({
       id: `${eventId}-vendor2-consequence`,
       actor: 'Vendor 2',

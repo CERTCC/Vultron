@@ -2,7 +2,7 @@
  * Constants and configuration for the Vultron demo
  */
 
-export const LANE_HEIGHT = 295
+export const LANE_HEIGHT = 400
 export const ACTOR_PANEL_WIDTH = 300
 
 export const PARTICIPANT_COLORS = {

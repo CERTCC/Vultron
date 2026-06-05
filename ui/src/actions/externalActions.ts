@@ -9,7 +9,7 @@ import {
   incrementXPosition,
   setPxaState,
 } from '../state/stateUpdaters'
-import { getActiveLanes } from '../state/participantHelpers'
+import { getActiveParticipants } from '../state/participantHelpers'
 
 export function handleTriggerExploit(state: DemoState): DemoState {
   const nextX = state.nextXPosition
@@ -34,7 +34,7 @@ export function handleTriggerExploit(state: DemoState): DemoState {
   let newState = state
   newState = setPxaState(newState, newPxa)
 
-  const activeLanes = getActiveLanes(newState)
+  const activeLanes = getActiveParticipants(newState)
 
   // Create consequence nodes for all active participants
   const publicBecameAware = !currentPxa.includes('P') && newPxa.includes('P')
@@ -89,7 +89,7 @@ export function handleTriggerAttacks(state: DemoState): DemoState {
   let newState = state
   newState = setPxaState(newState, newPxa)
 
-  const activeLanes = getActiveLanes(newState)
+  const activeLanes = getActiveParticipants(newState)
 
   // Create consequence nodes for all active participants
   const events = activeLanes.map((participant, index) => ({
