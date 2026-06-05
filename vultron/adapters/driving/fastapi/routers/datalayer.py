@@ -20,9 +20,8 @@ from copy import deepcopy
 from typing import Any
 
 from fastapi import APIRouter, Depends, status, HTTPException
-from pydantic import BaseModel
-
 from vultron.wire.as2.rehydration import rehydrate
+from vultron.core.models.actor import CoreActor
 from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.adapters.driven.datalayer import get_shared_dl
@@ -158,7 +157,7 @@ def get_reports(
     }
 
 
-_DATALAYER_ACTOR_TYPE_MAP: dict[str, type[BaseModel]] = {
+_DATALAYER_ACTOR_TYPE_MAP: dict[str, type[CoreActor]] = {
     "Person": VultronPerson,
     "Organization": VultronOrganization,
     "Service": VultronService,
@@ -167,7 +166,9 @@ _DATALAYER_ACTOR_TYPE_MAP: dict[str, type[BaseModel]] = {
 }
 
 
-def _actor_class_for_payload(payload: dict[str, Any]) -> type[BaseModel]:
+def _actor_class_for_payload(
+    payload: dict[str, Any],
+) -> type[CoreActor] | type[as_Actor]:
     payload_type = payload.get("type_") or payload.get("type")
     if isinstance(payload_type, str):
         return _DATALAYER_ACTOR_TYPE_MAP.get(payload_type, as_Actor)

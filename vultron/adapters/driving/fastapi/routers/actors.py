@@ -47,6 +47,7 @@ from vultron.adapters.driven.datalayer import get_shared_dl
 from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.links import as_Link
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.collections import (
     as_OrderedCollection,
@@ -64,6 +65,10 @@ from vultron.wire.as2.vocab.objects.vultron_actor import (
     VultronPerson,
     VultronService,
 )
+
+# AnyActor covers both migrated core types and the legacy as_Actor base
+# (VOCABULARY["Actor"] still maps to as_Actor for records stored before migration).
+AnyActor = CoreActor | as_Actor
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -94,7 +99,7 @@ def get_actors(
 
     logger.debug(f"get_actors: found {len(results)} actor records")
 
-    objects: list[BaseModel] = []
+    objects: list[AnyActor] = []
     for rec in results:
         cls = _actor_class_for_record(rec)
         obj = cls.model_validate(rec.get("data_", {}))
@@ -126,7 +131,7 @@ def _find_actor_record_by_id(
     return None
 
 
-def _actor_class_for_record(rec: dict[str, Any]) -> type[BaseModel]:
+def _actor_class_for_record(rec: dict[str, Any]) -> type[CoreActor]:
     data = rec.get("data_", {})
     payload_type = None
     if isinstance(data, dict):
@@ -173,7 +178,7 @@ def _find_actor_record(
 # Actor type map — used by create_actor
 # ---------------------------------------------------------------------------
 
-_ACTOR_TYPE_MAP: dict[str, type[BaseModel]] = {
+_ACTOR_TYPE_MAP: dict[str, type[CoreActor]] = {
     "Person": VultronPerson,
     "Organization": VultronOrganization,
     "Service": VultronService,
@@ -394,7 +399,9 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
         )
 
 
-def _resolve_actor_or_404(actor_id: str, dl: DataLayer) -> PersistableModel:
+def _resolve_actor_or_404(
+    actor_id: str, dl: DataLayer
+) -> CoreActor | as_Actor:
     actor_record = dl.read(actor_id)
     if actor_record is None:
         actor_record = dl.find_actor_by_short_id(actor_id)
@@ -402,11 +409,11 @@ def _resolve_actor_or_404(actor_id: str, dl: DataLayer) -> PersistableModel:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
         )
-    return actor_record
+    return cast(CoreActor | as_Actor, actor_record)
 
 
 def _activity_already_received(
-    actor: PersistableModel, activity_id: str
+    actor: CoreActor | as_Actor, activity_id: str
 ) -> bool:
     return bool(
         getattr(actor, "inbox", None)
@@ -445,7 +452,7 @@ def _store_inbox_activity(dl: DataLayer, activity: as_Activity) -> None:
 
 def _record_inbox_receipt(
     dl: DataLayer,
-    actor: PersistableModel,
+    actor: CoreActor | as_Actor,
     activity_id: str,
     canonical_actor_id: str,
 ) -> None:
