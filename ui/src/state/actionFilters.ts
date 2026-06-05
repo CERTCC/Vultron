@@ -35,7 +35,8 @@ export function getFinderActions(state: DemoState): Action[] {
     })
 
     // Finder can send report to additional vendors at any time after case exists
-    if (!state.secondVendorInvited && activeVendors.length >= 1) {
+    // This is available even if all vendors have closed (e.g., to try another vendor)
+    if (!state.secondVendorInvited) {
       actions.push({
         id: 'finder-invite-vendor',
         label: 'Submit Report to Vendor 2',
@@ -63,7 +64,8 @@ export function getFinderActions(state: DemoState): Action[] {
 
     // Finder can send report to additional vendors at any time after case exists
     // This allows new vendors to participate in embargo negotiation
-    if (!state.secondVendorInvited && activeVendors.length >= 1) {
+    // Available even if all vendors have closed (e.g., to try another vendor)
+    if (!state.secondVendorInvited) {
       actions.push({
         id: 'finder-invite-vendor',
         label: 'Submit Report to Vendor 2',
@@ -90,8 +92,9 @@ export function getFinderActions(state: DemoState): Action[] {
       enabled: true,
     }]
 
-    // Add submit report to second vendor option if not already sent and at least one vendor is active
-    if (!state.secondVendorInvited && activeVendors.length >= 1) {
+    // Add submit report to second vendor option if not already sent
+    // Available even if all vendors have closed (e.g., to try another vendor)
+    if (!state.secondVendorInvited) {
       actions.push({
         id: 'finder-invite-vendor',
         label: 'Submit Report to Vendor 2',

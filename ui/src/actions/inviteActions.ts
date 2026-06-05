@@ -107,8 +107,8 @@ export function handleInviteSecondVendor(state: DemoState, inviterId: string = '
     ],
   })
 
-  // Consequence node in other actor's lane (if exists)
-  if (otherActor) {
+  // Consequence node in other actor's lane (if exists and still active)
+  if (otherActor && !otherActor.hasClosed) {
     inviteEvents.push({
       id: `${eventId}-${otherActorId}-consequence`,
       actor: otherActor.name,
@@ -221,8 +221,8 @@ export function handleAcceptSecondVendorInvite(state: DemoState): DemoState {
     ],
   })
 
-  // Consequence node in Finder's lane
-  if (finder) {
+  // Consequence node in Finder's lane (if still active)
+  if (finder && !finder.hasClosed) {
     acceptEvents.push({
       id: `${eventId}-finder-consequence`,
       actor: 'Finder',
@@ -241,8 +241,8 @@ export function handleAcceptSecondVendorInvite(state: DemoState): DemoState {
     })
   }
 
-  // Consequence node in Vendor 1's lane
-  if (vendor1) {
+  // Consequence node in Vendor 1's lane (if still active)
+  if (vendor1 && !vendor1.hasClosed) {
     acceptEvents.push({
       id: `${eventId}-vendor1-consequence`,
       actor: 'Vendor',
@@ -338,8 +338,8 @@ export function handleRejectSecondVendorInvite(state: DemoState): DemoState {
     timestampOffset++
   }
 
-  // Consequence node in Finder's lane
-  if (finder) {
+  // Consequence node in Finder's lane (if still active)
+  if (finder && !finder.hasClosed) {
     rejectEvents.push({
       id: `${eventId}-finder-consequence`,
       actor: 'Finder',
@@ -359,8 +359,8 @@ export function handleRejectSecondVendorInvite(state: DemoState): DemoState {
     timestampOffset++
   }
 
-  // Consequence node in Vendor 1's lane
-  if (vendor1) {
+  // Consequence node in Vendor 1's lane (if still active)
+  if (vendor1 && !vendor1.hasClosed) {
     rejectEvents.push({
       id: `${eventId}-vendor1-consequence`,
       actor: 'Vendor',
