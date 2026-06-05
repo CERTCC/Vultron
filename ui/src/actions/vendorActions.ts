@@ -158,6 +158,8 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
 
   const vendor = getParticipant(state, vendorId)
   const finder = getParticipant(state, 'finder')
+  const vendor1 = getParticipant(state, 'vendor-1')
+  const vendor2 = getParticipant(state, 'vendor-2')
   const caseactor = getParticipant(state, 'caseactor')
   if (!vendor) return state
 
@@ -233,6 +235,53 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
       ],
     },
   ]
+
+  // Add consequence nodes to other vendors' lanes
+  let timestampOffset = 3
+  if (vendor1 && vendor1.visible && !vendor1.hasClosed && vendor1.id !== vendorId) {
+    events.push({
+      id: `${eventId}-vendor1-consequence`,
+      actor: 'Vendor',
+      participantId: 'vendor-1',
+      label: bothAccepted ? 'Embargo Active' : `${vendor.name} Accepted`,
+      x: nextX,
+      lane: vendor1.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      consequences: bothAccepted ? [
+        'AnnounceEmbargoActivity received',
+        'Embargo is now ACTIVE',
+        'Coordinated disclosure begins',
+      ] : [
+        `Notified: ${vendor.name} accepted embargo`,
+        'EM state remains PROPOSED',
+      ],
+    })
+    timestampOffset++
+  }
+
+  if (vendor2 && vendor2.visible && !vendor2.hasClosed && vendor2.id !== vendorId) {
+    events.push({
+      id: `${eventId}-vendor2-consequence`,
+      actor: 'Vendor 2',
+      participantId: 'vendor-2',
+      label: bothAccepted ? 'Embargo Active' : `${vendor.name} Accepted`,
+      x: nextX,
+      lane: vendor2.laneIndex,
+      type: 'consequence' as const,
+      causedBy: eventId,
+      timestamp: now + timestampOffset,
+      consequences: bothAccepted ? [
+        'AnnounceEmbargoActivity received',
+        'Embargo is now ACTIVE',
+        'Coordinated disclosure begins',
+      ] : [
+        `Notified: ${vendor.name} accepted embargo`,
+        'EM state remains PROPOSED',
+      ],
+    })
+  }
 
   newState = addTimelineEvents(newState, events)
   newState = addEventLogEntries(newState, [

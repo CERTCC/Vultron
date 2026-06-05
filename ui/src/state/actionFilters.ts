@@ -194,7 +194,7 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   if (vendor.rmState === 'DECLINED') return []
 
   const isVendor1 = vendorId === 'vendor-1'
-  const vendorActivePhases = ['report-received', 'report-validated', 'report-invalidated', 'embargo-proposed', 'embargo-accepted', 'finder-asked', 'fix-ready', 'fix-deployed', 'vendor-published']
+  const vendorActivePhases = ['report-received', 'report-validated', 'report-invalidated', 'embargo-proposed', 'embargo-rejected', 'embargo-accepted', 'finder-asked', 'fix-ready', 'fix-deployed', 'vendor-published']
 
   // Per-participant RM state: vendor marked report as invalid
   if (vendor.rmState === 'INVALID') {
