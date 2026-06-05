@@ -63,17 +63,35 @@ function AnimatedNode({ event, allEvents, isHovered, fillColor, onMouseEnter, on
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
       />
-      <text
-        x={event.x}
-        y={y + 5}
-        textAnchor="middle"
-        fontSize="11"
-        fill={isDecision ? "white" : "black"}
-        fontWeight="bold"
-        style={{ pointerEvents: 'none', userSelect: 'none' }}
+      <foreignObject
+        x={rectX}
+        y={rectY}
+        width={width}
+        height={height}
+        style={{ pointerEvents: 'none' }}
       >
-        {event.label}
-      </text>
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '8px',
+            boxSizing: 'border-box',
+            fontSize: '11px',
+            fontWeight: 'bold',
+            color: isDecision ? 'white' : 'black',
+            textAlign: 'center',
+            lineHeight: '1.2',
+            wordBreak: 'break-word',
+            overflowWrap: 'break-word',
+            userSelect: 'none',
+          }}
+        >
+          {event.label}
+        </div>
+      </foreignObject>
     </g>
   )
 }
