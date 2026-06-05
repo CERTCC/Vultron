@@ -197,6 +197,37 @@ because replicas need the actual asserted content to reconstruct state.
 
 ---
 
+## Post-#787 Convergence Decisions (Epic #788)
+
+Issue #787 intentionally kept `CaseEvent` as a lightweight inline value object.
+That merged decision remains valid as a short-term compatibility step while the
+project converges on canonical `CaseLogEntry` history.
+
+Follow-on plan (Epic #788):
+
+- #789 migrates remaining `record_event()`-only write paths to CaseActor
+  canonical log commits.
+- #790 introduces actor-local `pending_assertions` to suppress duplicate emits
+  during canonical round-trip windows.
+- #791 adds a hard catch-up gate so actors must re-establish case-log freshness
+  before taking new case actions after restart.
+- #792 removes `CaseEvent` once canonical log reads/writes fully cover
+  protocol-significant history.
+
+`pending_assertions` is temporary local memory for decision suppression, not a
+second source of truth. Canonical `CaseLogEntry` remains authoritative.
+
+Initial policy decisions for pending assertions:
+
+- default timeout is 180 seconds and configurable
+- timeout marks the assertion as `timed_out` and logs an error
+- timeout does not auto-retry; future behavior may decide to re-emit if still
+  needed
+- entries clear when matching canonical `CaseLogEntry(recorded|rejected)`
+  arrives
+
+---
+
 ## Consequences for Future Design Work
 
 This framing has several practical consequences:

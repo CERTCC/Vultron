@@ -70,6 +70,8 @@ General information about architectural decision records is available at <https:
   Adapter](0016-sqlmodel-sqlite-datalayer.md)
 - [ADR-0017 Domain/Wire Object Separation: Parallel Core Class
   Hierarchy](0017-domain-wire-object-separation.md)
+- [ADR-0018 Canonical Case History Convergence on
+  `CaseLogEntry`](0018-canonical-case-history-convergence.md)
 
 ## Proposed ADRs
 
