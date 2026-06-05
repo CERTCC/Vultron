@@ -84,7 +84,7 @@ export function AnimatedNode({
         x={event.x}
         y={y + 5}
         textAnchor="middle"
-        fontSize="13"
+        fontSize="18"
         fill={isDecision ? 'white' : 'black'}
         fontWeight="bold"
         style={{ pointerEvents: 'none', userSelect: 'none' }}
