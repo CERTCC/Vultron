@@ -1,0 +1,9 @@
+INHERIT: mkdocs.yml
+
+# Local/dev-only docs overlay.
+# MkDocs cannot append to list-based nav entries via inheritance, so we keep
+# maintainer docs out of nav and expose them by direct path/search in dev.
+exclude_docs: ""
+
+not_in_nav: |
+  developer/**
