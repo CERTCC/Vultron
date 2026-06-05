@@ -83,6 +83,7 @@ function App() {
 
   const [hoveredEvent, setHoveredEvent] = useState<string | null>(null)
   const [stateHistory, setStateHistory] = useState<DemoState[]>([])
+  const [eventLogCollapsed, setEventLogCollapsed] = useState(false)
   const timelineScrollRef = useRef<HTMLDivElement>(null)
   const sidebarScrollRef = useRef<HTMLDivElement>(null)
 
@@ -730,25 +731,44 @@ function App() {
       <div
         style={{
           borderTop: '2px solid #ccc',
-          padding: '0.5rem 1rem',
           background: '#f9f9f9',
-          maxHeight: '150px',
-          overflowY: 'auto',
+          transition: 'max-height 0.3s ease',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-          <h3 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 'bold' }}>Event Log</h3>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '0.5rem 1rem',
+            cursor: 'pointer',
+            userSelect: 'none',
+          }}
+          onClick={() => setEventLogCollapsed(!eventLogCollapsed)}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.75rem' }}>{eventLogCollapsed ? '▶' : '▼'}</span>
+            <h3 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 'bold' }}>Event Log</h3>
+          </div>
           <div style={{ fontSize: '0.75rem', color: '#666' }}>
             <strong>Current Phase:</strong> {demoState.phase} | <strong>Active Participants:</strong> {totalLanes}
           </div>
         </div>
-        <div style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>
-          {demoState.eventLog.map((log, i) => (
-            <div key={i} style={{ marginBottom: '0.25rem' }}>
-              {log}
+        {!eventLogCollapsed && (
+          <div style={{
+            padding: '0 1rem 0.5rem 1rem',
+            maxHeight: '150px',
+            overflowY: 'auto',
+          }}>
+            <div style={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>
+              {demoState.eventLog.map((log, i) => (
+                <div key={i} style={{ marginBottom: '0.25rem' }}>
+                  {log}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )
