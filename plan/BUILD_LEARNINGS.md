@@ -66,3 +66,8 @@ resized to size:S; it closes by typing `VultronActivity.object_` and removing
 the `_STUB_OBJECT_MODEL_MAP` workaround once the chain lands.
 
 No code changes in this session.
+
+### 2026-06-05 ISSUE-808 — Orphan status scaffolding cleanup
+
+`vultron/core/models/status.py` had no live importers anywhere in `vultron/`
+or `test/`, so deleting the file was the smallest safe cleanup.
