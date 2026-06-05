@@ -131,48 +131,84 @@ groups:
     statement: Driving adapters (HTTP inbox, CLI, MCP server) MUST invoke the wire pipeline before calling into the core
     rationale: Any driving adapter that needs to ingest AS2 can reuse the wire pipeline; there is no duplication
 - id: ARCH-12
-  title: Wire-Domain Translation Boundary
+  title: Shared-Base Object Hierarchy
   kind: implementation
+  rationale: >-
+    The from_core()/to_core() translation protocol (the original ARCH-12
+    design) was a workaround for independent parallel hierarchies. A
+    shared-base approach eliminates the need for that protocol: both core
+    and wire branches inherit from the same lenient root, field names align,
+    and Pydantic model_validate() handles translation. See ADR-0017 Option D
+    and concern #796.
   specs:
   - id: ARCH-12-001
     priority: MUST
-    statement: The wire-layer `VultronObject` base class in `vultron/wire/as2/vocab/objects/base.py` MUST be renamed `VultronAS2Object`;
-      all reference sites MUST be updated accordingly. The core domain `VultronObject` (in `vultron/core/models/base.py`)
-      retains its name — only the wire base is renamed.
-    rationale: Two classes named `VultronObject` in different packages causes confusion in search, type-checking, and code
-      completion.
+    statement: >-
+      `as_Base` MUST inherit from `VultronBase`; `as_Object` MUST inherit
+      from `VultronObject`. `VultronBase` and `VultronObject` (in
+      `vultron/core/models/base.py`) are the shared root for both the core
+      and wire object hierarchies.
+    rationale: >-
+      A shared root ensures field names and semantics align across both
+      branches, enabling model_validate() round-trips without per-type
+      translation stubs.
+    verification: >-
+      `issubclass(as_Base, VultronBase)` and
+      `issubclass(as_Object, VultronObject)` are both True.
   - id: ARCH-12-002
     priority: MUST
-    statement: 'Every concrete subclass of `VultronAS2Object` MUST implement a `from_core(cls, core_obj: <DomainType>) ->
-      "<WireType>"` classmethod that converts a core domain object to its wire representation. `VultronAS2Object` MUST provide
-      a base stub that raises `NotImplementedError` so that unimplemented subclasses fail loudly at runtime.'
+    statement: >-
+      The shared base (`VultronBase` / `VultronObject`) MUST define all
+      shared fields with the most lenient types (`str | None`,
+      `Any | None`, `datetime | None`). Neither branch may introduce a
+      field type in a way that is Pydantic-incompatible with the shared
+      base.
+    rationale: >-
+      Lenient shared-base types allow both branches to narrow independently
+      without MRO conflicts; Pydantic AfterValidator narrowing is valid in
+      subclasses.
   - id: ARCH-12-003
     priority: MUST
-    statement: Every concrete subclass of `VultronAS2Object` MUST implement a `to_core(self) -> <DomainType>` instance method
-      that converts a wire object back to its core domain representation. `VultronAS2Object` MUST provide a base stub that
-      raises `NotImplementedError`.
+    statement: >-
+      The core branch MAY narrow inherited fields via Pydantic validators
+      (e.g., `NonEmptyString | None`, required `datetime`). Core-branch
+      types MUST NOT carry wire-specific concerns: `alias_generator=to_camel`,
+      hardcoded AS2 `@context` namespace, or VOCABULARY registration are
+      forbidden in core-branch types.
+    verification: >-
+      `CoreObject` and its subclasses do not reference `to_camel` or assign
+      to `VOCABULARY`. Confirmed by the layer-boundary test in
+      `test/architecture/test_layer_boundaries.py`.
   - id: ARCH-12-004
     priority: MUST
-    statement: '`VultronAS2Object` MUST define a `_field_map: ClassVar[dict[str, str]] = {}` class variable as a transitional
-      escape hatch for field name mismatches between domain and wire types. `from_core()` and `to_core()` MUST apply `_field_map`
-      key substitutions before calling `model_validate()`. The goal is for `_field_map` to be empty on all subclasses once
-      domain and wire field names are aligned.'
+    statement: >-
+      The wire branch MUST NOT carry domain validators. Wire-branch overrides
+      exist solely for AS2 serialization shape (field aliases, `@context`,
+      lenient `Any | None` types). Wire-branch types MUST register in
+      `VOCABULARY`; core-branch types MUST register in `CORE_VOCABULARY`.
   - id: ARCH-12-005
     priority: MUST
-    statement: Wire activity base classes MUST provide a generic `from_core(cls, domain_activity)` classmethod that maps grammatical
-      AS2 fields (`actor`, `object_`, `target`, `context`, `in_reply_to`) by calling `WireType.from_core()` on any field value
-      that is a `VultronObject` instance, and passing URI strings through unchanged. Subclasses MUST narrow the `domain_activity`
-      type annotation to their specific domain activity counterpart.
+    statement: >-
+      For types where both branches share field names and compatible types,
+      translation from a core object to its wire counterpart MUST use
+      `WireType.model_validate(core_obj.model_dump(mode="json"))`. No
+      explicit `from_core()` / `to_core()` classmethods are required.
+    rationale: >-
+      Eliminating the explicit translation protocol removes per-type boilerplate
+      and the _field_map escape hatch. The shared-base alignment ensures the
+      round-trip is correct by construction.
   - id: ARCH-12-006
     priority: MUST
-    statement: '`vultron/wire/as2/serializer.py` MUST be removed. All standalone `domain_xxx_to_wire()` functions in that
-      module MUST be migrated to `from_core()` classmethods on the corresponding wire types. No compatibility shims or re-exports
-      are permitted.'
-  - id: ARCH-12-007
-    priority: MUST
-    statement: The default `from_core()` / `to_core()` implementation for concrete wire types MAY use a JSON round-trip (`cls.model_validate(core_obj.model_dump(mode="json"))`)
-      as its body. Where field names differ, the `_field_map` escape hatch (ARCH-12-004) MUST be used rather than bespoke
-      field-by-field mapping logic.
+    statement: >-
+      Actor `inbox` and `outbox` fields MUST be typed `str | None` in the
+      shared base and core branch, carrying only the URI of the inbox or
+      outbox endpoint. AS2 `OrderedCollection` wrapping is a wire-only
+      serialization concern and MUST NOT appear in core-branch actor types.
+    rationale: >-
+      Domain logic only ever needs to route to the inbox URI; the full
+      collection shape is an AS2 protocol concern, not a domain concern.
+      This resolves the most structurally irreconcilable field-type conflict
+      that blocked the original ARCH-12 from_core()/to_core() approach.
 - id: ARCH-09
   title: Domain Model Richness Constraint
   specs:
@@ -187,28 +223,30 @@ groups:
       Actor domain models (`CoreActor` and its concrete subclasses `VultronPerson`,
       `VultronOrganization`, `VultronService`, `VultronApplication`, `VultronGroup`)
       MUST be defined in `vultron/core/models/`. The wire layer (`vultron/wire/as2/`)
-      MUST re-export these types rather than defining its own parallel actor classes.
+      MUST provide corresponding wire-branch actor types inheriting from the
+      shared base (`VultronObject`) rather than re-exporting core types directly.
     rationale: >-
-      Defining actor types only in core enforces the hexagonal boundary: the domain
-      model is not duplicated, and the wire layer cannot become the authoritative
-      source for domain concepts. Re-export (rather than subclassing) is required
-      because the core and wire object hierarchies have incompatible field definitions
-      that prevent diamond inheritance (see ARCH-12).
+      Defining actor domain models in core enforces the hexagonal boundary.
+      The re-export pattern (where wire re-exported core actors directly) was a
+      transitional workaround introduced when field-type conflicts blocked
+      diamond inheritance. The shared-base approach (ARCH-12) resolves those
+      conflicts; wire actor types should become proper wire-branch types
+      once the implementation epic following concern #796 is complete.
     verification: >-
       Confirm that `VultronPerson`, `VultronOrganization`, `VultronService`,
       `VultronApplication`, and `VultronGroup` are defined in
-      `vultron/core/models/actor.py` and that
-      `vultron/wire/as2/vocab/objects/vultron_actor.py` contains only re-exports
-      plus VOCABULARY registration — no class definitions of its own.
+      `vultron/core/models/actor.py`. Confirm that wire actor types in
+      `vultron/wire/as2/vocab/objects/vultron_actor.py` inherit from
+      `VultronObject` (or a subclass thereof) rather than re-exporting
+      the core classes unchanged.
     relationships:
       - rel_type: refines
         spec_id: ARCH-09-001
       - rel_type: depends_on
-        spec_id: ARCH-12-002
+        spec_id: ARCH-12-001
         note: >-
-          ARCH-12 requires from_core()/to_core() on wire types; that pattern is
-          blocked for actor types due to incompatible field structures — re-export
-          is the approved workaround.
+          ARCH-12 establishes the shared-base hierarchy; wire actor types
+          must inherit from that shared base, not re-export core types.
 - id: ARCH-10
   title: Fail-Fast Domain Objects
   specs:
