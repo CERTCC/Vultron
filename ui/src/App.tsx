@@ -534,6 +534,132 @@ function App() {
           'Vendor invalidated the report (RM → INVALID)',
         ],
       }))
+    } else if (actionId === 'accept-report') {
+      // Vendor accepts report (RM: VALID → ACCEPTED or DEFERRED → ACCEPTED)
+      const nextX = demoState.nextXPosition
+      const acceptEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'report-accepted',
+        vendorRmState: 'ACCEPTED',
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          {
+            id: acceptEventId,
+            actor: 'Vendor',
+            label: 'Accept Report',
+            x: nextX,
+            lane: 1,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'Accept(Report) activity created',
+              `Vendor RM state: ${prev.vendorRmState} → ACCEPTED`,
+              'Report accepted and prioritized',
+              'Vendor commits to working on fix',
+            ],
+          },
+          {
+            id: `${acceptEventId}-finder-consequence`,
+            actor: 'Finder',
+            label: 'Acceptance Noted',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: acceptEventId,
+            consequences: [
+              'Accept activity received',
+              'Vendor has accepted the report',
+              'Vendor committed to fix development',
+            ],
+          },
+          {
+            id: `${acceptEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'Acceptance Tracked',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: acceptEventId,
+            consequences: [
+              'Vendor participant RM → ACCEPTED',
+              'Authoritative ledger updated',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          'Vendor accepted the report (RM → ACCEPTED)',
+        ],
+      }))
+    } else if (actionId === 'defer-report') {
+      // Vendor defers report (RM: VALID → DEFERRED)
+      const nextX = demoState.nextXPosition
+      const deferEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'report-deferred',
+        vendorRmState: 'DEFERRED',
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          {
+            id: deferEventId,
+            actor: 'Vendor',
+            label: 'Defer Report',
+            x: nextX,
+            lane: 1,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'Defer(Report) activity created',
+              'Vendor RM state: VALID → DEFERRED',
+              'Report deferred for later consideration',
+              'Work paused pending re-prioritization',
+            ],
+          },
+          {
+            id: `${deferEventId}-finder-consequence`,
+            actor: 'Finder',
+            label: 'Deferral Noted',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: deferEventId,
+            consequences: [
+              'Defer activity received',
+              'Vendor has deferred the report',
+              'Vendor has paused work',
+            ],
+          },
+          {
+            id: `${deferEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'Deferral Tracked',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: deferEventId,
+            consequences: [
+              'Vendor participant RM → DEFERRED',
+              'Authoritative ledger updated',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          'Vendor deferred the report (RM → DEFERRED)',
+        ],
+      }))
     } else if (actionId === 'propose-embargo') {
       // CaseActor proposes embargo
       const nextX = demoState.nextXPosition
@@ -1729,80 +1855,43 @@ function App() {
                 label: 'Submit Report',
                 description: 'Create and submit a vulnerability report to the Vendor',
                 enabled: true,
-              }] : demoState.phase === 'embargo-proposed' && !demoState.finderEmbargoAccepted ? [{
-                id: 'finder-accept-embargo',
-                label: 'Accept Embargo',
-                description: 'Accept the 90-day embargo proposal',
-                enabled: true,
-              }, {
-                id: 'finder-reject-embargo',
-                label: 'Reject Embargo',
-                description: 'Reject the embargo proposal',
-                enabled: true,
-              }] : (['report-validated', 'report-invalidated', 'embargo-accepted', 'finder-asked', 'vendor-replied', 'fix-ready', 'fix-deployed'].includes(demoState.phase) && !demoState.finderHasClosed) ? [
-                {
+              }] : [
+                // Embargo response - independent of other actions
+                ...(demoState.phase === 'embargo-proposed' && !demoState.finderEmbargoAccepted ? [{
+                  id: 'finder-accept-embargo',
+                  label: 'Accept Embargo',
+                  description: 'Accept the 90-day embargo proposal',
+                  enabled: true,
+                }, {
+                  id: 'finder-reject-embargo',
+                  label: 'Reject Embargo',
+                  description: 'Reject the embargo proposal',
+                  enabled: true,
+                }] : []),
+                // Communication - available throughout case
+                ...(!demoState.finderHasClosed ? [{
                   id: 'finder-add-note',
                   label: demoState.phase === 'vendor-replied' ? 'Ask Another Question' : 'Ask Question',
                   description: demoState.phase === 'vendor-replied'
                     ? 'Add another note to the case asking for more information'
                     : 'Add a note to the case asking for information',
                   enabled: true,
-                },
-                // Allow closing case once fix is deployed AND published (per CLOSE_CASE action rules)
-                ...(demoState.vendorVfdState === 'VFD' && demoState.pxaState.includes('P') && !demoState.finderHasClosed ? [{
-                  id: 'finder-close-case',
-                  label: 'Close Case',
-                  description: 'Finder closes their participation in the case',
-                  enabled: true,
                 }] : []),
-                // Allow acknowledging publication if vendor published and finder hasn't already acknowledged
+                // Publication acknowledgment
                 ...(demoState.pxaState === 'Pxa' && demoState.vendorVfdState === 'VFD' && !demoState.finderHasPublished ? [{
                   id: 'finder-notify-published',
                   label: 'Acknowledge Publication',
                   description: 'Finder acknowledges publication',
                   enabled: true,
-                }] : [])
-              ] : (demoState.phase === 'vendor-closed' && !demoState.finderHasClosed && demoState.pxaState.includes('P')) ? [{
-                id: 'finder-close-case',
-                label: 'Close Case',
-                description: 'Finder closes their participation in the case',
-                enabled: true,
-              }] : (demoState.phase === 'vendor-published' && !demoState.finderHasClosed) ? [
-                {
-                  id: 'finder-add-note',
-                  label: 'Ask Question',
-                  description: 'Add a note to the case asking for information',
-                  enabled: true,
-                },
-                // Only show acknowledge if finder hasn't already acknowledged
-                ...(demoState.finderHasPublished ? [] : [{
-                  id: 'finder-notify-published',
-                  label: 'Acknowledge Publication',
-                  description: 'Finder acknowledges publication',
-                  enabled: true,
-                }]),
-                // Close case only if published (per CLOSE_CASE action rules)
-                ...(demoState.pxaState.includes('P') ? [{
+                }] : []),
+                // Close case
+                ...(demoState.vendorVfdState === 'VFD' && demoState.pxaState.includes('P') && !demoState.finderHasClosed ? [{
                   id: 'finder-close-case',
                   label: 'Close Case',
                   description: 'Finder closes their participation in the case',
                   enabled: true,
                 }] : [])
-              ] : (['finder-published', 'vendor-closed'].includes(demoState.phase) && !demoState.finderHasClosed) ? [
-                {
-                  id: 'finder-add-note',
-                  label: 'Ask Question',
-                  description: 'Add a note to the case asking for information',
-                  enabled: true,
-                },
-                // Close case only if published (per CLOSE_CASE action rules)
-                ...(demoState.pxaState.includes('P') ? [{
-                  id: 'finder-close-case',
-                  label: 'Close Case',
-                  description: 'Finder closes their participation in the case',
-                  enabled: true,
-                }] : [])
-              ] : []
+              ]
             }
             onActionClick={(actionId) => handleAction('finder', actionId)}
           />
@@ -1814,8 +1903,9 @@ function App() {
               rmState={demoState.vendorRmState}
               emState={demoState.emState}
               vfdState={demoState.vendorVfdState}
-              actions={
-                demoState.phase === 'report-received' ? [{
+              actions={[
+                // RM validation actions
+                ...(demoState.vendorRmState === 'RECEIVED' ? [{
                   id: 'validate-report',
                   label: 'Validate Report',
                   description: 'Mark the report as valid (RM: RECEIVED → VALID)',
@@ -1825,7 +1915,9 @@ function App() {
                   label: 'Invalidate Report',
                   description: 'Mark the report as invalid (RM: RECEIVED → INVALID)',
                   enabled: true,
-                }] : demoState.phase === 'report-invalidated' ? [{
+                }] : []),
+                // RM invalid state actions
+                ...(demoState.vendorRmState === 'INVALID' ? [{
                   id: 'validate-report',
                   label: 'Re-validate Report',
                   description: 'Mark the report as valid after reconsideration (RM: INVALID → VALID)',
@@ -1835,7 +1927,33 @@ function App() {
                   label: 'Close Invalid Report',
                   description: 'Close the case for this invalid report (RM: INVALID → CLOSED)',
                   enabled: true,
-                }] : demoState.phase === 'embargo-proposed' && !demoState.vendorEmbargoAccepted ? [{
+                }] : []),
+                // RM prioritization actions
+                ...(demoState.vendorRmState === 'VALID' ? [{
+                  id: 'accept-report',
+                  label: 'Accept Report',
+                  description: 'Accept the report and commit to working on it (RM: VALID → ACCEPTED)',
+                  enabled: true,
+                }, {
+                  id: 'defer-report',
+                  label: 'Defer Report',
+                  description: 'Defer the report for later consideration (RM: VALID → DEFERRED)',
+                  enabled: true,
+                }] : []),
+                // RM deferred state actions
+                ...(demoState.vendorRmState === 'DEFERRED' ? [{
+                  id: 'accept-report',
+                  label: 'Resume Work (Accept)',
+                  description: 'Resume work on the deferred report (RM: DEFERRED → ACCEPTED)',
+                  enabled: true,
+                }, {
+                  id: 'vendor-close-case',
+                  label: 'Close Deferred Report',
+                  description: 'Close the deferred report (RM: DEFERRED → CLOSED)',
+                  enabled: true,
+                }] : []),
+                // Embargo response - independent of RM and VFD
+                ...(demoState.phase === 'embargo-proposed' && !demoState.vendorEmbargoAccepted ? [{
                   id: 'accept-embargo',
                   label: 'Accept Embargo',
                   description: 'Accept the 90-day embargo proposal',
@@ -1845,76 +1963,42 @@ function App() {
                   label: 'Reject Embargo',
                   description: 'Reject the embargo proposal',
                   enabled: true,
-                }] : (['report-validated', 'embargo-accepted', 'finder-asked', 'vendor-replied', 'fix-ready', 'fix-deployed'].includes(demoState.phase)) ? [
-                  // Reply to questions if there are any outstanding
-                  ...(demoState.phase === 'finder-asked' ? [{
-                    id: 'vendor-reply-note',
-                    label: 'Reply to Question',
-                    description: 'Respond to Finder\'s question about workarounds',
-                    enabled: true,
-                  }] : []),
-                  // Show "Notify Fix Ready" when vendor is at Vfd (aware, working on fix)
-                  ...(demoState.vendorVfdState === 'Vfd' && ['report-validated', 'embargo-accepted', 'finder-asked', 'vendor-replied'].includes(demoState.phase) ? [{
-                    id: 'notify-fix-ready',
-                    label: 'Notify Fix Ready',
-                    description: 'Vendor notifies that a fix is ready',
-                    enabled: true,
-                  }] : []),
-                  // Show "Notify Fix Deployed" after fix is ready but not yet deployed
-                  ...(demoState.vendorVfdState === 'VFd' ? [{
-                    id: 'notify-fix-deployed',
-                    label: 'Notify Fix Deployed',
-                    description: 'Vendor notifies that the fix has been deployed',
-                    enabled: true,
-                  }] : []),
-                  // After fix deployed, show publication option if not yet published
-                  // Per Vultron logic: PUBLISH_VULNERABILITY is valid when X or A are present but P is not
-                  ...(demoState.vendorVfdState === 'VFD' && !demoState.pxaState.includes('P') ? [
-                    {
-                      id: 'vendor-notify-published',
-                      label: 'Notify Published',
-                      description: 'Vendor notifies that vulnerability is publicly disclosed',
-                      enabled: true,
-                    }
-                  ] : []),
-                  // After fix deployed AND published, show close option (per CLOSE_CASE action rules)
-                  ...(demoState.vendorVfdState === 'VFD' && demoState.pxaState.includes('P') ? [
-                    {
-                      id: 'vendor-close-case',
-                      label: 'Close Case',
-                      description: 'Vendor closes their participation in the case',
-                      enabled: true,
-                    }
-                  ] : [])
-                ] : (['vendor-published', 'finder-published', 'finder-closed'].includes(demoState.phase) && !demoState.vendorHasClosed) ? [
-                  // Can still reply to questions even after publication
-                  ...(demoState.phase === 'finder-asked' ? [{
-                    id: 'vendor-reply-note',
-                    label: 'Reply to Question',
-                    description: 'Respond to Finder\'s question',
-                    enabled: true,
-                  }] : []),
-                  // Can still publish even if Finder closed (publication is independent of RM state)
-                  // Per Vultron logic: PUBLISH_VULNERABILITY is valid when X or A are present but P is not
-                  ...(demoState.vendorVfdState === 'VFD' && !demoState.pxaState.includes('P') && demoState.phase === 'finder-closed' ? [
-                    {
-                      id: 'vendor-notify-published',
-                      label: 'Notify Published',
-                      description: 'Vendor notifies that vulnerability is publicly disclosed',
-                      enabled: true,
-                    }
-                  ] : []),
-                  // Close case only if published (per CLOSE_CASE action rules)
-                  ...(demoState.vendorVfdState === 'VFD' && demoState.pxaState.includes('P') ? [
-                    {
-                      id: 'vendor-close-case',
-                      label: 'Close Case',
-                      description: 'Vendor closes their participation in the case',
-                      enabled: true,
-                    }
-                  ] : [])
-                ] : []
-              }
+                }] : []),
+                // Communication - reply to questions
+                ...(demoState.phase === 'finder-asked' && !demoState.vendorHasClosed ? [{
+                  id: 'vendor-reply-note',
+                  label: 'Reply to Question',
+                  description: 'Respond to Finder\'s question',
+                  enabled: true,
+                }] : []),
+                // VFD progression - requires RM.ACCEPTED
+                ...(demoState.vendorVfdState === 'Vfd' && demoState.vendorRmState === 'ACCEPTED' ? [{
+                  id: 'notify-fix-ready',
+                  label: 'Notify Fix Ready',
+                  description: 'Vendor notifies that a fix is ready',
+                  enabled: true,
+                }] : []),
+                ...(demoState.vendorVfdState === 'VFd' && demoState.vendorRmState === 'ACCEPTED' ? [{
+                  id: 'notify-fix-deployed',
+                  label: 'Notify Fix Deployed',
+                  description: 'Vendor notifies that the fix has been deployed',
+                  enabled: true,
+                }] : []),
+                // Publication
+                ...(demoState.vendorVfdState === 'VFD' && !demoState.pxaState.includes('P') ? [{
+                  id: 'vendor-notify-published',
+                  label: 'Notify Published',
+                  description: 'Vendor notifies that vulnerability is publicly disclosed',
+                  enabled: true,
+                }] : []),
+                // Close case after fix deployed AND published
+                ...(demoState.vendorVfdState === 'VFD' && demoState.pxaState.includes('P') && !demoState.vendorHasClosed ? [{
+                  id: 'vendor-close-case',
+                  label: 'Close Case',
+                  description: 'Vendor closes their participation in the case',
+                  enabled: true,
+                }] : [])
+              ]}
               onActionClick={(actionId) => handleAction('vendor', actionId)}
             />
           )}
@@ -1927,12 +2011,12 @@ function App() {
               emState={demoState.emState}
               pxaState={demoState.pxaState}
               actions={
-                (demoState.phase === 'report-validated' || demoState.phase === 'embargo-rejected') ? [{
+                (demoState.emState === 'NONE' || demoState.phase === 'embargo-rejected') ? [{
                   id: 'propose-embargo',
                   label: demoState.phase === 'embargo-rejected' ? 'Repropose Embargo' : 'Propose Embargo',
                   description: demoState.phase === 'embargo-rejected'
                     ? 'Propose a revised embargo to the Vendor'
-                    : 'Propose a 90-day embargo to the Vendor',
+                    : 'Propose an embargo to the Vendor',
                   enabled: true,
                 }] : []
               }
