@@ -19,14 +19,21 @@ Unit tests for InitializeDefaultEmbargoNode.
 Per specs/case-management.yaml CM-02, OX-03-001, CM-14-003.
 """
 
+from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 
 import pytest
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.embargo import (
+    AdvanceEMStateToActiveNode,
+    AttachEmbargoToCaseNode,
+    CreateEmbargoEventNode,
     InitializeDefaultEmbargoNode,
+    ResolveEmbargoDurationNode,
+    SeedOwnerAsSignatoryNode,
 )
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.behaviors.case.nodes.participant import (
     CreateCaseOwnerParticipant,
 )
@@ -193,3 +200,84 @@ class TestInitializeDefaultEmbargoNode:
         participant = cast(Any, bt_scenario.dl.read(participant_id))
         assert participant is not None
         assert participant.embargo_consent_state == PEC.SIGNATORY
+
+    def test_is_composed_subtree_of_named_leaf_nodes(self) -> None:
+        node = InitializeDefaultEmbargoNode()
+
+        assert [type(child) for child in node.children] == [
+            ResolveEmbargoDurationNode,
+            CreateEmbargoEventNode,
+            AdvanceEMStateToActiveNode,
+            AttachEmbargoToCaseNode,
+            SeedOwnerAsSignatoryNode,
+        ]
+
+    def test_advance_em_state_delegates_to_embargo_lifecycle(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        actor_id: str,
+        case_obj: VultronCase,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        calls: list[tuple[str, str, str, str]] = []
+        embargo = EmbargoEvent(
+            end_time=datetime.now(tz=timezone.utc) + timedelta(days=1),
+            context=case_obj.id_,
+        )
+        bt_scenario.dl.create(embargo)
+
+        bt_scenario.run(
+            CreateCaseOwnerParticipant(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+        )
+
+        class FakeEmbargoLifecycle:
+            def __init__(self, persistence: Any) -> None:
+                self.persistence = persistence
+
+            def propose_embargo(self, **kwargs: Any) -> Any:
+                calls.append(
+                    (
+                        "propose",
+                        kwargs["case_id"],
+                        kwargs["embargo_id"],
+                        kwargs["transition_mode"].value,
+                    )
+                )
+                return object()
+
+            def accept_embargo_invite(self, **kwargs: Any) -> Any:
+                calls.append(
+                    (
+                        "accept",
+                        kwargs["case_id"],
+                        kwargs["embargo_id"],
+                        kwargs["transition_mode"].value,
+                    )
+                )
+                stored_case = cast(
+                    Any, self.persistence.read(kwargs["case_id"])
+                )
+                stored_case.active_embargo = kwargs["embargo_id"]
+                stored_case.current_status.em_state = EM.ACTIVE
+                self.persistence.save(stored_case)
+                return object()
+
+        monkeypatch.setattr(
+            "vultron.core.behaviors.case.nodes.embargo.EmbargoLifecycle",
+            FakeEmbargoLifecycle,
+        )
+
+        result = bt_scenario.run(
+            AdvanceEMStateToActiveNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+            default_embargo_id=embargo.id_,
+        )
+
+        assert result.status == Status.SUCCESS
+        assert calls == [
+            ("propose", case_obj.id_, embargo.id_, "STRICT"),
+        ]

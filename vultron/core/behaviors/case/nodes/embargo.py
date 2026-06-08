@@ -28,27 +28,26 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 
 import isodate  # type: ignore[import-untyped]
-
 import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.enums import VultronObjectType
-from vultron.core.models.protocols import CaseModel, is_case_model
+from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.states.em import EM, EMAdapter, create_em_machine
+from vultron.core.services.embargo_lifecycle import (
+    EmbargoLifecycle,
+    TransitionMode,
+)
+from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.use_cases._helpers import _as_id
+from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_EMBARGO_DAYS = 90
-
-
-# ============================================================================
-# Embargo helpers
-# ============================================================================
 
 
 def _preferred_embargo_duration(
@@ -73,41 +72,33 @@ def _preferred_embargo_duration(
     return duration
 
 
-def _activate_default_embargo(stored_case: CaseModel, embargo_id: str) -> None:
-    stored_case.active_embargo = embargo_id
-    em_machine = create_em_machine()
-    em_adapter = EMAdapter(EM.NONE)
-    em_machine.add_model(em_adapter, initial=EM.NONE)
-    getattr(em_adapter, "propose")()
-    getattr(em_adapter, "accept")()
-    stored_case.current_status.em_state = EM(em_adapter.state)
-    stored_case.record_event(embargo_id, "embargo_initialized")
+class ResolveEmbargoDurationNode(DataLayerAction):
+    """Resolve preferred embargo duration and publish it to blackboard."""
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="default_embargo_duration",
+            access=py_trees.common.Access.WRITE,
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.logger.error("%s: DataLayer not available", self.name)
+            return Status.FAILURE
+
+        duration = _preferred_embargo_duration(
+            self.datalayer, self.name, self.logger
+        )
+        self.blackboard.default_embargo_duration = duration
+        return Status.SUCCESS
 
 
-# ============================================================================
-# Action Nodes
-# ============================================================================
-
-
-class InitializeDefaultEmbargoNode(DataLayerAction):
-    """
-    Create a default embargo event for the newly created case.
-
-    Looks up the actor's EmbargoPolicy from the DataLayer to determine the
-    preferred duration (defaulting to 90 days if no policy is found).
-    Creates a ``EmbargoEvent`` and attaches it to the case as
-    ``active_embargo``.
-
-    Participants learn about the embargo from ``VulnerabilityCase.active_embargo``
-    embedded in the ``Create(Case)`` activity queued by ``CreateCaseActivity``
-    (the subsequent node in the validate-report BT sequence). A separate
-    ``Announce(embargo)`` is therefore redundant and is not emitted here.
-
-    Must run after CreateCaseNode so case_id is available in the blackboard.
-
-    Per specs/case-management.yaml CM-02, OX-03-001, and
-    notes/protocol-event-cascades.md D5-6-EMBARGORCP.
-    """
+class CreateEmbargoEventNode(DataLayerAction):
+    """Create a default embargo event and publish embargo_id to blackboard."""
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -117,85 +108,252 @@ class InitializeDefaultEmbargoNode(DataLayerAction):
         self.blackboard.register_key(
             key="case_id", access=py_trees.common.Access.READ
         )
+        self.blackboard.register_key(
+            key="default_embargo_duration",
+            access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
+            key="default_embargo_id",
+            access=py_trees.common.Access.WRITE,
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.logger.error("%s: DataLayer not available", self.name)
+            return Status.FAILURE
+
+        case_id = self.blackboard.get("case_id")
+        if not isinstance(case_id, str):
+            self.logger.error("%s: case_id not found in blackboard", self.name)
+            return Status.FAILURE
+
+        duration = self.blackboard.get("default_embargo_duration")
+        if not isinstance(duration, timedelta):
+            self.logger.error(
+                "%s: default_embargo_duration missing or invalid", self.name
+            )
+            return Status.FAILURE
+
+        end_time = datetime.now(tz=timezone.utc) + duration
+        embargo = EmbargoEvent(end_time=end_time, context=case_id)
+        try:
+            self.datalayer.create(embargo)
+        except ValueError:
+            self.logger.debug(
+                "%s: Embargo %s already exists — skipping creation",
+                self.name,
+                embargo.id_,
+            )
+
+        self.blackboard.default_embargo_id = embargo.id_
+        self.logger.info(
+            "Initialized default embargo '%s' for case '%s'"
+            " (end_time: %s, duration: %s)",
+            embargo.id_,
+            case_id,
+            end_time.isoformat(),
+            isodate.duration_isoformat(duration),
+        )
+        return Status.SUCCESS
+
+
+class AdvanceEMStateToActiveNode(DataLayerAction):
+    """Advance EM state via EmbargoLifecycle propose+accept sequence."""
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="default_embargo_id",
+            access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
+            key="default_embargo_initialized",
+            access=py_trees.common.Access.WRITE,
+        )
 
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
             self.logger.error(
-                f"{self.name}: DataLayer or actor_id not available"
+                "%s: DataLayer or actor_id not available", self.name
             )
             return Status.FAILURE
 
-        try:
-            case_id = self.blackboard.get("case_id")
-            if case_id is None:
-                self.logger.error(
-                    f"{self.name}: case_id not found in blackboard"
-                )
-                return Status.FAILURE
-
-            duration = _preferred_embargo_duration(
-                self.datalayer, self.name, self.logger
+        case_id = self.blackboard.get("case_id")
+        embargo_id = self.blackboard.get("default_embargo_id")
+        if not isinstance(case_id, str) or not isinstance(embargo_id, str):
+            self.logger.error(
+                "%s: case_id/default_embargo_id not found in blackboard",
+                self.name,
             )
-            end_time = datetime.now(tz=timezone.utc) + duration
-            embargo = EmbargoEvent(end_time=end_time, context=case_id)
+            return Status.FAILURE
 
-            try:
-                self.datalayer.create(embargo)
-            except ValueError:
-                self.logger.debug(
-                    "%s: Embargo %s already exists — skipping creation",
-                    self.name,
-                    embargo.id_,
-                )
+        stored_case = self.datalayer.read(case_id, raise_on_missing=False)
+        if not is_case_model(stored_case):
+            self.logger.error(
+                "%s: Case %s not found in DataLayer", self.name, case_id
+            )
+            return Status.FAILURE
 
-            self.logger.info(
-                "Initialized default embargo '%s' for case '%s'"
-                " (end_time: %s, duration: %s)",
-                embargo.id_,
+        if _as_id(stored_case.active_embargo) is not None:
+            self.logger.debug(
+                "%s: Case '%s' already has active_embargo '%s' — skipping EM advance",
+                self.name,
                 case_id,
-                end_time.isoformat(),
-                isodate.duration_isoformat(duration),
+                _as_id(stored_case.active_embargo),
             )
-
-            stored_case = self.datalayer.read(case_id)
-            if not is_case_model(stored_case):
-                self.logger.error(
-                    f"{self.name}: Case {case_id} not found in DataLayer"
-                )
-                return Status.FAILURE
-
-            if stored_case.active_embargo is None:
-                _activate_default_embargo(stored_case, embargo.id_)
-                self.datalayer.save(stored_case)
-                self.logger.info(
-                    "Attached embargo '%s' to case '%s' as active_embargo"
-                    " (em_state: %s)",
-                    embargo.id_,
-                    case_id,
-                    stored_case.current_status.em_state,
-                )
-                self._seed_owner_as_signatory(stored_case, case_id)
-
+            self.blackboard.default_embargo_initialized = False
             return Status.SUCCESS
 
-        except Exception as e:
+        owner_actor_id = _as_id(stored_case.attributed_to)
+        if owner_actor_id != self.actor_id:
             self.logger.error(
-                f"{self.name}: Error initializing default embargo: {e}"
+                "%s: actor '%s' is not case owner '%s' for case '%s'",
+                self.name,
+                self.actor_id,
+                owner_actor_id,
+                case_id,
             )
             return Status.FAILURE
 
-    def _seed_owner_as_signatory(
-        self, stored_case: "CaseModel", case_id: str
-    ) -> None:
-        """Seed the case-owner participant as SIGNATORY (CM-14-003).
+        lifecycle = EmbargoLifecycle(persistence=self.datalayer)
+        try:
+            lifecycle.propose_embargo(
+                case_id=case_id,
+                embargo_id=embargo_id,
+                actor_id=self.actor_id,
+                transition_mode=TransitionMode.STRICT,
+            )
+        except VultronError as exc:
+            self.logger.error(
+                "%s: Failed to propose embargo '%s' for case '%s': %s",
+                self.name,
+                embargo_id,
+                case_id,
+                exc,
+            )
+            return Status.FAILURE
 
-        The owner created the embargo, so a separate accept step is
-        paradoxical.  This method reads the owner participant from the
-        DataLayer and sets ``embargo_consent_state`` to ``PEC.SIGNATORY``
-        directly, bypassing the INVITE step.
-        """
+        self.blackboard.default_embargo_initialized = True
+        return Status.SUCCESS
+
+
+class AttachEmbargoToCaseNode(DataLayerAction):
+    """Ensure case.active_embargo references the initialized embargo event."""
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="default_embargo_initialized",
+            access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
+            key="default_embargo_initialized",
+            access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
+            key="default_embargo_id",
+            access=py_trees.common.Access.READ,
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.logger.error("%s: DataLayer not available", self.name)
+            return Status.FAILURE
+
+        case_id = self.blackboard.get("case_id")
+        embargo_id = self.blackboard.get("default_embargo_id")
+        if not isinstance(case_id, str) or not isinstance(embargo_id, str):
+            self.logger.error(
+                "%s: case_id/default_embargo_id not found in blackboard",
+                self.name,
+            )
+            return Status.FAILURE
+
+        stored_case = self.datalayer.read(case_id, raise_on_missing=False)
+        if not is_case_model(stored_case):
+            self.logger.error(
+                "%s: Case %s not found in DataLayer", self.name, case_id
+            )
+            return Status.FAILURE
+
+        active_embargo_id = _as_id(stored_case.active_embargo)
+        if active_embargo_id is None:
+            stored_case.active_embargo = embargo_id
+            stored_case.current_status.em_state = EM.ACTIVE
+            stored_case.record_event(embargo_id, "embargo_initialized")
+            self.datalayer.save(stored_case)
+            self.logger.info(
+                "Attached embargo '%s' to case '%s' as active_embargo",
+                embargo_id,
+                case_id,
+            )
+            return Status.SUCCESS
+
+        if active_embargo_id != embargo_id:
+            self.logger.debug(
+                "%s: Keeping existing active_embargo '%s' for case '%s'"
+                " (new embargo '%s' left unattached)",
+                self.name,
+                active_embargo_id,
+                case_id,
+                embargo_id,
+            )
+        return Status.SUCCESS
+
+
+class SeedOwnerAsSignatoryNode(DataLayerAction):
+    """Seed the case-owner participant as SIGNATORY (CM-14-003)."""
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="default_embargo_initialized",
+            access=py_trees.common.Access.READ,
+        )
+
+    def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
-            return
+            self.logger.error(
+                "%s: DataLayer or actor_id not available", self.name
+            )
+            return Status.FAILURE
+
+        case_id = self.blackboard.get("case_id")
+        if not isinstance(case_id, str):
+            self.logger.error("%s: case_id not found in blackboard", self.name)
+            return Status.FAILURE
+
+        embargo_initialized = self.blackboard.get(
+            "default_embargo_initialized"
+        )
+        if embargo_initialized is False:
+            return Status.SUCCESS
+
+        stored_case = self.datalayer.read(case_id, raise_on_missing=False)
+        if not is_case_model(stored_case):
+            self.logger.error(
+                "%s: Case %s not found in DataLayer", self.name, case_id
+            )
+            return Status.FAILURE
+
         participant_id = stored_case.actor_participant_index.get(self.actor_id)
         if not participant_id:
             self.logger.warning(
@@ -205,18 +363,23 @@ class InitializeDefaultEmbargoNode(DataLayerAction):
                 self.actor_id,
                 case_id,
             )
-            return
-        participant = self.datalayer.read(participant_id)
+            return Status.SUCCESS
+
+        participant = self.datalayer.read(
+            participant_id, raise_on_missing=False
+        )
         if participant is None or not hasattr(
             participant, "embargo_consent_state"
         ):
             self.logger.warning(
                 "%s: Participant '%s' not found or lacks embargo_consent_state"
-                " — cannot seed SIGNATORY",
+                " in case '%s' — cannot seed SIGNATORY",
                 self.name,
                 participant_id,
+                case_id,
             )
-            return
+            return Status.SUCCESS
+
         embargo_id = _as_id(stored_case.active_embargo)
         cast(Any, participant).embargo_consent_state = PEC.SIGNATORY
         if (
@@ -231,4 +394,22 @@ class InitializeDefaultEmbargoNode(DataLayerAction):
             participant_id,
             self.actor_id,
             case_id,
+        )
+        return Status.SUCCESS
+
+
+class InitializeDefaultEmbargoNode(py_trees.composites.Sequence):
+    """Composed subtree for default embargo initialization on case creation."""
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(
+            name=name or self.__class__.__name__,
+            memory=False,
+            children=[
+                ResolveEmbargoDurationNode(),
+                CreateEmbargoEventNode(),
+                AdvanceEMStateToActiveNode(),
+                AttachEmbargoToCaseNode(),
+                SeedOwnerAsSignatoryNode(),
+            ],
         )

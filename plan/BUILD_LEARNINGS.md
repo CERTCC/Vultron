@@ -32,3 +32,13 @@ header.
 - Stubbed transport adapters should define an explicit class and raise
   `NotImplementedError` in `__init__` with spec reference context so failures
   are immediate and diagnosable.
+
+### 2026-06-08 ISSUE-750 — Embargo subtree decomposition must preserve idempotent side effects
+
+- Decomposing a god node into sequential BT leaves can silently change
+  duplicate-run behavior when side-effect leaves always execute.
+- Preserve previous semantics explicitly with a blackboard flag that tracks
+  whether the current execution actually initialized a new embargo.
+- When moving EM transition logic to `EmbargoLifecycle.propose_embargo`,
+  keep event creation and participant-seeding behavior aligned with existing
+  duplicate-report tests to avoid introducing warning-level regressions.
