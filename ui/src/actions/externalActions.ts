@@ -37,9 +37,16 @@ export function handleTriggerExploit(state: DemoState): DemoState {
   // Per Vultron protocol (early_termination.md lines 32-39):
   // "Embargoes SHALL terminate immediately when information about the vulnerability becomes public."
   // Since exploit publication (X) automatically implies public awareness (P), embargo must terminate
-  const hadEmbargo = state.emState === 'ACTIVE' || state.emState === 'REVISE'
-  if (hadEmbargo && newPxa.includes('P')) {
-    newState = { ...newState, emState: 'EXITED' }
+  const hadActiveEmbargo = state.emState === 'ACTIVE' || state.emState === 'REVISE'
+  const hadProposedEmbargo = state.emState === 'PROPOSED'
+
+  if (newPxa.includes('P')) {
+    if (hadActiveEmbargo) {
+      newState = { ...newState, emState: 'EXITED' }
+    } else if (hadProposedEmbargo) {
+      // Proposal becomes invalid due to publication - treat as implicitly rejected
+      newState = { ...newState, emState: 'NONE' }
+    }
   }
 
   const activeLanes = getActiveParticipants(newState)
@@ -58,11 +65,13 @@ export function handleTriggerExploit(state: DemoState): DemoState {
     consequences: [
       'External event: exploit published',
       ...(publicBecameAware ? ['Public becomes aware (automatic with X)'] : []),
-      ...(hadEmbargo ? ['Embargo TERMINATED (public awareness)'] : []),
+      ...(hadActiveEmbargo ? ['Embargo TERMINATED (public awareness)'] : []),
+      ...(hadProposedEmbargo ? ['Embargo proposal invalidated (public awareness)'] : []),
       `${participant.name} observes exploit`,
       'Participant pxa_state updated',
       `Case PXA state: ${currentPxa} → ${newPxa}`,
-      ...(hadEmbargo ? ['EM state: ACTIVE → EXITED'] : []),
+      ...(hadActiveEmbargo ? ['EM state: ACTIVE → EXITED'] : []),
+      ...(hadProposedEmbargo ? ['EM state: PROPOSED → NONE'] : []),
       'Authoritative ledger updated',
     ],
   }))
@@ -75,8 +84,10 @@ export function handleTriggerExploit(state: DemoState): DemoState {
   } else {
     logEntries.push('Exploit published in the wild (external event)')
   }
-  if (hadEmbargo) {
+  if (hadActiveEmbargo) {
     logEntries.push('⚠️ Embargo TERMINATED due to public awareness')
+  } else if (hadProposedEmbargo) {
+    logEntries.push('⚠️ Embargo proposal invalidated due to public awareness')
   }
 
   newState = addEventLogEntries(newState, logEntries)

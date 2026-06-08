@@ -40,8 +40,7 @@ export interface DemoState {
   timelineEvents: TimelineEvent[]
   eventLog: string[]
   nextXPosition: number
-  secondVendorInvited: boolean
-  secondVendorAccepted: boolean
+  invitedVendors: Set<string>  // Track all invited vendors (e.g., 'vendor-2', 'vendor-3')
 }
 
 export interface Action {

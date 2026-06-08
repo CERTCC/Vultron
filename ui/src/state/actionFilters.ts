@@ -3,7 +3,7 @@
  */
 
 import type { DemoState, Action } from '../types'
-import { getParticipant, getActiveVendors, hasSecondVendor } from './participantHelpers'
+import { getParticipant, getActiveVendors, getVendors } from './participantHelpers'
 
 export function getFinderActions(state: DemoState): Action[] {
   const finder = getParticipant(state, 'finder')
@@ -36,10 +36,16 @@ export function getFinderActions(state: DemoState): Action[] {
 
     // Finder can send report to additional vendors at any time after case exists
     // This is available even if all vendors have closed (e.g., to try another vendor)
-    if (!state.secondVendorInvited) {
+    const allVendors = getVendors(state)
+    const MAX_VENDORS = 5
+    const nextVendorNumber = allVendors.length + 1
+    const nextVendorId = `vendor-${nextVendorNumber}`
+    const canInviteMore = allVendors.length < MAX_VENDORS && !state.invitedVendors.has(nextVendorId)
+
+    if (canInviteMore) {
       actions.push({
         id: 'finder-invite-vendor',
-        label: 'Submit Report to Vendor 2',
+        label: `Submit Report to Vendor ${nextVendorNumber}`,
         description: 'Send the vulnerability report to another vendor',
         enabled: true,
       })
@@ -86,12 +92,18 @@ export function getFinderActions(state: DemoState): Action[] {
       enabled: true,
     })
 
-    // Add submit report to second vendor option if not already sent
+    // Add submit report to additional vendors option if not at max
     // Available even if all vendors have closed (e.g., to try another vendor)
-    if (!state.secondVendorInvited) {
+    const allVendors = getVendors(state)
+    const MAX_VENDORS = 5
+    const nextVendorNumber = allVendors.length + 1
+    const nextVendorId = `vendor-${nextVendorNumber}`
+    const canInviteMore = allVendors.length < MAX_VENDORS && !state.invitedVendors.has(nextVendorId)
+
+    if (canInviteMore) {
       actions.push({
         id: 'finder-invite-vendor',
-        label: 'Submit Report to Vendor 2',
+        label: `Submit Report to Vendor ${nextVendorNumber}`,
         description: 'Send the vulnerability report to another vendor',
         enabled: true,
       })
@@ -225,7 +237,6 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   // If embargo was EXITED (terminated), vendors can now participate regardless of previous rejection
   // The barrier to participation no longer exists
 
-  const isVendor1 = vendorId === 'vendor-1'
   const vendorActivePhases = ['report-received', 'report-validated', 'report-accepted', 'report-deferred', 'report-invalidated', 'embargo-proposed', 'embargo-rejected', 'embargo-accepted', 'finder-asked', 'fix-ready', 'fix-deployed', 'vendor-published']
 
   // Per-participant RM state: vendor marked report as invalid
@@ -338,11 +349,18 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
       })
     }
 
-    // Submit report to second vendor (only first vendor can do this for now)
-    if (isVendor1 && !state.secondVendorInvited && !hasSecondVendor(state)) {
+    // Submit report to additional vendors (any vendor can do this)
+    // Check if we can invite more vendors
+    const vendorCount = getVendors(state).length
+    const MAX_VENDORS = 5
+    const nextVendorNumber = vendorCount + 1
+    const nextVendorId = `vendor-${nextVendorNumber}`
+    const canInviteMore = vendorCount < MAX_VENDORS && !state.invitedVendors.has(nextVendorId)
+
+    if (canInviteMore) {
       actions.push({
-        id: 'vendor-invite-second-vendor',
-        label: 'Submit Report to Vendor 2',
+        id: 'vendor-invite-next-vendor',
+        label: `Submit Report to Vendor ${nextVendorNumber}`,
         description: 'Send the vulnerability report to another vendor for collaboration',
         enabled: true,
       })

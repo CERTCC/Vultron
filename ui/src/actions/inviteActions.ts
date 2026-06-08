@@ -3,16 +3,18 @@
  */
 
 import type { DemoState } from '../types'
-import { PARTICIPANT_COLORS, PARTICIPANT_ROLES } from '../constants'
+import { getVendorColor } from '../constants'
 import {
   addTimelineEvents,
   addEventLogEntries,
   incrementXPosition,
-  updateParticipant,
 } from '../state/stateUpdaters'
-import { getParticipant } from '../state/participantHelpers'
+import { getParticipant, getVendors, getActiveParticipants } from '../state/participantHelpers'
 
-export function handleInviteSecondVendor(state: DemoState, inviterId: string = 'vendor-1'): DemoState {
+/**
+ * Generalized vendor invitation handler - works for inviting any vendor number
+ */
+export function handleInviteVendor(state: DemoState, inviterId: string = 'vendor-1'): DemoState {
   const nextX = state.nextXPosition
   const eventId = `event-${state.timelineEvents.length + 1}`
   const now = Date.now()
@@ -23,7 +25,12 @@ export function handleInviteSecondVendor(state: DemoState, inviterId: string = '
   const inviter = getParticipant(state, inviterId)
   if (!inviter) return state
 
-  // Create second vendor participant
+  // Calculate next vendor number based on existing vendors
+  const existingVendors = getVendors(state)
+  const nextVendorNumber = existingVendors.length + 1
+  const nextVendorId = `vendor-${nextVendorNumber}`
+
+  // Create new vendor participant
   // Per Vultron protocol: inviting a vendor = sending them the vulnerability report
   // They start at RM.RECEIVED and VFD.Vfd, just like Vendor 1 did when the report was submitted
   // Vendor becomes aware (Vfd) but cannot announce fix ready until report is validated
@@ -33,11 +40,11 @@ export function handleInviteSecondVendor(state: DemoState, inviterId: string = '
   // - Inviting participant SHOULD NOT share full report unless embargo is accepted
   // - Invited participant MAY propose revision after accepting
   const hasActiveEmbargo = state.emState === 'ACTIVE' || state.emState === 'REVISE'
-  const vendor2 = {
-    id: 'vendor-2',
-    name: 'Vendor 2',
-    role: PARTICIPANT_ROLES.vendor2,
-    color: PARTICIPANT_COLORS.vendor2,
+  const newVendor = {
+    id: nextVendorId,
+    name: nextVendorNumber === 1 ? 'Vendor' : `Vendor ${nextVendorNumber}`,
+    role: 'VENDOR',
+    color: getVendorColor(nextVendorNumber),
     rmState: 'RECEIVED',  // They received the vulnerability report
     vfdState: 'Vfd',  // Vendor aware - must validate before progressing VFD
     embargoAccepted: false,  // Must explicitly accept embargo if one exists
@@ -45,384 +52,188 @@ export function handleInviteSecondVendor(state: DemoState, inviterId: string = '
     hasPublished: false,
     hasClosed: false,
     visible: true,  // Visible immediately - they have the report and need to decide on embargo
-    laneIndex: 2,  // Insert between vendor-1 and caseactor
+    laneIndex: nextVendorNumber,  // Dynamic lane placement
   }
 
-  // Add vendor-2 to participants
+  // Add new vendor to participants
   const newParticipants = new Map(state.participants)
-  newParticipants.set('vendor-2', vendor2)
+  newParticipants.set(nextVendorId, newVendor)
 
-  // Adjust caseactor lane index to make room for vendor-2
+  // Adjust caseactor lane index to make room for new vendor
   const caseactor = newParticipants.get('caseactor')
+  const oldCaseActorLane = caseactor?.laneIndex ?? nextVendorNumber + 1
+  const newCaseActorLane = nextVendorNumber + 1
+
   if (caseactor) {
-    const updatedCaseActor = { ...caseactor, laneIndex: 3 }
+    const updatedCaseActor = { ...caseactor, laneIndex: newCaseActorLane }
     newParticipants.set('caseactor', updatedCaseActor)
-    console.log('Updated CaseActor to lane:', updatedCaseActor.laneIndex)
+    console.log(`Updated CaseActor from lane ${oldCaseActorLane} to lane ${newCaseActorLane}`)
   }
 
-  // IMPORTANT: Update existing timeline events - shift CaseActor events from lane 2 to lane 3
+  // IMPORTANT: Update existing timeline events - shift CaseActor events to new lane
   const updatedTimelineEvents = state.timelineEvents.map(event => {
-    // If event is at lane 2 (old CaseActor position), move it to lane 3
-    if (event.lane === 2) {
-      console.log('Shifting event', event.label, 'from lane 2 to lane 3')
-      return { ...event, lane: 3 }
+    if (event.lane === oldCaseActorLane) {
+      console.log(`Shifting event '${event.label}' from lane ${oldCaseActorLane} to lane ${newCaseActorLane}`)
+      return { ...event, lane: newCaseActorLane }
     }
     return event
   })
+
+  // Track this vendor as invited
+  const newInvitedVendors = new Set(state.invitedVendors)
+  newInvitedVendors.add(nextVendorId)
 
   newState = {
     ...newState,
     participants: newParticipants,
     timelineEvents: updatedTimelineEvents,
-    secondVendorInvited: true,
-    secondVendorAccepted: true  // Vendor 2 is immediately visible (they received the report)
+    invitedVendors: newInvitedVendors,
   }
 
   // Get updated participant references from newState (after adjusting lane indices)
   const updatedInviter = getParticipant(newState, inviterId)
   const updatedCaseActorCheck = getParticipant(newState, 'caseactor')
+  const updatedNewVendor = getParticipant(newState, nextVendorId)
 
-  if (!updatedInviter || !updatedCaseActorCheck) {
-    console.error('Failed to get participants:', { updatedInviter, updatedCaseActorCheck })
+  if (!updatedInviter || !updatedCaseActorCheck || !updatedNewVendor) {
+    console.error('Failed to get participants:', { updatedInviter, updatedCaseActorCheck, updatedNewVendor })
     return newState
   }
 
-  console.log('After update - CaseActor laneIndex:', updatedCaseActorCheck.laneIndex, 'Vendor-2 laneIndex:', vendor2.laneIndex)
-
-  // Get the other actor (Finder or Vendor-1, whichever didn't invite)
-  const otherActorId = inviterId === 'finder' ? 'vendor-1' : 'finder'
-  const otherActor = getParticipant(newState, otherActorId)
+  console.log(`After update - CaseActor laneIndex: ${updatedCaseActorCheck.laneIndex}, ${newVendor.name} laneIndex: ${updatedNewVendor.laneIndex}`)
 
   // Build events array manually to avoid TypeScript issues with conditional spreads
   const inviteEvents = []
+  let timestampOffset = 0
 
   // Decision node in inviter's lane
   inviteEvents.push({
     id: eventId,
     actor: updatedInviter.name,
     participantId: inviterId,
-    label: 'Submit Report to Vendor 2',
+    label: `Submit Report to ${newVendor.name}`,
     x: nextX,
     lane: updatedInviter.laneIndex,
     type: 'decision' as const,
-    timestamp: now,
+    timestamp: now + timestampOffset,
     consequences: [
-      'VulnerabilityReport sent to Vendor 2',
+      `VulnerabilityReport sent to ${newVendor.name}`,
       'Offer(VulnerabilityReport) activity created',
-      'Report sent to Vendor 2 inbox',
-      'Vendor 2 enters case at RM.RECEIVED',
+      `Report sent to ${newVendor.name} inbox`,
+      `${newVendor.name} enters case at RM.RECEIVED`,
     ],
   })
+  timestampOffset++
 
-  // Consequence node in other actor's lane (if exists and still active)
-  if (otherActor && !otherActor.hasClosed) {
+  // Consequence nodes in ALL other participants' lanes (excluding inviter, new vendor, and caseactor)
+  // This includes Finder and all existing vendors who didn't send the invite
+  const otherParticipants = getActiveParticipants(newState).filter(p =>
+    p.id !== inviterId &&
+    p.id !== nextVendorId &&
+    p.id !== 'caseactor'
+  )
+
+  otherParticipants.forEach(participant => {
     inviteEvents.push({
-      id: `${eventId}-${otherActorId}-consequence`,
-      actor: otherActor.name,
-      participantId: otherActorId,
-      label: 'Report Sent to Vendor 2',
+      id: `${eventId}-${participant.id}-consequence`,
+      actor: participant.name,
+      participantId: participant.id,
+      label: `Report Sent to ${newVendor.name}`,
       x: nextX,
-      lane: otherActor.laneIndex,
+      lane: participant.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
-      timestamp: now + 1,
+      timestamp: now + timestampOffset,
       consequences: [
-        `${updatedInviter.name} sent report to Vendor 2`,
-        'Vendor 2 will receive report',
-        'Case may expand to multiple vendors',
+        `${updatedInviter.name} sent report to ${newVendor.name}`,
+        `${newVendor.name} will receive report`,
+        'Case expanded to include additional vendor',
       ],
     })
-  }
+    timestampOffset++
+  })
 
-  // Consequence node in Vendor 2's lane (they receive the report)
-  const vendor2Updated = getParticipant(newState, 'vendor-2')
+  // Consequence node in new vendor's lane (they receive the report)
   const embargoConsequences = hasActiveEmbargo
     ? [
         'Offer received in inbox',
         'VulnerabilityReport stored in DataLayer',
-        'Existing embargo proposed to Vendor 2',
-        'Vendor 2 must accept embargo to proceed',
-        'Vendor 2 RM state → RECEIVED',
-        'Vendor 2 VFD state → Vfd (aware)',
+        `Existing embargo proposed to ${newVendor.name}`,
+        `${newVendor.name} must accept embargo to proceed`,
+        `${newVendor.name} RM state → RECEIVED`,
+        `${newVendor.name} VFD state → Vfd (aware)`,
       ]
     : [
         'Offer received in inbox',
         'VulnerabilityReport stored in DataLayer',
-        'Vendor 2 RM state → RECEIVED',
-        'Vendor 2 VFD state → Vfd (aware)',
+        `${newVendor.name} RM state → RECEIVED`,
+        `${newVendor.name} VFD state → Vfd (aware)`,
       ]
 
   inviteEvents.push({
-    id: `${eventId}-vendor2-consequence`,
-    actor: 'Vendor 2',
-    participantId: 'vendor-2',
+    id: `${eventId}-${nextVendorId}-consequence`,
+    actor: newVendor.name,
+    participantId: nextVendorId,
     label: hasActiveEmbargo ? 'Report + Embargo Received' : 'Report Received',
     x: nextX,
-    lane: vendor2Updated?.laneIndex ?? 2,
+    lane: updatedNewVendor.laneIndex,
     type: 'consequence' as const,
     causedBy: eventId,
-    timestamp: now + 2,
+    timestamp: now + timestampOffset,
     consequences: embargoConsequences,
   })
+  timestampOffset++
 
   // Consequence node in CaseActor lane (use updated caseactor from earlier)
   inviteEvents.push({
     id: `${eventId}-caseactor-consequence`,
     actor: 'CaseActor',
     participantId: 'caseactor',
-    label: 'Vendor 2 Added',
+    label: `${newVendor.name} Added`,
     x: nextX,
     lane: updatedCaseActorCheck.laneIndex,
     type: 'consequence' as const,
     causedBy: eventId,
-    timestamp: now + 3,
+    timestamp: now + timestampOffset,
     consequences: [
-      'Vendor 2 participant created',
-      'Vendor 2 added to case participants',
+      `${newVendor.name} participant created`,
+      `${newVendor.name} added to case participants`,
       'Case now has multiple vendors',
       'Authoritative ledger updated',
     ],
   })
 
-  console.log('Creating invite events - Decision at lane', updatedInviter.laneIndex, 'Vendor-2 consequence at lane', vendor2Updated?.laneIndex, 'CaseActor consequence at lane', updatedCaseActorCheck.laneIndex)
+  console.log(`Creating invite events - Decision at lane ${updatedInviter.laneIndex}, ${newVendor.name} consequence at lane ${updatedNewVendor.laneIndex}, CaseActor consequence at lane ${updatedCaseActorCheck.laneIndex}`)
 
   newState = addTimelineEvents(newState, inviteEvents)
 
-  newState = addEventLogEntries(newState, [`${inviter.name} sent vulnerability report to Vendor 2`])
+  newState = addEventLogEntries(newState, [`${inviter.name} sent vulnerability report to ${newVendor.name}`])
   newState = incrementXPosition(newState)
 
   return newState
 }
 
+// Legacy function name for backward compatibility - now just calls handleInviteVendor
+export function handleInviteSecondVendor(state: DemoState, inviterId: string = 'vendor-1'): DemoState {
+  return handleInviteVendor(state, inviterId)
+}
+
+/**
+ * DEPRECATED: This function is no longer used since vendors are immediately visible when invited.
+ * Kept for backward compatibility only.
+ */
 export function handleAcceptSecondVendorInvite(state: DemoState): DemoState {
-  console.log('handleAcceptSecondVendorInvite called')
-  const nextX = state.nextXPosition
-  const eventId = `event-${state.timelineEvents.length + 1}`
-  const now = Date.now()
-
-  let newState = state
-
-  // Make vendor-2 visible and update their state
-  // NOTE: This handler is now obsolete since Vendor 2 becomes visible immediately when invited
-  // Keeping for backward compatibility if somehow the old "accept invitation" flow is triggered
-  newState = updateParticipant(newState, 'vendor-2', {
-    visible: true,
-    rmState: 'RECEIVED',  // They received the report and need to validate
-    vfdState: 'Vfd',  // Vendor aware - can work on fix immediately
-  })
-
-  newState = { ...newState, secondVendorAccepted: true }
-
-  const vendor2 = newState.participants.get('vendor-2')
-  const finder = getParticipant(newState, 'finder')
-  const vendor1 = getParticipant(newState, 'vendor-1')
-  const caseactor = getParticipant(newState, 'caseactor')
-
-  // Build events array manually to avoid TypeScript inference issues
-  const acceptEvents = []
-
-  // Decision node in Vendor 2's lane
-  acceptEvents.push({
-    id: eventId,
-    actor: 'Vendor 2',
-    participantId: 'vendor-2',
-    label: 'Accept Invitation',
-    x: nextX,
-    lane: vendor2?.laneIndex || 2,
-    type: 'decision' as const,
-    timestamp: now,
-    consequences: [
-      'AcceptInviteActorToCaseActivity created',
-      'Vendor 2 joins the case',
-      'Vendor 2 RM: START → RECEIVED',
-      'Vendor 2 needs to validate the report',
-    ],
-  })
-
-  // Consequence node in Finder's lane (if still active)
-  if (finder && !finder.hasClosed) {
-    acceptEvents.push({
-      id: `${eventId}-finder-consequence`,
-      actor: 'Finder',
-      participantId: 'finder',
-      label: 'Vendor 2 Joined',
-      x: nextX,
-      lane: finder.laneIndex,
-      type: 'consequence' as const,
-      causedBy: eventId,
-      timestamp: now + 1,
-      consequences: [
-        'Vendor 2 accepted invitation',
-        'Case now has multiple vendors',
-        'Additional vendor can work on fix',
-      ],
-    })
-  }
-
-  // Consequence node in Vendor 1's lane (if still active)
-  if (vendor1 && !vendor1.hasClosed) {
-    acceptEvents.push({
-      id: `${eventId}-vendor1-consequence`,
-      actor: 'Vendor',
-      participantId: 'vendor-1',
-      label: 'Vendor 2 Joined',
-      x: nextX,
-      lane: vendor1.laneIndex,
-      type: 'consequence' as const,
-      causedBy: eventId,
-      timestamp: now + 2,
-      consequences: [
-        'Vendor 2 accepted invitation',
-        'Another vendor joins the case',
-        'Vendors can coordinate on fix',
-      ],
-    })
-  }
-
-  // Consequence node in CaseActor's lane
-  if (caseactor) {
-    acceptEvents.push({
-      id: `${eventId}-caseactor-consequence`,
-      actor: 'CaseActor',
-      participantId: 'caseactor',
-      label: 'Vendor 2 Added',
-      x: nextX,
-      lane: caseactor.laneIndex,
-      type: 'consequence' as const,
-      timestamp: now + 3,
-      causedBy: eventId,
-      enablesNext: true,
-      consequences: [
-        'Vendor 2 participant created',
-        'Vendor 2 added to case participants',
-        'Case now has multiple vendors',
-        'Each vendor tracks VFD independently',
-        'Authoritative ledger updated',
-      ],
-    })
-  }
-
-  console.log('Adding', acceptEvents.length, 'events for Vendor 2 accept')
-  newState = addTimelineEvents(newState, acceptEvents)
-
-  newState = addEventLogEntries(newState, ['Vendor 2 accepted invitation and joined the case'])
-  newState = incrementXPosition(newState)
-
-  return newState
+  console.warn('handleAcceptSecondVendorInvite is deprecated - vendors are now immediately visible')
+  // No-op: vendors are immediately visible when invited, no separate accept step needed
+  return state
 }
 
+/**
+ * DEPRECATED: This function is no longer used since vendors are immediately visible when invited.
+ * Kept for backward compatibility only.
+ */
 export function handleRejectSecondVendorInvite(state: DemoState): DemoState {
-  const nextX = state.nextXPosition
-  const eventId = `event-${state.timelineEvents.length + 1}`
-  const now = Date.now()
-
-  let newState = state
-
-  // Keep vendor-2 visible but update their state to show rejection
-  newState = updateParticipant(newState, 'vendor-2', {
-    visible: true,
-    rmState: 'DECLINED',
-  })
-
-  // Update flag to indicate rejection (but keep secondVendorInvited true since invitation happened)
-  newState = { ...newState, secondVendorAccepted: false }
-
-  const vendor2 = getParticipant(newState, 'vendor-2')
-  const finder = getParticipant(newState, 'finder')
-  const vendor1 = getParticipant(newState, 'vendor-1')
-  const caseactor = getParticipant(newState, 'caseactor')
-
-  const rejectEvents = []
-  let timestampOffset = 0
-
-  // Decision node in Vendor 2's lane
-  if (vendor2) {
-    rejectEvents.push({
-      id: eventId,
-      actor: 'Vendor 2',
-      participantId: 'vendor-2',
-      label: 'Reject Invitation',
-      x: nextX,
-      lane: vendor2.laneIndex,
-      type: 'decision' as const,
-      timestamp: now,
-      consequences: [
-        'RejectInvitationActivity created',
-        'Vendor 2 declines to join the case',
-        'Vendor 2 RM → DECLINED',
-        'Case continues with existing participants',
-      ],
-    })
-    timestampOffset++
-  }
-
-  // Consequence node in Finder's lane (if still active)
-  if (finder && !finder.hasClosed) {
-    rejectEvents.push({
-      id: `${eventId}-finder-consequence`,
-      actor: 'Finder',
-      participantId: 'finder',
-      label: 'Invitation Declined',
-      x: nextX,
-      lane: finder.laneIndex,
-      type: 'consequence' as const,
-      causedBy: eventId,
-      timestamp: now + timestampOffset,
-      consequences: [
-        'Vendor 2 declined invitation',
-        'Case continues without Vendor 2',
-        'Can invite other vendors if needed',
-      ],
-    })
-    timestampOffset++
-  }
-
-  // Consequence node in Vendor 1's lane (if still active)
-  if (vendor1 && !vendor1.hasClosed) {
-    rejectEvents.push({
-      id: `${eventId}-vendor1-consequence`,
-      actor: 'Vendor',
-      participantId: 'vendor-1',
-      label: 'Invitation Declined',
-      x: nextX,
-      lane: vendor1.laneIndex,
-      type: 'consequence' as const,
-      causedBy: eventId,
-      timestamp: now + timestampOffset,
-      consequences: [
-        'Vendor 2 declined invitation',
-        'Case continues without Vendor 2',
-        'Can continue work independently',
-      ],
-    })
-    timestampOffset++
-  }
-
-  // Consequence node in CaseActor's lane
-  if (caseactor) {
-    rejectEvents.push({
-      id: `${eventId}-caseactor-consequence`,
-      actor: 'CaseActor',
-      participantId: 'caseactor',
-      label: 'Invitation Declined',
-      x: nextX,
-      lane: caseactor.laneIndex,
-      type: 'consequence' as const,
-      timestamp: now + timestampOffset,
-      causedBy: eventId,
-      consequences: [
-        'Vendor 2 declined invitation',
-        'RejectInvitationActivity tracked',
-        'Authoritative ledger updated',
-        'Case participant count unchanged',
-      ],
-    })
-  }
-
-  newState = addTimelineEvents(newState, rejectEvents)
-
-  newState = addEventLogEntries(newState, ['Vendor 2 rejected invitation'])
-  newState = incrementXPosition(newState)
-
-  return newState
+  console.warn('handleRejectSecondVendorInvite is deprecated - vendors are now immediately visible')
+  // No-op: vendors are immediately visible when invited, no separate reject step needed
+  return state
 }

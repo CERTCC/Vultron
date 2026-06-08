@@ -11,7 +11,7 @@ import {
   setPhase,
   setPxaState,
 } from '../state/stateUpdaters'
-import { getParticipant, getActiveParticipants } from '../state/participantHelpers'
+import { getParticipant, getActiveParticipants, getActiveVendors } from '../state/participantHelpers'
 
 export function handleValidateReport(state: DemoState, vendorId: string): DemoState {
   const nextX = state.nextXPosition
@@ -292,8 +292,6 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
 
   const vendor = getParticipant(state, vendorId)
   const finder = getParticipant(state, 'finder')
-  const vendor1 = getParticipant(state, 'vendor-1')
-  const vendor2 = getParticipant(state, 'vendor-2')
   const caseactor = getParticipant(state, 'caseactor')
   if (!vendor) return state
 
@@ -396,14 +394,16 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
 
   // Add consequence nodes to other vendors' lanes
   let timestampOffset = 3
-  if (vendor1 && vendor1.visible && !vendor1.hasClosed && vendor1.id !== vendorId) {
+  const otherVendors = getActiveVendors(newState).filter(v => v.id !== vendorId)
+
+  otherVendors.forEach(otherVendor => {
     events.push({
-      id: `${eventId}-vendor1-consequence`,
-      actor: 'Vendor',
-      participantId: 'vendor-1',
+      id: `${eventId}-${otherVendor.id}-consequence`,
+      actor: otherVendor.name,
+      participantId: otherVendor.id,
       label: isLateJoiner ? `${vendor.name} Joined` : (bothAccepted ? 'Embargo Active' : `${vendor.name} Accepted`),
       x: nextX,
-      lane: vendor1.laneIndex,
+      lane: otherVendor.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
       timestamp: now + timestampOffset,
@@ -421,33 +421,7 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
       ]),
     })
     timestampOffset++
-  }
-
-  if (vendor2 && vendor2.visible && !vendor2.hasClosed && vendor2.id !== vendorId) {
-    events.push({
-      id: `${eventId}-vendor2-consequence`,
-      actor: 'Vendor 2',
-      participantId: 'vendor-2',
-      label: isLateJoiner ? `${vendor.name} Joined` : (bothAccepted ? 'Embargo Active' : `${vendor.name} Accepted`),
-      x: nextX,
-      lane: vendor2.laneIndex,
-      type: 'consequence' as const,
-      causedBy: eventId,
-      timestamp: now + timestampOffset,
-      consequences: isLateJoiner ? [
-        `${vendor.name} accepted existing embargo`,
-        `${vendor.name} is now bound by embargo`,
-        'Embargo remains ACTIVE',
-      ] : (bothAccepted ? [
-        'AnnounceEmbargoActivity received',
-        'Embargo is now ACTIVE',
-        'Coordinated disclosure begins',
-      ] : [
-        `Notified: ${vendor.name} accepted embargo`,
-        'EM state remains PROPOSED',
-      ]),
-    })
-  }
+  })
 
   newState = addTimelineEvents(newState, events)
   newState = addEventLogEntries(newState, [
@@ -468,8 +442,6 @@ export function handleRejectEmbargo(state: DemoState, vendorId: string): DemoSta
   if (!vendor) return state
 
   const finder = getParticipant(state, 'finder')
-  const vendor1 = getParticipant(state, 'vendor-1')
-  const vendor2 = getParticipant(state, 'vendor-2')
   const caseactor = getParticipant(state, 'caseactor')
 
   // Check if this is a late-joining vendor rejecting an already-active embargo
@@ -575,14 +547,16 @@ export function handleRejectEmbargo(state: DemoState, vendorId: string): DemoSta
   }
 
   // Consequence nodes in other vendor lanes (not the rejecting vendor)
-  if (vendor1 && vendor1.visible && !vendor1.hasClosed && vendorId !== 'vendor-1') {
+  const otherVendors = getActiveVendors(newState).filter(v => v.id !== vendorId)
+
+  otherVendors.forEach(otherVendor => {
     events.push({
-      id: `${eventId}-vendor1-consequence`,
-      actor: 'Vendor',
-      participantId: 'vendor-1',
+      id: `${eventId}-${otherVendor.id}-consequence`,
+      actor: otherVendor.name,
+      participantId: otherVendor.id,
       label: 'Embargo Rejected',
       x: nextX,
-      lane: vendor1.laneIndex,
+      lane: otherVendor.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
       timestamp: now + timestampOffset,
@@ -597,30 +571,7 @@ export function handleRejectEmbargo(state: DemoState, vendorId: string): DemoSta
       ],
     })
     timestampOffset++
-  }
-
-  if (vendor2 && vendor2.visible && !vendor2.hasClosed && vendorId !== 'vendor-2') {
-    events.push({
-      id: `${eventId}-vendor2-consequence`,
-      actor: 'Vendor 2',
-      participantId: 'vendor-2',
-      label: 'Embargo Rejected',
-      x: nextX,
-      lane: vendor2.laneIndex,
-      type: 'consequence' as const,
-      causedBy: eventId,
-      timestamp: now + timestampOffset,
-      consequences: isLateJoiner ? [
-        `${vendor.name} rejected existing embargo`,
-        'Embargo remains ACTIVE',
-        `${vendor.name} excluded from participation`,
-      ] : [
-        `${vendor.name} rejected embargo`,
-        'EM state → NONE',
-        'Awaiting reproposal or continuation',
-      ],
-    })
-  }
+  })
 
   newState = addTimelineEvents(newState, events)
 
@@ -644,10 +595,6 @@ export function handleNotifyFixReady(state: DemoState, vendorId: string): DemoSt
 
   const finder = getParticipant(state, 'finder')
   const caseactor = getParticipant(state, 'caseactor')
-
-  // Get other vendors to notify them
-  const vendor1 = getParticipant(state, 'vendor-1')
-  const vendor2 = getParticipant(state, 'vendor-2')
 
   let newState = state
 
@@ -698,45 +645,27 @@ export function handleNotifyFixReady(state: DemoState, vendorId: string): DemoSt
   }
 
   // Consequence nodes in other vendor lanes (notify all other active vendors)
-  if (vendor1 && vendor1.visible && !vendor1.hasClosed && vendorId !== 'vendor-1') {
-    events.push({
-      id: `${eventId}-vendor1-consequence`,
-      actor: 'Vendor',
-      participantId: 'vendor-1',
-      label: `${vendor.name} Fix Ready`,
-      x: nextX,
-      lane: vendor1.laneIndex,
-      type: 'consequence' as const,
-      causedBy: eventId,
-      timestamp: now + timestampOffset,
-      consequences: [
-        `${vendor.name} notified: Fix is ready`,
-        `${vendor.name} VFD → VFd`,
-        'Other vendor has completed fix',
-      ],
-    })
-    timestampOffset++
-  }
+  const otherVendors = getActiveVendors(newState).filter(v => v.id !== vendorId)
 
-  if (vendor2 && vendor2.visible && !vendor2.hasClosed && vendorId !== 'vendor-2') {
+  otherVendors.forEach(otherVendor => {
     events.push({
-      id: `${eventId}-vendor2-consequence`,
-      actor: 'Vendor 2',
-      participantId: 'vendor-2',
+      id: `${eventId}-${otherVendor.id}-consequence`,
+      actor: otherVendor.name,
+      participantId: otherVendor.id,
       label: `${vendor.name} Fix Ready`,
       x: nextX,
-      lane: vendor2.laneIndex,
+      lane: otherVendor.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
       timestamp: now + timestampOffset,
       consequences: [
-        `${vendor.name} notified: Fix is ready`,
+        `${otherVendor.name} notified: Fix is ready`,
         `${vendor.name} VFD → VFd`,
         'Other vendor has completed fix',
       ],
     })
     timestampOffset++
-  }
+  })
 
   // Consequence node in CaseActor lane
   if (caseactor) {
@@ -774,8 +703,6 @@ export function handleNotifyFixDeployed(state: DemoState, vendorId: string): Dem
   const vendor = getParticipant(state, vendorId)
   const finder = getParticipant(state, 'finder')
   const caseactor = getParticipant(state, 'caseactor')
-  const vendor1 = getParticipant(state, 'vendor-1')
-  const vendor2 = getParticipant(state, 'vendor-2')
   if (!vendor) return state
 
   let newState = state
@@ -827,45 +754,27 @@ export function handleNotifyFixDeployed(state: DemoState, vendorId: string): Dem
   }
 
   // Consequence nodes in other vendor lanes
-  if (vendor1 && vendor1.visible && !vendor1.hasClosed && vendorId !== 'vendor-1') {
-    events.push({
-      id: `${eventId}-vendor1-consequence`,
-      actor: 'Vendor',
-      participantId: 'vendor-1',
-      label: `${vendor.name} Fix Deployed`,
-      x: nextX,
-      lane: vendor1.laneIndex,
-      type: 'consequence' as const,
-      causedBy: eventId,
-      timestamp: now + timestampOffset,
-      consequences: [
-        `${vendor.name} notified: Fix is deployed`,
-        `${vendor.name} VFD → VFD`,
-        'Other vendor has deployed fix',
-      ],
-    })
-    timestampOffset++
-  }
+  const otherVendors = getActiveVendors(newState).filter(v => v.id !== vendorId)
 
-  if (vendor2 && vendor2.visible && !vendor2.hasClosed && vendorId !== 'vendor-2') {
+  otherVendors.forEach(otherVendor => {
     events.push({
-      id: `${eventId}-vendor2-consequence`,
-      actor: 'Vendor 2',
-      participantId: 'vendor-2',
+      id: `${eventId}-${otherVendor.id}-consequence`,
+      actor: otherVendor.name,
+      participantId: otherVendor.id,
       label: `${vendor.name} Fix Deployed`,
       x: nextX,
-      lane: vendor2.laneIndex,
+      lane: otherVendor.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
       timestamp: now + timestampOffset,
       consequences: [
-        `${vendor.name} notified: Fix is deployed`,
+        `${otherVendor.name} notified: Fix is deployed`,
         `${vendor.name} VFD → VFD`,
         'Other vendor has deployed fix',
       ],
     })
     timestampOffset++
-  }
+  })
 
   // Consequence node in CaseActor lane
   if (caseactor) {
@@ -903,8 +812,6 @@ export function handleVendorNotifyPublished(state: DemoState, vendorId: string):
   const vendor = getParticipant(state, vendorId)
   const finder = getParticipant(state, 'finder')
   const caseactor = getParticipant(state, 'caseactor')
-  const vendor1 = getParticipant(state, 'vendor-1')
-  const vendor2 = getParticipant(state, 'vendor-2')
   if (!vendor) return state
 
   let newState = state
@@ -929,10 +836,17 @@ export function handleVendorNotifyPublished(state: DemoState, vendorId: string):
 
   // Per Vultron protocol (early_termination.md lines 32-39):
   // "Embargoes SHALL terminate immediately when information about the vulnerability becomes public."
-  // Publication (P) means public awareness, so embargo must terminate
-  const hadEmbargo = state.emState === 'ACTIVE' || state.emState === 'REVISE'
-  if (hadEmbargo) {
+  // Publication (P) means public awareness, so:
+  // - Active embargoes (ACTIVE, REVISE) must terminate → EXITED
+  // - Pending proposals (PROPOSED) become moot → NONE (as if implicitly rejected)
+  const hadActiveEmbargo = state.emState === 'ACTIVE' || state.emState === 'REVISE'
+  const hadProposedEmbargo = state.emState === 'PROPOSED'
+
+  if (hadActiveEmbargo) {
     newState = { ...newState, emState: 'EXITED' }
+  } else if (hadProposedEmbargo) {
+    // Proposal becomes invalid due to publication - treat as implicitly rejected
+    newState = { ...newState, emState: 'NONE' }
   }
 
   const events = []
@@ -952,7 +866,8 @@ export function handleVendorNotifyPublished(state: DemoState, vendorId: string):
       `${vendor.name} publishes vulnerability details`,
       `Case PXA state: ${currentPxa} → ${newPxa}`,
       'Public becomes aware (P)',
-      ...(hadEmbargo ? ['Embargo TERMINATED (public awareness)'] : []),
+      ...(hadActiveEmbargo ? ['Embargo TERMINATED (public awareness)'] : []),
+      ...(hadProposedEmbargo ? ['Embargo proposal invalidated (public awareness)'] : []),
       '✓ M6 REACHED: Public disclosure',
     ],
   })
@@ -975,54 +890,37 @@ export function handleVendorNotifyPublished(state: DemoState, vendorId: string):
         'Finder notified: Vulnerability published',
         `Case PXA state: ${newPxa}`,
         'Public disclosure (P) is now active',
-        ...(hadEmbargo ? ['Embargo TERMINATED'] : []),
+        ...(hadActiveEmbargo ? ['Embargo TERMINATED'] : []),
+        ...(hadProposedEmbargo ? ['Embargo proposal invalidated'] : []),
       ],
     })
     timestampOffset++
   }
 
   // Consequence nodes in other vendor lanes
-  if (vendor1 && vendor1.visible && !vendor1.hasClosed && vendorId !== 'vendor-1') {
-    events.push({
-      id: `${eventId}-vendor1-consequence`,
-      actor: 'Vendor',
-      participantId: 'vendor-1',
-      label: `${vendor.name} Published`,
-      x: nextX,
-      lane: vendor1.laneIndex,
-      type: 'consequence' as const,
-      causedBy: eventId,
-      timestamp: now + timestampOffset,
-      consequences: [
-        `${vendor.name} notified: Published`,
-        `Case PXA state: ${newPxa}`,
-        'Public disclosure (P) is now active',
-        ...(hadEmbargo ? ['Embargo TERMINATED'] : []),
-      ],
-    })
-    timestampOffset++
-  }
+  const otherVendors = getActiveVendors(newState).filter(v => v.id !== vendorId)
 
-  if (vendor2 && vendor2.visible && !vendor2.hasClosed && vendorId !== 'vendor-2') {
+  otherVendors.forEach(otherVendor => {
     events.push({
-      id: `${eventId}-vendor2-consequence`,
-      actor: 'Vendor 2',
-      participantId: 'vendor-2',
+      id: `${eventId}-${otherVendor.id}-consequence`,
+      actor: otherVendor.name,
+      participantId: otherVendor.id,
       label: `${vendor.name} Published`,
       x: nextX,
-      lane: vendor2.laneIndex,
+      lane: otherVendor.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
       timestamp: now + timestampOffset,
       consequences: [
-        `${vendor.name} notified: Published`,
+        `${otherVendor.name} notified: Published`,
         `Case PXA state: ${newPxa}`,
         'Public disclosure (P) is now active',
-        ...(hadEmbargo ? ['Embargo TERMINATED'] : []),
+        ...(hadActiveEmbargo ? ['Embargo TERMINATED'] : []),
+        ...(hadProposedEmbargo ? ['Embargo proposal invalidated'] : []),
       ],
     })
     timestampOffset++
-  }
+  })
 
   // Consequence node in CaseActor lane
   if (caseactor) {
@@ -1039,7 +937,8 @@ export function handleVendorNotifyPublished(state: DemoState, vendorId: string):
       consequences: [
         '✓ M6 REACHED: Public disclosure',
         `Case PXA state: ${newPxa}`,
-        ...(hadEmbargo ? ['Embargo TERMINATED (EM → EXITED)'] : []),
+        ...(hadActiveEmbargo ? ['Embargo TERMINATED (EM → EXITED)'] : []),
+        ...(hadProposedEmbargo ? ['Embargo proposal invalidated (EM → NONE)'] : []),
         'Authoritative ledger updated',
         'All participants notified',
       ],
@@ -1061,8 +960,6 @@ export function handleVendorReplyNote(state: DemoState, vendorId: string): DemoS
 
   const vendor = getParticipant(state, vendorId)
   const finder = getParticipant(state, 'finder')
-  const vendor1 = getParticipant(state, 'vendor-1')
-  const vendor2 = getParticipant(state, 'vendor-2')
   const caseactor = getParticipant(state, 'caseactor')
   if (!vendor) return state
 
@@ -1123,45 +1020,27 @@ export function handleVendorReplyNote(state: DemoState, vendorId: string): DemoS
   }
 
   // Consequence nodes in other vendor lanes (not the replying vendor)
-  if (vendor1 && vendor1.visible && !vendor1.hasClosed && vendor1.rmState !== 'DECLINED' && vendorId !== 'vendor-1') {
-    events.push({
-      id: `${eventId}-vendor1-consequence`,
-      actor: 'Vendor',
-      participantId: 'vendor-1',
-      label: 'Reply Received',
-      x: nextX,
-      lane: vendor1.laneIndex,
-      type: 'consequence' as const,
-      causedBy: eventId,
-      timestamp: now + timestampOffset,
-      consequences: [
-        `${vendor.name} replied to question`,
-        'Reply delivered to Vendor\'s DataLayer',
-        'Can see vendor response',
-      ],
-    })
-    timestampOffset++
-  }
+  const otherVendors = getActiveVendors(newState).filter(v => v.id !== vendorId && v.rmState !== 'DECLINED')
 
-  if (vendor2 && vendor2.visible && !vendor2.hasClosed && vendor2.rmState !== 'DECLINED' && vendorId !== 'vendor-2') {
+  otherVendors.forEach(otherVendor => {
     events.push({
-      id: `${eventId}-vendor2-consequence`,
-      actor: 'Vendor 2',
-      participantId: 'vendor-2',
+      id: `${eventId}-${otherVendor.id}-consequence`,
+      actor: otherVendor.name,
+      participantId: otherVendor.id,
       label: 'Reply Received',
       x: nextX,
-      lane: vendor2.laneIndex,
+      lane: otherVendor.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
       timestamp: now + timestampOffset,
       consequences: [
         `${vendor.name} replied to question`,
-        'Reply delivered to Vendor 2\'s DataLayer',
+        `Reply delivered to ${otherVendor.name}'s DataLayer`,
         'Can see vendor response',
       ],
     })
     timestampOffset++
-  }
+  })
 
   // Consequence node in CaseActor lane
   if (caseactor) {
@@ -1198,8 +1077,6 @@ export function handleVendorCloseCase(state: DemoState, vendorId: string): DemoS
 
   const vendor = getParticipant(state, vendorId)
   const finder = getParticipant(state, 'finder')
-  const vendor1 = getParticipant(state, 'vendor-1')
-  const vendor2 = getParticipant(state, 'vendor-2')
   const caseactor = getParticipant(state, 'caseactor')
   if (!vendor) return state
 
@@ -1255,45 +1132,27 @@ export function handleVendorCloseCase(state: DemoState, vendorId: string): DemoS
   }
 
   // Consequence nodes in other vendor lanes (not the closing vendor)
-  if (vendor1 && vendor1.visible && !vendor1.hasClosed && vendor1.rmState !== 'DECLINED' && vendorId !== 'vendor-1') {
-    events.push({
-      id: `${eventId}-vendor1-consequence`,
-      actor: 'Vendor',
-      participantId: 'vendor-1',
-      label: `${vendor.name} Closed`,
-      x: nextX,
-      lane: vendor1.laneIndex,
-      type: 'consequence' as const,
-      causedBy: eventId,
-      timestamp: now + timestampOffset,
-      consequences: [
-        `${vendor.name} closed their participation`,
-        `${vendor.name} participant RM → CLOSED`,
-        'Vendor can still continue work',
-      ],
-    })
-    timestampOffset++
-  }
+  const otherVendors = getActiveVendors(newState).filter(v => v.id !== vendorId && v.rmState !== 'DECLINED')
 
-  if (vendor2 && vendor2.visible && !vendor2.hasClosed && vendor2.rmState !== 'DECLINED' && vendorId !== 'vendor-2') {
+  otherVendors.forEach(otherVendor => {
     events.push({
-      id: `${eventId}-vendor2-consequence`,
-      actor: 'Vendor 2',
-      participantId: 'vendor-2',
+      id: `${eventId}-${otherVendor.id}-consequence`,
+      actor: otherVendor.name,
+      participantId: otherVendor.id,
       label: `${vendor.name} Closed`,
       x: nextX,
-      lane: vendor2.laneIndex,
+      lane: otherVendor.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
       timestamp: now + timestampOffset,
       consequences: [
         `${vendor.name} closed their participation`,
         `${vendor.name} participant RM → CLOSED`,
-        'Vendor 2 can still continue work',
+        `${otherVendor.name} can still continue work`,
       ],
     })
     timestampOffset++
-  }
+  })
 
   // Consequence node in CaseActor lane
   if (caseactor) {
