@@ -58,6 +58,7 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     SyncLogEntryRequest,
 )
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.protocols import is_case_model
 from vultron.wire.as2.vocab.objects.case_log_entry import (
     CaseLogEntry as WireCaseLogEntry,
 )
@@ -65,6 +66,18 @@ from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.core.ports.trigger_service import TriggerServicePort
 
 router = APIRouter(prefix="/actors", tags=["Demo Triggers"])
+
+
+def _resolve_case_id(case_key: str, dl: DataLayer) -> str:
+    case_obj = dl.read(case_key)
+    if case_obj is None or not is_case_model(case_obj):
+        case_obj = dl.find_case_by_short_id(case_key)
+    if case_obj is None or not is_case_model(case_obj):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Case not found.",
+        )
+    return case_obj.id_
 
 
 @router.post(
@@ -320,7 +333,7 @@ def demo_close_case(
 
 
 @router.get(
-    "/{actor_id}/demo/cases/{case_id:path}/log",
+    "/{actor_id}/demo/cases/{case_id}/log",
     status_code=status.HTTP_200_OK,
     summary="[Demo] List all case log entries for a case, sorted by log_index.",
     description=(
@@ -357,11 +370,12 @@ def demo_get_case_log(
 
     Demo/observability only — do not expose as a participant-facing endpoint.
     """
+    canonical_case_id = _resolve_case_id(case_id, dl)
     raw_entries = [
         e
         for e in dl.list_objects("CaseLogEntry")
         if isinstance(e, (VultronCaseLogEntry, WireCaseLogEntry))
-        and e.case_id == case_id
+        and e.case_id == canonical_case_id
     ]
     raw_entries.sort(key=lambda e: e.log_index)
     payloads = [e.model_dump(mode="json", by_alias=True) for e in raw_entries]
@@ -374,7 +388,7 @@ def demo_get_case_log(
 
 
 @router.get(
-    "/{actor_id}/demo/cases/{case_id:path}/log/{index}",
+    "/{actor_id}/demo/cases/{case_id}/log/{index}",
     status_code=status.HTTP_200_OK,
     summary="[Demo] Get a single case log entry by log_index.",
     description=(
@@ -400,7 +414,8 @@ def demo_get_case_log_entry(
 
     Demo/observability only — do not expose as a participant-facing endpoint.
     """
-    entry_id = f"{case_id}/log/{index}"
+    canonical_case_id = _resolve_case_id(case_id, dl)
+    entry_id = f"{canonical_case_id}/log/{index}"
     obj = dl.read(entry_id)
     if not isinstance(obj, (VultronCaseLogEntry, WireCaseLogEntry)):
         raise HTTPException(

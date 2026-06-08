@@ -71,6 +71,10 @@ class CasePersistence(Protocol):
         self, short_id: str
     ) -> PersistableModel | None: ...
 
+    def find_case_by_short_id(
+        self, short_id: str
+    ) -> PersistableModel | None: ...
+
 
 class CaseOutboxPersistence(CasePersistence, Protocol):
     """CasePersistence extended for use cases that enqueue outbound activities.

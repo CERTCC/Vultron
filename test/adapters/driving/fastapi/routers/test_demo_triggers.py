@@ -25,6 +25,7 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
+from vultron.adapters.utils import strip_id_prefix
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
     get_trigger_dl,
@@ -44,6 +45,10 @@ from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+
+
+def _route_key(object_id: str) -> str:
+    return strip_id_prefix(object_id)
 
 
 def _add_case_manager(case: VulnerabilityCase, dl) -> as_Service:
@@ -347,19 +352,20 @@ def _make_log_entry(dl, case_id: str, log_index: int) -> object:
 
 
 # ---------------------------------------------------------------------------
-# Tests: GET /actors/{actor_id}/demo/cases/{case_id:path}/log
+# Tests: GET /actors/{actor_id}/demo/cases/{case_id}/log
 # ---------------------------------------------------------------------------
 
 
 class TestDemoGetCaseLog:
-    """Tests for GET /actors/{actor_id}/demo/cases/{case_id:path}/log."""
+    """Tests for GET /actors/{actor_id}/demo/cases/{case_id}/log."""
 
     def test_returns_200_empty_list_when_no_entries(
         self, client_demo: TestClient, actor, case_with_actor
     ):
         """Returns HTTP 200 and empty array when no log entries exist."""
         response = client_demo.get(
-            f"/actors/{actor.id_}/demo/cases/{case_with_actor.id_}/log"
+            f"/actors/{actor.id_}/demo/cases/"
+            f"{_route_key(case_with_actor.id_)}/log"
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json() == []
@@ -373,7 +379,8 @@ class TestDemoGetCaseLog:
         _make_log_entry(dl, case_with_actor.id_, log_index=1)
 
         response = client_demo.get(
-            f"/actors/{actor.id_}/demo/cases/{case_with_actor.id_}/log"
+            f"/actors/{actor.id_}/demo/cases/"
+            f"{_route_key(case_with_actor.id_)}/log"
         )
         assert response.status_code == status.HTTP_200_OK
         entries = response.json()
@@ -394,7 +401,8 @@ class TestDemoGetCaseLog:
         _make_log_entry(dl, other_case.id_, log_index=0)
 
         response = client_demo.get(
-            f"/actors/{actor.id_}/demo/cases/{case_with_actor.id_}/log"
+            f"/actors/{actor.id_}/demo/cases/"
+            f"{_route_key(case_with_actor.id_)}/log"
         )
         entries = response.json()
         assert len(entries) == 1
@@ -410,7 +418,8 @@ class TestDemoGetCaseLog:
         _make_log_entry(dl, case_with_actor.id_, log_index=1)
 
         response = client_demo.get(
-            f"/actors/{actor.id_}/demo/cases/{case_with_actor.id_}/log",
+            f"/actors/{actor.id_}/demo/cases/"
+            f"{_route_key(case_with_actor.id_)}/log",
             headers={"accept": "application/x-ndjson"},
         )
         assert response.status_code == status.HTTP_200_OK
@@ -432,7 +441,8 @@ class TestDemoGetCaseLog:
         _make_log_entry(dl, case_with_actor.id_, log_index=0)
 
         response = client_demo.get(
-            f"/actors/{actor.id_}/demo/cases/{case_with_actor.id_}/log",
+            f"/actors/{actor.id_}/demo/cases/"
+            f"{_route_key(case_with_actor.id_)}/log",
             params={"format": "ndjson"},
         )
         assert response.status_code == status.HTTP_200_OK
@@ -442,16 +452,18 @@ class TestDemoGetCaseLog:
         parsed = _json.loads(response.text.strip())
         assert parsed["logIndex"] == 0
 
-    def test_list_with_http_url_case_id(
+    def test_list_with_http_url_case_id_surrogate_key(
         self, client_demo: TestClient, actor, dl
     ):
-        """Handles case IDs containing slashes (HTTP URLs) in the path."""
+        """Resolves HTTP URL case IDs through their surrogate key."""
         http_case_id = "https://example.org/cases/demo/123"
+        case = VulnerabilityCase(id_=http_case_id, name="HTTP Case")
+        dl.create(case)
         _make_log_entry(dl, http_case_id, log_index=0)
         _make_log_entry(dl, http_case_id, log_index=1)
 
         response = client_demo.get(
-            f"/actors/{actor.id_}/demo/cases/{http_case_id}/log"
+            f"/actors/{actor.id_}/demo/cases/{_route_key(http_case_id)}/log"
         )
         assert response.status_code == status.HTTP_200_OK
         entries = response.json()
@@ -461,12 +473,12 @@ class TestDemoGetCaseLog:
 
 
 # ---------------------------------------------------------------------------
-# Tests: GET /actors/{actor_id}/demo/cases/{case_id:path}/log/{index}
+# Tests: GET /actors/{actor_id}/demo/cases/{case_id}/log/{index}
 # ---------------------------------------------------------------------------
 
 
 class TestDemoGetCaseLogEntry:
-    """Tests for GET /actors/{actor_id}/demo/cases/{case_id:path}/log/{index}."""
+    """Tests for GET /actors/{actor_id}/demo/cases/{case_id}/log/{index}."""
 
     def test_returns_correct_entry(
         self, client_demo: TestClient, actor, case_with_actor, dl
@@ -476,7 +488,8 @@ class TestDemoGetCaseLogEntry:
         _make_log_entry(dl, case_with_actor.id_, log_index=1)
 
         response = client_demo.get(
-            f"/actors/{actor.id_}/demo/cases/{case_with_actor.id_}/log/1"
+            f"/actors/{actor.id_}/demo/cases/"
+            f"{_route_key(case_with_actor.id_)}/log/1"
         )
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -489,7 +502,8 @@ class TestDemoGetCaseLogEntry:
     ):
         """Returns HTTP 404 when no entry exists at the given index."""
         response = client_demo.get(
-            f"/actors/{actor.id_}/demo/cases/{case_with_actor.id_}/log/99"
+            f"/actors/{actor.id_}/demo/cases/"
+            f"{_route_key(case_with_actor.id_)}/log/99"
         )
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -498,19 +512,22 @@ class TestDemoGetCaseLogEntry:
     ):
         """Negative index returns HTTP 422 (Path(ge=0) validation)."""
         response = client_demo.get(
-            f"/actors/{actor.id_}/demo/cases/{case_with_actor.id_}/log/-1"
+            f"/actors/{actor.id_}/demo/cases/"
+            f"{_route_key(case_with_actor.id_)}/log/-1"
         )
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
-    def test_single_entry_with_http_url_case_id(
+    def test_single_entry_with_http_url_case_id_surrogate_key(
         self, client_demo: TestClient, actor, dl
     ):
-        """Handles case IDs containing slashes (HTTP URLs) in the path."""
+        """Resolves HTTP URL case IDs through their surrogate key."""
         http_case_id = "https://example.org/cases/demo/456"
+        case = VulnerabilityCase(id_=http_case_id, name="HTTP Case")
+        dl.create(case)
         _make_log_entry(dl, http_case_id, log_index=0)
 
         response = client_demo.get(
-            f"/actors/{actor.id_}/demo/cases/{http_case_id}/log/0"
+            f"/actors/{actor.id_}/demo/cases/{_route_key(http_case_id)}/log/0"
         )
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -524,7 +541,8 @@ class TestDemoGetCaseLogEntry:
         _make_log_entry(dl, case_with_actor.id_, log_index=0)
 
         response = client_demo.get(
-            f"/actors/{actor.id_}/demo/cases/{case_with_actor.id_}/log/0"
+            f"/actors/{actor.id_}/demo/cases/"
+            f"{_route_key(case_with_actor.id_)}/log/0"
         )
         data = response.json()
         # camelCase aliases should be present
