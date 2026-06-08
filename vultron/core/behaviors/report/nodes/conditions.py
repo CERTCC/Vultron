@@ -17,8 +17,10 @@
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerCondition
-from vultron.core.models.protocols import is_case_model, is_participant_model
+from vultron.core.behaviors.helpers import (
+    DataLayerCondition,
+    FindParticipantByActorIdNode,
+)
 from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import _report_phase_status_id
 
@@ -291,7 +293,7 @@ class EvaluateCasePriority(DataLayerCondition):
         return Status.SUCCESS
 
 
-class CheckParticipantExists(DataLayerCondition):
+class CheckParticipantExists(FindParticipantByActorIdNode):
     """
     Check if actor has a CaseParticipant record in the specified case.
 
@@ -313,58 +315,9 @@ class CheckParticipantExists(DataLayerCondition):
             actor_id: ID of Actor to find in case_participants
             name: Optional custom node name (defaults to class name)
         """
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.actor_id = actor_id
-
-    def update(self) -> Status:
-        """
-        Check whether actor has a CaseParticipant in the case.
-
-        Returns:
-            SUCCESS if participant found, FAILURE otherwise
-        """
-        if self.datalayer is None:
-            self.logger.error(f"{self.name}: DataLayer not available")
-            return Status.FAILURE
-
-        try:
-            case_obj = self.datalayer.read(
-                self.case_id, raise_on_missing=False
-            )
-            if not is_case_model(case_obj):
-                self.logger.debug(
-                    f"{self.name}: Case {self.case_id} not found"
-                )
-                return Status.FAILURE
-
-            for participant_ref in case_obj.case_participants:
-                if isinstance(participant_ref, str):
-                    participant_raw = self.datalayer.read(participant_ref)
-                    if participant_raw is None:
-                        continue
-                else:
-                    participant_raw = participant_ref
-                if not is_participant_model(participant_raw):
-                    continue
-                participant = participant_raw
-                actor_ref = participant.attributed_to
-                p_actor_id = (
-                    actor_ref
-                    if isinstance(actor_ref, str)
-                    else getattr(actor_ref, "id_", str(actor_ref))
-                )
-                if p_actor_id == self.actor_id:
-                    self.logger.debug(
-                        f"{self.name}: Participant found for actor {self.actor_id} in case {self.case_id}"
-                    )
-                    return Status.SUCCESS
-
-            self.logger.debug(
-                f"{self.name}: No participant for actor {self.actor_id} in case {self.case_id}"
-            )
-            return Status.FAILURE
-
-        except Exception as e:
-            self.logger.error(f"{self.name}: Error checking participant: {e}")
-            return Status.FAILURE
+        super().__init__(
+            case_id=case_id,
+            target_actor_id=actor_id,
+            participant_key="participant",
+            name=name or self.__class__.__name__,
+        )

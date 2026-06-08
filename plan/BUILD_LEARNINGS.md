@@ -15,3 +15,12 @@ header.
 - Case-key resolution should continue to short-key fallback even when
   `dl.read(key)` returns a non-case object; otherwise non-case IDs can shadow
   valid case keys and produce false 404/validation failures.
+  
+### 2026-06-08 ISSUE-757 — Shared participant lookup must support both case participant surfaces
+
+- `VulnerabilityCase` fixtures and call sites are mixed: some populate
+  `case_participants`, others rely on `actor_participant_index`.
+- A shared BT lookup node that only scans `case_participants` regresses
+  status workflows that previously used `actor_participant_index` checks.
+- The reusable participant-finder logic should seed from the
+  `actor_participant_index` direct hit first, then scan `case_participants`.

@@ -47,7 +47,11 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.nodes import TerminateEmbargoNode
-from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.behaviors.helpers import (
+    DataLayerAction,
+    DataLayerCondition,
+    FindParticipantByActorIdNode,
+)
 from vultron.core.models.protocols import (
     PersistableModel,
     is_case_model,
@@ -88,7 +92,7 @@ def _find_case_manager_id(dl: "CasePersistence", case: Any) -> str | None:
     return None
 
 
-class VerifySenderIsParticipantNode(DataLayerCondition):
+class VerifySenderIsParticipantNode(FindParticipantByActorIdNode):
     """Step 1: Verify the activity actor is a known case participant.
 
     Returns SUCCESS if the actor is registered in
@@ -108,14 +112,19 @@ class VerifySenderIsParticipantNode(DataLayerCondition):
         case_id: str | None,
         name: str | None = None,
     ):
-        super().__init__(name=name or self.__class__.__name__)
+        super().__init__(
+            case_id=case_id or "",
+            target_actor_id=sender_actor_id,
+            participant_key="sender_participant",
+            name=name or self.__class__.__name__,
+        )
         self.status_id = status_id
         self.sender_actor_id = sender_actor_id
-        self.case_id = case_id
+        self._case_id_hint = case_id
 
     def _resolve_case_id(self) -> str | None:
-        if self.case_id:
-            return self.case_id
+        if self._case_id_hint:
+            return self._case_id_hint
         assert self.datalayer is not None
         status_raw = self.datalayer.read(self.status_id)
         if status_raw is None:
@@ -138,19 +147,9 @@ class VerifySenderIsParticipantNode(DataLayerCondition):
             )
             return Status.FAILURE
 
-        case = self.datalayer.read(case_id)
-        if not is_case_model(case):
-            self.feedback_message = f"Case '{case_id}' not found"
-            self.logger.warning(
-                "VerifySenderIsParticipant: %s", self.feedback_message
-            )
-            return Status.FAILURE
-
-        if self.sender_actor_id not in case.actor_participant_index:
-            self.feedback_message = (
-                f"Actor '{self.sender_actor_id}' is not a known participant"
-                f" of case '{case_id}'"
-            )
+        self.case_id = case_id
+        result = super().update()
+        if result == Status.FAILURE:
             self.logger.warning(
                 "VerifySenderIsParticipant: %s (DEMOMA-07-003 step 1)",
                 self.feedback_message,
