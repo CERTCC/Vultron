@@ -289,6 +289,11 @@ Short entries are reproduced here; longer ones are referenced below.
 - **Case-Actor Broadcast Guard Tests Need a Third Participant** — Positive
   tests for Case Manager broadcast fan-out must include at least one non-sender
   peer, or the broadcast-addressing assertion becomes vacuous.
+- **Case Participant Lookup Must Fail Fast on Surface Divergence** —
+  `case_participants` is the source of truth and `actor_participant_index` is
+  only a derived lookup cache. Lookup helpers must not silently choose the
+  populated surface; if the surfaces disagree, surface the mismatch and fix the
+  write path or fixture.
 - **Orphan Module Cleanup Requires Importer Proof** — Before deleting
   scaffolding or suspected-dead modules, verify there are no live importers in
   both `vultron/` and `test/`; then prefer deletion over leaving dead code.
