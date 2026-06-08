@@ -232,6 +232,10 @@ function App() {
           newState = vendorActions.handleValidateReport(newState, participantId)
         } else if (actionId === 'invalidate-report') {
           newState = vendorActions.handleInvalidateReport(newState, participantId)
+        } else if (actionId === 'accept-report') {
+          newState = vendorActions.handleAcceptReport(newState, participantId)
+        } else if (actionId === 'defer-report') {
+          newState = vendorActions.handleDeferReport(newState, participantId)
         } else if (actionId === 'accept-embargo') {
           newState = vendorActions.handleAcceptEmbargo(newState, participantId)
         } else if (actionId === 'reject-embargo') {

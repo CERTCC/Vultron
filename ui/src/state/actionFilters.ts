@@ -48,12 +48,13 @@ export function getFinderActions(state: DemoState): Action[] {
     return actions
   }
 
-  // NOTE: Embargo handling is now in activeCasePhases block below
-  // This ensures communication/VFD and EM are independent per Vultron protocol
+  // NOTE: Embargo handling and communication are independent per Vultron protocol
 
-  // Active case phases
-  const activeCasePhases = ['report-validated', 'report-invalidated', 'embargo-proposed', 'embargo-accepted', 'finder-asked', 'fix-ready', 'fix-deployed']
-  if (activeCasePhases.includes(state.phase) && !finder.hasClosed) {
+  // Finder can communicate throughout the CVD process (after report is received)
+  // Only blocked when: Finder has closed, or case hasn't started yet
+  const caseIsActive = state.phase !== 'start' && !finder.hasClosed
+
+  if (caseIsActive) {
     const actions: Action[] = []
 
     // Embargo response actions (EM state machine - independent of other activities and phase)
@@ -194,7 +195,7 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   if (vendor.rmState === 'DECLINED') return []
 
   const isVendor1 = vendorId === 'vendor-1'
-  const vendorActivePhases = ['report-received', 'report-validated', 'report-invalidated', 'embargo-proposed', 'embargo-rejected', 'embargo-accepted', 'finder-asked', 'fix-ready', 'fix-deployed', 'vendor-published']
+  const vendorActivePhases = ['report-received', 'report-validated', 'report-accepted', 'report-deferred', 'report-invalidated', 'embargo-proposed', 'embargo-rejected', 'embargo-accepted', 'finder-asked', 'fix-ready', 'fix-deployed', 'vendor-published']
 
   // Per-participant RM state: vendor marked report as invalid
   // Per Vultron protocol: INVALID can transition to VALID (reconsideration) or CLOSED
@@ -263,6 +264,38 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
       })
     }
 
+    // Prioritization actions - after validation, vendor must accept or defer
+    // Per Vultron protocol: VALID → ACCEPTED or VALID → DEFERRED
+    if (vendor.rmState === 'VALID') {
+      actions.push({
+        id: 'accept-report',
+        label: 'Accept Report',
+        description: 'Accept the report and commit to working on it (RM: VALID → ACCEPTED)',
+        enabled: true,
+      }, {
+        id: 'defer-report',
+        label: 'Defer Report',
+        description: 'Defer the report for later consideration (RM: VALID → DEFERRED)',
+        enabled: true,
+      })
+    }
+
+    // Resume work on deferred report
+    // Per Vultron protocol: DEFERRED → ACCEPTED or DEFERRED → CLOSED
+    if (vendor.rmState === 'DEFERRED') {
+      actions.push({
+        id: 'accept-report',
+        label: 'Resume Work (Accept)',
+        description: 'Resume work on the deferred report (RM: DEFERRED → ACCEPTED)',
+        enabled: true,
+      }, {
+        id: 'vendor-close-case',
+        label: 'Close Deferred Report',
+        description: 'Close the deferred report (RM: DEFERRED → CLOSED)',
+        enabled: true,
+      })
+    }
+
     // Reply to questions - each vendor can reply independently
     // Per Vultron protocol: notes are case-wide with inReplyTo relationships
     if (state.phase === 'finder-asked' && !vendor.hasRepliedToCurrentNote) {
@@ -286,10 +319,8 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
 
     // VFD progression - each vendor can progress independently
     // Per Vultron protocol: Fix Ready can only occur when vendor is in RM.ACCEPTED state
-    // Demo simplifies by allowing VALID state (skipping explicit ACCEPT action)
-    // MUST block VFD progression when report is INVALID, RECEIVED, or START
-    const blockedRmStates = ['INVALID', 'RECEIVED', 'START', 'DECLINED']
-    const canProgressVFD = !blockedRmStates.includes(vendor.rmState)
+    // Vendors in VALID or DEFERRED must first accept before progressing VFD
+    const canProgressVFD = vendor.rmState === 'ACCEPTED'
 
     if (vendor.vfdState === 'Vfd' && canProgressVFD) {
       actions.push({
@@ -378,11 +409,16 @@ export function getCaseActorActions(state: DemoState): Action[] {
   const caseActor = getParticipant(state, 'caseactor')
   if (!caseActor || !caseActor.visible) return []
 
-  // Can propose embargo after validation
-  if (state.phase === 'report-validated' || state.phase === 'embargo-rejected') {
+  // Per Vultron protocol: CaseActor can propose embargo when:
+  // - EM is NONE (no embargo yet) or was rejected
+  // - At least one vendor is in active RM state (RECEIVED, VALID, ACCEPTED)
+  // Protocol allows embargo proposals even if a vendor has invalidated (rm_em.md lines 155-162)
+  const canProposeEmbargo = (state.emState === 'NONE' || state.phase === 'embargo-rejected')
+
+  if (canProposeEmbargo) {
     return [{
       id: 'propose-embargo',
-      label: 'Propose 90-day Embargo',
+      label: 'Propose Embargo',
       description: 'Propose a 90-day coordinated disclosure embargo',
       enabled: true,
     }]

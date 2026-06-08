@@ -82,6 +82,140 @@ export function handleValidateReport(state: DemoState, vendorId: string): DemoSt
   return newState
 }
 
+export function handleAcceptReport(state: DemoState, vendorId: string): DemoState {
+  const nextX = state.nextXPosition
+  const eventId = `event-${state.timelineEvents.length + 1}`
+  const now = Date.now()
+
+  const vendor = getParticipant(state, vendorId)
+  if (!vendor) return state
+
+  let newState = state
+
+  newState = updateParticipant(newState, vendorId, { rmState: 'ACCEPTED' })
+  newState = setPhase(newState, 'report-accepted')
+
+  const activeLanes = getActiveParticipants(newState)
+  const events = []
+  let timestampOffset = 0
+
+  // Decision node in accepting vendor's lane
+  events.push({
+    id: eventId,
+    actor: vendor.name,
+    participantId: vendorId,
+    label: 'Accept Report',
+    x: nextX,
+    lane: vendor.laneIndex,
+    type: 'decision' as const,
+    timestamp: now + timestampOffset++,
+    consequences: [
+      'Accept(Report) activity created',
+      `${vendor.name} RM state: ${vendor.rmState} → ACCEPTED`,
+      'Report accepted and prioritized',
+      'Vendor commits to working on fix',
+    ],
+  })
+
+  // Consequence nodes for ALL other active participants
+  activeLanes
+    .filter(p => p.id !== vendorId)
+    .forEach(participant => {
+      events.push({
+        id: `${eventId}-${participant.id}-consequence`,
+        actor: participant.name,
+        participantId: participant.id,
+        label: 'Acceptance Noted',
+        x: nextX,
+        lane: participant.laneIndex,
+        type: 'consequence' as const,
+        causedBy: eventId,
+        timestamp: now + timestampOffset++,
+        consequences: [
+          'Accept activity received',
+          `${vendor.name} has accepted the report`,
+          `${vendor.name} RM → ACCEPTED`,
+          participant.id === 'caseactor'
+            ? 'Authoritative ledger updated'
+            : 'Vendor committed to fix development',
+        ],
+      })
+    })
+
+  newState = addTimelineEvents(newState, events)
+  newState = addEventLogEntries(newState, [`${vendor.name} accepted the report (RM → ACCEPTED)`])
+  newState = incrementXPosition(newState)
+
+  return newState
+}
+
+export function handleDeferReport(state: DemoState, vendorId: string): DemoState {
+  const nextX = state.nextXPosition
+  const eventId = `event-${state.timelineEvents.length + 1}`
+  const now = Date.now()
+
+  const vendor = getParticipant(state, vendorId)
+  if (!vendor) return state
+
+  let newState = state
+
+  newState = updateParticipant(newState, vendorId, { rmState: 'DEFERRED' })
+  newState = setPhase(newState, 'report-deferred')
+
+  const activeLanes = getActiveParticipants(newState)
+  const events = []
+  let timestampOffset = 0
+
+  // Decision node in deferring vendor's lane
+  events.push({
+    id: eventId,
+    actor: vendor.name,
+    participantId: vendorId,
+    label: 'Defer Report',
+    x: nextX,
+    lane: vendor.laneIndex,
+    type: 'decision' as const,
+    timestamp: now + timestampOffset++,
+    consequences: [
+      'Defer(Report) activity created',
+      `${vendor.name} RM state: VALID → DEFERRED`,
+      'Report deferred for later consideration',
+      'Work paused pending re-prioritization',
+    ],
+  })
+
+  // Consequence nodes for ALL other active participants
+  activeLanes
+    .filter(p => p.id !== vendorId)
+    .forEach(participant => {
+      events.push({
+        id: `${eventId}-${participant.id}-consequence`,
+        actor: participant.name,
+        participantId: participant.id,
+        label: 'Deferral Noted',
+        x: nextX,
+        lane: participant.laneIndex,
+        type: 'consequence' as const,
+        causedBy: eventId,
+        timestamp: now + timestampOffset++,
+        consequences: [
+          'Defer activity received',
+          `${vendor.name} has deferred the report`,
+          `${vendor.name} RM → DEFERRED`,
+          participant.id === 'caseactor'
+            ? 'Authoritative ledger updated'
+            : 'Vendor has paused work',
+        ],
+      })
+    })
+
+  newState = addTimelineEvents(newState, events)
+  newState = addEventLogEntries(newState, [`${vendor.name} deferred the report (RM → DEFERRED)`])
+  newState = incrementXPosition(newState)
+
+  return newState
+}
+
 export function handleInvalidateReport(state: DemoState, vendorId: string): DemoState {
   const nextX = state.nextXPosition
   const eventId = `event-${state.timelineEvents.length + 1}`
