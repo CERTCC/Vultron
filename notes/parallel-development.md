@@ -64,7 +64,7 @@ Use minimum depth. Many Epics will have leaf Tasks with no Subtasks.
 | `size:M` | Agent at issue creation + PR open | 3–6 ACs or 51–300 diff lines |
 | `size:L` | Agent at issue creation + PR open | 7+ ACs or 301+ diff lines |
 | `stale-claim` | Stale-claim sweeper (GH Actions) | Orphaned claim; skip until human clears |
-| `needs-rebase` | Build agent | PR has unresolvable merge conflicts |
+| `needs-rebase` | Build agent | PR or task branch has merge conflicts that must be rebased |
 | `specs-notes` | ingest-idea, learn | Docs-only PR containing only specs/ and notes/ changes |
 | `concern` | process-concerns, new-concern, ingest-concern | Technical risk, debt, or fragile area |
 
@@ -87,8 +87,9 @@ and Epic sub-issue relationships instead of labels.
 6. gh issue comment <N> --body "Claimed by <agent-session> on branch task/<N>-<slug>"
 7. Implement, validate, code-review (address [BLOCKING] findings)
 8. Compute diff size → update size label on Issue and future PR
-9. git push -u origin task/<N>-<slug>
-10. gh pr create --title "..." --body "Closes #<N>\n\n..." --label size:X
+9. git fetch origin main && git rebase origin/main
+10. git push -u origin task/<N>-<slug>
+11. gh pr create --title "..." --body "Closes #<N>\n\n..." --label size:X
 ```
 
 ---
