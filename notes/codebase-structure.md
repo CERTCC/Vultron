@@ -398,9 +398,14 @@ identifiers:
 ```python
 """
 To see BT execution details, run with `DEBUG` logging enabled:
-`LOG_LEVEL=DEBUG uvicorn vultron.api.main:app --port 7999`
+`LOG_LEVEL=DEBUG uvicorn vultron.adapters.driving.fastapi.main:app --port 7999`
 """
 ```
+
+The canonical deployment entrypoint is
+`vultron.adapters.driving.fastapi.main:app`. Treat legacy
+`vultron.api.main:app` references in demo-facing text as stale and do not copy
+them into new docs.
 
 ### Documentation Links
 
