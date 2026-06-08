@@ -313,6 +313,12 @@ Short entries are reproduced here; longer ones are referenced below.
 - **All Protocol-Significant Behavior MUST Be in the BT** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Protocol Event Cascades (Cascading Automation)** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Post-BT Procedural Cascade Anti-Pattern** — see [notes/bt-integration.md](notes/bt-integration.md)
+- **Peer Broadcast Nodes Must Not Mask Delivery Failure with SUCCESS** — For
+  protocol-visible fan-out, BT nodes/subtrees MUST return `FAILURE` when
+  activity construction or outbox enqueue fails. A guaranteed SUCCESS fallback
+  causes silent state divergence across peers. See
+  [notes/peer-broadcast-failure-semantics.md](notes/peer-broadcast-failure-semantics.md)
+  and `specs/behavior-tree-integration.yaml` BT-14-001.
 - **BT Node MUST NOT Call a Use Case** — A BT node's `update()` MUST NOT
   instantiate or call a use-case class. Use cases create BTs; BT nodes are
   leaves of those trees. Calling a use case from inside a node creates an
