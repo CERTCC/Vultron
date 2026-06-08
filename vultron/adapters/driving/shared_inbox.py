@@ -14,3 +14,18 @@ Future implementation will:
 The shared inbox is a driving adapter because it triggers the core (fan-out
 use case), but it also interacts with the driven delivery queue adapter.
 """
+
+
+class SharedInboxAdapter:
+    """Future ActivityPub shared-inbox adapter.
+
+    This adapter is intentionally unimplemented until the full OX-11 shared
+    inbox fan-out design (signature validation + per-actor fan-out queueing)
+    is ready to land.
+    """
+
+    def __init__(self) -> None:
+        raise NotImplementedError(
+            "SharedInboxAdapter is not implemented yet "
+            "(specs/outbox.yaml OX-11-001 through OX-11-004)."
+        )

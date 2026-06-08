@@ -24,3 +24,11 @@ header.
   status workflows that previously used `actor_participant_index` checks.
 - The reusable participant-finder logic should seed from the
   `actor_participant_index` direct hit first, then scan `case_participants`.
+
+### 2026-06-08 ISSUE-718 — Shared-inbox stubs must fail fast with a concrete type
+
+- A docstring-only adapter stub does not satisfy OX-11-004 because accidental
+  imports/callers get no runtime signal.
+- Stubbed transport adapters should define an explicit class and raise
+  `NotImplementedError` in `__init__` with spec reference context so failures
+  are immediate and diagnosable.
