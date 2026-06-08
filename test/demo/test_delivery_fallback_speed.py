@@ -16,7 +16,7 @@
 
 Demo actors use fictional URLs (e.g. ``https://vultron.example/...``) that
 cannot be reached via HTTP.  The ``ASGIEmitter`` correctly classifies these
-as non-local and delegates to a ``DeliveryQueueAdapter`` HTTP fallback.
+as non-local and delegates to a ``DemoHttpDeliveryAdapter`` HTTP fallback.
 
 In production the fallback's retry/backoff (3 retries, 3.5 s sleep total
 per recipient) is appropriate.  In tests it is catastrophic — the demo

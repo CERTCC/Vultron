@@ -3,7 +3,7 @@
 Attempts to deliver every recipient via the local ASGI application first.
 If the ASGI app returns a non-success status (e.g. 404 when the actor is
 not hosted locally), the recipient is retried via HTTP through the standard
-``DeliveryQueueAdapter``.
+``DemoHttpDeliveryAdapter``.
 
 This strategy is URL-scheme agnostic: it works whether actor IDs use the
 production ``base_url`` or a test-client URL like ``http://testserver``.
@@ -12,7 +12,7 @@ A reentrancy guard (``_asgi_delivery_depth``) prevents recursive ASGI
 transport calls.  When ``_try_deliver_local`` is invoked from within an
 already-active delivery chain (same asyncio task), subsequent deliveries
 fall through to the HTTP fallback instead of re-entering the ASGI app.
-In production the fallback is ``DeliveryQueueAdapter`` (normal HTTP POST
+In production the fallback is ``DemoHttpDeliveryAdapter`` (normal HTTP POST
 handled by uvicorn as a new request/task); in tests it is typically a
 ``NullDeliveryAdapter`` that silently drops unreachable deliveries.
 
@@ -25,7 +25,7 @@ import logging
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
-from vultron.adapters.driven.delivery_queue import DeliveryQueueAdapter
+from vultron.adapters.driven.demo_http_delivery import DemoHttpDeliveryAdapter
 from vultron.config import get_config
 from vultron.core.models.activity import VultronActivity
 
@@ -69,7 +69,7 @@ class ASGIEmitter:
         self._app = app
         self._base_url = (base_url or get_config().server.base_url).rstrip("/")
         self._mount_prefix = mount_prefix.rstrip("/")
-        self._http_fallback = DeliveryQueueAdapter()
+        self._http_fallback = DemoHttpDeliveryAdapter()
 
     async def emit(
         self,

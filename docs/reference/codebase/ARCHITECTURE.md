@@ -22,7 +22,7 @@
 HTTP request -> FastAPI app/router -> inbox handler + rehydration ->
 semantic extraction -> dispatcher/use case -> DataLayer + outbox ->
 OutboxMonitor -> outbox_handler ->
-ASGIEmitter (co-located) | DeliveryQueueAdapter (remote) ->
+ASGIEmitter (co-located) | DemoHttpDeliveryAdapter (remote) ->
 peer inbox HTTP POST
 ```
 
@@ -36,7 +36,7 @@ Evidence-backed flow:
 4. The dispatcher looks up the use-case class from the semantic registry map.
 5. Use cases persist/read state through the `DataLayer` port and adapter.
 6. Outbox processing is drained by a background monitor, then delivered via
-   `ASGIEmitter` for co-located actors or `DeliveryQueueAdapter` for remote ones.
+   `ASGIEmitter` for co-located actors or `DemoHttpDeliveryAdapter` for remote ones.
 7. Multi-actor trust bootstrap now relies on a creator-signed
    `Create(VulnerabilityCase)` handoff before receivers trust subsequent
    CaseActor `Announce(VulnerabilityCase)` updates.
@@ -48,7 +48,7 @@ Evidence-backed flow:
 | `vultron/core/` | Domain events, ports, dispatcher, use cases | FastAPI and adapter details, wire-layer factory imports | `AGENTS.md`, `vultron/core/ports/datalayer.py`, `vultron/core/dispatcher.py` |
 | `vultron/wire/as2/` | AS2 vocabulary, pattern matching, semantic extraction | Case lifecycle behavior | `vultron/wire/as2/extractor.py` |
 | `vultron/adapters/driving/fastapi/` | HTTP routing, dependency injection, background task scheduling | Persistent model ownership | `vultron/adapters/driving/fastapi/app.py`, `vultron/adapters/driving/fastapi/deps.py` |
-| `vultron/adapters/driven/` | SQLite persistence, outbound HTTP delivery, ASGI-first co-located delivery, sync/trigger activity translation | FastAPI request translation | `vultron/adapters/driven/datalayer_sqlite.py`, `vultron/adapters/driven/delivery_queue.py`, `vultron/adapters/driven/sync_activity_adapter.py`, `vultron/adapters/driven/trigger_activity_adapter.py` |
+| `vultron/adapters/driven/` | SQLite persistence, outbound HTTP delivery, ASGI-first co-located delivery, sync/trigger activity translation | FastAPI request translation | `vultron/adapters/driven/datalayer_sqlite.py`, `vultron/adapters/driven/demo_http_delivery.py`, `vultron/adapters/driven/sync_activity_adapter.py`, `vultron/adapters/driven/trigger_activity_adapter.py` |
 | `vultron/demo/` | Operator/demo CLI workflows and seeding | Authoritative storage API | `vultron/demo/cli.py`, `vultron/demo/utils.py` |
 
 ### 4) Reused Patterns

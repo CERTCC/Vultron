@@ -13,7 +13,7 @@
 
 """Integration test: inbox URL derivation consistency (D5-1-G6).
 
-Verifies that ``DeliveryQueueAdapter``'s inbox URL derivation formula
+Verifies that ``DemoHttpDeliveryAdapter``'s inbox URL derivation formula
 (``{actor_id}/inbox/``) produces URLs that are routable by the FastAPI
 actors router registered in
 ``vultron/adapters/driving/fastapi/routers/actors.py``.
@@ -43,7 +43,7 @@ _ACTOR_ID = f"{_CONTAINER_BASE}/actors/{_ACTOR_UUID}"
 
 
 def _derive_inbox_url(actor_id: str) -> str:
-    """Mirror of the DeliveryQueueAdapter inbox URL derivation logic."""
+    """Mirror of the DemoHttpDeliveryAdapter inbox URL derivation logic."""
     return actor_id.rstrip("/") + "/inbox/"
 
 
@@ -110,7 +110,7 @@ def test_derived_inbox_path_matches_fastapi_route(dl):
 
     client = TestClient(app, raise_server_exceptions=False)
 
-    # Derive inbox URL using the same formula as DeliveryQueueAdapter.
+    # Derive inbox URL using the same formula as DemoHttpDeliveryAdapter.
     inbox_url = _derive_inbox_url(_ACTOR_ID)
 
     # Strip the container prefix to get the path relative to app_v2.

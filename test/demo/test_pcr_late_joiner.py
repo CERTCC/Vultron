@@ -128,7 +128,7 @@ def three_app_setup():
 
     # Save and replace the module-level default emitter so outbox_handler
     # calls from trigger endpoints use the router instead of
-    # DeliveryQueueAdapter (real HTTP with retry backoff).
+    # DemoHttpDeliveryAdapter (real HTTP with retry backoff).
     previous_emitter = get_default_emitter()
     configure_default_emitter(router)  # type: ignore[arg-type]
 

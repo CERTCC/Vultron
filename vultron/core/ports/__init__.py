@@ -33,5 +33,5 @@ pattern (see ``vultron/core/ports/AGENTS.md``
 - ``DataLayer`` (``datalayer.py``) — persistence interface; implemented by
   ``SqliteDataLayer`` in ``vultron/adapters/driven/``.
 - ``ActivityEmitter`` (``emitter.py``) — outbound activity delivery;
-  implemented by ``DeliveryQueueAdapter`` in ``vultron/adapters/driven/``.
+  implemented by ``DemoHttpDeliveryAdapter`` in ``vultron/adapters/driven/``.
 """

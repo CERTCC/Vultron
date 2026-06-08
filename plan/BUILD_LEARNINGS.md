@@ -33,6 +33,14 @@ header.
   `NotImplementedError` in `__init__` with spec reference context so failures
   are immediate and diagnosable.
 
+### 2026-06-08 ISSUE-721 — Transport-role naming must stay explicit in paths and classes
+
+- Outbound adapter names that imply behavior (`delivery_queue`) instead of role
+  (`demo_http_delivery`) create broad documentation and import drift.
+- When renaming protocol-significant adapter modules, update parallel
+  references together (core ports docs, adapter notes, ADR references, and
+  codebase reference pages) to keep agent guidance aligned with runtime code.
+
 ### 2026-06-08 ISSUE-750 — Embargo subtree decomposition must preserve idempotent side effects
 
 - Decomposing a god node into sequential BT leaves can silently change

@@ -31,7 +31,7 @@ Use these terms consistently:
 
 Two emitter adapters are currently used:
 
-- `DeliveryQueueAdapter` (remote HTTP delivery path).
+- `DemoHttpDeliveryAdapter` (remote HTTP delivery path).
 - `ASGIEmitter` (co-located ASGI delivery, HTTP fallback when non-local).
 
 ## Use Cases as Incoming Ports

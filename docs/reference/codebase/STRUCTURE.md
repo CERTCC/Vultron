@@ -50,7 +50,7 @@ Notable adapter files added since last scan:
 
 - `vultron/adapters/driven/sync_activity_adapter.py` — implements `SyncActivityPort`; sole domain→wire translation point for sync-related activities (ARCH-01-001)
 - `vultron/adapters/driven/trigger_activity_adapter.py` — implements `TriggerActivityPort`; sole domain→wire translation point for trigger-originated activities
-- `vultron/adapters/driven/http_delivery.py` — **stub** for future signed HTTP delivery to remote inboxes
+- `vultron/adapters/driven/prod_http_delivery.py` — **stub** for future signed HTTP delivery to remote inboxes
 - `vultron/adapters/driving/shared_inbox.py` — **stub** for ActivityPub shared-inbox fan-out
 
 ### 4) Naming and Organization Rules

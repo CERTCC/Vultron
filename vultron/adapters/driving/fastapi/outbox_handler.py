@@ -28,7 +28,7 @@ import logging
 from typing import cast
 
 from pydantic import BaseModel
-from vultron.adapters.driven.delivery_queue import DeliveryQueueAdapter
+from vultron.adapters.driven.demo_http_delivery import DemoHttpDeliveryAdapter
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
@@ -47,7 +47,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Set via ``configure_default_emitter()`` during app startup so all
 # ``outbox_handler`` calls use local ASGI delivery for co-located actors.
-# Falls back to ``DeliveryQueueAdapter`` (HTTP-only) when not configured.
+# Falls back to ``DemoHttpDeliveryAdapter`` (HTTP-only) when not configured.
 _default_emitter: ActivityEmitter | None = None
 
 
@@ -63,8 +63,8 @@ def configure_default_emitter(emitter: ActivityEmitter) -> None:
 
 
 def get_default_emitter() -> ActivityEmitter:
-    """Return the configured default emitter, or ``DeliveryQueueAdapter``."""
-    return _default_emitter or DeliveryQueueAdapter()
+    """Return the configured default emitter, or ``DemoHttpDeliveryAdapter``."""
+    return _default_emitter or DemoHttpDeliveryAdapter()
 
 
 # Reference fields that must be collapsed to URI strings before validating as
@@ -458,7 +458,7 @@ async def outbox_handler(
     ``ActivityEmitter`` port (OX-03-001).
 
     Delivery is performed by the emitter (HTTP POST for
-    ``DeliveryQueueAdapter``) and does not block the HTTP response because
+    ``DemoHttpDeliveryAdapter``) and does not block the HTTP response because
     this coroutine is scheduled as a FastAPI BackgroundTask (OX-03-003).
 
     OX-1.3 idempotency is enforced at the receiving inbox endpoint, not
@@ -473,7 +473,7 @@ async def outbox_handler(
             actor's own DL).
         emitter: The ActivityEmitter port to use for delivery. Defaults to
             the configured emitter (``ASGIEmitter`` when available, otherwise
-            ``DeliveryQueueAdapter``).
+            ``DemoHttpDeliveryAdapter``).
     """
     _emitter = cast(
         ActivityEmitter,

@@ -8,8 +8,8 @@
 |--------|---------------------------|---------|------------|-------------|----------|
 | SQLite via SQLModel | DB | Persist Vultron objects plus inbox/outbox queue entries | Local file or in-memory DB URL; no separate DB auth shown | high | `vultron/adapters/driven/datalayer_sqlite.py`, `docker/docker-compose-multi-actor.yml` |
 | ASGIEmitter (in-process) | API | Deliver outbound AS2 activities to co-located actors via ASGI, stripping mount prefixes when mounted under `/api/v2` | None required (same-process) | high | `vultron/adapters/driven/asgi_emitter.py`, `vultron/adapters/driving/fastapi/main.py`, `vultron/adapters/driven/AGENTS.md` |
-| Peer actor inboxes via `DeliveryQueueAdapter` | API | Deliver outbound AS2 activities, including bootstrap and follow-on case-sync traffic, to remote actors with HTTP POST | No auth/signing is implemented in the current adapter | high | `vultron/adapters/driven/delivery_queue.py`, `specs/case-bootstrap-trust.yaml` |
-| HTTP delivery (stub) | API | Future signed HTTP delivery to remote inboxes | Intended to use HTTP Signature signing; not yet implemented | medium | `vultron/adapters/driven/http_delivery.py` |
+| Peer actor inboxes via `DemoHttpDeliveryAdapter` | API | Deliver outbound AS2 activities, including bootstrap and follow-on case-sync traffic, to remote actors with HTTP POST | No auth/signing is implemented in the current adapter | high | `vultron/adapters/driven/demo_http_delivery.py`, `specs/case-bootstrap-trust.yaml` |
+| HTTP delivery (stub) | API | Future signed HTTP delivery to remote inboxes | Intended to use HTTP Signature signing; not yet implemented | medium | `vultron/adapters/driven/prod_http_delivery.py` |
 | Shared inbox (stub) | API | Future ActivityPub shared-inbox fan-out to multiple local actors | HTTP Signature validation planned; not yet implemented | medium | `vultron/adapters/driving/shared_inbox.py` |
 | Demo HTTP clients (`requests`) | API client | Drive seeded/demo scenarios and verification helpers over HTTP | None shown beyond base URL config | medium | `vultron/demo/utils.py`, `vultron/demo/helpers/verification.py` |
 | MCP trigger adapter functions | Tool/API surface | Expose trigger use cases as in-process tool functions pending MCP SDK registration | None; no network transport is registered in-tree yet | low | `vultron/adapters/driving/mcp_server.py` |
@@ -39,7 +39,7 @@
   delivery uses a 5.0 second timeout; Docker health checks probe readiness with
   short `curl -f` timeouts
 - Circuit-breaker or fallback behavior: `ASGIEmitter` falls back to
-  `DeliveryQueueAdapter` on 404 or other local-delivery failures; no broader
+  `DemoHttpDeliveryAdapter` on 404 or other local-delivery failures; no broader
   circuit breaker was found
 
 ### 5) Observability for Integrations
@@ -54,9 +54,9 @@
 ### 6) Evidence
 
 - `vultron/adapters/driven/datalayer_sqlite.py`
-- `vultron/adapters/driven/delivery_queue.py`
+- `vultron/adapters/driven/demo_http_delivery.py`
 - `vultron/adapters/driven/asgi_emitter.py`
-- `vultron/adapters/driven/http_delivery.py`
+- `vultron/adapters/driven/prod_http_delivery.py`
 - `vultron/adapters/driving/shared_inbox.py`
 - `vultron/adapters/driving/mcp_server.py`
 - `vultron/demo/utils.py`

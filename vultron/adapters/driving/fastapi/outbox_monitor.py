@@ -78,7 +78,7 @@ class OutboxMonitor:
             ``record_outbox_item`` calls on the shared DL trigger immediate
             wakeup.
         emitter: ``ActivityEmitter`` implementation for HTTP delivery.
-            Defaults to ``DeliveryQueueAdapter`` (resolved inside
+            Defaults to ``DemoHttpDeliveryAdapter`` (resolved inside
             :func:`outbox_handler`).
     """
 

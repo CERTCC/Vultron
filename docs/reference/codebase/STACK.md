@@ -20,7 +20,7 @@
 | `pydantic` | `==2.13.4` | Model validation and typed request/object models | `pyproject.toml`, `vultron/core/ports/datalayer.py` |
 | `pydantic-settings` | `>=2.14.1` | Environment-variable config loading | `pyproject.toml`, `vultron/config.py` |
 | `sqlmodel` | `>=0.0.38` | SQLite-backed persistence adapter | `pyproject.toml`, `vultron/adapters/driven/datalayer_sqlite.py` |
-| `httpx` | `>=0.28.1` | HTTP client for outbound inbox delivery | `pyproject.toml`, `vultron/adapters/driven/delivery_queue.py` |
+| `httpx` | `>=0.28.1` | HTTP client for outbound inbox delivery | `pyproject.toml`, `vultron/adapters/driven/demo_http_delivery.py` |
 | `py-trees` | `>=2.2.0` | Behavior-tree implementation support | `pyproject.toml`, `docs/adr/0002-model-processes-with-behavior-trees.md` |
 | `transitions` | `>=0.9.3` | State-machine support | `pyproject.toml` |
 | `pyyaml` | `>=6.0` | YAML-backed config and metadata loading | `pyproject.toml`, `vultron/demo/cli.py` |
