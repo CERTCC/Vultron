@@ -408,6 +408,9 @@ to `VulnerabilityCase`:
 - This field is a **derived index** — it MUST be excluded from
   ActivityStreams serialization (use `exclude=True` in the field definition
   or an equivalent Pydantic v2 pattern) because it is not protocol data
+- `case_participants` is the canonical participant surface; lookup helpers
+  MAY use the index as a shortcut, but they MUST treat any divergence between
+  the two surfaces as an explicit error rather than silently reconciling it
 
 ### Participant Management Methods
 
@@ -436,6 +439,11 @@ be updated to call `case.add_participant()` or `case.remove_participant()`:
 **Invariant**: The index MUST always reflect the contents of
 `case_participants`. Out-of-sync states MUST NOT be possible via normal
 code paths.
+
+Read-side participant lookup MUST prefer `case_participants` as the source of
+truth. `actor_participant_index` exists only as a derived lookup aid, so any
+missing or contradictory mapping MUST fail fast and surface a bug in the
+write path or fixture setup.
 
 **Open Question**: (blocks SC-PRE-2) Whether to raise or silently no-op on
 duplicate `add_participant()` calls. Recommend raise for correctness;
