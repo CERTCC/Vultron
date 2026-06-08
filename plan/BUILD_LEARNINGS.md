@@ -50,3 +50,11 @@ header.
 - When moving EM transition logic to `EmbargoLifecycle.propose_embargo`,
   keep event creation and participant-seeding behavior aligned with existing
   duplicate-report tests to avoid introducing warning-level regressions.
+
+### 2026-06-08 ISSUE-769 — Inbox test seam must preserve production deferral semantics
+
+- A test-only inbox pipeline that reimplements defer/replay logic can drift
+  from production behavior unless it reuses the same expiry path.
+- Case deferral tests should set canonical `to` recipients so actor-scoped
+  queues are exercised under the same addressing assumptions as inbox
+  processing.
