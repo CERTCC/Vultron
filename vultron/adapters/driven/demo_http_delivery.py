@@ -1,4 +1,4 @@
-"""Delivery queue driven adapter — OX-1.1 implementation.
+"""Demo HTTP delivery driven adapter — OX-1.1 implementation.
 
 Implements the ``ActivityEmitter`` port (``core/ports/emitter.py``) by
 delivering outbound ActivityStreams activities to recipient actor inboxes
@@ -56,7 +56,7 @@ DEFAULT_BACKOFF_MULTIPLIER: float = 2.0
 DEFAULT_MAX_DELAY: float = 30.0
 
 
-class DeliveryQueueAdapter:
+class DemoHttpDeliveryAdapter:
     """``ActivityEmitter`` driven-port implementation.
 
     Delivers outbound activities to recipient actor inboxes via HTTP POST

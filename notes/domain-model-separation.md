@@ -415,14 +415,14 @@ directly access another actor's DataLayer.
 
 - Outbox delivery cannot assume local access to other actors' data or state.
 - Outbox delivery MUST use HTTP POST to remote inboxes via the FastAPI
-  adapter (`DeliveryQueueAdapter.emit()` POSTs to `{actor_uri}/inbox/`).
+  adapter (`DemoHttpDeliveryAdapter.emit()` POSTs to `{actor_uri}/inbox/`).
 - Idempotency cannot be checked by inspecting a remote DataLayer. The inbox
   handler itself MUST handle duplicates — checking `actor.inbox.items` and
   returning HTTP 202 immediately on a duplicate activity ID.
 
 ### Outbox Delivery is HTTP POST
 
-`DeliveryQueueAdapter.emit()` delivers outbound activities via async
+`DemoHttpDeliveryAdapter.emit()` delivers outbound activities via async
 `httpx.AsyncClient` HTTP POST to `{actor_uri}/inbox/`. Direct DataLayer
 writes to recipient inboxes are **not** used.
 

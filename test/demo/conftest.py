@@ -50,10 +50,10 @@ logger = logging.getLogger(__name__)
 class _NullDeliveryAdapter:
     """No-op ``ActivityEmitter`` that silently drops deliveries.
 
-    Used in tests to replace ``DeliveryQueueAdapter`` as the HTTP fallback
+    Used in tests to replace ``DemoHttpDeliveryAdapter`` as the HTTP fallback
     inside ``ASGIEmitter``.  Demo actors use fictional URLs
     (e.g. ``https://vultron.example/users/finndervul``) that are unreachable
-    in the test environment.  The default ``DeliveryQueueAdapter`` attempts
+    in the test environment.  The default ``DemoHttpDeliveryAdapter`` attempts
     real HTTP POST requests with a 5 s timeout and 3 retries (3.5 s of
     ``asyncio.sleep`` per recipient), which caused the integration suite to
     take 17+ minutes in CI (#527).
@@ -261,7 +261,7 @@ def client():
     replaced with a ``_NullDeliveryAdapter`` that silently drops deliveries.
     Demo actors use fictional URLs
     (e.g. ``https://vultron.example/users/finndervul``) that are unreachable
-    in the test environment.  The default ``DeliveryQueueAdapter`` retries
+    in the test environment.  The default ``DemoHttpDeliveryAdapter`` retries
     3 × with exponential backoff (≈ 3.5 s per recipient), causing 17+ min
     CI slowdowns (#527).  The no-op adapter eliminates that overhead.
 

@@ -5,7 +5,7 @@
 `ASGIEmitter` (`vultron/adapters/driven/asgi_emitter.py`) is the
 production `ActivityEmitter` implementation for the FastAPI server. It
 delivers activities to co-located actors in-process via the ASGI
-interface and falls back to `DeliveryQueueAdapter` (HTTP POST) for
+interface and falls back to `DemoHttpDeliveryAdapter` (HTTP POST) for
 remote recipients.
 
 References: `specs/multi-actor-demo.yaml` DEMOMA-01-004,

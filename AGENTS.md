@@ -408,7 +408,7 @@ Short entries are reproduced here; longer ones are referenced below.
 >
 - **Stub Adapter Files Must Raise `NotImplementedError`, Not Silently No-Op** — Adapter
   files that are intentional future-work placeholders (e.g.,
-  `adapters/driven/http_delivery.py`, `adapters/driving/shared_inbox.py`) MUST contain
+  `adapters/driven/prod_http_delivery.py`, `adapters/driving/shared_inbox.py`) MUST contain
   a class or function that raises `NotImplementedError` when called, so any code that
   accidentally references the stub gets an immediate, explicit signal instead of a
   silent no-op. A docstring-only stub is indistinguishable from a real empty module

@@ -7,11 +7,11 @@
 | Item | Rule | Example | Evidence |
 |------|------|---------|----------|
 | Files | Snake_case Python module names | `datalayer_sqlite.py`, `outbox_monitor.py` | `docs/reference/codebase/.codebase-scan.txt`, `vultron/adapters/driven/datalayer_sqlite.py` |
-| Functions/methods | Snake_case verbs; internal/private helpers use leading `_` | `get_trigger_service`, `_deliver_with_retry` | `vultron/adapters/driving/fastapi/deps.py`, `vultron/adapters/driven/delivery_queue.py` |
+| Functions/methods | Snake_case verbs; internal/private helpers use leading `_` | `get_trigger_service`, `_deliver_with_retry` | `vultron/adapters/driving/fastapi/deps.py`, `vultron/adapters/driven/demo_http_delivery.py` |
 | Types/interfaces | PascalCase for classes and Protocols | `SqliteDataLayer`, `OutboxMonitor`, `DataLayer` | `vultron/adapters/driven/datalayer_sqlite.py`, `vultron/core/ports/datalayer.py` |
 | AS2 wire-layer classes | Use the `as_` prefix in the wire layer | `as_Activity`, `as_Actor` | `AGENTS.md`, `vultron/wire/as2/vocab/base/objects/activities/base.py` |
 | Reserved-word field names | Use a trailing underscore with a Pydantic alias | `id_`, `type_`, `object_`, `context_` | `AGENTS.md`, `specs/code-style.yaml`, `vultron/wire/as2/vocab/base/objects/base.py` |
-| Constants/env vars | UPPER_CASE module constants and env names | `DEFAULT_MAX_RETRIES`, `VULTRON_DB_URL` | `vultron/adapters/driven/delivery_queue.py`, `vultron/adapters/driven/datalayer_sqlite.py` |
+| Constants/env vars | UPPER_CASE module constants and env names | `DEFAULT_MAX_RETRIES`, `VULTRON_DB_URL` | `vultron/adapters/driven/demo_http_delivery.py`, `vultron/adapters/driven/datalayer_sqlite.py` |
 
 ### 2) Formatting and Linting
 
@@ -66,4 +66,4 @@
 - `.pre-commit-config.yaml`
 - `.markdownlint-cli2.yaml`
 - `vultron/adapters/driving/fastapi/deps.py`
-- `vultron/adapters/driven/delivery_queue.py`
+- `vultron/adapters/driven/demo_http_delivery.py`

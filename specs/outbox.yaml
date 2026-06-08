@@ -163,10 +163,10 @@ groups:
   scope:
   - production
   rationale: >-
-    Plain unauthenticated HTTP POST (current DeliveryQueueAdapter) is acceptable for
+    Plain unauthenticated HTTP POST (current DemoHttpDeliveryAdapter) is acceptable for
     prototype use. Production federation requires HTTP Message Signatures so recipient
     actors can verify the sender's identity and reject spoofed activities.
-    vultron/adapters/driven/http_delivery.py is a documented stub for this capability.
+    vultron/adapters/driven/prod_http_delivery.py is a documented stub for this capability.
   specs:
   - id: OX-10-001
     priority: SHOULD
@@ -197,7 +197,7 @@ groups:
   - id: OX-10-004
     priority: MUST
     statement: >-
-      Until signed delivery is implemented, adapters/driven/http_delivery.py MUST
+      Until signed delivery is implemented, adapters/driven/prod_http_delivery.py MUST
       raise NotImplementedError if instantiated, so that callers receive an explicit
       signal rather than a silent no-op
     scope:
