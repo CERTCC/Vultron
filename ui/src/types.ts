@@ -10,6 +10,7 @@ export interface ParticipantState {
   rmState: string
   vfdState: string
   embargoAccepted: boolean
+  embargoProposedToParticipant?: boolean  // Track if embargo was proposed to this participant (for late joiners)
   hasPublished: boolean
   hasClosed: boolean
   visible: boolean

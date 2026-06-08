@@ -34,6 +34,14 @@ export function handleTriggerExploit(state: DemoState): DemoState {
   let newState = state
   newState = setPxaState(newState, newPxa)
 
+  // Per Vultron protocol (early_termination.md lines 32-39):
+  // "Embargoes SHALL terminate immediately when information about the vulnerability becomes public."
+  // Since exploit publication (X) automatically implies public awareness (P), embargo must terminate
+  const hadEmbargo = state.emState === 'ACTIVE' || state.emState === 'REVISE'
+  if (hadEmbargo && newPxa.includes('P')) {
+    newState = { ...newState, emState: 'EXITED' }
+  }
+
   const activeLanes = getActiveParticipants(newState)
 
   // Create consequence nodes for all active participants
@@ -50,19 +58,28 @@ export function handleTriggerExploit(state: DemoState): DemoState {
     consequences: [
       'External event: exploit published',
       ...(publicBecameAware ? ['Public becomes aware (automatic with X)'] : []),
+      ...(hadEmbargo ? ['Embargo TERMINATED (public awareness)'] : []),
       `${participant.name} observes exploit`,
       'Participant pxa_state updated',
       `Case PXA state: ${currentPxa} → ${newPxa}`,
+      ...(hadEmbargo ? ['EM state: ACTIVE → EXITED'] : []),
       'Authoritative ledger updated',
     ],
   }))
 
   newState = addTimelineEvents(newState, events)
-  newState = addEventLogEntries(newState, [
-    publicBecameAware
-      ? 'Exploit published in the wild (external event) - public becomes aware'
-      : 'Exploit published in the wild (external event)'
-  ])
+
+  const logEntries = []
+  if (publicBecameAware) {
+    logEntries.push('Exploit published in the wild (external event) - public becomes aware')
+  } else {
+    logEntries.push('Exploit published in the wild (external event)')
+  }
+  if (hadEmbargo) {
+    logEntries.push('⚠️ Embargo TERMINATED due to public awareness')
+  }
+
+  newState = addEventLogEntries(newState, logEntries)
   newState = incrementXPosition(newState)
 
   return newState

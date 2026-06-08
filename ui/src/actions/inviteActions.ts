@@ -27,6 +27,12 @@ export function handleInviteSecondVendor(state: DemoState, inviterId: string = '
   // Per Vultron protocol: inviting a vendor = sending them the vulnerability report
   // They start at RM.RECEIVED and VFD.Vfd, just like Vendor 1 did when the report was submitted
   // Vendor becomes aware (Vfd) but cannot announce fix ready until report is validated
+  // IMPORTANT: Per working_with_others.md lines 100-115:
+  // - If embargo is ACTIVE, inviting participant SHALL propose existing embargo to invited participant
+  // - Invited participant SHOULD accept the existing embargo
+  // - Inviting participant SHOULD NOT share full report unless embargo is accepted
+  // - Invited participant MAY propose revision after accepting
+  const hasActiveEmbargo = state.emState === 'ACTIVE' || state.emState === 'REVISE'
   const vendor2 = {
     id: 'vendor-2',
     name: 'Vendor 2',
@@ -34,10 +40,11 @@ export function handleInviteSecondVendor(state: DemoState, inviterId: string = '
     color: PARTICIPANT_COLORS.vendor2,
     rmState: 'RECEIVED',  // They received the vulnerability report
     vfdState: 'Vfd',  // Vendor aware - must validate before progressing VFD
-    embargoAccepted: state.emState === 'ACTIVE',  // Auto-accept embargo if already active
+    embargoAccepted: false,  // Must explicitly accept embargo if one exists
+    embargoProposedToParticipant: hasActiveEmbargo,  // Track if embargo was proposed to them
     hasPublished: false,
     hasClosed: false,
-    visible: true,  // Visible immediately - they have the report and need to validate
+    visible: true,  // Visible immediately - they have the report and need to decide on embargo
     laneIndex: 2,  // Insert between vendor-1 and caseactor
   }
 
@@ -129,22 +136,33 @@ export function handleInviteSecondVendor(state: DemoState, inviterId: string = '
 
   // Consequence node in Vendor 2's lane (they receive the report)
   const vendor2Updated = getParticipant(newState, 'vendor-2')
+  const embargoConsequences = hasActiveEmbargo
+    ? [
+        'Offer received in inbox',
+        'VulnerabilityReport stored in DataLayer',
+        'Existing embargo proposed to Vendor 2',
+        'Vendor 2 must accept embargo to proceed',
+        'Vendor 2 RM state → RECEIVED',
+        'Vendor 2 VFD state → Vfd (aware)',
+      ]
+    : [
+        'Offer received in inbox',
+        'VulnerabilityReport stored in DataLayer',
+        'Vendor 2 RM state → RECEIVED',
+        'Vendor 2 VFD state → Vfd (aware)',
+      ]
+
   inviteEvents.push({
     id: `${eventId}-vendor2-consequence`,
     actor: 'Vendor 2',
     participantId: 'vendor-2',
-    label: 'Report Received',
+    label: hasActiveEmbargo ? 'Report + Embargo Received' : 'Report Received',
     x: nextX,
     lane: vendor2Updated?.laneIndex ?? 2,
     type: 'consequence' as const,
     causedBy: eventId,
     timestamp: now + 2,
-    consequences: [
-      'Offer received in inbox',
-      'VulnerabilityReport stored in DataLayer',
-      'Vendor 2 RM state → RECEIVED',
-      'Vendor 2 VFD state → Vfd (aware)',
-    ],
+    consequences: embargoConsequences,
   })
 
   // Consequence node in CaseActor lane (use updated caseactor from earlier)

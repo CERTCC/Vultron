@@ -194,6 +194,37 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   // If vendor declined invitation, they have no actions
   if (vendor.rmState === 'DECLINED') return []
 
+  // Per Vultron protocol (working_with_others.md lines 107-115):
+  // If vendor joined a case with an existing embargo, they must accept/reject embargo FIRST
+  // before they can proceed with other actions
+  if (vendor.embargoProposedToParticipant && !vendor.embargoAccepted) {
+    return [{
+      id: 'accept-embargo',
+      label: 'Accept Existing Embargo',
+      description: 'Accept the active embargo agreement to join the case',
+      enabled: true,
+    }, {
+      id: 'reject-embargo',
+      label: 'Reject Embargo',
+      description: 'Reject the embargo proposal (will prevent full participation)',
+      enabled: true,
+    }]
+  }
+
+  // Per Vultron protocol (working_with_others.md lines 112-115):
+  // "The inviting Participant SHOULD NOT share the vulnerability report with the newly invited
+  // Participant unless the new Participant has accepted the existing embargo."
+  // If vendor rejected an existing embargo, they cannot participate (no actions available)
+  // HOWEVER: Per early_termination.md lines 32-39, if embargo is terminated (EXITED), vendor can participate
+  const hasActiveEmbargo = state.emState === 'ACTIVE' || state.emState === 'REVISE'
+  if (hasActiveEmbargo && !vendor.embargoAccepted && !vendor.embargoProposedToParticipant) {
+    // Vendor rejected embargo - they are excluded from participation
+    // No actions available until embargo ends or they accept
+    return []
+  }
+  // If embargo was EXITED (terminated), vendors can now participate regardless of previous rejection
+  // The barrier to participation no longer exists
+
   const isVendor1 = vendorId === 'vendor-1'
   const vendorActivePhases = ['report-received', 'report-validated', 'report-accepted', 'report-deferred', 'report-invalidated', 'embargo-proposed', 'embargo-rejected', 'embargo-accepted', 'finder-asked', 'fix-ready', 'fix-deployed', 'vendor-published']
 
