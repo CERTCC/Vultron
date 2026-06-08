@@ -34,6 +34,7 @@ from vultron.wire.as2.vocab.objects.case_status import (
     CaseStatus,
     ParticipantStatus,
 )
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 ACTOR_ID = "https://example.org/actors/alice"
@@ -121,6 +122,19 @@ class TestGetActionRulesUseCase:
         assert result["participant_id"] == PARTICIPANT_ID
         assert result["participant_actor_id"] == ACTOR_ID
         assert result["case_id"] == CASE_ID
+
+    def test_short_case_key_resolves_to_case(self, dl):
+        """Short surrogate key resolves successfully for action lookup."""
+        req = ActionRulesRequest(case_id="c1", actor_id=ACTOR_ID)
+        result = GetActionRulesUseCase(dl=dl, request=req).execute()
+        assert result["participant_id"] == PARTICIPANT_ID
+
+    def test_short_case_key_resolution_ignores_non_case_id_collision(self, dl):
+        """Case lookup prefers case surrogate resolution over non-case collisions."""
+        dl.create(as_Note(id_="c1", content="collision"))
+        req = ActionRulesRequest(case_id="c1", actor_id=ACTOR_ID)
+        result = GetActionRulesUseCase(dl=dl, request=req).execute()
+        assert result["participant_id"] == PARTICIPANT_ID
 
     def test_happy_path_actions_is_list(self, dl, request_):
         """actions key is a non-empty list of dicts with name and description."""

@@ -527,6 +527,54 @@ def test_rehydration_does_not_mutate_stored_record(dl):
 
 
 # ---------------------------------------------------------------------------
+# find_case_by_short_id tests
+# ---------------------------------------------------------------------------
+
+
+def test_find_case_by_short_id_with_http_url_case_id(dl):
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        VulnerabilityCase,
+    )
+
+    case = VulnerabilityCase(id_="https://example.org/api/v2/cases/demo-123")
+    dl.save(case)
+
+    result = dl.find_case_by_short_id("demo-123")
+    assert result is not None
+    assert isinstance(result, VulnerabilityCase)
+    assert result.id_ == case.id_
+
+
+def test_find_case_by_short_id_with_urn_case_id(dl):
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        VulnerabilityCase,
+    )
+
+    case = VulnerabilityCase(
+        id_="urn:uuid:11111111-2222-3333-4444-555555555555"
+    )
+    dl.save(case)
+
+    result = dl.find_case_by_short_id("11111111-2222-3333-4444-555555555555")
+    assert result is not None
+    assert isinstance(result, VulnerabilityCase)
+    assert result.id_ == case.id_
+
+
+def test_find_case_by_short_id_returns_none_when_ambiguous(dl):
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        VulnerabilityCase,
+    )
+
+    case1 = VulnerabilityCase(id_="https://org1.example/api/v2/cases/shared")
+    case2 = VulnerabilityCase(id_="https://org2.example/api/v2/cases/shared")
+    dl.save(case1)
+    dl.save(case2)
+
+    assert dl.find_case_by_short_id("shared") is None
+
+
+# ---------------------------------------------------------------------------
 # find_case_by_report_id tests
 # ---------------------------------------------------------------------------
 

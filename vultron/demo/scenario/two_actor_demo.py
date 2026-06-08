@@ -28,6 +28,7 @@ import pathlib
 import sys
 from typing import Optional, Tuple
 
+from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vfd
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -760,7 +761,8 @@ def _phase_dump_case_logs(
 
     for actor_name, client in actors:
         with demo_step(f"Dumping case log for {actor_name}"):
-            log_path = f"/actors/{actor_name}/demo/cases/{case_id}/log"
+            case_key = strip_id_prefix(case_id)
+            log_path = f"/actors/{actor_name}/demo/cases/{case_key}/log"
             entries = client.get_list(log_path)
             if not entries:
                 raise ValueError(

@@ -24,6 +24,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from vultron.adapters.utils import strip_id_prefix
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driving.fastapi.routers import actors as actors_router
 from vultron.adapters.driving.fastapi.routers import (
@@ -37,6 +38,10 @@ from vultron.wire.as2.vocab.objects.vultron_actor import (
     VultronPerson,
     VultronService,
 )
+
+
+def _route_key(object_id: str) -> str:
+    return strip_id_prefix(object_id)
 
 
 @pytest.fixture
@@ -192,7 +197,7 @@ def test_get_actor_by_id_includes_embargo_policy(
     actor = request.getfixturevalue(fixture_name)
     datalayer.create(object_to_record(actor))
 
-    resp = client_actors.get(f"/actors/{actor.id_}")
+    resp = client_actors.get(f"/actors/{_route_key(actor.id_)}")
     assert resp.status_code == 200
     data = resp.json()
     assert "embargoPolicy" in data, (
@@ -218,7 +223,7 @@ def test_get_actor_profile_includes_embargo_policy(
     actor = request.getfixturevalue(fixture_name)
     datalayer.create(object_to_record(actor))
 
-    resp = client_actors.get(f"/actors/{actor.id_}/profile")
+    resp = client_actors.get(f"/actors/{_route_key(actor.id_)}/profile")
     assert resp.status_code == 200
     data = resp.json()
     assert "embargoPolicy" in data, (

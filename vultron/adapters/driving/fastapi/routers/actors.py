@@ -31,11 +31,12 @@ from fastapi import (
 )
 from pydantic import BaseModel, Field
 
-from vultron.adapters.utils import make_id
+from vultron.adapters.utils import make_id, strip_id_prefix
 from vultron.adapters.driving.fastapi.inbox_handler import (
     inbox_handler,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.core.models.protocols import is_case_model
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.core.use_cases.query.action_rules import (
@@ -315,7 +316,29 @@ def get_action_rules(
 ) -> dict:
     """Return valid CVD actions for an actor in a specific case."""
     try:
-        req = ActionRulesRequest(case_id=case_id, actor_id=actor_id)
+        actor_obj = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
+        case_obj = dl.read(case_id)
+        if case_obj is None or not is_case_model(case_obj):
+            case_obj = dl.find_case_by_short_id(case_id)
+        if case_obj is None or not is_case_model(case_obj):
+            raise VultronNotFoundError("VulnerabilityCase", case_id)
+        canonical_actor_id = actor_id
+        if actor_obj is not None and hasattr(actor_obj, "id_"):
+            canonical_actor_id = actor_obj.id_
+        else:
+            actor_index = getattr(case_obj, "actor_participant_index", {})
+            if isinstance(actor_index, dict):
+                for candidate_id in actor_index:
+                    if (
+                        candidate_id == actor_id
+                        or candidate_id.endswith(f"/{actor_id}")
+                        or strip_id_prefix(candidate_id) == actor_id
+                    ):
+                        canonical_actor_id = candidate_id
+                        break
+        req = ActionRulesRequest(
+            case_id=case_obj.id_, actor_id=canonical_actor_id
+        )
         return GetActionRulesUseCase(dl=dl, request=req).execute()
     except VultronNotFoundError as exc:
         raise HTTPException(
@@ -604,14 +627,13 @@ def post_actor_outbox(
 @router.get(
     "/{actor_id:path}",
     response_model_exclude_none=True,
-    description="Returns an Actor by full ID including HTTP URL IDs.",
+    description="Returns an Actor by surrogate key or canonical ID.",
     operation_id="actors_get",
 )
 def get_actor(actor_id: str, datalayer: DataLayer = Depends(get_shared_dl)):
     """Returns an Actor by actor_id.
 
-    Accepts any actor ID including HTTP URL IDs with percent-encoded slashes.
-    Falls back to short-ID resolution for backwards compatibility.
+    Accepts either a canonical actor ID or the actor's surrogate key.
     """
     actor = _find_actor_record(datalayer, actor_id)
     if not actor:

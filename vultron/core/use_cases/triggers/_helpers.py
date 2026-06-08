@@ -64,6 +64,8 @@ def resolve_actor(actor_id: str, dl: CasePersistence):
 def resolve_case(case_id: str, dl: CasePersistence) -> CaseModel:
     """Resolve a VulnerabilityCase by ID; raise domain error if absent or wrong type."""
     case_raw = dl.read(case_id)
+    if case_raw is None or not is_case_model(case_raw):
+        case_raw = dl.find_case_by_short_id(case_id)
     if case_raw is None:
         raise VultronNotFoundError("VulnerabilityCase", case_id)
     if not is_case_model(case_raw):

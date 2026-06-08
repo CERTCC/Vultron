@@ -45,7 +45,7 @@ from vultron.adapters.driven.db_record import (
     object_to_record,
     record_to_object,
 )
-from vultron.adapters.utils import _URN_UUID_PREFIX, _UUID_RE
+from vultron.adapters.utils import _URN_UUID_PREFIX, _UUID_RE, strip_id_prefix
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.protocols import PersistableModel, is_case_model
 from vultron.core.ports.datalayer import StorableRecord
@@ -62,6 +62,20 @@ logger = logging.getLogger(__name__)
 _ACTOR_TYPES: frozenset[str] = frozenset(
     {"Actor", "Person", "Organization", "Service", "Application", "Group"}
 )
+_CASE_TYPES: frozenset[str] = frozenset({"VulnerabilityCase"})
+
+
+def _matches_short_id(full_id: str, short_id: str) -> bool:
+    """Return True when *short_id* resolves to *full_id*.
+
+    Surrogate keys are derived from canonical IDs by taking the final segment:
+    ``https://host/api/v2/cases/abc`` -> ``abc``, ``urn:uuid:abc`` -> ``abc``.
+    """
+    if full_id == short_id:
+        return True
+    if full_id.endswith(f"/{short_id}"):
+        return True
+    return strip_id_prefix(full_id) == short_id
 
 
 class VultronObjectRecord(SQLModel, table=True):
@@ -910,12 +924,49 @@ class SqliteDataLayer:
                 )
             rows = session.exec(stmt).all()
 
+        matches: list[PersistableModel] = []
         for row in rows:
-            if row.id_.endswith(f"/{short_id}") or row.id_ == short_id:
+            if _matches_short_id(row.id_, short_id):
                 obj = self._from_row(row)
                 if obj is not None:
-                    return obj
-        return None
+                    matches.append(obj)
+
+        if len(matches) > 1:
+            logger.warning(
+                "Ambiguous actor surrogate key '%s' matched %d actors",
+                short_id,
+                len(matches),
+            )
+            return None
+        return matches[0] if matches else None
+
+    def find_case_by_short_id(self, short_id: str) -> PersistableModel | None:
+        """Find a case by its URL-safe surrogate key."""
+        with Session(self._engine) as session:
+            stmt = select(VultronObjectRecord).where(
+                VultronObjectRecord.type_.in_(list(_CASE_TYPES))  # type: ignore[attr-defined]
+            )
+            if self._actor_id:
+                stmt = stmt.where(
+                    VultronObjectRecord.actor_id == self._actor_id
+                )
+            rows = session.exec(stmt).all()
+
+        matches: list[PersistableModel] = []
+        for row in rows:
+            if _matches_short_id(row.id_, short_id):
+                obj = self._from_row(row)
+                if obj is not None:
+                    matches.append(obj)
+
+        if len(matches) > 1:
+            logger.warning(
+                "Ambiguous case surrogate key '%s' matched %d cases",
+                short_id,
+                len(matches),
+            )
+            return None
+        return matches[0] if matches else None
 
     def find_case_by_report_id(
         self, report_id: str
