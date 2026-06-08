@@ -66,7 +66,7 @@ Use minimum depth. Many Epics will have leaf Tasks with no Subtasks.
 | `stale-claim` | Stale-claim sweeper (GH Actions) | Orphaned claim; skip until human clears |
 | `needs-rebase` | Build agent | PR or task branch has merge conflicts that must be rebased |
 | `specs-notes` | ingest-idea, learn | Docs-only PR containing only specs/ and notes/ changes |
-| `concern` | process-concerns, new-concern, ingest-concern | Technical risk, debt, or fragile area |
+| `concern` | process-concerns, new-item, ingest-concern | Technical risk, debt, or fragile area |
 
 **Note**: `group:<name>` and `group:unscheduled` labels were retired in June
 2026. Priority grouping is now tracked via GitHub Project #24 Schedule field

@@ -321,5 +321,5 @@ fi
 |---|---|---|---|
 | `plan-issue` | One Idea or Concern issue | Optional specs+notes for both types | Yes |
 | `learn` | BUILD_LEARNINGS + all Concern issues | specs/notes/AGENTS | Yes (batch) |
-| `new-concern` | Freeform text | None | N/A (creates, not resolves) |
+| `new-item` | Freeform text | None | N/A (creates, not resolves) |
 | `process-concerns` | CONCERNS.md file | None | No |
