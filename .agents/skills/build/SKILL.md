@@ -125,6 +125,7 @@ Findings are tagged `[BLOCKING]` (fix before continuing) or `[ADVISORY]`
 2. Push and open a PR:
 
    ```bash
+   git fetch origin main && git rebase origin/main
    git push -u origin task/<N>-<slug>
    gh pr create --repo CERTCC/Vultron \
      --title "<short title>" \
@@ -133,6 +134,10 @@ Findings are tagged `[BLOCKING]` (fix before continuing) or `[ADVISORY]`
    <summary of changes>" \
      --label "size:<X>"
    ```
+
+   If the rebase reports conflicts, stop, resolve them, and re-run validation
+   before pushing. This check must happen immediately before the push, not
+   earlier in the workflow.
 
 3. Post `[ADVISORY]` findings as a PR comment (if any).
 
