@@ -175,6 +175,14 @@ and subtree composition examples.
 uses py_trees, deciding whether a new use case needs a BT, or diagnosing BT
 execution issues.
 
+**`peer-broadcast-failure-semantics.md`**
+Fail-fast requirements for protocol-visible peer fan-out in BT paths:
+broadcast preparation/enqueue errors must return `FAILURE`, and success
+fallbacks must not mask delivery failure. Includes scope boundaries for this
+phase and shared-helper guidance.
+**Load when**: modifying status/embargo broadcast paths, defining fan-out
+error behavior, or planning delivery-reliability follow-on work.
+
 **`bt-composability.md`**
 Fractal composability pattern for BT nodes and subtrees (formerly split between
 `bt-composability.md` and `bt-reusability.md`): the "trunkless branch" model,

@@ -264,3 +264,33 @@ groups:
       - rel_type: refines
         spec_id: BT-13-001
         note: Scope is all BT execution sites, not just sync
+- id: BT-14
+  title: Peer Broadcast Failure Semantics
+  kind: domain
+  specs:
+  - id: BT-14-001
+    priority: MUST
+    statement: >-
+      Any BT node or subtree that performs protocol-visible peer broadcast
+      fan-out MUST return FAILURE when broadcast preparation or outbox
+      enqueueing fails. A guaranteed SUCCESS fallback that masks delivery
+      failure MUST_NOT be used.
+    rationale: >-
+      Silent success on failed fan-out causes undetected peer state divergence
+      and hides correctness faults from parent tree control flow.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-001
+      note: Broadcast fan-out is protocol-significant behavior
+    - rel_type: refines
+      spec_id: BT-04-004
+      note: Delivery failures must propagate to handler error paths
+  - id: BT-14-002
+    priority: SHOULD
+    statement: >-
+      Peer broadcast fan-out paths SHOULD reuse a shared helper/subtree for
+      recipient filtering, activity construction, and outbox enqueueing so the
+      failure contract is consistent across workflow domains.
+    rationale: >-
+      Duplicated fan-out implementations drift over time and re-introduce
+      silent-failure behavior in only some pathways.
