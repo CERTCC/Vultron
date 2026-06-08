@@ -282,6 +282,20 @@ Short entries are reproduced here; longer ones are referenced below.
 
 - **Idempotency Responsibility Chain** — see
   [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
+- **Bulk Logging-Level Refactors Need a Consistency Grep Pass** — After
+  changing log levels across many BT tree-creation functions, run a grep-based
+  consistency check before commit so no matching functions are left at the old
+  level.
+- **Case-Actor Broadcast Guard Tests Need a Third Participant** — Positive
+  tests for Case Manager broadcast fan-out must include at least one non-sender
+  peer, or the broadcast-addressing assertion becomes vacuous.
+- **Orphan Module Cleanup Requires Importer Proof** — Before deleting
+  scaffolding or suspected-dead modules, verify there are no live importers in
+  both `vultron/` and `test/`; then prefer deletion over leaving dead code.
+- **Worktree Sync Checks Need Ancestry Verification** — `git rebase origin/main`
+  alone can mislead when branch ancestry is wrong. Use the manage-worktree
+  `ensure-synced` flow (or explicitly verify behind-count/merge-base) before
+  creating a task branch.
 
 ---
 
@@ -462,6 +476,9 @@ by the default config.
 Every `notes/*.md` file (except `notes/README.md`) MUST have a YAML
 frontmatter block with at least `title` and `status` fields. Valid statuses:
 `active`, `draft`, `superseded` (requires `superseded_by`), `archived`.
+When `status: superseded`, `superseded_by` is a single non-empty string
+(scalar), not a YAML list. If multiple successors exist, keep one canonical
+`superseded_by` target and list siblings in `related_notes` or body text.
 When modifying a notes file, review and update its frontmatter. Schema:
 `vultron/metadata/notes/schema.py`; enforced by pre-commit hook and
 `test/metadata/test_notes_frontmatter.py`.
@@ -471,6 +488,9 @@ When modifying a notes file, review and update its frontmatter. Schema:
 Links in `docs/` MUST be relative to the current file and MUST NOT go above
 the `docs/` root. Run `uv run mkdocs build --strict` before committing any
 `docs/` changes (see `build-docs` skill).
+The `.github/scripts/mkdocs-build-strict.sh` wrapper suppresses known griffe
+false positives, but unknown-key warnings (for example `context` or `pytest`)
+remain hard failures.
 
 Maintainer docs under `docs/developer/` are intentionally excluded from the
 published site (`mkdocs.yml`). To view or validate them locally, use

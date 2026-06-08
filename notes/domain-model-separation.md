@@ -50,6 +50,21 @@ flowchart LR
     ASJ[ActivityStreams JSON] <--> WDTO[Wire DTO] <--> DM[Domain Model] <--> PM[Persistence Model]
 ```
 
+## Migration Scoping Lesson from #699 Decomposition
+
+The #699 migration surfaced that moving domain objects from `wire/` to `core/`
+is a chained effort, not a single edit. The stable rule for the separation is:
+
+- Reference-wrapper patterns (`FooRef`, ref-or-inline polymorphism) are
+  wire-layer concerns.
+- Core domain fields hold full typed objects.
+- Rehydration happens through the DataLayer on read.
+- Wire projection code translates between full-object core fields and wire
+  ref-or-inline serialization at the boundary.
+
+This aligns with ADR-0017 and avoids reintroducing wire-polymorphism unions
+into domain models.
+
 ### 1. Wire Model (Transport Layer)
 
 - ActivityStreams-compliant JSON objects
