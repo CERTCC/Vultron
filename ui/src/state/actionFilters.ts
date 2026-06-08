@@ -410,10 +410,12 @@ export function getCaseActorActions(state: DemoState): Action[] {
   if (!caseActor || !caseActor.visible) return []
 
   // Per Vultron protocol: CaseActor can propose embargo when:
-  // - EM is NONE (no embargo yet) or was rejected
-  // - At least one vendor is in active RM state (RECEIVED, VALID, ACCEPTED)
-  // Protocol allows embargo proposals even if a vendor has invalidated (rm_em.md lines 155-162)
-  const canProposeEmbargo = (state.emState === 'NONE' || state.phase === 'embargo-rejected')
+  // - EM is NONE (no embargo yet) - can propose at ANY time after case starts
+  // - EM was rejected and returned to NONE - can propose again
+  // - At least one vendor is in active RM state (case exists)
+  // Protocol allows embargo proposals independent of RM states (even if vendor has invalidated)
+  // EM state machine is independent - check emState only, NOT phase
+  const canProposeEmbargo = state.emState === 'NONE' && state.phase !== 'start'
 
   if (canProposeEmbargo) {
     return [{
