@@ -927,6 +927,14 @@ export function handleVendorNotifyPublished(state: DemoState, vendorId: string):
 
   newState = setPxaState(newState, newPxa)
 
+  // Per Vultron protocol (early_termination.md lines 32-39):
+  // "Embargoes SHALL terminate immediately when information about the vulnerability becomes public."
+  // Publication (P) means public awareness, so embargo must terminate
+  const hadEmbargo = state.emState === 'ACTIVE' || state.emState === 'REVISE'
+  if (hadEmbargo) {
+    newState = { ...newState, emState: 'EXITED' }
+  }
+
   const events = []
   let timestampOffset = 0
 
@@ -944,6 +952,7 @@ export function handleVendorNotifyPublished(state: DemoState, vendorId: string):
       `${vendor.name} publishes vulnerability details`,
       `Case PXA state: ${currentPxa} → ${newPxa}`,
       'Public becomes aware (P)',
+      ...(hadEmbargo ? ['Embargo TERMINATED (public awareness)'] : []),
       '✓ M6 REACHED: Public disclosure',
     ],
   })
@@ -966,6 +975,7 @@ export function handleVendorNotifyPublished(state: DemoState, vendorId: string):
         'Finder notified: Vulnerability published',
         `Case PXA state: ${newPxa}`,
         'Public disclosure (P) is now active',
+        ...(hadEmbargo ? ['Embargo TERMINATED'] : []),
       ],
     })
     timestampOffset++
@@ -987,6 +997,7 @@ export function handleVendorNotifyPublished(state: DemoState, vendorId: string):
         `${vendor.name} notified: Published`,
         `Case PXA state: ${newPxa}`,
         'Public disclosure (P) is now active',
+        ...(hadEmbargo ? ['Embargo TERMINATED'] : []),
       ],
     })
     timestampOffset++
@@ -1007,6 +1018,7 @@ export function handleVendorNotifyPublished(state: DemoState, vendorId: string):
         `${vendor.name} notified: Published`,
         `Case PXA state: ${newPxa}`,
         'Public disclosure (P) is now active',
+        ...(hadEmbargo ? ['Embargo TERMINATED'] : []),
       ],
     })
     timestampOffset++
@@ -1027,6 +1039,7 @@ export function handleVendorNotifyPublished(state: DemoState, vendorId: string):
       consequences: [
         '✓ M6 REACHED: Public disclosure',
         `Case PXA state: ${newPxa}`,
+        ...(hadEmbargo ? ['Embargo TERMINATED (EM → EXITED)'] : []),
         'Authoritative ledger updated',
         'All participants notified',
       ],
