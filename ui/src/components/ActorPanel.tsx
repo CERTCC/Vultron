@@ -1,4 +1,4 @@
-import { LANE_HEIGHT } from '../constants'
+import { LANE_HEIGHT, LANE_HEIGHT_COLLAPSED } from '../constants'
 
 interface Action {
   id: string
@@ -17,6 +17,8 @@ interface ActorPanelProps {
   pxaState?: string
   actions: Action[]
   onActionClick: (actionId: string) => void
+  isCollapsed?: boolean
+  onToggleCollapse?: () => void
 }
 
 export function ActorPanel({
@@ -29,62 +31,91 @@ export function ActorPanel({
   pxaState,
   actions,
   onActionClick,
+  isCollapsed = false,
+  onToggleCollapse,
 }: ActorPanelProps) {
+  const height = isCollapsed ? LANE_HEIGHT_COLLAPSED : LANE_HEIGHT
+
   return (
     <div
       style={{
-        height: LANE_HEIGHT,
-        minHeight: LANE_HEIGHT,
-        maxHeight: LANE_HEIGHT,
+        height,
+        minHeight: height,
+        maxHeight: height,
         background: color,
         borderBottom: '2px solid #ddd',
-        padding: '1rem',
+        padding: isCollapsed ? '0.5rem 1rem' : '1rem',
         display: 'flex',
         flexDirection: 'column',
         boxSizing: 'border-box',
       }}
     >
-      <div style={{ marginBottom: '0.5rem' }}>
-        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 'bold' }}>
-          {name}
-        </h3>
-        <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: '#666' }}>
-          {role}
-        </p>
-      </div>
-
-      {/* State indicators */}
-      <div
-        style={{
-          marginBottom: '0.5rem',
-          padding: '0.5rem',
-          background: 'rgba(255,255,255,0.6)',
-          borderRadius: '4px',
-          fontSize: '0.7rem',
-        }}
-      >
-        <div>
-          <strong>RM:</strong> {rmState}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.5rem',
+        marginBottom: isCollapsed ? 0 : '0.5rem',
+      }}>
+        {onToggleCollapse && (
+          <span
+            onClick={onToggleCollapse}
+            style={{
+              cursor: 'pointer',
+              fontSize: '0.75rem',
+              userSelect: 'none',
+              flexShrink: 0,
+            }}
+            title={isCollapsed ? 'Expand lane' : 'Collapse lane'}
+          >
+            {isCollapsed ? '▶' : '▼'}
+          </span>
+        )}
+        <div style={{ flex: 1 }}>
+          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 'bold' }}>
+            {name}
+          </h3>
+          {!isCollapsed && (
+            <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: '#666' }}>
+              {role}
+            </p>
+          )}
         </div>
-        {emState && (
-          <div>
-            <strong>EM:</strong> {emState}
-          </div>
-        )}
-        {vfdState && (
-          <div>
-            <strong>VFD:</strong> {vfdState}
-          </div>
-        )}
-        {pxaState && (
-          <div>
-            <strong>PXA:</strong> {pxaState}
-          </div>
-        )}
       </div>
 
-      {/* Actions */}
-      {actions.length > 0 && (
+      {/* State indicators - only show when not collapsed */}
+      {!isCollapsed && (
+        <div
+          style={{
+            marginBottom: '0.5rem',
+            padding: '0.5rem',
+            background: 'rgba(255,255,255,0.6)',
+            borderRadius: '4px',
+            fontSize: '0.7rem',
+          }}
+        >
+          <div>
+            <strong>RM:</strong> {rmState}
+          </div>
+          {emState && (
+            <div>
+              <strong>EM:</strong> {emState}
+            </div>
+          )}
+          {vfdState && (
+            <div>
+              <strong>VFD:</strong> {vfdState}
+            </div>
+          )}
+          {pxaState && (
+            <div>
+              <strong>PXA:</strong> {pxaState}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Actions - only show when not collapsed */}
+      {!isCollapsed && actions.length > 0 && (
         <div
           style={{
             flex: 1,

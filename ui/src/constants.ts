@@ -3,6 +3,7 @@
  */
 
 export const LANE_HEIGHT = 400
+export const LANE_HEIGHT_COLLAPSED = 60
 export const ACTOR_PANEL_WIDTH = 300
 
 // Node dimensions
@@ -10,6 +11,10 @@ export const NODE_WIDTH = 210
 export const NODE_WIDTH_HOVER = 225
 export const NODE_HEIGHT = 100
 export const NODE_HEIGHT_HOVER = 110
+
+// Collapsed node dimensions (much smaller to fit in collapsed lanes)
+export const NODE_WIDTH_COLLAPSED = 30
+export const NODE_HEIGHT_COLLAPSED = 30
 
 // Maximum number of vendors supported in multi-vendor demo
 export const MAX_VENDORS = 5

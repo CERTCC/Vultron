@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import type { DemoState, ParticipantState } from './types'
 import './App.css'
-import { LANE_HEIGHT, ACTOR_PANEL_WIDTH, PARTICIPANT_COLORS, PARTICIPANT_ROLES, INITIAL_X_POSITION, NODE_COLORS, NODE_WIDTH, NODE_HEIGHT, getVendorNodeColors } from './constants'
+import { LANE_HEIGHT, LANE_HEIGHT_COLLAPSED, ACTOR_PANEL_WIDTH, PARTICIPANT_COLORS, PARTICIPANT_ROLES, INITIAL_X_POSITION, NODE_COLORS, NODE_WIDTH, NODE_HEIGHT, NODE_WIDTH_COLLAPSED, NODE_HEIGHT_COLLAPSED, getVendorNodeColors } from './constants'
 import { ActorPanel, AnimatedNode } from './components'
 import {
   getActiveLanes,
@@ -83,8 +83,57 @@ function App() {
   const [hoveredEvent, setHoveredEvent] = useState<string | null>(null)
   const [stateHistory, setStateHistory] = useState<DemoState[]>([])
   const [eventLogCollapsed, setEventLogCollapsed] = useState(false)
+  const [collapsedParticipants, setCollapsedParticipants] = useState<Set<string>>(new Set())
   const timelineScrollRef = useRef<HTMLDivElement>(null)
   const sidebarScrollRef = useRef<HTMLDivElement>(null)
+
+  // Toggle participant collapse
+  const toggleParticipantCollapse = useCallback((participantId: string) => {
+    setCollapsedParticipants(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(participantId)) {
+        newSet.delete(participantId)
+      } else {
+        newSet.add(participantId)
+      }
+      return newSet
+    })
+  }, [])
+
+  // Calculate cumulative Y position for a participant based on collapsed states
+  const getParticipantYPosition = useCallback((participant: ParticipantState, allParticipants: ParticipantState[]) => {
+    const sortedParticipants = allParticipants
+      .filter(p => p.visible)
+      .sort((a, b) => a.laneIndex - b.laneIndex)
+
+    let yPos = 0
+    for (const p of sortedParticipants) {
+      if (p.laneIndex >= participant.laneIndex) break
+      yPos += collapsedParticipants.has(p.id) ? LANE_HEIGHT_COLLAPSED : LANE_HEIGHT
+    }
+    return yPos
+  }, [collapsedParticipants])
+
+  // Calculate total height of all lanes
+  const getTotalHeight = useCallback((participants: ParticipantState[]) => {
+    return participants
+      .filter(p => p.visible)
+      .reduce((total, p) => {
+        return total + (collapsedParticipants.has(p.id) ? LANE_HEIGHT_COLLAPSED : LANE_HEIGHT)
+      }, 0)
+  }, [collapsedParticipants])
+
+  // Get Y position for a specific lane index (for drawing arrows and nodes)
+  const getYPositionForLane = useCallback((laneIndex: number, allParticipants: ParticipantState[]) => {
+    const participant = allParticipants.find(p => p.laneIndex === laneIndex)
+    if (!participant) {
+      // Fallback to old calculation
+      return laneIndex * LANE_HEIGHT + LANE_HEIGHT / 2
+    }
+    const baseYPos = getParticipantYPosition(participant, allParticipants)
+    const laneHeight = collapsedParticipants.has(participant.id) ? LANE_HEIGHT_COLLAPSED : LANE_HEIGHT
+    return baseYPos + laneHeight / 2
+  }, [collapsedParticipants, getParticipantYPosition])
 
   // Synchronize vertical scrolling between sidebar and timeline
   const handleTimelineScroll = useCallback(() => {
@@ -398,6 +447,8 @@ function App() {
                     : []
                 }
                 onActionClick={(actionId) => handleAction(participant.id, actionId)}
+                isCollapsed={collapsedParticipants.has(participant.id)}
+                onToggleCollapse={() => toggleParticipantCollapse(participant.id)}
               />
             ))}
         </div>
@@ -415,25 +466,29 @@ function App() {
               position: 'relative',
             }}
           >
-            <div style={{ position: 'relative', minWidth, height: LANE_HEIGHT * svgLaneCount }}>
+            <div style={{ position: 'relative', minWidth, height: getTotalHeight(activeLanes) }}>
               {/* Swimlane backgrounds for visible participants */}
-              {activeLanes.map((participant) => (
-                <div
-                  key={`lane-${participant.id}`}
-                  style={{
-                    position: 'absolute',
-                    top: participant.laneIndex * LANE_HEIGHT,
-                    left: 0,
-                    width: minWidth,
-                    height: LANE_HEIGHT,
-                    background: participant.color,
-                    opacity: 0.3,
-                  }}
-                />
-              ))}
+              {activeLanes.map((participant) => {
+                const yPos = getParticipantYPosition(participant, activeLanes)
+                const height = collapsedParticipants.has(participant.id) ? LANE_HEIGHT_COLLAPSED : LANE_HEIGHT
+                return (
+                  <div
+                    key={`lane-${participant.id}`}
+                    style={{
+                      position: 'absolute',
+                      top: yPos,
+                      left: 0,
+                      width: minWidth,
+                      height,
+                      background: participant.color,
+                      opacity: 0.3,
+                    }}
+                  />
+                )
+              })}
 
               {/* SVG for nodes and edges */}
-              <svg style={{ position: 'absolute', top: 0, left: 0, width: minWidth, height: LANE_HEIGHT * svgLaneCount }}>
+              <svg style={{ position: 'absolute', top: 0, left: 0, width: minWidth, height: getTotalHeight(activeLanes) }}>
                 {/* Arrow marker definitions */}
                 <defs>
                   <marker
@@ -486,6 +541,57 @@ function App() {
                   >
                     <polygon points="0 0, 16 5, 0 10" fill="#FFE0B2" />
                   </marker>
+                  {/* Small arrowheads for collapsed lanes */}
+                  <marker
+                    id="arrowhead-small"
+                    markerWidth="8"
+                    markerHeight="8"
+                    refX="7"
+                    refY="2.5"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 8 2.5, 0 5" fill="#666" />
+                  </marker>
+                  <marker
+                    id="arrowhead-blue-small"
+                    markerWidth="8"
+                    markerHeight="8"
+                    refX="7"
+                    refY="2.5"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 8 2.5, 0 5" fill="#BBDEFB" />
+                  </marker>
+                  <marker
+                    id="arrowhead-purple-small"
+                    markerWidth="8"
+                    markerHeight="8"
+                    refX="7"
+                    refY="2.5"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 8 2.5, 0 5" fill="#E1BEE7" />
+                  </marker>
+                  <marker
+                    id="arrowhead-green-small"
+                    markerWidth="8"
+                    markerHeight="8"
+                    refX="7"
+                    refY="2.5"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 8 2.5, 0 5" fill="#C8E6C9" />
+                  </marker>
+                  <marker
+                    id="arrowhead-orange-small"
+                    markerWidth="8"
+                    markerHeight="8"
+                    refX="7"
+                    refY="2.5"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 8 2.5, 0 5" fill="#FFE0B2" />
+                  </marker>
                 </defs>
 
                 {/* Draw edges */}
@@ -493,42 +599,54 @@ function App() {
                   if (event.causedBy) {
                     const causeEvent = demoState.timelineEvents.find((e) => e.id === event.causedBy)
                     if (causeEvent) {
-                      const y1 = causeEvent.lane * LANE_HEIGHT + LANE_HEIGHT / 2
-                      const y2 = event.lane * LANE_HEIGHT + LANE_HEIGHT / 2
+                      const allParticipants = Array.from(demoState.participants.values())
+                      const y1 = getYPositionForLane(causeEvent.lane, allParticipants)
+                      const y2 = getYPositionForLane(event.lane, allParticipants)
 
-                      // Adjust endpoints to account for rectangle height
-                      const rectHalfHeight = NODE_HEIGHT / 2
+                      // Find participants for source and target
+                      const sourceParticipant = allParticipants.find(p => p.laneIndex === causeEvent.lane)
+                      const targetParticipant = allParticipants.find(p => p.laneIndex === event.lane)
+
+                      // Use collapsed node height if participant is collapsed
+                      const sourceCollapsed = sourceParticipant ? collapsedParticipants.has(sourceParticipant.id) : false
+                      const targetCollapsed = targetParticipant ? collapsedParticipants.has(targetParticipant.id) : false
+
+                      const sourceRectHalfHeight = sourceCollapsed ? NODE_HEIGHT_COLLAPSED / 2 : NODE_HEIGHT / 2
+                      const targetRectHalfHeight = targetCollapsed ? NODE_HEIGHT_COLLAPSED / 2 : NODE_HEIGHT / 2
+
                       const direction = y2 > y1 ? 1 : -1  // downward or upward
-                      const adjustedY1 = y1 + (rectHalfHeight * direction)
-                      const adjustedY2 = y2 - (rectHalfHeight * direction)
+                      const adjustedY1 = y1 + (sourceRectHalfHeight * direction)
+                      const adjustedY2 = y2 - (targetRectHalfHeight * direction)
 
-                      // Find the participant for the TARGET (consequence) event
-                      const targetParticipant = activeLanes.find(p => p.laneIndex === event.lane)
-
-                      // Determine arrow color based on target participant (consequence node color)
+                      // Determine arrow color and marker based on target participant (consequence node color)
+                      // No arrowheads when target is collapsed
                       let arrowColor: string
                       let arrowMarker: string
                       if (targetParticipant) {
                         if (targetParticipant.id === 'finder') {
                           arrowColor = '#BBDEFB'
-                          arrowMarker = 'url(#arrowhead-blue)'
+                          arrowMarker = targetCollapsed ? '' : 'url(#arrowhead-blue)'
                         } else if (targetParticipant.id === 'vendor-1') {
                           arrowColor = '#E1BEE7'
-                          arrowMarker = 'url(#arrowhead-purple)'
+                          arrowMarker = targetCollapsed ? '' : 'url(#arrowhead-purple)'
                         } else if (targetParticipant.id === 'vendor-2') {
                           arrowColor = '#C8E6C9'
-                          arrowMarker = 'url(#arrowhead-green)'
+                          arrowMarker = targetCollapsed ? '' : 'url(#arrowhead-green)'
                         } else if (targetParticipant.id === 'caseactor') {
                           arrowColor = '#FFE0B2'
-                          arrowMarker = 'url(#arrowhead-orange)'
+                          arrowMarker = targetCollapsed ? '' : 'url(#arrowhead-orange)'
                         } else {
                           arrowColor = '#999'
-                          arrowMarker = ''
+                          arrowMarker = targetCollapsed ? '' : ''
                         }
                       } else {
                         arrowColor = '#999'
                         arrowMarker = ''
                       }
+
+                      // Use thinner stroke for collapsed target
+                      const strokeWidth = targetCollapsed ? 1.5 : 3
+                      const strokeDasharray = targetCollapsed ? "3,3" : "6,6"
 
                       return (
                         <line
@@ -538,8 +656,8 @@ function App() {
                           x2={event.x}
                           y2={adjustedY2}
                           stroke={arrowColor}
-                          strokeWidth="3"
-                          strokeDasharray="6,6"
+                          strokeWidth={strokeWidth}
+                          strokeDasharray={strokeDasharray}
                           markerEnd={arrowMarker}
                         />
                       )
@@ -569,10 +687,20 @@ function App() {
 
                   if (!shouldDrawArrow) return null
 
-                  const y = event.lane * LANE_HEIGHT + LANE_HEIGHT / 2
-                  const rectHalfWidth = NODE_WIDTH / 2
+                  const allParticipants = Array.from(demoState.participants.values())
+                  const participant = allParticipants.find(p => p.laneIndex === event.lane)
+
+                  // Use collapsed node width if participant is collapsed
+                  const isCollapsed = participant ? collapsedParticipants.has(participant.id) : false
+                  const rectHalfWidth = isCollapsed ? NODE_WIDTH_COLLAPSED / 2 : NODE_WIDTH / 2
+
+                  const y = getYPositionForLane(event.lane, allParticipants)
                   const startX = event.x + rectHalfWidth // Start from edge of rectangle
                   const endX = nextInLane.x - rectHalfWidth // End at edge of next rectangle
+
+                  // Keep regular arrowhead for horizontal arrows even in collapsed lanes
+                  const arrowMarker = 'url(#arrowhead)'
+                  const strokeWidth = isCollapsed ? 1.5 : 3
 
                   return (
                     <g key={`arrow-horizontal-${event.id}`}>
@@ -582,8 +710,8 @@ function App() {
                         x2={endX}
                         y2={y}
                         stroke="#666"
-                        strokeWidth={3}
-                        markerEnd="url(#arrowhead)"
+                        strokeWidth={strokeWidth}
+                        markerEnd={arrowMarker}
                       />
                     </g>
                   )
@@ -597,6 +725,20 @@ function App() {
                   // Find which participant this event's lane belongs to - search ALL participants, not just visible
                   const allParticipants = Array.from(demoState.participants.values())
                   const participant = allParticipants.find(p => p.laneIndex === event.lane)
+
+                  // Check if this participant's lane is collapsed
+                  const isCollapsed = participant ? collapsedParticipants.has(participant.id) : false
+
+                  // Calculate Y position based on collapsed state
+                  let yPos: number
+                  if (participant) {
+                    const baseYPos = getParticipantYPosition(participant, allParticipants)
+                    const laneHeight = isCollapsed ? LANE_HEIGHT_COLLAPSED : LANE_HEIGHT
+                    yPos = baseYPos + laneHeight / 2
+                  } else {
+                    // Fallback to old calculation if participant not found
+                    yPos = event.lane * LANE_HEIGHT + LANE_HEIGHT / 2
+                  }
 
                   // Determine node color based on participant and event type
                   let fillColor: string
@@ -630,6 +772,13 @@ function App() {
                       allEvents={demoState.timelineEvents}
                       isHovered={isHovered}
                       fillColor={fillColor}
+                      yPosition={yPos}
+                      getCauseEventY={(eventId) => {
+                        const causeEvent = demoState.timelineEvents.find(e => e.id === eventId)
+                        if (!causeEvent) return 0
+                        return getYPositionForLane(causeEvent.lane, allParticipants)
+                      }}
+                      isCollapsed={isCollapsed}
                       onMouseEnter={() => setHoveredEvent(event.id)}
                       onMouseLeave={() => setHoveredEvent(null)}
                     />
@@ -637,12 +786,23 @@ function App() {
                 })}
               </svg>
 
-              {/* Hover tooltip */}
+              {/* Hover tooltip - only show for non-collapsed nodes */}
               {hoveredEvent &&
                 (() => {
                   const event = demoState.timelineEvents.find((e) => e.id === hoveredEvent)
                   if (!event) return null
-                  const y = event.lane * LANE_HEIGHT + LANE_HEIGHT / 2
+
+                  // Find the participant to check if collapsed
+                  const allParticipants = Array.from(demoState.participants.values())
+                  const participant = allParticipants.find(p => p.laneIndex === event.lane)
+                  const isCollapsed = participant ? collapsedParticipants.has(participant.id) : false
+
+                  // Don't show detailed tooltip for collapsed nodes (they have their own inline tooltip)
+                  if (isCollapsed) return null
+
+                  // Calculate Y position based on collapsed state
+                  const y = getYPositionForLane(event.lane, allParticipants)
+
                   return (
                     <div
                       style={{
