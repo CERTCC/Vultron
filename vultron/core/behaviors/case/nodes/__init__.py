@@ -52,6 +52,12 @@ from vultron.core.behaviors.case.nodes.participant import (
     CreateCaseParticipantNode,
     _create_and_attach_participant,
 )
+from vultron.core.behaviors.case.nodes.update import (
+    ApplyCaseUpdateNode,
+    BroadcastCaseUpdateNode,
+    CaptureCaseUpdateBroadcastExclusionsNode,
+    CheckCaseUpdateOwnerNode,
+)
 from vultron.core.behaviors.helpers import UpdateActorOutbox  # noqa: F401
 
 __all__ = [
@@ -74,6 +80,11 @@ __all__ = [
     "SendOfferCaseManagerRoleNode",
     # lifecycle
     "CommitCaseLogEntryNode",
+    # update
+    "CheckCaseUpdateOwnerNode",
+    "CaptureCaseUpdateBroadcastExclusionsNode",
+    "ApplyCaseUpdateNode",
+    "BroadcastCaseUpdateNode",
     # re-exported from helpers (backward compat)
     "UpdateActorOutbox",
 ]
