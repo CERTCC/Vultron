@@ -294,3 +294,41 @@ groups:
     rationale: >-
       Duplicated fan-out implementations drift over time and re-introduce
       silent-failure behavior in only some pathways.
+- id: BT-15
+  title: Trigger-Side Use-Case Contract
+  kind: domain
+  specs:
+  - id: BT-15-001
+    priority: MUST
+    statement: >-
+      Trigger-side execute() methods MUST delegate state-machine transitions
+      (RM, EM, CS) to BT leaf nodes via BTBridge, following the same pattern
+      as received-side use cases.
+    rationale: >-
+      State machine transitions are protocol-significant behavior (BT-06-001).
+      Inline transitions in execute() bypass BT audit, logging, and failure
+      introspection via get_failure_reason(). The historical asymmetry between
+      trigger-side and received-side use cases arose from the now-retired
+      "simple CRUD" guidance.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-001
+      note: SM transitions are protocol-significant behavior with no skip threshold
+    - rel_type: refines
+      spec_id: BT-06-006
+      note: SM transitions performed outside a BT violate BT-06-006
+  - id: BT-15-002
+    priority: MUST_NOT
+    statement: >-
+      Trigger-side execute() methods MUST NOT call domain lifecycle methods
+      (e.g., EmbargoLifecycle, EMAdapter, direct ParticipantStatus writes with
+      rm_state/em_state) outside a BT execution context.
+    rationale: >-
+      Direct lifecycle calls in execute() make protocol transitions invisible
+      to BT-level audit and observability tooling. The BTBridge pattern
+      (instantiate BT → execute_with_setup() → introspect result) is the
+      required contract for all use-case execute() methods that perform state
+      transitions.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-006

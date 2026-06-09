@@ -209,6 +209,45 @@ The `execute()` method MAY contain infrastructure glue only:
 
 Nothing domain-significant lives outside the tree.
 
+### Trigger/Received Parity
+
+The BTBridge requirement applies equally to **trigger-side** and
+**received-side** `execute()` methods. There is no carve-out for trigger
+use cases.
+
+State machine transitions — RM transitions (e.g., `RM.INVALID`, `RM.CLOSED`),
+EM lifecycle calls (e.g., `EmbargoLifecycle.propose_embargo()`), direct
+`ParticipantStatus` writes with a specific `rm_state` — are all
+protocol-significant behavior (BT-15-001, BT-06-006). They MUST live in BT
+leaf nodes executed via `bridge.execute_with_setup()`, not directly in
+`execute()`.
+
+```python
+# ❌ WRONG — trigger-side inline RM state transition
+def execute(self) -> dict:
+    set_status = ParticipantStatus(rm_state=RM.INVALID, ...)
+    _idempotent_create(dl, ..., set_status, ...)
+    add_activity_to_outbox(actor_id, activity_id, dl)
+    return {"activity": activity_dict}
+```
+
+```python
+# ✅ CORRECT — trigger-side SM transition in BTBridge
+def execute(self) -> dict:
+    bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+    tree = invalidate_report_trigger_bt(...)
+    result = bridge.execute_with_setup(tree, actor_id=actor_id)
+    if result.status != Status.SUCCESS:
+        raise VultronValidationError(
+            f"InvalidateReport failed: {BTBridge.get_failure_reason(tree)}"
+        )
+    return {"activity": captured.get("activity")}
+```
+
+The historical asymmetry — where `received/` use cases used BTBridge and
+`triggers/` did not — arose from the now-retired "simple CRUD" guidance.
+See BT-15-001 in `specs/behavior-tree-integration.yaml`.
+
 ### Historical Decision Table (Retired)
 
 The "When to Use BTs vs. Procedural Code" table that previously appeared in
