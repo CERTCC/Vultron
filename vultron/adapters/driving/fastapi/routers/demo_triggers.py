@@ -378,7 +378,10 @@ def demo_get_case_log(
         and e.case_id == canonical_case_id
     ]
     raw_entries.sort(key=lambda e: e.log_index)
-    payloads = [e.model_dump(mode="json", by_alias=True) for e in raw_entries]
+    payloads = [
+        e.model_dump(mode="json", by_alias=True, exclude_none=True)
+        for e in raw_entries
+    ]
 
     accept = request.headers.get("accept", "")
     if fmt == "ndjson" or "application/x-ndjson" in accept:

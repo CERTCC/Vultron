@@ -200,6 +200,7 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         from vultron.core.use_cases.received.actor import _find_case_actor_id
         from vultron.core.use_cases.triggers.sync import (
             commit_log_entry_trigger,
+            extract_activity_snapshot,
         )
 
         request = self._request
@@ -252,4 +253,5 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             actor_id=actor_id,
             dl=self._dl,
             sync_port=self._sync_port,
+            payload_snapshot=extract_activity_snapshot(request),
         )

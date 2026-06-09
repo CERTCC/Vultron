@@ -31,6 +31,7 @@ Per specs/behavior-tree-integration.yaml BT-06-001.
 """
 
 import logging
+from typing import Any
 
 import py_trees
 
@@ -97,6 +98,7 @@ def remove_embargo_from_case_tree(
 def add_embargo_to_case_tree(
     case_id: str,
     embargo_id: str,
+    payload_snapshot: dict[str, Any] | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for receiver-side embargo activation (protocol EA).
 
@@ -124,6 +126,7 @@ def add_embargo_to_case_tree(
                 case_id=case_id,
                 object_id=embargo_id,
                 event_type="add_embargo_event_to_case",
+                payload_snapshot=payload_snapshot,
             ),
         ],
     )
@@ -139,6 +142,7 @@ def invite_to_embargo_on_case_tree(
     case_id: str,
     invitee_id: str,
     invite_id: str,
+    payload_snapshot: dict[str, Any] | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for receiving embargo invitation (protocol EI).
 
@@ -170,6 +174,7 @@ def invite_to_embargo_on_case_tree(
                 case_id=case_id,
                 object_id=invite_id,
                 event_type="invite_to_embargo_on_case",
+                payload_snapshot=payload_snapshot,
             ),
         ],
     )
@@ -187,6 +192,7 @@ def accept_invite_to_embargo_tree(
     embargo_id: str,
     accepting_actor_id: str,
     invite_id: str,
+    payload_snapshot: dict[str, Any] | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for accepting embargo invitation (protocol EA).
 
@@ -218,6 +224,7 @@ def accept_invite_to_embargo_tree(
                 case_id=case_id,
                 object_id=embargo_id,
                 event_type="accept_invite_to_embargo_on_case",
+                payload_snapshot=payload_snapshot,
             ),
         ],
     )
@@ -236,6 +243,7 @@ def reject_invite_to_embargo_tree(
     rejecting_actor_id: str,
     invite_id: str,
     embargo_id: str | None = None,
+    payload_snapshot: dict[str, Any] | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for rejecting embargo invitation (protocol EA).
 
@@ -268,6 +276,7 @@ def reject_invite_to_embargo_tree(
                 case_id=case_id,
                 object_id=invite_id,
                 event_type="reject_invite_to_embargo_on_case",
+                payload_snapshot=payload_snapshot,
             ),
         ],
     )
