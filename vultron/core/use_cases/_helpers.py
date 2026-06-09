@@ -216,6 +216,64 @@ def _resolve_case_manager_id(
     return None
 
 
+def resolve_case_participant_id_for_actor(
+    case: CaseModel,
+    actor_id: str,
+    dl: CasePersistence,
+) -> str | None:
+    """Resolve participant ID from actor ID using ``case_participants`` as truth.
+
+    The lookup canonical source is ``case.case_participants``. The derived
+    ``actor_participant_index`` mapping is validated against that source and
+    any divergence raises :class:`VultronValidationError`.
+    """
+    resolved_ids: list[str] = []
+    for participant_ref in case.case_participants:
+        participant_id = _as_id(participant_ref)
+        if participant_id is None:
+            continue
+        participant_obj = (
+            participant_ref
+            if is_participant_model(participant_ref)
+            else dl.read(participant_id)
+        )
+        if not is_participant_model(participant_obj):
+            continue
+        participant_actor_id = _as_id(participant_obj.attributed_to)
+        if participant_actor_id == actor_id:
+            resolved_ids.append(participant_id)
+
+    unique_ids = sorted(set(resolved_ids))
+    if len(unique_ids) > 1:
+        raise VultronValidationError(
+            "Participant-index divergence: actor "
+            f"'{actor_id}' resolves to multiple participants "
+            f"{unique_ids!r} in case_participants."
+        )
+
+    indexed_id = case.actor_participant_index.get(actor_id)
+    if not unique_ids:
+        if indexed_id is not None:
+            raise VultronValidationError(
+                "Participant-index divergence: actor "
+                f"'{actor_id}' maps to '{indexed_id}' in "
+                "actor_participant_index but has no matching participant in "
+                "case_participants."
+            )
+        return None
+
+    canonical_id = unique_ids[0]
+    if indexed_id is not None and indexed_id != canonical_id:
+        raise VultronValidationError(
+            "Participant-index divergence: actor "
+            f"'{actor_id}' resolves to '{canonical_id}' from "
+            f"case_participants but actor_participant_index maps to "
+            f"'{indexed_id}'."
+        )
+
+    return canonical_id
+
+
 def reset_case_participant_embargo_consent(
     dl: CasePersistence, case: CaseModel
 ) -> None:

@@ -149,14 +149,6 @@ def test_get_actors_does_not_log_raw_records_at_info_level(
 
 def _seed_action_rules_data(dl):
     """Insert a minimal valid VulnerabilityCase / CaseParticipant pair."""
-    case = VulnerabilityCase(
-        id_=_URN_CASE_ID,
-        name="Test Case",
-        actor_participant_index={_URN_ACTOR_ID: _URN_PARTICIPANT_ID},
-        case_statuses=[CaseStatus(em_state=EM.ACTIVE, pxa_state=CS_pxa.Pxa)],
-    )
-    dl.create(case)
-
     participant = CaseParticipant(
         id_=_URN_PARTICIPANT_ID,
         attributed_to=_URN_ACTOR_ID,
@@ -171,6 +163,14 @@ def _seed_action_rules_data(dl):
         ],
     )
     dl.create(participant)
+
+    case = VulnerabilityCase(
+        id_=_URN_CASE_ID,
+        name="Test Case",
+        case_statuses=[CaseStatus(em_state=EM.ACTIVE, pxa_state=CS_pxa.Pxa)],
+    )
+    case.add_participant(participant)
+    dl.create(case)
 
 
 def test_get_action_rules_returns_200_with_expected_fields(client_actors, dl):

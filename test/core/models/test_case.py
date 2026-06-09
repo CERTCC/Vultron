@@ -24,6 +24,7 @@ from vultron.core.models.case_participant import (
 )
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.registry import CORE_VOCABULARY
+from vultron.errors import VultronValidationError
 
 _ACTOR = "https://example.org/actor"
 _CASE_ID = "urn:uuid:case-test"
@@ -157,7 +158,7 @@ class TestVulnerabilityCaseAddParticipant:
             attributed_to="https://example.org/finder",
         )
         case.add_participant(p)
-        assert p in case.case_participants
+        assert p.id_ in case.case_participants
 
     def test_add_participant_updates_index(self, case: VulnerabilityCase):
         p = FinderParticipant(
@@ -177,6 +178,18 @@ class TestVulnerabilityCaseAddParticipant:
         case.add_participant(p)
         assert "urn:uuid:part-2" not in case.actor_participant_index
 
+    def test_add_participant_raises_on_actor_index_divergence(
+        self, case: VulnerabilityCase
+    ):
+        actor_id = "https://example.org/finder"
+        case.actor_participant_index[actor_id] = "urn:uuid:part-existing"
+        participant = FinderParticipant(
+            id_="urn:uuid:part-new",
+            attributed_to=actor_id,
+        )
+        with pytest.raises(VultronValidationError, match="divergence"):
+            case.add_participant(participant)
+
 
 class TestVulnerabilityCaseRemoveParticipant:
     """remove_participant removes from list and index."""
@@ -190,7 +203,7 @@ class TestVulnerabilityCaseRemoveParticipant:
         )
         case.add_participant(p)
         case.remove_participant("urn:uuid:part-1")
-        assert p not in case.case_participants
+        assert p.id_ not in case.case_participants
 
     def test_remove_participant_clears_from_index(
         self, case: VulnerabilityCase

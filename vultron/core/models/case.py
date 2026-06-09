@@ -26,6 +26,7 @@ from vultron.core.models.base import CoreObject
 from vultron.core.models.case_event import CaseEvent
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
+from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -110,11 +111,31 @@ class VulnerabilityCase(CoreObject):
             participant: A full :class:`CaseParticipant` object (full object
                 required to update the index).
         """
-        self.case_participants.append(participant)
-        if participant.attributed_to is not None:
-            self.actor_participant_index[participant.attributed_to] = (
-                participant.id_
+        participant_id = participant.id_
+        existing_ids = {
+            p.id_ if isinstance(p, CaseParticipant) else str(p)
+            for p in self.case_participants
+        }
+        if participant_id not in existing_ids:
+            self.case_participants.append(participant_id)
+
+        actor_ref = participant.attributed_to
+        actor_id = (
+            actor_ref
+            if isinstance(actor_ref, str)
+            else getattr(actor_ref, "id_", None)
+        )
+        if actor_id is None:
+            return
+
+        existing_mapping = self.actor_participant_index.get(actor_id)
+        if existing_mapping is not None and existing_mapping != participant_id:
+            raise VultronValidationError(
+                "Participant-index divergence: "
+                f"actor '{actor_id}' already mapped to '{existing_mapping}' "
+                f"but add_participant received '{participant_id}'."
             )
+        self.actor_participant_index[actor_id] = participant_id
 
     def remove_participant(self, participant_id: str) -> None:
         """Remove a participant and update the actor→participant index.

@@ -28,7 +28,7 @@ from vultron.core.use_cases.query.action_rules import (
     ActionRulesRequest,
     GetActionRulesUseCase,
 )
-from vultron.errors import VultronNotFoundError
+from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
     CaseStatus,
@@ -51,6 +51,7 @@ def dl():
     case = VulnerabilityCase(
         id_=CASE_ID,
         name="Test Case",
+        case_participants=[PARTICIPANT_ID],
         actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
         case_statuses=[CaseStatus(em_state=EM.ACTIVE, pxa_state=CS_pxa.Pxa)],
     )
@@ -169,6 +170,7 @@ class TestGetActionRulesUseCase:
         case = VulnerabilityCase(
             id_=CASE_ID,
             name="Empty Status Case",
+            case_participants=[PARTICIPANT_ID],
             actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
             case_statuses=[],
         )
@@ -202,6 +204,7 @@ class TestGetActionRulesUseCase:
         case = VulnerabilityCase(
             id_=CASE_ID,
             name="Default Participant Status Case",
+            case_participants=[PARTICIPANT_ID],
             actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
             case_statuses=[CaseStatus(em_state=EM.NO_EMBARGO)],
         )
@@ -236,6 +239,7 @@ class TestGetActionRulesUseCase:
             layer = SqliteDataLayer("sqlite:///:memory:")
             case = VulnerabilityCase(
                 id_=CASE_ID,
+                case_participants=[PARTICIPANT_ID],
                 actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
                 case_statuses=[CaseStatus(em_state=em, pxa_state=CS_pxa.pxa)],
             )
@@ -255,3 +259,45 @@ class TestGetActionRulesUseCase:
             assert (
                 result["em_state"] == em
             ), f"Expected {em!r}, got {result['em_state']!r}"
+
+    def test_participant_lookup_raises_on_index_mismatch(self):
+        layer = SqliteDataLayer("sqlite:///:memory:")
+        participant = CaseParticipant(
+            id_=PARTICIPANT_ID,
+            attributed_to=ACTOR_ID,
+            case_roles=[CVDRole.VENDOR],
+            participant_statuses=[ParticipantStatus(context=CASE_ID)],
+        )
+        layer.create(participant)
+        case = VulnerabilityCase(
+            id_=CASE_ID,
+            case_participants=[PARTICIPANT_ID],
+            actor_participant_index={ACTOR_ID: "https://example.org/p/wrong"},
+            case_statuses=[CaseStatus()],
+        )
+        layer.create(case)
+
+        req = ActionRulesRequest(case_id=CASE_ID, actor_id=ACTOR_ID)
+        with pytest.raises(VultronValidationError, match="divergence"):
+            GetActionRulesUseCase(dl=layer, request=req).execute()
+
+    def test_participant_lookup_succeeds_without_index_entry(self):
+        layer = SqliteDataLayer("sqlite:///:memory:")
+        participant = CaseParticipant(
+            id_=PARTICIPANT_ID,
+            attributed_to=ACTOR_ID,
+            case_roles=[CVDRole.VENDOR],
+            participant_statuses=[ParticipantStatus(context=CASE_ID)],
+        )
+        layer.create(participant)
+        case = VulnerabilityCase(
+            id_=CASE_ID,
+            case_participants=[PARTICIPANT_ID],
+            actor_participant_index={},
+            case_statuses=[CaseStatus()],
+        )
+        layer.create(case)
+
+        req = ActionRulesRequest(case_id=CASE_ID, actor_id=ACTOR_ID)
+        result = GetActionRulesUseCase(dl=layer, request=req).execute()
+        assert result["participant_id"] == PARTICIPANT_ID

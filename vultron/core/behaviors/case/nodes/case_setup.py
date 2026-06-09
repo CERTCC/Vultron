@@ -370,8 +370,7 @@ class CreateCaseActorNode(DataLayerAction):
         except ValueError:
             pass  # already exists — idempotent
 
-        case.case_participants.append(participant_id)
-        case.actor_participant_index[case_actor_id] = participant_id
+        case.add_participant(participant)
         self.datalayer.save(case)
         self.logger.info(
             f"{self.name}: Registered CaseActor participant '{participant_id}'"

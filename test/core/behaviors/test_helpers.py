@@ -206,6 +206,7 @@ def test_find_participant_by_actor_id_success_writes_blackboard(
         id_="https://example.org/cases/case-1",
         name="Case 1",
         case_participants=[participant.id_],
+        actor_participant_index={actor_id: participant.id_},
         attributed_to="https://example.org/actors/case-manager",
     )
     datalayer.save(participant)
@@ -283,6 +284,31 @@ def test_find_participant_by_actor_id_fails_when_actor_not_participant(
         node, actor_id="https://example.org/actors/vendor-1"
     )
     assert result.status == Status.FAILURE
+
+
+def test_find_participant_by_actor_id_fails_on_index_divergence(
+    bridge, datalayer
+):
+    """FindParticipantByActorIdNode fails fast on participant/index mismatch."""
+    actor_id = "https://example.org/actors/vendor-1"
+    case = VultronCase(
+        id_="https://example.org/cases/case-diverge",
+        name="Case Divergence",
+        case_participants=[],
+        actor_participant_index={
+            actor_id: "https://example.org/participants/p1"
+        },
+        attributed_to="https://example.org/actors/case-manager",
+    )
+    datalayer.save(case)
+
+    node = FindParticipantByActorIdNode(
+        case_id=case.id_,
+        target_actor_id=actor_id,
+    )
+    result = bridge.execute_with_setup(node, actor_id=actor_id)
+    assert result.status == Status.FAILURE
+    assert "divergence" in result.feedback_message
 
 
 def test_read_object_success(bridge, datalayer, sample_record):
