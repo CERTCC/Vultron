@@ -36,10 +36,18 @@ import py_trees
 
 from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoTeardownNode,
+    CommitLogCascadeNode,
+    CreateAndStoreInviteNode,
     IsActiveEmbargoNode,
+    OptionalLookupParticipantNode,
+    RecordParticipantAcceptanceNode,
     RemoveFromProposedEmbargoesNode,
+    RemoveStaleAcceptanceNode,
+    SetEmbargoActiveNode,
+    UpdateParticipantEmbargoPecNode,
     ValidateCaseExistsNode,
 )
+from vultron.core.states.participant_embargo_consent import PEC_Trigger
 
 logger = logging.getLogger(__name__)
 
@@ -82,5 +90,192 @@ def remove_embargo_from_case_tree(
         "Created RemoveEmbargoFromCaseBT for case=%s embargo=%s",
         case_id,
         embargo_id,
+    )
+    return root
+
+
+def add_embargo_to_case_tree(
+    case_id: str,
+    embargo_id: str,
+) -> py_trees.behaviour.Behaviour:
+    """Create the BT for receiver-side embargo activation (protocol EA).
+
+    Handles receipt of an ``Add(EmbargoEvent)`` activity.  Sets the embargo
+    as active on the case, transitions EM → ACTIVE, and commits a cascade
+    log entry.
+
+    BT returns SUCCESS when the embargo is activated.
+    Always cascades the log entry regardless of BT result.
+
+    Args:
+        case_id: ID of the VulnerabilityCase to update.
+        embargo_id: ID of the EmbargoEvent being activated.
+
+    Returns:
+        Root node of the ``AddEmbargoToCaseBT`` Sequence.
+    """
+    root = py_trees.composites.Sequence(
+        name="AddEmbargoToCaseBT",
+        memory=False,
+        children=[
+            ValidateCaseExistsNode(case_id=case_id),
+            SetEmbargoActiveNode(case_id=case_id, embargo_id=embargo_id),
+            CommitLogCascadeNode(
+                case_id=case_id,
+                object_id=embargo_id,
+                event_type="add_embargo_event_to_case",
+            ),
+        ],
+    )
+    logger.info(
+        "Created AddEmbargoToCaseBT for case=%s embargo=%s",
+        case_id,
+        embargo_id,
+    )
+    return root
+
+
+def invite_to_embargo_on_case_tree(
+    case_id: str,
+    invitee_id: str,
+    invite_id: str,
+) -> py_trees.behaviour.Behaviour:
+    """Create the BT for receiving embargo invitation (protocol EI).
+
+    Handles receipt of an ``Invite(InviteToEmbargoOnCase)`` activity.
+    Stores the invite activity idempotently (always succeeds), then optionally
+    looks up the invitee's participant record and advances their PEC state to
+    INVITED (skips silently if case/participant not found). Finally, commits
+    a cascade log entry.
+
+    BT always returns SUCCESS (invite storage is idempotent).
+    Always cascades the log entry regardless of BT result.
+
+    Args:
+        case_id: ID of the VulnerabilityCase.
+        invitee_id: Actor ID of the invitee.
+        invite_id: ID of the InviteToEmbargoOnCase activity.
+
+    Returns:
+        Root node of the ``InviteToEmbargoOnCaseBT`` Sequence.
+    """
+    root = py_trees.composites.Sequence(
+        name="InviteToEmbargoOnCaseBT",
+        memory=False,
+        children=[
+            CreateAndStoreInviteNode(),
+            OptionalLookupParticipantNode(case_id=case_id),
+            UpdateParticipantEmbargoPecNode(pec_trigger=PEC_Trigger.INVITE),
+            CommitLogCascadeNode(
+                case_id=case_id,
+                object_id=invite_id,
+                event_type="invite_to_embargo_on_case",
+            ),
+        ],
+    )
+    logger.info(
+        "Created InviteToEmbargoOnCaseBT for case=%s invitee=%s invite=%s",
+        case_id,
+        invitee_id,
+        invite_id,
+    )
+    return root
+
+
+def accept_invite_to_embargo_tree(
+    case_id: str,
+    embargo_id: str,
+    accepting_actor_id: str,
+    invite_id: str,
+) -> py_trees.behaviour.Behaviour:
+    """Create the BT for accepting embargo invitation (protocol EA).
+
+    Handles receipt of an ``Accept(InviteToEmbargoOnCase)`` activity.
+    Records the acceptance via EmbargoLifecycle and commits a cascade
+    log entry.
+
+    BT returns SUCCESS when acceptance is recorded.
+    Always cascades the log entry regardless of BT result.
+
+    Args:
+        case_id: ID of the VulnerabilityCase.
+        embargo_id: ID of the EmbargoEvent being accepted.
+        accepting_actor_id: Actor ID of the participant accepting.
+        invite_id: ID of the InviteToEmbargoOnCase activity.
+
+    Returns:
+        Root node of the ``AcceptInviteToEmbargoBT`` Sequence.
+    """
+    root = py_trees.composites.Sequence(
+        name="AcceptInviteToEmbargoBT",
+        memory=False,
+        children=[
+            ValidateCaseExistsNode(case_id=case_id),
+            RecordParticipantAcceptanceNode(
+                case_id=case_id, embargo_id=embargo_id
+            ),
+            CommitLogCascadeNode(
+                case_id=case_id,
+                object_id=embargo_id,
+                event_type="accept_invite_to_embargo_on_case",
+            ),
+        ],
+    )
+    logger.info(
+        "Created AcceptInviteToEmbargoBT for case=%s embargo=%s"
+        " accepting_actor=%s",
+        case_id,
+        embargo_id,
+        accepting_actor_id,
+    )
+    return root
+
+
+def reject_invite_to_embargo_tree(
+    case_id: str,
+    rejecting_actor_id: str,
+    invite_id: str,
+    embargo_id: str | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """Create the BT for rejecting embargo invitation (protocol EA).
+
+    Handles receipt of a ``Reject(InviteToEmbargoOnCase)`` activity.
+    Optionally looks up the rejecting participant (skips silently if
+    case/participant not found), removes any stale embargo acceptance
+    (pocket-veto), advances their PEC state to DECLINED, and commits
+    a cascade log entry.
+
+    BT always returns SUCCESS (best-effort operations).
+    Always cascades the log entry regardless of BT result.
+
+    Args:
+        case_id: ID of the VulnerabilityCase.
+        rejecting_actor_id: Actor ID of the participant rejecting.
+        invite_id: ID of the InviteToEmbargoOnCase activity.
+        embargo_id: ID of the EmbargoEvent (optional, for pocket-veto).
+
+    Returns:
+        Root node of the ``RejectInviteToEmbargoBT`` Sequence.
+    """
+    root = py_trees.composites.Sequence(
+        name="RejectInviteToEmbargoBT",
+        memory=False,
+        children=[
+            OptionalLookupParticipantNode(case_id=case_id),
+            RemoveStaleAcceptanceNode(embargo_id=embargo_id or ""),
+            UpdateParticipantEmbargoPecNode(pec_trigger=PEC_Trigger.DECLINE),
+            CommitLogCascadeNode(
+                case_id=case_id,
+                object_id=invite_id,
+                event_type="reject_invite_to_embargo_on_case",
+            ),
+        ],
+    )
+    logger.info(
+        "Created RejectInviteToEmbargoBT for case=%s rejecting_actor=%s"
+        " invite=%s",
+        case_id,
+        rejecting_actor_id,
+        invite_id,
     )
     return root

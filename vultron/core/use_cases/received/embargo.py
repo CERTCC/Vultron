@@ -3,15 +3,6 @@
 import logging
 from typing import TYPE_CHECKING
 
-from vultron.core.states.em import (
-    EM,
-    is_valid_em_transition,
-)
-from vultron.core.states.participant_embargo_consent import (
-    PEC,
-    PEC_Trigger,
-    apply_pec_trigger,
-)
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
     AddEmbargoEventToCaseReceivedEvent,
@@ -25,15 +16,10 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
 )
-from vultron.core.services.embargo_lifecycle import (
-    EmbargoLifecycle,
-    TransitionMode,
-)
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 from vultron.core.models.protocols import (
     PersistableModel,
     is_case_model,
-    is_participant_model,
 )
 
 if TYPE_CHECKING:
@@ -166,6 +152,13 @@ class AddEmbargoEventToCaseReceivedUseCase:
         self._sync_port = sync_port
 
     def execute(self) -> None:
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.embargo.announce_teardown_tree import (
+            add_embargo_to_case_tree,
+        )
+
         request = self._request
         embargo_id = request.embargo_id
         case_id = request.case_id
@@ -174,49 +167,23 @@ class AddEmbargoEventToCaseReceivedUseCase:
                 "add_embargo_event_to_case: missing embargo_id or case_id"
             )
             return
-        case = self._dl.read(case_id)
 
-        if not is_case_model(case):
-            logger.warning(
-                "add_embargo_event_to_case: case '%s' not found", case_id
-            )
-            return
-
-        current_embargo_id = _as_id(case.active_embargo)
-        if current_embargo_id == embargo_id:
-            logger.info(
-                "Case '%s' already has embargo '%s' active — skipping (idempotent)",
-                case_id,
-                embargo_id,
-            )
-            return
-
-        current_em = case.current_status.em_state
-        if not is_valid_em_transition(current_em, EM.ACTIVE):
-            # Receive-side state-sync: the sender has activated this embargo;
-            # update local state to reflect the sender's assertion even when
-            # the transition is not on the standard machine path (e.g., if we
-            # missed a PROPOSE step and our local state is still NONE).
-            logger.warning(
-                "add_embargo_event_to_case: EM transition %s → ACTIVE is not"
-                " a standard machine transition for case '%s'; applying"
-                " state-sync override",
-                current_em,
-                case_id,
-            )
-        case.set_embargo(embargo_id)
-        case.current_status.em_state = EM.ACTIVE
-        self._dl.save(case)
-        logger.info("Activated embargo '%s' on case '%s'", embargo_id, case_id)
-
-        _commit_embargo_log_cascade(
-            case_id=case_id,
-            object_id=embargo_id,
-            event_type="add_embargo_event_to_case",
-            dl=self._dl,
-            receiving_actor_id=request.receiving_actor_id,
-            sync_port=self._sync_port,
+        tree = add_embargo_to_case_tree(case_id=case_id, embargo_id=embargo_id)
+        bridge = BTBridge(datalayer=self._dl)
+        result = bridge.execute_with_setup(
+            tree=tree,
+            actor_id=request.actor_id,
+            activity=request,
         )
+
+        if result.status != Status.SUCCESS:
+            logger.debug(
+                "add_embargo_event_to_case: BT did not fully succeed for"
+                " embargo '%s' on case '%s' (msg: '%s')",
+                embargo_id,
+                case_id,
+                result.feedback_message,
+            )
 
 
 class RemoveEmbargoEventFromCaseReceivedUseCase:
@@ -309,56 +276,39 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         self._sync_port = sync_port
 
     def execute(self) -> None:
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.embargo.announce_teardown_tree import (
+            invite_to_embargo_on_case_tree,
+        )
+
         request = self._request
-        _idempotent_create(
-            self._dl,
-            request.activity_type,
-            request.activity_id,
-            request.activity,
-            "InviteToEmbargoOnCase",
-            request.activity_id,
-        )
+        invitee_id = request.receiving_actor_id or ""
+        case_id = request.context_id or ""
+        invite_id = request.activity_id
 
-        # Advance the invitee's consent state to INVITED so they can later
-        # accept or decline via the PEC machine.
-        invitee_id = request.receiving_actor_id
-        case_id = request.context_id
-        if not invitee_id or not case_id:
+        if not invite_id:
+            logger.warning("invite_to_embargo_on_case: missing activity_id")
             return
 
-        case = self._dl.read(case_id)
-        if not is_case_model(case):
-            return
-
-        participant_id = case.actor_participant_index.get(invitee_id)
-        if not participant_id:
-            return
-
-        participant = self._dl.read(participant_id)
-        if not is_participant_model(participant):
-            return
-
-        new_state = apply_pec_trigger(
-            PEC(participant.embargo_consent_state), PEC_Trigger.INVITE
+        tree = invite_to_embargo_on_case_tree(
+            case_id=case_id, invitee_id=invitee_id, invite_id=invite_id
         )
-        participant.embargo_consent_state = new_state
-        self._dl.save(participant)
-        logger.info(
-            "Set participant '%s' (actor '%s') embargo consent to INVITED"
-            " (case '%s')",
-            participant_id,
-            invitee_id,
-            case_id,
+        bridge = BTBridge(datalayer=self._dl)
+        result = bridge.execute_with_setup(
+            tree=tree,
+            actor_id=invitee_id,
+            activity=request,
         )
 
-        _commit_embargo_log_cascade(
-            case_id=case_id,
-            object_id=request.activity_id,
-            event_type="invite_to_embargo_on_case",
-            dl=self._dl,
-            receiving_actor_id=request.receiving_actor_id,
-            sync_port=self._sync_port,
-        )
+        if result.status != Status.SUCCESS:
+            logger.debug(
+                "invite_to_embargo_on_case: BT did not fully succeed for"
+                " invite '%s' (msg: '%s')",
+                invite_id,
+                result.feedback_message,
+            )
 
 
 class AcceptInviteToEmbargoOnCaseReceivedUseCase:
@@ -373,6 +323,13 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         self._sync_port = sync_port
 
     def execute(self) -> None:
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.embargo.announce_teardown_tree import (
+            accept_invite_to_embargo_tree,
+        )
+
         request = self._request
         embargo_id = request.embargo_id
         if embargo_id is None:
@@ -388,51 +345,29 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
 
         case_id = _case.id_
         accepting_actor_id = request.actor_id
+        invite_id = request.invite_id or ""
 
-        service = EmbargoLifecycle(persistence=self._dl)
-        result = service.accept_embargo_invite(
+        tree = accept_invite_to_embargo_tree(
             case_id=case_id,
             embargo_id=embargo_id,
-            actor_id=accepting_actor_id,
-            transition_mode=TransitionMode.OBSERVED,
+            accepting_actor_id=accepting_actor_id,
+            invite_id=invite_id,
+        )
+        bridge = BTBridge(datalayer=self._dl)
+        result = bridge.execute_with_setup(
+            tree=tree,
+            actor_id=request.actor_id,
+            activity=request,
         )
 
-        # Preserve warning for non-standard EM transitions (state-sync).
-        if result.em_after == EM.ACTIVE and result.em_before not in (
-            EM.PROPOSED,
-            EM.REVISE,
-        ):
-            logger.warning(
-                "accept_invite_to_embargo_on_case: EM transition %s → ACTIVE "
-                "is not a standard machine transition for case '%s'; applying "
-                "state-sync override",
-                result.em_before,
+        if result.status != Status.SUCCESS:
+            logger.debug(
+                "accept_invite_to_embargo_on_case: BT did not fully succeed for"
+                " embargo '%s' on case '%s' (msg: '%s')",
+                embargo_id,
                 case_id,
+                result.feedback_message,
             )
-
-        if result.case_changed or result.case_embargo_changed:
-            updated_case = self._dl.read(case_id)
-            if is_case_model(updated_case):
-                updated_case.record_event(embargo_id, "embargo_accepted")
-                self._dl.save(updated_case)
-
-        logger.info(
-            "Accepted embargo proposal '%s'; actor '%s' recorded as SIGNATORY"
-            " for embargo '%s' on case '%s'",
-            request.invite_id,
-            accepting_actor_id,
-            embargo_id,
-            case_id,
-        )
-
-        _commit_embargo_log_cascade(
-            case_id=case_id,
-            object_id=embargo_id,
-            event_type="accept_invite_to_embargo_on_case",
-            dl=self._dl,
-            receiving_actor_id=request.receiving_actor_id,
-            sync_port=self._sync_port,
-        )
 
 
 class RejectInviteToEmbargoOnCaseReceivedUseCase:
@@ -447,16 +382,23 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         self._sync_port = sync_port
 
     def execute(self) -> None:
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.embargo.announce_teardown_tree import (
+            reject_invite_to_embargo_tree,
+        )
+
         request = self._request
         rejecting_actor_id = request.actor_id
         invite_id = request.invite_id
+
         logger.info(
             "Actor '%s' rejected embargo proposal '%s'",
             rejecting_actor_id,
             invite_id,
         )
 
-        # Update the rejecting actor's embargo consent state to DECLINED.
         # Extract case and embargo IDs from the stored invite activity.
         case_id: str | None = None
         embargo_id: str | None = None
@@ -467,39 +409,29 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
                 embargo_id = _as_id(getattr(invite, "object_", None))
 
         if not case_id:
-            return
-        case = self._dl.read(case_id)
-        if not is_case_model(case):
-            return
-
-        participant_id = case.actor_participant_index.get(rejecting_actor_id)
-        if not participant_id:
+            logger.warning(
+                "reject_invite_to_embargo_on_case: cannot resolve case_id"
+            )
             return
 
-        participant = self._dl.read(participant_id)
-        if not is_participant_model(participant):
-            return
-
-        # Remove any stale embargo acceptance entry (pocket-veto semantics).
-        if embargo_id and embargo_id in participant.accepted_embargo_ids:
-            participant.accepted_embargo_ids.remove(embargo_id)
-
-        new_state = apply_pec_trigger(
-            PEC(participant.embargo_consent_state), PEC_Trigger.DECLINE
-        )
-        participant.embargo_consent_state = new_state
-        self._dl.save(participant)
-        logger.info(
-            "Set participant '%s' (actor '%s') embargo consent to DECLINED",
-            participant_id,
-            rejecting_actor_id,
-        )
-
-        _commit_embargo_log_cascade(
+        tree = reject_invite_to_embargo_tree(
             case_id=case_id,
-            object_id=invite_id or request.activity_id,
-            event_type="reject_invite_to_embargo_on_case",
-            dl=self._dl,
-            receiving_actor_id=request.receiving_actor_id,
-            sync_port=self._sync_port,
+            rejecting_actor_id=rejecting_actor_id,
+            invite_id=invite_id or "",
+            embargo_id=embargo_id,
         )
+        bridge = BTBridge(datalayer=self._dl)
+        result = bridge.execute_with_setup(
+            tree=tree,
+            actor_id=request.actor_id,
+            activity=request,
+        )
+
+        if result.status != Status.SUCCESS:
+            logger.debug(
+                "reject_invite_to_embargo_on_case: BT did not fully succeed for"
+                " invite '%s' on case '%s' (msg: '%s')",
+                invite_id,
+                case_id,
+                result.feedback_message,
+            )
