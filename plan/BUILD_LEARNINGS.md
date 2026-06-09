@@ -87,6 +87,26 @@ header.
 
 ### 2026-06-09 ISSUE-825 — Actor-participant cache checks should fail only on contradictions
 
+### 2026-06-09 ISSUE-710 — Embargo received-side BT adoption
+
+- BT node parameter shadowing: When migrating procedural logic to BT nodes,
+  ensure constructor parameters are used or removed. The unused `actor_id_source`
+  parameter in LookupParticipantNode was defined but never used, creating
+  confusion about parameter intent.
+- Actor-id mismatch in invite trees: InviteToEmbargoOnCaseReceivedUseCase
+  passes wrong actor_id to bridge.execute_with_setup() when invitee_id differs
+  from sender actor_id. Must pass invitee_id (not sender) so
+  OptionalLookupParticipantNode resolves correct participant record.
+- Lenient vs strict node variants: OptionalLookupParticipantNode pattern
+  (succeed-on-missing) is correct for operations that should skip when
+  participant missing (invite, reject), but LookupParticipantNode
+  (fail-on-missing) is still needed for operations that require participant
+  (acceptance recording).
+- Cascade subtree must be part of tree execution: All BT factories include
+  CommitLogCascadeNode as a leaf; cascade is never a post-BT callback.
+- Post-implementation code review caught actor_id bug before merge; review
+  gates on correctness, not style.
+
 - Canonical actor→participant resolution should use `case_participants` as the
   source of truth and treat `actor_participant_index` as a derived cache.
 - Fail fast when the cache contradicts canonical data (wrong/stale participant),
