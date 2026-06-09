@@ -112,3 +112,13 @@ header.
 - Fail fast when the cache contradicts canonical data (wrong/stale participant),
   but do not treat a missing cache entry as fatal when canonical participant
   data exists.
+- BT-14-001 compliance is CRITICAL for peer broadcast nodes: CommitLogCascadeNode
+  MUST return FAILURE when cascade dispatch fails, not SUCCESS. Masking delivery
+  failure with SUCCESS causes silent state divergence (missed by initial code
+  review, found on PR review). Always check peer-broadcast nodes against BT-14-001.
+- Lenient vs strict patterns need documentation: OptionalLookupParticipantNode
+  (lenient) is correct for optional workflows where participant may not exist
+  locally yet, but the architectural rationale must be explicit in docstrings
+  so future reviewers understand why "Always SUCCESS" is intentional, not a bug.
+  The pattern supports broadcasting log entries even when participant doesn't
+  exist on this peer yet (state gap resolved by broadcast reception).
