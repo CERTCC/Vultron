@@ -13,6 +13,7 @@
 
 """Tests for the core CaseActor domain model (step 6 of issue #699)."""
 
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_actor import (
     CaseActor,
@@ -38,7 +39,9 @@ class TestCaseActorBasics:
 
     def test_outbox_items_default_empty(self):
         actor = CaseActor()
-        assert actor.outbox.items == []
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor.id_)
+        dl.create(actor)
+        assert dl.outbox_list() == []
 
     def test_attributed_to_optional(self):
         actor = CaseActor(attributed_to="https://example.org/owner")

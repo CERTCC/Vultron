@@ -440,10 +440,7 @@ def test_trigger_invalidate_report_adds_activity_to_outbox(
     client_triggers, dl, actor, offer, invalid_report
 ):
     """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
-    actor_before = dl.read(actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list())
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/invalidate-report",
@@ -451,10 +448,7 @@ def test_trigger_invalidate_report_adds_activity_to_outbox(
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
 
 
@@ -587,10 +581,7 @@ def test_trigger_reject_report_adds_activity_to_outbox(
     client_triggers, dl, actor, offer, invalid_report
 ):
     """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
-    actor_before = dl.read(actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list())
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/reject-report",
@@ -598,10 +589,7 @@ def test_trigger_reject_report_adds_activity_to_outbox(
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
 
 
@@ -705,10 +693,7 @@ def test_trigger_close_report_adds_activity_to_outbox(
     client_triggers, dl, actor, offer, accepted_report
 ):
     """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
-    actor_before = dl.read(actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list())
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/close-report",
@@ -716,10 +701,7 @@ def test_trigger_close_report_adds_activity_to_outbox(
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
 
 
@@ -792,10 +774,7 @@ def test_trigger_submit_report_creates_offer_in_outbox(
     client_triggers, actor, dl
 ):
     """TB-07-001: submit-report adds the offer to the actor's outbox."""
-    actor_before = dl.read(actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list())
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/submit-report",
@@ -807,10 +786,7 @@ def test_trigger_submit_report_creates_offer_in_outbox(
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
 
 

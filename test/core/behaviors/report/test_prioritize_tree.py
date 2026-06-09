@@ -442,11 +442,10 @@ def test_prioritize_subtree_engages_by_default(
     assert updated_participant.participant_statuses[-1].rm_state == RM.ACCEPTED
 
     # An engage activity must have been created and added to outbox
-    updated_actor = datalayer.read(actor_id)
-    assert updated_actor is not None
-    assert len(updated_actor.outbox.items) == 1
+    outbox_items = datalayer.clone_for_actor(actor_id).outbox_list()
+    assert len(outbox_items) == 1
 
-    engage_activity_id = updated_actor.outbox.items[0]
+    engage_activity_id = outbox_items[0]
     engage_activity = datalayer.read(engage_activity_id)
     assert engage_activity is not None
     assert str(engage_activity.type_) == "Join"

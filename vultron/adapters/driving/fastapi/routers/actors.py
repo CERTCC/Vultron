@@ -287,14 +287,22 @@ def get_actor_profile(
     inbox = getattr(as_actor, "inbox", None)
     outbox = getattr(as_actor, "outbox", None)
     profile["inbox"] = (
-        inbox.get("id")
-        if isinstance(inbox, dict)
-        else getattr(inbox, "id_", None)
+        inbox
+        if isinstance(inbox, str)
+        else (
+            inbox.get("id")
+            if isinstance(inbox, dict)
+            else getattr(inbox, "id_", None)
+        )
     )
     profile["outbox"] = (
-        outbox.get("id")
-        if isinstance(outbox, dict)
-        else getattr(outbox, "id_", None)
+        outbox
+        if isinstance(outbox, str)
+        else (
+            outbox.get("id")
+            if isinstance(outbox, dict)
+            else getattr(outbox, "id_", None)
+        )
     )
     return profile
 

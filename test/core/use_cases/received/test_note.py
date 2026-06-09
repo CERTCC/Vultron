@@ -303,12 +303,10 @@ class TestNoteUseCases:
         ).execute()
 
         # CaseActor outbox should contain the broadcast activity.
-        refreshed_actor = dl.read(case_actor.id_)
-        assert refreshed_actor is not None
-        refreshed_actor = cast(VultronCaseActor, refreshed_actor)
-        assert len(refreshed_actor.outbox.items) == 1
+        queued_ids = dl.clone_for_actor(case_actor.id_).outbox_list()
+        assert len(queued_ids) == 1
 
-        broadcast_id = refreshed_actor.outbox.items[0]
+        broadcast_id = queued_ids[0]
         broadcast = dl.read(broadcast_id)
         assert broadcast is not None
         broadcast = cast(Any, broadcast)
@@ -374,12 +372,10 @@ class TestNoteUseCases:
             ),
         ).execute()
 
-        refreshed_actor = dl.read(case_actor.id_)
-        assert refreshed_actor is not None
-        refreshed_actor = cast(VultronCaseActor, refreshed_actor)
-        assert len(refreshed_actor.outbox.items) == 1
+        queued_ids = dl.clone_for_actor(case_actor.id_).outbox_list()
+        assert len(queued_ids) == 1
 
-        broadcast_id = refreshed_actor.outbox.items[0]
+        broadcast_id = queued_ids[0]
         broadcast = dl.read(broadcast_id)
         assert broadcast is not None
         broadcast = cast(Any, broadcast)

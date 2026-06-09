@@ -270,10 +270,7 @@ def test_trigger_engage_case_adds_activity_to_outbox(
     client_triggers, dl, actor, case_with_participant
 ):
     """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
-    actor_before = dl.read(actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list())
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/engage-case",
@@ -281,10 +278,7 @@ def test_trigger_engage_case_adds_activity_to_outbox(
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
 
 
@@ -429,10 +423,7 @@ def test_trigger_defer_case_adds_activity_to_outbox(
     client_triggers, dl, actor, case_with_participant
 ):
     """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
-    actor_before = dl.read(actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list())
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/defer-case",
@@ -440,10 +431,7 @@ def test_trigger_defer_case_adds_activity_to_outbox(
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
 
 
@@ -711,10 +699,7 @@ def test_trigger_create_case_short_actor_id_updates_outbox_without_warning(
     import logging
 
     short_uuid = parse_id(http_actor.id_)["object_id"]
-    actor_before = dl.read(http_actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list())
 
     with caplog.at_level(logging.WARNING):
         resp = client_triggers.post(
@@ -723,10 +708,7 @@ def test_trigger_create_case_short_actor_id_updates_outbox_without_warning(
         )
 
     assert resp.status_code == status.HTTP_202_ACCEPTED
-    actor_after = dl.read(http_actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
     assert not any(
         "add_activity_to_outbox" in record.message for record in caplog.records
@@ -814,10 +796,7 @@ def test_trigger_add_report_short_actor_id_updates_outbox_without_warning(
     import logging
 
     short_uuid = parse_id(http_actor.id_)["object_id"]
-    actor_before = dl.read(http_actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list())
 
     with caplog.at_level(logging.WARNING):
         resp = client_triggers.post(
@@ -829,10 +808,7 @@ def test_trigger_add_report_short_actor_id_updates_outbox_without_warning(
         )
 
     assert resp.status_code == status.HTTP_202_ACCEPTED
-    actor_after = dl.read(http_actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
     assert not any(
         "add_activity_to_outbox" in record.message for record in caplog.records

@@ -87,11 +87,10 @@ def test_emit_engage_case_activity(
     )
     bt_scenario.assert_success(result)
 
-    updated_actor = cast(Any, bt_scenario.dl.read(actor.id_))
-    assert updated_actor is not None
-    assert len(updated_actor.outbox.items) == 1
+    outbox_items = bt_scenario.dl.clone_for_actor(actor.id_).outbox_list()
+    assert len(outbox_items) == 1
 
-    activity_id = updated_actor.outbox.items[0]
+    activity_id = outbox_items[0]
     activity = cast(Any, bt_scenario.dl.read(activity_id))
     assert activity is not None
     assert str(getattr(activity, "type_", "")) == "Join"
@@ -114,11 +113,10 @@ def test_emit_defer_case_activity(
     )
     bt_scenario.assert_success(result)
 
-    updated_actor = cast(Any, bt_scenario.dl.read(actor.id_))
-    assert updated_actor is not None
-    assert len(updated_actor.outbox.items) == 1
+    outbox_items = bt_scenario.dl.clone_for_actor(actor.id_).outbox_list()
+    assert len(outbox_items) == 1
 
-    activity_id = updated_actor.outbox.items[0]
+    activity_id = outbox_items[0]
     activity = cast(Any, bt_scenario.dl.read(activity_id))
     assert activity is not None
     assert str(getattr(activity, "type_", "")) == "Ignore"

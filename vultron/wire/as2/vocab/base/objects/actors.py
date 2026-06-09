@@ -16,7 +16,7 @@
 
 from typing import Any, TypeAlias
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from vultron.wire.as2.enums import as_ActorType as A_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
@@ -47,6 +47,19 @@ class as_Actor(as_Object):
     endpoints: Any | None = None
     # todo endpoints should be its own object
     # see https://www.w3.org/TR/activitypub/#actors
+
+    @field_validator("inbox", "outbox", mode="before")
+    @classmethod
+    def _coerce_uri_to_collection(cls, v: Any) -> Any:
+        """Coerce a plain URI string to an as_OrderedCollection.
+
+        When reading back an actor that was stored via a CoreActor-derived
+        class (inbox/outbox as str | None), the URI is wrapped back into
+        an as_OrderedCollection so wire-layer validation succeeds.
+        """
+        if isinstance(v, str):
+            return as_OrderedCollection(id_=v)
+        return v
 
     @model_validator(mode="after")
     def set_collections(self):

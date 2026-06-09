@@ -175,9 +175,8 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
     ), "BUG-26040902 regression: no VulnerabilityCase created after BT success"
 
     # Verify outbox has the Create(Case) notification
-    updated_actor = dl.read(_actor_id)
-    assert updated_actor is not None
-    assert len(updated_actor.outbox.items) > 0, (
+    outbox_items = dl.clone_for_actor(_actor_id).outbox_list()
+    assert len(outbox_items) > 0, (
         "BUG-26040902 regression: no outbox entry created — "
         "reporter would never receive VulnerabilityCase"
     )

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
 
 from vultron.core.models.base import CoreObject
@@ -32,22 +32,35 @@ class CoreActor(CoreObject):
     fields that were previously defined only in the wire layer. Concrete
     actor types inherit from this base and add a concrete ``type_``
     discriminator.
+
+    Note: inbox and outbox are now simple string URIs representing the
+    actor's ActivityStreams collection endpoints. Queue persistence is
+    delegated to the DataLayer, accessed via ActorScopedDataLayer.
     """
 
     model_config = ConfigDict(
         populate_by_name=True,
-        alias_generator=to_camel,
         validate_by_name=True,
-        validate_by_alias=True,
     )
 
-    context_: str = Field(
-        default="https://www.w3.org/ns/activitystreams",
-        validation_alias="@context",
-        serialization_alias="@context",
-    )
-    inbox: CoreActorCollection | None = None
-    outbox: CoreActorCollection | None = None
+    inbox: str | None = None
+    outbox: str | None = None
+
+    @field_validator("inbox", "outbox", mode="before")
+    @classmethod
+    def _coerce_collection_to_uri(cls, v: Any) -> str | None:
+        """Coerce a collection object to its URI string.
+
+        When reading back from storage, inbox/outbox may be stored as a full
+        collection dict (from wire-layer as_Service/as_Actor) rather than a
+        plain string URI. Extract the id_ or id field for backward compat.
+        """
+        if v is None or isinstance(v, str):
+            return v
+        if isinstance(v, dict):
+            return v.get("id_") or v.get("id") or None
+        return getattr(v, "id_", None) or getattr(v, "id", None) or None
+
     following: Any | None = None
     followers: Any | None = None
     liked: Any | None = None
@@ -58,15 +71,6 @@ class CoreActor(CoreObject):
         default=None,
         description="The actor's stated embargo preferences.",
     )
-
-    @model_validator(mode="after")
-    def _ensure_actor_collections(self) -> "CoreActor":
-        actor_id = self.id_
-        if self.inbox is None:
-            self.inbox = CoreActorCollection(id_=f"{actor_id}/inbox")
-        if self.outbox is None:
-            self.outbox = CoreActorCollection(id_=f"{actor_id}/outbox")
-        return self
 
     def to_json(self, **kwargs: Any) -> str:
         return self.model_dump_json(exclude_none=True, by_alias=True, **kwargs)
@@ -97,6 +101,18 @@ class CoreActorCollection(CoreObject):
 
 
 class VultronPerson(CoreActor):
+    """Core domain model for a Person actor.
+
+    Registered in VOCABULARY["Person"]; uses camelCase aliases for AS2 wire
+    serialization.
+    """
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        validate_by_name=True,
+        validate_by_alias=True,
+        alias_generator=to_camel,
+    )
     type_: Literal["Person"] = Field(
         default="Person",
         validation_alias="type",
@@ -105,6 +121,18 @@ class VultronPerson(CoreActor):
 
 
 class VultronOrganization(CoreActor):
+    """Core domain model for an Organization actor.
+
+    Registered in VOCABULARY["Organization"]; uses camelCase aliases for AS2
+    wire serialization.
+    """
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        validate_by_name=True,
+        validate_by_alias=True,
+        alias_generator=to_camel,
+    )
     type_: Literal["Organization"] = Field(
         default="Organization",
         validation_alias="type",
@@ -113,6 +141,18 @@ class VultronOrganization(CoreActor):
 
 
 class VultronService(CoreActor):
+    """Core domain model for a Service actor.
+
+    Registered in VOCABULARY["Service"]; uses camelCase aliases for AS2 wire
+    serialization.
+    """
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        validate_by_name=True,
+        validate_by_alias=True,
+        alias_generator=to_camel,
+    )
     type_: Literal["Service"] = Field(
         default="Service",
         validation_alias="type",
@@ -121,6 +161,18 @@ class VultronService(CoreActor):
 
 
 class VultronApplication(CoreActor):
+    """Core domain model for an Application actor.
+
+    Registered in VOCABULARY["Application"]; uses camelCase aliases for AS2
+    wire serialization.
+    """
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        validate_by_name=True,
+        validate_by_alias=True,
+        alias_generator=to_camel,
+    )
     type_: Literal["Application"] = Field(
         default="Application",
         validation_alias="type",
@@ -129,6 +181,18 @@ class VultronApplication(CoreActor):
 
 
 class VultronGroup(CoreActor):
+    """Core domain model for a Group actor.
+
+    Registered in VOCABULARY["Group"]; uses camelCase aliases for AS2 wire
+    serialization.
+    """
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        validate_by_name=True,
+        validate_by_alias=True,
+        alias_generator=to_camel,
+    )
     type_: Literal["Group"] = Field(
         default="Group",
         validation_alias="type",

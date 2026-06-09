@@ -59,29 +59,13 @@ def _make_actor_dl(actor_name: str):
 
 def _activity_in_outbox(actor, dl: SqliteDataLayer) -> bool:
     """Check if actor's outbox has any items queued."""
-    actor_obj = dl.read(actor.id_)
-    if actor_obj is None:
-        return False
-    outbox = getattr(actor_obj, "outbox", None)
-    if outbox is None:
-        return False
-    items = getattr(outbox, "items", [])
-    return len(items) > 0
+    return len(dl.outbox_list()) > 0
 
 
 def _get_outbox_activity_id(actor, dl: SqliteDataLayer) -> str | None:
     """Return the first activity ID in actor's outbox."""
-    actor_obj = dl.read(actor.id_)
-    if actor_obj is None:
-        return None
-    outbox = getattr(actor_obj, "outbox", None)
-    if outbox is None:
-        return None
-    items = getattr(outbox, "items", [])
-    if not items:
-        return None
-    first_item = items[0]
-    return first_item if isinstance(first_item, str) else None
+    items = dl.outbox_list()
+    return items[0] if items else None
 
 
 # ---------------------------------------------------------------------------
@@ -261,9 +245,7 @@ class TestSvcAddObjectToCaseUseCase:
         ).execute()
 
         # Verify both activities were queued
-        actor_obj = self.dl.read(self.actor.id_)
-        outbox = getattr(actor_obj, "outbox", None)
-        items = getattr(outbox, "items", [])
+        items = self.dl.outbox_list()
         assert len(items) == 2, "Both activities should be queued"
 
         # Verify result contains activities

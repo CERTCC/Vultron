@@ -346,19 +346,13 @@ def test_invalidate_report_trigger_adds_activity_to_outbox(
     dl, actor, offer, received_report
 ):
     """invalidate_report_trigger adds a new activity to the actor's outbox."""
-    actor_before = dl.read(actor.id_)
-    before = {
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    }
+    before = set(dl.outbox_list())
 
     TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).invalidate_report(actor.id_, offer.id_, None)
 
-    actor_after = dl.read(actor.id_)
-    after = {
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    }
+    after = set(dl.outbox_list())
     assert len(after - before) >= 1
 
 
@@ -408,19 +402,13 @@ def test_reject_report_trigger_adds_activity_to_outbox(
     dl, actor, offer, received_report
 ):
     """reject_report_trigger adds a new activity to the actor's outbox."""
-    actor_before = dl.read(actor.id_)
-    before = {
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    }
+    before = set(dl.outbox_list())
 
     TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).reject_report(actor.id_, offer.id_, "Reason.")
 
-    actor_after = dl.read(actor.id_)
-    after = {
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    }
+    after = set(dl.outbox_list())
     assert len(after - before) >= 1
 
 
@@ -550,19 +538,13 @@ def test_engage_case_trigger_adds_activity_to_outbox(
     dl, actor, case_with_participant
 ):
     """engage_case_trigger adds a new activity to the actor's outbox."""
-    actor_before = dl.read(actor.id_)
-    before = {
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    }
+    before = set(dl.outbox_list())
 
     TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).engage_case(actor.id_, case_with_participant.id_)
 
-    actor_after = dl.read(actor.id_)
-    after = {
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    }
+    after = set(dl.outbox_list())
     assert len(after - before) >= 1
 
 
@@ -845,17 +827,11 @@ def test_terminate_embargo_trigger_adds_activity_to_outbox(
 ):
     """terminate_embargo_trigger adds a new activity to the actor's outbox."""
     case_obj, _ = case_with_embargo
-    actor_before = dl.read(actor.id_)
-    before = {
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    }
+    before = set(dl.outbox_list())
 
     TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).terminate_embargo(actor.id_, case_obj.id_)
 
-    actor_after = dl.read(actor.id_)
-    after = {
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    }
+    after = set(dl.outbox_list())
     assert len(after - before) >= 1
