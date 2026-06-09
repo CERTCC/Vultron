@@ -84,3 +84,11 @@ header.
   callers previously imported transitively from the old module.
 - Mirror the source split in test layout with a matching subdirectory to keep
   file organization aligned and reduce future merge-conflict hotspots.
+
+### 2026-06-09 ISSUE-825 — Actor-participant cache checks should fail only on contradictions
+
+- Canonical actor→participant resolution should use `case_participants` as the
+  source of truth and treat `actor_participant_index` as a derived cache.
+- Fail fast when the cache contradicts canonical data (wrong/stale participant),
+  but do not treat a missing cache entry as fatal when canonical participant
+  data exists.

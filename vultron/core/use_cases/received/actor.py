@@ -611,9 +611,7 @@ class AcceptInviteActorToCaseReceivedUseCase:
             )
         self._dl.create(participant)
 
-        # Use string IDs to avoid wire-type serialization incompatibility
-        case.case_participants.append(participant.id_)
-        case.actor_participant_index[invitee_id] = participant.id_
+        case.add_participant(participant)
         case.record_event(invitee_id, "participant_joined")
         if active_embargo_id and em_state == EM.ACTIVE:
             case.record_event(active_embargo_id, "embargo_accepted")

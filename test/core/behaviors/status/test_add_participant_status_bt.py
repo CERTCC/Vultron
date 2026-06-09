@@ -120,8 +120,8 @@ def case_manager_participant():
 def case(participant, case_manager_participant):
     """VulnerabilityCase with vendor and Case Manager participants."""
     obj = VulnerabilityCase(id_=CASE_ID, name="Test Case")
-    obj.actor_participant_index[ACTOR_ID] = PARTICIPANT_ID
-    obj.actor_participant_index[CASE_MANAGER_ID] = CM_PARTICIPANT_ID
+    obj.add_participant(participant)
+    obj.add_participant(case_manager_participant)
     return obj
 
 

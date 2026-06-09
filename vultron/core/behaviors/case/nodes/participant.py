@@ -103,19 +103,21 @@ def _create_and_attach_participant(
         node_logger.error("Case %s not found in DataLayer", case_id)
         return None
 
-    existing_ids = {
-        p.id_ if hasattr(p, "id_") else p
-        for p in stored_case.case_participants
-    }
-    if participant.id_ not in existing_ids:
-        stored_case.case_participants.append(participant.id_)
-    if (
-        stored_case.actor_participant_index.get(actor_id_for_index)
-        != participant.id_
-    ):
-        stored_case.actor_participant_index[actor_id_for_index] = (
-            participant.id_
-        )
+    existing_participant_id = stored_case.actor_participant_index.get(
+        actor_id_for_index
+    )
+    if existing_participant_id is not None:
+        existing_participant = dl.read(existing_participant_id)
+        if existing_participant is not None:
+            stored_case.add_participant(existing_participant)
+            node_logger.debug(
+                "Participant already registered for actor '%s' in case '%s'",
+                actor_id_for_index,
+                case_id,
+            )
+            return stored_case
+
+    stored_case.add_participant(participant)
 
     node_logger.info(
         "CaseParticipant '%s' attached to case '%s'",

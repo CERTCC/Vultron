@@ -228,6 +228,51 @@ class FindParticipantByActorIdNode(DataLayerCondition):
             else getattr(actor_ref, "id_", str(actor_ref))
         )
 
+    def _participant_id(self, participant: object) -> str:
+        return str(getattr(participant, "id_", participant))
+
+    def _fail(self, message: str) -> Status:
+        self.feedback_message = message
+        self.logger.error("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+    def _find_matching_participant(
+        self, case_obj: object
+    ) -> tuple[object | None, str | None, str | None]:
+        assert self.datalayer is not None
+        matched_participant: object | None = None
+        matched_participant_id: str | None = None
+        for participant_ref in getattr(case_obj, "case_participants", []):
+            participant_obj = participant_ref
+            if isinstance(participant_ref, str):
+                participant_obj = self.datalayer.read(
+                    participant_ref, raise_on_missing=False
+                )
+            if not is_participant_model(participant_obj):
+                continue
+            if (
+                self._participant_actor_id(participant_obj)
+                != self.target_actor_id
+            ):
+                continue
+
+            participant_id = self._participant_id(participant_obj)
+            if (
+                matched_participant_id is not None
+                and participant_id != matched_participant_id
+            ):
+                return (
+                    None,
+                    None,
+                    "Participant-index divergence: actor "
+                    f"{self.target_actor_id} resolves to multiple "
+                    "case_participants.",
+                )
+            matched_participant = participant_obj
+            matched_participant_id = participant_id
+
+        return matched_participant, matched_participant_id, None
+
     def update(self) -> Status:
         if self.datalayer is None:
             self.feedback_message = "DataLayer not available"
@@ -240,38 +285,50 @@ class FindParticipantByActorIdNode(DataLayerCondition):
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        participant_refs: list[object] = list(case_obj.case_participants)
         index_match = case_obj.actor_participant_index.get(
             self.target_actor_id
         )
-        if index_match is not None:
-            participant_refs.insert(0, index_match)
+        matched_participant, matched_participant_id, error_message = (
+            self._find_matching_participant(case_obj)
+        )
+        if error_message is not None:
+            return self._fail(error_message)
 
-        for participant_ref in participant_refs:
-            participant_obj = participant_ref
-            if isinstance(participant_ref, str):
-                participant_obj = self.datalayer.read(
-                    participant_ref, raise_on_missing=False
+        if matched_participant is None:
+            if index_match is not None:
+                return self._fail(
+                    "Participant-index divergence: actor "
+                    f"{self.target_actor_id} mapped to {index_match} in "
+                    "actor_participant_index but missing from "
+                    "case_participants."
                 )
-            if not is_participant_model(participant_obj):
-                continue
-
-            if (
-                self._participant_actor_id(participant_obj)
-                != self.target_actor_id
-            ):
-                continue
-
-            setattr(self.blackboard, self.participant_key, participant_obj)
-            self.feedback_message = (
-                f"Found participant for actor {self.target_actor_id}"
-            )
+            self.feedback_message = f"No participant for actor {self.target_actor_id} in case {self.case_id}"
             self.logger.debug("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
+            return Status.FAILURE
 
-        self.feedback_message = f"No participant for actor {self.target_actor_id} in case {self.case_id}"
+        if index_match != matched_participant_id:
+            if index_match is None:
+                setattr(
+                    self.blackboard, self.participant_key, matched_participant
+                )
+                self.feedback_message = (
+                    f"Found participant for actor {self.target_actor_id}"
+                )
+                self.logger.debug("%s: %s", self.name, self.feedback_message)
+                return Status.SUCCESS
+            return self._fail(
+                "Participant-index divergence: actor "
+                f"{self.target_actor_id} resolves to "
+                f"{matched_participant_id} from case_participants but "
+                f"actor_participant_index maps to {index_match}."
+            )
+
+        setattr(self.blackboard, self.participant_key, matched_participant)
+        self.feedback_message = (
+            f"Found participant for actor {self.target_actor_id}"
+        )
         self.logger.debug("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
+        return Status.SUCCESS
 
 
 class ReadObject(DataLayerCondition):
