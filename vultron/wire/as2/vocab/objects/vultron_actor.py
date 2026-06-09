@@ -18,6 +18,7 @@ from typing import Annotated, Any, Literal, TypeAlias, Union
 
 from pydantic import Field
 
+from vultron.wire.as2.enums import as_ActorType
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.registry import VOCABULARY
@@ -33,40 +34,40 @@ class VultronActorMixin(as_Actor):
 
 
 class VultronPerson(VultronActorMixin):
-    type_: Literal["Person"] = Field(
-        default="Person",
+    type_: Literal[as_ActorType.PERSON] = Field(
+        default=as_ActorType.PERSON,
         validation_alias="type",
         serialization_alias="type",
     )
 
 
 class VultronOrganization(VultronActorMixin):
-    type_: Literal["Organization"] = Field(
-        default="Organization",
+    type_: Literal[as_ActorType.ORGANIZATION] = Field(
+        default=as_ActorType.ORGANIZATION,
         validation_alias="type",
         serialization_alias="type",
     )
 
 
 class VultronService(VultronActorMixin):
-    type_: Literal["Service"] = Field(
-        default="Service",
+    type_: Literal[as_ActorType.SERVICE] = Field(
+        default=as_ActorType.SERVICE,
         validation_alias="type",
         serialization_alias="type",
     )
 
 
 class VultronApplication(VultronActorMixin):
-    type_: Literal["Application"] = Field(
-        default="Application",
+    type_: Literal[as_ActorType.APPLICATION] = Field(
+        default=as_ActorType.APPLICATION,
         validation_alias="type",
         serialization_alias="type",
     )
 
 
 class VultronGroup(VultronActorMixin):
-    type_: Literal["Group"] = Field(
-        default="Group",
+    type_: Literal[as_ActorType.GROUP] = Field(
+        default=as_ActorType.GROUP,
         validation_alias="type",
         serialization_alias="type",
     )
