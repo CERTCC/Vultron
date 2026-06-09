@@ -118,8 +118,15 @@ focus hints from Phase 2 (e.g., `"wire layer"`, `"BT integration"`), then:
    Follow all project conventions.
 
 4. **Iterate** — Invoke `format-code`, `run-linters`, `run-tests`; refine
-   until all relevant tests pass. File incidental bugs via `manage-github-issue`;
-   do not pursue them now.
+   until all relevant tests pass.
+   - Format/lint/type failures are branch-owned and must be fixed directly.
+     Do not file incidental Bug issues for these categories.
+   - Test failures are assumed branch-owned until disproven with evidence.
+   - "Pre-existing/unrelated" is allowed only with clean-base proof plus at
+     least one causality check against the branch diff.
+   - If pre-existing is proven, create/update a Bug issue with evidence,
+     wire structured blockers via `manage-github-issue`, and add a handoff
+     comment with pickup context.
 
 5. **Finalize**:
    - Invoke `archive-history`:

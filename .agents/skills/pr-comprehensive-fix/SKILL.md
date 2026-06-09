@@ -73,8 +73,14 @@ Based on Step 1 decision point:
 If tests fail:
 
 - Parse failure output
-- Offer to re-run `/pr fix ci` if compilation/test errors
-- Stop and report if human judgment needed
+- Keep ownership on current PR changes by default
+- Fix format/lint/type failures directly (no incidental Bug issue for these)
+- Allow "pre-existing/unrelated" only with clean-base proof + at least one
+  causality check against the branch diff
+- If pre-existing is proven, file/update a Bug issue with evidence and wire
+  structured blocking relationships via `manage-github-issue`
+- Add a handoff comment on the Bug issue, then continue or stop explicitly as
+  blocked/unblocked
 
 Proceed to resolve comments? (yes/no)
 
@@ -130,5 +136,5 @@ See [REFERENCE.md](REFERENCE.md) for:
 
 ---
 
-**Tip**: If CI failures are cryptic or suggest architectural issues, the skill
-will stop and ask for human judgment rather than loop endlessly on fixes.
+**Tip**: "Cryptic" failures are still branch-owned until disproven by evidence.
+Do not classify as unrelated without clean-base and causality proof.

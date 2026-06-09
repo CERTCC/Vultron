@@ -63,36 +63,42 @@ needs_integration = any(
 
 **Symptoms**: Test errors, assertion failures, import errors
 
-**Likely cause**: Code changes broke tests
+**Default assumption**: Current PR changes caused the failure until disproven.
 
 **Action**:
 
 1. Display failure output
-2. Ask if you want to rerun `/pr fix ci` to fix test errors
-3. If yes, rerun tests
-4. If still failing after 2 attempts, stop and ask for human intervention
+2. Fix branch-owned issues directly and rerun relevant validations
+3. Classify as pre-existing only after:
+   - clean-base proof on `main` (or equivalent documented evidence), and
+   - at least one causality check against the current PR diff
+4. If pre-existing is proven, create/update a Bug issue with evidence, wire
+   structured blockers via `manage-github-issue`, and post a handoff comment
+5. If evidence is incomplete, keep treating as PR-owned and continue debugging
 
 ### Integration Tests Fail ❌
 
 **Symptoms**: Demo startup failures, protocol errors, CI job timeout
 
-**Likely cause**: Demo or adapter changes broke the integration workflow
+**Default assumption**: Current PR changes caused the failure until disproven.
 
 **Action**:
 
 1. Display failure output (first 50 lines + last 20 for context)
-2. **Stop** — do not auto-retry
-3. Report the issue and suggest manual debugging
-4. Integration test failures usually indicate architectural issues
+2. Perform targeted causality checks against the PR diff
+3. Allow "unrelated/pre-existing" only with clean-base + causality evidence
+4. If pre-existing is proven, create/update a Bug issue with evidence, wire
+   blockers via `manage-github-issue`, and add a handoff comment
+5. Stop only after recording blocked/unblocked status with linked evidence
 
-**Why not auto-retry**: Integration tests are slow and often fail due to:
+**Why caution is needed**: Integration tests are slow and can fail due to:
 
 - Missing environment setup
 - Timing issues in demo orchestration
 - Architectural breaking changes
 - Infrastructure problems (docker, network)
 
-These need human judgment to diagnose.
+These still require evidence-based triage before any unrelated classification.
 
 ## Handling Partial Fixes
 
@@ -109,15 +115,15 @@ not all):
 
 ## When Test Results Suggest Stopping
 
-The skill will **stop and report** rather than auto-loop if:
+The skill may **stop and report** after evidence capture if:
 
-- Integration test failure with unclear root cause
+- Integration test failure with unclear root cause after causality checks
 - 2+ consecutive test failures after `/pr fix ci` attempts
 - Test output suggests missing context (env vars, setup, infrastructure)
 - Error suggests architectural issue (breaking change to core logic)
 
-In these cases, the skill reports the state and recommends manual investigation
-or discussion with reviewers.
+In these cases, the skill reports the state with linked Bug issue evidence,
+structured blockers, and explicit blocked/unblocked status.
 
 ## Future Enhancement: Integrate with `build` Skill
 

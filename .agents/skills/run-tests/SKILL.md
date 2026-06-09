@@ -73,6 +73,11 @@ uv run pytest --tb=short 2>&1 | tail -5
 - Integration tests are excluded from the default run by design (they involve
   network/disk I/O and run separately). Run them with `-m integration` when
   validating demo workflows or file-backed datalayer behavior.
+- This skill reports test output only; it does not authorize pre-existing/
+  unrelated conclusions from a single failure snippet.
+- Calling skills (`build`, `bugfix`, `pr-comprehensive-fix`) must treat test
+  failures as branch-owned by default and require evidence before labeling
+  failures as pre-existing.
 
 ## Examples
 
