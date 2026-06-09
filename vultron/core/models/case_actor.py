@@ -20,6 +20,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from vultron.core.models.base import CoreObject
+from vultron.core.models.enums import VultronActorType
 
 
 class VultronOutbox(BaseModel):
@@ -44,8 +45,8 @@ class CaseActor(CoreObject):
     domain objects directly.  See ADR-0017 and issue #729.
     """
 
-    type_: Literal["Service"] = Field(
-        default="Service",
+    type_: Literal[VultronActorType.SERVICE] = Field(
+        default=VultronActorType.SERVICE,
         validation_alias="type",
         serialization_alias="type",
     )

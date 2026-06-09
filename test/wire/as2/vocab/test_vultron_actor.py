@@ -20,7 +20,7 @@ import unittest
 from datetime import timedelta
 
 from vultron.core.models.actor import VultronPerson as CoreVultronPerson
-from vultron.wire.as2.enums import as_ActorType
+from vultron.core.models.enums import VultronActorType
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.registry import VOCABULARY
 from vultron.wire.as2.vocab.objects.embargo_policy import EmbargoPolicy
@@ -53,7 +53,7 @@ class TestVultronPersonBasics(unittest.TestCase):
 
     def test_as_type_is_person(self):
         p = VultronPerson(id_="https://example.org/users/alice")
-        self.assertEqual(as_ActorType.PERSON, p.type_)
+        self.assertEqual(VultronActorType.PERSON, p.type_)
 
     def test_embargo_policy_defaults_to_none(self):
         p = VultronPerson(id_="https://example.org/users/alice")
@@ -109,7 +109,7 @@ class TestVultronOrganizationBasics(unittest.TestCase):
 
     def test_as_type_is_organization(self):
         org = VultronOrganization(id_="https://example.org/orgs/vendor")
-        self.assertEqual(as_ActorType.ORGANIZATION, org.type_)
+        self.assertEqual(VultronActorType.ORGANIZATION, org.type_)
 
     def test_embargo_policy_defaults_to_none(self):
         org = VultronOrganization(id_="https://example.org/orgs/vendor")
@@ -136,7 +136,7 @@ class TestVultronServiceBasics(unittest.TestCase):
 
     def test_as_type_is_service(self):
         svc = VultronService(id_="https://example.org/services/bot")
-        self.assertEqual(as_ActorType.SERVICE, svc.type_)
+        self.assertEqual(VultronActorType.SERVICE, svc.type_)
 
     def test_embargo_policy_defaults_to_none(self):
         svc = VultronService(id_="https://example.org/services/bot")
