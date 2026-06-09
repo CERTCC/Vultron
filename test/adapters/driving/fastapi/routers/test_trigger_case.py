@@ -699,7 +699,7 @@ def test_trigger_create_case_short_actor_id_updates_outbox_without_warning(
     import logging
 
     short_uuid = parse_id(http_actor.id_)["object_id"]
-    outbox_before = set(dl.outbox_list())
+    outbox_before = set(dl.outbox_list_for_actor(http_actor.id_))
 
     with caplog.at_level(logging.WARNING):
         resp = client_triggers.post(
@@ -708,7 +708,7 @@ def test_trigger_create_case_short_actor_id_updates_outbox_without_warning(
         )
 
     assert resp.status_code == status.HTTP_202_ACCEPTED
-    outbox_after = set(dl.outbox_list())
+    outbox_after = set(dl.outbox_list_for_actor(http_actor.id_))
     assert len(outbox_after - outbox_before) >= 1
     assert not any(
         "add_activity_to_outbox" in record.message for record in caplog.records
@@ -796,7 +796,7 @@ def test_trigger_add_report_short_actor_id_updates_outbox_without_warning(
     import logging
 
     short_uuid = parse_id(http_actor.id_)["object_id"]
-    outbox_before = set(dl.outbox_list())
+    outbox_before = set(dl.outbox_list_for_actor(http_actor.id_))
 
     with caplog.at_level(logging.WARNING):
         resp = client_triggers.post(
@@ -808,7 +808,7 @@ def test_trigger_add_report_short_actor_id_updates_outbox_without_warning(
         )
 
     assert resp.status_code == status.HTTP_202_ACCEPTED
-    outbox_after = set(dl.outbox_list())
+    outbox_after = set(dl.outbox_list_for_actor(http_actor.id_))
     assert len(outbox_after - outbox_before) >= 1
     assert not any(
         "add_activity_to_outbox" in record.message for record in caplog.records

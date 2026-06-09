@@ -20,7 +20,7 @@ from typing import cast
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.protocols import has_outbox, is_case_model
+from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import case_addressees
 
@@ -84,17 +84,6 @@ class EmitEngageCaseActivity(DataLayerAction):
                 actor=self.actor_id,
                 to=addressees,
             )
-
-            actor_obj = self.datalayer.read(self.actor_id)
-            if has_outbox(actor_obj):
-                actor_obj.outbox.items.append(activity_id)
-                self.datalayer.save(actor_obj)
-            else:
-                self.logger.warning(
-                    "%s: actor '%s' has no outbox — skipping outbox.items update",
-                    self.name,
-                    self.actor_id,
-                )
 
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
                 self.actor_id, activity_id
@@ -172,17 +161,6 @@ class EmitDeferCaseActivity(DataLayerAction):
                 actor=self.actor_id,
                 to=addressees,
             )
-
-            actor_obj = self.datalayer.read(self.actor_id)
-            if has_outbox(actor_obj):
-                actor_obj.outbox.items.append(activity_id)
-                self.datalayer.save(actor_obj)
-            else:
-                self.logger.warning(
-                    "%s: actor '%s' has no outbox — skipping outbox.items update",
-                    self.name,
-                    self.actor_id,
-                )
 
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
                 self.actor_id, activity_id

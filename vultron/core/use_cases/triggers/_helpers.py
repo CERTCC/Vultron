@@ -27,7 +27,6 @@ from collections.abc import Callable
 
 from vultron.core.models.protocols import (
     CaseModel,
-    has_outbox,
     is_case_model,
     is_participant_model,
 )
@@ -158,11 +157,23 @@ def update_participant_rm_state(
     return False
 
 
-def outbox_ids(actor) -> set[str]:
-    """Return the set of string activity IDs in actor.outbox.items."""
-    if not (hasattr(actor, "outbox") and actor.outbox and actor.outbox.items):
-        return set()
-    return {item for item in actor.outbox.items if isinstance(item, str)}
+def outbox_ids(actor_id: str, dl: CaseOutboxPersistence) -> set[str]:
+    """Return the set of string activity IDs in the actor's outbox queue.
+
+    Uses ``outbox_list_for_actor`` when available (explicit actor scope),
+    otherwise falls back to the actor-scoped ``outbox_list()``.
+
+    Args:
+        actor_id: The actor whose outbox should be queried.
+        dl: The DataLayer to use for persistence.
+
+    Returns:
+        Set of activity IDs queued for delivery.
+    """
+    if hasattr(dl, "outbox_list_for_actor"):
+        items: list[str] = dl.outbox_list_for_actor(actor_id)  # type: ignore[attr-defined]
+        return set(items)
+    return set(dl.outbox_list())
 
 
 def add_activity_to_outbox(
@@ -170,33 +181,15 @@ def add_activity_to_outbox(
 ) -> None:
     """Append an activity ID to an actor's outbox and queue it for delivery.
 
-    Appends *activity_id* to the actor's ``outbox.items`` persistent list
-    (the AS2 outbox collection, visible via the outbox API endpoint) and
-    also writes it to the delivery queue table (``{actor_id}_outbox``) so
-    that :func:`outbox_handler` can drain and deliver it.
+    Uses ``record_outbox_item`` to explicitly enqueue against *actor_id*,
+    bypassing any actor-scope on *dl* itself.  This ensures correct delivery
+    even when *dl* is a shared (unscoped) DataLayer instance.
 
     Args:
         actor_id: The actor whose outbox should receive the activity.
         activity_id: The ID of the activity to queue for delivery.
         dl: The DataLayer to use for persistence.
     """
-    # Persistent record: append to actor.outbox.items for the AS2 collection.
-    actor_obj = dl.read(actor_id)
-    if has_outbox(actor_obj):
-        actor_obj.outbox.items.append(activity_id)
-        dl.save(actor_obj)
-        logger.debug(
-            "Added activity '%s' to actor '%s' outbox.items",
-            _log_label(activity_id),
-            _log_label(actor_id),
-        )
-    else:
-        logger.debug(
-            "add_activity_to_outbox: actor '%s' not found or has no"
-            " outbox field; skipping outbox.items update",
-            _log_label(actor_id),
-        )
-    # Delivery queue: write to actor-scoped queue table for outbox_handler.
     dl.record_outbox_item(actor_id, activity_id)
     logger.debug(
         "Queued activity '%s' in delivery queue for actor '%s'",

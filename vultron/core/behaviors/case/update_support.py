@@ -134,11 +134,6 @@ def broadcast_case_update(
         )
         return
 
-    case_actor_obj = dl.read(case_actor_id)
-    if case_actor_obj is not None and hasattr(case_actor_obj, "outbox"):
-        cast(Any, case_actor_obj).outbox.items.append(broadcast.id_)
-        dl.save(case_actor_obj)
-
     cast(CaseOutboxPersistence, dl).record_outbox_item(
         case_actor_id, broadcast.id_
     )

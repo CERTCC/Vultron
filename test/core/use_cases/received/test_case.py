@@ -329,12 +329,10 @@ class TestCaseUseCases:
 
         UpdateCaseReceivedUseCase(dl, event).execute()
 
-        refreshed_actor = dl.read(case_actor.id_)
-        assert refreshed_actor is not None
-        refreshed_actor = cast(VultronCaseActor, refreshed_actor)
-        assert len(refreshed_actor.outbox.items) == 1
+        outbox_items = dl.outbox_list_for_actor(case_actor.id_)
+        assert len(outbox_items) == 1
 
-        broadcast_id = refreshed_actor.outbox.items[0]
+        broadcast_id = outbox_items[0]
         broadcast = dl.read(broadcast_id)
         assert broadcast is not None
         broadcast = cast(VultronActivity, broadcast)
@@ -569,10 +567,8 @@ class TestCaseUseCases:
 
         UpdateCaseReceivedUseCase(dl, event).execute()
 
-        refreshed_actor = dl.read(case_actor.id_)
-        assert refreshed_actor is not None
-        refreshed_actor = cast(VultronCaseActor, refreshed_actor)
-        assert len(refreshed_actor.outbox.items) == 1
+        outbox_items = dl.outbox_list_for_actor(case_actor.id_)
+        assert len(outbox_items) == 1
 
 
 class TestEngageDeferCaseBTFailureReason:

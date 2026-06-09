@@ -1104,6 +1104,25 @@ class SqliteDataLayer:
             rows = session.exec(stmt).all()
         return [row.activity_id for row in rows]
 
+    def outbox_list_for_actor(self, actor_id: str) -> list[str]:
+        """Return all outbox activity IDs for *actor_id*, in insertion order.
+
+        Unlike :meth:`outbox_list`, this bypasses ``self._actor_id`` and
+        reads the queue for the named actor directly — matching the write
+        semantics of :meth:`record_outbox_item`.
+        """
+        with Session(self._engine) as session:
+            stmt = (
+                select(QueueEntry)
+                .where(
+                    QueueEntry.actor_id == actor_id,
+                    QueueEntry.queue == "outbox",
+                )
+                .order_by(col(QueueEntry.id))
+            )
+            rows = session.exec(stmt).all()
+        return [row.activity_id for row in rows]
+
     def outbox_pop(self) -> str | None:
         """Remove and return the oldest activity ID from the outbox.
 

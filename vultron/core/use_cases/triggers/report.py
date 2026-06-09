@@ -145,7 +145,7 @@ class SvcValidateReportUseCase:
         report_id = report.id_
         offer_id = offer.id_
 
-        before = outbox_ids(actor)
+        before = outbox_ids(actor_id, dl)
 
         case = dl.find_case_by_report_id(report_id)
         case_id = case.id_ if is_case_model(case) else None
@@ -167,7 +167,7 @@ class SvcValidateReportUseCase:
         activity = None
         actor_after = dl.read(actor_id)
         if actor_after is not None:
-            after = outbox_ids(actor_after)
+            after = outbox_ids(actor_id, dl)
             new_items = after - before
             if new_items:
                 activity_id = next(iter(new_items))
