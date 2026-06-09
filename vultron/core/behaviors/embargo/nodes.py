@@ -534,12 +534,10 @@ class LookupParticipantNode(DataLayerCondition):
     def __init__(
         self,
         case_id: str,
-        actor_id_source: str = "actor_id",
         name: str | None = None,
     ):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
-        self.actor_id_source = actor_id_source
 
     def setup(self, **kwargs: object) -> None:
         super().setup(**kwargs)
@@ -606,12 +604,10 @@ class OptionalLookupParticipantNode(DataLayerCondition):
     def __init__(
         self,
         case_id: str,
-        actor_id_source: str = "actor_id",
         name: str | None = None,
     ):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
-        self.actor_id_source = actor_id_source
 
     def setup(self, **kwargs: object) -> None:
         super().setup(**kwargs)

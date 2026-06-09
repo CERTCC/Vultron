@@ -298,7 +298,7 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
-            actor_id=request.actor_id,
+            actor_id=invitee_id,
             activity=request,
         )
 
