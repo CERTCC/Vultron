@@ -25,6 +25,7 @@ from vultron.core.behaviors.embargo.trigger_nodes import (
     ProposeEmbargoLifecycleNode,
     RejectEmbargoLifecycleNode,
     TerminateEmbargoLifecycleNode,
+    ValidateEmbargoRevisionStateNode,
 )
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -42,6 +43,39 @@ def propose_embargo_trigger_bt(
         name="ProposeEmbargoTriggerBT",
         memory=False,
         children=[
+            ProposeEmbargoLifecycleNode(
+                case_id=case_id,
+                embargo_id=embargo.id_,
+                result_out=result_out,
+            ),
+            PersistEmbargoEventNode(embargo=embargo),
+            sender_side_bt(case_id=case_id, activity_builder=activity_builder),
+        ],
+    )
+
+
+def propose_embargo_revision_trigger_bt(
+    *,
+    case_id: str,
+    embargo: EmbargoEvent,
+    result_out: dict[str, object],
+    activity_builder: Callable[[str], list[str]],
+) -> py_trees.behaviour.Behaviour:
+    """Build trigger-side BT for proposing an embargo revision.
+
+    Differs from :func:`propose_embargo_trigger_bt` by first asserting that
+    the case EM state is ACTIVE or REVISE (a revision requires an existing
+    active embargo).  The lifecycle and outbound fan-out nodes are otherwise
+    identical.
+    """
+    return py_trees.composites.Sequence(
+        name="ProposeEmbargoRevisionTriggerBT",
+        memory=False,
+        children=[
+            ValidateEmbargoRevisionStateNode(
+                case_id=case_id,
+                result_out=result_out,
+            ),
             ProposeEmbargoLifecycleNode(
                 case_id=case_id,
                 embargo_id=embargo.id_,

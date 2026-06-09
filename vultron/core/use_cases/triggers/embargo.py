@@ -20,17 +20,15 @@ from py_trees.common import Status
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.trigger_tree import (
     accept_embargo_trigger_bt,
+    propose_embargo_revision_trigger_bt,
     propose_embargo_trigger_bt,
     reject_embargo_trigger_bt,
     terminate_embargo_trigger_bt,
 )
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.services.embargo_lifecycle import (
-    EmbargoLifecycle,
     EmbargoLifecycleResult,
-    TransitionMode,
 )
-from vultron.core.states.em import EM
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.use_cases.triggers._helpers import (
@@ -40,7 +38,6 @@ from vultron.core.use_cases.triggers._helpers import (
     _resolve_embargo_proposal,
     resolve_actor,
     resolve_case,
-    send_case_actor_activity,
 )
 from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
@@ -455,14 +452,6 @@ class SvcProposeEmbargoRevisionUseCase:
 
         case = resolve_case(case_id, dl)
 
-        em_state = case.current_status.em_state
-        if em_state not in (EM.ACTIVE, EM.REVISE):
-            raise VultronInvalidStateTransitionError(
-                f"Cannot propose embargo revision: case '{case.id_}' EM state"
-                f" '{em_state}' does not allow a revision proposal."
-                f" Use propose-embargo for initial proposals."
-            )
-
         embargo_kwargs: dict = {"context": case.id_}
         if end_time is not None:
             embargo_kwargs["end_time"] = end_time
@@ -475,21 +464,9 @@ class SvcProposeEmbargoRevisionUseCase:
                 " TriggerActivityPort"
             )
 
-        lifecycle = EmbargoLifecycle(persistence=dl)
-        lifecycle_result = lifecycle.propose_embargo(
-            case_id=case.id_,
-            embargo_id=embargo.id_,
-            actor_id=actor_id,
-            transition_mode=TransitionMode.STRICT,
-        )
-
-        try:
-            dl.create(embargo)
-        except ValueError:
-            logger.warning("EmbargoEvent '%s' already exists", embargo.id_)
-
         factory = self._trigger_activity
         captured: dict = {}
+        result_out: dict[str, object] = {}
 
         def _build_activities(case_manager_id: str) -> list[str]:
             proposal_id, proposal_dict = factory.propose_embargo(
@@ -501,14 +478,28 @@ class SvcProposeEmbargoRevisionUseCase:
             captured["activity"] = proposal_dict
             return [proposal_id]
 
-        send_case_actor_activity(
-            dl=dl,
+        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        tree = propose_embargo_revision_trigger_bt(
             case_id=case.id_,
-            actor_id=actor_id,
-            trigger_activity=factory,
-            failure_label="ProposeEmbargoRevision",
+            embargo=embargo,
+            result_out=result_out,
             activity_builder=_build_activities,
         )
+        result = bridge.execute_with_setup(tree, actor_id=actor_id)
+        if result.status != Status.SUCCESS:
+            error = result_out.get("error")
+            if isinstance(error, Exception):
+                raise error
+            raise VultronValidationError(
+                f"ProposeEmbargoRevision failed:"
+                f" {BTBridge.get_failure_reason(tree)}"
+            )
+        lifecycle_result = result_out.get("lifecycle_result")
+        if not isinstance(lifecycle_result, EmbargoLifecycleResult):
+            raise RuntimeError(
+                "ProposeEmbargoRevision did not capture lifecycle result"
+                " in BT output"
+            )
 
         logger.info(
             "Actor '%s' proposed embargo revision '%s' on case '%s'"
