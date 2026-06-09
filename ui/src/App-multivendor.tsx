@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import type { DemoState, ParticipantState } from './types'
 import './App.css'
 import { LANE_HEIGHT, LANE_HEIGHT_COLLAPSED, ACTOR_PANEL_WIDTH, PARTICIPANT_COLORS, PARTICIPANT_ROLES, INITIAL_X_POSITION, NODE_COLORS, NODE_WIDTH, NODE_HEIGHT, NODE_WIDTH_COLLAPSED, NODE_HEIGHT_COLLAPSED, getVendorNodeColors } from './constants'
@@ -86,10 +86,10 @@ function App() {
   const [collapsedParticipants, setCollapsedParticipants] = useState<Set<string>>(new Set())
   const timelineScrollRef = useRef<HTMLDivElement>(null)
   const sidebarScrollRef = useRef<HTMLDivElement>(null)
+  const scrollAdjustmentRef = useRef<{ participantId: string; buttonTopInViewport: number } | null>(null)
 
   // Toggle participant collapse
   const toggleParticipantCollapse = useCallback((participantId: string) => {
-    // Get the button's current position on screen before the state change
     if (!sidebarScrollRef.current) return
 
     // Find the ActorPanel element for this participant
@@ -117,33 +117,44 @@ function App() {
     const buttonRect = targetPanel.getBoundingClientRect()
     const buttonTopInViewport = buttonRect.top
 
+    // Store the info for useLayoutEffect to use after DOM update
+    scrollAdjustmentRef.current = { participantId, buttonTopInViewport }
+
     setCollapsedParticipants(prev => {
       const newSet = new Set(prev)
-      const wasCollapsed = newSet.has(participantId)
-
-      if (wasCollapsed) {
+      if (newSet.has(participantId)) {
         newSet.delete(participantId)
       } else {
         newSet.add(participantId)
       }
-
-      // After state change, adjust scroll to keep button at same viewport position
-      // Use setTimeout 0 instead of requestAnimationFrame for more reliable timing after React render
-      setTimeout(() => {
-        if (!targetPanel || !sidebarScrollRef.current) return
-
-        const newButtonRect = targetPanel.getBoundingClientRect()
-        const newButtonTopInViewport = newButtonRect.top
-        const delta = newButtonTopInViewport - buttonTopInViewport
-
-        if (Math.abs(delta) > 0.5) {  // Only adjust if there's meaningful movement
-          sidebarScrollRef.current.scrollTop += delta
-        }
-      }, 0)
-
       return newSet
     })
   }, [])
+
+  // Adjust scroll after DOM updates but before paint
+  useLayoutEffect(() => {
+    if (!scrollAdjustmentRef.current || !sidebarScrollRef.current) return
+
+    const { participantId, buttonTopInViewport } = scrollAdjustmentRef.current
+    const sidebar = sidebarScrollRef.current
+    const allPanels = Array.from(sidebar.querySelectorAll('[data-participant-id]'))
+    const targetPanel = allPanels.find(panel =>
+      panel.getAttribute('data-participant-id') === participantId
+    )
+
+    if (targetPanel) {
+      const newButtonRect = targetPanel.getBoundingClientRect()
+      const newButtonTopInViewport = newButtonRect.top
+      const delta = newButtonTopInViewport - buttonTopInViewport
+
+      if (Math.abs(delta) > 0.5) {  // Only adjust if there's meaningful movement
+        sidebarScrollRef.current.scrollTop += delta
+      }
+    }
+
+    // Clear the adjustment request
+    scrollAdjustmentRef.current = null
+  }, [collapsedParticipants])
 
   // Calculate cumulative Y position for a participant based on collapsed states
   const getParticipantYPosition = useCallback((participant: ParticipantState, allParticipants: ParticipantState[]) => {

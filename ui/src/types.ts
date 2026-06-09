@@ -41,6 +41,7 @@ export interface DemoState {
   eventLog: string[]
   nextXPosition: number
   invitedVendors: Set<string>  // Track all invited vendors (e.g., 'vendor-2', 'vendor-3')
+  embargoProposerId?: string  // Track who proposed current embargo/revision (e.g., 'finder', 'vendor-1', 'caseactor')
 }
 
 export interface Action {
