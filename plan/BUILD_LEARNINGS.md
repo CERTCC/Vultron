@@ -142,3 +142,19 @@ header.
   but dedicated case-actor container reads may be empty in D5-2 by design;
   export logic should fall back to the vendor container's case-actor sub-actor
   route key instead of failing the demo run.
+
+### 2026-06-09 ISSUE-848 — BTBridge migration for embargo revision use case
+
+- The pre-condition EM state check (ACTIVE/REVISE guard) can move cleanly
+  into a `DataLayerAction` node (`ValidateEmbargoRevisionStateNode`) that
+  reads the case, checks `current_status.em_state`, and writes the domain
+  error into `result_out["error"]` for re-raise by the use case.
+- Avoid reusing a local variable `error` across two branches with different
+  concrete types (e.g., `VultronValidationError` then
+  `VultronInvalidStateTransitionError`) — mypy infers the type from the first
+  assignment and flags the second as incompatible. Use distinct variable names
+  per branch.
+- The counter-revision path (EM.REVISE → EM.REVISE) must be tested separately
+  from ACTIVE → REVISE because `_cascade_pec_revise` only fires on the
+  ACTIVE → REVISE transition; a counter-revision must leave PEC states
+  unchanged.
