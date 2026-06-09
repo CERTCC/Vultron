@@ -13,45 +13,24 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""
-Class-based use cases for embargo-level trigger behaviors.
-
-No HTTP framework imports permitted here.
-"""
-
 import logging
-from typing import TYPE_CHECKING, Any
 
-from py_trees.common import Status
-from transitions import MachineError
-
-from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.states.em import EM, EMAdapter, create_em_machine
-from vultron.core.models.protocols import (
-    CaseModel,
-    PersistableModel,
-    is_case_model,
-    is_participant_model,
+from vultron.core.services.embargo_lifecycle import (
+    EmbargoLifecycle,
+    TransitionMode,
 )
-from vultron.core.ports.case_persistence import (
-    CasePersistence,
-    CaseOutboxPersistence,
-)
-from vultron.core.states.participant_embargo_consent import (
-    PEC,
-    PEC_Trigger,
-    apply_pec_trigger,
-)
-from vultron.core.use_cases._helpers import (
-    _as_id,
-    reset_case_participant_embargo_consent,
-)
+from vultron.core.states.em import EM
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.use_cases.triggers._helpers import (
-    find_embargo_proposal,
+    _coerce_embargo_event,
+    _is_case_owner,
+    _resolve_embargo_id_from_proposal,
+    _resolve_embargo_proposal,
     resolve_actor,
     resolve_case,
+    send_case_actor_activity,
 )
 from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
@@ -62,306 +41,22 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.errors import (
     VultronInvalidStateTransitionError,
-    VultronNotFoundError,
     VultronValidationError,
 )
-
-if TYPE_CHECKING:
-    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
 
-def _coerce_embargo_event(raw_embargo: object, embargo_id: str) -> Any:
-    """Normalize a persisted embargo record; raise domain errors on failure.
-
-    Validates that the result has type ``"EmbargoEvent"`` by checking the
-    ``type_`` attribute rather than using a wire-type isinstance check.
-    """
-    if getattr(raw_embargo, "type_", "") == "EmbargoEvent":
-        return raw_embargo
-    if raw_embargo is None:
-        raise VultronNotFoundError("EmbargoEvent", embargo_id)
-    raise VultronValidationError(
-        f"Could not resolve EmbargoEvent '{embargo_id}'."
-    )
-
-
-def _cascade_pec_revise(
-    case: PersistableModel | None, dl: CasePersistence
-) -> None:
-    """Transition all SIGNATORY participants to LAPSED.
-
-    Called when an embargo transitions to REVISE state, meaning the embargo
-    terms are being renegotiated.  Existing signatories temporarily lapse
-    until they accept the revised terms.
-    """
-    if not is_case_model(case):
-        return
-    for entry in case.case_participants:
-        participant_id = _as_id(entry)
-        if participant_id is None:
-            continue
-        participant = dl.read(participant_id)
-        if not is_participant_model(participant):
-            continue
-        if participant.embargo_consent_state == PEC.SIGNATORY.value:
-            participant.embargo_consent_state = apply_pec_trigger(
-                PEC.SIGNATORY, PEC_Trigger.REVISE
-            )
-            dl.save(participant)
-
-
-def _is_case_owner(case: PersistableModel | None, actor_id: str) -> bool:
-    """Return True when ``actor_id`` matches the case owner.
-
-    This check is fail-closed: when ``attributed_to`` is ``None`` (ownership
-    unknown), no actor is treated as the owner. Only an exact match between
-    the resolved owner ID and the given ``actor_id`` returns True.
-    """
-    if not is_case_model(case):
-        return False
-    owner_id = _as_id(case.attributed_to)
-    return owner_id is not None and owner_id == actor_id
-
-
-def _update_participant_embargo_acceptance(
-    case: PersistableModel | None,
-    actor_id: str,
-    embargo_id: str,
-    dl: CaseOutboxPersistence,
-) -> None:
-    """Persist a participant-level embargo acceptance without re-driving EM."""
-    if not is_case_model(case):
-        return
-
-    participant_id = case.actor_participant_index.get(actor_id)
-    if not participant_id:
-        logger.warning(
-            "Actor '%s' has no CaseParticipant in case '%s' — cannot record"
-            " embargo acceptance",
-            actor_id,
-            case.id_,
-        )
-        return
-
-    participant = dl.read(participant_id)
-    if not is_participant_model(participant):
-        logger.warning(
-            "CaseParticipant '%s' for actor '%s' on case '%s' is missing or"
-            " invalid — cannot record embargo acceptance",
-            participant_id,
-            actor_id,
-            case.id_,
-        )
-        return
-
-    participant.accepted_embargo_ids = list(
-        dict.fromkeys(participant.accepted_embargo_ids + [embargo_id])
-    )
-    current_state = PEC(participant.embargo_consent_state)
-    if current_state != PEC.SIGNATORY:
-        participant.embargo_consent_state = apply_pec_trigger(
-            current_state, PEC_Trigger.ACCEPT
-        )
-    dl.save(participant)
-
-
-def _update_participant_embargo_rejection(
-    case: PersistableModel | None,
-    actor_id: str,
-    embargo_id: str,
-    dl: CaseOutboxPersistence,
-) -> None:
-    """Persist a participant-level embargo rejection without re-driving EM."""
-    if not is_case_model(case):
-        return
-
-    participant_id = case.actor_participant_index.get(actor_id)
-    if not participant_id:
-        logger.warning(
-            "Actor '%s' has no CaseParticipant in case '%s' — cannot record"
-            " embargo rejection",
-            actor_id,
-            case.id_,
-        )
-        return
-
-    participant = dl.read(participant_id)
-    if not is_participant_model(participant):
-        logger.warning(
-            "CaseParticipant '%s' for actor '%s' on case '%s' is missing or"
-            " invalid — cannot record embargo rejection",
-            participant_id,
-            actor_id,
-            case.id_,
-        )
-        return
-
-    if embargo_id in participant.accepted_embargo_ids:
-        participant.accepted_embargo_ids.remove(embargo_id)
-    current_state = PEC(participant.embargo_consent_state)
-    if current_state != PEC.DECLINED:
-        participant.embargo_consent_state = apply_pec_trigger(
-            current_state, PEC_Trigger.DECLINE
-        )
-    dl.save(participant)
-
-
-def _resolve_embargo_proposal(
-    case: CaseModel, proposal_id: str | None, dl: CaseOutboxPersistence
-) -> Any:
-    if proposal_id:
-        proposal = dl.read(proposal_id)
-        if proposal is None:
-            raise VultronNotFoundError("EmbargoProposal", proposal_id)
-    else:
-        proposal = find_embargo_proposal(case.id_, dl)
-        if proposal is None:
-            raise VultronNotFoundError(
-                "EmbargoProposal",
-                f"(pending for case '{case.id_}')",
-            )
-
-    if getattr(proposal, "type_", "") != "Invite":
-        raise VultronValidationError(
-            f"Expected an EmProposeEmbargoActivity (embargo proposal), got "
-            f"type '{getattr(proposal, 'type_', 'unknown')}'."
-        )
-    return proposal
-
-
-def _resolve_embargo_id_from_proposal(proposal: Any) -> str:
-    embargo_id = getattr(proposal.object_, "id_", None)
-    if embargo_id is not None and not isinstance(embargo_id, str):
-        raise VultronValidationError(
-            "Proposal embargo event reference must have a string ID."
-        )
-    if not embargo_id:
-        raise VultronValidationError(
-            "Proposal is missing an embargo event reference."
-        )
-    return embargo_id
-
-
-def _apply_owner_embargo_acceptance(
-    case: CaseModel,
-    actor_id: str,
-    proposal_id: str,
-    embargo_id: str,
-) -> tuple[EM, bool]:
-    em_state = case.current_status.em_state
-    if not _is_case_owner(case, actor_id):
-        return em_state, False
-
-    active_embargo_id = _as_id(case.active_embargo)
-    if em_state == EM.ACTIVE and active_embargo_id == embargo_id:
-        return em_state, False
-
-    adapter = EMAdapter(em_state)
-    em_machine = create_em_machine()
-    em_machine.add_model(adapter, initial=em_state)
-    try:
-        getattr(adapter, "accept")()
-    except MachineError:
-        logger.warning(
-            "Invalid EM state transition: actor '%s' cannot ACCEPT proposal "
-            "'%s' on case '%s' (EM state '%s').",
-            actor_id,
-            proposal_id,
-            case.id_,
-            em_state,
-        )
-        raise VultronInvalidStateTransitionError(
-            f"Cannot accept embargo: case '{case.id_}' EM state '{em_state}' "
-            "does not allow an ACCEPT transition."
-        )
-
-    new_em_state = EM(adapter.state)
-    case.set_embargo(embargo_id)
-    case.current_status.em_state = new_em_state
-    return new_em_state, True
-
-
-def _apply_owner_embargo_rejection(
-    case: CaseModel, actor_id: str, proposal_id: str
-) -> tuple[EM, bool]:
-    em_state = case.current_status.em_state
-    if not _is_case_owner(case, actor_id):
-        return em_state, False
-
-    adapter = EMAdapter(em_state)
-    em_machine = create_em_machine()
-    em_machine.add_model(adapter, initial=em_state)
-    try:
-        getattr(adapter, "reject")()
-    except MachineError:
-        logger.warning(
-            "Invalid EM state transition: actor '%s' cannot REJECT proposal "
-            "'%s' on case '%s' (EM state '%s').",
-            actor_id,
-            proposal_id,
-            case.id_,
-            em_state,
-        )
-        raise VultronInvalidStateTransitionError(
-            f"Cannot reject embargo: case '{case.id_}' EM state '{em_state}' "
-            "does not allow a REJECT transition."
-        )
-
-    new_em_state = EM(adapter.state)
-    case.current_status.em_state = new_em_state
-    return new_em_state, True
-
-
 class SvcProposeEmbargoUseCase:
-    """Propose an embargo on a case.
-
-    Validates the EM state transition, creates the EmbargoEvent, and
-    sends a Propose(Embargo) activity to the Case Actor via SenderSideBT.
-    """
-
     def __init__(
         self,
         dl: CaseOutboxPersistence,
         request: ProposeEmbargoTriggerRequest,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._request: ProposeEmbargoTriggerRequest = request
         self._trigger_activity = trigger_activity
-
-    def _apply_em_propose_transition(
-        self,
-        actor_id: str,
-        case: Any,
-        em_state: Any,
-        new_em_state: Any,
-        embargo_id: str,
-        dl: "CaseOutboxPersistence",
-    ) -> None:
-        """Apply EM state update, cascade revise if needed, and log."""
-        case.current_status.em_state = new_em_state
-        if em_state == EM.ACTIVE and new_em_state == EM.REVISE:
-            _cascade_pec_revise(case, dl)
-        if new_em_state != em_state:
-            logger.info(
-                "Actor '%s' proposed embargo '%s' on case '%s' (EM %s → %s)",
-                actor_id,
-                embargo_id,
-                case.id_,
-                em_state,
-                new_em_state,
-            )
-        else:
-            logger.info(
-                "Actor '%s' counter-proposed embargo '%s' on case '%s'"
-                " (EM %s, no state change)",
-                actor_id,
-                embargo_id,
-                case.id_,
-                em_state,
-            )
 
     def execute(self) -> dict:
         request = self._request
@@ -375,50 +70,29 @@ class SvcProposeEmbargoUseCase:
 
         case = resolve_case(case_id, dl)
 
-        em_state = case.current_status.em_state
-
-        adapter = EMAdapter(em_state)
-        em_machine = create_em_machine()
-        em_machine.add_model(adapter, initial=em_state)
-
-        try:
-            getattr(adapter, "propose")()
-        except MachineError:
-            logger.warning(
-                "Invalid EM state transition: actor '%s' cannot PROPOSE on"
-                " case '%s' (EM state '%s').",
-                actor_id,
-                case.id_,
-                em_state,
-            )
-            raise VultronInvalidStateTransitionError(
-                f"Cannot propose embargo: case '{case.id_}' EM state"
-                f" '{em_state}' does not allow a PROPOSE transition."
-            )
-
-        new_em_state = EM(adapter.state)
-
         embargo_kwargs: dict = {"context": case.id_}
         if end_time is not None:
             embargo_kwargs["end_time"] = end_time
 
         embargo = EmbargoEvent(**embargo_kwargs)
 
-        try:
-            dl.create(embargo)
-        except ValueError:
-            logger.warning("EmbargoEvent '%s' already exists", embargo.id_)
-
         if self._trigger_activity is None:
             raise RuntimeError(
                 "SvcProposeEmbargoUseCase requires a TriggerActivityPort"
             )
 
-        self._apply_em_propose_transition(
-            actor_id, case, em_state, new_em_state, embargo.id_, dl
+        lifecycle = EmbargoLifecycle(persistence=dl)
+        lifecycle_result = lifecycle.propose_embargo(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            actor_id=actor_id,
+            transition_mode=TransitionMode.STRICT,
         )
-        case.proposed_embargoes.append(embargo.id_)
-        dl.save(case)
+
+        try:
+            dl.create(embargo)
+        except ValueError:
+            logger.warning("EmbargoEvent '%s' already exists", embargo.id_)
 
         factory = self._trigger_activity
         captured: dict = {}
@@ -433,32 +107,43 @@ class SvcProposeEmbargoUseCase:
             captured["activity"] = proposal_dict
             return [proposal_id]
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
-        tree = sender_side_bt(
-            case_id=case.id_, activity_builder=_build_activities
+        send_case_actor_activity(
+            dl=dl,
+            case_id=case.id_,
+            actor_id=actor_id,
+            trigger_activity=factory,
+            failure_label="ProposeEmbargo",
+            activity_builder=_build_activities,
         )
-        result = bridge.execute_with_setup(tree, actor_id=actor_id)
 
-        if result.status != Status.SUCCESS:
-            raise VultronValidationError(
-                f"ProposeEmbargo failed: {BTBridge.get_failure_reason(tree)}"
+        if lifecycle_result.em_after != lifecycle_result.em_before:
+            logger.info(
+                "Actor '%s' proposed embargo '%s' on case '%s' (EM %s → %s)",
+                actor_id,
+                embargo.id_,
+                case.id_,
+                lifecycle_result.em_before,
+                lifecycle_result.em_after,
+            )
+        else:
+            logger.info(
+                "Actor '%s' counter-proposed embargo '%s' on case '%s'"
+                " (EM %s, no state change)",
+                actor_id,
+                embargo.id_,
+                case.id_,
+                lifecycle_result.em_before,
             )
 
         return {"activity": captured.get("activity")}
 
 
 class SvcAcceptEmbargoUseCase:
-    """Accept an embargo proposal (accept-embargo).
-
-    Validates the proposal, applies EM state transitions, and sends an
-    Accept(Proposal) activity to the Case Actor via SenderSideBT.
-    """
-
     def __init__(
         self,
         dl: CaseOutboxPersistence,
         request: AcceptEmbargoTriggerRequest,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._request: AcceptEmbargoTriggerRequest = request
@@ -485,16 +170,13 @@ class SvcAcceptEmbargoUseCase:
                 "SvcAcceptEmbargoUseCase requires a TriggerActivityPort"
             )
 
-        em_state = case.current_status.em_state
-        new_em_state, owner_activated = _apply_owner_embargo_acceptance(
-            case,
-            actor_id,
-            proposal.id_,
-            embargo_id,
+        lifecycle = EmbargoLifecycle(persistence=dl)
+        lifecycle_result = lifecycle.accept_embargo_invite(
+            case_id=case.id_,
+            embargo_id=embargo_id,
+            actor_id=actor_id,
+            transition_mode=TransitionMode.STRICT,
         )
-
-        _update_participant_embargo_acceptance(case, actor_id, embargo_id, dl)
-        dl.save(case)
 
         factory = self._trigger_activity
         captured: dict = {}
@@ -509,18 +191,19 @@ class SvcAcceptEmbargoUseCase:
             captured["activity"] = accept_dict
             return [accept_id]
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
-        tree = sender_side_bt(
-            case_id=case.id_, activity_builder=_build_activities
+        send_case_actor_activity(
+            dl=dl,
+            case_id=case.id_,
+            actor_id=actor_id,
+            trigger_activity=factory,
+            failure_label="AcceptEmbargo",
+            activity_builder=_build_activities,
         )
-        result = bridge.execute_with_setup(tree, actor_id=actor_id)
 
-        if result.status != Status.SUCCESS:
-            raise VultronValidationError(
-                f"AcceptEmbargo failed: {BTBridge.get_failure_reason(tree)}"
-            )
-
-        if owner_activated:
+        if (
+            _is_case_owner(case, actor_id)
+            and lifecycle_result.em_after != lifecycle_result.em_before
+        ):
             logger.info(
                 "Actor '%s' accepted embargo proposal '%s'; activated embargo"
                 " '%s' on case '%s' (EM %s → %s)",
@@ -528,8 +211,8 @@ class SvcAcceptEmbargoUseCase:
                 proposal.id_,
                 embargo_id,
                 case.id_,
-                em_state,
-                new_em_state,
+                lifecycle_result.em_before,
+                lifecycle_result.em_after,
             )
         else:
             logger.info(
@@ -540,24 +223,18 @@ class SvcAcceptEmbargoUseCase:
                 proposal.id_,
                 embargo_id,
                 case.id_,
-                new_em_state,
+                lifecycle_result.em_after,
             )
 
         return {"activity": captured.get("activity")}
 
 
 class SvcTerminateEmbargoUseCase:
-    """Terminate the active embargo on a case.
-
-    Validates the EM state transition, applies PEC resets, and sends a
-    Terminate(Embargo) activity to the Case Actor via SenderSideBT.
-    """
-
     def __init__(
         self,
         dl: CaseOutboxPersistence,
         request: TerminateEmbargoTriggerRequest,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._request: TerminateEmbargoTriggerRequest = request
@@ -585,26 +262,6 @@ class SvcTerminateEmbargoUseCase:
                 f"Case '{case.id_}' has no active embargo to terminate."
             )
 
-        em_state = case.current_status.em_state
-        adapter = EMAdapter(em_state)
-        em_machine = create_em_machine()
-        em_machine.add_model(adapter, initial=em_state)
-
-        try:
-            getattr(adapter, "terminate")()
-        except MachineError:
-            logger.warning(
-                "Invalid EM state transition: actor '%s' cannot TERMINATE on"
-                " case '%s' (EM state '%s').",
-                actor_id,
-                case.id_,
-                em_state,
-            )
-            raise VultronInvalidStateTransitionError(
-                f"Cannot terminate embargo: case '{case.id_}' EM state"
-                f" '{em_state}' does not allow a TERMINATE transition."
-            )
-
         embargo_id = (
             case.active_embargo
             if isinstance(case.active_embargo, str)
@@ -622,11 +279,12 @@ class SvcTerminateEmbargoUseCase:
                 "SvcTerminateEmbargoUseCase requires a TriggerActivityPort"
             )
 
-        case.current_status.em_state = EM(adapter.state)
-        case.active_embargo = None
-        # Reset all participants' embargo consent state.
-        reset_case_participant_embargo_consent(dl, case)
-        dl.save(case)
+        lifecycle = EmbargoLifecycle(persistence=dl)
+        lifecycle_result = lifecycle.terminate_active_embargo(
+            case_id=case.id_,
+            actor_id=actor_id,
+            transition_mode=TransitionMode.STRICT,
+        )
 
         factory = self._trigger_activity
         captured: dict = {}
@@ -641,45 +299,36 @@ class SvcTerminateEmbargoUseCase:
             captured["activity"] = announce_dict
             return [announce_id]
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
-        tree = sender_side_bt(
-            case_id=case.id_, activity_builder=_build_activities
+        send_case_actor_activity(
+            dl=dl,
+            case_id=case.id_,
+            actor_id=actor_id,
+            trigger_activity=factory,
+            failure_label="TerminateEmbargo",
+            activity_builder=_build_activities,
         )
-        result = bridge.execute_with_setup(tree, actor_id=actor_id)
-
-        if result.status != Status.SUCCESS:
-            raise VultronValidationError(
-                f"TerminateEmbargo failed: {BTBridge.get_failure_reason(tree)}"
-            )
 
         logger.info(
             "Actor '%s' terminated embargo '%s' on case '%s' (EM %s → %s)",
             actor_id,
             embargo_id,
             case.id_,
-            em_state,
-            adapter.state,
+            lifecycle_result.em_before,
+            lifecycle_result.em_after,
         )
 
         return {"activity": captured.get("activity")}
 
 
-# Backward-compatible alias
 SvcEvaluateEmbargoUseCase = SvcAcceptEmbargoUseCase
 
 
 class SvcRejectEmbargoUseCase:
-    """Reject an embargo proposal (reject-embargo).
-
-    Valid EM transitions: PROPOSED → NO_EMBARGO or REVISE → ACTIVE.
-    Sends a Reject(Proposal) activity to the Case Actor via SenderSideBT.
-    """
-
     def __init__(
         self,
         dl: CaseOutboxPersistence,
         request: RejectEmbargoTriggerRequest,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._request: RejectEmbargoTriggerRequest = request
@@ -694,20 +343,19 @@ class SvcRejectEmbargoUseCase:
         case = resolve_case(request.case_id, dl)
         proposal = _resolve_embargo_proposal(case, request.proposal_id, dl)
         embargo_id = _resolve_embargo_id_from_proposal(proposal)
-        em_state = case.current_status.em_state
-        new_em_state, owner_rejected = _apply_owner_embargo_rejection(
-            case,
-            actor_id,
-            proposal.id_,
-        )
 
         if self._trigger_activity is None:
             raise RuntimeError(
                 "SvcRejectEmbargoUseCase requires a TriggerActivityPort"
             )
 
-        _update_participant_embargo_rejection(case, actor_id, embargo_id, dl)
-        dl.save(case)
+        lifecycle = EmbargoLifecycle(persistence=dl)
+        lifecycle_result = lifecycle.reject_embargo_invite(
+            case_id=case.id_,
+            embargo_id=embargo_id,
+            actor_id=actor_id,
+            transition_mode=TransitionMode.STRICT,
+        )
 
         factory = self._trigger_activity
         captured: dict = {}
@@ -722,26 +370,27 @@ class SvcRejectEmbargoUseCase:
             captured["activity"] = reject_dict
             return [reject_id]
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
-        tree = sender_side_bt(
-            case_id=case.id_, activity_builder=_build_activities
+        send_case_actor_activity(
+            dl=dl,
+            case_id=case.id_,
+            actor_id=actor_id,
+            trigger_activity=factory,
+            failure_label="RejectEmbargo",
+            activity_builder=_build_activities,
         )
-        result = bridge.execute_with_setup(tree, actor_id=actor_id)
 
-        if result.status != Status.SUCCESS:
-            raise VultronValidationError(
-                f"RejectEmbargo failed: {BTBridge.get_failure_reason(tree)}"
-            )
-
-        if owner_rejected:
+        if (
+            _is_case_owner(case, actor_id)
+            and lifecycle_result.em_after != lifecycle_result.em_before
+        ):
             logger.info(
                 "Actor '%s' rejected embargo proposal '%s' on case '%s'"
                 " (EM %s → %s)",
                 actor_id,
                 proposal.id_,
                 case.id_,
-                em_state,
-                new_em_state,
+                lifecycle_result.em_before,
+                lifecycle_result.em_after,
             )
         else:
             logger.info(
@@ -752,26 +401,18 @@ class SvcRejectEmbargoUseCase:
                 proposal.id_,
                 embargo_id,
                 case.id_,
-                new_em_state,
+                lifecycle_result.em_after,
             )
 
         return {"activity": captured.get("activity")}
 
 
 class SvcProposeEmbargoRevisionUseCase:
-    """Propose a revision to an active embargo (propose-embargo-revision).
-
-    Valid EM transitions: ACTIVE → REVISE or REVISE → REVISE.
-    Rejects with an invalid-state error if EM state is NO_EMBARGO or PROPOSED
-    (use propose-embargo for initial proposals).
-    Sends a Propose(Embargo) activity to the Case Actor via SenderSideBT.
-    """
-
     def __init__(
         self,
         dl: CaseOutboxPersistence,
         request: ProposeEmbargoRevisionTriggerRequest,
-        trigger_activity: "TriggerActivityPort | None" = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._request: ProposeEmbargoRevisionTriggerRequest = request
@@ -790,7 +431,6 @@ class SvcProposeEmbargoRevisionUseCase:
         case = resolve_case(case_id, dl)
 
         em_state = case.current_status.em_state
-
         if em_state not in (EM.ACTIVE, EM.REVISE):
             raise VultronInvalidStateTransitionError(
                 f"Cannot propose embargo revision: case '{case.id_}' EM state"
@@ -798,37 +438,11 @@ class SvcProposeEmbargoRevisionUseCase:
                 f" Use propose-embargo for initial proposals."
             )
 
-        adapter = EMAdapter(em_state)
-        em_machine = create_em_machine()
-        em_machine.add_model(adapter, initial=em_state)
-
-        try:
-            getattr(adapter, "propose")()
-        except MachineError:
-            logger.warning(
-                "Invalid EM state transition: actor '%s' cannot PROPOSE"
-                " revision on case '%s' (EM state '%s').",
-                actor_id,
-                case.id_,
-                em_state,
-            )
-            raise VultronInvalidStateTransitionError(
-                f"Cannot propose embargo revision: case '{case.id_}' EM state"
-                f" '{em_state}' does not allow a PROPOSE transition."
-            )
-
-        new_em_state = EM(adapter.state)
-
         embargo_kwargs: dict = {"context": case.id_}
         if end_time is not None:
             embargo_kwargs["end_time"] = end_time
 
         embargo = EmbargoEvent(**embargo_kwargs)
-
-        try:
-            dl.create(embargo)
-        except ValueError:
-            logger.warning("EmbargoEvent '%s' already exists", embargo.id_)
 
         if self._trigger_activity is None:
             raise RuntimeError(
@@ -836,9 +450,18 @@ class SvcProposeEmbargoRevisionUseCase:
                 " TriggerActivityPort"
             )
 
-        case.current_status.em_state = new_em_state
-        case.proposed_embargoes.append(embargo.id_)
-        dl.save(case)
+        lifecycle = EmbargoLifecycle(persistence=dl)
+        lifecycle_result = lifecycle.propose_embargo(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            actor_id=actor_id,
+            transition_mode=TransitionMode.STRICT,
+        )
+
+        try:
+            dl.create(embargo)
+        except ValueError:
+            logger.warning("EmbargoEvent '%s' already exists", embargo.id_)
 
         factory = self._trigger_activity
         captured: dict = {}
@@ -853,17 +476,14 @@ class SvcProposeEmbargoRevisionUseCase:
             captured["activity"] = proposal_dict
             return [proposal_id]
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
-        tree = sender_side_bt(
-            case_id=case.id_, activity_builder=_build_activities
+        send_case_actor_activity(
+            dl=dl,
+            case_id=case.id_,
+            actor_id=actor_id,
+            trigger_activity=factory,
+            failure_label="ProposeEmbargoRevision",
+            activity_builder=_build_activities,
         )
-        result = bridge.execute_with_setup(tree, actor_id=actor_id)
-
-        if result.status != Status.SUCCESS:
-            raise VultronValidationError(
-                f"ProposeEmbargoRevision failed:"
-                f" {BTBridge.get_failure_reason(tree)}"
-            )
 
         logger.info(
             "Actor '%s' proposed embargo revision '%s' on case '%s'"
@@ -871,8 +491,8 @@ class SvcProposeEmbargoRevisionUseCase:
             actor_id,
             embargo.id_,
             case.id_,
-            em_state,
-            new_em_state,
+            lifecycle_result.em_before,
+            lifecycle_result.em_after,
         )
 
         return {"activity": captured.get("activity")}

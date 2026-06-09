@@ -23,6 +23,7 @@ framework imports allowed here.
 
 import logging
 import hashlib
+from collections.abc import Callable
 
 from vultron.core.models.protocols import (
     CaseModel,
@@ -35,6 +36,7 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
 )
+from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -235,3 +237,94 @@ def find_embargo_proposal(case_id: str, dl: CasePersistence):
         ):
             return obj
     return None
+
+
+def _coerce_embargo_event(raw_embargo: object, embargo_id: str) -> object:
+    """Normalize a persisted embargo record; raise domain errors on failure."""
+    from vultron.errors import VultronNotFoundError, VultronValidationError
+
+    if getattr(raw_embargo, "type_", "") == "EmbargoEvent":
+        return raw_embargo
+    if raw_embargo is None:
+        raise VultronNotFoundError("EmbargoEvent", embargo_id)
+    raise VultronValidationError(
+        f"Could not resolve EmbargoEvent '{embargo_id}'."
+    )
+
+
+def _is_case_owner(case: object | None, actor_id: str) -> bool:
+    """Return True when ``actor_id`` matches the case owner."""
+    from vultron.core.use_cases._helpers import _as_id
+
+    if case is None:
+        return False
+    owner_id = _as_id(getattr(case, "attributed_to", None))
+    return owner_id is not None and owner_id == actor_id
+
+
+def _resolve_embargo_proposal(
+    case: CaseModel, proposal_id: str | None, dl: CaseOutboxPersistence
+):
+    """Resolve the embargo proposal for a case."""
+    from vultron.errors import VultronNotFoundError, VultronValidationError
+
+    if proposal_id:
+        proposal = dl.read(proposal_id)
+        if proposal is None:
+            raise VultronNotFoundError("EmbargoProposal", proposal_id)
+    else:
+        proposal = find_embargo_proposal(case.id_, dl)
+        if proposal is None:
+            raise VultronNotFoundError(
+                "EmbargoProposal",
+                f"(pending for case '{case.id_}')",
+            )
+
+    if getattr(proposal, "type_", "") != "Invite":
+        raise VultronValidationError(
+            f"Expected an EmProposeEmbargoActivity (embargo proposal), got "
+            f"type '{getattr(proposal, 'type_', 'unknown')}'."
+        )
+    return proposal
+
+
+def _resolve_embargo_id_from_proposal(proposal: object) -> str:
+    """Return the embargo ID referenced by a proposal."""
+    from vultron.errors import VultronValidationError
+
+    embargo_id = getattr(getattr(proposal, "object_", None), "id_", None)
+    if embargo_id is not None and not isinstance(embargo_id, str):
+        raise VultronValidationError(
+            "Proposal embargo event reference must have a string ID."
+        )
+    if not embargo_id:
+        raise VultronValidationError(
+            "Proposal is missing an embargo event reference."
+        )
+    return embargo_id
+
+
+def send_case_actor_activity(
+    *,
+    dl: CaseOutboxPersistence,
+    case_id: str,
+    actor_id: str,
+    trigger_activity: TriggerActivityPort | None,
+    failure_label: str,
+    activity_builder: Callable[[str], list[str]],
+) -> None:
+    """Send an activity to the case manager via the sender-side BT."""
+    from py_trees.common import Status
+
+    from vultron.core.behaviors.bridge import BTBridge
+    from vultron.core.behaviors.sender.send_tree import sender_side_bt
+
+    bridge = BTBridge(datalayer=dl, trigger_activity=trigger_activity)
+    tree = sender_side_bt(case_id=case_id, activity_builder=activity_builder)
+    result = bridge.execute_with_setup(tree, actor_id=actor_id)
+    if result.status != Status.SUCCESS:
+        from vultron.errors import VultronValidationError
+
+        raise VultronValidationError(
+            f"{failure_label} failed: {BTBridge.get_failure_reason(tree)}"
+        )
