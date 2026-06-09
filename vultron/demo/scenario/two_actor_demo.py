@@ -28,6 +28,8 @@ import pathlib
 import sys
 from typing import Optional, Tuple
 
+import httpx
+
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vfd
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -776,7 +778,21 @@ def _phase_dump_case_logs(
         with demo_step(f"Dumping case log for {actor_name}"):
             case_key = strip_id_prefix(case_id)
             log_path = f"/actors/{actor_route_key}/demo/cases/{case_key}/log"
-            entries = client.get_list(log_path)
+            try:
+                entries = client.get_list(log_path)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code != 404:
+                    raise
+                # D5-2: the dedicated case-actor container does not hold the
+                # case; the case-actor sub-actor runs inside the vendor
+                # container. Treat 404 the same as an empty list so the
+                # sub-actor fallback below can supply the entries.
+                logger.info(
+                    "Case not found on dedicated %s container (HTTP 404, D5-2);"
+                    " will attempt vendor sub-actor fallback.",
+                    actor_name,
+                )
+                entries = []
             if (
                 not entries
                 and actor_name == "case-actor"
@@ -788,7 +804,7 @@ def _phase_dump_case_logs(
                     f"{case_actor_sub_actor_key}/demo/cases/{case_key}/log"
                 )
                 logger.info(
-                    "Dedicated case-actor log is empty; "
+                    "Dedicated case-actor log unavailable; "
                     "falling back to vendor sub-actor route key '%s'",
                     case_actor_sub_actor_key,
                 )
