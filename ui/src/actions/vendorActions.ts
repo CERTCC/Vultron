@@ -10,6 +10,7 @@ import {
   incrementXPosition,
   setPhase,
   setPxaState,
+  setEmState,
 } from '../state/stateUpdaters'
 import { getParticipant, getActiveParticipants, getActiveVendors } from '../state/participantHelpers'
 
@@ -522,7 +523,7 @@ export function handleRejectEmbargo(state: DemoState, vendorId: string): DemoSta
   }
 
   // Consequence node in Finder's lane
-  if (finder) {
+  if (finder && !finder.hasClosed) {
     events.push({
       id: `${eventId}-finder-consequence`,
       actor: 'Finder',
@@ -623,8 +624,8 @@ export function handleNotifyFixReady(state: DemoState, vendorId: string): DemoSt
 
   timestampOffset++
 
-  // Consequence node in Finder lane
-  if (finder) {
+  // Consequence node in Finder lane (only if Finder hasn't closed)
+  if (finder && !finder.hasClosed) {
     events.push({
       id: `${eventId}-finder-consequence`,
       actor: 'Finder',
@@ -733,7 +734,7 @@ export function handleNotifyFixDeployed(state: DemoState, vendorId: string): Dem
   timestampOffset++
 
   // Consequence node in Finder lane
-  if (finder) {
+  if (finder && !finder.hasClosed) {
     events.push({
       id: `${eventId}-finder-consequence`,
       actor: 'Finder',
@@ -875,7 +876,7 @@ export function handleVendorNotifyPublished(state: DemoState, vendorId: string):
   timestampOffset++
 
   // Consequence node in Finder lane
-  if (finder) {
+  if (finder && !finder.hasClosed) {
     events.push({
       id: `${eventId}-finder-consequence`,
       actor: 'Finder',
@@ -998,7 +999,7 @@ export function handleVendorReplyNote(state: DemoState, vendorId: string): DemoS
   timestampOffset++
 
   // Consequence node in Finder lane
-  if (finder) {
+  if (finder && !finder.hasClosed) {
     events.push({
       id: `${eventId}-finder-consequence`,
       actor: 'Finder',
@@ -1111,7 +1112,7 @@ export function handleVendorCloseCase(state: DemoState, vendorId: string): DemoS
   timestampOffset++
 
   // Consequence node in Finder lane
-  if (finder) {
+  if (finder && !finder.hasClosed) {
     events.push({
       id: `${eventId}-finder-consequence`,
       actor: 'Finder',
@@ -1178,6 +1179,189 @@ export function handleVendorCloseCase(state: DemoState, vendorId: string): DemoS
   newState = addTimelineEvents(newState, events)
 
   newState = addEventLogEntries(newState, [`${vendor.name} closed their participation in the case`])
+  newState = incrementXPosition(newState)
+
+  return newState
+}
+
+export function handleVendorProposeRevision(state: DemoState, vendorId: string): DemoState {
+  const nextX = state.nextXPosition
+  const eventId = `event-${state.timelineEvents.length + 1}`
+  const now = Date.now()
+
+  const vendor = getParticipant(state, vendorId)
+  if (!vendor) return state
+
+  const finder = getParticipant(state, 'finder')
+  const caseactor = getParticipant(state, 'caseactor')
+  const otherVendors = getActiveVendors(state).filter(v => v.id !== vendorId && v.embargoAccepted)
+
+  let newState = state
+
+  // Per Vultron protocol: A → pR (Active → propose → Revise)
+  newState = setEmState(newState, 'REVISE')
+
+  const events = []
+  let timestampOffset = 0
+
+  // Decision node in Vendor's lane
+  events.push({
+    id: eventId,
+    actor: vendor.name,
+    participantId: vendorId,
+    label: 'Propose Embargo Revision',
+    x: nextX,
+    lane: vendor.laneIndex,
+    type: 'decision' as const,
+    timestamp: now,
+    consequences: [
+      `${vendor.name} proposed embargo revision`,
+      'EmProposeEmbargoActivity created (revision)',
+      'Existing embargo remains active',
+      'EM state → REVISE',
+    ],
+  })
+  timestampOffset++
+
+  // Consequence node in Finder's lane
+  if (finder && finder.embargoAccepted) {
+    events.push({
+      id: `${eventId}-finder-consequence`,
+      actor: 'Finder',
+      participantId: 'finder',
+      label: 'Revision Proposal Received',
+      x: nextX,
+      lane: finder.laneIndex,
+      type: 'consequence' as const,
+      timestamp: now + timestampOffset,
+      causedBy: eventId,
+      enablesNext: true,
+      consequences: [
+        'EmProposeEmbargoActivity received (revision)',
+        `Finder sees ${vendor.name}'s proposed revision`,
+        'Current embargo still active',
+      ],
+    })
+    timestampOffset++
+  }
+
+  // Consequence nodes for other active vendors
+  for (const otherVendor of otherVendors) {
+    events.push({
+      id: `${eventId}-${otherVendor.id}-consequence`,
+      actor: otherVendor.name,
+      participantId: otherVendor.id,
+      label: 'Revision Proposal Received',
+      x: nextX,
+      lane: otherVendor.laneIndex,
+      type: 'consequence' as const,
+      timestamp: now + timestampOffset,
+      causedBy: eventId,
+      enablesNext: true,
+      consequences: [
+        'EmProposeEmbargoActivity received (revision)',
+        `${otherVendor.name} sees revision proposal`,
+        'Current embargo still active',
+      ],
+    })
+    timestampOffset++
+  }
+
+  // Consequence node in CaseActor's lane
+  if (caseactor) {
+    events.push({
+      id: `${eventId}-caseactor-consequence`,
+      actor: 'CaseActor',
+      participantId: 'caseactor',
+      label: 'Revision Proposal Received',
+      x: nextX,
+      lane: caseactor.laneIndex,
+      type: 'consequence' as const,
+      timestamp: now + timestampOffset,
+      causedBy: eventId,
+      consequences: [
+        'EmProposeEmbargoActivity received (revision)',
+        `CaseActor sees ${vendor.name}'s proposed revision`,
+      ],
+    })
+  }
+
+  newState = addTimelineEvents(newState, events)
+  newState = addEventLogEntries(newState, [`${vendor.name} proposed embargo revision`])
+  newState = incrementXPosition(newState)
+
+  return newState
+}
+
+export function handleVendorAcceptRevision(state: DemoState, vendorId: string): DemoState {
+  const nextX = state.nextXPosition
+  const eventId = `event-${state.timelineEvents.length + 1}`
+  const now = Date.now()
+
+  const vendor = getParticipant(state, vendorId)
+  if (!vendor) return state
+
+  let newState = state
+
+  // Per Vultron protocol: R → aA (Revise → accept → Active)
+  newState = setEmState(newState, 'ACTIVE')
+
+  const events = [{
+    id: eventId,
+    actor: vendor.name,
+    participantId: vendorId,
+    label: 'Accept Revision',
+    x: nextX,
+    lane: vendor.laneIndex,
+    type: 'decision' as const,
+    timestamp: now,
+    consequences: [
+      `${vendor.name} accepted embargo revision`,
+      'EmAcceptEmbargoActivity created',
+      'Revised embargo terms now active',
+      'EM state → ACTIVE',
+    ],
+  }]
+
+  newState = addTimelineEvents(newState, events)
+  newState = addEventLogEntries(newState, [`${vendor.name} accepted embargo revision`])
+  newState = incrementXPosition(newState)
+
+  return newState
+}
+
+export function handleVendorRejectRevision(state: DemoState, vendorId: string): DemoState {
+  const nextX = state.nextXPosition
+  const eventId = `event-${state.timelineEvents.length + 1}`
+  const now = Date.now()
+
+  const vendor = getParticipant(state, vendorId)
+  if (!vendor) return state
+
+  let newState = state
+
+  // Per Vultron protocol: R → rA (Revise → reject → Active)
+  newState = setEmState(newState, 'ACTIVE')
+
+  const events = [{
+    id: eventId,
+    actor: vendor.name,
+    participantId: vendorId,
+    label: 'Reject Revision',
+    x: nextX,
+    lane: vendor.laneIndex,
+    type: 'decision' as const,
+    timestamp: now,
+    consequences: [
+      `${vendor.name} rejected embargo revision`,
+      'EmRejectEmbargoActivity created',
+      'Original embargo terms remain active',
+      'EM state → ACTIVE',
+    ],
+  }]
+
+  newState = addTimelineEvents(newState, events)
+  newState = addEventLogEntries(newState, [`${vendor.name} rejected embargo revision - original terms remain`])
   newState = incrementXPosition(newState)
 
   return newState

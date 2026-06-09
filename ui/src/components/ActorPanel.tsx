@@ -8,6 +8,7 @@ interface Action {
 }
 
 interface ActorPanelProps {
+  participantId: string
   name: string
   role: string
   color: string
@@ -22,6 +23,7 @@ interface ActorPanelProps {
 }
 
 export function ActorPanel({
+  participantId,
   name,
   role,
   color,
@@ -38,6 +40,7 @@ export function ActorPanel({
 
   return (
     <div
+      data-participant-id={participantId}
       style={{
         height,
         minHeight: height,

@@ -89,13 +89,58 @@ function App() {
 
   // Toggle participant collapse
   const toggleParticipantCollapse = useCallback((participantId: string) => {
+    // Get the button's current position on screen before the state change
+    if (!sidebarScrollRef.current) return
+
+    // Find the ActorPanel element for this participant
+    const sidebar = sidebarScrollRef.current
+    const allPanels = Array.from(sidebar.querySelectorAll('[data-participant-id]'))
+    const targetPanel = allPanels.find(panel =>
+      panel.getAttribute('data-participant-id') === participantId
+    )
+
+    if (!targetPanel) {
+      // Fallback: just toggle without scroll adjustment
+      setCollapsedParticipants(prev => {
+        const newSet = new Set(prev)
+        if (newSet.has(participantId)) {
+          newSet.delete(participantId)
+        } else {
+          newSet.add(participantId)
+        }
+        return newSet
+      })
+      return
+    }
+
+    // Get current position of the button (top of the panel) relative to viewport
+    const buttonRect = targetPanel.getBoundingClientRect()
+    const buttonTopInViewport = buttonRect.top
+
     setCollapsedParticipants(prev => {
       const newSet = new Set(prev)
-      if (newSet.has(participantId)) {
+      const wasCollapsed = newSet.has(participantId)
+
+      if (wasCollapsed) {
         newSet.delete(participantId)
       } else {
         newSet.add(participantId)
       }
+
+      // After state change, adjust scroll to keep button at same viewport position
+      // Use setTimeout 0 instead of requestAnimationFrame for more reliable timing after React render
+      setTimeout(() => {
+        if (!targetPanel || !sidebarScrollRef.current) return
+
+        const newButtonRect = targetPanel.getBoundingClientRect()
+        const newButtonTopInViewport = newButtonRect.top
+        const delta = newButtonTopInViewport - buttonTopInViewport
+
+        if (Math.abs(delta) > 0.5) {  // Only adjust if there's meaningful movement
+          sidebarScrollRef.current.scrollTop += delta
+        }
+      }, 0)
+
       return newSet
     })
   }, [])
@@ -252,6 +297,12 @@ function App() {
           newState = finderActions.handleFinderAcceptEmbargo(newState)
         } else if (actionId === 'finder-reject-embargo') {
           newState = finderActions.handleFinderRejectEmbargo(newState)
+        } else if (actionId === 'finder-propose-revision') {
+          newState = finderActions.handleFinderProposeRevision(newState)
+        } else if (actionId === 'finder-accept-revision') {
+          newState = finderActions.handleFinderAcceptRevision(newState)
+        } else if (actionId === 'finder-reject-revision') {
+          newState = finderActions.handleFinderRejectRevision(newState)
         } else if (actionId === 'finder-add-note') {
           newState = finderActions.handleFinderAddNote(newState)
         } else if (actionId === 'finder-notify-published') {
@@ -264,6 +315,12 @@ function App() {
       } else if (participantId === 'caseactor') {
         if (actionId === 'propose-embargo') {
           newState = caseActorActions.handleProposeEmbargo(newState)
+        } else if (actionId === 'caseactor-propose-revision') {
+          newState = caseActorActions.handleCaseActorProposeRevision(newState)
+        } else if (actionId === 'caseactor-accept-revision') {
+          newState = caseActorActions.handleCaseActorAcceptRevision(newState)
+        } else if (actionId === 'caseactor-reject-revision') {
+          newState = caseActorActions.handleCaseActorRejectRevision(newState)
         }
       } else if (participantId.startsWith('vendor-')) {
         if (actionId === 'validate-report') {
@@ -278,6 +335,12 @@ function App() {
           newState = vendorActions.handleAcceptEmbargo(newState, participantId)
         } else if (actionId === 'reject-embargo') {
           newState = vendorActions.handleRejectEmbargo(newState, participantId)
+        } else if (actionId === 'vendor-propose-revision') {
+          newState = vendorActions.handleVendorProposeRevision(newState, participantId)
+        } else if (actionId === 'vendor-accept-revision') {
+          newState = vendorActions.handleVendorAcceptRevision(newState, participantId)
+        } else if (actionId === 'vendor-reject-revision') {
+          newState = vendorActions.handleVendorRejectRevision(newState, participantId)
         } else if (actionId === 'notify-fix-ready') {
           newState = vendorActions.handleNotifyFixReady(newState, participantId)
         } else if (actionId === 'notify-fix-deployed') {
@@ -430,6 +493,7 @@ function App() {
             .map((participant) => (
               <ActorPanel
                 key={participant.id}
+                participantId={participant.id}
                 name={participant.name}
                 role={participant.role}
                 color={participant.color}
@@ -592,6 +656,37 @@ function App() {
                   >
                     <polygon points="0 0, 8 2.5, 0 5" fill="#FFE0B2" />
                   </marker>
+                  {/* Arrowheads for vendors 3, 4, 5 */}
+                  <marker
+                    id="arrowhead-yellow"
+                    markerWidth="16"
+                    markerHeight="16"
+                    refX="14"
+                    refY="5"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 16 5, 0 10" fill="#FFE082" />
+                  </marker>
+                  <marker
+                    id="arrowhead-lightorange"
+                    markerWidth="16"
+                    markerHeight="16"
+                    refX="14"
+                    refY="5"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 16 5, 0 10" fill="#FFCCBC" />
+                  </marker>
+                  <marker
+                    id="arrowhead-lavender"
+                    markerWidth="16"
+                    markerHeight="16"
+                    refX="14"
+                    refY="5"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 16 5, 0 10" fill="#E1BEE7" />
+                  </marker>
                 </defs>
 
                 {/* Draw edges */}
@@ -632,10 +727,20 @@ function App() {
                         } else if (targetParticipant.id === 'vendor-2') {
                           arrowColor = '#C8E6C9'
                           arrowMarker = targetCollapsed ? '' : 'url(#arrowhead-green)'
+                        } else if (targetParticipant.id === 'vendor-3') {
+                          arrowColor = '#FFE082'
+                          arrowMarker = targetCollapsed ? '' : 'url(#arrowhead-yellow)'
+                        } else if (targetParticipant.id === 'vendor-4') {
+                          arrowColor = '#FFCCBC'
+                          arrowMarker = targetCollapsed ? '' : 'url(#arrowhead-lightorange)'
+                        } else if (targetParticipant.id === 'vendor-5') {
+                          arrowColor = '#E1BEE7'
+                          arrowMarker = targetCollapsed ? '' : 'url(#arrowhead-lavender)'
                         } else if (targetParticipant.id === 'caseactor') {
                           arrowColor = '#FFE0B2'
                           arrowMarker = targetCollapsed ? '' : 'url(#arrowhead-orange)'
                         } else {
+                          // For vendors beyond 5, use gray as fallback
                           arrowColor = '#999'
                           arrowMarker = targetCollapsed ? '' : ''
                         }

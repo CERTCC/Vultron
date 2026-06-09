@@ -64,8 +64,11 @@ export function getFinderActions(state: DemoState): Action[] {
     const actions: Action[] = []
 
     // Embargo response actions (EM state machine - independent of other activities and phase)
-    // Check EM state, NOT phase, since phase changes with VFD progression
-    if (state.emState === 'PROPOSED' && !finder.embargoAccepted) {
+    // Per Vultron protocol (early_termination.md + negotiating.md):
+    // Embargoes SHALL terminate when P, X, or A occur - no accept/reject after that
+    const isPublic = state.pxaState.includes('P') || state.pxaState.includes('X') || state.pxaState.includes('A')
+
+    if (state.emState === 'PROPOSED' && !finder.embargoAccepted && !isPublic) {
       actions.push({
         id: 'finder-accept-embargo',
         label: 'Accept Embargo',
@@ -75,6 +78,34 @@ export function getFinderActions(state: DemoState): Action[] {
         id: 'finder-reject-embargo',
         label: 'Reject Embargo',
         description: 'Reject the embargo proposal',
+        enabled: true,
+      })
+    }
+
+    // Per Vultron protocol (em/index.md): Active participants can propose revisions
+    // A → pR (Active → propose → Revise) or R → pR (Revise → propose → Revise)
+    if ((state.emState === 'ACTIVE' || state.emState === 'REVISE') && !isPublic && finder.embargoAccepted) {
+      actions.push({
+        id: 'finder-propose-revision',
+        label: 'Propose Embargo Revision',
+        description: 'Propose a revision to the active embargo terms',
+        enabled: true,
+      })
+    }
+
+    // If there's a pending revision proposal, Finder can accept/reject it
+    if (state.emState === 'REVISE' && !isPublic && finder.embargoAccepted) {
+      // Only show accept/reject if Finder hasn't responded to current revision yet
+      // (In a full implementation, we'd track per-revision responses)
+      actions.push({
+        id: 'finder-accept-revision',
+        label: 'Accept Embargo Revision',
+        description: 'Accept the proposed revision to embargo terms',
+        enabled: true,
+      }, {
+        id: 'finder-reject-revision',
+        label: 'Reject Embargo Revision',
+        description: 'Reject the proposed revision (keeps current embargo terms)',
         enabled: true,
       })
     }
@@ -109,8 +140,9 @@ export function getFinderActions(state: DemoState): Action[] {
       })
     }
 
-    // Close case if any vendor has deployed AND published
-    if (anyVendorVFD && state.pxaState.includes('P') && !finder.hasClosed) {
+    // Close case - available once publication has occurred OR if finder just wants to close
+    // Per Vultron protocol: Participants can close at any time when they believe no further work is needed
+    if (state.pxaState.includes('P') && !finder.hasClosed) {
       actions.push({
         id: 'finder-close-case',
         label: 'Close Case',
@@ -209,7 +241,10 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   // Per Vultron protocol (working_with_others.md lines 107-115):
   // If vendor joined a case with an existing embargo, they must accept/reject embargo FIRST
   // before they can proceed with other actions
-  if (vendor.embargoProposedToParticipant && !vendor.embargoAccepted) {
+  // UNLESS embargo has terminated due to P, X, or A (per early_termination.md)
+  const isPublic = state.pxaState.includes('P') || state.pxaState.includes('X') || state.pxaState.includes('A')
+
+  if (vendor.embargoProposedToParticipant && !vendor.embargoAccepted && !isPublic) {
     return [{
       id: 'accept-embargo',
       label: 'Accept Existing Embargo',
@@ -227,14 +262,14 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   // "The inviting Participant SHOULD NOT share the vulnerability report with the newly invited
   // Participant unless the new Participant has accepted the existing embargo."
   // If vendor rejected an existing embargo, they cannot participate (no actions available)
-  // HOWEVER: Per early_termination.md lines 32-39, if embargo is terminated (EXITED), vendor can participate
-  const hasActiveEmbargo = state.emState === 'ACTIVE' || state.emState === 'REVISE'
+  // HOWEVER: Per early_termination.md lines 32-39, if embargo is terminated (EXITED or by P/X/A), vendor can participate
+  const hasActiveEmbargo = (state.emState === 'ACTIVE' || state.emState === 'REVISE') && !isPublic
   if (hasActiveEmbargo && !vendor.embargoAccepted && !vendor.embargoProposedToParticipant) {
     // Vendor rejected embargo - they are excluded from participation
     // No actions available until embargo ends or they accept
     return []
   }
-  // If embargo was EXITED (terminated), vendors can now participate regardless of previous rejection
+  // If embargo was EXITED (terminated) or P/X/A occurred, vendors can now participate regardless of previous rejection
   // The barrier to participation no longer exists
 
   const vendorActivePhases = ['report-received', 'report-validated', 'report-accepted', 'report-deferred', 'report-invalidated', 'embargo-proposed', 'embargo-rejected', 'embargo-accepted', 'finder-asked', 'fix-ready', 'fix-deployed', 'vendor-published']
@@ -276,8 +311,9 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
     const actions: Action[] = []
 
     // Embargo response actions (EM state machine - independent of VFD and phase)
+    // Per Vultron protocol: No embargo accept/reject after P, X, or A
     // Check EM state, NOT phase, since phase changes with VFD progression
-    if (state.emState === 'PROPOSED' && !vendor.embargoAccepted) {
+    if (state.emState === 'PROPOSED' && !vendor.embargoAccepted && !isPublic) {
       actions.push({
         id: 'accept-embargo',
         label: 'Accept Embargo',
@@ -287,6 +323,32 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
         id: 'reject-embargo',
         label: 'Reject Embargo',
         description: 'Reject the embargo proposal',
+        enabled: true,
+      })
+    }
+
+    // Per Vultron protocol (em/index.md): Active participants can propose revisions
+    // A → pR (Active → propose → Revise) or R → pR (Revise → propose → Revise)
+    if ((state.emState === 'ACTIVE' || state.emState === 'REVISE') && !isPublic && vendor.embargoAccepted) {
+      actions.push({
+        id: 'vendor-propose-revision',
+        label: 'Propose Embargo Revision',
+        description: 'Propose a revision to the active embargo terms',
+        enabled: true,
+      })
+    }
+
+    // If there's a pending revision proposal, vendor can accept/reject it
+    if (state.emState === 'REVISE' && !isPublic && vendor.embargoAccepted) {
+      actions.push({
+        id: 'vendor-accept-revision',
+        label: 'Accept Embargo Revision',
+        description: 'Accept the proposed revision to embargo terms',
+        enabled: true,
+      }, {
+        id: 'vendor-reject-revision',
+        label: 'Reject Embargo Revision',
+        description: 'Reject the proposed revision (keeps current embargo terms)',
         enabled: true,
       })
     }
@@ -479,6 +541,36 @@ export function getCaseActorActions(state: DemoState): Action[] {
       description: 'Propose a 90-day coordinated disclosure embargo',
       enabled: true,
     }]
+  }
+
+  // Per Vultron protocol (em/index.md): Active participants can propose revisions
+  // A → pR (Active → propose → Revise) or R → pR (Revise → propose → Revise)
+  const canProposeRevision = (state.emState === 'ACTIVE' || state.emState === 'REVISE') && !isPublic
+
+  if (canProposeRevision) {
+    const actions: Action[] = [{
+      id: 'caseactor-propose-revision',
+      label: 'Propose Embargo Revision',
+      description: 'Propose a revision to the active embargo terms',
+      enabled: true,
+    }]
+
+    // If there's a pending revision proposal, CaseActor can accept/reject it
+    if (state.emState === 'REVISE') {
+      actions.push({
+        id: 'caseactor-accept-revision',
+        label: 'Accept Embargo Revision',
+        description: 'Accept the proposed revision to embargo terms',
+        enabled: true,
+      }, {
+        id: 'caseactor-reject-revision',
+        label: 'Reject Embargo Revision',
+        description: 'Reject the proposed revision (keeps current embargo terms)',
+        enabled: true,
+      })
+    }
+
+    return actions
   }
 
   return []

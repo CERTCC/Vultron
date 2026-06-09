@@ -69,8 +69,8 @@ const VENDOR_NODE_COLORS = [
   {
     decision: '#F9A825',        // Dark yellow
     decisionHover: '#F57F17',
-    consequence: '#FFF9C4',     // Light yellow
-    consequenceHover: '#FFF59D'
+    consequence: '#FFE082',     // Medium yellow (darker than before for visibility)
+    consequenceHover: '#FFD54F'
   },
   {
     decision: '#F4511E',        // Dark orange
