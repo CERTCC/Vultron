@@ -41,15 +41,29 @@ from py_trees.common import Status
 from transitions import MachineError
 
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
-from vultron.core.models.protocols import CaseModel, is_case_model
+from vultron.core.models.protocols import (
+    CaseModel,
+    is_case_model,
+    is_participant_model,
+)
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.services.embargo_lifecycle import (
+    EmbargoLifecycle,
+    TransitionMode,
+)
 from vultron.core.states.em import (
     EM,
     EMAdapter,
     create_em_machine,
     is_valid_em_transition,
 )
+from vultron.core.states.participant_embargo_consent import (
+    PEC,
+    PEC_Trigger,
+    apply_pec_trigger,
+)
 from vultron.core.use_cases._helpers import (
+    _as_id,
     _resolve_case_manager_id,
     reset_case_participant_embargo_consent,
 )
@@ -371,3 +385,513 @@ class TerminateEmbargoNode(DataLayerAction):
                 self.case_id,
                 exc,
             )
+
+
+class CommitLogCascadeNode(DataLayerAction):
+    """Commit a CaseLogEntry and cascade to all participants.
+
+    Resolves the CaseActor ID from case_id and triggers the
+    ``commit_log_entry_trigger`` to create a log entry and fan it out
+    to all participants. Always returns SUCCESS (cascade is best-effort).
+
+    Idempotent: silently succeeds if case_id or object_id is None.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        object_id: str,
+        event_type: str,
+        name: str | None = None,
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.object_id = object_id
+        self.event_type = event_type
+
+    def update(self) -> Status:
+        from vultron.core.use_cases.received.actor import (
+            _find_case_actor_id,
+        )
+        from vultron.core.use_cases.triggers.sync import (
+            commit_log_entry_trigger,
+        )
+
+        if self.datalayer is None:
+            return Status.SUCCESS
+
+        if not self.case_id or not self.object_id:
+            self.logger.warning(
+                "%s: missing case_id or object_id — cascade skipped",
+                self.name,
+            )
+            return Status.SUCCESS
+
+        actor_id = _find_case_actor_id(self.datalayer, self.case_id)
+        if actor_id is None:
+            self.logger.warning(
+                "%s: cannot resolve CaseActor for case '%s'"
+                " — cascade skipped",
+                self.name,
+                self.case_id,
+            )
+            return Status.SUCCESS
+
+        try:
+            commit_log_entry_trigger(
+                case_id=self.case_id,
+                object_id=self.object_id,
+                event_type=self.event_type,
+                actor_id=actor_id,
+                dl=cast(CaseOutboxPersistence, self.datalayer),
+                sync_port=None,
+            )
+        except Exception as exc:
+            self.logger.warning(
+                "%s: cascade failed for case '%s': %s",
+                self.name,
+                self.case_id,
+                exc,
+            )
+
+        self.feedback_message = (
+            f"Committed log entry '{self.event_type}' for case"
+            f" '{self.case_id}' (best-effort cascade)"
+        )
+        return Status.SUCCESS
+
+
+class SetEmbargoActiveNode(DataLayerAction):
+    """Set embargo active on case and transition EM → ACTIVE.
+
+    Handles idempotency and state-sync override for non-standard EM
+    transitions (e.g. receive-side state-sync when sender has already
+    activated).
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        embargo_id: str,
+        name: str | None = None,
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.embargo_id = embargo_id
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+
+        case = self.datalayer.read(self.case_id)
+        if not is_case_model(case):
+            self.feedback_message = f"Case '{self.case_id}' not found"
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        current_embargo_id = _as_id(case.active_embargo)
+        if current_embargo_id == self.embargo_id:
+            self.feedback_message = (
+                f"Case '{self.case_id}' already has embargo"
+                f" '{self.embargo_id}' active — idempotent no-op"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+
+        current_em = case.current_status.em_state
+        if not is_valid_em_transition(current_em, EM.ACTIVE):
+            self.logger.warning(
+                "%s: EM transition %s → ACTIVE is not a standard machine"
+                " transition for case '%s'; applying state-sync override",
+                self.name,
+                current_em,
+                self.case_id,
+            )
+
+        case.set_embargo(self.embargo_id)
+        case.current_status.em_state = EM.ACTIVE
+        self.datalayer.save(case)
+
+        self.feedback_message = (
+            f"Activated embargo '{self.embargo_id}' on case"
+            f" '{self.case_id}' (EM {current_em} → ACTIVE)"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
+
+
+class LookupParticipantNode(DataLayerCondition):
+    """Resolve participant from case and actor_id.
+
+    Looks up the actor in case.actor_participant_index and reads the
+    participant record. Stores the participant record on the blackboard
+    under the 'participant' key for downstream nodes to use.
+
+    Returns SUCCESS if participant is found, FAILURE otherwise.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        actor_id_source: str = "actor_id",
+        name: str | None = None,
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.actor_id_source = actor_id_source
+
+    def setup(self, **kwargs: object) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="participant", access=py_trees.common.Access.WRITE
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+
+        case = self.datalayer.read(self.case_id)
+        if not is_case_model(case):
+            self.feedback_message = f"Case '{self.case_id}' not found"
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        actor_id = self.actor_id
+        if actor_id is None:
+            self.feedback_message = "actor_id not found in blackboard"
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        participant_id = case.actor_participant_index.get(actor_id)
+        if not participant_id:
+            self.feedback_message = (
+                f"No participant found for actor '{actor_id}'"
+                f" on case '{self.case_id}'"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        participant = self.datalayer.read(participant_id)
+        if not is_participant_model(participant):
+            self.feedback_message = (
+                f"Participant '{participant_id}' not found or invalid"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        self.blackboard.participant = participant
+        self.feedback_message = (
+            f"Resolved participant '{participant_id}' for actor"
+            f" '{actor_id}' on case '{self.case_id}'"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
+
+
+class OptionalLookupParticipantNode(DataLayerCondition):
+    """Optionally resolve participant from case and actor_id.
+
+    Same as LookupParticipantNode, but returns SUCCESS even when the case or
+    participant is not found. This allows the BT to continue even when the case
+    or participant doesn't exist (lenient mode for optional operations).
+
+    Stores the participant record on the blackboard 'participant' key if found,
+    or does nothing if case/participant missing.
+
+    Always returns SUCCESS.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        actor_id_source: str = "actor_id",
+        name: str | None = None,
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.actor_id_source = actor_id_source
+
+    def setup(self, **kwargs: object) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="participant", access=py_trees.common.Access.WRITE
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            return Status.SUCCESS
+
+        case = self.datalayer.read(self.case_id)
+        if not is_case_model(case):
+            self.feedback_message = f"Case '{self.case_id}' not found — skipping participant lookup"
+            self.logger.debug("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+
+        actor_id = self.actor_id
+        if actor_id is None:
+            self.feedback_message = "actor_id not found in blackboard — skipping participant lookup"
+            self.logger.debug("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+
+        participant_id = case.actor_participant_index.get(actor_id)
+        if not participant_id:
+            self.feedback_message = (
+                f"No participant found for actor '{actor_id}'"
+                f" on case '{self.case_id}' — skipping PEC update"
+            )
+            self.logger.debug("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+
+        participant = self.datalayer.read(participant_id)
+        if not is_participant_model(participant):
+            self.feedback_message = (
+                f"Participant '{participant_id}' not found or invalid"
+                " — skipping PEC update"
+            )
+            self.logger.debug("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+
+        self.blackboard.participant = participant
+        self.feedback_message = (
+            f"Resolved participant '{participant_id}' for actor"
+            f" '{actor_id}' on case '{self.case_id}'"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
+
+
+class UpdateParticipantEmbargoPecNode(DataLayerAction):
+    """Apply a PEC trigger to participant.embargo_consent_state.
+
+    Reads participant from blackboard 'participant' key, applies the
+    given PEC trigger, persists the updated participant.
+
+    Always returns SUCCESS (idempotent).
+    """
+
+    def __init__(
+        self,
+        pec_trigger: PEC_Trigger,
+        name: str | None = None,
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.pec_trigger = pec_trigger
+
+    def setup(self, **kwargs: object) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="participant", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.SUCCESS
+
+        try:
+            participant = self.blackboard.participant
+        except KeyError:
+            self.logger.warning(
+                "%s: participant not found in blackboard", self.name
+            )
+            return Status.SUCCESS
+
+        if not is_participant_model(participant):
+            self.logger.warning(
+                "%s: invalid participant on blackboard", self.name
+            )
+            return Status.SUCCESS
+
+        new_state = apply_pec_trigger(
+            PEC(participant.embargo_consent_state), self.pec_trigger
+        )
+        participant.embargo_consent_state = new_state
+        self.datalayer.save(participant)
+
+        self.feedback_message = (
+            f"Updated participant '{participant.id_}' embargo consent"
+            f" state via {self.pec_trigger.name} trigger"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
+
+
+class CreateAndStoreInviteNode(DataLayerAction):
+    """Idempotent storage of an InviteToEmbargoOnCase activity.
+
+    Reads the request from the blackboard 'activity' key and uses
+    request.activity_type, request.activity_id, and request.activity to
+    idempotently create the invite activity in the DataLayer.
+
+    Always returns SUCCESS (idempotent create).
+    """
+
+    def __init__(self, name: str | None = None):
+        super().__init__(name=name or self.__class__.__name__)
+
+    def setup(self, **kwargs: object) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.SUCCESS
+
+        try:
+            request = self.blackboard.activity
+        except KeyError:
+            self.logger.warning(
+                "%s: request not found in blackboard", self.name
+            )
+            return Status.SUCCESS
+
+        from vultron.core.use_cases._helpers import (
+            _idempotent_create,
+        )
+
+        activity_type = getattr(request, "activity_type", None)
+        activity_id = getattr(request, "activity_id", None)
+        activity = getattr(request, "activity", None)
+
+        if not activity_type or not activity_id or not activity:
+            self.logger.warning(
+                "%s: missing activity_type, activity_id, or activity on request",
+                self.name,
+            )
+            return Status.SUCCESS
+
+        _idempotent_create(
+            self.datalayer,
+            activity_type,
+            activity_id,
+            activity,
+            "InviteToEmbargoOnCase",
+            activity_id,
+        )
+
+        self.feedback_message = f"Stored invite activity '{activity_id}'"
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
+
+
+class RecordParticipantAcceptanceNode(DataLayerAction):
+    """Record participant acceptance of embargo via EmbargoLifecycle.
+
+    Uses EmbargoLifecycle.accept_embargo_invite(OBSERVED) to record the
+    acceptance and apply any state transitions.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        embargo_id: str,
+        name: str | None = None,
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.embargo_id = embargo_id
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+
+        if self.actor_id is None:
+            self.feedback_message = "actor_id not available"
+            return Status.FAILURE
+
+        service = EmbargoLifecycle(persistence=self.datalayer)
+        result = service.accept_embargo_invite(
+            case_id=self.case_id,
+            embargo_id=self.embargo_id,
+            actor_id=self.actor_id,
+            transition_mode=TransitionMode.OBSERVED,
+        )
+
+        if result.em_after == EM.ACTIVE and result.em_before not in (
+            EM.PROPOSED,
+            EM.REVISE,
+        ):
+            self.logger.warning(
+                "%s: EM transition %s → ACTIVE is not a standard machine"
+                " transition for case '%s'; applying state-sync override",
+                self.name,
+                result.em_before,
+                self.case_id,
+            )
+
+        if result.case_changed or result.case_embargo_changed:
+            updated_case = self.datalayer.read(self.case_id)
+            if is_case_model(updated_case):
+                updated_case.record_event(self.embargo_id, "embargo_accepted")
+                self.datalayer.save(updated_case)
+
+        self.feedback_message = (
+            f"Recorded acceptance of embargo '{self.embargo_id}'"
+            f" for case '{self.case_id}'"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
+
+
+class RemoveStaleAcceptanceNode(DataLayerAction):
+    """Remove stale embargo acceptance from participant (pocket-veto).
+
+    Reads participant from blackboard, removes embargo_id from
+    accepted_embargo_ids if present (pocket-veto semantics).
+
+    Always returns SUCCESS.
+    """
+
+    def __init__(
+        self,
+        embargo_id: str,
+        name: str | None = None,
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.embargo_id = embargo_id
+
+    def setup(self, **kwargs: object) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="participant", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            return Status.SUCCESS
+
+        try:
+            participant = self.blackboard.participant
+        except KeyError:
+            self.logger.debug(
+                "%s: participant not found in blackboard", self.name
+            )
+            return Status.SUCCESS
+
+        if not is_participant_model(participant):
+            self.logger.debug(
+                "%s: invalid participant on blackboard", self.name
+            )
+            return Status.SUCCESS
+
+        if self.embargo_id in participant.accepted_embargo_ids:
+            participant.accepted_embargo_ids.remove(self.embargo_id)
+            self.datalayer.save(participant)
+            self.feedback_message = (
+                f"Removed stale acceptance '{self.embargo_id}' from"
+                f" participant '{participant.id_}' (pocket-veto)"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+        else:
+            self.feedback_message = (
+                f"No stale acceptance '{self.embargo_id}' to remove"
+                f" from participant"
+            )
+
+        return Status.SUCCESS
