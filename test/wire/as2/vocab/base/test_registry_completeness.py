@@ -98,6 +98,20 @@ def test_activity_module_imported_by_dynamic_discovery(module_name):
 # type_ annotation must contribute ≥1 type to VOCABULARY.
 # Modules with only semantic-alias classes (inheriting parent type_) are
 # expected to contribute zero entries and are skipped automatically.
+#
+# Exception — intentionally superseded base modules:
+# Some base modules define concrete AS2 subtypes (e.g. as_Person, as_Service)
+# that are auto-registered on class creation, then deliberately replaced by
+# Vultron-specific wire-branch types in vultron_actor.py. By the time tests
+# run, none of the original base-module classes remain in VOCABULARY. This is
+# correct per ADR-0017 Option D (shared-base, two-branch hierarchy). These
+# modules are excluded from the completeness check.
+_SUPERSEDED_BASE_MODULES = {
+    # All concrete actor subtypes (Person, Organization, etc.) are replaced by
+    # VultronPerson, VultronOrganization, etc. from vultron_actor.py; the base
+    # Actor key now maps to CoreActor (issue #802).
+    "vultron.wire.as2.vocab.base.objects.actors",
+}
 # ---------------------------------------------------------------------------
 
 
@@ -132,6 +146,11 @@ def _module_contributes_registered_type(module_name: str) -> bool:
 @pytest.mark.parametrize("module_name", _OBJECT_MODULES + _BASE_OBJECT_MODULES)
 def test_object_module_with_own_type_contributes_to_registry(module_name):
     """Object modules that declare their own type_ annotation must register it."""
+    if module_name in _SUPERSEDED_BASE_MODULES:
+        pytest.skip(
+            f"Module {module_name} has types intentionally superseded by "
+            "Vultron wire-branch types (ADR-0017 Option D)"
+        )
     if not _module_defines_own_type_annotation(module_name):
         pytest.skip(
             f"Module {module_name} has no own type_ annotation — "

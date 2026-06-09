@@ -62,11 +62,11 @@ from vultron.wire.as2.factories.case import (
     announce_vulnerability_case_activity,
     offer_case_manager_role_activity,
 )
+from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Add,
     as_Create,
 )
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
@@ -323,7 +323,7 @@ class TriggerActivityAdapter:
         if id_ is not None:
             extra["id_"] = id_
         activity = rm_invite_to_case_activity(
-            invitee=as_Actor(id_=invitee_id),
+            invitee=CoreActor(id_=invitee_id),
             target=VulnerabilityCaseStub(id_=case_id),
             **extra,
         )
@@ -382,7 +382,7 @@ class TriggerActivityAdapter:
             extra["id_"] = id_
         # The factory accepts a string for target (case ID).
         activity = recommend_actor_activity(
-            recommended=as_Actor(id_=recommended_id),
+            recommended=CoreActor(id_=recommended_id),
             target=case_id,
             **extra,
         )
@@ -412,7 +412,7 @@ class TriggerActivityAdapter:
         accept it, provided they know its deterministic ID.
         """
         recommendation = recommend_actor_activity(
-            recommended=as_Actor(id_=recommended_id),
+            recommended=CoreActor(id_=recommended_id),
             target=case_id,
             id_=recommendation_id,
             actor=recommender_id,

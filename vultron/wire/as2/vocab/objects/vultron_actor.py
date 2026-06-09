@@ -18,6 +18,7 @@ from typing import Annotated, Any, Literal, TypeAlias, Union
 
 from pydantic import Field
 
+from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.enums import as_ActorType
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
@@ -73,6 +74,8 @@ class VultronGroup(VultronActorMixin):
     )
 
 
+VOCABULARY["Actor"] = CoreActor
+VOCABULARY["CoreActor"] = CoreActor
 VOCABULARY["Person"] = VultronPerson
 VOCABULARY["Organization"] = VultronOrganization
 VOCABULARY["Service"] = VultronService
@@ -103,6 +106,7 @@ ActorUnion: TypeAlias = Annotated[
 
 __all__ = [
     "ActorUnion",
+    "CoreActor",
     "VultronActorMixin",
     "VultronApplication",
     "VultronApplicationRef",
