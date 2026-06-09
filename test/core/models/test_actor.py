@@ -12,6 +12,7 @@ from vultron.core.models.actor import (
     VultronService,
 )
 from vultron.core.models.base import CoreObject
+from vultron.core.models.enums import VultronActorType
 from vultron.core.models.registry import CORE_VOCABULARY
 
 
@@ -52,8 +53,11 @@ def test_person_org_service_application_and_group_register():
 
 
 def test_concrete_actor_type_annotations_are_literal():
-    assert VultronPerson.model_fields["type_"].annotation == Literal["Person"]
+    assert (
+        VultronPerson.model_fields["type_"].annotation
+        == Literal[VultronActorType.PERSON]
+    )
     assert (
         VultronOrganization.model_fields["type_"].annotation
-        == Literal["Organization"]
+        == Literal[VultronActorType.ORGANIZATION]
     )

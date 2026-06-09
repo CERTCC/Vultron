@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Wire projections for the Vultron actor domain models."""
+"""Wire-branch Vultron actor models."""
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -14,20 +14,64 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Annotated, TypeAlias, Union
+from typing import Annotated, Any, Literal, TypeAlias, Union
 
 from pydantic import Field
 
-from vultron.core.models.actor import (
-    CoreActor as VultronActorMixin,
-    VultronApplication,
-    VultronGroup,
-    VultronOrganization,
-    VultronPerson,
-    VultronService,
-)
+from vultron.wire.as2.enums import as_ActorType
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.registry import VOCABULARY
+
+
+class VultronActorMixin(as_Actor):
+    """Wire actor base with Vultron-specific actor extension fields."""
+
+    embargo_policy: Any | None = Field(
+        default=None,
+        description="The actor's stated embargo preferences.",
+    )
+
+
+class VultronPerson(VultronActorMixin):
+    type_: Literal[as_ActorType.PERSON] = Field(
+        default=as_ActorType.PERSON,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class VultronOrganization(VultronActorMixin):
+    type_: Literal[as_ActorType.ORGANIZATION] = Field(
+        default=as_ActorType.ORGANIZATION,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class VultronService(VultronActorMixin):
+    type_: Literal[as_ActorType.SERVICE] = Field(
+        default=as_ActorType.SERVICE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class VultronApplication(VultronActorMixin):
+    type_: Literal[as_ActorType.APPLICATION] = Field(
+        default=as_ActorType.APPLICATION,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class VultronGroup(VultronActorMixin):
+    type_: Literal[as_ActorType.GROUP] = Field(
+        default=as_ActorType.GROUP,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
 
 VOCABULARY["Person"] = VultronPerson
 VOCABULARY["Organization"] = VultronOrganization

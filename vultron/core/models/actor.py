@@ -23,6 +23,7 @@ from pydantic import ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
 
 from vultron.core.models.base import CoreObject
+from vultron.core.models.enums import VultronActorType
 
 
 class CoreActor(CoreObject):
@@ -113,8 +114,8 @@ class VultronPerson(CoreActor):
         validate_by_alias=True,
         alias_generator=to_camel,
     )
-    type_: Literal["Person"] = Field(
-        default="Person",
+    type_: Literal[VultronActorType.PERSON] = Field(
+        default=VultronActorType.PERSON,
         validation_alias="type",
         serialization_alias="type",
     )
@@ -133,8 +134,8 @@ class VultronOrganization(CoreActor):
         validate_by_alias=True,
         alias_generator=to_camel,
     )
-    type_: Literal["Organization"] = Field(
-        default="Organization",
+    type_: Literal[VultronActorType.ORGANIZATION] = Field(
+        default=VultronActorType.ORGANIZATION,
         validation_alias="type",
         serialization_alias="type",
     )
@@ -153,8 +154,8 @@ class VultronService(CoreActor):
         validate_by_alias=True,
         alias_generator=to_camel,
     )
-    type_: Literal["Service"] = Field(
-        default="Service",
+    type_: Literal[VultronActorType.SERVICE] = Field(
+        default=VultronActorType.SERVICE,
         validation_alias="type",
         serialization_alias="type",
     )
@@ -173,8 +174,8 @@ class VultronApplication(CoreActor):
         validate_by_alias=True,
         alias_generator=to_camel,
     )
-    type_: Literal["Application"] = Field(
-        default="Application",
+    type_: Literal[VultronActorType.APPLICATION] = Field(
+        default=VultronActorType.APPLICATION,
         validation_alias="type",
         serialization_alias="type",
     )
@@ -193,8 +194,8 @@ class VultronGroup(CoreActor):
         validate_by_alias=True,
         alias_generator=to_camel,
     )
-    type_: Literal["Group"] = Field(
-        default="Group",
+    type_: Literal[VultronActorType.GROUP] = Field(
+        default=VultronActorType.GROUP,
         validation_alias="type",
         serialization_alias="type",
     )

@@ -68,8 +68,8 @@ from vultron.wire.as2.vocab.objects.vultron_actor import (
     VultronService,
 )
 
-# AnyActor covers both migrated core types and the legacy as_Actor base
-# (VOCABULARY["Actor"] still maps to as_Actor for records stored before migration).
+# AnyActor covers both migrated core types and wire actor types while older
+# persisted records are still being read.
 AnyActor = CoreActor | as_Actor
 
 logger = logging.getLogger("uvicorn.error")
@@ -133,7 +133,9 @@ def _find_actor_record_by_id(
     return None
 
 
-def _actor_class_for_record(rec: dict[str, Any]) -> type[CoreActor]:
+def _actor_class_for_record(
+    rec: dict[str, Any],
+) -> type[CoreActor] | type[as_Actor]:
     data = rec.get("data_", {})
     payload_type = None
     if isinstance(data, dict):
@@ -180,7 +182,7 @@ def _find_actor_record(
 # Actor type map — used by create_actor
 # ---------------------------------------------------------------------------
 
-_ACTOR_TYPE_MAP: dict[str, type[CoreActor]] = {
+_ACTOR_TYPE_MAP: dict[str, type[as_Actor]] = {
     "Person": VultronPerson,
     "Organization": VultronOrganization,
     "Service": VultronService,
