@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 """Behavior tree factory for committing and fanning out case log entries."""
 
+from typing import Any
+
 import py_trees
 
 from vultron.core.behaviors.sync.nodes import (
@@ -12,7 +14,11 @@ from vultron.core.behaviors.sync.nodes import (
 
 
 def create_commit_log_entry_tree(
-    case_id: str, object_id: str, event_type: str
+    case_id: str,
+    object_id: str,
+    event_type: str,
+    *,
+    payload_snapshot: dict[str, Any] | None = None,
 ) -> py_trees.behaviour.Behaviour:
     return py_trees.composites.Sequence(
         name="CommitLogEntryBT",
@@ -25,6 +31,7 @@ def create_commit_log_entry_tree(
                 case_id=case_id,
                 object_id=object_id,
                 event_type=event_type,
+                payload_snapshot=payload_snapshot,
                 name="CreateLogEntry",
             ),
             PersistLogEntryNode(name="PersistLogEntry"),

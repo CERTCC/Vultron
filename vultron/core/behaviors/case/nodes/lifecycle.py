@@ -37,6 +37,33 @@ from vultron.core.ports.case_persistence import CaseOutboxPersistence
 logger = logging.getLogger(__name__)
 
 
+def _extract_payload_snapshot(activity: Any) -> dict[str, Any]:
+    """Build a normalized payload snapshot for case-log commits."""
+    event_activity = getattr(activity, "activity", None)
+    if event_activity is not None and hasattr(event_activity, "model_dump"):
+        return cast(
+            dict[str, Any],
+            event_activity.model_dump(
+                mode="json",
+                by_alias=True,
+                serialize_as_any=True,
+                exclude_none=True,
+            ),
+        )
+
+    if hasattr(activity, "model_dump"):
+        return cast(
+            dict[str, Any],
+            activity.model_dump(
+                mode="json",
+                by_alias=True,
+                serialize_as_any=True,
+                exclude_none=True,
+            ),
+        )
+    return {}
+
+
 class CommitCaseLogEntryNode(DataLayerAction):
     """
     Commit a hash-chained CaseLogEntry and fan it out to all case participants.
@@ -129,11 +156,15 @@ class CommitCaseLogEntryNode(DataLayerAction):
         else:
             object_id = case_id
             event_type = "case_event"
+        payload_snapshot = (
+            _extract_payload_snapshot(activity) if activity is not None else {}
+        )
 
         tree = create_commit_log_entry_tree(
             case_id=case_id,
             object_id=object_id,
             event_type=event_type,
+            payload_snapshot=payload_snapshot,
         )
         result = BTBridge(
             datalayer=cast(CaseOutboxPersistence, self.datalayer)
