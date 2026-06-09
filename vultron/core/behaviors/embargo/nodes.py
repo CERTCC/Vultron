@@ -220,7 +220,10 @@ class IsActiveEmbargoNode(DataLayerCondition):
 class RemoveFromProposedEmbargoesNode(DataLayerAction):
     """Remove the embargo from the case's proposed_embargoes list.
 
-    Idempotent: returns SUCCESS even if the embargo is not in proposed_embargoes.
+    Idempotent cleanup: returns SUCCESS if embargo successfully removed or was
+    not in proposed_embargoes (nothing to remove). Returns FAILURE only if the
+    case cannot be read (critical prerequisite missing).
+
     Saves the case only when a change is made.
     """
 
@@ -392,7 +395,16 @@ class CommitLogCascadeNode(DataLayerAction):
 
     Resolves the CaseActor ID from case_id and triggers the
     ``commit_log_entry_trigger`` to create a log entry and fan it out
-    to all participants. Always returns SUCCESS (cascade is best-effort).
+    to all participants.
+
+    Returns SUCCESS when cascade succeeds. Returns FAILURE if cascade
+    dispatch fails (per BT-14-001: peer broadcast nodes must not mask
+    delivery failure with SUCCESS).
+
+    This node is protocol-visible (fan-out to all participants). Per the
+    spec requirement, it MUST propagate FAILURE to the BT when any step
+    of the cascade (activity construction or outbox enqueue) fails.
+    Masking failures with SUCCESS would cause silent state divergence.
 
     Idempotent: silently succeeds if case_id or object_id is None.
     """
@@ -447,16 +459,19 @@ class CommitLogCascadeNode(DataLayerAction):
                 sync_port=None,
             )
         except Exception as exc:
-            self.logger.warning(
-                "%s: cascade failed for case '%s': %s",
-                self.name,
-                self.case_id,
-                exc,
+            self.feedback_message = (
+                f"Cascade failed for case '{self.case_id}': {exc}"
             )
+            self.logger.error(
+                "%s: %s (BT-14-001: returning FAILURE)",
+                self.name,
+                self.feedback_message,
+            )
+            return Status.FAILURE
 
         self.feedback_message = (
             f"Committed log entry '{self.event_type}' for case"
-            f" '{self.case_id}' (best-effort cascade)"
+            f" '{self.case_id}'"
         )
         return Status.SUCCESS
 
@@ -591,14 +606,18 @@ class LookupParticipantNode(DataLayerCondition):
 class OptionalLookupParticipantNode(DataLayerCondition):
     """Optionally resolve participant from case and actor_id.
 
-    Same as LookupParticipantNode, but returns SUCCESS even when the case or
-    participant is not found. This allows the BT to continue even when the case
-    or participant doesn't exist (lenient mode for optional operations).
+    Lenient variant of LookupParticipantNode: returns SUCCESS even when the case
+    or participant is not found. This allows the BT to continue with downstream
+    PEC updates (which are then skipped) so that protocol-visible operations
+    (log cascade) can still succeed even if the participant doesn't exist on this
+    peer.
 
     Stores the participant record on the blackboard 'participant' key if found,
-    or does nothing if case/participant missing.
+    or does nothing if case/participant missing. Always returns SUCCESS so the
+    tree continues to cascade the log entry to all peers (idempotent behavior).
 
-    Always returns SUCCESS.
+    Used in received-side BT workflows where participant may legitimately not
+    exist locally yet.
     """
 
     def __init__(
@@ -661,10 +680,15 @@ class OptionalLookupParticipantNode(DataLayerCondition):
 class UpdateParticipantEmbargoPecNode(DataLayerAction):
     """Apply a PEC trigger to participant.embargo_consent_state.
 
-    Reads participant from blackboard 'participant' key, applies the
-    given PEC trigger, persists the updated participant.
+    Reads participant from blackboard 'participant' key. If participant not found,
+    returns SUCCESS without updating (idempotent). This supports the lenient
+    OptionalLookupParticipantNode pattern: when participant doesn't exist on this
+    peer, skip the PEC update but continue to cascade log entry to all peers.
 
-    Always returns SUCCESS (idempotent).
+    Always returns SUCCESS (idempotent best-effort update). Actual PEC state is
+    only updated if participant exists on the local blackboard. Missing
+    participant is treated as a temporary local state gap that will be resolved
+    by peer broadcast.
     """
 
     def __init__(
