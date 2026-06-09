@@ -28,6 +28,8 @@ import pathlib
 import sys
 from typing import Optional, Tuple
 
+import httpx
+
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vfd
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -725,9 +727,11 @@ def _phase_dump_case_logs(
 
         {DEVLOGS_DIR}/{demo_name}/{actor_name}/{case_id_slug}-case-log.jsonl
 
-    The case-actor container is included only when *case_actor_client* is
-    provided.  Each dump step is wrapped in ``demo_step`` so that a failure
-    is recorded and ultimately surfaced by ``assert_demo_success()``.
+    The case-actor log is always included: from *case_actor_client* when a
+    dedicated case-actor service is configured, otherwise from the vendor
+    container using the in-container case-actor sub-actor route key. Each
+    dump step is wrapped in ``demo_step`` so that a failure is recorded and
+    ultimately surfaced by ``assert_demo_success()``.
 
     Args:
         finder_client: DataLayerClient for the Finder container.
@@ -752,18 +756,59 @@ def _phase_dump_case_logs(
         .strip("_")
     )
 
-    actors: list[tuple[str, DataLayerClient]] = [
-        ("finder", finder_client),
-        ("vendor", vendor_client),
+    case_actor_sub_actor_key = next(
+        (
+            strip_id_prefix(actor_id)
+            for actor_id in case.actor_participant_index
+            if strip_id_prefix(actor_id).startswith("case-actor")
+        ),
+        None,
+    )
+
+    actors: list[tuple[str, DataLayerClient, str]] = [
+        ("finder", finder_client, "finder"),
+        ("vendor", vendor_client, "vendor"),
     ]
     if case_actor_client is not None:
-        actors.append(("case-actor", case_actor_client))
+        actors.append(("case-actor", case_actor_client, "case-actor"))
+    elif case_actor_sub_actor_key is not None:
+        actors.append(("case-actor", vendor_client, case_actor_sub_actor_key))
 
-    for actor_name, client in actors:
+    for actor_name, client, actor_route_key in actors:
         with demo_step(f"Dumping case log for {actor_name}"):
             case_key = strip_id_prefix(case_id)
-            log_path = f"/actors/{actor_name}/demo/cases/{case_key}/log"
-            entries = client.get_list(log_path)
+            log_path = f"/actors/{actor_route_key}/demo/cases/{case_key}/log"
+            try:
+                entries = client.get_list(log_path)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code != 404:
+                    raise
+                # D5-2: the dedicated case-actor container does not hold the
+                # case; the case-actor sub-actor runs inside the vendor
+                # container. Treat 404 the same as an empty list so the
+                # sub-actor fallback below can supply the entries.
+                logger.info(
+                    "Case not found on dedicated %s container (HTTP 404, D5-2);"
+                    " will attempt vendor sub-actor fallback.",
+                    actor_name,
+                )
+                entries = []
+            if (
+                not entries
+                and actor_name == "case-actor"
+                and client is case_actor_client
+                and case_actor_sub_actor_key is not None
+            ):
+                fallback_path = (
+                    "/actors/"
+                    f"{case_actor_sub_actor_key}/demo/cases/{case_key}/log"
+                )
+                logger.info(
+                    "Dedicated case-actor log unavailable; "
+                    "falling back to vendor sub-actor route key '%s'",
+                    case_actor_sub_actor_key,
+                )
+                entries = vendor_client.get_list(fallback_path)
             if not entries:
                 raise ValueError(
                     f"No case log entries for actor={actor_name!r}, "
@@ -854,10 +899,7 @@ def run_two_actor_demo(
         finder=finder,
         vendor=vendor,
         case=case,
-        # The two-actor demo uses the vendor container as case manager;
-        # the dedicated case-actor service carries no log entries for this
-        # case, so we only dump finder and vendor.
-        case_actor_client=None,
+        case_actor_client=case_actor_client,
     )
 
     logger.info("=" * 80)

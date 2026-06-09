@@ -1,7 +1,7 @@
 """Use cases for embargo management activities."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
@@ -21,6 +21,10 @@ from vultron.core.models.protocols import (
     PersistableModel,
     is_case_model,
 )
+from vultron.core.use_cases.triggers.sync import (
+    commit_log_entry_trigger,
+    extract_activity_snapshot,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -35,6 +39,7 @@ def _commit_embargo_log_cascade(
     dl: CaseOutboxPersistence,
     receiving_actor_id: str | None,
     sync_port: "SyncActivityPort | None",
+    payload_snapshot: dict[str, Any] | None = None,
 ) -> None:
     """Commit a CaseLogEntry and fan it out to all case participants.
 
@@ -44,9 +49,13 @@ def _commit_embargo_log_cascade(
 
     Silently skips when *case_id* or *object_id* is ``None``, or when no
     CaseActor can be resolved.
+
+    Args:
+        payload_snapshot: Optional normalised AS2 activity snapshot.  Pass
+            the result of ``extract_activity_snapshot(request)`` to ensure
+            each log entry carries the full inbound AS2 activity payload.
     """
     from vultron.core.use_cases.received.actor import _find_case_actor_id
-    from vultron.core.use_cases.triggers.sync import commit_log_entry_trigger
 
     if case_id is None or object_id is None:
         logger.warning(
@@ -86,6 +95,7 @@ def _commit_embargo_log_cascade(
         event_type=event_type,
         actor_id=actor_id,
         dl=dl,
+        payload_snapshot=payload_snapshot,
         sync_port=sync_port,
     )
 
@@ -168,7 +178,11 @@ class AddEmbargoEventToCaseReceivedUseCase:
             )
             return
 
-        tree = add_embargo_to_case_tree(case_id=case_id, embargo_id=embargo_id)
+        tree = add_embargo_to_case_tree(
+            case_id=case_id,
+            embargo_id=embargo_id,
+            payload_snapshot=extract_activity_snapshot(request),
+        )
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
@@ -244,6 +258,7 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
             dl=self._dl,
             receiving_actor_id=request.receiving_actor_id,
             sync_port=self._sync_port,
+            payload_snapshot=extract_activity_snapshot(request),
         )
 
 
@@ -293,7 +308,10 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             return
 
         tree = invite_to_embargo_on_case_tree(
-            case_id=case_id, invitee_id=invitee_id, invite_id=invite_id
+            case_id=case_id,
+            invitee_id=invitee_id,
+            invite_id=invite_id,
+            payload_snapshot=extract_activity_snapshot(request),
         )
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
@@ -352,6 +370,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             embargo_id=embargo_id,
             accepting_actor_id=accepting_actor_id,
             invite_id=invite_id,
+            payload_snapshot=extract_activity_snapshot(request),
         )
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
@@ -419,6 +438,7 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             rejecting_actor_id=rejecting_actor_id,
             invite_id=invite_id or "",
             embargo_id=embargo_id,
+            payload_snapshot=extract_activity_snapshot(request),
         )
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(

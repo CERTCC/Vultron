@@ -71,6 +71,7 @@ ENTRIES: list[SemanticEntry] = [
         event_class=EngageCaseReceivedEvent,
         use_case_class=EngageCaseReceivedUseCase,
         wire_activity_class=_RmEngageCaseActivity,
+        include_activity=True,
     ),
     SemanticEntry(
         semantics=MessageSemantics.DEFER_CASE,

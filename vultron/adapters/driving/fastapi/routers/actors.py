@@ -29,7 +29,7 @@ from fastapi import (
     Response,
     status,
 )
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from vultron.adapters.utils import make_id, strip_id_prefix
 from vultron.adapters.driving.fastapi.inbox_handler import (
@@ -53,6 +53,7 @@ from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.collections import (
     as_OrderedCollection,
 )
+from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 from vultron.wire.as2.errors import (
     VultronParseError,
     VultronParseMissingTypeError,
@@ -453,7 +454,77 @@ def _activity_already_received(
     )
 
 
-def _store_nested_inbox_object(dl: DataLayer, activity: as_Activity) -> None:
+def _get_body(body: dict[str, Any]) -> dict[str, Any]:
+    """FastAPI dependency: return the raw JSON request body dict."""
+    return body
+
+
+def _reparse_as_specific_type(
+    nested: as_Object,
+    raw_obj: dict[str, Any],
+) -> PersistableModel:
+    """Re-parse *raw_obj* with the correct specific vocabulary class.
+
+    When the wire parser validates an inline object as the base ``as_Object``
+    type, domain-specific fields are silently dropped.  This helper looks up
+    the specific vocabulary class for ``nested.type_`` and re-parses
+    *raw_obj* (the raw dict from the wire body) with it so all fields are
+    preserved.
+
+    Returns the re-parsed specific instance, or the original *nested* cast
+    to ``PersistableModel`` when re-parsing fails or is unnecessary.
+    """
+    base: PersistableModel = cast(PersistableModel, nested)
+    obj_type: str | None = nested.type_
+    if obj_type is None:
+        return base
+    try:
+        specific_cls = find_in_vocabulary(obj_type)
+    except KeyError:
+        return base
+    if isinstance(nested, specific_cls):
+        return base
+    try:
+        result = cast(PersistableModel, specific_cls.model_validate(raw_obj))
+        logger.debug(
+            "Re-parsed inline '%s' as specific class %s.",
+            obj_type,
+            specific_cls.__name__,
+        )
+        return result
+    except ValidationError:
+        logger.debug(
+            "Could not re-parse inline '%s' as %s; using base as_Object.",
+            obj_type,
+            specific_cls.__name__,
+        )
+        return base
+
+
+def _store_nested_inbox_object(
+    dl: DataLayer,
+    activity: as_Activity,
+    body: dict[str, Any] | None = None,
+) -> None:
+    """Store the inline nested ``object_`` of an inbox activity.
+
+    When the wire parser parses an Announce or other transitive activity, the
+    inline ``object_`` is validated as the base ``as_Object`` type, which
+    silently drops domain-specific fields (``case_id``, ``event_type``, etc.).
+    This function uses the raw request body to re-parse the nested object with
+    the correct specific vocabulary class so that all fields are preserved.
+    Without this, a subsequent DataLayer round-trip would fail Pydantic
+    validation on the specific class (missing required fields), causing
+    rehydration to return ``None`` and pattern matching to fall back to a
+    less specific pattern (e.g. ``announce_vulnerability_case`` instead of
+    ``announce_case_log_entry``).
+
+    Args:
+        dl: The shared DataLayer for storing the nested object.
+        activity: The parsed AS2 activity whose ``object_`` to store.
+        body: Optional raw JSON request body dict.  When present, used to
+            re-parse the nested object with the correct specific class.
+    """
     nested = getattr(activity, "object_", None)
     if nested is None or isinstance(nested, str):
         return
@@ -465,8 +536,15 @@ def _store_nested_inbox_object(dl: DataLayer, activity: as_Activity) -> None:
     ):
         return
 
+    raw_obj = body.get("object") if body is not None else None
+    typed_nested: PersistableModel = (
+        _reparse_as_specific_type(nested, raw_obj)
+        if isinstance(raw_obj, dict)
+        else cast(PersistableModel, nested)
+    )
+
     try:
-        dl.create(object_to_record(cast(PersistableModel, nested)))
+        dl.create(object_to_record(typed_nested))
     except ValueError:
         pass
 
@@ -520,6 +598,7 @@ def post_actor_inbox(
     background_tasks: BackgroundTasks,
     activity: as_Activity = Depends(parse_activity),
     dl: DataLayer = Depends(get_shared_dl),
+    body: dict[str, Any] = Depends(_get_body),
 ) -> None:
     """Adds an item to the Actor's Inbox.
     The 202 Accepted status code indicates that the request has been accepted for
@@ -530,6 +609,8 @@ def post_actor_inbox(
         request: The FastAPI Request (used to resolve the per-app emitter).
         activity: The Activity item to add to the Inbox.
         background_tasks: FastAPI BackgroundTasks instance to schedule background tasks.
+        body: Raw JSON request body dict, used to re-parse inline nested
+            objects with their specific vocabulary classes.
     Returns:
         None
     Raises:
@@ -546,7 +627,7 @@ def post_actor_inbox(
         )
         return None
 
-    _store_nested_inbox_object(dl, activity)
+    _store_nested_inbox_object(dl, activity, body)
     _store_inbox_activity(dl, activity)
 
     logger.debug(

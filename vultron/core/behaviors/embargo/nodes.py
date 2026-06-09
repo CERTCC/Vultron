@@ -34,7 +34,7 @@ at construction time.
 Per specs/behavior-tree-integration.yaml BT-06-001.
 """
 
-from typing import cast
+from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
@@ -415,11 +415,13 @@ class CommitLogCascadeNode(DataLayerAction):
         object_id: str,
         event_type: str,
         name: str | None = None,
+        payload_snapshot: dict[str, Any] | None = None,
     ):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.object_id = object_id
         self.event_type = event_type
+        self.payload_snapshot = payload_snapshot
 
     def update(self) -> Status:
         from vultron.core.use_cases.received.actor import (
@@ -457,6 +459,7 @@ class CommitLogCascadeNode(DataLayerAction):
                 actor_id=actor_id,
                 dl=cast(CaseOutboxPersistence, self.datalayer),
                 sync_port=None,
+                payload_snapshot=self.payload_snapshot,
             )
         except Exception as exc:
             self.feedback_message = (

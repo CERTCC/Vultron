@@ -122,3 +122,14 @@ header.
   so future reviewers understand why "Always SUCCESS" is intentional, not a bug.
   The pattern supports broadcasting log entries even when participant doesn't
   exist on this peer yet (state gap resolved by broadcast reception).
+
+### 2026-06-09 ISSUE-690 — Case-log snapshots and demo log exports need source-aware fallbacks
+
+- `CommitCaseLogEntryNode` must forward a serialized activity payload snapshot
+  from the BT blackboard into `create_commit_log_entry_tree()`; otherwise
+  `CaseLogEntry.payloadSnapshot` silently defaults to `{}` despite valid
+  inbound activity context.
+- Two-actor demo log export should always emit a `case-actor` JSONL artifact,
+  but dedicated case-actor container reads may be empty in D5-2 by design;
+  export logic should fall back to the vendor container's case-actor sub-actor
+  route key instead of failing the demo run.

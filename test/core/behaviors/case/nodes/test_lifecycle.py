@@ -74,9 +74,18 @@ class _FakeActivity:
         self,
         activity_id: str = ACTIVITY_ID,
         semantic_type: MessageSemantics = MessageSemantics.CREATE_CASE,
+        activity: object | None = None,
     ):
         self.activity_id = activity_id
         self.semantic_type = semantic_type
+        self.activity = activity
+
+
+class _FakeWireActivity:
+    """Minimal stand-in for a serialized wire activity payload."""
+
+    def model_dump(self, **_: object) -> dict[str, str]:
+        return {"id": ACTIVITY_ID, "type": "Create"}
 
 
 # ---------------------------------------------------------------------------
@@ -128,6 +137,7 @@ def test_constructor_case_id_builds_inner_commit_tree(bridge):
         case_id=CASE_ID,
         object_id=CASE_ID,
         event_type="case_event",
+        payload_snapshot={},
     )
     execute_kwargs = (
         mock_bridge_cls.return_value.execute_with_setup.call_args.kwargs
@@ -172,6 +182,7 @@ def test_blackboard_case_id_builds_inner_commit_tree(bridge, datalayer):
         case_id=CASE_ID,
         object_id=CASE_ID,
         event_type="case_event",
+        payload_snapshot={},
     )
 
 
@@ -195,6 +206,31 @@ def test_activity_on_blackboard_uses_semantic_type_as_event_type(bridge):
         case_id=CASE_ID,
         object_id=ACTIVITY_ID,
         event_type=MessageSemantics.CREATE_CASE.value,
+        payload_snapshot={},
+    )
+
+
+def test_activity_payload_is_forwarded_as_payload_snapshot(bridge):
+    activity = _FakeActivity(
+        activity_id=ACTIVITY_ID,
+        semantic_type=MessageSemantics.CREATE_CASE,
+        activity=_FakeWireActivity(),
+    )
+    node = CommitCaseLogEntryNode(case_id=CASE_ID)
+    with patch(_FACTORY_PATH) as mock_factory, patch(
+        _INNER_BRIDGE_PATH
+    ) as mock_bridge_cls:
+        mock_bridge_cls.return_value.execute_with_setup.return_value = (
+            BTExecutionResult(status=Status.SUCCESS)
+        )
+        bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=activity
+        )
+    mock_factory.assert_called_once_with(
+        case_id=CASE_ID,
+        object_id=ACTIVITY_ID,
+        event_type=MessageSemantics.CREATE_CASE.value,
+        payload_snapshot={"id": ACTIVITY_ID, "type": "Create"},
     )
 
 
@@ -212,6 +248,7 @@ def test_no_activity_falls_back_to_case_event(bridge):
         case_id=CASE_ID,
         object_id=CASE_ID,
         event_type="case_event",
+        payload_snapshot={},
     )
 
 

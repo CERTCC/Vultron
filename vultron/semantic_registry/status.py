@@ -75,5 +75,6 @@ ENTRIES: list[SemanticEntry] = [
         event_class=AddParticipantStatusToParticipantReceivedEvent,
         use_case_class=AddParticipantStatusToParticipantReceivedUseCase,
         wire_activity_class=_AddStatusToParticipantActivity,
+        include_activity=True,
     ),
 ]
