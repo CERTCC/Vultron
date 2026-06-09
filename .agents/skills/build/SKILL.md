@@ -108,8 +108,29 @@ Invoke `deepen-context` with focus hints derived from the issue body
 
 1. Invoke `format-code`, then `run-linters`, then `run-tests`.
 2. Do not skip or delegate validation.
-3. File incidental bugs as Bug-type GitHub issues via `manage-github-issue`;
-   do not pursue them unless they block the current task.
+3. During validation failures, ownership defaults to the current branch:
+   - **Format/lint/type failures**: fix them directly; do not file incidental
+     bug issues for these categories.
+   - **Test failures**: assume the failure is caused by current changes until
+     disproven with evidence.
+4. A test failure may be classified as pre-existing/unrelated **only** after:
+   - A clean-base proof on current `main` (or equivalent documented evidence)
+     reproduces the same failure.
+   - At least one causality check against the branch diff is performed
+     (e.g., isolate or temporarily revert suspect hunks and re-run relevant
+     tests).
+5. If pre-existing is proven:
+   - Create or update a Bug issue via `manage-github-issue` with evidence:
+     failing command/output, clean-base proof, causality check, and explicit
+     blocked/unblocked impact on the current issue.
+   - Wire blocking relationships with `manage-github-issue` (use structured
+     blockers, not body-text markers).
+   - Add a handoff comment on that Bug issue with pickup context for the next
+     agent.
+   - Record the Bug link and blocked/unblocked decision in
+     `plan/BUILD_LEARNINGS.md`.
+6. If clean-base proof cannot be obtained in-session, do **not** classify the
+   failure as unrelated; continue treating it as branch-owned.
 
 ### Phase 7 — Pre-PR Code Review
 
