@@ -87,6 +87,12 @@ header.
 
 ### 2026-06-09 ISSUE-825 — Actor-participant cache checks should fail only on contradictions
 
+- Canonical actor→participant resolution should use `case_participants` as the
+  source of truth and treat `actor_participant_index` as a derived cache.
+- Fail fast when the cache contradicts canonical data (wrong/stale participant),
+  but do not treat a missing cache entry as fatal when canonical participant
+  data exists.
+
 ### 2026-06-09 ISSUE-710 — Embargo received-side BT adoption
 
 - BT node parameter shadowing: When migrating procedural logic to BT nodes,
@@ -106,12 +112,6 @@ header.
   CommitLogCascadeNode as a leaf; cascade is never a post-BT callback.
 - Post-implementation code review caught actor_id bug before merge; review
   gates on correctness, not style.
-
-- Canonical actor→participant resolution should use `case_participants` as the
-  source of truth and treat `actor_participant_index` as a derived cache.
-- Fail fast when the cache contradicts canonical data (wrong/stale participant),
-  but do not treat a missing cache entry as fatal when canonical participant
-  data exists.
 - BT-14-001 compliance is CRITICAL for peer broadcast nodes: CommitLogCascadeNode
   MUST return FAILURE when cascade dispatch fails, not SUCCESS. Masking delivery
   failure with SUCCESS causes silent state divergence (missed by initial code
@@ -122,3 +122,12 @@ header.
   so future reviewers understand why "Always SUCCESS" is intentional, not a bug.
   The pattern supports broadcasting log entries even when participant doesn't
   exist on this peer yet (state gap resolved by broadcast reception).
+
+### 2026-06-09 ISSUE-801 — Wire actor vocabulary overrides must preserve base-module registration
+
+- Overriding all actor keys in `VOCABULARY` from `vultron_actor.py` can leave
+  `vultron.wire.as2.vocab.base.objects.actors` with zero registered concrete
+  types, tripping the registry-completeness invariant.
+- Keep at least one base-actors-module registration (for now `Actor` →
+  `as_Actor`) and override concrete keys (`Person`, `Organization`, etc.) with
+  wire-branch Vultron actor subclasses.
