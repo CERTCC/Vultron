@@ -1,5 +1,6 @@
 """Regression tests for embargo trigger use cases."""
 
+from datetime import datetime, timezone, timedelta
 from collections.abc import Generator
 from typing import cast
 
@@ -17,13 +18,16 @@ from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases.triggers.embargo import (
     SvcAcceptEmbargoUseCase,
+    SvcProposeEmbargoUseCase,
     SvcRejectEmbargoUseCase,
     _is_case_owner,
 )
 from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
+    ProposeEmbargoTriggerRequest,
     RejectEmbargoTriggerRequest,
 )
+from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -136,6 +140,18 @@ def _build_proposed_embargo_case_no_owner_attribution(
     dl.create(actor_participant)
 
     return case, proposal, actor_participant.id_
+
+
+def _build_exited_case(
+    dl: SqliteDataLayer, owner_id: str
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
+        name="Exited embargo case",
+        attributed_to=owner_id,
+    )
+    case.current_status.em_state = EM.EXITED
+    dl.create(case)
+    return case
 
 
 @pytest.fixture
@@ -281,3 +297,28 @@ def test_accept_embargo_when_attributed_to_is_none_does_not_activate_em(
     assert updated_case.current_status.em_state == EM.PROPOSED
     # Participant consent IS updated (they accepted as a non-owner participant).
     assert updated_participant.embargo_consent_state == PEC.SIGNATORY.value
+
+
+def test_propose_embargo_invalid_state_does_not_persist_embargo(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Invalid embargo proposals must not leave behind persisted embargoes."""
+    finder, finder_dl = finder_actor_and_dl
+    case = _build_exited_case(finder_dl, finder.id_)
+
+    before = len(list(finder_dl.list_objects("EmbargoEvent")))
+    request = ProposeEmbargoTriggerRequest(
+        actor_id=finder.id_,
+        case_id=case.id_,
+        end_time=datetime.now(tz=timezone.utc) + timedelta(days=1),
+    )
+
+    with pytest.raises(VultronInvalidStateTransitionError):
+        SvcProposeEmbargoUseCase(
+            finder_dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(finder_dl),
+        ).execute()
+
+    after = len(list(finder_dl.list_objects("EmbargoEvent")))
+    assert after == before
