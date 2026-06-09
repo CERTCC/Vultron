@@ -143,16 +143,28 @@ Findings are tagged `[BLOCKING]` (fix before continuing) or `[ADVISORY]`
 1. Compute diff size: ≤50 lines → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
    Update the `size:` label on the Issue.
 
-2. Push and open a PR:
+2. Push and open a PR using the structured body template from
+   `.agents/skills/shared/pr-body-guide.md` (implementation PR shape):
 
    ```bash
    git fetch origin main && git rebase origin/main
    git push -u origin task/<N>-<slug>
    gh pr create --repo CERTCC/Vultron \
      --title "<short title>" \
-     --body "Closes #<N>
+     --body "- Closes #<N>
 
-   <summary of changes>" \
+   ## Summary
+
+   <1–2 sentences: what this PR does and why>
+
+   ## Changes
+
+   - \`path/to/file.py\`: <what changed>
+
+   ## Verification
+
+   - All N unit tests pass (M new)
+   - Black, flake8, mypy, pyright clean" \
      --label "size:<X>"
    ```
 

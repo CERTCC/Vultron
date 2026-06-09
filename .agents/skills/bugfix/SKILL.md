@@ -141,15 +141,27 @@ focus hints from Phase 2 (e.g., `"wire layer"`, `"BT integration"`), then:
    - Record observations in `plan/BUILD_LEARNINGS.md`.
    - Compute diff size: ≤50 → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
      Update the `size:` label.
-   - Push and open PR:
+   - Push and open PR using the structured body template from
+     `.agents/skills/shared/pr-body-guide.md` (implementation PR shape):
 
      ```bash
      git push -u origin bug/<N>-<slug>
      gh pr create --repo CERTCC/Vultron \
        --title "fix: <short title>" \
-       --body "Fixes #<N>
+       --body "- Fixes #<N>
 
-     <summary of changes>" \
+     ## Summary
+
+     <1–2 sentences: what bug was fixed and how>
+
+     ## Changes
+
+     - \`path/to/file.py\`: <what changed>
+
+     ## Verification
+
+     - All N unit tests pass (M new); regression test added
+     - Black, flake8, mypy, pyright clean" \
        --label "size:<X>"
      ```
 

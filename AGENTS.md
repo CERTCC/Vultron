@@ -220,6 +220,12 @@ change warrants a new ADR, a new spec entry, or both.
 4. `build-docs` — only when `docs/` files were modified
 5. `commit` skill — include Co-authored-by trailer
 
+**When opening a PR**, use the structured body template in
+`.agents/skills/shared/pr-body-guide.md`. Implementation PRs require
+**Summary + Changes + Verification** (with actual test counts); docs-only
+PRs use **Summary + Changes**. Always put closing references
+(`- Closes #N`) at the top, one per line.
+
 **Always stage the new entry file when `append-history` was called.** The tool
 creates a new entry file under `plan/history/YYMM/<type>/` — stage it with
 `git add plan/history/`. The monthly `plan/history/YYMM/README.md` is
