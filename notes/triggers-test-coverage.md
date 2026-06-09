@@ -4,7 +4,7 @@ status: active
 description: >
   Coverage expectations and PR-scope discipline for trigger use cases in
   vultron/core/use_cases/triggers/, motivated by repeated high-churn in
-  case.py without per-use-case regression tests.
+  case trigger use cases without per-use-case regression tests.
 ---
 
 # Trigger Use-Case Test Coverage and PR Scope
@@ -12,15 +12,14 @@ description: >
 ## Background
 
 `vultron/core/use_cases/triggers/case.py` accumulated 26 commits in 90 days
-(originating concern: [#652](https://github.com/CERTCC/Vultron/issues/652)).
+before it was split into `triggers/case/` (originating concern:
+[#652](https://github.com/CERTCC/Vultron/issues/652)).
 Two structural properties amplify the risk of regressions in this file:
 
 1. **Multiple use cases per module.** As of the originating concern, `case.py`
    contained six trigger use cases (`SvcEngageCaseUseCase`,
    `SvcDeferCaseUseCase`, `SvcCreateCaseUseCase`, `SvcAddObjectToCaseUseCase`,
-   `SvcAddReportToCaseUseCase`, `SvcAddParticipantStatusUseCase`). Half of
-   them lacked dedicated unit tests — coverage was incidental, via
-   `test_trignotify.py` and `test_svc_add_participant_status.py` only.
+   `SvcAddReportToCaseUseCase`, `SvcAddParticipantStatusUseCase`).
 2. **Co-evolution with embargo logic.** Case-state and embargo-state
    transitions are tightly coupled in the protocol, so many PRs touch case
    triggers and embargo triggers together. When tests are sparse, a regression
@@ -41,12 +40,12 @@ Existing coverage anchors:
 
 | Use case | Dedicated test file |
 |---|---|
-| `SvcEngageCaseUseCase` | `test/core/use_cases/triggers/test_trignotify.py` |
-| `SvcDeferCaseUseCase` | `test/core/use_cases/triggers/test_trignotify.py` |
-| `SvcAddParticipantStatusUseCase` | `test/core/use_cases/triggers/test_svc_add_participant_status.py` |
-| `SvcCreateCaseUseCase` | *missing — tracked in test-backfill issue* |
-| `SvcAddObjectToCaseUseCase` | *missing — tracked in test-backfill issue* |
-| `SvcAddReportToCaseUseCase` | *missing — tracked in test-backfill issue* |
+| `SvcEngageCaseUseCase` | `test/core/use_cases/triggers/case/test_engage.py` |
+| `SvcDeferCaseUseCase` | `test/core/use_cases/triggers/case/test_defer.py` |
+| `SvcAddParticipantStatusUseCase` | `test/core/use_cases/triggers/case/test_add_participant_status.py` |
+| `SvcCreateCaseUseCase` | `test/core/use_cases/triggers/case/test_create.py` |
+| `SvcAddObjectToCaseUseCase` | `test/core/use_cases/triggers/case/test_add_object.py` |
+| `SvcAddReportToCaseUseCase` | `test/core/use_cases/triggers/case/test_add_report.py` |
 
 When you add a new trigger use case, create the matching `test_<use_case>.py`
 file in the same PR. Do not rely on integration coverage in
@@ -66,14 +65,13 @@ list the integration test(s) that exercise the combined path.
 
 ## Structural follow-up
 
-The module structure of `triggers/case.py` mirrors the `nodes.py` smell that
+The module structure of `triggers/case.py` mirrored the `nodes.py` smell that
 [`specs/behavior-tree-node-design.yaml`](../specs/behavior-tree-node-design.yaml)
 BTND-07-001 addresses for BT nodes: a flat module accumulating many classes
-becomes high-blast-radius and review-hostile. A future split into a
-`triggers/case/` subpackage — one submodule per use case — is tracked
-separately and is intentionally sequenced **after**
-[#711](https://github.com/CERTCC/Vultron/issues/711) lands, so the split
-operates on the post-refactor file rather than fighting it.
+becomes high-blast-radius and review-hostile.
+
+That follow-up has now landed: `triggers/case.py` was split into a
+`triggers/case/` subpackage with one submodule per use case (issue #742).
 
 ## References
 
