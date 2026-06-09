@@ -19,10 +19,15 @@ VultronActorMixin (EP-01-001).
 import unittest
 from datetime import timedelta
 
+from vultron.core.models.actor import VultronPerson as CoreVultronPerson
 from vultron.wire.as2.enums import as_ActorType
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.registry import VOCABULARY
 from vultron.wire.as2.vocab.objects.embargo_policy import EmbargoPolicy
 from vultron.wire.as2.vocab.objects.vultron_actor import (
     VultronActorMixin,
+    VultronApplication,
+    VultronGroup,
     VultronOrganization,
     VultronPerson,
     VultronService,
@@ -77,6 +82,7 @@ class TestVultronPersonBasics(unittest.TestCase):
     def test_is_instance_of_mixin(self):
         p = VultronPerson()
         self.assertIsInstance(p, VultronActorMixin)
+        self.assertIsInstance(p, as_Actor)
 
     def test_json_round_trip_no_policy(self):
         p = VultronPerson(name="Alice", id_="https://example.org/users/alice")
@@ -153,6 +159,43 @@ class TestVultronActorTypePreservation(unittest.TestCase):
         p = VultronPerson()
         svc = VultronService()
         self.assertNotEqual(p.type_, svc.type_)
+
+
+class TestWireActorVocabularyAndRoundTrip(unittest.TestCase):
+    def test_vocabulary_points_to_wire_actor_types(self):
+        self.assertIs(VOCABULARY["Actor"], as_Actor)
+        self.assertIs(VOCABULARY["Person"], VultronPerson)
+        self.assertIs(VOCABULARY["Organization"], VultronOrganization)
+        self.assertIs(VOCABULARY["Service"], VultronService)
+        self.assertIs(VOCABULARY["Application"], VultronApplication)
+        self.assertIs(VOCABULARY["Group"], VultronGroup)
+
+    def test_core_person_to_wire_person_model_validate_round_trip(self):
+        core_actor = CoreVultronPerson(
+            id_="https://example.org/actors/alice",
+            name="Alice",
+            inbox="https://example.org/actors/alice/inbox",
+            outbox="https://example.org/actors/alice/outbox",
+            preferred_username="alice",
+            endpoints={"sharedInbox": "https://example.org/inbox"},
+            embargo_policy={"policy": "default"},
+        )
+
+        wire_actor = VultronPerson.model_validate(
+            core_actor.model_dump(mode="json")
+        )
+
+        self.assertEqual(core_actor.id_, wire_actor.id_)
+        self.assertEqual(core_actor.name, wire_actor.name)
+        self.assertEqual(core_actor.type_, wire_actor.type_)
+        self.assertEqual(core_actor.inbox, wire_actor.inbox.id_)
+        self.assertEqual(core_actor.outbox, wire_actor.outbox.id_)
+        self.assertEqual(
+            core_actor.preferred_username,
+            wire_actor.preferred_username,
+        )
+        self.assertEqual(core_actor.endpoints, wire_actor.endpoints)
+        self.assertEqual(core_actor.embargo_policy, wire_actor.embargo_policy)
 
 
 if __name__ == "__main__":
