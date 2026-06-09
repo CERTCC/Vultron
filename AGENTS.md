@@ -452,6 +452,21 @@ Short entries are reproduced here; longer ones are referenced below.
   ARCH-12-007 and concern #804.
 - **Adding a New Pitfall: Check the Routing Policy First** — see
   [notes/agents-md-structure.md](notes/agents-md-structure.md)
+- **Trigger-Side execute() Must Delegate SM Transitions to BTBridge** — A
+  trigger-side `execute()` method that calls `EmbargoLifecycle`, `EMAdapter`,
+  or creates `ParticipantStatus` records with a specific `rm_state`/`em_state`
+  directly (outside a BT execution context) is a BT-06-006 violation.
+  State machine transitions — RM transitions (e.g., `RM.INVALID`, `RM.CLOSED`),
+  EM lifecycle transitions (e.g., `propose_embargo`, `terminate_embargo`) — are
+  protocol-significant behavior (BT-15-001) and MUST live in BT leaf nodes
+  accessed via `bridge.execute_with_setup()`. Only infrastructure glue
+  (instantiate BT → set up blackboard → call bridge → check status → extract
+  output) is permitted directly in `execute()`. The historical asymmetry between
+  `received/` (BTBridge-delegating) and `triggers/` (inline) arose from the
+  now-retired "simple CRUD" guidance. See
+  [notes/bt-integration.md](notes/bt-integration.md)
+  § "Trigger/Received Parity" and `specs/behavior-tree-integration.yaml`
+  BT-15-001, BT-15-002.
 
 ## Skill Interaction Rules
 
