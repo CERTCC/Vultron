@@ -64,6 +64,7 @@ ENTRIES: list[SemanticEntry] = [
         event_class=AddEmbargoEventToCaseReceivedEvent,
         use_case_class=AddEmbargoEventToCaseReceivedUseCase,
         wire_activity_class=_AddEmbargoToCaseActivity,
+        include_activity=True,
     ),
     SemanticEntry(
         semantics=MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
@@ -71,6 +72,7 @@ ENTRIES: list[SemanticEntry] = [
         event_class=RemoveEmbargoEventFromCaseReceivedEvent,
         use_case_class=RemoveEmbargoEventFromCaseReceivedUseCase,
         wire_activity_class=_RemoveEmbargoFromCaseActivity,
+        include_activity=True,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE,
@@ -93,6 +95,7 @@ ENTRIES: list[SemanticEntry] = [
         event_class=AcceptInviteToEmbargoOnCaseReceivedEvent,
         use_case_class=AcceptInviteToEmbargoOnCaseReceivedUseCase,
         wire_activity_class=_EmAcceptEmbargoActivity,
+        include_activity=True,
     ),
     SemanticEntry(
         semantics=MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
@@ -100,5 +103,6 @@ ENTRIES: list[SemanticEntry] = [
         event_class=RejectInviteToEmbargoOnCaseReceivedEvent,
         use_case_class=RejectInviteToEmbargoOnCaseReceivedUseCase,
         wire_activity_class=_EmRejectEmbargoActivity,
+        include_activity=True,
     ),
 ]

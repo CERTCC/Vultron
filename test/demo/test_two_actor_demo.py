@@ -24,6 +24,7 @@ True multi-container isolation is validated by the acceptance test runnable via:
 
 import importlib
 import logging
+from unittest.mock import MagicMock
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
@@ -995,6 +996,147 @@ class TestRunTwoActorDemo:
 
         assert "ERROR SUMMARY" not in caplog.text, (
             "Expected demo to succeed, but got errors:\n" + caplog.text
+        )
+
+
+class TestDumpCaseLogs:
+    """Case-log dump behavior for participant and case-actor outputs."""
+
+    def test_falls_back_to_vendor_case_actor_sub_actor(
+        self, tmp_path, monkeypatch
+    ):
+        finder_client = MagicMock()
+        vendor_client = MagicMock()
+        finder_client.get_list.return_value = [{"logIndex": 0}]
+        vendor_client.get_list.return_value = [{"logIndex": 0}]
+
+        case = demo.VulnerabilityCase(
+            id_="https://example.org/cases/case-dump-fallback",
+            actor_participant_index={
+                "https://example.org/actors/vendor": (
+                    "https://example.org/cases/case-dump-fallback/"
+                    "participants/vendor"
+                ),
+                "https://example.org/actors/finder": (
+                    "https://example.org/cases/case-dump-fallback/"
+                    "participants/finder"
+                ),
+                "https://example.org/actors/case-actor-demo": (
+                    "https://example.org/cases/case-dump-fallback/"
+                    "participants/case-actor"
+                ),
+            },
+        )
+        finder = demo.as_Actor(
+            id_="https://example.org/actors/finder", name="Finder"
+        )
+        vendor = demo.as_Actor(
+            id_="https://example.org/actors/vendor", name="Vendor"
+        )
+        monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
+
+        demo._phase_dump_case_logs(
+            finder_client=finder_client,
+            vendor_client=vendor_client,
+            finder=finder,
+            vendor=vendor,
+            case=case,
+            case_actor_client=None,
+        )
+
+        case_slug = "https_example.org_cases_case-dump-fallback"
+        assert (
+            tmp_path / "two-actor" / "finder" / f"{case_slug}-case-log.jsonl"
+        ).exists()
+        assert (
+            tmp_path / "two-actor" / "vendor" / f"{case_slug}-case-log.jsonl"
+        ).exists()
+        assert (
+            tmp_path
+            / "two-actor"
+            / "case-actor"
+            / f"{case_slug}-case-log.jsonl"
+        ).exists()
+        assert any(
+            "/actors/case-actor-demo/demo/cases/case-dump-fallback/log"
+            in call.args[0]
+            for call in vendor_client.get_list.call_args_list
+        )
+
+    def test_prefers_dedicated_case_actor_client_when_provided(
+        self, tmp_path, monkeypatch
+    ):
+        finder_client = MagicMock()
+        vendor_client = MagicMock()
+        case_actor_client = MagicMock()
+        finder_client.get_list.return_value = [{"logIndex": 0}]
+        vendor_client.get_list.return_value = [{"logIndex": 0}]
+        case_actor_client.get_list.return_value = [{"logIndex": 0}]
+
+        case = demo.VulnerabilityCase(
+            id_="https://example.org/cases/case-dump-dedicated"
+        )
+        finder = demo.as_Actor(
+            id_="https://example.org/actors/finder", name="Finder"
+        )
+        vendor = demo.as_Actor(
+            id_="https://example.org/actors/vendor", name="Vendor"
+        )
+        monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
+
+        demo._phase_dump_case_logs(
+            finder_client=finder_client,
+            vendor_client=vendor_client,
+            finder=finder,
+            vendor=vendor,
+            case=case,
+            case_actor_client=case_actor_client,
+        )
+
+        case_actor_client.get_list.assert_called_once_with(
+            "/actors/case-actor/demo/cases/case-dump-dedicated/log"
+        )
+
+    def test_falls_back_when_dedicated_case_actor_log_is_empty(
+        self, tmp_path, monkeypatch
+    ):
+        finder_client = MagicMock()
+        vendor_client = MagicMock()
+        case_actor_client = MagicMock()
+        finder_client.get_list.return_value = [{"logIndex": 0}]
+        vendor_client.get_list.return_value = [{"logIndex": 0}]
+        case_actor_client.get_list.return_value = []
+
+        case = demo.VulnerabilityCase(
+            id_="https://example.org/cases/case-dump-empty-dedicated",
+            actor_participant_index={
+                "https://example.org/actors/case-actor-fallback": (
+                    "https://example.org/cases/case-dump-empty-dedicated/"
+                    "participants/case-actor"
+                )
+            },
+        )
+        finder = demo.as_Actor(
+            id_="https://example.org/actors/finder", name="Finder"
+        )
+        vendor = demo.as_Actor(
+            id_="https://example.org/actors/vendor", name="Vendor"
+        )
+        monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
+
+        demo._phase_dump_case_logs(
+            finder_client=finder_client,
+            vendor_client=vendor_client,
+            finder=finder,
+            vendor=vendor,
+            case=case,
+            case_actor_client=case_actor_client,
+        )
+
+        assert any(
+            "/actors/case-actor-fallback/demo/cases/"
+            "case-dump-empty-dedicated/log" in call.args[0]
+            for call in vendor_client.get_list.call_args_list
         )
 
 
