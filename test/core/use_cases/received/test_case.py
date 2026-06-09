@@ -33,6 +33,15 @@ from vultron.core.use_cases.received.case import (
     EngageCaseReceivedUseCase,
     UpdateCaseReceivedUseCase,
 )
+from vultron.core.behaviors.case.update_tree import (
+    create_update_case_received_tree,
+)
+from vultron.core.behaviors.case.nodes.update import (
+    ApplyCaseUpdateNode,
+    BroadcastCaseUpdateNode,
+    CaptureCaseUpdateBroadcastExclusionsNode,
+    CheckCaseUpdateOwnerNode,
+)
 from vultron.wire.as2.rehydration import rehydrate as real_rehydrate
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
@@ -275,6 +284,63 @@ class TestCaseUseCases:
 
         assert not any("has not accepted" in r.message for r in caplog.records)
 
+    def test_update_case_ignores_non_participant_objects_in_embargo_check(
+        self, make_payload
+    ):
+        """Non-participant objects referenced by the case must not be excluded."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        owner_id = "https://example.org/users/owner"
+        actor_id = "https://example.org/users/alice"
+        case_id = "https://example.org/cases/uc6b"
+        embargo = EmbargoEvent(id_="https://example.org/embargoes/em6b")
+        dl.create(embargo)
+
+        bogus_ref = VultronActivity(
+            type_="Announce",
+            actor=owner_id,
+            object_=case_id,
+        )
+        dl.create(bogus_ref)
+
+        case_actor = VultronCaseActor(
+            id_=f"{case_id}/actor",
+            name=f"CaseActor for {case_id}",
+            attributed_to=owner_id,
+            context=case_id,
+        )
+        dl.create(case_actor)
+
+        case = VulnerabilityCase(
+            id_=case_id,
+            name="Original",
+            attributed_to=owner_id,
+            active_embargo=embargo.id_,
+        )
+        case.actor_participant_index[actor_id] = bogus_ref.id_
+        dl.create(case)
+
+        updated_case = VulnerabilityCase(
+            id_=case_id,
+            name="Updated",
+            attributed_to=owner_id,
+        )
+        activity = update_case_activity(updated_case, actor=owner_id)
+        event = make_payload(activity)
+
+        UpdateCaseReceivedUseCase(dl, event).execute()
+
+        refreshed_actor = dl.read(case_actor.id_)
+        assert refreshed_actor is not None
+        refreshed_actor = cast(VultronCaseActor, refreshed_actor)
+        assert len(refreshed_actor.outbox.items) == 1
+
+        broadcast_id = refreshed_actor.outbox.items[0]
+        broadcast = dl.read(broadcast_id)
+        assert broadcast is not None
+        broadcast = cast(VultronActivity, broadcast)
+        assert broadcast.to is not None
+        assert actor_id in broadcast.to
+
     # ------------------------------------------------------------------
     # Broadcast tests (CM-06-001, CM-06-002)
     # ------------------------------------------------------------------
@@ -436,6 +502,83 @@ class TestCaseUseCases:
         broadcast = cast(VultronActivity, broadcast)
         assert broadcast.to is not None
         assert set(broadcast.to) == {alice, bob}
+
+    def test_update_case_bt_structure_includes_broadcast_node(
+        self, make_payload
+    ):
+        """UpdateCaseBT keeps ownership, embargo, update, and broadcast in-tree."""
+        owner_id = "https://example.org/users/owner"
+        case_id = "https://example.org/cases/bt1"
+        updated_case = VulnerabilityCase(
+            id_=case_id, name="Updated", attributed_to=owner_id
+        )
+        activity = update_case_activity(updated_case, actor=owner_id)
+        event = make_payload(activity)
+
+        tree = create_update_case_received_tree(
+            case_id=case_id,
+            actor_id=owner_id,
+            request=event,
+        )
+
+        assert tree.name == "UpdateCaseBT"
+        assert [child.__class__ for child in tree.children] == [
+            CheckCaseUpdateOwnerNode,
+            CaptureCaseUpdateBroadcastExclusionsNode,
+            ApplyCaseUpdateNode,
+            BroadcastCaseUpdateNode,
+        ]
+
+    def test_update_case_bt_executes_without_post_bt_broadcast(
+        self, make_payload, monkeypatch
+    ):
+        """UpdateCaseBT handles the broadcast internally instead of after execute()."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        owner_id = "https://example.org/users/owner"
+        participant_id = "https://example.org/users/alice"
+        case_id = "https://example.org/cases/bt2"
+
+        case_actor = VultronCaseActor(
+            id_=f"{case_id}/actor",
+            name=f"CaseActor for {case_id}",
+            attributed_to=owner_id,
+            context=case_id,
+        )
+        dl.create(case_actor)
+
+        case = VulnerabilityCase(
+            id_=case_id,
+            name="Original",
+            attributed_to=owner_id,
+        )
+        case.actor_participant_index[participant_id] = (
+            "https://example.org/participants/p-bt2"
+        )
+        dl.create(case)
+
+        updated_case = VulnerabilityCase(
+            id_=case_id,
+            name="Updated",
+            attributed_to=owner_id,
+        )
+        activity = update_case_activity(updated_case, actor=owner_id)
+        event = make_payload(activity)
+
+        def _should_not_be_called(*args, **kwargs):
+            raise AssertionError("post-BT broadcast helper should not run")
+
+        monkeypatch.setattr(
+            UpdateCaseReceivedUseCase,
+            "_broadcast_case_update",
+            _should_not_be_called,
+        )
+
+        UpdateCaseReceivedUseCase(dl, event).execute()
+
+        refreshed_actor = dl.read(case_actor.id_)
+        assert refreshed_actor is not None
+        refreshed_actor = cast(VultronCaseActor, refreshed_actor)
+        assert len(refreshed_actor.outbox.items) == 1
 
 
 class TestEngageDeferCaseBTFailureReason:
