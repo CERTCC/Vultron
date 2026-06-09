@@ -16,7 +16,7 @@
 
 from typing import Any, TypeAlias
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from vultron.wire.as2.enums import as_ActorType as A_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
@@ -48,16 +48,35 @@ class as_Actor(as_Object):
     # todo endpoints should be its own object
     # see https://www.w3.org/TR/activitypub/#actors
 
+    @field_validator("inbox", "outbox", mode="before")
+    @classmethod
+    def _coerce_uri_to_collection(cls, v: Any) -> Any:
+        """Coerce a plain URI string or None to an as_OrderedCollection.
+
+        When reading back an actor that was stored via a CoreActor-derived
+        class (inbox/outbox as str | None), the value is normalised:
+
+        - ``None`` → empty ``as_OrderedCollection`` (id_ set by
+          ``set_collections`` model validator)
+        - ``str`` → ``as_OrderedCollection(id_=v)``
+        - anything else → returned as-is for Pydantic to validate
+        """
+        if v is None:
+            return as_OrderedCollection()
+        if isinstance(v, str):
+            return as_OrderedCollection(id_=v)
+        return v
+
     @model_validator(mode="after")
     def set_collections(self):
         actor_id = self.id_
 
-        # Only create inbox/outbox if they don't already exist
-        if self.inbox is None:
+        # Set inbox/outbox URI if not yet populated (None or empty id_).
+        if self.inbox is None or self.inbox.id_ is None:
             self.inbox = as_OrderedCollection(
                 id_=f"{actor_id}/inbox", type_="OrderedCollection"
             )
-        if self.outbox is None:
+        if self.outbox is None or self.outbox.id_ is None:
             self.outbox = as_OrderedCollection(
                 id_=f"{actor_id}/outbox", type_="OrderedCollection"
             )

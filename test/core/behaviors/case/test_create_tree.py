@@ -152,9 +152,8 @@ def test_create_case_tree_emits_activity_to_outbox(
 ):
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
-    updated_actor = datalayer.read(actor.id_)
-    assert updated_actor is not None
-    assert len(updated_actor.outbox.items) > 0
+    outbox_items = datalayer.clone_for_actor(actor.id_).outbox_list()
+    assert len(outbox_items) > 0
 
 
 # ============================================================================

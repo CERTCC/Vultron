@@ -241,9 +241,8 @@ class TestQueueToOutboxNode:
         assert result.status == Status.SUCCESS
 
         # The actor's outbox should contain the activity ID
-        updated_actor = store.read(actor_id)
-        assert hasattr(updated_actor, "outbox")
-        assert ACTIVITY_ID in updated_actor.outbox.items
+        outbox_items = store.clone_for_actor(actor_id).outbox_list()
+        assert ACTIVITY_ID in outbox_items
 
 
 # ---------------------------------------------------------------------------

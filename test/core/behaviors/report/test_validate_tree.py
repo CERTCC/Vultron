@@ -664,8 +664,7 @@ def test_validate_report_auto_engages_via_bt(
     assert participant.participant_statuses[-1].rm_state == RM.ACCEPTED
 
     # An engage activity (Join) must appear in the actor's outbox
-    updated_actor = cast(Any, datalayer.read(actor_id))
-    outbox_items = updated_actor.outbox.items
+    outbox_items = datalayer.clone_for_actor(actor_id).outbox_list()
     assert len(outbox_items) >= 1
     join_activities = [
         datalayer.read(aid)

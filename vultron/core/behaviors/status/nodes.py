@@ -588,13 +588,6 @@ class BroadcastQueueToOutboxNode(DataLayerAction):
         from vultron.errors import VultronError
 
         try:
-            case_manager_actor = self.datalayer.read(case_manager_id)
-            if case_manager_actor is not None and hasattr(
-                case_manager_actor, "outbox"
-            ):
-                cast(Any, case_manager_actor).outbox.items.append(activity_id)
-                self.datalayer.save(case_manager_actor)
-
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
                 case_manager_id, activity_id
             )

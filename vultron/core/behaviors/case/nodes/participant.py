@@ -32,7 +32,7 @@ from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.actor_config import ActorConfig
 from vultron.core.models.enums import VultronObjectType
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.protocols import CaseModel, has_outbox, is_case_model
+from vultron.core.models.protocols import CaseModel, is_case_model
 from vultron.core.models.vultron_types import VultronCase, VultronParticipant
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
@@ -271,10 +271,6 @@ def _queue_participant_add_notification(
         to=[participant_actor_id],
     )
 
-    actor_obj = dl.read(sender_actor_id, raise_on_missing=True)
-    if has_outbox(actor_obj):
-        actor_obj.outbox.items.append(add_notification_id)
-        dl.save(actor_obj)
     cast(CaseOutboxPersistence, dl).record_outbox_item(
         sender_actor_id, add_notification_id
     )

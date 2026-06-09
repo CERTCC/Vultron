@@ -329,12 +329,10 @@ class TestCaseUseCases:
 
         UpdateCaseReceivedUseCase(dl, event).execute()
 
-        refreshed_actor = dl.read(case_actor.id_)
-        assert refreshed_actor is not None
-        refreshed_actor = cast(VultronCaseActor, refreshed_actor)
-        assert len(refreshed_actor.outbox.items) == 1
+        outbox_items = dl.outbox_list_for_actor(case_actor.id_)
+        assert len(outbox_items) == 1
 
-        broadcast_id = refreshed_actor.outbox.items[0]
+        broadcast_id = outbox_items[0]
         broadcast = dl.read(broadcast_id)
         assert broadcast is not None
         broadcast = cast(VultronActivity, broadcast)
@@ -380,12 +378,10 @@ class TestCaseUseCases:
 
         UpdateCaseReceivedUseCase(dl, event).execute()
 
-        refreshed_actor = dl.read(case_actor.id_)
-        assert refreshed_actor is not None
-        refreshed_actor = cast(VultronCaseActor, refreshed_actor)
-        assert len(refreshed_actor.outbox.items) == 1
+        queued_ids = dl.clone_for_actor(case_actor.id_).outbox_list()
+        assert len(queued_ids) == 1
 
-        broadcast_id = refreshed_actor.outbox.items[0]
+        broadcast_id = queued_ids[0]
         broadcast = dl.read(broadcast_id)
         assert broadcast is not None
         broadcast = cast(VultronActivity, broadcast)
@@ -451,10 +447,8 @@ class TestCaseUseCases:
 
         UpdateCaseReceivedUseCase(dl, event).execute()
 
-        refreshed_actor = dl.read(case_actor.id_)
-        assert refreshed_actor is not None
-        refreshed_actor = cast(VultronCaseActor, refreshed_actor)
-        assert refreshed_actor.outbox.items == []
+        queued_ids = dl.clone_for_actor(case_actor.id_).outbox_list()
+        assert queued_ids == []
 
     def test_update_case_broadcast_includes_all_participants(
         self, make_payload
@@ -493,10 +487,8 @@ class TestCaseUseCases:
 
         UpdateCaseReceivedUseCase(dl, event).execute()
 
-        refreshed_actor = dl.read(case_actor.id_)
-        assert refreshed_actor is not None
-        refreshed_actor = cast(VultronCaseActor, refreshed_actor)
-        broadcast_id = refreshed_actor.outbox.items[0]
+        queued_ids = dl.clone_for_actor(case_actor.id_).outbox_list()
+        broadcast_id = queued_ids[0]
         broadcast = dl.read(broadcast_id)
         assert broadcast is not None
         broadcast = cast(VultronActivity, broadcast)
@@ -575,10 +567,8 @@ class TestCaseUseCases:
 
         UpdateCaseReceivedUseCase(dl, event).execute()
 
-        refreshed_actor = dl.read(case_actor.id_)
-        assert refreshed_actor is not None
-        refreshed_actor = cast(VultronCaseActor, refreshed_actor)
-        assert len(refreshed_actor.outbox.items) == 1
+        outbox_items = dl.outbox_list_for_actor(case_actor.id_)
+        assert len(outbox_items) == 1
 
 
 class TestEngageDeferCaseBTFailureReason:

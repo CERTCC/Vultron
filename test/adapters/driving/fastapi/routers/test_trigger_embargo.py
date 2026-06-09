@@ -330,10 +330,7 @@ def test_trigger_propose_embargo_adds_activity_to_outbox(
     client_triggers, dl, actor, case_without_participant
 ):
     """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
-    actor_before = dl.read(actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list())
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/propose-embargo",
@@ -344,10 +341,7 @@ def test_trigger_propose_embargo_adds_activity_to_outbox(
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
 
 
@@ -529,10 +523,7 @@ def test_trigger_accept_embargo_adds_activity_to_outbox(
 ):
     """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
     case_obj, proposal, _ = case_with_proposal
-    actor_before = dl.read(actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list())
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/accept-embargo",
@@ -540,10 +531,7 @@ def test_trigger_accept_embargo_adds_activity_to_outbox(
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
 
 
@@ -677,10 +665,7 @@ def test_trigger_reject_embargo_adds_activity_to_outbox(
 ):
     """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
     case_obj, proposal, _ = case_with_proposal
-    actor_before = dl.read(actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list())
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/reject-embargo",
@@ -688,10 +673,7 @@ def test_trigger_reject_embargo_adds_activity_to_outbox(
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
 
 
@@ -814,10 +796,7 @@ def test_trigger_propose_embargo_revision_adds_activity_to_outbox(
 ):
     """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
     case_obj, _ = case_with_embargo
-    actor_before = dl.read(actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list())
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/propose-embargo-revision",
@@ -825,10 +804,7 @@ def test_trigger_propose_embargo_revision_adds_activity_to_outbox(
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
 
 
@@ -927,10 +903,7 @@ def test_trigger_terminate_embargo_adds_activity_to_outbox(
 ):
     """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
     case_obj, _ = case_with_embargo
-    actor_before = dl.read(actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list())
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/terminate-embargo",
@@ -938,10 +911,7 @@ def test_trigger_terminate_embargo_adds_activity_to_outbox(
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
 
 

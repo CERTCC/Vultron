@@ -33,7 +33,6 @@ from pydantic import BaseModel
 from py_trees.common import Status
 
 from vultron.core.models.protocols import (
-    has_outbox,
     is_case_model,
     is_participant_model,
 )
@@ -583,20 +582,6 @@ class UpdateActorOutbox(DataLayerAction):
                 return Status.FAILURE
 
             case_id = self.blackboard.get("case_id")
-
-            actor_obj = self.datalayer.read(
-                self.actor_id, raise_on_missing=True
-            )
-
-            if not has_outbox(actor_obj):
-                self.logger.error(
-                    f"{self.name}: Actor {self.actor_id} has no outbox"
-                    " or outbox.items"
-                )
-                return Status.FAILURE
-
-            actor_obj.outbox.items.append(activity_id)
-            self.datalayer.save(actor_obj)
 
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
                 self.actor_id, activity_id

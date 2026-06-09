@@ -1,7 +1,7 @@
 """Use cases for case note activities."""
 
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from py_trees.common import Status
 
@@ -169,11 +169,6 @@ class AddNoteToCaseReceivedUseCase:
             actor=case_actor_id,
             to=recipient_ids,
         )
-
-        case_actor_obj = self._dl.read(case_actor_id)
-        if case_actor_obj is not None and hasattr(case_actor_obj, "outbox"):
-            cast(Any, case_actor_obj).outbox.items.append(activity_id)
-            self._dl.save(case_actor_obj)
 
         self._dl.record_outbox_item(case_actor_id, activity_id)
 

@@ -25,7 +25,6 @@ Per GitHub issue #401 and specs/behavior-tree-node-design.yaml.
 
 import pytest
 from py_trees.composites import Sequence
-from typing import cast, Any
 
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.participant_status import ParticipantStatus
@@ -344,15 +343,13 @@ def test_update_actor_outbox(
     result = bt_scenario.run(chain, actor_id=actor.id_)
     bt_scenario.assert_success(result)
 
-    updated_actor = cast(
-        Any, bt_scenario.dl.read(actor.id_, raise_on_missing=True)
-    )
+    outbox_items = bt_scenario.dl.clone_for_actor(actor.id_).outbox_list()
     create_activities = bt_scenario.dl.by_type("Create")
     assert (
         create_activities
     ), "Expected at least one Create activity in DataLayer"
     activity_id = next(iter(create_activities))
-    assert activity_id in updated_actor.outbox.items
+    assert activity_id in outbox_items
 
 
 def test_update_actor_outbox_missing_activity_id(

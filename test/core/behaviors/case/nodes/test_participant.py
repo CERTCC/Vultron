@@ -451,8 +451,7 @@ class TestCreateCaseParticipantNode:
             case_id=case_obj.id_,
         )
 
-        stored_actor = cast(Any, bt_scenario.dl.read(actor_id))
-        outbox_ids = stored_actor.outbox.items if stored_actor else []
+        outbox_ids = bt_scenario.dl.clone_for_actor(actor_id).outbox_list()
         add_activities: list[as_Add] = []
         for oid in outbox_ids:
             obj = bt_scenario.dl.read(oid)
