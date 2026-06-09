@@ -59,6 +59,15 @@ header.
   queues are exercised under the same addressing assumptions as inbox
   processing.
 
+### 2026-06-09 ISSUE-711 — Surface domain transition failures from BT action nodes
+
+- When strict state-machine transitions move into BT action nodes, use cases
+  still need original domain exception types (for example
+  `VultronInvalidStateTransitionError`) to preserve caller/test semantics.
+- A small BT node result channel (`result_out["error"]`) lets the use case
+  re-raise lifecycle domain errors directly instead of collapsing everything
+  into a generic BT failure message.
+  
 ### 2026-06-09 ISSUE-751 — Conditional BT branches can replace inline node `if` logic cleanly
 
 - For god-node decomposition, represent optional behavior as an explicit

@@ -20,12 +20,14 @@ from vultron.core.use_cases.triggers.embargo import (
     SvcAcceptEmbargoUseCase,
     SvcProposeEmbargoUseCase,
     SvcRejectEmbargoUseCase,
+    SvcTerminateEmbargoUseCase,
     _is_case_owner,
 )
 from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
     ProposeEmbargoTriggerRequest,
     RejectEmbargoTriggerRequest,
+    TerminateEmbargoTriggerRequest,
 )
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.factories import em_propose_embargo_activity
@@ -151,6 +153,28 @@ def _build_exited_case(
     )
     case.current_status.em_state = EM.EXITED
     dl.create(case)
+    return case
+
+
+def _build_no_embargo_case_with_case_manager(
+    dl: SqliteDataLayer, owner_id: str
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
+        name="No embargo case",
+        attributed_to=owner_id,
+    )
+    owner_participant = VendorParticipant(
+        attributed_to=owner_id,
+        context=case.id_,
+        embargo_consent_state=PEC.NO_EMBARGO,
+    )
+    owner_participant.add_role(CVDRole.CASE_MANAGER)
+    case.case_participants = [owner_participant.id_]
+    case.actor_participant_index = {owner_id: owner_participant.id_}
+    case.current_status.em_state = EM.NONE
+    case.active_embargo = None
+    dl.create(case)
+    dl.create(owner_participant)
     return case
 
 
@@ -322,3 +346,51 @@ def test_propose_embargo_invalid_state_does_not_persist_embargo(
 
     after = len(list(finder_dl.list_objects("EmbargoEvent")))
     assert after == before
+
+
+def test_propose_embargo_updates_case_state_via_bt_path(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """ProposeEmbargo transitions EM.NONE → EM.PROPOSED and queues activity."""
+    finder, finder_dl = finder_actor_and_dl
+    case = _build_no_embargo_case_with_case_manager(finder_dl, finder.id_)
+    request = ProposeEmbargoTriggerRequest(
+        actor_id=finder.id_,
+        case_id=case.id_,
+        end_time=datetime.now(tz=timezone.utc) + timedelta(days=7),
+    )
+
+    result = SvcProposeEmbargoUseCase(
+        finder_dl, request, trigger_activity=TriggerActivityAdapter(finder_dl)
+    ).execute()
+
+    assert "activity" in result
+    updated_case = cast(VulnerabilityCase, finder_dl.read(case.id_))
+    assert updated_case.current_status.em_state == EM.PROPOSED
+    assert len(updated_case.proposed_embargoes) == 1
+
+
+def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """TerminateEmbargo transitions ACTIVE → EXITED and clears active_embargo."""
+    finder, finder_dl = finder_actor_and_dl
+    owner = _persist_actor(finder_dl, "Vendor Co")
+    case, _, participant_id = _build_active_embargo_case(
+        finder_dl, owner.id_, finder.id_
+    )
+    request = TerminateEmbargoTriggerRequest(
+        actor_id=owner.id_,
+        case_id=case.id_,
+    )
+
+    result = SvcTerminateEmbargoUseCase(
+        finder_dl, request, trigger_activity=TriggerActivityAdapter(finder_dl)
+    ).execute()
+
+    assert "activity" in result
+    updated_case = cast(VulnerabilityCase, finder_dl.read(case.id_))
+    updated_participant = cast(CaseParticipant, finder_dl.read(participant_id))
+    assert updated_case.current_status.em_state == EM.EXITED
+    assert updated_case.active_embargo is None
+    assert updated_participant.embargo_consent_state == PEC.NO_EMBARGO.value
