@@ -250,10 +250,15 @@ Do **not** reference `plan/BUILD_LEARNINGS.md` from durable docs.
 
    gh pr create --repo CERTCC/Vultron \
      --title "docs: promote BUILD_LEARNINGS — <topic>" \
-     --body "Docs-only PR: promotes build learnings to specs/, notes/,
-   and/or AGENTS.md. Includes refreshed docs/reference/codebase/ output.
+     --body "- Closes #<issue if applicable>
 
-   No .py files changed." \
+   ## Summary
+
+   <what build learnings were promoted and to which docs/specs/notes>
+
+   ## Changes
+
+   - <bullet: what was added or changed>" \
      --label "specs-notes"
    ```text
 

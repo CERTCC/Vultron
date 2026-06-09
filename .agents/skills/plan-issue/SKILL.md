@@ -183,11 +183,15 @@ git push -u origin "plan/${ISSUE_NUMBER}-<slug>"
 
 gh pr create --repo CERTCC/Vultron \
   --title "docs: plan issue #${ISSUE_NUMBER} — <short title>" \
-  --body "Docs-only PR for issue #${ISSUE_NUMBER}.
+  --body "- Closes #${ISSUE_NUMBER}
 
-Closes #${ISSUE_NUMBER}
+## Summary
 
-No .py files changed." \
+<1–2 sentences: what was planned and what docs/specs were produced>
+
+## Changes
+
+- <bullet: what was added or changed>" \
   --label "specs-notes"
 ```
 
