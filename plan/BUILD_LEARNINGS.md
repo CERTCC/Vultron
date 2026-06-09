@@ -76,3 +76,11 @@ header.
 - Blackboard handoff keys (`new_case_participant`, `participant_case`,
   `new_participant_id`) make each leaf independently testable while preserving
   end-to-end behavior.
+
+### 2026-06-09 ISSUE-742 — Subpackage splits should preserve import surfaces explicitly
+
+- When replacing a flat use-case module with a subpackage, add explicit
+  `__init__.py` re-exports for both use-case classes and any request models
+  callers previously imported transitively from the old module.
+- Mirror the source split in test layout with a matching subdirectory to keep
+  file organization aligned and reduce future merge-conflict hotspots.
