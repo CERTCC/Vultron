@@ -67,3 +67,12 @@ header.
 - A small BT node result channel (`result_out["error"]`) lets the use case
   re-raise lifecycle domain errors directly instead of collapsing everything
   into a generic BT failure message.
+  
+### 2026-06-09 ISSUE-751 — Conditional BT branches can replace inline node `if` logic cleanly
+
+- For god-node decomposition, represent optional behavior as an explicit
+  `Selector` subtree (`active-branch` then `no-active` guard) instead of inline
+  branching in a single `update()` method.
+- Blackboard handoff keys (`new_case_participant`, `participant_case`,
+  `new_participant_id`) make each leaf independently testable while preserving
+  end-to-end behavior.

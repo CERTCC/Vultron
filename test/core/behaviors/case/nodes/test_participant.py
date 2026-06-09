@@ -28,12 +28,25 @@ import logging
 from typing import Any, cast
 
 import pytest
+import py_trees
 
 from vultron.core.behaviors.case.nodes import (
     CreateCaseOwnerParticipant,
     CreateCaseParticipantNode,
     _create_and_attach_participant,
 )
+from vultron.core.behaviors.case.nodes.participant import (
+    AttachParticipantToCaseNode,
+    CaseHasActiveEmbargoNode,
+    CaseHasNoActiveEmbargoNode,
+    CreateParticipantNode,
+    QueueAddParticipantNotificationNode,
+    RecordParticipantAddedEventNode,
+    ResolveParticipantAcceptedStatusNode,
+    SeedParticipantAsSignatoryIfEmbargoActiveNode,
+    SeedParticipantAsSignatoryNode,
+)
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.actor_config import ActorConfig
 from vultron.core.models.vultron_types import (
     VultronCase,
@@ -41,6 +54,7 @@ from vultron.core.models.vultron_types import (
     VultronParticipant,
     VultronReport,
 )
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
@@ -393,6 +407,33 @@ class TestCreateCaseParticipantNode:
         event_types = [e.event_type for e in stored_case.events]
         assert "participant_added" in event_types
 
+    def test_is_composed_subtree_of_named_leaf_nodes(self) -> None:
+        node = CreateCaseParticipantNode(
+            actor_id="https://example.org/actors/finder",
+            roles=[CVDRole.FINDER],
+        )
+
+        assert [type(child) for child in node.children] == [
+            ResolveParticipantAcceptedStatusNode,
+            CreateParticipantNode,
+            AttachParticipantToCaseNode,
+            RecordParticipantAddedEventNode,
+            SeedParticipantAsSignatoryIfEmbargoActiveNode,
+            QueueAddParticipantNotificationNode,
+        ]
+
+    def test_embargo_seed_is_conditional_subtree(self) -> None:
+        node = SeedParticipantAsSignatoryIfEmbargoActiveNode(
+            participant_actor_id="https://example.org/actors/finder"
+        )
+        assert isinstance(node, py_trees.composites.Selector)
+        assert isinstance(node.children[0], py_trees.composites.Sequence)
+        assert [type(child) for child in node.children[0].children] == [
+            CaseHasActiveEmbargoNode,
+            SeedParticipantAsSignatoryNode,
+        ]
+        assert type(node.children[1]) is CaseHasNoActiveEmbargoNode
+
     def test_emits_add_participant_activity(
         self,
         bt_scenario: BTTestScenario,
@@ -423,6 +464,34 @@ class TestCreateCaseParticipantNode:
             and getattr(act.target, "id_", act.target) == case_obj.id_
             for act in add_activities
         )
+
+    def test_seeds_participant_as_signatory_when_embargo_active(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        case_obj: VultronCase,
+        actor_id: str,
+        finder_actor_id: str,
+    ) -> None:
+        embargo = EmbargoEvent(context=case_obj.id_)
+        bt_scenario.dl.create(embargo)
+        stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
+        stored_case.active_embargo = embargo.id_
+        bt_scenario.dl.save(stored_case)
+
+        bt_scenario.run(
+            CreateCaseParticipantNode(
+                actor_id=finder_actor_id, roles=[CVDRole.FINDER]
+            ),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+        )
+
+        stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
+        participant_id = stored_case.actor_participant_index[finder_actor_id]
+        participant = cast(Any, bt_scenario.dl.read(participant_id))
+        assert participant.embargo_consent_state == PEC.SIGNATORY
+        assert embargo.id_ in participant.accepted_embargo_ids
 
     def test_does_not_record_participant_added_event_for_case_owner(
         self,
