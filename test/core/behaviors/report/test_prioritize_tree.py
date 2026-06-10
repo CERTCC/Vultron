@@ -408,13 +408,31 @@ def test_create_prioritize_subtree_returns_selector(
     assert engage_path.name == "EngagePath"
     assert len(engage_path.children) == 3
     assert engage_path.children[0].name == "EvaluateCasePriority"
-    assert engage_path.children[1].name == "EmitEngageCaseActivity"
+    assert engage_path.children[1].name == "SenderSideBT"
+    assert len(engage_path.children[1].children) == 3
+    assert (
+        engage_path.children[1].children[0].name == "ResolveCaseAddresseesNode"
+    )
+    assert (
+        engage_path.children[1].children[1].name
+        == "EmitCasePriorityActivityNode"
+    )
+    assert engage_path.children[1].children[2].name == "QueueToOutboxNode"
     assert engage_path.children[2].name == "TransitionParticipantRMtoAccepted"
 
     defer_path = tree.children[1]
     assert defer_path.name == "DeferPath"
     assert len(defer_path.children) == 2
-    assert defer_path.children[0].name == "EmitDeferCaseActivity"
+    assert defer_path.children[0].name == "SenderSideBT"
+    assert len(defer_path.children[0].children) == 3
+    assert (
+        defer_path.children[0].children[0].name == "ResolveCaseAddresseesNode"
+    )
+    assert (
+        defer_path.children[0].children[1].name
+        == "EmitCasePriorityActivityNode"
+    )
+    assert defer_path.children[0].children[2].name == "QueueToOutboxNode"
     assert defer_path.children[1].name == "TransitionParticipantRMtoDeferred"
 
 
@@ -451,3 +469,37 @@ def test_prioritize_subtree_engages_by_default(
     assert str(engage_activity.type_) == "Join"
     assert engage_activity.actor == actor_id
     assert engage_activity.object_.id_ == case_with_participant.id_
+
+
+def test_prioritize_subtree_defers_when_engage_path_fails(
+    monkeypatch, bridge, datalayer, actor_id, case_with_participant
+):
+    """PrioritizeBT falls back to defer when engage preconditions fail."""
+    from vultron.core.behaviors.report import prioritize_tree
+
+    monkeypatch.setattr(
+        prioritize_tree.EvaluateCasePriority,
+        "update",
+        lambda self: Status.FAILURE,
+    )
+
+    tree = create_prioritize_subtree(
+        case_id=case_with_participant.id_, actor_id=actor_id
+    )
+    result = bridge.execute_with_setup(tree=tree, actor_id=actor_id)
+
+    assert result.status == Status.SUCCESS
+
+    participant_id = "https://example.org/participants/vendor-cp-001"
+    updated_participant = datalayer.read(participant_id)
+    assert updated_participant.participant_statuses[-1].rm_state == RM.DEFERRED
+
+    outbox_items = datalayer.clone_for_actor(actor_id).outbox_list()
+    assert len(outbox_items) == 1
+
+    defer_activity_id = outbox_items[0]
+    defer_activity = datalayer.read(defer_activity_id)
+    assert defer_activity is not None
+    assert str(defer_activity.type_) == "Ignore"
+    assert defer_activity.actor == actor_id
+    assert defer_activity.object_.id_ == case_with_participant.id_

@@ -48,17 +48,140 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.behaviors.case.nodes import CommitCaseLogEntryNode
 from vultron.core.behaviors.report.nodes import (
     CheckParticipantExists,
-    EmitDeferCaseActivity,
-    EmitEngageCaseActivity,
     EvaluateCasePriority,
     TransitionParticipantRMtoAccepted,
     TransitionParticipantRMtoDeferred,
 )
+from vultron.core.models.protocols import is_case_model
+from vultron.core.behaviors.sender.nodes import QueueToOutboxNode
+from vultron.core.use_cases._helpers import case_addressees
 
 logger = logging.getLogger(__name__)
+
+
+class ResolveCaseAddresseesNode(DataLayerAction):
+    """Resolve outbound addressees for report prioritization."""
+
+    def __init__(self, case_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+
+    def setup(self, **kwargs: object) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_addressees",
+            access=py_trees.common.Access.WRITE,
+        )
+
+    def update(self) -> py_trees.common.Status:
+        if self.datalayer is None or self.actor_id is None:
+            self.feedback_message = "DataLayer or actor_id not available"
+            return py_trees.common.Status.FAILURE
+
+        try:
+            case = self.datalayer.read(self.case_id)
+            if not is_case_model(case):
+                self.feedback_message = (
+                    f"Case '{self.case_id}' not found or wrong type"
+                )
+                return py_trees.common.Status.FAILURE
+
+            addressees = case_addressees(case, self.actor_id)
+        except Exception as exc:
+            self.feedback_message = (
+                f"Failed to resolve report addressees: {exc}"
+            )
+            return py_trees.common.Status.FAILURE
+
+        self.blackboard.case_addressees = addressees
+        return py_trees.common.Status.SUCCESS
+
+
+class EmitCasePriorityActivityNode(DataLayerAction):
+    """Create and queue report-priority outbound activities."""
+
+    def __init__(
+        self,
+        case_id: str,
+        activity_method: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self._activity_method = activity_method
+
+    def setup(self, **kwargs: object) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_addressees",
+            access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
+            key="activity_ids",
+            access=py_trees.common.Access.WRITE,
+        )
+
+    def update(self) -> py_trees.common.Status:
+        if self.datalayer is None or self.actor_id is None:
+            self.feedback_message = "DataLayer or actor_id not available"
+            return py_trees.common.Status.FAILURE
+
+        factory = self.trigger_activity_factory
+        if factory is None:
+            self.feedback_message = "trigger_activity_factory not available"
+            return py_trees.common.Status.FAILURE
+
+        try:
+            addressees = self.blackboard.case_addressees
+        except KeyError:
+            self.feedback_message = "case_addressees not in blackboard"
+            return py_trees.common.Status.FAILURE
+
+        to = addressees or None
+
+        activity_method = getattr(factory, self._activity_method, None)
+        if activity_method is None:
+            self.feedback_message = (
+                f"TriggerActivityPort missing '{self._activity_method}'"
+            )
+            return py_trees.common.Status.FAILURE
+
+        try:
+            activity_id, _ = activity_method(
+                case_id=self.case_id,
+                actor=self.actor_id,
+                to=to,
+            )
+        except Exception as exc:
+            self.feedback_message = (
+                f"Failed to emit report-priority activity: {exc}"
+            )
+            return py_trees.common.Status.FAILURE
+
+        self.blackboard.activity_ids = [activity_id]
+        return py_trees.common.Status.SUCCESS
+
+
+def _create_sender_side_bt(
+    case_id: str,
+    activity_method: str,
+) -> py_trees.behaviour.Behaviour:
+    return py_trees.composites.Sequence(
+        name="SenderSideBT",
+        memory=False,
+        children=[
+            ResolveCaseAddresseesNode(case_id=case_id),
+            EmitCasePriorityActivityNode(
+                case_id=case_id,
+                activity_method=activity_method,
+            ),
+            QueueToOutboxNode(),
+        ],
+    )
 
 
 def create_engage_case_tree(
@@ -144,10 +267,10 @@ def create_prioritize_subtree(
         PrioritizeBT (Selector)
         ├─ EngagePath (Sequence)
         │    ├─ EvaluateCasePriority      # stub: SUCCESS = engage
-        │    ├─ EmitEngageCaseActivity    # emit RmEngageCaseActivity
+        │    ├─ SenderSideBT              # resolve case manager and emit Join
         │    └─ TransitionParticipantRMtoAccepted  # RM → ACCEPTED
         └─ DeferPath (Sequence)
-             ├─ EmitDeferCaseActivity     # emit RmDeferCaseActivity
+             ├─ SenderSideBT              # resolve case manager and emit Ignore
              └─ TransitionParticipantRMtoDeferred   # RM → DEFERRED
 
     Per specs/behavior-tree-integration.yaml BT-06-005, BT-06-006.
@@ -165,7 +288,10 @@ def create_prioritize_subtree(
         memory=False,
         children=[
             EvaluateCasePriority(case_id=case_id),
-            EmitEngageCaseActivity(case_id=case_id, actor_id=actor_id),
+            _create_sender_side_bt(
+                case_id=case_id,
+                activity_method="engage_case",
+            ),
             TransitionParticipantRMtoAccepted(
                 case_id=case_id, actor_id=actor_id
             ),
@@ -175,7 +301,10 @@ def create_prioritize_subtree(
         name="DeferPath",
         memory=False,
         children=[
-            EmitDeferCaseActivity(case_id=case_id, actor_id=actor_id),
+            _create_sender_side_bt(
+                case_id=case_id,
+                activity_method="defer_case",
+            ),
             TransitionParticipantRMtoDeferred(
                 case_id=case_id, actor_id=actor_id
             ),
