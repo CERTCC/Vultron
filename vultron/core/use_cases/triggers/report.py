@@ -27,21 +27,21 @@ No HTTP framework imports (FastAPI, Starlette) are permitted here.
 import logging
 from typing import TYPE_CHECKING, Any
 
-from vultron.core.states.rm import RM
+from py_trees.common import Status
+
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.report.trigger_report_trees import (
+    create_close_report_trigger_tree,
+    create_invalidate_report_trigger_tree,
+    create_reject_report_trigger_tree,
+)
 from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
-from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.report import VultronReport
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import (
-    _idempotent_create,
-    _report_phase_status_id,
-)
 from vultron.core.models.protocols import is_case_model
-from vultron.core.use_cases._helpers import case_addressees
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,
     outbox_ids,
@@ -55,7 +55,6 @@ from vultron.core.use_cases.triggers.requests import (
     ValidateReportTriggerRequest,
 )
 from vultron.errors import (
-    VultronInvalidStateTransitionError,
     VultronNotFoundError,
     VultronValidationError,
 )
@@ -91,35 +90,6 @@ def _resolve_offer_and_report(
             f" '{getattr(report, 'type_', 'None' if report is None else 'unknown')}'."
         )
     return offer, report
-
-
-def _report_addressees(
-    report_id: str, actor_id: str, offer: Any, dl: CaseOutboxPersistence
-) -> list[str] | None:
-    """Return the ``to`` recipient list for a report-phase outbound activity.
-
-    Looks up the case linked to *report_id* via ``find_case_by_report_id``.
-    If a case is found, returns all case participants except *actor_id*.
-    Falls back to the offer submitter when no case exists yet.
-
-    Returns ``None`` when no addressees can be determined.
-    """
-    case = dl.find_case_by_report_id(report_id)
-    if case is not None and is_case_model(case):
-        recipients = case_addressees(case, actor_id)
-        if recipients:
-            return recipients
-    offer_actor = getattr(offer, "actor", None)
-    if offer_actor is None:
-        return None
-    offer_actor_id = (
-        offer_actor
-        if isinstance(offer_actor, str)
-        else getattr(offer_actor, "id_", None)
-    )
-    if offer_actor_id and offer_actor_id != actor_id:
-        return [offer_actor_id]
-    return None
 
 
 class SvcValidateReportUseCase:
@@ -209,29 +179,31 @@ class SvcInvalidateReportUseCase:
                 "SvcInvalidateReportUseCase requires a TriggerActivityPort"
             )
 
-        activity_id, activity_dict = self._trigger_activity.invalidate_report(
+        before = outbox_ids(actor_id, dl)
+
+        bridge = BTBridge(
+            datalayer=dl, trigger_activity=self._trigger_activity
+        )
+        tree = create_invalidate_report_trigger_tree(
             offer_id=offer.id_,
-            actor=actor_id,
-            to=_report_addressees(report.id_, actor_id, offer, dl),
+            report_id=report.id_,
         )
+        result = bridge.execute_with_setup(tree, actor_id=actor_id)
+        if result.status != Status.SUCCESS:
+            raise VultronValidationError(
+                f"InvalidateReport failed: {BTBridge.get_failure_reason(tree)}"
+            )
 
-        set_status_invalidate = ParticipantStatus(
-            id_=_report_phase_status_id(
-                actor_id, report.id_, RM.INVALID.value
-            ),
-            context=report.id_,
-            attributed_to=actor_id,
-            rm_state=RM.INVALID,
-        )
-        _idempotent_create(
-            dl,
-            "ParticipantStatus",
-            set_status_invalidate.id_,
-            set_status_invalidate,
-            "ParticipantStatus (report-phase RM.INVALID)",
-        )
-
-        add_activity_to_outbox(actor_id, activity_id, dl)
+        activity = None
+        after = outbox_ids(actor_id, dl)
+        new_items = after - before
+        if new_items:
+            activity_id = next(iter(new_items))
+            activity_obj = dl.read(activity_id)
+            if activity_obj is not None:
+                activity = activity_obj.model_dump(
+                    by_alias=True, exclude_none=True
+                )
 
         logger.info(
             "Actor '%s' invalidated offer '%s' (report '%s')",
@@ -240,7 +212,7 @@ class SvcInvalidateReportUseCase:
             report.id_,
         )
 
-        return {"activity": activity_dict}
+        return {"activity": activity}
 
 
 class SvcRejectReportUseCase:
@@ -273,28 +245,31 @@ class SvcRejectReportUseCase:
                 "SvcRejectReportUseCase requires a TriggerActivityPort"
             )
 
-        activity_id, activity_dict = self._trigger_activity.close_report(
+        before = outbox_ids(actor_id, dl)
+
+        bridge = BTBridge(
+            datalayer=dl, trigger_activity=self._trigger_activity
+        )
+        tree = create_reject_report_trigger_tree(
             offer_id=offer.id_,
             report_id=report.id_,
-            actor=actor_id,
-            to=_report_addressees(report.id_, actor_id, offer, dl),
         )
+        result = bridge.execute_with_setup(tree, actor_id=actor_id)
+        if result.status != Status.SUCCESS:
+            raise VultronValidationError(
+                f"RejectReport failed: {BTBridge.get_failure_reason(tree)}"
+            )
 
-        set_status_reject = ParticipantStatus(
-            id_=_report_phase_status_id(actor_id, report.id_, RM.CLOSED.value),
-            context=report.id_,
-            attributed_to=actor_id,
-            rm_state=RM.CLOSED,
-        )
-        _idempotent_create(
-            dl,
-            "ParticipantStatus",
-            set_status_reject.id_,
-            set_status_reject,
-            "ParticipantStatus (report-phase RM.CLOSED)",
-        )
-
-        add_activity_to_outbox(actor_id, activity_id, dl)
+        activity = None
+        after = outbox_ids(actor_id, dl)
+        new_items = after - before
+        if new_items:
+            activity_id = next(iter(new_items))
+            activity_obj = dl.read(activity_id)
+            if activity_obj is not None:
+                activity = activity_obj.model_dump(
+                    by_alias=True, exclude_none=True
+                )
 
         logger.info(
             "Actor '%s' hard-closed offer '%s' (report '%s'); note: %s",
@@ -304,7 +279,7 @@ class SvcRejectReportUseCase:
             note,
         )
 
-        return {"activity": activity_dict}
+        return {"activity": activity}
 
 
 class SvcCloseReportUseCase:
@@ -332,48 +307,41 @@ class SvcCloseReportUseCase:
 
         offer, report = _resolve_offer_and_report(offer_id, dl)
 
-        closed_id = _report_phase_status_id(
-            actor_id, report.id_, RM.CLOSED.value
-        )
-        if dl.read(closed_id) is not None:
-            logger.warning(
-                "Invalid RM state transition: actor '%s' cannot CLOSE offer"
-                " '%s' — report '%s' is already CLOSED.",
-                actor_id,
-                offer.id_,
-                report.id_,
-            )
-            raise VultronInvalidStateTransitionError(
-                f"Report '{report.id_}' is already CLOSED."
-            )
-
         if self._trigger_activity is None:
             raise RuntimeError(
                 "SvcCloseReportUseCase requires a TriggerActivityPort"
             )
 
-        activity_id, activity_dict = self._trigger_activity.close_report(
+        before = outbox_ids(actor_id, dl)
+        result_out: dict[str, object] = {}
+
+        bridge = BTBridge(
+            datalayer=dl, trigger_activity=self._trigger_activity
+        )
+        tree = create_close_report_trigger_tree(
             offer_id=offer.id_,
             report_id=report.id_,
-            actor=actor_id,
-            to=_report_addressees(report.id_, actor_id, offer, dl),
+            result_out=result_out,
         )
+        result = bridge.execute_with_setup(tree, actor_id=actor_id)
+        if result.status != Status.SUCCESS:
+            error = result_out.get("error")
+            if isinstance(error, Exception):
+                raise error
+            raise VultronValidationError(
+                f"CloseReport failed: {BTBridge.get_failure_reason(tree)}"
+            )
 
-        set_status_close = ParticipantStatus(
-            id_=closed_id,
-            context=report.id_,
-            attributed_to=actor_id,
-            rm_state=RM.CLOSED,
-        )
-        _idempotent_create(
-            dl,
-            "ParticipantStatus",
-            set_status_close.id_,
-            set_status_close,
-            "ParticipantStatus (report-phase RM.CLOSED)",
-        )
-
-        add_activity_to_outbox(actor_id, activity_id, dl)
+        activity = None
+        after = outbox_ids(actor_id, dl)
+        new_items = after - before
+        if new_items:
+            activity_id = next(iter(new_items))
+            activity_obj = dl.read(activity_id)
+            if activity_obj is not None:
+                activity = activity_obj.model_dump(
+                    by_alias=True, exclude_none=True
+                )
 
         logger.info(
             "Actor '%s' closed offer '%s' (report '%s') via RM lifecycle;"
@@ -384,7 +352,7 @@ class SvcCloseReportUseCase:
             note,
         )
 
-        return {"activity": activity_dict}
+        return {"activity": activity}
 
 
 class SvcSubmitReportUseCase:

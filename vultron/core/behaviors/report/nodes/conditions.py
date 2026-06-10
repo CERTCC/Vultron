@@ -23,6 +23,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.errors import VultronInvalidStateTransitionError
 
 
 class CheckRMStateValid(DataLayerCondition):
@@ -321,3 +322,74 @@ class CheckParticipantExists(FindParticipantByActorIdNode):
             participant_key="participant",
             name=name or self.__class__.__name__,
         )
+
+
+class CheckReportNotClosed(DataLayerCondition):
+    """Check that the report does NOT already have an RM.CLOSED status record.
+
+    Returns SUCCESS when the report is not yet closed (the transition is
+    permitted).  Returns FAILURE and writes a
+    :class:`~vultron.errors.VultronInvalidStateTransitionError` into
+    ``result_out["error"]`` when the report is already closed, so the calling
+    use case can re-raise the domain exception.
+
+    Per issue #849 AC-3: the duplicate-close guard must be expressed as a BT
+    condition node, not as a procedural raise in ``execute()``.
+    """
+
+    def __init__(
+        self,
+        report_id: str,
+        result_out: dict,
+        name: str | None = None,
+    ) -> None:
+        """Initialize CheckReportNotClosed.
+
+        Args:
+            report_id: ID of the VulnerabilityReport to check.
+            result_out: Mutable dict; on FAILURE, the
+                ``VultronInvalidStateTransitionError`` is written to
+                ``result_out["error"]`` so the use case can re-raise it.
+            name: Optional custom node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+        self._result_out = result_out
+
+    def update(self) -> Status:
+        """Guard against closing an already-closed report.
+
+        Returns:
+            SUCCESS when not yet closed;
+            FAILURE (+ ``result_out["error"]``) when already closed or
+            the DataLayer/actor_id is unavailable.
+        """
+        if self.datalayer is None:
+            self.logger.error("%s: DataLayer not available", self.name)
+            return Status.FAILURE
+        if self.actor_id is None:
+            self.logger.error("%s: actor_id not available", self.name)
+            return Status.FAILURE
+
+        closed_id = _report_phase_status_id(
+            self.actor_id, self.report_id, RM.CLOSED.value
+        )
+        if self.datalayer.read(closed_id) is not None:
+            error = VultronInvalidStateTransitionError(
+                f"Report '{self.report_id}' is already CLOSED."
+            )
+            self._result_out["error"] = error
+            self.feedback_message = str(error)
+            self.logger.warning(
+                "%s: Report '%s' is already CLOSED — transition blocked",
+                self.name,
+                self.report_id,
+            )
+            return Status.FAILURE
+
+        self.logger.debug(
+            "%s: Report '%s' not yet closed — proceeding",
+            self.name,
+            self.report_id,
+        )
+        return Status.SUCCESS

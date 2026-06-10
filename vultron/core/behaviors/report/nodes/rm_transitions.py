@@ -239,6 +239,73 @@ class TransitionRMtoInvalid(DataLayerAction):
             return Status.FAILURE
 
 
+class TransitionRMtoClosed(DataLayerAction):
+    """
+    Transition report to RM.CLOSED (report-phase ParticipantStatus).
+
+    Persists a ParticipantStatus record with RM.CLOSED for the actor and
+    report in the DataLayer.
+    Logs state transitions at INFO level.
+
+    Used by both the reject-report and close-report trigger workflows.
+    """
+
+    def __init__(self, report_id: str, offer_id: str, name: str | None = None):
+        """
+        Initialize TransitionRMtoClosed node.
+
+        Args:
+            report_id: ID of VulnerabilityReport to update
+            offer_id: ID of Offer being closed/rejected
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+        self.offer_id = offer_id
+
+    def update(self) -> Status:
+        """
+        Update report status to CLOSED in DataLayer.
+
+        Returns:
+            SUCCESS if status updated, FAILURE on error
+        """
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                "%s: DataLayer or actor_id not available", self.name
+            )
+            return Status.FAILURE
+
+        try:
+            status = ParticipantStatus(
+                id_=_report_phase_status_id(
+                    self.actor_id, self.report_id, RM.CLOSED.value
+                ),
+                context=self.report_id,
+                attributed_to=self.actor_id,
+                rm_state=RM.CLOSED,
+            )
+            _idempotent_create(
+                self.datalayer,
+                "ParticipantStatus",
+                status.id_,
+                status,
+                "ParticipantStatus (report-phase RM.CLOSED)",
+            )
+            self.logger.info(
+                "RM → CLOSED for report '%s' (actor '%s')",
+                self.report_id,
+                self.actor_id,
+            )
+            return Status.SUCCESS
+
+        except Exception as e:
+            self.logger.error(
+                "%s: Error transitioning to CLOSED: %s", self.name, e
+            )
+            return Status.FAILURE
+
+
 class TransitionCaseParticipantRMtoClosed(DataLayerAction):
     """Transition the actor's RM state to CLOSED in the case for a report.
 
