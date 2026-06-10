@@ -165,51 +165,26 @@ class VerifySenderIsParticipantNode(FindParticipantByActorIdNode):
         return Status.SUCCESS
 
 
-class AppendParticipantStatusNode(DataLayerAction):
-    """Step 2: Append ParticipantStatus to the CaseParticipant record.
+class LoadParticipantNode(DataLayerAction):
+    """Load the CaseParticipant from DataLayer to blackboard.
 
-    Validates any RM state transition before appending:
-    - Non-adjacent forward RM jumps are accepted (sender is authoritative
-      about their own state).
-    - Backwards RM transitions are rejected.
+    Reads the participant by ID and writes it to the blackboard under the key
+    ``append_status_participant``.
 
-    Returns SUCCESS on append (or if status already present — idempotent).
-    Returns FAILURE if participant or status cannot be resolved, or if the
-    RM transition is invalid.
-
-    Per DEMOMA-07-003 step 2.
+    Returns SUCCESS if the participant is found and is a valid participant model.
+    Returns FAILURE if participant not found or is not a participant model.
     """
 
-    def __init__(
-        self,
-        status_id: str,
-        participant_id: str,
-        status_obj_fallback: PersistableModel | None,
-        name: str | None = None,
-    ):
+    def __init__(self, participant_id: str, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
-        self.status_id = status_id
         self.participant_id = participant_id
-        self.status_obj_fallback = status_obj_fallback
 
-    def _resolve_status(self) -> "PersistableModel | None":
-        """Resolve the status object by ID, persisting the fallback when needed.
-
-        Tries the DataLayer first; if not found, uses ``status_obj_fallback``,
-        saves it, then re-reads the canonical wire-format record.  Returns
-        ``None`` when neither source can provide the status.
-        """
-        dl = self.datalayer
-        assert dl is not None  # checked by caller
-        status_obj = dl.read(self.status_id)
-        if not hasattr(status_obj, "id_"):
-            status_obj = self.status_obj_fallback
-            if status_obj is not None:
-                dl.save(status_obj)
-                # Re-read so we get the canonical wire-format object
-                # (correct type_ enum) rather than the domain fallback.
-                status_obj = dl.read(self.status_id) or status_obj
-        return status_obj if hasattr(status_obj, "id_") else None
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="append_status_participant",
+            access=py_trees.common.Access.WRITE,
+        )
 
     def update(self) -> Status:
         if self.datalayer is None:
@@ -222,27 +197,125 @@ class AppendParticipantStatusNode(DataLayerAction):
                 f"Participant '{self.participant_id}' not found"
             )
             self.logger.warning(
-                "AppendParticipantStatus: %s", self.feedback_message
+                "LoadParticipantNode: %s", self.feedback_message
+            )
+            return Status.FAILURE
+
+        self.logger.debug(
+            "LoadParticipantNode: loaded participant '%s'",
+            self.participant_id,
+        )
+        self.blackboard.set(
+            "append_status_participant", participant, overwrite=True
+        )
+        return Status.SUCCESS
+
+
+class CheckStatusNotAlreadyAppendedNode(DataLayerCondition):
+    """Check idempotency: is the status already appended to the participant?
+
+    Returns SUCCESS if the status is NOT already on the participant
+    (i.e., it's safe to append). Returns SUCCESS if the participant has no
+    statuses yet.
+
+    Returns FAILURE if the status ID already exists in the participant's
+    status list, indicating the append would be redundant.
+    """
+
+    def __init__(
+        self, status_id: str, participant_id: str, name: str | None = None
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.status_id = status_id
+        self.participant_id = participant_id
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="append_status_participant",
+            access=py_trees.common.Access.READ,
+        )
+
+    def update(self) -> Status:
+        participant = self.blackboard.get("append_status_participant")
+        if participant is None:
+            self.feedback_message = "Participant not on blackboard"
+            self.logger.warning(
+                "CheckStatusNotAlreadyAppendedNode: %s",
+                self.feedback_message,
             )
             return Status.FAILURE
 
         existing_ids = [_as_id(s) for s in participant.participant_statuses]
         if self.status_id in existing_ids:
             self.logger.info(
-                "AppendParticipantStatus: status '%s' already on participant"
-                " '%s' — skipping (idempotent)",
+                "CheckStatusNotAlreadyAppendedNode: status '%s' already"
+                " on participant '%s' — idempotent, skipping",
                 self.status_id,
                 self.participant_id,
             )
-            return Status.SUCCESS
+            return Status.FAILURE
 
-        status_obj = self._resolve_status()
-        if status_obj is None:
+        self.logger.debug(
+            "CheckStatusNotAlreadyAppendedNode: status '%s' not yet appended",
+            self.status_id,
+        )
+        return Status.SUCCESS
+
+
+class ResolveAndPersistStatusObjectNode(DataLayerAction):
+    """Resolve the status object by ID, persisting fallback if needed.
+
+    Tries the DataLayer first; if not found, uses ``status_obj_fallback``,
+    saves it, then re-reads the canonical wire-format record.
+
+    Validates that the resolved object is a ParticipantStatus (has rm_state and
+    vfd_state attributes).
+
+    Writes the resolved status object to the blackboard under the key
+    ``append_status_status_obj``.
+
+    Returns SUCCESS if status is resolved and valid.
+    Returns FAILURE if status cannot be resolved or is not a ParticipantStatus.
+    """
+
+    def __init__(
+        self,
+        status_id: str,
+        status_obj_fallback: PersistableModel | None,
+        name: str | None = None,
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.status_id = status_id
+        self.status_obj_fallback = status_obj_fallback
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="append_status_status_obj",
+            access=py_trees.common.Access.WRITE,
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+
+        status_obj = self.datalayer.read(self.status_id)
+        if not hasattr(status_obj, "id_"):
+            status_obj = self.status_obj_fallback
+            if status_obj is not None:
+                self.datalayer.save(status_obj)
+                status_obj = self.datalayer.read(self.status_id) or status_obj
+
+        if status_obj is None or not hasattr(status_obj, "id_"):
             self.feedback_message = f"Status '{self.status_id}' not found"
             self.logger.warning(
-                "AppendParticipantStatus: %s", self.feedback_message
+                "ResolveAndPersistStatusObjectNode: %s",
+                self.feedback_message,
             )
             return Status.FAILURE
+
         if not hasattr(status_obj, "rm_state") or not hasattr(
             status_obj, "vfd_state"
         ):
@@ -250,37 +323,152 @@ class AppendParticipantStatusNode(DataLayerAction):
                 f"Object '{self.status_id}' is not a ParticipantStatus"
             )
             self.logger.warning(
-                "AppendParticipantStatus: %s", self.feedback_message
+                "ResolveAndPersistStatusObjectNode: %s",
+                self.feedback_message,
             )
             return Status.FAILURE
 
-        # Validate RM state transition
+        self.logger.debug(
+            "ResolveAndPersistStatusObjectNode: resolved status '%s'",
+            self.status_id,
+        )
+        self.blackboard.set(
+            "append_status_status_obj", status_obj, overwrite=True
+        )
+        return Status.SUCCESS
+
+
+class ValidateRMTransitionNode(DataLayerCondition):
+    """Validate RM state transition rules.
+
+    Checks that the new RM state does not violate transition rules:
+    - Accepts non-adjacent forward RM jumps (sender is authoritative)
+    - Rejects backwards RM transitions
+
+    Returns SUCCESS if the transition is valid or if participant has no current
+    status (nothing to validate against).
+
+    Returns FAILURE if a backwards RM transition is detected.
+    """
+
+    def __init__(self, participant_id: str, name: str | None = None):
+        super().__init__(name=name or self.__class__.__name__)
+        self.participant_id = participant_id
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="append_status_participant",
+            access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
+            key="append_status_status_obj",
+            access=py_trees.common.Access.READ,
+        )
+
+    def update(self) -> Status:
+        participant = self.blackboard.get("append_status_participant")
+        status_obj = self.blackboard.get("append_status_status_obj")
+
+        if participant is None or status_obj is None:
+            self.feedback_message = "Participant or status not on blackboard"
+            self.logger.warning(
+                "ValidateRMTransitionNode: %s", self.feedback_message
+            )
+            return Status.FAILURE
+
         new_rm_state = getattr(status_obj, "rm_state", None)
         current_status = getattr(participant, "participant_status", None)
-        if new_rm_state is not None and current_status is not None:
-            current_rm = current_status.rm_state
-            if current_rm != new_rm_state and not is_valid_rm_transition(
-                current_rm, new_rm_state
-            ):
-                if is_monotonic_rm_forward(current_rm, new_rm_state):
-                    self.logger.info(
-                        "AppendParticipantStatus: non-adjacent forward RM"
-                        " transition %s → %s for participant '%s';"
-                        " accepting sender-authoritative state",
-                        current_rm,
-                        new_rm_state,
-                        self.participant_id,
-                    )
-                else:
-                    self.feedback_message = (
-                        f"Backwards RM transition {current_rm} → {new_rm_state}"
-                        f" for participant '{self.participant_id}'"
-                    )
-                    self.logger.warning(
-                        "AppendParticipantStatus: %s — rejecting",
-                        self.feedback_message,
-                    )
-                    return Status.FAILURE
+
+        if new_rm_state is None or current_status is None:
+            self.logger.debug(
+                "ValidateRMTransitionNode: no current status or new RM state,"
+                " skipping validation"
+            )
+            return Status.SUCCESS
+
+        current_rm = current_status.rm_state
+        if current_rm == new_rm_state:
+            self.logger.debug(
+                "ValidateRMTransitionNode: no RM state change (both %s)",
+                current_rm,
+            )
+            return Status.SUCCESS
+
+        if is_valid_rm_transition(current_rm, new_rm_state):
+            self.logger.debug(
+                "ValidateRMTransitionNode: valid adjacent transition"
+                " %s → %s",
+                current_rm,
+                new_rm_state,
+            )
+            return Status.SUCCESS
+
+        if is_monotonic_rm_forward(current_rm, new_rm_state):
+            self.logger.info(
+                "ValidateRMTransitionNode: non-adjacent forward RM"
+                " transition %s → %s for participant '%s';"
+                " accepting sender-authoritative state",
+                current_rm,
+                new_rm_state,
+                self.participant_id,
+            )
+            return Status.SUCCESS
+
+        self.feedback_message = (
+            f"Backwards RM transition {current_rm} → {new_rm_state}"
+            f" for participant '{self.participant_id}'"
+        )
+        self.logger.warning(
+            "ValidateRMTransitionNode: %s — rejecting",
+            self.feedback_message,
+        )
+        return Status.FAILURE
+
+
+class AppendStatusAndSaveParticipantNode(DataLayerAction):
+    """Append the status object to the participant and save.
+
+    Appends the resolved status object (from blackboard) to the participant's
+    status list and saves the participant to the DataLayer.
+
+    Returns SUCCESS on successful append and save.
+    Returns FAILURE if participant or status not on blackboard.
+    """
+
+    def __init__(
+        self, status_id: str, participant_id: str, name: str | None = None
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.status_id = status_id
+        self.participant_id = participant_id
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="append_status_participant",
+            access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
+            key="append_status_status_obj",
+            access=py_trees.common.Access.READ,
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+
+        participant = self.blackboard.get("append_status_participant")
+        status_obj = self.blackboard.get("append_status_status_obj")
+
+        if participant is None or status_obj is None:
+            self.feedback_message = "Participant or status not on blackboard"
+            self.logger.warning(
+                "AppendStatusAndSaveParticipantNode: %s",
+                self.feedback_message,
+            )
+            return Status.FAILURE
 
         from vultron.core.models.protocols import ParticipantStatusModel
 
@@ -289,8 +477,8 @@ class AppendParticipantStatusNode(DataLayerAction):
         )
         self.datalayer.save(participant)
         self.logger.info(
-            "AppendParticipantStatus: added status '%s' to participant '%s'"
-            " (DEMOMA-07-003 step 2)",
+            "AppendStatusAndSaveParticipantNode: added status '%s' to"
+            " participant '%s' (DEMOMA-07-003 step 2)",
             self.status_id,
             self.participant_id,
         )
