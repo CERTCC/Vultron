@@ -170,37 +170,6 @@ def _effective_case_roles(actor_config: ActorConfig | None) -> list[CVDRole]:
     return list(dict.fromkeys(base_roles + [CVDRole.CASE_OWNER]))
 
 
-def _save_owner_case(
-    dl: CasePersistence,
-    stored_case: CaseModel,
-    case_id: str,
-    actor_id: str,
-    advance_to_accepted: bool,
-    node_name: str,
-    node_logger: logging.Logger,
-) -> None:
-    dl.save(stored_case)
-    if not advance_to_accepted:
-        return
-
-    advanced = update_participant_rm_state(case_id, actor_id, RM.ACCEPTED, dl)
-    if advanced:
-        node_logger.info(
-            "Owner RM: VALID → ACCEPTED for actor '%s' in case '%s' "
-            "(case creation = case engagement)",
-            actor_id,
-            case_id,
-        )
-        return
-
-    node_logger.warning(
-        "%s: Could not advance owner RM to ACCEPTED for actor '%s' in case '%s'",
-        node_name,
-        actor_id,
-        case_id,
-    )
-
-
 def _get_or_create_accepted_status(
     dl: CasePersistence,
     actor_id: str,
@@ -329,34 +298,323 @@ def _queue_participant_add_notification(
 # ============================================================================
 
 
-class CreateCaseOwnerParticipant(DataLayerAction):
+class ResolveOwnerInitialStatusNode(DataLayerAction):
+    """Resolve/create the owner's initial ParticipantStatus."""
+
+    def __init__(
+        self,
+        report_id: str | None,
+        case_obj: VultronCase | None,
+        initial_rm_state: RM,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+        self.case_obj = case_obj
+        self.initial_rm_state = initial_rm_state
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="owner_initial_status", access=py_trees.common.Access.WRITE
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                "%s: DataLayer or actor_id not available",
+                self.name,
+            )
+            return Status.FAILURE
+
+        try:
+            case_id = _resolve_case_id(self.blackboard, self.case_obj)
+        except KeyError:
+            case_id = None
+        if case_id is None:
+            self.logger.error("%s: case_id not available", self.name)
+            return Status.FAILURE
+
+        self.blackboard.owner_initial_status = _build_owner_initial_status(
+            self.datalayer,
+            self.actor_id,
+            case_id,
+            self.report_id,
+            self.initial_rm_state,
+        )
+        return Status.SUCCESS
+
+
+class CreateOwnerParticipantNode(DataLayerAction):
+    """Create the in-memory owner participant and stage it on blackboard."""
+
+    def __init__(
+        self,
+        actor_config: ActorConfig | None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.actor_config = actor_config
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="owner_initial_status", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="new_case_participant",
+            access=py_trees.common.Access.WRITE,
+        )
+
+    def update(self) -> Status:
+        if self.actor_id is None:
+            self.logger.error("%s: actor_id not available", self.name)
+            return Status.FAILURE
+        try:
+            case_id_obj = self.blackboard.get("case_id")
+        except KeyError:
+            case_id_obj = None
+        initial_status = self.blackboard.get("owner_initial_status")
+        if not isinstance(initial_status, ParticipantStatus):
+            self.logger.error(
+                "%s: case_id/owner_initial_status missing in blackboard",
+                self.name,
+            )
+            return Status.FAILURE
+        case_id = case_id_obj
+        if not isinstance(case_id, str):
+            status_context = _as_id(initial_status.context)
+            case_id = status_context if status_context is not None else None
+        if case_id is None:
+            self.logger.error("%s: case_id not available", self.name)
+            return Status.FAILURE
+
+        self.blackboard.new_case_participant = VultronParticipant(
+            attributed_to=self.actor_id,
+            context=case_id,
+            case_roles=_effective_case_roles(self.actor_config),
+            participant_statuses=[initial_status],
+        )
+        return Status.SUCCESS
+
+
+class AttachOwnerParticipantToCaseNode(DataLayerAction):
+    """Persist and attach staged owner participant to the case."""
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="new_case_participant",
+            access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
+            key="participant_case", access=py_trees.common.Access.WRITE
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                "%s: DataLayer or actor_id not available",
+                self.name,
+            )
+            return Status.FAILURE
+        try:
+            case_id_obj = self.blackboard.get("case_id")
+        except KeyError:
+            case_id_obj = None
+        participant = self.blackboard.get("new_case_participant")
+        if not isinstance(participant, VultronParticipant):
+            self.logger.error(
+                "%s: case_id/new_case_participant missing in blackboard",
+                self.name,
+            )
+            return Status.FAILURE
+        case_id = case_id_obj
+        if not isinstance(case_id, str):
+            case_id = _as_id(participant.context)
+        if case_id is None:
+            self.logger.error("%s: case_id not available", self.name)
+            return Status.FAILURE
+
+        stored_case = _create_and_attach_participant(
+            self.datalayer,
+            participant,
+            case_id,
+            self.actor_id,
+            self.logger,
+        )
+        if stored_case is None:
+            self.logger.error(
+                "%s: Case %s not found in DataLayer",
+                self.name,
+                case_id,
+            )
+            return Status.FAILURE
+
+        self.blackboard.participant_case = stored_case
+        return Status.SUCCESS
+
+
+class PersistOwnerCaseNode(DataLayerAction):
+    """Persist the updated case after owner participant attachment."""
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="participant_case", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.logger.error("%s: DataLayer not available", self.name)
+            return Status.FAILURE
+        stored_case = self.blackboard.get("participant_case")
+        if not is_case_model(stored_case):
+            self.logger.error(
+                "%s: participant_case missing in blackboard",
+                self.name,
+            )
+            return Status.FAILURE
+        self.datalayer.save(stored_case)
+        return Status.SUCCESS
+
+
+class ShouldAdvanceOwnerToAcceptedNode(py_trees.behaviour.Behaviour):
+    """Condition leaf for owner RM advancement branch selection."""
+
+    def __init__(
+        self, advance_to_accepted: bool, name: str | None = None
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._advance_to_accepted = advance_to_accepted
+
+    def update(self) -> Status:
+        return Status.SUCCESS if self._advance_to_accepted else Status.FAILURE
+
+
+class AdvanceOwnerRmToAcceptedNode(DataLayerAction):
+    """Advance owner RM to ACCEPTED when case creation means engagement."""
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="participant_case", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                "%s: DataLayer or actor_id not available",
+                self.name,
+            )
+            return Status.FAILURE
+        try:
+            case_id_obj = self.blackboard.get("case_id")
+        except KeyError:
+            case_id_obj = None
+        case_id = case_id_obj if isinstance(case_id_obj, str) else None
+        if case_id is None:
+            stored_case = self.blackboard.get("participant_case")
+            case_id = stored_case.id_ if is_case_model(stored_case) else None
+        if case_id is None:
+            self.logger.error("%s: case_id not available", self.name)
+            return Status.FAILURE
+
+        advanced = update_participant_rm_state(
+            case_id,
+            self.actor_id,
+            RM.ACCEPTED,
+            self.datalayer,
+        )
+        if advanced:
+            self.logger.info(
+                "Owner RM: VALID → ACCEPTED for actor '%s' in case '%s' "
+                "(case creation = case engagement)",
+                self.actor_id,
+                case_id,
+            )
+        else:
+            self.logger.warning(
+                "%s: Could not advance owner RM to ACCEPTED for actor '%s'"
+                " in case '%s'",
+                self.name,
+                self.actor_id,
+                case_id,
+            )
+        return Status.SUCCESS
+
+
+class RecordOwnerJoinedEventNode(DataLayerAction):
+    """Record owner_joined event and persist the case update.
+
+    Per notes/bt-integration.md, all protocol-significant behavior MUST be in
+    the BT.  This node records the case history event for the owner's initial
+    participation, analogous to ``RecordParticipantAddedEventNode`` in the
+    non-owner path (CM-02-008).
     """
-    Create and persist a case-owner participant for the receiving actor,
-    then add it to the case's case_participants list.
 
-    Roles are sourced from ``actor_config.default_case_roles``
-    (CFG-07-004); ``CVDRole.CASE_OWNER`` is always appended
-    (BTND-05-002).  When ``actor_config`` is ``None`` the participant
-    receives only the ``CASE_OWNER`` role.
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
 
-    Seeds the participant with the deterministic status record for the
-    given ``initial_rm_state`` (defaulting to ``RM.VALID``). When
-    ``report_id`` is provided, the node first looks for an existing status
-    record in the DataLayer (created by an earlier use case) and reuses it
-    to avoid duplicating history. If no existing record is found, a fresh
-    ``ParticipantStatus`` is created.
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="participant_case",
+            access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
+            key="new_case_participant",
+            access=py_trees.common.Access.READ,
+        )
 
-    Optionally advances the actor's RM to ACCEPTED
-    (``advance_to_accepted=True``) after the participant is created — use
-    this in the validate-report BT where case creation is the act of
-    engaging the case.
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.logger.error("%s: DataLayer not available", self.name)
+            return Status.FAILURE
 
-    Must run after the case exists in the DataLayer (``PersistCase`` or
-    ``CreateCaseNode``).
+        stored_case = self.blackboard.get("participant_case")
+        participant = self.blackboard.get("new_case_participant")
+        if not is_case_model(stored_case) or not isinstance(
+            participant, VultronParticipant
+        ):
+            self.logger.error(
+                "%s: participant_case/new_case_participant missing in"
+                " blackboard",
+                self.name,
+            )
+            return Status.FAILURE
 
-    Per specs/case-management.yaml CM-02-008 (SHOULD),
-    specs/behavior-tree-node-design.yaml BTND-05-002 (MUST), and
-    specs/configuration.yaml CFG-07-004 (MUST).
+        stored_case.record_event(participant.id_, "owner_joined")
+        self.datalayer.save(stored_case)
+        return Status.SUCCESS
+
+
+class CreateCaseOwnerParticipant(py_trees.composites.Sequence):
+    """
+    Composed subtree that creates and attaches the case-owner participant.
+
+    Per specs/case-management.yaml CM-02-008, BTND-05-002, and BTND-07-001.
     """
 
     def __init__(
@@ -368,75 +626,38 @@ class CreateCaseOwnerParticipant(DataLayerAction):
         initial_rm_state: RM = RM.VALID,
         name: str | None = None,
     ):
-        super().__init__(name=name or self.__class__.__name__)
-        self.actor_config = actor_config
-        self.report_id = report_id
-        self.case_obj = case_obj
-        self.advance_to_accepted = advance_to_accepted
-        self.initial_rm_state = initial_rm_state
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
+        super().__init__(
+            name=name or self.__class__.__name__,
+            memory=False,
+            children=[
+                ResolveOwnerInitialStatusNode(
+                    report_id=report_id,
+                    case_obj=case_obj,
+                    initial_rm_state=initial_rm_state,
+                ),
+                CreateOwnerParticipantNode(actor_config=actor_config),
+                AttachOwnerParticipantToCaseNode(),
+                PersistOwnerCaseNode(),
+                RecordOwnerJoinedEventNode(),
+                py_trees.composites.Selector(
+                    name="AdvanceOwnerRmIfConfigured",
+                    memory=False,
+                    children=[
+                        py_trees.composites.Sequence(
+                            name="AdvanceOwnerRmBranch",
+                            memory=False,
+                            children=[
+                                ShouldAdvanceOwnerToAcceptedNode(
+                                    advance_to_accepted=advance_to_accepted
+                                ),
+                                AdvanceOwnerRmToAcceptedNode(),
+                            ],
+                        ),
+                        py_trees.behaviours.Success(name="SkipAdvanceOwnerRm"),
+                    ],
+                ),
+            ],
         )
-
-    def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                f"{self.name}: DataLayer or actor_id not available"
-            )
-            return Status.FAILURE
-
-        try:
-            case_id = _resolve_case_id(self.blackboard, self.case_obj)
-            if case_id is None:
-                self.logger.error(f"{self.name}: case_id not available")
-                return Status.FAILURE
-
-            initial_status = _build_owner_initial_status(
-                self.datalayer,
-                self.actor_id,
-                case_id,
-                self.report_id,
-                self.initial_rm_state,
-            )
-            participant = VultronParticipant(
-                attributed_to=self.actor_id,
-                context=case_id,
-                case_roles=_effective_case_roles(self.actor_config),
-                participant_statuses=[initial_status],
-            )
-
-            stored_case = _create_and_attach_participant(
-                self.datalayer,
-                participant,
-                case_id,
-                self.actor_id,
-                self.logger,
-            )
-            if stored_case is None:
-                self.logger.error(
-                    f"{self.name}: Case {case_id} not found in DataLayer"
-                )
-                return Status.FAILURE
-
-            _save_owner_case(
-                self.datalayer,
-                stored_case,
-                case_id,
-                self.actor_id,
-                self.advance_to_accepted,
-                self.name,
-                self.logger,
-            )
-            return Status.SUCCESS
-
-        except Exception as e:
-            self.logger.error(
-                f"{self.name}: Error creating case-owner participant: {e}"
-            )
-            return Status.FAILURE
 
 
 class ResolveParticipantAcceptedStatusNode(DataLayerAction):

@@ -173,3 +173,10 @@ header.
   collect context, derive index/recipients, then perform side effects.
 - Condition+action hybrid nodes are clearer and safer as `Selector` composites:
   a pure condition leaf first, then side-effect action fallback.
+
+### 2026-06-10 ISSUE-714 — Decomposed BT nodes must preserve alternate context seams
+
+- When replacing a god node with leaf-node sequences, preserve all original
+  input seams (`case_id` from blackboard and `case_obj`-derived context).
+- If downstream leaves rely on blackboard keys, add explicit fallback reads
+  from staged objects/status context to avoid regressing valid call paths.
