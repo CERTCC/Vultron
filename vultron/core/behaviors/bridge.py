@@ -342,6 +342,7 @@ class BTBridge:
             storage = py_trees.blackboard.Blackboard.storage
             for _key in _released:
                 storage.pop(_key, None)
+                storage.pop(f"/{_key}", None)
 
     @staticmethod
     def get_failure_reason(
