@@ -27,6 +27,7 @@ from typing import cast
 
 from pydantic import ValidationError
 
+from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
     as_Question,
@@ -582,7 +583,7 @@ def reject_case_ownership_transfer_activity(
 
 
 def rm_invite_to_case_activity(
-    invitee: as_Actor,
+    invitee: CoreActor | as_Actor,
     target: VulnerabilityCaseStub | str | None = None,
     **kwargs,
 ) -> as_Invite:

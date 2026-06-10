@@ -20,9 +20,10 @@ from vultron.adapters.driving.fastapi.routers import actors as actors_router
 from vultron.adapters.driving.fastapi.routers import (
     datalayer as datalayer_router,
 )
+from vultron.core.models.actor import CoreActor
+from vultron.adapters.utils import make_id
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import (
-    as_Actor,
     as_Organization,
     as_Person,
     as_Service,
@@ -70,7 +71,7 @@ def client_actors(dl):
 
 # Provide list of actor classes used in actor router tests
 _actor_classes = [
-    as_Actor,
+    CoreActor,
     as_Organization,
     as_Person,
     as_Service,
@@ -88,7 +89,16 @@ def actor_classes():
 def created_actors(dl, actor_classes):
     actors = []
     for actor_cls in actor_classes:
-        actor = actor_cls(name="Test Actor for List")
+        # CoreActor stores inbox/outbox as URI strings; provide them explicitly
+        # so profile-discovery tests can assert inbox/outbox are present.
+        if issubclass(actor_cls, CoreActor):
+            actor = actor_cls(
+                name="Test Actor for List",
+                inbox=make_id("inbox"),
+                outbox=make_id("outbox"),
+            )
+        else:
+            actor = actor_cls(name="Test Actor for List")
         dl.create(object_to_record(actor))
         actors.append(actor)
     return actors

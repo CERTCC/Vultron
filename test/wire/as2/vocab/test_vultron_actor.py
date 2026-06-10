@@ -19,7 +19,10 @@ VultronActorMixin (EP-01-001).
 import unittest
 from datetime import timedelta
 
-from vultron.core.models.actor import VultronPerson as CoreVultronPerson
+from vultron.core.models.actor import (
+    CoreActor,
+    VultronPerson as CoreVultronPerson,
+)
 from vultron.wire.as2.enums import as_ActorType
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.registry import VOCABULARY
@@ -163,7 +166,7 @@ class TestVultronActorTypePreservation(unittest.TestCase):
 
 class TestWireActorVocabularyAndRoundTrip(unittest.TestCase):
     def test_vocabulary_points_to_wire_actor_types(self):
-        self.assertIs(VOCABULARY["Actor"], as_Actor)
+        self.assertIs(VOCABULARY["Actor"], CoreActor)
         self.assertIs(VOCABULARY["Person"], VultronPerson)
         self.assertIs(VOCABULARY["Organization"], VultronOrganization)
         self.assertIs(VOCABULARY["Service"], VultronService)
