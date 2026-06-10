@@ -12,7 +12,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for CaseLogEntry, CaseEventLog, ReplicationState, and BTBridge
+"""Unit tests for CaseLogEntry, CaseEventLog, and BTBridge
 leadership guard.
 
 Covers:
@@ -23,7 +23,7 @@ Covers:
   ``tail_hash``, ``recorded_entries`` projection, and ``verify_chain``
   (SYNC-01-001, SYNC-01-002, SYNC-01-003, SYNC-07-001,
   CLP-04-001, CLP-04-003).
-- ``ReplicationState`` construction and DataLayer serialisation
+- ``VultronReplicationState`` construction and DataLayer serialisation
   (SYNC-04-001, SYNC-04-002).
 - ``BTBridge`` leadership guard port — default always-True behaviour and
   non-leader short-circuit (SYNC-09-003).
@@ -41,10 +41,10 @@ from vultron.core.models.case_log import (
     GENESIS_HASH,
     CaseEventLog,
     HashChainLogRecord,
-    ReplicationState,
     _canonical_bytes,
     _sha256_hex,
 )
+from vultron.core.models.replication_state import VultronReplicationState
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -469,36 +469,45 @@ class TestCaseEventLogVerifyChain:
 
 
 # ---------------------------------------------------------------------------
-# ReplicationState
+# VultronReplicationState
 # ---------------------------------------------------------------------------
+
+CASE_URI = "urn:uuid:case-abcd"
 
 
 class TestReplicationState:
     def test_construction_with_peer_id(self):
         peer = "https://example.org/vendor"
-        state = ReplicationState(peer_id=peer)
+        state = VultronReplicationState(case_id=CASE_URI, peer_id=peer)
         assert state.peer_id == peer
 
     def test_default_last_acknowledged_hash_is_genesis(self):
-        state = ReplicationState(peer_id="https://example.org/finder")
+        state = VultronReplicationState(
+            case_id=CASE_URI, peer_id="https://example.org/finder"
+        )
         assert state.last_acknowledged_hash == GENESIS_HASH
 
     def test_custom_last_acknowledged_hash(self):
         digest = "a" * 64
-        state = ReplicationState(
+        state = VultronReplicationState(
+            case_id=CASE_URI,
             peer_id="https://example.org/finder",
             last_acknowledged_hash=digest,
         )
         assert state.last_acknowledged_hash == digest
 
     def test_updated_at_is_set(self):
-        state = ReplicationState(peer_id="https://example.org/finder")
+        state = VultronReplicationState(
+            case_id=CASE_URI, peer_id="https://example.org/finder"
+        )
         assert state.updated_at is not None
 
     def test_pydantic_serialisation_round_trip(self):
-        state = ReplicationState(peer_id="https://example.org/finder")
-        dumped = state.model_dump()
-        restored = ReplicationState.model_validate(dumped)
+        state = VultronReplicationState(
+            case_id=CASE_URI, peer_id="https://example.org/finder"
+        )
+        dumped = state.model_dump(by_alias=True)
+        restored = VultronReplicationState.model_validate(dumped)
         assert restored.peer_id == state.peer_id
         assert restored.last_acknowledged_hash == state.last_acknowledged_hash
 
