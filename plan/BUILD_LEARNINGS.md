@@ -166,3 +166,10 @@ header.
 - Leaf nodes that require blackboard context should convert missing-key reads
   into explicit node `FAILURE` with a clear error message, not bridge-level
   exception failures.
+
+### 2026-06-10 ISSUE-755 — SYNC god-node decomposition works best as context handoff leaves
+
+- For replay/fan-out flows, split nodes around blackboard context boundaries:
+  collect context, derive index/recipients, then perform side effects.
+- Condition+action hybrid nodes are clearer and safer as `Selector` composites:
+  a pure condition leaf first, then side-effect action fallback.
