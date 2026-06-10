@@ -36,6 +36,7 @@ from vultron.core.behaviors.report.nodes.case_creation import (
 )
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckParticipantExists,
+    CheckReportNotClosed,
     CheckRMStateReceivedOrInvalid,
     CheckRMStateValid,
     EnsureEmbargoExists,
@@ -44,8 +45,10 @@ from vultron.core.behaviors.report.nodes.conditions import (
     EvaluateReportValidity,
 )
 from vultron.core.behaviors.report.nodes.emit import (
+    EmitCloseReportActivity,
     EmitDeferCaseActivity,
     EmitEngageCaseActivity,
+    EmitInvalidateReportActivity,
 )
 from vultron.core.behaviors.report.nodes.participant import (
     TransitionParticipantRMtoAccepted,
@@ -54,6 +57,7 @@ from vultron.core.behaviors.report.nodes.participant import (
 from vultron.core.behaviors.report.nodes.rm_transitions import (
     TransitionCaseParticipantRMtoClosed,
     TransitionCaseParticipantRMtoInvalid,
+    TransitionRMtoClosed,
     TransitionRMtoInvalid,
     TransitionRMtoValid,
 )
@@ -66,6 +70,7 @@ __all__ = [
     # conditions
     "CheckRMStateValid",
     "CheckRMStateReceivedOrInvalid",
+    "CheckReportNotClosed",
     "EnsureEmbargoExists",
     "EvaluateReportCredibility",
     "EvaluateReportValidity",
@@ -74,6 +79,7 @@ __all__ = [
     # rm_transitions
     "TransitionRMtoValid",
     "TransitionRMtoInvalid",
+    "TransitionRMtoClosed",
     "TransitionCaseParticipantRMtoClosed",
     "TransitionCaseParticipantRMtoInvalid",
     # case_creation
@@ -85,6 +91,8 @@ __all__ = [
     # emit
     "EmitEngageCaseActivity",
     "EmitDeferCaseActivity",
+    "EmitInvalidateReportActivity",
+    "EmitCloseReportActivity",
     # storage
     "StoreReportNode",
     "StoreActivityNode",
