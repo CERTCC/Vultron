@@ -19,8 +19,10 @@ This module provides:
 - :class:`HashChainLogRecord` — a single canonical log entry with hash-chain
   linkage and an optional embedded activity payload snapshot.
 - :class:`CaseEventLog` — an append-only, hash-chained log for a single case.
-- :class:`ReplicationState` — per-peer last-acknowledged log hash for
-  replication state tracking.
+
+Per-peer replication state tracking is provided by
+:class:`~vultron.core.models.replication_state.VultronReplicationState`
+in ``vultron.core.models.replication_state``.
 
 Design follows the single-writer CaseActor architecture described in
 ``notes/sync-log-replication.md`` and the requirements in
@@ -378,7 +380,7 @@ class CaseEventLog:
         """
         if disposition == "rejected" and reason_code is None:
             raise ValueError(
-                "reason_code is required for rejected CaseLogEntry objects"
+                "reason_code is required for rejected HashChainLogRecord objects"
             )
 
         entry = HashChainLogRecord(
@@ -420,40 +422,3 @@ class CaseEventLog:
                     return False
                 prev_recorded_hash = entry.entry_hash
         return True
-
-
-# ---------------------------------------------------------------------------
-# ReplicationState
-# ---------------------------------------------------------------------------
-
-
-class ReplicationState(BaseModel):
-    """Per-peer replication state tracked by the replication leader.
-
-    Stores the last log entry hash acknowledged by a participant peer, so
-    the leader can efficiently identify and replay missing entries on demand.
-
-    Fields:
-        peer_id: Full URI of the participant actor this state belongs to.
-        last_acknowledged_hash: ``entry_hash`` of the last
-            :class:`CaseLogEntry` the peer has confirmed receiving.
-            Initialised to :data:`GENESIS_HASH` for new peers that have
-            never received a replication message.
-        updated_at: Server-generated TZ-aware UTC timestamp of the last
-            acknowledgement.
-
-    Spec: SYNC-04-001, SYNC-04-002.
-    """
-
-    peer_id: str = Field(..., description="Full URI of the participant actor")
-    last_acknowledged_hash: str = Field(
-        default=GENESIS_HASH,
-        description=(
-            "entry_hash of the last CaseLogEntry acknowledged by this peer; "
-            "GENESIS_HASH for peers that have never received a replication message"
-        ),
-    )
-    updated_at: datetime = Field(
-        default_factory=_now_utc,
-        description="Timestamp of the last acknowledgement from this peer",
-    )
