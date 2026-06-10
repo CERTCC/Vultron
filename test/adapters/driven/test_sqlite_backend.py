@@ -881,13 +881,16 @@ class TestCoerceToSemanticClass:
 
     def test_announce_log_entry_round_trip_returns_specific_class(self, dl):
         """dl.read returns AnnounceLogEntryActivity with CaseLogEntry object_."""
-        from vultron.core.models.case_log import GENESIS_HASH, CaseLogEntry
+        from vultron.core.models.case_log import (
+            GENESIS_HASH,
+            HashChainLogRecord,
+        )
         from vultron.core.use_cases.triggers.sync import _to_persistable_entry
         from vultron.wire.as2.vocab.objects.case_log_entry import (
             CaseLogEntry as WireCaseLogEntry,
         )
 
-        chain_entry = CaseLogEntry(
+        chain_entry = HashChainLogRecord(
             case_id="https://example.org/cases/case-sync-1",
             log_index=0,
             object_id="https://example.org/activities/logged-1",

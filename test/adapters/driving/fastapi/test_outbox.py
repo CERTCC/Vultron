@@ -684,7 +684,7 @@ def test_handle_outbox_item_converts_typed_activity_with_full_target():
 
 def test_handle_outbox_item_preserves_inline_case_log_entry_fields():
     """Announce(CaseLogEntry) delivery keeps full inline log-entry fields."""
-    from vultron.core.models.case_log import GENESIS_HASH, CaseLogEntry
+    from vultron.core.models.case_log import GENESIS_HASH, HashChainLogRecord
     from vultron.core.use_cases.triggers.sync import _to_persistable_entry
     from vultron.wire.as2.factories import announce_log_entry_activity
     from vultron.wire.as2.vocab.objects.case_log_entry import (
@@ -692,7 +692,7 @@ def test_handle_outbox_item_preserves_inline_case_log_entry_fields():
     )
 
     recipient = "https://example.org/actors/participant"
-    chain_entry = CaseLogEntry(
+    chain_entry = HashChainLogRecord(
         case_id="https://example.org/cases/case-sync-2",
         log_index=0,
         object_id="https://example.org/activities/logged-2",

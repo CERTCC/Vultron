@@ -18,7 +18,7 @@ from unittest.mock import MagicMock
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
-from vultron.core.models.case_log import GENESIS_HASH, CaseLogEntry
+from vultron.core.models.case_log import GENESIS_HASH, HashChainLogRecord
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
 from vultron.core.use_cases.triggers.sync import _to_persistable_entry
 from vultron.core.models.events import MessageSemantics
@@ -44,7 +44,7 @@ CASE_URI = "https://example.org/cases/case1"
 def _make_entry(
     case_id: str, log_index: int, prev_hash: str
 ) -> VultronCaseLogEntry:
-    chain = CaseLogEntry(
+    chain = HashChainLogRecord(
         case_id=case_id,
         log_index=log_index,
         object_id="https://example.org/activities/act1",

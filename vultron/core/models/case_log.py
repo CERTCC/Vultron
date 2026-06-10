@@ -16,7 +16,7 @@
 
 This module provides:
 
-- :class:`CaseLogEntry` — a single canonical log entry with hash-chain
+- :class:`HashChainLogRecord` — a single canonical log entry with hash-chain
   linkage and an optional embedded activity payload snapshot.
 - :class:`CaseEventLog` — an append-only, hash-chained log for a single case.
 - :class:`ReplicationState` — per-peer last-acknowledged log hash for
@@ -29,7 +29,7 @@ Design follows the single-writer CaseActor architecture described in
 
 Hash chain:
 
-- Each :class:`CaseLogEntry` stores the SHA-256 hash of its own canonical
+- Each :class:`HashChainLogRecord` stores the SHA-256 hash of its own canonical
   content (``entry_hash``) and the hash of its immediate predecessor
   (``prev_log_hash``).
 - The first entry uses :data:`GENESIS_HASH` as ``prev_log_hash``.
@@ -116,7 +116,7 @@ def _sha256_hex(data: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
-class CaseLogEntry(BaseModel):
+class HashChainLogRecord(BaseModel):
     """A single canonical case log entry.
 
     Each entry is created by the CaseActor's single authoritative write path
@@ -203,7 +203,7 @@ class CaseLogEntry(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _compute_entry_hash(self) -> "CaseLogEntry":
+    def _compute_entry_hash(self) -> "HashChainLogRecord":
         """Compute ``entry_hash`` from canonical content if not already set."""
         if not self.entry_hash:
             self.entry_hash = self._hash_content()
@@ -290,7 +290,7 @@ class CaseEventLog:
             case_id: URI of the :class:`VulnerabilityCase` this log tracks.
         """
         self._case_id = case_id
-        self._entries: list[CaseLogEntry] = []
+        self._entries: list[HashChainLogRecord] = []
 
     # ------------------------------------------------------------------
     # Properties
@@ -302,12 +302,12 @@ class CaseEventLog:
         return self._case_id
 
     @property
-    def entries(self) -> tuple[CaseLogEntry, ...]:
+    def entries(self) -> tuple[HashChainLogRecord, ...]:
         """All entries (recorded *and* rejected) as an immutable tuple."""
         return tuple(self._entries)
 
     @property
-    def recorded_entries(self) -> tuple[CaseLogEntry, ...]:
+    def recorded_entries(self) -> tuple[HashChainLogRecord, ...]:
         """Projection of entries whose disposition is ``"recorded"``.
 
         Used for hash-chain computation and canonical state reconstruction.
@@ -353,7 +353,7 @@ class CaseEventLog:
         term: int | None = None,
         reason_code: str | None = None,
         reason_detail: str | None = None,
-    ) -> CaseLogEntry:
+    ) -> HashChainLogRecord:
         """Append a new entry to the log and return it.
 
         Assigns ``log_index``, sets ``prev_log_hash`` from
@@ -381,7 +381,7 @@ class CaseEventLog:
                 "reason_code is required for rejected CaseLogEntry objects"
             )
 
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=self._case_id,
             log_index=self.next_index,
             disposition=disposition,

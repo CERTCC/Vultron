@@ -40,7 +40,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case_log import (
     GENESIS_HASH,
     CaseEventLog,
-    CaseLogEntry,
+    HashChainLogRecord,
     ReplicationState,
     _canonical_bytes,
     _sha256_hex,
@@ -139,7 +139,7 @@ class TestGenesisHash:
 
 class TestCaseLogEntry:
     def test_construction_sets_required_fields(self):
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -153,7 +153,7 @@ class TestCaseLogEntry:
         assert entry.prev_log_hash == GENESIS_HASH
 
     def test_entry_hash_auto_computed(self):
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -164,7 +164,7 @@ class TestCaseLogEntry:
         assert len(entry.entry_hash) == 64
 
     def test_entry_hash_verify_hash_passes(self):
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -174,7 +174,7 @@ class TestCaseLogEntry:
         assert entry.verify_hash()
 
     def test_entry_hash_tamper_detection(self):
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -186,7 +186,7 @@ class TestCaseLogEntry:
         assert not entry.verify_hash()
 
     def test_default_disposition_is_recorded(self):
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -196,7 +196,7 @@ class TestCaseLogEntry:
         assert entry.disposition == "recorded"
 
     def test_rejected_disposition(self):
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -209,7 +209,7 @@ class TestCaseLogEntry:
         assert entry.reason_code == "INVALID_STATE"
 
     def test_term_defaults_to_none(self):
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -219,14 +219,14 @@ class TestCaseLogEntry:
         assert entry.term is None
 
     def test_different_entries_have_different_hashes(self):
-        e1 = CaseLogEntry(
+        e1 = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id="urn:uuid:obj1",
             event_type="test",
             prev_log_hash=GENESIS_HASH,
         )
-        e2 = CaseLogEntry(
+        e2 = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id="urn:uuid:obj2",
@@ -237,7 +237,7 @@ class TestCaseLogEntry:
 
     def test_entry_hash_not_in_hashable_dict(self):
         """entry_hash MUST be excluded from the content that is hashed."""
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -249,7 +249,7 @@ class TestCaseLogEntry:
 
     def test_payload_snapshot_stored_as_dict(self):
         snap = {"id": OBJECT_ID, "type": "Offer"}
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -260,7 +260,7 @@ class TestCaseLogEntry:
         assert entry.payload_snapshot == snap
 
     def test_reason_detail_optional(self):
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
