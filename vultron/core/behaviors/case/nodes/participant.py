@@ -565,6 +565,51 @@ class AdvanceOwnerRmToAcceptedNode(DataLayerAction):
         return Status.SUCCESS
 
 
+class RecordOwnerJoinedEventNode(DataLayerAction):
+    """Record owner_joined event and persist the case update.
+
+    Per notes/bt-integration.md, all protocol-significant behavior MUST be in
+    the BT.  This node records the case history event for the owner's initial
+    participation, analogous to ``RecordParticipantAddedEventNode`` in the
+    non-owner path (CM-02-008).
+    """
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="participant_case",
+            access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
+            key="new_case_participant",
+            access=py_trees.common.Access.READ,
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.logger.error("%s: DataLayer not available", self.name)
+            return Status.FAILURE
+
+        stored_case = self.blackboard.get("participant_case")
+        participant = self.blackboard.get("new_case_participant")
+        if not is_case_model(stored_case) or not isinstance(
+            participant, VultronParticipant
+        ):
+            self.logger.error(
+                "%s: participant_case/new_case_participant missing in"
+                " blackboard",
+                self.name,
+            )
+            return Status.FAILURE
+
+        stored_case.record_event(participant.id_, "owner_joined")
+        self.datalayer.save(stored_case)
+        return Status.SUCCESS
+
+
 class CreateCaseOwnerParticipant(py_trees.composites.Sequence):
     """
     Composed subtree that creates and attaches the case-owner participant.
@@ -593,6 +638,7 @@ class CreateCaseOwnerParticipant(py_trees.composites.Sequence):
                 CreateOwnerParticipantNode(actor_config=actor_config),
                 AttachOwnerParticipantToCaseNode(),
                 PersistOwnerCaseNode(),
+                RecordOwnerJoinedEventNode(),
                 py_trees.composites.Selector(
                     name="AdvanceOwnerRmIfConfigured",
                     memory=False,

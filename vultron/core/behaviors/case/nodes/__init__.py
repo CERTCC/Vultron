@@ -57,6 +57,7 @@ from vultron.core.behaviors.case.nodes.participant import (
     CreateCaseOwnerParticipant,
     CreateCaseParticipantNode,
     CreateParticipantStatusNode,
+    RecordOwnerJoinedEventNode,
     _create_and_attach_participant,
     resolve_participant_state_from_dl,
 )
@@ -83,6 +84,7 @@ __all__ = [
     "CreateCaseOwnerParticipant",
     "CreateCaseParticipantNode",
     "CreateParticipantStatusNode",
+    "RecordOwnerJoinedEventNode",
     "_create_and_attach_participant",
     "resolve_participant_state_from_dl",
     # embargo

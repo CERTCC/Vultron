@@ -405,3 +405,28 @@ class TestCreateCaseActorNodeBlackboard:
             # No case_id supplied
         )
         assert result.status == py_trees.common.Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# RegisterCaseActorParticipantNode — precondition failure tests
+# ---------------------------------------------------------------------------
+
+
+class TestRegisterCaseActorParticipantNode:
+    """RegisterCaseActorParticipantNode returns FAILURE when case is absent."""
+
+    def test_fails_when_case_not_in_datalayer(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        actor_id: str,
+    ) -> None:
+        """Node returns FAILURE (not SUCCESS) when the case record is missing."""
+        result = bt_scenario.run(
+            RegisterCaseActorParticipantNode(),
+            actor_id=actor_id,
+            case_id="https://example.org/cases/nonexistent",
+            case_actor_id=f"{actor_id}/case-actor",
+            case_actor_participant_id=f"{actor_id}/case-actor/participant",
+        )
+        assert result.status == py_trees.common.Status.FAILURE

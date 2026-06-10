@@ -441,12 +441,12 @@ class RegisterCaseActorParticipantNode(DataLayerAction):
 
         case = self.datalayer.read(case_id)
         if not is_case_model(case):
-            self.logger.warning(
+            self.logger.error(
                 "%s: Case '%s' not found; cannot register CaseActor participant",
                 self.name,
                 case_id,
             )
-            return Status.SUCCESS
+            return Status.FAILURE
 
         existing = self.datalayer.read(participant_id)
         if existing is not None:

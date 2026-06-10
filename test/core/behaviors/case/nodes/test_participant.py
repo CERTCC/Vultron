@@ -45,6 +45,7 @@ from vultron.core.behaviors.case.nodes.participant import (
     CreateOwnerParticipantNode,
     PersistOwnerCaseNode,
     QueueAddParticipantNotificationNode,
+    RecordOwnerJoinedEventNode,
     RecordParticipantAddedEventNode,
     ResolveParticipantAcceptedStatusNode,
     ResolveOwnerInitialStatusNode,
@@ -363,15 +364,16 @@ class TestCreateCaseOwnerParticipant:
     def test_is_composed_subtree_of_named_leaf_nodes(self) -> None:
         node = CreateCaseOwnerParticipant()
         assert isinstance(node, py_trees.composites.Sequence)
-        assert [type(child) for child in node.children[:4]] == [
+        assert [type(child) for child in node.children[:5]] == [
             ResolveOwnerInitialStatusNode,
             CreateOwnerParticipantNode,
             AttachOwnerParticipantToCaseNode,
             PersistOwnerCaseNode,
+            RecordOwnerJoinedEventNode,
         ]
-        assert isinstance(node.children[4], py_trees.composites.Selector)
+        assert isinstance(node.children[5], py_trees.composites.Selector)
 
-        conditional_selector = node.children[4]
+        conditional_selector = node.children[5]
         assert isinstance(
             conditional_selector.children[0], py_trees.composites.Sequence
         )
@@ -384,6 +386,25 @@ class TestCreateCaseOwnerParticipant:
         assert isinstance(
             conditional_selector.children[1], py_trees.behaviours.Success
         )
+
+    def test_records_owner_joined_event(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        case_obj: VultronCase,
+        actor_id: str,
+    ) -> None:
+        """CreateCaseOwnerParticipant records 'owner_joined' on the case."""
+        result = bt_scenario.run(
+            CreateCaseOwnerParticipant(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+        )
+        bt_scenario.assert_success(result)
+
+        stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
+        event_types = [e.event_type for e in stored_case.events]
+        assert "owner_joined" in event_types
 
     def test_advances_owner_rm_to_accepted_when_configured(
         self,
