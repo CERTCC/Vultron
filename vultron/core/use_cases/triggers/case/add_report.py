@@ -16,13 +16,16 @@
 from typing import TYPE_CHECKING, Any
 
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.use_cases.triggers._helpers import (
+    resolve_actor,
+    resolve_case,
+)
 from vultron.core.use_cases.triggers.requests import (
-    AddObjectToCaseTriggerRequest,
     AddReportToCaseTriggerRequest,
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
-from .add_object import SvcAddObjectToCaseUseCase
+from .add_object import _execute_add_object_trigger_bt
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -36,9 +39,9 @@ class SvcAddReportToCaseUseCase:
     Emits an ``Add(VulnerabilityReport, target=VulnerabilityCase)`` activity
     queued in the actor's outbox.
 
-    BT-15-001 audit: pure CRUD / infrastructure glue.  Validates report
-    type and delegates entirely to ``SvcAddObjectToCaseUseCase``. No
-    RM/EM state-machine transitions. No BTBridge delegation required.
+    BT-15-001 audit: outbound Add(Report,target=case) emission and outbox
+    queueing are delegated to the same trigger-side BT used by
+    ``SvcAddObjectToCaseUseCase``.
     """
 
     def __init__(
@@ -55,6 +58,10 @@ class SvcAddReportToCaseUseCase:
         actor_id = self._request.actor_id
         dl = self._dl
 
+        actor = resolve_actor(actor_id, dl)
+        actor_id = actor.id_
+        resolve_case(self._request.case_id, dl)
+
         raw = dl.read(self._request.report_id)
         if raw is None:
             raise VultronNotFoundError(
@@ -65,13 +72,15 @@ class SvcAddReportToCaseUseCase:
                 f"'{self._request.report_id}' is not a VulnerabilityReport"
             )
 
-        inner = SvcAddObjectToCaseUseCase(
-            dl,
-            AddObjectToCaseTriggerRequest(
-                actor_id=actor_id,
-                case_id=self._request.case_id,
-                object_id=self._request.report_id,
-            ),
+        if self._trigger_activity is None:
+            raise RuntimeError(
+                "SvcAddReportToCaseUseCase requires a TriggerActivityPort"
+            )
+
+        return _execute_add_object_trigger_bt(
+            dl=dl,
+            actor_id=actor_id,
+            case_id=self._request.case_id,
+            object_id=self._request.report_id,
             trigger_activity=self._trigger_activity,
         )
-        return inner.execute()

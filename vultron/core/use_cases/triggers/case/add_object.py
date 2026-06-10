@@ -16,16 +16,21 @@
 import logging
 from typing import TYPE_CHECKING, Any
 
+from py_trees.common import Status
+
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.add_object_trigger_tree import (
+    add_object_trigger_bt,
+)
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.triggers._helpers import (
-    add_activity_to_outbox,
     resolve_actor,
     resolve_case,
 )
 from vultron.core.use_cases.triggers.requests import (
     AddObjectToCaseTriggerRequest,
 )
-from vultron.errors import VultronNotFoundError
+from vultron.errors import VultronNotFoundError, VultronValidationError
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -45,9 +50,8 @@ class SvcAddObjectToCaseUseCase:
 
     Implements: TRIG-10-001.
 
-    BT-15-001 audit: pure CRUD / infrastructure glue.  Associates an
-    existing AS2 object with a case. No RM/EM state-machine transitions
-    are performed. No BTBridge delegation required.
+    BT-15-001 audit: outbound Add(object,target=case) emission and outbox
+    queueing are delegated to a trigger-side BT.
     """
 
     def __init__(
@@ -80,19 +84,50 @@ class SvcAddObjectToCaseUseCase:
                 "SvcAddObjectToCaseUseCase requires a TriggerActivityPort"
             )
 
-        activity_id, activity_dict = self._trigger_activity.add_object_to_case(
+        return _execute_add_object_trigger_bt(
+            dl=dl,
+            actor_id=actor_id,
+            case_id=case_id,
+            object_id=object_id,
+            trigger_activity=self._trigger_activity,
+        )
+
+
+def _execute_add_object_trigger_bt(
+    *,
+    dl: CaseOutboxPersistence,
+    actor_id: str,
+    case_id: str,
+    object_id: str,
+    trigger_activity: "TriggerActivityPort",
+) -> dict[str, Any]:
+    """Emit Add(object,target=case) and queue it via BTBridge."""
+    result_data: dict[str, Any] = {}
+
+    def _build_activity() -> tuple[str, dict[str, Any]]:
+        return trigger_activity.add_object_to_case(
             actor=actor_id,
             object_id=object_id,
             case_id=case_id,
         )
 
-        add_activity_to_outbox(actor_id, activity_id, dl)
-
-        logger.info(
-            "Actor '%s' added object '%s' to case '%s'",
-            actor_id,
-            object_id,
-            case_id,
+    bridge = BTBridge(datalayer=dl, trigger_activity=trigger_activity)
+    tree = add_object_trigger_bt(
+        result_out=result_data,
+        activity_builder=_build_activity,
+    )
+    result = bridge.execute_with_setup(
+        tree, actor_id=actor_id, case_id=case_id
+    )
+    if result.status != Status.SUCCESS:
+        raise VultronValidationError(
+            f"AddObjectToCase failed: {BTBridge.get_failure_reason(tree)}"
         )
 
-        return {"activity": activity_dict}
+    logger.info(
+        "Actor '%s' added object '%s' to case '%s'",
+        actor_id,
+        object_id,
+        case_id,
+    )
+    return {"activity": result_data.get("activity")}
