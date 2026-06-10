@@ -122,7 +122,7 @@ def broadcast_case_update(
     broadcast = VultronActivity(
         type_="Announce",
         actor=case_actor_id,
-        object_=case_id,
+        object_=case,
         to=participant_ids,
     )
     try:

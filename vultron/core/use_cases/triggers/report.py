@@ -41,7 +41,6 @@ from vultron.core.behaviors.report.validate_tree import (
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.report import VultronReport
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.models.protocols import is_case_model
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,
     outbox_ids,
@@ -117,15 +116,10 @@ class SvcValidateReportUseCase:
 
         before = outbox_ids(actor_id, dl)
 
-        case = dl.find_case_by_report_id(report_id)
-        case_id = case.id_ if is_case_model(case) else None
-
         bridge = BTBridge(datalayer=dl)
         tree = create_validate_report_tree(
             report_id=report_id,
             offer_id=offer_id,
-            case_id=case_id,
-            actor_id=actor_id,
         )
 
         context: dict[str, Any] = {}

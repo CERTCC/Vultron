@@ -140,6 +140,9 @@ def coordinator_validates_report(
 ) -> dict:
     """Coordinator validates the submitted report via the trigger endpoint.
 
+    Advances RM state to VALID only.  To transition RM to ACCEPTED the
+    coordinator must subsequently call ``coordinator_engages_case``.
+
     Args:
         coordinator_client: Client connected to the coordinator container.
         coordinator: Coordinator ``as_Actor``.
@@ -160,6 +163,38 @@ def coordinator_validates_report(
     logger.info(
         "Validate-report trigger result for actor %s", coordinator_obj_id
     )
+    return result
+
+
+def coordinator_engages_case(
+    coordinator_client: DataLayerClient,
+    coordinator: as_Actor,
+    case_id: str,
+) -> dict:
+    """Coordinator engages the case via the trigger endpoint (RM → ACCEPTED).
+
+    This is a separate, explicit step from ``coordinator_validates_report``.
+    Validation advances RM to VALID; engagement advances RM to ACCEPTED.
+    A coordinator may validly stop at VALID and defer further work.
+
+    Args:
+        coordinator_client: Client connected to the coordinator container.
+        coordinator: Coordinator ``as_Actor``.
+        case_id: Full URI of the ``VulnerabilityCase`` to engage.
+
+    Returns:
+        Response dict from the trigger endpoint (contains the engage
+        activity).
+    """
+    coordinator_obj_id = parse_id(coordinator.id_)["object_id"]
+    with demo_step("Coordinator engages the vulnerability case"):
+        result = post_to_trigger(
+            client=coordinator_client,
+            actor_id=coordinator.id_,
+            behavior="engage-case",
+            body={"case_id": case_id},
+        )
+    logger.info("Engage-case trigger result for actor %s", coordinator_obj_id)
     return result
 
 

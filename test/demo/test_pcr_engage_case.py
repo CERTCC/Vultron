@@ -61,7 +61,7 @@ _REPORTER_BASE = "http://reporter-engage-case.test"
 
 
 @pytest.fixture
-def two_app_setup():
+def two_app_setup(monkeypatch):
     """Owner app + reporter app wired for end-to-end delivery.
 
     Uses two isolated FastAPI app instances each with their own in-memory
@@ -70,15 +70,19 @@ def two_app_setup():
     outbox → inbox → inbox-handler chain is exercised without real HTTP.
 
     Lifecycle:
-      1. Enters both TestClient contexts (triggers lifespan startup).
-      2. Replaces each app's ``ASGIEmitter._http_fallback`` with the shared
+      1. Patches ``VULTRON_SERVER__BASE_URL`` to ``{_OWNER_BASE}/api/v2``
+         and reloads the config cache so ``CreateCaseActorNode`` builds
+         the CaseActor ID using the owner's routable base URL (not the
+         default ``http://localhost:7999`` which lacks the ``/api/v2/``
+         prefix and therefore gets a 404 from the owner's ASGI app).
+      2. Enters both TestClient contexts (triggers lifespan startup).
+      3. Replaces each app's ``ASGIEmitter._http_fallback`` with the shared
          router so cross-app deliveries use ASGI transport.
-      3. Configures the module-level ``_default_emitter`` to the shared
+      4. Configures the module-level ``_default_emitter`` to the shared
          router so trigger-endpoint ``outbox_handler`` calls route through
          ASGI instead of making real HTTP requests.
-      4. Registers the config-default ``base_url`` with the router pointing
-         to the owner's app so that CaseActor deliveries are routed
-         correctly.
+      5. Registers the patched base URL with the router pointing to the
+         owner's app so that CaseActor deliveries are routed correctly.
 
     Yields:
         Tuple of (owner_iso, reporter_iso, owner_tc, reporter_tc).
@@ -87,7 +91,15 @@ def two_app_setup():
         configure_default_emitter,
         get_default_emitter,
     )
-    from vultron.config import get_config
+    from vultron.config import get_config, reload_config
+
+    # Patch the server base URL so the CaseActor is created with the owner's
+    # routable base URL.  Without this, CreateCaseActorNode reads the default
+    # http://localhost:7999 which produces IDs like
+    # http://localhost:7999/actors/case-actor-... and the owner's app returns
+    # 404 for /actors/ paths (it expects /api/v2/actors/).
+    monkeypatch.setenv("VULTRON_SERVER__BASE_URL", f"{_OWNER_BASE}/api/v2")
+    reload_config()
 
     router = _TestASGIRouter()
     owner_iso = create_isolated_actor_app(base_url=_OWNER_BASE, router=router)
@@ -112,6 +124,7 @@ def two_app_setup():
     configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
     owner_iso.dl.close()
     reporter_iso.dl.close()
+    reload_config()
 
 
 # ---------------------------------------------------------------------------
@@ -186,7 +199,9 @@ def _bootstrap_and_engage(
       3. CaseActor's outbox is drained so ``Create(VulnerabilityCase)``
          is delivered to reporter's inbox.
       4. Owner triggers ``engage-case`` to send ``Join(VulnerabilityCase)``
-         to reporter.  Background task drains owner's outbox automatically.
+         to the CaseActor.  Background task drains owner's outbox automatically.
+      5. CaseActor's outbox is drained again so ``Announce(VulnerabilityCase)``
+         (queued by ``EngageCaseBT → BroadcastCaseUpdateNode``) reaches reporter.
 
     Returns:
         Tuple of (case_id, owner_actor_id).
@@ -252,7 +267,9 @@ def _bootstrap_and_engage(
     )
 
     # Owner triggers engage-case → Join(VulnerabilityCase) queued and
-    # delivered to reporter via background task outbox drain.
+    # delivered to the CaseActor via the background task outbox drain.
+    # The CaseActor runs EngageCaseBT (updates owner's RM → ACCEPTED) and
+    # queues Announce(VulnerabilityCase) to all participants.
     resp = owner_tc.post(
         f"/api/v2/actors/{_actor_slug(owner_actor_id)}/trigger/engage-case",
         json={"case_id": case_id},
@@ -260,6 +277,12 @@ def _bootstrap_and_engage(
     assert (
         resp.status_code == 202
     ), f"engage-case trigger failed ({resp.status_code}): {resp.text}"
+
+    # Drain CaseActor's outbox so the Announce(VulnerabilityCase) reaches the
+    # reporter.  EngageCaseBT queues the broadcast after updating RM state;
+    # this delivery path makes the owner's CaseParticipant available in the
+    # reporter's DataLayer (CBT-05-004, #572, #573).
+    _drain_case_actor_outbox(owner_iso, case_actor_id)
 
     return case_id, owner_actor_id
 

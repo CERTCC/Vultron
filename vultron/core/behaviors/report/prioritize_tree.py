@@ -30,9 +30,11 @@ Per specs/behavior-tree-integration.yaml BT-06 requirements.
 Structure:
 
     EngageCaseBT (Sequence)
-    ├─ CheckParticipantExists              # Precondition: actor has a participant record
-    ├─ TransitionParticipantRMtoAccepted   # Update RM state to ACCEPTED
-    └─ CommitCaseLogEntryNode              # Log entry → Announce fan-out (SYNC-02-002)
+    ├─ CheckParticipantExists                        # Precondition: actor has a participant record
+    ├─ TransitionParticipantRMtoAccepted             # Update RM state to ACCEPTED
+    ├─ CommitCaseLogEntryNode                        # Log entry → Announce fan-out (SYNC-02-002)
+    ├─ CaptureCaseUpdateBroadcastExclusionsNode      # Resolve embargo-based exclusions
+    └─ BroadcastCaseUpdateNode                       # Announce(VulnerabilityCase) → all participants
 
     DeferCaseBT (Sequence)
     ├─ CheckParticipantExists              # Precondition: actor has a participant record
@@ -54,6 +56,10 @@ from vultron.core.behaviors.case.engage_defer_trigger_tree import (
     engage_case_trigger_bt,
 )
 from vultron.core.behaviors.case.nodes import CommitCaseLogEntryNode
+from vultron.core.behaviors.case.nodes.update import (
+    BroadcastCaseUpdateNode,
+    CaptureCaseUpdateBroadcastExclusionsNode,
+)
 from vultron.core.behaviors.report.nodes import (
     CheckParticipantExists,
     EvaluateCasePriority,
@@ -77,6 +83,9 @@ def create_engage_case_tree(
     Handles receipt of RmEngageCaseActivity (Join(VulnerabilityCase)): the sending
     actor has decided to engage the case, so we record their RM state
     transition to ACCEPTED in their CaseParticipant.participant_status.
+    After committing the log entry, broadcasts an Announce(VulnerabilityCase)
+    to all eligible participants so they receive the updated case state
+    (including embedded CaseParticipant objects for #572/#573 coverage).
 
     Args:
         case_id: ID of VulnerabilityCase being engaged
@@ -94,6 +103,8 @@ def create_engage_case_tree(
                 case_id=case_id, actor_id=actor_id
             ),
             CommitCaseLogEntryNode(case_id=case_id),
+            CaptureCaseUpdateBroadcastExclusionsNode(case_id=case_id),
+            BroadcastCaseUpdateNode(case_id=case_id),
         ],
     )
 

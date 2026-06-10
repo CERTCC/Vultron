@@ -38,6 +38,12 @@ Per ADR-0015, case and participant creation now occurs at RM.RECEIVED (in
 ``ValidationActions`` only transitions the report state and confirms the
 precondition (embargo) established at receipt.
 
+``validate-report`` advances RM to VALID only.  The engage/defer decision
+(RM → ACCEPTED or RM → DEFERRED) is a distinct, explicit protocol step
+driven by a separate ``engage-case`` or ``defer-case`` trigger.  These are
+intentionally separate: a receiver may validate a report and still choose
+to defer it without ever engaging.
+
 Phase 1 simplifications:
 - No invalidation fallback (validation always succeeds)
 - No information gathering loop (no data collection)
@@ -51,7 +57,6 @@ Future enhancements (Phase 2+):
 """
 
 import logging
-from typing import TYPE_CHECKING
 
 import py_trees
 
@@ -63,12 +68,6 @@ from vultron.core.behaviors.report.nodes import (
     EvaluateReportValidity,
     TransitionRMtoValid,
 )
-from vultron.core.behaviors.report.prioritize_tree import (
-    create_prioritize_subtree,
-)
-
-if TYPE_CHECKING:
-    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
@@ -76,9 +75,6 @@ logger = logging.getLogger(__name__)
 def create_validate_report_tree(
     report_id: str,
     offer_id: str,
-    case_id: str | None = None,
-    actor_id: str | None = None,
-    trigger_activity: "TriggerActivityPort | None" = None,
 ) -> py_trees.behaviour.Behaviour:
     """
     Create behavior tree for report validation workflow.
@@ -87,25 +83,13 @@ def create_validate_report_tree(
     vultron/bt/report_management/_behaviors/validate_report.py:RMValidateBt
     with Phase 1 simplifications matching the procedural handler logic.
 
-    When both ``case_id`` and ``actor_id`` are provided, the tree appends a
-    ``PrioritizeBT`` subtree as the final child of ``ValidationFlow``.  The
-    subtree emits ``RmEngageCaseActivity`` and transitions the actor's
-    participant RM state to ACCEPTED (or DEFERRED) immediately after
-    validation completes, replacing the old procedural ``_auto_engage``
-    cascade (D5-7-BTFIX-1, D5-7-BTFIX-2).
+    Advances RM state to VALID only.  The engage/defer decision
+    (RM → ACCEPTED or RM → DEFERRED) is a separate, explicit protocol step
+    that the operator must trigger via ``engage-case`` or ``defer-case``.
 
     Args:
         report_id: ID of VulnerabilityReport to validate
         offer_id: ID of Offer activity containing the report
-        case_id: Optional ID of VulnerabilityCase linked to this report.
-            When provided together with ``actor_id``, a ``PrioritizeBT``
-            subtree is appended to ``ValidationFlow``.
-        actor_id: Optional ID of the Actor performing validation.
-            Required together with ``case_id`` to enable the
-            ``PrioritizeBT`` cascade.
-        trigger_activity: Optional port for constructing outbound AS2
-            activities.  Forwarded to ``create_prioritize_subtree`` when
-            both ``case_id`` and ``actor_id`` are supplied.
 
     Returns:
         Root node of the validation behavior tree (Selector)
@@ -138,28 +122,16 @@ def create_validate_report_tree(
         ],
     )
 
-    # Build ValidationFlow children: preconditions + policies + actions
-    # Optionally append PrioritizeBT when case_id and actor_id are provided.
-    validation_flow_children = [
-        CheckRMStateReceivedOrInvalid(report_id=report_id),
-        EvaluateReportCredibility(report_id=report_id),
-        EvaluateReportValidity(report_id=report_id),
-        validation_actions,
-    ]
-    if case_id and actor_id:
-        validation_flow_children.append(
-            create_prioritize_subtree(
-                case_id=case_id,
-                actor_id=actor_id,
-                trigger_activity=trigger_activity,
-            )
-        )
-
     # Child sequence: Precondition checks + policy evaluation + actions
     validation_flow = py_trees.composites.Sequence(
         name="ValidationFlow",
         memory=False,
-        children=validation_flow_children,
+        children=[
+            CheckRMStateReceivedOrInvalid(report_id=report_id),
+            EvaluateReportCredibility(report_id=report_id),
+            EvaluateReportValidity(report_id=report_id),
+            validation_actions,
+        ],
     )
 
     # Root selector: Early exit if valid OR run full validation flow
