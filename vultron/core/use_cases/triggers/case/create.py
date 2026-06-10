@@ -16,10 +16,14 @@
 import logging
 from typing import TYPE_CHECKING, Any
 
-from vultron.core.models.case import VultronCase
+from py_trees.common import Status
+
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.create_case_trigger_tree import (
+    create_case_trigger_bt,
+)
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.triggers._helpers import (
-    add_activity_to_outbox,
     resolve_actor,
 )
 from vultron.core.use_cases.triggers.requests import (
@@ -39,6 +43,9 @@ class SvcCreateCaseUseCase:
     The actor creates a local case and queues the activity for delivery to
     the CaseActor inbox. An optional report_id links an existing
     VulnerabilityReport to the new case.
+
+    BT-15-001 audit: protocol-observable case creation and outbound activity
+    emission are delegated to a trigger-side BT.
     """
 
     def __init__(
@@ -55,45 +62,51 @@ class SvcCreateCaseUseCase:
         actor_id = self._request.actor_id
         actor = resolve_actor(actor_id, self._dl)
         actor_id = actor.id_
+        report_id = self._request.report_id
 
-        case = VultronCase(
-            name=self._request.name,
-            content=self._request.content,
-            attributed_to=actor.id_,
-        )
-
-        if self._request.report_id is not None:
-            raw = self._dl.read(self._request.report_id)
+        if report_id is not None:
+            raw = self._dl.read(report_id)
             if raw is None:
-                raise VultronNotFoundError(
-                    "VulnerabilityReport", self._request.report_id
-                )
+                raise VultronNotFoundError("VulnerabilityReport", report_id)
             if getattr(raw, "type_", "") != "VulnerabilityReport":
                 raise VultronValidationError(
-                    f"'{self._request.report_id}' is not a VulnerabilityReport"
+                    f"'{report_id}' is not a VulnerabilityReport"
                 )
-            raw_id = getattr(raw, "id_", None) or self._request.report_id
-            case.vulnerability_reports.append(raw_id)
-
-        self._dl.create(case)
+            report_id = getattr(raw, "id_", None) or report_id
 
         if self._trigger_activity is None:
             raise RuntimeError(
                 "SvcCreateCaseUseCase requires a TriggerActivityPort"
             )
 
-        activity_id, activity_dict = self._trigger_activity.create_case(
-            case_id=case.id_,
-            actor=actor.id_,
-        )
+        factory = self._trigger_activity
+        result_data: dict[str, Any] = {}
 
-        add_activity_to_outbox(actor_id, activity_id, self._dl)
+        def _build_activity(case_id: str) -> tuple[str, dict[str, Any]]:
+            return factory.create_case(case_id=case_id, actor=actor_id)
+
+        bridge = BTBridge(datalayer=self._dl, trigger_activity=factory)
+        tree = create_case_trigger_bt(
+            case_name=self._request.name,
+            case_content=self._request.content,
+            report_id=report_id,
+            result_out=result_data,
+            activity_builder=_build_activity,
+        )
+        result = bridge.execute_with_setup(tree, actor_id=actor_id)
+        if result.status != Status.SUCCESS:
+            raise VultronValidationError(
+                f"CreateCase failed: {BTBridge.get_failure_reason(tree)}"
+            )
+
+        case_id = result_data.get("case_id")
+        activity = result_data.get("activity")
 
         logger.info(
             "Actor '%s' created case '%s' (CreateCaseActivity '%s')",
             actor_id,
-            case.id_,
-            activity_id,
+            case_id,
+            activity.get("id") if isinstance(activity, dict) else None,
         )
 
-        return {"activity": activity_dict}
+        return {"activity": activity}

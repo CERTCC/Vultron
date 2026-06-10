@@ -30,6 +30,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.actor_config import ActorConfig
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.enums import VultronObjectType
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import CaseModel, is_case_model
@@ -38,6 +39,8 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
+from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.core.states.roles import CVDRole
@@ -234,6 +237,39 @@ def _get_or_create_accepted_status(
     except ValueError:
         pass
     return accepted_status
+
+
+def resolve_participant_state_from_dl(
+    dl: CasePersistence,
+    participant_id: str,
+) -> tuple[RM, CS_vfd]:
+    """Return (current_rm, current_vfd) from the participant's latest status.
+
+    Reads the participant record from the DataLayer and extracts the RM
+    and VFD state values from the most recent entry in
+    ``participant_statuses``.  Falls back to ``(RM.START, CS_vfd.vfd)``
+    when the participant is not found or has no statuses.
+
+    Args:
+        dl: DataLayer instance.
+        participant_id: ID of the CaseParticipant to inspect.
+
+    Returns:
+        ``(rm_state, vfd_state)`` tuple with validated enum values.
+    """
+    participant_obj = dl.read(participant_id)
+    if participant_obj is not None and hasattr(
+        participant_obj, "participant_statuses"
+    ):
+        statuses = getattr(participant_obj, "participant_statuses")
+        if statuses:
+            latest = statuses[-1]
+            raw_rm = getattr(latest, "rm_state", RM.START)
+            raw_vfd = getattr(latest, "vfd_state", CS_vfd.vfd)
+            rm_state = raw_rm if isinstance(raw_rm, RM) else RM.START
+            vfd_state = raw_vfd if isinstance(raw_vfd, CS_vfd) else CS_vfd.vfd
+            return rm_state, vfd_state
+    return RM.START, CS_vfd.vfd
 
 
 def _queue_participant_add_notification(
@@ -814,3 +850,139 @@ class CreateCaseParticipantNode(py_trees.composites.Sequence):
                 ),
             ],
         )
+
+
+class CreateParticipantStatusNode(DataLayerAction):
+    """Create a ParticipantStatus snapshot and append it to the participant.
+
+    BT-15-001: direct ``ParticipantStatus`` writes with an explicit
+    ``rm_state`` are protocol-significant behavior and MUST live inside a
+    BT leaf node, not directly in ``execute()``.
+
+    This node is the leaf responsible for the ParticipantStatus record
+    creation in the ``add_participant_status_trigger_bt`` tree.  It reads
+    the actor's current RM/VFD state from the DataLayer (via
+    ``resolve_participant_state_from_dl``) and creates a snapshot record
+    using the override values from the trigger request when provided.
+
+    Constructor parameters:
+        case_id: ID of the VulnerabilityCase.
+        actor_id: Actor whose state is being self-reported.
+        rm_state: RM state to record (``None`` → use current state).
+        vfd_state: CS_vfd state to record (``None`` → use current state).
+        pxa_state: CS_pxa for an optional CaseStatus snapshot
+            (``None`` → no CaseStatus attached).
+        result_out: Mutable dict populated by this node with
+            ``'status_id'`` and ``'participant_id'``; read by the
+            ``activity_builder`` closure in
+            ``SvcAddParticipantStatusUseCase``.
+
+    Writes to ``result_out``:
+        - ``status_id``: ID of the newly created ParticipantStatus.
+        - ``participant_id``: ID of the actor's CaseParticipant.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        actor_id: str,
+        rm_state: "RM | None",
+        vfd_state: "CS_vfd | None",
+        pxa_state: "CS_pxa | None",
+        result_out: dict,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+        self._actor_id = actor_id
+        self._rm_state = rm_state
+        self._vfd_state = vfd_state
+        self._pxa_state = pxa_state
+        self._result_out = result_out
+
+    def update(self) -> Status:
+        dl = self.datalayer
+        if dl is None:
+            self.logger.error("%s: DataLayer not available", self.name)
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+
+        case = dl.read(self._case_id)
+        if not is_case_model(case):
+            self.logger.error(
+                "%s: Case '%s' not found in DataLayer",
+                self.name,
+                self._case_id,
+            )
+            self.feedback_message = f"Case '{self._case_id}' not found"
+            return Status.FAILURE
+
+        participant_id = case.actor_participant_index.get(self._actor_id)
+        if participant_id is None:
+            self.logger.error(
+                "%s: actor '%s' not in case '%s'",
+                self.name,
+                self._actor_id,
+                self._case_id,
+            )
+            self.feedback_message = (
+                f"Actor '{self._actor_id}' not found in"
+                f" case '{self._case_id}'"
+            )
+            return Status.FAILURE
+
+        case_status: CaseStatus | None = None
+        if self._pxa_state is not None:
+            current_em = getattr(
+                getattr(case, "current_status", None), "em_state", None
+            )
+            case_status = CaseStatus(
+                context=self._case_id,
+                attributed_to=self._actor_id,
+                em_state=current_em if current_em is not None else EM.NONE,
+                pxa_state=self._pxa_state,
+            )
+
+        current_rm, current_vfd = resolve_participant_state_from_dl(
+            dl, participant_id
+        )
+
+        status = ParticipantStatus(
+            context=self._case_id,
+            attributed_to=self._actor_id,
+            rm_state=(
+                self._rm_state if self._rm_state is not None else current_rm
+            ),
+            vfd_state=(
+                self._vfd_state if self._vfd_state is not None else current_vfd
+            ),
+            case_status=case_status,
+        )
+        try:
+            dl.create(status)
+        except ValueError:
+            dl.save(status)
+
+        participant_obj = dl.read(participant_id)
+        wire_status = dl.read(status.id_)
+        participant_statuses = (
+            getattr(participant_obj, "participant_statuses", None)
+            if participant_obj is not None
+            else None
+        )
+        if participant_statuses is not None and wire_status is not None:
+            participant_statuses.append(wire_status)
+            if participant_obj is not None:
+                dl.save(participant_obj)
+
+        self._result_out["status_id"] = status.id_
+        self._result_out["participant_id"] = participant_id
+
+        self.logger.info(
+            "%s: Created ParticipantStatus '%s' for actor '%s' in case '%s'",
+            self.name,
+            status.id_,
+            self._actor_id,
+            self._case_id,
+        )
+        return Status.SUCCESS

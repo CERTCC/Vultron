@@ -13,10 +13,14 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for SvcAddParticipantStatusUseCase.
+"""Unit tests for SvcAddParticipantStatusUseCase and CreateParticipantStatusNode.
 
-Focused on ``_resolve_current_participant_state()`` — the private helper
-that extracts the latest ``(RM, CS_vfd)`` pair from a participant record.
+Covers:
+- ``_resolve_current_participant_state()`` / ``resolve_participant_state_from_dl``
+  helper that extracts the latest ``(RM, CS_vfd)`` pair from a participant record.
+- ``CreateParticipantStatusNode`` BT node (BT-15-001: status record creation
+  must live inside the BT, not directly in ``execute()``).
+- ``SvcAddParticipantStatusUseCase.execute()`` full integration path.
 """
 
 from typing import cast
@@ -347,3 +351,203 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
             f"_resolve_current_participant_state must return RM.ACCEPTED; "
             f"got {rm!r} (#624)"
         )
+
+
+# ---------------------------------------------------------------------------
+# CreateParticipantStatusNode — BT node unit tests (BT-15-001)
+# ---------------------------------------------------------------------------
+
+
+class TestCreateParticipantStatusNode:
+    """CreateParticipantStatusNode creates a status snapshot inside the BT.
+
+    These tests verify the BT node that was extracted from the inline
+    ParticipantStatus creation in SvcAddParticipantStatusUseCase.execute()
+    as part of the BT-15-001 remediation (issue #850).
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        import py_trees
+
+        from vultron.adapters.driven.datalayer_sqlite import (
+            SqliteDataLayer,
+            reset_datalayer,
+        )
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.states.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+        py_trees.blackboard.Blackboard.storage.clear()
+
+        self.actor = as_Service(name="Reporter")
+        actor_id = self.actor.id_
+        reset_datalayer(actor_id)
+        self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+        self.dl.clear_all()
+        self.dl.create(self.actor)
+
+        self.case_actor = as_Service(name="Case Actor")
+        reset_datalayer(self.case_actor.id_)
+        self.dl.create(self.case_actor)
+
+        self.case = VulnerabilityCase(name="Test Case BT-15-001")
+
+        self.actor_participant = CaseParticipant(
+            attributed_to=actor_id,
+            context=self.case.id_,
+            case_roles=[CVDRole.FINDER],
+        )
+        self.case_manager_participant = CaseParticipant(
+            attributed_to=self.case_actor.id_,
+            context=self.case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+
+        self.case.actor_participant_index[actor_id] = (
+            self.actor_participant.id_
+        )
+        self.case.actor_participant_index[self.case_actor.id_] = (
+            self.case_manager_participant.id_
+        )
+
+        self.dl.create(self.case)
+        self.dl.create(self.actor_participant)
+        self.dl.create(self.case_manager_participant)
+
+        self.bridge = BTBridge(
+            datalayer=self.dl,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        )
+
+        yield
+
+        try:
+            self.dl.clear_all()
+        finally:
+            self.dl.close()
+            reset_datalayer(actor_id)
+            reset_datalayer(self.case_actor.id_)
+        py_trees.blackboard.Blackboard.storage.clear()
+
+    def _run_node(self, **kwargs):
+        """Build and execute a tree containing only CreateParticipantStatusNode."""
+        from vultron.core.behaviors.case.nodes.participant import (
+            CreateParticipantStatusNode,
+        )
+
+        result_out: dict = {}
+        node = CreateParticipantStatusNode(
+            case_id=self.case.id_,
+            actor_id=self.actor.id_,
+            result_out=result_out,
+            **kwargs,
+        )
+        bt_result = self.bridge.execute_with_setup(
+            node, actor_id=self.actor.id_
+        )
+        return bt_result, result_out
+
+    def test_node_succeeds_and_populates_result_out(self):
+        """CreateParticipantStatusNode returns SUCCESS and sets result_out keys."""
+        from py_trees.common import Status
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vfd_state=None, pxa_state=None
+        )
+
+        assert bt_result.status == Status.SUCCESS
+        assert "status_id" in result_out
+        assert isinstance(result_out["status_id"], str)
+        assert "participant_id" in result_out
+        assert result_out["participant_id"] == self.actor_participant.id_
+
+    def test_node_persists_status_with_explicit_rm_state(self):
+        """CreateParticipantStatusNode persists ParticipantStatus with given RM."""
+        from vultron.core.states.rm import RM
+        from vultron.wire.as2.vocab.objects.case_status import (
+            ParticipantStatus as WireParticipantStatus,
+        )
+
+        bt_result, result_out = self._run_node(
+            rm_state=RM.ACCEPTED, vfd_state=None, pxa_state=None
+        )
+
+        status_id = result_out.get("status_id")
+        assert isinstance(status_id, str), "result_out must contain status_id"
+        stored = self.dl.read(status_id)
+        # dl.read() reconstructs via find_in_vocabulary, which returns the
+        # wire-layer ParticipantStatus (VultronAS2Object subclass).
+        assert isinstance(stored, WireParticipantStatus)
+        assert stored.rm_state == RM.ACCEPTED
+
+    def test_node_appends_status_to_participant(self):
+        """CreateParticipantStatusNode appends the status to participant_statuses."""
+        from vultron.core.states.rm import RM
+
+        _, result_out = self._run_node(
+            rm_state=RM.ACCEPTED, vfd_state=None, pxa_state=None
+        )
+
+        status_id = result_out.get("status_id")
+        participant = self.dl.read(self.actor_participant.id_)
+        statuses = getattr(participant, "participant_statuses", [])
+        status_ids = [getattr(s, "id_", s) for s in statuses]
+        assert status_id in status_ids, (
+            f"CreateParticipantStatusNode must append status '{status_id}'"
+            f" to participant_statuses. Got: {status_ids}"
+        )
+
+    def test_node_fails_when_actor_not_in_case(self):
+        """CreateParticipantStatusNode returns FAILURE for unknown actor."""
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.case.nodes.participant import (
+            CreateParticipantStatusNode,
+        )
+
+        result_out: dict = {}
+        node = CreateParticipantStatusNode(
+            case_id=self.case.id_,
+            actor_id="https://example.org/unknown-actor",
+            rm_state=None,
+            vfd_state=None,
+            pxa_state=None,
+            result_out=result_out,
+        )
+        bt_result = self.bridge.execute_with_setup(
+            node, actor_id=self.actor.id_
+        )
+
+        assert bt_result.status == Status.FAILURE
+        assert "status_id" not in result_out
+
+    def test_node_uses_current_state_when_rm_none(self):
+        """CreateParticipantStatusNode uses existing RM state when rm_state=None."""
+        from vultron.core.states.rm import RM
+        from vultron.wire.as2.vocab.objects.case_status import (
+            ParticipantStatus as WireParticipantStatus,
+        )
+
+        _, result_out = self._run_node(
+            rm_state=None, vfd_state=None, pxa_state=None
+        )
+
+        status_id = result_out.get("status_id")
+        assert isinstance(status_id, str), "result_out must contain status_id"
+        stored = self.dl.read(status_id)
+        # dl.read() reconstructs via find_in_vocabulary, which returns the
+        # wire-layer ParticipantStatus (VultronAS2Object subclass).
+        assert isinstance(stored, WireParticipantStatus)
+        # No prior statuses → defaults to RM.START
+        assert stored.rm_state == RM.START
