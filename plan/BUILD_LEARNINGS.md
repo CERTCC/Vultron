@@ -167,6 +167,25 @@ header.
   into explicit node `FAILURE` with a clear error message, not bridge-level
   exception failures.
 
+### 2026-06-10 PR-886 — PCR-08 violation fix: ResolveCaseManagerNode requires CASE_MANAGER participant in fixtures
+
+- Replacing `case_addressees()` with canonical `_resolve_case_manager_id()` / `ResolveCaseManagerNode`
+  causes tests to fail in a non-obvious way when CASE_MANAGER is absent: the engage
+  path's RM transition fires (→ ACCEPTED), the send then fails, the defer path fires
+  (→ DEFERRED), and the test sees RM=DEFERRED instead of the expected RM=ACCEPTED.
+  The failure manifests as wrong state, not a clear "participant not found" error.
+- All test fixtures for BT paths that involve `ResolveCaseManagerNode` MUST include a
+  `VultronParticipant` with `CVDRole.CASE_MANAGER` registered in `actor_participant_index`.
+- `VulnerabilityCase.add_participant()` has a pyright type mismatch with `VultronParticipant`
+  (core vs. wire-layer `CaseParticipant`). In tests, set `case_participants` and
+  `actor_participant_index` directly in the `VulnerabilityCase` constructor instead of
+  calling `add_participant()`.
+- Chained use cases in integration tests must ALL receive `trigger_activity`: if
+  `SubmitReportReceivedUseCase` is called without it, `CreateCaseActorNode` never runs
+  and the CASE_MANAGER participant is never registered, causing the downstream
+  `ValidateReport` engage BT to fail silently. Pass `TriggerActivityAdapter(dl)` to
+  every use case in the chain, not just the last one.
+
 ### 2026-06-10 ISSUE-755 — SYNC god-node decomposition works best as context handoff leaves
 
 - For replay/fan-out flows, split nodes around blackboard context boundaries:
