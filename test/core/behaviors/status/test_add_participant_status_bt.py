@@ -36,15 +36,22 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.status.add_participant_status_tree import (
     add_participant_status_tree,
 )
+from vultron.core.behaviors.status.append_participant_status_tree import (
+    append_participant_status_tree,
+)
 from vultron.core.behaviors.status.nodes import (
-    AppendParticipantStatusNode,
+    AppendStatusAndSaveParticipantNode,
     AutoCloseBranchNode,
     BroadcastQueueToOutboxNode,
     BroadcastStatusToPeersNode,
+    CheckStatusNotAlreadyAppendedNode,
     CreateStatusBroadcastActivityNode,
     FilterPeerRecipientsNode,
     FindCaseManagerNode,
+    LoadParticipantNode,
     PublicDisclosureBranchNode,
+    ResolveAndPersistStatusObjectNode,
+    ValidateRMTransitionNode,
     VerifySenderIsParticipantNode,
 )
 from vultron.core.states.rm import RM
@@ -196,15 +203,263 @@ class TestVerifySenderIsParticipantNode:
 # ---------------------------------------------------------------------------
 
 
-class TestAppendParticipantStatusNode:
+# ---------------------------------------------------------------------------
+# Step 2: AppendParticipantStatusBT (composed subtree)
+# ---------------------------------------------------------------------------
+
+
+class TestLoadParticipantNode:
+    """Tests for LoadParticipantNode."""
+
+    def test_loads_participant_successfully(
+        self, populated_dl, populated_bridge
+    ):
+        node = LoadParticipantNode(participant_id=PARTICIPANT_ID)
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.SUCCESS
+        participant = py_trees.blackboard.Blackboard().get(
+            "append_status_participant"
+        )
+        assert participant is not None
+        assert participant.id_ == PARTICIPANT_ID
+
+    def test_fails_when_participant_missing(self, bridge):
+        node = LoadParticipantNode(
+            participant_id="https://example.org/cases/case-01/participants/missing"
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+
+
+class TestCheckStatusNotAlreadyAppendedNode:
+    """Tests for CheckStatusNotAlreadyAppendedNode."""
+
+    def test_succeeds_when_status_not_appended(
+        self, populated_dl, populated_bridge
+    ):
+        """Status check passes when status is not yet appended."""
+        tree = py_trees.composites.Sequence(
+            name="test-check",
+            memory=False,
+            children=[
+                LoadParticipantNode(participant_id=PARTICIPANT_ID),
+                CheckStatusNotAlreadyAppendedNode(
+                    status_id=STATUS_ID,
+                    participant_id=PARTICIPANT_ID,
+                ),
+            ],
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.SUCCESS
+
+    def test_fails_when_status_already_appended(
+        self, populated_dl, populated_bridge
+    ):
+        """Status check fails when status is already appended (idempotency)."""
+        p = populated_dl.read(PARTICIPANT_ID)
+        status_obj = populated_dl.read(STATUS_ID)
+        p.participant_statuses.append(status_obj)
+        populated_dl.save(p)
+
+        tree = py_trees.composites.Sequence(
+            name="test-check",
+            memory=False,
+            children=[
+                LoadParticipantNode(participant_id=PARTICIPANT_ID),
+                CheckStatusNotAlreadyAppendedNode(
+                    status_id=STATUS_ID,
+                    participant_id=PARTICIPANT_ID,
+                ),
+            ],
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.FAILURE
+
+
+class TestResolveAndPersistStatusObjectNode:
+    """Tests for ResolveAndPersistStatusObjectNode."""
+
+    def test_resolves_status_from_datalayer(
+        self, populated_dl, populated_bridge
+    ):
+        node = ResolveAndPersistStatusObjectNode(
+            status_id=STATUS_ID,
+            status_obj_fallback=None,
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.SUCCESS
+        status_obj = py_trees.blackboard.Blackboard().get(
+            "append_status_status_obj"
+        )
+        assert status_obj is not None
+        assert status_obj.id_ == STATUS_ID
+
+    def test_persists_fallback_when_not_found(self, dl, bridge, status_obj):
+        """Persists fallback object when status not in DataLayer."""
+        node = ResolveAndPersistStatusObjectNode(
+            status_id=STATUS_ID,
+            status_obj_fallback=status_obj,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+        persisted = dl.read(STATUS_ID)
+        assert persisted is not None
+        assert persisted.id_ == STATUS_ID
+
+    def test_fails_when_status_missing(self, bridge):
+        node = ResolveAndPersistStatusObjectNode(
+            status_id="https://example.org/missing",
+            status_obj_fallback=None,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+
+
+class TestValidateRMTransitionNode:
+    """Tests for ValidateRMTransitionNode."""
+
+    def test_accepts_valid_transition(self, populated_dl, populated_bridge):
+        """Valid adjacent RM transition is accepted."""
+        tree = py_trees.composites.Sequence(
+            name="test-validate",
+            memory=False,
+            children=[
+                LoadParticipantNode(participant_id=PARTICIPANT_ID),
+                ResolveAndPersistStatusObjectNode(
+                    status_id=STATUS_ID,
+                    status_obj_fallback=None,
+                ),
+                ValidateRMTransitionNode(participant_id=PARTICIPANT_ID),
+            ],
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.SUCCESS
+
+    def test_rejects_backwards_transition(
+        self, populated_dl, populated_bridge
+    ):
+        """Backwards RM transition (CLOSED → RECEIVED) is rejected."""
+        p = populated_dl.read(PARTICIPANT_ID)
+        closed_status = ParticipantStatus(
+            id_=f"{STATUS_ID}/closed",
+            context=CASE_ID,
+            rm_state=RM.CLOSED,
+        )
+        p.participant_statuses.append(closed_status)
+        populated_dl.save(p)
+        populated_dl.create(closed_status)
+
+        regressed_status = ParticipantStatus(
+            id_=f"{STATUS_ID}/regressed",
+            context=CASE_ID,
+            rm_state=RM.RECEIVED,
+        )
+        populated_dl.create(regressed_status)
+
+        tree = py_trees.composites.Sequence(
+            name="test-validate-backwards",
+            memory=False,
+            children=[
+                LoadParticipantNode(participant_id=PARTICIPANT_ID),
+                ResolveAndPersistStatusObjectNode(
+                    status_id=regressed_status.id_,
+                    status_obj_fallback=regressed_status,
+                ),
+                ValidateRMTransitionNode(participant_id=PARTICIPANT_ID),
+            ],
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.FAILURE
+
+    def test_accepts_forward_jump(self, populated_dl, populated_bridge):
+        """Non-adjacent forward RM jump is accepted (sender authoritative)."""
+        p = populated_dl.read(PARTICIPANT_ID)
+        received_status = ParticipantStatus(
+            id_=f"{STATUS_ID}/received",
+            context=CASE_ID,
+            rm_state=RM.RECEIVED,
+        )
+        p.participant_statuses.append(received_status)
+        populated_dl.save(p)
+        populated_dl.create(received_status)
+
+        accepted_status = ParticipantStatus(
+            id_=f"{STATUS_ID}/accepted",
+            context=CASE_ID,
+            rm_state=RM.ACCEPTED,
+        )
+        populated_dl.create(accepted_status)
+
+        tree = py_trees.composites.Sequence(
+            name="test-validate-forward-jump",
+            memory=False,
+            children=[
+                LoadParticipantNode(participant_id=PARTICIPANT_ID),
+                ResolveAndPersistStatusObjectNode(
+                    status_id=accepted_status.id_,
+                    status_obj_fallback=accepted_status,
+                ),
+                ValidateRMTransitionNode(participant_id=PARTICIPANT_ID),
+            ],
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.SUCCESS
+
+
+class TestAppendStatusAndSaveParticipantNode:
+    """Tests for AppendStatusAndSaveParticipantNode."""
+
+    def test_appends_and_saves(self, populated_dl, populated_bridge):
+        tree = py_trees.composites.Sequence(
+            name="test-append-save",
+            memory=False,
+            children=[
+                LoadParticipantNode(participant_id=PARTICIPANT_ID),
+                ResolveAndPersistStatusObjectNode(
+                    status_id=STATUS_ID,
+                    status_obj_fallback=None,
+                ),
+                AppendStatusAndSaveParticipantNode(
+                    status_id=STATUS_ID,
+                    participant_id=PARTICIPANT_ID,
+                ),
+            ],
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.SUCCESS
+        p = populated_dl.read(PARTICIPANT_ID)
+        assert p is not None
+        status_ids = [getattr(s, "id_", s) for s in p.participant_statuses]
+        assert STATUS_ID in status_ids
+
+
+class TestAppendParticipantStatusSubtree:
+    """Integration tests for the AppendParticipantStatusBT subtree."""
+
     def test_appends_status(self, populated_dl, populated_bridge, status_obj):
-        node = AppendParticipantStatusNode(
+        tree = append_participant_status_tree(
             status_id=STATUS_ID,
             participant_id=PARTICIPANT_ID,
             status_obj_fallback=status_obj,
         )
         result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
+            tree=tree, actor_id=ACTOR_ID
         )
         assert result.status == Status.SUCCESS
         p = populated_dl.read(PARTICIPANT_ID)
@@ -213,11 +468,11 @@ class TestAppendParticipantStatusNode:
         assert STATUS_ID in status_ids
 
     def test_idempotent_when_already_present(self, populated_dl, status_obj):
-        """Running the node twice does not duplicate the status."""
+        """Running the subtree twice does not duplicate the status."""
         bridge = BTBridge(datalayer=populated_dl)
 
-        def _make_node():
-            return AppendParticipantStatusNode(
+        def _make_tree():
+            return append_participant_status_tree(
                 status_id=STATUS_ID,
                 participant_id=PARTICIPANT_ID,
                 status_obj_fallback=status_obj,
@@ -225,7 +480,7 @@ class TestAppendParticipantStatusNode:
 
         # First call appends the status
         result1 = bridge.execute_with_setup(
-            tree=_make_node(), actor_id=ACTOR_ID
+            tree=_make_tree(), actor_id=ACTOR_ID
         )
         assert result1.status == Status.SUCCESS
         p = populated_dl.read(PARTICIPANT_ID)
@@ -237,19 +492,19 @@ class TestAppendParticipantStatusNode:
         # Second call must be idempotent — count must not increase
         bridge2 = BTBridge(datalayer=populated_dl)
         result2 = bridge2.execute_with_setup(
-            tree=_make_node(), actor_id=ACTOR_ID
+            tree=_make_tree(), actor_id=ACTOR_ID
         )
         assert result2.status == Status.SUCCESS
         p2 = populated_dl.read(PARTICIPANT_ID)
         assert len(p2.participant_statuses) == count_after_first
 
     def test_missing_participant_fails(self, bridge, status_obj):
-        node = AppendParticipantStatusNode(
+        tree = append_participant_status_tree(
             status_id=STATUS_ID,
             participant_id="https://example.org/cases/case-01/participants/missing",
             status_obj_fallback=status_obj,
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
     def test_backwards_rm_transition_fails(
@@ -272,13 +527,13 @@ class TestAppendParticipantStatusNode:
         )
         populated_dl.create(regressed_status)
 
-        node = AppendParticipantStatusNode(
+        tree = append_participant_status_tree(
             status_id=regressed_status.id_,
             participant_id=PARTICIPANT_ID,
             status_obj_fallback=regressed_status,
         )
         result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
+            tree=tree, actor_id=ACTOR_ID
         )
         assert result.status == Status.FAILURE
 
@@ -302,13 +557,13 @@ class TestAppendParticipantStatusNode:
         )
         populated_dl.create(accepted_status)
 
-        node = AppendParticipantStatusNode(
+        tree = append_participant_status_tree(
             status_id=accepted_status.id_,
             participant_id=PARTICIPANT_ID,
             status_obj_fallback=accepted_status,
         )
         result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
+            tree=tree, actor_id=ACTOR_ID
         )
         assert result.status == Status.SUCCESS
 
