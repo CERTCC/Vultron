@@ -39,6 +39,12 @@ from vultron.core.behaviors.case.nodes import (
     RecordOfferReceivedEventNode,
     UpdateActorOutbox,
 )
+from vultron.core.behaviors.case.nodes.case_setup import (
+    CreateCaseActorServiceNode,
+    RegisterCaseActorParticipantNode,
+    ResolveCaseActorUrlsNode,
+    ReuseExistingCaseActorParticipantNode,
+)
 from vultron.core.behaviors.helpers import (
     UpdateActorOutbox as UpdateActorOutboxHelper,
 )
@@ -318,6 +324,24 @@ class TestCreateCaseActorNodeBlackboard:
             s for s in services if getattr(s, "context", None) == case_obj.id_
         ]
         assert len(case_actor_services) >= 1
+
+    def test_is_composed_subtree_of_named_leaf_nodes(self) -> None:
+        node = CreateCaseActorNode()
+        assert isinstance(node, py_trees.composites.Sequence)
+        assert isinstance(node.children[0], ResolveCaseActorUrlsNode)
+        assert isinstance(node.children[1], py_trees.composites.Selector)
+
+        idempotency_selector = node.children[1]
+        assert isinstance(
+            idempotency_selector.children[0],
+            ReuseExistingCaseActorParticipantNode,
+        )
+        create_branch = idempotency_selector.children[1]
+        assert isinstance(create_branch, py_trees.composites.Sequence)
+        assert [type(child) for child in create_branch.children] == [
+            CreateCaseActorServiceNode,
+            RegisterCaseActorParticipantNode,
+        ]
 
     def test_writes_case_actor_id_to_blackboard(
         self,
