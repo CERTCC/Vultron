@@ -334,7 +334,7 @@ def test_execute_with_setup_custom_max_iterations(bridge, test_actor_id):
 def test_execute_with_setup_releases_bridge_context_keys(
     bridge, test_actor_id
 ):
-    """Bridge-owned context keys are removed after execution."""
+    """Bridge releases the datalayer key after execution."""
     tree = AlwaysSucceed()
 
     result = bridge.execute_with_setup(
@@ -343,8 +343,22 @@ def test_execute_with_setup_releases_bridge_context_keys(
 
     assert result.status == Status.SUCCESS
     assert "/datalayer" not in py_trees.blackboard.Blackboard.storage
-    assert "/actor_id" not in py_trees.blackboard.Blackboard.storage
-    assert "/report_id" not in py_trees.blackboard.Blackboard.storage
+
+
+def test_execute_with_setup_restores_preexisting_context(
+    bridge, test_actor_id
+):
+    """Pre-existing blackboard values survive bridge execution."""
+    storage = py_trees.blackboard.Blackboard.storage
+    sentinel_dl = object()
+    storage["/datalayer"] = sentinel_dl
+
+    result = bridge.execute_with_setup(
+        tree=AlwaysSucceed(), actor_id=test_actor_id
+    )
+
+    assert result.status == Status.SUCCESS
+    assert storage["/datalayer"] is sentinel_dl
 
 
 # Integration tests

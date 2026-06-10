@@ -319,30 +319,38 @@ class BTBridge:
                 status=Status.FAILURE,
                 feedback_message=msg,
             )
+        managed_keys = ["datalayer"]
+        storage = py_trees.blackboard.Blackboard.storage
+        key_aliases: set[str] = set()
+        for key in managed_keys:
+            key_aliases.add(key)
+            key_aliases.add(f"/{key}")
+        previous_values = {
+            key: (key in storage, storage.get(key)) for key in key_aliases
+        }
         bt = self.setup_tree(tree, actor_id, activity, **context_data)
         try:
             return self.execute_tree(bt, max_iterations)
         finally:
-            # Release DataLayer and other resource-holding keys from the
-            # global py_trees blackboard.  setup_tree() writes these keys to
+            # Release DataLayer references from the global py_trees
+            # blackboard. setup_tree() writes this key to
             # Blackboard.storage, which is process-global; without explicit
             # cleanup the entries persist after execution, keeping SqliteDataLayer
             # objects (and their underlying sqlite3 connections) alive until the
-            # next BT execution overwrites them.  That delayed release causes
+            # next BT execution overwrites them. That delayed release causes
             # ResourceWarning: unclosed database when GC runs at an
             # unpredictable moment — typically during the next test's SQL
             # activity, which pytest promotes to a test failure via
             # PytestUnraisableExceptionWarning.
-            _released = [
-                "datalayer",
-                "actor_id",
-                "trigger_activity_factory",
-                "activity",
-            ] + list(context_data.keys())
-            storage = py_trees.blackboard.Blackboard.storage
-            for _key in _released:
-                storage.pop(_key, None)
-                storage.pop(f"/{_key}", None)
+            #
+            # Only ``datalayer`` is cleaned here. Other keys (for example
+            # ``trigger_activity_factory``) are intentionally left untouched
+            # because existing trees may rely on cross-tree availability.
+            for _key, (_had_value, _value) in previous_values.items():
+                if _had_value:
+                    storage[_key] = _value
+                else:
+                    storage.pop(_key, None)
 
     @staticmethod
     def get_failure_reason(
