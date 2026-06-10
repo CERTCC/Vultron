@@ -209,7 +209,7 @@ function App() {
     <div style={{ width: '100vw', height: '100vh' }}>
       <div style={{ padding: '1rem', background: '#f5f5f5', borderBottom: '1px solid #ddd' }}>
         <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#666' }}>
-          Vultron Demo — Two-Actor CVD (M1: Case Activation)
+          Vultron Demo (M1: Case Activation)
         </h1>
         <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem', color: '#666' }}>
           CERT/CC — Research Prototype

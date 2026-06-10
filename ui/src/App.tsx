@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import './App.css'
 
 // Define swimlane layout
-const LANE_HEIGHT = 280
+const LANE_HEIGHT = 295
 const ACTOR_PANEL_WIDTH = 300
 
 // Animated node component for consequence nodes
@@ -63,17 +63,35 @@ function AnimatedNode({ event, allEvents, isHovered, fillColor, onMouseEnter, on
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
       />
-      <text
-        x={event.x}
-        y={y + 5}
-        textAnchor="middle"
-        fontSize="11"
-        fill={isDecision ? "white" : "black"}
-        fontWeight="bold"
-        style={{ pointerEvents: 'none', userSelect: 'none' }}
+      <foreignObject
+        x={rectX}
+        y={rectY}
+        width={width}
+        height={height}
+        style={{ pointerEvents: 'none' }}
       >
-        {event.label}
-      </text>
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '8px',
+            boxSizing: 'border-box',
+            fontSize: '11px',
+            fontWeight: 'bold',
+            color: isDecision ? 'white' : 'black',
+            textAlign: 'center',
+            lineHeight: '1.2',
+            wordBreak: 'break-word',
+            overflowWrap: 'break-word',
+            userSelect: 'none',
+          }}
+        >
+          {event.label}
+        </div>
+      </foreignObject>
     </g>
   )
 }
@@ -85,6 +103,7 @@ interface ActorPanelProps {
   rmState: string
   emState?: string
   vfdState?: string
+  pxaState?: string
   actions: Array<{
     id: string
     label: string
@@ -94,7 +113,7 @@ interface ActorPanelProps {
   onActionClick: (actionId: string) => void
 }
 
-function ActorPanel({ name, role, color, rmState, emState, vfdState, actions, onActionClick }: ActorPanelProps) {
+function ActorPanel({ name, role, color, rmState, emState, vfdState, pxaState, actions, onActionClick }: ActorPanelProps) {
   return (
     <div
       style={{
@@ -132,6 +151,7 @@ function ActorPanel({ name, role, color, rmState, emState, vfdState, actions, on
         <div><strong>RM:</strong> {rmState}</div>
         {emState && <div><strong>EM:</strong> {emState}</div>}
         {vfdState && <div><strong>VFD:</strong> {vfdState}</div>}
+        {pxaState && <div><strong>PXA:</strong> {pxaState}</div>}
       </div>
 
       {/* Actions */}
@@ -184,6 +204,7 @@ interface DemoState {
   vendorRmState: string
   emState: string
   vendorVfdState: string
+  pxaState: string  // Case-level PXA state (Public/eXploit/Attacks)
   timelineEvents: TimelineEvent[]
   eventLog: string[]
   vendorVisible: boolean
@@ -191,6 +212,9 @@ interface DemoState {
   nextXPosition: number  // Track x position for uniform spacing
   finderHasClosed: boolean
   vendorHasClosed: boolean
+  finderEmbargoAccepted: boolean  // Track if finder accepted current embargo proposal
+  vendorEmbargoAccepted: boolean  // Track if vendor accepted current embargo proposal
+  finderHasPublished: boolean  // Track if finder has acknowledged publication
 }
 
 function App() {
@@ -200,6 +224,7 @@ function App() {
     vendorRmState: 'START',
     emState: 'NONE',
     vendorVfdState: 'vfd',
+    pxaState: 'pxa',  // Start with no public, no exploit, no attacks
     timelineEvents: [],
     eventLog: [],
     vendorVisible: false,
@@ -207,6 +232,9 @@ function App() {
     nextXPosition: 100,  // Start at 100px, increment by 250px for each decision column
     finderHasClosed: false,
     vendorHasClosed: false,
+    finderEmbargoAccepted: false,
+    vendorEmbargoAccepted: false,
+    finderHasPublished: false,
   })
 
   const [hoveredEvent, setHoveredEvent] = useState<string | null>(null)
@@ -251,6 +279,7 @@ function App() {
       vendorRmState: 'START',
       emState: 'NONE',
       vendorVfdState: 'vfd',
+      pxaState: 'pxa',
       timelineEvents: [],
       eventLog: [],
       vendorVisible: false,
@@ -258,6 +287,9 @@ function App() {
       nextXPosition: 100,
       finderHasClosed: false,
       vendorHasClosed: false,
+      finderEmbargoAccepted: false,
+      vendorEmbargoAccepted: false,
+      finderHasPublished: false,
     })
     setStateHistory([])
   }, [])
@@ -278,9 +310,13 @@ function App() {
 
       setDemoState(prev => ({
         ...prev,
-        phase: 'report-submitted',
+        phase: 'report-received',
         vendorRmState: 'RECEIVED',
+        finderRmState: 'RECEIVED',
+        emState: 'NONE',
+        vendorVfdState: 'Vfd',
         vendorVisible: true,
+        caseActorVisible: true,
         nextXPosition: prev.nextXPosition + 250,
         timelineEvents: [
           ...prev.timelineEvents,
@@ -297,10 +333,10 @@ function App() {
               'VulnerabilityReport object created',
               'Offer(VulnerabilityReport) activity created',
               'Offer sent to Vendor\'s inbox',
-              'Triggers automatic effects on Vendor',
+              'Triggers automatic case creation',
             ],
           },
-          // Consequence node in Vendor lane (enables Validate Report)
+          // Consequence node in Vendor lane
           {
             id: `${submitEventId}-vendor-consequence`,
             actor: 'Vendor',
@@ -309,24 +345,63 @@ function App() {
             lane: 1,
             type: 'consequence',
             causedBy: submitEventId,
-            enablesNext: true,  // Enables Validate Report decision
-            timestamp: now,
+            enablesNext: true,
+            timestamp: now + 1,
             consequences: [
               'Offer received in inbox',
               'SubmitReportReceived handler triggered',
               'VulnerabilityReport stored in DataLayer',
               'Vendor\'s RM state → RECEIVED',
+              'Case creation BT executes automatically',
+            ],
+          },
+          // Consequence node in CaseActor lane (automatic case creation)
+          {
+            id: `${submitEventId}-case-consequence`,
+            actor: 'CaseActor',
+            label: 'Case Created',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            causedBy: submitEventId,
+            timestamp: now + 2,
+            consequences: [
+              'VulnerabilityCase created automatically',
+              'Case creation BT: create_receive_report_case_tree',
+              'Vendor participant created (attributed_to: Vendor)',
+              'Vendor\'s RM → RECEIVED, VFD → Vfd',
+              'Case Actor acts as authoritative ledger',
+            ],
+          },
+          // Decision node in Finder lane (case announced to finder)
+          {
+            id: `${submitEventId}-finder-case-consequence`,
+            actor: 'Finder',
+            label: 'Case Announced',
+            x: nextX,
+            lane: 0,
+            type: 'decision',
+            causedBy: submitEventId,
+            timestamp: now + 3,
+            consequences: [
+              'Announce(Case) received in inbox',
+              'Case replica created in DataLayer',
+              'Finder participant record created',
+              'Finder\'s RM → RECEIVED',
+              'Trust established with CaseActor',
             ],
           },
         ],
         eventLog: [
           ...prev.eventLog,
           'Finder submitted report to Vendor',
+          'Case created automatically (at RM.RECEIVED)',
         ],
       }))
     } else if (actionId === 'validate-report') {
-      // Vendor validates report
+      // Vendor validates report (RM: RECEIVED → VALID)
       const nextX = demoState.nextXPosition
+      const validateEventId = `event-${demoState.timelineEvents.length + 1}`
       const now = Date.now()
 
       setDemoState(prev => ({
@@ -336,8 +411,9 @@ function App() {
         nextXPosition: prev.nextXPosition + 250,
         timelineEvents: [
           ...prev.timelineEvents,
+          // Decision node in Vendor lane
           {
-            id: `event-${prev.timelineEvents.length + 1}`,
+            id: validateEventId,
             actor: 'Vendor',
             label: 'Validate Report',
             x: nextX,
@@ -346,158 +422,733 @@ function App() {
             timestamp: now,
             consequences: [
               'Accept(Offer) activity created',
-              'Vendor\'s RM state → VALID',
-              'Case creation triggered',
-            ],
-          },
-        ],
-        eventLog: [...prev.eventLog, 'Vendor validated the report'],
-      }))
-    } else if (actionId === 'create-case') {
-      // Case automatically created (this button just triggers display of consequences)
-      const nextX = demoState.nextXPosition
-      const caseEventId = `event-${demoState.timelineEvents.length + 1}`
-      const now = Date.now()
-
-      setDemoState(prev => ({
-        ...prev,
-        phase: 'case-created',
-        vendorRmState: 'ACCEPTED',
-        finderRmState: 'ACCEPTED',
-        emState: 'ACTIVE',
-        vendorVfdState: 'Vfd',
-        caseActorVisible: true,
-        nextXPosition: prev.nextXPosition + 250,
-        timelineEvents: [
-          ...prev.timelineEvents,
-          // Main decision node (Vendor lane)
-          {
-            id: caseEventId,
-            actor: 'Vendor',
-            label: 'Case Created',
-            x: nextX,
-            lane: 1,
-            type: 'decision',
-            timestamp: now,
-            consequences: [
-              'VulnerabilityCase created (attributed_to: Vendor)',
-              'Three participants created',
-              'EmbargoPolicy created → EM.ACTIVE',
-              'Vendor\'s RM → ACCEPTED, VFD → Vfd',
-              'Triggers consequences for Finder and CaseActor',
+              'ValidateReportReceivedUseCase executes',
+              'Vendor RM state: RECEIVED → VALID',
+              'Report deemed legitimate',
+              'Can proceed with case work',
             ],
           },
           // Consequence node in Finder lane
           {
-            id: `${caseEventId}-finder-consequence`,
+            id: `${validateEventId}-finder-consequence`,
             actor: 'Finder',
-            label: 'Case Received',
+            label: 'Validation Noted',
             x: nextX,
             lane: 0,
             type: 'consequence',
             timestamp: now + 1,
-            causedBy: caseEventId,
+            causedBy: validateEventId,
             consequences: [
-              'Announce(Case) received in inbox',
-              'Case replica created in DataLayer',
-              'Finder participant record created',
-              'Finder\'s RM → ACCEPTED',
-              'Finder\'s EM → ACTIVE',
-              'Trust established with CaseActor',
+              'Accept activity received',
+              'Vendor has validated the report',
+              'Case work can proceed',
             ],
           },
           // Consequence node in CaseActor lane
           {
-            id: `${caseEventId}-caseactor-consequence`,
+            id: `${validateEventId}-caseactor-consequence`,
             actor: 'CaseActor',
-            label: 'Participant Created',
+            label: 'Validation Tracked',
             x: nextX,
             lane: 2,
             type: 'consequence',
             timestamp: now + 2,
-            causedBy: caseEventId,
+            causedBy: validateEventId,
             consequences: [
-              'CaseActor participant created',
-              'Role: COORDINATOR, CASE_MANAGER',
-              'Now tracks case state',
-              'Acts as authoritative ledger',
-              'Virtual actor (co-located with Vendor)',
+              'Vendor participant RM → VALID',
+              'Authoritative ledger updated',
+              'Case ready for embargo negotiation',
             ],
           },
         ],
         eventLog: [
           ...prev.eventLog,
-          '✓ M1 REACHED: Case active with 3 participants, embargo active',
+          'Vendor validated the report (RM → VALID)',
         ],
       }))
-    } else if (actionId === 'commit-log') {
-      // Vendor commits log entry for replica sync verification
+    } else if (actionId === 'invalidate-report') {
+      // Vendor invalidates report (RM: RECEIVED → INVALID)
       const nextX = demoState.nextXPosition
-      const logEventId = `event-${demoState.timelineEvents.length + 1}`
+      const invalidateEventId = `event-${demoState.timelineEvents.length + 1}`
       const now = Date.now()
 
       setDemoState(prev => ({
         ...prev,
-        phase: 'log-committed',
+        phase: 'report-invalidated',
+        vendorRmState: 'INVALID',
         nextXPosition: prev.nextXPosition + 250,
         timelineEvents: [
           ...prev.timelineEvents,
-          // Decision node in Vendor lane (GREEN)
+          // Decision node in Vendor lane
           {
-            id: logEventId,
+            id: invalidateEventId,
             actor: 'Vendor',
-            label: 'Commit Log',
+            label: 'Invalidate Report',
             x: nextX,
             lane: 1,
             type: 'decision',
             timestamp: now,
             consequences: [
-              'CaseEvent created with hash',
-              'Announce(CaseEvent) activity created',
-              'Sent to participants',
-              'Triggers replica sync and Case Actor tracking',
+              'TentativeReject(Offer) activity created',
+              'InvalidateReportReceivedUseCase executes',
+              'Vendor RM state: RECEIVED → INVALID',
+              'Report deemed not legitimate',
+              'Can be re-validated or closed',
             ],
           },
-          // Consequence node in Finder lane (enables Ask Question)
+          // Consequence node in Finder lane
           {
-            id: `${logEventId}-finder-consequence`,
+            id: `${invalidateEventId}-finder-consequence`,
             actor: 'Finder',
-            label: 'Replica Synced',
+            label: 'Invalidation Noted',
             x: nextX,
             lane: 0,
             type: 'consequence',
             timestamp: now + 1,
-            causedBy: logEventId,
-            enablesNext: true,  // Enables Ask Question decision
+            causedBy: invalidateEventId,
             consequences: [
-              'Announce received in inbox',
-              'CaseEvent stored in DataLayer',
-              'Finder\'s replica synchronized',
-              'Hash verified',
-              '✓ M2 REACHED: Replica state verified (SYNC-2)',
+              'TentativeReject activity received',
+              'Vendor has invalidated the report',
+              'Report held, may be reconsidered',
             ],
           },
-          // Consequence node in CaseActor lane (BLUE)
+          // Consequence node in CaseActor lane
           {
-            id: `${logEventId}-caseactor-consequence`,
+            id: `${invalidateEventId}-caseactor-consequence`,
             actor: 'CaseActor',
-            label: 'Event Logged',
+            label: 'Invalidation Tracked',
             x: nextX,
             lane: 2,
             type: 'consequence',
             timestamp: now + 2,
-            causedBy: logEventId,
+            causedBy: invalidateEventId,
             consequences: [
-              'CaseEvent tracked by Case Actor',
-              'Event hash recorded',
+              'Vendor participant RM → INVALID',
               'Authoritative ledger updated',
-              'Event becomes part of case history',
+              'Case held, no further action',
             ],
           },
         ],
         eventLog: [
           ...prev.eventLog,
-          '✓ M2 REACHED: Finder replica synchronized',
+          'Vendor invalidated the report (RM → INVALID)',
+        ],
+      }))
+    } else if (actionId === 'accept-report') {
+      // Vendor accepts report (RM: VALID → ACCEPTED or DEFERRED → ACCEPTED)
+      const nextX = demoState.nextXPosition
+      const acceptEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'report-accepted',
+        vendorRmState: 'ACCEPTED',
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          {
+            id: acceptEventId,
+            actor: 'Vendor',
+            label: 'Accept Report',
+            x: nextX,
+            lane: 1,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'Accept(Report) activity created',
+              `Vendor RM state: ${prev.vendorRmState} → ACCEPTED`,
+              'Report accepted and prioritized',
+              'Vendor commits to working on fix',
+            ],
+          },
+          {
+            id: `${acceptEventId}-finder-consequence`,
+            actor: 'Finder',
+            label: 'Acceptance Noted',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: acceptEventId,
+            consequences: [
+              'Accept activity received',
+              'Vendor has accepted the report',
+              'Vendor committed to fix development',
+            ],
+          },
+          {
+            id: `${acceptEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'Acceptance Tracked',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: acceptEventId,
+            consequences: [
+              'Vendor participant RM → ACCEPTED',
+              'Authoritative ledger updated',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          'Vendor accepted the report (RM → ACCEPTED)',
+        ],
+      }))
+    } else if (actionId === 'defer-report') {
+      // Vendor defers report (RM: VALID → DEFERRED)
+      const nextX = demoState.nextXPosition
+      const deferEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'report-deferred',
+        vendorRmState: 'DEFERRED',
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          {
+            id: deferEventId,
+            actor: 'Vendor',
+            label: 'Defer Report',
+            x: nextX,
+            lane: 1,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'Defer(Report) activity created',
+              'Vendor RM state: VALID → DEFERRED',
+              'Report deferred for later consideration',
+              'Work paused pending re-prioritization',
+            ],
+          },
+          {
+            id: `${deferEventId}-finder-consequence`,
+            actor: 'Finder',
+            label: 'Deferral Noted',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: deferEventId,
+            consequences: [
+              'Defer activity received',
+              'Vendor has deferred the report',
+              'Vendor has paused work',
+            ],
+          },
+          {
+            id: `${deferEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'Deferral Tracked',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: deferEventId,
+            consequences: [
+              'Vendor participant RM → DEFERRED',
+              'Authoritative ledger updated',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          'Vendor deferred the report (RM → DEFERRED)',
+        ],
+      }))
+    } else if (actionId === 'propose-embargo') {
+      // CaseActor proposes embargo
+      const nextX = demoState.nextXPosition
+      const proposeEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'embargo-proposed',
+        emState: 'PROPOSED',
+        finderEmbargoAccepted: false,
+        vendorEmbargoAccepted: false,
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Decision node in CaseActor lane
+          {
+            id: proposeEventId,
+            actor: 'CaseActor',
+            label: 'Propose Embargo',
+            x: nextX,
+            lane: 2,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'EmbargoEvent created (90-day proposal)',
+              'EmProposeEmbargoActivity created',
+              'Proposal sent to Vendor inbox',
+              'EM state → PROPOSED',
+              'Awaiting Vendor decision',
+            ],
+          },
+          // Consequence node in Vendor lane (enables Accept/Reject)
+          {
+            id: `${proposeEventId}-vendor-consequence`,
+            actor: 'Vendor',
+            label: 'Proposal Received',
+            x: nextX,
+            lane: 1,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: proposeEventId,
+            enablesNext: true,  // Enables Accept/Reject decision
+            consequences: [
+              'EmProposeEmbargoActivity received',
+              'EmbargoEvent stored in DataLayer',
+              'Vendor sees 90-day embargo proposal',
+              'Must accept or reject',
+            ],
+          },
+          // Consequence node in Finder lane (enables Accept/Reject)
+          {
+            id: `${proposeEventId}-finder-consequence`,
+            actor: 'Finder',
+            label: 'Proposal Received',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: proposeEventId,
+            enablesNext: true,
+            consequences: [
+              'EmProposeEmbargoActivity received',
+              'Finder sees 90-day embargo proposal',
+              'EM state → PROPOSED',
+              'Must accept or reject',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          'CaseActor proposed 90-day embargo',
+        ],
+      }))
+    } else if (actionId === 'accept-embargo') {
+      // Vendor accepts embargo proposal
+      const nextX = demoState.nextXPosition
+      const acceptEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+      const bothAccepted = demoState.finderEmbargoAccepted  // Has finder already accepted?
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: bothAccepted ? 'embargo-accepted' : 'embargo-proposed',
+        emState: bothAccepted ? 'ACTIVE' : 'PROPOSED',
+        vendorEmbargoAccepted: true,
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Decision node in Vendor lane
+          {
+            id: acceptEventId,
+            actor: 'Vendor',
+            label: 'Accept Embargo',
+            x: nextX,
+            lane: 1,
+            type: 'decision',
+            timestamp: now,
+            consequences: bothAccepted ? [
+              'EmAcceptEmbargoActivity created',
+              'Both parties have accepted',
+              'ActivateEmbargoActivity triggered',
+              'EM state → ACTIVE',
+              'Triggers announcement to participants',
+            ] : [
+              'EmAcceptEmbargoActivity created',
+              'Acceptance sent to CaseActor',
+              'Awaiting Finder acceptance',
+              'EM state remains PROPOSED',
+            ],
+          },
+          // Consequence node in CaseActor lane
+          {
+            id: `${acceptEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: bothAccepted ? 'Embargo Activated' : 'Vendor Accepted',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: acceptEventId,
+            enablesNext: bothAccepted,
+            consequences: bothAccepted ? [
+              'EmAcceptEmbargoActivity received from both',
+              'ActivateEmbargoActivity processed',
+              'Case active_embargo set',
+              'EM state → ACTIVE',
+              'Authoritative ledger updated',
+            ] : [
+              'Vendor EmAcceptEmbargoActivity received',
+              'Awaiting Finder acceptance',
+              'EM state remains PROPOSED',
+            ],
+          },
+          // Consequence node in Finder lane
+          {
+            id: `${acceptEventId}-finder-consequence`,
+            actor: 'Finder',
+            label: bothAccepted ? 'Embargo Active' : 'Vendor Accepted',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: acceptEventId,
+            consequences: bothAccepted ? [
+              'AnnounceEmbargoActivity received',
+              'Finder\'s EM state → ACTIVE',
+              '90-day embargo now in effect',
+              '✓ M1 REACHED: Case active, embargo established',
+            ] : [
+              'Vendor has accepted embargo',
+              'Finder must still accept or reject',
+              'EM state remains PROPOSED',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          bothAccepted
+            ? '✓ M1 REACHED: Case active with 3 participants, embargo active'
+            : 'Vendor accepted embargo (awaiting Finder)',
+        ],
+      }))
+    } else if (actionId === 'finder-accept-embargo') {
+      // Finder accepts embargo proposal
+      const nextX = demoState.nextXPosition
+      const finderAcceptEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+      const bothAccepted = demoState.vendorEmbargoAccepted  // Has vendor already accepted?
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: bothAccepted ? 'embargo-accepted' : 'embargo-proposed',
+        emState: bothAccepted ? 'ACTIVE' : 'PROPOSED',
+        finderEmbargoAccepted: true,
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Decision node in Finder lane
+          {
+            id: finderAcceptEventId,
+            actor: 'Finder',
+            label: 'Accept Embargo',
+            x: nextX,
+            lane: 0,
+            type: 'decision',
+            timestamp: now,
+            consequences: bothAccepted ? [
+              'EmAcceptEmbargoActivity created',
+              'Both parties have accepted',
+              'ActivateEmbargoActivity triggered',
+              'EM state → ACTIVE',
+              'Triggers announcement to participants',
+            ] : [
+              'EmAcceptEmbargoActivity created',
+              'Acceptance sent to CaseActor',
+              'Awaiting Vendor acceptance',
+              'EM state remains PROPOSED',
+            ],
+          },
+          // Consequence node in Vendor lane
+          {
+            id: `${finderAcceptEventId}-vendor-consequence`,
+            actor: 'Vendor',
+            label: bothAccepted ? 'Embargo Active' : 'Finder Accepted',
+            x: nextX,
+            lane: 1,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: finderAcceptEventId,
+            consequences: bothAccepted ? [
+              'AnnounceEmbargoActivity received',
+              'Vendor\'s EM state → ACTIVE',
+              '90-day embargo now in effect',
+              '✓ M1 REACHED: Case active, embargo established',
+            ] : [
+              'Finder has accepted embargo',
+              'Vendor must still accept or reject',
+              'EM state remains PROPOSED',
+            ],
+          },
+          // Consequence node in CaseActor lane
+          {
+            id: `${finderAcceptEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: bothAccepted ? 'Embargo Activated' : 'Finder Accepted',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: finderAcceptEventId,
+            enablesNext: bothAccepted,
+            consequences: bothAccepted ? [
+              'EmAcceptEmbargoActivity received from both',
+              'ActivateEmbargoActivity processed',
+              'Case active_embargo set',
+              'EM state → ACTIVE',
+              'Authoritative ledger updated',
+            ] : [
+              'Finder EmAcceptEmbargoActivity received',
+              'Awaiting Vendor acceptance',
+              'EM state remains PROPOSED',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          bothAccepted
+            ? '✓ M1 REACHED: Case active with 3 participants, embargo active'
+            : 'Finder accepted embargo (awaiting Vendor)',
+        ],
+      }))
+    } else if (actionId === 'reject-embargo' || actionId === 'finder-reject-embargo') {
+      // Vendor or Finder rejects embargo proposal
+      const isFinderRejecting = actionId === 'finder-reject-embargo'
+      const nextX = demoState.nextXPosition
+      const rejectEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      setDemoState(prev => ({
+        ...prev,
+        phase: 'embargo-rejected',
+        emState: 'NONE',
+        finderEmbargoAccepted: false,
+        vendorEmbargoAccepted: false,
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Decision node in rejecting actor's lane
+          {
+            id: rejectEventId,
+            actor: isFinderRejecting ? 'Finder' : 'Vendor',
+            label: 'Reject Embargo',
+            x: nextX,
+            lane: isFinderRejecting ? 0 : 1,
+            type: 'decision',
+            timestamp: now,
+            consequences: [
+              'EmRejectEmbargoActivity created',
+              'Rejection sent to CaseActor',
+              'EM state → NONE',
+              'No embargo will be activated',
+              'Any prior acceptances nullified',
+            ],
+          },
+          // Consequence node in CaseActor lane (enables repropose)
+          {
+            id: `${rejectEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'Embargo Rejected',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 1,
+            causedBy: rejectEventId,
+            enablesNext: true,
+            consequences: [
+              'EmRejectEmbargoActivity received',
+              'Embargo proposal discarded',
+              'EM state → NONE',
+              'Can repropose with revised terms',
+              'Or case can continue without embargo',
+            ],
+          },
+          // Consequence node in non-rejecting participant lane
+          {
+            id: `${rejectEventId}-participant-consequence`,
+            actor: isFinderRejecting ? 'Vendor' : 'Finder',
+            label: 'Embargo Rejected',
+            x: nextX,
+            lane: isFinderRejecting ? 1 : 0,
+            type: 'consequence',
+            timestamp: now + 2,
+            causedBy: rejectEventId,
+            consequences: [
+              `${isFinderRejecting ? 'Finder' : 'Vendor'} rejected embargo`,
+              'EM state remains NONE',
+              'Awaiting reproposal or continuation',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          `${isFinderRejecting ? 'Finder' : 'Vendor'} rejected embargo proposal (can be reproposed)`,
+        ],
+      }))
+    } else if (actionId === 'trigger-exploit') {
+      // External event: exploit published in the wild (not a participant action)
+      const nextX = demoState.nextXPosition
+      const exploitEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      // Determine new PXA state
+      // Per Vultron protocol: exploit publication (X) automatically implies public awareness (P)
+      // States pXa and pXA are not valid - once an exploit is published, the public is aware
+      const currentPxa = demoState.pxaState
+      let newPxa = currentPxa
+      if (currentPxa === 'pxa') {
+        newPxa = 'PXa'  // exploit published -> public becomes aware automatically
+      } else if (currentPxa === 'pxA') {
+        newPxa = 'PXA'  // exploit + attacks -> public becomes aware automatically
+      } else if (currentPxa === 'Pxa') {
+        newPxa = 'PXa'  // public + exploit (already public)
+      } else if (currentPxa === 'PxA') {
+        newPxa = 'PXA'  // public + exploit + attacks (already public)
+      }
+
+      const publicBecameAware = !currentPxa.includes('P') && newPxa.includes('P')
+
+      setDemoState(prev => ({
+        ...prev,
+        pxaState: newPxa,
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Consequence node in Finder lane (external event affects all)
+          {
+            id: `${exploitEventId}-finder-consequence`,
+            actor: 'Finder',
+            label: 'Exploit Published',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            timestamp: now,
+            consequences: [
+              'External event: exploit published in the wild',
+              ...(publicBecameAware ? ['Public becomes aware (automatic with X)'] : []),
+              'Finder observes exploit',
+              'Participant pxa_state updated',
+              `Case PXA state: ${currentPxa} → ${newPxa}`,
+            ],
+          },
+          // Consequence node in Vendor lane
+          {
+            id: `${exploitEventId}-vendor-consequence`,
+            actor: 'Vendor',
+            label: 'Exploit Published',
+            x: nextX,
+            lane: 1,
+            type: 'consequence',
+            timestamp: now + 1,
+            consequences: [
+              'External event: exploit published in the wild',
+              ...(publicBecameAware ? ['Public becomes aware (automatic with X)'] : []),
+              'Vendor observes exploit',
+              'Participant pxa_state updated',
+              `Case PXA state: ${currentPxa} → ${newPxa}`,
+            ],
+          },
+          // Consequence node in CaseActor lane
+          {
+            id: `${exploitEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'Exploit Tracked',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 2,
+            consequences: [
+              'External event: exploit published',
+              ...(publicBecameAware ? ['Public becomes aware (automatic with X)'] : []),
+              `Case PXA state: ${currentPxa} → ${newPxa}`,
+              'Authoritative ledger updated',
+              'All participants notified',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          publicBecameAware
+            ? 'Exploit published in the wild (external event) - public becomes aware'
+            : 'Exploit published in the wild (external event)',
+        ],
+      }))
+    } else if (actionId === 'trigger-attacks') {
+      // External event: attacks observed in the wild (not a participant action)
+      const nextX = demoState.nextXPosition
+      const attackEventId = `event-${demoState.timelineEvents.length + 1}`
+      const now = Date.now()
+
+      // Determine new PXA state
+      const currentPxa = demoState.pxaState
+      let newPxa = currentPxa
+      if (currentPxa === 'pxa') {
+        newPxa = 'pxA'  // attacks observed
+      } else if (currentPxa === 'pXa') {
+        newPxa = 'pXA'  // exploit + attacks
+      } else if (currentPxa === 'Pxa') {
+        newPxa = 'PxA'  // public + attacks
+      } else if (currentPxa === 'PXa') {
+        newPxa = 'PXA'  // public + exploit + attacks
+      }
+
+      setDemoState(prev => ({
+        ...prev,
+        pxaState: newPxa,
+        nextXPosition: prev.nextXPosition + 250,
+        timelineEvents: [
+          ...prev.timelineEvents,
+          // Consequence node in Finder lane (external event affects all)
+          {
+            id: `${attackEventId}-finder-consequence`,
+            actor: 'Finder',
+            label: 'Attacks Observed',
+            x: nextX,
+            lane: 0,
+            type: 'consequence',
+            timestamp: now,
+            consequences: [
+              'External event: attacks observed in the wild',
+              'Finder becomes aware of attacks',
+              'Participant pxa_state updated',
+            ],
+          },
+          // Consequence node in Vendor lane
+          {
+            id: `${attackEventId}-vendor-consequence`,
+            actor: 'Vendor',
+            label: 'Attacks Observed',
+            x: nextX,
+            lane: 1,
+            type: 'consequence',
+            timestamp: now + 1,
+            consequences: [
+              'External event: attacks observed in the wild',
+              'Vendor becomes aware of attacks',
+              'Participant pxa_state updated',
+            ],
+          },
+          // Consequence node in CaseActor lane
+          {
+            id: `${attackEventId}-caseactor-consequence`,
+            actor: 'CaseActor',
+            label: 'Attacks Tracked',
+            x: nextX,
+            lane: 2,
+            type: 'consequence',
+            timestamp: now + 2,
+            consequences: [
+              'External event: attacks observed',
+              `Case PXA state: ${newPxa}`,
+              'Authoritative ledger updated',
+              'All participants notified',
+            ],
+          },
+        ],
+        eventLog: [
+          ...prev.eventLog,
+          'Attacks observed in the wild (external event)',
         ],
       }))
     } else if (actionId === 'finder-add-note') {
@@ -508,6 +1159,7 @@ function App() {
 
       setDemoState(prev => ({
         ...prev,
+        // Always set to finder-asked when a question is asked
         phase: 'finder-asked',
         nextXPosition: prev.nextXPosition + 250,
         timelineEvents: [
@@ -577,6 +1229,7 @@ function App() {
 
       setDemoState(prev => ({
         ...prev,
+        // Keep track that vendor replied, but don't block VFD progression
         phase: 'vendor-replied',
         nextXPosition: prev.nextXPosition + 250,
         timelineEvents: [
@@ -648,7 +1301,8 @@ function App() {
 
       setDemoState(prev => ({
         ...prev,
-        phase: 'fix-ready',
+        // Keep Q&A phase if in one, otherwise move to fix-ready
+        phase: ['finder-asked', 'vendor-replied'].includes(prev.phase) ? prev.phase : 'fix-ready',
         vendorVfdState: 'VFd',
         nextXPosition: prev.nextXPosition + 250,
         timelineEvents: [
@@ -717,6 +1371,7 @@ function App() {
 
       setDemoState(prev => ({
         ...prev,
+        // Move to fix-deployed (Q&A can still continue but now publication is also available)
         phase: 'fix-deployed',
         vendorVfdState: 'VFD',
         nextXPosition: prev.nextXPosition + 250,
@@ -786,8 +1441,10 @@ function App() {
 
       setDemoState(prev => ({
         ...prev,
-        phase: 'vendor-published',
+        // Preserve Q&A phase if in one, otherwise just mark as published
+        phase: prev.phase === 'finder-asked' ? 'finder-asked' : 'vendor-published',
         emState: 'EXITED',
+        pxaState: 'Pxa',  // Public awareness achieved
         nextXPosition: prev.nextXPosition + 250,
         timelineEvents: [
           ...prev.timelineEvents,
@@ -804,17 +1461,18 @@ function App() {
               'Vendor creates UpdateParticipantStatus',
               'pxa_state → public-aware',
               'EM → EXITED (embargo terminated)',
+              'Case PXA → Pxa (public awareness)',
               'Announce activity sent to participants',
             ],
           },
-          // Consequence node in Finder lane (enables Acknowledge Publication)
-          {
+          // Consequence node in Finder lane (only if Finder hasn't closed)
+          ...(prev.finderHasClosed ? [] : [{
             id: `${vendorPubEventId}-finder-consequence`,
             actor: 'Finder',
             label: 'Publication Noted',
             x: nextX,
             lane: 0,
-            type: 'consequence',
+            type: 'consequence' as const,
             timestamp: now + 1,
             causedBy: vendorPubEventId,
             enablesNext: true,  // Enables Acknowledge Publication decision
@@ -824,7 +1482,7 @@ function App() {
               'Embargo terminated (EM.EXITED)',
               'Finder sees publication',
             ],
-          },
+          }] as TimelineEvent[]),
           // Consequence node in CaseActor lane (BLUE)
           {
             id: `${vendorPubEventId}-caseactor-consequence`,
@@ -838,6 +1496,7 @@ function App() {
             consequences: [
               'Vendor participant pxa_state updated',
               'Embargo state: EM.EXITED',
+              'Case PXA state: Pxa (public awareness)',
               'Authoritative ledger updated',
               'Case shows public disclosure',
             ],
@@ -857,6 +1516,7 @@ function App() {
       setDemoState(prev => ({
         ...prev,
         phase: 'finder-published',
+        finderHasPublished: true,
         nextXPosition: prev.nextXPosition + 250,
         timelineEvents: [
           ...prev.timelineEvents,
@@ -906,6 +1566,7 @@ function App() {
             consequences: [
               'Finder participant pxa_state updated',
               'All participants public-aware',
+              'Case PXA state: Pxa (public awareness)',
               'CS.VFDPxa state achieved',
               '✓ M6: Public disclosure complete',
             ],
@@ -923,9 +1584,12 @@ function App() {
       const bothClosed = demoState.finderHasClosed  // Will both be closed after this action?
       const now = Date.now()
 
+      // Determine new phase based on current state
+      let newPhase = bothClosed ? 'case-closed' : 'vendor-closed'
+
       setDemoState(prev => ({
         ...prev,
-        phase: bothClosed ? 'case-closed' : 'vendor-closed',
+        phase: newPhase,
         vendorRmState: 'CLOSED',
         vendorHasClosed: true,
         nextXPosition: prev.nextXPosition + 250,
@@ -946,14 +1610,14 @@ function App() {
               'Announce activity sent to participants',
             ],
           },
-          // Consequence node in Finder lane (enables Close Case if not already closed)
-          {
+          // Consequence node in Finder lane (only if Finder hasn't closed/left)
+          ...(prev.finderHasClosed ? [] : [{
             id: `${vendorCloseEventId}-finder-consequence`,
             actor: 'Finder',
-            label: 'Closure Noted',
+            label: bothClosed ? 'Closure Complete' : 'Vendor Closed',
             x: nextX,
             lane: 0,
-            type: 'consequence',
+            type: 'consequence' as const,
             timestamp: now + 1,
             causedBy: vendorCloseEventId,
             enablesNext: true,  // Enables Close Case decision
@@ -961,13 +1625,14 @@ function App() {
               'Announce received in inbox',
               'Vendor participant status updated',
               'Vendor RM → CLOSED',
+              ...(bothClosed ? ['All participants RM.CLOSED'] : ['Finder can continue or close']),
             ],
-          },
+          }] as TimelineEvent[]),
           // Consequence node in CaseActor lane (BLUE)
           {
             id: `${vendorCloseEventId}-caseactor-consequence`,
             actor: 'CaseActor',
-            label: 'Closure Tracked',
+            label: bothClosed ? 'Case Closed' : 'Vendor Closed',
             x: nextX,
             lane: 2,
             type: 'consequence',
@@ -976,7 +1641,10 @@ function App() {
             consequences: [
               'Vendor participant RM → CLOSED',
               'Authoritative ledger updated',
-              'Waiting for all participants to close',
+              ...(bothClosed
+                ? ['All participants RM.CLOSED', '✓ M7: Case closure complete']
+                : ['Finder participant still active', 'Case remains open']
+              ),
             ],
           },
         ],
@@ -992,9 +1660,12 @@ function App() {
       const bothClosed = demoState.vendorHasClosed  // Will both be closed after this action?
       const now = Date.now()
 
+      // Determine new phase based on current state
+      let newPhase = bothClosed ? 'case-closed' : 'finder-closed'
+
       setDemoState(prev => ({
         ...prev,
-        phase: bothClosed ? 'case-closed' : 'finder-closed',
+        phase: newPhase,
         finderRmState: 'CLOSED',
         finderHasClosed: true,
         nextXPosition: prev.nextXPosition + 250,
@@ -1013,30 +1684,30 @@ function App() {
               'Finder creates UpdateParticipantStatus',
               'rm_state → CLOSED',
               'Announce activity sent to participants',
-              '✓ M7 REACHED: All participants closed',
+              ...(bothClosed ? ['✓ M7 REACHED: All participants closed'] : ['Finder has left the case']),
             ],
           },
-          // Consequence node in Vendor lane (BLUE)
-          {
+          // Consequence node in Vendor lane (only if Vendor hasn't closed/left)
+          ...(prev.vendorHasClosed ? [] : [{
             id: `${finderCloseEventId}-vendor-consequence`,
             actor: 'Vendor',
-            label: 'Closure Complete',
+            label: bothClosed ? 'Closure Complete' : 'Finder Closed',
             x: nextX,
             lane: 1,
-            type: 'consequence',
+            type: 'consequence' as const,
             timestamp: now + 1,
             causedBy: finderCloseEventId,
             consequences: [
               'Announce received in inbox',
               'Finder participant status updated',
-              'All participants RM.CLOSED',
+              ...(bothClosed ? ['All participants RM.CLOSED'] : ['Finder RM → CLOSED', 'Vendor can continue or close']),
             ],
-          },
+          }] as TimelineEvent[]),
           // Consequence node in CaseActor lane (BLUE)
           {
             id: `${finderCloseEventId}-caseactor-consequence`,
             actor: 'CaseActor',
-            label: 'Case Closed',
+            label: bothClosed ? 'Case Closed' : 'Finder Closed',
             x: nextX,
             lane: 2,
             type: 'consequence',
@@ -1044,9 +1715,10 @@ function App() {
             causedBy: finderCloseEventId,
             consequences: [
               'Finder participant RM → CLOSED',
-              'All participants RM.CLOSED',
-              'Case Actor closes case',
-              '✓ M7: Case closure complete',
+              ...(bothClosed
+                ? ['All participants RM.CLOSED', 'Case Actor closes case', '✓ M7: Case closure complete']
+                : ['Vendor participant still active', 'Authoritative ledger updated', 'Case remains open']
+              ),
             ],
           },
         ],
@@ -1059,18 +1731,62 @@ function App() {
   }, [demoState.timelineEvents.length])
 
   return (
-    <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <div style={{ padding: '1rem', background: '#f5f5f5', borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#666' }}>
-            Vultron Interactive Demo — Two-Actor CVD
+            Vultron Interactive Demo (Single Vendor)
           </h1>
           <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem', color: '#666' }}>
             CERT/CC — Research Prototype | Click actions on actors to progress through the demo
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '1rem' }}>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          {/* External Event Triggers */}
+          {demoState.caseActorVisible && (
+            <div style={{ display: 'flex', gap: '0.5rem', marginRight: '1rem', paddingRight: '1rem', borderRight: '2px solid #ddd' }}>
+              <span style={{ fontSize: '0.85rem', color: '#666', alignSelf: 'center', fontWeight: 'bold' }}>
+                External Events:
+              </span>
+              <button
+                onClick={() => handleAction('external', 'trigger-exploit')}
+                disabled={demoState.pxaState.includes('X')}
+                style={{
+                  padding: '0.5rem 1rem',
+                  fontSize: '0.85rem',
+                  background: demoState.pxaState.includes('X') ? '#ccc' : '#ff5722',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: demoState.pxaState.includes('X') ? 'not-allowed' : 'pointer',
+                  fontWeight: 'bold',
+                  opacity: demoState.pxaState.includes('X') ? 0.5 : 1,
+                }}
+                title="Trigger external event: exploit published in the wild"
+              >
+                ⚠️ Exploit
+              </button>
+              <button
+                onClick={() => handleAction('external', 'trigger-attacks')}
+                disabled={demoState.pxaState.includes('A')}
+                style={{
+                  padding: '0.5rem 1rem',
+                  fontSize: '0.85rem',
+                  background: demoState.pxaState.includes('A') ? '#ccc' : '#d32f2f',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: demoState.pxaState.includes('A') ? 'not-allowed' : 'pointer',
+                  fontWeight: 'bold',
+                  opacity: demoState.pxaState.includes('A') ? 0.5 : 1,
+                }}
+                title="Trigger external event: attacks observed in the wild"
+              >
+                🔥 Attacks
+              </button>
+            </div>
+          )}
           <button
             onClick={handleStartOver}
             style={{
@@ -1139,22 +1855,43 @@ function App() {
                 label: 'Submit Report',
                 description: 'Create and submit a vulnerability report to the Vendor',
                 enabled: true,
-              }] : demoState.phase === 'log-committed' ? [{
-                id: 'finder-add-note',
-                label: 'Ask Question',
-                description: 'Add a note to the case asking for information',
-                enabled: true,
-              }] : demoState.phase === 'vendor-published' ? [{
-                id: 'finder-notify-published',
-                label: 'Acknowledge Publication',
-                description: 'Finder acknowledges publication',
-                enabled: true,
-              }] : (demoState.phase === 'finder-published' || demoState.phase === 'vendor-closed') && !demoState.finderHasClosed ? [{
-                id: 'finder-close-case',
-                label: 'Close Case',
-                description: 'Finder closes their participation in the case',
-                enabled: true,
-              }] : []
+              }] : [
+                // Embargo response - independent of other actions
+                ...(demoState.phase === 'embargo-proposed' && !demoState.finderEmbargoAccepted ? [{
+                  id: 'finder-accept-embargo',
+                  label: 'Accept Embargo',
+                  description: 'Accept the 90-day embargo proposal',
+                  enabled: true,
+                }, {
+                  id: 'finder-reject-embargo',
+                  label: 'Reject Embargo',
+                  description: 'Reject the embargo proposal',
+                  enabled: true,
+                }] : []),
+                // Communication - available throughout case
+                ...(!demoState.finderHasClosed ? [{
+                  id: 'finder-add-note',
+                  label: demoState.phase === 'vendor-replied' ? 'Ask Another Question' : 'Ask Question',
+                  description: demoState.phase === 'vendor-replied'
+                    ? 'Add another note to the case asking for more information'
+                    : 'Add a note to the case asking for information',
+                  enabled: true,
+                }] : []),
+                // Publication acknowledgment
+                ...(demoState.pxaState === 'Pxa' && demoState.vendorVfdState === 'VFD' && !demoState.finderHasPublished ? [{
+                  id: 'finder-notify-published',
+                  label: 'Acknowledge Publication',
+                  description: 'Finder acknowledges publication',
+                  enabled: true,
+                }] : []),
+                // Close case
+                ...(demoState.vendorVfdState === 'VFD' && demoState.pxaState.includes('P') && !demoState.finderHasClosed ? [{
+                  id: 'finder-close-case',
+                  label: 'Close Case',
+                  description: 'Finder closes their participation in the case',
+                  enabled: true,
+                }] : [])
+              ]
             }
             onActionClick={(actionId) => handleAction('finder', actionId)}
           />
@@ -1166,54 +1903,102 @@ function App() {
               rmState={demoState.vendorRmState}
               emState={demoState.emState}
               vfdState={demoState.vendorVfdState}
-              actions={
-                demoState.phase === 'report-submitted' ? [{
+              actions={[
+                // RM validation actions
+                ...(demoState.vendorRmState === 'RECEIVED' ? [{
                   id: 'validate-report',
                   label: 'Validate Report',
-                  description: 'Mark the report as valid',
+                  description: 'Mark the report as valid (RM: RECEIVED → VALID)',
                   enabled: true,
                 }, {
                   id: 'invalidate-report',
                   label: 'Invalidate Report',
-                  description: 'Mark the report as invalid',
+                  description: 'Mark the report as invalid (RM: RECEIVED → INVALID)',
                   enabled: true,
-                }] : demoState.phase === 'report-validated' ? [{
-                  id: 'create-case',
-                  label: 'Create Case',
-                  description: 'System creates case with 3 participants',
+                }] : []),
+                // RM invalid state actions
+                ...(demoState.vendorRmState === 'INVALID' ? [{
+                  id: 'validate-report',
+                  label: 'Re-validate Report',
+                  description: 'Mark the report as valid after reconsideration (RM: INVALID → VALID)',
                   enabled: true,
-                }] : demoState.phase === 'case-created' ? [{
-                  id: 'commit-log',
-                  label: 'Commit Log Entry',
-                  description: 'Create log entry for replica synchronization verification',
+                }, {
+                  id: 'vendor-close-case',
+                  label: 'Close Invalid Report',
+                  description: 'Close the case for this invalid report (RM: INVALID → CLOSED)',
                   enabled: true,
-                }] : demoState.phase === 'finder-asked' ? [{
+                }] : []),
+                // RM prioritization actions
+                ...(demoState.vendorRmState === 'VALID' ? [{
+                  id: 'accept-report',
+                  label: 'Accept Report',
+                  description: 'Accept the report and commit to working on it (RM: VALID → ACCEPTED)',
+                  enabled: true,
+                }, {
+                  id: 'defer-report',
+                  label: 'Defer Report',
+                  description: 'Defer the report for later consideration (RM: VALID → DEFERRED)',
+                  enabled: true,
+                }] : []),
+                // RM deferred state actions
+                ...(demoState.vendorRmState === 'DEFERRED' ? [{
+                  id: 'accept-report',
+                  label: 'Resume Work (Accept)',
+                  description: 'Resume work on the deferred report (RM: DEFERRED → ACCEPTED)',
+                  enabled: true,
+                }, {
+                  id: 'vendor-close-case',
+                  label: 'Close Deferred Report',
+                  description: 'Close the deferred report (RM: DEFERRED → CLOSED)',
+                  enabled: true,
+                }] : []),
+                // Embargo response - independent of RM and VFD
+                ...(demoState.phase === 'embargo-proposed' && !demoState.vendorEmbargoAccepted ? [{
+                  id: 'accept-embargo',
+                  label: 'Accept Embargo',
+                  description: 'Accept the 90-day embargo proposal',
+                  enabled: true,
+                }, {
+                  id: 'reject-embargo',
+                  label: 'Reject Embargo',
+                  description: 'Reject the embargo proposal',
+                  enabled: true,
+                }] : []),
+                // Communication - reply to questions
+                ...(demoState.phase === 'finder-asked' && !demoState.vendorHasClosed ? [{
                   id: 'vendor-reply-note',
                   label: 'Reply to Question',
-                  description: 'Respond to Finder\'s question about workarounds',
+                  description: 'Respond to Finder\'s question',
                   enabled: true,
-                }] : demoState.phase === 'vendor-replied' ? [{
+                }] : []),
+                // VFD progression - requires RM.ACCEPTED
+                ...(demoState.vendorVfdState === 'Vfd' && demoState.vendorRmState === 'ACCEPTED' ? [{
                   id: 'notify-fix-ready',
                   label: 'Notify Fix Ready',
                   description: 'Vendor notifies that a fix is ready',
                   enabled: true,
-                }] : demoState.phase === 'fix-ready' ? [{
+                }] : []),
+                ...(demoState.vendorVfdState === 'VFd' && demoState.vendorRmState === 'ACCEPTED' ? [{
                   id: 'notify-fix-deployed',
                   label: 'Notify Fix Deployed',
                   description: 'Vendor notifies that the fix has been deployed',
                   enabled: true,
-                }] : demoState.phase === 'fix-deployed' ? [{
+                }] : []),
+                // Publication
+                ...(demoState.vendorVfdState === 'VFD' && !demoState.pxaState.includes('P') ? [{
                   id: 'vendor-notify-published',
                   label: 'Notify Published',
                   description: 'Vendor notifies that vulnerability is publicly disclosed',
                   enabled: true,
-                }] : (demoState.phase === 'vendor-published' || demoState.phase === 'finder-published' || demoState.phase === 'finder-closed') && !demoState.vendorHasClosed ? [{
+                }] : []),
+                // Close case after fix deployed AND published
+                ...(demoState.vendorVfdState === 'VFD' && demoState.pxaState.includes('P') && !demoState.vendorHasClosed ? [{
                   id: 'vendor-close-case',
                   label: 'Close Case',
                   description: 'Vendor closes their participation in the case',
                   enabled: true,
-                }] : []
-              }
+                }] : [])
+              ]}
               onActionClick={(actionId) => handleAction('vendor', actionId)}
             />
           )}
@@ -1224,8 +2009,18 @@ function App() {
               color="#fff3e0"
               rmState="N/A"
               emState={demoState.emState}
-              actions={[]}
-              onActionClick={() => {}}
+              pxaState={demoState.pxaState}
+              actions={
+                (demoState.emState === 'NONE' || demoState.phase === 'embargo-rejected') ? [{
+                  id: 'propose-embargo',
+                  label: demoState.phase === 'embargo-rejected' ? 'Repropose Embargo' : 'Propose Embargo',
+                  description: demoState.phase === 'embargo-rejected'
+                    ? 'Propose a revised embargo to the Vendor'
+                    : 'Propose an embargo to the Vendor',
+                  enabled: true,
+                }] : []
+              }
+              onActionClick={(actionId) => handleAction('caseactor', actionId)}
             />
           )}
         </div>
@@ -1451,7 +2246,7 @@ function App() {
                   borderRadius: '8px',
                   padding: '1rem',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                  maxWidth: '400px',
+                  width: '400px',
                   zIndex: 1000,
                 }}
               >
