@@ -22,7 +22,7 @@ from typing import Any, cast
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
 from vultron.core.models.protocols import is_log_entry_model
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -86,7 +86,25 @@ class PersistReceivedLogEntryNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class CheckHashOrRejectOnMismatchNode(DataLayerAction):
+class CheckHashMatchesNode(DataLayerCondition):
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="tail_hash", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        entry = _require_log_entry(self.blackboard.activity, self.name)
+        tail_hash = self.blackboard.tail_hash
+        if entry.prev_log_hash == tail_hash:
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class SendRejectLogEntryNode(DataLayerAction):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._sync_port: SyncActivityPort | None = None
@@ -117,8 +135,6 @@ class CheckHashOrRejectOnMismatchNode(DataLayerAction):
 
         entry = _require_log_entry(self.blackboard.activity, self.name)
         tail_hash = self.blackboard.tail_hash
-        if entry.prev_log_hash == tail_hash:
-            return Status.SUCCESS
 
         sender_id = getattr(self.blackboard.activity, "actor_id", None)
         if self._sync_port is None:
@@ -145,3 +161,15 @@ class CheckHashOrRejectOnMismatchNode(DataLayerAction):
             to=[sender_id],
         )
         return Status.FAILURE
+
+
+class CheckHashOrRejectOnMismatchNode(py_trees.composites.Selector):
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(
+            name=name or self.__class__.__name__,
+            memory=False,
+            children=[
+                CheckHashMatchesNode(name="CheckHashMatches"),
+                SendRejectLogEntryNode(name="SendRejectLogEntry"),
+            ],
+        )

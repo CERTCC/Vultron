@@ -44,14 +44,21 @@ from vultron.core.behaviors.sync.nodes.conditions import (
     _require_log_entry,  # noqa: F401
 )
 from vultron.core.behaviors.sync.nodes.receive import (
+    CheckHashMatchesNode,
     CheckHashOrRejectOnMismatchNode,
     LogDeliveryConfirmationNode,
     PersistReceivedLogEntryNode,
+    SendRejectLogEntryNode,
 )
 from vultron.core.behaviors.sync.nodes.replay import (
+    CollectAndSortCaseLogEntriesNode,
+    CollectLogEntryRecipientsNode,
     FanOutLogEntryNode,
     FindCaseActorNode,
+    FindDivergenceIndexNode,
     ReplayMissingEntriesNode,
+    SendLogEntryToEachNode,
+    SendMissingEntriesNode,
 )
 
 __all__ = [
@@ -64,6 +71,8 @@ __all__ = [
     # receive
     "LogDeliveryConfirmationNode",
     "PersistReceivedLogEntryNode",
+    "CheckHashMatchesNode",
+    "SendRejectLogEntryNode",
     "CheckHashOrRejectOnMismatchNode",
     # chain
     "ReconstructChainTailNode",
@@ -72,7 +81,12 @@ __all__ = [
     "PersistLogEntryNode",
     # replay
     "FindCaseActorNode",
+    "CollectAndSortCaseLogEntriesNode",
+    "FindDivergenceIndexNode",
+    "SendMissingEntriesNode",
     "ReplayMissingEntriesNode",
+    "CollectLogEntryRecipientsNode",
+    "SendLogEntryToEachNode",
     "FanOutLogEntryNode",
     # re-exported helper functions (backward compat)
     "_find_case_actor",
