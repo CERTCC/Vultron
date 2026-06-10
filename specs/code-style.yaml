@@ -252,3 +252,66 @@ groups:
       field", silently allows invalid data through, and scatters validation logic across callers. A Pydantic model with
       `ValidationError` on missing required fields is the single source of truth and forces callers to handle the error
       path explicitly.
+- id: CS-18
+  title: Module Size and Organization
+  kind: general
+  specs:
+  - id: CS-18-001
+    priority: SHOULD
+    statement: >-
+      (**SHOULD**) A Python source file SHOULD NOT exceed 500 lines when it mixes multiple
+      distinct responsibilities. When the 500-line threshold is crossed, the module MUST
+      be split into a subpackage whose submodules are grouped by semantic concern.
+    rationale: >-
+      Large, multi-responsibility files accumulate technical debt, slow review cycles,
+      and make targeted test coverage difficult. High-churn large files are especially
+      prone to merge conflicts. The 500-line threshold is a practical signal, not a hard
+      language constraint — a coherent single-responsibility module MAY exceed it if all
+      concerns are tightly related. The key signal is mixed responsibility.
+    verification: >-
+      Any production source file exceeding 500 lines SHOULD be reviewed for
+      mixed-responsibility concerns. A codebase scan MAY flag such files for
+      triage. Applies to all layers: core, wire, adapters, use cases, and demo.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-07-001
+  - id: CS-18-002
+    priority: MUST
+    statement: >-
+      When a module is split into a subpackage, the resulting submodules MUST themselves
+      comply with CS-18-001. The split pattern applies recursively: a submodule that
+      exceeds 500 lines and mixes responsibilities MUST be further decomposed.
+    rationale: >-
+      Splitting a god module into a package does not eliminate the problem if individual
+      submodules re-accumulate size. A recursive constraint closes this loophole.
+    verification: >-
+      After any split, confirm that each resulting submodule is below 500 lines or
+      has a single well-defined responsibility.
+    relationships:
+    - rel_type: refines
+      spec_id: CS-18-001
+  - id: CS-18-003
+    priority: MUST
+    statement: >-
+      A subpackage created by splitting a flat module MUST re-export all previously
+      public names from its `__init__.py` to preserve import compatibility with callers.
+    rationale: >-
+      Callers that previously imported `from vultron.foo.nodes import SomeNode` MUST
+      continue to work without modification. Exposing all names via `__init__.py`
+      prevents a split from becoming a breaking change.
+    relationships:
+    - rel_type: refines
+      spec_id: CS-15-001
+  - id: CS-18-004
+    priority: SHOULD
+    statement: >-
+      (**SHOULD**) The test suite for a subpackage created by splitting a flat module
+      SHOULD mirror the subpackage structure: a `test/…/nodes/` (or equivalent)
+      directory with one `test_<submodule>.py` per submodule.
+    rationale: >-
+      A monolithic test file grows in parallel with the flat module and inherits the
+      same blast-radius problem. Mirrored test files scope failures to the affected
+      concern and make it easier to add focused per-unit tests.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-07-002
