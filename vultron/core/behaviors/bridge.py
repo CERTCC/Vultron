@@ -37,6 +37,7 @@ Per specs/sync-log-replication.yaml:
 """
 
 import logging
+import threading
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -50,6 +51,16 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
+
+# py_trees uses a process-global blackboard (Blackboard.storage).
+# FastAPI runs synchronous BackgroundTask callables in a thread-pool
+# executor, so two BT executions can run on different threads at the
+# same time, corrupting each other's actor_id / datalayer entries.
+# This lock serialises BT executions from *different* threads while
+# allowing same-thread re-entrancy (e.g. lifecycle.py nodes that call
+# execute_with_setup internally).  RLock is used instead of Lock to
+# prevent deadlock in those re-entrant paths.
+_BT_GLOBAL_LOCK = threading.RLock()
 
 
 @dataclass
@@ -319,38 +330,40 @@ class BTBridge:
                 status=Status.FAILURE,
                 feedback_message=msg,
             )
-        managed_keys = ["datalayer"]
-        storage = py_trees.blackboard.Blackboard.storage
-        key_aliases: set[str] = set()
-        for key in managed_keys:
-            key_aliases.add(key)
-            key_aliases.add(f"/{key}")
-        previous_values = {
-            key: (key in storage, storage.get(key)) for key in key_aliases
-        }
-        bt = self.setup_tree(tree, actor_id, activity, **context_data)
-        try:
-            return self.execute_tree(bt, max_iterations)
-        finally:
-            # Release DataLayer references from the global py_trees
-            # blackboard. setup_tree() writes this key to
-            # Blackboard.storage, which is process-global; without explicit
-            # cleanup the entries persist after execution, keeping SqliteDataLayer
-            # objects (and their underlying sqlite3 connections) alive until the
-            # next BT execution overwrites them. That delayed release causes
-            # ResourceWarning: unclosed database when GC runs at an
-            # unpredictable moment — typically during the next test's SQL
-            # activity, which pytest promotes to a test failure via
-            # PytestUnraisableExceptionWarning.
-            #
-            # Only ``datalayer`` is cleaned here. Other keys (for example
-            # ``trigger_activity_factory``) are intentionally left untouched
-            # because existing trees may rely on cross-tree availability.
-            for _key, (_had_value, _value) in previous_values.items():
-                if _had_value:
-                    storage[_key] = _value
-                else:
-                    storage.pop(_key, None)
+        with _BT_GLOBAL_LOCK:
+            managed_keys = ["datalayer"]
+            storage = py_trees.blackboard.Blackboard.storage
+            key_aliases: set[str] = set()
+            for key in managed_keys:
+                key_aliases.add(key)
+                key_aliases.add(f"/{key}")
+            previous_values = {
+                key: (key in storage, storage.get(key)) for key in key_aliases
+            }
+            bt = self.setup_tree(tree, actor_id, activity, **context_data)
+            try:
+                return self.execute_tree(bt, max_iterations)
+            finally:
+                # Release DataLayer references from the global py_trees
+                # blackboard. setup_tree() writes this key to
+                # Blackboard.storage, which is process-global; without explicit
+                # cleanup the entries persist after execution, keeping
+                # SqliteDataLayer objects (and their underlying sqlite3
+                # connections) alive until the next BT execution overwrites
+                # them. That delayed release causes ResourceWarning: unclosed
+                # database when GC runs at an unpredictable moment — typically
+                # during the next test's SQL activity, which pytest promotes to
+                # a test failure via PytestUnraisableExceptionWarning.
+                #
+                # Only ``datalayer`` is cleaned here. Other keys (for example
+                # ``trigger_activity_factory``) are intentionally left
+                # untouched because existing trees may rely on cross-tree
+                # availability.
+                for _key, (_had_value, _value) in previous_values.items():
+                    if _had_value:
+                        storage[_key] = _value
+                    else:
+                        storage.pop(_key, None)
 
     @staticmethod
     def get_failure_reason(
