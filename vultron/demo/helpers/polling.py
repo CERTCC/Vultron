@@ -394,23 +394,16 @@ def wait_for_case_em_terminated(
 def wait_for_all_participants_rm_closed(
     client: DataLayerClient,
     case_id: str,
-    timeout_seconds: float = 45.0,
+    timeout_seconds: float = 10.0,
     poll_interval: float = 0.25,
 ) -> None:
     """Poll until all participants in *case_id* have ``RM.CLOSED`` as their
     latest status.
 
-    The default timeout of 45 seconds is intentionally generous.
-    ``BroadcastCaseUpdateNode`` in ``create_engage_case_tree`` generates
-    ``Announce(VulnerabilityCase)`` messages on each engage event, which
-    cascades into many ``AddStatusToParticipantActivity`` deliveries.  These
-    can queue up ahead of the ``CLOSED`` status propagation, requiring more
-    than 10 seconds to drain in CI Docker environments.
-
     Args:
         client: DataLayerClient for the target container.
         case_id: Full URI of the ``VulnerabilityCase``.
-        timeout_seconds: Maximum time to wait (default 45 s).
+        timeout_seconds: Maximum time to wait.
         poll_interval: Seconds between DataLayer poll attempts.
 
     Raises:
