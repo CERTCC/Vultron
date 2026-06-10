@@ -44,6 +44,10 @@ class SvcAddObjectToCaseUseCase:
     here after performing their own validation (TRIG-10-002).
 
     Implements: TRIG-10-001.
+
+    BT-15-001 audit: pure CRUD / infrastructure glue.  Associates an
+    existing AS2 object with a case. No RM/EM state-machine transitions
+    are performed. No BTBridge delegation required.
     """
 
     def __init__(

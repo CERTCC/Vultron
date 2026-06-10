@@ -39,6 +39,10 @@ class SvcCreateCaseUseCase:
     The actor creates a local case and queues the activity for delivery to
     the CaseActor inbox. An optional report_id links an existing
     VulnerabilityReport to the new case.
+
+    BT-15-001 audit: pure CRUD / infrastructure glue.  Creates a
+    ``VultronCase`` domain object with no RM/EM state-machine transitions.
+    No BTBridge delegation required.
     """
 
     def __init__(

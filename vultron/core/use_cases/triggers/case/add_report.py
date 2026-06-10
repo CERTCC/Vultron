@@ -35,6 +35,10 @@ class SvcAddReportToCaseUseCase:
     delegates to :class:`SvcAddObjectToCaseUseCase` (TRIG-10-002).
     Emits an ``Add(VulnerabilityReport, target=VulnerabilityCase)`` activity
     queued in the actor's outbox.
+
+    BT-15-001 audit: pure CRUD / infrastructure glue.  Validates report
+    type and delegates entirely to ``SvcAddObjectToCaseUseCase``. No
+    RM/EM state-machine transitions. No BTBridge delegation required.
     """
 
     def __init__(
