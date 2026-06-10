@@ -417,6 +417,25 @@ Short entries are reproduced here; longer ones are referenced below.
   (PCR-08-001, PCR-08-002). `case_addressees()` is correct only on the Case Actor's
   **outbound fan-out** side (broadcasting to all participants). See
   [notes/case-communication-model.md](notes/case-communication-model.md).
+- **Received-Side Use Cases MUST NOT Spoof Another Actor's Identity** — A received-side
+  use case runs in one actor's DataLayer context. It MUST NOT build an ActivityStreams
+  activity with `actor` set to a different actor's ID, and MUST NOT execute a Behavior
+  Tree with `actor_id` set to any actor other than the one whose DataLayer is active.
+  Example violation: `AcceptInviteActorToCaseReceivedUseCase` (running on the Case Actor)
+  calling `PrioritizeBT(actor_id=invitee_id)` — the BT emits `RmEngageCaseActivity` as if
+  from the invitee and transitions their RM state from the wrong DataLayer context. The
+  correct fix is an inline RM state update on the receiving actor's DataLayer; the
+  `Accept(Invite)` message IS the invitee's engage decision (PCR-08-009, PCR-08-010).
+  See [notes/case-communication-model.md](notes/case-communication-model.md)
+  § "Antipattern: Identity Spoofing in Received-Side Use Cases".
+- **Invite/Accept Handshake Must Route Through the Case Actor** — `RmInviteToCaseActivity`
+  MUST be sent with `actor=case_actor_id` (not the case owner) from the Case Actor's
+  outbox. The invitee's `Accept` MUST be addressed to the Case Actor, not the case owner.
+  The "owner triggers, Case Actor executes" pattern applies: `SvcInviteActorToCaseUseCase`
+  resolves the Case Actor ID, builds the Invite with `actor=case_actor_id` (optionally
+  `attributedTo=case_owner_id`), and places it in the Case Actor's outbox (PCR-08-007,
+  PCR-08-008). See [notes/case-communication-model.md](notes/case-communication-model.md)
+  § "Invite/Accept Handshake Routing".
 - **Close Bugs With Evidence, Not Assumption** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Use `isinstance` for Pyright Attribute Narrowing, Not `# type: ignore`** — see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
 - **Untyped Closures Are Invisible to mypy — Extract to Named Functions** — see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)

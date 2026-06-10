@@ -223,6 +223,46 @@ groups:
     statement: >-
       Unit and integration tests MUST verify that a participant's outbound activity is addressed
       only to the Case Actor, and that no direct peer-to-peer delivery is attempted.
+  - id: PCR-08-007
+    priority: MUST
+    statement: >-
+      `RmInviteToCaseActivity` MUST be sent with `actor` set to the Case Actor's ID, not
+      the case owner's ID. The case owner triggers the invite action, but the Case Actor
+      MUST be the ActivityStreams actor performing the send. Optionally, `attributedTo` on
+      the activity MAY carry the case owner's ID to record who initiated the invitation.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-08-001
+  - id: PCR-08-008
+    priority: MUST
+    statement: >-
+      The invitee's `RmAcceptInviteToCaseActivity` MUST be addressed to the Case Actor
+      (not the case owner). The Case Actor is the authoritative recipient and processor of
+      all case-management handshake messages after case creation.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-08-001
+  - id: PCR-08-009
+    priority: MUST
+    statement: >-
+      The Case Actor MUST process `RmAcceptInviteToCaseActivity` and record the invitee's
+      RM state transition (VALID → ACCEPTED) in its own DataLayer. The case owner MUST NOT
+      author or emit any RM state-change activity on behalf of the invitee.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-08-001
+    - rel_type: refines
+      spec_id: PCR-08-003
+  - id: PCR-08-010
+    priority: MUST_NOT
+    statement: >-
+      A received-side use case MUST NOT construct or emit an ActivityStreams activity with
+      `actor` set to a different actor's ID (identity spoofing). It MUST NOT execute a
+      Behavior Tree with `actor_id` set to any actor other than the one whose DataLayer
+      is active for that use case invocation.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-08-001
 - id: PCR-07
   title: Testing
   specs:
@@ -263,3 +303,19 @@ groups:
       Integration tests MUST verify the late-joiner sequence: `Invite` → `Accept` → CaseActor
       sends `Announce(VulnerabilityCase)` to new participant → new participant creates local
       replica.
+  - id: PCR-07-008
+    priority: MUST
+    statement: >-
+      Integration tests MUST verify that `RmInviteToCaseActivity` carries `actor` set to the
+      Case Actor's ID, and that the invitee's `RmAcceptInviteToCaseActivity` is processed
+      by the Case Actor (not the case owner). Tests MUST assert that no RM state-change
+      activity is emitted with `actor` set to the invitee's ID from the case owner's context.
+    relationships:
+    - rel_type: verifies
+      spec_id: PCR-08-007
+    - rel_type: verifies
+      spec_id: PCR-08-008
+    - rel_type: verifies
+      spec_id: PCR-08-009
+    - rel_type: verifies
+      spec_id: PCR-08-010
