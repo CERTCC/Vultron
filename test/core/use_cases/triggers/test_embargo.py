@@ -573,7 +573,7 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
     case.current_status.em_state = EM.REVISE
     dl.save(case)
 
-    participant_id = case.case_participants[0]
+    participant_id = case.actor_participant_index[actor.id_]
     participant_before = cast(CaseParticipant, dl.read(participant_id))
     pec_before = participant_before.embargo_consent_state
 
