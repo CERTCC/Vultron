@@ -28,16 +28,17 @@ import logging
 from typing import cast
 
 from pydantic import BaseModel
-from vultron.adapters.driven.delivery_queue import DeliveryQueueAdapter
+from vultron.adapters.driven.demo_http_delivery import DemoHttpDeliveryAdapter
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.protocols import PersistableModel
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.core.ports.emitter import ActivityEmitter
 from vultron.errors import (
     VultronOutboxObjectIntegrityError,
     VultronOutboxToFieldMissingError,
 )
 from vultron.wire.as2.vocab.base.links import as_Link
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Set via ``configure_default_emitter()`` during app startup so all
 # ``outbox_handler`` calls use local ASGI delivery for co-located actors.
-# Falls back to ``DeliveryQueueAdapter`` (HTTP-only) when not configured.
+# Falls back to ``DemoHttpDeliveryAdapter`` (HTTP-only) when not configured.
 _default_emitter: ActivityEmitter | None = None
 
 
@@ -62,8 +63,8 @@ def configure_default_emitter(emitter: ActivityEmitter) -> None:
 
 
 def get_default_emitter() -> ActivityEmitter:
-    """Return the configured default emitter, or ``DeliveryQueueAdapter``."""
-    return _default_emitter or DeliveryQueueAdapter()
+    """Return the configured default emitter, or ``DemoHttpDeliveryAdapter``."""
+    return _default_emitter or DemoHttpDeliveryAdapter()
 
 
 # Reference fields that must be collapsed to URI strings before validating as
@@ -96,8 +97,15 @@ _STUB_KEYS: frozenset[str] = frozenset({"id", "type", "summary", "@context"})
 # rather than collapsed to a bare URI string.
 _STUB_OBJECT_TYPES: frozenset[str] = frozenset({"VulnerabilityCase"})
 
+# Maps AS2 type strings to their wire-layer model classes for dict recovery.
+# Used in handle_outbox_item to reconstruct typed models from plain dicts that
+# result from the model_dump() → VultronActivity.model_validate() round-trip.
+_STUB_OBJECT_MODEL_MAP: dict[str, type[BaseModel]] = {
+    "VulnerabilityCase": VulnerabilityCase,
+}
+
 _INLINE_OBJECT_ACTIVITY_TYPES: frozenset[str] = frozenset(
-    {"Create", "Announce", "Add", "Invite", "Accept"}
+    {"Create", "Announce", "Add", "Invite", "Accept", "Offer", "Join"}
 )
 
 
@@ -308,34 +316,6 @@ def _expand_inline_object(
     return full_obj
 
 
-def _expand_case_participants(case_obj: object, dl: DataLayer) -> None:
-    """Expand participant ID strings to inline objects in a case snapshot.
-
-    Called at delivery time for ``Create`` and ``Announce`` activities whose
-    ``object_`` is a ``VulnerabilityCase``.  Replaces bare participant ID
-    strings in ``case_participants`` with the full participant objects read
-    from the sender's DataLayer so the recipient can seed their DataLayer
-    with independent participant records (CBT-05-005, fixes #561, #562).
-
-    Operates in-place on ``case_obj``; the DataLayer is not modified.
-
-    Args:
-        case_obj: The outbound case object (duck-typed; must have
-            ``case_participants``).
-        dl: The sender's DataLayer to resolve participant IDs from.
-    """
-    if not hasattr(case_obj, "case_participants"):
-        return
-    expanded = []
-    for participant_ref in getattr(case_obj, "case_participants", []):
-        if isinstance(participant_ref, str):
-            obj = dl.read(participant_ref)
-            expanded.append(obj if obj is not None else participant_ref)
-        else:
-            expanded.append(participant_ref)
-    setattr(case_obj, "case_participants", expanded)
-
-
 def _validate_inline_object(
     activity_id: str,
     activity_type: str,
@@ -396,6 +376,48 @@ async def handle_outbox_item(
         dl,
     )
     _validate_inline_object(activity_id, activity_type, activity_object)
+
+    # Recover typed model when object_ is a raw dict.
+    #
+    # _load_outbound_activity round-trips through model_dump() →
+    # VultronActivity.model_validate(), which stores the nested object
+    # as a plain dict (VultronActivity.object_ is Any | None).
+    # Without this recovery step, isinstance(…, BaseModel) is False and
+    # dl.hydrate() is never called — participant expansion is skipped
+    # (see #585).
+    #
+    # Reconstruct the typed model from the dict itself (not from dl.read())
+    # so the emitted object reflects exactly what was queued, not a
+    # potentially-updated DB snapshot.
+    #
+    # Skip intentional stubs (keys ⊆ _STUB_KEYS) and non-recoverable types
+    # (e.g. CaseLogEntry) — these are passed through as dicts.
+    if isinstance(activity_object, dict) and not isinstance(
+        activity_object, BaseModel
+    ):
+        obj_type = activity_object.get("type", "")
+        is_stub = activity_object.keys() <= _STUB_KEYS
+        model_class = _STUB_OBJECT_MODEL_MAP.get(obj_type)
+        if not is_stub and model_class is not None:
+            try:
+                full_obj = model_class.model_validate(activity_object)
+                activity_object = full_obj
+                outbound_activity.object_ = activity_object
+                logger.debug(
+                    "Recovered typed %s from dict for %s activity '%s'.",
+                    model_class.__name__,
+                    activity_type,
+                    activity_id,
+                )
+            except Exception:
+                logger.warning(
+                    "Failed to reconstruct %s model for %s activity '%s';"
+                    " hydration will be skipped.",
+                    obj_type,
+                    activity_type,
+                    activity_id,
+                )
+
     if isinstance(activity_object, BaseModel):
         activity_object = dl.hydrate(cast(PersistableModel, activity_object))
         outbound_activity.object_ = activity_object
@@ -425,7 +447,7 @@ async def handle_outbox_item(
 
 async def outbox_handler(
     actor_id: str,
-    dl: DataLayer,
+    dl: ActorScopedDataLayer,
     shared_dl: DataLayer | None = None,
     emitter: ActivityEmitter | None = None,
 ) -> None:
@@ -436,7 +458,7 @@ async def outbox_handler(
     ``ActivityEmitter`` port (OX-03-001).
 
     Delivery is performed by the emitter (HTTP POST for
-    ``DeliveryQueueAdapter``) and does not block the HTTP response because
+    ``DemoHttpDeliveryAdapter``) and does not block the HTTP response because
     this coroutine is scheduled as a FastAPI BackgroundTask (OX-03-003).
 
     OX-1.3 idempotency is enforced at the receiving inbox endpoint, not
@@ -451,7 +473,7 @@ async def outbox_handler(
             actor's own DL).
         emitter: The ActivityEmitter port to use for delivery. Defaults to
             the configured emitter (``ASGIEmitter`` when available, otherwise
-            ``DeliveryQueueAdapter``).
+            ``DemoHttpDeliveryAdapter``).
     """
     _emitter = cast(
         ActivityEmitter,

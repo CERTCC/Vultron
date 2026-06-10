@@ -17,7 +17,8 @@ relevant_packages:
 # Participant Embargo Consent State Machine
 
 **Status**: Design decision — not yet implemented
-**Source**: `notes/demo-review-26042001.md` + architectural review 2026-04-20
+**Source**: `archived_notes/demo-review-26042001.md` + architectural review
+2026-04-20
 **See also**: `specs/case-management.yaml` CM-03-008, CM-04-003; `notes/stub-objects.md`
 
 ---

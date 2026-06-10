@@ -58,7 +58,8 @@ from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.case_participant import VendorParticipant
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
@@ -132,7 +133,8 @@ def setup_report_and_case(
     create_case_act = create_case_activity(case, actor=vendor.id_)
     post_to_inbox_and_wait(client, vendor.id_, create_case_act)
 
-    vendor_participant = VendorParticipant(
+    vendor_participant = CaseParticipant(
+        case_roles=[CVDRole.VENDOR],
         attributed_to=vendor.id_,
         context=case.id_,
     )
@@ -433,7 +435,7 @@ def main(
 
 def _setup_logging():
     """Configure console logging for standalone script execution."""
-    logging.getLogger("requests").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     _logger = logging.getLogger()
     hdlr = logging.StreamHandler(sys.stdout)
     formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")

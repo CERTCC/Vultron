@@ -264,3 +264,141 @@ groups:
       - rel_type: refines
         spec_id: BT-13-001
         note: Scope is all BT execution sites, not just sync
+- id: BT-14
+  title: Peer Broadcast Failure Semantics
+  kind: domain
+  specs:
+  - id: BT-14-001
+    priority: MUST
+    statement: >-
+      Any BT node or subtree that performs protocol-visible peer broadcast
+      fan-out MUST return FAILURE when broadcast preparation or outbox
+      enqueueing fails. A guaranteed SUCCESS fallback that masks delivery
+      failure MUST_NOT be used.
+    rationale: >-
+      Silent success on failed fan-out causes undetected peer state divergence
+      and hides correctness faults from parent tree control flow.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-001
+      note: Broadcast fan-out is protocol-significant behavior
+    - rel_type: refines
+      spec_id: BT-04-004
+      note: Delivery failures must propagate to handler error paths
+  - id: BT-14-002
+    priority: SHOULD
+    statement: >-
+      Peer broadcast fan-out paths SHOULD reuse a shared helper/subtree for
+      recipient filtering, activity construction, and outbox enqueueing so the
+      failure contract is consistent across workflow domains.
+    rationale: >-
+      Duplicated fan-out implementations drift over time and re-introduce
+      silent-failure behavior in only some pathways.
+- id: BT-15
+  title: Trigger-Side Use-Case Contract
+  kind: domain
+  specs:
+  - id: BT-15-001
+    priority: MUST
+    statement: >-
+      Trigger-side execute() methods MUST delegate state-machine transitions
+      (RM, EM, CS) to BT leaf nodes via BTBridge, following the same pattern
+      as received-side use cases.
+    rationale: >-
+      State machine transitions are protocol-significant behavior (BT-06-001).
+      Inline transitions in execute() bypass BT audit, logging, and failure
+      introspection via get_failure_reason(). The historical asymmetry between
+      trigger-side and received-side use cases arose from the now-retired
+      "simple CRUD" guidance.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-001
+      note: SM transitions are protocol-significant behavior with no skip threshold
+    - rel_type: refines
+      spec_id: BT-06-006
+      note: SM transitions performed outside a BT violate BT-06-006
+  - id: BT-15-002
+    priority: MUST_NOT
+    statement: >-
+      Trigger-side execute() methods MUST NOT call domain lifecycle methods
+      (e.g., EmbargoLifecycle, EMAdapter, direct ParticipantStatus writes with
+      rm_state/em_state) outside a BT execution context.
+    rationale: >-
+      Direct lifecycle calls in execute() make protocol transitions invisible
+      to BT-level audit and observability tooling. The BTBridge pattern
+      (instantiate BT → execute_with_setup() → introspect result) is the
+      required contract for all use-case execute() methods that perform state
+      transitions.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-006
+- id: BT-16
+  title: Simulation Fuzzer Node Layout
+  kind: pattern
+  specs:
+  - id: BT-16-001
+    priority: MUST
+    statement: >-
+      Probabilistic simulation (fuzzer) BT nodes MUST reside in
+      `vultron/demo/fuzzer/` and MUST NOT be placed in
+      `vultron/core/behaviors/` or `vultron/bt/`.
+    rationale: >-
+      Demo/simulation nodes are external-dependency touchpoints, not
+      production protocol behaviors. Keeping them in `vultron/demo/fuzzer/`
+      makes the simulation/production boundary explicit and prevents
+      simulation artifacts from leaking into core protocol logic.
+  - id: BT-16-002
+    priority: MUST
+    statement: >-
+      The probabilistic base types (WeightedBehavior subclasses) for
+      simulation nodes MUST be defined in `vultron/demo/fuzzer/base.py`
+      using the `py_trees.behaviour.Behaviour` base class.
+    rationale: >-
+      All py_trees-based BT execution uses the standard py_trees library
+      (ADR-0008). Centralizing probabilistic base types in one module
+      provides a single implementation point for all weighted-probability
+      simulation nodes and avoids duplication across domain modules.
+    relationships:
+    - rel_type: implements
+      spec_id: BT-02-001
+      note: py_trees.behaviour.Behaviour is the required base for all prototype BT nodes
+  - id: BT-16-003
+    priority: MUST
+    statement: >-
+      Each simulation fuzzer node MUST be named after the external-dependency
+      touchpoint it represents (e.g., `EvaluateEmbargoProposal`, `DeployFix`)
+      and MUST include a docstring describing its semantic function in the CVD
+      process, the category of external input it simulates (system
+      integration, human decision, or environmental check), and its
+      approximate success probability.
+    rationale: >-
+      Fuzzer nodes are named integration points where production logic will
+      eventually replace the probabilistic stub. Explicit naming and
+      documentation preserves the connection between simulation behavior and
+      future implementation targets.
+  - id: BT-16-004
+    priority: MUST
+    statement: >-
+      Simulation fuzzer modules MUST be organized by CVD domain:
+      `vultron/demo/fuzzer/base.py` (probabilistic infrastructure),
+      `vultron/demo/fuzzer/embargo.py` (embargo management),
+      `vultron/demo/fuzzer/messaging.py` (inbound message handling), and
+      `vultron/demo/fuzzer/report_management/` (report lifecycle sub-workflows
+      as parallel submodules).
+    rationale: >-
+      Domain-aligned module organization mirrors the workflow structure of the
+      existing `vultron/bt/` simulation and makes cross-references between
+      simulation stubs and production use cases straightforward for future
+      implementers.
+  - id: BT-16-005
+    priority: SHOULD
+    statement: >-
+      Each simulation fuzzer node SHOULD be categorized in its docstring by
+      automation potential: High (fully automatable via API or policy rule),
+      Medium (partially automatable with human oversight required), Low
+      (inherently human-driven; automation limited to notifications or task
+      triggers), or N/A (terminal placeholder with no real decision logic).
+    rationale: >-
+      Automation-potential categorization guides future implementers toward the
+      correct integration pattern when replacing stubs with production logic,
+      supporting the future real-integration roadmap.

@@ -8,7 +8,23 @@ in isolation, causing TinyDB's record_to_object() to fall back to returning a
 raw Document instead of a deserialized domain object.
 """
 
+import pytest
+
 # noqa: F401 — imported for vocabulary registration side-effect
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     VulnerabilityCase,
 )
+from vultron.semantic_registry import extract_event
+
+
+@pytest.fixture
+def make_payload():
+    """Return a helper that extracts a VultronEvent from an AS2 activity."""
+
+    def _make_payload(activity, **extra_fields):
+        event = extract_event(activity)
+        if extra_fields:
+            return event.model_copy(update=extra_fields)
+        return event
+
+    return _make_payload

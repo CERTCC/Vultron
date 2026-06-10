@@ -30,6 +30,9 @@ from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.triggers._helpers import resolve_case
+from vultron.core.use_cases._helpers import (
+    resolve_case_participant_id_for_actor,
+)
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 
@@ -44,30 +47,10 @@ def _resolve_participant_id_from_actor(
     case: CaseModel, actor_id: str, dl: CasePersistence
 ) -> str:
     """Resolve a case-scoped participant ID from an actor ID."""
-    participant_id = case.actor_participant_index.get(actor_id)
-    if participant_id is not None:
-        return participant_id
-
-    for participant_ref in case.case_participants:
-        resolved_participant_id = (
-            participant_ref.id_
-            if hasattr(participant_ref, "id_")
-            else str(participant_ref)
-        )
-        participant = cast(
-            ParticipantModel | None, dl.read(resolved_participant_id)
-        )
-        if participant is None:
-            continue
-        participant_actor_id = (
-            participant.attributed_to
-            if isinstance(participant.attributed_to, str)
-            else getattr(participant.attributed_to, "id_", None)
-        )
-        if participant_actor_id == actor_id:
-            return resolved_participant_id
-
-    raise VultronNotFoundError("CaseParticipant", actor_id)
+    participant_id = resolve_case_participant_id_for_actor(case, actor_id, dl)
+    if participant_id is None:
+        raise VultronNotFoundError("CaseParticipant", actor_id)
+    return participant_id
 
 
 class GetActionRulesUseCase:

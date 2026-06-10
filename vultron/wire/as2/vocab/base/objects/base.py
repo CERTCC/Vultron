@@ -20,6 +20,7 @@ from typing import Any, TypeAlias, cast
 import isodate  # type: ignore[import-untyped]
 from pydantic import field_serializer, field_validator, Field
 
+from vultron.core.models.base import CoreObject, VultronObject
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.dt_utils import (
     now_utc,
@@ -30,7 +31,7 @@ from vultron.wire.as2.vocab.base.links import (
 )
 
 
-class as_Object(as_Base):
+class as_Object(as_Base, VultronObject):
     """Base class for all ActivityPub objects.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#object>
     """
@@ -117,8 +118,10 @@ class as_Object(as_Base):
         raise TypeError(f"Unsupported datetime value: {value!r}")
 
 
-as_ObjectRef: TypeAlias = ActivityStreamRef[as_Object]
-as_ObjectRequiredRef: TypeAlias = ActivityStreamRequiredRef[as_Object]
+as_ObjectRef: TypeAlias = ActivityStreamRef[as_Object] | CoreObject | None
+as_ObjectRequiredRef: TypeAlias = (
+    ActivityStreamRequiredRef[as_Object] | CoreObject
+)
 
 
 def main():

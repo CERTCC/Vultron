@@ -35,8 +35,10 @@ import py_trees
 from vultron.core.models.events.status import (
     AddParticipantStatusToParticipantReceivedEvent,
 )
+from vultron.core.behaviors.status.append_participant_status_tree import (
+    append_participant_status_tree,
+)
 from vultron.core.behaviors.status.nodes import (
-    AppendParticipantStatusNode,
     AutoCloseBranchNode,
     BroadcastStatusToPeersNode,
     PublicDisclosureBranchNode,
@@ -91,7 +93,7 @@ def add_participant_status_tree(
                 sender_actor_id=actor_id,
                 case_id=case_id,
             ),
-            AppendParticipantStatusNode(
+            append_participant_status_tree(
                 status_id=status_id,
                 participant_id=participant_id,
                 status_obj_fallback=status_obj,

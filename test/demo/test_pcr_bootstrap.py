@@ -117,7 +117,7 @@ def two_app_setup():
       3. Configures the module-level ``_default_emitter`` to the shared
          router so that trigger-endpoint ``outbox_handler`` calls (which
          don't pass an explicit emitter) route through ASGI instead of
-         making real HTTP requests via ``DeliveryQueueAdapter``.
+         making real HTTP requests via ``DemoHttpDeliveryAdapter``.
       4. Registers the config-default base_url with the router pointing to
          the owner's app so that deliveries to the CaseActor (whose ID uses
          the config base_url) are routed correctly.
@@ -151,7 +151,7 @@ def two_app_setup():
 
     # Save and replace the module-level default emitter so outbox_handler
     # calls from trigger endpoints use the router instead of
-    # DeliveryQueueAdapter (real HTTP with retry backoff).
+    # DemoHttpDeliveryAdapter (real HTTP with retry backoff).
     previous_emitter = get_default_emitter()
     configure_default_emitter(router)  # type: ignore[arg-type]
 

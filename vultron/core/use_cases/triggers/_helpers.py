@@ -23,10 +23,10 @@ framework imports allowed here.
 
 import logging
 import hashlib
+from collections.abc import Callable
 
 from vultron.core.models.protocols import (
     CaseModel,
-    has_outbox,
     is_case_model,
     is_participant_model,
 )
@@ -35,6 +35,7 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
 )
+from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,8 @@ def resolve_actor(actor_id: str, dl: CasePersistence):
 def resolve_case(case_id: str, dl: CasePersistence) -> CaseModel:
     """Resolve a VulnerabilityCase by ID; raise domain error if absent or wrong type."""
     case_raw = dl.read(case_id)
+    if case_raw is None or not is_case_model(case_raw):
+        case_raw = dl.find_case_by_short_id(case_id)
     if case_raw is None:
         raise VultronNotFoundError("VulnerabilityCase", case_id)
     if not is_case_model(case_raw):
@@ -154,11 +157,23 @@ def update_participant_rm_state(
     return False
 
 
-def outbox_ids(actor) -> set[str]:
-    """Return the set of string activity IDs in actor.outbox.items."""
-    if not (hasattr(actor, "outbox") and actor.outbox and actor.outbox.items):
-        return set()
-    return {item for item in actor.outbox.items if isinstance(item, str)}
+def outbox_ids(actor_id: str, dl: CaseOutboxPersistence) -> set[str]:
+    """Return the set of string activity IDs in the actor's outbox queue.
+
+    Uses ``outbox_list_for_actor`` when available (explicit actor scope),
+    otherwise falls back to the actor-scoped ``outbox_list()``.
+
+    Args:
+        actor_id: The actor whose outbox should be queried.
+        dl: The DataLayer to use for persistence.
+
+    Returns:
+        Set of activity IDs queued for delivery.
+    """
+    if hasattr(dl, "outbox_list_for_actor"):
+        items: list[str] = dl.outbox_list_for_actor(actor_id)  # type: ignore[attr-defined]
+        return set(items)
+    return set(dl.outbox_list())
 
 
 def add_activity_to_outbox(
@@ -166,33 +181,15 @@ def add_activity_to_outbox(
 ) -> None:
     """Append an activity ID to an actor's outbox and queue it for delivery.
 
-    Appends *activity_id* to the actor's ``outbox.items`` persistent list
-    (the AS2 outbox collection, visible via the outbox API endpoint) and
-    also writes it to the delivery queue table (``{actor_id}_outbox``) so
-    that :func:`outbox_handler` can drain and deliver it.
+    Uses ``record_outbox_item`` to explicitly enqueue against *actor_id*,
+    bypassing any actor-scope on *dl* itself.  This ensures correct delivery
+    even when *dl* is a shared (unscoped) DataLayer instance.
 
     Args:
         actor_id: The actor whose outbox should receive the activity.
         activity_id: The ID of the activity to queue for delivery.
         dl: The DataLayer to use for persistence.
     """
-    # Persistent record: append to actor.outbox.items for the AS2 collection.
-    actor_obj = dl.read(actor_id)
-    if has_outbox(actor_obj):
-        actor_obj.outbox.items.append(activity_id)
-        dl.save(actor_obj)
-        logger.debug(
-            "Added activity '%s' to actor '%s' outbox.items",
-            _log_label(activity_id),
-            _log_label(actor_id),
-        )
-    else:
-        logger.debug(
-            "add_activity_to_outbox: actor '%s' not found or has no"
-            " outbox field; skipping outbox.items update",
-            _log_label(actor_id),
-        )
-    # Delivery queue: write to actor-scoped queue table for outbox_handler.
     dl.record_outbox_item(actor_id, activity_id)
     logger.debug(
         "Queued activity '%s' in delivery queue for actor '%s'",
@@ -233,3 +230,94 @@ def find_embargo_proposal(case_id: str, dl: CasePersistence):
         ):
             return obj
     return None
+
+
+def _coerce_embargo_event(raw_embargo: object, embargo_id: str) -> object:
+    """Normalize a persisted embargo record; raise domain errors on failure."""
+    from vultron.errors import VultronNotFoundError, VultronValidationError
+
+    if getattr(raw_embargo, "type_", "") == "EmbargoEvent":
+        return raw_embargo
+    if raw_embargo is None:
+        raise VultronNotFoundError("EmbargoEvent", embargo_id)
+    raise VultronValidationError(
+        f"Could not resolve EmbargoEvent '{embargo_id}'."
+    )
+
+
+def _is_case_owner(case: object | None, actor_id: str) -> bool:
+    """Return True when ``actor_id`` matches the case owner."""
+    from vultron.core.use_cases._helpers import _as_id
+
+    if case is None:
+        return False
+    owner_id = _as_id(getattr(case, "attributed_to", None))
+    return owner_id is not None and owner_id == actor_id
+
+
+def _resolve_embargo_proposal(
+    case: CaseModel, proposal_id: str | None, dl: CaseOutboxPersistence
+):
+    """Resolve the embargo proposal for a case."""
+    from vultron.errors import VultronNotFoundError, VultronValidationError
+
+    if proposal_id:
+        proposal = dl.read(proposal_id)
+        if proposal is None:
+            raise VultronNotFoundError("EmbargoProposal", proposal_id)
+    else:
+        proposal = find_embargo_proposal(case.id_, dl)
+        if proposal is None:
+            raise VultronNotFoundError(
+                "EmbargoProposal",
+                f"(pending for case '{case.id_}')",
+            )
+
+    if getattr(proposal, "type_", "") != "Invite":
+        raise VultronValidationError(
+            f"Expected an EmProposeEmbargoActivity (embargo proposal), got "
+            f"type '{getattr(proposal, 'type_', 'unknown')}'."
+        )
+    return proposal
+
+
+def _resolve_embargo_id_from_proposal(proposal: object) -> str:
+    """Return the embargo ID referenced by a proposal."""
+    from vultron.errors import VultronValidationError
+
+    embargo_id = getattr(getattr(proposal, "object_", None), "id_", None)
+    if embargo_id is not None and not isinstance(embargo_id, str):
+        raise VultronValidationError(
+            "Proposal embargo event reference must have a string ID."
+        )
+    if not embargo_id:
+        raise VultronValidationError(
+            "Proposal is missing an embargo event reference."
+        )
+    return embargo_id
+
+
+def send_case_actor_activity(
+    *,
+    dl: CaseOutboxPersistence,
+    case_id: str,
+    actor_id: str,
+    trigger_activity: TriggerActivityPort | None,
+    failure_label: str,
+    activity_builder: Callable[[str], list[str]],
+) -> None:
+    """Send an activity to the case manager via the sender-side BT."""
+    from py_trees.common import Status
+
+    from vultron.core.behaviors.bridge import BTBridge
+    from vultron.core.behaviors.sender.send_tree import sender_side_bt
+
+    bridge = BTBridge(datalayer=dl, trigger_activity=trigger_activity)
+    tree = sender_side_bt(case_id=case_id, activity_builder=activity_builder)
+    result = bridge.execute_with_setup(tree, actor_id=actor_id)
+    if result.status != Status.SUCCESS:
+        from vultron.errors import VultronValidationError
+
+        raise VultronValidationError(
+            f"{failure_label} failed: {BTBridge.get_failure_reason(tree)}"
+        )

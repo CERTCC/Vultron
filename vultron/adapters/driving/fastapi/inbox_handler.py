@@ -17,14 +17,18 @@ Vultron Actor Inbox Handler
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
+from datetime import timezone
 from typing import Any, cast
 
+from vultron.config import get_config
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.wire.as2.factories.case import bootstrap_replay_question_activity
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.events import MessageSemantics, VultronEvent
 from vultron.core.models.protocols import is_case_model
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.core.ports.emitter import ActivityEmitter
 from vultron.semantic_registry import (
@@ -57,38 +61,75 @@ _DISPATCHER: ActivityDispatcher | None = None
 
 
 def _sync_port_factory(dl: DataLayer) -> dict[str, Any]:
-    """Create a ``SyncActivityAdapter`` from the current DataLayer."""
+    """Create a ``SyncActivityAdapter`` from the current DataLayer.
+
+    ``dl`` at runtime is an ``ActorScopedDataLayer`` (satisfies
+    ``CaseOutboxPersistence``) — the cast is safe (ARCH-13-002).
+    """
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter,
     )
 
-    return {"sync_port": SyncActivityAdapter(dl)}
+    return {"sync_port": SyncActivityAdapter(cast(CaseOutboxPersistence, dl))}
 
 
 def _trigger_activity_port_factory(dl: DataLayer) -> dict[str, Any]:
-    """Create a ``TriggerActivityAdapter`` from the current DataLayer."""
+    """Create a ``TriggerActivityAdapter`` from the current DataLayer.
+
+    ``dl`` at runtime is an ``ActorScopedDataLayer`` (satisfies
+    ``CaseOutboxPersistence``) — the cast is safe (ARCH-13-002).
+    """
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
 
-    return {"trigger_activity": TriggerActivityAdapter(dl)}
+    return {
+        "trigger_activity": TriggerActivityAdapter(
+            cast(CaseOutboxPersistence, dl)
+        )
+    }
+
+
+def _sync_and_trigger_port_factory(dl: DataLayer) -> dict[str, Any]:
+    """Create both a ``SyncActivityAdapter`` and a ``TriggerActivityAdapter``.
+
+    Used for semantics that require both ports — specifically
+    ``ADD_PARTICIPANT_STATUS_TO_PARTICIPANT``, which must sync the log entry to
+    participants *and* trigger the downstream participant-status activity.
+    """
+    return {**_sync_port_factory(dl), **_trigger_activity_port_factory(dl)}
 
 
 _SYNC_PORT_SEMANTICS = frozenset(
     {
+        MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE,
+        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY,
+        MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.REJECT_CASE_LOG_ENTRY,
+        MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
+        MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
     }
 )
 
 _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
     {
         MessageSemantics.ACCEPT_CASE_MANAGER_ROLE,
-        MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
+        MessageSemantics.DEFER_CASE,
+        MessageSemantics.ENGAGE_CASE,
         MessageSemantics.OFFER_CASE_MANAGER_ROLE,
         MessageSemantics.SUBMIT_REPORT,
         MessageSemantics.SUGGEST_ACTOR_TO_CASE,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
+        MessageSemantics.VALIDATE_REPORT,
+    }
+)
+
+# Semantics that require both a sync port and a trigger-activity port.
+_SYNC_AND_TRIGGER_PORT_SEMANTICS = frozenset(
+    {
+        MessageSemantics.ADD_NOTE_TO_CASE,
+        MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
     }
 )
 
@@ -102,6 +143,24 @@ def make_dispatcher() -> ActivityDispatcher:
     :func:`init_dispatcher` so the global is set for backward-compatible
     callers such as the CLI.
     """
+    # Guard: the three semantics sets must be mutually disjoint.  An overlap
+    # would cause a silent dict.update() overwrite — exactly the class of bug
+    # that #628 introduced — so fail fast with an actionable message.
+    _all_sets = (
+        _SYNC_PORT_SEMANTICS,
+        _TRIGGER_ACTIVITY_PORT_SEMANTICS,
+        _SYNC_AND_TRIGGER_PORT_SEMANTICS,
+    )
+    for i, left in enumerate(_all_sets):
+        for right in _all_sets[i + 1 :]:
+            overlap = left & right
+            if overlap:
+                raise AssertionError(
+                    f"Port-semantics sets overlap: {overlap!r}. "
+                    "Add the semantic to _SYNC_AND_TRIGGER_PORT_SEMANTICS "
+                    "and remove it from both individual sets."
+                )
+
     port_factories: dict = {
         sem: _sync_port_factory for sem in _SYNC_PORT_SEMANTICS
     }
@@ -109,6 +168,12 @@ def make_dispatcher() -> ActivityDispatcher:
         {
             sem: _trigger_activity_port_factory
             for sem in _TRIGGER_ACTIVITY_PORT_SEMANTICS
+        }
+    )
+    port_factories.update(
+        {
+            sem: _sync_and_trigger_port_factory
+            for sem in _SYNC_AND_TRIGGER_PORT_SEMANTICS
         }
     )
     d = get_dispatcher(
@@ -208,9 +273,16 @@ def _activity_context_id(
 
 
 def _queue_pending_case_activity(
-    queue_dl: DataLayer, case_id: str, activity_id: str
+    queue_dl: DataLayer,
+    case_id: str,
+    activity_id: str,
+    case_actor_id: str | None = None,
 ) -> None:
-    """Persist *activity_id* in the deferred queue for *case_id*."""
+    """Persist *activity_id* in the deferred queue for *case_id*.
+
+    Records *case_actor_id* on the first write so that the expiry handler
+    knows where to send a replay ``Question`` (CBT-03-004).
+    """
     pending_id = VultronPendingCaseInbox.build_id(case_id)
     pending = queue_dl.read(pending_id)
     if isinstance(pending, VultronPendingCaseInbox):
@@ -221,20 +293,162 @@ def _queue_pending_case_activity(
         return
 
     queue_dl.save(
-        VultronPendingCaseInbox(case_id=case_id, activity_ids=[activity_id])
+        VultronPendingCaseInbox(
+            case_id=case_id,
+            activity_ids=[activity_id],
+            case_actor_id=case_actor_id,
+        )
     )
 
 
+def _expire_pending_case_activities(
+    case_id: str,
+    actor_id: str,
+    dl: DataLayer,
+    queue_dl: ActorScopedDataLayer,
+    timeout_seconds: int | None = None,
+) -> bool:
+    """Drop an expired pre-bootstrap queue and emit a replay ``Question``.
+
+    Checks whether the ``VultronPendingCaseInbox`` for *case_id* has been
+    held for longer than *timeout_seconds* (defaults to
+    ``AppConfig.pre_bootstrap_queue_timeout_seconds``).  When expired:
+
+    1. Logs a WARNING for each dropped activity ID (CBT-03-003).
+    2. Deletes the queue record.
+    3. Emits a ``Question`` to the recorded ``case_actor_id`` asking for
+       the bootstrap ``Create(VulnerabilityCase)`` to be resent
+       (CBT-03-004, SHOULD).
+
+    Args:
+        case_id: URI of the case whose pending queue should be checked.
+        actor_id: Canonical URI of the receiving actor (Question sender).
+        dl: Shared DataLayer used to save the outbound Question.
+        queue_dl: Actor-scoped DataLayer used to read/delete the queue
+            and enqueue the outbound Question.
+        timeout_seconds: Expiry window in seconds.  ``None`` reads from
+            ``get_config().pre_bootstrap_queue_timeout_seconds``.
+
+    Returns:
+        ``True`` if the queue was expired and dropped; ``False`` if the
+        queue is still within the window or does not exist.
+
+    Trigger: this check is called on inbox receipt so that any inbound
+    activity for a pending case triggers expiry cleanup (AC-4).  Cold
+    queues (no subsequent traffic) are reclaimed when bootstrap or a new
+    activity arrives.
+    """
+    from datetime import datetime
+
+    if timeout_seconds is None:
+        timeout_seconds = get_config().pre_bootstrap_queue_timeout_seconds
+
+    pending_id = VultronPendingCaseInbox.build_id(case_id)
+    pending = queue_dl.read(pending_id)
+    if not isinstance(pending, VultronPendingCaseInbox):
+        return False
+
+    now = datetime.now(timezone.utc)
+    queued_at = pending.queued_at
+    if queued_at.tzinfo is None:
+        queued_at = queued_at.replace(tzinfo=timezone.utc)
+    age_seconds = (now - queued_at).total_seconds()
+    if age_seconds < timeout_seconds:
+        return False
+
+    for activity_id in pending.activity_ids:
+        logger.warning(
+            "Dropping expired pre-bootstrap activity '%s' for case '%s' "
+            "(age %.0fs > timeout %ds) — resend required after bootstrap "
+            "(CBT-03-003)",
+            activity_id,
+            case_id,
+            age_seconds,
+            timeout_seconds,
+        )
+    queue_dl.delete("PendingCaseInbox", pending_id)
+    logger.warning(
+        "Pre-bootstrap queue for case '%s' expired after %.0fs; "
+        "%d activity ID(s) dropped",
+        case_id,
+        age_seconds,
+        len(pending.activity_ids),
+    )
+
+    if pending.case_actor_id:
+        try:
+            question = bootstrap_replay_question_activity(
+                actor=actor_id,
+                to=pending.case_actor_id,
+                case_id=case_id,
+            )
+            dl.save(question)
+            queue_dl.outbox_append(question.id_)
+            logger.info(
+                "Sent bootstrap replay Question '%s' to '%s' for case '%s'",
+                question.id_,
+                pending.case_actor_id,
+                case_id,
+            )
+        except Exception:
+            logger.warning(
+                "Could not construct replay Question for case '%s'; "
+                "manual intervention required (CBT-03-004)",
+                case_id,
+                exc_info=True,
+            )
+    else:
+        logger.warning(
+            "No case_actor_id recorded for case '%s'; "
+            "cannot send replay Question (CBT-03-004)",
+            case_id,
+        )
+
+    return True
+
+
 def _replay_pending_case_activities(
-    case_id: str, dl: DataLayer, queue_dl: DataLayer
+    case_id: str,
+    dl: DataLayer,
+    queue_dl: ActorScopedDataLayer,
+    actor_id: str | None = None,
 ) -> None:
-    """Move deferred activities for *case_id* back onto the live inbox queue."""
+    """Move deferred activities for *case_id* back onto the live inbox queue.
+
+    Before replaying, checks whether the pending queue has expired.  If it
+    has, the queue is dropped instead of replayed (CBT-03-003).  This
+    handles the case where bootstrap arrives after the expiry window — the
+    bootstrap itself is accepted, but the stale queued items are discarded.
+
+    Args:
+        case_id: URI of the case whose pending queue should be drained.
+        dl: Shared DataLayer used for case lookup and Question persistence.
+        queue_dl: Actor-scoped DataLayer for queue management.
+        actor_id: Canonical URI of the receiving actor, used when building
+            a replay Question on expiry.  Defaults to ``""`` when not
+            provided (best-effort; expiry Warning is still logged).
+    """
     if not is_case_model(dl.read(case_id)):
         return
 
     pending_id = VultronPendingCaseInbox.build_id(case_id)
     pending = queue_dl.read(pending_id)
     if not isinstance(pending, VultronPendingCaseInbox):
+        return
+
+    if _expire_pending_case_activities(
+        case_id=case_id,
+        actor_id=actor_id or "",
+        dl=dl,
+        queue_dl=queue_dl,
+    ):
+        logger.warning(
+            "Bootstrap arrived for case '%s' but pre-bootstrap queue had "
+            "already expired; dropped %d activity ID(s) — a fresh "
+            "re-delivery is required",
+            case_id,
+            len(pending.activity_ids),
+        )
         return
 
     for activity_id in pending.activity_ids:
@@ -251,10 +465,17 @@ def _dispatch_or_defer_inbox_item(
     actor_id: str,
     obj: as_Activity,
     dl: DataLayer,
-    queue_dl: DataLayer,
+    queue_dl: ActorScopedDataLayer,
     dispatcher: ActivityDispatcher | None = None,
 ) -> VultronEvent | None:
-    """Dispatch an inbox item or defer it until its case replica exists."""
+    """Dispatch an inbox item or defer it until its case replica exists.
+
+    When deferring, first checks whether the existing pending queue for
+    this case has expired.  If the queue has expired, the existing items
+    are dropped, a replay ``Question`` is emitted, and the new item is
+    also dropped (resend-required semantics, CBT-03-003).  If within the
+    window, the item is appended to the existing queue as before.
+    """
     event = prepare_for_dispatch(activity=obj)
     event = event.model_copy(update={"receiving_actor_id": actor_id})
 
@@ -264,12 +485,32 @@ def _dispatch_or_defer_inbox_item(
         and event.semantic_type != MessageSemantics.ANNOUNCE_VULNERABILITY_CASE
         and not is_case_model(dl.read(case_id))
     ):
+        expired = _expire_pending_case_activities(
+            case_id=case_id,
+            actor_id=actor_id,
+            dl=dl,
+            queue_dl=queue_dl,
+        )
+        if expired:
+            logger.warning(
+                "Activity '%s' for expired case queue '%s' dropped — "
+                "resend required after new bootstrap",
+                event.activity_id,
+                case_id,
+            )
+            return None
+
         logger.warning(
             "Unknown case context '%s' for activity '%s' — queuing for replay",
             case_id,
             event.activity_id,
         )
-        _queue_pending_case_activity(queue_dl, case_id, event.activity_id)
+        _queue_pending_case_activity(
+            queue_dl,
+            case_id,
+            event.activity_id,
+            case_actor_id=event.actor_id,
+        )
         return None
 
     dispatch(event=event, dl=dl, dispatcher=dispatcher)
@@ -298,7 +539,7 @@ def _process_inbox_item(
     item_id: str,
     item: as_Activity,
     dl: DataLayer,
-    queue_dl: DataLayer,
+    queue_dl: ActorScopedDataLayer,
     dispatcher: ActivityDispatcher | None = None,
 ) -> bool:
     """Dispatch one inbox activity and return ``True`` on success."""
@@ -319,7 +560,9 @@ def _process_inbox_item(
                 == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE
                 and case_id is not None
             ):
-                _replay_pending_case_activities(case_id, dl, queue_dl)
+                _replay_pending_case_activities(
+                    case_id, dl, queue_dl, actor_id=canonical_actor_id
+                )
         return True
     except Exception as e:
         logger.error(
@@ -336,7 +579,7 @@ def _process_inbox_item(
 async def inbox_handler(
     actor_id: str,
     dl: DataLayer,
-    actor_dl: DataLayer | None = None,
+    actor_dl: ActorScopedDataLayer | None = None,
     emitter: ActivityEmitter | None = None,
     dispatcher: ActivityDispatcher | None = None,
 ) -> None:
@@ -366,7 +609,9 @@ async def inbox_handler(
             ``_DISPATCHER``, giving each :func:`create_app` instance its
             own fully isolated routing table (issue #534).
     """
-    queue_dl = actor_dl if actor_dl is not None else dl
+    queue_dl: ActorScopedDataLayer = cast(
+        ActorScopedDataLayer, actor_dl if actor_dl is not None else dl
+    )
     actor = dl.read(actor_id)
     if actor is None:
         actor = dl.find_actor_by_short_id(actor_id)

@@ -35,6 +35,7 @@ from vultron.wire.as2.factories.case import (
     add_report_to_case_activity,
     add_status_to_case_activity,
     announce_vulnerability_case_activity,
+    bootstrap_replay_question_activity,
     create_case_activity,
     create_case_status_activity,
     offer_case_manager_role_activity,

@@ -176,9 +176,9 @@ class BTBridge:
 
         self.logger.info(f"BT setup complete for actor {actor_id}")
 
-        # Log tree structure for visibility (DEBUG level)
+        # Log tree structure for visibility (INFO level) — shows behavioral decisions
         tree_repr = unicode_tree(tree, show_status=True)
-        self.logger.debug(f"BT structure:\n{tree_repr}")
+        self.logger.info(f"BT structure:\n{tree_repr}")
 
         return bt
 
@@ -220,12 +220,11 @@ class BTBridge:
                 if root_status in (Status.SUCCESS, Status.FAILURE):
                     feedback = bt.root.feedback_message
 
-                    # Log final tree state with status visualization
-                    tree_repr = unicode_tree(bt.root, show_status=True)
                     self.logger.info(
                         f"BT execution completed: {root_status} after {iteration} ticks - {feedback}"
                     )
-                    self.logger.debug(f"Final BT state:\n{tree_repr}")
+                    tree_repr = unicode_tree(bt.root, show_status=True)
+                    self.logger.info(f"Final BT state:\n{tree_repr}")
 
                     return BTExecutionResult(
                         status=root_status,

@@ -6,6 +6,8 @@ These enums map directly to ActivityStreams 2.0 vocabulary types.
 from enum import StrEnum
 from typing import cast
 
+from vultron.core.models.enums import VultronActorType
+
 
 class as_ObjectType(StrEnum):
     # generics
@@ -27,12 +29,7 @@ class as_ObjectType(StrEnum):
     PLACE = "Place"
 
 
-class as_ActorType(StrEnum):
-    PERSON = "Person"
-    GROUP = "Group"
-    ORGANIZATION = "Organization"
-    APPLICATION = "Application"
-    SERVICE = "Service"
+as_ActorType = VultronActorType
 
 
 class as_IntransitiveActivityType(StrEnum):

@@ -12,7 +12,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for CaseLogEntry, CaseEventLog, ReplicationState, and BTBridge
+"""Unit tests for CaseLogEntry, CaseEventLog, and BTBridge
 leadership guard.
 
 Covers:
@@ -23,7 +23,7 @@ Covers:
   ``tail_hash``, ``recorded_entries`` projection, and ``verify_chain``
   (SYNC-01-001, SYNC-01-002, SYNC-01-003, SYNC-07-001,
   CLP-04-001, CLP-04-003).
-- ``ReplicationState`` construction and DataLayer serialisation
+- ``VultronReplicationState`` construction and DataLayer serialisation
   (SYNC-04-001, SYNC-04-002).
 - ``BTBridge`` leadership guard port — default always-True behaviour and
   non-leader short-circuit (SYNC-09-003).
@@ -40,11 +40,11 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case_log import (
     GENESIS_HASH,
     CaseEventLog,
-    CaseLogEntry,
-    ReplicationState,
+    HashChainLogRecord,
     _canonical_bytes,
     _sha256_hex,
 )
+from vultron.core.models.replication_state import VultronReplicationState
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -139,7 +139,7 @@ class TestGenesisHash:
 
 class TestCaseLogEntry:
     def test_construction_sets_required_fields(self):
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -153,7 +153,7 @@ class TestCaseLogEntry:
         assert entry.prev_log_hash == GENESIS_HASH
 
     def test_entry_hash_auto_computed(self):
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -164,7 +164,7 @@ class TestCaseLogEntry:
         assert len(entry.entry_hash) == 64
 
     def test_entry_hash_verify_hash_passes(self):
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -174,7 +174,7 @@ class TestCaseLogEntry:
         assert entry.verify_hash()
 
     def test_entry_hash_tamper_detection(self):
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -186,7 +186,7 @@ class TestCaseLogEntry:
         assert not entry.verify_hash()
 
     def test_default_disposition_is_recorded(self):
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -196,7 +196,7 @@ class TestCaseLogEntry:
         assert entry.disposition == "recorded"
 
     def test_rejected_disposition(self):
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -209,7 +209,7 @@ class TestCaseLogEntry:
         assert entry.reason_code == "INVALID_STATE"
 
     def test_term_defaults_to_none(self):
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -219,14 +219,14 @@ class TestCaseLogEntry:
         assert entry.term is None
 
     def test_different_entries_have_different_hashes(self):
-        e1 = CaseLogEntry(
+        e1 = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id="urn:uuid:obj1",
             event_type="test",
             prev_log_hash=GENESIS_HASH,
         )
-        e2 = CaseLogEntry(
+        e2 = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id="urn:uuid:obj2",
@@ -237,7 +237,7 @@ class TestCaseLogEntry:
 
     def test_entry_hash_not_in_hashable_dict(self):
         """entry_hash MUST be excluded from the content that is hashed."""
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -249,7 +249,7 @@ class TestCaseLogEntry:
 
     def test_payload_snapshot_stored_as_dict(self):
         snap = {"id": OBJECT_ID, "type": "Offer"}
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -260,7 +260,7 @@ class TestCaseLogEntry:
         assert entry.payload_snapshot == snap
 
     def test_reason_detail_optional(self):
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -469,36 +469,45 @@ class TestCaseEventLogVerifyChain:
 
 
 # ---------------------------------------------------------------------------
-# ReplicationState
+# VultronReplicationState
 # ---------------------------------------------------------------------------
+
+CASE_URI = "urn:uuid:case-abcd"
 
 
 class TestReplicationState:
     def test_construction_with_peer_id(self):
         peer = "https://example.org/vendor"
-        state = ReplicationState(peer_id=peer)
+        state = VultronReplicationState(case_id=CASE_URI, peer_id=peer)
         assert state.peer_id == peer
 
     def test_default_last_acknowledged_hash_is_genesis(self):
-        state = ReplicationState(peer_id="https://example.org/finder")
+        state = VultronReplicationState(
+            case_id=CASE_URI, peer_id="https://example.org/finder"
+        )
         assert state.last_acknowledged_hash == GENESIS_HASH
 
     def test_custom_last_acknowledged_hash(self):
         digest = "a" * 64
-        state = ReplicationState(
+        state = VultronReplicationState(
+            case_id=CASE_URI,
             peer_id="https://example.org/finder",
             last_acknowledged_hash=digest,
         )
         assert state.last_acknowledged_hash == digest
 
     def test_updated_at_is_set(self):
-        state = ReplicationState(peer_id="https://example.org/finder")
+        state = VultronReplicationState(
+            case_id=CASE_URI, peer_id="https://example.org/finder"
+        )
         assert state.updated_at is not None
 
     def test_pydantic_serialisation_round_trip(self):
-        state = ReplicationState(peer_id="https://example.org/finder")
-        dumped = state.model_dump()
-        restored = ReplicationState.model_validate(dumped)
+        state = VultronReplicationState(
+            case_id=CASE_URI, peer_id="https://example.org/finder"
+        )
+        dumped = state.model_dump(by_alias=True)
+        restored = VultronReplicationState.model_validate(dumped)
         assert restored.peer_id == state.peer_id
         assert restored.last_acknowledged_hash == state.last_acknowledged_hash
 

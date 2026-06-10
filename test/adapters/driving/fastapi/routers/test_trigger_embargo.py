@@ -23,6 +23,7 @@ Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
 import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
+from unittest.mock import AsyncMock, patch
 
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driving.fastapi.deps import (
@@ -39,11 +40,56 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.core.states.em import EM
+from vultron.core.states.roles import CVDRole
 
 FUTURE_END_TIME = "2099-12-01T00:00:00Z"
+
+
+def _add_case_manager(case: VulnerabilityCase, dl) -> as_Service:
+    """Add a CASE_MANAGER participant to *case* and return the case actor."""
+    case_actor = as_Service(name=f"Case Actor for {case.name}")
+    dl.create(case_actor)
+    cm_participant = CaseParticipant(
+        attributed_to=case_actor.id_,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(cm_participant)
+    case.actor_participant_index[case_actor.id_] = cm_participant.id_
+    dl.save(case)
+    return case_actor
+
+
+# ---------------------------------------------------------------------------
+# Module-level fixture: suppress outbox delivery retries
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _no_outbox_delivery():
+    """Suppress real outbox delivery for every test in this module.
+
+    ``outbox_handler`` uses HTTP with exponential-backoff retries. When
+    tests run with non-existent recipient URLs the retry sleeps add ~3.5 s
+    per test. Patching to a no-op ``AsyncMock`` eliminates that overhead
+    while keeping the scheduler logic testable.
+
+    Tests in ``TestEmbargoTriggerOutboxScheduling`` that need a trackable
+    mock use ``unittest.mock.patch`` as a context manager inside the test
+    body, which overrides this fixture's patch for the duration of that
+    context.
+    """
+    with patch(
+        "vultron.adapters.driving.fastapi.routers"
+        ".trigger_embargo.outbox_handler",
+        new_callable=AsyncMock,
+    ):
+        yield
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -103,9 +149,10 @@ def client_triggers(dl):
 
 @pytest.fixture
 def case_without_participant(dl):
-    """Create a VulnerabilityCase with no CaseParticipant for the actor."""
+    """A VulnerabilityCase with a Case Manager but no participant for the actor."""
     case_obj = VulnerabilityCase(name="TEST-CASE-NO-PARTICIPANT")
     dl.create(case_obj)
+    _add_case_manager(case_obj, dl)
     return case_obj
 
 
@@ -118,13 +165,17 @@ def case_with_embargo(dl, actor):
     case_obj.set_embargo(embargo.id_)
     case_obj.current_status.em_state = EM.ACTIVE
     dl.create(case_obj)
+    _add_case_manager(case_obj, dl)
     return case_obj, embargo
 
 
 @pytest.fixture
 def case_with_proposal(dl, actor):
     """A VulnerabilityCase with a pending EmProposeEmbargoActivity in EM.PROPOSED state."""
-    case_obj = VulnerabilityCase(name="PROPOSAL-CASE-001")
+    case_obj = VulnerabilityCase(
+        name="PROPOSAL-CASE-001",
+        attributed_to=actor.id_,
+    )
     embargo = EmbargoEvent(context=case_obj.id_)
     dl.create(embargo)
     proposal = em_propose_embargo_activity(
@@ -134,6 +185,7 @@ def case_with_proposal(dl, actor):
     case_obj.current_status.em_state = EM.PROPOSED
     case_obj.proposed_embargoes.append(embargo.id_)
     dl.create(case_obj)
+    _add_case_manager(case_obj, dl)
     return case_obj, proposal, embargo
 
 
@@ -278,10 +330,7 @@ def test_trigger_propose_embargo_adds_activity_to_outbox(
     client_triggers, dl, actor, case_without_participant
 ):
     """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
-    actor_before = dl.read(actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list())
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/propose-embargo",
@@ -292,10 +341,7 @@ def test_trigger_propose_embargo_adds_activity_to_outbox(
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
 
 
@@ -477,10 +523,7 @@ def test_trigger_accept_embargo_adds_activity_to_outbox(
 ):
     """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
     case_obj, proposal, _ = case_with_proposal
-    actor_before = dl.read(actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list())
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/accept-embargo",
@@ -488,10 +531,7 @@ def test_trigger_accept_embargo_adds_activity_to_outbox(
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
 
 
@@ -625,10 +665,7 @@ def test_trigger_reject_embargo_adds_activity_to_outbox(
 ):
     """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
     case_obj, proposal, _ = case_with_proposal
-    actor_before = dl.read(actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list())
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/reject-embargo",
@@ -636,10 +673,7 @@ def test_trigger_reject_embargo_adds_activity_to_outbox(
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
 
 
@@ -762,10 +796,7 @@ def test_trigger_propose_embargo_revision_adds_activity_to_outbox(
 ):
     """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
     case_obj, _ = case_with_embargo
-    actor_before = dl.read(actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list())
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/propose-embargo-revision",
@@ -773,10 +804,7 @@ def test_trigger_propose_embargo_revision_adds_activity_to_outbox(
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
 
 
@@ -875,10 +903,7 @@ def test_trigger_terminate_embargo_adds_activity_to_outbox(
 ):
     """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
     case_obj, _ = case_with_embargo
-    actor_before = dl.read(actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list())
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/terminate-embargo",
@@ -886,10 +911,7 @@ def test_trigger_terminate_embargo_adds_activity_to_outbox(
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
 
 

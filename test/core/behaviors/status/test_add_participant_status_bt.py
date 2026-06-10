@@ -25,6 +25,8 @@ Covers all five DEMOMA-07-003 steps:
 Per specs/multi-actor-demo.yaml DEMOMA-07-003.
 """
 
+from unittest.mock import MagicMock
+
 import py_trees
 import pytest
 from py_trees.common import Status
@@ -34,11 +36,22 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.status.add_participant_status_tree import (
     add_participant_status_tree,
 )
+from vultron.core.behaviors.status.append_participant_status_tree import (
+    append_participant_status_tree,
+)
 from vultron.core.behaviors.status.nodes import (
-    AppendParticipantStatusNode,
+    AppendStatusAndSaveParticipantNode,
     AutoCloseBranchNode,
+    BroadcastQueueToOutboxNode,
     BroadcastStatusToPeersNode,
+    CheckStatusNotAlreadyAppendedNode,
+    CreateStatusBroadcastActivityNode,
+    FilterPeerRecipientsNode,
+    FindCaseManagerNode,
+    LoadParticipantNode,
     PublicDisclosureBranchNode,
+    ResolveAndPersistStatusObjectNode,
+    ValidateRMTransitionNode,
     VerifySenderIsParticipantNode,
 )
 from vultron.core.states.rm import RM
@@ -114,8 +127,8 @@ def case_manager_participant():
 def case(participant, case_manager_participant):
     """VulnerabilityCase with vendor and Case Manager participants."""
     obj = VulnerabilityCase(id_=CASE_ID, name="Test Case")
-    obj.actor_participant_index[ACTOR_ID] = PARTICIPANT_ID
-    obj.actor_participant_index[CASE_MANAGER_ID] = CM_PARTICIPANT_ID
+    obj.add_participant(participant)
+    obj.add_participant(case_manager_participant)
     return obj
 
 
@@ -190,15 +203,263 @@ class TestVerifySenderIsParticipantNode:
 # ---------------------------------------------------------------------------
 
 
-class TestAppendParticipantStatusNode:
+# ---------------------------------------------------------------------------
+# Step 2: AppendParticipantStatusBT (composed subtree)
+# ---------------------------------------------------------------------------
+
+
+class TestLoadParticipantNode:
+    """Tests for LoadParticipantNode."""
+
+    def test_loads_participant_successfully(
+        self, populated_dl, populated_bridge
+    ):
+        node = LoadParticipantNode(participant_id=PARTICIPANT_ID)
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.SUCCESS
+        participant = py_trees.blackboard.Blackboard().get(
+            "append_status_participant"
+        )
+        assert participant is not None
+        assert participant.id_ == PARTICIPANT_ID
+
+    def test_fails_when_participant_missing(self, bridge):
+        node = LoadParticipantNode(
+            participant_id="https://example.org/cases/case-01/participants/missing"
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+
+
+class TestCheckStatusNotAlreadyAppendedNode:
+    """Tests for CheckStatusNotAlreadyAppendedNode."""
+
+    def test_succeeds_when_status_not_appended(
+        self, populated_dl, populated_bridge
+    ):
+        """Status check passes when status is not yet appended."""
+        tree = py_trees.composites.Sequence(
+            name="test-check",
+            memory=False,
+            children=[
+                LoadParticipantNode(participant_id=PARTICIPANT_ID),
+                CheckStatusNotAlreadyAppendedNode(
+                    status_id=STATUS_ID,
+                    participant_id=PARTICIPANT_ID,
+                ),
+            ],
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.SUCCESS
+
+    def test_fails_when_status_already_appended(
+        self, populated_dl, populated_bridge
+    ):
+        """Status check fails when status is already appended (idempotency)."""
+        p = populated_dl.read(PARTICIPANT_ID)
+        status_obj = populated_dl.read(STATUS_ID)
+        p.participant_statuses.append(status_obj)
+        populated_dl.save(p)
+
+        tree = py_trees.composites.Sequence(
+            name="test-check",
+            memory=False,
+            children=[
+                LoadParticipantNode(participant_id=PARTICIPANT_ID),
+                CheckStatusNotAlreadyAppendedNode(
+                    status_id=STATUS_ID,
+                    participant_id=PARTICIPANT_ID,
+                ),
+            ],
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.FAILURE
+
+
+class TestResolveAndPersistStatusObjectNode:
+    """Tests for ResolveAndPersistStatusObjectNode."""
+
+    def test_resolves_status_from_datalayer(
+        self, populated_dl, populated_bridge
+    ):
+        node = ResolveAndPersistStatusObjectNode(
+            status_id=STATUS_ID,
+            status_obj_fallback=None,
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.SUCCESS
+        status_obj = py_trees.blackboard.Blackboard().get(
+            "append_status_status_obj"
+        )
+        assert status_obj is not None
+        assert status_obj.id_ == STATUS_ID
+
+    def test_persists_fallback_when_not_found(self, dl, bridge, status_obj):
+        """Persists fallback object when status not in DataLayer."""
+        node = ResolveAndPersistStatusObjectNode(
+            status_id=STATUS_ID,
+            status_obj_fallback=status_obj,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+        persisted = dl.read(STATUS_ID)
+        assert persisted is not None
+        assert persisted.id_ == STATUS_ID
+
+    def test_fails_when_status_missing(self, bridge):
+        node = ResolveAndPersistStatusObjectNode(
+            status_id="https://example.org/missing",
+            status_obj_fallback=None,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+
+
+class TestValidateRMTransitionNode:
+    """Tests for ValidateRMTransitionNode."""
+
+    def test_accepts_valid_transition(self, populated_dl, populated_bridge):
+        """Valid adjacent RM transition is accepted."""
+        tree = py_trees.composites.Sequence(
+            name="test-validate",
+            memory=False,
+            children=[
+                LoadParticipantNode(participant_id=PARTICIPANT_ID),
+                ResolveAndPersistStatusObjectNode(
+                    status_id=STATUS_ID,
+                    status_obj_fallback=None,
+                ),
+                ValidateRMTransitionNode(participant_id=PARTICIPANT_ID),
+            ],
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.SUCCESS
+
+    def test_rejects_backwards_transition(
+        self, populated_dl, populated_bridge
+    ):
+        """Backwards RM transition (CLOSED → RECEIVED) is rejected."""
+        p = populated_dl.read(PARTICIPANT_ID)
+        closed_status = ParticipantStatus(
+            id_=f"{STATUS_ID}/closed",
+            context=CASE_ID,
+            rm_state=RM.CLOSED,
+        )
+        p.participant_statuses.append(closed_status)
+        populated_dl.save(p)
+        populated_dl.create(closed_status)
+
+        regressed_status = ParticipantStatus(
+            id_=f"{STATUS_ID}/regressed",
+            context=CASE_ID,
+            rm_state=RM.RECEIVED,
+        )
+        populated_dl.create(regressed_status)
+
+        tree = py_trees.composites.Sequence(
+            name="test-validate-backwards",
+            memory=False,
+            children=[
+                LoadParticipantNode(participant_id=PARTICIPANT_ID),
+                ResolveAndPersistStatusObjectNode(
+                    status_id=regressed_status.id_,
+                    status_obj_fallback=regressed_status,
+                ),
+                ValidateRMTransitionNode(participant_id=PARTICIPANT_ID),
+            ],
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.FAILURE
+
+    def test_accepts_forward_jump(self, populated_dl, populated_bridge):
+        """Non-adjacent forward RM jump is accepted (sender authoritative)."""
+        p = populated_dl.read(PARTICIPANT_ID)
+        received_status = ParticipantStatus(
+            id_=f"{STATUS_ID}/received",
+            context=CASE_ID,
+            rm_state=RM.RECEIVED,
+        )
+        p.participant_statuses.append(received_status)
+        populated_dl.save(p)
+        populated_dl.create(received_status)
+
+        accepted_status = ParticipantStatus(
+            id_=f"{STATUS_ID}/accepted",
+            context=CASE_ID,
+            rm_state=RM.ACCEPTED,
+        )
+        populated_dl.create(accepted_status)
+
+        tree = py_trees.composites.Sequence(
+            name="test-validate-forward-jump",
+            memory=False,
+            children=[
+                LoadParticipantNode(participant_id=PARTICIPANT_ID),
+                ResolveAndPersistStatusObjectNode(
+                    status_id=accepted_status.id_,
+                    status_obj_fallback=accepted_status,
+                ),
+                ValidateRMTransitionNode(participant_id=PARTICIPANT_ID),
+            ],
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.SUCCESS
+
+
+class TestAppendStatusAndSaveParticipantNode:
+    """Tests for AppendStatusAndSaveParticipantNode."""
+
+    def test_appends_and_saves(self, populated_dl, populated_bridge):
+        tree = py_trees.composites.Sequence(
+            name="test-append-save",
+            memory=False,
+            children=[
+                LoadParticipantNode(participant_id=PARTICIPANT_ID),
+                ResolveAndPersistStatusObjectNode(
+                    status_id=STATUS_ID,
+                    status_obj_fallback=None,
+                ),
+                AppendStatusAndSaveParticipantNode(
+                    status_id=STATUS_ID,
+                    participant_id=PARTICIPANT_ID,
+                ),
+            ],
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.SUCCESS
+        p = populated_dl.read(PARTICIPANT_ID)
+        assert p is not None
+        status_ids = [getattr(s, "id_", s) for s in p.participant_statuses]
+        assert STATUS_ID in status_ids
+
+
+class TestAppendParticipantStatusSubtree:
+    """Integration tests for the AppendParticipantStatusBT subtree."""
+
     def test_appends_status(self, populated_dl, populated_bridge, status_obj):
-        node = AppendParticipantStatusNode(
+        tree = append_participant_status_tree(
             status_id=STATUS_ID,
             participant_id=PARTICIPANT_ID,
             status_obj_fallback=status_obj,
         )
         result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
+            tree=tree, actor_id=ACTOR_ID
         )
         assert result.status == Status.SUCCESS
         p = populated_dl.read(PARTICIPANT_ID)
@@ -207,11 +468,11 @@ class TestAppendParticipantStatusNode:
         assert STATUS_ID in status_ids
 
     def test_idempotent_when_already_present(self, populated_dl, status_obj):
-        """Running the node twice does not duplicate the status."""
+        """Running the subtree twice does not duplicate the status."""
         bridge = BTBridge(datalayer=populated_dl)
 
-        def _make_node():
-            return AppendParticipantStatusNode(
+        def _make_tree():
+            return append_participant_status_tree(
                 status_id=STATUS_ID,
                 participant_id=PARTICIPANT_ID,
                 status_obj_fallback=status_obj,
@@ -219,7 +480,7 @@ class TestAppendParticipantStatusNode:
 
         # First call appends the status
         result1 = bridge.execute_with_setup(
-            tree=_make_node(), actor_id=ACTOR_ID
+            tree=_make_tree(), actor_id=ACTOR_ID
         )
         assert result1.status == Status.SUCCESS
         p = populated_dl.read(PARTICIPANT_ID)
@@ -231,19 +492,19 @@ class TestAppendParticipantStatusNode:
         # Second call must be idempotent — count must not increase
         bridge2 = BTBridge(datalayer=populated_dl)
         result2 = bridge2.execute_with_setup(
-            tree=_make_node(), actor_id=ACTOR_ID
+            tree=_make_tree(), actor_id=ACTOR_ID
         )
         assert result2.status == Status.SUCCESS
         p2 = populated_dl.read(PARTICIPANT_ID)
         assert len(p2.participant_statuses) == count_after_first
 
     def test_missing_participant_fails(self, bridge, status_obj):
-        node = AppendParticipantStatusNode(
+        tree = append_participant_status_tree(
             status_id=STATUS_ID,
             participant_id="https://example.org/cases/case-01/participants/missing",
             status_obj_fallback=status_obj,
         )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
     def test_backwards_rm_transition_fails(
@@ -266,13 +527,13 @@ class TestAppendParticipantStatusNode:
         )
         populated_dl.create(regressed_status)
 
-        node = AppendParticipantStatusNode(
+        tree = append_participant_status_tree(
             status_id=regressed_status.id_,
             participant_id=PARTICIPANT_ID,
             status_obj_fallback=regressed_status,
         )
         result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
+            tree=tree, actor_id=ACTOR_ID
         )
         assert result.status == Status.FAILURE
 
@@ -296,13 +557,13 @@ class TestAppendParticipantStatusNode:
         )
         populated_dl.create(accepted_status)
 
-        node = AppendParticipantStatusNode(
+        tree = append_participant_status_tree(
             status_id=accepted_status.id_,
             participant_id=PARTICIPANT_ID,
             status_obj_fallback=accepted_status,
         )
         result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
+            tree=tree, actor_id=ACTOR_ID
         )
         assert result.status == Status.SUCCESS
 
@@ -337,6 +598,354 @@ class TestBroadcastStatusToPeersNode:
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
+    def test_skips_when_current_actor_is_the_only_peer(self, populated_dl):
+        trigger_activity = MagicMock()
+        peer_actor_id = "https://example.org/actors/finder"
+        peer_participant_id = (
+            "https://example.org/cases/case-01/participants/finder"
+        )
+        peer_participant = CaseParticipant(
+            id_=peer_participant_id,
+            context=CASE_ID,
+            attributed_to=peer_actor_id,
+            case_roles=[CVDRole.FINDER],
+        )
+        populated_dl.create(peer_participant)
+        case = populated_dl.read(CASE_ID)
+        assert case is not None
+        case.actor_participant_index[peer_actor_id] = peer_participant_id
+        populated_dl.save(case)
+        bridge = BTBridge(
+            datalayer=populated_dl, trigger_activity=trigger_activity
+        )
+        node = BroadcastStatusToPeersNode(
+            status_id=STATUS_ID,
+            participant_id=PARTICIPANT_ID,
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=peer_actor_id)
+        assert result.status == Status.SUCCESS
+        trigger_activity.add_participant_status_to_participant.assert_not_called()
+
+    def test_broadcasts_from_case_manager_only(self, populated_dl):
+        trigger_activity = MagicMock()
+        trigger_activity.add_participant_status_to_participant.return_value = (
+            "urn:uuid:activity-1"
+        )
+        peer_actor_id = "https://example.org/actors/finder"
+        peer_participant_id = (
+            "https://example.org/cases/case-01/participants/finder"
+        )
+        peer_participant = CaseParticipant(
+            id_=peer_participant_id,
+            context=CASE_ID,
+            attributed_to=peer_actor_id,
+            case_roles=[CVDRole.FINDER],
+        )
+        populated_dl.create(peer_participant)
+        case = populated_dl.read(CASE_ID)
+        assert case is not None
+        case.actor_participant_index[peer_actor_id] = peer_participant_id
+        populated_dl.save(case)
+        bridge = BTBridge(
+            datalayer=populated_dl, trigger_activity=trigger_activity
+        )
+        node = BroadcastStatusToPeersNode(
+            status_id=STATUS_ID,
+            participant_id=PARTICIPANT_ID,
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.SUCCESS
+        trigger_activity.add_participant_status_to_participant.assert_called_once_with(
+            status_id=STATUS_ID,
+            participant_id=PARTICIPANT_ID,
+            actor=CASE_MANAGER_ID,
+            to=[peer_actor_id],
+        )
+
+
+# ---------------------------------------------------------------------------
+# Step 3 leaf nodes: FindCaseManagerNode
+# ---------------------------------------------------------------------------
+
+
+PEER_ACTOR_ID = "https://example.org/actors/finder"
+PEER_PARTICIPANT_ID = "https://example.org/cases/case-01/participants/finder"
+
+
+@pytest.fixture
+def peer_participant():
+    return CaseParticipant(
+        id_=PEER_PARTICIPANT_ID,
+        context=CASE_ID,
+        attributed_to=PEER_ACTOR_ID,
+        case_roles=[CVDRole.FINDER],
+    )
+
+
+@pytest.fixture
+def populated_dl_with_peer(populated_dl, peer_participant):
+    """DataLayer with vendor, Case Manager, and a third peer participant."""
+    populated_dl.create(peer_participant)
+    case = populated_dl.read(CASE_ID)
+    assert case is not None
+    case.actor_participant_index[PEER_ACTOR_ID] = PEER_PARTICIPANT_ID
+    populated_dl.save(case)
+    return populated_dl
+
+
+class TestFindCaseManagerNode:
+    def test_returns_failure_without_case_id(self, populated_bridge):
+        """case_id=None → FAILURE (prerequisite missing)."""
+        node = FindCaseManagerNode(case_id=None)
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.FAILURE
+
+    def test_returns_failure_when_case_not_found(self, bridge):
+        """case_id set but no matching case in DataLayer → FAILURE."""
+        node = FindCaseManagerNode(case_id=CASE_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.FAILURE
+
+    def test_returns_failure_when_no_case_manager(self, dl):
+        """Case exists but has no CASE_MANAGER participant → FAILURE."""
+        case_no_mgr = VulnerabilityCase(id_=CASE_ID, name="No Manager")
+        participant_no_mgr = CaseParticipant(
+            id_=PARTICIPANT_ID,
+            context=CASE_ID,
+            attributed_to=ACTOR_ID,
+            case_roles=[CVDRole.CASE_OWNER],
+        )
+        case_no_mgr.actor_participant_index[ACTOR_ID] = PARTICIPANT_ID
+        dl.create(case_no_mgr)
+        dl.create(participant_no_mgr)
+        bridge_no_mgr = BTBridge(datalayer=dl)
+        node = FindCaseManagerNode(case_id=CASE_ID)
+        result = bridge_no_mgr.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+
+    def test_returns_success_and_writes_blackboard(self, populated_bridge):
+        """Happy path: writes broadcast_case_manager_id to blackboard."""
+        node = FindCaseManagerNode(case_id=CASE_ID)
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.SUCCESS
+        assert (
+            py_trees.blackboard.Blackboard.storage[
+                "/broadcast_case_manager_id"
+            ]
+            == CASE_MANAGER_ID
+        )
+
+
+# ---------------------------------------------------------------------------
+# Step 3 leaf nodes: FilterPeerRecipientsNode
+# ---------------------------------------------------------------------------
+
+
+class TestFilterPeerRecipientsNode:
+    def _run_find_then_filter(self, dl, actor_id, sender_actor_id=ACTOR_ID):
+        """Helper: run FindCaseManagerNode then FilterPeerRecipientsNode."""
+        seq = py_trees.composites.Sequence(
+            name="TestSeq",
+            memory=False,
+            children=[
+                FindCaseManagerNode(case_id=CASE_ID),
+                FilterPeerRecipientsNode(
+                    sender_actor_id=sender_actor_id, case_id=CASE_ID
+                ),
+            ],
+        )
+        bridge = BTBridge(datalayer=dl)
+        return bridge.execute_with_setup(tree=seq, actor_id=actor_id)
+
+    def test_returns_failure_without_case_id(self, populated_dl):
+        """case_id=None → FAILURE from FilterPeerRecipientsNode."""
+        seq = py_trees.composites.Sequence(
+            name="TestSeq",
+            memory=False,
+            children=[
+                FindCaseManagerNode(case_id=CASE_ID),
+                FilterPeerRecipientsNode(
+                    sender_actor_id=ACTOR_ID, case_id=None
+                ),
+            ],
+        )
+        bridge = BTBridge(datalayer=populated_dl)
+        result = bridge.execute_with_setup(tree=seq, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.FAILURE
+
+    def test_returns_failure_when_no_eligible_recipients(self, populated_dl):
+        """Only vendor and Case Manager in case → no peers after filtering."""
+        result = self._run_find_then_filter(
+            populated_dl,
+            actor_id=CASE_MANAGER_ID,
+            sender_actor_id=ACTOR_ID,
+        )
+        assert result.status == Status.FAILURE
+
+    def test_returns_success_with_eligible_peer(self, populated_dl_with_peer):
+        """Third peer exists and is not sender/self/manager → SUCCESS."""
+        result = self._run_find_then_filter(
+            populated_dl_with_peer,
+            actor_id=CASE_MANAGER_ID,
+            sender_actor_id=ACTOR_ID,
+        )
+        assert result.status == Status.SUCCESS
+        assert py_trees.blackboard.Blackboard.storage[
+            "/broadcast_peer_recipient_ids"
+        ] == [PEER_ACTOR_ID]
+
+    def test_excludes_sender_from_recipients(self, populated_dl_with_peer):
+        """Peer is the sender → excluded; vendor (ACTOR_ID) is still eligible."""
+        result = self._run_find_then_filter(
+            populated_dl_with_peer,
+            actor_id=CASE_MANAGER_ID,
+            sender_actor_id=PEER_ACTOR_ID,
+        )
+        # ACTOR_ID is not the sender, not self (CASE_MANAGER_ID), and not the
+        # Case Manager, so it remains as an eligible recipient.
+        assert result.status == Status.SUCCESS
+        assert py_trees.blackboard.Blackboard.storage[
+            "/broadcast_peer_recipient_ids"
+        ] == [ACTOR_ID]
+
+    def test_excludes_self_from_recipients(self, populated_dl_with_peer):
+        """Actor running as the peer → peer excluded from recipient list."""
+        result = self._run_find_then_filter(
+            populated_dl_with_peer,
+            actor_id=PEER_ACTOR_ID,
+            sender_actor_id=ACTOR_ID,
+        )
+        assert result.status == Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# Step 3 leaf nodes: CreateStatusBroadcastActivityNode
+# ---------------------------------------------------------------------------
+
+
+class TestCreateStatusBroadcastActivityNode:
+    def _run_to_create(self, dl, actor_id, trigger_activity=None):
+        """Run the three-node prefix ending at CreateStatusBroadcastActivityNode."""
+        seq = py_trees.composites.Sequence(
+            name="TestSeq",
+            memory=False,
+            children=[
+                FindCaseManagerNode(case_id=CASE_ID),
+                FilterPeerRecipientsNode(
+                    sender_actor_id=ACTOR_ID, case_id=CASE_ID
+                ),
+                CreateStatusBroadcastActivityNode(
+                    status_id=STATUS_ID,
+                    participant_id=PARTICIPANT_ID,
+                ),
+            ],
+        )
+        bridge = BTBridge(datalayer=dl, trigger_activity=trigger_activity)
+        return bridge.execute_with_setup(tree=seq, actor_id=actor_id)
+
+    def test_returns_failure_without_trigger_activity_factory(
+        self, populated_dl_with_peer
+    ):
+        """No trigger_activity → CreateStatusBroadcastActivityNode FAILURE."""
+        result = self._run_to_create(
+            populated_dl_with_peer, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.FAILURE
+
+    def test_calls_factory_with_correct_args(self, populated_dl_with_peer):
+        """Calls factory with case_manager as actor and peer as recipient."""
+        trigger_activity = MagicMock()
+        trigger_activity.add_participant_status_to_participant.return_value = (
+            "urn:uuid:activity-1"
+        )
+        result = self._run_to_create(
+            populated_dl_with_peer,
+            actor_id=CASE_MANAGER_ID,
+            trigger_activity=trigger_activity,
+        )
+        assert result.status == Status.SUCCESS
+        trigger_activity.add_participant_status_to_participant.assert_called_once_with(
+            status_id=STATUS_ID,
+            participant_id=PARTICIPANT_ID,
+            actor=CASE_MANAGER_ID,
+            to=[PEER_ACTOR_ID],
+        )
+
+    def test_returns_failure_on_vultron_error(self, populated_dl_with_peer):
+        """VultronError from factory → FAILURE (non-fatal for caller)."""
+        from vultron.errors import VultronError
+
+        trigger_activity = MagicMock()
+        trigger_activity.add_participant_status_to_participant.side_effect = (
+            VultronError("factory error")
+        )
+        result = self._run_to_create(
+            populated_dl_with_peer,
+            actor_id=CASE_MANAGER_ID,
+            trigger_activity=trigger_activity,
+        )
+        assert result.status == Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# Step 3 leaf nodes: BroadcastQueueToOutboxNode
+# ---------------------------------------------------------------------------
+
+
+class TestBroadcastQueueToOutboxNode:
+    def _run_full_broadcast_sequence(
+        self, dl, actor_id, trigger_activity=None
+    ):
+        """Run the full four-node broadcast inner sequence."""
+        seq = py_trees.composites.Sequence(
+            name="TestSeq",
+            memory=False,
+            children=[
+                FindCaseManagerNode(case_id=CASE_ID),
+                FilterPeerRecipientsNode(
+                    sender_actor_id=ACTOR_ID, case_id=CASE_ID
+                ),
+                CreateStatusBroadcastActivityNode(
+                    status_id=STATUS_ID,
+                    participant_id=PARTICIPANT_ID,
+                ),
+                BroadcastQueueToOutboxNode(),
+            ],
+        )
+        bridge = BTBridge(datalayer=dl, trigger_activity=trigger_activity)
+        return bridge.execute_with_setup(tree=seq, actor_id=actor_id)
+
+    def test_full_sequence_succeeds(self, populated_dl_with_peer):
+        """Full four-node broadcast sequence succeeds end-to-end."""
+        trigger_activity = MagicMock()
+        trigger_activity.add_participant_status_to_participant.return_value = (
+            "urn:uuid:activity-1"
+        )
+        result = self._run_full_broadcast_sequence(
+            populated_dl_with_peer,
+            actor_id=CASE_MANAGER_ID,
+            trigger_activity=trigger_activity,
+        )
+        assert result.status == Status.SUCCESS
+
+    def test_returns_failure_without_blackboard_keys(self):
+        """BroadcastQueueToOutboxNode returns FAILURE when broadcast blackboard
+        keys are missing (no prior FindCaseManagerNode run)."""
+        node = BroadcastQueueToOutboxNode()
+        dl_empty = SqliteDataLayer("sqlite:///:memory:")
+        bridge = BTBridge(datalayer=dl_empty)
+        # Without pre-populated blackboard keys the node returns FAILURE
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.FAILURE
+
 
 # ---------------------------------------------------------------------------
 # Step 4: PublicDisclosureBranchNode
@@ -366,6 +975,71 @@ class TestPublicDisclosureBranchNode:
             tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.SUCCESS
+
+    def test_skips_when_sender_is_not_case_owner(
+        self, populated_dl, populated_bridge, status_obj
+    ):
+        """CASE_MANAGER sender (not CASE_OWNER) → skips teardown, SUCCESS."""
+        from vultron.core.states.cs import CS_pxa
+        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
+
+        cs = CaseStatus()
+        cs.pxa_state = CS_pxa.Pxa  # public-aware
+        status_obj.case_status = cs
+        populated_dl.save(status_obj)
+
+        node = PublicDisclosureBranchNode(
+            status_obj=status_obj,
+            sender_actor_id=CASE_MANAGER_ID,  # not CASE_OWNER
+            case_id=CASE_ID,
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.SUCCESS
+
+    def test_triggers_teardown_on_public_aware_case_owner(
+        self, populated_dl, populated_bridge, case, status_obj
+    ):
+        """CS.P + CASE_OWNER sender → embargo terminated, EM=EXITED, PEC reset."""
+        from vultron.core.states.cs import CS_pxa
+        from vultron.core.states.em import EM
+        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+
+        # Give the case an active embargo in ACTIVE state
+        embargo = EmbargoEvent(
+            id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
+        )
+        case.active_embargo = embargo.id_
+        case.current_status.em_state = EM.ACTIVE
+        populated_dl.create(embargo)
+        populated_dl.save(case)
+
+        cs = CaseStatus()
+        cs.pxa_state = CS_pxa.Pxa  # public-aware
+        status_obj.case_status = cs
+        populated_dl.save(status_obj)
+
+        # ACTOR_ID holds CASE_OWNER role (see `participant` fixture)
+        node = PublicDisclosureBranchNode(
+            status_obj=status_obj,
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.SUCCESS
+
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+        from typing import cast as c
+
+        updated = c(VulnerabilityCase, populated_dl.read(CASE_ID))
+        assert updated.current_status.em_state == EM.EXITED
+        assert updated.active_embargo is None
 
 
 # ---------------------------------------------------------------------------

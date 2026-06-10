@@ -1,7 +1,7 @@
 """Use cases for case note activities."""
 
 import logging
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any
 
 from py_trees.common import Status
 
@@ -16,7 +16,10 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.models.protocols import is_case_model
 from vultron.core.use_cases._helpers import _as_id
-from vultron.wire.as2.factories import add_note_to_case_activity
+
+if TYPE_CHECKING:
+    from vultron.core.ports.sync_activity import SyncActivityPort
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +66,16 @@ class CreateNoteReceivedUseCase:
 
 class AddNoteToCaseReceivedUseCase:
     def __init__(
-        self, dl: CaseOutboxPersistence, request: AddNoteToCaseReceivedEvent
+        self,
+        dl: CaseOutboxPersistence,
+        request: AddNoteToCaseReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: AddNoteToCaseReceivedEvent = request
+        self._sync_port = sync_port
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         request = self._request
@@ -100,6 +109,10 @@ class AddNoteToCaseReceivedUseCase:
             author_id=request.actor_id,
             case=case,
         )
+        self._commit_log_cascade(
+            case_id=case_id,
+            note_id=note_id,
+        )
 
     def _broadcast_note_to_participants(
         self,
@@ -114,6 +127,14 @@ class AddNoteToCaseReceivedUseCase:
         MUST broadcast the note to all participants (excluding the author).
         Recipients are derived from VulnerabilityCase.actor_participant_index.
         """
+        if self._trigger_activity is None:
+            logger.debug(
+                "add_note_to_case: no TriggerActivityPort for case '%s'"
+                " — skipping broadcast (CM-06-005)",
+                case_id,
+            )
+            return
+
         # Locate the CaseActor (type_="Service") for this case.
         case_actor_id: str | None = None
         for service in self._dl.list_objects("Service"):
@@ -142,28 +163,14 @@ class AddNoteToCaseReceivedUseCase:
             )
             return
 
-        broadcast = add_note_to_case_activity(
-            note=cast(Any, self._dl.read(note_id)),
-            target=case_id,
+        activity_id, _ = self._trigger_activity.add_note_to_case(
+            note_id=note_id,
+            case_id=case_id,
             actor=case_actor_id,
             to=recipient_ids,
         )
-        try:
-            self._dl.create(broadcast)
-        except ValueError:
-            logger.debug(
-                "add_note_to_case: broadcast activity %s already exists"
-                " — skipping",
-                broadcast.id_,
-            )
-            return
 
-        case_actor_obj = self._dl.read(case_actor_id)
-        if case_actor_obj is not None and hasattr(case_actor_obj, "outbox"):
-            cast(Any, case_actor_obj).outbox.items.append(broadcast.id_)
-            self._dl.save(case_actor_obj)
-
-        self._dl.record_outbox_item(case_actor_id, broadcast.id_)
+        self._dl.record_outbox_item(case_actor_id, activity_id)
 
         logger.info(
             "add_note_to_case: CaseActor '%s' broadcast AddNoteToCase for"
@@ -172,6 +179,42 @@ class AddNoteToCaseReceivedUseCase:
             note_id,
             case_id,
             len(recipient_ids),
+        )
+
+    def _commit_log_cascade(
+        self,
+        case_id: str,
+        note_id: str,
+    ) -> None:
+        """Commit a CaseLogEntry and fan it out to all participants (PCR-08-003).
+
+        Uses ``receiving_actor_id`` (the CaseActor's canonical ID) when
+        available.  Falls back to a DataLayer lookup for the Service object
+        whose ``context`` matches *case_id*.
+        """
+        from vultron.core.use_cases.received.actor import _find_case_actor_id
+        from vultron.core.use_cases.triggers.sync import (
+            commit_log_entry_trigger,
+        )
+
+        actor_id = self._request.receiving_actor_id
+        if actor_id is None:
+            actor_id = _find_case_actor_id(self._dl, case_id)
+        if actor_id is None:
+            logger.warning(
+                "add_note_to_case: cannot resolve CaseActor for case '%s'"
+                " — skipping log entry cascade (PCR-08-003)",
+                case_id,
+            )
+            return
+
+        commit_log_entry_trigger(
+            case_id=case_id,
+            object_id=note_id,
+            event_type="add_note_to_case",
+            actor_id=actor_id,
+            dl=self._dl,
+            sync_port=self._sync_port,
         )
 
 

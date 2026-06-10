@@ -18,7 +18,7 @@ Core ports package.
 
 Contains port (interface) definitions for the core domain layer.
 Ports are discriminated by direction following the Hexagonal Architecture
-pattern (see ``notes/architecture-ports-and-adapters.md``
+pattern (see ``vultron/core/ports/AGENTS.md``
 "Core Port Taxonomy: Inbound vs Outbound").
 
 **Inbound (driving) ports** — external adapters call into core:
@@ -33,5 +33,5 @@ pattern (see ``notes/architecture-ports-and-adapters.md``
 - ``DataLayer`` (``datalayer.py``) — persistence interface; implemented by
   ``SqliteDataLayer`` in ``vultron/adapters/driven/``.
 - ``ActivityEmitter`` (``emitter.py``) — outbound activity delivery;
-  implemented by ``DeliveryQueueAdapter`` in ``vultron/adapters/driven/``.
+  implemented by ``DemoHttpDeliveryAdapter`` in ``vultron/adapters/driven/``.
 """

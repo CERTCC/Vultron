@@ -24,9 +24,9 @@ Spec: SYNC-02-002, SYNC-02-003, SYNC-03-001, SYNC-03-002.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
-from vultron.core.models.case_log import CaseLogEntry
+from vultron.core.models.case_log import HashChainLogRecord
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
 from vultron.core.models.protocols import (
     LogEntryModel,
@@ -41,13 +41,46 @@ from vultron.core.use_cases._helpers import case_addressees
 from vultron.core.use_cases.received.sync import _reconstruct_tail_hash
 from vultron.errors import VultronError
 
+if TYPE_CHECKING:
+    from vultron.core.models.events.base import VultronEvent
+
 logger = logging.getLogger(__name__)
 
 
+def extract_activity_snapshot(request: "VultronEvent") -> dict[str, Any]:
+    """Return a normalised AS2 payload snapshot from a ``VultronEvent``.
+
+    When ``request.activity`` is populated (``include_activity=True`` in
+    the registry entry), returns its ``model_dump`` as the snapshot so
+    that case-log entries carry the full inbound AS2 activity object.
+    Returns an empty dict when no activity snapshot is available.
+
+    Args:
+        request: The inbound domain event produced by ``extract_intent()``.
+
+    Returns:
+        A JSON-serialisable dict suitable for ``payload_snapshot``.
+
+    Spec: SYNC-02-002, SYNC-02-003.
+    """
+    activity = request.activity
+    if activity is None or not hasattr(activity, "model_dump"):
+        return {}
+    return cast(
+        dict[str, Any],
+        activity.model_dump(
+            mode="json",
+            by_alias=True,
+            serialize_as_any=True,
+            exclude_none=True,
+        ),
+    )
+
+
 def _to_persistable_entry(
-    chain_entry: CaseLogEntry,
+    chain_entry: HashChainLogRecord,
 ) -> VultronCaseLogEntry:
-    """Convert a hash-chained :class:`CaseLogEntry` to a :class:`VultronCaseLogEntry`.
+    """Convert a hash-chained :class:`HashChainLogRecord` to a :class:`VultronCaseLogEntry`.
 
     Copies all fields so that the entry can be stored via the DataLayer.
     """
@@ -162,11 +195,11 @@ def commit_log_entry_trigger(
     """
     tail_hash, tail_index = _reconstruct_tail_hash(case_id, dl)
 
-    # Create the new entry directly using CaseLogEntry so the entry_hash is
+    # Create the new entry directly using HashChainLogRecord so the entry_hash is
     # auto-computed by the model_validator.  We do not use CaseEventLog.append()
     # here because that always starts a fresh log at index 0; we carry forward
     # the DataLayer state via tail_hash and tail_index instead.
-    chain_entry = CaseLogEntry(
+    chain_entry = HashChainLogRecord(
         case_id=case_id,
         log_index=tail_index + 1,
         object_id=object_id,

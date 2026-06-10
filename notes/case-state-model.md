@@ -387,8 +387,7 @@ never copied from the incoming activity's own timestamp fields. This is
 the invariant that makes the CaseActor the sole trusted source of event
 ordering within a case.
 
-**Cross-reference**: `specs/case-management.yaml` CM-02-009, CM-10-002;
-`plan/IMPLEMENTATION_PLAN.md` SC-PRE-1, TECHDEBT-10.
+**Cross-reference**: `specs/case-management.yaml` CM-02-009, CM-10-002.
 
 ---
 
@@ -409,6 +408,9 @@ to `VulnerabilityCase`:
 - This field is a **derived index** — it MUST be excluded from
   ActivityStreams serialization (use `exclude=True` in the field definition
   or an equivalent Pydantic v2 pattern) because it is not protocol data
+- `case_participants` is the canonical participant surface; lookup helpers
+  MAY use the index as a shortcut, but they MUST treat any divergence between
+  the two surfaces as an explicit error rather than silently reconciling it
 
 ### Participant Management Methods
 
@@ -438,14 +440,18 @@ be updated to call `case.add_participant()` or `case.remove_participant()`:
 `case_participants`. Out-of-sync states MUST NOT be possible via normal
 code paths.
 
+Read-side participant lookup MUST prefer `case_participants` as the source of
+truth. `actor_participant_index` exists only as a derived lookup aid, so any
+missing or contradictory mapping MUST fail fast and surface a bug in the
+write path or fixture setup.
+
 **Open Question**: (blocks SC-PRE-2) Whether to raise or silently no-op on
 duplicate `add_participant()` calls. Recommend raise for correctness;
 handlers should guard with an existence check before calling
 `add_participant()` to keep idempotency logic explicit.
 
 **Cross-reference**: `specs/case-management.yaml` CM-10-002, CM-10-001;
-`plan/IMPLEMENTATION_PLAN.md` SC-PRE-2; `AGENTS.md` "Cases should have
-participant-to-actor and vice versa indexes".
+`AGENTS.md` "Cases should have participant-to-actor and vice versa indexes".
 
 ---
 

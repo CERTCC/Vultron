@@ -2,10 +2,9 @@
 name: update-plan
 description: >
   Perform a gap analysis between current specs/notes and the codebase, then
-  create GitHub Issues for any untracked gaps and update PRIORITIES.md
-  references as needed. Observations and open questions go directly to
-  notes/ files. Use after learn or ingest-idea has updated specs/notes, and
-  before running build. Does not write new tasks to IMPLEMENTATION_PLAN.md.
+  create GitHub Issues for any untracked gaps and add them to Project #24.
+  Observations and open questions go directly to notes/ files. Use after
+  learn or `plan-issue` has updated specs/notes, and before running build.
 ---
 
 # Skill: Update Plan
@@ -13,23 +12,23 @@ description: >
 Perform a gap analysis between the current specifications, design notes, and
 the actual codebase, then create GitHub Issues for any untracked gaps.
 
-**Constraint**: Do not write new tasks to `plan/IMPLEMENTATION_PLAN.md` — it
-is a read-only index. All new work items MUST be GitHub Issues. Do not change
+**Constraint**: Do not write new tasks to the plan — all new work items MUST be
+GitHub Issues. Do not change
 code, tests, `specs/`, or `notes/` (except when writing gap-analysis
 observations). Do **not** write to `plan/BUILD_LEARNINGS.md` — that file is
 reserved for `build` and `bugfix`.
 
-**Trigger**: Use after `learn` or `ingest-idea` has updated specs or notes,
+**Trigger**: Use after `learn` or `plan-issue` has updated specs or notes,
 to translate those changes into concrete GitHub Issues. Also run periodically
 to keep open Issues aligned with the codebase.
 
 ## Quick Start
 
-1. Invoke `study-project-docs` to load all specs and context.
+1. Invoke `orient-agent` then `deepen-context` to load all specs and context.
 2. Run a gap analysis: compare `specs/` + `notes/` against `vultron/` and
    `test/`.
-3. For each gap, create a GitHub Issue (group:unscheduled) rather than a plan
-   entry.
+3. For each gap, create a GitHub Issue (added to Project #24 with
+   Schedule=Someday) rather than a plan entry.
 4. Write any significant observations or open questions directly to the
    appropriate `notes/*.md` file (not to `BUILD_LEARNINGS.md`).
 5. Invoke `commit`.
@@ -38,13 +37,13 @@ to keep open Issues aligned with the codebase.
 
 ### Phase 1 — Load Context
 
-Invoke the `study-project-docs` skill. It loads all specs, reads all plan/,
-docs/adr/, notes/, AGENTS.md, and scans vultron/ and test/.
+Invoke the `orient-agent` skill, then `deepen-context` to load all specs,
+relevant plan files, docs/adr/, notes/, AGENTS.md, and scan vultron/ and test/.
 
 To understand what has recently been completed and avoid re-adding finished
-work, read the current month's index at `plan/history/YYMM/README.md` (where
-`YYMM` is the current year-month, e.g. `2604`). Open individual entry files
-only when their titles suggest they contain relevant context.
+work, run `uv run show-history --month YYMM` (replacing `YYMM` with the
+current year-month, e.g. `2604`) to see what has recently been completed.
+Open individual entry files only when their titles suggest relevant context.
 
 ### Phase 1b — Resolve GitHub Issues
 
@@ -90,7 +89,7 @@ ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
 ## Reference
 
 Spec: \`specs/<topic>.yaml\` <ID range>" \
-  --label "group:unscheduled,size:<S|M|L>")
+  --label "size:<S|M|L>")
   # Add --blocked-by N for known blockers
 echo "Created gap issue #${ISSUE_NUMBER}"
 ```
@@ -98,7 +97,32 @@ echo "Created gap issue #${ISSUE_NUMBER}"
 Set the `size:` label from AC count: 1–2 → `size:S`; 3–6 → `size:M`;
 7+ → `size:L`.
 
-Do **not** add tasks to `plan/IMPLEMENTATION_PLAN.md`.
+Then add the issue to Project #24 with `Schedule=Someday`:
+
+```bash
+NODE_ID=$(gh api graphql -f query='{
+  repository(owner:"CERTCC", name:"Vultron") {
+    issue(number: '"${ISSUE_NUMBER}"') { id }
+  }
+}' --jq '.data.repository.issue.id')
+ITEM_ID=$(gh api graphql -f query="mutation {
+  addProjectV2ItemById(input: {
+    projectId: \"PVT_kwDOAjf0s84BZnre\"
+    contentId: \"${NODE_ID}\"
+  }) { item { id } }
+}" --jq '.data.addProjectV2ItemById.item.id')
+gh api graphql -f query="mutation {
+  updateProjectV2ItemFieldValue(input: {
+    projectId: \"PVT_kwDOAjf0s84BZnre\"
+    itemId: \"${ITEM_ID}\"
+    fieldId: \"PVTSSF_lADOAjf0s84BZnrezhUlFOM\"
+    value: { singleSelectOptionId: \"fcffa79d\" }
+  }) { projectV2Item { id } }
+}" >/dev/null
+```
+
+Do **not** add tasks to GitHub Issues outside the `manage-github-issue`
+workflow documented above.
 
 **Grouping related gaps (PAD-01-002, PAD-01-003):** When the gap analysis
 identifies **2 or more closely related gaps** in the same spec area (e.g.,
@@ -113,17 +137,17 @@ PARENT_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
   --title "<Parent task title>" \
   --body "<Summary of the related gaps>" \
   --issue-type-id "IT_kwDOAjf0s84AcFLo" \
-  --label "group:unscheduled,size:<S|M|L>")
+  --label "size:<S|M|L>")
 
 # 2. Create each gap issue and wire as sub-issue of the parent
 CHILD_1=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
   --title "<Gap 1>" --body "..." \
-  --label "group:unscheduled,size:S" \
+  --label "size:S" \
   --parent "${PARENT_NUMBER}")
 
 CHILD_2=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
   --title "<Gap 2>" --body "..." \
-  --label "group:unscheduled,size:S" \
+  --label "size:S" \
   --parent "${PARENT_NUMBER}")
 ```
 
@@ -148,28 +172,13 @@ specific message (e.g.,
 
 - Do not modify code or tests.
 - Do not write to `plan/BUILD_LEARNINGS.md`.
-- Do not write new tasks to `plan/IMPLEMENTATION_PLAN.md`.
 - Do not speculate about missing functionality; verify with code search first.
 - Do not implement anything — that is `build`'s domain.
 - Use `uv run append-history implementation` only via `build` — never from
   within `update-plan`.
 
-## Label Naming Rules (PAD-02-007)
+## Project Board
 
-All Issues created by this skill use `group:unscheduled` — no priority number
-or slug needed at creation time. However, if you assign a specific `group:`
-label for any reason:
-
-- **Never include a priority number** in the label name.
-  Use `group:architecture-hardening`, **not** `group:473-architecture-hardening`.
-  Priority numbers can change when PRIORITIES.md is reordered.
-- **Derive the slug** from the priority group title in kebab-case
-  (e.g., "Cyclomatic Complexity Enforcement" → `group:cyclomatic-complexity`).
-- **Check for label existence** before assigning. Create it if missing:
-
-  ```bash
-  gh label create "group:<slug>" \
-    --repo CERTCC/Vultron \
-    --description "<Priority group title (no number)>" \
-    --color "#1d76db"
-  ```
+All Issues created by this skill are added to Project #24 ("Vultron Planning")
+with `Schedule=Someday`. Use `review-priorities` to move them to Now/Next/Later
+when they are ready to be scheduled.

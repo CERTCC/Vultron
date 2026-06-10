@@ -17,8 +17,9 @@
 
 :class:`TriggerService` is the concrete implementation of
 :class:`~vultron.core.ports.trigger_service.TriggerServicePort`.  It accepts
-a single :class:`~vultron.core.ports.datalayer.DataLayer` at construction and
-exposes all 18 trigger operations plus ``commit_log_entry`` as named methods.
+a :class:`~vultron.core.ports.case_persistence.CaseOutboxPersistence` at
+construction and exposes all 18 trigger operations plus ``commit_log_entry``
+as named methods.  ``SqliteDataLayer`` satisfies this protocol structurally.
 
 Callers (FastAPI routers, CLI adapters, domain tests) construct a
 ``TriggerService`` directly::
@@ -39,7 +40,6 @@ from typing import TYPE_CHECKING, Any, cast
 
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptCaseInviteUseCase,
     SvcInviteActorToCaseUseCase,
@@ -100,11 +100,15 @@ if TYPE_CHECKING:
 class TriggerService:
     """Facade over all actor-initiated trigger use cases.
 
-    Accepts a single :class:`~vultron.core.ports.datalayer.DataLayer` at
-    construction; exposes every trigger operation as a named method.  Hides
+    Accepts a :class:`~vultron.core.ports.case_persistence.CaseOutboxPersistence`
+    at construction; exposes every trigger operation as a named method.  Hides
     the 18 ``SvcXxx`` use-case class names, the ``XxxTriggerRequest``
     hierarchy, and the ``(dl, request).execute()`` dispatch protocol from
     callers.
+
+    ``SqliteDataLayer`` (and any
+    :class:`~vultron.core.ports.datalayer.ActorScopedDataLayer`) satisfies
+    ``CaseOutboxPersistence`` structurally.
 
     Raises bare ``VultronError`` subclasses — HTTP adapters translate these
     via ``domain_error_translation()``.
@@ -112,7 +116,7 @@ class TriggerService:
 
     def __init__(
         self,
-        dl: DataLayer,
+        dl: CaseOutboxPersistence,
         sync_port: SyncActivityPort | None = None,
         trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:

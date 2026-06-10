@@ -316,3 +316,58 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestEmbargoPolicyCoreConversion(unittest.TestCase):
+    """Wire EmbargoPolicy ↔ core EmbargoPolicy round-trip — ADR-0017."""
+
+    def setUp(self):
+        from vultron.core.models.embargo_policy import (
+            EmbargoPolicy as CoreEmbargoPolicy,
+        )
+
+        self.core_cls = CoreEmbargoPolicy
+        self.wire_cls = ep_module.EmbargoPolicy
+        self.core_policy = CoreEmbargoPolicy(
+            actor_id=ACTOR_ID,
+            inbox=INBOX,
+            preferred_duration=_P90D,
+            minimum_duration=_P45D,
+            maximum_duration=_P180D,
+            notes="Prefer 90 days.",
+        )
+
+    def test_from_core_produces_wire_instance(self):
+        wire = self.wire_cls.from_core(self.core_policy)
+        self.assertIsInstance(wire, self.wire_cls)
+
+    def test_from_core_preserves_fields(self):
+        wire = self.wire_cls.from_core(self.core_policy)
+        self.assertEqual(wire.actor_id, ACTOR_ID)
+        self.assertEqual(wire.inbox, INBOX)
+        self.assertEqual(wire.preferred_duration, _P90D)
+        self.assertEqual(wire.minimum_duration, _P45D)
+        self.assertEqual(wire.maximum_duration, _P180D)
+        self.assertEqual(wire.notes, "Prefer 90 days.")
+
+    def test_to_core_produces_core_instance(self):
+        wire = self.wire_cls.from_core(self.core_policy)
+        core = wire.to_core()
+        self.assertIsInstance(core, self.core_cls)
+
+    def test_to_core_preserves_fields(self):
+        wire = self.wire_cls.from_core(self.core_policy)
+        core = wire.to_core()
+        self.assertEqual(core.actor_id, ACTOR_ID)
+        self.assertEqual(core.preferred_duration, _P90D)
+        self.assertEqual(core.minimum_duration, _P45D)
+        self.assertEqual(core.maximum_duration, _P180D)
+
+    def test_roundtrip_core_to_wire_to_core(self):
+        wire = self.wire_cls.from_core(self.core_policy)
+        core2 = wire.to_core()
+        self.assertEqual(
+            core2.preferred_duration, self.core_policy.preferred_duration
+        )
+        self.assertEqual(core2.actor_id, self.core_policy.actor_id)
+        self.assertEqual(core2.notes, self.core_policy.notes)

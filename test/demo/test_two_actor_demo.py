@@ -24,6 +24,7 @@ True multi-container isolation is validated by the acceptance test runnable via:
 
 import importlib
 import logging
+from unittest.mock import MagicMock
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
@@ -707,16 +708,25 @@ class TestActorNotifiesFixReady:
         assert result is not None
 
     def test_raises_on_invalid_case(self, client: TestClient, base: str):
-        """Raises when actor or case is not found."""
+        """Records failure when case is not found (accumulate-not-reraise, DEMOCI-01-003)."""
+        import vultron.demo.utils as demo_utils
+        from vultron.demo.utils import reset_demo_failures
+
+        reset_demo_failures()
         finder_client, vendor_client, finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
-        with pytest.raises(Exception):
-            demo.actor_notifies_fix_ready(
-                client=vendor_client,
-                actor=vendor,
-                case_id="https://example.org/does-not-exist",
-            )
+        # With the accumulator pattern, no exception propagates; failure is recorded.
+        demo.actor_notifies_fix_ready(
+            client=vendor_client,
+            actor=vendor,
+            case_id="https://example.org/does-not-exist",
+        )
+        assert any(
+            "does-not-exist" in f or "404" in f or "STEP FAILED" in f
+            for f in demo_utils._demo_failures
+        )
+        reset_demo_failures()
 
 
 class TestActorNotifiesFixDeployed:
@@ -865,14 +875,16 @@ class TestWaitForAllParticipantsRmClosed:
     def test_url_based_participant_id_handled_gracefully(
         self, client: TestClient, base: str
     ):
-        """URL-based participant IDs (HTTP URLs with slashes) are handled gracefully.
+        """URL-based participant IDs (HTTP URLs with slashes) are now fetchable.
 
-        The Case Actor's participant ID is an HTTP URL.  The DataLayer
-        ``/{key}`` route cannot serve it — Starlette decodes ``%2F`` before
-        path matching, so encoded slashes still break the single-segment route.
-        ``_all_fetchable_participants_rm_closed`` must catch the resulting
-        exception and skip the participant rather than propagating the error.
+        Regression test for #610.  The Case Actor's participant ID is an HTTP
+        URL.  After the fix (``/{key:path}`` catch-all route), the DataLayer
+        endpoint correctly decodes the URL key and returns the stored record.
+        ``_all_fetchable_participants_rm_closed`` must also handle URL-based
+        IDs without error.
         """
+        from urllib.parse import quote
+
         finder_client, vendor_client, finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
@@ -890,14 +902,18 @@ class TestWaitForAllParticipantsRmClosed:
         assert (
             url_based_ids
         ), "Expected at least one URL-based participant ID (Case Actor)"
-        # Confirm that a direct fetch of the URL-based participant ID raises an
-        # exception — slashes make the /{key} route unreachable.
-        p_id = url_based_ids[0]
-        with pytest.raises(Exception):
-            vendor_client.get(f"/datalayer/{p_id}")
 
-        # _all_fetchable_participants_rm_closed must not propagate the
-        # exception; it catches and skips unfetchable participant IDs.
+        # After fix: URL-based participant IDs must be fetchable via
+        # the DataLayer endpoint with percent-encoded slashes.
+        p_id = url_based_ids[0]
+        encoded = quote(p_id, safe="")
+        result = vendor_client.get(f"/datalayer/{encoded}")
+        assert (
+            isinstance(result, dict) and result.get("id") == p_id
+        ), f"Expected participant record for URL-format ID {p_id!r}, got {result!r}"
+
+        # _all_fetchable_participants_rm_closed must also handle URL-based
+        # participant IDs without error.
         try:
             demo._all_fetchable_participants_rm_closed(
                 vendor_client, fetched_case
@@ -980,6 +996,147 @@ class TestRunTwoActorDemo:
 
         assert "ERROR SUMMARY" not in caplog.text, (
             "Expected demo to succeed, but got errors:\n" + caplog.text
+        )
+
+
+class TestDumpCaseLogs:
+    """Case-log dump behavior for participant and case-actor outputs."""
+
+    def test_falls_back_to_vendor_case_actor_sub_actor(
+        self, tmp_path, monkeypatch
+    ):
+        finder_client = MagicMock()
+        vendor_client = MagicMock()
+        finder_client.get_list.return_value = [{"logIndex": 0}]
+        vendor_client.get_list.return_value = [{"logIndex": 0}]
+
+        case = demo.VulnerabilityCase(
+            id_="https://example.org/cases/case-dump-fallback",
+            actor_participant_index={
+                "https://example.org/actors/vendor": (
+                    "https://example.org/cases/case-dump-fallback/"
+                    "participants/vendor"
+                ),
+                "https://example.org/actors/finder": (
+                    "https://example.org/cases/case-dump-fallback/"
+                    "participants/finder"
+                ),
+                "https://example.org/actors/case-actor-demo": (
+                    "https://example.org/cases/case-dump-fallback/"
+                    "participants/case-actor"
+                ),
+            },
+        )
+        finder = demo.as_Actor(
+            id_="https://example.org/actors/finder", name="Finder"
+        )
+        vendor = demo.as_Actor(
+            id_="https://example.org/actors/vendor", name="Vendor"
+        )
+        monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
+
+        demo._phase_dump_case_logs(
+            finder_client=finder_client,
+            vendor_client=vendor_client,
+            finder=finder,
+            vendor=vendor,
+            case=case,
+            case_actor_client=None,
+        )
+
+        case_slug = "https_example.org_cases_case-dump-fallback"
+        assert (
+            tmp_path / "two-actor" / "finder" / f"{case_slug}-case-log.jsonl"
+        ).exists()
+        assert (
+            tmp_path / "two-actor" / "vendor" / f"{case_slug}-case-log.jsonl"
+        ).exists()
+        assert (
+            tmp_path
+            / "two-actor"
+            / "case-actor"
+            / f"{case_slug}-case-log.jsonl"
+        ).exists()
+        assert any(
+            "/actors/case-actor-demo/demo/cases/case-dump-fallback/log"
+            in call.args[0]
+            for call in vendor_client.get_list.call_args_list
+        )
+
+    def test_prefers_dedicated_case_actor_client_when_provided(
+        self, tmp_path, monkeypatch
+    ):
+        finder_client = MagicMock()
+        vendor_client = MagicMock()
+        case_actor_client = MagicMock()
+        finder_client.get_list.return_value = [{"logIndex": 0}]
+        vendor_client.get_list.return_value = [{"logIndex": 0}]
+        case_actor_client.get_list.return_value = [{"logIndex": 0}]
+
+        case = demo.VulnerabilityCase(
+            id_="https://example.org/cases/case-dump-dedicated"
+        )
+        finder = demo.as_Actor(
+            id_="https://example.org/actors/finder", name="Finder"
+        )
+        vendor = demo.as_Actor(
+            id_="https://example.org/actors/vendor", name="Vendor"
+        )
+        monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
+
+        demo._phase_dump_case_logs(
+            finder_client=finder_client,
+            vendor_client=vendor_client,
+            finder=finder,
+            vendor=vendor,
+            case=case,
+            case_actor_client=case_actor_client,
+        )
+
+        case_actor_client.get_list.assert_called_once_with(
+            "/actors/case-actor/demo/cases/case-dump-dedicated/log"
+        )
+
+    def test_falls_back_when_dedicated_case_actor_log_is_empty(
+        self, tmp_path, monkeypatch
+    ):
+        finder_client = MagicMock()
+        vendor_client = MagicMock()
+        case_actor_client = MagicMock()
+        finder_client.get_list.return_value = [{"logIndex": 0}]
+        vendor_client.get_list.return_value = [{"logIndex": 0}]
+        case_actor_client.get_list.return_value = []
+
+        case = demo.VulnerabilityCase(
+            id_="https://example.org/cases/case-dump-empty-dedicated",
+            actor_participant_index={
+                "https://example.org/actors/case-actor-fallback": (
+                    "https://example.org/cases/case-dump-empty-dedicated/"
+                    "participants/case-actor"
+                )
+            },
+        )
+        finder = demo.as_Actor(
+            id_="https://example.org/actors/finder", name="Finder"
+        )
+        vendor = demo.as_Actor(
+            id_="https://example.org/actors/vendor", name="Vendor"
+        )
+        monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
+
+        demo._phase_dump_case_logs(
+            finder_client=finder_client,
+            vendor_client=vendor_client,
+            finder=finder,
+            vendor=vendor,
+            case=case,
+            case_actor_client=case_actor_client,
+        )
+
+        assert any(
+            "/actors/case-actor-fallback/demo/cases/"
+            "case-dump-empty-dedicated/log" in call.args[0]
+            for call in vendor_client.get_list.call_args_list
         )
 
 

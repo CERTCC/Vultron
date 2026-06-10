@@ -1,6 +1,7 @@
 ---
 title: Behavior Tree Integration Design Notes
 status: active
+tags: [bt, behavior-trees, py_trees, blackboard, BT-nodes, protocol-cascades]
 description: >
   BT design decisions, py_trees patterns, simulation-to-prototype translation
   strategy, subtree map, and anti-patterns to avoid.
@@ -208,6 +209,45 @@ The `execute()` method MAY contain infrastructure glue only:
 
 Nothing domain-significant lives outside the tree.
 
+### Trigger/Received Parity
+
+The BTBridge requirement applies equally to **trigger-side** and
+**received-side** `execute()` methods. There is no carve-out for trigger
+use cases.
+
+State machine transitions — RM transitions (e.g., `RM.INVALID`, `RM.CLOSED`),
+EM lifecycle calls (e.g., `EmbargoLifecycle.propose_embargo()`), direct
+`ParticipantStatus` writes with a specific `rm_state` — are all
+protocol-significant behavior (BT-15-001, BT-06-006). They MUST live in BT
+leaf nodes executed via `bridge.execute_with_setup()`, not directly in
+`execute()`.
+
+```python
+# ❌ WRONG — trigger-side inline RM state transition
+def execute(self) -> dict:
+    set_status = ParticipantStatus(rm_state=RM.INVALID, ...)
+    _idempotent_create(dl, ..., set_status, ...)
+    add_activity_to_outbox(actor_id, activity_id, dl)
+    return {"activity": activity_dict}
+```
+
+```python
+# ✅ CORRECT — trigger-side SM transition in BTBridge
+def execute(self) -> dict:
+    bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+    tree = invalidate_report_trigger_bt(...)
+    result = bridge.execute_with_setup(tree, actor_id=actor_id)
+    if result.status != Status.SUCCESS:
+        raise VultronValidationError(
+            f"InvalidateReport failed: {BTBridge.get_failure_reason(tree)}"
+        )
+    return {"activity": captured.get("activity")}
+```
+
+The historical asymmetry — where `received/` use cases used BTBridge and
+`triggers/` did not — arose from the now-retired "simple CRUD" guidance.
+See BT-15-001 in `specs/behavior-tree-integration.yaml`.
+
 ### Historical Decision Table (Retired)
 
 The "When to Use BTs vs. Procedural Code" table that previously appeared in
@@ -254,6 +294,42 @@ need to keep track of these nodes as places where further specification may
 be needed or additional implementation work may be required to handle the
 real-world logic that these nodes represent. See `bt-fuzzer-nodes.md`
 for more discussion on this topic.
+
+### py_trees Fuzzer Node Home: `vultron/demo/fuzzer/`
+
+When re-implementing the `vultron/bt/` fuzzer nodes using `py_trees`,
+the correct target location is **`vultron/demo/fuzzer/`** — NOT
+`vultron/core/behaviors/`.
+
+**Why demo, not core?** Fuzzer nodes are simulation/demo stubs standing
+in for real external-dependency touchpoints (system integrations, human
+decisions, environmental checks). They are not production protocol
+behaviors and MUST NOT pollute `vultron/core/behaviors/`.
+
+**Module layout** (see BT-16-004):
+
+| Module | Source | Nodes |
+|---|---|---|
+| `vultron/demo/fuzzer/base.py` | `vultron/bt/base/fuzzer.py` | Probabilistic base types |
+| `vultron/demo/fuzzer/embargo.py` | `vultron/bt/embargo_management/fuzzer.py` | ~15 embargo nodes |
+| `vultron/demo/fuzzer/messaging.py` | `vultron/bt/messaging/inbound/_behaviors/fuzzer.py` | ~1 messaging node |
+| `vultron/demo/fuzzer/report_management/` | `vultron/bt/report_management/fuzzer/` | ~70 nodes in submodules |
+
+**Note**: `vultron/bt/vul_discovery/fuzzer.py` is intentionally excluded —
+the `DiscoverVulnerabilityBt` tree operates upstream of real Vultron
+(which starts at `Offer(VulnerabilityReport)`). There is no corresponding
+real workflow in `vultron/core/` to target.
+
+Each fuzzer node MUST include a docstring identifying:
+
+1. Its semantic function in the CVD process
+2. The category of external input it simulates:
+   - **System integration** — automatable via API calls, metadata queries,
+     or policy-rule evaluation
+   - **Human decision** — requires analyst judgment or policy oversight
+   - **Environmental check** — real-world state observable automatically
+3. Its approximate success probability (maps to `WeightedBehavior` subclass)
+4. Its automation potential (High / Medium / Low / N/A) per BT-16-005
 
 **Source of truth priority** when conflicts arise:
 
@@ -639,6 +715,89 @@ def create_validate_and_prioritize_tree(report_id, offer_id):
 
 The full behavior — validate then prioritize (engage or defer) — is visible
 by reading the tree. No domain logic lives in `execute()`.
+
+#### DO NOT: BT node calling a use case
+
+(BT-IDM-01, 2026-06-03)
+
+A BT node's `update()` method MUST NOT directly instantiate and call a use
+case. Use cases are the handlers that *create* BTs, not work items *inside*
+BTs. Calling a use case from inside a BT node creates a BT→UseCase→BT→UseCase
+call chain that is impossible to audit or preempt.
+
+```python
+# BAD — BT node calling a use case (PublicDisclosureBranchNode anti-pattern)
+class PublicDisclosureBranchNode(py_trees.behaviour.Behaviour):
+    def update(self):
+        # ...
+        SvcTerminateEmbargoUseCase(self._dl, ...).execute()  # ANTI-PATTERN
+        return Status.SUCCESS
+```
+
+Instead, compose the behavior as a child subtree of the calling BT. The
+sub-behavior becomes a set of leaf nodes in a `Sequence` or `Selector` — not
+a use case call embedded inside another node.
+
+**Rule**: BT leaf nodes MUST NOT instantiate or call use-case classes.
+If a node needs to trigger a multi-step workflow, that workflow MUST be
+modeled as a child subtree of the current tree. See BT-06-001 and
+BT-06-006.
+
+---
+
+#### DO NOT: BT node importing from use case modules
+
+(BT-IDM-02, 2026-06-03)
+
+BT nodes in `vultron/core/behaviors/` MUST NOT import private helpers or
+functions from `vultron/core/use_cases/`. The dependency direction MUST be:
+
+```text
+use_cases/ → behaviors/ (use cases call BTs)
+```
+
+Not:
+
+```text
+behaviors/ → use_cases/ (BT nodes importing from use cases — WRONG)
+```
+
+**Why**: Importing a use-case helper into a BT node inverts the layer
+boundary and creates circular dependency risk. If a helper is needed in
+both a use case and a BT node, it MUST be extracted to a shared utility
+module (e.g., `vultron/core/behaviors/shared/` or a domain-model method).
+
+Example violation: `ApplyEmbargoTeardownNode` in
+`vultron/core/behaviors/embargo/nodes.py` imported
+`_reset_case_participant_embargo_consent` from
+`vultron.core.use_cases.received.embargo`. Fix: move the helper to a
+shared location importable by both layers.
+
+---
+
+#### DO NOT: God BT nodes with long `update()` methods
+
+(BT-IDM-03, 2026-06-03)
+
+A BT leaf node's `update()` method SHOULD NOT exceed ~20–30 lines of
+logic. If a node's `update()` is 60–100+ lines, it is doing too much and
+defeats the core purpose of BTs: simple, auditable, composable leaves with
+the complexity visible in tree *structure*, not in individual nodes.
+
+**Smell signals** that a node is a god node:
+
+- More than 3–4 distinct responsibilities (read, validate, create,
+  persist, broadcast, …)
+- Multiple `dl.save()` calls in one `update()`
+- Boolean constructor parameters (`advance_to_accepted=True`) that
+  silently activate optional branches
+- Internal `if/else` chains that should be separate `Sequence`/`Selector`
+  child nodes
+
+**Fix**: Decompose into a named subtree of simple leaf nodes, each with a
+single responsibility. The subtree factory function becomes the visible
+documentation of the workflow. See also `specs/behavior-tree-node-design.yaml`
+BTND-02-001 and `notes/bt-design-patterns.md`.
 
 ---
 

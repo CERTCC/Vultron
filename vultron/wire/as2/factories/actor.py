@@ -27,6 +27,7 @@ from typing import cast
 
 from pydantic import ValidationError
 
+from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.actor import (
     _AcceptActorRecommendationActivity,
@@ -47,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 
 def recommend_actor_activity(
-    recommended: as_Actor,
+    recommended: CoreActor | as_Actor,
     target: VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Offer:

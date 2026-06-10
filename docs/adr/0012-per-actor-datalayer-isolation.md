@@ -2,7 +2,7 @@
 status: accepted
 date: 2026-03-19
 deciders: ahouseholder
-consulted: notes/domain-model-separation.md, notes/architecture-ports-and-adapters.md
+consulted: notes/domain-model-separation.md, notes/architecture-adapters.md, vultron/core/ports/AGENTS.md
 informed: plan/IMPLEMENTATION_PLAN.md
 ---
 
@@ -115,7 +115,8 @@ the hexagonal architecture. IO-B formalizes the violation; IO-A removes it.
 
 **OUTBOX-1 scope: OX-B — defer outbound delivery until ACT-3 is complete.**
 
-The `ActivityEmitter` port stub (OX-1.0) and `DeliveryQueueAdapter` stub
+The `ActivityEmitter` port stub (OX-1.0) and the (then-stubbed)
+`DemoHttpDeliveryAdapter`
 are already in place. Local delivery (OX-1.1–OX-1.4) requires the per-actor
 DataLayer inbox collection to exist (IO-A decision above), so OX-1.1 MUST
 follow ACT-2. Deferring OUTBOX-1 until after ACT-3 keeps each task's scope
@@ -223,9 +224,9 @@ clear and avoids implementing delivery against a still-changing DataLayer.
 
 - `notes/domain-model-separation.md` — "Per-Actor DataLayer Isolation Options"
   and "Production Path: MongoDB Community Edition" sections.
-- `notes/architecture-ports-and-adapters.md` — "Dispatch vs Emit Terminology"
+- `vultron/core/ports/AGENTS.md` — "Dispatch vs Emit Terminology"
   and port/adapter separation rationale.
 - `plan/IMPLEMENTATION_PLAN.md` — ACT-1, ACT-2, ACT-3, VCR-014, OX-1.1–OX-1.4.
 - `specs/case-management.yaml` — CM-01-001 (actor isolation requirement).
 - `vultron/core/ports/emitter.py` — `ActivityEmitter` Protocol (OX-1.0).
-- `vultron/adapters/driven/delivery_queue.py` — stub emitter adapter.
+- `vultron/adapters/driven/demo_http_delivery.py` — HTTP emitter adapter.

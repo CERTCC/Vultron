@@ -38,7 +38,7 @@ returns the serialized result.
 See also:
     - ``vultron/adapters/driven/trigger_activity_adapter.py`` — adapter
     - ``specs/architecture.yaml`` ARCH-01-001, ARCH-01-004
-    - ``notes/activity-factories.md``
+    - ``vultron/wire/as2/factories/AGENTS.md``
 """
 
 from typing import Any, Protocol
@@ -372,5 +372,36 @@ class TriggerActivityPort(Protocol):
         """Create and persist an ``Announce(EmbargoEvent)`` activity.
 
         Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def terminate_embargo(
+        self,
+        embargo_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a ``Remove(EmbargoEvent, origin=case)`` ET activity.
+
+        Corresponds to the ET (Embargo Termination) protocol message.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def announce_vulnerability_case(
+        self,
+        case_id: str,
+        actor: str,
+        context_id: str,
+        to: list[str],
+    ) -> str:
+        """Create and persist an ``Announce(VulnerabilityCase)`` activity.
+
+        Sent by the case owner to a newly accepted participant after their
+        embargo consent is resolved (MV-10-003).  The full case object is
+        sent inline so the recipient can seed their local DataLayer.
+
+        Returns the activity ID.
         """
         ...

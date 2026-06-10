@@ -23,6 +23,7 @@ Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
 import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
+from unittest.mock import AsyncMock, patch
 
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
@@ -38,9 +39,56 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.utils import parse_id
 from vultron.core.states.rm import RM
+from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _add_case_manager(case: VulnerabilityCase, dl) -> as_Service:
+    """Add a CASE_MANAGER participant to *case* and return the case actor."""
+    case_actor = as_Service(name=f"Case Actor for {case.name}")
+    dl.create(case_actor)
+    cm_participant = CaseParticipant(
+        attributed_to=case_actor.id_,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(cm_participant)
+    case.actor_participant_index[case_actor.id_] = cm_participant.id_
+    dl.save(case)
+    return case_actor
+
+
+# ---------------------------------------------------------------------------
+# Module-level fixture: suppress outbox delivery retries
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _no_outbox_delivery():
+    """Suppress real outbox delivery for every test in this module.
+
+    ``outbox_handler`` uses HTTP with exponential-backoff retries. When
+    tests run with non-existent recipient URLs the retry sleeps add ~3.5 s
+    per test. Patching to a no-op ``AsyncMock`` eliminates that overhead
+    while keeping the scheduler logic testable.
+
+    Tests in ``TestCaseTriggerOutboxScheduling`` that need a trackable mock
+    use ``unittest.mock.patch`` as a context manager inside the test body,
+    which overrides this fixture's patch for the duration of that context.
+    """
+    with patch(
+        "vultron.adapters.driving.fastapi.routers"
+        ".trigger_case.outbox_handler",
+        new_callable=AsyncMock,
+    ):
+        yield
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -119,14 +167,16 @@ def case_with_participant(dl, actor):
     case_obj.case_participants.append(participant.id_)
     dl.create(case_obj)
     dl.create(participant)
+    _add_case_manager(case_obj, dl)
     return case_obj
 
 
 @pytest.fixture
 def case_without_participant(dl):
-    """Create a VulnerabilityCase with no CaseParticipant for the actor."""
+    """Create a VulnerabilityCase with a Case Manager but no participant for the actor."""
     case_obj = VulnerabilityCase(name="TEST-CASE-NO-PARTICIPANT")
     dl.create(case_obj)
+    _add_case_manager(case_obj, dl)
     return case_obj
 
 
@@ -220,10 +270,7 @@ def test_trigger_engage_case_adds_activity_to_outbox(
     client_triggers, dl, actor, case_with_participant
 ):
     """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
-    actor_before = dl.read(actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list())
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/engage-case",
@@ -231,10 +278,7 @@ def test_trigger_engage_case_adds_activity_to_outbox(
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
 
 
@@ -272,10 +316,15 @@ def test_trigger_engage_case_updates_participant_rm_state(
     assert found_accepted, "Participant RM state was not updated to ACCEPTED"
 
 
-def test_trigger_engage_case_no_participant_returns_202_with_warning(
+def test_trigger_engage_case_no_participant_returns_422(
     client_triggers, actor, case_without_participant, caplog
 ):
-    """engage-case succeeds and warns when actor has no participant record."""
+    """engage-case returns 422 when actor has no participant record in the case.
+
+    Pre-#712: the RM update silently failed and 202 was returned anyway.
+    Post-#712: the RM transition node is inside the BT; when it fails the BT
+    raises VultronValidationError which the router translates to HTTP 422.
+    """
     import logging
 
     with caplog.at_level(logging.WARNING):
@@ -283,7 +332,7 @@ def test_trigger_engage_case_no_participant_returns_202_with_warning(
             f"/actors/{actor.id_}/trigger/engage-case",
             json={"case_id": case_without_participant.id_},
         )
-    assert resp.status_code == status.HTTP_202_ACCEPTED
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     assert any("participant" in r.message.lower() for r in caplog.records)
 
 
@@ -374,10 +423,7 @@ def test_trigger_defer_case_adds_activity_to_outbox(
     client_triggers, dl, actor, case_with_participant
 ):
     """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
-    actor_before = dl.read(actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list())
 
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/defer-case",
@@ -385,10 +431,7 @@ def test_trigger_defer_case_adds_activity_to_outbox(
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list())
     assert len(outbox_after - outbox_before) >= 1
 
 
@@ -656,10 +699,7 @@ def test_trigger_create_case_short_actor_id_updates_outbox_without_warning(
     import logging
 
     short_uuid = parse_id(http_actor.id_)["object_id"]
-    actor_before = dl.read(http_actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list_for_actor(http_actor.id_))
 
     with caplog.at_level(logging.WARNING):
         resp = client_triggers.post(
@@ -668,10 +708,7 @@ def test_trigger_create_case_short_actor_id_updates_outbox_without_warning(
         )
 
     assert resp.status_code == status.HTTP_202_ACCEPTED
-    actor_after = dl.read(http_actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list_for_actor(http_actor.id_))
     assert len(outbox_after - outbox_before) >= 1
     assert not any(
         "add_activity_to_outbox" in record.message for record in caplog.records
@@ -759,10 +796,7 @@ def test_trigger_add_report_short_actor_id_updates_outbox_without_warning(
     import logging
 
     short_uuid = parse_id(http_actor.id_)["object_id"]
-    actor_before = dl.read(http_actor.id_)
-    outbox_before = set(
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    )
+    outbox_before = set(dl.outbox_list_for_actor(http_actor.id_))
 
     with caplog.at_level(logging.WARNING):
         resp = client_triggers.post(
@@ -774,10 +808,7 @@ def test_trigger_add_report_short_actor_id_updates_outbox_without_warning(
         )
 
     assert resp.status_code == status.HTTP_202_ACCEPTED
-    actor_after = dl.read(http_actor.id_)
-    outbox_after = set(
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    )
+    outbox_after = set(dl.outbox_list_for_actor(http_actor.id_))
     assert len(outbox_after - outbox_before) >= 1
     assert not any(
         "add_activity_to_outbox" in record.message for record in caplog.records

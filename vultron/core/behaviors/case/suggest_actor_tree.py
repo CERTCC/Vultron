@@ -270,9 +270,13 @@ def create_suggest_actor_tree(
         Configured ``py_trees.composites.Sequence`` ready for execution via
         :class:`~vultron.core.behaviors.bridge.BTBridge`.
     """
+    # memory=False so preconditions (CheckIsCaseOwnerNode,
+    # CheckNoExistingInviteNode) are re-evaluated on every tick,
+    # keeping stateless ticking semantics consistent with all other
+    # case BTs (BTND-02-001 stateless ticking invariant).
     return py_trees.composites.Sequence(
         name="SuggestActorToCaseBT",
-        memory=True,
+        memory=False,
         children=[
             CheckIsCaseOwnerNode(case_id=case_id),
             CheckNoExistingInviteNode(invitee_id=invitee_id, case_id=case_id),

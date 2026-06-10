@@ -89,13 +89,7 @@ def _collect_violations() -> frozenset[str]:
 # These files import wire types that have not yet been abstracted behind ports.
 # Remove an entry from this set when the violation is resolved.
 # ---------------------------------------------------------------------------
-KNOWN_VIOLATIONS: frozenset[str] = frozenset(
-    {
-        "vultron/core/behaviors/report/nodes.py",
-        "vultron/core/use_cases/received/actor.py",
-        "vultron/core/use_cases/received/note.py",
-    }
-)
+KNOWN_VIOLATIONS: frozenset[str] = frozenset()
 
 
 def test_core_does_not_import_wire():

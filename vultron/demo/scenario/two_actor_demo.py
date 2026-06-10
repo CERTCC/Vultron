@@ -21,11 +21,16 @@ milestone logic to the generic helper modules under ``vultron.demo.helpers``
 while preserving the public API used by the existing test suite.
 """
 
+import json
 import logging
 import os
+import pathlib
 import sys
 from typing import Optional, Tuple
 
+import httpx
+
+from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vfd
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -38,6 +43,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     BASE_URL,
     DataLayerClient,
+    assert_demo_success,
     check_server_availability,
     demo_check,
     demo_step,
@@ -46,6 +52,7 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     post_to_trigger,
     ref_id,
     reset_datalayer,
+    reset_demo_failures,
     seed_actor,
     verify_object_stored,
 )
@@ -700,8 +707,123 @@ def _phase_case_closure(
 
 
 # ---------------------------------------------------------------------------
-# Main workflow orchestration
+# Case log export
 # ---------------------------------------------------------------------------
+
+
+def _phase_dump_case_logs(
+    finder_client: DataLayerClient,
+    vendor_client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
+    case: VulnerabilityCase,
+    case_actor_client: DataLayerClient | None = None,
+    demo_name: str = "two-actor",
+) -> None:
+    """Dump case log entries from each actor container to JSONL files.
+
+    Reads ``DEVLOGS_DIR`` from the environment (default ``/app/devlogs``) and
+    writes one JSONL file per actor under::
+
+        {DEVLOGS_DIR}/{demo_name}/{actor_name}/{case_id_slug}-case-log.jsonl
+
+    The case-actor log is always included: from *case_actor_client* when a
+    dedicated case-actor service is configured, otherwise from the vendor
+    container using the in-container case-actor sub-actor route key. Each
+    dump step is wrapped in ``demo_step`` so that a failure is recorded and
+    ultimately surfaced by ``assert_demo_success()``.
+
+    Args:
+        finder_client: DataLayerClient for the Finder container.
+        vendor_client: DataLayerClient for the Vendor container.
+        finder: Finder actor object (used to derive the actor object ID).
+        vendor: Vendor actor object (used to derive the actor object ID).
+        case: The VulnerabilityCase whose log entries are to be exported.
+        case_actor_client: Optional DataLayerClient for the CaseActor container.
+        demo_name: Sub-directory name under the output root (default
+            ``"two-actor"``).
+    """
+    logger.info("─" * 80)
+    logger.info("Phase: Case log JSONL export")
+    logger.info("─" * 80)
+
+    output_root = pathlib.Path(os.environ.get("DEVLOGS_DIR", "/app/devlogs"))
+    case_id = case.id_ or ""
+    case_id_slug = (
+        case_id.replace("://", "_")
+        .replace("/", "_")
+        .replace(":", "_")
+        .strip("_")
+    )
+
+    case_actor_sub_actor_key = next(
+        (
+            strip_id_prefix(actor_id)
+            for actor_id in case.actor_participant_index
+            if strip_id_prefix(actor_id).startswith("case-actor")
+        ),
+        None,
+    )
+
+    actors: list[tuple[str, DataLayerClient, str]] = [
+        ("finder", finder_client, "finder"),
+        ("vendor", vendor_client, "vendor"),
+    ]
+    if case_actor_client is not None:
+        actors.append(("case-actor", case_actor_client, "case-actor"))
+    elif case_actor_sub_actor_key is not None:
+        actors.append(("case-actor", vendor_client, case_actor_sub_actor_key))
+
+    for actor_name, client, actor_route_key in actors:
+        with demo_step(f"Dumping case log for {actor_name}"):
+            case_key = strip_id_prefix(case_id)
+            log_path = f"/actors/{actor_route_key}/demo/cases/{case_key}/log"
+            try:
+                entries = client.get_list(log_path)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code != 404:
+                    raise
+                # D5-2: the dedicated case-actor container does not hold the
+                # case; the case-actor sub-actor runs inside the vendor
+                # container. Treat 404 the same as an empty list so the
+                # sub-actor fallback below can supply the entries.
+                logger.info(
+                    "Case not found on dedicated %s container (HTTP 404, D5-2);"
+                    " will attempt vendor sub-actor fallback.",
+                    actor_name,
+                )
+                entries = []
+            if (
+                not entries
+                and actor_name == "case-actor"
+                and client is case_actor_client
+                and case_actor_sub_actor_key is not None
+            ):
+                fallback_path = (
+                    "/actors/"
+                    f"{case_actor_sub_actor_key}/demo/cases/{case_key}/log"
+                )
+                logger.info(
+                    "Dedicated case-actor log unavailable; "
+                    "falling back to vendor sub-actor route key '%s'",
+                    case_actor_sub_actor_key,
+                )
+                entries = vendor_client.get_list(fallback_path)
+            if not entries:
+                raise ValueError(
+                    f"No case log entries for actor={actor_name!r}, "
+                    f"case_id={case_id!r}"
+                )
+
+            out_dir = output_root / demo_name / actor_name
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_file = out_dir / f"{case_id_slug}-case-log.jsonl"
+
+            with out_file.open("w", encoding="utf-8") as fh:
+                for entry in entries:
+                    fh.write(json.dumps(entry) + "\n")
+
+            logger.info("Wrote %d log entries → %s", len(entries), out_file)
 
 
 def run_two_actor_demo(
@@ -771,6 +893,14 @@ def run_two_actor_demo(
         finder_in_finder,
         case,
     )
+    _phase_dump_case_logs(
+        finder_client=finder_client,
+        vendor_client=vendor_client,
+        finder=finder,
+        vendor=vendor,
+        case=case,
+        case_actor_client=case_actor_client,
+    )
 
     logger.info("=" * 80)
     logger.info("TWO-ACTOR DEMO COMPLETE ✓  (VFDPxa full lifecycle)")
@@ -801,6 +931,8 @@ def main(
         finder_id: Optional deterministic URI for the Finder actor.
         vendor_id: Optional deterministic URI for the Vendor actor.
     """
+    reset_demo_failures()
+
     f_url = finder_url or FINDER_BASE_URL
     v_url = vendor_url or VENDOR_BASE_URL
     c_url = case_actor_url or CASE_ACTOR_BASE_URL
@@ -836,19 +968,13 @@ def main(
             finder_id=finder_id,
             vendor_id=vendor_id,
         )
-    except Exception as exc:
-        logger.error("Two-actor demo failed: %s", exc, exc_info=True)
-        logger.error("=" * 80)
-        logger.error("ERROR SUMMARY")
-        logger.error("=" * 80)
-        logger.error("%s", exc)
-        logger.error("=" * 80)
-        sys.exit(1)
+    finally:
+        assert_demo_success()
 
 
 def _setup_logging() -> None:
     """Configure console logging for standalone script execution."""
-    logging.getLogger("requests").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     _logger = logging.getLogger()
     hdlr = logging.StreamHandler(sys.stdout)
     hdlr.setFormatter(

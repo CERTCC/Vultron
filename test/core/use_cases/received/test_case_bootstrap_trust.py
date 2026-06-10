@@ -28,8 +28,15 @@ from typing import cast
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.participant import VultronParticipant
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.wire.as2.vocab.objects.case_status import (
+    ParticipantStatus as WireParticipantStatus,
+)
+from vultron.core.models.report import VultronReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.cs import CS_vfd
+from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.actor import (
     AnnounceVulnerabilityCaseReceivedUseCase,
     _find_case_actor_id,
@@ -46,10 +53,9 @@ from vultron.wire.as2.factories import (
     create_case_activity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseActorParticipant,
     CaseParticipant,
 )
-from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
+from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 # ---------------------------------------------------------------------------
@@ -79,7 +85,8 @@ def _case_with_case_actor_participant() -> tuple:
     participant is embedded INLINE in the case snapshot (not just an ID),
     matching what a real bootstrap ``Create(VulnerabilityCase)`` would carry.
     """
-    participant = CaseActorParticipant(
+    participant = CaseParticipant(
+        case_roles=[CVDRole.CASE_MANAGER],
         id_=_PARTICIPANT_ID,
         attributed_to=_CASE_ACTOR_ID,
         context=_CASE_ID,
@@ -88,7 +95,7 @@ def _case_with_case_actor_participant() -> tuple:
     case = VulnerabilityCase(
         id_=_CASE_ID,
         name="CBT test case",
-        case_participants=[participant],  # inline — as in a real bootstrap
+        case_participants=[participant],
     )
     return case, participant
 
@@ -428,7 +435,8 @@ class TestM4AddParticipantStatusAfterBootstrap:
     def case_with_two_participants(self):
         """VulnerabilityCase with a CASE_MANAGER participant and a vendor
         participant, both embedded inline as in a real bootstrap snapshot."""
-        case_actor_p = CaseActorParticipant(
+        case_actor_p = CaseParticipant(
+            case_roles=[CVDRole.CASE_MANAGER],
             id_=_PARTICIPANT_ID,
             attributed_to=_CASE_ACTOR_ID,
             context=_CASE_ID,
@@ -441,7 +449,10 @@ class TestM4AddParticipantStatusAfterBootstrap:
         case = VulnerabilityCase(
             id_=_CASE_ID,
             name="CBT-05-006 M4 regression case",
-            case_participants=[case_actor_p, vendor_p],
+            case_participants=[
+                case_actor_p,
+                vendor_p,
+            ],
         )
         case.actor_participant_index[_CASE_ACTOR_ID] = _PARTICIPANT_ID
         case.actor_participant_index[_VENDOR_ID] = _VENDOR_PARTICIPANT_ID
@@ -484,7 +495,7 @@ class TestM4AddParticipantStatusAfterBootstrap:
         # The status is NOT pre-created — it arrives inline in the activity, so
         # AppendParticipantStatusNode must resolve it from the fallback and
         # persist it independently.
-        status = ParticipantStatus(
+        status = WireParticipantStatus(
             id_=_vfd_status_id,
             context=_CASE_ID,
             vfd_state=CS_vfd.VFd,
@@ -517,3 +528,280 @@ class TestM4AddParticipantStatusAfterBootstrap:
             "ParticipantStatus must be persisted as an independent DataLayer"
             " record by AddParticipantStatusToParticipantReceivedUseCase"
         )
+
+
+# ---------------------------------------------------------------------------
+# CBT-05-006: Reporter participant seeded with RM.ACCEPTED on bootstrap (#589)
+# ---------------------------------------------------------------------------
+
+
+class TestBootstrapCreateReporterParticipant:
+    """Bootstrap Create must seed the reporter's participant at RM.ACCEPTED.
+
+    When Create(VulnerabilityCase) arrives with participant IDs as bare
+    strings, _store_embedded_participants skips them.  The reporter's own
+    participant record would then be absent from their DataLayer, causing
+    SvcAddParticipantStatusUseCase._resolve_current_participant_state to
+    fall back to RM.START — the root cause of #589.
+
+    The fix: _handle_bootstrap infers from the reporter's submitted report
+    that they have already RM.ACCEPTED and creates the participant record
+    with that state if it is not already present.
+    """
+
+    _VENDOR_ID = "https://vendor.example.org/actors/vendor-589"
+    _FINDER_ID = "https://finder.example.org/actors/finder-589"
+    _CASE_ID = "https://example.org/cases/case-589"
+    _REPORT_ID = "https://example.org/reports/report-589"
+    _FINDER_PARTICIPANT_ID = f"{_CASE_ID}/participants/finder-589"
+    _VENDOR_PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor-589"
+
+    @pytest.fixture()
+    def dl(self):
+        return SqliteDataLayer("sqlite:///:memory:")
+
+    @pytest.fixture()
+    def seeded_dl(self, dl):
+        """DataLayer with the Finder's pre-existing report and case link."""
+        report = VultronReport(
+            id_=self._REPORT_ID,
+            attributed_to=self._FINDER_ID,
+        )
+        dl.create(report)
+
+        link = VultronReportCaseLink(
+            report_id=self._REPORT_ID,
+            trusted_case_creator_id=self._VENDOR_ID,
+        )
+        dl.save(link)
+        return dl
+
+    @pytest.fixture()
+    def case_with_string_participants(self):
+        """VulnerabilityCase whose participants are bare string IDs.
+
+        This is the common wire representation when the sender serialises the
+        domain VultronCase (which stores participant IDs, not objects).
+        The fixture also includes a CASE_MANAGER participant inline so that
+        the bootstrap trust path extracts a trusted_case_actor_id.
+        """
+        case_actor_participant = CaseParticipant(
+            case_roles=[CVDRole.CASE_MANAGER],
+            id_=self._VENDOR_PARTICIPANT_ID,
+            attributed_to=self._VENDOR_ID,
+            context=self._CASE_ID,
+        )
+        case = VulnerabilityCase(
+            id_=self._CASE_ID,
+            name="Bug #589 regression case",
+            case_participants=[
+                case_actor_participant,  # inline so CBT-01-003 can extract it
+                self._FINDER_PARTICIPANT_ID,  # bare string — typical case
+            ],
+        )
+        case.actor_participant_index[self._VENDOR_ID] = (
+            self._VENDOR_PARTICIPANT_ID
+        )
+        case.actor_participant_index[self._FINDER_ID] = (
+            self._FINDER_PARTICIPANT_ID
+        )
+        return case
+
+    @pytest.fixture()
+    def create_event(self, make_payload, case_with_string_participants):
+        activity = create_case_activity(
+            case_with_string_participants, actor=self._VENDOR_ID
+        )
+        return make_payload(activity)
+
+    def test_reporter_participant_created_after_bootstrap(
+        self, seeded_dl, create_event
+    ):
+        """Reporter participant must exist in DataLayer after bootstrap (#589).
+
+        When the bootstrap Create(VulnerabilityCase) carries the reporter's
+        participant as a bare string ID, the DataLayer must still produce a
+        standalone participant record for the reporter so that subsequent
+        SvcAddParticipantStatusUseCase calls can read it.
+        """
+        CreateCaseReceivedUseCase(seeded_dl, create_event).execute()
+
+        stored = seeded_dl.read(self._FINDER_PARTICIPANT_ID)
+        assert stored is not None, (
+            "Reporter participant must be created in the DataLayer after "
+            "bootstrap even when case_participants contains a bare string ID "
+            "(regression #589)"
+        )
+
+    def test_reporter_participant_has_rm_accepted_after_bootstrap(
+        self, seeded_dl, create_event
+    ):
+        """Reporter participant must start at RM.ACCEPTED after bootstrap.
+
+        The reporter submitted a report — by definition they have accepted the
+        vulnerability from their own RM perspective.  The seeded participant
+        must reflect this so that _resolve_current_participant_state returns
+        RM.ACCEPTED rather than RM.START (#589).
+        """
+        CreateCaseReceivedUseCase(seeded_dl, create_event).execute()
+
+        stored = seeded_dl.read(self._FINDER_PARTICIPANT_ID)
+        assert stored is not None
+        statuses = getattr(stored, "participant_statuses", [])
+        assert statuses, (
+            "Reporter participant must have at least one ParticipantStatus "
+            "after bootstrap (#589)"
+        )
+        latest = statuses[-1]
+        rm_state = getattr(latest, "rm_state", None)
+        assert rm_state == RM.ACCEPTED, (
+            f"Reporter participant must have rm_state=RM.ACCEPTED after "
+            f"bootstrap; got {rm_state!r} (#589)"
+        )
+
+
+# ---------------------------------------------------------------------------
+# CBT-05-007: Reporter participant upgraded from RM.START to RM.ACCEPTED (#624)
+# ---------------------------------------------------------------------------
+
+
+class TestBootstrapReporterUpgradesFromStart:
+    """Bootstrap Create upgrades an existing RM.START participant to RM.ACCEPTED.
+
+    When ``_store_embedded_participants`` stores the wire-layer snapshot, it may
+    seed the reporter's participant with ``rm_state=RM.START`` (the wire default).
+    ``_ensure_reporter_participant`` must detect this and upgrade the participant
+    to ``RM.ACCEPTED``.  See issue #624.
+    """
+
+    _VENDOR_ID = "https://vendor.example.org/actors/vendor-624"
+    _FINDER_ID = "https://finder.example.org/actors/finder-624"
+    _CASE_ID = "https://example.org/cases/case-624"
+    _REPORT_ID = "https://example.org/reports/report-624"
+    _FINDER_PARTICIPANT_ID = f"{_CASE_ID}/participants/finder-624"
+    _VENDOR_PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor-624"
+
+    @pytest.fixture()
+    def dl(self):
+        return SqliteDataLayer("sqlite:///:memory:")
+
+    @pytest.fixture()
+    def base_dl(self, dl):
+        """DataLayer with report and link pre-seeded."""
+        report = VultronReport(
+            id_=self._REPORT_ID,
+            attributed_to=self._FINDER_ID,
+        )
+        dl.create(report)
+
+        link = VultronReportCaseLink(
+            report_id=self._REPORT_ID,
+            trusted_case_creator_id=self._VENDOR_ID,
+        )
+        dl.save(link)
+        return dl
+
+    @pytest.fixture()
+    def case_with_string_participants(self):
+        case_actor_participant = CaseParticipant(
+            case_roles=[CVDRole.CASE_MANAGER],
+            id_=self._VENDOR_PARTICIPANT_ID,
+            attributed_to=self._VENDOR_ID,
+            context=self._CASE_ID,
+        )
+        case = VulnerabilityCase(
+            id_=self._CASE_ID,
+            name="Bug #624 regression case",
+            case_participants=[
+                case_actor_participant,
+                self._FINDER_PARTICIPANT_ID,  # bare string
+            ],
+        )
+        case.actor_participant_index[self._VENDOR_ID] = (
+            self._VENDOR_PARTICIPANT_ID
+        )
+        case.actor_participant_index[self._FINDER_ID] = (
+            self._FINDER_PARTICIPANT_ID
+        )
+        return case
+
+    def _create_event(self, make_payload, case):
+        activity = create_case_activity(case, actor=self._VENDOR_ID)
+        return make_payload(activity)
+
+    def _pre_seed_participant(self, dl, rm_state: RM) -> VultronParticipant:
+        """Store a finder participant at the given rm_state before bootstrap."""
+        status = ParticipantStatus(
+            rm_state=rm_state,
+            context=self._CASE_ID,
+            attributed_to=self._FINDER_ID,
+        )
+        participant = VultronParticipant(
+            id_=self._FINDER_PARTICIPANT_ID,
+            attributed_to=self._FINDER_ID,
+            context=self._CASE_ID,
+            participant_statuses=[status],
+        )
+        dl.create(participant)
+        return participant
+
+    def test_reporter_participant_upgraded_from_start_to_accepted(
+        self, base_dl, make_payload, case_with_string_participants
+    ):
+        """Reporter participant at RM.START must be upgraded to RM.ACCEPTED (#624).
+
+        Pre-condition: reporter's participant is already in the DataLayer at
+        RM.START (seeded by _store_embedded_participants or a prior bootstrap).
+        Post-condition: after CreateCaseReceivedUseCase, the participant's latest
+        rm_state is RM.ACCEPTED.
+        """
+        self._pre_seed_participant(base_dl, RM.START)
+        event = self._create_event(make_payload, case_with_string_participants)
+
+        CreateCaseReceivedUseCase(base_dl, event).execute()
+
+        stored = base_dl.read(self._FINDER_PARTICIPANT_ID)
+        assert stored is not None
+        statuses = getattr(stored, "participant_statuses", [])
+        assert statuses, "Reporter participant must have at least one status"
+        latest_rm = statuses[-1].rm_state
+        assert latest_rm == RM.ACCEPTED, (
+            f"Reporter participant must be upgraded to RM.ACCEPTED from "
+            f"RM.START; got {latest_rm!r} (#624)"
+        )
+
+    def test_reporter_participant_noop_if_already_accepted(
+        self, base_dl, make_payload, case_with_string_participants
+    ):
+        """Reporter participant already at RM.ACCEPTED must not be modified (#624)."""
+        self._pre_seed_participant(base_dl, RM.ACCEPTED)
+        event = self._create_event(make_payload, case_with_string_participants)
+
+        CreateCaseReceivedUseCase(base_dl, event).execute()
+
+        stored = base_dl.read(self._FINDER_PARTICIPANT_ID)
+        assert stored is not None
+        statuses = getattr(stored, "participant_statuses", [])
+        assert len(statuses) == 1, (
+            "Reporter participant already at RM.ACCEPTED must not gain extra "
+            f"statuses; got {len(statuses)} (#624)"
+        )
+        assert statuses[0].rm_state == RM.ACCEPTED
+
+    def test_reporter_participant_noop_if_already_closed(
+        self, base_dl, make_payload, case_with_string_participants
+    ):
+        """Reporter participant already at RM.CLOSED must not be downgraded (#624)."""
+        self._pre_seed_participant(base_dl, RM.CLOSED)
+        event = self._create_event(make_payload, case_with_string_participants)
+
+        CreateCaseReceivedUseCase(base_dl, event).execute()
+
+        stored = base_dl.read(self._FINDER_PARTICIPANT_ID)
+        assert stored is not None
+        statuses = getattr(stored, "participant_statuses", [])
+        assert len(statuses) == 1, (
+            "Reporter participant at RM.CLOSED must not gain extra statuses "
+            f"(it is already beyond ACCEPTED); got {len(statuses)} (#624)"
+        )
+        assert statuses[0].rm_state == RM.CLOSED

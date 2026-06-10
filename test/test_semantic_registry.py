@@ -1,12 +1,23 @@
 """Tests for the unified SemanticRegistry module."""
 
+import importlib
+
+import pytest
+
 from vultron.core.models.events import MessageSemantics
+from vultron.core.models.events.base import VultronEvent
+from vultron.errors import RegistryOrderError
 from vultron.semantic_registry import (
     SEMANTIC_REGISTRY,
+    _validate_registry_order,
     lookup_entry,
-    use_case_map,
     semantics_to_activity_class,
+    use_case_map,
 )
+from vultron.semantic_registry._entry import SemanticEntry
+from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
+from vultron.wire.as2.extractor import ActivityPattern
+from vultron.core.models.enums import VultronObjectType as VOtype
 
 
 def test_registry_covers_all_semantics():
@@ -86,3 +97,98 @@ def test_no_duplicate_semantics():
     for entry in SEMANTIC_REGISTRY:
         assert entry.semantics not in seen, f"Duplicate: {entry.semantics}"
         seen.add(entry.semantics)
+
+
+# ---------------------------------------------------------------------------
+# _validate_registry_order() unit tests
+# ---------------------------------------------------------------------------
+
+
+class _StubEvent(VultronEvent):
+    """Minimal VultronEvent subclass for use in validator unit tests."""
+
+
+class _StubUseCase:
+    """Minimal use-case stub for use in validator unit tests."""
+
+
+def _make_entry(
+    semantics: MessageSemantics, pattern: ActivityPattern
+) -> SemanticEntry:
+    return SemanticEntry(
+        semantics=semantics,
+        pattern=pattern,
+        event_class=_StubEvent,
+        use_case_class=_StubUseCase,
+    )
+
+
+def test_validate_registry_order_valid_ordering_passes():
+    """Specific-before-general ordering must not raise."""
+    # specific: Create + VulnerabilityReport object
+    specific = _make_entry(
+        MessageSemantics.CREATE_REPORT,
+        ActivityPattern(
+            activity_=TAtype.CREATE,
+            object_=VOtype.VULNERABILITY_REPORT,
+        ),
+    )
+    # general: Create only
+    general = _make_entry(
+        MessageSemantics.CREATE_CASE,
+        ActivityPattern(activity_=TAtype.CREATE),
+    )
+    # specific first — correct order
+    _validate_registry_order([specific, general])
+
+
+def test_validate_registry_order_reversed_pair_raises():
+    """General-before-specific ordering must raise RegistryOrderError."""
+    specific = _make_entry(
+        MessageSemantics.CREATE_REPORT,
+        ActivityPattern(
+            activity_=TAtype.CREATE,
+            object_=VOtype.VULNERABILITY_REPORT,
+        ),
+    )
+    general = _make_entry(
+        MessageSemantics.CREATE_CASE,
+        ActivityPattern(activity_=TAtype.CREATE),
+    )
+    # general first — wrong order
+    with pytest.raises(RegistryOrderError):
+        _validate_registry_order([general, specific])
+
+
+def test_validate_registry_order_same_specificity_passes():
+    """Entries with identical pattern dumps must not raise.
+
+    The import-time guard checks only strict-subset violations; equal-specificity
+    (ambiguous) pairs are left to test_non_overlapping_activity_patterns().
+    """
+    pattern_a = _make_entry(
+        MessageSemantics.CREATE_REPORT,
+        ActivityPattern(
+            activity_=TAtype.CREATE,
+            object_=VOtype.VULNERABILITY_REPORT,
+        ),
+    )
+    pattern_b = _make_entry(
+        MessageSemantics.CREATE_CASE,
+        ActivityPattern(
+            activity_=TAtype.CREATE,
+            object_=VOtype.VULNERABILITY_REPORT,
+        ),
+    )
+    _validate_registry_order([pattern_a, pattern_b])
+
+
+def test_live_registry_import_guard_passes():
+    """Reload semantic_registry to exercise the import-time order guard.
+
+    Verifies that _validate_registry_order(SEMANTIC_REGISTRY) is called at
+    module load and does not raise for the live registry.
+    """
+    import vultron.semantic_registry
+
+    importlib.reload(vultron.semantic_registry)

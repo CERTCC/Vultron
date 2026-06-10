@@ -20,15 +20,20 @@ Import directly from those modules for new code:
 
 - ``vultron.core.models.activity`` — VultronActivity, VultronOffer,
   VultronAccept, VultronCreateCaseActivity
-- ``vultron.core.models.case`` — VultronCase
-- ``vultron.core.models.case_actor`` — VultronCaseActor, VultronOutbox
-- ``vultron.core.models.case_event`` — VultronCaseEvent
-- ``vultron.core.models.case_status`` — VultronCaseStatus
-- ``vultron.core.models.embargo_event`` — VultronEmbargoEvent
+- ``vultron.core.models.case`` — VulnerabilityCase (VultronCase is an alias)
+- ``vultron.core.models.case_actor`` — CaseActor (VultronCaseActor is an alias),
+  VultronOutbox
+- ``vultron.core.models.case_event`` — CaseEvent (VultronCaseEvent is an alias)
+- ``vultron.core.models.case_participant`` — CaseParticipant (and role
+  subclasses), VultronParticipant (alias)
+- ``vultron.core.models.case_reference`` — CaseReference
+- ``vultron.core.models.case_status`` — CaseStatus
+- ``vultron.core.models.embargo_event`` — EmbargoEvent (VultronEmbargoEvent is an alias)
+- ``vultron.core.models.embargo_policy`` — EmbargoPolicy
 - ``vultron.core.models.note`` — VultronNote
-- ``vultron.core.models.participant`` — VultronParticipant
-- ``vultron.core.models.participant_status`` — VultronParticipantStatus
-- ``vultron.core.models.report`` — VultronReport
+- ``vultron.core.models.participant`` — re-export shim (use case_participant)
+- ``vultron.core.models.participant_status`` — ParticipantStatus
+- ``vultron.core.models.report`` — VulnerabilityReport (VultronReport is an alias)
 """
 
 from vultron.core.models.activity import (
@@ -37,29 +42,62 @@ from vultron.core.models.activity import (
     VultronCreateCaseActivity,
     VultronOffer,
 )
-from vultron.core.models.case import VultronCase
-from vultron.core.models.case_actor import VultronCaseActor, VultronOutbox
-from vultron.core.models.case_event import VultronCaseEvent
-from vultron.core.models.case_status import VultronCaseStatus
-from vultron.core.models.embargo_event import VultronEmbargoEvent
+from vultron.core.models.case import VulnerabilityCase, VultronCase
+from vultron.core.models.case_actor import (
+    CaseActor,
+    VultronCaseActor,
+    VultronOutbox,
+)
+from vultron.core.models.case_event import CaseEvent, VultronCaseEvent
+from vultron.core.models.case_reference import CaseReference
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.embargo_event import EmbargoEvent, VultronEmbargoEvent
+from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.note import VultronNote
 from vultron.core.models.participant import VultronParticipant
-from vultron.core.models.participant_status import VultronParticipantStatus
-from vultron.core.models.report import VultronReport
+from vultron.core.models.case_participant import (
+    CaseParticipant,
+    CaseActorParticipant,
+    CoordinatorParticipant,
+    DeployerParticipant,
+    FinderParticipant,
+    FinderReporterParticipant,
+    OtherParticipant,
+    ReporterParticipant,
+    VendorParticipant,
+)
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.report import VulnerabilityReport, VultronReport
 
 __all__ = [
     "VultronAccept",
     "VultronActivity",
+    "CaseActor",
+    "CaseEvent",
+    "CaseReference",
+    "VulnerabilityCase",
     "VultronCase",
     "VultronCaseActor",
     "VultronCaseEvent",
-    "VultronCaseStatus",
+    "CaseActorParticipant",
+    "CaseParticipant",
+    "CaseStatus",
+    "CoordinatorParticipant",
+    "DeployerParticipant",
+    "EmbargoEvent",
+    "EmbargoPolicy",
+    "FinderParticipant",
+    "FinderReporterParticipant",
+    "OtherParticipant",
+    "ReporterParticipant",
+    "VendorParticipant",
     "VultronCreateCaseActivity",
     "VultronEmbargoEvent",
     "VultronNote",
     "VultronOffer",
     "VultronOutbox",
     "VultronParticipant",
-    "VultronParticipantStatus",
+    "ParticipantStatus",
+    "VulnerabilityReport",
     "VultronReport",
 ]

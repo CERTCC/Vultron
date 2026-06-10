@@ -46,9 +46,9 @@ from typing import Callable, Optional, Sequence, Tuple
 
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CoordinatorParticipant,
-    VendorParticipant,
+    CaseParticipant,
 )
+from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -134,7 +134,8 @@ def _setup_case_with_vendor(
     post_to_inbox_and_wait(client, vendor.id_, create_case_act)
     verify_object_stored(client, case.id_)
 
-    vendor_participant = VendorParticipant(
+    vendor_participant = CaseParticipant(
+        case_roles=[CVDRole.VENDOR],
         attributed_to=vendor.id_,
         context=case.id_,
     )
@@ -210,7 +211,8 @@ def demo_manage_participants_accept(
         post_to_inbox_and_wait(client, vendor.id_, accept)
 
     with demo_step("Step 4: Vendor creates coordinator participant"):
-        coordinator_participant = CoordinatorParticipant(
+        coordinator_participant = CaseParticipant(
+            case_roles=[CVDRole.COORDINATOR],
             attributed_to=coordinator.id_,
             context=case.id_,
         )
@@ -450,7 +452,7 @@ def main(
 
 def _setup_logging():
     """Configure console logging for standalone script execution."""
-    logging.getLogger("requests").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     logger_ = logging.getLogger()
     hdlr = logging.StreamHandler(sys.stdout)
     import logging as _logging

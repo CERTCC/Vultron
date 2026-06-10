@@ -25,6 +25,11 @@ Agents MUST follow these rules when generating, modifying, or reviewing code.
   (`vultron/core/use_cases/`).
 - Use-Case Protocol: `__init__(dl, request)` + `execute() -> None`; routing
   is via `USE_CASE_MAP` key lookup, not per-handler decorators.
+- FastAPI deployment entrypoint: use
+  `vultron.adapters.driving.fastapi.main:app` for uvicorn/ASGI startup.
+  The mounted `app_v2` object in
+  `vultron.adapters.driving.fastapi.app` is for local test/dev patterns
+  (for example, isolated app-factory tests).
 - Tests: `uv run pytest --tb=short 2>&1 | tail -5` — run **once**, read output.
   See `.agents/skills/run-tests/SKILL.md` for the single-run rule and suite
   variants (unit / integration / all).
@@ -76,35 +81,20 @@ Do NOT introduce alternative frameworks or package managers without approval.
 
 ---
 
-> **Architecture details** (layer rules, hexagonal architecture, message pipeline):
-> see [notes/architecture-ports-and-adapters.md](notes/architecture-ports-and-adapters.md).
+> **Architecture details** (layer rules, hexagonal architecture, message
+> pipeline): see [notes/architecture-hexagonal.md](notes/architecture-hexagonal.md).
 
 ## Coding Rules (Non-Negotiable)
 
 ### Naming Conventions
 
-- **ActivityStreams class names**: Use `as_` prefix (e.g., `as_Activity`,
-  `as_Actor`) — in the wire layer (`vultron/wire/as2/`) only
-- **Wire-layer and core field names**: Use trailing underscore for fields
-  whose plain name collides with a Python builtin or reserved word
-  (e.g., `id_`, `type_`, `object_`, `context_`) with a Pydantic alias
-  for the JSON key (e.g., `id_: str = Field(alias="id")`). See CS-07-002,
-  CS-07-003. Do NOT use `as_`-prefixed field names anywhere.
 - **Domain class names**: Use CVD-domain vocabulary, not wire-format parallels
   (e.g., `CaseTransferOffer` not `VultronOffer`). See CS-12-001.
 - **Vulnerability**: Abbreviated as `vul` (not `vuln`)
-- **Handler functions**: Named after semantic action (e.g., `create_report`,
-  `accept_invite_actor_to_case`)
-- **Handler use cases** (processing received messages): Use `Received` suffix
-  (e.g., `CreateReportReceivedUseCase`). See CS-12-002.
-- **Trigger use cases** (actor-initiated actions): Use `Svc` prefix
-  (e.g., `SvcEngageCaseUseCase`). See CS-12-002.
-- **Trigger service functions** in `trigger_services/`: Use a `_trigger`
-  **suffix** (not an `svc_` prefix). For example: `engage_case_trigger`
-  not `svc_engage_case`. The `Svc` prefix is reserved for use-case class
-  names only.
-- **Pattern objects**: Descriptive CamelCase (e.g., `CreateReport`,
-  `AcceptInviteToEmbargoOnCase`)
+- Wire-layer naming (as\_ prefix, trailing underscore, pattern objects) →
+  see [`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md)
+- Use-case / handler naming (Received suffix, Svc prefix, \_trigger suffix)
+  → see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
 
 ### Validation and Type Safety
 
@@ -130,9 +120,8 @@ Do NOT introduce alternative frameworks or package managers without approval.
 
 ### Decorator Usage
 
-- Semantic type validation is performed at dispatch time by the `USE_CASE_MAP`
-  key lookup in `vultron/core/dispatcher.py`
-- Unrecognised semantic types raise `VultronApiHandlerNotFoundError`
+See [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md) — use-case protocol
+and dispatcher routing.
 
 ### Code Organization
 
@@ -169,66 +158,36 @@ and `actor_id` when available. See `specs/structured-logging.yaml`.
 
 ### Adding a New Message Type
 
-1. Add `MessageSemantics` enum value in `vultron/core/models/events.py`
-2. Define an `ActivityPattern` named `<TypeName>Pattern` in
-   `vultron/wire/as2/extractor.py`
-3. Add pattern to `SEMANTICS_ACTIVITY_PATTERNS` in
-   `vultron/wire/as2/extractor.py` (order matters — specific before general)
-4. Implement a use-case class in `vultron/core/use_cases/`:
-   - Follow `UseCase[Req, Res]` Protocol; accept `(dl, request)` in `__init__`
-   - Implement `execute() -> None`
-5. Register in `USE_CASE_MAP` in
-   `vultron/core/use_cases/use_case_map.py`
-6. Add tests:
-   - Pattern matching in `test/test_semantic_activity_patterns.py`
-   - Routing coverage in `test/test_semantic_handler_map.py`
-   - Use-case logic in `test/core/use_cases/`
+See [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md) for the full
+six-step checklist (enum → pattern → use-case → map → tests).
 
 ### Key Files Map
 
-- **Enums**: `vultron/enums.py` — re-exports `MessageSemantics`; defined in
-  `vultron/core/models/events.py`
-- **Patterns**: `vultron/wire/as2/extractor.py` — `ActivityPattern` defs
-  (`*Pattern` names), `SEMANTICS_ACTIVITY_PATTERNS`, `find_matching_semantics()`
-- **Use-Case Map**: `vultron/core/use_cases/use_case_map.py` — `USE_CASE_MAP`
-  (`MessageSemantics` → use-case callable)
-- **Dispatcher**: `vultron/core/dispatcher.py` — `DirectActivityDispatcher`,
-  `get_dispatcher()`; port: `vultron/core/ports/dispatcher.py`
+- **Enums / MessageSemantics**: `vultron/core/models/events/base.py`
+- **Dispatcher**: `vultron/core/dispatcher.py`
 - **Inbox**: `vultron/adapters/driving/fastapi/routers/actors.py`
-- **Triggers**: `vultron/adapters/driving/fastapi/routers/trigger_*.py`
-- **Errors**: `vultron/errors.py`, `vultron/adapters/driving/fastapi/errors.py`
-- **Data Layer port**: `vultron/core/ports/datalayer.py` — `DataLayer` Protocol
-- **TinyDB adapter**: `vultron/adapters/driven/datalayer_tinydb.py`
-- **BT Bridge**: `vultron/core/behaviors/bridge.py`
-- **BT nodes/trees**: `vultron/core/behaviors/report/`, `case/`, `helpers.py`
-- **Case Event Log**: `vultron/wire/as2/vocab/objects/case_event.py` — use
-  `VulnerabilityCase.record_event(object_id, event_type)`
-- **Vocab Examples**: `vultron/wire/as2/vocab/examples/` — reference for
-  message semantics and test fixtures
-- **Demo**: `vultron/demo/cli.py` (entry point), `utils.py` (shared helpers),
-  `vultron/demo/*_demo.py` (workflow scripts)
-- **Case States**: `vultron/case_states/` — enums are authoritative; update
-  docs, not enums, when they conflict
+- **Errors**: `vultron/errors.py`
+- **Demo**: `vultron/demo/cli.py` (entry point)
+- **Case States**: `vultron/case_states/` — enums are authoritative
+
+Full core-layer map → [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md).
+Full wire-layer map → [`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md).
+Full adapter-layer map → [`vultron/adapters/AGENTS.md`](vultron/adapters/AGENTS.md).
 
 ### Constructing Outbound Activities
 
-All outbound Vultron activities MUST be constructed via the factory functions
-in `vultron.wire.as2.factories`. Code outside
-`vultron/wire/as2/vocab/activities/` and `vultron/wire/as2/factories/` MUST
-NOT import internal activity subclasses (e.g., `RmCreateReportActivity`)
-directly. Use the corresponding factory function instead (e.g.,
-`rm_create_report_activity()`). This boundary is enforced by
-`test/architecture/test_activity_factory_imports.py`.
+All outbound activities MUST use factory functions in
+`vultron.wire.as2.factories`. See
+[`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md) for details.
 
 ### GitHub Issue Labels
 
-When adding a `group:` label to an issue, the label name MUST NOT include a
-priority number (PAD-02-007). Use a short, descriptive kebab-case slug derived
-from the priority group title — e.g., `group:architecture-hardening`, never
-`group:473-architecture-hardening`. Priority numbers in `plan/PRIORITIES.md`
-can be reordered; label names must remain stable. Before assigning a
-`group:` label, verify it exists on GitHub and create it with `gh label create`
-if not. See `notes/parallel-development.md` §Group Label Conventions.
+Priority tracking is managed via **GitHub Project #24 ("Vultron Planning")**
+using a `Schedule` field with values: `Now`, `Next`, `Later`, `Someday`.
+New issues are added to the project with `Schedule=Someday` by default.
+Reprioritize by updating the `Schedule` field via the API or by dragging cards
+on the board. `group:` labels are no longer used — do not create or assign them.
+See `notes/parallel-development.md` for the project board model and API reference.
 
 ## Change Protocol
 
@@ -245,7 +204,9 @@ When making non-trivial changes, agents SHOULD:
 
 Do not produce speculative or exploratory code unless requested. For proposed
 architectural changes, draft an ADR (use `docs/adr/_adr-template.md`) and link
-to relevant tests and design notes.
+to relevant tests and design notes. Use the decision-tree heuristic in
+`notes/specs-vs-adrs.md` (MS-11-001 through MS-11-006) to decide whether a
+change warrants a new ADR, a new spec entry, or both.
 
 ### Commit Workflow
 
@@ -259,8 +220,36 @@ to relevant tests and design notes.
 4. `build-docs` — only when `docs/` files were modified
 5. `commit` skill — include Co-authored-by trailer
 
+**When opening a PR**, use the structured body template in
+`.agents/skills/shared/pr-body-guide.md`. Implementation PRs require
+**Summary + Changes + Verification** (with actual test counts); docs-only
+PRs use **Summary + Changes**. Always put closing references
+(`- Closes #N`) at the top, one per line.
+
+**Always stage the new entry file when `append-history` was called.** The tool
+creates a new entry file under `plan/history/YYMM/<type>/` — stage it with
+`git add plan/history/`. The monthly `plan/history/YYMM/README.md` is
+**gitignored**; do **not** stage it. Omitting the entry file is the most
+common cause of history files being left out of PRs.
+
 See each skill's SKILL.md for the exact commands. If the pre-commit hook
 reformats files: `git add -A && git commit -m "Same message"`.
+
+**After a PR merges**, if working in a named worktree slot, reset the slot
+so it is ready for the next task:
+
+```bash
+bash "$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh" reset <slot-name>
+```
+
+---
+
+## Parallel Development (Worktree Slots)
+
+Multiple agents can work concurrently using named git worktree **slots**.
+See [`notes/parallel-development.md`](notes/parallel-development.md) for
+the GitHub Issue-based coordination model and
+`~/.copilot/skills/manage-worktree/SKILL.md` for slot setup and commands.
 
 ---
 
@@ -297,13 +286,27 @@ If instructions are ambiguous:
 Key pitfall write-ups are in the `notes/` files.
 Short entries are reproduced here; longer ones are referenced below.
 
-### Idempotency Responsibility Chain
-
-Layered: Inbox MAY detect duplicates (IE-10); Message Validation SHOULD
-detect duplicate submissions (MV-08); Handlers SHOULD implement idempotent
-logic — check for existing records before creating (HP-07-001). Data Layer
-provides unique ID constraints. Report handlers (`create_report`,
-`submit_report`) already follow this pattern.
+- **Idempotency Responsibility Chain** — see
+  [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
+- **Bulk Logging-Level Refactors Need a Consistency Grep Pass** — After
+  changing log levels across many BT tree-creation functions, run a grep-based
+  consistency check before commit so no matching functions are left at the old
+  level.
+- **Case-Actor Broadcast Guard Tests Need a Third Participant** — Positive
+  tests for Case Manager broadcast fan-out must include at least one non-sender
+  peer, or the broadcast-addressing assertion becomes vacuous.
+- **Case Participant Lookup Must Fail Fast on Surface Divergence** —
+  `case_participants` is the source of truth and `actor_participant_index` is
+  only a derived lookup cache. Lookup helpers must not silently choose the
+  populated surface; if the surfaces disagree, surface the mismatch and fix the
+  write path or fixture.
+- **Orphan Module Cleanup Requires Importer Proof** — Before deleting
+  scaffolding or suspected-dead modules, verify there are no live importers in
+  both `vultron/` and `test/`; then prefer deletion over leaving dead code.
+- **Worktree Sync Checks Need Ancestry Verification** — `git rebase origin/main`
+  alone can mislead when branch ancestry is wrong. Use the manage-worktree
+  `ensure-synced` flow (or explicitly verify behind-count/merge-base) before
+  creating a task branch.
 
 ---
 
@@ -311,10 +314,46 @@ provides unique ID constraints. Report handlers (`create_report`,
 
 - **Circular Imports** — see [notes/codebase-structure.md](notes/codebase-structure.md)
 - **Pattern Matching with ActivityStreams** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
+- **`SEMANTIC_REGISTRY` Order Errors Fail Silently — `_validate_registry_order()` Required** — A misplaced pattern causes the wrong use case to run with no error. The import-time guard `_validate_registry_order()` raises `RegistryOrderError` immediately. Until it lands, always run `test/test_semantic_activity_patterns.py` after editing the registry. See [vultron/wire/as2/AGENTS.md](vultron/wire/as2/AGENTS.md)
 - **Test Data Quality** — moved to `test/AGENTS.md`
 - **All Protocol-Significant Behavior MUST Be in the BT** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Protocol Event Cascades (Cascading Automation)** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Post-BT Procedural Cascade Anti-Pattern** — see [notes/bt-integration.md](notes/bt-integration.md)
+- **Peer Broadcast Nodes Must Not Mask Delivery Failure with SUCCESS** — For
+  protocol-visible fan-out, BT nodes/subtrees MUST return `FAILURE` when
+  activity construction or outbox enqueue fails. A guaranteed SUCCESS fallback
+  causes silent state divergence across peers. See
+  [notes/peer-broadcast-failure-semantics.md](notes/peer-broadcast-failure-semantics.md)
+  and `specs/behavior-tree-integration.yaml` BT-14-001.
+- **BT Node MUST NOT Call a Use Case** — A BT node's `update()` MUST NOT
+  instantiate or call a use-case class. Use cases create BTs; BT nodes are
+  leaves of those trees. Calling a use case from inside a node creates an
+  auditable-breaking BT→UseCase→BT chain. Compose the sub-behavior as a
+  child subtree instead. See [notes/bt-integration.md](notes/bt-integration.md)
+  § "DO NOT: BT node calling a use case".
+- **BT Node MUST NOT Import From Use Case Modules** — Dependency direction is
+  `use_cases/ → behaviors/`, never the reverse. If a helper is needed in
+  both layers, extract it to a shared utility. See
+  [notes/bt-integration.md](notes/bt-integration.md)
+  § "DO NOT: BT node importing from use case modules".
+- **Avoid God BT Nodes: `update()` MUST Stay Small** — An `update()` method
+  exceeding ~20–30 lines is a god node. Decompose into a named subtree of
+  simple leaf nodes; the tree structure becomes the workflow documentation.
+  See [notes/bt-integration.md](notes/bt-integration.md)
+  § "DO NOT: God BT nodes with long `update()` methods".
+- **Flat `nodes.py` with 10+ BT Classes Is a Code Smell** — A single
+  `nodes.py` accumulating ten or more BT node classes is a high-churn,
+  high-blast-radius module. Every change — regardless of which workflow step
+  it touches — modifies the same file, making review shallow and increasing
+  the risk of duplicate method definitions silently shadowing correct logic.
+  When a `nodes.py` reaches this threshold, convert it to a `nodes/`
+  subpackage with submodules grouped by semantic concern (e.g.,
+  `conditions.py`, `case_setup.py`, `participant.py`, `embargo.py`,
+  `communication.py`, `lifecycle.py`). The `__init__.py` MUST re-export all
+  public names to preserve caller import paths. Mirror the split in the test
+  suite: a `test/…/nodes/` directory with one `test_<submodule>.py` per
+  submodule. See `specs/behavior-tree-node-design.yaml` BTND-07-001 and
+  BTND-07-002.
 - **py_trees Blackboard Global State** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **py_trees `blackboard.get()` Raises KeyError for Unwritten READ Keys** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Duplicate Method Definitions Silently Shadow Correct BT Logic** — see [notes/bt-integration.md](notes/bt-integration.md)
@@ -332,60 +371,100 @@ provides unique ID constraints. Report handlers (`create_report`,
 - **Black Can Invalidate Inline pyright Suppressions on Wrapped Fields** — see [notes/codebase-structure.md](notes/codebase-structure.md)
 - **Pytest `filterwarnings = ["error"]` Does Not Catch All Warnings** — moved to `test/AGENTS.md`
 - **Pytest Helper Enums Must Not Use `Test*` Names** — moved to `test/AGENTS.md`
-- **Avoid `BaseModel` in Port/Adapter Type Hints** — see [notes/architecture-ports-and-adapters.md](notes/architecture-ports-and-adapters.md)
+- **Avoid `BaseModel` in Port/Adapter Type Hints** — see [vultron/core/ports/AGENTS.md](vultron/core/ports/AGENTS.md)
 - **Activity `name` Field Must Not Use `repr()` or `str()`** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **Actor IDs Must Always Be Full URIs** — see [notes/codebase-structure.md](notes/codebase-structure.md)
-- **Co-located Actor IDs Must Be HTTP-Routable; Wire Up `ASGIEmitter` at Startup** — An
-  actor whose ID uses a non-HTTP scheme (e.g. `urn:uuid:…/actors/case-actor`) cannot
-  receive deliveries via `DeliveryQueueAdapter` — outbound activities are logged at
-  WARNING/ERROR level but the exception is not raised, so inbox handlers are never called.
-  Co-located actors (e.g. a Case Actor hosted in the same server process) **MUST** have
-  HTTP-routable IDs (e.g. `{base_url}/actors/case-actor-{slug}`), **and** the app
-  startup code MUST call `configure_default_emitter(ASGIEmitter(app=…))` so the outbox
-  handler routes in-process deliveries via ASGI rather than HTTP.
-  See `notes/architecture-ports-and-adapters.md` (Dispatch vs Emit section).
+- **Co-located Actor IDs Must Be HTTP-Routable; Wire Up `ASGIEmitter` at Startup** — see [notes/architecture-adapters.md](notes/architecture-adapters.md)
+- **ASGIEmitter Path Construction: Use Scheme+Netloc Only as `httpx` Base URL** — see [vultron/adapters/driven/AGENTS.md](vultron/adapters/driven/AGENTS.md)
+- **`create_app()` MUST NOT Mutate Module-Level Singletons** — see [vultron/adapters/driven/AGENTS.md](vultron/adapters/driven/AGENTS.md)
+- **Bootstrap Activities Must Embed Nested Objects Inline, Not as URI Strings** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **BT Failure Reason: Use `get_failure_reason()`, Not Generic Error Logs** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Dead-Letter vs. No-Pattern: Two Distinct UNKNOWN Failure Modes** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **Accept.object_ Must Be the Invite Activity, Not the Case Object** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **Actor ID Normalization in Trigger Paths: Resolve Path Params Before Outbox** — see [notes/codebase-structure.md](notes/codebase-structure.md)
 - **Trigger-Side Embargo Ownership Gate (Owner vs. Participant)** — see [notes/participant-embargo-consent.md](notes/participant-embargo-consent.md)
+- **Inline `EMAdapter` Instantiation Is an Anti-Pattern** — Trigger and received
+  use cases MUST NOT instantiate `create_em_machine()` + `EMAdapter` inline in
+  `execute()` methods. Once `EmbargoLifecycle` (#538) lands, delegate all EM +
+  PEC transitions to it. Until then, add a `# TODO(#538)` comment so the
+  duplication is discoverable. Always cascade PEC alongside EM transitions
+  (`_cascade_pec_revise` on `ACTIVE → REVISE`; `_cascade_pec_reset` on
+  termination). See [notes/embargo-lifecycle.md](notes/embargo-lifecycle.md).
 - **Note Attachment Idempotency: Check `case.notes`, Not DataLayer Existence** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Transitive Activity `object_` Contract at Base Type** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **Base-Typed Serialization Drops Subtype Fields: Use `serialize_as_any=True`** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **Invite Response Parsing Requires Recursive Rehydration** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **Scenario Demos Must Puppeteer via Trigger Endpoints, Not Spoof Inboxes** — see [notes/event-driven-control-flow.md](notes/event-driven-control-flow.md)
 - **Role Taxonomies Must Not Leak Into Parameter Names** — When renaming a role concept (e.g., "finder" → "reporter"), search adapter and demo layers as well as core. Demo helpers often mirror public parameter names; leaving them behind creates naming inconsistency. See `notes/bugfix-workflow.md`.
+- **`case_addressees()` Is the Wrong Recipient for Participant Outbound Messages** — After
+  case creation, participant-originated activities MUST be addressed only to the Case Actor
+  (`CVDRole.CASE_MANAGER` participant's `attributed_to`), not to `case_addressees()`.
+  Using `case_addressees()` on the sender side bypasses the CaseActor and violates the
+  `participant → CaseActor → CaseLogEntry → broadcast → participants` model
+  (PCR-08-001, PCR-08-002). `case_addressees()` is correct only on the Case Actor's
+  **outbound fan-out** side (broadcasting to all participants). See
+  [notes/case-communication-model.md](notes/case-communication-model.md).
 - **Close Bugs With Evidence, Not Assumption** — see [notes/bt-integration.md](notes/bt-integration.md)
-- **Use `isinstance` for Pyright Attribute Narrowing, Not `# type: ignore`** — When
-  accessing an attribute that exists on a subtype but not its base type (pyright
-  `[attr-defined]` error), narrow with a runtime `isinstance` assertion rather than
-  suppressing the error with `# type: ignore`. Example: if `as_Question` does not have
-  `one_of` but `ChoosePreferredEmbargoActivity` does, add
-  `assert isinstance(activity, ChoosePreferredEmbargoActivity)` before accessing
-  `activity.one_of`. This keeps the type checker accurate and makes implicit subtype
-  assumptions explicit and runtime-verified.
-- **Untyped Closures Are Invisible to mypy — Extract to Named Functions** — When
-  refactoring or extracting logic from an untyped function body or closure (e.g.,
-  inside `extractor.py`), mypy does not check the body of untyped functions.
-  Hidden type errors only surface once the code is promoted to a named, typed
-  function. Always extract closures to named, fully-typed helper functions; do not
-  leave logic inside untyped lambda or nested-function bodies. Specifically: AS2
-  fields that carry an object or ID reference (e.g., `context`, `origin`,
-  `in_reply_to`) MUST be converted to `str | None` using `_get_id(field)` before
-  assigning to a `NonEmptyString | None` snapshot field — passing the raw AS2
-  object directly is a type error that mypy will catch only after extraction.
-- **CI Runs All Tests; Default Local Run Omits Integration** — `pytest` (default
-  local, via `addopts`) excludes `@pytest.mark.integration` tests. CI always
-  runs `pytest -m ""` which includes them. Demo scenario files
-  (`vultron/demo/scenario/`) contain assertion functions (e.g.,
-  `verify_vendor_case_state`) with hardcoded participant counts and state
-  expectations that break silently in the unit suite but fail in CI. Whenever
-  you touch any file under `vultron/demo/` or `test/demo/`, you MUST run the
-  full suite before committing: `uv run pytest -m "" --tb=short 2>&1 | tail -5`.
-  See the Commit Workflow section above.
+- **Use `isinstance` for Pyright Attribute Narrowing, Not `# type: ignore`** — see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
+- **Untyped Closures Are Invisible to mypy — Extract to Named Functions** — see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
+- **CI Runs All Tests; Default Local Run Omits Integration** — see `test/AGENTS.md` § Integration Tests
+- **Superseded `notes/*.md` Files Must Move to `archived_notes/`, Not Stay in `notes/`** — A file
+  with `status: superseded` in its frontmatter MUST be moved to `archived_notes/` using `git mv`.
+  Leaving it in `notes/` causes agents to load outdated guidance as active context and pollutes
+  `notes/README.md` navigation. When moving, update `archived_notes/README.md` and remove any
+  reference to the file from `notes/README.md`. Future-stub items referenced in the superseded file
+  MUST have tracked GitHub Issues before archiving. See `specs/project-documentation.yaml`
+  PD-03-004 and PD-03-005.
 
 > **Parallelism and Single-Agent Testing** has moved to `test/AGENTS.md`.
 >
+- **Stub Adapter Files Must Raise `NotImplementedError`, Not Silently No-Op** — Adapter
+  files that are intentional future-work placeholders (e.g.,
+  `adapters/driven/prod_http_delivery.py`, `adapters/driving/shared_inbox.py`) MUST contain
+  a class or function that raises `NotImplementedError` when called, so any code that
+  accidentally references the stub gets an immediate, explicit signal instead of a
+  silent no-op. A docstring-only stub is indistinguishable from a real empty module
+  and can hide integration gaps in production-like deployments. See
+  `specs/outbox.yaml` OX-10-004, OX-11-004.
+- **Trigger Use Cases Need Per-Use-Case Tests; Don't Bundle Case + Embargo
+  Trigger Changes in One PR** — Every use case in
+  `vultron/core/use_cases/triggers/` SHOULD have a dedicated unit test that
+  exercises its `execute()` path (state transition + outbox + documented
+  failure modes). Incidental coverage via `test_trignotify.py` or scenario
+  demos is insufficient — when `triggers/case.py` accumulated 26 commits in
+  90 days (#652), half its use cases had no dedicated test and regressions
+  in case logic shipped behind embargo fixes. Also avoid bundling
+  case-trigger and embargo-trigger changes in the same PR unless the change
+  is intrinsically cross-cutting; bundled diffs let reviewers miss
+  regressions in the half they aren't focused on. See
+  [notes/triggers-test-coverage.md](notes/triggers-test-coverage.md).
+- **Hash-Chain Log Record vs. Domain Model** — Two distinct classes exist for case
+  log entries. `vultron.core.models.case_log.HashChainLogRecord` (`BaseModel`) is
+  the in-memory hash-chain record used by `CaseEventLog` for local SYNC-1 processing
+  — it is **not** persisted or shared over the wire. `vultron.core.models.case_log_entry.CaseLogEntry`
+  (`CoreObject`) is the wire-serialisable domain model used in
+  `Announce(CaseLogEntry)` replication activities — it has an auto-computed
+  `id_` and registers in `CORE_VOCABULARY`. Always import by full module path and
+  verify which class you need. See `specs/architecture.yaml` ARCH-12-007 and
+  issue #806.
+- **Adding a New Pitfall: Check the Routing Policy First** — see
+  [notes/agents-md-structure.md](notes/agents-md-structure.md)
+- **Trigger-Side execute() Must Delegate SM Transitions to BTBridge** — A
+  trigger-side `execute()` method that calls `EmbargoLifecycle`, `EMAdapter`,
+  or creates `ParticipantStatus` records with a specific `rm_state`/`em_state`
+  directly (outside a BT execution context) is a BT-06-006 violation.
+  State machine transitions — RM transitions (e.g., `RM.INVALID`, `RM.CLOSED`),
+  EM lifecycle transitions (e.g., `propose_embargo`, `terminate_embargo`) — are
+  protocol-significant behavior (BT-15-001) and MUST live in BT leaf nodes
+  accessed via `bridge.execute_with_setup()`. Only infrastructure glue
+  (instantiate BT → set up blackboard → call bridge → check status → extract
+  output) is permitted directly in `execute()`. The historical asymmetry between
+  `received/` (BTBridge-delegating) and `triggers/` (inline) arose from the
+  now-retired "simple CRUD" guidance. See
+  [notes/bt-integration.md](notes/bt-integration.md)
+  § "Trigger/Received Parity" and `specs/behavior-tree-integration.yaml`
+  BT-15-001, BT-15-002.
+
 ## Skill Interaction Rules
 
 When a skill requires user input or asks the user a question:
@@ -399,7 +478,7 @@ When a skill requires user input or asks the user a question:
   question at a time using `ask_user`. All skills that include an interview
   or clarification phase MUST follow the same pattern.
 - When skills compose (e.g., `learn` invokes `grill-me`, `build` invokes
-  `study-project-docs`), the `ask_user` rule applies transitively — each
+  `orient-agent`), the `ask_user` rule applies transitively — each
   invoked skill must also use `ask_user` for any user-facing questions.
 
 ---
@@ -426,6 +505,9 @@ by the default config.
 Every `notes/*.md` file (except `notes/README.md`) MUST have a YAML
 frontmatter block with at least `title` and `status` fields. Valid statuses:
 `active`, `draft`, `superseded` (requires `superseded_by`), `archived`.
+When `status: superseded`, `superseded_by` is a single non-empty string
+(scalar), not a YAML list. If multiple successors exist, keep one canonical
+`superseded_by` target and list siblings in `related_notes` or body text.
 When modifying a notes file, review and update its frontmatter. Schema:
 `vultron/metadata/notes/schema.py`; enforced by pre-commit hook and
 `test/metadata/test_notes_frontmatter.py`.
@@ -435,25 +517,25 @@ When modifying a notes file, review and update its frontmatter. Schema:
 Links in `docs/` MUST be relative to the current file and MUST NOT go above
 the `docs/` root. Run `uv run mkdocs build --strict` before committing any
 `docs/` changes (see `build-docs` skill).
+The `.github/scripts/mkdocs-build-strict.sh` wrapper suppresses known griffe
+false positives, but unknown-key warnings (for example `context` or `pytest`)
+remain hard failures.
+
+Maintainer docs under `docs/developer/` are intentionally excluded from the
+published site (`mkdocs.yml`). To view or validate them locally, use
+`mkdocs.dev.yml` (for example: `uv run mkdocs serve --config-file
+mkdocs.dev.yml`).
 
 ### Demo script lifecycle logging
 
-Use `demo_step` / `demo_check` context managers (`vultron/demo/utils.py`) to
-wrap every workflow step and verification block. See `notes/codebase-structure.md`
-"Demo Script Lifecycle Logging" for the full pattern.
-
-### Archiving IMPLEMENTATION_PLAN.md
-
-`plan/IMPLEMENTATION_PLAN.md` is the forward-looking roadmap (target < 400
-lines). Completed phase details belong in `plan/history/` via the
-`append-history` tool. See `specs/project-documentation.yaml` `PD-02-001`
-and `specs/history-management.yaml` HM-03.
+See [`vultron/adapters/AGENTS.md`](vultron/adapters/AGENTS.md) for the
+`demo_step` / `demo_check` pattern.
 
 ### Writing project history entries
 
 History entries live under `plan/history/YYMM/<type>/<entry-id>.md`. Use the
 `append-history` CLI tool — **never** append directly to files in
 `plan/history/`. See `specs/history-management.yaml` (HM-01–HM-05) and
-`notes/history-management.md` for the format and usage. During `study-project-docs`,
+`notes/history-management.md` for the format and usage. During `orient-agent`,
 read only `plan/*.md` — access `plan/history/` only for investigating
 completed work.

@@ -21,9 +21,11 @@ from pydantic import ValidationError
 from vultron.core.models.case import VultronCase
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
-from vultron.core.models.case_status import VultronCaseStatus
+from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
 from vultron.core.models.participant import VultronParticipant
-from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.participant_status import (
+    ParticipantStatus as CoreParticipantStatus,
+)
 from vultron.core.models.report import VultronReport
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -57,7 +59,7 @@ def test_vulnerability_report_round_trips_between_core_and_wire():
 
 
 def test_case_status_round_trips_between_core_and_wire():
-    core = VultronCaseStatus(
+    core = CoreCaseStatus(
         id_="https://example.org/cases/1/status/1",
         attributed_to="https://example.org/actors/vendor",
         context="https://example.org/cases/1",
@@ -77,13 +79,13 @@ def test_case_status_round_trips_between_core_and_wire():
 
 
 def test_participant_status_from_core_materializes_case_status_reference():
-    core_case_status = VultronCaseStatus(
+    core_case_status = CoreCaseStatus(
         id_="https://example.org/cases/1/status/1",
         context="https://example.org/cases/1",
         attributed_to="https://example.org/actors/vendor",
         em_state=EM.NO_EMBARGO,
     )
-    core = VultronParticipantStatus(
+    core = CoreParticipantStatus(
         id_="https://example.org/cases/1/participants/1/status/1",
         attributed_to="https://example.org/actors/vendor",
         context="https://example.org/cases/1",
@@ -101,7 +103,7 @@ def test_participant_status_from_core_materializes_case_status_reference():
     assert round_tripped.context == core.context
     assert round_tripped.rm_state == core.rm_state
     assert round_tripped.vfd_state == core.vfd_state
-    assert isinstance(round_tripped.case_status, VultronCaseStatus)
+    assert isinstance(round_tripped.case_status, CoreCaseStatus)
     assert round_tripped.case_status.id_ == core_case_status.id_
     assert round_tripped.case_status.em_state == core_case_status.em_state
 
@@ -113,7 +115,7 @@ def test_case_participant_round_trips_between_core_and_wire():
         context="https://example.org/cases/1",
         case_roles=[],
         participant_statuses=[
-            VultronParticipantStatus(
+            CoreParticipantStatus(
                 id_="https://example.org/cases/1/participants/vendor/status/1",
                 attributed_to="https://example.org/actors/vendor",
                 context="https://example.org/cases/1",
@@ -137,7 +139,7 @@ def test_case_participant_round_trips_between_core_and_wire():
 
 
 def test_vulnerability_case_round_trips_between_core_and_wire():
-    case_status = VultronCaseStatus(
+    case_status = CoreCaseStatus(
         id_="https://example.org/cases/1/status/1",
         attributed_to="https://example.org/actors/vendor",
         context="https://example.org/cases/1",
@@ -180,7 +182,7 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
     assert round_tripped.parent_cases == core.parent_cases
     assert round_tripped.child_cases == core.child_cases
     assert round_tripped.sibling_cases == core.sibling_cases
-    assert isinstance(round_tripped.case_statuses[0], VultronCaseStatus)
+    assert isinstance(round_tripped.case_statuses[0], CoreCaseStatus)
     assert round_tripped.case_statuses[0].id_ == case_status.id_
 
 

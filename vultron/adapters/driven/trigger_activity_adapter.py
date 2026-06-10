@@ -28,7 +28,7 @@ of wire-layer factory imports (ARCH-01-001).
 See also:
     - ``vultron/core/ports/trigger_activity.py`` — port Protocol
     - ``vultron/wire/as2/factories/`` — factory functions
-    - ``notes/activity-factories.md``
+    - ``vultron/wire/as2/factories/AGENTS.md``
 """
 
 import logging
@@ -48,6 +48,7 @@ from vultron.wire.as2.factories import (
     em_propose_embargo_activity,
     em_reject_embargo_activity,
     recommend_actor_activity,
+    remove_embargo_from_case_activity,
     rm_accept_invite_to_case_activity,
     rm_close_report_activity,
     rm_defer_case_activity,
@@ -58,13 +59,14 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.factories.case import (
     accept_case_manager_role_activity,
+    announce_vulnerability_case_activity,
     offer_case_manager_role_activity,
 )
+from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Add,
     as_Create,
 )
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
@@ -321,7 +323,7 @@ class TriggerActivityAdapter:
         if id_ is not None:
             extra["id_"] = id_
         activity = rm_invite_to_case_activity(
-            invitee=as_Actor(id_=invitee_id),
+            invitee=CoreActor(id_=invitee_id),
             target=VulnerabilityCaseStub(id_=case_id),
             **extra,
         )
@@ -380,7 +382,7 @@ class TriggerActivityAdapter:
             extra["id_"] = id_
         # The factory accepts a string for target (case ID).
         activity = recommend_actor_activity(
-            recommended=as_Actor(id_=recommended_id),
+            recommended=CoreActor(id_=recommended_id),
             target=case_id,
             **extra,
         )
@@ -410,7 +412,7 @@ class TriggerActivityAdapter:
         accept it, provided they know its deterministic ID.
         """
         recommendation = recommend_actor_activity(
-            recommended=as_Actor(id_=recommended_id),
+            recommended=CoreActor(id_=recommended_id),
             target=case_id,
             id_=recommendation_id,
             actor=recommender_id,
@@ -467,23 +469,18 @@ class TriggerActivityAdapter:
                 "ParticipantStatus",
                 f"status '{status_id}' not found",
             )
-        # Convert from core VultronParticipantStatus to wire ParticipantStatus
+        # Convert from core ParticipantStatus to wire ParticipantStatus
         # so that nested fields (case_status, pxa_state) survive the boundary.
-        if not isinstance(raw, ParticipantStatus):
-            from vultron.wire.as2.vocab.objects.case_status import (
-                ParticipantStatus as WirePS,
-            )
-            from vultron.core.models.participant_status import (
-                VultronParticipantStatus,
-            )
+        from vultron.core.models.participant_status import (
+            ParticipantStatus as CorePS,
+        )
 
-            if isinstance(raw, VultronParticipantStatus):
-                raw = WirePS.from_core(raw)
-            else:
-                raw = cast(ParticipantStatus, raw)
-        status: ParticipantStatus = raw
+        if isinstance(raw, CorePS):
+            wire_status: ParticipantStatus = ParticipantStatus.from_core(raw)
+        else:
+            wire_status = cast(ParticipantStatus, raw)
         activity = add_status_to_participant_activity(
-            status=status, target=participant_id, actor=actor, to=to
+            status=wire_status, target=participant_id, actor=actor, to=to
         )
         try:
             self._dl.create(activity)
@@ -647,3 +644,61 @@ class TriggerActivityAdapter:
                 activity.id_,
             )
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
+    def terminate_embargo(
+        self,
+        embargo_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a ``Remove(EmbargoEvent, origin=case)`` ET activity."""
+        embargo = cast(EmbargoEvent, self._dl.read(embargo_id))
+        activity = remove_embargo_from_case_activity(
+            embargo=embargo, origin=case_id, actor=actor, to=to
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "terminate_embargo: activity '%s' already exists — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
+    # -----------------------------------------------------------------------
+    # Cases (continued) — Announce
+    # -----------------------------------------------------------------------
+
+    def announce_vulnerability_case(
+        self,
+        case_id: str,
+        actor: str,
+        context_id: str,
+        to: list[str],
+    ) -> str:
+        """Create and persist an ``Announce(VulnerabilityCase)`` activity.
+
+        Reads the full case from the DataLayer, constructs the activity with
+        the case inline, and persists it.  Returns the activity ID for outbox
+        queueing.
+
+        Per MV-10-003: the case owner sends this after an ``Accept(Invite)``
+        is received and the invitee's embargo consent has been verified.
+        """
+        case = cast(VulnerabilityCase, self._dl.read(case_id))
+        activity = announce_vulnerability_case_activity(
+            case=case,
+            actor=actor,
+            context=context_id,
+            to=to,
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "announce_vulnerability_case: activity '%s' already exists"
+                " — skipping",
+                activity.id_,
+            )
+        return activity.id_

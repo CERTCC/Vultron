@@ -30,12 +30,13 @@ from http import HTTPMethod
 from typing import Any, Generator, Optional, Sequence, Tuple, cast
 
 # Third-party imports
-import requests  # type: ignore[import-untyped]
+import httpx
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 
 # Vultron imports
 from vultron.adapters.utils import parse_id
+from vultron.errors import DemoFailureError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -43,6 +44,35 @@ from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 logger = logging.getLogger(__name__)
+
+# Module-level failure accumulator.  reset_demo_failures() clears it at the
+# start of each scenario; assert_demo_success() raises DemoFailureError if
+# any failures were recorded.  See specs/demo-ci.yaml DEMOCI-01-003.
+_demo_failures: list[str] = []
+
+
+def reset_demo_failures() -> None:
+    """Clear the demo failure accumulator.
+
+    Call at the start of each scenario entry point to ensure failures from a
+    previous run do not pollute the current one.  See DEMOCI-01-003.
+    """
+    _demo_failures.clear()
+
+
+def assert_demo_success() -> None:
+    """Raise DemoFailureError if any demo step or check failures were recorded.
+
+    Call at the end of each scenario entry point.  Raises with the full list
+    of accumulated failure messages so that ``docker compose --exit-code-from``
+    can surface the non-zero exit to CI.  See DEMOCI-01-001, DEMOCI-01-003.
+    """
+    if _demo_failures:
+        raise DemoFailureError(
+            f"{len(_demo_failures)} demo failure(s)",
+            failures=list(_demo_failures),
+        )
+
 
 BASE_URL = os.environ.get(
     "VULTRON_API_BASE_URL", "http://localhost:7999/api/v2"
@@ -63,33 +93,41 @@ def ref_id(value: object) -> str | None:
 
 
 @contextmanager
-def demo_step(description: str):
+def demo_step(description: str) -> Generator[None, None, None]:
     """Context manager for declaring workflow steps in demo logs.
 
-    Logs 🚥 at INFO on entry, 🟢 at INFO on clean exit, 🔴 at ERROR on exception.
+    Logs 🚥 at INFO on entry, 🟢 at INFO on clean exit, 🔴 at ERROR on
+    exception.  On exception the failure is appended to the module-level
+    ``_demo_failures`` accumulator and execution continues (no re-raise).
+    Call ``assert_demo_success()`` at the end of the scenario to surface
+    accumulated failures.  See DEMOCI-01-003, DEMOCI-01-004.
     """
     logger.info(f"🚥 {description}")
     try:
         yield
         logger.info(f"🟢 {description}")
-    except Exception:
-        logger.error(f"🔴 {description}")
-        raise
+    except Exception as exc:
+        logger.error(f"🔴 {description}: {exc}", exc_info=True)
+        _demo_failures.append(f"STEP FAILED: {description} — {exc}")
 
 
 @contextmanager
-def demo_check(description: str):
+def demo_check(description: str) -> Generator[None, None, None]:
     """Context manager for declaring side-effect checks in demo logs.
 
-    Logs 📋 at INFO on entry, ✅ at INFO on clean exit, ❌ at ERROR on exception.
+    Logs 📋 at INFO on entry, ✅ at INFO on clean exit, ❌ at ERROR on
+    exception.  On exception the failure is appended to the module-level
+    ``_demo_failures`` accumulator and execution continues (no re-raise).
+    Call ``assert_demo_success()`` at the end of the scenario to surface
+    accumulated failures.  See DEMOCI-01-003, DEMOCI-01-004.
     """
     logger.info(f"📋 {description}")
     try:
         yield
         logger.info(f"✅ {description}")
-    except Exception:
-        logger.error(f"❌ {description}")
-        raise
+    except Exception as exc:
+        logger.error(f"❌ {description}: {exc}", exc_info=True)
+        _demo_failures.append(f"CHECK FAILED: {description} — {exc}")
 
 
 def logfmt(obj: object) -> str:
@@ -112,65 +150,91 @@ def postfmt(obj: object) -> dict[str, object]:
 class DataLayerClient(BaseModel):
     """HTTP client for the Vultron DataLayer REST API.
 
-    Wraps ``requests`` with convenience methods for GET, PUT, POST, and DELETE
+    Wraps ``httpx`` with convenience methods for GET, PUT, POST, and DELETE
     calls to the DataLayer endpoint, with automatic JSON parsing and error logging.
     """
 
     base_url: str = BASE_URL
 
-    def call(self, method: HTTPMethod, path: str, **kwargs: Any) -> dict:
+    def call(self, method: HTTPMethod, path: str, **kwargs: Any) -> Any:
         """Make an HTTP request to the DataLayer API.
 
         Args:
             method: HTTP method (GET, PUT, POST, DELETE).
             path: API path relative to ``base_url``.
-            **kwargs: Additional keyword arguments forwarded to ``requests.request``.
+            **kwargs: Additional keyword arguments forwarded to ``httpx.request``.
 
         Returns:
-            Parsed JSON response body as a dict.
+            Parsed JSON response body.  Most endpoints return a ``dict``, but
+            list endpoints (e.g. the case-log endpoint) return a ``list``.
 
         Raises:
-            requests.HTTPError: When the response status is not OK.
+            httpx.HTTPStatusError: When the response status is not OK.
         """
         if method.upper() not in HTTPMethod.__members__:
             raise ValueError(f"Unsupported HTTP method: {method}")
 
         url = f"{self.base_url}{path}"
         logger.debug(f"Calling {method.upper()} {url}")
-        response = requests.request(method, url, **kwargs)
+        response = httpx.request(method, url, **kwargs)
         logger.debug(f"Response status: {response.status_code}")
 
-        data = {}
+        data: Any = {}
         try:
             data = response.json()
             logger.debug(f"Response JSON: {json.dumps(data, indent=2)}")
-        except requests.exceptions.HTTPError as e:
-            logger.error(f"HTTP error: {e}")
-        except Exception as e:
+        except ValueError as e:
             logger.error(f"Exception: {e}")
             logger.error(f"Response text: {response.text}")
 
-        if not response.ok:
+        if response.status_code == 404:
+            logger.error(
+                f"HTTP 404 from {response.url} ({method.upper()} {path})"
+            )
+
+        if not response.is_success:
             logger.error(f"Error response: {response.text}")
             response.raise_for_status()
 
         return data
 
-    def get(self, path: str, **kwargs) -> dict:
+    def get(self, path: str, **kwargs: Any) -> dict:
         """Send an HTTP GET request."""
-        return self.call(HTTPMethod.GET, path, **kwargs)
+        return cast(dict, self.call(HTTPMethod.GET, path, **kwargs))
 
-    def put(self, path: str, **kwargs) -> dict:
+    def get_list(self, path: str, **kwargs: Any) -> list[Any]:
+        """Send an HTTP GET request that expects a JSON array response.
+
+        Args:
+            path: API path relative to ``base_url``.
+            **kwargs: Additional keyword arguments forwarded to ``httpx.request``.
+
+        Returns:
+            Parsed JSON response body as a list.
+
+        Raises:
+            ValueError: When the response body is not a JSON array.
+            httpx.HTTPStatusError: When the response status is not OK.
+        """
+        data = self.call(HTTPMethod.GET, path, **kwargs)
+        if not isinstance(data, list):
+            raise ValueError(
+                f"Expected JSON array from GET {path}, "
+                f"got {type(data).__name__}"
+            )
+        return data
+
+    def put(self, path: str, **kwargs: Any) -> dict:
         """Send an HTTP PUT request."""
-        return self.call(HTTPMethod.PUT, path, **kwargs)
+        return cast(dict, self.call(HTTPMethod.PUT, path, **kwargs))
 
-    def post(self, path: str, **kwargs) -> dict:
+    def post(self, path: str, **kwargs: Any) -> dict:
         """Send an HTTP POST request."""
-        return self.call(HTTPMethod.POST, path, **kwargs)
+        return cast(dict, self.call(HTTPMethod.POST, path, **kwargs))
 
-    def delete(self, path: str, **kwargs) -> dict:
+    def delete(self, path: str, **kwargs: Any) -> dict:
         """Send an HTTP DELETE request."""
-        return self.call(HTTPMethod.DELETE, path, **kwargs)
+        return cast(dict, self.call(HTTPMethod.DELETE, path, **kwargs))
 
 
 def reset_datalayer(client: DataLayerClient, init: bool = True) -> dict:
@@ -261,8 +325,6 @@ def post_to_trigger(
     path_prefix: str = "trigger",
 ) -> dict:
     """POST to a trigger endpoint and return the response body.
-
-    Trigger endpoints allow the local actor to initiate a behavior
     proactively (e.g. validate-report, engage-case) rather than
     reacting to an inbound activity.
 
@@ -304,7 +366,7 @@ def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
         The retrieved ``as_Object``.
 
     Raises:
-        requests.HTTPError: If the object is not found.
+        httpx.HTTPStatusError: If the object is not found.
     """
 
     def _drop_nulls(value: object) -> object:
@@ -455,12 +517,12 @@ def check_server_availability(
             logger.debug(
                 f"Checking server at: {url} (attempt {attempt + 1}/{max_retries})"
             )
-            response = requests.get(url, timeout=2)
+            response = httpx.get(url, timeout=2)
             if response.status_code == 200:
                 return True
-        except requests.exceptions.ConnectionError:
+        except httpx.ConnectError:
             pass
-        except requests.exceptions.Timeout:
+        except httpx.TimeoutException:
             pass
         except Exception:
             pass

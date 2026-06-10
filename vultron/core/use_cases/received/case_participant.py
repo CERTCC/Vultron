@@ -8,7 +8,7 @@ from vultron.core.models.events.case_participant import (
     RemoveCaseParticipantFromCaseReceivedEvent,
 )
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.protocols import is_case_model, is_participant_model
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 
 logger = logging.getLogger(__name__)
@@ -61,21 +61,14 @@ class AddCaseParticipantToCaseReceivedUseCase:
             )
             return
 
-        existing_ids = [_as_id(p) for p in case.case_participants]
-        if participant_id in existing_ids:
-            logger.info(
-                "Participant '%s' already in case '%s' — skipping (idempotent)",
+        if not is_participant_model(participant):
+            logger.warning(
+                "add_case_participant_to_case: participant '%s' not found",
                 participant_id,
-                case_id,
             )
             return
 
-        # Use string ID to avoid wire-type serialization incompatibility
-        case.case_participants.append(participant_id)
-        if participant is not None:
-            actor_id = _as_id(getattr(participant, "attributed_to", None))
-            if actor_id is not None:
-                case.actor_participant_index[actor_id] = participant_id
+        case.add_participant(participant)
         case.record_event(participant_id, "participant_added")
         self._dl.save(case)
         logger.info(

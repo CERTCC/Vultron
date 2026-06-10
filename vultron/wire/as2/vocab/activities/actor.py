@@ -17,6 +17,7 @@ Provides Vultron ActivityStreams Activities related to Actors
 
 from pydantic import Field
 
+from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Offer,
@@ -31,7 +32,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 class _RecommendActorActivity(as_Offer):
     """The actor is recommending another actor to a case."""
 
-    object_: as_Actor = Field(
+    object_: CoreActor | as_Actor = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None

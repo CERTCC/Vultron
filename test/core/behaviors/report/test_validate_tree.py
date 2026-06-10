@@ -26,7 +26,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.use_cases._helpers import _report_phase_status_id
 from vultron.core.models.vultron_types import (
     VultronCaseActor,
@@ -110,7 +110,19 @@ def reporter_actor(datalayer, reporter_actor_id):
 @pytest.fixture
 def bridge(datalayer):
     """Create BT bridge for execution."""
-    return BTBridge(datalayer=datalayer)
+    from typing import cast
+
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.core.ports.case_persistence import CaseOutboxPersistence
+
+    return BTBridge(
+        datalayer=datalayer,
+        trigger_activity=TriggerActivityAdapter(
+            cast(CaseOutboxPersistence, datalayer)
+        ),
+    )
 
 
 @pytest.fixture
@@ -292,7 +304,7 @@ def test_tree_execution_early_exit_already_valid(
 ):
     """Tree short-circuits if report already in VALID state."""
     # Arrange: Set report to VALID state in DataLayer
-    valid_status = VultronParticipantStatus(
+    valid_status = ParticipantStatus(
         id_=_report_phase_status_id(actor_id, report.id_, RM.VALID.value),
         context=report.id_,
         attributed_to=actor_id,
@@ -321,7 +333,7 @@ def test_tree_execution_invalid_state_transitions_to_valid(
 ):
     """Tree can validate report from INVALID state."""
     # Arrange: Set report to INVALID state in DataLayer (no VALID record present)
-    invalid_status = VultronParticipantStatus(
+    invalid_status = ParticipantStatus(
         id_=_report_phase_status_id(actor_id, report.id_, RM.INVALID.value),
         context=report.id_,
         attributed_to=actor_id,
@@ -652,8 +664,7 @@ def test_validate_report_auto_engages_via_bt(
     assert participant.participant_statuses[-1].rm_state == RM.ACCEPTED
 
     # An engage activity (Join) must appear in the actor's outbox
-    updated_actor = cast(Any, datalayer.read(actor_id))
-    outbox_items = updated_actor.outbox.items
+    outbox_items = datalayer.clone_for_actor(actor_id).outbox_list()
     assert len(outbox_items) >= 1
     join_activities = [
         datalayer.read(aid)

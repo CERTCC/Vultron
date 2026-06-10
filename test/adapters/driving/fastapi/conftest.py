@@ -15,10 +15,17 @@
 Provides pytest fixtures for testing the FastAPI v2 application.
 """
 
+from collections.abc import Generator
+
 import pytest
 from fastapi.testclient import TestClient
 
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.app import app_v2 as app
+from vultron.adapters.driving.fastapi.inbox_pipeline import (
+    InboxPipeline,
+    build_test_pipeline,
+)
 
 
 @pytest.fixture
@@ -50,3 +57,14 @@ def datalayer():
     datalayer.clear_all()
     # Reset singleton for next test
     reset_datalayer()
+
+
+@pytest.fixture
+def test_pipeline() -> (
+    Generator[tuple[InboxPipeline, SqliteDataLayer], None, None]
+):
+    dl = SqliteDataLayer("sqlite:///:memory:")
+    try:
+        yield build_test_pipeline(dl), dl
+    finally:
+        dl.close()

@@ -27,6 +27,8 @@ from vultron.adapters.driven.datalayer_sqlite import (
     reset_datalayer,
 )
 from vultron.core.states.em import EM
+from vultron.core.states.roles import CVDRole
+from vultron.errors import VultronValidationError
 from vultron.core.use_cases.triggers.case import (
     SvcDeferCaseUseCase,
     SvcEngageCaseUseCase,
@@ -56,6 +58,10 @@ from vultron.wire.as2.factories import (
     rm_submit_report_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.objects.case_participant import (
+    CaseParticipant,
+    FinderParticipant,
+)
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -87,10 +93,72 @@ def _make_actor_dl(actor_name: str):
     return actor, dl
 
 
+def _make_case_with_case_manager(
+    dl: SqliteDataLayer,
+    actor_id: str,
+    finder_id: str,
+    case_actor_id: str,
+) -> VulnerabilityCase:
+    """Create a VulnerabilityCase with a Finder participant and a Case Actor
+    (CVDRole.CASE_MANAGER).  Persists all objects in *dl*.
+
+    The actor participant is pre-initialized to RM.VALID so that
+    engage (→ ACCEPTED) and defer (→ DEFERRED) transitions are valid.
+    """
+    from vultron.core.states.rm import RM
+    from vultron.wire.as2.vocab.objects.case_status import (
+        ParticipantStatus as WireParticipantStatus,
+    )
+
+    case = VulnerabilityCase(name="Test Case")
+
+    actor_participant = CaseParticipant(
+        attributed_to=actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.VENDOR],
+    )
+    # Pre-advance actor to RM.VALID so engage/defer transitions will succeed
+
+    actor_participant.participant_statuses.append(
+        WireParticipantStatus(context=case.id_, rm_state=RM.RECEIVED)
+    )
+    actor_participant.participant_statuses.append(
+        WireParticipantStatus(context=case.id_, rm_state=RM.VALID)
+    )
+
+    finder_participant = FinderParticipant(
+        attributed_to=finder_id,
+        context=case.id_,
+    )
+    case_manager_participant = CaseParticipant(
+        attributed_to=case_actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+
+    case.actor_participant_index[actor_id] = actor_participant.id_
+    case.actor_participant_index[finder_id] = finder_participant.id_
+    case.actor_participant_index[case_actor_id] = case_manager_participant.id_
+
+    case.case_participants.append(actor_participant.id_)
+    case.case_participants.append(finder_participant.id_)
+    case.case_participants.append(case_manager_participant.id_)
+
+    dl.create(case)
+    dl.create(actor_participant)
+    dl.create(finder_participant)
+    dl.create(case_manager_participant)
+    return case
+
+
 def _make_two_actor_case(
     dl, vendor_id: str, finder_id: str
 ) -> VulnerabilityCase:
-    """Create a VulnerabilityCase with vendor and finder in actor_participant_index."""
+    """Create a VulnerabilityCase with vendor and finder in actor_participant_index.
+
+    Note: no CASE_MANAGER participant — use _make_case_with_case_manager for
+    tests that verify PCR-08-001 routing.
+    """
     case = VulnerabilityCase(name="Test Case")
     case.actor_participant_index[vendor_id] = f"{case.id_}/participants/vendor"
     case.actor_participant_index[finder_id] = f"{case.id_}/participants/finder"
@@ -144,16 +212,22 @@ class TestCaseTriggerToField:
     def setup(self):
         self.vendor, self.dl = _make_actor_dl("Vendor Co")
         self.finder, _ = _make_actor_dl("Finder Co")
-        self.case = _make_two_actor_case(
-            self.dl, self.vendor.id_, self.finder.id_
+        self.case_actor, _ = _make_actor_dl("Case Actor")
+        self.case = _make_case_with_case_manager(
+            self.dl,
+            self.vendor.id_,
+            self.finder.id_,
+            self.case_actor.id_,
         )
         yield
         self.dl.clear_all()
         reset_datalayer(self.vendor.id_)
         reset_datalayer(self.finder.id_)
+        reset_datalayer(self.case_actor.id_)
 
-    def test_engage_case_to_field_contains_other_participant(self):
-        """SvcEngageCaseUseCase queues RmEngageCaseActivity with non-empty to."""
+    def test_engage_case_to_field_addresses_case_actor_only(self):
+        """SvcEngageCaseUseCase queues activity addressed only to Case Actor
+        (PCR-08-001)."""
         request = EngageCaseTriggerRequest(
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
@@ -166,12 +240,16 @@ class TestCaseTriggerToField:
         recipients = _to_field(act_obj)
 
         assert recipients is not None, "to field must not be None"
-        assert len(recipients) > 0, "to field must be non-empty"
-        assert self.finder.id_ in recipients
+        assert (
+            len(recipients) == 1
+        ), f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        assert recipients[0] == self.case_actor.id_
+        assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
 
-    def test_defer_case_to_field_contains_other_participant(self):
-        """SvcDeferCaseUseCase queues RmDeferCaseActivity with non-empty to."""
+    def test_defer_case_to_field_addresses_case_actor_only(self):
+        """SvcDeferCaseUseCase queues activity addressed only to Case Actor
+        (PCR-08-001)."""
         request = DeferCaseTriggerRequest(
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
@@ -184,12 +262,15 @@ class TestCaseTriggerToField:
         recipients = _to_field(act_obj)
 
         assert recipients is not None, "to field must not be None"
-        assert len(recipients) > 0, "to field must be non-empty"
-        assert self.finder.id_ in recipients
+        assert (
+            len(recipients) == 1
+        ), f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        assert recipients[0] == self.case_actor.id_
+        assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
 
-    def test_engage_case_to_field_none_when_no_other_participants(self):
-        """SvcEngageCaseUseCase sets to=None when vendor is the only participant."""
+    def test_engage_case_raises_when_no_case_manager(self):
+        """SvcEngageCaseUseCase raises VultronValidationError when no CASE_MANAGER."""
         case_solo = VulnerabilityCase(name="Solo Case")
         case_solo.actor_participant_index[self.vendor.id_] = (
             f"{case_solo.id_}/participants/vendor"
@@ -200,16 +281,12 @@ class TestCaseTriggerToField:
             actor_id=self.vendor.id_,
             case_id=case_solo.id_,
         )
-        result = SvcEngageCaseUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
-        ).execute()
-
-        _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
-        recipients = _to_field(act_obj)
-
-        assert (
-            not recipients
-        ), "to should be empty/None when no other participants"
+        with pytest.raises(VultronValidationError):
+            SvcEngageCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
 
 
 # ---------------------------------------------------------------------------
@@ -218,22 +295,27 @@ class TestCaseTriggerToField:
 
 
 class TestEmbargoTriggerToField:
-    """All three embargo trigger use cases populate ``to``."""
+    """All embargo trigger use cases address only the Case Actor (PCR-08-001)."""
 
     @pytest.fixture(autouse=True)
     def setup(self):
         self.vendor, self.dl = _make_actor_dl("Vendor Co")
         self.finder, _ = _make_actor_dl("Finder Co")
-        self.case = _make_two_actor_case(
-            self.dl, self.vendor.id_, self.finder.id_
+        self.case_actor, _ = _make_actor_dl("Case Actor")
+        self.case = _make_case_with_case_manager(
+            self.dl,
+            self.vendor.id_,
+            self.finder.id_,
+            self.case_actor.id_,
         )
         yield
         self.dl.clear_all()
         reset_datalayer(self.vendor.id_)
         reset_datalayer(self.finder.id_)
+        reset_datalayer(self.case_actor.id_)
 
-    def test_propose_embargo_to_field_contains_other_participant(self):
-        """SvcProposeEmbargoUseCase queues EmProposeEmbargoActivity with to."""
+    def test_propose_embargo_to_field_addresses_case_actor_only(self):
+        """SvcProposeEmbargoUseCase queues activity addressed only to Case Actor."""
         request = ProposeEmbargoTriggerRequest(
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
@@ -247,11 +329,15 @@ class TestEmbargoTriggerToField:
         recipients = _to_field(act_obj)
 
         assert recipients is not None
-        assert self.finder.id_ in recipients
+        assert (
+            len(recipients) == 1
+        ), f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        assert recipients[0] == self.case_actor.id_
+        assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
 
-    def test_evaluate_embargo_to_field_contains_other_participant(self):
-        """SvcAcceptEmbargoUseCase queues EmAcceptEmbargoActivity with to."""
+    def test_evaluate_embargo_to_field_addresses_case_actor_only(self):
+        """SvcAcceptEmbargoUseCase queues activity addressed only to Case Actor."""
         embargo = EmbargoEvent(context=self.case.id_)
         self.dl.create(embargo)
         proposal = em_propose_embargo_activity(
@@ -275,11 +361,15 @@ class TestEmbargoTriggerToField:
         recipients = _to_field(act_obj)
 
         assert recipients is not None
-        assert self.finder.id_ in recipients
+        assert (
+            len(recipients) == 1
+        ), f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        assert recipients[0] == self.case_actor.id_
+        assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
 
-    def test_terminate_embargo_to_field_contains_other_participant(self):
-        """SvcTerminateEmbargoUseCase queues AnnounceEmbargoActivity with to."""
+    def test_terminate_embargo_to_field_addresses_case_actor_only(self):
+        """SvcTerminateEmbargoUseCase queues activity addressed only to Case Actor."""
         embargo = EmbargoEvent(context=self.case.id_)
         self.dl.create(embargo)
         self.case.set_embargo(embargo.id_)
@@ -298,7 +388,11 @@ class TestEmbargoTriggerToField:
         recipients = _to_field(act_obj)
 
         assert recipients is not None
-        assert self.finder.id_ in recipients
+        assert (
+            len(recipients) == 1
+        ), f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        assert recipients[0] == self.case_actor.id_
+        assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
 
 

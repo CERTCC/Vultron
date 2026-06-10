@@ -31,13 +31,15 @@ get_trigger_service
 """
 
 from fastapi import Depends, Path
+from typing import cast
 
 from vultron.adapters.driven.datalayer import get_shared_dl
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.core.ports.trigger_service import TriggerServicePort
 from vultron.core.use_cases.triggers.service import TriggerService
 
@@ -59,7 +61,7 @@ def get_trigger_dl(
 def get_canonical_actor_dl(
     actor_id: str = Path(...),
     dl: DataLayer = Depends(get_trigger_dl),
-) -> DataLayer:
+) -> ActorScopedDataLayer:
     """FastAPI dependency: actor-scoped DataLayer keyed by canonical URI.
 
     Resolves *actor_id* (which may be a short UUID from the URL path) to the
@@ -81,9 +83,14 @@ def get_trigger_service(
 
     Inject ``app.dependency_overrides[get_trigger_service] = lambda: mock``
     in tests to replace the service with a ``Mock(spec=TriggerServicePort)``.
+
+    ``get_trigger_dl`` returns a ``SqliteDataLayer`` at runtime, which
+    satisfies ``CaseOutboxPersistence`` structurally.  The cast below is
+    safe; see ARCH-13-001 / ARCH-13-002.
     """
+    cop = cast(CaseOutboxPersistence, dl)
     return TriggerService(
-        dl,
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
+        cop,
+        sync_port=SyncActivityAdapter(cop),
+        trigger_activity=TriggerActivityAdapter(cop),
     )

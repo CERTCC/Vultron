@@ -17,7 +17,7 @@
 Case creation behavior tree composition.
 
 Composes the create_case workflow as a behavior tree with idempotency
-guard, validation, persistence, CaseActor setup, and outbox update.
+guard, persistence, CaseActor setup, and outbox update.
 
 Per specs/behavior-tree-integration.yaml BT-06 and specs/case-management.yaml
 CM-02 requirements.
@@ -27,7 +27,6 @@ Structure:
     CreateCaseBT (Selector)
     ├─ CheckCaseAlreadyExists          # Early exit if case already in DataLayer
     └─ CreateCaseFlow (Sequence)
-       ├─ ValidateCaseObject           # Check required fields
        ├─ SetCaseAttributedTo          # Set attributed_to to actor_id (CM-02-008)
        ├─ PersistCase                  # Save VulnerabilityCase to DataLayer
        ├─ RecordCaseCreationEvents     # Backfill offer_received + case_created events (CM-02-009)
@@ -36,6 +35,12 @@ Structure:
        ├─ EmitCreateCaseActivity       # Generate CreateCaseActivity activity
        ├─ UpdateActorOutbox            # Append activity to actor outbox
        └─ CommitCaseLogEntryNode       # Log entry → Announce fan-out (SYNC-02-002)
+
+Note: ``ValidateCaseObject`` was removed (#716).  ``VultronBase.id_`` is typed
+``NonEmptyString`` with a ``default_factory``, so Pydantic enforces a valid
+``id_`` at construction time (ARCH-10-001).  Additionally, ``case_obj.id_`` is
+read on entry to this factory function, making a downstream BT validation node
+unreachable.
 """
 
 import logging
@@ -54,7 +59,6 @@ from vultron.core.behaviors.case.nodes import (
     RecordCaseCreationEvents,
     SetCaseAttributedTo,
     UpdateActorOutbox,
-    ValidateCaseObject,
 )
 
 logger = logging.getLogger(__name__)
@@ -93,7 +97,6 @@ def create_create_case_tree(
         name="CreateCaseFlow",
         memory=False,
         children=[
-            ValidateCaseObject(case_obj=case_obj),
             SetCaseAttributedTo(case_obj=case_obj),
             PersistCase(case_obj=case_obj),
             RecordCaseCreationEvents(case_obj=case_obj),
@@ -116,5 +119,5 @@ def create_create_case_tree(
         ],
     )
 
-    logger.debug(f"Created CreateCaseBT for case={case_id}, actor={actor_id}")
+    logger.info(f"Created CreateCaseBT for case={case_id}, actor={actor_id}")
     return root

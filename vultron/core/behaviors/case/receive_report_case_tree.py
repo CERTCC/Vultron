@@ -191,7 +191,7 @@ def create_receive_report_case_tree(
         ],
     )
 
-    logger.debug(
+    logger.info(
         "Created ReceiveReportCaseBT for report=%s, offer=%s, reporter=%s",
         report_id,
         offer_id,

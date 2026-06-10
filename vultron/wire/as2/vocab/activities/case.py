@@ -32,6 +32,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
     as_Update,
 )
+from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_ActorRef
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
@@ -276,7 +277,7 @@ class _RmInviteToCaseActivity(as_Invite):
     target: VulnerabilityCase
     """
 
-    object_: as_Actor = Field(
+    object_: CoreActor | as_Actor = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseStub | str | None = None

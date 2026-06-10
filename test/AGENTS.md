@@ -247,3 +247,22 @@ failure even if pytest exits 0.
 ordering in the full suite can leave state from a prior test that affects
 `test_vultrabot`. Clear `py_trees.blackboard.Blackboard.storage` in fixtures
 that use behavior trees.
+
+---
+
+## Demo Integration Test Isolation
+
+Each actor in a demo integration test MUST use a **distinct `DataLayer`
+instance** — sharing one bypasses the outbox → inbox delivery path.
+Integration tests MUST be marked `@pytest.mark.integration`.
+
+Full rules, code examples, and polling-helper patching guidance:
+[`vultron/adapters/driven/AGENTS.md`](../vultron/adapters/driven/AGENTS.md)
+§ "Co-located actor isolation" and § "Reentrancy Guard".
+
+If you touch any file under `vultron/demo/` or `test/demo/`, run the
+full suite before committing:
+
+```bash
+uv run pytest -m "" --tb=short 2>&1 | tail -5
+```

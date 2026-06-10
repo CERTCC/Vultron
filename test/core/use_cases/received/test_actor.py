@@ -262,7 +262,18 @@ class TestInviteActorUseCases:
             actor=invitee_id,
         )
         event = make_payload(accept)
-        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.ports.case_persistence import CaseOutboxPersistence
+
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(
+                cast(CaseOutboxPersistence, dl)
+            ),
+        ).execute()
 
         updated_case = cast(Any, dl.read(case.id_))
         participant_id = updated_case.actor_participant_index.get(invitee_id)
@@ -304,17 +315,26 @@ class TestInviteActorUseCases:
             actor=invitee_id,
         )
         event = make_payload(accept)
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
-        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(
+                cast(CaseOutboxPersistence, dl)
+            ),
+        ).execute()
 
-        updated_actor = cast(Any, dl.read(invitee_id))
-        assert updated_actor is not None
+        outbox_items = dl.clone_for_actor(invitee_id).outbox_list()
         # At least the engage (Join) activity must be present.  An Announce
         # activity may also be queued by _emit_announce_case so we allow ≥ 1.
-        assert len(updated_actor.outbox.items) >= 1
+        assert len(outbox_items) >= 1
 
         engage_activity = None
-        for item_id in updated_actor.outbox.items:
+        for item_id in outbox_items:
             candidate = cast(Any, dl.read(item_id))
             if candidate is not None and str(candidate.type_) == "Join":
                 engage_activity = candidate

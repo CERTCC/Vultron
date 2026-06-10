@@ -49,9 +49,9 @@ from typing import Callable, Optional, Sequence, Tuple
 # Vultron imports
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.objects.case_participant import (
-    FinderReporterParticipant,
-    VendorParticipant,
+    CaseParticipant,
 )
+from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
@@ -145,7 +145,8 @@ def demo_initialize_case(
             log_case_state(client, case.id_, "after CreateCaseActivity")
 
     with demo_step("Step 4: Vendor adds themselves as case participant"):
-        vendor_participant = VendorParticipant(
+        vendor_participant = CaseParticipant(
+            case_roles=[CVDRole.VENDOR],
             attributed_to=vendor.id_,
             context=case.id_,
         )
@@ -200,7 +201,8 @@ def demo_initialize_case(
                 )
 
     with demo_step("Step 6: Vendor creates finder participant"):
-        participant = FinderReporterParticipant(
+        participant = CaseParticipant(
+            case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
             attributed_to=finder.id_,
             context=case.id_,
         )
@@ -309,7 +311,7 @@ def main(
 
 def _setup_logging():
     """Configure console logging for standalone script execution."""
-    logging.getLogger("requests").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     logger_ = logging.getLogger()
     hdlr = logging.StreamHandler(sys.stdout)
     formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")

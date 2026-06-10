@@ -1,134 +1,140 @@
 ---
 name: update-priorities
-description: Interactively update PRIORITIES.md by adding, removing, or refining priority groups. Gathers user input about new work, priorities, dependencies, and links to GitHub issues. Use when you want to add new priorities, reorganize existing groups, or update priority descriptions based on findings from check-priority-status.
+description: >
+  Interactively update GitHub Project #24 ("Vultron Planning") by moving
+  items between Schedule tiers (Now/Next/Later/Someday) via the GitHub
+  Projects API. Use when you want to schedule issues, promote triage items,
+  or rebalance tiers based on findings from check-priority-status.
 ---
 
 # Update Priorities
 
-Interactively update `plan/PRIORITIES.md` by adding, removing, or refining priority groups. Designed as a companion to `check-priority-status`—run the status check first to understand gaps and uncovered work, then use this skill to modify the priority list.
+Interactively update the Schedule field on issues and Epics in GitHub
+Project #24. Designed as a companion to `check-priority-status` — run the
+status check first to understand the current state, then use this skill to
+apply scheduling changes.
 
-## Quick start
+## Quick Start
 
 Run the update-priorities skill.
 
 The skill will:
 
-1. Load current `plan/PRIORITIES.md`
+1. Query Project #24 for all items and their current Schedule tiers
 2. Present options:
-   - **Add a new priority group** (for uncovered issues or new work)
-   - **Refine an existing group** (update description, add/remove issues, adjust priority number)
-   - **Remove a priority** (archive completed work via `append-history`)
-   - **View current state** (quick reference before editing)
-3. For each action, gather details:
-   - Priority number (or suggest auto-assigned number)
-   - Title and description
-   - Root issue/epic link
-   - Sub-issues and related work
-   - Dependencies and prerequisites
-4. Validate updates (check links are live, epic relationships exist)
-5. Preview changes before writing
-6. Stage and commit (or save draft for manual review)
+   - **Move item(s) to a different tier** (Now / Next / Later / Someday)
+   - **Promote Triage items** (Someday items to a schedule tier)
+   - **Add an issue to the board** (assign Schedule=Someday)
+   - **Archive a completed Epic** (close issue + history entry)
+3. For each action, apply the change live via GitHub API
+4. Commit if any notes/history files changed (board changes need no commit)
+
+## Project Board Constants
+
+| Name | Value |
+|---|---|
+| Project node ID | `PVT_kwDOAjf0s84BZnre` |
+| Schedule field ID | `PVTSSF_lADOAjf0s84BZnrezhUlFOM` |
+| Now option ID | `1e84189c` |
+| Next option ID | `9fca00b2` |
+| Later option ID | `e2149d3e` |
+| Someday option ID | `fcffa79d` |
 
 ## Workflows
 
-### Add a New Priority Group
+### Move Item to a Different Tier
 
-When you have uncovered work that should be tracked:
+1. Identify the issue or Epic number.
+2. Find the item's project item ID:
 
-1. Identify the root issue (epic or feature request)
-2. List sub-issues/related work
-3. Clarify dependencies (does it block or depend on other priorities?)
-4. Choose or auto-assign a priority number
-5. Write a clear title and description
-6. Validate that all linked issues exist and are open
-7. Insert into `plan/PRIORITIES.md` (maintain ascending priority numbers)
+   ```bash
+   ITEM_ID=$(gh api graphql -f query='{
+     node(id:"PVT_kwDOAjf0s84BZnre") {
+       ... on ProjectV2 {
+         items(first:100) {
+           nodes {
+             id
+             content { ... on Issue { number } }
+           }
+         }
+       }
+     }
+   }' --jq ".data.node.items.nodes[] \
+     | select(.content.number == ${ISSUE_NUMBER}) | .id")
+   ```
 
-### Refine an Existing Group
+3. Apply the Schedule field update:
 
-When a priority needs updates (status change, new linked issues, dependency shifts):
+   ```bash
+   gh api graphql -f query="mutation {
+     updateProjectV2ItemFieldValue(input: {
+       projectId: \"PVT_kwDOAjf0s84BZnre\"
+       itemId: \"${ITEM_ID}\"
+       fieldId: \"PVTSSF_lADOAjf0s84BZnrezhUlFOM\"
+       value: { singleSelectOptionId: \"${SCHEDULE_OPTION_ID}\" }
+     }) { projectV2Item { id } }
+   }"
+   ```
 
-1. Select the priority from list
-2. Choose what to update: title, description, linked issues, dependencies
-3. Make changes interactively
-4. Validate links and relationships
-5. Preview diff before writing
+### Add Issue to Board
 
-### Remove a Priority (Archive)
+1. Resolve the issue's node ID:
 
-When a priority group is fully completed:
+   ```bash
+   NODE_ID=$(gh api graphql -f query='{
+     repository(owner:"CERTCC", name:"Vultron") {
+       issue(number: '"${ISSUE_NUMBER}"') { id }
+     }
+   }' --jq '.data.repository.issue.id')
+   ```
 
-1. Select the priority to archive
-2. Confirm all linked issues are closed
-3. Run `uv run append-history priority` (auto-generates history entry with timestamp)
-4. Remove from `plan/PRIORITIES.md`
-5. Commit
+2. Add to project and set Schedule:
 
-### View Current State
+   ```bash
+   ITEM_ID=$(gh api graphql -f query="mutation {
+     addProjectV2ItemById(input: {
+       projectId: \"PVT_kwDOAjf0s84BZnre\"
+       contentId: \"${NODE_ID}\"
+     }) { item { id } }
+   }" --jq '.data.addProjectV2ItemById.item.id')
 
-Quick reference table of all priorities (like the start of `check-priority-status` summary):
+   gh api graphql -f query="mutation {
+     updateProjectV2ItemFieldValue(input: {
+       projectId: \"PVT_kwDOAjf0s84BZnre\"
+       itemId: \"${ITEM_ID}\"
+       fieldId: \"PVTSSF_lADOAjf0s84BZnrezhUlFOM\"
+       value: { singleSelectOptionId: \"fcffa79d\" }
+     }) { projectV2Item { id } }
+   }" >/dev/null
+   ```
 
-```text
-Priority | Title                          | Issues | Status
----------|--------------------------------|--------|--------
-470      | Two-Actor Demo Redesign        | 5      | 🟡 In Progress
-475      | Participant Case Replica Safety| 1      | 🟡 In Progress
-476      | Bug Fixes and Demo Polish      | 7      | 🟢 On Track
-```
+### Archive a Completed Epic
 
-## Priority Number Assignment
+1. Confirm all sub-issues are closed.
+2. Invoke the `archive-history` skill:
 
-**Rules** (from `plan/PRIORITIES.md` header):
+   ```text
+   TYPE    = priority
+   TITLE   = <Epic title>
+   SOURCE  = EPIC-<number>
+   BODY    = <Epic summary, linked issues, completion notes>
+   ```
 
-- Ascending numbers = higher priority
-- Scale is not linear (allows gaps for future insertion)
-- When adding a new priority:
-  - Choose a number between two existing numbers, or
-  - Choose a new number higher than the max if it's lower priority
-  - Example: if current max is 476, a new lower-priority item could be 480 or 500
+3. Close the Epic issue:
 
-Skill will suggest placements based on your answer: "Higher or lower priority than [group X]?"
+   ```bash
+   gh issue close <EPIC_NUMBER> --repo CERTCC/Vultron
+   ```
 
-## Validation
-
-Before writing `plan/PRIORITIES.md`, validate:
-
-- ✓ All issue links are valid (GitHub API check: issue exists, is open)
-- ✓ Epic links have actual sub-issues (for epics, show issue count)
-- ✓ Priority numbers are unique and ascending
-- ✓ No duplicate issue links across groups
-- ✓ Prerequisite issues exist and are open
-- ✓ Text formatting (relative links, markdown syntax)
-
-If any validation fails, report it and offer to fix or skip.
-
-## Preview & Commit
-
-Before writing to disk:
-
-1. Show a **diff preview** (additions, removals, changes highlighted)
-2. Ask for confirmation: "Write these changes?"
-3. If yes:
-   - Stage `plan/PRIORITIES.md`
-   - Prompt user for commit message (or auto-generate one)
-   - Add co-author trailer and commit
-4. If no:
-   - Save draft to session workspace (e.g., `updates.md`)
-   - Prompt to review and re-run skill later
-
-## Advanced Features
-
-See [REFERENCE.md](REFERENCE.md) for:
-
-- Batch import (add multiple priorities from a CSV or structured list)
-- Priority renumbering (if gaps have accumulated)
-- Report generation (export current state as JSON/CSV)
-- Integration with GitHub project boards
-- History query (view archived priorities)
+4. The `archive-history` skill commits and pushes the history entry file.
 
 ## Notes
 
-- **No deletion without archiving**: Completed priorities must be archived to `plan/history/` via `append-history` before removal from `PRIORITIES.md`
-- **Validation is strict**: Bad links or formatting issues block writes; fix or skip before proceeding
-- **Preview before commit**: Always show a diff; never write silently
-- **Skill is independent**: Does not automatically run `check-priority-status`; user should run status check *first* to identify gaps
-- **Undo via git**: If changes are committed incorrectly, undo with `git revert` or `git reset --soft`
+- **Board changes are live**: Schedule field updates take effect immediately
+  via API — no file commit is needed.
+- **Skill is independent**: Does not automatically run
+  `check-priority-status`; run it first to identify what needs changing.
+- **Undo**: Re-run the move mutation with the previous option ID, or use
+  `gh issue reopen` for closed Epics.
+- **Someday = Triage**: Issues on the board with `Schedule=Someday` (or no
+  Schedule) appear in the Triage view and should be reviewed regularly.

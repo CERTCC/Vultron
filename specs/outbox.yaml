@@ -120,3 +120,130 @@ groups:
     statement: >-
       If an outbound activity carries non-empty `cc:`, `bto:`, or `bcc:` fields, the outbox
       handler SHOULD log a WARNING
+- id: OX-09
+  title: Outbox Monitor Efficiency
+  rationale: >-
+    Fixed-interval polling grows O(N) with actor count: every tick iterates all registered
+    actor DataLayers regardless of queue depth. Event-driven wakeup eliminates idle
+    iteration cost and scales to large deployments.
+  specs:
+  - id: OX-09-001
+    priority: SHOULD
+    statement: >-
+      The outbox monitor SHOULD use event-driven wakeup so that it drains actor outboxes
+      immediately when an activity is enqueued, rather than waiting for the next fixed
+      polling interval
+    rationale: >-
+      Reduces median delivery latency from up to poll_interval to near-zero at no extra
+      CPU cost
+  - id: OX-09-002
+    priority: MUST
+    statement: >-
+      Even when event-driven wakeup is enabled, the outbox monitor MUST retain a
+      safety-net polling interval so that outbox items are eventually delivered even if
+      an enqueue notification is missed
+  - id: OX-09-003
+    priority: SHOULD
+    statement: >-
+      The enqueue notification mechanism SHOULD be injected into the DataLayer adapter as
+      a callback so that the DataLayer does not import from the monitor layer
+    rationale: Preserves the hexagonal architecture boundary between driven adapters
+  - id: OX-09-004
+    priority: SHOULD
+    statement: >-
+      The outbox monitor SHOULD log the total number of pending outbox items across all
+      actors at DEBUG level on each drain pass
+  - id: OX-09-005
+    priority: SHOULD
+    statement: >-
+      If any single actor's outbox depth exceeds a configurable threshold, the outbox
+      monitor SHOULD emit a WARNING-level log entry identifying the actor and depth
+- id: OX-10
+  title: Signed Remote Delivery
+  scope:
+  - production
+  rationale: >-
+    Plain unauthenticated HTTP POST (current DemoHttpDeliveryAdapter) is acceptable for
+    prototype use. Production federation requires HTTP Message Signatures so recipient
+    actors can verify the sender's identity and reject spoofed activities.
+    vultron/adapters/driven/prod_http_delivery.py is a documented stub for this capability.
+  specs:
+  - id: OX-10-001
+    priority: SHOULD
+    statement: >-
+      For remote actor delivery, the outgoing HTTP POST SHOULD be signed using HTTP
+      Message Signatures (RFC 9421) with the sending actor's private key
+    scope:
+    - production
+  - id: OX-10-002
+    priority: MUST
+    statement: >-
+      The signing key pair MUST be per-actor and MUST NOT be shared across actors
+    scope:
+    - production
+    relationships:
+    - rel_type: depends_on
+      spec_id: OX-10-001
+  - id: OX-10-003
+    priority: MUST
+    statement: >-
+      The signed delivery adapter MUST be transport-only: it MUST NOT construct or
+      inspect ActivityStreams objects; serialization happens before the payload reaches
+      the adapter
+    rationale: Preserves the hexagonal layer boundary
+    relationships:
+    - rel_type: depends_on
+      spec_id: OX-10-001
+  - id: OX-10-004
+    priority: MUST
+    statement: >-
+      Until signed delivery is implemented, adapters/driven/prod_http_delivery.py MUST
+      raise NotImplementedError if instantiated, so that callers receive an explicit
+      signal rather than a silent no-op
+    scope:
+    - prototype
+- id: OX-11
+  title: Shared-Inbox Fan-Out
+  scope:
+  - production
+  rationale: >-
+    ActivityPub shared-inbox delivers a single activity addressed to multiple local
+    actors via one HTTP POST, avoiding N separate deliveries for large groups. This
+    reduces network overhead for multi-party cases with many co-located participants.
+    vultron/adapters/driving/shared_inbox.py is a documented stub for this capability.
+  specs:
+  - id: OX-11-001
+    priority: MAY
+    statement: >-
+      The system MAY expose a shared inbox endpoint that accepts activities addressed
+      to multiple local actors in a single HTTP request
+    scope:
+    - production
+  - id: OX-11-002
+    priority: MUST
+    statement: >-
+      If a shared inbox is implemented, it MUST validate the HTTP Signature on the
+      inbound request before any fan-out processing
+    scope:
+    - production
+    relationships:
+    - rel_type: depends_on
+      spec_id: OX-11-001
+  - id: OX-11-003
+    priority: MUST
+    statement: >-
+      If a shared inbox is implemented, it MUST enqueue one per-actor inbox delivery
+      for each addressed local actor identified in the activity to/cc fields
+    scope:
+    - production
+    relationships:
+    - rel_type: depends_on
+      spec_id: OX-11-001
+  - id: OX-11-004
+    priority: MUST
+    statement: >-
+      Until shared-inbox is implemented, adapters/driving/shared_inbox.py MUST raise
+      NotImplementedError if instantiated, so that callers receive an explicit signal
+      rather than a silent no-op
+    scope:
+    - prototype

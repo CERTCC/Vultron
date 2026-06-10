@@ -55,48 +55,95 @@ gh issue list --repo CERTCC/Vultron \
 For the full list (not just count), omit `| length` and add
 `"\(.number): \(.title)"` projection.
 
-## Query: Unscheduled Issues
+## Query: Triage Count (Schedule=Someday, no Epic parent)
 
 ```bash
-gh issue list --repo CERTCC/Vultron \
-  --limit 200 \
-  --label "group:unscheduled" \
-  --json number,title \
-  --jq 'length'
+# Get all project items with Schedule=Someday
+gh api graphql --jq '
+  [ .data.node.items.nodes[]
+    | select(
+        .content.state == "OPEN" and
+        ( .fieldValues.nodes[]
+          | select(.field.name == "Schedule")
+          | .name
+        ) == "Someday"
+      )
+    | .content.number
+  ] | length
+' -f query='{
+  node(id: "PVT_kwDOAjf0s84BZnre") {
+    ... on ProjectV2 {
+      items(first: 200) {
+        nodes {
+          content { ... on Issue { number state } }
+          fieldValues(first: 10) { nodes {
+            ... on ProjectV2ItemFieldSingleSelectValue {
+              name field { ... on ProjectV2SingleSelectField { name } }
+            }
+          }}
+        }
+      }
+    }
+  }
+}'
 ```
 
 ## Query: Ready-to-Build Count
 
-> ⚠️ **PRIORITIES.md is not authoritative for issue status.**
-> It is read **only** to extract the group label for the top-priority group.
-> Issue open/closed state MUST always be determined by the GitHub API.
-> Do NOT use ✅ markers, absence of ✅, or any other PRIORITIES.md text to
-> infer whether an issue is open or closed.
-
-1. Read `plan/PRIORITIES.md` to identify the **group label** for the
-   top-priority group (e.g., `group:architecture-hardening`). This is the
-   only information taken from the file.
-2. Query open leaf issues in that group with no open blockers using the
-   GitHub API:
+1. Find the first open Epic with `Schedule=Now` on Project #24 (lowest board
+   position = highest priority).
+2. Query its open leaf sub-issues with no open blockers:
 
 ```bash
-# Step 1: list open issues with the top-priority group label
-gh issue list --repo CERTCC/Vultron \
-  --limit 200 \
-  --label "<top-priority-group-label>" \
-  --json number,title \
-  --jq '.[].number'
+# Step 1: get Now-Epic numbers in board order
+gh api graphql --jq '
+  [ .data.node.items.nodes[]
+    | select(
+        .content.state == "OPEN" and
+        .content.issueType.name == "Epic" and
+        ( .fieldValues.nodes[]
+          | select(.field.name == "Schedule")
+          | .name
+        ) == "Now"
+      )
+    | .content.number
+  ][]
+' -f query='{
+  node(id: "PVT_kwDOAjf0s84BZnre") {
+    ... on ProjectV2 {
+      items(first: 100) {
+        nodes {
+          content {
+            ... on Issue { number state issueType { name } }
+          }
+          fieldValues(first: 10) { nodes {
+            ... on ProjectV2ItemFieldSingleSelectValue {
+              name field { ... on ProjectV2SingleSelectField { name } }
+            }
+          }}
+        }
+      }
+    }
+  }
+}'
 
-# Step 2: for each issue N, check blockers via GraphQL
+# Step 2: for each Epic, query sub-issues; for each sub-issue N, check leaf + blockers
 gh api graphql -f query='{
   repository(owner:"CERTCC", name:"Vultron") {
-    issue(number: N) {
-      blockedBy(first: 50) { nodes { number state } }
-      subIssues(first: 1) { totalCount }
+    issue(number: <EPIC_N>) {
+      subIssues(first: 50) {
+        nodes {
+          number state
+          blockedBy(first: 10) { nodes { number state } }
+          subIssues(first: 1) { totalCount }
+          labels(first: 10) { nodes { name } }
+        }
+      }
     }
   }
 }'
 # An issue is "ready" if:
+#   - state: OPEN, no stale-claim label, no assignee
 #   - all blockedBy nodes have state: CLOSED (or blockedBy is empty)
 #   - subIssues.totalCount == 0 (leaf issue, not a parent task)
 ```
@@ -133,24 +180,6 @@ grep -c '^### ' plan/BUILD_LEARNINGS.md 2>/dev/null || echo 0
 Returns the number of dated entry headers. Zero means the file contains only
 the preamble — no actionable entries.
 
-## Query: PRIORITIES.md Staleness
-
-```bash
-git log --format="%cr" --max-count=1 -- plan/PRIORITIES.md
-```
-
-Returns a human-readable relative time (e.g., `3 days ago`, `2 weeks ago`).
-Warn in the report if the value exceeds 14 days.
-
-To get the age in days for threshold comparisons:
-
-```bash
-git log --format="%ct" --max-count=1 -- plan/PRIORITIES.md \
-  | xargs -I{} python3 -c "
-import time; age=(time.time()-{})/86400; print(f'{age:.0f}')
-"
-```
-
 ## Report Template
 
 ```text
@@ -159,21 +188,19 @@ import time; age=(time.time()-{})/86400; print(f'{age:.0f}')
 | Queue                 | Count | Skill                |
 |-----------------------|-------|----------------------|
 | BUILD_LEARNINGS       |  {n}  | learn                |
-| Ideas (open)          |  {n}  | ingest-idea          |
+| Ideas (open)          |  {n}  | plan-issue           |
 | Bugs (open)           |  {n}  | bugfix               |
 | Concerns (open)       |  {n}  | process-concerns     |
 | Open PRs              |  {n}  | pr-comprehensive-fix |
-| Unscheduled issues    |  {n}  | review-priorities    |
+| Triage (Someday)      |  {n}  | review-priorities    |
 | Ready to build        |  {n}  | build                |
 
-PRIORITIES.md last updated: {relative_time}{staleness_warning}
+Now: {epic_titles}
 
 **Next up**: {skill} — {reason}
 ```
 
-`{staleness_warning}` is omitted when age ≤ 14 days; otherwise append
-`⚠️ consider running review-priorities`.
-
+`{epic_titles}` lists the titles of all open `Schedule=Now` Epics on Project #24.
 When all counts are zero and BUILD_LEARNINGS is empty, replace the "Next up"
 line with:
 

@@ -180,6 +180,49 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-06-002
+- id: PCR-08
+  title: Outbound Participant Message Routing
+  specs:
+  - id: PCR-08-001
+    priority: MUST
+    statement: >-
+      After a case is created and the Case Actor is introduced, a participant actor MUST address
+      all case-scoped outbound messages (notes, status updates, embargo proposals, RM transitions,
+      and any other protocol messages targeting the case) exclusively to the Case Actor for that
+      case. A participant actor MUST NOT send these messages directly to other participants.
+  - id: PCR-08-002
+    priority: MUST_NOT
+    statement: >-
+      A participant actor MUST NOT assume that other participants will receive its case-scoped
+      messages through any channel other than the Case Actor's `Announce(CaseLogEntry)` broadcast.
+      Sending to `case_addressees()` or any multi-recipient list that includes non-CaseActor actors
+      is a violation of this rule.
+  - id: PCR-08-003
+    priority: MUST
+    statement: >-
+      The Case Actor MUST, for every participant message it receives and accepts, commit a
+      `CaseLogEntry` recording the outcome and broadcast `Announce(CaseLogEntry)` to all case
+      participants as the standard cascade. This cascade is the only mechanism by which participants
+      learn of accepted case-state changes.
+  - id: PCR-08-004
+    priority: MUST_NOT
+    statement: >-
+      The `CaseLogEntry + broadcast` cascade MUST NOT be manually triggered by demo scripts or
+      external clients. It MUST fire automatically as a consequence of the Case Actor processing
+      any accepted participant message, not only via explicit demo endpoint invocation.
+  - id: PCR-08-005
+    priority: MUST
+    statement: >-
+      Trigger use cases and their supporting BTs that cause a participant to send a case-scoped
+      message MUST resolve the Case Actor's actor ID from the case's participant list (the
+      participant with `CVDRole.CASE_MANAGER`) and use that ID as the sole `to:` recipient.
+      Any helper that returns all participants (e.g. `case_addressees()`) MUST NOT be used as
+      the sole source of recipients for outbound participant activities.
+  - id: PCR-08-006
+    priority: MUST
+    statement: >-
+      Unit and integration tests MUST verify that a participant's outbound activity is addressed
+      only to the Case Actor, and that no direct peer-to-peer delivery is attempted.
 - id: PCR-07
   title: Testing
   specs:

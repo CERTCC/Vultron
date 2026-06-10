@@ -2,7 +2,7 @@
 status: accepted
 date: 2026-04-13
 deciders: ahouseholder
-consulted: notes/datalayer-sqlite-design.md, notes/domain-model-separation.md, notes/architecture-ports-and-adapters.md
+consulted: notes/datalayer-sqlite-design.md, notes/domain-model-separation.md, notes/architecture-adapters.md
 informed: plan/IMPLEMENTATION_PLAN.md
 ---
 

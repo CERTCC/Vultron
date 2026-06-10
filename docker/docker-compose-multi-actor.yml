@@ -1,7 +1,7 @@
 # Multi-Actor Vultron Demo — Docker Compose Configuration
 #
-# Defines four isolated actor services (finder, vendor, coordinator,
-# case-actor), each
+# Defines five isolated actor services (finder, vendor, coordinator,
+# vendor2, case-actor), each
 # with its own DataLayer volume, health check, and network membership.
 #
 # DEMO-MA-02-001: Each actor service has a /health/ready healthcheck.
@@ -59,11 +59,10 @@
 #   vultron-network   Shared bridge network connecting all services.
 #
 # ─── Startup and seeding ──────────────────────────────────────────────────
-# The API server containers (finder, vendor, coordinator, case-actor) do NOT
-# auto-seed
-# actor records on startup.  The `demo-runner` two-actor scenario resets
-# the relevant containers and seeds Finder/Vendor automatically, producing
-# a deterministic acceptance run with a single `docker compose up
+# The API server containers (finder, vendor, coordinator, vendor2,
+# case-actor) do NOT auto-seed actor records on startup. The `demo-runner`
+# service resets the relevant containers and seeds actors automatically,
+# producing a deterministic acceptance run with a single `docker compose up
 # --abort-on-container-exit demo-runner` command. Manual seed commands
 # remain available when debugging individual services. Each service's
 # seed configuration is pre-built in docker/seed-configs/ and mounted
@@ -115,7 +114,7 @@ services:
       - VULTRON_ACTOR_ID=http://finder:7999/api/v2/actors/finder
       # Seed config: registers local actor + peers on first seed run.
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-finder.yaml
-      - LOG_LEVEL=INFO
+      - VULTRON_SERVER__LOG_LEVEL=${VULTRON_SERVER__LOG_LEVEL:-INFO}
     volumes:
       # Bind-mount application source so code changes take effect without
       # rebuilding the image.  uvicorn --reload picks them up automatically.
@@ -137,7 +136,7 @@ services:
       - VULTRON_DATABASE__DB_URL=sqlite:////app/data/mydb.sqlite
       - VULTRON_ACTOR_ID=http://vendor:7999/api/v2/actors/vendor
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-vendor.yaml
-      - LOG_LEVEL=INFO
+      - VULTRON_SERVER__LOG_LEVEL=${VULTRON_SERVER__LOG_LEVEL:-INFO}
     volumes:
       - "../vultron:/app/vultron"
       - vendor-data:/app/data
@@ -154,7 +153,7 @@ services:
       - VULTRON_DATABASE__DB_URL=sqlite:////app/data/mydb.sqlite
       - VULTRON_ACTOR_ID=http://coordinator:7999/api/v2/actors/coordinator
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-coordinator.yaml
-      - LOG_LEVEL=INFO
+      - VULTRON_SERVER__LOG_LEVEL=${VULTRON_SERVER__LOG_LEVEL:-INFO}
     volumes:
       - "../vultron:/app/vultron"
       - coordinator-data:/app/data
@@ -183,7 +182,7 @@ services:
       - VULTRON_DATABASE__DB_URL=sqlite:////app/data/mydb.sqlite
       - VULTRON_ACTOR_ID=http://case-actor:7999/api/v2/actors/case-actor
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-case-actor.yaml
-      - LOG_LEVEL=INFO
+      - VULTRON_SERVER__LOG_LEVEL=${VULTRON_SERVER__LOG_LEVEL:-INFO}
     volumes:
       - "../vultron:/app/vultron"
       - case-actor-data:/app/data
@@ -204,7 +203,7 @@ services:
       - VULTRON_DATABASE__DB_URL=sqlite:////app/data/mydb.sqlite
       - VULTRON_ACTOR_ID=http://vendor2:7999/api/v2/actors/vendor2
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-vendor2.yaml
-      - LOG_LEVEL=INFO
+      - VULTRON_SERVER__LOG_LEVEL=${VULTRON_SERVER__LOG_LEVEL:-INFO}
     volumes:
       - "../vultron:/app/vultron"
       - vendor2-data:/app/data
@@ -248,9 +247,11 @@ services:
       # Run the selected multi-actor demo non-interactively. Override DEMO
       # at runtime (for example, DEMO=three-actor) to switch scenarios.
       - DEMO=${DEMO:-two-actor}
+      - DEVLOGS_DIR=/app/devlogs
     volumes:
       - "../vultron:/app/vultron"
       - "/app/.venv"
+      - "../devlogs:/app/devlogs"
     networks:
       - vultron-network
 

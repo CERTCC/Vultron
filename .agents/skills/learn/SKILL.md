@@ -9,7 +9,7 @@ description: >
   to specs/, notes/, and AGENTS.md, opens a docs-only PR with the
   specs-notes label, and archives processed entries. Use when build
   execution has produced insights that should be reflected in specs or
-  notes. For external ideas (GitHub Idea-type issues), use ingest-idea
+  notes. For external ideas (GitHub Idea-type issues), use `plan-issue`
   instead.
 ---
 
@@ -27,37 +27,58 @@ and YAML spec files in `specs/`. Do not modify code or tests.
 **Trigger**: Use this skill when `plan/BUILD_LEARNINGS.md` has unprocessed
 entries that should be promoted into durable docs.
 
-> For new external ideas (GitHub Idea-type issues), use `ingest-idea` instead.
+> For new external ideas (GitHub Idea-type issues), use `plan-issue` instead.
 
 ## Quick Start
 
-1. Invoke `acquire-codebase-knowledge` — full scan, refreshes all 7 docs
+1. **Ensure synced** (before any writes): `manage_worktree.sh ensure-synced`
+2. Invoke `acquire-codebase-knowledge` — full scan, refreshes all 7 docs
    in `docs/reference/codebase/`.
-2. Read `plan/BUILD_LEARNINGS.md` and query GitHub for open `type:Concern`
+3. Read `plan/BUILD_LEARNINGS.md` and query GitHub for open `type:Concern`
    issues (both are input queues).
-3. Invoke `study-project-docs` for full context (specs, notes, code) — it
-   now reads the freshly updated codebase docs.
-4. Analyze what the build process has learned vs. what specs and notes capture.
-5. Invoke `grill-me` to align on scope and decisions — before writing anything.
+4. Invoke `orient-agent` then `deepen-context` for full context (specs,
+   notes, code) — it now reads the freshly updated codebase docs.
+5. Analyze what the build process has learned vs. what specs and notes capture.
+6. Invoke `grill-me` to align on scope and decisions — before writing anything.
    Include GitHub Concern issue triage in this phase (no separate triage step
    needed).
-6. Write to `specs/`, `notes/`, and `AGENTS.md`.
-7. Archive each processed BUILD_LEARNINGS entry and each resolved Concern issue
+7. **Create the task branch**: `git switch -c learn/<YYYYMMDD>-<slug>`
+   (worktree was already synced in step 1; branch here after slug is known)
+8. Write to `specs/`, `notes/`, and `AGENTS.md`.
+9. Archive each processed BUILD_LEARNINGS entry and each resolved Concern issue
    via `uv run append-history learning`; delete BUILD_LEARNINGS entries from
    their source file and close each resolved GitHub Concern issue with a
    resolution comment.
-8. Invoke `format-markdown`.
-9. Create a branch, commit (including updated `docs/reference/codebase/`
-   files), push, and open a docs-only PR with `specs-notes` label.
+10. Invoke `format-markdown`.
+11. Commit (including updated `docs/reference/codebase/` files), push, and
+    open a docs-only PR with `specs-notes` label.
 
 ## Workflow
 
-### Phase 0 — Refresh Codebase Knowledge
+### Phase 0 — Sync and Refresh Codebase Knowledge
 
-Invoke the `acquire-codebase-knowledge` skill (full scan, no focus area
+**First, ensure the worktree is synced to `origin/main`** before any file
+writes, so all subsequent changes land on an up-to-date baseline:
+
+```bash
+SCRIPT="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
+if [ -f "$SCRIPT" ]; then
+  bash "$SCRIPT" ensure-synced || { echo "❌ Aborted — sync check failed." >&2; exit 1; }
+else
+  git fetch origin --quiet 2>/dev/null || true
+  BEHIND=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+  [ "$BEHIND" -gt 0 ] && { echo "❌ Aborted: $BEHIND commit(s) behind origin/main. Run: git rebase origin/main" >&2; exit 1; }
+fi
+```text
+
+Do this **before** `acquire-codebase-knowledge` runs — the scan regenerates
+files in `docs/reference/codebase/` (uncommitted), and those outputs must not
+be clobbered by a later `git reset --hard`.
+
+Then invoke the `acquire-codebase-knowledge` skill (full scan, no focus area
 restriction). This regenerates all seven files in `docs/reference/codebase/`
 from the current state of the repository before any gap analysis begins,
-ensuring `study-project-docs` in Phase 1 reads an accurate baseline.
+ensuring `orient-agent` in Phase 1 reads an accurate baseline.
 
 Always run this phase unconditionally — `learn` runs infrequently enough
 that the cost of a full scan is justified on every invocation.
@@ -78,11 +99,11 @@ that the cost of a full scan is justified on every invocation.
      --state open \
      --label concern \
      --json number,title,body
-   ```
+   ```text
 
-3. Invoke the `study-project-docs` skill for full context: specs JSON,
+1. Invoke `orient-agent` then `deepen-context` for full context: specs JSON,
    plan files, docs/adr/, notes/, AGENTS.md, and a code scan. Because
-   Phase 0 has already refreshed the codebase docs, `study-project-docs`
+   Phase 0 has already refreshed the codebase docs, `orient-agent`/`deepen-context`
    will read up-to-date architecture and structure information.
 
 > `BUILD_LEARNINGS.md` is an ephemeral queue. Entries are deleted after
@@ -102,9 +123,9 @@ open GitHub Concern issues:
    but are not yet in `AGENTS.md`.
 5. Open GitHub `type:Concern` issues that reveal missing spec requirements or
    durable design notes.
-6. Recent completed-task insights — when needed, read relevant monthly index
-   files in `plan/history/` (e.g., `plan/history/YYMM/README.md`) to identify
-   which history entries contain architectural lessons, then open those files.
+6. Recent completed-task insights — when needed, run `uv run show-history
+   --month YYMM` to identify which history entries contain architectural
+   lessons, then open those entry files.
 
 ### Phase 3 — Interview with Grill-Me
 
@@ -122,6 +143,15 @@ with a recommended answer before writing anything:
 
 Answer questions from codebase exploration where possible.
 
+**After grill-me completes — create the task branch before writing any files:**
+
+```bash
+git switch -c learn/<YYYYMMDD>-<slug>
+```text
+
+The worktree was already synced to `origin/main` in Phase 0. All file writes (Phases 4–7)
+happen on this branch so they are never at risk from a `git reset --hard`.
+
 ### Phase 4 — Refine Specifications (`specs/`)
 
 - Clarify, split, merge, or remove requirements; keep each atomic, specific,
@@ -132,6 +162,14 @@ Answer questions from codebase exploration where possible.
   broad.
 - Update `specs/README.md` to reflect all file additions, removals, renames,
   and topic reorganizations.
+
+**ADR decision (MS-11):** When adding new spec entries, apply the decision-tree
+heuristic in `notes/specs-vs-adrs.md` to decide whether the underlying design
+choice also warrants a new ADR. Write an ADR when a meaningful alternative was
+evaluated and rejected; skip it for uncontested rules (MS-11-002, MS-11-005).
+When both are created, cross-reference them: cite the ADR in the spec's per-requirement
+`rationale` field (per MS-11-004 — not the spec-group `description`), and list the
+generated spec IDs in the ADR's "More Information" section (MS-11-004).
 
 ### Phase 5 — Update Design Notes (`notes/`)
 
@@ -149,30 +187,30 @@ Promote recurring implementation patterns and conventions from
 `BUILD_LEARNINGS.md` into `AGENTS.md`. Keep entries precise, actionable,
 and minimal.
 
-### Phase 7 — Archive and Close Processed Entries
+### Phase 7 — Prepare Archive Content and Close Processed Entries
 
 For each BUILD_LEARNINGS entry and each resolved GitHub Concern issue that
 has been fully promoted to `specs/`, `notes/`, or `AGENTS.md`:
 
-1. Archive the entry via `uv run append-history learning`:
+1. Draft the archive body for each item (store in memory — the actual
+   `archive-history` invocations happen in Phase 9 after the PR URL is known):
 
-   ```bash
-   cat <<'EOF' | uv run append-history learning \
-       --title "<short observation title>" \
-       --source "<label from the entry header, e.g. LABEL>"
+   ```text
 
-   <full original entry text here>
+   TYPE    = learning
+   TITLE   = <short observation title>
+   SOURCE  = <label from the entry header, e.g. LABEL>
+   BODY    = <full original BUILD_LEARNINGS entry or Concern body>
+             + "**Promoted**: YYYY-MM-DD — captured in <destination file(s)>."
+             + "Docs PR: <PR_URL>."  ← filled in after PR is opened
 
-   **Promoted**: YYYY-MM-DD — captured in <destination file(s)>.
-   EOF
-   ```
+   ```text
 
 2. **For BUILD_LEARNINGS entries**: delete the entry from
    `plan/BUILD_LEARNINGS.md` entirely — no strike-through, no tombstone.
 
 3. **For resolved GitHub Concern issues**: close the issue and add a
-   resolution comment linking to the docs PR and the spec/notes files it
-   was promoted into. Do this after the PR is open (so the URL is known):
+   resolution comment after the PR is open (step in Phase 9):
 
    ```bash
    gh issue comment "${ISSUE_NUMBER}" --repo CERTCC/Vultron \
@@ -184,7 +222,7 @@ has been fully promoted to `specs/`, `notes/`, or `AGENTS.md`:
    Design decisions are now captured in durable documentation."
 
    gh issue close "${ISSUE_NUMBER}" --repo CERTCC/Vultron
-   ```
+   ```text
 
 Do **not** reference `plan/BUILD_LEARNINGS.md` from durable docs.
 
@@ -194,16 +232,16 @@ Do **not** reference `plan/BUILD_LEARNINGS.md` from durable docs.
    Fix all errors.
 2. If a requirement conflict cannot be resolved, add a note to
    `plan/BUILD_LEARNINGS.md` and **stop before committing**.
-3. Create a branch, stage, commit, push, and open a docs-only PR:
+3. Stage, commit, push, and open a docs-only PR (branch was created at the
+   end of Phase 3):
 
    ```bash
-   git switch -c learn/<YYYYMMDD>-<slug>
    git add specs/<changed-files> notes/<changed-files> AGENTS.md \
        plan/BUILD_LEARNINGS.md docs/reference/codebase/
    git commit -m "docs: promote BUILD_LEARNINGS — <topic>
 
    - <bullet: what was promoted and where>
-   - Archive <N> entr[y/ies] via append-history learning
+   - Archive <N> entr[y/ies] via archive-history (after PR)
    - Close <N> resolved GitHub Concern issue(s) with resolution comments
    - Refresh docs/reference/codebase/ via acquire-codebase-knowledge
 
@@ -212,24 +250,50 @@ Do **not** reference `plan/BUILD_LEARNINGS.md` from durable docs.
 
    gh pr create --repo CERTCC/Vultron \
      --title "docs: promote BUILD_LEARNINGS — <topic>" \
-     --body "Docs-only PR: promotes build learnings to specs/, notes/,
-   and/or AGENTS.md. Includes refreshed docs/reference/codebase/ output.
+     --body "- Closes #<issue if applicable>
 
-   No .py files changed." \
+   ## Summary
+
+   <what build learnings were promoted and to which docs/specs/notes>
+
+   ## Changes
+
+   - <bullet: what was added or changed>" \
      --label "specs-notes"
-   ```
+   ```text
 
    Use multiple commits for thematically distinct changes (e.g., spec
    refinements, notes promoted, AGENTS.md updates). This PR carries the
    `specs-notes` label for reviewer awareness.
 
+### Phase 9 — Archive Entries and Close Issues
+
+Now that the PR URL is known, archive each item by invoking the
+`archive-history` skill once per entry. For each item, pass:
+
+```text
+TYPE    = learning
+TITLE   = <short observation title>
+SOURCE  = <label from the BUILD_LEARNINGS header>
+BODY    = <full original entry text>
+          + "**Promoted**: YYYY-MM-DD — captured in <destination file(s)>."
+          + "Docs PR: <PR_URL>."
+```text
+
+The `archive-history` skill runs `uv run append-history`, lints the new
+files, stages `plan/history/`, commits, and pushes — once per entry.
+
+For resolved GitHub Concern issues, post the resolution comment and close
+the issue (see Phase 7 step 3 for the comment template).
+
 ## Constraints
 
 - Do not modify code or tests.
-- Do not process GitHub Idea-type issues — that is `ingest-idea`'s domain.
+- Do not process GitHub Idea-type issues — use `plan-issue` for those.
 - Do not skip the grill-me phase — it must complete before any writing.
 - Do not reference `plan/BUILD_LEARNINGS.md` from durable docs.
-- Archive processed entries via `uv run append-history learning`; do not
-  leave them in the file after promoting.
+- Archive processed entries via the `archive-history` skill; do not
+  call `uv run append-history` directly or leave entries in the file
+  after promoting.
 - Verify assumptions against the codebase; do not assert absence without
   evidence.

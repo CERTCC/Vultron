@@ -27,7 +27,11 @@ from typing import cast
 
 from pydantic import ValidationError
 
+from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
+from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
+    as_Question,
+)
 from vultron.wire.as2.vocab.activities.case import (
     _AcceptCaseManagerRoleActivity,
     _AcceptCaseOwnershipTransferActivity,
@@ -579,7 +583,7 @@ def reject_case_ownership_transfer_activity(
 
 
 def rm_invite_to_case_activity(
-    invitee: as_Actor,
+    invitee: CoreActor | as_Actor,
     target: VulnerabilityCaseStub | str | None = None,
     **kwargs,
 ) -> as_Invite:
@@ -717,4 +721,51 @@ def announce_vulnerability_case_activity(
         )
         raise VultronActivityConstructionError(
             "announce_vulnerability_case_activity: invalid arguments"
+        ) from exc
+
+
+def bootstrap_replay_question_activity(
+    actor: str,
+    to: str,
+    case_id: str,
+    **kwargs,
+) -> as_Question:
+    """Build a Question requesting replay of the bootstrap Create(VulnerabilityCase).
+
+    Sent by the receiving actor to the (suspected) case creator when the
+    pre-bootstrap inbox queue expires without a valid bootstrap arriving
+    (CBT-03-004).
+
+    Args:
+        actor: URI of the actor sending the Question (the one waiting for
+            bootstrap).
+        to: URI of the actor that should resend the bootstrap (the case
+            creator / original report receiver).
+        case_id: URI of the case whose bootstrap is being requested.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``name``).
+
+    Returns:
+        An ``as_Question`` whose ``context`` is the case URI.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return as_Question(
+            actor=actor,
+            to=to,
+            context=case_id,
+            name=kwargs.pop(
+                "name",
+                f"Please resend bootstrap Create(VulnerabilityCase) for {case_id}",
+            ),
+            **kwargs,
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "bootstrap_replay_question_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "bootstrap_replay_question_activity: invalid arguments"
         ) from exc

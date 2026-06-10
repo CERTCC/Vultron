@@ -15,6 +15,7 @@
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 
+from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -30,10 +31,14 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 _ACTOR_ID = "https://example.org/actors/alice"
 
-# Use urn:uuid IDs for HTTP endpoint tests to avoid path-segment issues.
-_HTTP_ACTOR_ID = "urn:uuid:aaaaaaaa-0000-0000-0000-000000000001"
-_HTTP_CASE_ID = "urn:uuid:aaaaaaaa-0000-0000-0000-000000000003"
-_HTTP_PARTICIPANT_ID = "urn:uuid:aaaaaaaa-0000-0000-0000-000000000004"
+# URN IDs used in action-rules and sub-route tests.
+_URN_ACTOR_ID = "urn:uuid:aaaaaaaa-0000-0000-0000-000000000001"
+_URN_CASE_ID = "urn:uuid:aaaaaaaa-0000-0000-0000-000000000003"
+_URN_PARTICIPANT_ID = "urn:uuid:aaaaaaaa-0000-0000-0000-000000000004"
+
+
+def _route_key(object_id: str) -> str:
+    return strip_id_prefix(object_id)
 
 
 def test_created_actors_fixture_has_expected_count(created_actors):
@@ -50,7 +55,7 @@ def test_get_actors_list_returns_all_actors(client_actors, created_actors):
 
 def test_get_actor_by_id_returns_actor_object(client_actors, created_actors):
     for actor in created_actors:
-        resp = client_actors.get(f"/actors/{actor.id_}")
+        resp = client_actors.get(f"/actors/{_route_key(actor.id_)}")
         assert resp.status_code == status.HTTP_200_OK
         data = resp.json()
         assert isinstance(data, dict)
@@ -67,7 +72,7 @@ def test_get_actor_inbox_returns_mailbox_structure(
     client_actors, created_actors
 ):
     for actor in created_actors:
-        resp = client_actors.get(f"/actors/{actor.id_}/inbox")
+        resp = client_actors.get(f"/actors/{_route_key(actor.id_)}/inbox")
         assert resp.status_code == status.HTTP_200_OK
         data = resp.json()
         assert isinstance(data, dict)
@@ -80,7 +85,9 @@ def test_post_activity_to_actor_inbox_accepted(client_actors, created_actors):
         note = as_Note(content="This is a test note.")
         activity = as_Create(object_=note, actor=actor.id_)
         payload = jsonable_encoder(activity, exclude_none=True)
-        resp = client_actors.post(f"/actors/{actor.id_}/inbox/", json=payload)
+        resp = client_actors.post(
+            f"/actors/{_route_key(actor.id_)}/inbox/", json=payload
+        )
         assert resp.status_code == status.HTTP_202_ACCEPTED
 
 
@@ -92,7 +99,9 @@ def test_post_non_activity_to_actor_inbox_returns_422(
             id_="urn:uuid:test-note", content="This is a test note."
         )
         payload = jsonable_encoder(note, exclude_none=True)
-        resp = client_actors.post(f"/actors/{actor.id_}/inbox/", json=payload)
+        resp = client_actors.post(
+            f"/actors/{_route_key(actor.id_)}/inbox/", json=payload
+        )
         assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
@@ -100,7 +109,7 @@ def test_get_actor_profile_returns_discovery_fields(
     client_actors, created_actors
 ):
     for actor in created_actors:
-        resp = client_actors.get(f"/actors/{actor.id_}/profile")
+        resp = client_actors.get(f"/actors/{_route_key(actor.id_)}/profile")
         assert resp.status_code == status.HTTP_200_OK
         data = resp.json()
         assert "id" in data
@@ -140,22 +149,14 @@ def test_get_actors_does_not_log_raw_records_at_info_level(
 
 def _seed_action_rules_data(dl):
     """Insert a minimal valid VulnerabilityCase / CaseParticipant pair."""
-    case = VulnerabilityCase(
-        id_=_HTTP_CASE_ID,
-        name="Test Case",
-        actor_participant_index={_HTTP_ACTOR_ID: _HTTP_PARTICIPANT_ID},
-        case_statuses=[CaseStatus(em_state=EM.ACTIVE, pxa_state=CS_pxa.Pxa)],
-    )
-    dl.create(case)
-
     participant = CaseParticipant(
-        id_=_HTTP_PARTICIPANT_ID,
-        attributed_to=_HTTP_ACTOR_ID,
-        context=_HTTP_CASE_ID,
+        id_=_URN_PARTICIPANT_ID,
+        attributed_to=_URN_ACTOR_ID,
+        context=_URN_CASE_ID,
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[
             ParticipantStatus(
-                context=_HTTP_CASE_ID,
+                context=_URN_CASE_ID,
                 rm_state=RM.ACCEPTED,
                 vfd_state=CS_vfd.VFd,
             )
@@ -163,13 +164,22 @@ def _seed_action_rules_data(dl):
     )
     dl.create(participant)
 
+    case = VulnerabilityCase(
+        id_=_URN_CASE_ID,
+        name="Test Case",
+        case_statuses=[CaseStatus(em_state=EM.ACTIVE, pxa_state=CS_pxa.Pxa)],
+    )
+    case.add_participant(participant)
+    dl.create(case)
+
 
 def test_get_action_rules_returns_200_with_expected_fields(client_actors, dl):
     """Actor/case endpoint returns all required state and action fields."""
     _seed_action_rules_data(dl)
 
     resp = client_actors.get(
-        f"/actors/{_HTTP_ACTOR_ID}/cases/{_HTTP_CASE_ID}/action-rules"
+        f"/actors/{_route_key(_URN_ACTOR_ID)}/cases/"
+        f"{_route_key(_URN_CASE_ID)}/action-rules"
     )
     assert resp.status_code == status.HTTP_200_OK
 
@@ -187,15 +197,15 @@ def test_get_action_rules_returns_200_with_expected_fields(client_actors, dl):
         "actions",
     }
     assert expected_keys.issubset(body.keys())
-    assert body["case_id"] == _HTTP_CASE_ID
-    assert body["participant_id"] == _HTTP_PARTICIPANT_ID
-    assert body["participant_actor_id"] == _HTTP_ACTOR_ID
+    assert body["case_id"] == _URN_CASE_ID
+    assert body["participant_id"] == _URN_PARTICIPANT_ID
+    assert body["participant_actor_id"] == _URN_ACTOR_ID
 
 
 def test_get_action_rules_case_not_found_returns_404(client_actors):
     """Missing case returns 404."""
     resp = client_actors.get(
-        f"/actors/{_HTTP_ACTOR_ID}/cases/"
+        f"/actors/{_route_key(_URN_ACTOR_ID)}/cases/"
         "urn:uuid:00000000-0000-0000-0000-000000000000/action-rules"
     )
     assert resp.status_code == status.HTTP_404_NOT_FOUND
@@ -206,8 +216,8 @@ def test_get_action_rules_actor_not_in_case_returns_404(client_actors, dl):
     _seed_action_rules_data(dl)
 
     resp = client_actors.get(
-        "/actors/urn:uuid:99999999-0000-0000-0000-000000000000/cases/"
-        f"{_HTTP_CASE_ID}/action-rules"
+        "/actors/99999999-0000-0000-0000-000000000000/cases/"
+        f"{_route_key(_URN_CASE_ID)}/action-rules"
     )
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
@@ -318,8 +328,36 @@ class TestCreateActor:
             "id": custom_id,
         }
         client_actors.post("/actors/", json=payload)
-        # GET /actors/{short_id} — path parameters cannot contain '/', so use
-        # the last URL segment; find_actor_by_short_id resolves to the full ID.
+        # Short-ID lookup still works; find_actor_by_short_id resolves to the full ID.
         resp = client_actors.get("/actors/fetchable")
         assert resp.status_code == status.HTTP_200_OK
         assert resp.json()["id"] == custom_id
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for #654: actor routes accept surrogate keys
+# ---------------------------------------------------------------------------
+
+_HTTP_URL_ACTOR_ID = "http://vendor:7999/api/v2/actors/alice"
+
+
+def test_get_actor_by_surrogate_key_returns_actor(client_actors, dl):
+    """GET /actors/{surrogate-key} resolves actor IDs that contain slashes."""
+    from vultron.adapters.driven.db_record import object_to_record
+    from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+
+    actor = as_Organization(id_=_HTTP_URL_ACTOR_ID, name="VendorActor")
+    dl.create(object_to_record(actor))
+
+    resp = client_actors.get(f"/actors/{_route_key(_HTTP_URL_ACTOR_ID)}")
+    assert resp.status_code == status.HTTP_200_OK
+    assert resp.json()["id"] == _HTTP_URL_ACTOR_ID
+
+
+def test_specific_actor_routes_not_shadowed_by_catch_all(
+    client_actors, created_actors
+):
+    """Sub-routes like /{actor_id}/profile still resolve correctly."""
+    for actor in created_actors:
+        resp = client_actors.get(f"/actors/{_route_key(actor.id_)}/profile")
+        assert resp.status_code == status.HTTP_200_OK

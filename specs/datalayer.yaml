@@ -16,7 +16,7 @@ groups:
     statement: '`dl.read(id)` MUST return a fully rehydrated, typed domain object: a Pydantic model instance with all dehydrated
       ID-string fields expanded to their full typed objects; if the object does not exist, `VultronNotFoundError` MUST be
       raised.'
-    rationale: Core use cases must not contain coercion logic for storage artefacts. See notes/datalayer-design.md 'Auto-Rehydration'.
+    rationale: Core use cases must not contain coercion logic for storage artefacts. See vultron/core/ports/AGENTS.md 'Auto-Rehydration'.
     tags:
     - persistence
   - id: DL-01-002

@@ -32,7 +32,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.receive_report_case_tree import (
     create_receive_report_case_tree,
 )
-from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.vultron_types import (
     VultronCaseActor,
     VultronOffer,
@@ -98,7 +98,7 @@ def reporter_accepted_status(datalayer, reporter_actor_id, report):
 
     SubmitReportReceivedUseCase creates this record before the tree runs.
     """
-    status = VultronParticipantStatus(
+    status = ParticipantStatus(
         id_=_report_phase_status_id(
             reporter_actor_id, report.id_, RM.ACCEPTED.value
         ),
@@ -117,7 +117,7 @@ def vendor_received_status(datalayer, actor_id, report):
     CreateReportReceivedUseCase or AckReportReceivedUseCase creates this
     record before the tree runs.
     """
-    status = VultronParticipantStatus(
+    status = ParticipantStatus(
         id_=_report_phase_status_id(actor_id, report.id_, RM.RECEIVED.value),
         context=report.id_,
         attributed_to=actor_id,
@@ -510,9 +510,8 @@ def test_tree_queues_create_case_activity(
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
-    updated_actor = datalayer.read(actor.id_)
-    assert updated_actor is not None
-    assert len(updated_actor.outbox.items) > 0
+    outbox_items = datalayer.clone_for_actor(actor.id_).outbox_list()
+    assert len(outbox_items) > 0
 
 
 def test_create_case_precedes_add_participant_in_outbox(
@@ -539,9 +538,7 @@ def test_create_case_precedes_add_participant_in_outbox(
     )
     bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
 
-    updated_actor = datalayer.read(actor.id_)
-    assert updated_actor is not None
-    items = updated_actor.outbox.items
+    items = datalayer.clone_for_actor(actor.id_).outbox_list()
     assert len(items) >= 2, f"Expected >= 2 outbox items; got {len(items)}"
 
     # Read the first two activities to check their types
@@ -619,8 +616,9 @@ def test_tree_early_exits_when_case_already_initialized(
     bridge.execute_with_setup(tree=tree1, actor_id=actor.id_)
 
     # Record outbox length before second run
-    actor_state = datalayer.read(actor.id_)
-    outbox_count_before = len(actor_state.outbox.items)
+    outbox_count_before = len(
+        datalayer.clone_for_actor(actor.id_).outbox_list()
+    )
 
     # Second run: CheckCaseExistsForReport should succeed (early exit)
     tree2 = create_receive_report_case_tree(
@@ -632,8 +630,10 @@ def test_tree_early_exits_when_case_already_initialized(
     assert result2.status == Status.SUCCESS
 
     # No additional outbox items (early exit skips CreateCaseActivity)
-    actor_state2 = datalayer.read(actor.id_)
-    assert len(actor_state2.outbox.items) == outbox_count_before
+    assert (
+        len(datalayer.clone_for_actor(actor.id_).outbox_list())
+        == outbox_count_before
+    )
 
 
 # ============================================================================

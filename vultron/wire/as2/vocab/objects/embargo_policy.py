@@ -3,6 +3,8 @@
 Provides an EmbargoPolicy object for the Vultron ActivityStreams Vocabulary.
 """
 
+# pyright: reportGeneralTypeIssues=false
+
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -23,61 +25,23 @@ import isodate  # type: ignore[import-untyped]
 from pydantic import Field, field_serializer, field_validator
 
 from vultron.core.models.base import NonEmptyString
+from vultron.core.models.embargo_policy import (
+    EmbargoPolicy as CoreEmbargoPolicy,
+    parse_duration,
+)
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
-from vultron.wire.as2.vocab.objects.base import VultronAS2Object
-
-
-def _parse_duration(value: Any) -> timedelta | None:
-    """Parse an ISO 8601 duration string or timedelta; reject calendar units."""
-    if value is None:
-        return None
-    if isinstance(value, timedelta):
-        return value
-    if isinstance(value, str):
-        # Reject week designator (W) in date part per DUR-02-002, DUR-04-001.
-        # isodate silently converts P2W → timedelta(weeks=2) so we must check
-        # explicitly before parsing.
-        date_part = value.split("T")[0]
-        if "W" in date_part:
-            raise ValueError(
-                f"Duration must not include weeks (W unit is not allowed"
-                f" per DUR-02-002): {value!r}"
-            )
-        try:
-            parsed = isodate.parse_duration(value)
-        except Exception as exc:
-            raise ValueError(f"Invalid ISO 8601 duration: {value!r}") from exc
-        if not isinstance(parsed, timedelta):
-            raise ValueError(
-                f"Duration must not include years or months (calendar units"
-                f" are not allowed): {value!r}"
-            )
-        return cast(timedelta, parsed)
-    raise TypeError(f"Unsupported duration value: {value!r}")
+from vultron.wire.as2.vocab.objects.base import (
+    VultronAS2Object,
+    _strip_core_context,
+)
 
 
 class EmbargoPolicy(VultronAS2Object):
-    """
-    Represents an Actor's stated embargo preferences.
+    """Wire projection of the core EmbargoPolicy domain object.
 
-    Allows actors to declare their default embargo preferences so that
-    coordinators can evaluate compatibility before proposing an embargo or
-    inviting an actor to a case.
-
-    Fields:
-        actor_id: Full URI of the Actor to which the policy applies (required).
-        inbox: URL of the Actor's ActivityPub inbox (required).
-        preferred_duration: Preferred embargo duration as ISO 8601 duration
-            string (e.g. ``"P90D"`` for ninety days) (required).
-        minimum_duration: Minimum acceptable duration as ISO 8601 duration
-            string; the Actor SHOULD reject embargoes shorter than this value
-            (optional).
-        maximum_duration: Maximum acceptable duration as ISO 8601 duration
-            string; the Actor SHOULD reject embargoes longer than this value
-            (optional).
-        notes: Free-text description of the Actor's embargo preferences
-            (optional).
+    Represents an Actor's stated embargo preferences for AS2 wire exchange.
+    Domain logic lives in :class:`vultron.core.models.embargo_policy.EmbargoPolicy`.
 
     Per specs/embargo-policy.yaml EP-01-001 through EP-01-004 and
     specs/duration.yaml DUR-01-001, DUR-05-001, DUR-05-002.
@@ -126,7 +90,7 @@ class EmbargoPolicy(VultronAS2Object):
 
         Per specs/duration.yaml DUR-04-001, DUR-04-002, DUR-05-001.
         """
-        return _parse_duration(value)
+        return parse_duration(value)
 
     @field_serializer(
         "preferred_duration",
@@ -142,6 +106,16 @@ class EmbargoPolicy(VultronAS2Object):
         if value is None:
             return None
         return cast(str, isodate.duration_isoformat(value))
+
+    @classmethod
+    def from_core(cls, core_obj: CoreEmbargoPolicy) -> "EmbargoPolicy":
+        data = core_obj.model_dump(mode="json")
+        _strip_core_context(data)
+        return cast("EmbargoPolicy", cls.model_validate(data))
+
+    def to_core(self) -> CoreEmbargoPolicy:
+        data = self._to_core_data()
+        return CoreEmbargoPolicy.model_validate(data)
 
 
 EmbargoPolicyRef: TypeAlias = ActivityStreamRef[EmbargoPolicy]

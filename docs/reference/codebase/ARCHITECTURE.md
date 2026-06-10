@@ -22,7 +22,7 @@
 HTTP request -> FastAPI app/router -> inbox handler + rehydration ->
 semantic extraction -> dispatcher/use case -> DataLayer + outbox ->
 OutboxMonitor -> outbox_handler ->
-ASGIEmitter (co-located) | DeliveryQueueAdapter (remote) ->
+ASGIEmitter (co-located) | DemoHttpDeliveryAdapter (remote) ->
 peer inbox HTTP POST
 ```
 
@@ -30,11 +30,16 @@ Evidence-backed flow:
 
 1. Docker and local API startup target
    `vultron.adapters.driving.fastapi.main:app`.
-2. The root app mounts `app_v2` at `/api/v2`.
+2. The root app mounts `app_v2` at `/api/v2`; isolated test/demo apps use
+   `create_app()` and keep dispatcher/emitter/DataLayer state on `app.state`.
 3. Actor inbox handling rehydrates AS2 activities and extracts a domain event.
 4. The dispatcher looks up the use-case class from the semantic registry map.
 5. Use cases persist/read state through the `DataLayer` port and adapter.
-6. Outbox processing is drained by a background monitor and delivered over HTTP.
+6. Outbox processing is drained by a background monitor, then delivered via
+   `ASGIEmitter` for co-located actors or `DemoHttpDeliveryAdapter` for remote ones.
+7. Multi-actor trust bootstrap now relies on a creator-signed
+   `Create(VulnerabilityCase)` handoff before receivers trust subsequent
+   CaseActor `Announce(VulnerabilityCase)` updates.
 
 ### 3) Layer/Module Responsibilities
 
@@ -43,7 +48,7 @@ Evidence-backed flow:
 | `vultron/core/` | Domain events, ports, dispatcher, use cases | FastAPI and adapter details, wire-layer factory imports | `AGENTS.md`, `vultron/core/ports/datalayer.py`, `vultron/core/dispatcher.py` |
 | `vultron/wire/as2/` | AS2 vocabulary, pattern matching, semantic extraction | Case lifecycle behavior | `vultron/wire/as2/extractor.py` |
 | `vultron/adapters/driving/fastapi/` | HTTP routing, dependency injection, background task scheduling | Persistent model ownership | `vultron/adapters/driving/fastapi/app.py`, `vultron/adapters/driving/fastapi/deps.py` |
-| `vultron/adapters/driven/` | SQLite persistence, outbound HTTP delivery, ASGI-first co-located delivery, sync/trigger activity translation | FastAPI request translation | `vultron/adapters/driven/datalayer_sqlite.py`, `vultron/adapters/driven/delivery_queue.py`, `vultron/adapters/driven/sync_activity_adapter.py`, `vultron/adapters/driven/trigger_activity_adapter.py` |
+| `vultron/adapters/driven/` | SQLite persistence, outbound HTTP delivery, ASGI-first co-located delivery, sync/trigger activity translation | FastAPI request translation | `vultron/adapters/driven/datalayer_sqlite.py`, `vultron/adapters/driven/demo_http_delivery.py`, `vultron/adapters/driven/sync_activity_adapter.py`, `vultron/adapters/driven/trigger_activity_adapter.py` |
 | `vultron/demo/` | Operator/demo CLI workflows and seeding | Authoritative storage API | `vultron/demo/cli.py`, `vultron/demo/utils.py` |
 
 ### 4) Reused Patterns
@@ -51,29 +56,43 @@ Evidence-backed flow:
 | Pattern | Where found | Why it exists |
 |---------|-------------|---------------|
 | Port/adapter split | `vultron/core/ports/datalayer.py`, `vultron/adapters/driven/datalayer.py` | Keep core independent of storage implementation |
-| Dispatcher + routing table | `vultron/core/dispatcher.py`, `vultron/semantic_registry.py` | Route semantic events to use cases without router-specific logic |
+| Dispatcher + routing table | `vultron/core/dispatcher.py`, `vultron/semantic_registry/` | Route semantic events to use cases without router-specific logic |
 | Dependency injection | `vultron/adapters/driving/fastapi/deps.py` | Centralize shared/shared-scoped DataLayer and TriggerService seams |
 | Background worker loop | `vultron/adapters/driving/fastapi/outbox_monitor.py` (polls; calls `outbox_handler.py`) | Drain outboxes asynchronously for all actors |
-| ASGI-first delivery | `vultron/adapters/driven/asgi_emitter.py`, `vultron/adapters/driving/fastapi/app.py` | Deliver to co-located actors in-process via ASGI; fall back to HTTP for remote actors |
+| ASGI-first delivery with mount-prefix stripping | `vultron/adapters/driven/asgi_emitter.py`, `vultron/adapters/driving/fastapi/main.py`, `vultron/adapters/driven/AGENTS.md` | Deliver to co-located actors in-process, strip mount prefixes correctly, and avoid double-prefix ASGI URLs |
+| Per-app app-factory isolation | `vultron/adapters/driving/fastapi/app.py:create_app`, `vultron/adapters/driven/AGENTS.md`, `specs/multi-actor-demo.yaml` | Keep co-located apps from sharing dispatcher, emitter, or DataLayer state |
 | Behavior trees | `docs/adr/0002-model-processes-with-behavior-trees.md`, `AGENTS.md` | Model multi-state CVD workflows and automation paths |
 | Single-translation-point adapters | `vultron/adapters/driven/sync_activity_adapter.py`, `vultron/adapters/driven/trigger_activity_adapter.py` | Each adapter is the sole domain→wire translation point for its port, enforcing ARCH-01-001 (no wire-layer imports in core) |
 
 ### 5) Known Architectural Risks
 
-- Process-local singleton/stateful wiring: the module-level dispatcher and
-  process-local DataLayer façade make startup order and process model important.
-- Shared-vs-actor-scoped DataLayer behavior is subtle and requires canonical
-  actor-ID normalization to keep inbox/outbox operations consistent.
+- Legacy singleton wiring still exists on the deployed `app_v2` path:
+  `main.py` initialises module-level dispatcher/emitter globals, and the SQLite
+  facade still caches shared plus actor-scoped DataLayer instances. `create_app()`
+  mitigates this for isolated apps, but startup order and process model still
+  matter for the mounted production-style path.
+- Shared-vs-actor-scoped DataLayer behavior remains subtle and requires
+  canonical actor-ID normalization to keep inbox/outbox operations consistent.
+- Full-URI actor/case IDs are embedded directly in FastAPI URL path segments.
+  Starlette's `{param:path}` converter is the current tactical mitigation (used
+  throughout `routers/actors.py` and `routers/datalayer.py`), but the deeper
+  architectural resolution — separating routing identity from object identity
+  via a surrogate key — remains open (see GitHub concern #618).
 
 ### 6) Evidence
 
 - `AGENTS.md`
-- `notes/architecture-ports-and-adapters.md`
+- `notes/architecture-hexagonal.md`
+- `vultron/core/ports/AGENTS.md`
+- `notes/architecture-adapters.md`
+- `vultron/adapters/driven/AGENTS.md`
+- `specs/multi-actor-demo.yaml`
+- `specs/case-bootstrap-trust.yaml`
 - `vultron/adapters/driving/fastapi/main.py`
 - `vultron/adapters/driving/fastapi/app.py`
 - `vultron/adapters/driving/fastapi/inbox_handler.py`
 - `vultron/core/dispatcher.py`
-- `vultron/semantic_registry.py`
+- `vultron/semantic_registry/`
 - `vultron/adapters/driving/fastapi/outbox_monitor.py`
 - `vultron/adapters/driving/fastapi/outbox_handler.py`
 - `vultron/adapters/driven/asgi_emitter.py`

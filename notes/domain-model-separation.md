@@ -50,6 +50,21 @@ flowchart LR
     ASJ[ActivityStreams JSON] <--> WDTO[Wire DTO] <--> DM[Domain Model] <--> PM[Persistence Model]
 ```
 
+## Migration Scoping Lesson from #699 Decomposition
+
+The #699 migration surfaced that moving domain objects from `wire/` to `core/`
+is a chained effort, not a single edit. The stable rule for the separation is:
+
+- Reference-wrapper patterns (`FooRef`, ref-or-inline polymorphism) are
+  wire-layer concerns.
+- Core domain fields hold full typed objects.
+- Rehydration happens through the DataLayer on read.
+- Wire projection code translates between full-object core fields and wire
+  ref-or-inline serialization at the boundary.
+
+This aligns with ADR-0017 and avoids reintroducing wire-polymorphism unions
+into domain models.
+
 ### 1. Wire Model (Transport Layer)
 
 - ActivityStreams-compliant JSON objects
@@ -400,14 +415,14 @@ directly access another actor's DataLayer.
 
 - Outbox delivery cannot assume local access to other actors' data or state.
 - Outbox delivery MUST use HTTP POST to remote inboxes via the FastAPI
-  adapter (`DeliveryQueueAdapter.emit()` POSTs to `{actor_uri}/inbox/`).
+  adapter (`DemoHttpDeliveryAdapter.emit()` POSTs to `{actor_uri}/inbox/`).
 - Idempotency cannot be checked by inspecting a remote DataLayer. The inbox
   handler itself MUST handle duplicates — checking `actor.inbox.items` and
   returning HTTP 202 immediately on a duplicate activity ID.
 
 ### Outbox Delivery is HTTP POST
 
-`DeliveryQueueAdapter.emit()` delivers outbound activities via async
+`DemoHttpDeliveryAdapter.emit()` delivers outbound activities via async
 `httpx.AsyncClient` HTTP POST to `{actor_uri}/inbox/`. Direct DataLayer
 writes to recipient inboxes are **not** used.
 

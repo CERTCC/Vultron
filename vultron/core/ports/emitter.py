@@ -27,7 +27,7 @@ delivery mechanics (local DataLayer write, HTTP POST, queue, etc.) without
 coupling the core to any transport.
 
 See also: ``core/ports/dispatcher.py`` (inbound counterpart) and
-``notes/architecture-ports-and-adapters.md`` "Dispatch vs Emit Terminology".
+``vultron/core/ports/AGENTS.md`` "Dispatch vs Emit Terminology".
 """
 
 from typing import TYPE_CHECKING, Protocol

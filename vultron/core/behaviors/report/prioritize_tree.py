@@ -91,7 +91,7 @@ def create_engage_case_tree(
         ],
     )
 
-    logger.debug(f"Created EngageCaseBT for case={case_id}, actor={actor_id}")
+    logger.info(f"Created EngageCaseBT for case={case_id}, actor={actor_id}")
     return root
 
 
@@ -125,7 +125,7 @@ def create_defer_case_tree(
         ],
     )
 
-    logger.debug(f"Created DeferCaseBT for case={case_id}, actor={actor_id}")
+    logger.info(f"Created DeferCaseBT for case={case_id}, actor={actor_id}")
     return root
 
 
@@ -186,5 +186,5 @@ def create_prioritize_subtree(
         memory=False,
         children=[engage_path, defer_path],
     )
-    logger.debug(f"Created PrioritizeBT for case={case_id}, actor={actor_id}")
+    logger.info(f"Created PrioritizeBT for case={case_id}, actor={actor_id}")
     return root

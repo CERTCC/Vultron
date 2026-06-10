@@ -16,8 +16,8 @@
 """
 Performance tests for BT execution.
 
-Per plan/IMPLEMENTATION_PLAN.md BT-1.5.3, measure handler execution time
-and document performance baseline. Target: P99 < 100ms per plan/BT_INTEGRATION.md.
+Measure handler execution time and document performance baseline.
+Target: P99 < 100ms.
 """
 
 import logging

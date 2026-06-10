@@ -30,13 +30,12 @@ RUN uv sync --frozen --dev
 CMD ["uv", "run", "pytest"]
 
 FROM dependencies AS docs
-CMD ["uv", "run", "mkdocs", "serve", "--dev-addr", "0.0.0.0:8000"]
+CMD ["sh", "-lc", "uv run mkdocs serve --dev-addr 0.0.0.0:8000 --config-file ${MKDOCS_CONFIG_FILE:-mkdocs.yml}"]
 
 FROM dependencies AS vultrabot_demo
 CMD ["uv", "run", "vultrabot"]
 
 FROM dependencies AS api-dev
-ENV LOG_LEVEL=DEBUG
 RUN mkdir -p /app/data
 CMD ["uv","run","uvicorn","vultron.adapters.driving.fastapi.main:app","--host","0.0.0.0","--port","7999","--reload"]
 

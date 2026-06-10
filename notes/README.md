@@ -17,25 +17,39 @@ decide what to pull for your task. In most cases you need only 1–3 files.
 
 ## Architecture and Design
 
-**`architecture-ports-and-adapters.md`**
-Authoritative spec for Vultron's hexagonal (Ports and Adapters) architecture:
-layer model (core / wire / adapter), adapter categories (driving / driven /
-connector), file layout, Rules 1–8, dispatch/emit terminology, and compliance
-checklist. Includes a "Compliance Reference" appendix of currently-clean code
-paths.
-**Load when**: designing new components, adding adapters, reviewing layer
-boundaries, or investigating an import-layering violation.
+**`architecture-hexagonal.md`**
+Hexagonal architecture overview: layer model (core / wire / adapters), inbound
+and outbound pipelines, The Hexagon diagram, file layout, Rules 1–9, design
+constraints/invariants, and review checklist.
+**Load when**: orienting to architecture boundaries, reviewing layering
+violations, or validating core/wire separation.
 
-**`datalayer-design.md`**
-DataLayer design decisions: auto-rehydration contract (`dl.read()` / `dl.list()`
-must return fully typed domain objects), storage record evaluation, vocabulary
-registry entanglement analysis, and SQLModel/SQLite adapter design
-(`VultronObjectRecord` single-table polymorphic design, actor scoping via
-`actor_id` column, `sqlite:///:memory:` test isolation). The authoritative
-reference for the DL-REHYDRATE implementation task.
-**Load when**: implementing or modifying the DataLayer adapter, debugging typed
-object round-trips, evaluating a future backend swap, or working on
-DL-REHYDRATE.
+**`vultron/core/ports/AGENTS.md`**
+Port-focused architecture guidance for `vultron/core/ports/`: inbound vs
+outbound port taxonomy, dispatch-vs-emit terminology,
+use-cases-as-incoming-ports guidance, named ports
+(`SyncActivityPort`, `TriggerActivityPort`), server-level inbox deferred
+design, and DataLayer design rules.
+**Load when**: working in `vultron/core/ports/`, clarifying dispatch/emit
+semantics, designing new port interfaces, or debugging DataLayer
+boundaries and auto-rehydration.
+
+**`architecture-adapters.md`**
+Adapter-focused architecture guidance: adapter category discipline, outbound
+delivery invariants, ASGI emitter patterns, driven-port baton-pass pattern,
+long-term BT flow direction, remaining ARCH-01-001 violation context, future
+delivery stubs, boundary ratchet tests, and DataLayer scope boundaries.
+**Load when**: implementing adapters, debugging delivery behavior, or auditing
+adapter/core boundary compliance.
+
+**`vultron/adapters/driven/AGENTS.md`**
+Design rules for `ASGIEmitter` and other driven-adapter delivery details:
+scheme+netloc-only local ASGI delivery, `mount_prefix` stripping,
+per-app `create_app()` isolation, and co-located actor DataLayer
+isolation.
+**Load when**: implementing or debugging `ASGIEmitter`, wiring up
+co-located actors in the same process, or investigating ASGI delivery
+404s or cross-actor data leakage.
 
 **`domain-model-separation.md`**
 Analysis of the current coupling between wire format (ActivityStreams), domain
@@ -46,15 +60,28 @@ post-P75-2 architectural findings.
 **Load when**: refactoring `VulnerabilityCase` or related models, evaluating
 DataLayer backends, or planning domain/wire layer decoupling.
 
+**`datalayer-design.md`**
+DataLayer architecture notes: `DataLayer` vs. `CasePersistence` narrowing,
+deprecated `get()`/`by_type()` methods, `CaseOutboxPersistence` as a smell
+marker, auto-rehydration contract (`dl.read()` MUST return typed objects),
+storage record re-evaluation, and vocabulary registry entanglement. Operating
+rules are in `vultron/core/ports/AGENTS.md`.
+**Load when**: working on `DataLayer` adapters, `CasePersistence` protocol,
+rehydration of nested objects, or storage record migration.
+
+**`vultron/wire/as2/factories/AGENTS.md`**
+Factory-function operating rules for outbound Vultron protocol activities.
+See `notes/activity-factories.md` for the full design rationale and inventory.
+**Load when**: implementing outbound activity construction or debugging factory errors.
+
 **`activity-factories.md`**
-Factory functions as the public construction API for outbound Vultron protocol
-activities. Documents the `vultron/wire/as2/factories/` package design: module
-layout, factory function signatures, `VultronActivityConstructionError`, and
-migration path from direct subclass instantiation. See also
-`specs/activity-factories.yaml` (TASK-AF).
-**Load when**: implementing outbound activity construction, migrating call
-sites away from direct `vocab/activities/` subclass instantiation, or
-debugging `ValidationError` during activity construction.
+Full design rationale, factory inventory (all 31 factory functions with return
+types and internal classes), migration guide, before/after call-site examples,
+and testing patterns for the factory-function layer. Operating rules are in
+`vultron/wire/as2/factories/AGENTS.md`.
+**Load when**: implementing or migrating outbound activity construction, reviewing
+the full factory inventory, or understanding the `VultronActivityConstructionError`
+wrapping pattern.
 
 **`outbox.md`**
 Outbox addressing requirements: `to:` field enforcement, `VultronOutboxToFieldMissingError`
@@ -86,11 +113,12 @@ standardized `UseCase` protocol, and `SEMANTICS_HANDLERS` migration to core.
 **Load when**: adding a new message type end-to-end, restructuring the
 dispatcher or use-case layer, or deciding whether a use case needs a BT.
 
-**`vocabulary-registry.md`**
-Design for `VOCAB-REG-1`: `__init_subclass__` auto-registration, flat dict
-structure, `VocabNamespace` enum as metadata, `Literal type_` heuristic for
-detecting abstract vs concrete classes, and migration path (1.1 / 1.2).
-**Load when**: adding new ActivityStreams vocabulary types, modifying the
+**`vultron/wire/as2/vocab/AGENTS.md`**
+Vocabulary registry design rules: `__init_subclass__` auto-registration,
+flat dict structure, `VocabNamespace` metadata, `Literal type_`
+detection for concrete classes, fail-fast unknown-type handling, and the
+migration path.
+**Load when**: adding new ActivityStreams vocabulary types, modifying
 registry decorators, or diagnosing vocabulary type-resolution issues.
 
 **`federation_ideas.md`**
@@ -113,6 +141,21 @@ vocabulary examples.
 **Load when**: implementing any inbound or outbound message handler, debugging
 semantic extraction, or writing new ActivityStreams vocabulary classes.
 
+**`vocabulary-registry.md`**
+Design decisions and migration path for the AS2 vocabulary registry refactor:
+auto-registration via `__init_subclass__`, flat registry dict, `VocabNamespace`
+enum, fail-fast on unknown types, and dynamic discovery at startup. Operating
+rules are in `vultron/wire/as2/vocab/AGENTS.md`.
+**Load when**: adding new vocabulary classes, debugging deserialization failures,
+or planning the `@activitystreams_object` decorator removal migration.
+
+**`vultron/wire/as2/AGENTS.md`**
+Wire-layer semantic extraction guidance: pattern ordering invariant,
+import-time `_validate_registry_order()` guard, file locations, and the
+checklist for adding a new `ActivityPattern`.
+**Load when**: adding or debugging a `SemanticEntry`, investigating a
+wrong-handler dispatch, or reasoning about pattern ordering.
+
 **`stub-objects.md`**
 Design notes for the AS2 minimalist object pattern (stub/stub-object): using
 minimal `{"id": "...", "type": "..."}` references to reduce wire verbosity,
@@ -132,23 +175,55 @@ and subtree composition examples.
 uses py_trees, deciding whether a new use case needs a BT, or diagnosing BT
 execution issues.
 
-**`bt-reusability.md`**
-Fractal composability pattern for BT nodes and subtrees: the "trunkless branch"
-model, parameterization guidelines, anti-patterns (hard-coded actor roles,
-demo-specific logic in nodes, one-off subtrees, duplicated logic), and a
-composability checklist. Operationalizes `specs/behavior-tree-node-design.yaml`
-(BTND-01 through BTND-04).
+**`peer-broadcast-failure-semantics.md`**
+Fail-fast requirements for protocol-visible peer fan-out in BT paths:
+broadcast preparation/enqueue errors must return `FAILURE`, and success
+fallbacks must not mask delivery failure. Includes scope boundaries for this
+phase and shared-helper guidance.
+**Load when**: modifying status/embargo broadcast paths, defining fan-out
+error behavior, or planning delivery-reliability follow-on work.
+
+**`bt-composability.md`**
+Fractal composability pattern for BT nodes and subtrees (formerly split between
+`bt-composability.md` and `bt-reusability.md`): the "trunkless branch" model,
+parameterization guidelines, anti-patterns (hard-coded actor roles, demo-specific
+logic in nodes, one-off subtrees, duplicated logic), and a composability checklist.
+Operationalizes `specs/behavior-tree-node-design.yaml` (BTND-01 through BTND-04).
 **Load when**: designing a new BT node or subtree, auditing existing nodes for
 composability violations, or refactoring near-duplicate BT implementations.
 
 **`bt-fuzzer-nodes.md`**
-Structured catalog (~1,500 lines) of all fuzzer nodes in the legacy BT
-simulation, organized by topic with automation potential ratings. A ToC at the
-top indexes by domain section (Vulnerability Discovery, Embargo Management,
-Report Validation, Publication, etc.).
-**Load when**: researching external dependency touchpoints for the CVD process,
-implementing real replacements for fuzzer nodes, or scoping integration work
-with external data sources.
+Index and background for the fuzzer node catalog. Fuzzer nodes are stub
+implementations in the legacy BT simulation (`vultron/bt/`) that stand in for
+real-world decision logic not yet implemented. This file explains what fuzzer
+nodes represent, the entry format, automation potential categories, and the
+fuzzer base-type probability table, then indexes the per-domain sub-files.
+**Load when**: understanding what fuzzer nodes are and why they exist; jump
+directly to a sub-file for the actual catalog entries.
+
+**`bt-fuzzer-nodes-vul-discovery.md`**
+Fuzzer node catalog for the Vulnerability Discovery workflow
+(`vultron/bt/vul_discovery/`): `HaveDiscoveryPriority`, `DiscoverVulnerability`,
+`NoVulFound`.
+**Load when**: replacing fuzzer stubs in the vulnerability discovery BT.
+
+**`bt-fuzzer-nodes-embargo.md`**
+Fuzzer node catalog for the Embargo Management workflow
+(`vultron/bt/embargo_management/`): all exit-trigger, proposal/counter,
+acceptance/rejection, and timer nodes.
+**Load when**: replacing fuzzer stubs in the embargo management BT.
+
+**`bt-fuzzer-nodes-report-management.md`**
+Fuzzer node catalog for all Report Management workflows
+(`vultron/bt/report_management/`): validation, prioritization, ID assignment,
+fix development/deployment, exploit/threat tracking, publication,
+reporting-to-others, and report closure nodes.
+**Load when**: replacing fuzzer stubs in any report management BT subtree.
+
+**`bt-fuzzer-nodes-messaging.md`**
+Fuzzer node catalog for the Inbound Message Handling workflow
+(`vultron/bt/messaging/`): `FollowUpOnErrorMessage`.
+**Load when**: replacing fuzzer stubs in the inbound message handling BT.
 
 **`protocol-event-cascades.md`**
 Design principle for cascading automation: primary events vs cascading
@@ -214,6 +289,17 @@ lifecycle, pre-case event backfill, and multi-vendor action rules.
 embargo status transitions, adding `record_event()` calls, or debugging action
 rule filtering.
 
+**`case-communication-model.md`**
+Canonical communication model for post-case-creation participant messaging:
+all messages route through the Case Actor only
+(`participant → CaseActor → CaseLogEntry → broadcast → participants`). Covers
+the routing rule, its rationale, the `case_addressees()` antipattern, how to
+resolve the Case Actor ID, and the automatic `CaseLogEntry + broadcast`
+cascade. Normative requirements: `specs/participant-case-replica.yaml` PCR-08.
+**Load when**: implementing any trigger use case or BT that causes a
+participant to send a case-scoped message, debugging out-of-band note or
+embargo delivery, or auditing outbound activity addressing.
+
 **`case-log-authority.md`**
 Assertion recording model for report / proto-case / case flows: implicit
 participant assertions, `CaseActor`-authored `CaseLogEntry`, local audit log
@@ -245,6 +331,16 @@ embargo meta-protocol delivery to `DECLINED`/`LAPSED` participants, and the
 **Load when**: implementing per-participant EM state tracking, working on the
 embargo consent state machine in `vultron/core/states/`, or debugging
 `embargo_adherence` field semantics.
+
+**`embargo-lifecycle.md`**
+Target architecture for EM state management: the inline-`EMAdapter`
+instantiation anti-pattern, the current fragmentation across trigger use cases,
+received use cases, and BT behaviors, and the planned `EmbargoLifecycle`
+service (#538) that will consolidate all EM + PEC transitions.
+**Load when**: implementing any embargo state transition in trigger or received
+use cases, designing the `EmbargoLifecycle` service (#538), auditing inline
+`create_em_machine()` instantiations, or working on the post-#538
+`triggers/embargo.py` cleanup (#516).
 
 ---
 
@@ -289,41 +385,26 @@ Describes what each scenario would demonstrate and open design questions.
 **Load when**: designing new demo scripts or extending the existing demo suite
 beyond the current two-actor scenario.
 
-**`demo-review-26042001.md`** *(archived)*
-Point-in-time demo review from 2026-04-20: log analysis and root-cause
-findings from the multi-actor, three-actor, and multi-vendor demo runs.
-Architectural decisions captured here are superseded by individual notes files
-and `plan/IMPLEMENTATION_NOTES.md` REVIEW-26042001.
-**Load when**: reviewing the historical context for the 2026-04-20
-architectural decisions (DR-01 through DR-14).
+**`vultron/core/use_cases/triggers/AGENTS.md`**
+Trigger classification guidance: demo-specific vs general-purpose
+triggers, `/demo/` vs `/trigger/` routing, `RunMode`, wrapper patterns,
+audit results, and trigger-layer import rules.
+**Load when**: implementing a new trigger endpoint, deciding whether a
+trigger is demo-specific or protocol-general, or working on trigger
+routing in `vultron/adapters/driving/fastapi/routers/`.
 
-**`trigger-classification.md`**
-Classification of demo-specific vs general-purpose triggers: trigger routing
-rules, naming conventions, and `ActorConfig`-driven trigger dispatch guidance.
-**Load when**: implementing a new trigger endpoint, deciding whether a trigger
-is demo-specific or protocol-general, or working on trigger routing in
-`vultron/adapters/driving/fastapi/routers/`.
+**`triggers-test-coverage.md`**
+Coverage expectations for trigger use cases in
+`vultron/core/use_cases/triggers/` and PR-scope discipline for files that
+co-evolve with embargo logic. Anchors which trigger use cases have dedicated
+tests and which are missing.
+**Load when**: adding a trigger use case, modifying `triggers/case.py` or
+`triggers/embargo.py`, or scoping a PR that touches both case and embargo
+triggers.
 
 ---
 
 ## Project Management and Planning
-
-**`plan-history-management.md`**
-Authoritative rules for managing `plan/IMPLEMENTATION_PLAN.md` (PLAN) and
-history entries written to `plan/history/` (HISTORY): Core Invariant (no DONE
-tasks in PLAN), No Tombstones rule, atomic two-phase completion protocol,
-bounded PLAN size (≤ 20 tasks), failure modes, and entry formats.
-**Load when**: completing a task and updating PLAN/HISTORY, reviewing the
-`plan/history/` archive, or auditing PLAN for stale completed items.
-
-**`plan-organization.md`**
-Conventions for `plan/IMPLEMENTATION_PLAN.md` section structure and
-`plan/PRIORITIES.md` coupling: `TASK-FOO` section IDs, dot-notation task IDs,
-`TASK-` namespace to avoid spec-prefix collisions, migration examples, and
-guidance for choosing a new `TASK-FOO` identifier.
-**Load when**: adding a new section to IMPLEMENTATION_PLAN.md, assigning
-or changing priorities, auditing plan sections for old priority-heading or
-dash-notation task IDs.
 
 **`history-management.md`**
 Design decisions and implementation guidance for the chunked per-entry history
@@ -333,12 +414,19 @@ the migration from monolithic `plan/*HISTORY.md` files.
 **Load when**: using or modifying the `append-history` tool, adding a new
 `HistoryEntryType`, or understanding the `plan/history/` directory structure.
 
-**`work-granularity.md`**
-Design decisions for scoping implementation tasks to approximately one GitHub
-Issue or PR. Decision table for when to split vs. group tasks, guidance on
-coordinating with GitHub Issues, and the `TASK-FOO` ↔ Issue linking convention.
-**Load when**: sizing a new TASK-FOO section, deciding whether to split or
-merge tasks, or setting up GitHub Issue tracking for a planned work item.
+**`plan-history-management.md`** *(archived — see `archived_notes/`)*
+Superseded by `specs/history-management.yaml` and the `append-history` tool.
+The IMPLEMENTATION_PLAN.md management rules it described are no longer relevant.
+
+**`plan-organization.md`** *(archived — see `archived_notes/`)*
+Superseded — described the now-retired `TASK-FOO` naming scheme for
+`plan/IMPLEMENTATION_PLAN.md`. All work is tracked as GitHub Issues.
+See `notes/parallel-development.md` for the current model.
+
+**`work-granularity.md`** *(archived — see `archived_notes/`)*
+Superseded — described the three-tier model (GitHub Issue → TASK-FOO →
+checklist items). IMPLEMENTATION_PLAN.md has been removed; see
+`specs/project-documentation.yaml` PD-09 for current guidance.
 
 **`append-only-file-handling.md`** *(archived — see `archived_notes/`)*
 Superseded by `specs/history-management.yaml` and the `append-history` tool
@@ -363,6 +451,15 @@ flowchart and future BT automation notes.
 **Load when**: understanding or evolving the agent skill pipeline, automating
 the development loop, or deciding which skill to run next.
 
+**`agents-md-structure.md`**
+Routing policy for `AGENTS.md` content: the decision tree for whether new
+guidance belongs in root `AGENTS.md`, a per-directory `AGENTS.md` file
+(e.g., `vultron/core/`, `vultron/wire/as2/`, `vultron/adapters/`, `test/`),
+or a `notes/<topic>.md` design note. Explains the 400-line threshold for
+root AGENTS.md and the migration pattern using `condense-agents-md`.
+**Load when**: adding a new pitfall or convention to any AGENTS.md file,
+deciding where to place new agent guidance, or running `condense-agents-md`.
+
 ---
 
 ## Documentation and Traceability
@@ -380,15 +477,6 @@ behavior simulator reference, Do Work behaviors, and ISO crosswalks.
 **Load when**: evaluating where new documentation belongs, or cross-referencing
 Vultron docs to ISO/CVD process standards.
 
-**`user-stories-trace.md`**
-Traceability matrix (111 stories, ~1,050 lines) mapping user stories from
-`docs/topics/user_stories/` to formal requirements in `specs/`. A ToC at the
-top indexes by story group (Reporting, Policy, Embargo, Case Mgmt, Identity,
-Communication, Publication, Bug Bounty, Prioritization).
-**Load when**: verifying requirement coverage for a user story, identifying
-gaps between user stories and spec requirements, or reviewing story-to-spec
-traceability.
-
 **`notes-frontmatter.md`**
 Design decisions for YAML frontmatter schema in `notes/*.md` files: required
 fields (`title`, `status`), valid `status` values, `superseded_by` rule, schema
@@ -402,20 +490,6 @@ structured YAML governed by Pydantic models in `vultron/metadata/specs/`,
 mirroring the `vultron/metadata/notes/` pattern.
 **Load when**: adding a new spec YAML file, modifying the spec registry schema,
 or debugging `spec-dump` output issues.
-
----
-
-## Tooling and Diagramming
-
-**`mermaid-sequence-diagrams.md`**
-Complete syntax reference for Mermaid sequence diagrams: participants,
-actors and stereotypes, aliases, actor creation/destruction, grouping,
-all arrow types (standard, half-arrow, bidirectional), activations, notes,
-loops, alt/opt, parallel, critical regions, break, background highlighting,
-comments, entity codes, sequence numbers, actor menus, CSS classes, and
-configuration parameters. Includes a quick-reference composite example.
-**Load when**: authoring or reviewing sequence diagrams in `docs/`, creating
-protocol flow diagrams, or looking up a specific Mermaid sequence syntax detail.
 
 ---
 

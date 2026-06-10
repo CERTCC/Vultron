@@ -16,7 +16,7 @@ Defines a CaseActor class for the Vultron ActivityStreams Vocabulary.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_actor import CaseActor as CoreCaseActor
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.base import _scalar_ref_id_or_value
 
@@ -33,7 +33,7 @@ class CaseActor(as_Service):
     # context: (VulnerabilityCase) The case this actor is associated with
 
     @classmethod
-    def from_core(cls, core_obj: VultronCaseActor) -> "CaseActor":
+    def from_core(cls, core_obj: CoreCaseActor) -> "CaseActor":
         return cls(
             id_=core_obj.id_,
             name=core_obj.name,
@@ -41,8 +41,8 @@ class CaseActor(as_Service):
             context=core_obj.context,
         )
 
-    def to_core(self) -> VultronCaseActor:
-        return VultronCaseActor.model_validate(
+    def to_core(self) -> CoreCaseActor:
+        return CoreCaseActor.model_validate(
             {
                 "id_": self.id_,
                 "type_": self.type_,

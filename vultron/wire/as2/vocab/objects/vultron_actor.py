@@ -1,24 +1,5 @@
 #!/usr/bin/env python
-"""
-Provides Vultron-extended Actor classes for the Vultron ActivityStreams
-Vocabulary.
-
-These subclasses extend the standard ActivityStreams actor types with optional
-Vultron-specific profile fields, such as an actor's embargo policy.
-
-The actor's ActivityStreams type (Person, Organization, Service) is preserved,
-ensuring interoperability with ActivityPub clients that do not understand
-Vultron extensions.
-
-JSON-LD Context Note
---------------------
-A fully interoperable implementation would extend the JSON-LD ``@context``
-to define Vultron terms such as ``embargoPolicy`` under a Vultron namespace
-(e.g., ``https://vultron.sei.cmu.edu/ns#``).  That wiring is deferred to a
-later milestone; see ``plan/IMPLEMENTATION_NOTES.md`` for details.
-
-Per ``specs/embargo-policy.yaml`` EP-01-001.
-"""
+"""Wire-branch Vultron actor models."""
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -33,62 +14,108 @@ Per ``specs/embargo-policy.yaml`` EP-01-001.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import TypeAlias
+from typing import Annotated, Any, Literal, TypeAlias, Union
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from vultron.core.models.actor import CoreActor
+from vultron.wire.as2.enums import as_ActorType
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
-from vultron.wire.as2.vocab.base.objects.actors import (
-    as_Organization,
-    as_Person,
-    as_Service,
-)
-from vultron.wire.as2.vocab.objects.embargo_policy import EmbargoPolicyRef
+from vultron.wire.as2.vocab.base.registry import VOCABULARY
 
 
-class VultronActorMixin(BaseModel):
-    """
-    Mixin that adds Vultron-specific optional profile fields to any
-    ActivityStreams Actor subclass.
+class VultronActorMixin(as_Actor):
+    """Wire actor base with Vultron-specific actor extension fields."""
 
-    Intended for use via multiple inheritance alongside an actor type
-    (e.g., ``as_Person``, ``as_Organization``).
-    """
-
-    embargo_policy: EmbargoPolicyRef | None = Field(
+    embargo_policy: Any | None = Field(
         default=None,
-        description="The actor's stated embargo preferences (EP-01-001)",
+        description="The actor's stated embargo preferences.",
     )
 
 
-class VultronPerson(VultronActorMixin, as_Person):
-    """
-    An ActivityStreams Person extended with Vultron profile fields.
+class VultronPerson(VultronActorMixin):
+    type_: Literal[as_ActorType.PERSON] = Field(
+        default=as_ActorType.PERSON,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
-    Retains ``type_ == "Person"`` for ActivityPub interoperability.
-    """
+
+class VultronOrganization(VultronActorMixin):
+    type_: Literal[as_ActorType.ORGANIZATION] = Field(
+        default=as_ActorType.ORGANIZATION,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class VultronService(VultronActorMixin):
+    type_: Literal[as_ActorType.SERVICE] = Field(
+        default=as_ActorType.SERVICE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class VultronApplication(VultronActorMixin):
+    type_: Literal[as_ActorType.APPLICATION] = Field(
+        default=as_ActorType.APPLICATION,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class VultronGroup(VultronActorMixin):
+    type_: Literal[as_ActorType.GROUP] = Field(
+        default=as_ActorType.GROUP,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+VOCABULARY["Actor"] = CoreActor
+VOCABULARY["CoreActor"] = CoreActor
+VOCABULARY["Person"] = VultronPerson
+VOCABULARY["Organization"] = VultronOrganization
+VOCABULARY["Service"] = VultronService
+VOCABULARY["Application"] = VultronApplication
+VOCABULARY["Group"] = VultronGroup
 
 
 VultronPersonRef: TypeAlias = ActivityStreamRef[VultronPerson]
-
-
-class VultronOrganization(VultronActorMixin, as_Organization):
-    """
-    An ActivityStreams Organization extended with Vultron profile fields.
-
-    Retains ``type_ == "Organization"`` for ActivityPub interoperability.
-    """
-
-
 VultronOrganizationRef: TypeAlias = ActivityStreamRef[VultronOrganization]
-
-
-class VultronService(VultronActorMixin, as_Service):
-    """
-    An ActivityStreams Service extended with Vultron profile fields.
-
-    Retains ``type_ == "Service"`` for ActivityPub interoperability.
-    """
-
-
 VultronServiceRef: TypeAlias = ActivityStreamRef[VultronService]
+VultronApplicationRef: TypeAlias = ActivityStreamRef[VultronApplication]
+VultronGroupRef: TypeAlias = ActivityStreamRef[VultronGroup]
+
+
+ActorUnion: TypeAlias = Annotated[
+    Union[
+        VultronPerson,
+        VultronOrganization,
+        VultronService,
+        VultronApplication,
+        VultronGroup,
+    ],
+    Field(
+        description="A concrete Vultron actor (Person, Organization, Service, Application, or Group)."
+    ),
+]
+
+
+__all__ = [
+    "ActorUnion",
+    "CoreActor",
+    "VultronActorMixin",
+    "VultronApplication",
+    "VultronApplicationRef",
+    "VultronGroup",
+    "VultronGroupRef",
+    "VultronOrganization",
+    "VultronOrganizationRef",
+    "VultronPerson",
+    "VultronPersonRef",
+    "VultronService",
+    "VultronServiceRef",
+]

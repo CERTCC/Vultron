@@ -20,6 +20,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import (
+    FindParticipantByActorIdNode,
     DataLayerCondition,
     DataLayerAction,
     ReadObject,
@@ -27,6 +28,9 @@ from vultron.core.behaviors.helpers import (
     CreateObject,
 )
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.models.case import VultronCase
+from vultron.core.models.participant import VultronParticipant
+from vultron.core.models.protocols import is_participant_model
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
@@ -186,6 +190,125 @@ def test_action_base_class_not_implemented(bridge, datalayer):
 
 
 # Tests for ReadObject node
+
+
+def test_find_participant_by_actor_id_success_writes_blackboard(
+    bridge, datalayer
+):
+    """FindParticipantByActorIdNode stores the matched participant."""
+    actor_id = "https://example.org/actors/vendor-1"
+    participant = VultronParticipant(
+        id_="https://example.org/participants/vendor-1",
+        attributed_to=actor_id,
+        context="https://example.org/cases/case-1",
+    )
+    case = VultronCase(
+        id_="https://example.org/cases/case-1",
+        name="Case 1",
+        case_participants=[participant.id_],
+        actor_participant_index={actor_id: participant.id_},
+        attributed_to="https://example.org/actors/case-manager",
+    )
+    datalayer.save(participant)
+    datalayer.save(case)
+
+    class AssertParticipantOnBlackboard(DataLayerCondition):
+        def setup(self, **kwargs):
+            super().setup(**kwargs)
+            self.blackboard.register_key(
+                key="found_participant", access=py_trees.common.Access.READ
+            )
+
+        def update(self) -> Status:
+            found = self.blackboard.get("found_participant")
+            if not is_participant_model(found):
+                self.feedback_message = "No participant found on blackboard"
+                return Status.FAILURE
+            self.feedback_message = f"Found participant {found.id_}"
+            return Status.SUCCESS
+
+    tree = py_trees.composites.Sequence(
+        name="FindParticipantAndAssert",
+        memory=False,
+        children=[
+            FindParticipantByActorIdNode(
+                case_id=case.id_,
+                target_actor_id=actor_id,
+                participant_key="found_participant",
+            ),
+            AssertParticipantOnBlackboard(
+                name="AssertParticipantOnBlackboard"
+            ),
+        ],
+    )
+
+    result = bridge.execute_with_setup(tree, actor_id=actor_id)
+    assert result.status == Status.SUCCESS
+
+
+def test_find_participant_by_actor_id_fails_when_case_missing(bridge):
+    """FindParticipantByActorIdNode returns FAILURE when case is missing."""
+    node = FindParticipantByActorIdNode(
+        case_id="https://example.org/cases/missing",
+        target_actor_id="https://example.org/actors/vendor-1",
+    )
+    result = bridge.execute_with_setup(
+        node, actor_id="https://example.org/actors/vendor-1"
+    )
+    assert result.status == Status.FAILURE
+
+
+def test_find_participant_by_actor_id_fails_when_actor_not_participant(
+    bridge, datalayer
+):
+    """FindParticipantByActorIdNode returns FAILURE on actor mismatch."""
+    participant = VultronParticipant(
+        id_="https://example.org/participants/vendor-2",
+        attributed_to="https://example.org/actors/vendor-2",
+        context="https://example.org/cases/case-2",
+    )
+    case = VultronCase(
+        id_="https://example.org/cases/case-2",
+        name="Case 2",
+        case_participants=[participant.id_],
+        attributed_to="https://example.org/actors/case-manager",
+    )
+    datalayer.save(participant)
+    datalayer.save(case)
+
+    node = FindParticipantByActorIdNode(
+        case_id=case.id_,
+        target_actor_id="https://example.org/actors/vendor-1",
+    )
+    result = bridge.execute_with_setup(
+        node, actor_id="https://example.org/actors/vendor-1"
+    )
+    assert result.status == Status.FAILURE
+
+
+def test_find_participant_by_actor_id_fails_on_index_divergence(
+    bridge, datalayer
+):
+    """FindParticipantByActorIdNode fails fast on participant/index mismatch."""
+    actor_id = "https://example.org/actors/vendor-1"
+    case = VultronCase(
+        id_="https://example.org/cases/case-diverge",
+        name="Case Divergence",
+        case_participants=[],
+        actor_participant_index={
+            actor_id: "https://example.org/participants/p1"
+        },
+        attributed_to="https://example.org/actors/case-manager",
+    )
+    datalayer.save(case)
+
+    node = FindParticipantByActorIdNode(
+        case_id=case.id_,
+        target_actor_id=actor_id,
+    )
+    result = bridge.execute_with_setup(node, actor_id=actor_id)
+    assert result.status == Status.FAILURE
+    assert "divergence" in result.feedback_message
 
 
 def test_read_object_success(bridge, datalayer, sample_record):

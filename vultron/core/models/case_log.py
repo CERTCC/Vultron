@@ -16,11 +16,13 @@
 
 This module provides:
 
-- :class:`CaseLogEntry` — a single canonical log entry with hash-chain
+- :class:`HashChainLogRecord` — a single canonical log entry with hash-chain
   linkage and an optional embedded activity payload snapshot.
 - :class:`CaseEventLog` — an append-only, hash-chained log for a single case.
-- :class:`ReplicationState` — per-peer last-acknowledged log hash for
-  replication state tracking.
+
+Per-peer replication state tracking is provided by
+:class:`~vultron.core.models.replication_state.VultronReplicationState`
+in ``vultron.core.models.replication_state``.
 
 Design follows the single-writer CaseActor architecture described in
 ``notes/sync-log-replication.md`` and the requirements in
@@ -29,7 +31,7 @@ Design follows the single-writer CaseActor architecture described in
 
 Hash chain:
 
-- Each :class:`CaseLogEntry` stores the SHA-256 hash of its own canonical
+- Each :class:`HashChainLogRecord` stores the SHA-256 hash of its own canonical
   content (``entry_hash``) and the hash of its immediate predecessor
   (``prev_log_hash``).
 - The first entry uses :data:`GENESIS_HASH` as ``prev_log_hash``.
@@ -116,7 +118,7 @@ def _sha256_hex(data: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
-class CaseLogEntry(BaseModel):
+class HashChainLogRecord(BaseModel):
     """A single canonical case log entry.
 
     Each entry is created by the CaseActor's single authoritative write path
@@ -203,7 +205,7 @@ class CaseLogEntry(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _compute_entry_hash(self) -> "CaseLogEntry":
+    def _compute_entry_hash(self) -> "HashChainLogRecord":
         """Compute ``entry_hash`` from canonical content if not already set."""
         if not self.entry_hash:
             self.entry_hash = self._hash_content()
@@ -290,7 +292,7 @@ class CaseEventLog:
             case_id: URI of the :class:`VulnerabilityCase` this log tracks.
         """
         self._case_id = case_id
-        self._entries: list[CaseLogEntry] = []
+        self._entries: list[HashChainLogRecord] = []
 
     # ------------------------------------------------------------------
     # Properties
@@ -302,12 +304,12 @@ class CaseEventLog:
         return self._case_id
 
     @property
-    def entries(self) -> tuple[CaseLogEntry, ...]:
+    def entries(self) -> tuple[HashChainLogRecord, ...]:
         """All entries (recorded *and* rejected) as an immutable tuple."""
         return tuple(self._entries)
 
     @property
-    def recorded_entries(self) -> tuple[CaseLogEntry, ...]:
+    def recorded_entries(self) -> tuple[HashChainLogRecord, ...]:
         """Projection of entries whose disposition is ``"recorded"``.
 
         Used for hash-chain computation and canonical state reconstruction.
@@ -353,7 +355,7 @@ class CaseEventLog:
         term: int | None = None,
         reason_code: str | None = None,
         reason_detail: str | None = None,
-    ) -> CaseLogEntry:
+    ) -> HashChainLogRecord:
         """Append a new entry to the log and return it.
 
         Assigns ``log_index``, sets ``prev_log_hash`` from
@@ -378,10 +380,10 @@ class CaseEventLog:
         """
         if disposition == "rejected" and reason_code is None:
             raise ValueError(
-                "reason_code is required for rejected CaseLogEntry objects"
+                "reason_code is required for rejected HashChainLogRecord objects"
             )
 
-        entry = CaseLogEntry(
+        entry = HashChainLogRecord(
             case_id=self._case_id,
             log_index=self.next_index,
             disposition=disposition,
@@ -420,40 +422,3 @@ class CaseEventLog:
                     return False
                 prev_recorded_hash = entry.entry_hash
         return True
-
-
-# ---------------------------------------------------------------------------
-# ReplicationState
-# ---------------------------------------------------------------------------
-
-
-class ReplicationState(BaseModel):
-    """Per-peer replication state tracked by the replication leader.
-
-    Stores the last log entry hash acknowledged by a participant peer, so
-    the leader can efficiently identify and replay missing entries on demand.
-
-    Fields:
-        peer_id: Full URI of the participant actor this state belongs to.
-        last_acknowledged_hash: ``entry_hash`` of the last
-            :class:`CaseLogEntry` the peer has confirmed receiving.
-            Initialised to :data:`GENESIS_HASH` for new peers that have
-            never received a replication message.
-        updated_at: Server-generated TZ-aware UTC timestamp of the last
-            acknowledgement.
-
-    Spec: SYNC-04-001, SYNC-04-002.
-    """
-
-    peer_id: str = Field(..., description="Full URI of the participant actor")
-    last_acknowledged_hash: str = Field(
-        default=GENESIS_HASH,
-        description=(
-            "entry_hash of the last CaseLogEntry acknowledged by this peer; "
-            "GENESIS_HASH for peers that have never received a replication message"
-        ),
-    )
-    updated_at: datetime = Field(
-        default_factory=_now_utc,
-        description="Timestamp of the last acknowledgement from this peer",
-    )

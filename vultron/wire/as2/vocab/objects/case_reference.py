@@ -21,32 +21,17 @@ from typing import TypeAlias
 from pydantic import Field, field_validator
 
 from vultron.core.models.base import NonEmptyString
+from vultron.core.models.case_reference import (
+    CASE_REFERENCE_TAG_VOCABULARY,
+    CaseReference as CoreCaseReference,
+)
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
-from vultron.wire.as2.vocab.objects.base import VultronAS2Object
-
-# CVE JSON Schema reference tag vocabulary
-CASE_REFERENCE_TAG_VOCABULARY = {
-    "broken-link",
-    "customer-entitlement",
-    "exploit",
-    "government-resource",
-    "issue-tracking",
-    "mailing-list",
-    "mitigation",
-    "not-applicable",
-    "patch",
-    "permissions-required",
-    "media-coverage",
-    "product",
-    "related",
-    "release-notes",
-    "signature",
-    "technical-description",
-    "third-party-advisory",
-    "vendor-advisory",
-    "vdb-entry",
-}
+from vultron.wire.as2.vocab.objects.base import (
+    VultronAS2Object,
+    _scalar_ref_id_or_value,
+    _strip_core_context,
+)
 
 
 class CaseReference(VultronAS2Object):
@@ -86,7 +71,7 @@ class CaseReference(VultronAS2Object):
 
     @field_validator("tags")
     @classmethod
-    def validate_tags(cls, v):
+    def validate_tags(cls, v: list[str] | None) -> list[str] | None:
         if v is None:
             return None
         if not isinstance(v, list):
@@ -102,6 +87,22 @@ class CaseReference(VultronAS2Object):
                     f"{sorted(CASE_REFERENCE_TAG_VOCABULARY)}"
                 )
         return v
+
+    @classmethod
+    def from_core(cls, core_obj: CoreCaseReference) -> "CaseReference":
+        data = core_obj.model_dump(mode="json")
+        _strip_core_context(data)
+        data["attributed_to"] = _scalar_ref_id_or_value(
+            data.get("attributed_to")
+        )
+        return cls.model_validate(data)
+
+    def to_core(self) -> CoreCaseReference:
+        data = self._to_core_data()
+        data["attributed_to"] = _scalar_ref_id_or_value(
+            data.get("attributed_to")
+        )
+        return CoreCaseReference.model_validate(data)
 
 
 CaseReferenceRef: TypeAlias = ActivityStreamRef[CaseReference]

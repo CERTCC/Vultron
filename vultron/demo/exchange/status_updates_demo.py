@@ -49,8 +49,8 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import (
     CaseParticipant,
-    FinderReporterParticipant,
 )
+from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_status import (
     CaseStatus,
     ParticipantStatus,
@@ -141,7 +141,8 @@ def _setup_initialized_case(
     )
     post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
 
-    participant = FinderReporterParticipant(
+    participant = CaseParticipant(
+        case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
         attributed_to=finder.id_,
         context=case.id_,
     )
@@ -396,7 +397,7 @@ def main(
 
 def _setup_logging():
     """Configure console logging for standalone script execution."""
-    logging.getLogger("requests").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     logger_ = logging.getLogger()
     hdlr = logging.StreamHandler(sys.stdout)
     import logging as _logging

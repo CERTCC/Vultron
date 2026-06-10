@@ -40,10 +40,11 @@ try:
 except ImportError:
     from pydantic_core import ValidationError as PydanticValidationError
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.use_cases._helpers import _report_phase_status_id
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
+from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -55,6 +56,21 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 FUTURE_DATETIME = datetime(2099, 12, 1, tzinfo=timezone.utc)
+
+
+def _add_case_manager(case: VulnerabilityCase, dl) -> as_Service:
+    """Add a CASE_MANAGER participant to *case* and return the case actor."""
+    case_actor = as_Service(name=f"Case Actor for {case.name}")
+    dl.create(case_actor)
+    cm_participant = CaseParticipant(
+        attributed_to=case_actor.id_,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(cm_participant)
+    case.actor_participant_index[case_actor.id_] = cm_participant.id_
+    dl.save(case)
+    return case_actor
 
 
 def test_submit_report_trigger_creates_report_case_link(dl, actor):
@@ -144,7 +160,7 @@ def accepted_report(report):
 
 @pytest.fixture
 def closed_report(dl, report, actor):
-    status = VultronParticipantStatus(
+    status = ParticipantStatus(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.CLOSED.value),
         context=report.id_,
         attributed_to=actor.id_,
@@ -171,6 +187,7 @@ def case_with_participant(dl, actor):
     case_obj.case_participants.append(participant.id_)
     dl.create(case_obj)
     dl.create(participant)
+    _add_case_manager(case_obj, dl)
     return case_obj
 
 
@@ -182,6 +199,15 @@ def case_no_participant(dl):
 
 
 @pytest.fixture
+def case_with_case_manager(dl):
+    """A bare case with a single CASE_MANAGER participant, no other participants."""
+    case_obj = VulnerabilityCase(name="TEST-CASE-WITH-CM")
+    dl.create(case_obj)
+    _add_case_manager(case_obj, dl)
+    return case_obj
+
+
+@pytest.fixture
 def case_with_embargo(dl, actor):
     case_obj = VulnerabilityCase(name="EMBARGO-CASE-001")
     embargo = EmbargoEvent(context=case_obj.id_)
@@ -189,12 +215,16 @@ def case_with_embargo(dl, actor):
     case_obj.set_embargo(embargo.id_)
     case_obj.current_status.em_state = EM.ACTIVE
     dl.create(case_obj)
+    _add_case_manager(case_obj, dl)
     return case_obj, embargo
 
 
 @pytest.fixture
 def case_with_proposal(dl, actor):
-    case_obj = VulnerabilityCase(name="PROPOSAL-CASE-001")
+    case_obj = VulnerabilityCase(
+        name="PROPOSAL-CASE-001",
+        attributed_to=actor.id_,
+    )
     embargo = EmbargoEvent(context=case_obj.id_)
     dl.create(embargo)
     proposal = em_propose_embargo_activity(
@@ -204,6 +234,7 @@ def case_with_proposal(dl, actor):
     case_obj.current_status.em_state = EM.PROPOSED
     case_obj.proposed_embargoes.append(embargo.id_)
     dl.create(case_obj)
+    _add_case_manager(case_obj, dl)
     return case_obj, proposal, embargo
 
 
@@ -315,19 +346,13 @@ def test_invalidate_report_trigger_adds_activity_to_outbox(
     dl, actor, offer, received_report
 ):
     """invalidate_report_trigger adds a new activity to the actor's outbox."""
-    actor_before = dl.read(actor.id_)
-    before = {
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    }
+    before = set(dl.outbox_list_for_actor(actor.id_))
 
     TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).invalidate_report(actor.id_, offer.id_, None)
 
-    actor_after = dl.read(actor.id_)
-    after = {
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    }
+    after = set(dl.outbox_list_for_actor(actor.id_))
     assert len(after - before) >= 1
 
 
@@ -377,19 +402,13 @@ def test_reject_report_trigger_adds_activity_to_outbox(
     dl, actor, offer, received_report
 ):
     """reject_report_trigger adds a new activity to the actor's outbox."""
-    actor_before = dl.read(actor.id_)
-    before = {
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    }
+    before = set(dl.outbox_list_for_actor(actor.id_))
 
     TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).reject_report(actor.id_, offer.id_, "Reason.")
 
-    actor_after = dl.read(actor.id_)
-    after = {
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    }
+    after = set(dl.outbox_list_for_actor(actor.id_))
     assert len(after - before) >= 1
 
 
@@ -519,19 +538,13 @@ def test_engage_case_trigger_adds_activity_to_outbox(
     dl, actor, case_with_participant
 ):
     """engage_case_trigger adds a new activity to the actor's outbox."""
-    actor_before = dl.read(actor.id_)
-    before = {
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    }
+    before = set(dl.outbox_list_for_actor(actor.id_))
 
     TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).engage_case(actor.id_, case_with_participant.id_)
 
-    actor_after = dl.read(actor.id_)
-    after = {
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    }
+    after = set(dl.outbox_list_for_actor(actor.id_))
     assert len(after - before) >= 1
 
 
@@ -601,24 +614,24 @@ def test_defer_case_trigger_updates_participant_rm_state(
 
 
 def test_propose_embargo_trigger_returns_activity_dict(
-    dl, actor, case_no_participant
+    dl, actor, case_with_case_manager
 ):
     """propose_embargo_trigger returns dict with non-None 'activity'."""
     result = TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
-    ).propose_embargo(actor.id_, case_no_participant.id_, FUTURE_DATETIME)
+    ).propose_embargo(actor.id_, case_with_case_manager.id_, FUTURE_DATETIME)
     assert isinstance(result, dict)
     assert result["activity"] is not None
 
 
 def test_propose_embargo_trigger_transitions_em_state_to_proposed(
-    dl, actor, case_no_participant
+    dl, actor, case_with_case_manager
 ):
     """propose_embargo_trigger transitions case EM state from N to P."""
     TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
-    ).propose_embargo(actor.id_, case_no_participant.id_, FUTURE_DATETIME)
-    updated = dl.read(case_no_participant.id_)
+    ).propose_embargo(actor.id_, case_with_case_manager.id_, FUTURE_DATETIME)
+    updated = dl.read(case_with_case_manager.id_)
     assert updated.current_status.em_state == EM.PROPOSED
 
 
@@ -814,17 +827,11 @@ def test_terminate_embargo_trigger_adds_activity_to_outbox(
 ):
     """terminate_embargo_trigger adds a new activity to the actor's outbox."""
     case_obj, _ = case_with_embargo
-    actor_before = dl.read(actor.id_)
-    before = {
-        item for item in actor_before.outbox.items if isinstance(item, str)
-    }
+    before = set(dl.outbox_list_for_actor(actor.id_))
 
     TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).terminate_embargo(actor.id_, case_obj.id_)
 
-    actor_after = dl.read(actor.id_)
-    after = {
-        item for item in actor_after.outbox.items if isinstance(item, str)
-    }
+    after = set(dl.outbox_list_for_actor(actor.id_))
     assert len(after - before) >= 1

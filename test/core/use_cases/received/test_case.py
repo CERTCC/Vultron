@@ -19,6 +19,7 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.base import VultronObject
+from vultron.core.models.case import VultronCase
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events import MessageSemantics
@@ -26,10 +27,20 @@ from vultron.core.models.events.case import (
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
 )
+from vultron.core.models.participant import VultronParticipant
 from vultron.core.use_cases.received.case import (
     DeferCaseReceivedUseCase,
     EngageCaseReceivedUseCase,
     UpdateCaseReceivedUseCase,
+)
+from vultron.core.behaviors.case.update_tree import (
+    create_update_case_received_tree,
+)
+from vultron.core.behaviors.case.nodes.update import (
+    ApplyCaseUpdateNode,
+    BroadcastCaseUpdateNode,
+    CaptureCaseUpdateBroadcastExclusionsNode,
+    CheckCaseUpdateOwnerNode,
 )
 from vultron.wire.as2.rehydration import rehydrate as real_rehydrate
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
@@ -273,6 +284,61 @@ class TestCaseUseCases:
 
         assert not any("has not accepted" in r.message for r in caplog.records)
 
+    def test_update_case_ignores_non_participant_objects_in_embargo_check(
+        self, make_payload
+    ):
+        """Non-participant objects referenced by the case must not be excluded."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        owner_id = "https://example.org/users/owner"
+        actor_id = "https://example.org/users/alice"
+        case_id = "https://example.org/cases/uc6b"
+        embargo = EmbargoEvent(id_="https://example.org/embargoes/em6b")
+        dl.create(embargo)
+
+        bogus_ref = VultronActivity(
+            type_="Announce",
+            actor=owner_id,
+            object_=case_id,
+        )
+        dl.create(bogus_ref)
+
+        case_actor = VultronCaseActor(
+            id_=f"{case_id}/actor",
+            name=f"CaseActor for {case_id}",
+            attributed_to=owner_id,
+            context=case_id,
+        )
+        dl.create(case_actor)
+
+        case = VulnerabilityCase(
+            id_=case_id,
+            name="Original",
+            attributed_to=owner_id,
+            active_embargo=embargo.id_,
+        )
+        case.actor_participant_index[actor_id] = bogus_ref.id_
+        dl.create(case)
+
+        updated_case = VulnerabilityCase(
+            id_=case_id,
+            name="Updated",
+            attributed_to=owner_id,
+        )
+        activity = update_case_activity(updated_case, actor=owner_id)
+        event = make_payload(activity)
+
+        UpdateCaseReceivedUseCase(dl, event).execute()
+
+        outbox_items = dl.outbox_list_for_actor(case_actor.id_)
+        assert len(outbox_items) == 1
+
+        broadcast_id = outbox_items[0]
+        broadcast = dl.read(broadcast_id)
+        assert broadcast is not None
+        broadcast = cast(VultronActivity, broadcast)
+        assert broadcast.to is not None
+        assert actor_id in broadcast.to
+
     # ------------------------------------------------------------------
     # Broadcast tests (CM-06-001, CM-06-002)
     # ------------------------------------------------------------------
@@ -312,12 +378,10 @@ class TestCaseUseCases:
 
         UpdateCaseReceivedUseCase(dl, event).execute()
 
-        refreshed_actor = dl.read(case_actor.id_)
-        assert refreshed_actor is not None
-        refreshed_actor = cast(VultronCaseActor, refreshed_actor)
-        assert len(refreshed_actor.outbox.items) == 1
+        queued_ids = dl.clone_for_actor(case_actor.id_).outbox_list()
+        assert len(queued_ids) == 1
 
-        broadcast_id = refreshed_actor.outbox.items[0]
+        broadcast_id = queued_ids[0]
         broadcast = dl.read(broadcast_id)
         assert broadcast is not None
         broadcast = cast(VultronActivity, broadcast)
@@ -383,10 +447,8 @@ class TestCaseUseCases:
 
         UpdateCaseReceivedUseCase(dl, event).execute()
 
-        refreshed_actor = dl.read(case_actor.id_)
-        assert refreshed_actor is not None
-        refreshed_actor = cast(VultronCaseActor, refreshed_actor)
-        assert refreshed_actor.outbox.items == []
+        queued_ids = dl.clone_for_actor(case_actor.id_).outbox_list()
+        assert queued_ids == []
 
     def test_update_case_broadcast_includes_all_participants(
         self, make_payload
@@ -425,15 +487,88 @@ class TestCaseUseCases:
 
         UpdateCaseReceivedUseCase(dl, event).execute()
 
-        refreshed_actor = dl.read(case_actor.id_)
-        assert refreshed_actor is not None
-        refreshed_actor = cast(VultronCaseActor, refreshed_actor)
-        broadcast_id = refreshed_actor.outbox.items[0]
+        queued_ids = dl.clone_for_actor(case_actor.id_).outbox_list()
+        broadcast_id = queued_ids[0]
         broadcast = dl.read(broadcast_id)
         assert broadcast is not None
         broadcast = cast(VultronActivity, broadcast)
         assert broadcast.to is not None
         assert set(broadcast.to) == {alice, bob}
+
+    def test_update_case_bt_structure_includes_broadcast_node(
+        self, make_payload
+    ):
+        """UpdateCaseBT keeps ownership, embargo, update, and broadcast in-tree."""
+        owner_id = "https://example.org/users/owner"
+        case_id = "https://example.org/cases/bt1"
+        updated_case = VulnerabilityCase(
+            id_=case_id, name="Updated", attributed_to=owner_id
+        )
+        activity = update_case_activity(updated_case, actor=owner_id)
+        event = make_payload(activity)
+
+        tree = create_update_case_received_tree(
+            case_id=case_id,
+            actor_id=owner_id,
+            request=event,
+        )
+
+        assert tree.name == "UpdateCaseBT"
+        assert [child.__class__ for child in tree.children] == [
+            CheckCaseUpdateOwnerNode,
+            CaptureCaseUpdateBroadcastExclusionsNode,
+            ApplyCaseUpdateNode,
+            BroadcastCaseUpdateNode,
+        ]
+
+    def test_update_case_bt_executes_without_post_bt_broadcast(
+        self, make_payload, monkeypatch
+    ):
+        """UpdateCaseBT handles the broadcast internally instead of after execute()."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        owner_id = "https://example.org/users/owner"
+        participant_id = "https://example.org/users/alice"
+        case_id = "https://example.org/cases/bt2"
+
+        case_actor = VultronCaseActor(
+            id_=f"{case_id}/actor",
+            name=f"CaseActor for {case_id}",
+            attributed_to=owner_id,
+            context=case_id,
+        )
+        dl.create(case_actor)
+
+        case = VulnerabilityCase(
+            id_=case_id,
+            name="Original",
+            attributed_to=owner_id,
+        )
+        case.actor_participant_index[participant_id] = (
+            "https://example.org/participants/p-bt2"
+        )
+        dl.create(case)
+
+        updated_case = VulnerabilityCase(
+            id_=case_id,
+            name="Updated",
+            attributed_to=owner_id,
+        )
+        activity = update_case_activity(updated_case, actor=owner_id)
+        event = make_payload(activity)
+
+        def _should_not_be_called(*args, **kwargs):
+            raise AssertionError("post-BT broadcast helper should not run")
+
+        monkeypatch.setattr(
+            UpdateCaseReceivedUseCase,
+            "_broadcast_case_update",
+            _should_not_be_called,
+        )
+
+        UpdateCaseReceivedUseCase(dl, event).execute()
+
+        outbox_items = dl.outbox_list_for_actor(case_actor.id_)
+        assert len(outbox_items) == 1
 
 
 class TestEngageDeferCaseBTFailureReason:
@@ -524,4 +659,91 @@ class TestEngageDeferCaseBTFailureReason:
         assert reason, (
             "DeferCaseBT warning must include a non-empty failure reason; "
             f"got: {records[0].message!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# #573: EngageCaseReceivedUseCase must store embedded participants
+# ---------------------------------------------------------------------------
+
+
+class TestEngageCaseStoresEmbeddedParticipants:
+    """EngageCaseReceivedUseCase must call _store_embedded_participants (#573).
+
+    Regression tests: when Join(VulnerabilityCase) arrives with inline
+    participant objects, those objects must be persisted as independent
+    DataLayer records before the BT runs — matching the pattern already
+    established for Create (#564) and Announce (#566) paths.
+    """
+
+    _ACTOR_ID = "https://vendor.example.org/actors/vendor"
+    _CASE_ID = "https://example.org/cases/case-573-001"
+    _PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor"
+
+    @pytest.fixture
+    def dl(self):
+        return SqliteDataLayer("sqlite:///:memory:")
+
+    @pytest.fixture
+    def case_with_inline_participant(self):
+        """VultronCase carrying a fully inline VultronParticipant."""
+        participant = VultronParticipant(
+            id_=self._PARTICIPANT_ID,
+            attributed_to=self._ACTOR_ID,
+            context=self._CASE_ID,
+        )
+        case = VultronCase(id_=self._CASE_ID)
+        case.case_participants = [participant]
+        return case
+
+    @pytest.fixture
+    def engage_event_with_inline_case(self, case_with_inline_participant):
+        return EngageCaseReceivedEvent(
+            activity_id="https://example.org/activities/engage-573",
+            actor_id=self._ACTOR_ID,
+            object_=case_with_inline_participant,
+            semantic_type=MessageSemantics.ENGAGE_CASE,
+        )
+
+    def test_inline_participant_stored_even_when_bt_fails(
+        self, dl, engage_event_with_inline_case
+    ):
+        """Embedded CaseParticipant is persisted before EngageCaseBT runs.
+
+        Even when the BT fails (no pre-registered participant in the DataLayer),
+        _store_embedded_participants must run first and persist the inline
+        participant object (#573 regression).
+        """
+        EngageCaseReceivedUseCase(dl, engage_event_with_inline_case).execute()
+
+        stored = dl.read(self._PARTICIPANT_ID)
+        assert stored is not None, (
+            "CaseParticipant embedded in Join(VulnerabilityCase) must be "
+            "stored as an independent DataLayer record before the BT runs "
+            "(EngageCaseReceivedUseCase regression #573)"
+        )
+
+    def test_bare_string_participant_is_not_stored(self, dl):
+        """When case_participants contains bare strings, nothing is stored.
+
+        _store_embedded_participants is idempotent on strings; no error and
+        no false record is created (#573 does not regress bare-string path).
+        """
+        case_str_participants = VultronCase(id_=self._CASE_ID)
+        case_str_participants.case_participants = [
+            self._PARTICIPANT_ID
+        ]  # bare string
+        event = EngageCaseReceivedEvent(
+            activity_id="https://example.org/activities/engage-573-str",
+            actor_id=self._ACTOR_ID,
+            object_=case_str_participants,
+            semantic_type=MessageSemantics.ENGAGE_CASE,
+        )
+        EngageCaseReceivedUseCase(dl, event).execute()
+
+        stored = dl.read(self._PARTICIPANT_ID)
+        assert stored is None, (
+            "_store_embedded_participants must skip bare string participant "
+            "refs — no VultronParticipant record should be created for a bare "
+            "string"
         )

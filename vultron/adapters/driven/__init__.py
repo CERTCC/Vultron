@@ -9,11 +9,11 @@ implementation.
 Modules:
 
 - ``datalayer.py``  — Concrete activity persistence (e.g., TinyDB).
-- ``http_delivery.py``   — HTTP transport for outbound ActivityStreams
-                           payloads (transport only — receives serialized
-                           AS2 from the wire layer).
-- ``delivery_queue.py`` — Stub implementation of the ``ActivityEmitter``
-                           port (``core/ports/emitter.py``); queues
-                           outbound activities for local or remote delivery.
+- ``demo_http_delivery.py`` — Unsigned HTTP transport for outbound
+                           ActivityStreams payloads; receives serialized
+                           AS2 from the wire layer.
+- ``prod_http_delivery.py`` — Stub implementation for future signed remote
+                           delivery; raises ``NotImplementedError`` when
+                           instantiated (OX-10-004).
 
 """

@@ -10,6 +10,7 @@ nav:
     - Run the Receive-Report Demo: 'tutorials/receive_report_demo.md'
     - Running the Other Demos: 'tutorials/other_demos.md'
     - Running the Multi-Actor Container Demos: 'tutorials/container_demos.md'
+    - Run the Two-Actor Demo: 'tutorials/two-actor-demo.md'
   - Understanding Vultron:
     - 'topics/index.md'
     - Background:
@@ -93,7 +94,9 @@ nav:
         - Situation Awareness: 'topics/other_uses/situation_awareness.md'
         - VEP: 'topics/other_uses/vep.md'
         - CVD Action Rules: 'topics/other_uses/action_rules.md'
-    - User Stories: 'topics/user_stories/index.md'
+    - User Stories:
+        - 'topics/user_stories/index.md'
+        - Traceability Matrix: 'topics/user_stories/traceability.md'
     - Future Work:
         - 'topics/future_work/index.md'
         - CS Model Limitations: 'topics/future_work/cs_model_limitations.md'
@@ -216,6 +219,7 @@ nav:
       - ISO 30111: 'reference/iso_crosswalks/iso_30111_2019.md'
       - ISO 29147: 'reference/iso_crosswalks/iso_29147_2018.md'
       - ISO 5895: 'reference/iso_crosswalks/iso_5895_2022.md'
+    - Two-Actor Demo Protocol: 'reference/two-actor-demo-protocol.md'
     - SSVC Crosswalk: 'reference/ssvc_crosswalk.md'
     - Decision Records:
       - 'adr/index.md'
@@ -239,6 +243,9 @@ not_in_nav: |
   *diagram*.md
   *table*.md
   *.ttl
+exclude_docs: |
+  # Maintainer-focused docs are available in local/dev builds via mkdocs.dev.yml
+  docs/developer/
 theme:
   logo: 'assets/Software_Engineering_Institute_Unitmark_White.svg'
   name: 'material'

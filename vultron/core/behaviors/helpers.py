@@ -32,7 +32,10 @@ import py_trees
 from pydantic import BaseModel
 from py_trees.common import Status
 
-from vultron.core.models.protocols import has_outbox
+from vultron.core.models.protocols import (
+    is_case_model,
+    is_participant_model,
+)
 from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
@@ -188,6 +191,144 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
         raise NotImplementedError(
             f"{self.__class__.__name__}.update() must be implemented by subclass"
         )
+
+
+class FindParticipantByActorIdNode(DataLayerCondition):
+    """
+    Resolve and store a case participant by actor ID.
+
+    Iterates ``case.case_participants`` and resolves each participant reference
+    until it finds a participant whose ``attributed_to`` matches the target
+    actor ID. On success the matched participant is written to the blackboard.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        target_actor_id: str,
+        participant_key: str = "participant",
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.target_actor_id = target_actor_id
+        self.participant_key = participant_key
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key=self.participant_key, access=py_trees.common.Access.WRITE
+        )
+
+    def _participant_actor_id(self, participant: object) -> str:
+        actor_ref = getattr(participant, "attributed_to")
+        return (
+            actor_ref
+            if isinstance(actor_ref, str)
+            else getattr(actor_ref, "id_", str(actor_ref))
+        )
+
+    def _participant_id(self, participant: object) -> str:
+        return str(getattr(participant, "id_", participant))
+
+    def _fail(self, message: str) -> Status:
+        self.feedback_message = message
+        self.logger.error("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+    def _find_matching_participant(
+        self, case_obj: object
+    ) -> tuple[object | None, str | None, str | None]:
+        assert self.datalayer is not None
+        matched_participant: object | None = None
+        matched_participant_id: str | None = None
+        for participant_ref in getattr(case_obj, "case_participants", []):
+            participant_obj = participant_ref
+            if isinstance(participant_ref, str):
+                participant_obj = self.datalayer.read(
+                    participant_ref, raise_on_missing=False
+                )
+            if not is_participant_model(participant_obj):
+                continue
+            if (
+                self._participant_actor_id(participant_obj)
+                != self.target_actor_id
+            ):
+                continue
+
+            participant_id = self._participant_id(participant_obj)
+            if (
+                matched_participant_id is not None
+                and participant_id != matched_participant_id
+            ):
+                return (
+                    None,
+                    None,
+                    "Participant-index divergence: actor "
+                    f"{self.target_actor_id} resolves to multiple "
+                    "case_participants.",
+                )
+            matched_participant = participant_obj
+            matched_participant_id = participant_id
+
+        return matched_participant, matched_participant_id, None
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        case_obj = self.datalayer.read(self.case_id, raise_on_missing=False)
+        if not is_case_model(case_obj):
+            self.feedback_message = f"Case {self.case_id} not found"
+            self.logger.debug("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        index_match = case_obj.actor_participant_index.get(
+            self.target_actor_id
+        )
+        matched_participant, matched_participant_id, error_message = (
+            self._find_matching_participant(case_obj)
+        )
+        if error_message is not None:
+            return self._fail(error_message)
+
+        if matched_participant is None:
+            if index_match is not None:
+                return self._fail(
+                    "Participant-index divergence: actor "
+                    f"{self.target_actor_id} mapped to {index_match} in "
+                    "actor_participant_index but missing from "
+                    "case_participants."
+                )
+            self.feedback_message = f"No participant for actor {self.target_actor_id} in case {self.case_id}"
+            self.logger.debug("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        if index_match != matched_participant_id:
+            if index_match is None:
+                setattr(
+                    self.blackboard, self.participant_key, matched_participant
+                )
+                self.feedback_message = (
+                    f"Found participant for actor {self.target_actor_id}"
+                )
+                self.logger.debug("%s: %s", self.name, self.feedback_message)
+                return Status.SUCCESS
+            return self._fail(
+                "Participant-index divergence: actor "
+                f"{self.target_actor_id} resolves to "
+                f"{matched_participant_id} from case_participants but "
+                f"actor_participant_index maps to {index_match}."
+            )
+
+        setattr(self.blackboard, self.participant_key, matched_participant)
+        self.feedback_message = (
+            f"Found participant for actor {self.target_actor_id}"
+        )
+        self.logger.debug("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
 
 
 class ReadObject(DataLayerCondition):
@@ -498,20 +639,6 @@ class UpdateActorOutbox(DataLayerAction):
                 return Status.FAILURE
 
             case_id = self.blackboard.get("case_id")
-
-            actor_obj = self.datalayer.read(
-                self.actor_id, raise_on_missing=True
-            )
-
-            if not has_outbox(actor_obj):
-                self.logger.error(
-                    f"{self.name}: Actor {self.actor_id} has no outbox"
-                    " or outbox.items"
-                )
-                return Status.FAILURE
-
-            actor_obj.outbox.items.append(activity_id)
-            self.datalayer.save(actor_obj)
 
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
                 self.actor_id, activity_id

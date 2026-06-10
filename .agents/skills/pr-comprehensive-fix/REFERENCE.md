@@ -54,7 +54,8 @@ See [RESOLUTION-GUIDE.md](RESOLUTION-GUIDE.md) for strategies and examples.
 ## When Things Go Wrong
 
 - **Stuck PR** (multiple fix attempts, no progress) → Stop and report
-- **Integration test failure** (unclear cause) → Stop, don't auto-loop
+- **Integration test failure** (unclear cause) → Treat as PR-owned until
+  disproven; do not label unrelated without evidence
 - **Partial fix success** → Ask if you want to continue or iterate manually
 - **Comment is architectural** → Reply, don't mark resolved
 

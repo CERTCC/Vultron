@@ -22,10 +22,10 @@ Use these questions to classify a section:
    | BT pitfalls (blackboard, cascade, anti-pattern) | `notes/bt-integration.md` |
    | ActivityStreams semantics (wire format, Accept/Reject, name field) | `notes/activitystreams-semantics.md` |
    | Case state model (case_status list, CaseEvent timestamps) | `notes/case-state-model.md` |
-   | Architecture / layer separation | `notes/architecture-ports-and-adapters.md` |
+   | Architecture / layer separation | `notes/architecture-hexagonal.md` |
    | Domain model separation | `notes/domain-model-separation.md` |
    | Codebase structure (actor IDs, demo lifecycle) | `notes/codebase-structure.md` |
-   | DataLayer design | `notes/datalayer-design.md` |
+   | DataLayer design | `vultron/core/ports/AGENTS.md` |
    | History management | `notes/history-management.md` |
 
 4. **Is it a pitfall with no notes/ home?**
@@ -42,14 +42,14 @@ Use these questions to classify a section:
 | Agent Quickstart | KEEP (trim to ~30 lines; move "Essential commands" to REF) |
 | Scope of Allowed Work | KEEP |
 | Technology Stack | KEEP (trim; move tool versions to a note if they drift) |
-| Architectural Constraints | REF:notes/architecture-ports-and-adapters.md |
-| Agent Guidance / Vultron-Specific Architecture | REF:notes/architecture-ports-and-adapters.md |
-| Semantic Message Processing Pipeline | REF:notes/architecture-ports-and-adapters.md |
-| Hexagonal Architecture | REF:notes/architecture-ports-and-adapters.md |
+| Architectural Constraints | REF:notes/architecture-hexagonal.md |
+| Agent Guidance / Vultron-Specific Architecture | REF:notes/architecture-hexagonal.md |
+| Semantic Message Processing Pipeline | REF:notes/architecture-hexagonal.md |
+| Hexagonal Architecture | REF:notes/architecture-hexagonal.md |
 | Protocol Activity Model | REF:notes/activitystreams-semantics.md |
 | Use-Case Protocol | KEEP (it's a mandatory checklist, keep short version) |
 | Registry Pattern | KEEP (short) |
-| Layer Separation | REF:notes/architecture-ports-and-adapters.md |
+| Layer Separation | REF:notes/architecture-hexagonal.md |
 | Protocol-Based Design | KEEP (short) |
 | Background Processing | KEEP (short) |
 | Error Hierarchy | KEEP (short) |
@@ -91,7 +91,7 @@ Use these questions to classify a section:
 | Common Pitfalls: Black + pyright suppressions | NEW-NOTE:notes/codebase-structure.md |
 | Common Pitfalls: filterwarnings | MOVE:test/AGENTS.md |
 | Common Pitfalls: Pytest Helper Enums | MOVE:test/AGENTS.md |
-| Common Pitfalls: Avoid BaseModel in Ports | REF:notes/architecture-ports-and-adapters.md |
+| Common Pitfalls: Avoid BaseModel in Ports | REF:vultron/core/ports/AGENTS.md |
 | Common Pitfalls: Activity name Field | REF:notes/activitystreams-semantics.md |
 | Common Pitfalls: Actor IDs Must Be Full URIs | REF:notes/codebase-structure.md |
 | Common Pitfalls: BT Failure Reason | REF:notes/bt-integration.md |
@@ -103,7 +103,6 @@ Use these questions to classify a section:
 | Notes frontmatter maintenance | KEEP |
 | Docs links must be relative | KEEP (short) |
 | Demo script lifecycle logging | REF:notes/codebase-structure.md |
-| Archiving IMPLEMENTATION_PLAN.md | KEEP (short) |
 | Writing project history entries | KEEP |
 
 ---

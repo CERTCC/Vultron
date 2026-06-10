@@ -1,7 +1,7 @@
 """Use cases for vulnerability case activities."""
 
 import logging
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from py_trees.common import Status
 
@@ -13,6 +13,8 @@ from vultron.core.models.events.case import (
     EngageCaseReceivedEvent,
     UpdateCaseReceivedEvent,
 )
+from vultron.core.models.participant import VultronParticipant
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.vultron_types import VultronActivity
 from vultron.core.ports.case_persistence import (
@@ -22,11 +24,17 @@ from vultron.core.ports.case_persistence import (
 from vultron.core.models.protocols import (
     CaseModel,
     is_case_model,
-    is_participant_model,
 )
-from vultron.core.states.rm import RM
+from vultron.core.states.rm import RM, is_rm_at_least
 from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases._helpers import _as_id, update_participant_rm_state
+from vultron.core.behaviors.case.update_support import (
+    broadcast_case_update,
+    find_excluded_actor_ids,
+)
+
+if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
@@ -94,32 +102,7 @@ def _check_participant_embargo_acceptance(
     Returns a set of actor IDs whose case updates should be withheld per
     CM-10-004 (participants that have not accepted the active embargo).
     """
-    excluded: set[str] = set()
-    active_embargo = case.active_embargo
-    if active_embargo is None:
-        return excluded
-    embargo_id = _as_id(active_embargo)
-    for actor_id, participant_id in case.actor_participant_index.items():
-        participant = dl.read(participant_id)
-        if participant is None:
-            logger.warning(
-                "update_case: could not read participant '%s' for embargo acceptance check",
-                participant_id,
-            )
-            continue
-        if not is_participant_model(participant):
-            continue
-        if embargo_id not in participant.accepted_embargo_ids:
-            logger.warning(
-                "update_case: participant '%s' (actor '%s') has not accepted the active "
-                "embargo '%s' — case update will not be broadcast to this participant "
-                "(CM-10-004)",
-                participant_id,
-                actor_id,
-                embargo_id,
-            )
-            excluded.add(actor_id)
-    return excluded
+    return find_excluded_actor_ids(case, dl)
 
 
 def _store_embedded_participants(
@@ -158,6 +141,157 @@ def _store_embedded_participants(
             pid,
             case_id,
         )
+
+
+def _ensure_reporter_participant(
+    dl: CasePersistence,
+    link: VultronReportCaseLink,
+    case_obj: CaseModel,
+    case_id: str,
+) -> None:
+    """Ensure the reporter's participant record is at RM.ACCEPTED (#589, #624).
+
+    When ``Create(VulnerabilityCase)`` carries participant IDs as bare
+    strings, ``_store_embedded_participants`` skips them.  Without an
+    explicit participant record in the DataLayer,
+    ``SvcAddParticipantStatusUseCase._resolve_current_participant_state``
+    falls back to ``RM.START``, causing the Vendor's Case Actor to reject the
+    subsequent ``Add(ParticipantStatus)`` as a backwards transition.
+
+    The reporter submitted the original report, which implies they have
+    already ``RM.ACCEPTED`` from their own perspective.  The reporter is
+    identified as ``attributed_to`` of the ``Offer(Report)`` activity
+    (``report.attributed_to``).  Their ``START→RECEIVED→VALID→ACCEPTED`` arc
+    is hidden from the protocol — their first observable action already
+    implies ``RM.ACCEPTED`` (#624).
+
+    This function:
+
+    * Creates the participant record at ``RM.ACCEPTED`` if it is absent.
+    * Upgrades an existing participant from any state below ``RM.ACCEPTED``
+      (e.g. ``RM.START`` seeded by the wire-layer default) to ``RM.ACCEPTED``.
+    * No-ops if the participant is already at or beyond ``RM.ACCEPTED``.
+
+    This invariant applies **only** to the reporter/finder.  All other
+    participants enter through a visible protocol interaction and their RM
+    lifecycle proceeds normally from ``RM.RECEIVED``.
+
+    Args:
+        dl: The reporter's local DataLayer.
+        link: The ``VultronReportCaseLink`` associating the report to this
+            case bootstrap.
+        case_obj: The bootstrapped ``VulnerabilityCase`` snapshot.
+        case_id: ID of the case (for log context and status context).
+    """
+    report = dl.read(link.report_id)
+    if report is None:
+        logger.warning(
+            "ensure_reporter_participant: report '%s' not found "
+            "— cannot seed reporter participant (#589)",
+            link.report_id,
+        )
+        return
+
+    reporter_actor_id = _as_id(getattr(report, "attributed_to", None))
+    if not reporter_actor_id:
+        logger.warning(
+            "ensure_reporter_participant: report '%s' has no attributed_to "
+            "— cannot seed reporter participant (#589)",
+            link.report_id,
+        )
+        return
+
+    index = getattr(case_obj, "actor_participant_index", {}) or {}
+    participant_id = index.get(reporter_actor_id)
+    if not participant_id:
+        logger.warning(
+            "ensure_reporter_participant: reporter '%s' not in "
+            "actor_participant_index for case '%s' — skipping (#589)",
+            reporter_actor_id,
+            case_id,
+        )
+        return
+
+    existing = dl.read(participant_id)
+    if existing is not None:
+        statuses = getattr(existing, "participant_statuses", []) or []
+        latest_rm = statuses[-1].rm_state if statuses else RM.START
+        if is_rm_at_least(latest_rm, RM.ACCEPTED):
+            logger.debug(
+                "ensure_reporter_participant: participant '%s' already "
+                "≥ RM.ACCEPTED — skipping (#589, #624)",
+                participant_id,
+            )
+            return
+        _upgrade_participant_to_accepted(
+            dl, existing, participant_id, case_id, reporter_actor_id, latest_rm
+        )
+        return
+
+    status = ParticipantStatus(
+        rm_state=RM.ACCEPTED,
+        context=case_id,
+        attributed_to=reporter_actor_id,
+    )
+    participant = VultronParticipant(
+        id_=participant_id,
+        attributed_to=reporter_actor_id,
+        context=case_id,
+        participant_statuses=[status],
+    )
+    try:
+        dl.create(participant)
+        logger.info(
+            "ensure_reporter_participant: created participant '%s' for "
+            "reporter '%s' at RM.ACCEPTED (#589)",
+            participant_id,
+            reporter_actor_id,
+        )
+    except ValueError:
+        logger.debug(
+            "ensure_reporter_participant: participant '%s' was concurrently "
+            "created — idempotent (#589)",
+            participant_id,
+        )
+
+
+def _upgrade_participant_to_accepted(
+    dl: CasePersistence,
+    existing: Any,
+    participant_id: str,
+    case_id: str,
+    reporter_actor_id: str,
+    latest_rm: "RM",
+) -> None:
+    """Upgrade an existing participant record from below RM.ACCEPTED to RM.ACCEPTED.
+
+    Saves the new status as an independent DataLayer record, then reads it back
+    via the vocabulary registry so the serialised type matches what the
+    participant container expects.  This avoids wire/domain type mismatches when
+    appending to ``CaseParticipant.participant_statuses``.
+    """
+    upgrade_status = ParticipantStatus(
+        rm_state=RM.ACCEPTED,
+        context=case_id,
+        attributed_to=reporter_actor_id,
+    )
+    try:
+        dl.create(upgrade_status)
+    except ValueError:
+        dl.save(upgrade_status)
+    wire_status = dl.read(upgrade_status.id_)
+    participant_statuses = getattr(existing, "participant_statuses", None)
+    if participant_statuses is not None:
+        participant_statuses.append(
+            wire_status if wire_status is not None else upgrade_status
+        )
+    dl.save(existing)
+    logger.info(
+        "ensure_reporter_participant: upgraded participant '%s' from "
+        "%s to RM.ACCEPTED (#589, #624)",
+        participant_id,
+        latest_rm,
+    )
 
 
 class CreateCaseReceivedUseCase:
@@ -307,6 +441,12 @@ class CreateCaseReceivedUseCase:
         # the inbox router may have already seeded the case before dispatch.
         _store_embedded_participants(case_obj, self._dl, case_id)
 
+        # #589: when participants arrive as bare string IDs (the common case),
+        # _store_embedded_participants cannot create records for them.  Ensure
+        # the reporter's own participant is seeded at RM.ACCEPTED — inferred
+        # from the fact that they submitted a report.
+        _ensure_reporter_participant(self._dl, link, case_obj, case_id)
+
 
 class UpdateCaseReceivedUseCase:
     def __init__(
@@ -323,44 +463,31 @@ class UpdateCaseReceivedUseCase:
             logger.warning("update_case: missing case_id on request")
             return
 
-        stored_case = self._dl.read(case_id)
-        if not is_case_model(stored_case):
-            logger.warning(
-                "update_case: case '%s' not found in DataLayer — skipping",
-                case_id,
-            )
-            return
+        from py_trees.common import Status
 
-        owner_id = _as_id(stored_case.attributed_to)
-        if owner_id != actor_id:
-            logger.warning(
-                "update_case: actor '%s' is not the owner of case '%s' — skipping update",
-                actor_id,
-                case_id,
-            )
-            return
-
-        excluded_actor_ids = _check_participant_embargo_acceptance(
-            stored_case, self._dl
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.case.update_tree import (
+            create_update_case_received_tree,
         )
 
-        if (
-            request.object_type == "VulnerabilityCase"
-            and request.case is not None
-        ):
-            for field in ("name", "summary", "content"):
-                value = getattr(request.case, field, None)
-                if value is not None:
-                    setattr(stored_case, field, value)
-            self._dl.save(stored_case)
-            logger.info("Actor '%s' updated case '%s'", actor_id, case_id)
-        else:
-            logger.info(
-                "update_case: object for case '%s' is a reference only — no fields to apply",
+        tree = create_update_case_received_tree(
+            case_id=case_id,
+            actor_id=actor_id,
+            request=request,
+        )
+        bridge = BTBridge(datalayer=self._dl)
+        result = bridge.execute_with_setup(
+            tree=tree,
+            actor_id=actor_id,
+            activity=request,
+        )
+        if result.status != Status.SUCCESS:
+            logger.warning(
+                "UpdateCaseBT did not succeed for actor '%s' / case '%s': %s",
+                actor_id,
                 case_id,
+                BTBridge.get_failure_reason(tree),
             )
-
-        self._broadcast_case_update(case_id, stored_case, excluded_actor_ids)
 
     def _broadcast_case_update(
         self,
@@ -375,70 +502,19 @@ class UpdateCaseReceivedUseCase:
         Per CM-10-004, participants who have not accepted the active embargo are
         excluded from the broadcast.
         """
-        excluded = excluded_actor_ids or set()
-        # Locate the CaseActor (type_="Service") associated with this case
-        case_actor_id: str | None = None
-        for service in self._dl.list_objects("Service"):
-            if getattr(service, "context", None) == case_id:
-                case_actor_id = service.id_
-                break
-
-        if case_actor_id is None:
-            logger.debug(
-                "update_case: no CaseActor found for case '%s' — skipping broadcast",
-                case_id,
-            )
-            return
-
-        participant_ids = [
-            actor_id
-            for actor_id in case.actor_participant_index.keys()
-            if actor_id not in excluded
-        ]
-        if not participant_ids:
-            logger.debug(
-                "update_case: no eligible participants in case '%s' — skipping broadcast",
-                case_id,
-            )
-            return
-
-        broadcast = VultronActivity(
-            type_="Announce",
-            actor=case_actor_id,
-            object_=case_id,
-            to=participant_ids,
-        )
-        try:
-            self._dl.create(broadcast)
-        except ValueError:
-            logger.debug(
-                "update_case: broadcast activity %s already exists — skipping",
-                broadcast.id_,
-            )
-            return
-
-        case_actor_obj = self._dl.read(case_actor_id)
-        if case_actor_obj is not None and hasattr(case_actor_obj, "outbox"):
-            cast(Any, case_actor_obj).outbox.items.append(broadcast.id_)
-            self._dl.save(case_actor_obj)
-
-        # Enqueue for delivery via outbox_handler
-        self._dl.record_outbox_item(case_actor_id, broadcast.id_)
-
-        logger.info(
-            "update_case: CaseActor '%s' broadcast Announce for case '%s' to %d participants (CM-06-001)",
-            case_actor_id,
-            case_id,
-            len(participant_ids),
-        )
+        broadcast_case_update(self._dl, case_id, case, excluded_actor_ids)
 
 
 class EngageCaseReceivedUseCase:
     def __init__(
-        self, dl: CasePersistence, request: EngageCaseReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: EngageCaseReceivedEvent,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: EngageCaseReceivedEvent = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         request = self._request
@@ -453,13 +529,23 @@ class EngageCaseReceivedUseCase:
             logger.warning("engage_case: missing case_id on request")
             return
 
+        # Persist any inline participant objects carried in the case snapshot
+        # so BT nodes (CheckParticipantExists, AppendParticipantStatusNode) can
+        # locate them by UUID.  Mirrors the Create (#564) and Announce (#566)
+        # paths (CBT-05-005, fixes #573).
+        case_obj = request.case
+        if is_case_model(case_obj):
+            _store_embedded_participants(case_obj, self._dl, case_id)
+
         logger.info(
             "Actor '%s' engages case '%s' (RM → ACCEPTED)",
             actor_id,
             case_id,
         )
 
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl, trigger_activity=self._trigger_activity
+        )
         tree = create_engage_case_tree(case_id=case_id, actor_id=actor_id)
         result = bridge.execute_with_setup(
             tree=tree, actor_id=actor_id, activity=request
@@ -476,10 +562,14 @@ class EngageCaseReceivedUseCase:
 
 class DeferCaseReceivedUseCase:
     def __init__(
-        self, dl: CasePersistence, request: DeferCaseReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: DeferCaseReceivedEvent,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: DeferCaseReceivedEvent = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         request = self._request
@@ -500,7 +590,9 @@ class DeferCaseReceivedUseCase:
             case_id,
         )
 
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl, trigger_activity=self._trigger_activity
+        )
         tree = create_defer_case_tree(case_id=case_id, actor_id=actor_id)
         result = bridge.execute_with_setup(
             tree=tree, actor_id=actor_id, activity=request
@@ -674,12 +766,14 @@ class ValidateCaseUseCase:
         report_id: str,
         offer_id: str,
         case_id: str | None = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._actor_id = actor_id
         self._report_id = report_id
         self._offer_id = offer_id
         self._case_id = case_id
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         from vultron.core.behaviors.bridge import BTBridge
@@ -694,7 +788,9 @@ class ValidateCaseUseCase:
             f" (case '{self._case_id}')" if self._case_id else "",
         )
 
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl, trigger_activity=self._trigger_activity
+        )
         tree = create_validate_report_tree(
             report_id=self._report_id,
             offer_id=self._offer_id,

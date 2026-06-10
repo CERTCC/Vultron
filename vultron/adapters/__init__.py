@@ -17,5 +17,5 @@ Sub-packages:
   third-party systems). Each plugin translates between external events and
   Vultron domain events.
 
-See ``notes/architecture-ports-and-adapters.md`` for the full design.
+See ``notes/architecture-adapters.md`` for adapter-layer design details.
 """

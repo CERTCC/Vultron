@@ -28,13 +28,14 @@ argument to :func:`get_datalayer` to override the config value, e.g. for
 
 import json
 import logging
+from collections.abc import Callable
 from datetime import date, datetime
 from typing import Any, cast
 
 from pydantic import ValidationError
-from sqlalchemy import Column, Engine, func
+from sqlalchemy import Column, Engine, event, func
 from sqlalchemy.dialects.sqlite import JSON
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool, StaticPool
 from sqlmodel import Field, Session, SQLModel, col, create_engine, select
 
 from vultron.adapters.driven.db_record import (
@@ -44,7 +45,7 @@ from vultron.adapters.driven.db_record import (
     object_to_record,
     record_to_object,
 )
-from vultron.adapters.utils import _URN_UUID_PREFIX, _UUID_RE
+from vultron.adapters.utils import _URN_UUID_PREFIX, _UUID_RE, strip_id_prefix
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.protocols import PersistableModel, is_case_model
 from vultron.core.ports.datalayer import StorableRecord
@@ -61,6 +62,20 @@ logger = logging.getLogger(__name__)
 _ACTOR_TYPES: frozenset[str] = frozenset(
     {"Actor", "Person", "Organization", "Service", "Application", "Group"}
 )
+_CASE_TYPES: frozenset[str] = frozenset({"VulnerabilityCase"})
+
+
+def _matches_short_id(full_id: str, short_id: str) -> bool:
+    """Return True when *short_id* resolves to *full_id*.
+
+    Surrogate keys are derived from canonical IDs by taking the final segment:
+    ``https://host/api/v2/cases/abc`` -> ``abc``, ``urn:uuid:abc`` -> ``abc``.
+    """
+    if full_id == short_id:
+        return True
+    if full_id.endswith(f"/{short_id}"):
+        return True
+    return strip_id_prefix(full_id) == short_id
 
 
 class VultronObjectRecord(SQLModel, table=True):
@@ -87,6 +102,38 @@ class QueueEntry(SQLModel, table=True):
     activity_id: str
 
 
+def _participant_status_summary(data: Any) -> str:
+    """Return a short debug summary of a CaseParticipant row's status list.
+
+    Used by adapter logging on read/save to make read-after-write
+    visibility issues directly diagnosable from container logs without
+    dumping full JSON. Returns ``""`` (empty string) for non-participant
+    rows or malformed data so callers can branch cheaply.
+    """
+    if not isinstance(data, dict):
+        return ""
+    statuses = data.get("participant_statuses") or data.get(
+        "participantStatuses"
+    )
+    if not isinstance(statuses, list):
+        return ""
+    if not statuses:
+        return "n_statuses=0"
+    entries = []
+    for i, s in enumerate(statuses):
+        if isinstance(s, dict):
+            vfd = s.get("vfd_state") or s.get("vfdState")
+            rm = s.get("rm_state") or s.get("rmState")
+            pub = s.get("published")
+            upd = s.get("updated")
+            entries.append(
+                f"[{i}]vfd={vfd!r},rm={rm!r},pub={pub!r},upd={upd!r}"
+            )
+        else:
+            entries.append(f"[{i}]<{type(s).__name__}>")
+    return f"n_statuses={len(statuses)} " + " ".join(entries)
+
+
 def _json_default(obj: Any) -> Any:
     """JSON encoder fallback that serializes ``datetime`` / ``date`` objects."""
     if isinstance(obj, (datetime, date)):
@@ -106,6 +153,14 @@ def _make_engine(db_url: str) -> Engine:
 
     For in-memory databases uses ``StaticPool`` so every connection
     shares the same in-memory database instead of creating a fresh one.
+    For file-backed SQLite uses ``NullPool`` (one fresh connection per
+    ``Session``) and enables WAL mode so that concurrent readers always
+    observe the most recently committed writes. Together these prevent
+    read-after-write staleness in the asyncio + ``BackgroundTasks`` +
+    SQLite combination used by the FastAPI driving adapter, which
+    otherwise can return stale rows for tens of seconds under CI load
+    (see issue #659).
+
     A custom ``json_serializer`` ensures that ``datetime`` values stored in
     JSON columns are serialised as ISO-8601 strings instead of raising
     ``TypeError``.
@@ -120,9 +175,29 @@ def _make_engine(db_url: str) -> Engine:
         "connect_args": {"check_same_thread": False},
         "json_serializer": _json_serializer,
     }
-    if db_url == "sqlite:///:memory:":
+    is_memory = db_url == "sqlite:///:memory:"
+    if is_memory:
         kwargs["poolclass"] = StaticPool
-    return create_engine(db_url, **kwargs)
+    else:
+        # NullPool gives a fresh DB-API connection per Session. This avoids
+        # the SingletonThreadPool default in which a BackgroundTask and a
+        # concurrent GET handler can share one SQLite connection and observe
+        # stale data across transactions.
+        kwargs["poolclass"] = NullPool
+    engine = create_engine(db_url, **kwargs)
+    if not is_memory:
+        # Enable WAL + NORMAL synchronous on every new connection so that
+        # committed writes are immediately visible to subsequent readers.
+        @event.listens_for(engine, "connect")
+        def _set_sqlite_pragmas(dbapi_connection: Any, _record: Any) -> None:
+            cursor = dbapi_connection.cursor()
+            try:
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA synchronous=NORMAL")
+            finally:
+                cursor.close()
+
+    return engine
 
 
 class SqliteDataLayer:
@@ -132,10 +207,12 @@ class SqliteDataLayer:
         self,
         db_url: str = "sqlite:///:memory:",
         actor_id: str | None = None,
+        enqueue_callback: Callable[[str], None] | None = None,
     ) -> None:
         self._engine = _make_engine(db_url)
         self._actor_id = actor_id
         self._owns_engine: bool = True
+        self._enqueue_callback: Callable[[str], None] | None = enqueue_callback
         SQLModel.metadata.create_all(self._engine)
 
     def close(self) -> None:
@@ -146,6 +223,10 @@ class SqliteDataLayer:
     def clone_for_actor(self, actor_id: str) -> "SqliteDataLayer":
         """Return a new actor-scoped instance sharing this instance's engine.
 
+        The concrete return type is ``SqliteDataLayer``, which satisfies the
+        :class:`~vultron.core.ports.datalayer.ActorScopedDataLayer` Protocol
+        structurally at both type-check and runtime (ARCH-13-003).
+
         The returned instance borrows the underlying engine (it does not own
         it) so its :meth:`close` / ``__del__`` will not dispose the engine.
         The original instance remains responsible for engine lifecycle.
@@ -154,14 +235,31 @@ class SqliteDataLayer:
             actor_id: The actor URI to scope the new instance to.
 
         Returns:
-            A :class:`SqliteDataLayer` scoped to *actor_id* that reads and
-            writes to the same database as this instance.
+            A :class:`SqliteDataLayer` scoped to *actor_id* (satisfies
+            :class:`~vultron.core.ports.datalayer.ActorScopedDataLayer`)
+            that reads and writes to the same database as this instance.
         """
         clone = SqliteDataLayer.__new__(SqliteDataLayer)
         clone._engine = self._engine
         clone._actor_id = actor_id
         clone._owns_engine = False
+        clone._enqueue_callback = self._enqueue_callback
         return clone
+
+    def set_enqueue_callback(
+        self, callback: Callable[[str], None] | None
+    ) -> None:
+        """Set the callback invoked when an item is added to the outbox.
+
+        Used by :class:`~vultron.adapters.driving.fastapi.outbox_monitor\
+.OutboxMonitor` to register an event-driven wakeup notification.  Pass
+        ``None`` to clear a previously registered callback.
+
+        Args:
+            callback: Callable that receives ``actor_id`` when an outbox
+                item is enqueued, or ``None`` to disable notification.
+        """
+        self._enqueue_callback = callback
 
     def __enter__(self) -> "SqliteDataLayer":
         """Support ``with SqliteDataLayer(...) as dl:`` usage."""
@@ -456,6 +554,16 @@ class SqliteDataLayer:
                 )
                 row = session.exec(stmt).first()
                 if row is not None:
+                    if row.type_ == "CaseParticipant":
+                        summary = _participant_status_summary(row.data)
+                        logger.debug(
+                            "DataLayer read CaseParticipant '%s' (row "
+                            "actor_id=%r dl_actor_id=%r): %s",
+                            row.id_,
+                            row.actor_id,
+                            self._actor_id,
+                            summary,
+                        )
                     obj = self._from_row(row)
                     if obj is not None:
                         return obj
@@ -581,6 +689,13 @@ class SqliteDataLayer:
             session.add(row)
             session.commit()
         logger.info("DataLayer saved %s '%s'", rec.type_, rec.id_)
+        if rec.type_ == "CaseParticipant":
+            logger.debug(
+                "DataLayer saved CaseParticipant '%s' (dl_actor_id=%r): %s",
+                rec.id_,
+                self._actor_id,
+                _participant_status_summary(rec.data_),
+            )
 
     def delete(self, table: str, id_: str) -> bool:
         """Delete a record by type and ID.
@@ -809,12 +924,49 @@ class SqliteDataLayer:
                 )
             rows = session.exec(stmt).all()
 
+        matches: list[PersistableModel] = []
         for row in rows:
-            if row.id_.endswith(f"/{short_id}") or row.id_ == short_id:
+            if _matches_short_id(row.id_, short_id):
                 obj = self._from_row(row)
                 if obj is not None:
-                    return obj
-        return None
+                    matches.append(obj)
+
+        if len(matches) > 1:
+            logger.warning(
+                "Ambiguous actor surrogate key '%s' matched %d actors",
+                short_id,
+                len(matches),
+            )
+            return None
+        return matches[0] if matches else None
+
+    def find_case_by_short_id(self, short_id: str) -> PersistableModel | None:
+        """Find a case by its URL-safe surrogate key."""
+        with Session(self._engine) as session:
+            stmt = select(VultronObjectRecord).where(
+                VultronObjectRecord.type_.in_(list(_CASE_TYPES))  # type: ignore[attr-defined]
+            )
+            if self._actor_id:
+                stmt = stmt.where(
+                    VultronObjectRecord.actor_id == self._actor_id
+                )
+            rows = session.exec(stmt).all()
+
+        matches: list[PersistableModel] = []
+        for row in rows:
+            if _matches_short_id(row.id_, short_id):
+                obj = self._from_row(row)
+                if obj is not None:
+                    matches.append(obj)
+
+        if len(matches) > 1:
+            logger.warning(
+                "Ambiguous case surrogate key '%s' matched %d cases",
+                short_id,
+                len(matches),
+            )
+            return None
+        return matches[0] if matches else None
 
     def find_case_by_report_id(
         self, report_id: str
@@ -928,6 +1080,14 @@ class SqliteDataLayer:
                 )
             )
             session.commit()
+        if self._enqueue_callback is not None:
+            try:
+                self._enqueue_callback(actor)
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "outbox_append: enqueue_callback raised for actor '%s'",
+                    actor,
+                )
 
     def outbox_list(self) -> list[str]:
         """Return all activity IDs in this actor's outbox, in insertion order."""
@@ -937,6 +1097,25 @@ class SqliteDataLayer:
                 select(QueueEntry)
                 .where(
                     QueueEntry.actor_id == actor,
+                    QueueEntry.queue == "outbox",
+                )
+                .order_by(col(QueueEntry.id))
+            )
+            rows = session.exec(stmt).all()
+        return [row.activity_id for row in rows]
+
+    def outbox_list_for_actor(self, actor_id: str) -> list[str]:
+        """Return all outbox activity IDs for *actor_id*, in insertion order.
+
+        Unlike :meth:`outbox_list`, this bypasses ``self._actor_id`` and
+        reads the queue for the named actor directly — matching the write
+        semantics of :meth:`record_outbox_item`.
+        """
+        with Session(self._engine) as session:
+            stmt = (
+                select(QueueEntry)
+                .where(
+                    QueueEntry.actor_id == actor_id,
                     QueueEntry.queue == "outbox",
                 )
                 .order_by(col(QueueEntry.id))
@@ -988,6 +1167,15 @@ class SqliteDataLayer:
                 )
             )
             session.commit()
+        if self._enqueue_callback is not None:
+            try:
+                self._enqueue_callback(actor_id)
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "record_outbox_item: enqueue_callback raised"
+                    " for actor '%s'",
+                    actor_id,
+                )
 
 
 # ---------------------------------------------------------------------------

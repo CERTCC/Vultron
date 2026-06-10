@@ -28,3 +28,13 @@ class VultronObjectType(StrEnum):
     CASE_STATUS = "CaseStatus"
     PARTICIPANT_STATUS = "ParticipantStatus"
     CASE_LOG_ENTRY = "CaseLogEntry"
+
+
+class VultronActorType(StrEnum):
+    """Enumeration of supported ActivityStreams actor type values."""
+
+    PERSON = "Person"
+    ORGANIZATION = "Organization"
+    SERVICE = "Service"
+    APPLICATION = "Application"
+    GROUP = "Group"

@@ -25,7 +25,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.vultron_types import (
     VultronCase,
     VultronCaseActor,
@@ -54,12 +54,12 @@ def _make_participant_in_valid_state(
         attributed_to=attributed_to,
         context=context,
         participant_statuses=[
-            VultronParticipantStatus(
+            ParticipantStatus(
                 attributed_to=attributed_to,
                 context=context,
                 rm_state=RM.RECEIVED,
             ),
-            VultronParticipantStatus(
+            ParticipantStatus(
                 attributed_to=attributed_to,
                 context=context,
                 rm_state=RM.VALID,
@@ -135,7 +135,19 @@ def case_without_participant(datalayer, report):
 
 @pytest.fixture
 def bridge(datalayer):
-    return BTBridge(datalayer=datalayer)
+    from typing import cast
+
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.core.ports.case_persistence import CaseOutboxPersistence
+
+    return BTBridge(
+        datalayer=datalayer,
+        trigger_activity=TriggerActivityAdapter(
+            cast(CaseOutboxPersistence, datalayer)
+        ),
+    )
 
 
 # ============================================================================
@@ -430,11 +442,10 @@ def test_prioritize_subtree_engages_by_default(
     assert updated_participant.participant_statuses[-1].rm_state == RM.ACCEPTED
 
     # An engage activity must have been created and added to outbox
-    updated_actor = datalayer.read(actor_id)
-    assert updated_actor is not None
-    assert len(updated_actor.outbox.items) == 1
+    outbox_items = datalayer.clone_for_actor(actor_id).outbox_list()
+    assert len(outbox_items) == 1
 
-    engage_activity_id = updated_actor.outbox.items[0]
+    engage_activity_id = outbox_items[0]
     engage_activity = datalayer.read(engage_activity_id)
     assert engage_activity is not None
     assert str(engage_activity.type_) == "Join"

@@ -21,7 +21,7 @@ avoids duplication when future multi-actor scenarios need the same checks.
 import logging
 from typing import Optional
 
-import requests  # type: ignore[import-untyped]
+import httpx
 
 from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.em import EM
@@ -64,7 +64,7 @@ def _fetch_participant(
             return None
         p_data = client.get(f"/datalayer/{_dl_key(participant_id)}")
         return CaseParticipant(**p_data)
-    except (requests.HTTPError, AssertionError):
+    except (httpx.HTTPStatusError, AssertionError):
         return None
 
 
@@ -75,7 +75,7 @@ def _fetch_participant_data(client: DataLayerClient, p_id: str) -> dict | None:
     """
     try:
         return client.get(f"/datalayer/{_dl_key(p_id)}")
-    except requests.HTTPError as e:
+    except httpx.HTTPStatusError as e:
         if e.response is not None and e.response.status_code == 404:
             return None
         raise

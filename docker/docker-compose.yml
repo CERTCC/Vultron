@@ -40,6 +40,8 @@ services:
       - dependencies
     ports:
       - "8000:8000"
+    environment:
+      - MKDOCS_CONFIG_FILE=mkdocs.dev.yml
 
   vultrabot-demo:
     build:

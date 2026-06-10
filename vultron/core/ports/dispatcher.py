@@ -25,7 +25,7 @@ Port direction: **inbound (driving)** — external adapters call
 appropriate use case.
 
 See also: ``core/ports/use_case.py`` (inbound, per-use-case contract) and
-``notes/architecture-ports-and-adapters.md`` "Core Port Taxonomy".
+``vultron/core/ports/AGENTS.md`` "Core Port Taxonomy".
 """
 
 from typing import TYPE_CHECKING, Protocol

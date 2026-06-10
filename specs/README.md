@@ -70,7 +70,8 @@ Load additional files only when the task touches the relevant area. See the
 | Case bootstrap trust establishment | `case-bootstrap-trust.yaml`, `participant-case-replica.yaml`, `actor-knowledge-model.yaml` |
 | DataLayer adapter | `datalayer.md` |
 | Handler pipeline | `inbox-endpoint.yaml`, `message-validation.yaml`, `semantic-extraction.yaml`, `dispatch-routing.yaml` |
-| Behavior Trees | `behavior-tree-integration.yaml`, `behavior-tree-node-design.yaml`, `bt-composability.yaml`, `triggerable-behaviors.yaml`, `notes/trigger-classification.md` |
+| Inbox pipeline testability | `inbox-pipeline.yaml` |
+| Behavior Trees | `behavior-tree-integration.yaml`, `behavior-tree-node-design.yaml`, `bt-composability.yaml`, `triggerable-behaviors.yaml`, `vultron/core/use_cases/triggers/AGENTS.md` |
 | Case / state management | `case-management.yaml`, `state-machine.yaml`, `case-log-processing.yaml` |
 | Protocol conformance | `vultron-protocol-spec.yaml`, `vultron-as2-mapping.yaml` |
 | Wire vocabulary | `vocabulary-model.yaml` |
@@ -88,6 +89,7 @@ Load additional files only when the task touches the relevant area. See the
 | Observability | `observability.yaml` |
 | Security / CI | `ci-security.yaml`, `encryption.yaml` |
 | Demo CI / GitHub Actions demo workflow | `demo-ci.yaml` |
+| Docs build and link-check CI workflow | `docs-build-workflow.yaml`, `notes/docs-build-workflow.md` |
 | Agentic API | `agentic-readiness.yaml` |
 | Documentation work | `diataxis-requirements.yaml`, `project-documentation.yaml`, `traceability.yaml` |
 | Build/bugfix workflow / learnings queue | `build-workflow.yaml` |
@@ -138,6 +140,10 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 3. **`semantic-extraction.yaml`** - Pattern matching to determine message semantics
 4. **`dispatch-routing.yaml`** - Routing DispatchEvent to handler functions
 5. **`handler-protocol.yaml`** - Handler function contract and implementation patterns
+
+- **`inbox-pipeline.yaml`** - `InboxPipeline` class contract and `build_test_pipeline()`
+  factory that surface the `inbox_handler → dispatcher` seam as a testable unit;
+  routing-safety-net test coverage requirements (IBP-01 through IBP-04)
 
 **DataLayer Port**:
 
@@ -293,6 +299,9 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 - **`ci-security.yaml`** - GitHub Actions security: SHA pinning, secrets
   management, artifact integrity (CISEC-01 through CISEC-04)
+- **`docs-build-workflow.yaml`** - Docs Build and Link Check workflow:
+  trigger conditions, job structure, docs-changed filter, link-check
+  conditionality, and security compliance (DOCBW-01 through DOCBW-05)
 - **`encryption.yaml`** - ActivityPub encryption and key management (`PROD_ONLY`)
 
 ### Code Standards
@@ -332,16 +341,15 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   `stale-claim`, `needs-rebase`, `specs-notes`), task claiming protocol (branch
   as distributed lock), size labeling (AC count + diff-based update), auto-merge
   rules, pre-PR code review with `[BLOCKING]`/`[ADVISORY]` tags, stale-claim
-  sweeper, merge conflict recovery, and migration from IMPLEMENTATION_PLAN.md
-  (PAD-01 through PAD-15). See also `notes/parallel-development.md`.
+  sweeper, merge conflict recovery, and GitHub Issue-based task coordination
+  (PAD-01 through PAD-14). See also `notes/parallel-development.md`.
   Distinct from `agentic-readiness.yaml` (AR), which covers making the
   Vultron protocol code integrable with external agentic tools.
 - **`project-documentation.yaml`** - Documentation file structure and purpose;
   includes append-only history write protocol (PD-05) for `plan/*HISTORY.md`,
-  plan section organization rules (PD-06): `TASK-FOO` heading format,
-  dot-notation task IDs, priority/plan decoupling; and task granularity /
-  GitHub Issues coordination (PD-09): PR-sized TASK-FOO scoping, three-tier
-  work model, sub-issue linking, and transition guidance
+  plan section organization rules (PD-06): priority/plan decoupling; and task
+  granularity / GitHub Issues coordination (PD-09): PR-sized issue scoping and
+  sub-issue linking
 - **`history-management.yaml`** - Chunked per-entry history file system:
   `plan/history/YYMM/<type>/<entry-id>.md` structure, `HistoryEntryType`
   StrEnum, `append-history` CLI tool (`vultron/metadata/history/`), monthly
@@ -381,7 +389,7 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 1. Identify relevant specifications from structure above
 2. Read requirements with verification criteria
 3. Follow cross-references for related requirements
-4. Check `plan/IMPLEMENTATION_PLAN.md` for implementation status
+4. Check [open GitHub Issues](https://github.com/CERTCC/Vultron/issues) for implementation status
 
 **For reviewing code**:
 
@@ -419,6 +427,7 @@ is reserved for `testability.yaml`).
 | `BTND` | `behavior-tree-node-design.yaml` |
 | `BW` | `build-workflow.yaml` |
 | `CISEC` | `ci-security.yaml` |
+| `DOCBW` | `docs-build-workflow.yaml` |
 | `CLP` | `case-log-processing.yaml` |
 | `CM` | `case-management.yaml` |
 | `CS` | `code-style.yaml` |
@@ -430,6 +439,7 @@ is reserved for `testability.yaml`).
 | `EP` | `embargo-policy.yaml` |
 | `HP` | `handler-protocol.yaml` |
 | `HTTP` | `http-protocol.yaml` |
+| `IBP` | `inbox-pipeline.yaml` |
 | `IE` | `inbox-endpoint.yaml` |
 | `IMPLTS` | `tech-stack.yaml` |
 | `MV` | `message-validation.yaml` |
@@ -500,8 +510,8 @@ source.
 
 ## Implementation Status
 
-See `plan/IMPLEMENTATION_PLAN.md` for current implementation status by
-specification.
+See [open GitHub Issues](https://github.com/CERTCC/Vultron/issues) for
+current implementation status by specification.
 
 ---
 
@@ -520,7 +530,7 @@ When updating specifications:
 
 ## Related Documentation
 
-- **Implementation Plan**: `plan/IMPLEMENTATION_PLAN.md`
+- **Open Issues**: [CERTCC/Vultron Issues](https://github.com/CERTCC/Vultron/issues)
 - **Architecture Decisions**: `docs/adr/*.md`
 - **Design Insights**: `notes/` — durable design insights and lessons learned
 - **ActivityPub Workflows**: `docs/howto/activitypub/activities/*.md`

@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
+from vultron.core.models.actor import CoreActor
 from vultron.core.models.base import VultronObject
 from vultron.core.models._helpers import _now_utc as _core_now_utc
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
@@ -28,11 +29,11 @@ from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.vultron_types import (
     VultronActivity,
     VultronCase,
-    VultronCaseStatus,
-    VultronEmbargoEvent,
+    CaseStatus,
+    EmbargoEvent,
     VultronNote,
     VultronParticipant,
-    VultronParticipantStatus,
+    ParticipantStatus,
     VultronReport,
 )
 from vultron.wire.as2.enums import (
@@ -89,7 +90,9 @@ def _match_activity_field(
         return True
     if activity_field is None:
         return False
-    if pattern_field == AOtype.ACTOR and isinstance(activity_field, as_Actor):
+    if pattern_field == AOtype.ACTOR and isinstance(
+        activity_field, (as_Actor, CoreActor)
+    ):
         return True
     if pattern_field == AOtype.EVENT and isinstance(activity_field, as_Event):
         return True
@@ -510,7 +513,7 @@ def _build_case_object(obj: object) -> dict[str, Any]:
         )
         active_embargo = _get_id(getattr(obj, "active_embargo", None))
         raw_statuses = getattr(obj, "case_statuses", []) or []
-        case_statuses: list[str | VultronCaseStatus] = []
+        case_statuses: list[str | CaseStatus] = []
         for cs in raw_statuses:
             if hasattr(cs, "to_core"):
                 case_statuses.append(cs.to_core())
@@ -559,7 +562,7 @@ def _build_embargo_event_object(
         }
         if isinstance(raw_start, datetime):
             kwargs["start_time"] = raw_start
-        return {"object_": VultronEmbargoEvent(**kwargs)}
+        return {"object_": EmbargoEvent(**kwargs)}
     return {}
 
 
@@ -641,17 +644,18 @@ def _build_case_log_entry_object(obj: object) -> dict[str, Any]:
 def _build_case_status_object(obj: object) -> dict[str, Any]:
     object_id = _get_id(obj)
     case_context = _get_id(getattr(obj, "context", None))
+    attributed_to = _get_id(getattr(obj, "attributed_to", None))
     if object_id and case_context:
         return {
-            "object_": VultronCaseStatus(
+            "object_": CaseStatus(
                 id_=object_id,
                 name=getattr(obj, "name", None),
                 context=case_context,
-                attributed_to=_get_id(getattr(obj, "attributed_to", None)),
+                attributed_to=attributed_to,
                 em_state=getattr(obj, "em_state", None)
-                or VultronCaseStatus.model_fields["em_state"].default,
+                or CaseStatus.model_fields["em_state"].default,
                 pxa_state=getattr(obj, "pxa_state", None)
-                or VultronCaseStatus.model_fields["pxa_state"].default,
+                or CaseStatus.model_fields["pxa_state"].default,
             )
         }
     return {}
@@ -662,36 +666,37 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
     ctx = _get_id(getattr(obj, "context", None)) or ""
     wire_case_status = getattr(obj, "case_status", None)
     if object_id:
-        # Extract embedded CaseStatus into a VultronCaseStatus core object so
+        # Extract embedded CaseStatus into a CaseStatus core object so
         # that pxa_state and em_state are propagated across the wire boundary.
-        core_case_status: VultronCaseStatus | None = None
+        core_case_status: CaseStatus | None = None
         if wire_case_status is not None:
             cs_id = _get_id(wire_case_status)
             cs_context = (
                 _get_id(getattr(wire_case_status, "context", None)) or ctx
             )
+            cs_attributed_to = _get_id(
+                getattr(wire_case_status, "attributed_to", None)
+            )
             if cs_id and cs_context:
-                core_case_status = VultronCaseStatus(
+                core_case_status = CaseStatus(
                     id_=cs_id,
                     context=cs_context,
-                    attributed_to=_get_id(
-                        getattr(wire_case_status, "attributed_to", None)
-                    ),
+                    attributed_to=cs_attributed_to,
                     em_state=getattr(wire_case_status, "em_state", None)
-                    or VultronCaseStatus.model_fields["em_state"].default,
+                    or CaseStatus.model_fields["em_state"].default,
                     pxa_state=getattr(wire_case_status, "pxa_state", None)
-                    or VultronCaseStatus.model_fields["pxa_state"].default,
+                    or CaseStatus.model_fields["pxa_state"].default,
                 )
         return {
-            "object_": VultronParticipantStatus(
+            "object_": ParticipantStatus(
                 id_=object_id,
                 name=getattr(obj, "name", None),
                 context=ctx,
                 attributed_to=_get_id(getattr(obj, "attributed_to", None)),
                 rm_state=getattr(obj, "rm_state", None)
-                or VultronParticipantStatus.model_fields["rm_state"].default,
+                or ParticipantStatus.model_fields["rm_state"].default,
                 vfd_state=getattr(obj, "vfd_state", None)
-                or VultronParticipantStatus.model_fields["vfd_state"].default,
+                or ParticipantStatus.model_fields["vfd_state"].default,
                 case_status=core_case_status,
             )
         }

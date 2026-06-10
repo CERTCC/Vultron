@@ -637,7 +637,7 @@ class TestCaseLevelUseeCases:
     ):
         """Helper: create a VulnerabilityCase with one participant."""
         from vultron.core.models.participant_status import (
-            VultronParticipantStatus,
+            ParticipantStatus,
         )
 
         participant = VultronParticipant(
@@ -645,7 +645,7 @@ class TestCaseLevelUseeCases:
             attributed_to=actor_id,
             context="https://example.org/cases/c1",
             participant_statuses=[
-                VultronParticipantStatus(
+                ParticipantStatus(
                     rm_state=initial_rm,
                     context="https://example.org/cases/c1",
                     attributed_to=actor_id,
@@ -737,7 +737,7 @@ class TestDereferencePatternInReportUseCases:
     ):
         """Create a case linked to a report via find_case_by_report_id."""
         from vultron.core.models.participant_status import (
-            VultronParticipantStatus,
+            ParticipantStatus,
         )
         from vultron.core.models.report import VultronReport as CoreReport
 
@@ -749,7 +749,7 @@ class TestDereferencePatternInReportUseCases:
             attributed_to=actor_id,
             context="https://example.org/cases/c-deref",
             participant_statuses=[
-                VultronParticipantStatus(
+                ParticipantStatus(
                     rm_state=initial_rm,
                     context="https://example.org/cases/c-deref",
                     attributed_to=actor_id,
@@ -1075,7 +1075,9 @@ class TestFullReportFlow:
         dl = self._setup_dl()
         SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
         ValidateReportReceivedUseCase(
-            dl, self._make_validate_event()
+            dl,
+            self._make_validate_event(),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         case_obj = cast(

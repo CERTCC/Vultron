@@ -5,8 +5,7 @@ they are either fully superseded, describe completed implementation tasks, or
 are session-log artefacts rather than durable design insights.
 
 **Do not load these files as routine context.** They are kept for historical
-reference only. Any open items were rescued to `plan/IMPLEMENTATION_PLAN.md`
-before archiving.
+reference only. Any open items were rescued to GitHub Issues before archiving.
 
 ---
 
@@ -25,14 +24,19 @@ before archiving.
 | `protocol-event-cascade-gaps.md` | 2026-04-17 | "Identified Gaps" (D5-6-AUTOENG, D5-6-NOTECAST, D5-6-EMBARGORCP, D5-6-CASEPROP) and "Anti-Pattern" sections extracted from `notes/protocol-event-cascades.md`; all gaps resolved (PRIORITY-310, PRIORITY-320, PRIORITY-330) | None — all tasks completed |
 | `wire-trans-design.md` | 2026-04-17 | "Current Status" and "Recommended Next Steps" sections extracted from `notes/domain-model-separation.md`; WIRE-TRANS-01–05 fully complete (PRIORITY-340) | None — all tasks completed |
 | `priority-30-design.md` | 2026-04-17 | "Open Design Questions" and "Candidate Behaviors for PRIORITY 30" sections extracted from `notes/triggerable-behaviors.md`; all 10 trigger endpoints implemented (PRIORITY-30) | None — all tasks completed |
+| `plan-organization.md` | 2026-06-01 | Entirely about the now-obsolete `TASK-FOO` naming scheme for `plan/IMPLEMENTATION_PLAN.md`, which has been deleted. All work is tracked as GitHub Issues. See `notes/parallel-development.md` for the current model. | None — scheme fully retired |
+| `plan-history-management.md` | 2026-06-01 | Described management of IMPLEMENTATION_PLAN.md (PLAN) alongside plan/history/ (HISTORY). IMPLEMENTATION_PLAN.md deleted; history contract is fully covered by `specs/history-management.yaml` and the `append-history` tool. | None — captured in HM spec |
+| `work-granularity.md` | 2026-06-01 | Described a three-tier model (GitHub Issue → TASK-FOO in IMPLEMENTATION_PLAN.md → checklist items). IMPLEMENTATION_PLAN.md deleted; work is tracked directly in GitHub Issues per `specs/project-documentation.yaml` PD-09. | None — scheme fully retired |
 | `append-only-file-handling.md` | 2026-04-28 | Superseded by `specs/history-management.yaml` (HM-01–HM-05) and the `append-history` CLI tool; the manual `cat >>` append procedure is no longer used | None — all requirements captured in HM spec |
+| `architecture-ports-and-adapters.md` | 2026-06-03 | 933-line monolith split into `notes/architecture-hexagonal.md`, `notes/architecture-ports.md`, and `notes/architecture-adapters.md` (concern #658, issue #666); `status: superseded` since that split; file left in `notes/` causing agent confusion (concern #506) | All live content preserved in successor files; future-stub items tracked as #650 (delivery stubs) and #655 (ActorScopedDataLayer) |
+| `demo-review-26042001.md` | 2026-06-04 | Point-in-time demo review from 2026-04-20; `status: archived`, `superseded_by: notes/two-actor-demo.md`; all DR-01–DR-14 findings incorporated into active notes and resolved | None — all findings resolved |
 
 ---
 
 ## How this directory is maintained
 
 - Files are moved here using `git mv` so history is preserved.
-- When archiving, open items MUST be rescued to `plan/IMPLEMENTATION_PLAN.md`
-  before the file is moved.
+- When archiving, open items MUST be rescued to GitHub Issues before the file
+  is moved.
 - This README MUST be updated whenever a file is moved here.
 - See `specs/project-documentation.yaml` for the full maintenance policy.

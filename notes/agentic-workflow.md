@@ -8,6 +8,7 @@ description: >
 related_notes:
   - notes/append-only-file-handling.md
   - notes/bugfix-workflow.md
+  - notes/agents-md-structure.md
 related_specs:
   - specs/build-workflow.yaml
   - specs/history-management.yaml
@@ -72,35 +73,34 @@ codebase actually needs.
 ### 3. `update-plan` — Plan Maintenance
 
 **Purpose**: Perform a gap analysis between current specs/notes and the
-codebase, then rewrite `IMPLEMENTATION_PLAN.md` with an ordered, actionable
-task list.
+codebase, then create GitHub Issues for any untracked gaps.
 
 | | |
 |---|---|
 | **Trigger** | `specs/` or `notes/` have changed since the last plan update |
-| **Input** | `specs/`, `notes/`, `vultron/`, `test/`, `plan/PRIORITIES.md` |
-| **Process** | Load context → gap analysis → rewrite plan → write observations to `notes/` |
-| **Output** | `plan/IMPLEMENTATION_PLAN.md` (rewritten) |
-| **Side effects** | Completed tasks moved to `plan/history/` via `uv run append-history implementation` |
+| **Input** | `specs/`, `notes/`, `vultron/`, `test/`, Project #24 board, open GitHub Issues |
+| **Process** | Load context → gap analysis → create GitHub Issues → add to board → write observations to `notes/` |
+| **Output** | New GitHub Issues (added to Project #24 with Schedule=Someday), updated `notes/` |
+| **Side effects** | None — does not commit code or close issues |
 
 `update-plan` is the **third-priority** skill. It translates the current
-specs and notes into concrete tasks. Running `build` on a stale plan risks
-implementing the wrong things or duplicating already-completed work.
+specs and notes into concrete GitHub Issues. Running `build` without a
+gap analysis risks implementing the wrong things or duplicating
+already-completed work.
 
 ---
 
 ### 4. `build` — Execute
 
-**Purpose**: Complete the highest-priority pending task from the
-implementation plan.
+**Purpose**: Complete the highest-priority pending task from GitHub Issues.
 
 | | |
 |---|---|
-| **Trigger** | `IMPLEMENTATION_PLAN.md` has pending tasks and no higher-priority skill is triggered |
-| **Input** | `plan/IMPLEMENTATION_PLAN.md` (one task), `specs/`, `notes/` |
-| **Process** | Select task → verify → implement → validate → finalize |
-| **Output** | `vultron/` (code), `test/` (tests) |
-| **Side effects** | Task removed from plan, summary archived via `uv run append-history implementation`; observations and open questions appended to `plan/BUILD_LEARNINGS.md` (triggering `learn` on the next loop) |
+| **Trigger** | Open GitHub Issues exist in the top-priority group and no higher-priority skill is triggered |
+| **Input** | Top-priority open GitHub Issue, `specs/`, `notes/` |
+| **Process** | Select task → claim branch → implement → validate → open PR |
+| **Output** | `vultron/` (code), `test/` (tests), GitHub PR |
+| **Side effects** | Summary archived via `uv run append-history implementation`; observations and open questions appended to `plan/BUILD_LEARNINGS.md` (triggering `learn` on the next loop) |
 
 `build` is the **lowest-priority** skill — it only runs when no higher-level
 skill is triggered. Its side effects (new `plan/BUILD_LEARNINGS.md` entries)
@@ -129,10 +129,10 @@ flowchart TD
 
     CHK_NOTES -->|No| CHK_SPECS{specs/ or notes/\nchanged since last\nplan update?}
 
-    CHK_SPECS -->|Yes| UPDATE["📋 update-plan\nspecs/notes/code → IMPLEMENTATION_PLAN.md"]
+    CHK_SPECS -->|Yes| UPDATE["📋 update-plan\nspecs/notes/code → GitHub Issues"]
     UPDATE --> START
 
-    CHK_SPECS -->|No| CHK_TASKS{IMPLEMENTATION_PLAN.md\nhas pending tasks?}
+    CHK_SPECS -->|No| CHK_TASKS{Open GitHub Issues\nin top-priority group?}
 
     CHK_TASKS -->|Yes| BUILD["🔨 build\ntask → code + tests"]
     BUILD --> START
@@ -151,8 +151,8 @@ flowchart TD
 | `specs/*.yaml` | Authoritative requirements | Permanent |
 | `notes/*.md` | Durable design insights | Permanent |
 | `AGENTS.md` | Agent conventions and patterns | Permanent |
-| `plan/PRIORITIES.md` | Authoritative priority ordering | Permanent |
-| `plan/IMPLEMENTATION_PLAN.md` | Pending + in-progress tasks | Living document |
+| GitHub Project #24 | Authoritative priority scheduling (Now/Next/Later/Someday) | Live — updated via API |
+| GitHub Task/Subtask Issues | Pending + in-progress tasks | Yes — closed when PR merges |
 | `plan/BUILD_LEARNINGS.md` | Ephemeral build/bugfix observations | Yes — processed and archived by `learn` |
 | `vultron/`, `test/` | Implementation | Permanent |
 
@@ -243,7 +243,7 @@ Selector (priority order)
 ├── Sequence: Open Idea-type GitHub issues? → ingest-idea
 ├── Sequence: BUILD_LEARNINGS.md changed? → learn
 ├── Sequence: specs/ or notes/ changed? → update-plan
-└── Sequence: IMPLEMENTATION_PLAN.md has tasks? → build
+└── Sequence: Open GitHub Issues in top-priority group? → build
 ```
 
 Each condition node checks a file-system signal; each action node invokes

@@ -14,7 +14,13 @@ from vultron.core.models.protocols import (
     is_participant_model,
 )
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.states.participant_embargo_consent import (
+    PEC,
+    PEC_Trigger,
+    apply_pec_trigger,
+)
 from vultron.core.states.rm import RM
+from vultron.core.states.roles import CVDRole
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -184,6 +190,118 @@ def update_participant_rm_state(
         case_id,
     )
     return False
+
+
+def _resolve_case_manager_id(
+    case: CaseModel, dl: CasePersistence
+) -> str | None:
+    """Return the actor ID of the Case Manager (CVDRole.CASE_MANAGER).
+
+    Iterates over all participants in the case's ``actor_participant_index``
+    and returns the ``attributed_to`` actor ID of the first participant that
+    holds ``CVDRole.CASE_MANAGER``.  Returns ``None`` when no Case Manager
+    participant is found.
+
+    This is the correct recipient for all participant-originated outbound
+    activities after case creation (PCR-08-001, PCR-08-002).
+    """
+    for p_id in case.actor_participant_index.values():
+        p = dl.read(p_id)
+        if p is None:
+            continue
+        roles = getattr(p, "case_roles", [])
+        if CVDRole.CASE_MANAGER in roles:
+            manager_actor_id = getattr(p, "attributed_to", None)
+            return _as_id(manager_actor_id)
+    return None
+
+
+def resolve_case_participant_id_for_actor(
+    case: CaseModel,
+    actor_id: str,
+    dl: CasePersistence,
+) -> str | None:
+    """Resolve participant ID from actor ID using ``case_participants`` as truth.
+
+    The lookup canonical source is ``case.case_participants``. The derived
+    ``actor_participant_index`` mapping is validated against that source and
+    any divergence raises :class:`VultronValidationError`.
+    """
+    resolved_ids: list[str] = []
+    for participant_ref in case.case_participants:
+        participant_id = _as_id(participant_ref)
+        if participant_id is None:
+            continue
+        participant_obj = (
+            participant_ref
+            if is_participant_model(participant_ref)
+            else dl.read(participant_id)
+        )
+        if not is_participant_model(participant_obj):
+            continue
+        participant_actor_id = _as_id(participant_obj.attributed_to)
+        if participant_actor_id == actor_id:
+            resolved_ids.append(participant_id)
+
+    unique_ids = sorted(set(resolved_ids))
+    if len(unique_ids) > 1:
+        raise VultronValidationError(
+            "Participant-index divergence: actor "
+            f"'{actor_id}' resolves to multiple participants "
+            f"{unique_ids!r} in case_participants."
+        )
+
+    indexed_id = case.actor_participant_index.get(actor_id)
+    if not unique_ids:
+        if indexed_id is not None:
+            raise VultronValidationError(
+                "Participant-index divergence: actor "
+                f"'{actor_id}' maps to '{indexed_id}' in "
+                "actor_participant_index but has no matching participant in "
+                "case_participants."
+            )
+        return None
+
+    canonical_id = unique_ids[0]
+    if indexed_id is not None and indexed_id != canonical_id:
+        raise VultronValidationError(
+            "Participant-index divergence: actor "
+            f"'{actor_id}' resolves to '{canonical_id}' from "
+            f"case_participants but actor_participant_index maps to "
+            f"'{indexed_id}'."
+        )
+
+    return canonical_id
+
+
+def reset_case_participant_embargo_consent(
+    dl: CasePersistence, case: CaseModel
+) -> None:
+    """Reset all participants' embargo consent state to NO_EMBARGO.
+
+    Called when an embargo is terminated or removed.  Iterates over all
+    participants in *case* and applies ``PEC_Trigger.RESET`` to any
+    participant whose embargo_consent_state is not already ``NO_EMBARGO``.
+    Tolerates both string IDs and inline ``CaseParticipant`` objects in
+    ``case.case_participants`` (regression #609).
+
+    This is the single authoritative implementation; the former duplicates
+    ``_reset_case_participant_embargo_consent`` (received layer) and
+    ``_cascade_pec_reset`` (triggers layer) have been removed in favour of
+    this shared helper.
+    """
+    for entry in case.case_participants:
+        participant_id = _as_id(entry)
+        if participant_id is None:
+            continue
+        participant = dl.read(participant_id)
+        if not is_participant_model(participant):
+            continue
+        if participant.embargo_consent_state != PEC.NO_EMBARGO.value:
+            participant.embargo_consent_state = apply_pec_trigger(
+                PEC(participant.embargo_consent_state), PEC_Trigger.RESET
+            )
+            dl.save(participant)
 
 
 def case_addressees(case: CaseModel, excluding_actor_id: str) -> list[str]:

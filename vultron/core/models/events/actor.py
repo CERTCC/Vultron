@@ -3,18 +3,17 @@
 Covers suggest-actor, ownership-transfer, and invite-actor-to-case semantics.
 """
 
-from typing import Literal
+from typing import TYPE_CHECKING, Literal, cast
 
-from vultron.core.models.events._mixins import (
-    _InnerObjectIsCaseMixin,
-    _InnerObjectIsInviteeMixin,
-    _InnerTargetIsCaseMixin,
-    _ObjectIsInviteMixin,
-    _ObjectIsOfferMixin,
-    _ObjectIsSuggestedActorMixin,
-)
-from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.events.base import MessageSemantics, VultronEvent
+
+if TYPE_CHECKING:
+    from vultron.core.models.base import VultronObject
+    from vultron.core.models.case import VulnerabilityCase as VultronCase
+else:
+    VultronObject = object
+    VultronCase = object
 
 
 class SuggestActorToCaseReceivedEvent(VultronEvent):
@@ -35,14 +34,20 @@ class AcceptSuggestActorToCaseReceivedEvent(VultronEvent):
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
-class RejectSuggestActorToCaseReceivedEvent(
-    _ObjectIsSuggestedActorMixin, VultronEvent
-):
+class RejectSuggestActorToCaseReceivedEvent(VultronEvent):
     """Actor rejected a suggestion to add another actor to a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE] = (
         MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE
     )
+
+    @property
+    def suggested_actor_id(self) -> str | None:
+        return self.object_id
+
+    @property
+    def suggested_actor(self) -> "VultronObject | None":
+        return cast("VultronObject | None", self.object_)
 
 
 class OfferCaseManagerRoleReceivedEvent(VultronEvent):
@@ -59,22 +64,36 @@ class OfferCaseManagerRoleReceivedEvent(VultronEvent):
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
-class AcceptCaseManagerRoleReceivedEvent(
-    _InnerObjectIsCaseMixin, VultronEvent
-):
+class AcceptCaseManagerRoleReceivedEvent(VultronEvent):
     """Case Actor accepted the CASE_MANAGER role delegation offer."""
 
     semantic_type: Literal[MessageSemantics.ACCEPT_CASE_MANAGER_ROLE] = (
         MessageSemantics.ACCEPT_CASE_MANAGER_ROLE
     )
 
+    @property
+    def case_id(self) -> str | None:
+        return self.inner_object_id
 
-class RejectCaseManagerRoleReceivedEvent(_ObjectIsOfferMixin, VultronEvent):
+    @property
+    def case(self) -> "VultronCase | None":
+        return cast("VultronCase | None", self.inner_object)
+
+
+class RejectCaseManagerRoleReceivedEvent(VultronEvent):
     """Case Actor rejected the CASE_MANAGER role delegation offer."""
 
     semantic_type: Literal[MessageSemantics.REJECT_CASE_MANAGER_ROLE] = (
         MessageSemantics.REJECT_CASE_MANAGER_ROLE
     )
+
+    @property
+    def offer_id(self) -> str | None:
+        return self.object_id
+
+    @property
+    def offer(self) -> "VultronActivity | None":
+        return cast("VultronActivity | None", self.object_)
 
 
 class OfferCaseOwnershipTransferReceivedEvent(VultronEvent):
@@ -86,24 +105,36 @@ class OfferCaseOwnershipTransferReceivedEvent(VultronEvent):
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
-class AcceptCaseOwnershipTransferReceivedEvent(
-    _InnerObjectIsCaseMixin, VultronEvent
-):
+class AcceptCaseOwnershipTransferReceivedEvent(VultronEvent):
     """Actor accepted an offer to take ownership of a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER] = (
         MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER
     )
 
+    @property
+    def case_id(self) -> str | None:
+        return self.inner_object_id
 
-class RejectCaseOwnershipTransferReceivedEvent(
-    _ObjectIsOfferMixin, VultronEvent
-):
+    @property
+    def case(self) -> "VultronCase | None":
+        return cast("VultronCase | None", self.inner_object)
+
+
+class RejectCaseOwnershipTransferReceivedEvent(VultronEvent):
     """Actor rejected an offer to take ownership of a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER] = (
         MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER
     )
+
+    @property
+    def offer_id(self) -> str | None:
+        return self.object_id
+
+    @property
+    def offer(self) -> "VultronActivity | None":
+        return cast("VultronActivity | None", self.object_)
 
 
 class InviteActorToCaseReceivedEvent(VultronEvent):
@@ -115,22 +146,44 @@ class InviteActorToCaseReceivedEvent(VultronEvent):
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
-class AcceptInviteActorToCaseReceivedEvent(
-    _InnerTargetIsCaseMixin, _InnerObjectIsInviteeMixin, VultronEvent
-):
+class AcceptInviteActorToCaseReceivedEvent(VultronEvent):
     """Actor accepted an invitation to join a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE] = (
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
     )
 
+    @property
+    def case_id(self) -> str | None:
+        return self.inner_target_id
 
-class RejectInviteActorToCaseReceivedEvent(_ObjectIsInviteMixin, VultronEvent):
+    @property
+    def case(self) -> "VultronCase | None":
+        return cast("VultronCase | None", self.inner_target)
+
+    @property
+    def invitee_id(self) -> str | None:
+        return self.inner_object_id
+
+    @property
+    def invitee(self) -> "VultronObject | None":
+        return cast("VultronObject | None", self.inner_object)
+
+
+class RejectInviteActorToCaseReceivedEvent(VultronEvent):
     """Actor rejected an invitation to join a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE] = (
         MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE
     )
+
+    @property
+    def invite_id(self) -> str | None:
+        return self.object_id
+
+    @property
+    def invite(self) -> "VultronActivity | None":
+        return cast("VultronActivity | None", self.object_)
 
 
 class AnnounceVulnerabilityCaseReceivedEvent(VultronEvent):

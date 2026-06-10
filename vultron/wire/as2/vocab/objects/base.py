@@ -41,6 +41,24 @@ def _scalar_ref_id_or_value(value: Any) -> Any:
     return _ref_id_or_value(value)
 
 
+def _strip_core_context(data: dict[str, Any]) -> None:
+    """Recursively remove the CoreObject ``context_`` field from serialized data.
+
+    ``CoreObject`` adds a ``context_: None`` field for JSON-LD ``@context``
+    that conflicts with the wire base's required ``context_: str`` field.
+    This helper strips ``context_`` from the top-level dict and any nested
+    dicts (e.g. serialised ``case_statuses`` or ``participant_statuses``).
+    """
+    data.pop("context_", None)
+    for value in data.values():
+        if isinstance(value, dict):
+            _strip_core_context(value)
+        elif isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    _strip_core_context(item)
+
+
 class VultronAS2Object(as_Object):
     """Base class for all Vultron ActivityStreams Objects.
 
@@ -91,6 +109,7 @@ class VultronAS2Object(as_Object):
             A new instance of this wire type populated from ``core_obj``.
         """
         data: dict[str, Any] = core_obj.model_dump(mode="json")
+        _strip_core_context(data)
         for domain_field, wire_field in cls._field_map.items():
             if domain_field in data:
                 data[wire_field] = data.pop(domain_field)
