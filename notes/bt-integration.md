@@ -295,6 +295,42 @@ be needed or additional implementation work may be required to handle the
 real-world logic that these nodes represent. See `bt-fuzzer-nodes.md`
 for more discussion on this topic.
 
+### py_trees Fuzzer Node Home: `vultron/demo/fuzzer/`
+
+When re-implementing the `vultron/bt/` fuzzer nodes using `py_trees`,
+the correct target location is **`vultron/demo/fuzzer/`** — NOT
+`vultron/core/behaviors/`.
+
+**Why demo, not core?** Fuzzer nodes are simulation/demo stubs standing
+in for real external-dependency touchpoints (system integrations, human
+decisions, environmental checks). They are not production protocol
+behaviors and MUST NOT pollute `vultron/core/behaviors/`.
+
+**Module layout** (see BT-16-004):
+
+| Module | Source | Nodes |
+|---|---|---|
+| `vultron/demo/fuzzer/base.py` | `vultron/bt/base/fuzzer.py` | Probabilistic base types |
+| `vultron/demo/fuzzer/embargo.py` | `vultron/bt/embargo_management/fuzzer.py` | ~15 embargo nodes |
+| `vultron/demo/fuzzer/messaging.py` | `vultron/bt/messaging/inbound/_behaviors/fuzzer.py` | ~1 messaging node |
+| `vultron/demo/fuzzer/report_management/` | `vultron/bt/report_management/fuzzer/` | ~70 nodes in submodules |
+
+**Note**: `vultron/bt/vul_discovery/fuzzer.py` is intentionally excluded —
+the `DiscoverVulnerabilityBt` tree operates upstream of real Vultron
+(which starts at `Offer(VulnerabilityReport)`). There is no corresponding
+real workflow in `vultron/core/` to target.
+
+Each fuzzer node MUST include a docstring identifying:
+
+1. Its semantic function in the CVD process
+2. The category of external input it simulates:
+   - **System integration** — automatable via API calls, metadata queries,
+     or policy-rule evaluation
+   - **Human decision** — requires analyst judgment or policy oversight
+   - **Environmental check** — real-world state observable automatically
+3. Its approximate success probability (maps to `WeightedBehavior` subclass)
+4. Its automation potential (High / Medium / Low / N/A) per BT-16-005
+
 **Source of truth priority** when conflicts arise:
 
 1. **Primary**: `docs/howto/activitypub/activities/*.md` — process
