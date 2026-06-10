@@ -302,7 +302,6 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
   // 3. Initial embargo proposal acceptance
   const isRevisionAcceptance = vendor.embargoProposedToParticipant && state.emState === 'REVISE'
   const isLateJoiner = vendor.embargoProposedToParticipant && state.emState === 'ACTIVE'
-  const bothAccepted = finder?.embargoAccepted
 
   let newState = state
 
@@ -311,22 +310,24 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
     embargoProposedToParticipant: false  // Clear the flag once accepted
   })
 
-  // Calculate consensus for revision acceptance (needed for consequence node labels)
-  const allParticipantsAccepted = isRevisionAcceptance &&
-    (finder?.embargoAccepted || false) &&
-    getActiveVendors(newState).every((v: any) => v.embargoAccepted)
+  // Calculate consensus: ALL participants (Finder + ALL visible vendors) must accept
+  // For PROPOSED state: check ALL vendors who received the proposal
+  // For REVISE state: check ALL active vendors (those participating in embargo)
+  const allVendors = isRevisionAcceptance ? getActiveVendors(newState) : getVendors(newState).filter(v => v.visible && !v.hasClosed)
+  const allParticipantsAccepted = (finder?.embargoAccepted || false) &&
+    allVendors.every((v: any) => v.embargoAccepted)
 
   // Handle EM state transitions:
   // - Revision acceptance: check if ALL embargo participants have accepted before REVISE → ACTIVE
   // - Late joiner: stays ACTIVE
-  // - Initial proposal: check if both parties accepted
+  // - Initial proposal: check if ALL parties (Finder + ALL vendors) accepted
   if (isRevisionAcceptance) {
     if (allParticipantsAccepted) {
       newState = setEmState(newState, 'ACTIVE')
       newState = { ...newState, embargoProposerId: undefined }  // Clear proposer when revision is accepted
     }
     // Otherwise, stay in REVISE state
-  } else if (!isLateJoiner && bothAccepted) {
+  } else if (!isLateJoiner && allParticipantsAccepted) {
     newState = { ...newState, emState: 'ACTIVE', phase: 'embargo-accepted' }
   }
 
@@ -343,7 +344,7 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
       consequences: isRevisionAcceptance ? [
         'EmAcceptEmbargoActivity created',
         `${vendor.name} accepts revised embargo terms`,
-        'EM state → ACTIVE',
+        allParticipantsAccepted ? 'All participants accepted - EM state → ACTIVE' : 'Awaiting other participants',
         `${vendor.name} can now fully participate`,
       ] : (isLateJoiner ? [
         'EmAcceptEmbargoActivity created',
@@ -353,7 +354,7 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
       ] : [
         'EmAcceptEmbargoActivity created',
         `${vendor.name} accepts 90-day embargo`,
-        bothAccepted ? 'Both parties accepted - embargo is now ACTIVE' : 'Awaiting Finder acceptance',
+        allParticipantsAccepted ? 'All participants accepted - embargo is now ACTIVE' : 'Awaiting other participants to accept',
       ]),
     },
     // Consequence node in CaseActor lane - always created
@@ -361,18 +362,17 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
       id: `${eventId}-caseactor-consequence`,
       actor: 'CaseActor',
       participantId: 'caseactor',
-      label: isRevisionAcceptance ? 'Revision Accepted' : (isLateJoiner ? `${vendor.name} Joined` : (bothAccepted ? 'M1 REACHED' : `${vendor.name} Accepted`)),
+      label: isRevisionAcceptance ? (allParticipantsAccepted ? 'Revision Accepted' : `${vendor.name} Accepted`) : (isLateJoiner ? `${vendor.name} Joined` : (allParticipantsAccepted ? 'M1 REACHED' : `${vendor.name} Accepted`)),
       x: nextX,
       lane: caseactor?.laneIndex ?? 2,
       type: 'consequence' as const,
       causedBy: eventId,
       timestamp: now + 1,
-      enablesNext: bothAccepted && !isLateJoiner && !isRevisionAcceptance,
+      enablesNext: allParticipantsAccepted && !isLateJoiner && !isRevisionAcceptance,
       consequences: isRevisionAcceptance ? [
         `${vendor.name} EmAcceptEmbargoActivity received`,
-        'Revised embargo terms now active',
-        'EM state → ACTIVE',
-        `${vendor.name} can now fully participate`,
+        allParticipantsAccepted ? 'Revised embargo terms now active' : `Awaiting ${allVendors.filter(v => !v.embargoAccepted).length} more acceptance(s)`,
+        allParticipantsAccepted ? 'EM state → ACTIVE' : 'EM state remains REVISE',
         'Authoritative ledger updated',
       ] : (isLateJoiner ? [
         `${vendor.name} EmAcceptEmbargoActivity received`,
@@ -380,15 +380,15 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
         'Embargo remains ACTIVE',
         `${vendor.name} can now fully participate`,
         'Authoritative ledger updated',
-      ] : (bothAccepted ? [
+      ] : (allParticipantsAccepted ? [
         '✓ M1 REACHED: Case active',
-        'Embargo: ACTIVE',
-        'EmAcceptEmbargoActivity received from both',
+        `Embargo: ACTIVE with ${allVendors.length + 1} participants`,
+        'EmAcceptEmbargoActivity received from all',
         'ActivateEmbargoActivity processed',
         'Authoritative ledger updated',
       ] : [
         `${vendor.name} EmAcceptEmbargoActivity received`,
-        'Awaiting Finder acceptance',
+        `Awaiting ${allVendors.filter(v => !v.embargoAccepted).length + (finder?.embargoAccepted ? 0 : 1)} more acceptance(s)`,
         'EM state remains PROPOSED',
       ])),
     },
@@ -397,7 +397,7 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
       id: `${eventId}-finder-consequence`,
       actor: 'Finder',
       participantId: 'finder',
-      label: isRevisionAcceptance ? (allParticipantsAccepted ? 'Revision Accepted' : `${vendor.name} Accepted`) : (isLateJoiner ? `${vendor.name} Joined` : (bothAccepted ? 'Embargo Active' : `${vendor.name} Accepted`)),
+      label: isRevisionAcceptance ? (allParticipantsAccepted ? 'Revision Accepted' : `${vendor.name} Accepted`) : (isLateJoiner ? `${vendor.name} Joined` : (allParticipantsAccepted ? 'Embargo Active' : `${vendor.name} Accepted`)),
       x: nextX,
       lane: finder?.laneIndex ?? 0,
       type: 'consequence' as const,
@@ -410,28 +410,29 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
         `${vendor.name} accepted existing embargo`,
         `${vendor.name} is now bound by embargo`,
         'Embargo remains ACTIVE',
-      ] : (bothAccepted ? [
+      ] : (allParticipantsAccepted ? [
         'AnnounceEmbargoActivity received',
-        'Embargo is now ACTIVE',
+        'All participants accepted - embargo is now ACTIVE',
         'Coordinated disclosure begins',
       ] : [
         `Notified: ${vendor.name} accepted embargo`,
-        'Awaiting own acceptance decision',
+        'Awaiting other participants',
         'EM state remains PROPOSED',
       ])),
     },
   ]
 
-  // Add consequence nodes to other vendors' lanes
+  // Add consequence nodes to ALL other vendors' lanes (not just active ones)
+  // During PROPOSED state, ALL vendors need to see the acceptance notifications
   let timestampOffset = 3
-  const otherVendors = getActiveVendors(newState).filter(v => v.id !== vendorId)
+  const allOtherVendors = getVendors(newState).filter(v => v.visible && !v.hasClosed && v.id !== vendorId)
 
-  otherVendors.forEach(otherVendor => {
+  allOtherVendors.forEach(otherVendor => {
     events.push({
       id: `${eventId}-${otherVendor.id}-consequence`,
       actor: otherVendor.name,
       participantId: otherVendor.id,
-      label: isRevisionAcceptance ? (allParticipantsAccepted ? 'Revision Accepted' : `${vendor.name} Accepted`) : (isLateJoiner ? `${vendor.name} Joined` : (bothAccepted ? 'Embargo Active' : `${vendor.name} Accepted`)),
+      label: isRevisionAcceptance ? (allParticipantsAccepted ? 'Revision Accepted' : `${vendor.name} Accepted`) : (isLateJoiner ? `${vendor.name} Joined` : (allParticipantsAccepted ? 'Embargo Active' : `${vendor.name} Accepted`)),
       x: nextX,
       lane: otherVendor.laneIndex,
       type: 'consequence' as const,
@@ -444,12 +445,13 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
         `${vendor.name} accepted existing embargo`,
         `${vendor.name} is now bound by embargo`,
         'Embargo remains ACTIVE',
-      ] : (bothAccepted ? [
+      ] : (allParticipantsAccepted ? [
         'AnnounceEmbargoActivity received',
-        'Embargo is now ACTIVE',
+        'All participants accepted - embargo is now ACTIVE',
         'Coordinated disclosure begins',
       ] : [
         `Notified: ${vendor.name} accepted embargo`,
+        'Awaiting other participants',
         'EM state remains PROPOSED',
       ])),
     })
@@ -459,7 +461,7 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
   newState = addTimelineEvents(newState, events)
   newState = addEventLogEntries(newState, [
     isLateJoiner ? `${vendor.name} accepted existing embargo and joined case` : `${vendor.name} accepted embargo`,
-    ...(bothAccepted && !isLateJoiner ? ['✓ M1 REACHED: Case active with 3 participants, embargo active'] : []),
+    ...(allParticipantsAccepted && !isLateJoiner ? [`✓ M1 REACHED: Case active with ${allVendors.length + 1} participants, embargo active`] : []),
   ])
   newState = incrementXPosition(newState)
 

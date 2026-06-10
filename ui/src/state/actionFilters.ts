@@ -37,10 +37,9 @@ export function getFinderActions(state: DemoState): Action[] {
     // Finder can send report to additional vendors at any time after case exists
     // This is available even if all vendors have closed (e.g., to try another vendor)
     const allVendors = getVendors(state)
-    const MAX_VENDORS = 5
     const nextVendorNumber = allVendors.length + 1
     const nextVendorId = `vendor-${nextVendorNumber}`
-    const canInviteMore = allVendors.length < MAX_VENDORS && !state.invitedVendors.has(nextVendorId)
+    const canInviteMore = !state.invitedVendors.has(nextVendorId)
 
     if (canInviteMore) {
       actions.push({
@@ -123,13 +122,12 @@ export function getFinderActions(state: DemoState): Action[] {
       enabled: true,
     })
 
-    // Add submit report to additional vendors option if not at max
+    // Add submit report to additional vendors option
     // Available even if all vendors have closed (e.g., to try another vendor)
     const allVendors = getVendors(state)
-    const MAX_VENDORS = 5
     const nextVendorNumber = allVendors.length + 1
     const nextVendorId = `vendor-${nextVendorNumber}`
-    const canInviteMore = allVendors.length < MAX_VENDORS && !state.invitedVendors.has(nextVendorId)
+    const canInviteMore = !state.invitedVendors.has(nextVendorId)
 
     if (canInviteMore) {
       actions.push({
@@ -421,12 +419,10 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
     }
 
     // Submit report to additional vendors (any vendor can do this)
-    // Check if we can invite more vendors
     const vendorCount = getVendors(state).length
-    const MAX_VENDORS = 5
     const nextVendorNumber = vendorCount + 1
     const nextVendorId = `vendor-${nextVendorNumber}`
-    const canInviteMore = vendorCount < MAX_VENDORS && !state.invitedVendors.has(nextVendorId)
+    const canInviteMore = !state.invitedVendors.has(nextVendorId)
 
     if (canInviteMore) {
       actions.push({

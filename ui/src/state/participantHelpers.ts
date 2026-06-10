@@ -91,9 +91,7 @@ export function getNextVendorNumber(state: DemoState): number {
 }
 
 export function canInviteMoreVendors(state: DemoState): boolean {
-  // Check if we've reached the maximum vendor limit
-  const currentCount = getVendorCount(state)
-  // Import MAX_VENDORS would create circular dependency, so hardcode for now
-  const MAX_VENDORS = 5
-  return currentCount < MAX_VENDORS
+  // No artificial limit - vendors can be added indefinitely
+  // Practical limits may be imposed by UI/performance considerations
+  return true
 }

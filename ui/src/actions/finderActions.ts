@@ -129,18 +129,17 @@ export function handleFinderAcceptEmbargo(state: DemoState): DemoState {
   const finder = getParticipant(state, 'finder')
   const caseactor = getParticipant(state, 'caseactor')
 
-  // Check if ALL active vendors have accepted
-  const activeVendors = getActiveVendors(state)
-  const allVendorsAccepted = activeVendors.length > 0 && activeVendors.every(v => v.embargoAccepted)
-  const bothAccepted = allVendorsAccepted
-
   let newState = state
 
   // Update finder to show accepted
   newState = updateParticipant(newState, 'finder', { embargoAccepted: true })
 
-  // If both accepted, activate embargo
-  if (bothAccepted) {
+  // Check if ALL vendors have accepted (must check ALL visible vendors, not just active ones)
+  const allVendors = getVendors(newState).filter(v => v.visible && !v.hasClosed)
+  const allParticipantsAccepted = allVendors.length > 0 && allVendors.every(v => v.embargoAccepted)
+
+  // If all participants accepted, activate embargo
+  if (allParticipantsAccepted) {
     newState = { ...newState, emState: 'ACTIVE', phase: 'embargo-accepted' }
   }
 
@@ -158,7 +157,7 @@ export function handleFinderAcceptEmbargo(state: DemoState): DemoState {
       consequences: [
         'EmAcceptEmbargoActivity created',
         'Finder accepts 90-day embargo',
-        bothAccepted ? 'All parties accepted - embargo is now ACTIVE' : 'Awaiting Vendor acceptance',
+        allParticipantsAccepted ? 'All participants accepted - embargo is now ACTIVE' : `Awaiting ${allVendors.filter(v => !v.embargoAccepted).length} vendor acceptance(s)`,
       ],
     },
     // Consequence node in CaseActor lane - always created
@@ -166,46 +165,47 @@ export function handleFinderAcceptEmbargo(state: DemoState): DemoState {
       id: `${eventId}-caseactor-consequence`,
       actor: 'CaseActor',
       participantId: 'caseactor',
-      label: bothAccepted ? 'M1 REACHED' : 'Finder Accepted',
+      label: allParticipantsAccepted ? 'M1 REACHED' : 'Finder Accepted',
       x: nextX,
       lane: caseactor?.laneIndex ?? 2,
       type: 'consequence' as const,
       causedBy: eventId,
       timestamp: now + 1,
-      enablesNext: bothAccepted,
-      consequences: bothAccepted ? [
+      enablesNext: allParticipantsAccepted,
+      consequences: allParticipantsAccepted ? [
         '✓ M1 REACHED: Case active',
-        'Embargo: ACTIVE',
+        `Embargo: ACTIVE with ${allVendors.length + 1} participants`,
         'EmAcceptEmbargoActivity received from all',
         'ActivateEmbargoActivity processed',
         'Authoritative ledger updated',
       ] : [
         'Finder EmAcceptEmbargoActivity received',
-        'Awaiting Vendor acceptance',
+        `Awaiting ${allVendors.filter(v => !v.embargoAccepted).length} vendor acceptance(s)`,
         'EM state remains PROPOSED',
       ],
     },
   ]
 
-  // Add consequence nodes to all active vendors' lanes
+  // Add consequence nodes to ALL vendors' lanes (not just active ones)
+  // During PROPOSED state, ALL vendors need to see the acceptance notification
   let timestampOffset = 2
-  activeVendors.forEach(vendor => {
+  allVendors.forEach(vendor => {
     events.push({
       id: `${eventId}-${vendor.id}-consequence`,
       actor: vendor.name,
       participantId: vendor.id,
-      label: bothAccepted ? 'Embargo Active' : 'Finder Accepted',
+      label: allParticipantsAccepted ? 'Embargo Active' : 'Finder Accepted',
       x: nextX,
       lane: vendor.laneIndex,
       type: 'consequence' as const,
       causedBy: eventId,
       timestamp: now + timestampOffset,
-      enablesNext: bothAccepted,
-      consequences: bothAccepted ? [
+      enablesNext: allParticipantsAccepted,
+      consequences: allParticipantsAccepted ? [
         'AnnounceEmbargoActivity received',
-        'EM state → ACTIVE',
+        'All participants accepted - EM state → ACTIVE',
         '90-day embargo now in effect',
-        '✓ M1 REACHED: Case active, embargo established',
+        `✓ M1 REACHED: Case active with ${allVendors.length + 1} participants, embargo established`,
       ] : [
         'Finder has accepted embargo',
         'Vendor must still accept or reject',
@@ -218,8 +218,8 @@ export function handleFinderAcceptEmbargo(state: DemoState): DemoState {
   newState = addTimelineEvents(newState, events)
 
   newState = addEventLogEntries(newState, [
-    `Finder accepted embargo${bothAccepted ? ' (awaiting Vendor)' : ''}`,
-    ...(bothAccepted ? ['✓ M1 REACHED: Case active with 3 participants, embargo active'] : []),
+    'Finder accepted embargo',
+    ...(allParticipantsAccepted ? [`✓ M1 REACHED: Case active with ${allVendors.length + 1} participants, embargo active`] : []),
   ])
 
   newState = incrementXPosition(newState)

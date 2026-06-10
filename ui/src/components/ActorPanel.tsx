@@ -47,7 +47,7 @@ export function ActorPanel({
         maxHeight: height,
         background: color,
         borderBottom: '2px solid #ddd',
-        padding: isCollapsed ? '0.5rem 1rem' : '1rem',
+        padding: '1rem',
         display: 'flex',
         flexDirection: 'column',
         boxSizing: 'border-box',
@@ -57,10 +57,11 @@ export function ActorPanel({
         display: 'flex',
         alignItems: 'center',
         gap: '0.5rem',
-        marginBottom: isCollapsed ? 0 : '0.5rem',
+        marginBottom: '0.5rem',
       }}>
         {onToggleCollapse && (
           <span
+            data-collapse-button={participantId}
             onClick={onToggleCollapse}
             style={{
               cursor: 'pointer',

@@ -86,20 +86,21 @@ function App() {
   const [collapsedParticipants, setCollapsedParticipants] = useState<Set<string>>(new Set())
   const timelineScrollRef = useRef<HTMLDivElement>(null)
   const sidebarScrollRef = useRef<HTMLDivElement>(null)
-  const scrollAdjustmentRef = useRef<{ participantId: string; buttonTopInViewport: number } | null>(null)
+  const scrollAdjustmentRef = useRef<{
+    participantId: string
+    wasCollapsed: boolean
+    scrollTopBefore: number
+    clickedPanelIndex: number
+  } | null>(null)
+  const isAdjustingScrollRef = useRef(false)
 
   // Toggle participant collapse
   const toggleParticipantCollapse = useCallback((participantId: string) => {
     if (!sidebarScrollRef.current) return
 
-    // Find the ActorPanel element for this participant
-    const sidebar = sidebarScrollRef.current
-    const allPanels = Array.from(sidebar.querySelectorAll('[data-participant-id]'))
-    const targetPanel = allPanels.find(panel =>
-      panel.getAttribute('data-participant-id') === participantId
-    )
-
-    if (!targetPanel) {
+    // Find the button element and measure its viewport position
+    const button = document.querySelector(`[data-collapse-button="${participantId}"]`)
+    if (!button) {
       // Fallback: just toggle without scroll adjustment
       setCollapsedParticipants(prev => {
         const newSet = new Set(prev)
@@ -113,12 +114,16 @@ function App() {
       return
     }
 
-    // Get current position of the button (top of the panel) relative to viewport
-    const buttonRect = targetPanel.getBoundingClientRect()
-    const buttonTopInViewport = buttonRect.top
+    const buttonRect = button.getBoundingClientRect()
+    const buttonTopBeforeToggle = buttonRect.top
 
     // Store the info for useLayoutEffect to use after DOM update
-    scrollAdjustmentRef.current = { participantId, buttonTopInViewport }
+    scrollAdjustmentRef.current = {
+      participantId,
+      wasCollapsed: collapsedParticipants.has(participantId),
+      scrollTopBefore: sidebarScrollRef.current.scrollTop,
+      clickedPanelIndex: buttonTopBeforeToggle, // Reuse this field to store button position
+    }
 
     setCollapsedParticipants(prev => {
       const newSet = new Set(prev)
@@ -129,31 +134,45 @@ function App() {
       }
       return newSet
     })
-  }, [])
+  }, [collapsedParticipants])
 
   // Adjust scroll after DOM updates but before paint
   useLayoutEffect(() => {
     if (!scrollAdjustmentRef.current || !sidebarScrollRef.current) return
 
-    const { participantId, buttonTopInViewport } = scrollAdjustmentRef.current
-    const sidebar = sidebarScrollRef.current
-    const allPanels = Array.from(sidebar.querySelectorAll('[data-participant-id]'))
-    const targetPanel = allPanels.find(panel =>
-      panel.getAttribute('data-participant-id') === participantId
-    )
+    // Set flag to prevent scroll sync from interfering
+    isAdjustingScrollRef.current = true
 
-    if (targetPanel) {
-      const newButtonRect = targetPanel.getBoundingClientRect()
-      const newButtonTopInViewport = newButtonRect.top
-      const delta = newButtonTopInViewport - buttonTopInViewport
+    const { participantId, scrollTopBefore, clickedPanelIndex: buttonTopBeforeToggle } = scrollAdjustmentRef.current
 
-      if (Math.abs(delta) > 0.5) {  // Only adjust if there's meaningful movement
-        sidebarScrollRef.current.scrollTop += delta
+    // Measure the button's position after React has updated the DOM
+    const button = document.querySelector(`[data-collapse-button="${participantId}"]`)
+    if (!button) {
+      scrollAdjustmentRef.current = null
+      isAdjustingScrollRef.current = false
+      return
+    }
+
+    const buttonRect = button.getBoundingClientRect()
+    const buttonTopAfterToggle = buttonRect.top
+    const delta = buttonTopAfterToggle - buttonTopBeforeToggle
+
+    // Adjust scroll to compensate for the button movement
+    if (Math.abs(delta) > 0.5) {
+      const newScrollTop = Math.max(0, scrollTopBefore + delta)
+      const maxScrollTop = sidebarScrollRef.current.scrollHeight - sidebarScrollRef.current.clientHeight
+      const clampedScrollTop = Math.min(newScrollTop, maxScrollTop)
+
+      sidebarScrollRef.current.scrollTop = clampedScrollTop
+      // Also adjust timeline scroll to match
+      if (timelineScrollRef.current) {
+        timelineScrollRef.current.scrollTop = clampedScrollTop
       }
     }
 
-    // Clear the adjustment request
+    // Clear the adjustment request and flag
     scrollAdjustmentRef.current = null
+    isAdjustingScrollRef.current = false
   }, [collapsedParticipants])
 
   // Calculate cumulative Y position for a participant based on collapsed states
@@ -193,12 +212,14 @@ function App() {
 
   // Synchronize vertical scrolling between sidebar and timeline
   const handleTimelineScroll = useCallback(() => {
+    if (isAdjustingScrollRef.current) return // Don't sync during collapse adjustment
     if (timelineScrollRef.current && sidebarScrollRef.current) {
       sidebarScrollRef.current.scrollTop = timelineScrollRef.current.scrollTop
     }
   }, [])
 
   const handleSidebarScroll = useCallback(() => {
+    if (isAdjustingScrollRef.current) return // Don't sync during collapse adjustment
     if (sidebarScrollRef.current && timelineScrollRef.current) {
       timelineScrollRef.current.scrollTop = sidebarScrollRef.current.scrollTop
     }

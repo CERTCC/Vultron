@@ -16,10 +16,7 @@ export const NODE_HEIGHT_HOVER = 110
 export const NODE_WIDTH_COLLAPSED = 30
 export const NODE_HEIGHT_COLLAPSED = 30
 
-// Maximum number of vendors supported in multi-vendor demo
-export const MAX_VENDORS = 5
-
-// Color palette for vendors (5 distinct, accessible colors)
+// Color palette for vendors (cycles through these colors for unlimited vendors)
 const VENDOR_COLOR_PALETTE = [
   '#f3e5f5',  // Light purple (vendor 1)
   '#e1f5e1',  // Light green (vendor 2)
