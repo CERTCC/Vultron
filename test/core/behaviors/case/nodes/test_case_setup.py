@@ -34,7 +34,9 @@ import pytest
 
 from vultron.core.behaviors.case.nodes import (
     CreateCaseActorNode,
+    RecordCaseCreatedEventNode,
     RecordCaseCreationEvents,
+    RecordOfferReceivedEventNode,
     UpdateActorOutbox,
 )
 from vultron.core.behaviors.helpers import (
@@ -117,6 +119,83 @@ class TestUpdateActorOutboxReExport:
 
 class TestRecordCaseCreationEvents:
     """Blackboard keys are declared; activity key is optional (BTND-03-001/02)."""
+
+    def test_tree_is_sequence_with_named_leaf_nodes(self) -> None:
+        tree = RecordCaseCreationEvents(
+            case_obj=VultronCase(
+                id_="https://example.org/cases/tmp",
+                name="Tmp Case",
+                vulnerability_reports=[],
+            )
+        )
+        assert isinstance(tree, py_trees.composites.Sequence)
+        assert len(tree.children) == 2
+        assert isinstance(tree.children[0], RecordOfferReceivedEventNode)
+        assert isinstance(tree.children[1], RecordCaseCreatedEventNode)
+
+    def test_record_offer_received_leaf_stages_case(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        case_obj: VultronCase,
+        actor_id: str,
+    ) -> None:
+        result = bt_scenario.run(
+            RecordOfferReceivedEventNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+        )
+        bt_scenario.assert_success(result)
+        staged_case = py_trees.blackboard.Blackboard.storage.get(
+            "/case_for_creation_events"
+        )
+        assert getattr(staged_case, "id_", None) == case_obj.id_
+
+    def test_record_case_created_leaf_persists_event(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        case_obj: VultronCase,
+        actor_id: str,
+    ) -> None:
+        result = bt_scenario.run(
+            RecordCaseCreatedEventNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+            case_for_creation_events=case_obj,
+        )
+        bt_scenario.assert_success(result)
+        stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
+        event_types = [e.event_type for e in stored_case.events]
+        assert "case_created" in event_types
+
+    def test_record_offer_received_leaf_fails_without_case_id(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        actor_id: str,
+    ) -> None:
+        result = bt_scenario.run(
+            RecordOfferReceivedEventNode(),
+            actor_id=actor_id,
+            # case_id intentionally omitted
+        )
+        bt_scenario.assert_failure(result)
+
+    def test_record_case_created_leaf_fails_without_staged_case(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        case_obj: VultronCase,
+        actor_id: str,
+    ) -> None:
+        result = bt_scenario.run(
+            RecordCaseCreatedEventNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+            # case_for_creation_events intentionally omitted
+        )
+        bt_scenario.assert_failure(result)
 
     def test_activity_key_optional_node_succeeds_without_it(
         self,

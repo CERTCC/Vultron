@@ -25,7 +25,12 @@ import py_trees
 import pytest
 
 from vultron.core.behaviors.case.nodes import (
+    CollectCaseAddresseesNode,
+    CreateAndPersistCaseActivityNode,
+    CreateOfferCaseManagerActivityNode,
     CreateCaseActorNode,
+    EmitCreateCaseActivity,
+    ResolveCaseManagerOfferContextNode,
     SendOfferCaseManagerRoleNode,
 )
 from vultron.core.models.vultron_types import (
@@ -73,12 +78,82 @@ def case_obj(
 
 
 # ---------------------------------------------------------------------------
+# TestEmitCreateCaseActivity
+# ---------------------------------------------------------------------------
+
+
+class TestEmitCreateCaseActivity:
+    """EmitCreateCaseActivity composes create-case activity emission leaves."""
+
+    def test_tree_is_sequence_with_named_leaf_nodes(self) -> None:
+        tree = EmitCreateCaseActivity()
+        assert isinstance(tree, py_trees.composites.Sequence)
+        assert len(tree.children) == 2
+        assert isinstance(tree.children[0], CollectCaseAddresseesNode)
+        assert isinstance(tree.children[1], CreateAndPersistCaseActivityNode)
+
+    def test_collect_case_addressees_filters_sender(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        actor_id: str,
+        case_obj: VultronCase,
+    ) -> None:
+        case_obj.actor_participant_index[actor_id] = (
+            "https://example.org/participants/vendor"
+        )
+        case_obj.actor_participant_index["https://example.org/actors/peer"] = (
+            "https://example.org/participants/peer"
+        )
+        bt_scenario.dl.save(case_obj)
+
+        result = bt_scenario.run(
+            CollectCaseAddresseesNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+        )
+        bt_scenario.assert_success(result)
+        addressees = py_trees.blackboard.Blackboard.storage.get(
+            "/create_case_addressees"
+        )
+        assert addressees == ["https://example.org/actors/peer"]
+
+    def test_create_and_persist_case_activity_writes_activity_id(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        actor_id: str,
+        case_obj: VultronCase,
+    ) -> None:
+        result = bt_scenario.run(
+            CreateAndPersistCaseActivityNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+            create_case_obj=case_obj,
+            create_case_addressees=[],
+        )
+        bt_scenario.assert_success(result)
+        activity_id = py_trees.blackboard.Blackboard.storage.get(
+            "/activity_id"
+        )
+        assert isinstance(activity_id, str)
+        assert bt_scenario.dl.read(activity_id) is not None
+
+
+# ---------------------------------------------------------------------------
 # TestSendOfferCaseManagerRoleNode
 # ---------------------------------------------------------------------------
 
 
 class TestSendOfferCaseManagerRoleNode:
     """SendOfferCaseManagerRoleNode queues Offer(CaseManagerRole) to Case Actor."""
+
+    def test_tree_is_sequence_with_named_leaf_nodes(self) -> None:
+        tree = SendOfferCaseManagerRoleNode()
+        assert isinstance(tree, py_trees.composites.Sequence)
+        assert len(tree.children) == 2
+        assert isinstance(tree.children[0], ResolveCaseManagerOfferContextNode)
+        assert isinstance(tree.children[1], CreateOfferCaseManagerActivityNode)
 
     def test_queues_offer_and_writes_activity_id(
         self,

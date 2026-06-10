@@ -104,24 +104,26 @@ class SetCaseAttributedTo(DataLayerAction):
         return Status.SUCCESS
 
 
-class RecordCaseCreationEvents(DataLayerAction):
-    """
-    Backfill pre-case events into the case event log at case creation.
-
-    Records a trusted-timestamp event for the case creation itself.
-    If the triggering activity has an ``in_reply_to`` reference (e.g. an
-    originating Offer), that event is also backfilled as an
-    ``"offer_received"`` entry.
-
-    Must run after PersistCase so the case exists in the DataLayer.
-    Reads ``case_id`` and optionally ``activity`` from the blackboard.
-
-    Per specs/case-management.yaml CM-02-009.
-    """
+class RecordCaseCreationEvents(py_trees.composites.Sequence):
+    """Composed subtree that records offer_received (optional) and case_created."""
 
     def __init__(self, case_obj: VultronCase, name: str | None = None):
-        super().__init__(name=name or self.__class__.__name__)
         self.case_obj = case_obj
+        super().__init__(
+            name=name or self.__class__.__name__,
+            memory=False,
+            children=[
+                RecordOfferReceivedEventNode(),
+                RecordCaseCreatedEventNode(),
+            ],
+        )
+
+
+class RecordOfferReceivedEventNode(DataLayerAction):
+    """Conditionally record offer_received and stage the case object."""
+
+    def __init__(self, name: str | None = None):
+        super().__init__(name=name or self.__class__.__name__)
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
@@ -131,6 +133,10 @@ class RecordCaseCreationEvents(DataLayerAction):
         self.blackboard.register_key(
             key="activity", access=py_trees.common.Access.READ
         )
+        self.blackboard.register_key(
+            key="case_for_creation_events",
+            access=py_trees.common.Access.WRITE,
+        )
 
     def update(self) -> Status:
         if self.datalayer is None:
@@ -139,53 +145,89 @@ class RecordCaseCreationEvents(DataLayerAction):
 
         try:
             case_id = self.blackboard.get("case_id")
-            if case_id is None:
-                self.logger.error(
-                    f"{self.name}: case_id not found in blackboard"
-                )
-                return Status.FAILURE
+        except KeyError:
+            self.logger.error(f"{self.name}: case_id not found in blackboard")
+            return Status.FAILURE
+        if not isinstance(case_id, str):
+            self.logger.error(f"{self.name}: case_id not found in blackboard")
+            return Status.FAILURE
 
-            case = self.datalayer.read(case_id)
-            if not is_case_model(case):
-                self.logger.error(
-                    f"{self.name}: Case {case_id} not found in DataLayer"
-                )
-                return Status.FAILURE
-
-            # Backfill originating offer receipt if available.
-            # The activity key is optional — the node handles its absence.
-            try:
-                activity = self.blackboard.get("activity")
-            except KeyError:
-                activity = None
-            if activity is not None:
-                offer_ref = getattr(activity, "in_reply_to", None)
-                if offer_ref is not None:
-                    offer_id = (
-                        offer_ref.id_
-                        if hasattr(offer_ref, "id_")
-                        else str(offer_ref)
-                    )
-                    case.record_event(offer_id, "offer_received")
-                    self.logger.info(
-                        f"{self.name}: Recorded offer_received event"
-                        f" for {offer_id} on case {case_id}"
-                    )
-
-            # Record the case creation event
-            case.record_event(case_id, "case_created")
-            self.logger.info(
-                f"{self.name}: Recorded case_created event on case {case_id}"
-            )
-
-            self.datalayer.save(case)
-            return Status.SUCCESS
-
-        except Exception as e:
+        case = self.datalayer.read(case_id)
+        if not is_case_model(case):
             self.logger.error(
-                f"{self.name}: Error recording case creation events: {e}"
+                f"{self.name}: Case {case_id} not found in DataLayer"
             )
             return Status.FAILURE
+
+        try:
+            activity = self.blackboard.get("activity")
+        except KeyError:
+            activity = None
+
+        offer_ref = getattr(activity, "in_reply_to", None)
+        if offer_ref is not None:
+            offer_id = (
+                offer_ref.id_ if hasattr(offer_ref, "id_") else str(offer_ref)
+            )
+            case.record_event(offer_id, "offer_received")
+            self.logger.info(
+                f"{self.name}: Recorded offer_received event"
+                f" for {offer_id} on case {case_id}"
+            )
+
+        self.blackboard.case_for_creation_events = case
+        return Status.SUCCESS
+
+
+class RecordCaseCreatedEventNode(DataLayerAction):
+    """Record case_created event and persist updated case."""
+
+    def __init__(self, name: str | None = None):
+        super().__init__(name=name or self.__class__.__name__)
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="case_for_creation_events",
+            access=py_trees.common.Access.READ,
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.logger.error(f"{self.name}: DataLayer not available")
+            return Status.FAILURE
+
+        try:
+            case_id = self.blackboard.get("case_id")
+        except KeyError:
+            self.logger.error(f"{self.name}: case_id not found in blackboard")
+            return Status.FAILURE
+        if not isinstance(case_id, str):
+            self.logger.error(f"{self.name}: case_id not found in blackboard")
+            return Status.FAILURE
+
+        try:
+            case = self.blackboard.get("case_for_creation_events")
+        except KeyError:
+            self.logger.error(
+                f"{self.name}: case_for_creation_events missing or invalid"
+            )
+            return Status.FAILURE
+        if not is_case_model(case):
+            self.logger.error(
+                f"{self.name}: case_for_creation_events missing or invalid"
+            )
+            return Status.FAILURE
+
+        case.record_event(case_id, "case_created")
+        self.logger.info(
+            f"{self.name}: Recorded case_created event on case {case_id}"
+        )
+        self.datalayer.save(case)
+        return Status.SUCCESS
 
 
 class CreateCaseActorNode(DataLayerAction):

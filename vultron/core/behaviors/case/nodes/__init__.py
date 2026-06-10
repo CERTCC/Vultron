@@ -32,11 +32,17 @@ Submodules:
 from vultron.core.behaviors.case.nodes.case_setup import (
     CreateCaseActorNode,
     PersistCase,
+    RecordCaseCreatedEventNode,
     RecordCaseCreationEvents,
+    RecordOfferReceivedEventNode,
     SetCaseAttributedTo,
 )
 from vultron.core.behaviors.case.nodes.communication import (
+    CollectCaseAddresseesNode,
+    CreateAndPersistCaseActivityNode,
+    CreateOfferCaseManagerActivityNode,
     EmitCreateCaseActivity,
+    ResolveCaseManagerOfferContextNode,
     SendOfferCaseManagerRoleNode,
 )
 from vultron.core.behaviors.case.nodes.conditions import (
@@ -68,6 +74,8 @@ __all__ = [
     "PersistCase",
     "SetCaseAttributedTo",
     "RecordCaseCreationEvents",
+    "RecordOfferReceivedEventNode",
+    "RecordCaseCreatedEventNode",
     "CreateCaseActorNode",
     # participant
     "CreateCaseOwnerParticipant",
@@ -77,7 +85,11 @@ __all__ = [
     "InitializeDefaultEmbargoNode",
     # communication
     "EmitCreateCaseActivity",
+    "CollectCaseAddresseesNode",
+    "CreateAndPersistCaseActivityNode",
     "SendOfferCaseManagerRoleNode",
+    "ResolveCaseManagerOfferContextNode",
+    "CreateOfferCaseManagerActivityNode",
     # lifecycle
     "CommitCaseLogEntryNode",
     # update

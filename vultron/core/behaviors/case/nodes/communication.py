@@ -33,14 +33,23 @@ from vultron.core.models.vultron_types import VultronCreateCaseActivity
 logger = logging.getLogger(__name__)
 
 
-class EmitCreateCaseActivity(DataLayerAction):
-    """
-    Generate a CreateCaseActivity activity and persist it to the DataLayer.
+class EmitCreateCaseActivity(py_trees.composites.Sequence):
+    """Composed subtree that emits CreateCaseActivity in explicit steps."""
 
-    Reads case_id from the blackboard (set by PersistCase), creates a
-    CreateCaseActivity activity, and stores the activity_id in the blackboard for
-    UpdateActorOutbox.
-    """
+    def __init__(self, name: str | None = None):
+        py_trees.composites.Sequence.__init__(
+            self,
+            name=name or self.__class__.__name__,
+            memory=False,
+            children=[
+                CollectCaseAddresseesNode(),
+                CreateAndPersistCaseActivityNode(),
+            ],
+        )
+
+
+class CollectCaseAddresseesNode(DataLayerAction):
+    """Resolve case object and peer addressees for Create(Case) emission."""
 
     def __init__(self, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
@@ -49,6 +58,12 @@ class EmitCreateCaseActivity(DataLayerAction):
         super().setup(**kwargs)
         self.blackboard.register_key(
             key="case_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="create_case_obj", access=py_trees.common.Access.WRITE
+        )
+        self.blackboard.register_key(
+            key="create_case_addressees", access=py_trees.common.Access.WRITE
         )
 
     def update(self) -> Status:
@@ -60,61 +75,125 @@ class EmitCreateCaseActivity(DataLayerAction):
 
         try:
             case_id = self.blackboard.get("case_id")
-            if case_id is None:
-                self.logger.error(
-                    f"{self.name}: case_id not found in blackboard"
-                )
-                return Status.FAILURE
-
-            # Read full case to embed as object_ and derive addressees from
-            # actor_participant_index, mirroring CreateCaseActivity in
-            # report/nodes.py (D5-6-CASEPROP).
-            case_obj = self.datalayer.read(case_id)
-            if is_case_model(case_obj):
-                addressees = [
-                    actor_id
-                    for actor_id in case_obj.actor_participant_index.keys()
-                    if actor_id != self.actor_id
-                ]
-            else:
-                addressees = []
-            if addressees:
-                self.logger.info(
-                    f"{self.name}: Notifying addressees: {addressees}"
-                )
-
-            activity = VultronCreateCaseActivity(
-                actor=self.actor_id,
-                object_=case_obj if case_obj is not None else case_id,
-                to=addressees if addressees else None,
-            )
-            try:
-                self.datalayer.create(activity)
-                self.logger.info(
-                    f"{self.name}: Created CreateCaseActivity activity"
-                    f" {activity.id_}"
-                )
-            except ValueError as e:
-                self.logger.warning(
-                    f"{self.name}: CreateCaseActivity activity {activity.id_}"
-                    f" already exists: {e}"
-                )
-
-            self.blackboard.register_key(
-                key="activity_id", access=py_trees.common.Access.WRITE
-            )
-            self.blackboard.activity_id = activity.id_
-
-            return Status.SUCCESS
-
-        except Exception as e:
+        except KeyError:
+            self.logger.error(f"{self.name}: case_id not found in blackboard")
+            return Status.FAILURE
+        if not isinstance(case_id, str):
             self.logger.error(
-                f"{self.name}: Error creating CreateCaseActivity activity: {e}"
+                f"{self.name}: case_id must be a string, got {type(case_id)}"
             )
             return Status.FAILURE
 
+        case_obj = self.datalayer.read(case_id)
+        if is_case_model(case_obj):
+            addressees = [
+                actor_id
+                for actor_id in case_obj.actor_participant_index.keys()
+                if actor_id != self.actor_id
+            ]
+        else:
+            addressees = []
 
-class SendOfferCaseManagerRoleNode(DataLayerAction):
+        if addressees:
+            self.logger.info(
+                f"{self.name}: Notifying addressees: {addressees}"
+            )
+
+        self.blackboard.create_case_obj = case_obj
+        self.blackboard.create_case_addressees = addressees
+        return Status.SUCCESS
+
+
+class CreateAndPersistCaseActivityNode(DataLayerAction):
+    """Build and persist Create(Case), then publish activity_id to blackboard."""
+
+    def __init__(self, name: str | None = None):
+        super().__init__(name=name or self.__class__.__name__)
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="create_case_obj", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="create_case_addressees", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="activity_id", access=py_trees.common.Access.WRITE
+        )
+
+    def _read_case_id(self) -> str | None:
+        try:
+            case_id = self.blackboard.get("case_id")
+        except KeyError:
+            self.logger.error(f"{self.name}: case_id not found in blackboard")
+            return None
+        if not isinstance(case_id, str):
+            self.logger.error(
+                f"{self.name}: case_id must be a string, got {type(case_id)}"
+            )
+            return None
+        return case_id
+
+    def _read_case_obj(self) -> Any | None:
+        try:
+            return self.blackboard.get("create_case_obj")
+        except KeyError:
+            return None
+
+    def _read_addressees(self) -> list[str] | None:
+        try:
+            addressees = self.blackboard.get("create_case_addressees")
+        except KeyError:
+            return []
+        if not isinstance(addressees, list):
+            self.logger.error(
+                f"{self.name}: create_case_addressees must be a list"
+            )
+            return None
+        return addressees
+
+    def update(self) -> Status:
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                f"{self.name}: DataLayer or actor_id not available"
+            )
+            return Status.FAILURE
+
+        case_id = self._read_case_id()
+        if case_id is None:
+            return Status.FAILURE
+
+        case_obj = self._read_case_obj()
+        addressees = self._read_addressees()
+        if addressees is None:
+            return Status.FAILURE
+
+        activity = VultronCreateCaseActivity(
+            actor=self.actor_id,
+            object_=case_obj if case_obj is not None else case_id,
+            to=addressees if addressees else None,
+        )
+        try:
+            self.datalayer.create(activity)
+            self.logger.info(
+                f"{self.name}: Created CreateCaseActivity activity"
+                f" {activity.id_}"
+            )
+        except ValueError as e:
+            self.logger.warning(
+                f"{self.name}: CreateCaseActivity activity {activity.id_}"
+                f" already exists: {e}"
+            )
+
+        self.blackboard.activity_id = activity.id_
+        return Status.SUCCESS
+
+
+class SendOfferCaseManagerRoleNode(py_trees.composites.Sequence):
     """Send an Offer(VulnerabilityCase, target=CaseParticipant) to the Case Actor.
 
     Reads ``case_id`` and ``case_actor_id`` from the blackboard (written by
@@ -128,10 +207,24 @@ class SendOfferCaseManagerRoleNode(DataLayerAction):
     """
 
     def __init__(self, name: str | None = None):
+        py_trees.composites.Sequence.__init__(
+            self,
+            name=name or self.__class__.__name__,
+            memory=False,
+            children=[
+                ResolveCaseManagerOfferContextNode(),
+                CreateOfferCaseManagerActivityNode(),
+            ],
+        )
+
+
+class ResolveCaseManagerOfferContextNode(DataLayerAction):
+    """Validate blackboard context and stage Offer recipients."""
+
+    def __init__(self, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
 
     def setup(self, **kwargs: Any) -> None:
-        """Register blackboard keys: read case_id + case_actor_id, write activity_id."""
         super().setup(**kwargs)
         self.blackboard.register_key(
             key="case_id", access=py_trees.common.Access.READ
@@ -142,6 +235,56 @@ class SendOfferCaseManagerRoleNode(DataLayerAction):
         self.blackboard.register_key(
             key="case_actor_participant_id",
             access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
+            key="offer_case_manager_to", access=py_trees.common.Access.WRITE
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                f"{self.name}: DataLayer or actor_id not available"
+            )
+            return Status.FAILURE
+
+        case_id = self.blackboard.get("case_id")
+        case_actor_id = self.blackboard.get("case_actor_id")
+        participant_id = self.blackboard.get("case_actor_participant_id")
+        if (
+            not isinstance(case_id, str)
+            or not isinstance(case_actor_id, str)
+            or not isinstance(participant_id, str)
+        ):
+            self.logger.error(
+                f"{self.name}: case_id, case_actor_id, or"
+                " case_actor_participant_id missing from blackboard"
+            )
+            return Status.FAILURE
+
+        self.blackboard.offer_case_manager_to = [case_actor_id]
+        return Status.SUCCESS
+
+
+class CreateOfferCaseManagerActivityNode(DataLayerAction):
+    """Create Offer(CaseManagerRole) via trigger_activity_factory."""
+
+    def __init__(self, name: str | None = None):
+        super().__init__(name=name or self.__class__.__name__)
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="case_actor_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="case_actor_participant_id",
+            access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
+            key="offer_case_manager_to", access=py_trees.common.Access.READ
         )
         self.blackboard.register_key(
             key="activity_id", access=py_trees.common.Access.WRITE
@@ -163,8 +306,14 @@ class SendOfferCaseManagerRoleNode(DataLayerAction):
         case_id = self.blackboard.get("case_id")
         case_actor_id = self.blackboard.get("case_actor_id")
         participant_id = self.blackboard.get("case_actor_participant_id")
+        recipients = self.blackboard.get("offer_case_manager_to")
 
-        if not case_id or not case_actor_id or not participant_id:
+        if (
+            not isinstance(case_id, str)
+            or not isinstance(case_actor_id, str)
+            or not isinstance(participant_id, str)
+            or not isinstance(recipients, list)
+        ):
             self.logger.error(
                 f"{self.name}: case_id, case_actor_id, or"
                 " case_actor_participant_id missing from blackboard"
@@ -177,7 +326,7 @@ class SendOfferCaseManagerRoleNode(DataLayerAction):
                     case_id=case_id,
                     participant_id=participant_id,
                     actor=self.actor_id,
-                    to=[case_actor_id],
+                    to=recipients,
                 )
             )
             self.blackboard.activity_id = activity_id
