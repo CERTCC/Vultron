@@ -493,3 +493,119 @@ class TestTerminateEmbargoNode:
 
         assert node.status == py_trees.common.Status.SUCCESS
         factory.terminate_embargo.assert_called_once()
+
+
+class TestValidateEmbargoRevisionStateNode:
+    """Tests for ValidateEmbargoRevisionStateNode."""
+
+    def _setup_blackboard(self, dl: SqliteDataLayer) -> None:
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+        py_trees.blackboard.Blackboard.storage.clear()
+        blackboard = py_trees.blackboard.Client(name="test-ver")
+        for key in ("datalayer", "actor_id"):
+            blackboard.register_key(
+                key=key, access=py_trees.common.Access.WRITE
+            )
+        blackboard.datalayer = dl
+        blackboard.actor_id = "https://example.org/actors/alice"
+
+    def _run_node(
+        self, dl: SqliteDataLayer, case_id: str
+    ) -> tuple[py_trees.common.Status, dict]:
+        result_out: dict = {}
+        self._setup_blackboard(dl)
+
+        from vultron.core.behaviors.embargo.trigger_nodes import (
+            ValidateEmbargoRevisionStateNode,
+        )
+
+        node = ValidateEmbargoRevisionStateNode(
+            case_id=case_id, result_out=result_out
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+        return node.status, result_out
+
+    def test_returns_success_when_em_state_is_active(self):
+        """SUCCESS when case EM state is ACTIVE."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = _make_case_and_embargo("rev1", em_state=EM.ACTIVE)
+        dl.create(case)
+
+        status, result_out = self._run_node(dl, case.id_)
+
+        assert status == py_trees.common.Status.SUCCESS
+        assert "error" not in result_out
+
+    def test_returns_success_when_em_state_is_revise(self):
+        """SUCCESS when case EM state is REVISE."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = _make_case_and_embargo("rev2", em_state=EM.REVISE)
+        dl.create(case)
+
+        status, result_out = self._run_node(dl, case.id_)
+
+        assert status == py_trees.common.Status.SUCCESS
+        assert "error" not in result_out
+
+    def test_returns_failure_when_em_state_is_none(self):
+        """FAILURE when case EM state is NONE (no active embargo)."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = _make_case_and_embargo("rev3", em_state=EM.NONE)
+        case.active_embargo = None
+        dl.create(case)
+
+        status, result_out = self._run_node(dl, case.id_)
+
+        assert status == py_trees.common.Status.FAILURE
+        assert "error" in result_out
+
+    def test_returns_failure_when_em_state_is_proposed(self):
+        """FAILURE when case EM state is PROPOSED (initial proposal, not revision)."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = _make_case_and_embargo("rev4", em_state=EM.PROPOSED)
+        dl.create(case)
+
+        status, result_out = self._run_node(dl, case.id_)
+
+        assert status == py_trees.common.Status.FAILURE
+        assert "error" in result_out
+
+    def test_returns_failure_when_em_state_is_exited(self):
+        """FAILURE when case EM state is EXITED."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = _make_case_and_embargo("rev5", em_state=EM.EXITED)
+        dl.create(case)
+
+        status, result_out = self._run_node(dl, case.id_)
+
+        assert status == py_trees.common.Status.FAILURE
+        assert "error" in result_out
+
+    def test_error_is_invalid_state_transition(self):
+        """Error in result_out is VultronInvalidStateTransitionError for bad state."""
+        from vultron.errors import VultronInvalidStateTransitionError
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = _make_case_and_embargo("rev6", em_state=EM.NONE)
+        case.active_embargo = None
+        dl.create(case)
+
+        _, result_out = self._run_node(dl, case.id_)
+
+        assert isinstance(
+            result_out["error"], VultronInvalidStateTransitionError
+        )
+
+    def test_returns_failure_when_case_not_found(self):
+        """FAILURE when the case ID does not exist in the DataLayer."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        self._setup_blackboard(dl)
+
+        status, result_out = self._run_node(
+            dl, "https://example.org/cases/nonexistent"
+        )
+
+        assert status == py_trees.common.Status.FAILURE
+        assert "error" in result_out

@@ -19,12 +19,18 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.protocols import is_case_model
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
     TransitionMode,
 )
-from vultron.errors import VultronError
+from vultron.core.states.em import EM
+from vultron.errors import (
+    VultronError,
+    VultronInvalidStateTransitionError,
+    VultronValidationError,
+)
 
 
 class PersistEmbargoEventNode(DataLayerAction):
@@ -44,6 +50,52 @@ class PersistEmbargoEventNode(DataLayerAction):
             self.logger.warning(
                 "EmbargoEvent '%s' already exists", self._embargo.id_
             )
+        return Status.SUCCESS
+
+
+class ValidateEmbargoRevisionStateNode(DataLayerAction):
+    """Guard that the case EM state permits a revision proposal.
+
+    Returns SUCCESS when EM state is ACTIVE or REVISE.  Returns FAILURE
+    (with error in ``result_out``) for any other state — revision proposals
+    require an active embargo; use propose-embargo for initial proposals.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        result_out: dict[str, object],
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+        self._result_out = result_out
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+
+        case = self.datalayer.read(self._case_id)
+        if not is_case_model(case):
+            not_found = VultronValidationError(
+                f"Case '{self._case_id}' not found or invalid."
+            )
+            self._result_out["error"] = not_found
+            self.feedback_message = str(not_found)
+            return Status.FAILURE
+
+        em_state = case.current_status.em_state
+        if em_state not in (EM.ACTIVE, EM.REVISE):
+            bad_state = VultronInvalidStateTransitionError(
+                f"Cannot propose embargo revision: case '{self._case_id}'"
+                f" EM state '{em_state}' does not allow a revision proposal."
+                f" Use propose-embargo for initial proposals."
+            )
+            self._result_out["error"] = bad_state
+            self.feedback_message = str(bad_state)
+            return Status.FAILURE
+
         return Status.SUCCESS
 
 

@@ -394,3 +394,204 @@ def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
     assert updated_case.current_status.em_state == EM.EXITED
     assert updated_case.active_embargo is None
     assert updated_participant.embargo_consent_state == PEC.NO_EMBARGO.value
+
+
+# ---------------------------------------------------------------------------
+# Tests for SvcProposeEmbargoRevisionUseCase (BTBridge path)
+# ---------------------------------------------------------------------------
+
+
+def _build_active_embargo_case_with_case_manager(
+    dl: SqliteDataLayer, actor_id: str
+) -> VulnerabilityCase:
+    """Build a case in EM.ACTIVE state with ``actor`` as owner/case-manager."""
+    case = VulnerabilityCase(
+        name="Active embargo revision case",
+        attributed_to=actor_id,
+    )
+    embargo = EmbargoEvent(context=case.id_)
+
+    owner_participant = VendorParticipant(
+        attributed_to=actor_id,
+        context=case.id_,
+        embargo_consent_state=PEC.SIGNATORY,
+        accepted_embargo_ids=[embargo.id_],
+    )
+    owner_participant.add_role(CVDRole.CASE_MANAGER)
+
+    case.case_participants = [owner_participant.id_]
+    case.actor_participant_index = {actor_id: owner_participant.id_}
+    case.current_status.em_state = EM.ACTIVE
+    case.proposed_embargoes.append(embargo.id_)
+    case.set_embargo(embargo.id_)
+
+    dl.create(case)
+    dl.create(embargo)
+    dl.create(owner_participant)
+    return case
+
+
+def test_propose_embargo_revision_transitions_em_to_revise(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """SvcProposeEmbargoRevisionUseCase transitions EM.ACTIVE → EM.REVISE via BTBridge."""
+    from vultron.core.use_cases.triggers.embargo import (
+        SvcProposeEmbargoRevisionUseCase,
+    )
+    from vultron.core.use_cases.triggers.requests import (
+        ProposeEmbargoRevisionTriggerRequest,
+    )
+
+    actor, dl = finder_actor_and_dl
+    case = _build_active_embargo_case_with_case_manager(dl, actor.id_)
+
+    request = ProposeEmbargoRevisionTriggerRequest(
+        actor_id=actor.id_,
+        case_id=case.id_,
+        end_time=datetime.now(tz=timezone.utc) + timedelta(days=14),
+    )
+
+    result = SvcProposeEmbargoRevisionUseCase(
+        dl, request, trigger_activity=TriggerActivityAdapter(dl)
+    ).execute()
+
+    assert "activity" in result
+    updated_case = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated_case.current_status.em_state == EM.REVISE
+    assert len(updated_case.proposed_embargoes) == 2
+
+
+def test_propose_embargo_revision_queues_outbox_activity(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """SvcProposeEmbargoRevisionUseCase enqueues a propose-embargo activity."""
+    from vultron.core.use_cases.triggers.embargo import (
+        SvcProposeEmbargoRevisionUseCase,
+    )
+    from vultron.core.use_cases.triggers.requests import (
+        ProposeEmbargoRevisionTriggerRequest,
+    )
+
+    actor, dl = finder_actor_and_dl
+    case = _build_active_embargo_case_with_case_manager(dl, actor.id_)
+
+    outbox_before = dl.outbox_list_for_actor(actor.id_)
+
+    request = ProposeEmbargoRevisionTriggerRequest(
+        actor_id=actor.id_,
+        case_id=case.id_,
+        end_time=datetime.now(tz=timezone.utc) + timedelta(days=14),
+    )
+
+    SvcProposeEmbargoRevisionUseCase(
+        dl, request, trigger_activity=TriggerActivityAdapter(dl)
+    ).execute()
+
+    outbox_after = dl.outbox_list_for_actor(actor.id_)
+    assert len(outbox_after) > len(outbox_before)
+
+
+def test_propose_embargo_revision_invalid_em_state_raises_error(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """SvcProposeEmbargoRevisionUseCase raises error when EM state is not ACTIVE/REVISE."""
+    from vultron.core.use_cases.triggers.embargo import (
+        SvcProposeEmbargoRevisionUseCase,
+    )
+    from vultron.core.use_cases.triggers.requests import (
+        ProposeEmbargoRevisionTriggerRequest,
+    )
+
+    actor, dl = finder_actor_and_dl
+    # Use a case in EM.NONE — revision should be rejected
+    case = _build_no_embargo_case_with_case_manager(dl, actor.id_)
+
+    request = ProposeEmbargoRevisionTriggerRequest(
+        actor_id=actor.id_,
+        case_id=case.id_,
+        end_time=datetime.now(tz=timezone.utc) + timedelta(days=14),
+    )
+
+    with pytest.raises(VultronInvalidStateTransitionError):
+        SvcProposeEmbargoRevisionUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+
+def test_propose_embargo_revision_invalid_state_does_not_persist_embargo(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """Failed revision must not leave behind a persisted EmbargoEvent."""
+    from vultron.core.use_cases.triggers.embargo import (
+        SvcProposeEmbargoRevisionUseCase,
+    )
+    from vultron.core.use_cases.triggers.requests import (
+        ProposeEmbargoRevisionTriggerRequest,
+    )
+
+    actor, dl = finder_actor_and_dl
+    case = _build_no_embargo_case_with_case_manager(dl, actor.id_)
+
+    before = len(list(dl.list_objects("EmbargoEvent")))
+
+    request = ProposeEmbargoRevisionTriggerRequest(
+        actor_id=actor.id_,
+        case_id=case.id_,
+        end_time=datetime.now(tz=timezone.utc) + timedelta(days=14),
+    )
+
+    with pytest.raises(VultronInvalidStateTransitionError):
+        SvcProposeEmbargoRevisionUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+    after = len(list(dl.list_objects("EmbargoEvent")))
+    assert after == before
+
+
+def test_propose_embargo_revision_in_revise_state_succeeds(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """SvcProposeEmbargoRevisionUseCase succeeds when EM is already REVISE.
+
+    Guards against a regression where EM.REVISE → EM.REVISE counter-revision
+    is incorrectly blocked.  Participant PEC states MUST NOT be reset on this
+    path (only ACTIVE → REVISE triggers _cascade_pec_revise).
+    """
+    from vultron.core.use_cases.triggers.embargo import (
+        SvcProposeEmbargoRevisionUseCase,
+    )
+    from vultron.core.use_cases.triggers.requests import (
+        ProposeEmbargoRevisionTriggerRequest,
+    )
+
+    actor, dl = finder_actor_and_dl
+
+    # Build a case already in EM.REVISE with a SIGNATORY participant.
+    case = _build_active_embargo_case_with_case_manager(dl, actor.id_)
+    # Manually advance to REVISE so we start in the right state.
+    case.current_status.em_state = EM.REVISE
+    dl.save(case)
+
+    participant_id = case.actor_participant_index[actor.id_]
+    participant_before = cast(CaseParticipant, dl.read(participant_id))
+    pec_before = participant_before.embargo_consent_state
+
+    request = ProposeEmbargoRevisionTriggerRequest(
+        actor_id=actor.id_,
+        case_id=case.id_,
+        end_time=datetime.now(tz=timezone.utc) + timedelta(days=21),
+    )
+
+    result = SvcProposeEmbargoRevisionUseCase(
+        dl, request, trigger_activity=TriggerActivityAdapter(dl)
+    ).execute()
+
+    assert "activity" in result
+    updated_case = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated_case.current_status.em_state == EM.REVISE
+    assert len(updated_case.proposed_embargoes) == 2
+
+    # PEC must not cascade on REVISE → REVISE; participant stays SIGNATORY.
+    participant_after = cast(CaseParticipant, dl.read(participant_id))
+    assert participant_after.embargo_consent_state == pec_before
