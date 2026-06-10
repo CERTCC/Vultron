@@ -1073,7 +1073,11 @@ class TestFullReportFlow:
         CaseParticipant ends at RM.ACCEPTED without a separate trigger call.
         """
         dl = self._setup_dl()
-        SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
+        SubmitReportReceivedUseCase(
+            dl,
+            self._make_submit_event(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
         ValidateReportReceivedUseCase(
             dl,
             self._make_validate_event(),

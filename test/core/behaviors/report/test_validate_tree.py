@@ -108,8 +108,8 @@ def reporter_actor(datalayer, reporter_actor_id):
 
 
 @pytest.fixture
-def bridge(datalayer):
-    """Create BT bridge for execution."""
+def trigger_activity(datalayer):
+    """Standalone TriggerActivityPort for passing to tree factories."""
     from typing import cast
 
     from vultron.adapters.driven.trigger_activity_adapter import (
@@ -117,11 +117,15 @@ def bridge(datalayer):
     )
     from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
+    return TriggerActivityAdapter(cast(CaseOutboxPersistence, datalayer))
+
+
+@pytest.fixture
+def bridge(datalayer, trigger_activity):
+    """Create BT bridge for execution."""
     return BTBridge(
         datalayer=datalayer,
-        trigger_activity=TriggerActivityAdapter(
-            cast(CaseOutboxPersistence, datalayer)
-        ),
+        trigger_activity=trigger_activity,
     )
 
 
@@ -622,7 +626,15 @@ def test_validate_report_tree_case_has_active_embargo(
 
 
 def test_validate_report_auto_engages_via_bt(
-    bridge, datalayer, actor_id, report, offer, actor, reporter_actor, case
+    bridge,
+    datalayer,
+    actor_id,
+    trigger_activity,
+    report,
+    offer,
+    actor,
+    reporter_actor,
+    case,
 ):
     """validate-report BT with case_id+actor_id auto-engages to RM.ACCEPTED.
 
@@ -644,6 +656,7 @@ def test_validate_report_auto_engages_via_bt(
         offer_id=offer.id_,
         case_id=case.id_,
         actor_id=actor_id,
+        trigger_activity=trigger_activity,
     )
     result = bridge.execute_with_setup(
         tree=tree,

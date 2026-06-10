@@ -51,6 +51,7 @@ Future enhancements (Phase 2+):
 """
 
 import logging
+from typing import TYPE_CHECKING
 
 import py_trees
 
@@ -66,6 +67,9 @@ from vultron.core.behaviors.report.prioritize_tree import (
     create_prioritize_subtree,
 )
 
+if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
+
 logger = logging.getLogger(__name__)
 
 
@@ -74,6 +78,7 @@ def create_validate_report_tree(
     offer_id: str,
     case_id: str | None = None,
     actor_id: str | None = None,
+    trigger_activity: "TriggerActivityPort | None" = None,
 ) -> py_trees.behaviour.Behaviour:
     """
     Create behavior tree for report validation workflow.
@@ -98,6 +103,9 @@ def create_validate_report_tree(
         actor_id: Optional ID of the Actor performing validation.
             Required together with ``case_id`` to enable the
             ``PrioritizeBT`` cascade.
+        trigger_activity: Optional port for constructing outbound AS2
+            activities.  Forwarded to ``create_prioritize_subtree`` when
+            both ``case_id`` and ``actor_id`` are supplied.
 
     Returns:
         Root node of the validation behavior tree (Selector)
@@ -140,7 +148,11 @@ def create_validate_report_tree(
     ]
     if case_id and actor_id:
         validation_flow_children.append(
-            create_prioritize_subtree(case_id=case_id, actor_id=actor_id)
+            create_prioritize_subtree(
+                case_id=case_id,
+                actor_id=actor_id,
+                trigger_activity=trigger_activity,
+            )
         )
 
     # Child sequence: Precondition checks + policy evaluation + actions

@@ -238,22 +238,38 @@ class TestInviteActorUseCases:
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
+        from vultron.core.models.vultron_types import VultronParticipant
         from vultron.core.states.rm import RM
+        from vultron.core.states.roles import CVDRole
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         invitee_id = "https://example.org/users/coordinator_rm1"
         invitee = as_Organization(id_=invitee_id)
+        owner_id = "https://example.org/users/owner"
+        case_manager_participant_id = (
+            "https://example.org/cases/caseRM001/participants/case-manager"
+        )
+        case_manager_participant = VultronParticipant(
+            id_=case_manager_participant_id,
+            attributed_to=owner_id,
+            context="https://example.org/cases/caseRM001",
+            name="CaseManager",
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
         case = VulnerabilityCase(
             id_="https://example.org/cases/caseRM001",
             name="TEST-RM-LIFECYCLE",
+            case_participants=[case_manager_participant_id],
+            actor_participant_index={owner_id: case_manager_participant_id},
         )
         invite = rm_invite_to_case_activity(
             invitee,
             target=VulnerabilityCaseStub(id_=case.id_),
-            actor="https://example.org/users/owner",
+            actor=owner_id,
             id_="https://example.org/cases/caseRM001/invitations/1",
         )
         dl.create(invitee)
+        dl.create(case_manager_participant)
         dl.create(case)
         dl.create(invite)
 
@@ -292,21 +308,37 @@ class TestInviteActorUseCases:
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
+        from vultron.core.models.vultron_types import VultronParticipant
+        from vultron.core.states.roles import CVDRole
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         invitee_id = "https://example.org/users/coordinator_rm2"
         invitee = as_Organization(id_=invitee_id)
+        owner_id = "https://example.org/users/owner"
+        case_manager_participant_id = (
+            "https://example.org/cases/caseRM002/participants/case-manager"
+        )
+        case_manager_participant = VultronParticipant(
+            id_=case_manager_participant_id,
+            attributed_to=owner_id,
+            context="https://example.org/cases/caseRM002",
+            name="CaseManager",
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
         case = VulnerabilityCase(
             id_="https://example.org/cases/caseRM002",
             name="TEST-RM-AUTO-ENGAGE",
+            case_participants=[case_manager_participant_id],
+            actor_participant_index={owner_id: case_manager_participant_id},
         )
         invite = rm_invite_to_case_activity(
             invitee,
             target=VulnerabilityCaseStub(id_=case.id_),
-            actor="https://example.org/users/owner",
+            actor=owner_id,
             id_="https://example.org/cases/caseRM002/invitations/1",
         )
         dl.create(invitee)
+        dl.create(case_manager_participant)
         dl.create(case)
         dl.create(invite)
 

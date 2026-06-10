@@ -45,10 +45,14 @@ not used in these receive-side trees but is exported for future use.
 """
 
 import logging
+from typing import TYPE_CHECKING
 
 import py_trees
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.case.engage_defer_trigger_tree import (
+    defer_case_trigger_bt,
+    engage_case_trigger_bt,
+)
 from vultron.core.behaviors.case.nodes import CommitCaseLogEntryNode
 from vultron.core.behaviors.report.nodes import (
     CheckParticipantExists,
@@ -56,132 +60,11 @@ from vultron.core.behaviors.report.nodes import (
     TransitionParticipantRMtoAccepted,
     TransitionParticipantRMtoDeferred,
 )
-from vultron.core.models.protocols import is_case_model
-from vultron.core.behaviors.sender.nodes import QueueToOutboxNode
-from vultron.core.use_cases._helpers import case_addressees
+
+if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
-
-
-class ResolveCaseAddresseesNode(DataLayerAction):
-    """Resolve outbound addressees for report prioritization."""
-
-    def __init__(self, case_id: str, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_addressees",
-            access=py_trees.common.Access.WRITE,
-        )
-
-    def update(self) -> py_trees.common.Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
-            return py_trees.common.Status.FAILURE
-
-        try:
-            case = self.datalayer.read(self.case_id)
-            if not is_case_model(case):
-                self.feedback_message = (
-                    f"Case '{self.case_id}' not found or wrong type"
-                )
-                return py_trees.common.Status.FAILURE
-
-            addressees = case_addressees(case, self.actor_id)
-        except Exception as exc:
-            self.feedback_message = (
-                f"Failed to resolve report addressees: {exc}"
-            )
-            return py_trees.common.Status.FAILURE
-
-        self.blackboard.case_addressees = addressees
-        return py_trees.common.Status.SUCCESS
-
-
-class EmitCasePriorityActivityNode(DataLayerAction):
-    """Create and queue report-priority outbound activities."""
-
-    def __init__(
-        self,
-        case_id: str,
-        activity_method: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self._activity_method = activity_method
-
-    def setup(self, **kwargs: object) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_addressees",
-            access=py_trees.common.Access.READ,
-        )
-        self.blackboard.register_key(
-            key="activity_ids",
-            access=py_trees.common.Access.WRITE,
-        )
-
-    def update(self) -> py_trees.common.Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
-            return py_trees.common.Status.FAILURE
-
-        factory = self.trigger_activity_factory
-        if factory is None:
-            self.feedback_message = "trigger_activity_factory not available"
-            return py_trees.common.Status.FAILURE
-
-        try:
-            addressees = self.blackboard.case_addressees
-        except KeyError:
-            self.feedback_message = "case_addressees not in blackboard"
-            return py_trees.common.Status.FAILURE
-
-        to = addressees or None
-
-        activity_method = getattr(factory, self._activity_method, None)
-        if activity_method is None:
-            self.feedback_message = (
-                f"TriggerActivityPort missing '{self._activity_method}'"
-            )
-            return py_trees.common.Status.FAILURE
-
-        try:
-            activity_id, _ = activity_method(
-                case_id=self.case_id,
-                actor=self.actor_id,
-                to=to,
-            )
-        except Exception as exc:
-            self.feedback_message = (
-                f"Failed to emit report-priority activity: {exc}"
-            )
-            return py_trees.common.Status.FAILURE
-
-        self.blackboard.activity_ids = [activity_id]
-        return py_trees.common.Status.SUCCESS
-
-
-def _create_sender_side_bt(
-    case_id: str,
-    activity_method: str,
-) -> py_trees.behaviour.Behaviour:
-    return py_trees.composites.Sequence(
-        name="SenderSideBT",
-        memory=False,
-        children=[
-            ResolveCaseAddresseesNode(case_id=case_id),
-            EmitCasePriorityActivityNode(
-                case_id=case_id,
-                activity_method=activity_method,
-            ),
-            QueueToOutboxNode(),
-        ],
-    )
 
 
 def create_engage_case_tree(
@@ -255,6 +138,7 @@ def create_defer_case_tree(
 def create_prioritize_subtree(
     case_id: str,
     actor_id: str,
+    trigger_activity: "TriggerActivityPort | None" = None,
 ) -> py_trees.behaviour.Behaviour:
     """
     Create behavior tree subtree for case prioritization (engage or defer).
@@ -262,53 +146,88 @@ def create_prioritize_subtree(
     Phase 1: EvaluateCasePriority always returns SUCCESS → engage path.
     Future: Plug in SSVC or other priority evaluator (IDEA-26041004).
 
+    Uses the canonical :func:`sender_side_bt` pattern (PCR-08-001) via
+    :func:`engage_case_trigger_bt` and :func:`defer_case_trigger_bt`, which
+    resolve the Case Manager and address outbound activities exclusively to
+    that actor.
+
     Structure::
 
         PrioritizeBT (Selector)
         ├─ EngagePath (Sequence)
-        │    ├─ EvaluateCasePriority      # stub: SUCCESS = engage
-        │    ├─ SenderSideBT              # resolve case manager and emit Join
-        │    └─ TransitionParticipantRMtoAccepted  # RM → ACCEPTED
-        └─ DeferPath (Sequence)
-             ├─ SenderSideBT              # resolve case manager and emit Ignore
-             └─ TransitionParticipantRMtoDeferred   # RM → DEFERRED
+        │    ├─ EvaluateCasePriority                # stub: SUCCESS = engage
+        │    └─ EngageCaseTriggerBT (Sequence)      # RM → ACCEPTED, emit Join
+        │         ├─ TransitionParticipantRMtoAccepted
+        │         └─ SenderSideBT (Sequence)
+        │              ├─ ResolveCaseManagerNode    # resolve Case Manager actor
+        │              ├─ ConstructActivitiesNode   # build Join(Case) activity
+        │              └─ QueueToOutboxNode
+        └─ DeferCaseTriggerBT (Sequence)            # RM → DEFERRED, emit Ignore
+             ├─ TransitionParticipantRMtoDeferred
+             └─ SenderSideBT (Sequence)
+                  ├─ ResolveCaseManagerNode         # resolve Case Manager actor
+                  ├─ ConstructActivitiesNode        # build Ignore(Case) activity
+                  └─ QueueToOutboxNode
 
     Per specs/behavior-tree-integration.yaml BT-06-005, BT-06-006.
+    Per specs/participant-case-replica.yaml PCR-08-001, PCR-08-002.
     This is the SSVC evaluator connection point (IDEA-26041004).
 
     Args:
         case_id: ID of VulnerabilityCase to prioritize
         actor_id: ID of Actor making the engage/defer decision
+        trigger_activity: Port for constructing outbound AS2 activities.
+            When ``None``, the sender-side subtrees will fail at execution
+            time with a descriptive error (consistent with the behaviour
+            when the blackboard does not carry a factory).
 
     Returns:
         Root node of the prioritize behavior tree (Selector)
     """
+    factory = trigger_activity
+
+    def _build_engage(case_manager_id: str) -> list[str]:
+        if factory is None:
+            raise RuntimeError(
+                "create_prioritize_subtree: no TriggerActivityPort; "
+                "cannot build engage_case activity"
+            )
+        activity_id, _ = factory.engage_case(
+            case_id=case_id,
+            actor=actor_id,
+            to=[case_manager_id],
+        )
+        return [activity_id]
+
+    def _build_defer(case_manager_id: str) -> list[str]:
+        if factory is None:
+            raise RuntimeError(
+                "create_prioritize_subtree: no TriggerActivityPort; "
+                "cannot build defer_case activity"
+            )
+        activity_id, _ = factory.defer_case(
+            case_id=case_id,
+            actor=actor_id,
+            to=[case_manager_id],
+        )
+        return [activity_id]
+
     engage_path = py_trees.composites.Sequence(
         name="EngagePath",
         memory=False,
         children=[
             EvaluateCasePriority(case_id=case_id),
-            _create_sender_side_bt(
+            engage_case_trigger_bt(
                 case_id=case_id,
-                activity_method="engage_case",
-            ),
-            TransitionParticipantRMtoAccepted(
-                case_id=case_id, actor_id=actor_id
+                actor_id=actor_id,
+                activity_builder=_build_engage,
             ),
         ],
     )
-    defer_path = py_trees.composites.Sequence(
-        name="DeferPath",
-        memory=False,
-        children=[
-            _create_sender_side_bt(
-                case_id=case_id,
-                activity_method="defer_case",
-            ),
-            TransitionParticipantRMtoDeferred(
-                case_id=case_id, actor_id=actor_id
-            ),
-        ],
+    defer_path = defer_case_trigger_bt(
+        case_id=case_id,
+        actor_id=actor_id,
+        activity_builder=_build_defer,
     )
     root = py_trees.composites.Selector(
         name="PrioritizeBT",

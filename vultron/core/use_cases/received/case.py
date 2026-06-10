@@ -796,6 +796,7 @@ class ValidateCaseUseCase:
             offer_id=self._offer_id,
             case_id=self._case_id,
             actor_id=self._actor_id,
+            trigger_activity=self._trigger_activity,
         )
         result = bridge.execute_with_setup(tree, actor_id=self._actor_id)
 

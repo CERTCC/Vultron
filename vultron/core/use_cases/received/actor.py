@@ -632,7 +632,9 @@ class AcceptInviteActorToCaseReceivedUseCase:
             datalayer=self._dl, trigger_activity=self._trigger_activity
         )
         prioritize_tree = create_prioritize_subtree(
-            case_id=case_id, actor_id=invitee_id
+            case_id=case_id,
+            actor_id=invitee_id,
+            trigger_activity=self._trigger_activity,
         )
         bridge.execute_with_setup(prioritize_tree, actor_id=invitee_id)
 
