@@ -354,6 +354,16 @@ Short entries are reproduced here; longer ones are referenced below.
   suite: a `test/…/nodes/` directory with one `test_<submodule>.py` per
   submodule. See `specs/behavior-tree-node-design.yaml` BTND-07-001 and
   BTND-07-002.
+- **Splits Must Not Produce New God Modules** — When splitting a large
+  module into a subpackage, each resulting submodule must itself stay under
+  500 lines (CS-18-002). The split pattern is **recursive**: a submodule
+  that re-accumulates size across multiple concerns must be further
+  decomposed. For example, splitting `case/nodes.py` into a `nodes/`
+  package produced `nodes/participant.py` at 816 lines — that file is itself
+  a candidate for further splitting. Monitor new submodule line counts after
+  every split PR and open a follow-up issue when any submodule exceeds 500
+  lines and mixes responsibilities. See `specs/code-style.yaml` CS-18-001
+  through CS-18-004.
 - **py_trees Blackboard Global State** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **py_trees `blackboard.get()` Raises KeyError for Unwritten READ Keys** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Duplicate Method Definitions Silently Shadow Correct BT Logic** — see [notes/bt-integration.md](notes/bt-integration.md)
