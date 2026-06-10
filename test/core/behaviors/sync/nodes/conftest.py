@@ -9,7 +9,7 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.case_log import CaseLogEntry
+from vultron.core.models.case_log import HashChainLogRecord
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.use_cases.triggers.sync import _to_persistable_entry
@@ -54,7 +54,7 @@ def case_actor(datalayer):
 
 def _make_entry(log_index: int, prev_hash: str) -> VultronCaseLogEntry:
     return _to_persistable_entry(
-        CaseLogEntry(
+        HashChainLogRecord(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/log-{log_index}",

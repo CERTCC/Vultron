@@ -24,7 +24,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models._helpers import _now_utc
-from vultron.core.models.case_log import CaseLogEntry
+from vultron.core.models.case_log import HashChainLogRecord
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
 from vultron.core.models.protocols import is_log_entry_model
 from vultron.core.sync_helpers import _reconstruct_tail_hash
@@ -59,7 +59,9 @@ def _require_case_id_from_activity(activity: Any, node_name: str) -> str:
     raise VultronError(f"{node_name}: could not resolve case_id from activity")
 
 
-def _to_persistable_entry(chain_entry: CaseLogEntry) -> VultronCaseLogEntry:
+def _to_persistable_entry(
+    chain_entry: HashChainLogRecord,
+) -> VultronCaseLogEntry:
     return VultronCaseLogEntry(
         case_id=chain_entry.case_id,
         log_index=chain_entry.log_index,
@@ -213,7 +215,7 @@ class CreateLogEntryNode(DataLayerAction):
     def update(self) -> Status:
         tail_hash = self.blackboard.tail_hash
         tail_index = self.blackboard.tail_index
-        chain_entry = CaseLogEntry(
+        chain_entry = HashChainLogRecord(
             case_id=self.case_id,
             log_index=tail_index + 1,
             object_id=self.object_id,

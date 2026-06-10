@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
-from vultron.core.models.case_log import CaseLogEntry
+from vultron.core.models.case_log import HashChainLogRecord
 from vultron.core.models.case_log_entry import VultronCaseLogEntry
 from vultron.core.models.protocols import (
     LogEntryModel,
@@ -78,9 +78,9 @@ def extract_activity_snapshot(request: "VultronEvent") -> dict[str, Any]:
 
 
 def _to_persistable_entry(
-    chain_entry: CaseLogEntry,
+    chain_entry: HashChainLogRecord,
 ) -> VultronCaseLogEntry:
-    """Convert a hash-chained :class:`CaseLogEntry` to a :class:`VultronCaseLogEntry`.
+    """Convert a hash-chained :class:`HashChainLogRecord` to a :class:`VultronCaseLogEntry`.
 
     Copies all fields so that the entry can be stored via the DataLayer.
     """
@@ -195,11 +195,11 @@ def commit_log_entry_trigger(
     """
     tail_hash, tail_index = _reconstruct_tail_hash(case_id, dl)
 
-    # Create the new entry directly using CaseLogEntry so the entry_hash is
+    # Create the new entry directly using HashChainLogRecord so the entry_hash is
     # auto-computed by the model_validator.  We do not use CaseEventLog.append()
     # here because that always starts a fresh log at index 0; we carry forward
     # the DataLayer state via tail_hash and tail_index instead.
-    chain_entry = CaseLogEntry(
+    chain_entry = HashChainLogRecord(
         case_id=case_id,
         log_index=tail_index + 1,
         object_id=object_id,

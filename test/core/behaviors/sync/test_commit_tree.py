@@ -13,7 +13,7 @@ from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
 from vultron.core.models.case import VultronCase
-from vultron.core.models.case_log import GENESIS_HASH, CaseLogEntry
+from vultron.core.models.case_log import GENESIS_HASH, HashChainLogRecord
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.triggers.sync import _to_persistable_entry
 
@@ -55,7 +55,7 @@ def case_obj(datalayer):
 
 def _make_entry(log_index: int, prev_hash: str):
     return _to_persistable_entry(
-        CaseLogEntry(
+        HashChainLogRecord(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/log-{log_index}",
