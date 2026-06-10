@@ -2,12 +2,12 @@
 name: plan-issue
 description: >
   Convert a single open GitHub Idea or Concern issue into a concrete
-  implementation plan. Runs a grill-me interview to understand scope, then
-  creates implementation issues, optionally updates specs/notes, archives
-  the source issue, and closes it. Auto-detects Idea vs Concern from the
-  GitHub issue type. Replaces the former ingest-idea and ingest-concern
-  skills. Use when the user references an Idea or Concern issue number, or
-  says "plan this idea/concern".
+  implementation plan. Deepens context from the issue first, then runs a
+  grill-me interview to understand scope, creates implementation issues,
+  optionally updates specs/notes, archives the source issue, and closes it.
+  Auto-detects Idea vs Concern from the GitHub issue type. Replaces the
+  former ingest-idea and ingest-concern skills. Use when the user references
+  an Idea or Concern issue number, or says "plan this idea/concern".
 ---
 
 # Skill: Plan Issue
@@ -87,7 +87,14 @@ Use the title and body from `ISSUE_JSON` as source material throughout.
 
 Invoke the `orient-agent` skill to load required baseline context.
 
-### Phase 3 — Grill-Me Interview (invoke `grill-me`)
+### Phase 3 — Deepen Context (invoke `deepen-context`)
+
+Invoke the `deepen-context` skill, using focus hints derived from the issue
+title and body (e.g., "wire layer", "BT integration", "embargo lifecycle").
+This ensures the grill-me interview in Phase 4 starts from an informed
+baseline rather than blank-slate baseline context.
+
+### Phase 4 — Grill-Me Interview (invoke `grill-me`)
 
 Invoke the `grill-me` skill. Resolve every decision branch one at a time
 via `ask_user`, providing a recommendation for each. Cover:
@@ -121,7 +128,11 @@ via `ask_user`, providing a recommendation for each. Cover:
 
 Do **not** write anything until grill-me is complete.
 
-### Phase 3b — Create Task Branch (if docs changes are expected)
+If the interview surfaces focus areas not covered in Phase 3 (e.g., a
+subsystem or design pattern that only became apparent during grilling),
+invoke `deepen-context` again with those additional hints before proceeding.
+
+### Phase 4b — Create Task Branch (if docs changes are expected)
 
 If grill-me established that Phase 5 will produce file writes, create the
 branch **before** writing any files so uncommitted changes are never at risk:
@@ -134,14 +145,9 @@ git switch -c "plan/${ISSUE_NUMBER}-<slug>"
 
 If no doc gaps were found (Phase 5 will be skipped), skip this step.
 
-### Phase 4 — Deepen Context (invoke `deepen-context`)
-
-Invoke the `deepen-context` skill, passing the focus area(s) identified
-in Phase 3 (e.g., "wire layer", "BT integration", "embargo lifecycle").
-
 ### Phase 5 — Update Docs (conditional)
 
-**For both types** — only if Phase 3 identified a concrete gap (docs changes
+**For both types** — only if Phase 4 identified a concrete gap (docs changes
 are optional; skip this phase if no gap was found).
 
 - **`specs/<topic>.yaml`** — Add or amend requirements. Follow
@@ -151,9 +157,9 @@ are optional; skip this phase if no gap was found).
   guidance. Every `notes/*.md` must have valid YAML frontmatter (`title`,
   `status`). Update `notes/README.md` if adding a new file.
 - **`AGENTS.md`** — Append a new pitfall entry to the
-  **Common Pitfalls** section if Phase 3 identified a recurring agent gap.
+  **Common Pitfalls** section if Phase 4 identified a recurring agent gap.
 - **ADR** — Draft `docs/adr/NNNN-<slug>.md` alongside the spec if the ADR
-  determination in Phase 3 recommended one (applies to both Ideas and
+  determination in Phase 4 recommended one (applies to both Ideas and
   Concerns; see `notes/specs-vs-adrs.md`).
 
 Track created filenames:
@@ -292,10 +298,11 @@ fi
 
 - [ ] Issue identified (user-specified or selected from list)
 - [ ] Issue body fetched; type auto-detected (Idea or Concern); issue is open
-- [ ] Task branch created (`plan/<N>-<slug>`) — if docs changes expected
 - [ ] `orient-agent` invoked
+- [ ] `deepen-context` invoked with focus hints from the issue
 - [ ] All grill-me branches resolved
-- [ ] `deepen-context` invoked with focus hints from grill-me
+- [ ] `deepen-context` re-invoked if new focus areas emerged during grilling
+- [ ] Task branch created (`plan/<N>-<slug>`) — if docs changes expected
 - [ ] Docs updated — optional for both types (or consciously skipped with a note)
 - [ ] Markdown lint clean (if docs changed)
 - [ ] Docs-only PR opened with `specs-notes` label — or skipped (no doc changes)
