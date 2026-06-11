@@ -40,3 +40,11 @@ plus a shared `_TestASGIRouter` wired as each app's emitter fallback and as the
 module-level default emitter. This setup exercises outbox -> ASGI delivery ->
 inbox processing with distinct actor-scoped DataLayers and avoids real HTTP
 retry delays.
+
+### 2026-06-11 SYNC-902-MISMATCH-TEST-SEAM — mismatch assertions need dispatch-level injection
+
+For predecessor-mismatch coverage (#902), injecting `Announce(CaseLogEntry)`
+through `post_actor_inbox` can mask mismatch behavior because nested object
+persistence can make `CheckLogEntryAlreadyStored` short-circuit before hash
+validation. A stable test seam is `handle_inbox_item(...)` with a typed
+activity object, then normal outbox-driven replay from the CaseActor.
