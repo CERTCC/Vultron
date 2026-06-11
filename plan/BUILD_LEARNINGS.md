@@ -48,3 +48,11 @@ through `post_actor_inbox` can mask mismatch behavior because nested object
 persistence can make `CheckLogEntryAlreadyStored` short-circuit before hash
 validation. A stable test seam is `handle_inbox_item(...)` with a typed
 activity object, then normal outbox-driven replay from the CaseActor.
+
+### 2026-06-11 NODES-SPLIT-883 — mirror flat-to-subpackage splits in tests
+
+When converting a behavior area from `nodes.py` to `nodes/`, preserve
+`from ...nodes import ...` import paths with an explicit `nodes/__init__.py`
+re-export list, and move node-level tests into `test/.../nodes/` with
+per-submodule files. Keep tree composition tests in the parent workflow test
+module so node behavior and tree wiring remain independently reviewable.

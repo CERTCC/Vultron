@@ -13,18 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""
-BT nodes for the sender-side routing pattern.
-
-Provides the three nodes that compose the SenderSideBT sequence:
-
-    SenderSideBT (Sequence)
-    ├─ ResolveCaseManagerNode    # look up CASE_MANAGER actor ID
-    ├─ ConstructActivitiesNode   # build outbound AS2 activities
-    └─ QueueToOutboxNode         # append activity IDs to actor outbox
-
-Per specs/participant-case-replica.yaml PCR-08-001, PCR-08-002.
-"""
+"""Action nodes for SenderSideBT."""
 
 from typing import Callable
 
@@ -38,21 +27,7 @@ from vultron.core.use_cases.triggers._helpers import add_activity_to_outbox
 
 
 class ResolveCaseManagerNode(DataLayerAction):
-    """Look up the CASE_MANAGER actor ID and write it to the blackboard.
-
-    Reads the VulnerabilityCase from the DataLayer, iterates over its
-    participants, and finds the one holding ``CVDRole.CASE_MANAGER``.
-    Writes that participant's ``attributed_to`` actor ID to the blackboard
-    under the key ``case_manager_id``.
-
-    Returns SUCCESS when a Case Manager is found.
-    Returns FAILURE when the case does not exist or no CASE_MANAGER
-    participant is found (the parent Sequence will halt and the use case
-    will raise a domain error).
-
-    Per PCR-08-001: all participant-originated activities MUST be addressed
-    to the Case Actor (the CASE_MANAGER participant's actor) exclusively.
-    """
+    """Look up the CASE_MANAGER actor ID and write it to the blackboard."""
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -92,26 +67,7 @@ class ResolveCaseManagerNode(DataLayerAction):
 
 
 class ConstructActivitiesNode(DataLayerAction):
-    """Build outbound AS2 activities and write their IDs to the blackboard.
-
-    Reads ``case_manager_id`` from the blackboard (written by
-    :class:`ResolveCaseManagerNode`) and passes it to *activity_builder*,
-    a callable that constructs the AS2 activity (or activities) addressed
-    to the Case Actor and returns the resulting activity IDs as a list.
-
-    Writes the returned list to the blackboard under the key
-    ``activity_ids`` for :class:`QueueToOutboxNode` to consume.
-
-    *activity_builder* signature::
-
-        (case_manager_id: str) -> list[str]
-
-    It typically captures the trigger-activity factory and any additional
-    use-case context (``actor_id``, payload IDs, etc.) via closure.
-
-    Returns SUCCESS when the builder succeeds.
-    Returns FAILURE on any exception raised by the builder.
-    """
+    """Build outbound AS2 activities and write their IDs to the blackboard."""
 
     def __init__(
         self,
@@ -154,17 +110,7 @@ class ConstructActivitiesNode(DataLayerAction):
 
 
 class QueueToOutboxNode(DataLayerAction):
-    """Queue each activity ID from the blackboard to the actor's outbox.
-
-    Reads the ``activity_ids`` list written by
-    :class:`ConstructActivitiesNode` and calls ``add_activity_to_outbox``
-    for each, using the ``actor_id`` set on the blackboard by
-    ``BTBridge.setup_tree()``.
-
-    Returns SUCCESS after all activities have been queued.
-    Returns FAILURE when the DataLayer or ``actor_id`` is unavailable, or
-    when queueing any activity raises an exception.
-    """
+    """Queue each activity ID from the blackboard to the actor's outbox."""
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -190,9 +136,6 @@ class QueueToOutboxNode(DataLayerAction):
         try:
             dl = self.datalayer
             for activity_id in activity_ids:
-                # CaseOutboxPersistence is a superset of CasePersistence;
-                # trigger use cases always pass a CaseOutboxPersistence
-                # implementation, so this cast is safe.
                 add_activity_to_outbox(
                     self.actor_id,
                     activity_id,

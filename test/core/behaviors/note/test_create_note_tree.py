@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tests for note BT nodes and create_note_tree factory."""
+"""Tests for create_note_tree factory."""
 
 import pytest
 from py_trees.common import Status
@@ -65,71 +65,6 @@ def case(dl):
     obj = VulnerabilityCase(id_=CASE_ID, name="Test Case")
     dl.create(obj)
     return obj
-
-
-# ---------------------------------------------------------------------------
-# SaveNoteNode tests
-# ---------------------------------------------------------------------------
-
-
-class TestSaveNoteNode:
-    def test_saves_note_to_datalayer(self, bridge, dl, note):
-        tree = SaveNoteNode(note_obj=note)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
-        stored = dl.read(NOTE_ID)
-        assert stored is not None
-
-    def test_idempotent_on_duplicate(self, bridge, dl, note):
-        """SaveNoteNode succeeds even when note already in DataLayer."""
-        dl.create(note)
-        tree = SaveNoteNode(note_obj=note)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
-
-
-# ---------------------------------------------------------------------------
-# AttachNoteToCaseNode tests
-# ---------------------------------------------------------------------------
-
-
-class TestAttachNoteToCaseNode:
-    def test_attaches_note_to_case(self, bridge, dl, note, case):
-        dl.save(note)
-        tree = AttachNoteToCaseNode(note_id=NOTE_ID, case_id=CASE_ID)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
-        refreshed = dl.read(CASE_ID)
-        assert refreshed is not None
-        assert NOTE_ID in refreshed.notes
-
-    def test_idempotent_when_note_already_attached(self, bridge, dl, note):
-        obj = VulnerabilityCase(id_=CASE_ID, name="Test Case", notes=[NOTE_ID])
-        dl.create(obj)
-        dl.save(note)
-
-        tree = AttachNoteToCaseNode(note_id=NOTE_ID, case_id=CASE_ID)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
-
-        refreshed = dl.read(CASE_ID)
-        assert refreshed is not None
-        assert refreshed.notes.count(NOTE_ID) == 1
-
-    def test_succeeds_when_case_id_is_none(self, bridge, dl, note):
-        """AttachNoteToCaseNode succeeds immediately when case_id is None."""
-        dl.save(note)
-        tree = AttachNoteToCaseNode(note_id=NOTE_ID, case_id=None)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
-
-    def test_fails_when_case_not_in_datalayer(self, bridge, dl, note):
-        """AttachNoteToCaseNode returns FAILURE when case is missing."""
-        dl.save(note)
-        missing_case_id = "https://example.org/cases/does-not-exist"
-        tree = AttachNoteToCaseNode(note_id=NOTE_ID, case_id=missing_case_id)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
-        assert result.status == Status.FAILURE
 
 
 # ---------------------------------------------------------------------------
