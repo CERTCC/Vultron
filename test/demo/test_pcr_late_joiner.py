@@ -34,8 +34,8 @@ Both test methods in ``TestLateJoinerSequence`` run the complete
    triggers ``create_validate_report_tree`` and causes the CaseActor to
    emit ``Create(VulnerabilityCase)`` to the reporter via the outbox.
 3. The owner triggers ``invite-actor-to-case`` for the late-joiner actor.
-   The outbox is drained synchronously by the TestClient background task,
-   delivering the ``Invite`` to the late-joiner's inbox.
+   Per PCR-08-007, the ``Invite`` is placed in the **CaseActor's** outbox
+   and drained explicitly here, delivering it to the late-joiner's inbox.
 4. The late-joiner triggers ``accept-case-invite``.  The outbox drain
    delivers the ``Accept`` to the owner's inbox; the owner processes it via
    ``AcceptInviteActorToCaseReceivedUseCase``, adds the late-joiner as a
@@ -80,7 +80,7 @@ _LATE_JOINER_BASE = "http://late-joiner.test"
 
 
 @pytest.fixture
-def three_app_setup():
+def three_app_setup(monkeypatch):
     """Owner app + reporter app + late-joiner app wired for end-to-end delivery.
 
     Uses three isolated FastAPI app instances each with their own in-memory
@@ -89,17 +89,23 @@ def three_app_setup():
     outbox → inbox → inbox-handler chain is exercised without real HTTP.
 
     Lifecycle:
-      1. Enters all three TestClient contexts (triggers lifespan startup).
-      2. Replaces each app's ``ASGIEmitter._http_fallback`` with the shared
+      1. Patches ``VULTRON_SERVER__BASE_URL`` to ``{_OWNER_BASE}/api/v2`` so
+         that ``CreateCaseActorNode`` generates a routable CaseActor ID (e.g.
+         ``http://owner-late-joiner.test/api/v2/actors/case-actor-…``).
+         Without this the default ``http://localhost:7999`` is used, which
+         lacks the ``/api/v2/`` prefix and gets a 404 from the owner's ASGI
+         app (its routes are at ``/api/v2/actors/…``).
+      2. Enters all three TestClient contexts (triggers lifespan startup).
+      3. Replaces each app's ``ASGIEmitter._http_fallback`` with the shared
          router so cross-app deliveries use ASGI transport.
-      3. Configures the module-level ``_default_emitter`` to the shared
+      4. Configures the module-level ``_default_emitter`` to the shared
          router so trigger-endpoint ``outbox_handler`` calls route through
          ASGI instead of making real HTTP requests.
-      4. Registers the config-default ``base_url`` with the router pointing
-         to the owner's app so that deliveries to the CaseActor (whose ID
-         uses the config base_url) are routed correctly.
-      5. Yields the three ``IsolatedActorApp`` instances and their clients.
-      6. On teardown restores the previous default emitter and closes DLs.
+      5. Registers the patched ``base_url`` with the router pointing to the
+         owner's app so that CaseActor deliveries are routed correctly.
+      6. Yields the three ``IsolatedActorApp`` instances and their clients.
+      7. On teardown restores the previous default emitter, closes DLs, and
+         reloads config to remove the patched env var.
 
     Yields:
         Tuple of (owner_iso, reporter_iso, late_joiner_iso,
@@ -109,7 +115,15 @@ def three_app_setup():
         configure_default_emitter,
         get_default_emitter,
     )
-    from vultron.config import get_config
+    from vultron.config import get_config, reload_config
+
+    # Patch the server base URL so the CaseActor is created with the owner's
+    # routable base URL.  Without this, CreateCaseActorNode reads the default
+    # http://localhost:7999 which produces IDs like
+    # http://localhost:7999/actors/case-actor-... and the owner's app returns
+    # 404 for /actors/ paths (it expects /api/v2/actors/).
+    monkeypatch.setenv("VULTRON_SERVER__BASE_URL", f"{_OWNER_BASE}/api/v2")
+    reload_config()
 
     router = _TestASGIRouter()
     owner_iso = create_isolated_actor_app(base_url=_OWNER_BASE, router=router)
@@ -120,9 +134,9 @@ def three_app_setup():
         base_url=_LATE_JOINER_BASE, router=router
     )
 
-    # Register the config-default base_url (e.g. http://localhost:7999) with
-    # the router so that deliveries to CaseActor IDs (which use this URL)
-    # are routed to the owner's app via ASGI.
+    # Register the patched base_url with the router so CaseActor deliveries
+    # (whose IDs now use http://owner-late-joiner.test/api/v2) route to
+    # the owner's ASGI app.
     config_base_url = get_config().server.base_url.rstrip("/")
     router.register(config_base_url, owner_iso.app)
 
@@ -153,6 +167,7 @@ def three_app_setup():
     owner_iso.dl.close()
     reporter_iso.dl.close()
     late_joiner_iso.dl.close()
+    reload_config()
 
 
 # ---------------------------------------------------------------------------
@@ -386,6 +401,18 @@ def _run_late_joiner_sequence(
         f"{resp.text}"
     )
 
+    # PCR-08-007: SvcInviteActorToCaseUseCase now places the Invite in the
+    # CaseActor's outbox (not the owner's), so drain it explicitly here.
+    # The background task triggered by the invite endpoint only drains the
+    # owner's outbox; the CaseActor's outbox must be processed separately.
+    case_actor_id = _find_case_actor_id_in_dl(owner_iso.dl, case_id)
+    assert case_actor_id is not None, (
+        f"Could not find CaseActor for case '{case_id}' in owner's "
+        f"DataLayer.  CreateCaseActorNode may not have run during "
+        f"create_receive_report_case_tree."
+    )
+    _drain_case_actor_outbox(owner_iso, case_actor_id)
+
     # Step 4: retrieve invite_id from late-joiner's DataLayer
     invites = late_joiner_iso.dl.list_objects("Invite")
     assert len(invites) >= 1, (
@@ -408,12 +435,6 @@ def _run_late_joiner_sequence(
     # Step 6: drain CaseActor's outbox via real outbox_handler
     # Announce(VulnerabilityCase) is routed to late-joiner via the
     # configured default emitter (_TestASGIRouter).
-    case_actor_id = _find_case_actor_id_in_dl(owner_iso.dl, case_id)
-    assert case_actor_id is not None, (
-        f"Could not find CaseActor for case '{case_id}' in owner's "
-        f"DataLayer.  CreateCaseActorNode may not have run during "
-        f"create_receive_report_case_tree."
-    )
     _drain_case_actor_outbox(owner_iso, case_actor_id)
 
     return case_id, lj_actor_id

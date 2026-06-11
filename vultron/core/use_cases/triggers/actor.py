@@ -23,6 +23,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,
     resolve_actor,
@@ -129,22 +130,34 @@ class SvcInviteActorToCaseUseCase:
                 "SvcInviteActorToCaseUseCase requires a TriggerActivityPort"
             )
 
+        # PCR-08-007: the invite MUST be sent from the Case Actor's identity.
+        # Fall back to the case owner (actor_id) only when no Case Actor has
+        # been established yet (early-lifecycle cases without a Service record).
+        case_actor_id = _find_case_actor_id(self._dl, case.id_)
+        invite_actor_id = case_actor_id if case_actor_id else actor_id
+        attributed_to = actor_id if case_actor_id else None
+
         activity_id, activity_dict = (
             self._trigger_activity.invite_actor_to_case(
                 invitee_id=self._request.invitee_id,
                 case_id=case.id_,
-                actor=actor_id,
+                actor=invite_actor_id,
                 to=[self._request.invitee_id],
+                attributed_to=attributed_to,
             )
         )
 
-        add_activity_to_outbox(actor_id, activity_id, self._dl)
+        # PCR-08-007: queue in the Case Actor's outbox so it appears to come
+        # from the Case Actor.  Fall back to the owner's outbox when no Case
+        # Actor is registered.
+        add_activity_to_outbox(invite_actor_id, activity_id, self._dl)
 
         logger.info(
-            "Actor '%s' invited actor '%s' to case '%s'",
+            "Actor '%s' invited actor '%s' to case '%s' (via Case Actor '%s')",
             actor_id,
             self._request.invitee_id,
             case.id_,
+            invite_actor_id,
         )
 
         return {"activity": activity_dict}

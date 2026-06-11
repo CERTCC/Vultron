@@ -225,11 +225,60 @@ class TestInviteActorUseCases:
     def test_accept_invite_participant_can_reach_rm_accepted(
         self, make_payload
     ):
-        """Accepted invite auto-engages the participant to RM.ACCEPTED.
+        """Accepted invite advances the participant to RM.ACCEPTED inline.
 
-        CM-11-001 requires invitation acceptance to advance the invitee to
-        RM.ACCEPTED without a separate engage-case trigger. The use case still
-        pre-seeds RECEIVED and VALID before invoking the engage-case logic.
+        PCR-08-010: Accept(Invite) IS the engage decision.  The use case
+        records VALID→ACCEPTED directly on the participant without a separate
+        engage-case BT or emitting a proxy RmEngageCaseActivity.
+        """
+        from typing import Any, cast
+
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+        from vultron.core.states.rm import RM
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        invitee_id = "https://example.org/users/coordinator_rm1"
+        invitee = as_Organization(id_=invitee_id)
+        owner_id = "https://example.org/users/owner"
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/caseRM001",
+            name="TEST-RM-LIFECYCLE",
+        )
+        invite = rm_invite_to_case_activity(
+            invitee,
+            target=VulnerabilityCaseStub(id_=case.id_),
+            actor=owner_id,
+            id_="https://example.org/cases/caseRM001/invitations/1",
+        )
+        dl.create(invitee)
+        dl.create(case)
+        dl.create(invite)
+
+        accept = rm_accept_invite_to_case_activity(
+            invite,
+            actor=invitee_id,
+        )
+        event = make_payload(accept)
+
+        # No TriggerActivityAdapter needed: RM.ACCEPTED is set inline.
+        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
+
+        updated_case = cast(Any, dl.read(case.id_))
+        participant_id = updated_case.actor_participant_index.get(invitee_id)
+        participant_obj = cast(Any, dl.get(id_=participant_id))
+        latest_status = participant_obj.participant_statuses[-1]
+        assert latest_status.rm_state == RM.ACCEPTED
+
+    def test_accept_invite_no_identity_spoofing(self, make_payload):
+        """PCR-07-008: AcceptInviteActorToCaseReceivedUseCase MUST NOT emit
+        RmEngageCaseActivity (Join) with actor=invitee_id from the Case Actor
+        context.  The Accept(Invite) IS the engage decision; the participant
+        reaches RM.ACCEPTED via an inline state transition, not a spoofed BT
+        call.
         """
         from typing import Any, cast
 
@@ -240,75 +289,6 @@ class TestInviteActorUseCases:
         )
         from vultron.core.models.vultron_types import VultronParticipant
         from vultron.core.states.rm import RM
-        from vultron.core.states.roles import CVDRole
-
-        dl = SqliteDataLayer("sqlite:///:memory:")
-        invitee_id = "https://example.org/users/coordinator_rm1"
-        invitee = as_Organization(id_=invitee_id)
-        owner_id = "https://example.org/users/owner"
-        case_manager_participant_id = (
-            "https://example.org/cases/caseRM001/participants/case-manager"
-        )
-        case_manager_participant = VultronParticipant(
-            id_=case_manager_participant_id,
-            attributed_to=owner_id,
-            context="https://example.org/cases/caseRM001",
-            name="CaseManager",
-            case_roles=[CVDRole.CASE_MANAGER],
-        )
-        case = VulnerabilityCase(
-            id_="https://example.org/cases/caseRM001",
-            name="TEST-RM-LIFECYCLE",
-            case_participants=[case_manager_participant_id],
-            actor_participant_index={owner_id: case_manager_participant_id},
-        )
-        invite = rm_invite_to_case_activity(
-            invitee,
-            target=VulnerabilityCaseStub(id_=case.id_),
-            actor=owner_id,
-            id_="https://example.org/cases/caseRM001/invitations/1",
-        )
-        dl.create(invitee)
-        dl.create(case_manager_participant)
-        dl.create(case)
-        dl.create(invite)
-
-        accept = rm_accept_invite_to_case_activity(
-            invite,
-            actor=invitee_id,
-        )
-        event = make_payload(accept)
-        from vultron.adapters.driven.trigger_activity_adapter import (
-            TriggerActivityAdapter,
-        )
-        from vultron.core.ports.case_persistence import CaseOutboxPersistence
-
-        AcceptInviteActorToCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(
-                cast(CaseOutboxPersistence, dl)
-            ),
-        ).execute()
-
-        updated_case = cast(Any, dl.read(case.id_))
-        participant_id = updated_case.actor_participant_index.get(invitee_id)
-        participant_obj = cast(Any, dl.get(id_=participant_id))
-        latest_status = participant_obj.participant_statuses[-1]
-        assert latest_status.rm_state == RM.ACCEPTED
-
-    def test_accept_invite_actor_to_case_emits_engage_activity(
-        self, make_payload
-    ):
-        """AcceptInviteActorToCaseReceivedUseCase queues an RmEngageCaseActivity."""
-        from typing import Any, cast
-
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
-        )
-        from vultron.core.models.vultron_types import VultronParticipant
         from vultron.core.states.roles import CVDRole
 
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -347,35 +327,32 @@ class TestInviteActorUseCases:
             actor=invitee_id,
         )
         event = make_payload(accept)
-        from vultron.adapters.driven.trigger_activity_adapter import (
-            TriggerActivityAdapter,
-        )
-        from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
-        AcceptInviteActorToCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(
-                cast(CaseOutboxPersistence, dl)
-            ),
-        ).execute()
+        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
 
+        # PCR-07-008: no RmEngageCaseActivity (Join) with actor=invitee_id
+        # should be queued in the invitee's outbox — the RM.ACCEPTED state is
+        # set inline; no BT proxy emit is permitted.
         outbox_items = dl.clone_for_actor(invitee_id).outbox_list()
-        # At least the engage (Join) activity must be present.  An Announce
-        # activity may also be queued by _emit_announce_case so we allow ≥ 1.
-        assert len(outbox_items) >= 1
-
-        engage_activity = None
         for item_id in outbox_items:
             candidate = cast(Any, dl.read(item_id))
             if candidate is not None and str(candidate.type_) == "Join":
-                engage_activity = candidate
-                break
-        assert (
-            engage_activity is not None
-        ), "No Join/engage activity found in outbox"
-        assert engage_activity.actor == invitee_id
-        assert engage_activity.object_.id_ == case.id_
+                assert False, (
+                    f"PCR-07-008 violation: RmEngageCaseActivity (Join) with "
+                    f"actor={invitee_id!r} found in outbox — identity spoofing"
+                )
+
+        # The participant should already be at RM.ACCEPTED (inline transition).
+        updated_case = cast(Any, dl.read(case.id_))
+        participant_id = updated_case.actor_participant_index.get(invitee_id)
+        assert participant_id is not None
+        participant_obj = cast(Any, dl.get(id_=participant_id))
+        assert participant_obj is not None
+        latest_status = participant_obj.participant_statuses[-1]
+        assert latest_status.rm_state == RM.ACCEPTED, (
+            f"Expected RM.ACCEPTED after inline transition, "
+            f"got {latest_status.rm_state}"
+        )
 
     def test_accept_invite_actor_to_case_records_case_event(
         self, monkeypatch, make_payload

@@ -34,32 +34,16 @@ from vultron.core.states.participant_embargo_consent import (
 from vultron.core.states.rm import RM
 from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases.received.case import _store_embedded_participants
-from vultron.core.use_cases._helpers import _as_id, _idempotent_create
+from vultron.core.use_cases._helpers import (
+    _as_id,
+    _find_case_actor_id,
+    _idempotent_create,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
-
-
-def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
-    """Return the CaseActor ID for *case_id*, if present in the DataLayer.
-
-    First checks for a ``VultronReportCaseLink`` whose ``trusted_case_actor_id``
-    was established during bootstrap (CBT-01-006).  Falls back to the legacy
-    Service-object scan for backward compatibility.
-    """
-    # Bootstrap-trust path: check ReportCaseLink first
-    for link in dl.list_objects("ReportCaseLink"):
-        if isinstance(link, VultronReportCaseLink):
-            if link.case_id == case_id and link.trusted_case_actor_id:
-                return str(link.trusted_case_actor_id)
-
-    # Legacy path: scan for a VultronCaseActor Service with context=case_id
-    for service in dl.list_objects("Service"):
-        if getattr(service, "context", None) == case_id:
-            return service.id_
-    return None
 
 
 def _link_report_case_links(dl: CasePersistence, case) -> None:
@@ -592,14 +576,17 @@ class AcceptInviteActorToCaseReceivedUseCase:
             attributed_to=invitee_id,
             context=case_id,
         )
-        # An accepted invite implies the invitee has received and validated the
-        # case. Pre-seeding RECEIVED→VALID ensures the engage-case trigger
-        # (VALID→ACCEPTED) is a valid RM transition.
+        # Accept(Invite) IS the engage signal (PCR-08-010): pre-seed all three
+        # RM states inline so the participant reaches ACCEPTED immediately
+        # without a separate engage-case trigger or identity-spoofing BT call.
         participant.append_rm_state(
             RM.RECEIVED, actor=invitee_id, context=case_id
         )
         participant.append_rm_state(
             RM.VALID, actor=invitee_id, context=case_id
+        )
+        participant.append_rm_state(
+            RM.ACCEPTED, actor=invitee_id, context=case_id
         )
         # Only auto-sign embargo consent when the embargo is fully ACTIVE.
         # In REVISE state the terms are under negotiation; auto-signing would
@@ -619,27 +606,13 @@ class AcceptInviteActorToCaseReceivedUseCase:
 
         # MV-10-003/MV-10-005: emit full case details to the invitee now that
         # embargo consent has been resolved (auto-signed above when ACTIVE).
-        # The case owner (receiving_actor_id) sends Announce(VulnerabilityCase)
-        # so the invitee can seed their local DataLayer.
+        # The Case Actor sends Announce(VulnerabilityCase) so the invitee can
+        # seed their local DataLayer.
         self._emit_announce_case(case_id, invitee_id, case)
 
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.report.prioritize_tree import (
-            create_prioritize_subtree,
-        )
-
-        bridge = BTBridge(
-            datalayer=self._dl, trigger_activity=self._trigger_activity
-        )
-        prioritize_tree = create_prioritize_subtree(
-            case_id=case_id,
-            actor_id=invitee_id,
-            trigger_activity=self._trigger_activity,
-        )
-        bridge.execute_with_setup(prioritize_tree, actor_id=invitee_id)
-
         logger.info(
-            "Added participant '%s' to case '%s' via accepted invite and auto-engaged via BT",
+            "Added participant '%s' to case '%s' via accepted invite"
+            " (RM.ACCEPTED inline, PCR-08-010)",
             invitee_id,
             case_id,
         )
