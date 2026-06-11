@@ -297,9 +297,13 @@ Short entries are reproduced here; longer ones are referenced below.
   peer, or the broadcast-addressing assertion becomes vacuous.
 - **Case Participant Lookup Must Fail Fast on Surface Divergence** —
   `case_participants` is the source of truth and `actor_participant_index` is
-  only a derived lookup cache. Lookup helpers must not silently choose the
-  populated surface; if the surfaces disagree, surface the mismatch and fix the
-  write path or fixture.
+  only a derived lookup cache. Lookup helpers MUST NOT silently choose the
+  populated surface; if the surfaces disagree, surface the mismatch and fix
+  the write path or fixture. However, do NOT treat a missing cache entry as
+  fatal when canonical participant data exists — fail only on contradictions
+  (cache returns a wrong/stale participant), not on cache misses. The
+  recommended resolution order: check `actor_participant_index` for a direct
+  hit first, then scan `case_participants` as the authoritative fallback.
 - **Orphan Module Cleanup Requires Importer Proof** — Before deleting
   scaffolding or suspected-dead modules, verify there are no live importers in
   both `vultron/` and `test/`; then prefer deletion over leaving dead code.
@@ -437,6 +441,13 @@ Short entries are reproduced here; longer ones are referenced below.
   PCR-08-008). See [notes/case-communication-model.md](notes/case-communication-model.md)
   § "Invite/Accept Handshake Routing".
 - **Close Bugs With Evidence, Not Assumption** — see [notes/bt-integration.md](notes/bt-integration.md)
+- **BTBridge Thread-Safety (RLock)** — see [notes/bt-integration.md](notes/bt-integration.md) § "Concurrency Model"
+- **BT Result Channel for Domain Errors** — see [notes/bt-integration.md](notes/bt-integration.md) § "BT Result Channel for Domain Errors"
+- **Lenient vs. Strict Participant Lookup Node Variants** — see [notes/bt-integration.md](notes/bt-integration.md) § "Lenient vs. Strict Participant Lookup Node Variants"
+- **Decomposed BT Leaf Missing-Key Must Return FAILURE** — see [notes/bt-integration.md](notes/bt-integration.md) § "Decomposed BT Leaf Must Return FAILURE for Missing Blackboard Keys"
+- **Embargo Subtree Idempotency** — see [notes/bt-integration.md](notes/bt-integration.md) § "Embargo Subtree Idempotency with Blackboard Flag"
+- **Vocabulary Override Must Preserve Base Registration** — see [notes/vocabulary-registry.md](notes/vocabulary-registry.md) § "Vocabulary Override Preservation"
+- **Surrogate-Key Routing Collision** — see [notes/codebase-structure.md](notes/codebase-structure.md) § "Surrogate-Key Routing Collision Handling"
 - **Use `isinstance` for Pyright Attribute Narrowing, Not `# type: ignore`** — see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
 - **Untyped Closures Are Invisible to mypy — Extract to Named Functions** — see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
 - **CI Runs All Tests; Default Local Run Omits Integration** — see `test/AGENTS.md` § Integration Tests
@@ -496,6 +507,91 @@ Short entries are reproduced here; longer ones are referenced below.
   [notes/bt-integration.md](notes/bt-integration.md)
   § "Trigger/Received Parity" and `specs/behavior-tree-integration.yaml`
   BT-15-001, BT-15-002.
+- **BTBridge Global Blackboard Is Not Thread-Safe Under FastAPI
+  BackgroundTasks** — FastAPI runs synchronous `BackgroundTask` callables
+  via `anyio.to_thread.run_sync`, placing them on a thread pool. Two BT
+  executions can therefore run on different threads simultaneously, both
+  writing to `py_trees.blackboard.Blackboard.storage` (process-global).
+  The race: Thread A writes `actor_id=A` and `datalayer=DL_A`; Thread B
+  overwrites them; Thread A then reads the wrong `actor_id`, queueing its
+  outbound activity under the wrong actor's outbox — the activity is
+  silently lost. Fix: wrap the entire setup→execute→cleanup critical section
+  in `BTBridge.execute_with_setup` with a module-level `threading.RLock`.
+  Use `RLock` (not `Lock`) because lifecycle BT nodes call
+  `execute_with_setup` recursively — a plain `Lock` deadlocks there. See
+  [notes/bt-integration.md](notes/bt-integration.md) § "Concurrency Model".
+- **ResolveCaseManagerNode Requires CASE_MANAGER Participant in Test
+  Fixtures** — Replacing `case_addressees()` with canonical
+  `_resolve_case_manager_id()` / `ResolveCaseManagerNode` causes tests to
+  fail non-obviously when `CASE_MANAGER` is absent: the engage path's RM
+  transition fires (→ ACCEPTED), the send then fails, the defer path fires
+  (→ DEFERRED), and the test sees `RM=DEFERRED` instead of `RM=ACCEPTED`.
+  All test fixtures for BT paths that involve `ResolveCaseManagerNode` MUST
+  include a `VultronParticipant` with `CVDRole.CASE_MANAGER` registered in
+  `actor_participant_index`. Set `case_participants` and
+  `actor_participant_index` directly in the `VulnerabilityCase` constructor
+  (not via `add_participant()`, which has a pyright type mismatch). In
+  chained integration tests, pass `TriggerActivityAdapter(dl)` to **every**
+  use case in the chain — if any receives it as `None`, `CreateCaseActorNode`
+  never runs and the CASE_MANAGER participant is never registered.
+- **Wire Vocabulary Override Must Preserve Base-Module Registration** —
+  Overriding all actor keys in `VOCABULARY` from a Vultron-specific actor
+  module can leave `vultron.wire.as2.vocab.base.objects.actors` with zero
+  registered concrete types, tripping the registry-completeness invariant.
+  Keep at least one base-actors-module registration (e.g., `Actor →
+  as_Actor`) and override only concrete keys that need Vultron subclasses
+  (`Person`, `Organization`, etc.). See
+  [notes/vocabulary-registry.md](notes/vocabulary-registry.md) §
+  "Vocabulary Override Preservation".
+- **Surrogate-Key Resolution Must Treat Ambiguous Matches as Errors** —
+  When `dl.resolve_surrogate_key(key)` finds more than one canonical ID
+  matching a short-key tail segment, it MUST raise an error — not silently
+  return the first result. Also: case-key resolution MUST continue to the
+  short-key fallback even when `dl.read(key)` returns a non-case object;
+  non-case IDs must not shadow valid case keys and produce false 404/
+  validation failures. See
+  [notes/codebase-structure.md](notes/codebase-structure.md) §
+  "Surrogate-Key Routing Collision Handling".
+- **Use-Case Subpackage Splits Must Re-Export Both Classes and Request
+  Models** — When replacing a flat use-case module with a subpackage, add
+  explicit `__init__.py` re-exports for both use-case classes AND any
+  request models that callers previously imported transitively from the old
+  module. Mirror the source split in the test layout with a matching
+  subdirectory (`test/core/use_cases/<domain>/`) to keep file organization
+  aligned and reduce future merge-conflict hotspots. The nodes/ subpackage
+  guidance in this file (§ "Large nodes.py Files Are a Code Smell") applies
+  to BT node modules; this rule extends the same principle to use-case
+  modules.
+- **Transport-Role Naming Must Stay Explicit in Adapter Paths and Classes**
+  — Outbound adapter names that describe behavior (`delivery_queue`) instead
+  of role (`demo_http_delivery`) create broad documentation and import drift.
+  When renaming protocol-significant adapter modules, update all parallel
+  references together: core ports docs, adapter notes, ADR references, and
+  codebase reference pages. See also the existing pitfall "Role Taxonomies
+  Must Not Leak Into Parameter Names".
+- **mypy Infers Type From First Branch Assignment — Use Distinct Variable
+  Names Per Branch** — Avoid reusing a local variable across two `except`
+  (or `if`/`else`) branches that assign different concrete types. For
+  example, assigning `error: VultronValidationError` in one branch then
+  `error = VultronInvalidStateTransitionError(...)` in the next causes mypy
+  to infer the type from the first assignment and flag the second as
+  incompatible. Use distinct variable names per branch (e.g.,
+  `validation_err`, `transition_err`).
+- **Counter-Revision EM Path Must Be Tested Separately** —
+  `EM.REVISE → EM.REVISE` (counter-revision) must be tested separately
+  from `ACTIVE → REVISE` because `_cascade_pec_revise` only fires on the
+  `ACTIVE → REVISE` transition; a counter-revision must leave PEC states
+  unchanged. Tests that only cover `ACTIVE → REVISE` do not verify this
+  invariant.
+- **DataLayer Scope Tests: Use `call_args.args`, Not `call_args[0]`** —
+  When asserting mock positional arguments in DataLayer scope tests (e.g.,
+  for `get_canonical_actor_dl()`), use `mock.call_args.args` (Python 3.8+)
+  rather than `mock.call_args[0]`. The named attribute raises `AttributeError`
+  clearly if the call shifts to kwargs; the index subscript returns an empty
+  tuple silently, masking the assertion failure. Test
+  `get_canonical_actor_dl()` directly with explicit keyword args
+  (`actor_id=...`, `dl=...`) rather than through FastAPI DI — it is a plain
+  Python function and does not require the full app stack.
 
 ## Skill Interaction Rules
 

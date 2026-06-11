@@ -637,3 +637,44 @@ that resolves this at the time of writing.
 3.14-compatible build. Update `requires-python` ceiling and docker base image
 at that point. Check `uv.lock` for any other packages using `typing._eval_type`
 directly.
+
+---
+
+## Surrogate-Key Routing Collision Handling
+
+(ISSUE-654, 2026-06-08)
+
+The DataLayer uses surrogate keys (short ID segments) for routing alongside
+canonical full-URI IDs. Two invariants MUST be enforced:
+
+### Ambiguous matches are errors, not first-match wins
+
+When `dl.resolve_surrogate_key(key)` finds more than one canonical ID
+matching a short-key tail segment, it MUST raise an error (e.g.,
+`VultronAmbiguousKeyError`), not silently return the first result. Returning
+the first match makes actor/case lookups non-deterministic when multiple
+canonical IDs share the same tail segment — a bug that is extremely hard to
+reproduce in tests.
+
+### Case-key resolution continues to short-key fallback after non-case hits
+
+When `dl.read(key)` returns a non-case object (e.g., an actor record),
+case-key resolution MUST NOT treat that as a definitive miss and return a
+404. It must continue the lookup chain to the short-key fallback. Otherwise
+non-case IDs can shadow valid case keys and produce false 404 or validation
+failures.
+
+### Evidence
+
+- `vultron/adapters/driven/datalayer_sqlite.py` — `resolve_surrogate_key()`
+- `vultron/adapters/driven/datalayer.py` — `DataLayer` protocol
+
+### AC-3a Asymmetric Test Pattern
+
+The surrogate-key scope regression (BUG-2026040901) is documented by an
+intentionally asymmetric test: the short-ID DataLayer sees an empty outbox
+while the canonical-URI DataLayer sees the entry. This documents the failure
+mode without requiring monkeypatching. Use `call_args.args` (not
+`call_args[0]`) when asserting mock positional arguments — the named
+attribute fails clearly if the call shifts to kwargs, while the index
+subscript returns an empty tuple silently.
