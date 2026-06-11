@@ -16,15 +16,38 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from typing import cast
 
+import anyio
 import pytest
 
 from vultron.adapters.driven.asgi_emitter import ASGIEmitter
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.core.models.case_log import GENESIS_HASH, HashChainLogRecord
+from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
+from vultron.core.models.replication_state import VultronReplicationState
+from vultron.core.use_cases.triggers.sync import _to_persistable_entry
+from vultron.core.use_cases.received.sync import RejectLogEntryReceivedUseCase
+from vultron.semantic_registry import extract_event
 from test.demo.conftest import _TestASGIRouter, create_isolated_actor_app
+from vultron.adapters.driving.fastapi.inbox_handler import (
+    handle_inbox_item,
+    inbox_handler,
+)
+from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.outbox_handler import (
     configure_default_emitter,
     get_default_emitter,
 )
+from vultron.wire.as2.factories import (
+    announce_log_entry_activity,
+    reject_log_entry_activity,
+)
+from vultron.wire.as2.vocab.objects.case_log_entry import (
+    CaseLogEntry as WireCaseLogEntry,
+)
+from vultron.wire.as2.vocab.objects.case_actor import CaseActor
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
@@ -47,6 +70,23 @@ def _create_actor(client, base_api: str, slug: str, actor_type: str) -> str:
         201,
     ), f"Actor creation failed ({response.status_code}): {response.text}"
     return actor_id
+
+
+def _make_log_entry(
+    case_id: str,
+    log_index: int,
+    prev_hash: str,
+    event_type: str,
+) -> VultronCaseLogEntry:
+    record = HashChainLogRecord(
+        case_id=case_id,
+        log_index=log_index,
+        object_id=case_id,
+        event_type=event_type,
+        payload_snapshot={"event_type": event_type},
+        prev_log_hash=prev_hash,
+    )
+    return _to_persistable_entry(record)
 
 
 @pytest.fixture
@@ -135,4 +175,127 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
     assert peer_entry.event_type == "sync_901_happy_path"
 
     # AC-4 guard: each actor app uses its own isolated DataLayer.
+    assert case_actor_iso.dl is not peer_iso.dl
+
+
+@pytest.mark.spec("SYNC-03-001")
+@pytest.mark.spec("SYNC-03-002")
+@pytest.mark.spec("SYNC-04-001")
+@pytest.mark.spec("SYNC-04-002")
+def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
+    """Reject mismatch entry, then replay from last accepted hash."""
+    case_actor_iso, peer_iso, case_actor_tc, peer_tc = two_app_setup
+
+    case_actor_base_api = f"{case_actor_iso.base_url}/api/v2"
+    peer_base_api = f"{peer_iso.base_url}/api/v2"
+
+    case_actor_id = _create_actor(
+        case_actor_tc, case_actor_base_api, "case-actor-sync-902", "Service"
+    )
+    peer_actor_id = _create_actor(
+        peer_tc, peer_base_api, "peer-sync-902", "Organization"
+    )
+    # Cross-register actors so each app can route to the other.
+    _create_actor(
+        case_actor_tc, peer_base_api, "peer-sync-902", "Organization"
+    )
+    _create_actor(
+        peer_tc, case_actor_base_api, "case-actor-sync-902", "Service"
+    )
+
+    case = VulnerabilityCase(name="SYNC-902 mismatch/replay integration case")
+    case_actor_participant = CaseParticipant(
+        attributed_to=case_actor_id,
+        context=case.id_,
+    )
+    peer_participant = CaseParticipant(
+        attributed_to=peer_actor_id,
+        context=case.id_,
+    )
+    case.case_participants.append(case_actor_participant.id_)
+    case.case_participants.append(peer_participant.id_)
+    case.actor_participant_index[case_actor_id] = case_actor_participant.id_
+    case.actor_participant_index[peer_actor_id] = peer_participant.id_
+    case_actor_iso.dl.save(case_actor_participant)
+    case_actor_iso.dl.save(peer_participant)
+    case_actor_iso.dl.save(case)
+    case_actor_iso.dl.save(CaseActor(id_=case_actor_id, context=case.id_))
+
+    entry0 = _make_log_entry(case.id_, 0, GENESIS_HASH, "sync_902_base")
+    entry1 = _make_log_entry(case.id_, 1, entry0.entry_hash, "sync_902_mid")
+    entry2 = _make_log_entry(case.id_, 2, entry1.entry_hash, "sync_902_tail")
+    case_actor_iso.dl.save(entry0)
+    case_actor_iso.dl.save(entry1)
+    case_actor_iso.dl.save(entry2)
+    peer_iso.dl.save(entry0)
+
+    wire_entry2 = WireCaseLogEntry.model_validate(
+        entry2.model_dump(mode="json")
+    )
+    out_of_chain_announce = announce_log_entry_activity(
+        entry=wire_entry2,
+        actor=case_actor_id,
+        to=[peer_actor_id],
+    )
+    peer_actor_dl = peer_iso.dl.clone_for_actor(peer_actor_id)
+    case_actor_dl = case_actor_iso.dl.clone_for_actor(case_actor_id)
+    handle_inbox_item(
+        actor_id=peer_actor_id,
+        obj=out_of_chain_announce,
+        dl=peer_iso.dl,
+        dispatcher=peer_iso.app.state.dispatcher,
+    )
+    peer_reject_events = [
+        cast(RejectLogEntryReceivedEvent, extract_event(activity))
+        for activity in peer_iso.dl.list_objects("Reject")
+    ]
+    assert peer_reject_events, "Expected peer to emit Reject(CaseLogEntry)."
+    emitted_reject_event = peer_reject_events[-1]
+    assert emitted_reject_event.actor_id == peer_actor_id
+    assert emitted_reject_event.last_accepted_hash == entry0.entry_hash
+    assert peer_iso.dl.read(entry2.id_) is None
+
+    reject_for_case_actor = cast(
+        RejectLogEntryReceivedEvent,
+        extract_event(
+            reject_log_entry_activity(
+                entry=wire_entry2,
+                context=entry0.entry_hash,
+                actor=peer_actor_id,
+                to=[case_actor_id],
+            )
+        ),
+    )
+
+    RejectLogEntryReceivedUseCase(
+        case_actor_iso.dl,
+        reject_for_case_actor,
+        sync_port=SyncActivityAdapter(case_actor_iso.dl),
+    ).execute()
+
+    anyio.run(
+        outbox_handler,
+        case_actor_id,
+        case_actor_dl,
+        case_actor_iso.dl,
+        case_actor_iso.app.state.emitter,
+    )
+    anyio.run(
+        inbox_handler,
+        peer_actor_id,
+        peer_iso.dl,
+        peer_actor_dl,
+        peer_iso.app.state.emitter,
+        peer_iso.app.state.dispatcher,
+    )
+
+    state_id = VultronReplicationState(
+        case_id=case.id_, peer_id=peer_actor_id
+    ).id_
+    replication_state = case_actor_iso.dl.read(state_id)
+    assert replication_state is not None
+    assert replication_state.last_acknowledged_hash == entry0.entry_hash
+
+    assert peer_iso.dl.read(entry1.id_) is not None
+    assert peer_iso.dl.read(entry2.id_) is not None
     assert case_actor_iso.dl is not peer_iso.dl
