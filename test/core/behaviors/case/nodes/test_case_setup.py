@@ -39,6 +39,12 @@ from vultron.core.behaviors.case.nodes import (
     RecordOfferReceivedEventNode,
     UpdateActorOutbox,
 )
+from vultron.core.behaviors.case.nodes.case_setup import (
+    CreateCaseActorServiceNode,
+    RegisterCaseActorParticipantNode,
+    ResolveCaseActorUrlsNode,
+    ReuseExistingCaseActorParticipantNode,
+)
 from vultron.core.behaviors.helpers import (
     UpdateActorOutbox as UpdateActorOutboxHelper,
 )
@@ -319,6 +325,24 @@ class TestCreateCaseActorNodeBlackboard:
         ]
         assert len(case_actor_services) >= 1
 
+    def test_is_composed_subtree_of_named_leaf_nodes(self) -> None:
+        node = CreateCaseActorNode()
+        assert isinstance(node, py_trees.composites.Sequence)
+        assert isinstance(node.children[0], ResolveCaseActorUrlsNode)
+        assert isinstance(node.children[1], py_trees.composites.Selector)
+
+        idempotency_selector = node.children[1]
+        assert isinstance(
+            idempotency_selector.children[0],
+            ReuseExistingCaseActorParticipantNode,
+        )
+        create_branch = idempotency_selector.children[1]
+        assert isinstance(create_branch, py_trees.composites.Sequence)
+        assert [type(child) for child in create_branch.children] == [
+            CreateCaseActorServiceNode,
+            RegisterCaseActorParticipantNode,
+        ]
+
     def test_writes_case_actor_id_to_blackboard(
         self,
         bt_scenario: BTTestScenario,
@@ -379,5 +403,30 @@ class TestCreateCaseActorNodeBlackboard:
             CreateCaseActorNode(),
             actor_id=actor_id,
             # No case_id supplied
+        )
+        assert result.status == py_trees.common.Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# RegisterCaseActorParticipantNode — precondition failure tests
+# ---------------------------------------------------------------------------
+
+
+class TestRegisterCaseActorParticipantNode:
+    """RegisterCaseActorParticipantNode returns FAILURE when case is absent."""
+
+    def test_fails_when_case_not_in_datalayer(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        actor_id: str,
+    ) -> None:
+        """Node returns FAILURE (not SUCCESS) when the case record is missing."""
+        result = bt_scenario.run(
+            RegisterCaseActorParticipantNode(),
+            actor_id=actor_id,
+            case_id="https://example.org/cases/nonexistent",
+            case_actor_id=f"{actor_id}/case-actor",
+            case_actor_participant_id=f"{actor_id}/case-actor/participant",
         )
         assert result.status == py_trees.common.Status.FAILURE

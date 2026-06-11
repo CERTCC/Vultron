@@ -212,3 +212,10 @@ header.
   out because finder's CLOSED `Add(ParticipantStatus)` was silently queued to
   the case-actor's outbox in finder's DataLayer (never processed) instead of
   finder's own outbox.
+  
+### 2026-06-10 ISSUE-714 — Decomposed BT nodes must preserve alternate context seams
+
+- When replacing a god node with leaf-node sequences, preserve all original
+  input seams (`case_id` from blackboard and `case_obj`-derived context).
+- If downstream leaves rely on blackboard keys, add explicit fallback reads
+  from staged objects/status context to avoid regressing valid call paths.
