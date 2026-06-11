@@ -56,3 +56,10 @@ When converting a behavior area from `nodes.py` to `nodes/`, preserve
 re-export list, and move node-level tests into `test/.../nodes/` with
 per-submodule files. Keep tree composition tests in the parent workflow test
 module so node behavior and tree wiring remain independently reviewable.
+
+### 2026-06-11 OX-10-004-STUB-GUARD — keep stub adapters under explicit test
+
+`ProdHttpDeliveryAdapter` is intentionally unimplemented and must fail fast
+with a spec-linked `NotImplementedError`. A dedicated adapter-level unit test
+prevents future placeholder edits from silently downgrading the fail-fast
+signal into a no-op module.
