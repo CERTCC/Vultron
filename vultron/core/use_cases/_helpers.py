@@ -13,6 +13,7 @@ from vultron.core.models.protocols import (
     is_case_model,
     is_participant_model,
 )
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.participant_embargo_consent import (
     PEC,
@@ -42,6 +43,28 @@ def _as_id(obj: Any) -> str | None:
     if isinstance(id_, str):
         return id_
     return str(obj)
+
+
+def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
+    """Return the CaseActor Service ID for *case_id*, if present in the DataLayer.
+
+    First checks for a ``VultronReportCaseLink`` whose ``trusted_case_actor_id``
+    was established during bootstrap (CBT-01-006).  Falls back to the legacy
+    Service-object scan for backward compatibility.
+
+    Returns ``None`` when no CaseActor Service can be found for *case_id*.
+    This is the authoritative resolver for PCR-08-007 (invite sender) and
+    PCR-08-008 (accept recipient).
+    """
+    for link in dl.list_objects("ReportCaseLink"):
+        if isinstance(link, VultronReportCaseLink):
+            if link.case_id == case_id and link.trusted_case_actor_id:
+                return str(link.trusted_case_actor_id)
+
+    for service in dl.list_objects("Service"):
+        if getattr(service, "context", None) == case_id:
+            return service.id_
+    return None
 
 
 def _idempotent_create(

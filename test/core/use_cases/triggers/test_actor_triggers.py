@@ -187,6 +187,48 @@ class TestSvcInviteActorToCaseUseCase:
         # Activity actor field must be the full canonical URI, not the short UUID
         assert result["activity"]["actor"] == _HTTP_ACTOR_ID
 
+    def test_invite_uses_case_actor_when_present(self):
+        """PCR-08-007: when a Case Actor Service exists the invite actor must
+        be the Case Actor ID, not the case-owner actor ID.  The case owner's
+        ID is carried in ``attributedTo`` instead.
+        """
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
+
+        actor, dl = _make_actor_dl("Vendor")
+        invitee, _ = _make_actor_dl("Coordinator")
+        dl.create(invitee)
+        case = VulnerabilityCase(
+            attributed_to=actor.id_, name="PCR Test Case", content="Content"
+        )
+        dl.create(case)
+
+        # Register a Case Actor Service with context = case.id_
+        case_actor = as_Service(
+            id_=f"{actor.id_}/case-actor",
+            context=case.id_,
+            name="CaseActorService",
+        )
+        dl.create(case_actor)
+
+        request = InviteActorToCaseTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            invitee_id=invitee.id_,
+        )
+        result = SvcInviteActorToCaseUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        activity_data = result["activity"]
+        assert activity_data["type"] == "Invite"
+        # Invite actor MUST be the Case Actor Service ID (PCR-08-007)
+        assert activity_data["actor"] == case_actor.id_
+        # Case owner attribution is preserved
+        assert activity_data.get("attributedTo") == actor.id_
+        # The activity must be in the Case Actor's outbox, not the owner's
+        case_actor_outbox = dl.clone_for_actor(case_actor.id_).outbox_list()
+        assert activity_data["id"] in case_actor_outbox
+
 
 class TestSvcSuggestActorToCaseUseCase:
     """Tests for the suggest-actor-to-case trigger use case."""

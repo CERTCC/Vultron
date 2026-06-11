@@ -317,11 +317,18 @@ class TriggerActivityAdapter:
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
+        attributed_to: str | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        """Create and persist an ``Invite(Actor, Case)`` activity."""
+        """Create and persist an ``Invite(Actor, Case)`` activity.
+
+        ``actor`` SHOULD be the Case Actor ID (PCR-08-007); ``attributed_to``
+        MAY carry the case owner's ID for attribution.
+        """
         extra: dict[str, Any] = {"actor": actor, "to": to}
         if id_ is not None:
             extra["id_"] = id_
+        if attributed_to is not None:
+            extra["attributed_to"] = attributed_to
         activity = rm_invite_to_case_activity(
             invitee=CoreActor(id_=invitee_id),
             target=VulnerabilityCaseStub(id_=case_id),
