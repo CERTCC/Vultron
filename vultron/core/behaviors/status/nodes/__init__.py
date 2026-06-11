@@ -48,14 +48,17 @@ from vultron.core.behaviors.status.nodes.case_status import (
 from vultron.core.behaviors.status.nodes.conditions import (
     VerifySenderIsParticipantNode,
 )
-from vultron.core.behaviors.status.nodes.participant_status import (
+from vultron.core.behaviors.status.nodes.append import (
     AppendStatusAndSaveParticipantNode,
-    AutoCloseBranchNode,
     CheckStatusNotAlreadyAppendedNode,
     LoadParticipantNode,
-    PublicDisclosureBranchNode,
     ResolveAndPersistStatusObjectNode,
+    SkipIfIdempotentNode,
     ValidateRMTransitionNode,
+)
+from vultron.core.behaviors.status.nodes.lifecycle import (
+    AutoCloseBranchNode,
+    PublicDisclosureBranchNode,
     _PublicDisclosureSkipConditionNode,
 )
 
@@ -69,12 +72,14 @@ __all__ = [
     "CreateStatusBroadcastActivityNode",
     "BroadcastQueueToOutboxNode",
     "BroadcastStatusToPeersNode",
-    # participant_status
+    # append
     "LoadParticipantNode",
     "CheckStatusNotAlreadyAppendedNode",
     "ResolveAndPersistStatusObjectNode",
     "ValidateRMTransitionNode",
     "AppendStatusAndSaveParticipantNode",
+    "SkipIfIdempotentNode",
+    # lifecycle
     "_PublicDisclosureSkipConditionNode",
     "PublicDisclosureBranchNode",
     "AutoCloseBranchNode",

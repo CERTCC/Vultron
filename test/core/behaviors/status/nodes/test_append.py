@@ -13,14 +13,14 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for participant status workflow nodes (submodule path).
+"""Unit tests for append-participant-status leaf nodes.
 
-Verifies LoadParticipantNode, CheckStatusNotAlreadyAppendedNode,
-ResolveAndPersistStatusObjectNode, ValidateRMTransitionNode,
-AppendStatusAndSaveParticipantNode, PublicDisclosureBranchNode, and
-AutoCloseBranchNode imported directly from the submodule.
+Tests SkipIfIdempotentNode, LoadParticipantNode,
+CheckStatusNotAlreadyAppendedNode, ResolveAndPersistStatusObjectNode,
+ValidateRMTransitionNode, and AppendStatusAndSaveParticipantNode
+from nodes.append.
 
-Per DEMOMA-07-003 steps 2–5.
+Per DEMOMA-07-003 step 2.
 """
 
 import pytest
@@ -29,13 +29,12 @@ from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.status.nodes.participant_status import (
+from vultron.core.behaviors.status.nodes.append import (
     AppendStatusAndSaveParticipantNode,
-    AutoCloseBranchNode,
     CheckStatusNotAlreadyAppendedNode,
     LoadParticipantNode,
-    PublicDisclosureBranchNode,
     ResolveAndPersistStatusObjectNode,
+    SkipIfIdempotentNode,
     ValidateRMTransitionNode,
 )
 from vultron.core.states.roles import CVDRole
@@ -105,6 +104,45 @@ def populated_bridge(populated_dl):
 
 
 # ---------------------------------------------------------------------------
+# SkipIfIdempotentNode
+# ---------------------------------------------------------------------------
+
+
+class TestSkipIfIdempotentNode:
+    def test_not_appended_fails(self, populated_bridge):
+        """Status not yet on participant → FAILURE (proceed to append)."""
+        load = LoadParticipantNode(participant_id=PARTICIPANT_ID)
+        skip = SkipIfIdempotentNode(
+            status_id=STATUS_ID, participant_id=PARTICIPANT_ID
+        )
+        seq = py_trees.composites.Sequence(
+            name="TestSeq", memory=False, children=[load, skip]
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=seq, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.FAILURE
+
+    def test_already_appended_succeeds(self, populated_dl):
+        """Status already on participant → SUCCESS (skip append)."""
+        p = populated_dl.read(PARTICIPANT_ID)
+        s = populated_dl.read(STATUS_ID)
+        p.participant_statuses.append(s)
+        populated_dl.save(p)
+
+        bridge = BTBridge(datalayer=populated_dl)
+        load = LoadParticipantNode(participant_id=PARTICIPANT_ID)
+        skip = SkipIfIdempotentNode(
+            status_id=STATUS_ID, participant_id=PARTICIPANT_ID
+        )
+        seq = py_trees.composites.Sequence(
+            name="TestSeq", memory=False, children=[load, skip]
+        )
+        result = bridge.execute_with_setup(tree=seq, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
+
+# ---------------------------------------------------------------------------
 # LoadParticipantNode
 # ---------------------------------------------------------------------------
 
@@ -145,7 +183,6 @@ class TestCheckStatusNotAlreadyAppendedNode:
         assert result.status == Status.SUCCESS
 
     def test_already_appended_fails(self, populated_dl):
-        # Append the status to the participant first
         p = populated_dl.read(PARTICIPANT_ID)
         s = populated_dl.read(STATUS_ID)
         p.participant_statuses.append(s)
@@ -234,44 +271,3 @@ class TestAppendStatusAndSaveParticipantNode:
 
         p = populated_dl.read(PARTICIPANT_ID)
         assert len(p.participant_statuses) == initial_count + 1
-
-
-# ---------------------------------------------------------------------------
-# PublicDisclosureBranchNode
-# ---------------------------------------------------------------------------
-
-
-class TestPublicDisclosureBranchNode:
-    def test_always_succeeds_when_not_public_aware(
-        self, populated_bridge, status_obj
-    ):
-        node = PublicDisclosureBranchNode(
-            status_obj=status_obj,
-            sender_actor_id=ACTOR_ID,
-            case_id=CASE_ID,
-        )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
-        assert result.status == Status.SUCCESS
-
-
-# ---------------------------------------------------------------------------
-# AutoCloseBranchNode
-# ---------------------------------------------------------------------------
-
-
-class TestAutoCloseBranchNode:
-    def test_always_succeeds(self, populated_bridge):
-        node = AutoCloseBranchNode(case_id=CASE_ID)
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
-        )
-        assert result.status == Status.SUCCESS
-
-    def test_succeeds_with_none_case_id(self, populated_bridge):
-        node = AutoCloseBranchNode(case_id=None)
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=CASE_MANAGER_ID
-        )
-        assert result.status == Status.SUCCESS
