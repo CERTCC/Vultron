@@ -39,6 +39,7 @@ from vultron.core.behaviors.report.prioritize_tree import (
     create_prioritize_subtree,
 )
 from vultron.core.states.rm import RM
+from vultron.core.states.roles import CVDRole
 
 
 def _make_participant_in_valid_state(
@@ -150,6 +151,67 @@ def bridge(datalayer):
     )
 
 
+@pytest.fixture
+def trigger_activity(datalayer):
+    """Standalone TriggerActivityPort for passing to tree factories."""
+    from typing import cast
+
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.core.ports.case_persistence import CaseOutboxPersistence
+
+    return TriggerActivityAdapter(cast(CaseOutboxPersistence, datalayer))
+
+
+@pytest.fixture
+def case_manager_actor_id():
+    return "https://example.org/actors/coordinator"
+
+
+@pytest.fixture
+def case_with_manager(
+    datalayer, actor_id, actor, report, case_manager_actor_id
+):
+    """Case with a vendor participant AND a CASE_MANAGER participant.
+
+    The vendor participant is pre-seeded to RM.VALID so engage/defer BTs can
+    apply the VALID → ACCEPTED / VALID → DEFERRED transitions.  The case
+    manager participant is added to ``actor_participant_index`` so that
+    ``ResolveCaseManagerNode`` can locate it (PCR-08-001).
+    """
+    vendor_participant = _make_participant_in_valid_state(
+        id_="https://example.org/participants/vendor-cp-002",
+        attributed_to=actor_id,
+        context="https://example.org/cases/case-manager-001",
+    )
+    datalayer.create(vendor_participant)
+
+    cm_actor = VultronCaseActor(id_=case_manager_actor_id, name="Coordinator")
+    datalayer.create(cm_actor)
+
+    cm_participant = VultronParticipant(
+        id_="https://example.org/participants/coordinator-cp-001",
+        attributed_to=case_manager_actor_id,
+        context="https://example.org/cases/case-manager-001",
+        case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
+    )
+    datalayer.create(cm_participant)
+
+    case = VultronCase(
+        id_="https://example.org/cases/case-manager-001",
+        name="Test Case With Manager",
+        vulnerability_reports=[report.id_],
+        case_participants=[vendor_participant.id_, cm_participant.id_],
+        actor_participant_index={
+            actor_id: vendor_participant.id_,
+            case_manager_actor_id: cm_participant.id_,
+        },
+    )
+    datalayer.create(case)
+    return case
+
+
 # ============================================================================
 # Tree structure tests
 # ============================================================================
@@ -164,7 +226,7 @@ def test_create_engage_case_tree_returns_sequence(
     assert tree is not None
     assert tree.name == "EngageCaseBT"
     assert hasattr(tree, "children")
-    assert len(tree.children) == 3
+    assert len(tree.children) == 5
 
 
 def test_create_defer_case_tree_returns_sequence(
@@ -393,33 +455,62 @@ def test_defer_case_tree_idempotent(
 
 
 def test_create_prioritize_subtree_returns_selector(
-    case_with_participant, actor_id
+    case_with_participant, actor_id, trigger_activity
 ):
-    """create_prioritize_subtree returns a Selector named PrioritizeBT."""
+    """create_prioritize_subtree returns a Selector named PrioritizeBT.
+
+    Verifies the canonical sender-side pattern (PCR-08-001): each path uses
+    engage_case_trigger_bt / defer_case_trigger_bt, which compose
+    TransitionParticipantRM* → SenderSideBT(ResolveCaseManagerNode →
+    ConstructActivitiesNode → QueueToOutboxNode).
+    """
     tree = create_prioritize_subtree(
-        case_id=case_with_participant.id_, actor_id=actor_id
+        case_id=case_with_participant.id_,
+        actor_id=actor_id,
+        trigger_activity=trigger_activity,
     )
     assert tree is not None
     assert tree.name == "PrioritizeBT"
     assert hasattr(tree, "children")
     assert len(tree.children) == 2
 
+    # Engage path: EvaluateCasePriority → EngageCaseTriggerBT
     engage_path = tree.children[0]
     assert engage_path.name == "EngagePath"
-    assert len(engage_path.children) == 3
+    assert len(engage_path.children) == 2
     assert engage_path.children[0].name == "EvaluateCasePriority"
-    assert engage_path.children[1].name == "EmitEngageCaseActivity"
-    assert engage_path.children[2].name == "TransitionParticipantRMtoAccepted"
+    engage_trigger_bt = engage_path.children[1]
+    assert engage_trigger_bt.name == "EngageCaseTriggerBT"
+    assert len(engage_trigger_bt.children) == 2
+    assert (
+        engage_trigger_bt.children[0].name
+        == "TransitionParticipantRMtoAccepted"
+    )
+    engage_sender = engage_trigger_bt.children[1]
+    assert engage_sender.name == "SenderSideBT"
+    assert len(engage_sender.children) == 3
+    assert engage_sender.children[0].name == "ResolveCaseManagerNode"
+    assert engage_sender.children[1].name == "ConstructActivitiesNode"
+    assert engage_sender.children[2].name == "QueueToOutboxNode"
 
-    defer_path = tree.children[1]
-    assert defer_path.name == "DeferPath"
-    assert len(defer_path.children) == 2
-    assert defer_path.children[0].name == "EmitDeferCaseActivity"
-    assert defer_path.children[1].name == "TransitionParticipantRMtoDeferred"
+    # Defer path: DeferCaseTriggerBT (directly, no outer DeferPath wrapper)
+    defer_trigger_bt = tree.children[1]
+    assert defer_trigger_bt.name == "DeferCaseTriggerBT"
+    assert len(defer_trigger_bt.children) == 2
+    assert (
+        defer_trigger_bt.children[0].name
+        == "TransitionParticipantRMtoDeferred"
+    )
+    defer_sender = defer_trigger_bt.children[1]
+    assert defer_sender.name == "SenderSideBT"
+    assert len(defer_sender.children) == 3
+    assert defer_sender.children[0].name == "ResolveCaseManagerNode"
+    assert defer_sender.children[1].name == "ConstructActivitiesNode"
+    assert defer_sender.children[2].name == "QueueToOutboxNode"
 
 
 def test_prioritize_subtree_engages_by_default(
-    bridge, datalayer, actor_id, case_with_participant
+    bridge, datalayer, actor_id, trigger_activity, case_with_manager
 ):
     """PrioritizeBT engages by default (EvaluateCasePriority is always SUCCESS).
 
@@ -427,17 +518,20 @@ def test_prioritize_subtree_engages_by_default(
     - Tree returns SUCCESS
     - Participant RM state transitions to ACCEPTED
     - An RmEngageCaseActivity (Join type) is created in the datalayer
+      addressed to the Case Manager (PCR-08-001)
     - The activity appears in the actor's outbox (D5-7-BTFIX-1)
     """
     tree = create_prioritize_subtree(
-        case_id=case_with_participant.id_, actor_id=actor_id
+        case_id=case_with_manager.id_,
+        actor_id=actor_id,
+        trigger_activity=trigger_activity,
     )
     result = bridge.execute_with_setup(tree=tree, actor_id=actor_id)
 
     assert result.status == Status.SUCCESS
 
     # Participant RM state must be ACCEPTED
-    participant_id = "https://example.org/participants/vendor-cp-001"
+    participant_id = "https://example.org/participants/vendor-cp-002"
     updated_participant = datalayer.read(participant_id)
     assert updated_participant.participant_statuses[-1].rm_state == RM.ACCEPTED
 
@@ -450,4 +544,45 @@ def test_prioritize_subtree_engages_by_default(
     assert engage_activity is not None
     assert str(engage_activity.type_) == "Join"
     assert engage_activity.actor == actor_id
-    assert engage_activity.object_.id_ == case_with_participant.id_
+    assert engage_activity.object_.id_ == case_with_manager.id_
+
+
+def test_prioritize_subtree_defers_when_engage_path_fails(
+    monkeypatch,
+    bridge,
+    datalayer,
+    actor_id,
+    trigger_activity,
+    case_with_manager,
+):
+    """PrioritizeBT falls back to defer when engage preconditions fail."""
+    from vultron.core.behaviors.report import prioritize_tree
+
+    monkeypatch.setattr(
+        prioritize_tree.EvaluateCasePriority,
+        "update",
+        lambda self: Status.FAILURE,
+    )
+
+    tree = create_prioritize_subtree(
+        case_id=case_with_manager.id_,
+        actor_id=actor_id,
+        trigger_activity=trigger_activity,
+    )
+    result = bridge.execute_with_setup(tree=tree, actor_id=actor_id)
+
+    assert result.status == Status.SUCCESS
+
+    participant_id = "https://example.org/participants/vendor-cp-002"
+    updated_participant = datalayer.read(participant_id)
+    assert updated_participant.participant_statuses[-1].rm_state == RM.DEFERRED
+
+    outbox_items = datalayer.clone_for_actor(actor_id).outbox_list()
+    assert len(outbox_items) == 1
+
+    defer_activity_id = outbox_items[0]
+    defer_activity = datalayer.read(defer_activity_id)
+    assert defer_activity is not None
+    assert str(defer_activity.type_) == "Ignore"
+    assert defer_activity.actor == actor_id
+    assert defer_activity.object_.id_ == case_with_manager.id_

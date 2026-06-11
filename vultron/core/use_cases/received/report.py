@@ -11,7 +11,6 @@ from vultron.core.models.events.report import (
     SubmitReportReceivedEvent,
     ValidateReportReceivedEvent,
 )
-from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases.received.case import (
     ValidateCaseUseCase,
@@ -238,17 +237,6 @@ class ValidateReportReceivedUseCase:
                 "ValidateReportReceivedEvent requires report_id and offer_id"
             )
 
-        case = self._dl.find_case_by_report_id(report_id)
-        case_id: str | None = None
-        if is_case_model(case):
-            case_id = case.id_
-        else:
-            logger.warning(
-                "ValidateReportReceivedUseCase: no case found for report "
-                "'%s' — RM state will not be updated in participant record",
-                report_id,
-            )
-
         logger.info(
             "Actor '%s' validates VulnerabilityReport '%s'",
             actor_id,
@@ -260,8 +248,6 @@ class ValidateReportReceivedUseCase:
             actor_id=actor_id,
             report_id=report_id,
             offer_id=offer_id,
-            case_id=case_id,
-            trigger_activity=self._trigger_activity,
         ).execute()
 
 

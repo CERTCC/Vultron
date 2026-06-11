@@ -753,10 +753,9 @@ class ValidateCaseUseCase:
     Called by ``ValidateReportReceivedUseCase`` after dereferencing
     report_id to case_id (CM-12-005).
 
-    After successful BT validation (RM → VALID), auto-cascades to engage the
-    case (RM → ACCEPTED) using the default policy of immediate engagement.
-    This eliminates the need for a separate manual ``engage-case`` trigger call
-    (D5-7-AUTOENG-2).
+    Advances RM to VALID only.  The engage/defer decision (RM → ACCEPTED
+    or RM → DEFERRED) is a distinct, explicit protocol step driven by a
+    separate ``engage-case`` or ``defer-case`` trigger.
     """
 
     def __init__(
@@ -765,15 +764,11 @@ class ValidateCaseUseCase:
         actor_id: str,
         report_id: str,
         offer_id: str,
-        case_id: str | None = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._actor_id = actor_id
         self._report_id = report_id
         self._offer_id = offer_id
-        self._case_id = case_id
-        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         from vultron.core.behaviors.bridge import BTBridge
@@ -782,20 +777,15 @@ class ValidateCaseUseCase:
         )
 
         logger.info(
-            "Actor '%s' validates VulnerabilityReport '%s'%s via BT",
+            "Actor '%s' validates VulnerabilityReport '%s' via BT",
             self._actor_id,
             self._report_id,
-            f" (case '{self._case_id}')" if self._case_id else "",
         )
 
-        bridge = BTBridge(
-            datalayer=self._dl, trigger_activity=self._trigger_activity
-        )
+        bridge = BTBridge(datalayer=self._dl)
         tree = create_validate_report_tree(
             report_id=self._report_id,
             offer_id=self._offer_id,
-            case_id=self._case_id,
-            actor_id=self._actor_id,
         )
         result = bridge.execute_with_setup(tree, actor_id=self._actor_id)
 

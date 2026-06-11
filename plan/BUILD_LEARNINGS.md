@@ -167,6 +167,25 @@ header.
   into explicit node `FAILURE` with a clear error message, not bridge-level
   exception failures.
 
+### 2026-06-10 PR-886 — PCR-08 violation fix: ResolveCaseManagerNode requires CASE_MANAGER participant in fixtures
+
+- Replacing `case_addressees()` with canonical `_resolve_case_manager_id()` / `ResolveCaseManagerNode`
+  causes tests to fail in a non-obvious way when CASE_MANAGER is absent: the engage
+  path's RM transition fires (→ ACCEPTED), the send then fails, the defer path fires
+  (→ DEFERRED), and the test sees RM=DEFERRED instead of the expected RM=ACCEPTED.
+  The failure manifests as wrong state, not a clear "participant not found" error.
+- All test fixtures for BT paths that involve `ResolveCaseManagerNode` MUST include a
+  `VultronParticipant` with `CVDRole.CASE_MANAGER` registered in `actor_participant_index`.
+- `VulnerabilityCase.add_participant()` has a pyright type mismatch with `VultronParticipant`
+  (core vs. wire-layer `CaseParticipant`). In tests, set `case_participants` and
+  `actor_participant_index` directly in the `VulnerabilityCase` constructor instead of
+  calling `add_participant()`.
+- Chained use cases in integration tests must ALL receive `trigger_activity`: if
+  `SubmitReportReceivedUseCase` is called without it, `CreateCaseActorNode` never runs
+  and the CASE_MANAGER participant is never registered, causing the downstream
+  `ValidateReport` engage BT to fail silently. Pass `TriggerActivityAdapter(dl)` to
+  every use case in the chain, not just the last one.
+
 ### 2026-06-10 ISSUE-755 — SYNC god-node decomposition works best as context handoff leaves
 
 - For replay/fan-out flows, split nodes around blackboard context boundaries:
@@ -174,6 +193,26 @@ header.
 - Condition+action hybrid nodes are clearer and safer as `Selector` composites:
   a pure condition leaf first, then side-effect action fallback.
 
+### 2026-06-10 PR-886 — Global py_trees blackboard not thread-safe under FastAPI BackgroundTasks
+
+- FastAPI runs synchronous `BackgroundTask` callables via
+  `anyio.to_thread.run_sync`, putting them on a thread-pool. Two BT
+  executions can therefore run on different threads simultaneously,
+  both writing to `py_trees.blackboard.Blackboard.storage` (process-global).
+- The race: Thread A's `execute_with_setup` writes `actor_id=A` and
+  `datalayer=DL_A`; Thread B overwrites them with `actor_id=B` / `datalayer=DL_B`;
+  Thread A then reads the wrong `actor_id`, queueing its outbound activity
+  under the wrong actor's outbox — the activity is silently lost. Thread B
+  may also crash when Thread A's cleanup removes `/datalayer` before B reads it.
+- Fix: wrap the entire setup→execute→cleanup critical section in
+  `BTBridge.execute_with_setup` with a module-level `threading.RLock`.
+  `RLock` (not `Lock`) is required because `lifecycle.py` BT nodes call
+  `execute_with_setup` recursively — a plain `Lock` deadlocks there.
+- Demo symptom: M7 check ("all participants RM.CLOSED on both replicas") timed
+  out because finder's CLOSED `Add(ParticipantStatus)` was silently queued to
+  the case-actor's outbox in finder's DataLayer (never processed) instead of
+  finder's own outbox.
+  
 ### 2026-06-10 ISSUE-714 — Decomposed BT nodes must preserve alternate context seams
 
 - When replacing a god node with leaf-node sequences, preserve all original

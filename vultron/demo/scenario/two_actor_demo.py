@@ -115,6 +115,7 @@ from vultron.demo.helpers.verification import (  # noqa: F401
 from vultron.demo.helpers.workflow import (  # noqa: F401
     _load_case_from_datalayer,
     _report_id_from_offer_data,
+    coordinator_engages_case,
     coordinator_validates_report,
     find_case_for_offer,
     reporter_submits_report,
@@ -422,6 +423,14 @@ def _phase_report_submission(
                 "Expected VulnerabilityCase to be created after validate-report"
             )
         logger.info("Case created: %s", case.id_)
+
+    # validate-report advances RM to VALID only; engage-case is a separate
+    # explicit step that advances RM to ACCEPTED (RM state machine protocol).
+    coordinator_engages_case(
+        coordinator_client=vendor_client,
+        coordinator=vendor_in_vendor,
+        case_id=case.id_,
+    )
 
     wait_for_case_participants(
         vendor_client=vendor_client,
