@@ -127,6 +127,37 @@ The refactor is backward-compatible for callers that use only
 `find_in_vocabulary(name)`; the `item_type` parameter is removed because
 no callers use it.
 
+---
+
+## Vocabulary Override Preservation
+
+(ISSUE-801, 2026-06-09)
+
+When overriding actor-type keys in `VOCABULARY` from a Vultron-specific
+actor module (e.g., `vultron_actor.py`), overriding **all** actor keys can
+leave the base-actors-module (`vultron.wire.as2.vocab.base.objects.actors`)
+with zero registered concrete types, tripping the registry-completeness
+invariant.
+
+**Rule**: Keep at least one base-actors-module registration. Override only
+the concrete keys that need Vultron-specific subclasses (e.g., `Person`,
+`Organization`, `Service`), while retaining the generic `Actor → as_Actor`
+mapping in the base module.
+
+```python
+# base/objects/actors.py — keep at least this registration
+VOCABULARY["Actor"] = as_Actor  # ← must stay
+
+# vultron_actor.py — override specific concrete types only
+VOCABULARY["Person"] = VultronPerson
+VOCABULARY["Organization"] = VultronOrganization
+```
+
+**Why**: The registry-completeness test checks that every module under
+`vocab/base/objects/` contributes at least one concrete registration.
+A module with zero registrations indicates a structural gap (all
+registrations were moved elsewhere) and causes the invariant check to fail.
+
 ## Related Files
 
 - `specs/vocabulary-model.yaml` — normative requirements (VM-01 through
