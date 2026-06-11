@@ -16,6 +16,15 @@ malformed bare-string `object_` integrity checks keeps OX-08/OX-09 validation
 discoverable in the canonical outbox test module and reduces ambiguity during
 future outbox refactors.
 
+### 2026-06-11 OUTBOX-874-HELPER-EXTRACTION — split protocol invariants from flow wiring
+
+The outbox handler became easier to reason about after extracting nested
+protocol checks into explicit helper functions (`_coerce_reference_value`,
+`_prepare_activity_object_for_delivery`, `_recover_typed_inline_object_from_dict`,
+etc.). Keeping the main delivery function focused on sequence-level orchestration
+reduces churn risk when adding future outbox requirements while preserving
+existing OX/MV invariants.
+
 ### 2026-06-11 SYNC — Isolated two-app replication harness for CaseLogEntry
 
 For SYNC happy-path replication integration coverage (#901), the most stable
