@@ -427,6 +427,81 @@ def test_pending_case_queue_expires_drops_and_warns(monkeypatch, caplog):
     assert any(activity_id in r.message for r in caplog.records)
 
 
+def test_inbox_handler_uses_actor_dl_for_queue_pop_and_shared_dl_for_dispatch(
+    monkeypatch,
+):
+    """AC-2: inbox_handler pops from actor_dl; rehydration/dispatch use dl.
+
+    When ``actor_dl`` is passed as a separate actor-scoped instance (distinct
+    from the shared ``dl``), queue operations (``inbox_list``, ``inbox_pop``)
+    must use ``actor_dl`` while rehydration and dispatch must receive the
+    shared ``dl`` (ARCH-13-003, ARCH-13-004).
+    """
+    actor_id = "https://example.org/actors/participant"
+    activity_id = "https://example.org/activities/act-dual-dl"
+
+    shared_dl = SqliteDataLayer("sqlite:///:memory:")
+    shared_dl.save(
+        as_Service(id_=actor_id, name="Participant")  # type: ignore[call-arg]
+    )
+    actor_dl = shared_dl.clone_for_actor(actor_id)
+
+    # Item is queued on the actor-scoped DL only
+    actor_dl.inbox_append(activity_id)
+
+    item = as_Activity(
+        id_=activity_id,
+        type_="Create",
+        actor="https://example.org/actors/other",
+        name="dual-dl-test",
+    )
+    rehydrate_dl_args: list = []
+
+    def capture_rehydrate(item_id, dl=None):
+        rehydrate_dl_args.append(dl)
+        return item
+
+    monkeypatch.setattr(ih, "rehydrate", capture_rehydrate)
+
+    fake_event = VultronEvent(
+        semantic_type=MessageSemantics.UNKNOWN,
+        activity_id=activity_id,
+        actor_id="https://example.org/actors/other",
+    )
+    monkeypatch.setattr(
+        ih, "prepare_for_dispatch", lambda activity: fake_event
+    )
+
+    mock_dispatcher = Mock()
+    monkeypatch.setattr(ih, "_DISPATCHER", mock_dispatcher)
+
+    async def fake_outbox_handler(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(ih, "outbox_handler", fake_outbox_handler)
+
+    asyncio.run(ih.inbox_handler(actor_id, shared_dl, actor_dl=actor_dl))
+
+    # Queue pop occurred on actor_dl — its inbox must now be empty
+    assert actor_dl.inbox_list() == [], (
+        "actor_dl inbox must be empty after processing; "
+        "inbox_handler must pop from actor_dl, not shared_dl"
+    )
+
+    # Rehydration must have received the shared dl
+    assert len(rehydrate_dl_args) == 1
+    assert (
+        rehydrate_dl_args[0] is shared_dl
+    ), "rehydrate must be called with shared dl, not actor_dl"
+
+    # Dispatch must have been called with the shared dl
+    mock_dispatcher.dispatch.assert_called_once()
+    _, dispatch_dl = mock_dispatcher.dispatch.call_args.args
+    assert (
+        dispatch_dl is shared_dl
+    ), "dispatch must be called with shared dl, not actor_dl"
+
+
 def test_pending_case_queue_expiry_emits_question(monkeypatch):
     """AC-7: A replay Question is appended to the actor outbox on expiry.
 
