@@ -309,6 +309,22 @@ def test_extract_recipients_deduplicates():
     assert recipients == [alice]
 
 
+def test_extract_recipients_reads_to_field():
+    """_extract_recipients reads recipients directly from `to`."""
+    alice = "https://example.org/actors/alice"
+    bob = "https://example.org/actors/bob"
+    activity = SimpleNamespace(
+        to=[alice, bob],
+        cc=None,
+        bto=None,
+        bcc=None,
+    )
+
+    recipients = oh._extract_recipients(activity)
+
+    assert recipients == [alice, bob]
+
+
 def test_extract_recipients_handles_embedded_object():
     """_extract_recipients extracts id_ from embedded actor objects."""
     alice_id = "https://example.org/actors/alice"
@@ -859,6 +875,34 @@ def test_handle_outbox_item_no_warning_when_only_to_set(caplog):
     assert not any(
         any(f in msg for f in ("cc", "bto", "bcc")) for msg in warning_texts
     )
+
+
+def test_handle_outbox_item_raises_integrity_error_for_bare_object():
+    """Malformed bare-string object_ must raise integrity error (OX-09/MV-09)."""
+    activity = _make_vultron_activity(
+        to=["https://example.org/actors/alice"],
+        activity_type="Create",
+    )
+    activity.object_ = "urn:uuid:bare-object"  # type: ignore[assignment]
+    mock_dl = MagicMock()
+    mock_dl.read.side_effect = lambda id_: (
+        activity if id_ == activity.id_ else None
+    )
+    mock_emitter = AsyncMock()
+
+    with pytest.raises(VultronOutboxObjectIntegrityError) as exc_info:
+        asyncio.run(
+            oh.handle_outbox_item(
+                "actor-abc",
+                activity.id_,
+                mock_dl,
+                mock_emitter,
+            )
+        )
+
+    assert exc_info.value.activity_id == activity.id_
+    assert exc_info.value.activity_type == "Create"
+    mock_emitter.emit.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
