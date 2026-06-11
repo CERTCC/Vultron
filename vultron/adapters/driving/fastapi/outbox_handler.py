@@ -109,6 +109,24 @@ _INLINE_OBJECT_ACTIVITY_TYPES: frozenset[str] = frozenset(
 )
 
 
+def _is_stub_object_dict(value: dict[object, object]) -> bool:
+    """Return True when ``value`` is an intentional selective-disclosure stub."""
+    return (
+        value.get("type") in _STUB_OBJECT_TYPES and value.keys() <= _STUB_KEYS
+    )
+
+
+def _coerce_reference_value(value: object) -> object:
+    """Collapse reference dicts to URI strings unless they are stubs."""
+    if not isinstance(value, dict):
+        return value
+    if _is_stub_object_dict(value):
+        return value
+    # Prefer href (AS2 Link) then id (any AS2 object)
+    uri = value.get("href") or value.get("id")
+    return uri if uri is not None else value
+
+
 def _dehydrate_references(activity_dict: dict) -> dict:
     """Collapse domain-object dicts in reference fields to URI strings.
 
@@ -132,30 +150,15 @@ def _dehydrate_references(activity_dict: dict) -> dict:
         possible.
     """
 
-    def _coerce(value: object) -> object:
-        if not isinstance(value, dict):
-            return value
-        # Preserve minimal stub dicts that carry {id, type} for selective
-        # disclosure (MV-10-001).  Only VulnerabilityCase stubs are preserved;
-        # all other object dicts (e.g. actors) are collapsed to a bare URI.
-        if (
-            value.get("type") in _STUB_OBJECT_TYPES
-            and value.keys() <= _STUB_KEYS
-        ):
-            return value
-        # Prefer href (AS2 Link) then id (any AS2 object)
-        uri = value.get("href") or value.get("id")
-        return uri if uri is not None else value
-
     result = dict(activity_dict)
     for field in _DEHYDRATION_FIELDS:
         value = result.get(field)
         if value is None:
             continue
         if isinstance(value, list):
-            result[field] = [_coerce(item) for item in value]
+            result[field] = [_coerce_reference_value(item) for item in value]
         else:
-            result[field] = _coerce(value)
+            result[field] = _coerce_reference_value(value)
     return result
 
 
@@ -196,6 +199,16 @@ def _extract_recipients(activity) -> list[str]:
     Returns:
         Deduplicated list of recipient actor ID strings.
     """
+
+    def _item_actor_id(item: object) -> str | None:
+        if isinstance(item, str):
+            return item
+        if hasattr(item, "id_"):
+            actor_id = getattr(item, "id_", None)
+            if isinstance(actor_id, str):
+                return actor_id
+        return None
+
     seen: set[str] = set()
     recipients: list[str] = []
     for field in ("to", "cc", "bto", "bcc"):
@@ -204,11 +217,8 @@ def _extract_recipients(activity) -> list[str]:
             continue
         items = val if isinstance(val, list) else [val]
         for item in items:
-            if isinstance(item, str):
-                actor_id = item
-            elif hasattr(item, "id_"):
-                actor_id = item.id_
-            else:
+            actor_id = _item_actor_id(item)
+            if actor_id is None:
                 continue
             if actor_id not in seen:
                 seen.add(actor_id)
@@ -332,6 +342,92 @@ def _validate_inline_object(
         )
 
 
+def _recover_typed_inline_object_from_dict(
+    activity_object: object,
+    activity_type: str,
+    activity_id: str,
+    outbound_activity: VultronActivity,
+) -> object:
+    """Reconstruct a typed object from ``dict`` payloads when possible.
+
+    This preserves the queued outbound object payload while enabling the
+    downstream ``dl.hydrate()`` path for persistable domain models.
+    """
+    if not isinstance(activity_object, dict) or isinstance(
+        activity_object, BaseModel
+    ):
+        return activity_object
+
+    obj_type = activity_object.get("type", "")
+    if activity_object.keys() <= _STUB_KEYS:
+        return activity_object
+
+    model_class = _STUB_OBJECT_MODEL_MAP.get(obj_type)
+    if model_class is None:
+        return activity_object
+
+    try:
+        full_obj = model_class.model_validate(activity_object)
+    except (TypeError, ValueError):
+        logger.warning(
+            "Failed to reconstruct %s model for %s activity '%s';"
+            " hydration will be skipped.",
+            obj_type,
+            activity_type,
+            activity_id,
+        )
+        return activity_object
+
+    outbound_activity.object_ = full_obj
+    logger.debug(
+        "Recovered typed %s from dict for %s activity '%s'.",
+        model_class.__name__,
+        activity_type,
+        activity_id,
+    )
+    return full_obj
+
+
+def _hydrate_inline_object_if_persistable(
+    activity_object: object,
+    outbound_activity: VultronActivity,
+    dl: DataLayer,
+) -> object:
+    """Hydrate persistable inline objects through the configured ``DataLayer``."""
+    if not isinstance(activity_object, BaseModel):
+        return activity_object
+    hydrated_object = dl.hydrate(cast(PersistableModel, activity_object))
+    outbound_activity.object_ = hydrated_object
+    return hydrated_object
+
+
+def _prepare_activity_object_for_delivery(
+    outbound_activity: VultronActivity,
+    activity_id: str,
+    activity_type: str,
+    dl: DataLayer,
+) -> object:
+    """Normalize and validate ``object_`` before recipient delivery."""
+    activity_object = getattr(outbound_activity, "object_", None)
+    activity_object = _expand_inline_object(
+        outbound_activity,
+        activity_id,
+        activity_type,
+        activity_object,
+        dl,
+    )
+    _validate_inline_object(activity_id, activity_type, activity_object)
+    activity_object = _recover_typed_inline_object_from_dict(
+        activity_object,
+        activity_type,
+        activity_id,
+        outbound_activity,
+    )
+    return _hydrate_inline_object_if_persistable(
+        activity_object, outbound_activity, dl
+    )
+
+
 async def handle_outbox_item(
     actor_id: str,
     activity_id: str,
@@ -365,62 +461,11 @@ async def handle_outbox_item(
     activity_type = (
         raw_activity_type if isinstance(raw_activity_type, str) else "Activity"
     )
-    activity_object = getattr(outbound_activity, "object_", None)
     _validate_to_field(outbound_activity, activity_id, activity_type)
     _warn_secondary_addressing(outbound_activity, activity_id, activity_type)
-    activity_object = _expand_inline_object(
-        outbound_activity,
-        activity_id,
-        activity_type,
-        activity_object,
-        dl,
+    activity_object = _prepare_activity_object_for_delivery(
+        outbound_activity, activity_id, activity_type, dl
     )
-    _validate_inline_object(activity_id, activity_type, activity_object)
-
-    # Recover typed model when object_ is a raw dict.
-    #
-    # _load_outbound_activity round-trips through model_dump() →
-    # VultronActivity.model_validate(), which stores the nested object
-    # as a plain dict (VultronActivity.object_ is Any | None).
-    # Without this recovery step, isinstance(…, BaseModel) is False and
-    # dl.hydrate() is never called — participant expansion is skipped
-    # (see #585).
-    #
-    # Reconstruct the typed model from the dict itself (not from dl.read())
-    # so the emitted object reflects exactly what was queued, not a
-    # potentially-updated DB snapshot.
-    #
-    # Skip intentional stubs (keys ⊆ _STUB_KEYS) and non-recoverable types
-    # (e.g. CaseLogEntry) — these are passed through as dicts.
-    if isinstance(activity_object, dict) and not isinstance(
-        activity_object, BaseModel
-    ):
-        obj_type = activity_object.get("type", "")
-        is_stub = activity_object.keys() <= _STUB_KEYS
-        model_class = _STUB_OBJECT_MODEL_MAP.get(obj_type)
-        if not is_stub and model_class is not None:
-            try:
-                full_obj = model_class.model_validate(activity_object)
-                activity_object = full_obj
-                outbound_activity.object_ = activity_object
-                logger.debug(
-                    "Recovered typed %s from dict for %s activity '%s'.",
-                    model_class.__name__,
-                    activity_type,
-                    activity_id,
-                )
-            except Exception:
-                logger.warning(
-                    "Failed to reconstruct %s model for %s activity '%s';"
-                    " hydration will be skipped.",
-                    obj_type,
-                    activity_type,
-                    activity_id,
-                )
-
-    if isinstance(activity_object, BaseModel):
-        activity_object = dl.hydrate(cast(PersistableModel, activity_object))
-        outbound_activity.object_ = activity_object
 
     recipients = _extract_recipients(outbound_activity)
     if not recipients:
