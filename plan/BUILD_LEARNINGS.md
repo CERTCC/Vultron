@@ -219,3 +219,16 @@ header.
   input seams (`case_id` from blackboard and `case_obj`-derived context).
 - If downstream leaves rely on blackboard keys, add explicit fallback reads
   from staged objects/status context to avoid regressing valid call paths.
+
+### 2026-06-11 ISSUE-656 — DataLayer scope regression tests
+
+- Testing get_canonical_actor_dl() directly (as a plain Python function
+  rather than through FastAPI DI) is straightforward: call it with explicit
+  keyword args `actor_id=...` and `dl=...`.
+- The AC-3a failure-mode test is intentionally asymmetric: the short-ID DL
+  must see an empty outbox while the canonical-URI DL sees the entry. This
+  documents the BUG-2026040901 scenario without requiring monkeypatching.
+- Use `call_args.args` (Python 3.8+ attribute) rather than `call_args[0]`
+  when asserting mock positional args — the named attribute fails clearly
+  if the call shifts to kwargs; the index subscript returns an empty tuple
+  silently.
