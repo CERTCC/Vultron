@@ -24,3 +24,12 @@ protocol checks into explicit helper functions (`_coerce_reference_value`,
 etc.). Keeping the main delivery function focused on sequence-level orchestration
 reduces churn risk when adding future outbox requirements while preserving
 existing OX/MV invariants.
+
+### 2026-06-11 SYNC — Isolated two-app replication harness for CaseLogEntry
+
+For SYNC happy-path replication integration coverage (#901), the most stable
+test seam is two isolated FastAPI apps created with `create_isolated_actor_app`
+plus a shared `_TestASGIRouter` wired as each app's emitter fallback and as the
+module-level default emitter. This setup exercises outbox -> ASGI delivery ->
+inbox processing with distinct actor-scoped DataLayers and avoids real HTTP
+retry delays.
