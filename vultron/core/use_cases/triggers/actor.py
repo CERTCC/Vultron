@@ -153,11 +153,10 @@ class SvcInviteActorToCaseUseCase:
         add_activity_to_outbox(invite_actor_id, activity_id, self._dl)
 
         logger.info(
-            "Actor '%s' invited actor '%s' to case '%s' (via Case Actor '%s')",
+            "Actor '%s' invited actor '%s' to case '%s'",
             actor_id,
             self._request.invitee_id,
             case.id_,
-            invite_actor_id,
         )
 
         return {"activity": activity_dict}
