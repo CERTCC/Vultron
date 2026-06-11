@@ -16,6 +16,13 @@ malformed bare-string `object_` integrity checks keeps OX-08/OX-09 validation
 discoverable in the canonical outbox test module and reduces ambiguity during
 future outbox refactors.
 
+### 2026-06-11 NODES-SPLIT — VulnerabilityCase.case_statuses has a default initial CaseStatus
+
+`VulnerabilityCase.case_statuses` is auto-populated with one `CaseStatus`
+(em_state=EM.NONE, UUID id) when the object is created. Tests that check
+`len(case.case_statuses) == 1` after a single append will fail with `2`.
+Use `initial_count + 1` pattern or check only SUCCESS status.
+
 ### 2026-06-11 OUTBOX-874-HELPER-EXTRACTION — split protocol invariants from flow wiring
 
 The outbox handler became easier to reason about after extracting nested
