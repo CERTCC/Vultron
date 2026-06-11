@@ -345,25 +345,18 @@ Short entries are reproduced here; longer ones are referenced below.
   simple leaf nodes; the tree structure becomes the workflow documentation.
   See [notes/bt-integration.md](notes/bt-integration.md)
   § "DO NOT: God BT nodes with long `update()` methods".
-- **Large `nodes.py` Files Are a Code Smell — Split at 500 Lines** — A
-  `nodes.py` that has grown large is a high-churn, high-blast-radius module.
-  Every change — regardless of which workflow step it touches — modifies the
-  same file, making review shallow and increasing the risk of duplicate method
-  definitions silently shadowing correct logic. The trigger is file size, not
-  class count: any `nodes.py` approaching or exceeding 500 lines
-  (CS-18-002) SHOULD be converted to a `nodes/` subpackage with submodules
-  grouped by semantic concern (e.g., `conditions.py`, `case_setup.py`,
-  `participant.py`, `embargo.py`, `communication.py`, `lifecycle.py`). The
-  `__init__.py` MUST re-export all public names to preserve caller import paths.
-  Mirror the split in the test suite: a `test/…/nodes/` directory with one
-  `test_<submodule>.py` per submodule. More broadly, every process area under
-  `vultron/core/behaviors/` SHOULD use a `nodes/` subpackage even for small
-  modules — the `nodes/` subpackage is the standard structural unit for leaf
-  nodes regardless of current size. See `specs/behavior-tree-node-design.yaml`
-  BTND-07-001, BTND-07-002, and BTND-07-003.
+- **Flat `nodes.py` in BT Areas Is Non-Compliant** — BT-bearing process
+  areas under `vultron/core/behaviors/` MUST use a `nodes/` subpackage for
+  leaf nodes and MUST keep tree composition in root `*_tree.py` modules.
+  A flat `nodes.py` in a BT area is non-compliant regardless of size.
+  Group leaf submodules by semantic concern (e.g., `conditions.py`,
+  `case_setup.py`, `participant.py`, `embargo.py`, `communication.py`,
+  `lifecycle.py`). The `__init__.py` MUST re-export all public names to
+  preserve caller import paths. See
+  `specs/behavior-tree-node-design.yaml` BTND-07-001 and BTND-07-003.
 - **Splits Must Not Produce New God Modules** — When splitting a large
   module into a subpackage, each resulting submodule must itself stay under
-  500 lines (CS-18-002). The split pattern is **recursive**: a submodule
+  500 lines (BTND-07-004, CS-18-002). The split pattern is **recursive**: a submodule
   that re-accumulates size across multiple concerns must be further
   decomposed. For example, splitting `case/nodes.py` into a `nodes/`
   package produced `nodes/participant.py` at 816 lines — that file is itself
