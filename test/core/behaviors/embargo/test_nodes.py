@@ -515,7 +515,7 @@ class TestValidateEmbargoRevisionStateNode:
         result_out: dict = {}
         self._setup_blackboard(dl)
 
-        from vultron.core.behaviors.embargo.trigger_nodes import (
+        from vultron.core.behaviors.embargo.nodes import (
             ValidateEmbargoRevisionStateNode,
         )
 
