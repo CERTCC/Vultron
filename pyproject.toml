@@ -132,6 +132,7 @@ filterwarnings = [
 markers = [
     "integration: marks tests as integration tests (exercise the full HTTP stack; deselected by default)",
     "spec(spec_id): mark test as verifying a specific spec requirement ID",
+    "case_log_invariants: marks tests as case-log invariant harness tests (require devlogs/ JSONL artifacts; skip when absent)",
 ]
 
 [tool.uv.workspace]

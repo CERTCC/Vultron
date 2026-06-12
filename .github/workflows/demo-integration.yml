@@ -80,6 +80,26 @@ jobs:
           path: devlogs/
           retention-days: 30
 
+      # AC-925-1: run canonical-log invariant harness against JSONL artifacts.
+      # Invariants not yet passing are marked xfail so the build stays green;
+      # unexpected passes appear as XPASS (visible but not failing).
+      # See test/ci/README-case-log-ratchet.md for the ratchet workflow.
+      - name: Set up Python for invariant harness
+        if: always()
+        id: setup-python-invariants
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies for invariant harness
+        if: always() && steps.setup-python-invariants.outcome == 'success'
+        id: install-invariant-deps
+        run: python -m pip install --upgrade pip uv && uv sync --dev --frozen
+
+      - name: Run case-log invariant harness
+        if: always() && steps.install-invariant-deps.outcome == 'success'
+        run: uv run pytest -m case_log_invariants -v --tb=short
+
       # DEMOCI-02-008: collect combined stream and per-service logs on failure.
       - name: Collect container logs
         if: failure()
