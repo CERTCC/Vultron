@@ -1,5 +1,5 @@
 ---
-title: Case Log Authority and Assertion Recording
+title: Case Ledger Authority and Assertion Recording
 status: active
 description: "Authority model for the case activity log: trusted timestamps, assertion recording, and authority chain."
 related_specs:
@@ -15,7 +15,7 @@ relevant_packages:
   - vultron/core/models
 ---
 
-# Case Log Authority and Assertion Recording
+# Case Ledger Authority and Assertion Recording
 
 **Relates to**: `specs/case-log-processing.yaml`,
 `specs/case-management.yaml`, `specs/sync-log-replication.yaml`,
@@ -36,7 +36,7 @@ sender's side. The important distinction is instead:
 
 - **participant assertion**: an inbound case- or proto-case-scoped activity
   that claims a protocol-relevant change occurred
-- **canonical case log entry**: a CaseActor-authored record that says the
+- **canonical case ledger entry**: a CaseActor-authored record that says the
   assertion was processed and either accepted into canonical history or
   rejected at the case layer
 
@@ -96,9 +96,9 @@ publishing the canonical statement:
 
 ---
 
-## `CaseLogEntry` Is the Canonical Content Object
+## `CaseLedgerEntry` Is the Canonical Content Object
 
-The canonical object should be a neutral **`CaseLogEntry`**, not a renamed copy
+The canonical object should be a neutral **`CaseLedgerEntry`**, not a renamed copy
 of the original activity and not the transport envelope itself.
 
 Why a neutral object type:
@@ -107,7 +107,7 @@ Why a neutral object type:
 - it separates canonical log content from transport concerns
 - it gives the CaseActor a stable object to hash, replicate, replay, and audit
 
-A `CaseLogEntry` should carry at least:
+A `CaseLedgerEntry` should carry at least:
 
 - the asserted activity payload, or a normalized immutable snapshot sufficient
   for deterministic replay
@@ -117,7 +117,7 @@ A `CaseLogEntry` should carry at least:
   human-readable detail
 
 `Announce` remains the **transport wrapper** for replication. The thing being
-announced is the `CaseLogEntry`, not the other way around.
+announced is the `CaseLedgerEntry`, not the other way around.
 
 ---
 
@@ -161,11 +161,11 @@ of the canonical replicated history.
 
 ## Rejections Stay Local Except for Sender Feedback
 
-Not every inbound failure belongs in the case audit log.
+Not every inbound failure belongs in the case audit ledger.
 
 - If a message cannot be tied to a report/case (including proto-cases in
   RM.RECEIVED/INVALID stages), it belongs in transport- or actor-level
-  diagnostics, not the case log.
+  diagnostics, not the case ledger.
 - If the CaseActor can resolve the message to a case context but rejects it
   during case-layer validation, the rejection belongs in the local case audit
   log.
@@ -181,7 +181,7 @@ canonical recorded history, not the full stream of invalid assertion attempts.
 This model sharpens the replication boundary:
 
 - participant assertions are **inputs** to CaseActor processing
-- `CaseLogEntry(recorded)` objects are the **canonical replicated facts**
+- `CaseLedgerEntry(recorded)` objects are the **canonical replicated facts**
 - participant replicas derive state only from the canonical recorded entries
 
 To support replay and stale-position detection, participant assertions should
@@ -201,7 +201,7 @@ because replicas need the actual asserted content to reconstruct state.
 
 Issue #787 intentionally kept `CaseEvent` as a lightweight inline value object.
 That merged decision remains valid as a short-term compatibility step while the
-project converges on canonical `CaseLogEntry` history.
+project converges on canonical `CaseLedgerEntry` history.
 
 Follow-on plan (Epic #788):
 
@@ -215,7 +215,7 @@ Follow-on plan (Epic #788):
   protocol-significant history.
 
 `pending_assertions` is temporary local memory for decision suppression, not a
-second source of truth. Canonical `CaseLogEntry` remains authoritative.
+second source of truth. Canonical `CaseLedgerEntry` remains authoritative.
 
 Initial policy decisions for pending assertions:
 
@@ -223,7 +223,7 @@ Initial policy decisions for pending assertions:
 - timeout marks the assertion as `timed_out` and logs an error
 - timeout does not auto-retry; future behavior may decide to re-emit if still
   needed
-- entries clear when matching canonical `CaseLogEntry(recorded|rejected)`
+- entries clear when matching canonical `CaseLedgerEntry(recorded|rejected)`
   arrives
 
 ---
@@ -237,7 +237,7 @@ This framing has several practical consequences:
   CaseActor disposition.
 - The current `CaseEvent` / `record_event()` path is a useful foundation, but
   the long-term canonical content model needs to grow into a richer
-  `CaseLogEntry`.
+  `CaseLedgerEntry`.
 - Specs and implementations dealing with replication must distinguish between
   the broader local audit trail and the narrower canonical recorded chain.
 - Proto-case history must remain continuous across the
@@ -245,3 +245,89 @@ This framing has several practical consequences:
 
 This note should be treated as the durable design explanation. Normative
 requirements belong in `specs/case-log-processing.yaml`.
+
+---
+
+## Canonical Entry Criteria: What Belongs in the Log
+
+The canonical case ledger is a **protocol ledger**, not a process log. It records
+exactly one entry per CaseActor-accepted protocol-significant assertion. Each
+entry's `payloadSnapshot` is the verbatim AS2 activity that was asserted (or a
+deterministic canonical normalization of it).
+
+Concretely:
+
+**Belongs in the canonical case ledger (allowed `payloadSnapshot` types):**
+
+- `Offer(VulnerabilityReport)` — finder asserts report submission
+- `Add(Note)` — participant asserts a note exchange
+- `Add(ParticipantStatus)` — participant asserts an RM/CS/EM transition
+- `Offer(EmbargoEvent)`, `Accept(EmbargoEvent)`, `Reject(EmbargoEvent)` —
+  embargo proposal/response
+- `Invite(VulnerabilityCase)`, `Accept(Invite)`, `Reject(Invite)` — case
+  membership handshake (note: routed through the CaseActor per PCR-08)
+- `Announce(VulnerabilityCase)` — case bootstrap broadcast
+- Any other protocol-significant AS2 activity that mutates protocol-visible
+  state
+
+**Does NOT belong in the canonical case ledger:**
+
+- Synthetic checkpoint markers (e.g., `demo_verification`)
+- Per-actor runtime diagnostics, troubleshooting traces, or "I made it to
+  step N" markers
+- Internal cascade triggers, sentinels, or scheduling events
+- Any event whose `payloadSnapshot` would be empty or whose `logObjectId`
+  points at the case itself rather than a specific protocol activity
+
+Anything in the "does NOT belong" category is **process-log content** and
+belongs in Python `logging` output governed by `specs/structured-logging.yaml`,
+not in the canonical case ledger.
+
+### Why the Separation Matters
+
+The canonical case ledger is replicated to every participant and contributes
+to the hash chain that participants use to verify their replicas agree
+with the CaseActor's authoritative copy. If diagnostic or synthetic
+content enters the chain:
+
+- Participants cannot deterministically reconstruct case state from the
+  log alone — they'd have to filter out non-protocol entries.
+- The hash chain becomes sensitive to runtime details that have nothing
+  to do with protocol semantics (e.g., timing of demo checkpoints).
+- Operators using process logs for troubleshooting cannot freely add
+  detail without risking protocol-level effects.
+
+The decision is captured at the ADR level in
+**ADR-0019 — Case Ledger Is a Canonical Protocol Ledger, Not a Process Log**.
+
+### `Announce` Envelope vs. `payloadSnapshot` Actor
+
+A subtle but important distinction:
+
+```text
+Vendor sends:  Add(ParticipantStatus, actor=vendor) → CaseActor
+CaseActor commits: CaseLedgerEntry(
+  log_index=N,
+  recording_actor=case_actor,
+  payloadSnapshot=Add(ParticipantStatus, actor=vendor),  ← verbatim assertion
+)
+CaseActor broadcasts: Announce(
+  actor=case_actor,                                       ← envelope actor
+  object=CaseLedgerEntry(...),
+) → all participants
+```
+
+The `Announce` envelope's `actor` field is always the CaseActor. The
+`payloadSnapshot.actor` inside the `CaseLedgerEntry` preserves the original
+asserter (`vendor` in the example). Replicas receiving the broadcast
+update their state based on the snapshot's asserter, not the envelope's
+actor. Rewriting `payloadSnapshot.actor` to the CaseActor would erase
+the assertion's provenance and is forbidden by CLP-07-003.
+
+### Commit-Boundary Enforcement
+
+CLP-07-005 recommends a runtime guard at the CaseActor commit boundary
+that rejects entries violating CLP-07-001 through CLP-07-004 *before*
+they enter the hash chain. Failing fast at commit time keeps the
+canonical chain clean and surfaces bugs immediately, rather than allowing
+silent pollution that's discovered only when replicas diverge.
