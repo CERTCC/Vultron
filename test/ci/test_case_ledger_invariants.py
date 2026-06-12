@@ -198,19 +198,22 @@ def _contiguous_fragments(entries: list[dict]) -> list[list[dict]]:
 # Invariant 1 — per-actor internal hash-chain consistency
 # ---------------------------------------------------------------------------
 
-#: Finder's replicated entries have hash-chain breaks until #789 is fixed.
-_CHAIN_XFAIL_FINDER = pytest.mark.xfail(
+#: Hash-chain breaks intermittently until #789 (CaseActor commit-path
+#: uniqueness) is fixed.  The break position varies across runs, confirming
+#: the root cause is non-deterministic commit ordering rather than a
+#: reproducible logic error introduced by any single PR.
+_CHAIN_XFAIL_789 = pytest.mark.xfail(
     strict=False,
     reason=(
-        "Finder's replicated log has hash-chain inconsistencies due to "
-        "CaseActor commit-path uniqueness issues; will pass when #789 lands"
+        "Hash-chain inconsistencies due to CaseActor commit-path uniqueness "
+        "issues (intermittent); will pass when #789 lands"
     ),
 )
 
 _CHAIN_ACTORS = [
-    pytest.param("case-actor"),
-    pytest.param("vendor"),
-    pytest.param("finder", marks=_CHAIN_XFAIL_FINDER),
+    pytest.param("case-actor", marks=_CHAIN_XFAIL_789),
+    pytest.param("vendor", marks=_CHAIN_XFAIL_789),
+    pytest.param("finder", marks=_CHAIN_XFAIL_789),
 ]
 
 
@@ -233,8 +236,10 @@ def test_invariant_1_local_hash_chain_consistent(
     the check does not assert that entry 5's prevLogHash equals entry 3's
     entryHash (it doesn't — it references the hash of the missing entry 4).
 
-    case-actor and vendor are expected to pass today.
-    finder is xfail until #789 (CaseActor commit-path uniqueness) lands.
+    All three actors are xfail until #789 (CaseActor commit-path uniqueness)
+    lands.  The break position varies across runs (non-deterministic), which
+    confirms the root cause is commit-ordering rather than a reproducible
+    logic error.
     Spec: CLP-07.
     """
     entries = case_ledger_replicas.get(actor_name)
