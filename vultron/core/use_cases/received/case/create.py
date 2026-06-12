@@ -2,13 +2,16 @@
 
 import logging
 
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.participant import (
+    EnsureReporterParticipantAtAcceptedNode,
+)
 from vultron.core.models.events.case import CreateCaseReceivedEvent
 from vultron.core.models.protocols import CaseModel, is_case_model
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CasePersistence
 
 from ._helpers import (
-    _ensure_reporter_participant,
     _find_case_actor_id_from_participants,
     _find_report_case_link,
     _store_embedded_participants,
@@ -167,5 +170,13 @@ class CreateCaseReceivedUseCase:
         # #589: when participants arrive as bare string IDs (the common case),
         # _store_embedded_participants cannot create records for them.  Ensure
         # the reporter's own participant is seeded at RM.ACCEPTED — inferred
-        # from the fact that they submitted a report.
-        _ensure_reporter_participant(self._dl, link, case_obj, case_id)
+        # from the fact that they submitted a report.  This is a protocol-
+        # significant RM state transition, so it runs via BTBridge (BT-15-001).
+        BTBridge(datalayer=self._dl).execute_with_setup(
+            tree=EnsureReporterParticipantAtAcceptedNode(
+                link=link,
+                case_obj=case_obj,
+                case_id=case_id,
+            ),
+            actor_id=actor_id,
+        )

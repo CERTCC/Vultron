@@ -12,7 +12,8 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for _ensure_reporter_participant helper (CBT-05-006/007, #589, #624).
+"""Tests for _ensure_reporter_participant helper and EnsureReporterParticipantAtAcceptedNode
+(CBT-05-006/007, #589, #624).
 
 Covers:
   CBT-05-006  Bootstrap Create seeds the reporter participant at RM.ACCEPTED
@@ -20,10 +21,9 @@ Covers:
   CBT-05-007  Bootstrap Create upgrades an existing RM.START participant to
               RM.ACCEPTED (fix for #624).
 
-TODO(#943): These tests cover procedural logic in ``_ensure_reporter_participant``
-that belongs in a BT leaf node per BT-06-001/BT-15-001.  Once issue #943
-migrates this helper to a BT node, these tests should be adapted to exercise
-the BT path instead.
+Both requirements are now exercised via ``EnsureReporterParticipantAtAcceptedNode``
+(a BT leaf node) called through BTBridge from ``CreateCaseReceivedUseCase._handle_bootstrap``
+(BT-06-001, BT-15-001, #943).
 """
 
 import pytest
@@ -56,13 +56,10 @@ class TestBootstrapCreateReporterParticipant:
     SvcAddParticipantStatusUseCase._resolve_current_participant_state to
     fall back to RM.START — the root cause of #589.
 
-    The fix: _handle_bootstrap infers from the reporter's submitted report
-    that they have already RM.ACCEPTED and creates the participant record
-    with that state if it is not already present.
-
-    TODO(#943): ``_ensure_reporter_participant`` directly creates a
-    ``ParticipantStatus(rm_state=RM.ACCEPTED)``.  Per BT-06-001/BT-15-001
-    this is BT-migration debt — the RM transition belongs in a BT leaf node.
+    The fix: _handle_bootstrap calls EnsureReporterParticipantAtAcceptedNode
+    via BTBridge, which infers from the reporter's submitted report that they
+    have already RM.ACCEPTED and creates the participant record with that state
+    if it is not already present (BT-06-001, BT-15-001, #943).
     """
 
     _VENDOR_ID = "https://vendor.example.org/actors/vendor-589"
@@ -186,13 +183,9 @@ class TestBootstrapReporterUpgradesFromStart:
 
     When ``_store_embedded_participants`` stores the wire-layer snapshot, it may
     seed the reporter's participant with ``rm_state=RM.START`` (the wire default).
-    ``_ensure_reporter_participant`` must detect this and upgrade the participant
-    to ``RM.ACCEPTED``.  See issue #624.
-
-    TODO(#943): ``_ensure_reporter_participant`` directly appends a
-    ``ParticipantStatus(rm_state=RM.ACCEPTED)`` to upgrade the participant.
-    Per BT-06-001/BT-15-001 this is BT-migration debt — the RM transition
-    belongs in a BT leaf node.
+    ``EnsureReporterParticipantAtAcceptedNode`` must detect this and upgrade the
+    participant to ``RM.ACCEPTED`` via BTBridge (#624, BT-06-001, BT-15-001,
+    #943).
     """
 
     _VENDOR_ID = "https://vendor.example.org/actors/vendor-624"

@@ -155,12 +155,6 @@ def _ensure_reporter_participant(
     participants enter through a visible protocol interaction and their RM
     lifecycle proceeds normally from ``RM.RECEIVED``.
 
-    TODO(#943): This function directly creates/upgrades a
-    ``ParticipantStatus(rm_state=RM.ACCEPTED)`` — a protocol-significant RM
-    state transition that belongs in a reusable BT leaf node per BT-06-001
-    and BT-15-001.  This is preserved as BT-migration debt and is **not**
-    the intended architectural precedent for future use-case code.
-
     Args:
         dl: The reporter's local DataLayer.
         link: The ``VultronReportCaseLink`` associating the report to this
