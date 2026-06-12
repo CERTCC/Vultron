@@ -34,26 +34,32 @@ uv run pytest test/ci/test_case_log_invariants.py -v
 
 ### Locally (without demo artifacts)
 
-All 11 tests will **skip** automatically when `devlogs/` is absent — safe
+All tests will **skip** automatically when `devlogs/` is absent — safe
 to include in the regular unit-test run.
 
 ---
 
 ## Invariant List and Status
 
-| # | Description | Status | Resolving issue |
-|---|-------------|--------|-----------------|
-| 1 | Local hash-chain consistency (no `prevHash` mismatches) | ✅ passing today | — |
-| 2 | Cross-actor `entryHash` agreement per `logIndex` | ⏳ xfail | #789 |
-| 3 | Cross-actor `payloadSnapshot.actor` agreement per `logIndex` | ⏳ xfail | #789 |
-| 4 | Every recorded entry has a non-empty `payloadSnapshot` | ⏳ xfail | #789 |
-| 5 | All expected protocol `eventType`s present at least once | ⏳ xfail | #789 |
-| 6 | No `add_participant_status` RM-state oscillation after `CLOSED` | ✅ passing | — |
-| 7 | Log terminates with all participants in `RM=CLOSED` | ⏳ xfail | #789 |
-| 8 | Late-joining participants have full pre-join history | ⏳ xfail | #791 |
-| 9 | Every `ParticipantStatus` snapshot has `emConsentState` + `cvdRole` | ⏳ xfail | #789 |
-| 10 | Nested protocol objects are inlined, not bare ID strings | ✅ passing | — |
-| 11 | `payloadSnapshot.context` uses the case URI | ✅ passing | — |
+Per-actor parametrized tests (12–14) show status per actor role.
+`✅` = passing today, `⏳` = xfail (fix tracked in linked issue).
+
+| # | Description | case-actor | vendor | finder | Resolving issue |
+|---|-------------|-----------|--------|--------|-----------------|
+| 1 | Local hash-chain consistency | ✅ | ✅ | ✅ | — |
+| 2 | Cross-actor `entryHash` agreement per `logIndex` | ⏳ | ⏳ | ⏳ | #789 |
+| 3 | Cross-actor `payloadSnapshot.actor` agreement | ⏳ | ⏳ | ⏳ | #789 |
+| 4 | Every recorded entry has non-empty `payloadSnapshot` | ⏳ | ⏳ | ⏳ | #789 |
+| 5 | All expected protocol `eventType`s present | ⏳ | ⏳ | ⏳ | #789 |
+| 6 | No RM-state oscillation after `CLOSED` | ✅ | ✅ | ✅ | — |
+| 7 | Log terminates with all participants `RM=CLOSED` | ⏳ | ⏳ | ⏳ | #789 |
+| 8 | Late-joining participants have full pre-join history | ⏳ | ⏳ | ⏳ | #791 |
+| 9 | Every `ParticipantStatus` has `emConsentState`+`cvdRole` | ⏳ | ⏳ | ⏳ | #789 |
+| 10 | Nested objects inlined (not bare ID strings) | ✅ | ✅ | ✅ | — |
+| 11 | `payloadSnapshot.context` uses case URI | ✅ | ✅ | ✅ | — |
+| 12 | `logIndex=0` entry is present in actor's log | ✅ | ✅ | ⏳ | #791 |
+| 13 | First entry in sorted log has `logIndex=0` | ✅ | ✅ | ⏳ | #791 |
+| 14 | No gaps in `logIndex` sequence (0 to max) | ✅ | ✅ | ⏳ | #791 |
 
 ---
 

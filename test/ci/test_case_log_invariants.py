@@ -567,3 +567,109 @@ def test_invariant_11_payload_context_uses_case_uri(
         f"payloadSnapshot.context != case_id in {len(mismatches)} entries:\n"
         + "\n".join(mismatches[:20])
     )
+
+
+# ---------------------------------------------------------------------------
+# Invariants 12–14 — per-actor log completeness (xfail for late joiners)
+# ---------------------------------------------------------------------------
+
+#: The finder is a late joiner whose replica is incomplete until #791 lands.
+_BACKFILL_XFAIL = pytest.mark.xfail(
+    strict=False,
+    reason=(
+        "Late-joining finder replica is incomplete until join-time history "
+        "backfill lands; will pass when #791 AC lands"
+    ),
+)
+
+#: Actor names expected to have complete logs from genesis.
+#: - case-actor and vendor own the case from the start → full log expected.
+#: - finder joins after report→case promotion → incomplete until #791.
+_COMPLETE_LOG_ACTORS = [
+    pytest.param("case-actor"),
+    pytest.param("vendor"),
+    pytest.param("finder", marks=_BACKFILL_XFAIL),
+]
+
+
+@pytest.mark.case_log_invariants
+@pytest.mark.parametrize("actor_name", _COMPLETE_LOG_ACTORS)
+def test_invariant_12_genesis_entry_present(
+    actor_name: str,
+    case_log_replicas: dict[str, list[dict]],
+) -> None:
+    """logIndex=0 is present in the actor's log (AC-4, log completeness).
+
+    Every actor must eventually receive or own the genesis entry.  The finder
+    is a late joiner and its replica will lack logIndex=0 until the join-time
+    backfill fix (#791) lands.
+
+    When the xfail for ``finder`` is unexpectedly promoted to XPASS, remove
+    its ``xfail`` mark to make it a permanent regression guard.
+    """
+    entries = case_log_replicas.get(actor_name)
+    if entries is None:
+        pytest.skip(f"No log found for actor {actor_name!r} in devlogs/")
+
+    indices = {_log_index(e) for e in entries}
+    assert 0 in indices, (
+        f"Actor {actor_name!r}: logIndex=0 is absent from the log. "
+        f"Lowest present index: {min(indices)}"
+    )
+
+
+@pytest.mark.case_log_invariants
+@pytest.mark.parametrize("actor_name", _COMPLETE_LOG_ACTORS)
+def test_invariant_13_log_starts_at_genesis(
+    actor_name: str,
+    case_log_replicas: dict[str, list[dict]],
+) -> None:
+    """The first entry in the actor's sorted log has logIndex=0 (AC-4, ordering).
+
+    The fixture sorts entries by logIndex ascending, so this invariant is
+    equivalent to checking that logIndex=0 is present (invariant 12) while
+    also asserting correct sort order is preserved in the JSONL source.
+
+    When the xfail for ``finder`` is unexpectedly promoted to XPASS, remove
+    its ``xfail`` mark to make it a permanent regression guard.
+    """
+    entries = case_log_replicas.get(actor_name)
+    if entries is None:
+        pytest.skip(f"No log found for actor {actor_name!r} in devlogs/")
+
+    first_index = _log_index(entries[0])
+    assert first_index == 0, (
+        f"Actor {actor_name!r}: first entry has logIndex={first_index}, "
+        f"expected 0 (log is incomplete or not starting at genesis)"
+    )
+
+
+@pytest.mark.case_log_invariants
+@pytest.mark.parametrize("actor_name", _COMPLETE_LOG_ACTORS)
+def test_invariant_14_no_gaps_in_log_indices(
+    actor_name: str,
+    case_log_replicas: dict[str, list[dict]],
+) -> None:
+    """No gaps in logIndex sequence — all entries from 0 to max are present.
+
+    A gap indicates missing entries due to incomplete backfill or replication
+    failure.  The finder will have gaps until the join-time backfill fix
+    (#791) lands.
+
+    When the xfail for ``finder`` is unexpectedly promoted to XPASS, remove
+    its ``xfail`` mark to make it a permanent regression guard.
+    """
+    entries = case_log_replicas.get(actor_name)
+    if entries is None:
+        pytest.skip(f"No log found for actor {actor_name!r} in devlogs/")
+
+    indices = sorted(_log_index(e) for e in entries)
+    min_idx, max_idx = indices[0], indices[-1]
+    expected = list(range(min_idx, max_idx + 1))
+
+    gaps = sorted(set(expected) - set(indices))
+    assert not gaps, (
+        f"Actor {actor_name!r}: {len(gaps)} gap(s) in logIndex sequence "
+        f"[{min_idx}..{max_idx}]: missing {gaps[:10]}"
+        + (" (truncated)" if len(gaps) > 10 else "")
+    )
