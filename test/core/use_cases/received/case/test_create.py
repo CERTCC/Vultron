@@ -37,11 +37,11 @@ from vultron.core.models.report import VultronReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.cs import CS_vfd
 from vultron.core.states.rm import RM
-from vultron.core.use_cases.received.actor import (
+from vultron.core.use_cases.received.actor import _find_case_actor_id
+from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
-    _find_case_actor_id,
 )
-from vultron.core.use_cases.received.case import (
+from vultron.core.use_cases.received.case.create import (
     CreateCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.status import (
