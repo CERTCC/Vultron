@@ -13,10 +13,10 @@ description: >
 ## Quick Start
 
 1. Invoke `orient-agent` to load baseline context.
-2. Select the highest-priority unblocked leaf Issue from the top Now-Epic.
-3. Invoke `deepen-context` with hints from the issue.
-4. Claim the issue and implement.
-5. Validate, code-review, open PR, archive.
+2. Select a single target issue (auto or explicit) and fail fast on blockers.
+3. Claim the issue.
+4. Invoke `deepen-context` with hints from the issue.
+5. Implement, validate, code-review, open PR, archive.
 
 ## Workflow
 
@@ -24,7 +24,16 @@ description: >
 
 Invoke the `orient-agent` skill.
 
-### Phase 2 — Select and Claim
+### Phase 2 — Select, Gate, and Claim
+
+0. Determine the target issue mode:
+
+   - If the user passed multiple issue numbers (for example `build 123 456`),
+     ask whether to start with the first issue only (recommended). This skill
+     executes one issue per run.
+   - If the user passed one explicit issue number, use that issue.
+   - If no explicit issue was passed, auto-select from the top-priority
+     unblocked Now-Epic flow below.
 
 1. List open Now-Epics:
 
@@ -45,7 +54,7 @@ Invoke the `orient-agent` skill.
            nodes {
              number title state
              assignees(first: 1) { nodes { login } }
-             blockedBy(first: 10) { nodes { number state } }
+             blockedBy(first: 10) { nodes { number title state } }
              subIssues(first: 1) { totalCount }
              labels(first: 10) { nodes { name } }
            }
@@ -60,8 +69,11 @@ Invoke the `orient-agent` skill.
 
 3. Pick the highest-priority candidate.
 
-4. Fetch the issue body and comments. Use the content as implementation
-   context throughout Phases 3–5.
+4. Fail-fast blocker gate on the selected issue (auto-selected or explicit):
+
+   - Query `blockedBy` for the issue and filter to `state=OPEN`.
+   - If any OPEN blockers exist, print blocker numbers/titles and stop.
+   - Do not claim, branch, or deepen context when blocked.
 
 5. **Claim the Issue**:
 
@@ -70,6 +82,9 @@ Invoke the `orient-agent` skill.
    ```
 
    Abort immediately if this exits non-zero.
+
+6. Fetch the issue body and comments. Use the content as implementation
+   context throughout Phases 3–5.
 
 ### Phase 3 — Deepen Context
 
@@ -199,6 +214,8 @@ git fetch origin main && git rebase origin/main
 
 ## Constraints
 
-- One task per run (or a tightly related set of trivial tasks).
+- One issue is executed per run.
+- Multi-issue input may be accepted for user guidance, but this skill should
+  ask how to proceed and then continue with one issue only.
 - Do not skip validation or the pre-PR code review.
 - Do not commit directly to `main`. All work goes through a PR.
