@@ -211,7 +211,7 @@ class AddNoteToCaseReceivedUseCase:
         commit_log_entry_trigger(
             case_id=case_id,
             object_id=note_id,
-            event_type="add_note_to_case",
+            event_type="add_note",
             actor_id=actor_id,
             dl=self._dl,
             sync_port=self._sync_port,

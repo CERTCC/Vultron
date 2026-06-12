@@ -529,20 +529,13 @@ def _phase_sync_verification(
     logger.info("Phase 2: Replica synchronization verification")
     logger.info("─" * 80)
 
-    with demo_step("Committing case ledger entry on Vendor (CaseActor)"):
-        entry_hash = trigger_log_commit(
-            client=vendor_client,
-            actor_id=vendor.id_,
-            case_id=case.id_,
-            event_type="demo_verification",
-        )
-
-    with demo_step("Waiting for Finder to receive replicated log entry"):
-        wait_for_finder_log_entry(
-            finder_client=finder_client,
-            case_id=case.id_,
-            entry_hash=entry_hash,
-        )
+    # Synthetic checkpoint entries (demo_verification) are explicitly excluded
+    # from the canonical ledger per ADR-0019 (CLP-07). Replication is verified
+    # by comparing replica state directly rather than polling for a new entry.
+    logger.info(
+        "Verifying SYNC-2 replication by comparing vendor ↔ finder replica"
+        " state (ADR-0019: synthetic entries omitted from canonical ledger)"
+    )
 
     with demo_check("Finder replica state matches authoritative Vendor state"):
         verify_finder_replica_state(

@@ -481,7 +481,7 @@ class TestNoteUseCases:
         ]
         assert len(entries) == 1
         entry = cast(VultronCaseLedgerEntry, entries[0])
-        assert entry.event_type == "add_note_to_case"
+        assert entry.event_type == "add_note"
         assert entry.log_object_id == note.id_
 
     def test_add_note_no_fanout_without_sync_port(self, make_payload):

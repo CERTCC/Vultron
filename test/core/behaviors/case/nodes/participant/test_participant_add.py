@@ -30,7 +30,6 @@ from vultron.core.behaviors.case.nodes.participant import (
     CaseHasNoActiveEmbargoNode,
     CreateParticipantNode,
     QueueAddParticipantNotificationNode,
-    RecordParticipantAddedEventNode,
     ResolveParticipantAcceptedStatusNode,
     SeedParticipantAsSignatoryIfEmbargoActiveNode,
     SeedParticipantAsSignatoryNode,
@@ -71,27 +70,6 @@ class TestCreateCaseParticipantNode:
         stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
         assert finder_actor_id in stored_case.actor_participant_index
 
-    def test_records_participant_added_event(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        case_obj: VultronCase,
-        actor_id: str,
-        finder_actor_id: str,
-    ) -> None:
-        """CreateCaseParticipantNode records 'participant_added' on the case."""
-        bt_scenario.run(
-            CreateCaseParticipantNode(
-                actor_id=finder_actor_id, roles=[CVDRole.FINDER]
-            ),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-        )
-
-        stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
-        event_types = [e.event_type for e in stored_case.events]
-        assert "participant_added" in event_types
-
     def test_is_composed_subtree_of_named_leaf_nodes(self) -> None:
         node = CreateCaseParticipantNode(
             actor_id="https://example.org/actors/finder",
@@ -102,7 +80,6 @@ class TestCreateCaseParticipantNode:
             ResolveParticipantAcceptedStatusNode,
             CreateParticipantNode,
             AttachParticipantToCaseNode,
-            RecordParticipantAddedEventNode,
             SeedParticipantAsSignatoryIfEmbargoActiveNode,
             QueueAddParticipantNotificationNode,
         ]

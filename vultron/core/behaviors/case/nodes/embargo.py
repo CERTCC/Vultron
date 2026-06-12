@@ -292,7 +292,6 @@ class AttachEmbargoToCaseNode(DataLayerAction):
         if active_embargo_id is None:
             stored_case.active_embargo = embargo_id
             stored_case.current_status.em_state = EM.ACTIVE
-            stored_case.record_event(embargo_id, "embargo_initialized")
             self.datalayer.save(stored_case)
             self.logger.info(
                 "Attached embargo '%s' to case '%s' as active_embargo",

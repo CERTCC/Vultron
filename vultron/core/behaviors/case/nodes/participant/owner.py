@@ -379,8 +379,6 @@ class RecordOwnerJoinedEventNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        stored_case.record_event(participant.id_, "owner_joined")
-        self.datalayer.save(stored_case)
         return Status.SUCCESS
 
 
@@ -412,7 +410,6 @@ class CreateCaseOwnerParticipant(py_trees.composites.Sequence):
                 CreateOwnerParticipantNode(actor_config=actor_config),
                 AttachOwnerParticipantToCaseNode(),
                 PersistOwnerCaseNode(),
-                RecordOwnerJoinedEventNode(),
                 py_trees.composites.Selector(
                     name="AdvanceOwnerRmIfConfigured",
                     memory=False,

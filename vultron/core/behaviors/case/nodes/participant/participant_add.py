@@ -185,6 +185,7 @@ class AttachParticipantToCaseNode(DataLayerAction):
             return Status.FAILURE
 
         self.blackboard.participant_case = stored_case
+        self.datalayer.save(stored_case)
         return Status.SUCCESS
 
 
@@ -221,8 +222,6 @@ class RecordParticipantAddedEventNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        stored_case.record_event(participant_id, "participant_added")
-        self.datalayer.save(stored_case)
         return Status.SUCCESS
 
 
@@ -436,7 +435,6 @@ class CreateCaseParticipantNode(py_trees.composites.Sequence):
                     roles=roles,
                 ),
                 AttachParticipantToCaseNode(participant_actor_id=actor_id),
-                RecordParticipantAddedEventNode(),
                 SeedParticipantAsSignatoryIfEmbargoActiveNode(
                     participant_actor_id=actor_id
                 ),
