@@ -72,6 +72,8 @@ General information about architectural decision records is available at <https:
   Hierarchy](0017-domain-wire-object-separation.md)
 - [ADR-0018 Canonical Case History Convergence on
   `CaseLogEntry`](0018-canonical-case-history-convergence.md)
+- [ADR-0019 Case Log Is a Canonical Protocol Ledger, Not a Process
+  Log](0019-case-log-is-canonical-ledger-not-process-log.md)
 
 ## Proposed ADRs
 

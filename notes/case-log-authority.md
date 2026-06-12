@@ -245,3 +245,89 @@ This framing has several practical consequences:
 
 This note should be treated as the durable design explanation. Normative
 requirements belong in `specs/case-log-processing.yaml`.
+
+---
+
+## Canonical Entry Criteria: What Belongs in the Log
+
+The canonical case log is a **protocol ledger**, not a process log. It records
+exactly one entry per CaseActor-accepted protocol-significant assertion. Each
+entry's `payloadSnapshot` is the verbatim AS2 activity that was asserted (or a
+deterministic canonical normalization of it).
+
+Concretely:
+
+**Belongs in the canonical case log (allowed `payloadSnapshot` types):**
+
+- `Offer(VulnerabilityReport)` — finder asserts report submission
+- `Add(Note)` — participant asserts a note exchange
+- `Add(ParticipantStatus)` — participant asserts an RM/CS/EM transition
+- `Offer(EmbargoEvent)`, `Accept(EmbargoEvent)`, `Reject(EmbargoEvent)` —
+  embargo proposal/response
+- `Invite(VulnerabilityCase)`, `Accept(Invite)`, `Reject(Invite)` — case
+  membership handshake (note: routed through the CaseActor per PCR-08)
+- `Announce(VulnerabilityCase)` — case bootstrap broadcast
+- Any other protocol-significant AS2 activity that mutates protocol-visible
+  state
+
+**Does NOT belong in the canonical case log:**
+
+- Synthetic checkpoint markers (e.g., `demo_verification`)
+- Per-actor runtime diagnostics, troubleshooting traces, or "I made it to
+  step N" markers
+- Internal cascade triggers, sentinels, or scheduling events
+- Any event whose `payloadSnapshot` would be empty or whose `logObjectId`
+  points at the case itself rather than a specific protocol activity
+
+Anything in the "does NOT belong" category is **process-log content** and
+belongs in Python `logging` output governed by `specs/structured-logging.yaml`,
+not in the canonical case log.
+
+### Why the Separation Matters
+
+The canonical case log is replicated to every participant and contributes
+to the hash chain that participants use to verify their replicas agree
+with the CaseActor's authoritative copy. If diagnostic or synthetic
+content enters the chain:
+
+- Participants cannot deterministically reconstruct case state from the
+  log alone — they'd have to filter out non-protocol entries.
+- The hash chain becomes sensitive to runtime details that have nothing
+  to do with protocol semantics (e.g., timing of demo checkpoints).
+- Operators using process logs for troubleshooting cannot freely add
+  detail without risking protocol-level effects.
+
+The decision is captured at the ADR level in
+**ADR-0019 — Case Log Is a Canonical Protocol Ledger, Not a Process Log**.
+
+### `Announce` Envelope vs. `payloadSnapshot` Actor
+
+A subtle but important distinction:
+
+```text
+Vendor sends:  Add(ParticipantStatus, actor=vendor) → CaseActor
+CaseActor commits: CaseLogEntry(
+  log_index=N,
+  recording_actor=case_actor,
+  payloadSnapshot=Add(ParticipantStatus, actor=vendor),  ← verbatim assertion
+)
+CaseActor broadcasts: Announce(
+  actor=case_actor,                                       ← envelope actor
+  object=CaseLogEntry(...),
+) → all participants
+```
+
+The `Announce` envelope's `actor` field is always the CaseActor. The
+`payloadSnapshot.actor` inside the `CaseLogEntry` preserves the original
+asserter (`vendor` in the example). Replicas receiving the broadcast
+update their state based on the snapshot's asserter, not the envelope's
+actor. Rewriting `payloadSnapshot.actor` to the CaseActor would erase
+the assertion's provenance and is forbidden by CLP-07-003.
+
+### Commit-Boundary Enforcement
+
+CLP-07-005 recommends a runtime guard at the CaseActor commit boundary
+that rejects entries violating CLP-07-001 through CLP-07-004 *before*
+they enter the hash chain. Failing fast at commit time keeps the
+canonical chain clean and surfaces bugs immediately, rather than allowing
+silent pollution that's discovered only when replicas diverge.

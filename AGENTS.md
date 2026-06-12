@@ -483,6 +483,18 @@ Short entries are reproduced here; longer ones are referenced below.
   `id_` and registers in `CORE_VOCABULARY`. Always import by full module path and
   verify which class you need. See `specs/architecture.yaml` ARCH-12-007 and
   issue #806.
+- **Case Log Is a Ledger, Not a Process Log** — The canonical case log
+  (`CaseLogEntry` chain authored by the CaseActor and replicated via
+  `Announce(CaseLogEntry)`) is **exclusively** for CaseActor-accepted
+  protocol-significant assertions. Each entry's `payloadSnapshot` MUST be the
+  verbatim asserted AS2 activity (or a deterministic normalization of it) and
+  MUST NOT be empty for non-rejection entries. Runtime diagnostics, demo
+  checkpoints (e.g., `demo_verification`), troubleshooting markers, and any
+  per-actor observability belong in Python `logging` output governed by
+  `specs/structured-logging.yaml` — **never** in the canonical case log. Do
+  NOT use `record_event()` or any canonical commit path as a generic "log
+  this thing" sink. See ADR-0019, `specs/case-log-processing.yaml` CLP-07,
+  and `notes/case-log-authority.md` § "Canonical Entry Criteria".
 - **Adding a New Pitfall: Check the Routing Policy First** — see
   [notes/agents-md-structure.md](notes/agents-md-structure.md)
 - **Trigger-Side execute() Must Delegate SM Transitions to BTBridge** — A

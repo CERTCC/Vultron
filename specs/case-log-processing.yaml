@@ -179,3 +179,52 @@ groups:
     statement: >-
       A pending assertion entry MUST be cleared when a matching canonical
       `CaseLogEntry(recorded|rejected)` is observed
+- id: CLP-07
+  title: Canonical Entry Criteria and Ledger/Process-Log Separation
+  specs:
+  - id: CLP-07-001
+    priority: MUST
+    statement: >-
+      A `CaseLogEntry` committed to the canonical case log MUST correspond to exactly
+      one CaseActor-accepted protocol-significant assertion; the entry's `payloadSnapshot`
+      MUST be the verbatim AS2 activity that was asserted, or a deterministic canonical
+      normalization of it, and MUST NOT be empty for non-rejection entries
+  - id: CLP-07-002
+    priority: MUST
+    statement: >-
+      Each logical state change MUST produce at most one canonical `CaseLogEntry`; the
+      CaseActor MUST NOT commit both an accepted-participant-assertion entry and a
+      separately-synthesized CaseActor entry for the same state change
+  - id: CLP-07-003
+    priority: MUST
+    statement: >-
+      The `payloadSnapshot.actor` field of a `CaseLogEntry(recorded)` MUST preserve the
+      original asserting actor's identity; the CaseActor's own identity appears only on
+      the `Announce(CaseLogEntry)` transport envelope and in CaseLogEntry recording
+      metadata, never as a substitute for the asserter
+  - id: CLP-07-004
+    priority: MUST_NOT
+    statement: >-
+      The canonical case log MUST NOT contain runtime diagnostics, demo checkpoints,
+      synthetic verification markers, troubleshooting events, or any per-actor
+      observability content; such content belongs in the per-actor process log governed
+      by `specs/structured-logging.yaml`
+  - id: CLP-07-005
+    priority: SHOULD
+    statement: >-
+      The CaseActor commit boundary SHOULD enforce CLP-07-001 through CLP-07-004 with a
+      runtime guard that rejects non-canonical entries before they enter the hash chain,
+      failing fast rather than silently polluting replicated history
+  - id: CLP-07-006
+    priority: MUST
+    statement: >-
+      Nested protocol objects referenced from a `payloadSnapshot` (e.g., `EmbargoEvent`,
+      `VulnerabilityReport`, `Note`, `ParticipantStatus`) MUST be embedded inline as full
+      objects in the snapshot; ID-string substitutions that require an out-of-band
+      DataLayer lookup to resolve MUST NOT be used in canonical snapshots
+  - id: CLP-07-007
+    priority: MUST
+    statement: >-
+      `payloadSnapshot` context values MUST use the case URI once a case exists;
+      report URIs MUST NOT appear as the context for ParticipantStatus or other
+      case-scoped snapshots after the report→case promotion has occurred
