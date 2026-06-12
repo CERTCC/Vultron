@@ -102,7 +102,9 @@ def create_engage_case_tree(
             TransitionParticipantRMtoAccepted(
                 case_id=case_id, actor_id=actor_id
             ),
-            CommitCaseLedgerEntryNode(case_id=case_id),
+            CommitCaseLedgerEntryNode(
+                case_id=case_id, event_type="accept_report"
+            ),
             CaptureCaseUpdateBroadcastExclusionsNode(case_id=case_id),
             BroadcastCaseUpdateNode(case_id=case_id),
         ],

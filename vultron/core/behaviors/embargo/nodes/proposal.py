@@ -171,7 +171,6 @@ class RecordParticipantAcceptanceNode(DataLayerAction):
         self.embargo_id = embargo_id
 
     def update(self) -> Status:
-        from vultron.core.models.protocols import is_case_model
         from vultron.core.states.em import EM
 
         if self.datalayer is None:
@@ -201,12 +200,6 @@ class RecordParticipantAcceptanceNode(DataLayerAction):
                 result.em_before,
                 self.case_id,
             )
-
-        if result.case_changed or result.case_embargo_changed:
-            updated_case = self.datalayer.read(self.case_id)
-            if is_case_model(updated_case):
-                updated_case.record_event(self.embargo_id, "embargo_accepted")
-                self.datalayer.save(updated_case)
 
         self.feedback_message = (
             f"Recorded acceptance of embargo '{self.embargo_id}'"

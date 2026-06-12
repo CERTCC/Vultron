@@ -29,7 +29,6 @@ Structure:
     └─ CreateCaseFlow (Sequence)
        ├─ SetCaseAttributedTo          # Set attributed_to to actor_id (CM-02-008)
        ├─ PersistCase                  # Save VulnerabilityCase to DataLayer
-       ├─ RecordCaseCreationEvents     # Backfill offer_received + case_created events (CM-02-009)
        ├─ CreateCaseOwnerParticipant   # Add case owner as initial participant (CM-02-008)
        ├─ CreateCaseActorNode          # Create CaseActor service (CM-02-001)
        ├─ EmitCreateCaseActivity       # Generate CreateCaseActivity activity
@@ -105,7 +104,6 @@ def create_create_case_tree(
         children=[
             SetCaseAttributedTo(case_obj=case_obj),
             PersistCase(case_obj=case_obj),
-            RecordCaseCreationEvents(case_obj=case_obj),
             CreateCaseOwnerParticipant(
                 case_obj=case_obj, actor_config=actor_config
             ),

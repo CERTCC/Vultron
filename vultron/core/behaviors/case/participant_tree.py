@@ -45,7 +45,6 @@ from vultron.core.behaviors.case.nodes.participant.owner import (
     AttachOwnerParticipantToCaseNode,
     CreateOwnerParticipantNode,
     PersistOwnerCaseNode,
-    RecordOwnerJoinedEventNode,
     ResolveOwnerInitialStatusNode,
     ShouldAdvanceOwnerToAcceptedNode,
 )
@@ -55,7 +54,6 @@ from vultron.core.behaviors.case.nodes.participant.participant_add import (
     CaseHasNoActiveEmbargoNode,
     CreateParticipantNode,
     QueueAddParticipantNotificationNode,
-    RecordParticipantAddedEventNode,
     ResolveParticipantAcceptedStatusNode,
     SeedParticipantAsSignatoryNode,
 )
@@ -118,7 +116,6 @@ class CreateCaseOwnerParticipant(py_trees.composites.Sequence):
                 CreateOwnerParticipantNode(actor_config=actor_config),
                 AttachOwnerParticipantToCaseNode(),
                 PersistOwnerCaseNode(),
-                RecordOwnerJoinedEventNode(),
                 py_trees.composites.Selector(
                     name="AdvanceOwnerRmIfConfigured",
                     memory=False,
@@ -168,7 +165,6 @@ class CreateCaseParticipantNode(py_trees.composites.Sequence):
                     roles=roles,
                 ),
                 AttachParticipantToCaseNode(participant_actor_id=actor_id),
-                RecordParticipantAddedEventNode(),
                 SeedParticipantAsSignatoryIfEmbargoActiveNode(
                     participant_actor_id=actor_id
                 ),

@@ -105,6 +105,7 @@ _SYNC_PORT_SEMANTICS = frozenset(
         MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE,
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+        MessageSemantics.CREATE_EMBARGO_EVENT,
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
         MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,

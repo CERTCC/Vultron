@@ -133,10 +133,14 @@ def _resolve_case_for_embargo_acceptance(
 
 class CreateEmbargoEventReceivedUseCase:
     def __init__(
-        self, dl: CasePersistence, request: CreateEmbargoEventReceivedEvent
+        self,
+        dl: CaseOutboxPersistence,
+        request: CreateEmbargoEventReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: CreateEmbargoEventReceivedEvent = request
+        self._sync_port = sync_port
 
     def execute(self) -> None:
         request = self._request
@@ -148,6 +152,25 @@ class CreateEmbargoEventReceivedUseCase:
             "EmbargoEvent",
             request.activity_id,
         )
+
+        # Resolve case_id from the EmbargoEvent's context field.
+        embargo = request.embargo
+        case_id: str | None = None
+        if embargo is not None:
+            ctx = getattr(embargo, "context", None)
+            if ctx is not None:
+                case_id = str(ctx)
+
+        if request.embargo_id and case_id:
+            _commit_embargo_log_cascade(
+                case_id=case_id,
+                object_id=request.embargo_id,
+                event_type="propose_embargo",
+                dl=self._dl,
+                receiving_actor_id=request.receiving_actor_id,
+                sync_port=self._sync_port,
+                payload_snapshot=extract_activity_snapshot(request),
+            )
 
 
 class AddEmbargoEventToCaseReceivedUseCase:

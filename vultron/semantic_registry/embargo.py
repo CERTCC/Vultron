@@ -57,6 +57,7 @@ ENTRIES: list[SemanticEntry] = [
         pattern=CreateEmbargoEventPattern,
         event_class=CreateEmbargoEventReceivedEvent,
         use_case_class=CreateEmbargoEventReceivedUseCase,
+        include_activity=True,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE,

@@ -198,22 +198,10 @@ def _contiguous_fragments(entries: list[dict]) -> list[list[dict]]:
 # Invariant 1 — per-actor internal hash-chain consistency
 # ---------------------------------------------------------------------------
 
-#: Hash-chain breaks intermittently until #789 (CaseActor commit-path
-#: uniqueness) is fixed.  The break position varies across runs, confirming
-#: the root cause is non-deterministic commit ordering rather than a
-#: reproducible logic error introduced by any single PR.
-_CHAIN_XFAIL_789 = pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "Hash-chain inconsistencies due to CaseActor commit-path uniqueness "
-        "issues (intermittent); will pass when #789 lands"
-    ),
-)
-
 _CHAIN_ACTORS = [
-    pytest.param("case-actor", marks=_CHAIN_XFAIL_789),
-    pytest.param("vendor", marks=_CHAIN_XFAIL_789),
-    pytest.param("finder", marks=_CHAIN_XFAIL_789),
+    pytest.param("case-actor"),
+    pytest.param("vendor"),
+    pytest.param("finder"),
 ]
 
 
@@ -282,21 +270,10 @@ def test_invariant_1_local_hash_chain_consistent(
 
 
 @pytest.mark.case_ledger_invariants
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "Cross-actor hash agreement requires CaseActor commit-path uniqueness; "
-        "will pass when #789 lands"
-    ),
-)
 def test_invariant_2_cross_actor_hash_agreement(
     case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
-    """All actors agree on the entryHash for every shared logIndex (AC-4.2).
-
-    When this xfail is unexpectedly promoted to XPASS, remove the
-    ``xfail`` decorator to make it a permanent regression guard.
-    """
+    """All actors agree on the entryHash for every shared logIndex (AC-4.2)."""
     by_index: dict[int, dict[str, str]] = {}
     for actor, entries in case_ledger_replicas.items():
         for entry in entries:
@@ -315,21 +292,10 @@ def test_invariant_2_cross_actor_hash_agreement(
 
 
 @pytest.mark.case_ledger_invariants
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "Cross-actor payloadSnapshot.actor agreement requires CaseActor "
-        "commit-path uniqueness; will pass when #789 lands"
-    ),
-)
 def test_invariant_3_cross_actor_payload_actor_agreement(
     case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
-    """All actors agree on payloadSnapshot.actor for every shared logIndex (AC-4.3).
-
-    When this xfail is unexpectedly promoted to XPASS, remove the
-    ``xfail`` decorator to make it a permanent regression guard.
-    """
+    """All actors agree on payloadSnapshot.actor for every shared logIndex (AC-4.3)."""
     by_index: dict[int, dict[str, str | None]] = {}
     for actor, entries in case_ledger_replicas.items():
         for entry in entries:
@@ -352,21 +318,12 @@ def test_invariant_3_cross_actor_payload_actor_agreement(
 
 
 @pytest.mark.case_ledger_invariants
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "Non-empty payloadSnapshot requires the commit-boundary guard and "
-        "removal of synthetic checkpoint events (see issue #789)"
-    ),
-)
 def test_invariant_4_non_empty_payload_snapshot(
     case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
     """Every recorded canonical entry has a non-empty payloadSnapshot (AC-4.4).
 
     Rejection entries (``disposition != "recorded"``) are excluded.
-    When this xfail is unexpectedly promoted to XPASS, remove the
-    ``xfail`` decorator to make it a permanent regression guard.
     """
     empty = [
         f"Actor {actor!r} logIndex={_log_index(e)} eventType={_event_type(e)!r}"
@@ -381,13 +338,6 @@ def test_invariant_4_non_empty_payload_snapshot(
 
 
 @pytest.mark.case_ledger_invariants
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "All expected protocol eventTypes require the CaseActor commit-path "
-        "implementation; will pass when #789 ACs are satisfied"
-    ),
-)
 def test_invariant_5_expected_event_types_present(
     case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
@@ -395,8 +345,6 @@ def test_invariant_5_expected_event_types_present(
 
     Checked against the ``case-actor`` replica (authoritative log).
     Falls back to any available replica when no ``case-actor`` key exists.
-    When this xfail is unexpectedly promoted to XPASS, remove the
-    ``xfail`` decorator to make it a permanent regression guard.
     """
     auth = _auth_entries(case_ledger_replicas)
     found = {_event_type(e) for e in auth}
@@ -442,21 +390,12 @@ def test_invariant_6_no_rm_state_oscillation(
 
 
 @pytest.mark.case_ledger_invariants
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "Log must terminate with all participants in RM=CLOSED; "
-        "requires the RM terminal-state guard (see issue #789)"
-    ),
-)
 def test_invariant_7_log_terminates_all_rm_closed(
     case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
     """The log terminates with every participant in RM=CLOSED (AC-4.7).
 
     Checks the final ``add_participant_status`` entry per participant.
-    When this xfail is unexpectedly promoted to XPASS, remove the
-    ``xfail`` decorator to make it a permanent regression guard.
     """
     auth = _auth_entries(case_ledger_replicas)
     latest_rm: dict[str, str] = {}
@@ -522,21 +461,10 @@ def test_invariant_8_late_joiner_has_full_history(
 
 
 @pytest.mark.case_ledger_invariants
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "ParticipantStatus entries must include emConsentState and cvdRole; "
-        "requires the ParticipantStatus schema completeness fix (see issue #789)"
-    ),
-)
 def test_invariant_9_participant_status_schema_completeness(
     case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
-    """Every ParticipantStatus snapshot includes emConsentState and cvdRole (AC-4.9).
-
-    When this xfail is unexpectedly promoted to XPASS, remove the
-    ``xfail`` decorator to make it a permanent regression guard.
-    """
+    """Every ParticipantStatus snapshot includes emConsentState and cvdRole (AC-4.9)."""
     auth = _auth_entries(case_ledger_replicas)
     status_entries = [
         e for e in auth if _event_type(e) == "add_participant_status"
