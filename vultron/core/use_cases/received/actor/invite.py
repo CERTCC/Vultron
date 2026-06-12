@@ -110,9 +110,15 @@ class AcceptInviteActorToCaseReceivedUseCase:
             attributed_to=invitee_id,
             context=case_id,
         )
-        # Accept(Invite) IS the engage signal (PCR-08-010): pre-seed all three
-        # RM states inline so the participant reaches ACCEPTED immediately
-        # without a separate engage-case trigger or identity-spoofing BT call.
+        # TODO(#943): The RM transitions, case events, and DataLayer mutations
+        # below are BT-migration debt per BT-06-001/BT-15-001.  Protocol-
+        # significant state transitions MUST eventually live in reusable BT
+        # leaf nodes that the receiving actor (CaseActor) runs as itself.
+        # PCR-08-010 means this use case MUST NOT run an engage-case BT under
+        # the invitee's identity; the correct fix is a BT that the CaseActor
+        # runs as itself to record what it is authorized to assert in its own
+        # DataLayer.  This inline path is **not** the intended architectural
+        # precedent for future use-case code.
         participant.append_rm_state(
             RM.RECEIVED, actor=invitee_id, context=case_id
         )
@@ -130,6 +136,9 @@ class AcceptInviteActorToCaseReceivedUseCase:
             participant.embargo_consent_state = apply_pec_trigger(
                 PEC.NO_EMBARGO, PEC_Trigger.ACCEPT
             )
+        # TODO(#943): dl.create, case.add_participant, case.record_event, and
+        # dl.save below are direct DataLayer mutations that belong in BT leaf
+        # nodes per BT-06-001/BT-15-001 (BT-migration debt).
         self._dl.create(participant)
 
         case.add_participant(participant)
