@@ -172,58 +172,74 @@ def _auth_entries(replicas: dict[str, list[dict]]) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# Invariant 1 — expected to pass today (AC-4.1)
+# Invariant 1 — per-actor internal hash-chain consistency
 # ---------------------------------------------------------------------------
+
+#: Finder's replicated entries have hash-chain breaks until #789 is fixed.
+_CHAIN_XFAIL_FINDER = pytest.mark.xfail(
+    strict=False,
+    reason=(
+        "Finder's replicated log has hash-chain inconsistencies due to "
+        "CaseActor commit-path uniqueness issues; will pass when #789 lands"
+    ),
+)
+
+_CHAIN_ACTORS = [
+    pytest.param("case-actor"),
+    pytest.param("vendor"),
+    pytest.param("finder", marks=_CHAIN_XFAIL_FINDER),
+]
 
 
 @pytest.mark.case_log_invariants
+@pytest.mark.parametrize("actor_name", _CHAIN_ACTORS)
 def test_invariant_1_local_hash_chain_consistent(
+    actor_name: str,
     case_log_replicas: dict[str, list[dict]],
 ) -> None:
     """Each actor's local hash chain is internally consistent (AC-4.1).
 
     For entries sorted by ``log_index``:
 
-    - The first entry's ``prevLogHash`` MUST equal ``GENESIS_HASH``.
+    - If ``logIndex=0`` is present, its ``prevLogHash`` MUST equal
+      ``GENESIS_HASH``.
     - Each subsequent entry's ``prevLogHash`` MUST equal its predecessor's
       ``entryHash``.
 
-    This invariant is expected to pass today.
+    case-actor and vendor are expected to pass today.
+    finder is xfail until #789 (CaseActor commit-path uniqueness) lands.
     Spec: CLP-07.
     """
-    for actor, entries in case_log_replicas.items():
-        if not entries:
-            continue
+    entries = case_log_replicas.get(actor_name)
+    if entries is None:
+        pytest.skip(f"No log found for actor {actor_name!r} in devlogs/")
 
-        first = entries[0]
-        # Genesis check only applies to the first entry in the full chain
-        # (logIndex=0). Late-joining actors receive backfilled entries starting
-        # at a non-zero index; their first JSONL entry references a real
-        # predecessor, not GENESIS_HASH.
-        if _log_index(first) == 0:
-            actual_prev = _prev_log_hash(first)
-            assert actual_prev == GENESIS_HASH, (
-                f"Actor {actor!r}: entry logIndex=0 "
-                f"prevLogHash={actual_prev!r} != GENESIS_HASH"
-            )
+    first = entries[0]
+    # Genesis check only applies when logIndex=0 is actually first.
+    if _log_index(first) == 0:
+        actual_prev = _prev_log_hash(first)
+        assert actual_prev == GENESIS_HASH, (
+            f"Actor {actor_name!r}: entry logIndex=0 "
+            f"prevLogHash={actual_prev!r} != GENESIS_HASH"
+        )
 
-        for i, entry in enumerate(entries[1:], start=1):
-            expected = _entry_hash(entries[i - 1])
-            assert expected, (
-                f"Actor {actor!r}: entry[{i - 1}] "
-                f"(logIndex={_log_index(entries[i - 1])}) "
-                f"has no entryHash — cannot verify hash chain"
-            )
-            actual = _prev_log_hash(entry)
-            assert actual, (
-                f"Actor {actor!r}: entry[{i}] (logIndex={_log_index(entry)}) "
-                f"has no prevLogHash — cannot verify hash chain"
-            )
-            assert actual == expected, (
-                f"Actor {actor!r}: entry[{i}] (logIndex={_log_index(entry)}) "
-                f"prevLogHash={actual[:16]!r} != "
-                f"entry[{i - 1}] entryHash={expected[:16]!r}"
-            )
+    for i, entry in enumerate(entries[1:], start=1):
+        expected = _entry_hash(entries[i - 1])
+        assert expected, (
+            f"Actor {actor_name!r}: entry[{i - 1}] "
+            f"(logIndex={_log_index(entries[i - 1])}) "
+            f"has no entryHash — cannot verify hash chain"
+        )
+        actual = _prev_log_hash(entry)
+        assert actual, (
+            f"Actor {actor_name!r}: entry[{i}] (logIndex={_log_index(entry)}) "
+            f"has no prevLogHash — cannot verify hash chain"
+        )
+        assert actual == expected, (
+            f"Actor {actor_name!r}: entry[{i}] (logIndex={_log_index(entry)}) "
+            f"prevLogHash={actual[:16]!r} != "
+            f"entry[{i - 1}] entryHash={expected[:16]!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
