@@ -187,9 +187,8 @@ class RecordOfferReceivedEventNode(DataLayerAction):
             offer_id = (
                 offer_ref.id_ if hasattr(offer_ref, "id_") else str(offer_ref)
             )
-            case.record_event(offer_id, "offer_received")
             self.logger.info(
-                f"{self.name}: Recorded offer_received event"
+                f"{self.name}: Observed offer_received"
                 f" for {offer_id} on case {case_id}"
             )
 
@@ -240,9 +239,8 @@ class RecordCaseCreatedEventNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        case.record_event(case_id, "case_created")
         self.logger.info(
-            f"{self.name}: Recorded case_created event on case {case_id}"
+            f"{self.name}: Observed case_created event on case {case_id}"
         )
         self.datalayer.save(case)
         return Status.SUCCESS

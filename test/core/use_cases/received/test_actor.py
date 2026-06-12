@@ -388,16 +388,13 @@ class TestInviteActorUseCases:
 
         event = make_payload(accept)
 
-        assert len(case.events) == 0
-
         AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.id_)
         assert case is not None
         case = cast(VulnerabilityCase, case)
-        assert len(case.events) >= 1
-        event_types = [e.event_type for e in case.events]
-        assert "participant_joined" in event_types
+        # Verify participant was added to the case
+        assert invitee_id in case.actor_participant_index
 
 
 class TestSuggestActorUseCases:

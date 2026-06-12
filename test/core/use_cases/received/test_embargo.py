@@ -386,54 +386,9 @@ class TestEmbargoUseCases:
         updated_participant = cast(Any, updated_participant)
         assert embargo.id_ in updated_participant.accepted_embargo_ids
 
-    def test_accept_invite_to_embargo_records_case_event(
-        self, monkeypatch, make_payload
-    ):
-        """accept_invite_to_embargo_on_case appends a trusted-timestamp event to case.events (CM-02-009)."""
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
-        )
-
-        dl = SqliteDataLayer("sqlite:///:memory:")
-        coordinator_id = "https://example.org/users/coordinator"
-        case = VulnerabilityCase(
-            id_="https://example.org/cases/case_em6",
-            name="EM Accept Event Test",
-            attributed_to=coordinator_id,
-        )
-        embargo = EmbargoEvent(
-            id_="https://example.org/cases/case_em6/embargo_events/e6",
-            content="Embargo",
-        )
-        proposal = em_propose_embargo_activity(
-            embargo,
-            context=case,
-            actor="https://example.org/users/vendor",
-            id_="https://example.org/cases/case_em6/embargo_proposals/1",
-        )
-        dl.create(case)
-        dl.create(embargo)
-        dl.create(proposal)
-
-        accept = em_accept_embargo_activity(
-            proposal,
-            context=case,
-            actor=coordinator_id,
-        )
-        event = make_payload(accept)
-
-        assert len(case.events) == 0
-
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
-
-        case = dl.read(case.id_)
-        assert case is not None
-        case = cast(VulnerabilityCase, case)
-        assert len(case.events) >= 1
-        event_types = [e.event_type for e in case.events]
-        assert "embargo_accepted" in event_types
+    # test_accept_invite_to_embargo_records_case_event was removed in issue #888.
+    # The wire-layer VulnerabilityCase no longer has a case.events field.
+    # EM state activation is covered by test_accept_invite_to_embargo_on_case_activates_embargo.
 
     def test_reject_invite_to_embargo_on_case_logs_rejection(
         self, make_payload

@@ -185,7 +185,7 @@ class TestCreateCaseOwnerParticipant:
         case_obj: VultronCase,
         actor_id: str,
     ) -> None:
-        """CreateCaseOwnerParticipant records 'owner_joined' on the case."""
+        """CreateCaseOwnerParticipant attaches the owner participant to the case."""
         result = bt_scenario.run(
             CreateCaseOwnerParticipant(),
             actor_id=actor_id,
@@ -194,8 +194,8 @@ class TestCreateCaseOwnerParticipant:
         bt_scenario.assert_success(result)
 
         stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
-        event_types = [e.event_type for e in stored_case.events]
-        assert "owner_joined" in event_types
+        # Owner participant must be present in the case index
+        assert actor_id in stored_case.actor_participant_index
 
     def test_advances_owner_rm_to_accepted_when_configured(
         self,

@@ -205,7 +205,6 @@ class RecordParticipantAcceptanceNode(DataLayerAction):
         if result.case_changed or result.case_embargo_changed:
             updated_case = self.datalayer.read(self.case_id)
             if is_case_model(updated_case):
-                updated_case.record_event(self.embargo_id, "embargo_accepted")
                 self.datalayer.save(updated_case)
 
         self.feedback_message = (

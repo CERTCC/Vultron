@@ -79,7 +79,7 @@ class TestCreateCaseParticipantNode:
         actor_id: str,
         finder_actor_id: str,
     ) -> None:
-        """CreateCaseParticipantNode records 'participant_added' on the case."""
+        """CreateCaseParticipantNode adds the participant to the case."""
         bt_scenario.run(
             CreateCaseParticipantNode(
                 actor_id=finder_actor_id, roles=[CVDRole.FINDER]
@@ -89,8 +89,8 @@ class TestCreateCaseParticipantNode:
         )
 
         stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
-        event_types = [e.event_type for e in stored_case.events]
-        assert "participant_added" in event_types
+        # Participant must be present in the case index
+        assert finder_actor_id in stored_case.actor_participant_index
 
     def test_is_composed_subtree_of_named_leaf_nodes(self) -> None:
         node = CreateCaseParticipantNode(
@@ -184,7 +184,7 @@ class TestCreateCaseParticipantNode:
         case_obj: VultronCase,
         actor_id: str,
     ) -> None:
-        """CreateCaseOwnerParticipant does NOT record 'participant_added'."""
+        """CreateCaseOwnerParticipant adds the owner; no extra participants."""
         bt_scenario.run(
             CreateCaseOwnerParticipant(),
             actor_id=actor_id,
@@ -192,5 +192,5 @@ class TestCreateCaseParticipantNode:
         )
 
         stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
-        event_types = [e.event_type for e in stored_case.events]
-        assert "participant_added" not in event_types
+        # Only the owner (actor_id) should be in the participant index
+        assert list(stored_case.actor_participant_index.keys()) == [actor_id]

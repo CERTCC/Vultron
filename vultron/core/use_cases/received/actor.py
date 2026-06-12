@@ -599,9 +599,6 @@ class AcceptInviteActorToCaseReceivedUseCase:
         self._dl.create(participant)
 
         case.add_participant(participant)
-        case.record_event(invitee_id, "participant_joined")
-        if active_embargo_id and em_state == EM.ACTIVE:
-            case.record_event(active_embargo_id, "embargo_accepted")
         self._dl.save(case)
 
         # MV-10-003/MV-10-005: emit full case details to the invitee now that
