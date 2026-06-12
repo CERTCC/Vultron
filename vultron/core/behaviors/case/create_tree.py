@@ -49,14 +49,20 @@ import py_trees
 
 from vultron.core.models.actor_config import ActorConfig
 from vultron.core.models.vultron_types import VultronCase
+from vultron.core.behaviors.case.case_setup_tree import (
+    CreateCaseActorNode,
+    RecordCaseCreationEvents,
+)
+from vultron.core.behaviors.case.communication_tree import (
+    EmitCreateCaseActivity,
+)
+from vultron.core.behaviors.case.participant_tree import (
+    CreateCaseOwnerParticipant,
+)
 from vultron.core.behaviors.case.nodes import (
     CheckCaseAlreadyExists,
     CommitCaseLedgerEntryNode,
-    CreateCaseActorNode,
-    CreateCaseOwnerParticipant,
-    EmitCreateCaseActivity,
     PersistCase,
-    RecordCaseCreationEvents,
     SetCaseAttributedTo,
     UpdateActorOutbox,
 )

@@ -46,7 +46,7 @@ Per-actor parametrized tests (12–14) show status per actor role.
 
 | # | Description | case-actor | vendor | finder | Resolving issue |
 |---|-------------|-----------|--------|--------|-----------------|
-| 1 | Local hash-chain consistency | ✅ | ✅ | ⏳ | #789 |
+| 1 | Local hash-chain consistency | ⏳ | ⏳ | ⏳ | #789 |
 | 2 | Cross-actor `entryHash` agreement per `logIndex` | ⏳ | ⏳ | ⏳ | #789 |
 | 3 | Cross-actor `payloadSnapshot.actor` agreement | ⏳ | ⏳ | ⏳ | #789 |
 | 4 | Every recorded entry has non-empty `payloadSnapshot` | ⏳ | ⏳ | ⏳ | #789 |
