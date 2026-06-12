@@ -57,6 +57,14 @@ re-export list, and move node-level tests into `test/.../nodes/` with
 per-submodule files. Keep tree composition tests in the parent workflow test
 module so node behavior and tree wiring remain independently reviewable.
 
+### 2026-06-12 CASE-LOG-925-RATCHET — guard hash-chain fields before comparing
+
+When implementing the local hash-chain invariant for JSONL case-log replicas,
+assert that `entryHash` and `prevLogHash` fields are non-empty before
+comparing them. Missing fields produce `"" == ""` false positives that mask
+serializer or schema-migration bugs. Add an explicit presence assertion
+before every chain comparison.
+
 ### 2026-06-11 OX-10-004-STUB-GUARD — keep stub adapters under explicit test
 
 `ProdHttpDeliveryAdapter` is intentionally unimplemented and must fail fast
