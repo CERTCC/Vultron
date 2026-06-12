@@ -196,11 +196,16 @@ def test_invariant_1_local_hash_chain_consistent(
             continue
 
         first = entries[0]
-        actual_prev = _prev_log_hash(first)
-        assert actual_prev == GENESIS_HASH, (
-            f"Actor {actor!r}: first entry (logIndex={_log_index(first)}) "
-            f"prevLogHash={actual_prev!r} != GENESIS_HASH"
-        )
+        # Genesis check only applies to the first entry in the full chain
+        # (logIndex=0). Late-joining actors receive backfilled entries starting
+        # at a non-zero index; their first JSONL entry references a real
+        # predecessor, not GENESIS_HASH.
+        if _log_index(first) == 0:
+            actual_prev = _prev_log_hash(first)
+            assert actual_prev == GENESIS_HASH, (
+                f"Actor {actor!r}: entry logIndex=0 "
+                f"prevLogHash={actual_prev!r} != GENESIS_HASH"
+            )
 
         for i, entry in enumerate(entries[1:], start=1):
             expected = _entry_hash(entries[i - 1])
@@ -353,13 +358,6 @@ def test_invariant_5_expected_event_types_present(
 
 
 @pytest.mark.case_log_invariants
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "RM terminal-state guard must prevent add_participant_status "
-        "oscillation after CLOSED; see issue #789"
-    ),
-)
 def test_invariant_6_no_rm_state_oscillation(
     case_log_replicas: dict[str, list[dict]],
 ) -> None:
@@ -367,8 +365,7 @@ def test_invariant_6_no_rm_state_oscillation(
 
     Scans all ``add_participant_status`` entries and verifies that once a
     participant reaches ``RM=CLOSED``, no further state change is recorded.
-    When this xfail is unexpectedly promoted to XPASS, remove the
-    ``xfail`` decorator to make it a permanent regression guard.
+    Promoted from xfail: confirmed passing as of PR #936.
     """
     auth = _auth_entries(case_log_replicas)
     status_entries = [
@@ -518,21 +515,12 @@ def test_invariant_9_participant_status_schema_completeness(
 
 
 @pytest.mark.case_log_invariants
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "Nested protocol objects must be inlined in payloadSnapshot, not "
-        "represented as bare ID strings; requires the "
-        "'Inline nested objects in canonical snapshots' fix"
-    ),
-)
 def test_invariant_10_nested_objects_inlined_in_payload(
     case_log_replicas: dict[str, list[dict]],
 ) -> None:
     """payloadSnapshot.object is an inline dict, not a bare ID string (AC-4.10).
 
-    When this xfail is unexpectedly promoted to XPASS, remove the
-    ``xfail`` decorator to make it a permanent regression guard.
+    Promoted from xfail: confirmed passing as of PR #936.
     """
     auth = _auth_entries(case_log_replicas)
     bare_ids = [
@@ -552,20 +540,12 @@ def test_invariant_10_nested_objects_inlined_in_payload(
 
 
 @pytest.mark.case_log_invariants
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "payloadSnapshot context must reference the case URI, not the report "
-        "URI; requires the 'Snapshot context normalization at promotion' fix"
-    ),
-)
 def test_invariant_11_payload_context_uses_case_uri(
     case_log_replicas: dict[str, list[dict]],
 ) -> None:
     """payloadSnapshot.context matches the entry's case_id for recorded entries (AC-4.11).
 
-    When this xfail is unexpectedly promoted to XPASS, remove the
-    ``xfail`` decorator to make it a permanent regression guard.
+    Promoted from xfail: confirmed passing as of PR #936.
     """
     auth = _auth_entries(case_log_replicas)
     mismatches = []

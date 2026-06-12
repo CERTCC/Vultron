@@ -48,12 +48,12 @@ to include in the regular unit-test run.
 | 3 | Cross-actor `payloadSnapshot.actor` agreement per `logIndex` | ⏳ xfail | #789 |
 | 4 | Every recorded entry has a non-empty `payloadSnapshot` | ⏳ xfail | #789 |
 | 5 | All expected protocol `eventType`s present at least once | ⏳ xfail | #789 |
-| 6 | No `add_participant_status` RM-state oscillation after `CLOSED` | ⏳ xfail | #789 |
+| 6 | No `add_participant_status` RM-state oscillation after `CLOSED` | ✅ passing | — |
 | 7 | Log terminates with all participants in `RM=CLOSED` | ⏳ xfail | #789 |
 | 8 | Late-joining participants have full pre-join history | ⏳ xfail | #791 |
 | 9 | Every `ParticipantStatus` snapshot has `emConsentState` + `cvdRole` | ⏳ xfail | #789 |
-| 10 | Nested protocol objects are inlined, not bare ID strings | ⏳ xfail | (see body) |
-| 11 | `payloadSnapshot.context` uses the case URI | ⏳ xfail | (see body) |
+| 10 | Nested protocol objects are inlined, not bare ID strings | ✅ passing | — |
+| 11 | `payloadSnapshot.context` uses the case URI | ✅ passing | — |
 
 ---
 
