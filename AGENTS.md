@@ -410,7 +410,7 @@ Short entries are reproduced here; longer ones are referenced below.
   case creation, participant-originated activities MUST be addressed only to the Case Actor
   (`CVDRole.CASE_MANAGER` participant's `attributed_to`), not to `case_addressees()`.
   Using `case_addressees()` on the sender side bypasses the CaseActor and violates the
-  `participant → CaseActor → CaseLogEntry → broadcast → participants` model
+  `participant → CaseActor → CaseLedgerEntry → broadcast → participants` model
   (PCR-08-001, PCR-08-002). `case_addressees()` is correct only on the Case Actor's
   **outbound fan-out** side (broadcasting to all participants). See
   [notes/case-communication-model.md](notes/case-communication-model.md).
@@ -469,29 +469,29 @@ Short entries are reproduced here; longer ones are referenced below.
   failure modes). Incidental coverage via `test_trignotify.py` or scenario
   demos is insufficient — when `triggers/case.py` accumulated 26 commits in
   90 days (#652), half its use cases had no dedicated test and regressions
-  in case logic shipped behind embargo fixes. Also avoid bundling
+  in case ledgeric shipped behind embargo fixes. Also avoid bundling
   case-trigger and embargo-trigger changes in the same PR unless the change
   is intrinsically cross-cutting; bundled diffs let reviewers miss
   regressions in the half they aren't focused on. See
   [notes/triggers-test-coverage.md](notes/triggers-test-coverage.md).
-- **Hash-Chain Log Record vs. Domain Model** — Two distinct classes exist for case
-  log entries. `vultron.core.models.case_log.HashChainLogRecord` (`BaseModel`) is
-  the in-memory hash-chain record used by `CaseEventLog` for local SYNC-1 processing
-  — it is **not** persisted or shared over the wire. `vultron.core.models.case_log_entry.CaseLogEntry`
+- **Hash-Chain Ledger Record vs. Domain Model** — Two distinct classes exist for case
+  ledger entries. `vultron.core.models.case_log.HashChainLedgerRecord` (`BaseModel`) is
+  the in-memory hash-chain record used by `CaseLedger` for local SYNC-1 processing
+  — it is **not** persisted or shared over the wire. `vultron.core.models.case_ledger_entry.CaseLedgerEntry`
   (`CoreObject`) is the wire-serialisable domain model used in
-  `Announce(CaseLogEntry)` replication activities — it has an auto-computed
+  `Announce(CaseLedgerEntry)` replication activities — it has an auto-computed
   `id_` and registers in `CORE_VOCABULARY`. Always import by full module path and
   verify which class you need. See `specs/architecture.yaml` ARCH-12-007 and
   issue #806.
-- **Case Log Is a Ledger, Not a Process Log** — The canonical case log
-  (`CaseLogEntry` chain authored by the CaseActor and replicated via
-  `Announce(CaseLogEntry)`) is **exclusively** for CaseActor-accepted
+- **Case Ledger Is Not a Process Log** — The canonical case ledger
+  (`CaseLedgerEntry` chain authored by the CaseActor and replicated via
+  `Announce(CaseLedgerEntry)`) is **exclusively** for CaseActor-accepted
   protocol-significant assertions. Each entry's `payloadSnapshot` MUST be the
   verbatim asserted AS2 activity (or a deterministic normalization of it) and
   MUST NOT be empty for non-rejection entries. Runtime diagnostics, demo
   checkpoints (e.g., `demo_verification`), troubleshooting markers, and any
   per-actor observability belong in Python `logging` output governed by
-  `specs/structured-logging.yaml` — **never** in the canonical case log. Do
+  `specs/structured-logging.yaml` — **never** in the canonical case ledger. Do
   NOT use `record_event()` or any canonical commit path as a generic "log
   this thing" sink. See ADR-0019, `specs/case-log-processing.yaml` CLP-07,
   and `notes/case-log-authority.md` § "Canonical Entry Criteria".

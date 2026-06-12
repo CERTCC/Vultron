@@ -5,11 +5,11 @@ deciders: Vultron maintainers
 consulted: notes/case-log-authority.md, notes/sync-log-replication.md, specs/case-log-processing.yaml
 ---
 
-# Case Log Is a Canonical Protocol Ledger, Not a Process Log
+# Separate the Case Ledger from the Per-Actor Process Log
 
 ## Context and Problem Statement
 
-The canonical case log (`CaseLogEntry` chain authored by the CaseActor) and
+The canonical case ledger (`CaseLedgerEntry` chain authored by the CaseActor) and
 the per-actor runtime process log (Python `logging` output) serve fundamentally
 different purposes, but the distinction has not been carved deeply enough to
 prevent agents and code from conflating them.
@@ -17,7 +17,7 @@ prevent agents and code from conflating them.
 Evidence: A two-actor demo run (case
 `urn:uuid:0f69d289-734f-47af-afd2-37091895371a`, 2026-06-12) revealed
 synthetic checkpoint events such as `demo_verification` being committed to
-the canonical case log with empty `payloadSnapshot` fields, alongside the
+the canonical case ledger with empty `payloadSnapshot` fields, alongside the
 absence of the actual protocol-significant activities (`validate_report`,
 `accept_report`, `propose_embargo`, `accept_embargo`, `notify_*`,
 `close_case`, `add_note`) that *should* be in the log.
@@ -29,7 +29,7 @@ thing" sink.
 
 ## Decision Drivers
 
-- The canonical case log is replicated to all participants and forms the
+- The canonical case ledger is replicated to all participants and forms the
   authoritative shared history of the case; its contents are protocol-visible.
 - The process log is per-actor, ephemeral, and intended for operators and
   developers; it must never be replicated or relied on for protocol semantics.
@@ -42,9 +42,9 @@ thing" sink.
 ## Considered Options
 
 - A. **Single log, multiple severity levels** — record everything in the
-  canonical case log, with a severity field distinguishing protocol events
+  canonical case ledger, with a severity field distinguishing protocol events
   from diagnostics.
-- B. **Two distinct logs with strict separation** — the canonical case log is
+- B. **Two distinct logs with strict separation** — the canonical case ledger is
   exclusively for CaseActor-authored records of protocol-significant
   assertions; runtime diagnostics, demo checkpoints, and any other
   per-actor observability go to Python `logging` (the process log) and
@@ -56,16 +56,16 @@ thing" sink.
 
 Chosen option: **B — two distinct logs with strict separation**.
 
-The canonical case log MUST contain only CaseActor-authored
-`CaseLogEntry` records whose `payloadSnapshot` is the verbatim AS2
+The canonical case ledger MUST contain only CaseActor-authored
+`CaseLedgerEntry` records whose `payloadSnapshot` is the verbatim AS2
 activity (or a normalized, deterministic snapshot) that was accepted as
 a protocol-significant assertion. Runtime diagnostics, demo
 checkpoints, troubleshooting markers, and any other per-actor
 observability MUST use the per-actor process log (Python `logging`) at
 the level prescribed in `specs/structured-logging.yaml`. Process-log
-content MUST NOT enter the canonical case log under any circumstance.
+content MUST NOT enter the canonical case ledger under any circumstance.
 
-The commit boundary of the canonical case log is therefore an enforcement
+The commit boundary of the canonical case ledger is therefore an enforcement
 point: a runtime guard at the CaseActor's commit path SHOULD reject
 entries that do not meet canonical entry criteria, so violations fail
 fast instead of silently polluting replicated history.
@@ -83,7 +83,7 @@ fast instead of silently polluting replicated history.
   cite when reviewing code that calls `record_event()` or appends to the
   canonical log.
 - Bad, because existing call sites that currently emit synthetic events
-  into the case log must be migrated to the process log or removed.
+  into the case ledger must be migrated to the process log or removed.
 - Bad, because adding a commit-boundary guard introduces a new runtime
   check that must be carefully placed to avoid blocking legitimate
   CaseActor writes.
@@ -98,15 +98,63 @@ fast instead of silently polluting replicated history.
   implementation issue) includes a `non-empty payloadSnapshot` check
   that fails the build when synthetic entries are committed.
 
+## Terminology
+
+This ADR also formalizes a terminology rename motivated by the same
+conflation problem it addresses. The historical name "case log" was
+ambiguous: it sat too close to Python `logging` and invited use as a
+generic event sink. Going forward, the project uses **ledger** vocabulary
+for the canonical, append-only, hash-chained, replicated record of
+protocol-significant case events:
+
+| Old name | New name |
+|---|---|
+| Case Log | **Case Ledger** |
+| `CaseLogEntry` | **`CaseLedgerEntry`** |
+| `CaseEventLog` | **`CaseLedger`** |
+| `HashChainLogRecord` | **`HashChainLedgerRecord`** |
+| `case_log_entry` module | **`case_ledger_entry`** module |
+| `case_event_log` module | **`case_ledger`** module |
+| `Announce(CaseLogEntry)` wire envelope | **`Announce(CaseLedgerEntry)`** |
+| case audit log | **case audit ledger** |
+| (new method) | **`commit_ledger_entry()`** for the canonical append API |
+
+`record_event()` is **not** renamed — it is the legacy `CaseEvent` path,
+which is scheduled for removal in #792. The new canonical append API
+on the CaseActor side is named `commit_ledger_entry()` to align with the
+commit-discipline vocabulary in `notes/sync-log-replication.md` and to
+make it self-evident that the method appends to the authoritative
+ledger, not to a generic log sink.
+
+The "process log" remains the standard term for per-actor Python
+`logging` output, governed by `specs/structured-logging.yaml`. It is
+ephemeral, per-actor, never replicated, and never part of any hash
+chain.
+
+**Rationale.** "Ledger" carries the exact semantic properties the
+canonical record must have: append-only, authoritative, immutable,
+audit-grade, and amenable to hash-chained / Merkle-tree representation.
+It maps cleanly onto distributed-systems precedent (blockchain ledgers,
+event-sourcing ledgers, Raft log entries reframed as ledger
+appends) and removes the naming collision with Python `logging`.
+
+**Migration.** The terminology decision is captured here at ADR level so
+it cannot be re-litigated quietly. The mechanical bulk rename of source
+code, remaining specs/notes, file paths (`specs/case-log-processing.yaml`,
+`notes/case-log-authority.md`, `vultron/core/models/case_log.py`,
+`vultron/core/models/case_log_entry.py`, etc.), and wire-format type
+identifiers is tracked as a dedicated implementation issue under epic #788, scheduled to land before the bulk of CLP-07 enforcement work so
+that follow-on PRs are written in the new vocabulary from the start.
+
 ## More Information
 
 - ADR-0018 — Canonical Case History Convergence on `CaseLogEntry` —
   established the single-writer convergence; this ADR sharpens the
   *content* boundary of that single writer's log.
-- Concern #923 — Two-actor demo case log: hash-chain fork, oscillation
+- Concern #923 — Two-actor demo case ledger: hash-chain fork, oscillation
   loop, and 17 protocol correctness findings — the empirical evidence
   motivating this ADR.
-- Epic #788 — Converge CaseEvent flow onto canonical CaseLogEntry.
+- Epic #788 — Converge CaseEvent flow onto canonical CaseLedgerEntry.
 - `notes/case-log-authority.md` — design rationale for the canonical
   entry model.
 - `notes/sync-log-replication.md` — replication invariants that depend on
