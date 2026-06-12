@@ -6,7 +6,7 @@ related_specs:
   - specs/participant-case-replica.yaml
   - specs/case-bootstrap-trust.yaml
   - specs/case-management.yaml
-  - specs/sync-log-replication.yaml
+  - specs/sync-ledger-replication.yaml
 relevant_packages:
   - vultron/core/behaviors/case
   - vultron/core/models
@@ -18,7 +18,7 @@ relevant_packages:
 **Relates to**: `specs/participant-case-replica.yaml`
 
 **Cross-references**: `specs/case-management.yaml`,
-`specs/sync-log-replication.yaml`, `specs/actor-knowledge-model.yaml`,
+`specs/sync-ledger-replication.yaml`, `specs/actor-knowledge-model.yaml`,
 `specs/case-bootstrap-trust.yaml`
 
 > **Supersession note**: The non-owner bootstrap guidance in this file is

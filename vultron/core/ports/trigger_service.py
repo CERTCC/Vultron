@@ -32,7 +32,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Protocol
 
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 
 
 class TriggerServicePort(Protocol):
@@ -221,4 +221,4 @@ class TriggerServicePort(Protocol):
         reason_code: str | None = None,
         reason_detail: str | None = None,
         disposition: str = "recorded",
-    ) -> VultronCaseLogEntry: ...
+    ) -> VultronCaseLedgerEntry: ...

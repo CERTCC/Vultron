@@ -26,7 +26,7 @@ from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import _now_utc
 from vultron.core.models.base import VultronObject
-from vultron.core.models.case_log import GENESIS_HASH
+from vultron.core.models.case_ledger import GENESIS_HASH
 
 
 class VultronReplicationState(VultronObject):

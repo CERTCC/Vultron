@@ -850,17 +850,20 @@ def test_handle_outbox_item_converts_typed_activity_with_full_target():
     assert recipient in emitted_recipients
 
 
-def test_handle_outbox_item_preserves_inline_case_log_entry_fields():
-    """Announce(CaseLogEntry) delivery keeps full inline log-entry fields."""
-    from vultron.core.models.case_log import GENESIS_HASH, HashChainLogRecord
+def test_handle_outbox_item_preserves_inline_case_ledger_entry_fields():
+    """Announce(CaseLedgerEntry) delivery keeps full inline log-entry fields."""
+    from vultron.core.models.case_ledger import (
+        GENESIS_HASH,
+        HashChainLedgerRecord,
+    )
     from vultron.core.use_cases.triggers.sync import _to_persistable_entry
     from vultron.wire.as2.factories import announce_log_entry_activity
-    from vultron.wire.as2.vocab.objects.case_log_entry import (
-        CaseLogEntry as WireCaseLogEntry,
+    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+        CaseLedgerEntry as WireCaseLedgerEntry,
     )
 
     recipient = "https://example.org/actors/participant"
-    chain_entry = HashChainLogRecord(
+    chain_entry = HashChainLedgerRecord(
         case_id="https://example.org/cases/case-sync-2",
         log_index=0,
         object_id="https://example.org/activities/logged-2",
@@ -870,7 +873,7 @@ def test_handle_outbox_item_preserves_inline_case_log_entry_fields():
     )
     entry = _to_persistable_entry(chain_entry)
     activity = announce_log_entry_activity(
-        WireCaseLogEntry.from_core(entry),
+        WireCaseLedgerEntry.from_core(entry),
         actor="https://example.org/actors/case-actor",
         to=[recipient],
     )

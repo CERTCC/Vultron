@@ -26,8 +26,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
-from vultron.core.models.case_log import HashChainLogRecord
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.case_ledger import HashChainLedgerRecord
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.protocols import (
     LogEntryModel,
     is_case_model,
@@ -52,7 +52,7 @@ def extract_activity_snapshot(request: "VultronEvent") -> dict[str, Any]:
 
     When ``request.activity`` is populated (``include_activity=True`` in
     the registry entry), returns its ``model_dump`` as the snapshot so
-    that case-log entries carry the full inbound AS2 activity object.
+    that case-ledger entries carry the full inbound AS2 activity object.
     Returns an empty dict when no activity snapshot is available.
 
     Args:
@@ -78,13 +78,13 @@ def extract_activity_snapshot(request: "VultronEvent") -> dict[str, Any]:
 
 
 def _to_persistable_entry(
-    chain_entry: HashChainLogRecord,
-) -> VultronCaseLogEntry:
-    """Convert a hash-chained :class:`HashChainLogRecord` to a :class:`VultronCaseLogEntry`.
+    chain_entry: HashChainLedgerRecord,
+) -> VultronCaseLedgerEntry:
+    """Convert a hash-chained :class:`HashChainLedgerRecord` to a :class:`VultronCaseLedgerEntry`.
 
     Copies all fields so that the entry can be stored via the DataLayer.
     """
-    return VultronCaseLogEntry(
+    return VultronCaseLedgerEntry(
         case_id=chain_entry.case_id,
         log_index=chain_entry.log_index,
         disposition=chain_entry.disposition,
@@ -101,12 +101,12 @@ def _to_persistable_entry(
 
 def _fan_out_log_entry(
     case_id: str,
-    entry: VultronCaseLogEntry,
+    entry: VultronCaseLedgerEntry,
     actor_id: str,
     dl: CaseOutboxPersistence,
     sync_port: SyncActivityPort | None = None,
 ) -> None:
-    """Create one ``Announce(CaseLogEntry)`` per peer and queue for delivery.
+    """Create one ``Announce(CaseLedgerEntry)`` per peer and queue for delivery.
 
     Reads the case from the DataLayer to get the participant list.
     Participants other than *actor_id* (the CaseActor) each receive their
@@ -150,7 +150,7 @@ def _fan_out_log_entry(
             to=[recipient_id],
         )
         logger.info(
-            "sync fan-out: queued Announce(CaseLogEntry) → '%s'",
+            "sync fan-out: queued Announce(CaseLedgerEntry) → '%s'",
             recipient_id,
         )
 
@@ -167,14 +167,14 @@ def commit_log_entry_trigger(
     reason_detail: str | None = None,
     disposition: str = "recorded",
     sync_port: SyncActivityPort | None = None,
-) -> VultronCaseLogEntry:
+) -> VultronCaseLedgerEntry:
     """Commit a new log entry to the local chain and fan it out to peers.
 
     Reconstructs the current chain tail from the DataLayer, appends the new
-    entry via :class:`~vultron.core.models.case_log.CaseEventLog`, converts
-    to a :class:`~vultron.core.models.case_log_entry.VultronCaseLogEntry`,
+    entry via :class:`~vultron.core.models.case_ledger.CaseLedger`, converts
+    to a :class:`~vultron.core.models.case_ledger_entry.VultronCaseLedgerEntry`,
     persists it, and fans it out to all case participants via
-    ``Announce(CaseLogEntry)`` activities.
+    ``Announce(CaseLedgerEntry)`` activities.
 
     Args:
         case_id: URI of the parent :class:`VulnerabilityCase`.
@@ -189,17 +189,17 @@ def commit_log_entry_trigger(
         disposition: ``"recorded"`` (default) or ``"rejected"``.
 
     Returns:
-        The newly created and persisted :class:`VultronCaseLogEntry`.
+        The newly created and persisted :class:`VultronCaseLedgerEntry`.
 
     Spec: SYNC-02-002, SYNC-02-003, SYNC-03-001.
     """
     tail_hash, tail_index = _reconstruct_tail_hash(case_id, dl)
 
-    # Create the new entry directly using HashChainLogRecord so the entry_hash is
-    # auto-computed by the model_validator.  We do not use CaseEventLog.append()
+    # Create the new entry directly using HashChainLedgerRecord so the entry_hash is
+    # auto-computed by the model_validator.  We do not use CaseLedger.append()
     # here because that always starts a fresh log at index 0; we carry forward
     # the DataLayer state via tail_hash and tail_index instead.
-    chain_entry = HashChainLogRecord(
+    chain_entry = HashChainLedgerRecord(
         case_id=case_id,
         log_index=tail_index + 1,
         object_id=object_id,
@@ -238,10 +238,10 @@ def replay_missing_entries_trigger(
 ) -> int:
     """Replay all log entries after *from_hash* to a specific peer.
 
-    Queries all :class:`~vultron.core.models.case_log_entry.VultronCaseLogEntry`
+    Queries all :class:`~vultron.core.models.case_ledger_entry.VultronCaseLedgerEntry`
     records for *case_id*, finds entries with ``log_index`` strictly greater
     than the index of the entry whose ``entry_hash`` matches *from_hash*,
-    and queues an ``Announce(CaseLogEntry)`` activity for each to *peer_id*.
+    and queues an ``Announce(CaseLedgerEntry)`` activity for each to *peer_id*.
 
     When *from_hash* is ``GENESIS_HASH`` (or not found among stored entries),
     ALL entries for the case are replayed.
@@ -260,7 +260,7 @@ def replay_missing_entries_trigger(
     """
     entries: list[LogEntryModel] = [
         obj
-        for obj in dl.list_objects("CaseLogEntry")
+        for obj in dl.list_objects("CaseLedgerEntry")
         if is_log_entry_model(obj) and obj.case_id == case_id
     ]
 
@@ -305,7 +305,7 @@ def replay_missing_entries_trigger(
             to=[peer_id],
         )
         logger.info(
-            "sync replay: queued Announce(CaseLogEntry) "
+            "sync replay: queued Announce(CaseLedgerEntry) "
             "(log_index=%d) → '%s'",
             entry.log_index,
             peer_id,

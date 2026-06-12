@@ -8,13 +8,13 @@ description: >-
   migration from procedural sync use-case code.
 related_specs:
   - specs/sync-behavior-trees.yaml
-  - specs/sync-log-replication.yaml
+  - specs/sync-ledger-replication.yaml
   - specs/behavior-tree-integration.yaml
-  - specs/case-log-processing.yaml
+  - specs/case-ledger-processing.yaml
 related_notes:
-  - notes/sync-log-replication.md
+  - notes/sync-ledger-replication.md
   - notes/bt-integration.md
-  - notes/case-log-authority.md
+  - notes/case-ledger-authority.md
   - notes/event-driven-control-flow.md
 relevant_packages:
   - vultron/core/behaviors
@@ -26,7 +26,7 @@ relevant_packages:
 # Sync Behavior Trees — Design Notes
 
 **Relates to**: `specs/sync-behavior-trees.yaml` (SBT-01 through SBT-05),
-`specs/sync-log-replication.yaml`, `specs/behavior-tree-integration.yaml`
+`specs/sync-ledger-replication.yaml`, `specs/behavior-tree-integration.yaml`
 
 **Source ideas**: IDEA-26050402 (case-actor vs non-case-actor log entry
 handling), IDEA-26050403 (sync behavior tree design)
@@ -67,7 +67,7 @@ distinction that the current code treats uniformly.
 
 ### 1. AnnounceLogEntryReceivedBT
 
-Handles inbound `Announce(CaseLogEntry)`. Root is a Selector with an
+Handles inbound `Announce(CaseLedgerEntry)`. Root is a Selector with an
 identity-check branch at the top — if the receiving actor is the case-actor,
 take the case-actor subtree; otherwise take the participant subtree.
 
@@ -85,7 +85,7 @@ AnnounceLogEntryReceivedBT (Selector)
       ├─ ReconstructChainTail             # Action: populate tail_hash, tail_index on blackboard
       ├─ CheckHashChainMatch              # Condition: prev_log_hash == tail_hash
       │   └─ [on FAILURE: SendRejectLogEntry action]
-      └─ PersistLogEntry                  # Action: save VultronCaseLogEntry to DataLayer
+      └─ PersistLogEntry                  # Action: save VultronCaseLedgerEntry to DataLayer
 ```
 
 **Notes**:
@@ -101,7 +101,7 @@ AnnounceLogEntryReceivedBT (Selector)
 
 ### 2. RejectLogEntryReceivedBT
 
-Handles inbound `Reject(CaseLogEntry)`. Triggered when a peer rejects an
+Handles inbound `Reject(CaseLedgerEntry)`. Triggered when a peer rejects an
 announced entry due to hash-chain divergence.
 
 ```text
@@ -115,7 +115,7 @@ RejectLogEntryReceivedBT (Sequence)
 
 - `ReplayMissingEntries` queries the DataLayer for all log entries with
   `log_index > index_of(last_accepted_hash)` and queues one
-  `Announce(CaseLogEntry)` per entry per recipient via SyncActivityPort.
+  `Announce(CaseLedgerEntry)` per entry per recipient via SyncActivityPort.
 - The case-actor ID resolved in `FindCaseActor` is used as the sender for
   replayed announces.
 
@@ -123,12 +123,12 @@ RejectLogEntryReceivedBT (Sequence)
 
 Used by protocol flows (e.g., case creation, note attachment) that need to
 commit a new log entry and fan it out to participants. Replaces the procedural
-`commit_log_entry_trigger()` call inside `CommitCaseLogEntryNode`.
+`commit_log_entry_trigger()` call inside `CommitCaseLedgerEntryNode`.
 
 ```text
 CommitLogEntryBT (Sequence)
 ├─ ReconstructChainTail   # Action: tail_hash, tail_index from DataLayer
-├─ CreateLogEntry         # Action: build VultronCaseLogEntry with computed entry_hash
+├─ CreateLogEntry         # Action: build VultronCaseLedgerEntry with computed entry_hash
 ├─ PersistLogEntry        # Action: save to DataLayer (commit point)
 └─ FanOutLogEntry         # Action: Announce to all case participants via SyncActivityPort
 ```
@@ -139,17 +139,17 @@ CommitLogEntryBT (Sequence)
   after `PersistLogEntry` succeeds (Sequence enforces this).
 - This tree is not invoked as a standalone use case; it is composed as a
   subtree within other BTs (e.g., at the end of `CreateCaseBT`).
-- `CommitCaseLogEntryNode` in `case/nodes.py` MUST be refactored to invoke
+- `CommitCaseLedgerEntryNode` in `case/nodes.py` MUST be refactored to invoke
   this subtree instead of calling `commit_log_entry_trigger()`.
 
 ---
 
 ## Case-Actor vs Non-Case-Actor Distinction
 
-The current `AnnounceLogEntryReceivedUseCase` treats all receiving actors
+The current `AnnounceLedgerEntryReceivedUseCase` treats all receiving actors
 identically. This is incorrect:
 
-| Actor type | Semantics of received `Announce(CaseLogEntry)` |
+| Actor type | Semantics of received `Announce(CaseLedgerEntry)` |
 |---|---|
 | Non-case-actor (participant) | State update: replicate entry into local replica |
 | Case-actor (own entry round-tripped) | Delivery confirmation: entry already committed |
@@ -212,7 +212,7 @@ class PersistLogEntry(DataLayerAction):
 |---|---|---|
 | `datalayer` | `DataLayer` | Existing convention |
 | `sync_port` | `SyncActivityPort` | Outbound activity queuing |
-| `log_entry` | `VultronCaseLogEntry` | Entry being processed or created |
+| `log_entry` | `VultronCaseLedgerEntry` | Entry being processed or created |
 | `tail_hash` | `str` | Current chain tail hash |
 | `tail_index` | `int` | Current chain tail log_index |
 | `peer_id` | `str` | Actor ID of rejecting peer |
@@ -241,7 +241,7 @@ Map existing procedural functions to BT nodes:
 |---|---|
 | `_reconstruct_tail_hash()` | `ReconstructChainTailNode` (Action) |
 | Hash-match comparison | `CheckHashChainMatchNode` (Condition) |
-| Duplicate entry check | `CheckLogEntryAlreadyStoredNode` (Condition) |
+| Duplicate entry check | `CheckLedgerEntryAlreadyStoredNode` (Condition) |
 | `dl.save(entry)` call | `PersistLogEntryNode` (Action) |
 | `sync_port.send_reject_log_entry()` | `SendRejectLogEntryNode` (Action) |
 | `_fan_out_log_entry()` | `FanOutLogEntryNode` (Action) |
@@ -254,9 +254,9 @@ Replace the procedural body of each use case's `execute()` method with
 a `BTBridge.execute_with_setup()` call, injecting `sync_port` in
 `context_data`.
 
-### Step 4 — Refactor `CommitCaseLogEntryNode`
+### Step 4 — Refactor `CommitCaseLedgerEntryNode`
 
-Change `CommitCaseLogEntryNode.update()` to compose and execute
+Change `CommitCaseLedgerEntryNode.update()` to compose and execute
 `CommitLogEntryBT` as a subtree. Remove the direct call to
 `commit_log_entry_trigger()`.
 
@@ -343,9 +343,9 @@ def test_announce_received_case_actor_injection_attempt(mock_dl, caplog):
 ## Related
 
 - `specs/sync-behavior-trees.yaml` — normative requirements (SBT-01–SBT-05)
-- `specs/sync-log-replication.yaml` — SYNC-01–SYNC-09
+- `specs/sync-ledger-replication.yaml` — SYNC-01–SYNC-09
 - `specs/behavior-tree-integration.yaml` — BT-06-001, BT-06-005, BT-06-006
-- `specs/case-log-processing.yaml` — CLP-01–CLP-05
-- `notes/sync-log-replication.md` — hash-chain design, replication phases
-- `notes/case-log-authority.md` — assertion vs canonical log entry model
+- `specs/case-ledger-processing.yaml` — CLP-01–CLP-05
+- `notes/sync-ledger-replication.md` — hash-chain design, replication phases
+- `notes/case-ledger-authority.md` — assertion vs canonical log entry model
 - `notes/bt-integration.md` — BT execution model and design decisions

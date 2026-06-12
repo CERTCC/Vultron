@@ -28,7 +28,7 @@ preserves the original single-file dispatch sequence:
   report → case → actor → embargo → sync → case_participant → note → status → unknown
 
 ``sync`` begins with ``CLOSE_CASE`` (position 32 in the original file),
-followed by the case-log sync entries.  ``case_participant`` entries follow
+followed by the case-ledger sync entries.  ``case_participant`` entries follow
 sync (positions 35–37).  ``unknown`` MUST remain last.
 
 Public API
@@ -197,7 +197,7 @@ def _validate_registry_order(registry: list[SemanticEntry]) -> None:
 #   2. Cases          — CREATE_CASE, UPDATE_CASE, ENGAGE_CASE, DEFER_CASE, …
 #   3. Actors         — actor-related entries
 #   4. Embargo        — CREATE_EMBARGO_EVENT, INVITE_TO_EMBARGO, …
-#   5. Sync           — CLOSE_CASE, case-log sync entries
+#   5. Sync           — CLOSE_CASE, case-ledger sync entries
 #   6. Case members   — INVITE_ACTOR_TO_CASE, ACCEPT_INVITE_ACTOR_TO_CASE, …
 #   7. Notes          — CREATE_NOTE, ADD_NOTE_TO_CASE, REMOVE_NOTE_FROM_CASE
 #   8. Status         — participant status entries

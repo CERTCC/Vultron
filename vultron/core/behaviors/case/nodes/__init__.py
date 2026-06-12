@@ -52,7 +52,9 @@ from vultron.core.behaviors.case.nodes.conditions import (
 from vultron.core.behaviors.case.nodes.embargo import (
     InitializeDefaultEmbargoNode,
 )
-from vultron.core.behaviors.case.nodes.lifecycle import CommitCaseLogEntryNode
+from vultron.core.behaviors.case.nodes.lifecycle import (
+    CommitCaseLedgerEntryNode,
+)
 from vultron.core.behaviors.case.nodes.participant import (
     CreateCaseOwnerParticipant,
     CreateCaseParticipantNode,
@@ -97,7 +99,7 @@ __all__ = [
     "ResolveCaseManagerOfferContextNode",
     "CreateOfferCaseManagerActivityNode",
     # lifecycle
-    "CommitCaseLogEntryNode",
+    "CommitCaseLedgerEntryNode",
     # update
     "CheckCaseUpdateOwnerNode",
     "CaptureCaseUpdateBroadcastExclusionsNode",

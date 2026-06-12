@@ -469,13 +469,13 @@ Short entries are reproduced here; longer ones are referenced below.
   failure modes). Incidental coverage via `test_trignotify.py` or scenario
   demos is insufficient — when `triggers/case.py` accumulated 26 commits in
   90 days (#652), half its use cases had no dedicated test and regressions
-  in case ledgeric shipped behind embargo fixes. Also avoid bundling
+  in case logic shipped behind embargo fixes. Also avoid bundling
   case-trigger and embargo-trigger changes in the same PR unless the change
   is intrinsically cross-cutting; bundled diffs let reviewers miss
   regressions in the half they aren't focused on. See
   [notes/triggers-test-coverage.md](notes/triggers-test-coverage.md).
 - **Hash-Chain Ledger Record vs. Domain Model** — Two distinct classes exist for case
-  ledger entries. `vultron.core.models.case_log.HashChainLedgerRecord` (`BaseModel`) is
+  ledger entries. `vultron.core.models.case_ledger.HashChainLedgerRecord` (`BaseModel`) is
   the in-memory hash-chain record used by `CaseLedger` for local SYNC-1 processing
   — it is **not** persisted or shared over the wire. `vultron.core.models.case_ledger_entry.CaseLedgerEntry`
   (`CoreObject`) is the wire-serialisable domain model used in
@@ -493,8 +493,8 @@ Short entries are reproduced here; longer ones are referenced below.
   per-actor observability belong in Python `logging` output governed by
   `specs/structured-logging.yaml` — **never** in the canonical case ledger. Do
   NOT use `record_event()` or any canonical commit path as a generic "log
-  this thing" sink. See ADR-0019, `specs/case-log-processing.yaml` CLP-07,
-  and `notes/case-log-authority.md` § "Canonical Entry Criteria".
+  this thing" sink. See ADR-0019, `specs/case-ledger-processing.yaml` CLP-07,
+  and `notes/case-ledger-authority.md` § "Canonical Entry Criteria".
 - **Adding a New Pitfall: Check the Routing Policy First** — see
   [notes/agents-md-structure.md](notes/agents-md-structure.md)
 - **Trigger-Side execute() Must Delegate SM Transitions to BTBridge** — A

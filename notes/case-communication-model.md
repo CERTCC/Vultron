@@ -4,16 +4,16 @@ status: active
 description: >
   Canonical communication model for post-case-creation participant messaging:
   all participant messages route through the Case Actor exclusively, and all
-  state updates propagate via CaseLogEntry broadcast. Captures the routing
+  state updates propagate via CaseLedgerEntry broadcast. Captures the routing
   rule, its rationale, common antipatterns, and BT implementation guidance.
 related_specs:
   - specs/participant-case-replica.yaml
-  - specs/sync-log-replication.yaml
-  - specs/case-log-processing.yaml
+  - specs/sync-ledger-replication.yaml
+  - specs/case-ledger-processing.yaml
   - specs/case-management.yaml
 related_notes:
-  - notes/sync-log-replication.md
-  - notes/case-log-authority.md
+  - notes/sync-ledger-replication.md
+  - notes/case-ledger-authority.md
   - notes/event-driven-control-flow.md
   - notes/participant-case-replica.md
   - notes/two-actor-demo.md
@@ -37,7 +37,7 @@ participants, **all case-scoped participant messages MUST flow through
 the Case Actor exclusively**. The canonical flow is:
 
 ```text
-Participant → Case Actor → CaseLogEntry → Announce(CaseLogEntry) → all Participants
+Participant → Case Actor → CaseLedgerEntry → Announce(CaseLedgerEntry) → all Participants
 ```
 
 No participant may send a case-scoped message directly to another
@@ -52,11 +52,11 @@ of authoritative case history.
    (`to: [case_actor_id]`).
 
 2. **Case Actor processes + commits**: On receipt, the Case Actor validates
-   the activity, updates local case state, and commits a `CaseLogEntry`
+   the activity, updates local case state, and commits a `CaseLedgerEntry`
    recording the outcome (accepted or rejected).
 
-3. **Automatic broadcast**: The `CaseLogEntry` commit automatically triggers
-   `Announce(CaseLogEntry)` to all case participants. This is the **only**
+3. **Automatic broadcast**: The `CaseLedgerEntry` commit automatically triggers
+   `Announce(CaseLedgerEntry)` to all case participants. This is the **only**
    mechanism by which participants learn of accepted case-state changes.
 
 ---
@@ -75,7 +75,7 @@ of authoritative case history.
 ## Why This Model
 
 The Case Actor is the single writer of authoritative shared history
-(see `notes/case-log-authority.md`). If participants send messages
+(see `notes/case-ledger-authority.md`). If participants send messages
 directly to each other:
 
 - Content arrives outside the canonical log, so replicas cannot
@@ -113,7 +113,7 @@ activity = add_note_to_case_activity(
 ```
 
 `case_addressees()` is still correct for the Case Actor's **outbound
-broadcast** (when the Case Actor fans out a `CaseLogEntry` to all
+broadcast** (when the Case Actor fans out a `CaseLedgerEntry` to all
 participants). It is wrong on the **participant sender** side.
 
 ---
@@ -142,7 +142,7 @@ shared helper used by all sender-side trigger use cases.
 
 ---
 
-## Automatic CaseLogEntry + Broadcast Cascade
+## Automatic CaseLedgerEntry + Broadcast Cascade
 
 Every Case Actor received-side handler that accepts a participant message
 MUST trigger the cascade automatically — not via a manual demo endpoint.
@@ -151,10 +151,10 @@ The expected flow:
 1. Case Actor inbox receives participant activity.
 2. Case Actor's received-side use case (or BT) processes the assertion.
 3. On acceptance: `commit_log_entry()` → `_fan_out_log_entry()` (queues
-   `Announce(CaseLogEntry)` to all participants via Case Actor outbox).
+   `Announce(CaseLedgerEntry)` to all participants via Case Actor outbox).
 4. `OutboxMonitor` drains the Case Actor outbox → delivers to each
    participant's inbox.
-5. Participant's `AnnounceLogEntryReceivedUseCase` (`received/sync.py`)
+5. Participant's `AnnounceLedgerEntryReceivedUseCase` (`received/sync.py`)
    processes the entry and updates the local replica.
 
 The `vultron/adapters/driving/fastapi/routers/demo_triggers.py`
@@ -211,7 +211,7 @@ Case Actor's AcceptInviteActorToCaseReceivedUseCase:
   1. Creates VultronParticipant at RM.VALID
   2. Records RM VALID→ACCEPTED inline (Accept(Invite) IS the engage signal)
   3. Emits Announce(VulnerabilityCase) to invitee
-  4. Commits CaseLogEntry → Announce(CaseLogEntry) broadcast
+  4. Commits CaseLedgerEntry → Announce(CaseLedgerEntry) broadcast
 ```
 
 ### Key Rules
@@ -278,7 +278,7 @@ records that decision as a direct RM state update, without emitting a proxy
 | Embargo triggers send to all participants | `triggers/embargo.py:399,472,589,657,773` | Open |
 | Engage/defer-case triggers send to all participants | `triggers/case.py:84,132` | Open |
 | No sender-side BTs | All of the above | Open — BT refactor issue |
-| Auto CaseLogEntry cascade not wired to all received handlers | Multiple | Open |
+| Auto CaseLedgerEntry cascade not wired to all received handlers | Multiple | Open |
 | Invite sent from case owner (not Case Actor); Accept routed to owner | `triggers/actor.py`, `received/actor.py` | Open — tracked in #893/#894 |
 
 See GitHub issues under parent concern #593.

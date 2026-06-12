@@ -20,7 +20,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.protocols import is_log_entry_model
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.received.note import (
@@ -418,16 +418,16 @@ class TestNoteUseCases:
         assert note.id_ in refreshed.notes
 
     # ------------------------------------------------------------------
-    # CaseLogEntry cascade tests (PCR-08-003, PCR-08-004) — AC-1
+    # CaseLedgerEntry cascade tests (PCR-08-003, PCR-08-004) — AC-1
     # ------------------------------------------------------------------
 
     def test_add_note_commits_log_entry_when_sync_port_provided(
         self, make_payload
     ):
-        """AddNoteToCaseReceivedUseCase commits a CaseLogEntry (PCR-08-003).
+        """AddNoteToCaseReceivedUseCase commits a CaseLedgerEntry (PCR-08-003).
 
         When a sync_port is injected and receiving_actor_id is set, the use
-        case MUST commit one VultronCaseLogEntry after accepting a note
+        case MUST commit one VultronCaseLedgerEntry after accepting a note
         addition.
         """
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -472,20 +472,20 @@ class TestNoteUseCases:
         sync_port = SyncActivityAdapter(dl)
         AddNoteToCaseReceivedUseCase(dl, event, sync_port=sync_port).execute()
 
-        # Exactly one CaseLogEntry should be persisted for this case.
+        # Exactly one CaseLedgerEntry should be persisted for this case.
         entries = [
             obj
-            for obj in dl.list_objects("CaseLogEntry")
+            for obj in dl.list_objects("CaseLedgerEntry")
             if is_log_entry_model(obj)
-            and cast(VultronCaseLogEntry, obj).case_id == case_id
+            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        entry = cast(VultronCaseLogEntry, entries[0])
+        entry = cast(VultronCaseLedgerEntry, entries[0])
         assert entry.event_type == "add_note_to_case"
         assert entry.log_object_id == note.id_
 
     def test_add_note_no_fanout_without_sync_port(self, make_payload):
-        """No fan-out Announce(CaseLogEntry) is sent when sync_port is None.
+        """No fan-out Announce(CaseLedgerEntry) is sent when sync_port is None.
 
         The log entry IS committed locally, but no outbox messages are queued
         for delivery to participants.
@@ -535,9 +535,9 @@ class TestNoteUseCases:
         # Log entry MUST be committed locally even without a sync_port.
         entries = [
             obj
-            for obj in dl.list_objects("CaseLogEntry")
+            for obj in dl.list_objects("CaseLedgerEntry")
             if is_log_entry_model(obj)
-            and cast(VultronCaseLogEntry, obj).case_id == case_id
+            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
 

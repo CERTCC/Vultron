@@ -59,15 +59,15 @@ sequenceDiagram
     note over F,CA: Phase 2 — Replica Synchronization Verification
 
     note right of V: trigger: sync-log-entry
-    V->>F: Announce(CaseLogEntry)<br/>[SYNC-2 verification]
+    V->>F: Announce(CaseLedgerEntry)<br/>[SYNC-2 verification]
     note over F,CA: ✓ M2 — Finder replica synchronized (SYNC-2)
 
     note over F,CA: Phase 3 — Notes Exchange
 
     F->>CA: Add(Note, target=Case)
-    CA->>V: Announce(CaseLogEntry)<br/>[note broadcast]
+    CA->>V: Announce(CaseLedgerEntry)<br/>[note broadcast]
     V->>CA: Add(Note, target=Case)<br/>[reply]
-    CA->>F: Announce(CaseLogEntry)<br/>[reply broadcast]
+    CA->>F: Announce(CaseLedgerEntry)<br/>[reply broadcast]
 
     note over F,CA: ✓ M3 — Vendor holds authoritative final case state
 
@@ -75,12 +75,12 @@ sequenceDiagram
 
     note right of V: trigger: notify-fix-ready
     V->>CA: Add(ParticipantStatus, CS.VFd)
-    CA->>F: Announce(CaseLogEntry)
+    CA->>F: Announce(CaseLedgerEntry)
     note over F,CA: ✓ M4 — Both replicas: CS includes F
 
     note right of V: trigger: notify-fix-deployed
     V->>CA: Add(ParticipantStatus, CS.VFD)
-    CA->>F: Announce(CaseLogEntry)
+    CA->>F: Announce(CaseLedgerEntry)
     note over F,CA: ✓ M5 — Both replicas: CS includes D
 
     note over F,CA: Phase 5 — Publication & Embargo Teardown
@@ -93,15 +93,15 @@ sequenceDiagram
     CA->>F: Announce(EmbargoEvent)<br/>[EM→EXITED]
     deactivate CA
     F->>CA: Add(ParticipantStatus, CS.VFDPxa)
-    CA->>V: Announce(CaseLogEntry)
+    CA->>V: Announce(CaseLedgerEntry)
     note over F,CA: ✓ M6 — Both replicas: CS.VFDPxa, EM.EXITED
 
     note over F,CA: Phase 6 — Case Closure
 
     V->>CA: Add(ParticipantStatus, RM.CLOSED)
-    CA->>F: Announce(CaseLogEntry)
+    CA->>F: Announce(CaseLedgerEntry)
     F->>CA: Add(ParticipantStatus, RM.CLOSED)
-    CA->>V: Announce(CaseLogEntry)
+    CA->>V: Announce(CaseLedgerEntry)
     note right of CA: BT: all participants RM.CLOSED<br/>→ close case
     note over F,CA: ✓ M7 — All participants RM.CLOSED, case closed
 ```
@@ -216,12 +216,12 @@ The demo runner calls trigger endpoints on both actors:
 
 ### What happens internally
 
-1. **Vendor** commits a demo verification case log entry and queues `Announce(CaseLogEntry)` in its outbox.
-2. Outbox delivery delivers the `Announce(CaseLogEntry)` to the Finder.
+1. **Vendor** commits a demo verification case ledger entry and queues `Announce(CaseLedgerEntry)` in its outbox.
+2. Outbox delivery delivers the `Announce(CaseLedgerEntry)` to the Finder.
 3. **Finder** processes the log entry and updates its local replica.
 4. The demo runner verifies the Finder replica matches the authoritative Vendor state (SYNC-2).
 
-### Example: Announce(CaseLogEntry)
+### Example: Announce(CaseLedgerEntry)
 
 ```json
 {
@@ -230,7 +230,7 @@ The demo runner calls trigger endpoints on both actors:
   "actor": "http://vendor:7999/api/v2/actors/vendor",
   "to": ["http://finder:7999/api/v2/actors/finder"],
   "object": {
-    "type": "CaseLogEntry",
+    "type": "CaseLedgerEntry",
     "id": "http://vendor:7999/api/v2/datalayer/{entry-uuid}",
     "content": "SYNC-2 replication verification",
     "hash": "sha256:..."
@@ -267,7 +267,7 @@ POST /api/v2/actors/{vendor_id}/demo/add-note-to-case
 1. **Finder** constructs `Add(Note, target=VulnerabilityCase)` and
    sends it to the Case Actor's inbox.
 2. **Case Actor** receives the note, attaches it to the case, creates
-   a log entry, and broadcasts `Announce(CaseLogEntry)` to all other
+   a log entry, and broadcasts `Announce(CaseLedgerEntry)` to all other
    participants.
 3. **Vendor** receives the broadcast and updates its local case
    replica with the note.
@@ -508,7 +508,7 @@ where it appears:
 | `Create(VulnerabilityCase)` | `CREATE_CASE` | 1 | Vendor → Finder |
 | `Add(ParticipantStatus)` | `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` | 2–6 | Any → Case Actor |
 | `Add(Note, target=Case)` | `ADD_NOTE_TO_CASE` | 3 | Any → Case Actor |
-| `Announce(CaseLogEntry)` | `ANNOUNCE_CASE_LOG_ENTRY` | 2–6 | Case Actor → All |
+| `Announce(CaseLedgerEntry)` | `ANNOUNCE_CASE_LEDGER_ENTRY` | 2–6 | Case Actor → All |
 | `Announce(EmbargoEvent)` | `ANNOUNCE_EMBARGO_EVENT_TO_CASE` | 5 | Case Actor → All |
 
 ---

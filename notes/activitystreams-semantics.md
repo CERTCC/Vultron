@@ -553,7 +553,7 @@ as the base `as_Object` shape and silently omit subtype-only fields.
 
 **Fix**: For any adapter path that re-validates or delivers rehydrated
 activities, prefer `model_dump(..., serialize_as_any=True)` so inline typed
-payloads (such as `CaseLogEntry`) survive semantic coercion and HTTP delivery
+payloads (such as `CaseLedgerEntry`) survive semantic coercion and HTTP delivery
 intact.
 
 **Regression coverage** MUST hit **both** the persistence boundary AND the

@@ -217,11 +217,11 @@ def wait_for_finder_log_entry(
     timeout_seconds: float = 15.0,
     poll_interval: float = 0.5,
 ) -> None:
-    """Poll finder's DataLayer until a ``CaseLogEntry`` with *entry_hash* appears.
+    """Poll finder's DataLayer until a ``CaseLedgerEntry`` with *entry_hash* appears.
 
-    Proves that the vendor's ``Announce(CaseLogEntry)`` outbox activity was
+    Proves that the vendor's ``Announce(CaseLedgerEntry)`` outbox activity was
     delivered to the finder's inbox and processed by
-    ``AnnounceLogEntryReceivedUseCase`` (SYNC-2 receive side).
+    ``AnnounceLedgerEntryReceivedUseCase`` (SYNC-2 receive side).
 
     Args:
         finder_client: DataLayerClient connected to the Finder container.
@@ -237,7 +237,7 @@ def wait_for_finder_log_entry(
     """
 
     def _check_with_log() -> bool:
-        raw = finder_client.get("/datalayer/CaseLogEntrys/")
+        raw = finder_client.get("/datalayer/CaseLedgerEntrys/")
         if not isinstance(raw, dict):
             return False
         for v in raw.values():

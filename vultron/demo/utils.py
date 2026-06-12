@@ -166,7 +166,7 @@ class DataLayerClient(BaseModel):
 
         Returns:
             Parsed JSON response body.  Most endpoints return a ``dict``, but
-            list endpoints (e.g. the case-log endpoint) return a ``list``.
+            list endpoints (e.g. the case-ledger endpoint) return a ``list``.
 
         Raises:
             httpx.HTTPStatusError: When the response status is not OK.

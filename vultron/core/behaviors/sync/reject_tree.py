@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Behavior tree factory for inbound Reject(CaseLogEntry) handling."""
+"""Behavior tree factory for inbound Reject(CaseLedgerEntry) handling."""
 
 import py_trees
 

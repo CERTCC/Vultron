@@ -121,9 +121,9 @@ def has_outbox(obj: PersistableModel | None) -> TypeGuard[ActorModel]:
 
 
 class LogEntryModel(PersistableModel, Protocol):
-    """Protocol for a persisted canonical case log entry.
+    """Protocol for a persisted canonical case ledger entry.
 
-    Satisfied by :class:`~vultron.core.models.case_log_entry.VultronCaseLogEntry`.
+    Satisfied by :class:`~vultron.core.models.case_ledger_entry.VultronCaseLedgerEntry`.
     Used by the receive-side use case without importing from wire layer.
     """
 
@@ -145,7 +145,7 @@ def is_log_entry_model(obj: object | None) -> TypeGuard[LogEntryModel]:
     """Return True if *obj* satisfies the :class:`LogEntryModel` protocol."""
     return bool(
         obj is not None
-        and getattr(obj, "type_", None) == "CaseLogEntry"
+        and getattr(obj, "type_", None) == "CaseLedgerEntry"
         and hasattr(obj, "case_id")
         and hasattr(obj, "log_index")
         and hasattr(obj, "prev_log_hash")

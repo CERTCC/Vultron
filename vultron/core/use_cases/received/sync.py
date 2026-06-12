@@ -97,12 +97,12 @@ def _update_replication_state(
         )
 
 
-class AnnounceLogEntryReceivedUseCase:
-    """Process a received ``Announce(CaseLogEntry)`` activity.
+class AnnounceLedgerEntryReceivedUseCase:
+    """Process a received ``Announce(CaseLedgerEntry)`` activity.
 
     Validates the incoming entry against the local hash-chain tail and
     persists it if the chain is consistent.  On mismatch, sends a
-    ``Reject(CaseLogEntry)`` back to the CaseActor carrying the local
+    ``Reject(CaseLedgerEntry)`` back to the CaseActor carrying the local
     tail hash (SYNC-03-001).
 
     Spec: SYNC-02-003, SYNC-03-001 through SYNC-03-003.
@@ -123,7 +123,7 @@ class AnnounceLogEntryReceivedUseCase:
         entry = request.log_entry
         if entry is None:
             logger.warning(
-                "sync: received ANNOUNCE_CASE_LOG_ENTRY activity '%s' "
+                "sync: received ANNOUNCE_CASE_LEDGER_ENTRY activity '%s' "
                 "with no log entry object — ignoring",
                 request.activity_id,
             )
@@ -151,10 +151,10 @@ class AnnounceLogEntryReceivedUseCase:
             )
 
 
-class RejectLogEntryReceivedUseCase:
+class RejectLedgerEntryReceivedUseCase:
     """CaseActor handles a participant's rejection of a log entry announcement.
 
-    When a participant rejects an ``Announce(CaseLogEntry)`` because the
+    When a participant rejects an ``Announce(CaseLedgerEntry)`` because the
     ``prev_log_hash`` does not match their local tail, the CaseActor:
 
     1. Updates :class:`~vultron.core.models.replication_state.VultronReplicationState`
@@ -180,14 +180,14 @@ class RejectLogEntryReceivedUseCase:
         rejected_entry = request.rejected_entry
         if rejected_entry is None:
             logger.warning(
-                "sync: received REJECT_CASE_LOG_ENTRY from '%s' "
+                "sync: received REJECT_CASE_LEDGER_ENTRY from '%s' "
                 "with no log entry object — ignoring",
                 request.actor_id,
             )
             return
 
         logger.info(
-            "sync: received Reject(CaseLogEntry) from peer '%s' "
+            "sync: received Reject(CaseLedgerEntry) from peer '%s' "
             "for case '%s', last_accepted_hash=%.16s…",
             request.actor_id,
             rejected_entry.case_id,

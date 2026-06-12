@@ -11,10 +11,10 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""CI case-log invariant assertion harness (issue #925).
+"""CI case-ledger invariant assertion harness (issue #925).
 
-Parses the JSONL case-log replica files produced by the two-actor demo
-(``devlogs/<demo>/<actor>/*-case-log.jsonl``) and asserts a set of
+Parses the JSONL case-ledger replica files produced by the two-actor demo
+(``devlogs/<demo>/<actor>/*-case-ledger.jsonl``) and asserts a set of
 canonical-log invariants.
 
 All invariants that are not yet passing are decorated with
@@ -28,11 +28,11 @@ them.  The ratchet workflow:
 - When a fix lands, remove the ``xfail`` decorator from the corresponding
   test to promote it to a permanent regression guard (AC-3).
 
-See ``README-case-log-ratchet.md`` in this directory for the full ratchet
+See ``README-case-ledger-ratchet.md`` in this directory for the full ratchet
 workflow documentation (AC-6).
 
-All tests are tagged ``@pytest.mark.case_log_invariants`` for targeted
-CI selection (``uv run pytest -m case_log_invariants``).  They skip
+All tests are tagged ``@pytest.mark.case_ledger_invariants`` for targeted
+CI selection (``uv run pytest -m case_ledger_invariants``).  They skip
 automatically when ``devlogs/`` is absent, so they are safe to include in
 the regular unit-test collection.
 
@@ -50,7 +50,7 @@ import pytest
 # Constants
 # ---------------------------------------------------------------------------
 
-#: Sentinel hash used for the genesis entry (mirrors vultron.core.models.case_log).
+#: Sentinel hash used for the genesis entry (mirrors vultron.core.models.case_ledger).
 GENESIS_HASH: str = "0" * 64
 
 _REPO_ROOT: Path = Path(__file__).resolve().parents[2]
@@ -69,7 +69,7 @@ EXPECTED_EVENT_TYPES: frozenset[str] = frozenset(
         "notify_published",
         "close_case",
         "add_note",
-        "announce_case_log_entry",
+        "announce_case_ledger_entry",
     }
 )
 
@@ -122,10 +122,10 @@ def _payload(entry: dict) -> dict:
 
 
 @pytest.fixture(scope="module")
-def case_log_replicas() -> dict[str, list[dict]]:
-    """Load all JSONL case log files, grouped by actor name.
+def case_ledger_replicas() -> dict[str, list[dict]]:
+    """Load all JSONL case ledger files, grouped by actor name.
 
-    Reads every ``*-case-log.jsonl`` file under ``devlogs/`` (relative to
+    Reads every ``*-case-ledger.jsonl`` file under ``devlogs/`` (relative to
     the repo root) and groups entries by the containing actor directory name
     (e.g. ``"finder"``, ``"vendor"``, ``"case-actor"``).  Entries within
     each actor are sorted by ``log_index`` ascending.
@@ -139,19 +139,19 @@ def case_log_replicas() -> dict[str, list[dict]]:
     if not _DEVLOGS_DIR.exists():
         pytest.skip(
             "devlogs/ directory not found — run the two-actor demo first "
-            "(see test/ci/README-case-log-ratchet.md)"
+            "(see test/ci/README-case-ledger-ratchet.md)"
         )
 
     replicas: dict[str, list[dict]] = {}
-    for jsonl_file in sorted(_DEVLOGS_DIR.glob("**/*-case-log.jsonl")):
+    for jsonl_file in sorted(_DEVLOGS_DIR.glob("**/*-case-ledger.jsonl")):
         # Directory layout: devlogs/<demo_name>/<actor_name>/*.jsonl
         actor_name = jsonl_file.parent.name
         replicas.setdefault(actor_name, []).extend(_load_jsonl(jsonl_file))
 
     if not replicas:
         pytest.skip(
-            "No *-case-log.jsonl files found under devlogs/ — "
-            "run the two-actor demo first (see test/ci/README-case-log-ratchet.md)"
+            "No *-case-ledger.jsonl files found under devlogs/ — "
+            "run the two-actor demo first (see test/ci/README-case-ledger-ratchet.md)"
         )
 
     # Stable sort within each actor by log_index ascending.
@@ -214,11 +214,11 @@ _CHAIN_ACTORS = [
 ]
 
 
-@pytest.mark.case_log_invariants
+@pytest.mark.case_ledger_invariants
 @pytest.mark.parametrize("actor_name", _CHAIN_ACTORS)
 def test_invariant_1_local_hash_chain_consistent(
     actor_name: str,
-    case_log_replicas: dict[str, list[dict]],
+    case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
     """Within each contiguous logIndex fragment, hashes chain correctly.
 
@@ -237,7 +237,7 @@ def test_invariant_1_local_hash_chain_consistent(
     finder is xfail until #789 (CaseActor commit-path uniqueness) lands.
     Spec: CLP-07.
     """
-    entries = case_log_replicas.get(actor_name)
+    entries = case_ledger_replicas.get(actor_name)
     if entries is None:
         pytest.skip(f"No log found for actor {actor_name!r} in devlogs/")
 
@@ -276,7 +276,7 @@ def test_invariant_1_local_hash_chain_consistent(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.case_log_invariants
+@pytest.mark.case_ledger_invariants
 @pytest.mark.xfail(
     strict=False,
     reason=(
@@ -285,7 +285,7 @@ def test_invariant_1_local_hash_chain_consistent(
     ),
 )
 def test_invariant_2_cross_actor_hash_agreement(
-    case_log_replicas: dict[str, list[dict]],
+    case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
     """All actors agree on the entryHash for every shared logIndex (AC-4.2).
 
@@ -293,7 +293,7 @@ def test_invariant_2_cross_actor_hash_agreement(
     ``xfail`` decorator to make it a permanent regression guard.
     """
     by_index: dict[int, dict[str, str]] = {}
-    for actor, entries in case_log_replicas.items():
+    for actor, entries in case_ledger_replicas.items():
         for entry in entries:
             idx = _log_index(entry)
             by_index.setdefault(idx, {})[actor] = _entry_hash(entry)
@@ -309,7 +309,7 @@ def test_invariant_2_cross_actor_hash_agreement(
     )
 
 
-@pytest.mark.case_log_invariants
+@pytest.mark.case_ledger_invariants
 @pytest.mark.xfail(
     strict=False,
     reason=(
@@ -318,7 +318,7 @@ def test_invariant_2_cross_actor_hash_agreement(
     ),
 )
 def test_invariant_3_cross_actor_payload_actor_agreement(
-    case_log_replicas: dict[str, list[dict]],
+    case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
     """All actors agree on payloadSnapshot.actor for every shared logIndex (AC-4.3).
 
@@ -326,7 +326,7 @@ def test_invariant_3_cross_actor_payload_actor_agreement(
     ``xfail`` decorator to make it a permanent regression guard.
     """
     by_index: dict[int, dict[str, str | None]] = {}
-    for actor, entries in case_log_replicas.items():
+    for actor, entries in case_ledger_replicas.items():
         for entry in entries:
             idx = _log_index(entry)
             snap = _payload(entry)
@@ -346,7 +346,7 @@ def test_invariant_3_cross_actor_payload_actor_agreement(
     )
 
 
-@pytest.mark.case_log_invariants
+@pytest.mark.case_ledger_invariants
 @pytest.mark.xfail(
     strict=False,
     reason=(
@@ -355,7 +355,7 @@ def test_invariant_3_cross_actor_payload_actor_agreement(
     ),
 )
 def test_invariant_4_non_empty_payload_snapshot(
-    case_log_replicas: dict[str, list[dict]],
+    case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
     """Every recorded canonical entry has a non-empty payloadSnapshot (AC-4.4).
 
@@ -365,7 +365,7 @@ def test_invariant_4_non_empty_payload_snapshot(
     """
     empty = [
         f"Actor {actor!r} logIndex={_log_index(e)} eventType={_event_type(e)!r}"
-        for actor, entries in case_log_replicas.items()
+        for actor, entries in case_ledger_replicas.items()
         for e in entries
         if e.get("disposition", "recorded") == "recorded" and not _payload(e)
     ]
@@ -375,7 +375,7 @@ def test_invariant_4_non_empty_payload_snapshot(
     )
 
 
-@pytest.mark.case_log_invariants
+@pytest.mark.case_ledger_invariants
 @pytest.mark.xfail(
     strict=False,
     reason=(
@@ -384,7 +384,7 @@ def test_invariant_4_non_empty_payload_snapshot(
     ),
 )
 def test_invariant_5_expected_event_types_present(
-    case_log_replicas: dict[str, list[dict]],
+    case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
     """All expected protocol eventTypes appear at least once (AC-4.5).
 
@@ -393,7 +393,7 @@ def test_invariant_5_expected_event_types_present(
     When this xfail is unexpectedly promoted to XPASS, remove the
     ``xfail`` decorator to make it a permanent regression guard.
     """
-    auth = _auth_entries(case_log_replicas)
+    auth = _auth_entries(case_ledger_replicas)
     found = {_event_type(e) for e in auth}
     missing = EXPECTED_EVENT_TYPES - found
     assert not missing, (
@@ -402,9 +402,9 @@ def test_invariant_5_expected_event_types_present(
     )
 
 
-@pytest.mark.case_log_invariants
+@pytest.mark.case_ledger_invariants
 def test_invariant_6_no_rm_state_oscillation(
-    case_log_replicas: dict[str, list[dict]],
+    case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
     """No participant changes RM state after first reaching CLOSED (AC-4.6).
 
@@ -412,7 +412,7 @@ def test_invariant_6_no_rm_state_oscillation(
     participant reaches ``RM=CLOSED``, no further state change is recorded.
     Promoted from xfail: confirmed passing as of PR #936.
     """
-    auth = _auth_entries(case_log_replicas)
+    auth = _auth_entries(case_ledger_replicas)
     status_entries = [
         e for e in auth if _event_type(e) == "add_participant_status"
     ]
@@ -436,7 +436,7 @@ def test_invariant_6_no_rm_state_oscillation(
     )
 
 
-@pytest.mark.case_log_invariants
+@pytest.mark.case_ledger_invariants
 @pytest.mark.xfail(
     strict=False,
     reason=(
@@ -445,7 +445,7 @@ def test_invariant_6_no_rm_state_oscillation(
     ),
 )
 def test_invariant_7_log_terminates_all_rm_closed(
-    case_log_replicas: dict[str, list[dict]],
+    case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
     """The log terminates with every participant in RM=CLOSED (AC-4.7).
 
@@ -453,7 +453,7 @@ def test_invariant_7_log_terminates_all_rm_closed(
     When this xfail is unexpectedly promoted to XPASS, remove the
     ``xfail`` decorator to make it a permanent regression guard.
     """
-    auth = _auth_entries(case_log_replicas)
+    auth = _auth_entries(case_ledger_replicas)
     latest_rm: dict[str, str] = {}
     for entry in auth:
         if _event_type(entry) != "add_participant_status":
@@ -478,7 +478,7 @@ def test_invariant_7_log_terminates_all_rm_closed(
     ), f"Participants not in RM=CLOSED at log end: {not_closed}"
 
 
-@pytest.mark.case_log_invariants
+@pytest.mark.case_ledger_invariants
 @pytest.mark.xfail(
     strict=False,
     reason=(
@@ -487,7 +487,7 @@ def test_invariant_7_log_terminates_all_rm_closed(
     ),
 )
 def test_invariant_8_late_joiner_has_full_history(
-    case_log_replicas: dict[str, list[dict]],
+    case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
     """Late-joining participants have the full pre-join canonical history (AC-4.8).
 
@@ -497,8 +497,8 @@ def test_invariant_8_late_joiner_has_full_history(
     When this xfail is unexpectedly promoted to XPASS, remove the
     ``xfail`` decorator to make it a permanent regression guard.
     """
-    vendor_entries = case_log_replicas.get("vendor", [])
-    finder_entries = case_log_replicas.get("finder", [])
+    vendor_entries = case_ledger_replicas.get("vendor", [])
+    finder_entries = case_ledger_replicas.get("finder", [])
 
     if not vendor_entries or not finder_entries:
         pytest.skip(
@@ -516,7 +516,7 @@ def test_invariant_8_late_joiner_has_full_history(
     )
 
 
-@pytest.mark.case_log_invariants
+@pytest.mark.case_ledger_invariants
 @pytest.mark.xfail(
     strict=False,
     reason=(
@@ -525,14 +525,14 @@ def test_invariant_8_late_joiner_has_full_history(
     ),
 )
 def test_invariant_9_participant_status_schema_completeness(
-    case_log_replicas: dict[str, list[dict]],
+    case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
     """Every ParticipantStatus snapshot includes emConsentState and cvdRole (AC-4.9).
 
     When this xfail is unexpectedly promoted to XPASS, remove the
     ``xfail`` decorator to make it a permanent regression guard.
     """
-    auth = _auth_entries(case_log_replicas)
+    auth = _auth_entries(case_ledger_replicas)
     status_entries = [
         e for e in auth if _event_type(e) == "add_participant_status"
     ]
@@ -559,15 +559,15 @@ def test_invariant_9_participant_status_schema_completeness(
     )
 
 
-@pytest.mark.case_log_invariants
+@pytest.mark.case_ledger_invariants
 def test_invariant_10_nested_objects_inlined_in_payload(
-    case_log_replicas: dict[str, list[dict]],
+    case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
     """payloadSnapshot.object is an inline dict, not a bare ID string (AC-4.10).
 
     Promoted from xfail: confirmed passing as of PR #936.
     """
-    auth = _auth_entries(case_log_replicas)
+    auth = _auth_entries(case_ledger_replicas)
     bare_ids = [
         (
             f"logIndex={_log_index(e)} eventType={_event_type(e)!r}: "
@@ -584,15 +584,15 @@ def test_invariant_10_nested_objects_inlined_in_payload(
     )
 
 
-@pytest.mark.case_log_invariants
+@pytest.mark.case_ledger_invariants
 def test_invariant_11_payload_context_uses_case_uri(
-    case_log_replicas: dict[str, list[dict]],
+    case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
     """payloadSnapshot.context matches the entry's case_id for recorded entries (AC-4.11).
 
     Promoted from xfail: confirmed passing as of PR #936.
     """
-    auth = _auth_entries(case_log_replicas)
+    auth = _auth_entries(case_ledger_replicas)
     mismatches = []
     for entry in auth:
         if entry.get("disposition", "recorded") != "recorded":
@@ -615,7 +615,7 @@ def test_invariant_11_payload_context_uses_case_uri(
 
 
 # ---------------------------------------------------------------------------
-# Invariants 12–14 — per-actor case-log quality (two convergence groups)
+# Invariants 12–14 — per-actor case-ledger quality (two convergence groups)
 #
 # These tests are split into two groups that converge independently:
 #
@@ -661,11 +661,11 @@ _FRAGMENT_ACTORS = [
 ]
 
 
-@pytest.mark.case_log_invariants
+@pytest.mark.case_ledger_invariants
 @pytest.mark.parametrize("actor_name", _FRAGMENT_ACTORS)
 def test_invariant_14_no_gaps_in_log_indices(
     actor_name: str,
-    case_log_replicas: dict[str, list[dict]],
+    case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
     """No gaps within the actor's present logIndex range (fragment contiguity).
 
@@ -677,7 +677,7 @@ def test_invariant_14_no_gaps_in_log_indices(
     independently of the join-time backfill fix (#937).
     Spec: CLP-07.
     """
-    entries = case_log_replicas.get(actor_name)
+    entries = case_ledger_replicas.get(actor_name)
     if entries is None:
         pytest.skip(f"No log found for actor {actor_name!r} in devlogs/")
 
@@ -709,11 +709,11 @@ _COMPLETE_LOG_ACTORS = [
 ]
 
 
-@pytest.mark.case_log_invariants
+@pytest.mark.case_ledger_invariants
 @pytest.mark.parametrize("actor_name", _COMPLETE_LOG_ACTORS)
 def test_invariant_12_genesis_entry_present(
     actor_name: str,
-    case_log_replicas: dict[str, list[dict]],
+    case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
     """logIndex=0 is present in the actor's log (log completeness).
 
@@ -725,7 +725,7 @@ def test_invariant_12_genesis_entry_present(
     When the xfail for ``finder`` is promoted to XPASS, remove its mark.
     Spec: CLP-07.
     """
-    entries = case_log_replicas.get(actor_name)
+    entries = case_ledger_replicas.get(actor_name)
     if entries is None:
         pytest.skip(f"No log found for actor {actor_name!r} in devlogs/")
 
@@ -736,11 +736,11 @@ def test_invariant_12_genesis_entry_present(
     )
 
 
-@pytest.mark.case_log_invariants
+@pytest.mark.case_ledger_invariants
 @pytest.mark.parametrize("actor_name", _COMPLETE_LOG_ACTORS)
 def test_invariant_13_log_starts_at_genesis(
     actor_name: str,
-    case_log_replicas: dict[str, list[dict]],
+    case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
     """The first entry in the actor's sorted log has logIndex=0 (log ordering).
 
@@ -751,7 +751,7 @@ def test_invariant_13_log_starts_at_genesis(
     When the xfail for ``finder`` is promoted to XPASS, remove its mark.
     Spec: CLP-07.
     """
-    entries = case_log_replicas.get(actor_name)
+    entries = case_ledger_replicas.get(actor_name)
     if entries is None:
         pytest.skip(f"No log found for actor {actor_name!r} in devlogs/")
 

@@ -96,9 +96,9 @@ jobs:
         id: install-invariant-deps
         run: python -m pip install --upgrade pip uv && uv sync --dev --frozen
 
-      - name: Run case-log invariant harness
+      - name: Run case-ledger invariant harness
         if: always() && steps.install-invariant-deps.outcome == 'success'
-        run: uv run pytest -m case_log_invariants -v --tb=short
+        run: uv run pytest -m case_ledger_invariants -v --tb=short
 
       # DEMOCI-02-008: collect combined stream and per-service logs on failure.
       - name: Collect container logs

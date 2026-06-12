@@ -1035,7 +1035,7 @@ class TestDumpCaseLogs:
         )
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
-        demo._phase_dump_case_logs(
+        demo._phase_dump_case_ledgers(
             finder_client=finder_client,
             vendor_client=vendor_client,
             finder=finder,
@@ -1046,16 +1046,22 @@ class TestDumpCaseLogs:
 
         case_slug = "https_example.org_cases_case-dump-fallback"
         assert (
-            tmp_path / "two-actor" / "finder" / f"{case_slug}-case-log.jsonl"
+            tmp_path
+            / "two-actor"
+            / "finder"
+            / f"{case_slug}-case-ledger.jsonl"
         ).exists()
         assert (
-            tmp_path / "two-actor" / "vendor" / f"{case_slug}-case-log.jsonl"
+            tmp_path
+            / "two-actor"
+            / "vendor"
+            / f"{case_slug}-case-ledger.jsonl"
         ).exists()
         assert (
             tmp_path
             / "two-actor"
             / "case-actor"
-            / f"{case_slug}-case-log.jsonl"
+            / f"{case_slug}-case-ledger.jsonl"
         ).exists()
         assert any(
             "/actors/case-actor-demo/demo/cases/case-dump-fallback/log"
@@ -1084,7 +1090,7 @@ class TestDumpCaseLogs:
         )
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
-        demo._phase_dump_case_logs(
+        demo._phase_dump_case_ledgers(
             finder_client=finder_client,
             vendor_client=vendor_client,
             finder=finder,
@@ -1124,7 +1130,7 @@ class TestDumpCaseLogs:
         )
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
-        demo._phase_dump_case_logs(
+        demo._phase_dump_case_ledgers(
             finder_client=finder_client,
             vendor_client=vendor_client,
             finder=finder,

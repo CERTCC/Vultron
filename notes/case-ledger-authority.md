@@ -3,13 +3,13 @@ title: Case Ledger Authority and Assertion Recording
 status: active
 description: "Authority model for the case activity log: trusted timestamps, assertion recording, and authority chain."
 related_specs:
-  - specs/case-log-processing.yaml
+  - specs/case-ledger-processing.yaml
   - specs/case-management.yaml
-  - specs/sync-log-replication.yaml
+  - specs/sync-ledger-replication.yaml
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/case-state-model.md
-  - notes/sync-log-replication.md
+  - notes/sync-ledger-replication.md
 relevant_packages:
   - vultron/wire/as2
   - vultron/core/models
@@ -17,10 +17,10 @@ relevant_packages:
 
 # Case Ledger Authority and Assertion Recording
 
-**Relates to**: `specs/case-log-processing.yaml`,
-`specs/case-management.yaml`, `specs/sync-log-replication.yaml`,
+**Relates to**: `specs/case-ledger-processing.yaml`,
+`specs/case-management.yaml`, `specs/sync-ledger-replication.yaml`,
 `notes/activitystreams-semantics.md`, `notes/case-state-model.md`,
-`notes/sync-log-replication.md`
+`notes/sync-ledger-replication.md`
 
 ---
 
@@ -170,7 +170,7 @@ Not every inbound failure belongs in the case audit ledger.
   during case-layer validation, the rejection belongs in the local case audit
   log.
 
-Rejected case-log outcomes should normally be reported only to the asserting
+Rejected case-ledger outcomes should normally be reported only to the asserting
 sender, not broadcast to all case participants. The other participants need the
 canonical recorded history, not the full stream of invalid assertion attempts.
 
@@ -209,7 +209,7 @@ Follow-on plan (Epic #788):
   canonical log commits.
 - #790 introduces actor-local `pending_assertions` to suppress duplicate emits
   during canonical round-trip windows.
-- #791 adds a hard catch-up gate so actors must re-establish case-log freshness
+- #791 adds a hard catch-up gate so actors must re-establish case-ledger freshness
   before taking new case actions after restart.
 - #792 removes `CaseEvent` once canonical log reads/writes fully cover
   protocol-significant history.
@@ -244,7 +244,7 @@ This framing has several practical consequences:
   report-to-case transition rather than being split into two unrelated logs.
 
 This note should be treated as the durable design explanation. Normative
-requirements belong in `specs/case-log-processing.yaml`.
+requirements belong in `specs/case-ledger-processing.yaml`.
 
 ---
 

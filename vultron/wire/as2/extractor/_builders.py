@@ -12,7 +12,7 @@ from typing import Any, Callable
 
 from vultron.core.models._helpers import _now_utc as _core_now_utc
 from vultron.core.models.base import VultronObject
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.vultron_types import (
     CaseStatus,
@@ -278,7 +278,7 @@ def _build_note_object(obj: object) -> dict[str, Any]:
     return {}
 
 
-def _build_case_log_entry_object(obj: object) -> dict[str, Any]:
+def _build_case_ledger_entry_object(obj: object) -> dict[str, Any]:
     object_id = _get_id(obj)
     case_id = getattr(obj, "case_id", None)
     log_index = getattr(obj, "log_index", -1)
@@ -290,7 +290,7 @@ def _build_case_log_entry_object(obj: object) -> dict[str, Any]:
     )
     if object_id and case_id and log_object_id and event_type:
         return {
-            "object_": VultronCaseLogEntry(
+            "object_": VultronCaseLedgerEntry(
                 id_=object_id,
                 case_id=case_id,
                 log_index=log_index,
@@ -384,7 +384,7 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
 _OBJ_BUILDERS: dict[str, Callable[[object], dict[str, Any]]] = {
     str(VOtype.CASE_PARTICIPANT): _build_participant_object,
     str(AOtype.NOTE): _build_note_object,
-    str(VOtype.CASE_LOG_ENTRY): _build_case_log_entry_object,
+    str(VOtype.CASE_LEDGER_ENTRY): _build_case_ledger_entry_object,
     str(VOtype.CASE_STATUS): _build_case_status_object,
     str(VOtype.PARTICIPANT_STATUS): _build_participant_status_object,
 }

@@ -15,7 +15,7 @@ from vultron.core.behaviors.sync.nodes import (
     CheckHashOrRejectOnMismatchNode,
     SendRejectLogEntryNode,
 )
-from vultron.core.models.case_log import GENESIS_HASH
+from vultron.core.models.case_ledger import GENESIS_HASH
 from vultron.core.ports.sync_activity import SyncActivityPort
 
 

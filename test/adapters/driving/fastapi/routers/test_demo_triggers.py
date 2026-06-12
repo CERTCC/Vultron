@@ -333,15 +333,15 @@ class TestDemoSyncLogEntry:
 
 
 # ---------------------------------------------------------------------------
-# Fixtures and helpers for case log endpoint tests
+# Fixtures and helpers for case ledger endpoint tests
 # ---------------------------------------------------------------------------
 
 
 def _make_log_entry(dl, case_id: str, log_index: int) -> object:
-    """Create and save a VultronCaseLogEntry directly to the DataLayer."""
-    from vultron.core.models.case_log_entry import VultronCaseLogEntry
+    """Create and save a VultronCaseLedgerEntry directly to the DataLayer."""
+    from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 
-    entry = VultronCaseLogEntry(
+    entry = VultronCaseLedgerEntry(
         case_id=case_id,
         log_index=log_index,
         log_object_id=f"{case_id}/objects/{log_index}",
@@ -356,7 +356,7 @@ def _make_log_entry(dl, case_id: str, log_index: int) -> object:
 # ---------------------------------------------------------------------------
 
 
-class TestDemoGetCaseLog:
+class TestDemoGetCaseLedger:
     """Tests for GET /actors/{actor_id}/demo/cases/{case_id}/log."""
 
     def test_returns_200_empty_list_when_no_entries(
@@ -477,7 +477,7 @@ class TestDemoGetCaseLog:
 # ---------------------------------------------------------------------------
 
 
-class TestDemoGetCaseLogEntry:
+class TestDemoGetCaseLedgerEntry:
     """Tests for GET /actors/{actor_id}/demo/cases/{case_id}/log/{index}."""
 
     def test_returns_correct_entry(

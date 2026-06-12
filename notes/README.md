@@ -292,23 +292,23 @@ rule filtering.
 **`case-communication-model.md`**
 Canonical communication model for post-case-creation participant messaging:
 all messages route through the Case Actor only
-(`participant → CaseActor → CaseLogEntry → broadcast → participants`). Covers
+(`participant → CaseActor → CaseLedgerEntry → broadcast → participants`). Covers
 the routing rule, its rationale, the `case_addressees()` antipattern, how to
-resolve the Case Actor ID, and the automatic `CaseLogEntry + broadcast`
+resolve the Case Actor ID, and the automatic `CaseLedgerEntry + broadcast`
 cascade. Normative requirements: `specs/participant-case-replica.yaml` PCR-08.
 **Load when**: implementing any trigger use case or BT that causes a
 participant to send a case-scoped message, debugging out-of-band note or
 embargo delivery, or auditing outbound activity addressing.
 
-**`case-log-authority.md`**
+**`case-ledger-authority.md`**
 Assertion recording model for report / proto-case / case flows: implicit
-participant assertions, `CaseActor`-authored `CaseLogEntry`, local audit log
+participant assertions, `CaseActor`-authored `CaseLedgerEntry`, local audit log
 vs replicated canonical chain, and rejection handling.
 **Load when**: implementing case event logging, designing trust boundaries for
 multi-actor case state synchronization, or evaluating the CaseActor assertion
 model.
 
-**`sync-log-replication.md`**
+**`sync-ledger-replication.md`**
 Log-centric architecture overview: hash-chain design rationale, log position
 in activity `context`, implementation phases (SYNC-1–4), system invariants,
 and open questions for the replicated case event log.
@@ -321,7 +321,7 @@ synchronisation model between `CaseActor` and participant actors, and the
 relationship to SYNC-1/SYNC-2 implementation phases.
 **Load when**: implementing participant-side case replica handling, working on
 `specs/participant-case-replica.yaml` (PCR) requirements, or designing the
-`Announce(CaseLogEntry)` inbound handler.
+`Announce(CaseLedgerEntry)` inbound handler.
 
 **`participant-embargo-consent.md`**
 Design decisions for per-participant embargo acceptance tracking: a 5-state

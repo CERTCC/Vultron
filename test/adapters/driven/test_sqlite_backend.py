@@ -880,17 +880,17 @@ class TestCoerceToSemanticClass:
         assert result.in_reply_to == "urn:uuid:invite-roundtrip-1"
 
     def test_announce_log_entry_round_trip_returns_specific_class(self, dl):
-        """dl.read returns AnnounceLogEntryActivity with CaseLogEntry object_."""
-        from vultron.core.models.case_log import (
+        """dl.read returns AnnounceLogEntryActivity with CaseLedgerEntry object_."""
+        from vultron.core.models.case_ledger import (
             GENESIS_HASH,
-            HashChainLogRecord,
+            HashChainLedgerRecord,
         )
         from vultron.core.use_cases.triggers.sync import _to_persistable_entry
-        from vultron.wire.as2.vocab.objects.case_log_entry import (
-            CaseLogEntry as WireCaseLogEntry,
+        from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+            CaseLedgerEntry as WireCaseLedgerEntry,
         )
 
-        chain_entry = HashChainLogRecord(
+        chain_entry = HashChainLedgerRecord(
             case_id="https://example.org/cases/case-sync-1",
             log_index=0,
             object_id="https://example.org/activities/logged-1",
@@ -900,7 +900,7 @@ class TestCoerceToSemanticClass:
         )
         entry = _to_persistable_entry(chain_entry)
         announce = announce_log_entry_activity(
-            WireCaseLogEntry.from_core(entry),
+            WireCaseLedgerEntry.from_core(entry),
             actor="https://example.org/actors/case-actor",
         )
         dl.save(entry)
@@ -909,7 +909,7 @@ class TestCoerceToSemanticClass:
         result = dl.read(announce.id_)
 
         assert isinstance(result, as_Announce)
-        assert isinstance(result.object_, WireCaseLogEntry)  # type: ignore[union-attr]
+        assert isinstance(result.object_, WireCaseLedgerEntry)  # type: ignore[union-attr]
         assert result.object_.case_id == entry.case_id  # type: ignore[union-attr]
         assert result.object_.log_object_id == entry.log_object_id  # type: ignore[union-attr]
 

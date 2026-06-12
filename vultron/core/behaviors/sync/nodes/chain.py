@@ -24,8 +24,8 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models._helpers import _now_utc
-from vultron.core.models.case_log import HashChainLogRecord
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.case_ledger import HashChainLedgerRecord
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.protocols import is_log_entry_model
 from vultron.core.sync_helpers import _reconstruct_tail_hash
 from vultron.errors import VultronError
@@ -33,18 +33,20 @@ from vultron.errors import VultronError
 logger = logging.getLogger(__name__)
 
 
-def _require_log_entry(activity: Any, node_name: str) -> VultronCaseLogEntry:
+def _require_log_entry(
+    activity: Any, node_name: str
+) -> VultronCaseLedgerEntry:
     entry = getattr(activity, "log_entry", None)
     if entry is None:
         entry = getattr(activity, "object_", None)
     if is_log_entry_model(entry):
-        if isinstance(entry, VultronCaseLogEntry):
+        if isinstance(entry, VultronCaseLedgerEntry):
             return entry
-        return VultronCaseLogEntry.model_validate(
+        return VultronCaseLedgerEntry.model_validate(
             entry.model_dump(mode="json")
         )
     raise VultronError(
-        f"{node_name}: activity did not carry a VultronCaseLogEntry"
+        f"{node_name}: activity did not carry a VultronCaseLedgerEntry"
     )
 
 
@@ -60,9 +62,9 @@ def _require_case_id_from_activity(activity: Any, node_name: str) -> str:
 
 
 def _to_persistable_entry(
-    chain_entry: HashChainLogRecord,
-) -> VultronCaseLogEntry:
-    return VultronCaseLogEntry(
+    chain_entry: HashChainLedgerRecord,
+) -> VultronCaseLedgerEntry:
+    return VultronCaseLedgerEntry(
         case_id=chain_entry.case_id,
         log_index=chain_entry.log_index,
         disposition=chain_entry.disposition,
@@ -144,20 +146,20 @@ class UpdateReplicationStateNode(DataLayerAction):
             entry = getattr(activity, "object_", None)
         if not is_log_entry_model(entry):
             raise VultronError(
-                f"{self.name}: activity did not carry a VultronCaseLogEntry"
+                f"{self.name}: activity did not carry a VultronCaseLedgerEntry"
             )
 
-        if isinstance(entry, VultronCaseLogEntry):
+        if isinstance(entry, VultronCaseLedgerEntry):
             rejected_entry = entry
         else:
-            rejected_entry = VultronCaseLogEntry.model_validate(
+            rejected_entry = VultronCaseLedgerEntry.model_validate(
                 entry.model_dump(mode="json")
             )
 
         peer_id = activity.actor_id
         if not peer_id:
             raise VultronError(
-                f"{self.name}: Reject(CaseLogEntry) missing peer actor_id"
+                f"{self.name}: Reject(CaseLedgerEntry) missing peer actor_id"
             )
 
         state = VultronReplicationState(
@@ -215,7 +217,7 @@ class CreateLogEntryNode(DataLayerAction):
     def update(self) -> Status:
         tail_hash = self.blackboard.tail_hash
         tail_index = self.blackboard.tail_index
-        chain_entry = HashChainLogRecord(
+        chain_entry = HashChainLedgerRecord(
             case_id=self.case_id,
             log_index=tail_index + 1,
             object_id=self.object_id,
@@ -243,7 +245,7 @@ class PersistLogEntryNode(DataLayerAction):
             self.logger.error("%s: DataLayer not available", self.name)
             return Status.FAILURE
 
-        entry = cast(VultronCaseLogEntry, self.blackboard.log_entry)
+        entry = cast(VultronCaseLedgerEntry, self.blackboard.log_entry)
         self.datalayer.save(entry)
         self.logger.info(
             "%s: committed log entry '%s' for case '%s'",

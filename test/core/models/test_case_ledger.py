@@ -12,14 +12,14 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for CaseLogEntry, CaseEventLog, and BTBridge
+"""Unit tests for CaseLedgerEntry, CaseLedger, and BTBridge
 leadership guard.
 
 Covers:
 
-- ``CaseLogEntry`` construction, auto-hash computation, and ``verify_hash``
+- ``CaseLedgerEntry`` construction, auto-hash computation, and ``verify_hash``
   (SYNC-07-001, CLP-02-001 through CLP-02-007).
-- ``CaseEventLog`` append-only semantics, hash-chain integrity,
+- ``CaseLedger`` append-only semantics, hash-chain integrity,
   ``tail_hash``, ``recorded_entries`` projection, and ``verify_chain``
   (SYNC-01-001, SYNC-01-002, SYNC-01-003, SYNC-07-001,
   CLP-04-001, CLP-04-003).
@@ -37,10 +37,10 @@ import py_trees
 import pytest
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.models.case_log import (
+from vultron.core.models.case_ledger import (
     GENESIS_HASH,
-    CaseEventLog,
-    HashChainLogRecord,
+    CaseLedger,
+    HashChainLedgerRecord,
     _canonical_bytes,
     _sha256_hex,
 )
@@ -55,18 +55,18 @@ OBJECT_ID = "urn:uuid:report-5678"
 
 
 @pytest.fixture()
-def empty_log() -> CaseEventLog:
-    return CaseEventLog(case_id=CASE_ID)
+def empty_log() -> CaseLedger:
+    return CaseLedger(case_id=CASE_ID)
 
 
 @pytest.fixture()
-def log_with_one_entry(empty_log: CaseEventLog) -> CaseEventLog:
+def log_with_one_entry(empty_log: CaseLedger) -> CaseLedger:
     empty_log.append(object_id=OBJECT_ID, event_type="report_received")
     return empty_log
 
 
 @pytest.fixture()
-def log_with_three_entries(empty_log: CaseEventLog) -> CaseEventLog:
+def log_with_three_entries(empty_log: CaseLedger) -> CaseLedger:
     empty_log.append(
         object_id="urn:uuid:obj1",
         event_type="report_received",
@@ -133,13 +133,13 @@ class TestGenesisHash:
 
 
 # ---------------------------------------------------------------------------
-# CaseLogEntry
+# CaseLedgerEntry
 # ---------------------------------------------------------------------------
 
 
-class TestCaseLogEntry:
+class TestCaseLedgerEntry:
     def test_construction_sets_required_fields(self):
-        entry = HashChainLogRecord(
+        entry = HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -153,7 +153,7 @@ class TestCaseLogEntry:
         assert entry.prev_log_hash == GENESIS_HASH
 
     def test_entry_hash_auto_computed(self):
-        entry = HashChainLogRecord(
+        entry = HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -164,7 +164,7 @@ class TestCaseLogEntry:
         assert len(entry.entry_hash) == 64
 
     def test_entry_hash_verify_hash_passes(self):
-        entry = HashChainLogRecord(
+        entry = HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -174,7 +174,7 @@ class TestCaseLogEntry:
         assert entry.verify_hash()
 
     def test_entry_hash_tamper_detection(self):
-        entry = HashChainLogRecord(
+        entry = HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -186,7 +186,7 @@ class TestCaseLogEntry:
         assert not entry.verify_hash()
 
     def test_default_disposition_is_recorded(self):
-        entry = HashChainLogRecord(
+        entry = HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -196,7 +196,7 @@ class TestCaseLogEntry:
         assert entry.disposition == "recorded"
 
     def test_rejected_disposition(self):
-        entry = HashChainLogRecord(
+        entry = HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -209,7 +209,7 @@ class TestCaseLogEntry:
         assert entry.reason_code == "INVALID_STATE"
 
     def test_term_defaults_to_none(self):
-        entry = HashChainLogRecord(
+        entry = HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -219,14 +219,14 @@ class TestCaseLogEntry:
         assert entry.term is None
 
     def test_different_entries_have_different_hashes(self):
-        e1 = HashChainLogRecord(
+        e1 = HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id="urn:uuid:obj1",
             event_type="test",
             prev_log_hash=GENESIS_HASH,
         )
-        e2 = HashChainLogRecord(
+        e2 = HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id="urn:uuid:obj2",
@@ -237,7 +237,7 @@ class TestCaseLogEntry:
 
     def test_entry_hash_not_in_hashable_dict(self):
         """entry_hash MUST be excluded from the content that is hashed."""
-        entry = HashChainLogRecord(
+        entry = HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -249,7 +249,7 @@ class TestCaseLogEntry:
 
     def test_payload_snapshot_stored_as_dict(self):
         snap = {"id": OBJECT_ID, "type": "Offer"}
-        entry = HashChainLogRecord(
+        entry = HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -260,7 +260,7 @@ class TestCaseLogEntry:
         assert entry.payload_snapshot == snap
 
     def test_reason_detail_optional(self):
-        entry = HashChainLogRecord(
+        entry = HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
@@ -274,29 +274,29 @@ class TestCaseLogEntry:
 
 
 # ---------------------------------------------------------------------------
-# CaseEventLog — append semantics
+# CaseLedger — append semantics
 # ---------------------------------------------------------------------------
 
 
-class TestCaseEventLogAppend:
-    def test_empty_log_tail_hash_is_genesis(self, empty_log: CaseEventLog):
+class TestCaseLedgerAppend:
+    def test_empty_log_tail_hash_is_genesis(self, empty_log: CaseLedger):
         assert empty_log.tail_hash == GENESIS_HASH
 
-    def test_empty_log_next_index_is_zero(self, empty_log: CaseEventLog):
+    def test_empty_log_next_index_is_zero(self, empty_log: CaseLedger):
         assert empty_log.next_index == 0
 
     def test_first_entry_log_index_is_zero(
-        self, log_with_one_entry: CaseEventLog
+        self, log_with_one_entry: CaseLedger
     ):
         assert log_with_one_entry.entries[0].log_index == 0
 
     def test_first_entry_prev_hash_is_genesis(
-        self, log_with_one_entry: CaseEventLog
+        self, log_with_one_entry: CaseLedger
     ):
         assert log_with_one_entry.entries[0].prev_log_hash == GENESIS_HASH
 
     def test_tail_hash_updates_after_append(
-        self, log_with_one_entry: CaseEventLog
+        self, log_with_one_entry: CaseLedger
     ):
         assert (
             log_with_one_entry.tail_hash
@@ -304,33 +304,31 @@ class TestCaseEventLogAppend:
         )
 
     def test_second_entry_prev_hash_equals_first_entry_hash(
-        self, empty_log: CaseEventLog
+        self, empty_log: CaseLedger
     ):
         e1 = empty_log.append(object_id="urn:uuid:a", event_type="first")
         e2 = empty_log.append(object_id="urn:uuid:b", event_type="second")
         assert e2.prev_log_hash == e1.entry_hash
 
     def test_log_indices_monotonically_increase(
-        self, log_with_three_entries: CaseEventLog
+        self, log_with_three_entries: CaseLedger
     ):
         for i, entry in enumerate(log_with_three_entries.entries):
             assert entry.log_index == i
 
-    def test_next_index_increments(self, empty_log: CaseEventLog):
+    def test_next_index_increments(self, empty_log: CaseLedger):
         assert empty_log.next_index == 0
         empty_log.append(object_id="urn:uuid:a", event_type="first")
         assert empty_log.next_index == 1
         empty_log.append(object_id="urn:uuid:b", event_type="second")
         assert empty_log.next_index == 2
 
-    def test_returned_entry_matches_stored(self, empty_log: CaseEventLog):
+    def test_returned_entry_matches_stored(self, empty_log: CaseLedger):
         returned = empty_log.append(object_id=OBJECT_ID, event_type="test")
         stored = empty_log.entries[0]
         assert returned is stored
 
-    def test_rejected_entry_requires_reason_code(
-        self, empty_log: CaseEventLog
-    ):
+    def test_rejected_entry_requires_reason_code(self, empty_log: CaseLedger):
         with pytest.raises(ValueError, match="reason_code"):
             empty_log.append(
                 object_id=OBJECT_ID,
@@ -339,7 +337,7 @@ class TestCaseEventLogAppend:
             )
 
     def test_rejected_entry_with_reason_code_succeeds(
-        self, empty_log: CaseEventLog
+        self, empty_log: CaseLedger
     ):
         entry = empty_log.append(
             object_id=OBJECT_ID,
@@ -351,23 +349,21 @@ class TestCaseEventLogAppend:
 
 
 # ---------------------------------------------------------------------------
-# CaseEventLog — append-only enforcement
+# CaseLedger — append-only enforcement
 # ---------------------------------------------------------------------------
 
 
-class TestCaseEventLogAppendOnly:
-    def test_entries_returns_tuple(self, log_with_one_entry: CaseEventLog):
+class TestCaseLedgerAppendOnly:
+    def test_entries_returns_tuple(self, log_with_one_entry: CaseLedger):
         assert isinstance(log_with_one_entry.entries, tuple)
 
-    def test_entries_tuple_is_immutable(
-        self, log_with_one_entry: CaseEventLog
-    ):
+    def test_entries_tuple_is_immutable(self, log_with_one_entry: CaseLedger):
         entries = log_with_one_entry.entries
         with pytest.raises((TypeError, AttributeError)):
             entries[0] = None  # type: ignore[index]
 
     def test_adding_to_entries_tuple_does_not_affect_log(
-        self, empty_log: CaseEventLog
+        self, empty_log: CaseLedger
     ):
         """Mutating the returned tuple does not affect the underlying log."""
         empty_log.append(object_id="urn:uuid:a", event_type="first")
@@ -378,24 +374,22 @@ class TestCaseEventLogAppendOnly:
         assert len(snapshot) == 1
         assert len(empty_log.entries) == 2
 
-    def test_case_id_is_read_only(self, empty_log: CaseEventLog):
+    def test_case_id_is_read_only(self, empty_log: CaseLedger):
         with pytest.raises(AttributeError):
             empty_log.case_id = "urn:uuid:modified"  # type: ignore[misc]
 
 
 # ---------------------------------------------------------------------------
-# CaseEventLog — recorded_entries projection (CLP-04-001, CLP-04-003)
+# CaseLedger — recorded_entries projection (CLP-04-001, CLP-04-003)
 # ---------------------------------------------------------------------------
 
 
-class TestCaseEventLogRecordedProjection:
-    def test_all_recorded_by_default(
-        self, log_with_three_entries: CaseEventLog
-    ):
+class TestCaseLedgerRecordedProjection:
+    def test_all_recorded_by_default(self, log_with_three_entries: CaseLedger):
         assert len(log_with_three_entries.recorded_entries) == 3
 
     def test_rejected_entry_excluded_from_recorded(
-        self, empty_log: CaseEventLog
+        self, empty_log: CaseLedger
     ):
         empty_log.append(object_id="urn:uuid:a", event_type="first")
         empty_log.append(
@@ -411,7 +405,7 @@ class TestCaseEventLogRecordedProjection:
             e.disposition == "recorded" for e in empty_log.recorded_entries
         )
 
-    def test_tail_hash_skips_rejected_entries(self, empty_log: CaseEventLog):
+    def test_tail_hash_skips_rejected_entries(self, empty_log: CaseLedger):
         e1 = empty_log.append(object_id="urn:uuid:a", event_type="first")
         empty_log.append(
             object_id="urn:uuid:b",
@@ -422,29 +416,27 @@ class TestCaseEventLogRecordedProjection:
         # tail_hash should still equal e1.entry_hash (last *recorded*)
         assert empty_log.tail_hash == e1.entry_hash
 
-    def test_recorded_entries_is_tuple(self, log_with_one_entry: CaseEventLog):
+    def test_recorded_entries_is_tuple(self, log_with_one_entry: CaseLedger):
         assert isinstance(log_with_one_entry.recorded_entries, tuple)
 
 
 # ---------------------------------------------------------------------------
-# CaseEventLog — hash chain verification (SYNC-07-001)
+# CaseLedger — hash chain verification (SYNC-07-001)
 # ---------------------------------------------------------------------------
 
 
-class TestCaseEventLogVerifyChain:
-    def test_empty_log_chain_valid(self, empty_log: CaseEventLog):
+class TestCaseLedgerVerifyChain:
+    def test_empty_log_chain_valid(self, empty_log: CaseLedger):
         assert empty_log.verify_chain()
 
-    def test_single_entry_chain_valid(self, log_with_one_entry: CaseEventLog):
+    def test_single_entry_chain_valid(self, log_with_one_entry: CaseLedger):
         assert log_with_one_entry.verify_chain()
 
-    def test_three_entry_chain_valid(
-        self, log_with_three_entries: CaseEventLog
-    ):
+    def test_three_entry_chain_valid(self, log_with_three_entries: CaseLedger):
         assert log_with_three_entries.verify_chain()
 
     def test_tampered_entry_hash_fails_verify_chain(
-        self, log_with_one_entry: CaseEventLog
+        self, log_with_one_entry: CaseLedger
     ):
         tampered = log_with_one_entry._entries[0]
         # Tamper with the stored hash to simulate corruption
@@ -452,7 +444,7 @@ class TestCaseEventLogVerifyChain:
         assert not log_with_one_entry.verify_chain()
 
     def test_tampered_prev_hash_fails_verify_chain(
-        self, empty_log: CaseEventLog
+        self, empty_log: CaseLedger
     ):
         empty_log.append(object_id="urn:uuid:a", event_type="first")
         e2 = empty_log.append(object_id="urn:uuid:b", event_type="second")
@@ -461,9 +453,7 @@ class TestCaseEventLogVerifyChain:
         # verify_chain should detect the broken link
         assert not empty_log.verify_chain()
 
-    def test_all_entry_hashes_unique(
-        self, log_with_three_entries: CaseEventLog
-    ):
+    def test_all_entry_hashes_unique(self, log_with_three_entries: CaseLedger):
         hashes = [e.entry_hash for e in log_with_three_entries.entries]
         assert len(set(hashes)) == len(hashes)
 

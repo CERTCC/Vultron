@@ -364,7 +364,7 @@ class TerminateEmbargoNode(DataLayerAction):
 
 
 class CommitLogCascadeNode(DataLayerAction):
-    """Commit a CaseLogEntry and cascade to all participants.
+    """Commit a CaseLedgerEntry and cascade to all participants.
 
     Resolves the CaseActor ID from case_id and triggers the
     ``commit_log_entry_trigger`` to create a log entry and fan it out

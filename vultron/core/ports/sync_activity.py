@@ -50,7 +50,7 @@ class SyncActivityPort(Protocol):
         actor_id: str,
         to: list[str],
     ) -> None:
-        """Build and queue a ``Reject(CaseLogEntry)`` activity.
+        """Build and queue a ``Reject(CaseLedgerEntry)`` activity.
 
         Called when a received log entry has a hash-chain mismatch.
         The reject carries *tail_hash* as context so the CaseActor
@@ -70,7 +70,7 @@ class SyncActivityPort(Protocol):
         actor_id: str,
         to: list[str],
     ) -> None:
-        """Build and queue an ``Announce(CaseLogEntry)`` activity.
+        """Build and queue an ``Announce(CaseLedgerEntry)`` activity.
 
         Called when fanning out a committed entry to case participants
         or replaying missing entries to a peer (SYNC-02-002, SYNC-03-002).

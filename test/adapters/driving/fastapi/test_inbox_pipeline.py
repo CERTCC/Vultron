@@ -19,7 +19,7 @@ from vultron.core.use_cases.received.status import (
     AddCaseStatusToCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.sync import (
-    AnnounceLogEntryReceivedUseCase,
+    AnnounceLedgerEntryReceivedUseCase,
 )
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
@@ -31,7 +31,7 @@ from vultron.wire.as2.factories import (
     rm_create_report_activity,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.case_log_entry import CaseLogEntry
+from vultron.wire.as2.vocab.objects.case_ledger_entry import CaseLedgerEntry
 from vultron.wire.as2.vocab.objects.case_status import CaseStatus
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -211,9 +211,9 @@ def test_routing_safety_net_status_domain(test_pipeline, monkeypatch):
 def test_routing_safety_net_sync_domain(test_pipeline, monkeypatch):
     marker_id = "https://example.org/markers/sync"
     _patch_execute_with_marker(
-        monkeypatch, AnnounceLogEntryReceivedUseCase, marker_id
+        monkeypatch, AnnounceLedgerEntryReceivedUseCase, marker_id
     )
-    entry = CaseLogEntry(
+    entry = CaseLedgerEntry(
         id_="https://example.org/log/entry-ibp-1",
         case_id=CASE_ID,
         log_index=0,
@@ -234,7 +234,7 @@ def test_routing_safety_net_sync_domain(test_pipeline, monkeypatch):
     )
 
     assert event is not None
-    assert event.semantic_type.name == "ANNOUNCE_CASE_LOG_ENTRY"
+    assert event.semantic_type.name == "ANNOUNCE_CASE_LEDGER_ENTRY"
     assert dl.read(marker_id) is not None
 
 

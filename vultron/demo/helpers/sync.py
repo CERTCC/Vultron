@@ -52,15 +52,15 @@ def _extract_ref_id(ref: object) -> Optional[str]:
 def _get_log_entries_for_case(
     client: DataLayerClient, case_id: str
 ) -> list[dict]:
-    """Return all ``CaseLogEntry`` dicts for *case_id* from the DataLayer.
+    """Return all ``CaseLedgerEntry`` dicts for *case_id* from the DataLayer.
 
     .. deprecated::
         This function performs client-side filtering over the full DataLayer
         dump.  Prefer the server-side endpoint instead:
         ``GET /actors/{actor_id}/demo/cases/{case_id}/log``
-        (see ``demo_triggers.demo_get_case_log``).
+        (see ``demo_triggers.demo_get_case_ledger``).
     """
-    raw = client.get("/datalayer/CaseLogEntrys/")
+    raw = client.get("/datalayer/CaseLedgerEntrys/")
     if not isinstance(raw, dict):
         return []
     return [
@@ -86,7 +86,7 @@ def trigger_log_commit(
 
     POSTs to ``/actors/{actor_id}/demo/sync-log-entry`` and returns the
     ``entry_hash`` from the response.  The entry is also fanned out to all
-    case participants via ``Announce(CaseLogEntry)`` activities queued in the
+    case participants via ``Announce(CaseLedgerEntry)`` activities queued in the
     actor's outbox.
 
     Args:
@@ -198,7 +198,7 @@ def verify_replica_state(
     auth_entries = _get_log_entries_for_case(auth_client, case_id)
     replica_entries = _get_log_entries_for_case(replica_client, case_id)
     assert len(replica_entries) > 0, (
-        "Replica has no CaseLogEntry records for the case — "
+        "Replica has no CaseLedgerEntry records for the case — "
         "SYNC-2 replication did not complete"
     )
     auth_tail = max(auth_entries, key=lambda e: e["log_index"])

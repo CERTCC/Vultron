@@ -584,12 +584,12 @@ groups:
       (4) queue a `Create(Case)` activity addressed to the reporter and flush the outbox;
       (5) add the reporter as a `VultronParticipant` (RM.ACCEPTED, `CVDRole.FINDER`/`REPORTER`)
       and seed them as `SIGNATORY` on any active embargo;
-      (6) commit a case log entry (triggering `Announce(CaseLogEntry)` fan-out to all participants).
+      (6) commit a case ledger entry (triggering `Announce(CaseLedgerEntry)` fan-out to all participants).
     rationale: >-
       Step 2 precedes step 3 so that the embargo is always created by a participant
       (the case owner). The Create(Case) notification in step 4 is flushed before the
       reporter is added in step 5 so the reporter's system receives the case object
-      before any subsequent Announce(CaseLogEntry) fan-out that references it.
+      before any subsequent Announce(CaseLedgerEntry) fan-out that references it.
     relationships:
     - rel_type: depends_on
       spec_id: CM-12-001
@@ -631,7 +631,7 @@ groups:
       reporter is added as a `VultronParticipant` in step 5 of CM-14-001
     rationale: >-
       The reporter's system must receive and store the case object before any
-      Announce(CaseLogEntry) fan-out that lists them as a participant. Reversing this
+      Announce(CaseLedgerEntry) fan-out that lists them as a participant. Reversing this
       order causes "case not found" errors on the reporter side when the log entry
       arrives referencing a case the reporter has not yet seen.
     relationships:

@@ -119,7 +119,7 @@ catch only after extraction.
 ### Domain Objects Belong in `core/models/`, Not `wire/as2/vocab/objects/`
 
 `VulnerabilityCase`, `VulnerabilityReport`, `CaseParticipant`,
-`EmbargoPolicy`, `CaseStatus`, `CaseLogEntry`, and `VulnerabilityRecord` are
+`EmbargoPolicy`, `CaseStatus`, `CaseLedgerEntry`, and `VulnerabilityRecord` are
 **domain objects**. They currently live in `vultron/wire/as2/vocab/objects/`
 because the codebase was built wire-first, but their correct home is
 `vultron/core/models/`. The wire layer should import and project from core,

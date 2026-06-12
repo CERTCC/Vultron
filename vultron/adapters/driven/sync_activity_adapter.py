@@ -17,7 +17,7 @@
 
 Converts log entry objects (satisfying
 :class:`~vultron.core.models.protocols.LogEntryModel`) to wire-layer
-:class:`~vultron.wire.as2.vocab.objects.case_log_entry.CaseLogEntry`
+:class:`~vultron.wire.as2.vocab.objects.case_ledger_entry.CaseLedgerEntry`
 objects, builds the appropriate AS2 activity via factory functions, persists
 the activity, and queues it to the actor's outbox for delivery.
 
@@ -40,8 +40,8 @@ from vultron.wire.as2.factories import (
     announce_log_entry_activity,
     reject_log_entry_activity,
 )
-from vultron.wire.as2.vocab.objects.case_log_entry import (
-    CaseLogEntry as WireCaseLogEntry,
+from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+    CaseLedgerEntry as WireCaseLedgerEntry,
 )
 
 logger = logging.getLogger(__name__)
@@ -57,9 +57,11 @@ class SyncActivityAdapter:
     def __init__(self, dl: CaseOutboxPersistence) -> None:
         self._dl = dl
 
-    def _to_wire(self, entry: LogEntryModel) -> WireCaseLogEntry:
+    def _to_wire(self, entry: LogEntryModel) -> WireCaseLedgerEntry:
         """Convert a log entry to its wire-layer representation."""
-        return WireCaseLogEntry.model_validate(entry.model_dump(mode="json"))
+        return WireCaseLedgerEntry.model_validate(
+            entry.model_dump(mode="json")
+        )
 
     def send_reject_log_entry(
         self,
@@ -68,7 +70,7 @@ class SyncActivityAdapter:
         actor_id: str,
         to: list[str],
     ) -> None:
-        """Build and queue a ``Reject(CaseLogEntry)`` activity.
+        """Build and queue a ``Reject(CaseLedgerEntry)`` activity.
 
         Spec: SYNC-03-001.
         """
@@ -82,7 +84,7 @@ class SyncActivityAdapter:
         self._dl.save(reject)
         self._dl.outbox_append(reject.id_)
         logger.info(
-            "sync adapter: queued Reject(CaseLogEntry) '%s' → %s",
+            "sync adapter: queued Reject(CaseLedgerEntry) '%s' → %s",
             reject.id_,
             to,
         )
@@ -93,7 +95,7 @@ class SyncActivityAdapter:
         actor_id: str,
         to: list[str],
     ) -> None:
-        """Build and queue an ``Announce(CaseLogEntry)`` activity.
+        """Build and queue an ``Announce(CaseLedgerEntry)`` activity.
 
         Uses actor-aware outbox queueing via
         :func:`~vultron.core.use_cases.triggers._helpers.add_activity_to_outbox`.
@@ -109,7 +111,7 @@ class SyncActivityAdapter:
         self._dl.save(announce)
         add_activity_to_outbox(actor_id, announce.id_, self._dl)
         logger.info(
-            "sync adapter: queued Announce(CaseLogEntry) '%s' → %s",
+            "sync adapter: queued Announce(CaseLedgerEntry) '%s' → %s",
             announce.id_,
             to,
         )

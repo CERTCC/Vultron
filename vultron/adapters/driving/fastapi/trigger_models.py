@@ -330,8 +330,8 @@ class InviteActorToCaseRequest(BaseModel):
 class SyncLogEntryRequest(BaseModel):
     """Request body for the sync-log-entry trigger endpoint.
 
-    Commits a new log entry to the local CaseEventLog chain and fans it out
-    to all case participants via ``Announce(CaseLogEntry)`` activities.
+    Commits a new log entry to the local CaseLedger chain and fans it out
+    to all case participants via ``Announce(CaseLedgerEntry)`` activities.
 
     TB-03-002: Unknown fields are silently ignored (extra="ignore").
     """

@@ -505,7 +505,7 @@ def _store_nested_inbox_object(
     validation on the specific class (missing required fields), causing
     rehydration to return ``None`` and pattern matching to fall back to a
     less specific pattern (e.g. ``announce_vulnerability_case`` instead of
-    ``announce_case_log_entry``).
+    ``announce_case_ledger_entry``).
 
     Args:
         dl: The shared DataLayer for storing the nested object.

@@ -190,7 +190,7 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         self._commit_log_cascade()
 
     def _commit_log_cascade(self) -> None:
-        """Commit a CaseLogEntry and fan it out to all participants (PCR-08-003).
+        """Commit a CaseLedgerEntry and fan it out to all participants (PCR-08-003).
 
         Derives case_id from the inline status object's ``context`` field.
         Uses ``receiving_actor_id`` (the CaseActor's canonical ID) when

@@ -18,13 +18,13 @@ from unittest.mock import MagicMock
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
-from vultron.core.models.case_log import GENESIS_HASH, HashChainLogRecord
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.case_ledger import GENESIS_HASH, HashChainLedgerRecord
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.use_cases.triggers.sync import _to_persistable_entry
 from vultron.core.models.events import MessageSemantics
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.sync import (
-    AnnounceLogEntryReceivedUseCase,
+    AnnounceLedgerEntryReceivedUseCase,
     _reconstruct_tail_hash,
 )
 from typing import cast
@@ -33,8 +33,8 @@ from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.factories import announce_log_entry_activity
-from vultron.wire.as2.vocab.objects.case_log_entry import (
-    CaseLogEntry as WireCaseLogEntry,
+from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+    CaseLedgerEntry as WireCaseLedgerEntry,
 )
 
 ACTOR_URI = "https://example.org/actors/case-actor"
@@ -43,8 +43,8 @@ CASE_URI = "https://example.org/cases/case1"
 
 def _make_entry(
     case_id: str, log_index: int, prev_hash: str
-) -> VultronCaseLogEntry:
-    chain = HashChainLogRecord(
+) -> VultronCaseLedgerEntry:
+    chain = HashChainLedgerRecord(
         case_id=case_id,
         log_index=log_index,
         object_id="https://example.org/activities/act1",
@@ -61,7 +61,7 @@ def dl() -> SqliteDataLayer:
 
 
 @pytest.fixture
-def first_entry() -> VultronCaseLogEntry:
+def first_entry() -> VultronCaseLedgerEntry:
     return _make_entry(CASE_URI, 0, GENESIS_HASH)
 
 
@@ -94,21 +94,21 @@ class TestReconstructTailHash:
         assert tail_index == 0
 
 
-class TestAnnounceLogEntryReceivedUseCase:
+class TestAnnounceLedgerEntryReceivedUseCase:
     def _make_event(
-        self, entry: VultronCaseLogEntry
+        self, entry: VultronCaseLedgerEntry
     ) -> AnnounceLogEntryReceivedEvent:
-        wire_entry = WireCaseLogEntry.model_validate(
+        wire_entry = WireCaseLedgerEntry.model_validate(
             entry.model_dump(mode="json")
         )
         activity = announce_log_entry_activity(wire_entry, actor=ACTOR_URI)
         return cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
 
-    def test_inline_case_log_entry_round_trip(self, first_entry):
-        """parse_activity must preserve inline CaseLogEntry fields (BUG-26041501).
+    def test_inline_case_ledger_entry_round_trip(self, first_entry):
+        """parse_activity must preserve inline CaseLedgerEntry fields (BUG-26041501).
 
         Simulates the Finder receiving an Announce activity with a full inline
-        CaseLogEntry dict via HTTP, and verifies the event's log_entry has all
+        CaseLedgerEntry dict via HTTP, and verifies the event's log_entry has all
         domain fields intact after the parse → extract pipeline.
         """
         body = {
@@ -119,15 +119,19 @@ class TestAnnounceLogEntryReceivedUseCase:
         }
         parsed = parse_activity(body)
         event = cast(AnnounceLogEntryReceivedEvent, extract_event(parsed))
-        assert event.semantic_type == MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY
+        assert (
+            event.semantic_type == MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY
+        )
         assert event.log_entry is not None
         assert event.log_entry.case_id == CASE_URI
 
     def test_accepts_valid_first_entry(self, dl, first_entry):
         event = self._make_event(first_entry)
-        assert event.semantic_type == MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY
+        assert (
+            event.semantic_type == MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY
+        )
 
-        uc = AnnounceLogEntryReceivedUseCase(dl, event)
+        uc = AnnounceLedgerEntryReceivedUseCase(dl, event)
         uc.execute()
 
         stored = dl.read(first_entry.id_)
@@ -138,7 +142,7 @@ class TestAnnounceLogEntryReceivedUseCase:
         bad_entry = _make_entry(CASE_URI, 0, "deadbeef" * 8)
         event = self._make_event(bad_entry)
         sync_port = MagicMock(spec=SyncActivityPort)
-        uc = AnnounceLogEntryReceivedUseCase(dl, event, sync_port=sync_port)
+        uc = AnnounceLedgerEntryReceivedUseCase(dl, event, sync_port=sync_port)
         uc.execute()
         # Entry not stored
         assert dl.read(bad_entry.id_) is None
@@ -151,7 +155,7 @@ class TestAnnounceLogEntryReceivedUseCase:
         bad_entry = _make_entry(CASE_URI, 1, "badbadbadbadbad0" * 4)
         event = self._make_event(bad_entry)
         sync_port = SyncActivityAdapter(dl)
-        uc = AnnounceLogEntryReceivedUseCase(dl, event, sync_port=sync_port)
+        uc = AnnounceLedgerEntryReceivedUseCase(dl, event, sync_port=sync_port)
         uc.execute()
 
         # Bad entry still not stored
@@ -177,7 +181,7 @@ class TestAnnounceLogEntryReceivedUseCase:
         bad_entry = _make_entry(CASE_URI, 1, "badbadbadbadbad0" * 4)
         event = self._make_event(bad_entry)
         sync_port = SyncActivityAdapter(dl)
-        AnnounceLogEntryReceivedUseCase(
+        AnnounceLedgerEntryReceivedUseCase(
             dl, event, sync_port=sync_port
         ).execute()
 
@@ -191,7 +195,7 @@ class TestAnnounceLogEntryReceivedUseCase:
         bad_entry = _make_entry(CASE_URI, 1, "badbadbadbadbad0" * 4)
         event = self._make_event(bad_entry)
         sync_port = SyncActivityAdapter(dl)
-        AnnounceLogEntryReceivedUseCase(
+        AnnounceLedgerEntryReceivedUseCase(
             dl, event, sync_port=sync_port
         ).execute()
 
@@ -204,12 +208,12 @@ class TestAnnounceLogEntryReceivedUseCase:
         """Calling execute twice with the same entry stores it only once."""
         dl.save(first_entry)  # pre-store
         event = self._make_event(first_entry)
-        uc = AnnounceLogEntryReceivedUseCase(dl, event)
+        uc = AnnounceLedgerEntryReceivedUseCase(dl, event)
         uc.execute()  # should skip silently
         # Still exactly one entry for this case
         case_entries = [
             obj
-            for obj in dl.list_objects("CaseLogEntry")
+            for obj in dl.list_objects("CaseLedgerEntry")
             if getattr(obj, "case_id", None) == CASE_URI
         ]
         assert len(case_entries) == 1
@@ -217,17 +221,19 @@ class TestAnnounceLogEntryReceivedUseCase:
     def test_sequential_chain(self, dl, first_entry):
         """Accept two sequential entries; chain is maintained."""
         event0 = self._make_event(first_entry)
-        AnnounceLogEntryReceivedUseCase(dl, event0).execute()
+        AnnounceLedgerEntryReceivedUseCase(dl, event0).execute()
 
         second = _make_entry(CASE_URI, 1, first_entry.entry_hash)
         event1 = self._make_event(second)
-        AnnounceLogEntryReceivedUseCase(dl, event1).execute()
+        AnnounceLedgerEntryReceivedUseCase(dl, event1).execute()
 
         assert dl.read(first_entry.id_) is not None
         assert dl.read(second.id_) is not None
 
     def test_semantic_type_is_correct(self, dl, first_entry):
         event = self._make_event(first_entry)
-        assert event.semantic_type == MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY
+        assert (
+            event.semantic_type == MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY
+        )
         assert event.log_entry is not None
         assert event.log_entry.case_id == CASE_URI

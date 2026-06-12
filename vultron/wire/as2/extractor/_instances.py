@@ -228,11 +228,11 @@ CloseCasePattern = ActivityPattern(
 
 AnnounceLogEntryPattern = ActivityPattern(
     description=(
-        "Announce a canonical CaseLogEntry to a participant for log "
-        "replication. The object is a CaseLogEntry object."
+        "Announce a canonical CaseLedgerEntry to a participant for log "
+        "replication. The object is a CaseLedgerEntry object."
     ),
     activity_=TAtype.ANNOUNCE,
-    object_=VOtype.CASE_LOG_ENTRY,
+    object_=VOtype.CASE_LEDGER_ENTRY,
 )
 AnnounceVulnerabilityCasePattern = ActivityPattern(
     description=(
@@ -244,11 +244,11 @@ AnnounceVulnerabilityCasePattern = ActivityPattern(
 )
 RejectLogEntryPattern = ActivityPattern(
     description=(
-        "Participant rejects a CaseLogEntry announcement due to "
-        "hash-chain mismatch. The object is the rejected CaseLogEntry."
+        "Participant rejects a CaseLedgerEntry announcement due to "
+        "hash-chain mismatch. The object is the rejected CaseLedgerEntry."
     ),
     activity_=TAtype.REJECT,
-    object_=VOtype.CASE_LOG_ENTRY,
+    object_=VOtype.CASE_LEDGER_ENTRY,
 )
 
 # ---------------------------------------------------------------------------

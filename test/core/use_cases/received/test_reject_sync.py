@@ -11,7 +11,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for SYNC-3: RejectLogEntryReceivedUseCase and replay trigger.
+"""Tests for SYNC-3: RejectLedgerEntryReceivedUseCase and replay trigger.
 
 Spec: SYNC-03-001, SYNC-03-002, SYNC-04-001, SYNC-04-002.
 """
@@ -21,14 +21,14 @@ from unittest.mock import MagicMock
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
-from vultron.core.models.case_log import GENESIS_HASH, HashChainLogRecord
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.case_ledger import GENESIS_HASH, HashChainLedgerRecord
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.use_cases.triggers.sync import _to_persistable_entry
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.sync import (
-    RejectLogEntryReceivedUseCase,
+    RejectLedgerEntryReceivedUseCase,
     _update_replication_state,
 )
 from vultron.core.use_cases.triggers.sync import replay_missing_entries_trigger
@@ -37,8 +37,8 @@ from typing import cast
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import reject_log_entry_activity
-from vultron.wire.as2.vocab.objects.case_log_entry import (
-    CaseLogEntry as WireCaseLogEntry,
+from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+    CaseLedgerEntry as WireCaseLedgerEntry,
 )
 
 CASE_ACTOR_URI = "https://example.org/actors/case-actor"
@@ -48,8 +48,8 @@ CASE_URI = "https://example.org/cases/case1"
 
 def _make_entry(
     case_id: str, log_index: int, prev_hash: str
-) -> VultronCaseLogEntry:
-    chain = HashChainLogRecord(
+) -> VultronCaseLedgerEntry:
+    chain = HashChainLedgerRecord(
         case_id=case_id,
         log_index=log_index,
         object_id="https://example.org/activities/act1",
@@ -66,20 +66,22 @@ def dl() -> SqliteDataLayer:
 
 
 @pytest.fixture
-def entry0() -> VultronCaseLogEntry:
+def entry0() -> VultronCaseLedgerEntry:
     return _make_entry(CASE_URI, 0, GENESIS_HASH)
 
 
 @pytest.fixture
-def entry1(entry0) -> VultronCaseLogEntry:
+def entry1(entry0) -> VultronCaseLedgerEntry:
     return _make_entry(CASE_URI, 1, entry0.entry_hash)
 
 
 def _make_reject_event(
-    entry: VultronCaseLogEntry, last_accepted_hash: str, actor: str
+    entry: VultronCaseLedgerEntry, last_accepted_hash: str, actor: str
 ) -> RejectLogEntryReceivedEvent:
     """Build a RejectLogEntryReceivedEvent via the extractor."""
-    wire_entry = WireCaseLogEntry.model_validate(entry.model_dump(mode="json"))
+    wire_entry = WireCaseLedgerEntry.model_validate(
+        entry.model_dump(mode="json")
+    )
     activity = reject_log_entry_activity(
         wire_entry,
         context=last_accepted_hash,
@@ -90,21 +92,21 @@ def _make_reject_event(
 
 
 class TestRejectLogEntryPattern:
-    """Pattern matching for REJECT_CASE_LOG_ENTRY (SYNC-03-001)."""
+    """Pattern matching for REJECT_CASE_LEDGER_ENTRY (SYNC-03-001)."""
 
-    def test_pattern_matches_reject_with_case_log_entry(self, entry0):
-        wire_entry = WireCaseLogEntry.model_validate(
+    def test_pattern_matches_reject_with_case_ledger_entry(self, entry0):
+        wire_entry = WireCaseLedgerEntry.model_validate(
             entry0.model_dump(mode="json")
         )
         activity = reject_log_entry_activity(
             wire_entry, context=GENESIS_HASH, actor=PARTICIPANT_URI
         )
         event = extract_event(activity)
-        assert event.semantic_type == MessageSemantics.REJECT_CASE_LOG_ENTRY
+        assert event.semantic_type == MessageSemantics.REJECT_CASE_LEDGER_ENTRY
 
     def test_rejected_entry_accessible(self, entry0):
         event = _make_reject_event(entry0, GENESIS_HASH, PARTICIPANT_URI)
-        assert event.semantic_type == MessageSemantics.REJECT_CASE_LOG_ENTRY
+        assert event.semantic_type == MessageSemantics.REJECT_CASE_LEDGER_ENTRY
         from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 
         assert isinstance(event, RejectLogEntryReceivedEvent)
@@ -123,7 +125,7 @@ class TestRejectLogEntryPattern:
         """When no context is set, last_accepted_hash falls back to GENESIS_HASH."""
         from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 
-        wire_entry = WireCaseLogEntry.model_validate(
+        wire_entry = WireCaseLedgerEntry.model_validate(
             entry0.model_dump(mode="json")
         )
         activity = reject_log_entry_activity(wire_entry, actor=PARTICIPANT_URI)
@@ -257,11 +259,11 @@ class TestReplayMissingEntriesTrigger:
         assert PARTICIPANT_URI in (announce.get("to") or [])
 
 
-class TestRejectLogEntryReceivedUseCase:
-    """RejectLogEntryReceivedUseCase updates state and triggers replay."""
+class TestRejectLedgerEntryReceivedUseCase:
+    """RejectLedgerEntryReceivedUseCase updates state and triggers replay."""
 
     def _make_event(
-        self, entry: VultronCaseLogEntry, last_accepted_hash: str
+        self, entry: VultronCaseLedgerEntry, last_accepted_hash: str
     ) -> RejectLogEntryReceivedEvent:
         return _make_reject_event(entry, last_accepted_hash, PARTICIPANT_URI)
 
@@ -271,7 +273,7 @@ class TestRejectLogEntryReceivedUseCase:
         dl.save(entry1)
 
         event = self._make_event(entry1, entry0.entry_hash)
-        uc = RejectLogEntryReceivedUseCase(dl, event)
+        uc = RejectLedgerEntryReceivedUseCase(dl, event)
         uc.execute()
 
         state_id = VultronReplicationState(
@@ -290,11 +292,11 @@ class TestRejectLogEntryReceivedUseCase:
         from vultron.core.models.events.base import MessageSemantics
 
         event = RejectLogEntryReceivedEvent(
-            semantic_type=MessageSemantics.REJECT_CASE_LOG_ENTRY,
+            semantic_type=MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
             activity_id="https://example.org/activities/rej1",
             actor_id=PARTICIPANT_URI,
         )
-        uc = RejectLogEntryReceivedUseCase(dl, event)
+        uc = RejectLedgerEntryReceivedUseCase(dl, event)
         uc.execute()  # should not raise
 
     def test_replay_triggered_when_case_actor_found(self, dl, entry0, entry1):
@@ -315,7 +317,9 @@ class TestRejectLogEntryReceivedUseCase:
         # Participant says they only have up to entry0
         event = self._make_event(entry1, entry0.entry_hash)
         sync_port = SyncActivityAdapter(dl)
-        RejectLogEntryReceivedUseCase(dl, event, sync_port=sync_port).execute()
+        RejectLedgerEntryReceivedUseCase(
+            dl, event, sync_port=sync_port
+        ).execute()
 
         # Should have queued one replay Announce (for entry1).
         # announce saved to DataLayer; outbox queue uses actor-scoped table.

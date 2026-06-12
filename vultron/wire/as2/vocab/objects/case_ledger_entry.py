@@ -11,15 +11,15 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Wire-layer vocabulary class for :class:`CaseLogEntry`.
+"""Wire-layer vocabulary class for :class:`CaseLedgerEntry`.
 
-Defines :class:`CaseLogEntry`, the proper wire-layer representation of a
-canonical case log entry used in ``Announce(CaseLogEntry)`` replication
+Defines :class:`CaseLedgerEntry`, the proper wire-layer representation of a
+canonical case ledger entry used in ``Announce(CaseLedgerEntry)`` replication
 activities.  This class inherits from
 :class:`~vultron.wire.as2.vocab.objects.base.VultronObject` (an ``as_Base``
 subclass) so that:
 
-1. It auto-registers in the wire vocabulary as ``VOCABULARY["CaseLogEntry"]``
+1. It auto-registers in the wire vocabulary as ``VOCABULARY["CaseLedgerEntry"]``
    via ``as_Base.__init_subclass__``, enabling correct DataLayer round-trips
    and vocabulary lookups in :func:`~vultron.wire.as2.rehydration.rehydrate`.
 2. It satisfies the ``isinstance(obj, as_Object)`` check in
@@ -29,7 +29,7 @@ subclass) so that:
    can use it as ``object_`` without type errors.
 
 The canonical *domain* class is
-:class:`~vultron.core.models.case_log_entry.VultronCaseLogEntry`.
+:class:`~vultron.core.models.case_ledger_entry.VultronCaseLedgerEntry`.
 
 The wire class deliberately omits the ``@model_validator`` that auto-computes
 ``id_`` from ``case_id``/``log_index``; activities received over the wire
@@ -46,20 +46,20 @@ from typing import Any, Literal, Optional
 from pydantic import Field
 
 from vultron.core.models._helpers import _now_utc
-from vultron.core.models.case_log import GENESIS_HASH
-from vultron.core.models.case_log_entry import (
-    CaseLogEntry as CoreCaseLogEntry,
-    VultronCaseLogEntry,
-    VultronCaseLogEntryRef,
+from vultron.core.models.case_ledger import GENESIS_HASH
+from vultron.core.models.case_ledger_entry import (
+    CaseLedgerEntry as CoreCaseLedgerEntry,
+    VultronCaseLedgerEntry,
+    VultronCaseLedgerEntryRef,
 )
 from vultron.wire.as2.vocab.objects.base import VultronAS2Object
 
 
-class CaseLogEntry(VultronAS2Object):
-    """Wire-layer representation of a canonical case log entry.
+class CaseLedgerEntry(VultronAS2Object):
+    """Wire-layer representation of a canonical case ledger entry.
 
     All fields mirror
-    :class:`~vultron.core.models.case_log_entry.VultronCaseLogEntry` but
+    :class:`~vultron.core.models.case_ledger_entry.VultronCaseLedgerEntry` but
     this class extends :class:`~vultron.wire.as2.vocab.objects.base.VultronObject`
     (an ``as_Base`` subclass) so it auto-registers in the wire vocabulary and
     satisfies the ``isinstance(obj, as_Object)`` check in rehydration.
@@ -70,8 +70,8 @@ class CaseLogEntry(VultronAS2Object):
     Spec: SYNC-01-002, SYNC-02-003, SYNC-02-004.
     """
 
-    type_: Literal["CaseLogEntry"] = Field(  # type: ignore[assignment]
-        default="CaseLogEntry",
+    type_: Literal["CaseLedgerEntry"] = Field(  # type: ignore[assignment]
+        default="CaseLedgerEntry",
         validation_alias="type",
         serialization_alias="type",
     )
@@ -141,19 +141,23 @@ class CaseLogEntry(VultronAS2Object):
     )
 
     @classmethod
-    def from_core(cls, entry: CoreCaseLogEntry) -> "CaseLogEntry":
-        """Create a wire :class:`CaseLogEntry` from a domain
-        :class:`~vultron.core.models.case_log_entry.CaseLogEntry`.
+    def from_core(cls, entry: CoreCaseLedgerEntry) -> "CaseLedgerEntry":
+        """Create a wire :class:`CaseLedgerEntry` from a domain
+        :class:`~vultron.core.models.case_ledger_entry.CaseLedgerEntry`.
 
         Conversion ownership belongs in the wire layer so that core modules
         do not embed wire-format knowledge (ARCH-01-001).
         """
         return cls.model_validate(entry.model_dump(mode="json"))
 
-    def to_core(self) -> CoreCaseLogEntry:
+    def to_core(self) -> CoreCaseLedgerEntry:
         data = self._to_core_data()
         data.pop("context_", None)  # context_ is a wire/JSON-LD concern
-        return CoreCaseLogEntry.model_validate(data)
+        return CoreCaseLedgerEntry.model_validate(data)
 
 
-__all__ = ["CaseLogEntry", "VultronCaseLogEntry", "VultronCaseLogEntryRef"]
+__all__ = [
+    "CaseLedgerEntry",
+    "VultronCaseLedgerEntry",
+    "VultronCaseLedgerEntryRef",
+]

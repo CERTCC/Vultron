@@ -1,7 +1,7 @@
-"""Case closure, sync and case-log semantic registry entries.
+"""Case closure, sync and case-ledger semantic registry entries.
 
 ``CLOSE_CASE`` appears here because it follows the embargo entries in the
-original dispatch order and precedes the case-log sync entries.
+original dispatch order and precedes the case-ledger sync entries.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -25,8 +25,8 @@ from vultron.core.models.events.sync import (
 )
 from vultron.core.use_cases.received.case import CloseCaseReceivedUseCase
 from vultron.core.use_cases.received.sync import (
-    AnnounceLogEntryReceivedUseCase,
-    RejectLogEntryReceivedUseCase,
+    AnnounceLedgerEntryReceivedUseCase,
+    RejectLedgerEntryReceivedUseCase,
 )
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.wire.as2.extractor import (
@@ -51,17 +51,17 @@ ENTRIES: list[SemanticEntry] = [
         wire_activity_class=_RmCloseCaseActivity,
     ),
     SemanticEntry(
-        semantics=MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY,
+        semantics=MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
         pattern=AnnounceLogEntryPattern,
         event_class=AnnounceLogEntryReceivedEvent,
-        use_case_class=AnnounceLogEntryReceivedUseCase,
+        use_case_class=AnnounceLedgerEntryReceivedUseCase,
         wire_activity_class=_AnnounceLogEntryActivity,
     ),
     SemanticEntry(
-        semantics=MessageSemantics.REJECT_CASE_LOG_ENTRY,
+        semantics=MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
         pattern=RejectLogEntryPattern,
         event_class=RejectLogEntryReceivedEvent,
-        use_case_class=RejectLogEntryReceivedUseCase,
+        use_case_class=RejectLedgerEntryReceivedUseCase,
         wire_activity_class=_RejectLogEntryActivity,
     ),
 ]

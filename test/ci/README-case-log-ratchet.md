@@ -1,14 +1,14 @@
 # Case-Log Invariant Ratchet Workflow
 
-This document describes the ratchet workflow for the CI case-log invariant
-harness (`test/ci/test_case_log_invariants.py`), satisfying AC-6 of issue
+This document describes the ratchet workflow for the CI case-ledger invariant
+harness (`test/ci/test_case_ledger_invariants.py`), satisfying AC-6 of issue
 [#925](https://github.com/CERTCC/Vultron/issues/925).
 
 ---
 
 ## Overview
 
-The harness parses JSONL case-log replica files produced by the two-actor
+The harness parses JSONL case-ledger replica files produced by the two-actor
 demo and asserts a fixed set of canonical-log invariants. All invariants
 that are not yet passing are decorated with `pytest.mark.xfail` so the CI
 build stays green while fix PRs land one at a time.
@@ -23,13 +23,13 @@ Each fix PR ratchets exactly one invariant from "expected failure" to
 ### In CI (after the demo produces JSONL artifacts)
 
 ```bash
-uv run pytest -m case_log_invariants -v
+uv run pytest -m case_ledger_invariants -v
 ```
 
 Or target the file directly:
 
 ```bash
-uv run pytest test/ci/test_case_log_invariants.py -v
+uv run pytest test/ci/test_case_ledger_invariants.py -v
 ```
 
 ### Locally (without demo artifacts)
@@ -77,7 +77,7 @@ When a fix PR lands that resolves one of the `xfail` invariants:
    now passes:
 
    ```bash
-   uv run pytest test/ci/test_case_log_invariants.py -v
+   uv run pytest test/ci/test_case_ledger_invariants.py -v
    ```
 
 4. **Commit the decorator removal** in the same PR as (or immediately
@@ -90,7 +90,7 @@ When a fix PR lands that resolves one of the `xfail` invariants:
 
 ## Adding a New Invariant
 
-1. Open `test/ci/test_case_log_invariants.py`.
+1. Open `test/ci/test_case_ledger_invariants.py`.
 
 2. Write a new `test_invariant_<N>_<slug>` function following the
    existing pattern.
@@ -100,13 +100,13 @@ When a fix PR lands that resolves one of the `xfail` invariants:
 4. If the invariant will be fixed by a future PR, add:
 
    ```python
-   @pytest.mark.case_log_invariants
+   @pytest.mark.case_ledger_invariants
    @pytest.mark.xfail(
        strict=False,
        reason="<description>; will pass when #<issue> lands",
    )
    def test_invariant_<N>_<slug>(
-       case_log_replicas: dict[str, list[dict]],
+       case_ledger_replicas: dict[str, list[dict]],
    ) -> None:
        """<One-line summary> (AC-4.N).
 
@@ -118,7 +118,7 @@ When a fix PR lands that resolves one of the `xfail` invariants:
 
 5. Add a row to the invariant table above.
 
-6. Run `uv run pytest test/ci/test_case_log_invariants.py -v` (with demo
+6. Run `uv run pytest test/ci/test_case_ledger_invariants.py -v` (with demo
    artifacts) to confirm the new test appears with the expected
    `XFAIL` status.
 
@@ -145,7 +145,7 @@ exit code.
 The two-actor demo writes one JSONL file per actor under:
 
 ```text
-devlogs/<demo_name>/<actor_name>/<case_id_slug>-case-log.jsonl
+devlogs/<demo_name>/<actor_name>/<case_id_slug>-case-ledger.jsonl
 ```
 
 For the standard two-actor run this produces:
@@ -156,6 +156,6 @@ devlogs/two-actor/vendor/...jsonl
 devlogs/two-actor/case-actor/...jsonl
 ```
 
-These files are collected by the `Upload case log JSONL files` step in
+These files are collected by the `Upload case ledger JSONL files` step in
 `.github/workflows/demo-integration.yml` and are available to the
 invariant harness when it runs in the same CI job.

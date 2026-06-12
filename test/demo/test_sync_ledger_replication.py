@@ -11,7 +11,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""SYNC integration tests for single-peer CaseLogEntry replication (#901)."""
+"""SYNC integration tests for single-peer CaseLedgerEntry replication (#901)."""
 
 from __future__ import annotations
 
@@ -23,12 +23,14 @@ import pytest
 
 from vultron.adapters.driven.asgi_emitter import ASGIEmitter
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
-from vultron.core.models.case_log import GENESIS_HASH, HashChainLogRecord
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.case_ledger import GENESIS_HASH, HashChainLedgerRecord
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.use_cases.triggers.sync import _to_persistable_entry
-from vultron.core.use_cases.received.sync import RejectLogEntryReceivedUseCase
+from vultron.core.use_cases.received.sync import (
+    RejectLedgerEntryReceivedUseCase,
+)
 from vultron.semantic_registry import extract_event
 from test.demo.conftest import _TestASGIRouter, create_isolated_actor_app
 from vultron.adapters.driving.fastapi.inbox_handler import (
@@ -44,8 +46,8 @@ from vultron.wire.as2.factories import (
     announce_log_entry_activity,
     reject_log_entry_activity,
 )
-from vultron.wire.as2.vocab.objects.case_log_entry import (
-    CaseLogEntry as WireCaseLogEntry,
+from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+    CaseLedgerEntry as WireCaseLedgerEntry,
 )
 from vultron.wire.as2.vocab.objects.case_actor import CaseActor
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
@@ -77,8 +79,8 @@ def _make_log_entry(
     log_index: int,
     prev_hash: str,
     event_type: str,
-) -> VultronCaseLogEntry:
-    record = HashChainLogRecord(
+) -> VultronCaseLedgerEntry:
+    record = HashChainLedgerRecord(
         case_id=case_id,
         log_index=log_index,
         object_id=case_id,
@@ -117,7 +119,7 @@ def two_app_setup() -> Iterator[tuple]:
 @pytest.mark.spec("SYNC-07-002")
 @pytest.mark.spec("SYNC-02-003")
 def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
-    """CaseActor commit should replicate one CaseLogEntry to a peer replica."""
+    """CaseActor commit should replicate one CaseLedgerEntry to a peer replica."""
     case_actor_iso, peer_iso, case_actor_tc, peer_tc = two_app_setup
 
     case_actor_base_api = f"{case_actor_iso.base_url}/api/v2"
@@ -167,7 +169,7 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
     peer_entry = peer_iso.dl.read(entry_id)
     assert (
         peer_entry is not None
-    ), "Expected peer replica to contain the announced CaseLogEntry."
+    ), "Expected peer replica to contain the announced CaseLedgerEntry."
     assert peer_entry.case_id == case.id_
     assert peer_entry.log_index == payload["log_index"]
     assert peer_entry.entry_hash == payload["entry_hash"]
@@ -229,7 +231,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
     case_actor_iso.dl.save(entry2)
     peer_iso.dl.save(entry0)
 
-    wire_entry2 = WireCaseLogEntry.model_validate(
+    wire_entry2 = WireCaseLedgerEntry.model_validate(
         entry2.model_dump(mode="json")
     )
     out_of_chain_announce = announce_log_entry_activity(
@@ -249,7 +251,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
         cast(RejectLogEntryReceivedEvent, extract_event(activity))
         for activity in peer_iso.dl.list_objects("Reject")
     ]
-    assert peer_reject_events, "Expected peer to emit Reject(CaseLogEntry)."
+    assert peer_reject_events, "Expected peer to emit Reject(CaseLedgerEntry)."
     emitted_reject_event = peer_reject_events[-1]
     assert emitted_reject_event.actor_id == peer_actor_id
     assert emitted_reject_event.last_accepted_hash == entry0.entry_hash
@@ -267,7 +269,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
         ),
     )
 
-    RejectLogEntryReceivedUseCase(
+    RejectLedgerEntryReceivedUseCase(
         case_actor_iso.dl,
         reject_for_case_actor,
         sync_port=SyncActivityAdapter(case_actor_iso.dl),
@@ -306,9 +308,9 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
 def test_sync_duplicate_delivery_idempotency(
     two_app_setup, monkeypatch
 ) -> None:
-    """Duplicate delivery of Announce(CaseLogEntry) must produce one replica.
+    """Duplicate delivery of Announce(CaseLedgerEntry) must produce one replica.
 
-    Delivers the same ``Announce(CaseLogEntry)`` twice to the peer actor
+    Delivers the same ``Announce(CaseLedgerEntry)`` twice to the peer actor
     and verifies the peer replica contains exactly one copy of the entry
     (SYNC-03-003: replication MUST be idempotent; repeated delivery MUST NOT
     produce duplicate entries).
@@ -342,30 +344,32 @@ def test_sync_duplicate_delivery_idempotency(
     case.actor_participant_index[peer_actor_id] = peer_participant.id_
 
     # Peer needs the case and participants in its DataLayer to process inbound
-    # Announce(CaseLogEntry) as a participant, not as a CaseActor owner.
+    # Announce(CaseLedgerEntry) as a participant, not as a CaseActor owner.
     peer_iso.dl.save(case_actor_participant)
     peer_iso.dl.save(peer_participant)
     peer_iso.dl.save(case)
 
-    saved_case_log_entry_ids: list[str] = []
+    saved_case_ledger_entry_ids: list[str] = []
     original_save = peer_iso.dl.save
 
     def save_spy(obj, *args, **kwargs):
-        if getattr(obj, "type_", None) == "CaseLogEntry":
-            saved_case_log_entry_ids.append(getattr(obj, "id_", ""))
+        if getattr(obj, "type_", None) == "CaseLedgerEntry":
+            saved_case_ledger_entry_ids.append(getattr(obj, "id_", ""))
         return original_save(obj, *args, **kwargs)
 
     monkeypatch.setattr(peer_iso.dl, "save", save_spy)
 
     entry = _make_log_entry(case.id_, 0, GENESIS_HASH, "sync_903_dup")
-    wire_entry = WireCaseLogEntry.model_validate(entry.model_dump(mode="json"))
+    wire_entry = WireCaseLedgerEntry.model_validate(
+        entry.model_dump(mode="json")
+    )
     announce = announce_log_entry_activity(
         entry=wire_entry,
         actor=case_actor_id,
         to=[peer_actor_id],
     )
 
-    # Deliver the same Announce(CaseLogEntry) twice.
+    # Deliver the same Announce(CaseLedgerEntry) twice.
     for _ in range(2):
         handle_inbox_item(
             actor_id=peer_actor_id,
@@ -374,17 +378,17 @@ def test_sync_duplicate_delivery_idempotency(
             dispatcher=peer_iso.app.state.dispatcher,
         )
 
-    assert saved_case_log_entry_ids == [entry.id_]
+    assert saved_case_ledger_entry_ids == [entry.id_]
 
     # Peer replica must contain exactly one copy (idempotent behavior).
     stored_entries = [
         e
-        for e in peer_iso.dl.list_objects("CaseLogEntry")
+        for e in peer_iso.dl.list_objects("CaseLedgerEntry")
         if getattr(e, "case_id", None) == case.id_
     ]
     assert (
         len(stored_entries) == 1
-    ), f"Expected exactly 1 CaseLogEntry replica, got {len(stored_entries)}"
+    ), f"Expected exactly 1 CaseLedgerEntry replica, got {len(stored_entries)}"
     assert stored_entries[0].id_ == entry.id_
 
     # AC-4 guard: each actor app must use its own isolated DataLayer.
