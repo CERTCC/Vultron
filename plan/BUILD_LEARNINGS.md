@@ -71,3 +71,10 @@ before every chain comparison.
 with a spec-linked `NotImplementedError`. A dedicated adapter-level unit test
 prevents future placeholder edits from silently downgrading the fail-fast
 signal into a no-op module.
+
+### 2026-06-12 RENAME-934 — pytest mark registration must mirror class/file renames
+
+When renaming a pytest mark (e.g., `case_log_invariants` → `case_ledger_invariants`),
+update the `markers = [...]` list in `pyproject.toml` in the same commit. A renamed
+mark in test files without a corresponding `pyproject.toml` update causes a
+`PytestUnknownMarkWarning` that blocks test collection under `filterwarnings = ["error"]`.
