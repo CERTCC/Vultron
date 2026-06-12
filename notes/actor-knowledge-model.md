@@ -91,7 +91,7 @@ succeeds because `activity.object_.type_` is directly accessible.
 
 ```python
 # ❌ WRONG — recipient cannot look up case from their own DataLayer
-activity = AddCaseLogEntryActivity(
+activity = AddCaseLedgerEntryActivity(
     actor=actor.id_,
     object_=log_entry,
     target=case.id_,   # bare string — recipient may not have this case
@@ -103,7 +103,7 @@ activity = AddCaseLogEntryActivity(
 
 ```python
 # ✅ CORRECT
-activity = AddCaseLogEntryActivity(
+activity = AddCaseLedgerEntryActivity(
     actor=actor.id_,
     object_=log_entry,
     target=case,       # full VulnerabilityCase instance

@@ -6,7 +6,7 @@ from py_trees.common import Status
 
 from test.core.behaviors.sync.nodes.conftest import OWNER_ACTOR_ID
 from vultron.core.behaviors.sync.nodes import CreateLogEntryNode
-from vultron.core.models.case_log import GENESIS_HASH
+from vultron.core.models.case_ledger import GENESIS_HASH
 
 
 def test_create_log_entry_node_writes_log_entry_to_blackboard(bridge):

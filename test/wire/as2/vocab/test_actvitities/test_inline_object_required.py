@@ -103,7 +103,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Person
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.case_log_entry import CaseLogEntry
+from vultron.wire.as2.vocab.objects.case_ledger_entry import CaseLedgerEntry
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
     CaseStatus,
@@ -126,7 +126,7 @@ _STATUS = CaseStatus()
 _PARTICIPANT_STATUS = ParticipantStatus(context=_CASE.id_)
 _EMBARGO = EmbargoEvent(name="Embargo Event")
 _PARTICIPANT = CaseParticipant(attributed_to=_ACTOR.id_)
-_LOG_ENTRY = CaseLogEntry(
+_LOG_ENTRY = CaseLedgerEntry(
     case_id=_CASE.id_,
     log_object_id=_REPORT.id_,
     event_type="CREATE_REPORT",
@@ -277,12 +277,12 @@ class TestInlineTypedObjectAccepted(unittest.TestCase):
 
     def test_reject_log_entry_accepts_typed(self):
         obj = _RejectLogEntryActivity(actor=_ACTOR.id_, object_=_LOG_ENTRY)
-        assert isinstance(obj.object_, CaseLogEntry)
+        assert isinstance(obj.object_, CaseLedgerEntry)
 
     def test_announce_log_entry_still_accepts_typed(self):
-        """_AnnounceLogEntryActivity should still accept a CaseLogEntry."""
+        """_AnnounceLogEntryActivity should still accept a CaseLedgerEntry."""
         obj = _AnnounceLogEntryActivity(actor=_ACTOR.id_, object_=_LOG_ENTRY)
-        assert isinstance(obj.object_, CaseLogEntry)
+        assert isinstance(obj.object_, CaseLedgerEntry)
 
 
 class TestNoneObjectRejected(unittest.TestCase):

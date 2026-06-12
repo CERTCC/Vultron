@@ -582,7 +582,7 @@ class TestCloseReportReceivedUseCase:
         assert participant.participant_statuses[-1].rm_state == RM.CLOSED
 
     def test_use_case_warns_when_no_case(self, caplog):
-        """Use case logs WARNING when no case is found for the report."""
+        """Use case ledgers WARNING when no case is found for the report."""
         dl = SqliteDataLayer("sqlite:///:memory:")
         event = _make_close_report_event()
 
@@ -665,7 +665,7 @@ class TestInvalidateReportReceivedUseCase:
         assert participant.participant_statuses[-1].rm_state == RM.INVALID
 
     def test_use_case_warns_when_no_case(self, caplog):
-        """Use case logs WARNING when no case is found for the report."""
+        """Use case ledgers WARNING when no case is found for the report."""
         dl = SqliteDataLayer("sqlite:///:memory:")
         event = _make_invalidate_report_event()
 

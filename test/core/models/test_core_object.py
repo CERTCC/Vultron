@@ -13,7 +13,9 @@ from vultron.core.models import (
 )
 from vultron.core.models.base import VultronBase
 from vultron.core.models.case import VultronCase
-from vultron.core.models.case_log_entry import CaseLogEntry as CoreCaseLogEntry
+from vultron.core.models.case_ledger_entry import (
+    CaseLedgerEntry as CoreCaseLedgerEntry,
+)
 from vultron.core.models.note import VultronNote
 from vultron.core.models.report import VulnerabilityReport, VultronReport
 from vultron.core.models.vulnerability_record import VulnerabilityRecord
@@ -230,13 +232,13 @@ def test_vulnerability_record_inherits_core_object():
     assert CORE_VOCABULARY["VulnerabilityRecord"] is VulnerabilityRecord
 
 
-def test_core_case_log_entry_inherits_core_object():
-    """CaseLogEntry from case_log_entry (migrated in #727) must be a CoreObject
+def test_core_case_ledger_entry_inherits_core_object():
+    """CaseLedgerEntry from case_ledger_entry (migrated in #727) must be a CoreObject
     subclass.
     """
-    assert issubclass(CoreCaseLogEntry, CoreObject)
-    assert "CaseLogEntry" in CORE_VOCABULARY
-    assert CORE_VOCABULARY["CaseLogEntry"] is CoreCaseLogEntry
+    assert issubclass(CoreCaseLedgerEntry, CoreObject)
+    assert "CaseLedgerEntry" in CORE_VOCABULARY
+    assert CORE_VOCABULARY["CaseLedgerEntry"] is CoreCaseLedgerEntry
 
 
 def test_vulnerability_case_inherits_core_object():

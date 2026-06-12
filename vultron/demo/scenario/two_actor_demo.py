@@ -529,7 +529,7 @@ def _phase_sync_verification(
     logger.info("Phase 2: Replica synchronization verification")
     logger.info("─" * 80)
 
-    with demo_step("Committing case log entry on Vendor (CaseActor)"):
+    with demo_step("Committing case ledger entry on Vendor (CaseActor)"):
         entry_hash = trigger_log_commit(
             client=vendor_client,
             actor_id=vendor.id_,
@@ -720,7 +720,7 @@ def _phase_case_closure(
 # ---------------------------------------------------------------------------
 
 
-def _phase_dump_case_logs(
+def _phase_dump_case_ledgers(
     finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
     finder: as_Actor,
@@ -729,12 +729,12 @@ def _phase_dump_case_logs(
     case_actor_client: DataLayerClient | None = None,
     demo_name: str = "two-actor",
 ) -> None:
-    """Dump case log entries from each actor container to JSONL files.
+    """Dump case ledger entries from each actor container to JSONL files.
 
     Reads ``DEVLOGS_DIR`` from the environment (default ``/app/devlogs``) and
     writes one JSONL file per actor under::
 
-        {DEVLOGS_DIR}/{demo_name}/{actor_name}/{case_id_slug}-case-log.jsonl
+        {DEVLOGS_DIR}/{demo_name}/{actor_name}/{case_id_slug}-case-ledger.jsonl
 
     The case-actor log is always included: from *case_actor_client* when a
     dedicated case-actor service is configured, otherwise from the vendor
@@ -784,7 +784,7 @@ def _phase_dump_case_logs(
         actors.append(("case-actor", vendor_client, case_actor_sub_actor_key))
 
     for actor_name, client, actor_route_key in actors:
-        with demo_step(f"Dumping case log for {actor_name}"):
+        with demo_step(f"Dumping case ledger for {actor_name}"):
             case_key = strip_id_prefix(case_id)
             log_path = f"/actors/{actor_route_key}/demo/cases/{case_key}/log"
             try:
@@ -820,13 +820,13 @@ def _phase_dump_case_logs(
                 entries = vendor_client.get_list(fallback_path)
             if not entries:
                 raise ValueError(
-                    f"No case log entries for actor={actor_name!r}, "
+                    f"No case ledger entries for actor={actor_name!r}, "
                     f"case_id={case_id!r}"
                 )
 
             out_dir = output_root / demo_name / actor_name
             out_dir.mkdir(parents=True, exist_ok=True)
-            out_file = out_dir / f"{case_id_slug}-case-log.jsonl"
+            out_file = out_dir / f"{case_id_slug}-case-ledger.jsonl"
 
             with out_file.open("w", encoding="utf-8") as fh:
                 for entry in entries:
@@ -902,7 +902,7 @@ def run_two_actor_demo(
         finder_in_finder,
         case,
     )
-    _phase_dump_case_logs(
+    _phase_dump_case_ledgers(
         finder_client=finder_client,
         vendor_client=vendor_client,
         finder=finder,

@@ -106,7 +106,7 @@ class TestInviteActorUseCases:
         stored = dl.get(invite.type_.value, invite.id_)
         assert stored is not None
 
-    def test_reject_invite_actor_to_case_logs_rejection(self, make_payload):
+    def test_reject_invite_actor_to_case_ledgers_rejection(self, make_payload):
         """RejectInviteActorToCaseReceivedUseCase logs without raising."""
         invite = rm_invite_to_case_activity(
             as_Actor(id_="https://example.org/users/coordinator"),
@@ -487,7 +487,7 @@ class TestSuggestActorUseCases:
         stored = dl.get(activity.type_.value, activity.id_)
         assert stored is not None
 
-    def test_reject_suggest_actor_to_case_logs_rejection(
+    def test_reject_suggest_actor_to_case_ledgers_rejection(
         self, monkeypatch, caplog, make_payload
     ):
         """RejectSuggestActorToCaseReceivedUseCase logs rejection without state change."""

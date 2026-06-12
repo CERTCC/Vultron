@@ -404,7 +404,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         assert STATUS_ID in status_ids
 
     def test_use_case_idempotent_logs_info(self, make_payload, caplog):
-        """Duplicate status → no append; use case logs at INFO not WARNING."""
+        """Duplicate status → no append; use case ledgers at INFO not WARNING."""
         import logging
 
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -437,7 +437,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         ), "Should not WARNING for idempotent duplicate"
 
     def test_use_case_invalid_em_logs_warning(self, make_payload, caplog):
-        """Invalid EM transition → no append; use case logs at WARNING."""
+        """Invalid EM transition → no append; use case ledgers at WARNING."""
         import logging
 
         dl = SqliteDataLayer("sqlite:///:memory:")

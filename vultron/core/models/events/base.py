@@ -55,8 +55,8 @@ class MessageSemantics(StrEnum):
 
     CLOSE_CASE = auto()
 
-    ANNOUNCE_CASE_LOG_ENTRY = auto()
-    REJECT_CASE_LOG_ENTRY = auto()
+    ANNOUNCE_CASE_LEDGER_ENTRY = auto()
+    REJECT_CASE_LEDGER_ENTRY = auto()
 
     CREATE_CASE_PARTICIPANT = auto()
     ADD_CASE_PARTICIPANT_TO_CASE = auto()

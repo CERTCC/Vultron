@@ -38,7 +38,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
 
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptCaseInviteUseCase,
@@ -466,7 +466,7 @@ class TriggerService:
         reason_code: str | None = None,
         reason_detail: str | None = None,
         disposition: str = "recorded",
-    ) -> VultronCaseLogEntry:
+    ) -> VultronCaseLedgerEntry:
         """Commit a new log entry and fan it out to all case participants."""
         return commit_log_entry_trigger(
             case_id=case_id,

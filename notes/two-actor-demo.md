@@ -11,7 +11,7 @@ related_specs:
   - specs/case-bootstrap-trust.yaml
   - specs/participant-case-replica.yaml
   - specs/participant-role-management.yaml
-  - specs/sync-log-replication.yaml
+  - specs/sync-ledger-replication.yaml
   - specs/event-driven-control-flow.yaml
   - specs/embargo-default-semantics.yaml
 related_notes:
@@ -21,7 +21,7 @@ related_notes:
   - notes/participant-role-management.md
   - notes/event-driven-control-flow.md
   - notes/embargo-default-semantics.md
-  - notes/sync-log-replication.md
+  - notes/sync-ledger-replication.md
 relevant_packages:
   - vultron/demo/scenario
   - vultron/adapters/driving/fastapi/routers

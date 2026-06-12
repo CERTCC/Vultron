@@ -15,27 +15,27 @@
 
 from typing import Literal, cast
 
-from vultron.core.models.case_log import GENESIS_HASH
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.case_ledger import GENESIS_HASH
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 
 
 class AnnounceLogEntryReceivedEvent(VultronEvent):
-    """CaseActor announced a canonical CaseLogEntry for log replication.
+    """CaseActor announced a canonical CaseLedgerEntry for log replication.
 
     Spec: SYNC-02-003, SYNC-03-001, SYNC-03-002, SYNC-03-003.
     """
 
-    semantic_type: Literal[MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY] = (
-        MessageSemantics.ANNOUNCE_CASE_LOG_ENTRY
+    semantic_type: Literal[MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY] = (
+        MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY
     )
 
     @property
-    def log_entry(self) -> VultronCaseLogEntry | None:
-        """Return the received :class:`VultronCaseLogEntry`, or ``None``."""
+    def log_entry(self) -> VultronCaseLedgerEntry | None:
+        """Return the received :class:`VultronCaseLedgerEntry`, or ``None``."""
         if self.object_ is None:
             return None
-        return cast(VultronCaseLogEntry, self.object_)
+        return cast(VultronCaseLedgerEntry, self.object_)
 
     @property
     def log_entry_id(self) -> str | None:
@@ -44,7 +44,7 @@ class AnnounceLogEntryReceivedEvent(VultronEvent):
 
 
 class RejectLogEntryReceivedEvent(VultronEvent):
-    """Participant rejected an ``Announce(CaseLogEntry)`` due to hash-chain mismatch.
+    """Participant rejected an ``Announce(CaseLedgerEntry)`` due to hash-chain mismatch.
 
     The ``context`` field of the wire activity carries the last accepted hash
     as a plain string.  The extractor wraps it in a minimal ``VultronObject``
@@ -53,16 +53,16 @@ class RejectLogEntryReceivedEvent(VultronEvent):
     Spec: SYNC-03-001, SYNC-03-002.
     """
 
-    semantic_type: Literal[MessageSemantics.REJECT_CASE_LOG_ENTRY] = (
-        MessageSemantics.REJECT_CASE_LOG_ENTRY
+    semantic_type: Literal[MessageSemantics.REJECT_CASE_LEDGER_ENTRY] = (
+        MessageSemantics.REJECT_CASE_LEDGER_ENTRY
     )
 
     @property
-    def rejected_entry(self) -> VultronCaseLogEntry | None:
-        """Return the rejected :class:`VultronCaseLogEntry`, or ``None``."""
+    def rejected_entry(self) -> VultronCaseLedgerEntry | None:
+        """Return the rejected :class:`VultronCaseLedgerEntry`, or ``None``."""
         if self.object_ is None:
             return None
-        return cast(VultronCaseLogEntry, self.object_)
+        return cast(VultronCaseLedgerEntry, self.object_)
 
     @property
     def last_accepted_hash(self) -> str:

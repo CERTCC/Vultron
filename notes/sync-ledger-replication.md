@@ -3,10 +3,10 @@ title: Sync Log Replication — Design Notes
 status: active
 description: "Design notes for sync log replication: append-only case activity log synchronization between actors."
 related_specs:
-  - specs/sync-log-replication.yaml
-  - specs/case-log-processing.yaml
+  - specs/sync-ledger-replication.yaml
+  - specs/case-ledger-processing.yaml
 related_notes:
-  - notes/case-log-authority.md
+  - notes/case-ledger-authority.md
   - notes/case-state-model.md
 relevant_packages:
   - vultron/core/behaviors
@@ -15,7 +15,7 @@ relevant_packages:
 
 # Sync Log Replication — Design Notes
 
-**Relates to**: `specs/sync-log-replication.yaml`
+**Relates to**: `specs/sync-ledger-replication.yaml`
 
 ---
 
@@ -48,7 +48,7 @@ Key properties:
   is the scope of the Raft consensus protocol. (2) *Participant replication*
   delivers the canonical recorded log from the CaseActor cluster leader to
   Participant Actors for state convergence — this is the scope of SYNC-1–4.
-  Both tiers share the same `Announce(CaseLogEntry)` wire format, but serve
+  Both tiers share the same `Announce(CaseLedgerEntry)` wire format, but serve
   different purposes.
 - **Forward compatibility**: The single-writer, single-node design explicitly
   preserves forward compatibility with a multi-node Raft cluster for
@@ -144,14 +144,14 @@ a slightly-behind participant.
 The current `CaseEvent` model (`vultron/wire/as2/vocab/objects/case_event.py`)
 provides the foundation. SYNC-1 extends it toward a true canonical recorded
 log with hash-chain indexing; the richer long-term content model is described
-in `notes/case-log-authority.md`.
+in `notes/case-ledger-authority.md`.
 
 Core domain classes (transport-agnostic):
 
-- `CaseEventLog` — append-only log; enforces immutability and hash-chain
+- `CaseLedger` — append-only log; enforces immutability and hash-chain
 - `ReplicationState` — per-peer last-acknowledged hash
 
-`CaseLogEntry` fields for SYNC-1:
+`CaseLedgerEntry` fields for SYNC-1:
 
 - `log_index` — monotonically increasing integer scoped to the case (MUST;
   see SYNC-01-002). Added in SYNC-1 so downstream code and wire format are
@@ -198,8 +198,8 @@ externally.
 
 **Emit-after-commit invariant**: External Vultron messages (activities sent
 to Participant Actors or other protocol peers) MUST only be emitted after the
-associated `CaseLogEntry` is committed. Participant replication fan-out
-(`Announce(CaseLogEntry)`) is therefore always downstream of the commit index
+associated `CaseLedgerEntry` is committed. Participant replication fan-out
+(`Announce(CaseLedgerEntry)`) is therefore always downstream of the commit index
 in both single-node and multi-node configurations.
 
 This discipline ensures that activities a node claims to have taken are
@@ -243,14 +243,14 @@ planning:
   Dynamic membership changes are out of scope.
 - **Wire format**: Raft cluster messages (AppendEntries, heartbeat, vote
   request/response) use the same ActivityPub inbox as CVD protocol messages,
-  mapped to distinct `MessageSemantics` values. `Announce(CaseLogEntry)` is
+  mapped to distinct `MessageSemantics` values. `Announce(CaseLedgerEntry)` is
   the unified replication envelope for both CaseActor cluster AppendEntries
   and Participant Actor replication.
 - **AS2 activity mapping**:
 
   | Raft function      | AS2 activity type                        |
   |--------------------|------------------------------------------|
-  | AppendEntries      | `Announce(CaseLogEntry)`                 |
+  | AppendEntries      | `Announce(CaseLedgerEntry)`                 |
   | Heartbeat          | `Announce(CaseActorHeartbeat)` (new obj) |
   | Vote request       | `Question(OneOf)`                        |
   | Vote granted       | `Accept(Question)`                       |
@@ -272,7 +272,7 @@ planning:
 ## Behavior Tree Leadership Guard
 
 The case behavior tree (BT) MUST only execute on the current Raft cluster
-leader. This ensures that only the leader generates `CaseLogEntry` objects
+leader. This ensures that only the leader generates `CaseLedgerEntry` objects
 and emits external Vultron activities.
 
 Design approach:
@@ -308,7 +308,7 @@ port being permanently `True` in single-node imposes zero runtime cost.
 ## Fan-Out Graceful Degradation
 
 `_fan_out_log_entry` (in `vultron/core/use_cases/triggers/sync.py`) queues one
-`Announce(CaseLogEntry)` per peer participant. `sync_port` is an **optional**
+`Announce(CaseLedgerEntry)` per peer participant. `sync_port` is an **optional**
 injection: when it is absent (single-actor context, tests, or configurations
 without a `SyncActivityAdapter`), the function logs at `DEBUG` level and
 returns immediately instead of raising.
@@ -332,8 +332,8 @@ is handled gracefully without patching.
 
 ## Related
 
-- `specs/sync-log-replication.yaml` — normative requirements
-- `specs/case-log-processing.yaml` — assertion recording and canonical
-  `CaseLogEntry` requirements
+- `specs/sync-ledger-replication.yaml` — normative requirements
+- `specs/case-ledger-processing.yaml` — assertion recording and canonical
+  `CaseLedgerEntry` requirements
 - `docs/adr/` — architectural decisions for CaseActor, per-actor DataLayer
 - `notes/case-state-model.md` — CaseEvent model and trusted timestamps

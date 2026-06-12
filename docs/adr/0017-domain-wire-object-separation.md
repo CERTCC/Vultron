@@ -13,7 +13,7 @@ amended: >-
 ## Context and Problem Statement
 
 `VulnerabilityCase`, `VulnerabilityReport`, `CaseParticipant`,
-`EmbargoPolicy`, `CaseStatus`, `CaseLogEntry`, and `VulnerabilityRecord`
+`EmbargoPolicy`, `CaseStatus`, `CaseLedgerEntry`, and `VulnerabilityRecord`
 are **domain objects**: they describe the Vultron protocol's state, not
 the ActivityStreams 2.0 (AS2) wire format. The codebase, however, was
 built wire-first, so these classes currently live under

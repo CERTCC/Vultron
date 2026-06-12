@@ -9,7 +9,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
 )
 from vultron.core.behaviors.sync.nodes import CheckIsOwnCaseActorNode
-from vultron.core.models.case_log import GENESIS_HASH
+from vultron.core.models.case_ledger import GENESIS_HASH
 
 
 def test_check_is_own_case_actor_succeeds_for_case_owner(bridge, case_actor):

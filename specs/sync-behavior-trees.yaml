@@ -99,7 +99,7 @@ groups:
           The non-case-actor (participant) path MUST validate the received
           log entry's hash chain before persisting: `prev_log_hash` MUST
           match the receiver's local chain tail hash. On mismatch, the
-          participant MUST send `Reject(CaseLogEntry)` back to the
+          participant MUST send `Reject(CaseLedgerEntry)` back to the
           case-actor with its last-accepted hash.
         relationships:
           - rel_type: implements
@@ -162,7 +162,7 @@ groups:
         statement: >-
           After updating replication state, RejectLogEntryReceivedBT MUST
           replay all missing entries from the peer's last-accepted hash
-          forward by queuing `Announce(CaseLogEntry)` activities via
+          forward by queuing `Announce(CaseLedgerEntry)` activities via
           SyncActivityPort.
         relationships:
           - rel_type: implements
@@ -183,9 +183,9 @@ groups:
         priority: MUST
         statement: >-
           CommitLogEntryBT MUST compose as a Sequence of discrete BT nodes:
-          (1) reconstruct chain tail hash, (2) create CaseLogEntry with
+          (1) reconstruct chain tail hash, (2) create CaseLedgerEntry with
           computed entry_hash, (3) persist entry to DataLayer, (4) fan out
-          Announce(CaseLogEntry) to case participants via SyncActivityPort.
+          Announce(CaseLedgerEntry) to case participants via SyncActivityPort.
         relationships:
           - rel_type: implements
             spec_id: SYNC-02-002
@@ -204,7 +204,7 @@ groups:
       - id: SBT-04-003
         priority: MUST
         statement: >-
-          The existing `CommitCaseLogEntryNode` in `case/nodes.py` MUST be
+          The existing `CommitCaseLedgerEntryNode` in `case/nodes.py` MUST be
           refactored to invoke CommitLogEntryBT as a subtree rather than
           calling `commit_log_entry_trigger()` procedurally.
 
@@ -213,7 +213,7 @@ groups:
         statement: >-
           Fan-out MUST only occur after the log entry is durably persisted
           (committed). External activities MUST NOT be emitted before the
-          associated CaseLogEntry is committed.
+          associated CaseLedgerEntry is committed.
         relationships:
           - rel_type: implements
             spec_id: SYNC-09-002

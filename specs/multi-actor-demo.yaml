@@ -103,7 +103,7 @@ groups:
     priority: MUST
     statement: >-
       Acceptance tests MUST assert final state for each actor (e.g., correct RM/EM/CS state,
-      expected case log entries)
+      expected case ledger entries)
   - id: DEMOMA-03-003
     priority: MUST
     statement: >-

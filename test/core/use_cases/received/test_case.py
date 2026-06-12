@@ -98,7 +98,7 @@ class TestCaseUseCases:
     def test_update_case_rejects_non_owner(
         self, monkeypatch, caplog, make_payload
     ):
-        """update_case logs a warning and skips if actor is not the case owner."""
+        """update_case ledgers a warning and skips if actor is not the case owner."""
         dl = SqliteDataLayer("sqlite:///:memory:")
         owner_id = "https://example.org/users/owner"
         non_owner_id = "https://example.org/users/other"
@@ -166,7 +166,7 @@ class TestCaseUseCases:
     def test_update_case_warns_when_participant_has_not_accepted_embargo(
         self, monkeypatch, caplog, make_payload
     ):
-        """update_case logs WARNING per CM-10-004 when a participant has not accepted the active embargo."""
+        """update_case ledgers WARNING per CM-10-004 when a participant has not accepted the active embargo."""
         dl = SqliteDataLayer("sqlite:///:memory:")
         owner_id = "https://example.org/users/owner"
         actor_id = "https://example.org/users/alice"

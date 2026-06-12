@@ -41,7 +41,7 @@ def _commit_embargo_log_cascade(
     sync_port: "SyncActivityPort | None",
     payload_snapshot: dict[str, Any] | None = None,
 ) -> None:
-    """Commit a CaseLogEntry and fan it out to all case participants.
+    """Commit a CaseLedgerEntry and fan it out to all case participants.
 
     Shared helper for all embargo received-side handlers that need to fire
     the ``commit_log_entry → fan_out`` cascade after accepting an embargo

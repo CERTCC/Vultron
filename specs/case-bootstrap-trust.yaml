@@ -7,7 +7,7 @@ description: >-
   non-owner participants and refines the bootstrap assumptions in
   `specs/participant-case-replica.yaml`; it does not replace the ongoing
   single-writer and replica-routing rules in PCR or the log-replication
-  transport rules in `specs/sync-log-replication.yaml`.
+  transport rules in `specs/sync-ledger-replication.yaml`.
 version: 1.0.0
 kind: domain
 scope:

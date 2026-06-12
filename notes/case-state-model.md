@@ -546,7 +546,7 @@ from the start.
 > trigger; participant creation happens atomically in the same BT.
 
 When a new case is created via `receive_report_case_tree`, the following
-events are recorded in the case log as part of that BT's execution:
+events are recorded in the case ledger as part of that BT's execution:
 
 - Case creation itself
 - Initial participant creation (reporter and receiver)
@@ -556,7 +556,7 @@ events are recorded in the case log as part of that BT's execution:
 Events that predate the case object cannot exist in the new model (the
 case is created at the first opportunity). If pre-case events were recorded
 via a separate mechanism (e.g., a flat `ReportStatus`), those MAY be
-backfilled into the case log at case creation time.
+backfilled into the case ledger at case creation time.
 
 **See**: `specs/case-management.yaml` CM-12; `notes/activitystreams-semantics.md`
 for the case activity log constraints.

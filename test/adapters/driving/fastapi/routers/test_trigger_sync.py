@@ -18,7 +18,7 @@ Tests for the sync trigger endpoint
 (POST /actors/{actor_id}/demo/sync-log-entry).
 
 Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml
-and SYNC-02-002, SYNC-02-003 from specs/sync-log-replication.yaml.
+and SYNC-02-002, SYNC-02-003 from specs/sync-ledger-replication.yaml.
 """
 
 import pytest
@@ -295,7 +295,7 @@ class TestTriggerSyncLogEntry:
     def test_entry_persisted_in_datalayer(
         self, client_triggers: TestClient, actor, case_with_actor, dl
     ):
-        """The committed VultronCaseLogEntry is stored in the DataLayer."""
+        """The committed VultronCaseLedgerEntry is stored in the DataLayer."""
         response = client_triggers.post(
             f"/actors/{actor.id_}/demo/sync-log-entry",
             json={

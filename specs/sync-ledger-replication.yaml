@@ -1,8 +1,8 @@
 id: SYNC
 title: Case Event Log Synchronization
-description: Requirements for the append-only canonical recorded case log, replication transport, conflict handling, per-peer
+description: Requirements for the append-only canonical recorded case ledger, replication transport, conflict handling, per-peer
   state tracking, and retry semantics for distributed case state synchronization across Participant Actors. SYNC-4), `plan/IMPLEMENTATION_NOTES.md`
-  (2026-03-26 SYNC design notes) `specs/case-log-processing.md`, `specs/outbox.md`, `specs/idempotency.md` `notes/sync-log-replication.md`
+  (2026-03-26 SYNC design notes) `specs/case-ledger-processing.md`, `specs/outbox.md`, `specs/idempotency.md` `notes/sync-ledger-replication.md`
   capturing the RAFT-inspired design notes. A `notes/` file is the appropriate place for design approach details; this spec
   captures the normative requirements.
 version: 1.0.0
@@ -16,7 +16,7 @@ groups:
   specs:
   - id: SYNC-01-001
     priority: MUST
-    statement: The canonical recorded case log MUST be append-only; log entries MUST be immutable once appended
+    statement: The canonical recorded case ledger MUST be append-only; log entries MUST be immutable once appended
   - id: SYNC-01-002
     priority: MUST
     statement: Each log entry MUST carry a monotonically increasing index scoped to its case
@@ -47,7 +47,7 @@ groups:
       Actor individually
   - id: SYNC-02-004
     priority: MUST_NOT
-    statement: Each `Announce(CaseLogEntry)` activity MUST embed the full inline `CaseLogEntry` object in its `object` field;
+    statement: Each `Announce(CaseLedgerEntry)` activity MUST embed the full inline `CaseLedgerEntry` object in its `object` field;
       a URI-only reference MUST NOT be used, because the recipient needs all entry fields (including `prev_log_hash` and `entry_hash`)
       to validate the hash chain without an additional round-trip to the sender's DataLayer
 - id: SYNC-03
@@ -100,7 +100,7 @@ groups:
     statement: Replication leadership SHOULD be treated as distinct from case ownership
   - id: SYNC-06-002
     priority: SHOULD
-    statement: The conditions under which replication leadership changes SHOULD be documented in `notes/sync-log-replication.md`
+    statement: The conditions under which replication leadership changes SHOULD be documented in `notes/sync-ledger-replication.md`
   - id: SYNC-06-003
     priority: MUST
     statement: The SYNC-1 through SYNC-4 phases implement a **single-node CaseActor configuration** — a degenerate Raft cluster
@@ -119,7 +119,7 @@ groups:
   - id: SYNC-09-002
     priority: MUST
     statement: External Vultron messages (activities sent to Participant Actors or other protocol participants) MUST only
-      be emitted after the associated `CaseLogEntry` is committed
+      be emitted after the associated `CaseLedgerEntry` is committed
   - id: SYNC-09-003
     priority: MUST
     statement: The CaseActor's behavior tree execution MUST be gated on holding leadership role; in single-node this is always
@@ -168,7 +168,7 @@ groups:
     priority: MUST
     statement: >-
       After actor process restart or recovery, an actor with case state in scope MUST re-establish
-      case-log freshness with the CaseActor before taking new protocol-significant case actions
+      case-ledger freshness with the CaseActor before taking new protocol-significant case actions
   - id: SYNC-10-002
     priority: MUST
     statement: >-

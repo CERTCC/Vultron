@@ -20,7 +20,7 @@ from pydantic import ValidationError
 
 from vultron.core.models.case import VultronCase
 from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
 from vultron.core.models.participant import VultronParticipant
 from vultron.core.models.participant_status import (
@@ -30,7 +30,7 @@ from vultron.core.models.report import VultronReport
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.objects.case_actor import CaseActor
-from vultron.wire.as2.vocab.objects.case_log_entry import CaseLogEntry
+from vultron.wire.as2.vocab.objects.case_ledger_entry import CaseLedgerEntry
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
     CaseStatus,
@@ -186,8 +186,8 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
     assert round_tripped.case_statuses[0].id_ == case_status.id_
 
 
-def test_case_log_entry_to_core_returns_domain_model():
-    wire = CaseLogEntry(
+def test_case_ledger_entry_to_core_returns_domain_model():
+    wire = CaseLedgerEntry(
         case_id="https://example.org/cases/1",
         log_index=1,
         log_object_id="https://example.org/activities/1",
@@ -197,7 +197,7 @@ def test_case_log_entry_to_core_returns_domain_model():
 
     core = wire.to_core()
 
-    assert isinstance(core, VultronCaseLogEntry)
+    assert isinstance(core, VultronCaseLedgerEntry)
     assert core.case_id == wire.case_id
     assert core.entry_hash == wire.entry_hash
 

@@ -17,7 +17,7 @@ from typing import cast
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.protocols import is_log_entry_model
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.status import (
@@ -272,12 +272,12 @@ class TestStatusUseCases:
 
 
 # ---------------------------------------------------------------------------
-# CaseLogEntry cascade tests (PCR-08-003, PCR-08-004) — AC-2
+# CaseLedgerEntry cascade tests (PCR-08-003, PCR-08-004) — AC-2
 # ---------------------------------------------------------------------------
 
 
 class TestParticipantStatusLogEntryCascade:
-    """CaseLogEntry cascade for AddParticipantStatusToParticipantReceivedUseCase."""
+    """CaseLedgerEntry cascade for AddParticipantStatusToParticipantReceivedUseCase."""
 
     def _make_dl(self, case_id: str, actor_id: str) -> tuple:
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -319,7 +319,7 @@ class TestParticipantStatusLogEntryCascade:
         return dl, case_actor_id, participant, pstatus
 
     def test_cascade_commits_log_entry_on_success(self, make_payload):
-        """Cascade commits a CaseLogEntry when BT succeeds (AC-2)."""
+        """Cascade commits a CaseLedgerEntry when BT succeeds (AC-2)."""
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
@@ -346,17 +346,17 @@ class TestParticipantStatusLogEntryCascade:
 
         entries = [
             obj
-            for obj in dl.list_objects("CaseLogEntry")
+            for obj in dl.list_objects("CaseLedgerEntry")
             if is_log_entry_model(obj)
-            and cast(VultronCaseLogEntry, obj).case_id == case_id
+            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(VultronCaseLogEntry, entries[0]).event_type == (
+        assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
             "add_participant_status"
         )
 
     def test_no_fanout_without_sync_port(self, make_payload):
-        """No fan-out Announce(CaseLogEntry) is sent when sync_port is None.
+        """No fan-out Announce(CaseLedgerEntry) is sent when sync_port is None.
 
         The log entry IS committed locally, but no outbox messages are queued
         for delivery to participants.
@@ -387,9 +387,9 @@ class TestParticipantStatusLogEntryCascade:
         # Log entry MUST be committed locally even without a sync_port.
         entries = [
             obj
-            for obj in dl.list_objects("CaseLogEntry")
+            for obj in dl.list_objects("CaseLedgerEntry")
             if is_log_entry_model(obj)
-            and cast(VultronCaseLogEntry, obj).case_id == case_id
+            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
 

@@ -14,7 +14,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_entry,
 )
 from vultron.core.behaviors.sync.nodes import (
-    CollectAndSortCaseLogEntriesNode,
+    CollectAndSortCaseLedgerEntriesNode,
     CollectLogEntryRecipientsNode,
     FanOutLogEntryNode,
     FindDivergenceIndexNode,
@@ -23,13 +23,13 @@ from vultron.core.behaviors.sync.nodes import (
     SendMissingEntriesNode,
 )
 from vultron.core.models.case import VultronCase
-from vultron.core.models.case_log import GENESIS_HASH
+from vultron.core.models.case_ledger import GENESIS_HASH
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import reject_log_entry_activity
-from vultron.wire.as2.vocab.objects.case_log_entry import (
-    CaseLogEntry as WireCaseLogEntry,
+from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+    CaseLedgerEntry as WireCaseLedgerEntry,
 )
 
 
@@ -38,7 +38,9 @@ def _make_reject_event(
 ) -> RejectLogEntryReceivedEvent:
     prev_hash = GENESIS_HASH if entry_log_index == 0 else "deadbeef" * 8
     entry = _make_entry(entry_log_index, prev_hash)
-    wire_entry = WireCaseLogEntry.model_validate(entry.model_dump(mode="json"))
+    wire_entry = WireCaseLedgerEntry.model_validate(
+        entry.model_dump(mode="json")
+    )
     activity = reject_log_entry_activity(
         entry=wire_entry,
         context=tail_hash,
@@ -52,7 +54,7 @@ def test_replay_missing_entries_node_is_sequence_with_named_leaf_nodes():
     tree = ReplayMissingEntriesNode(name="ReplayMissingEntries")
     assert isinstance(tree, py_trees.composites.Sequence)
     assert len(tree.children) == 3
-    assert isinstance(tree.children[0], CollectAndSortCaseLogEntriesNode)
+    assert isinstance(tree.children[0], CollectAndSortCaseLedgerEntriesNode)
     assert isinstance(tree.children[1], FindDivergenceIndexNode)
     assert isinstance(tree.children[2], SendMissingEntriesNode)
 
@@ -71,7 +73,7 @@ def test_send_missing_entries_node_replays_entries_after_divergence(
         case_actor_id=case_actor.id_,
         replay_entry=second_entry,
         replay_peer_id=PARTICIPANT_ACTOR_ID,
-        replay_case_log_entries=[first_entry, second_entry],
+        replay_case_ledger_entries=[first_entry, second_entry],
         replay_from_index=0,
     )
 
@@ -91,8 +93,8 @@ def test_collect_and_find_replay_context_writes_blackboard(bridge, datalayer):
     event = _make_reject_event(tail_hash=first_entry.entry_hash)
 
     collect_result = bridge.execute_with_setup(
-        tree=CollectAndSortCaseLogEntriesNode(
-            name="CollectAndSortCaseLogEntries"
+        tree=CollectAndSortCaseLedgerEntriesNode(
+            name="CollectAndSortCaseLedgerEntries"
         ),
         actor_id=OWNER_ACTOR_ID,
         activity=event,
@@ -100,7 +102,7 @@ def test_collect_and_find_replay_context_writes_blackboard(bridge, datalayer):
 
     assert collect_result.status == Status.SUCCESS
     replay_entries = py_trees.blackboard.Blackboard.storage.get(
-        "/replay_case_log_entries"
+        "/replay_case_ledger_entries"
     )
     assert replay_entries is not None
     assert [entry.log_index for entry in replay_entries] == [0, 1]
@@ -113,7 +115,7 @@ def test_collect_and_find_replay_context_writes_blackboard(bridge, datalayer):
         tree=FindDivergenceIndexNode(name="FindDivergenceIndex"),
         actor_id=OWNER_ACTOR_ID,
         activity=event,
-        replay_case_log_entries=replay_entries,
+        replay_case_ledger_entries=replay_entries,
     )
 
     assert find_result.status == Status.SUCCESS

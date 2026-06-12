@@ -12,26 +12,27 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Append-only canonical case event log for SYNC-1.
+"""Append-only canonical case ledger for SYNC-1.
 
 This module provides:
 
-- :class:`HashChainLogRecord` — a single canonical log entry with hash-chain
+- :class:`HashChainLedgerRecord` — a single canonical ledger entry with
+  hash-chain
   linkage and an optional embedded activity payload snapshot.
-- :class:`CaseEventLog` — an append-only, hash-chained log for a single case.
+- :class:`CaseLedger` — an append-only, hash-chained ledger for a single case.
 
 Per-peer replication state tracking is provided by
 :class:`~vultron.core.models.replication_state.VultronReplicationState`
 in ``vultron.core.models.replication_state``.
 
 Design follows the single-writer CaseActor architecture described in
-``notes/sync-log-replication.md`` and the requirements in
-``specs/sync-log-replication.yaml`` (SYNC-01) and
-``specs/case-log-processing.yaml`` (CLP-01 through CLP-05).
+``notes/sync-ledger-replication.md`` and the requirements in
+``specs/sync-ledger-replication.yaml`` (SYNC-01) and
+``specs/case-ledger-processing.yaml`` (CLP-01 through CLP-05).
 
 Hash chain:
 
-- Each :class:`HashChainLogRecord` stores the SHA-256 hash of its own canonical
+- Each :class:`HashChainLedgerRecord` stores the SHA-256 hash of its own canonical
   content (``entry_hash``) and the hash of its immediate predecessor
   (``prev_log_hash``).
 - The first entry uses :data:`GENESIS_HASH` as ``prev_log_hash``.
@@ -43,11 +44,11 @@ Hash chain:
 
 Append-only enforcement:
 
-- :class:`CaseEventLog` rejects any attempt to modify or remove existing
-  entries.  New entries are appended via :meth:`CaseEventLog.append`.
+- :class:`CaseLedger` rejects any attempt to modify or remove existing
+  entries.  New entries are appended via :meth:`CaseLedger.append`.
 
-Per ``specs/sync-log-replication.yaml`` SYNC-01, SYNC-07, ``specs/case-log-processing.yaml``
-CLP-02 through CLP-05, and ``notes/sync-log-replication.md``.
+Per ``specs/sync-ledger-replication.yaml`` SYNC-01, SYNC-07, ``specs/case-ledger-processing.yaml``
+CLP-02 through CLP-05, and ``notes/sync-ledger-replication.md``.
 """
 
 import hashlib
@@ -63,7 +64,7 @@ from vultron.core.models._helpers import _now_utc
 # Constants
 # ---------------------------------------------------------------------------
 
-#: Sentinel predecessor hash used for the first entry in a case log.
+#: Sentinel predecessor hash used for the first entry in a case ledger.
 #: 64 hex-zero characters represent a SHA-256 zero-hash.
 GENESIS_HASH: str = "0" * 64
 
@@ -114,20 +115,20 @@ def _sha256_hex(data: dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# CaseLogEntry
+# HashChainLedgerRecord
 # ---------------------------------------------------------------------------
 
 
-class HashChainLogRecord(BaseModel):
-    """A single canonical case log entry.
+class HashChainLedgerRecord(BaseModel):
+    """A single canonical case ledger entry.
 
     Each entry is created by the CaseActor's single authoritative write path
-    and becomes immutable once appended to a :class:`CaseEventLog`.
+    and becomes immutable once appended to a :class:`CaseLedger`.
 
     Fields:
         case_id: URI of the :class:`VulnerabilityCase` this entry belongs to.
         log_index: Monotonically increasing integer scoped to ``case_id``.
-            Assigned by :class:`CaseEventLog.append`; MUST NOT be set by
+            Assigned by :class:`CaseLedger.append`; MUST NOT be set by
             callers directly (CLP-02-006, SYNC-01-002).
         disposition: Outcome of CaseActor processing — ``"recorded"`` for
             accepted assertions; ``"rejected"`` for rejected ones.
@@ -143,7 +144,7 @@ class HashChainLogRecord(BaseModel):
             survives DataLayer serialisation without wire-type coupling.
         prev_log_hash: SHA-256 hex hash of the immediate predecessor entry's
             canonical content.  :data:`GENESIS_HASH` for the first entry in
-            a case log.
+            a case ledger.
         entry_hash: SHA-256 hex hash of this entry's canonical content
             (excluding ``entry_hash`` itself).  Computed automatically by
             :meth:`model_validator` if not supplied.
@@ -162,7 +163,7 @@ class HashChainLogRecord(BaseModel):
     )
     log_index: int = Field(
         default=-1,
-        description="Monotonically increasing index scoped to case_id; assigned by CaseEventLog",
+        description="Monotonically increasing index scoped to case_id; assigned by CaseLedger",
         ge=-1,
     )
     disposition: LogDisposition = Field(
@@ -205,7 +206,7 @@ class HashChainLogRecord(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _compute_entry_hash(self) -> "HashChainLogRecord":
+    def _compute_entry_hash(self) -> "HashChainLedgerRecord":
         """Compute ``entry_hash`` from canonical content if not already set."""
         if not self.entry_hash:
             self.entry_hash = self._hash_content()
@@ -244,15 +245,15 @@ class HashChainLogRecord(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# CaseEventLog
+# CaseLedger
 # ---------------------------------------------------------------------------
 
 
-class CaseEventLog:
-    """Append-only, hash-chained canonical case event log.
+class CaseLedger:
+    """Append-only, hash-chained canonical case ledger.
 
-    Maintains the full ordered list of :class:`CaseLogEntry` objects for a
-    single case.  Enforces:
+    Maintains the full ordered list of :class:`HashChainLedgerRecord` objects
+    for a single case. Enforces:
 
     - **Append-only**: entries are immutable once added; no removal or
       replacement is permitted (SYNC-01-001).
@@ -271,7 +272,7 @@ class CaseEventLog:
 
     Usage example::
 
-        log = CaseEventLog(case_id="urn:uuid:abc123")
+        log = CaseLedger(case_id="urn:uuid:abc123")
         entry = log.append(
             object_id="urn:uuid:report1",
             event_type="report_received",
@@ -292,7 +293,7 @@ class CaseEventLog:
             case_id: URI of the :class:`VulnerabilityCase` this log tracks.
         """
         self._case_id = case_id
-        self._entries: list[HashChainLogRecord] = []
+        self._entries: list[HashChainLedgerRecord] = []
 
     # ------------------------------------------------------------------
     # Properties
@@ -304,12 +305,12 @@ class CaseEventLog:
         return self._case_id
 
     @property
-    def entries(self) -> tuple[HashChainLogRecord, ...]:
+    def entries(self) -> tuple[HashChainLedgerRecord, ...]:
         """All entries (recorded *and* rejected) as an immutable tuple."""
         return tuple(self._entries)
 
     @property
-    def recorded_entries(self) -> tuple[HashChainLogRecord, ...]:
+    def recorded_entries(self) -> tuple[HashChainLedgerRecord, ...]:
         """Projection of entries whose disposition is ``"recorded"``.
 
         Used for hash-chain computation and canonical state reconstruction.
@@ -355,7 +356,7 @@ class CaseEventLog:
         term: int | None = None,
         reason_code: str | None = None,
         reason_detail: str | None = None,
-    ) -> HashChainLogRecord:
+    ) -> HashChainLedgerRecord:
         """Append a new entry to the log and return it.
 
         Assigns ``log_index``, sets ``prev_log_hash`` from
@@ -372,7 +373,7 @@ class CaseEventLog:
             reason_detail: Human-readable rejection detail (for rejected).
 
         Returns:
-            The newly created and appended :class:`CaseLogEntry`.
+            The newly created and appended :class:`HashChainLedgerRecord`.
 
         Raises:
             ValueError: If *disposition* is ``"rejected"`` but *reason_code*
@@ -380,10 +381,10 @@ class CaseEventLog:
         """
         if disposition == "rejected" and reason_code is None:
             raise ValueError(
-                "reason_code is required for rejected HashChainLogRecord objects"
+                "reason_code is required for rejected HashChainLedgerRecord objects"
             )
 
-        entry = HashChainLogRecord(
+        entry = HashChainLedgerRecord(
             case_id=self._case_id,
             log_index=self.next_index,
             disposition=disposition,

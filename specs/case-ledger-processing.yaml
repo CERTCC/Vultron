@@ -3,7 +3,7 @@ title: Case Ledger Processing
 description: >-
   Requirements for participant assertions, CaseActor canonicalization, local case audit ledgerging,
   recorded-history projection, and replication-facing `CaseLedgerEntry` objects. `notes/activitystreams-semantics.md`,
-  `notes/case-state-model.md`, `notes/sync-log-replication.md` `specs/sync-log-replication.md`,
+  `notes/case-state-model.md`, `notes/sync-ledger-replication.md` `specs/sync-ledger-replication.md`,
   `specs/outbox.md`, `specs/message-validation.md`, `specs/idempotency.md` recording. Transport-layer
   handling for malformed or unrouteable traffic that cannot be attached to a report or case
   remains out of scope here.

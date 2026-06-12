@@ -72,12 +72,12 @@ Load additional files only when the task touches the relevant area. See the
 | Handler pipeline | `inbox-endpoint.yaml`, `message-validation.yaml`, `semantic-extraction.yaml`, `dispatch-routing.yaml` |
 | Inbox pipeline testability | `inbox-pipeline.yaml` |
 | Behavior Trees | `behavior-tree-integration.yaml`, `behavior-tree-node-design.yaml`, `bt-composability.yaml`, `triggerable-behaviors.yaml`, `vultron/core/use_cases/triggers/AGENTS.md` |
-| Case / state management | `case-management.yaml`, `state-machine.yaml`, `case-log-processing.yaml` |
+| Case / state management | `case-management.yaml`, `state-machine.yaml`, `case-ledger-processing.yaml` |
 | Protocol conformance | `vultron-protocol-spec.yaml`, `vultron-as2-mapping.yaml` |
 | Wire vocabulary | `vocabulary-model.yaml` |
 | Activity factory functions | `activity-factories.yaml` |
 | Response generation / outbox | `response-format.yaml`, `outbox.yaml` |
-| Synchronization | `sync-log-replication.yaml` |
+| Synchronization | `sync-ledger-replication.yaml` |
 | Sync behavior trees (AnnounceLogEntry, RejectLogEntry, CommitLogEntry BTs) | `sync-behavior-trees.yaml`, `notes/sync-behavior-trees.md` |
 | Participant case replica lifecycle | `participant-case-replica.yaml` |
 | Participant role management (add/remove/has_role) | `participant-role-management.yaml` |
@@ -210,8 +210,8 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   `has_role()`, `roles` property, core-layer no-direct-mutation rule, wire-layer
   interface parity, and test requirements
   (PRM-01 through PRM-05)
-- **`case-log-processing.yaml`** - Participant assertions, CaseActor-authored
-  `CaseLogEntry` objects, case audit scope, recorded-history projection, and
+- **`case-ledger-processing.yaml`** - Participant assertions, CaseActor-authored
+  `CaseLedgerEntry` objects, case audit scope, recorded-history projection, and
   replication rules for recorded vs rejected log outcomes (CLP-01 through
   CLP-05)
 
@@ -259,7 +259,7 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 **Future Implementation**:
 
-- **`sync-log-replication.yaml`** - Append-only case event log, replication
+- **`sync-ledger-replication.yaml`** - Append-only case event log, replication
   transport, conflict handling, per-peer state, and retry semantics
   (SYNC-01 through SYNC-07)
 - **`sync-behavior-trees.yaml`** - Behavior-tree requirements for sync
@@ -428,7 +428,7 @@ is reserved for `testability.yaml`).
 | `BW` | `build-workflow.yaml` |
 | `CISEC` | `ci-security.yaml` |
 | `DOCBW` | `docs-build-workflow.yaml` |
-| `CLP` | `case-log-processing.yaml` |
+| `CLP` | `case-ledger-processing.yaml` |
 | `CM` | `case-management.yaml` |
 | `CS` | `code-style.yaml` |
 | `DC` | `demo-cli.yaml` |
@@ -457,7 +457,7 @@ is reserved for `testability.yaml`).
 | `SL` | `structured-logging.yaml` |
 | `PCR` | `participant-case-replica.yaml` |
 | `PRM` | `participant-role-management.yaml` |
-| `SYNC` | `sync-log-replication.yaml` |
+| `SYNC` | `sync-ledger-replication.yaml` |
 | `TB` | `testability.yaml` |
 | `AF` | `activity-factories.yaml` |
 | `TRACE` | `traceability.yaml` |

@@ -23,7 +23,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerCondition
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.protocols import is_log_entry_model
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronError
@@ -49,18 +49,20 @@ def _find_case_actor(
     return None
 
 
-def _require_log_entry(activity: Any, node_name: str) -> VultronCaseLogEntry:
+def _require_log_entry(
+    activity: Any, node_name: str
+) -> VultronCaseLedgerEntry:
     entry = getattr(activity, "log_entry", None)
     if entry is None:
         entry = getattr(activity, "object_", None)
     if is_log_entry_model(entry):
-        if isinstance(entry, VultronCaseLogEntry):
+        if isinstance(entry, VultronCaseLedgerEntry):
             return entry
-        return VultronCaseLogEntry.model_validate(
+        return VultronCaseLedgerEntry.model_validate(
             entry.model_dump(mode="json")
         )
     raise VultronError(
-        f"{node_name}: activity did not carry a VultronCaseLogEntry"
+        f"{node_name}: activity did not carry a VultronCaseLedgerEntry"
     )
 
 
@@ -155,7 +157,7 @@ class VerifySenderIsOwnIdNode(DataLayerCondition):
         return Status.FAILURE
 
 
-class CheckLogEntryAlreadyStoredNode(DataLayerCondition):
+class CheckLedgerEntryAlreadyStoredNode(DataLayerCondition):
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
         self.blackboard.register_key(

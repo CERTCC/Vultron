@@ -2,7 +2,7 @@
 status: accepted
 date: 2026-06-12
 deciders: Vultron maintainers
-consulted: notes/case-log-authority.md, notes/sync-log-replication.md, specs/case-log-processing.yaml
+consulted: notes/case-ledger-authority.md, notes/sync-ledger-replication.md, specs/case-ledger-processing.yaml
 ---
 
 # Separate the Case Ledger from the Per-Actor Process Log
@@ -90,7 +90,7 @@ fast instead of silently polluting replicated history.
 
 ## Validation
 
-- `specs/case-log-processing.yaml` `CLP-07` codifies the normative
+- `specs/case-ledger-processing.yaml` `CLP-07` codifies the normative
   separation as MUST-level requirements.
 - A new runtime guard at the CaseActor commit boundary rejects
   non-canonical entries (tracked in a follow-on implementation issue).
@@ -101,28 +101,28 @@ fast instead of silently polluting replicated history.
 ## Terminology
 
 This ADR also formalizes a terminology rename motivated by the same
-conflation problem it addresses. The historical name "case log" was
+conflation problem it addresses. The historical name "case ledger" was
 ambiguous: it sat too close to Python `logging` and invited use as a
 generic event sink. Going forward, the project uses **ledger** vocabulary
 for the canonical, append-only, hash-chained, replicated record of
 protocol-significant case events:
 
-| Old name | New name |
+| Canonical term | Meaning |
 |---|---|
-| Case Log | **Case Ledger** |
-| `CaseLogEntry` | **`CaseLedgerEntry`** |
-| `CaseEventLog` | **`CaseLedger`** |
-| `HashChainLogRecord` | **`HashChainLedgerRecord`** |
-| `case_log_entry` module | **`case_ledger_entry`** module |
-| `case_event_log` module | **`case_ledger`** module |
-| `Announce(CaseLogEntry)` wire envelope | **`Announce(CaseLedgerEntry)`** |
-| case audit log | **case audit ledger** |
-| (new method) | **`commit_ledger_entry()`** for the canonical append API |
+| **Case Ledger** | The canonical, append-only, replicated shared history. |
+| **`CaseLedgerEntry`** | The wire-serialisable canonical ledger entry model. |
+| **`CaseLedger`** | The in-memory append-only ledger aggregate for one case. |
+| **`HashChainLedgerRecord`** | The in-memory hash-chain record used by `CaseLedger`. |
+| **`case_ledger_entry`** module | Core and wire module name for ledger entry types. |
+| **`case_ledger`** module | Core module name for the in-memory ledger model. |
+| **`Announce(CaseLedgerEntry)`** | The sync wire envelope used for canonical replication. |
+| **case audit ledger** | Preferred phrase for the replicated audit surface. |
+| **`commit_ledger_entry()`** | Canonical append API on the CaseActor side. |
 
 `record_event()` is **not** renamed — it is the legacy `CaseEvent` path,
 which is scheduled for removal in #792. The new canonical append API
 on the CaseActor side is named `commit_ledger_entry()` to align with the
-commit-discipline vocabulary in `notes/sync-log-replication.md` and to
+commit-discipline vocabulary in `notes/sync-ledger-replication.md` and to
 make it self-evident that the method appends to the authoritative
 ledger, not to a generic log sink.
 
@@ -140,26 +140,26 @@ appends) and removes the naming collision with Python `logging`.
 
 **Migration.** The terminology decision is captured here at ADR level so
 it cannot be re-litigated quietly. The mechanical bulk rename of source
-code, remaining specs/notes, file paths (`specs/case-log-processing.yaml`,
-`notes/case-log-authority.md`, `vultron/core/models/case_log.py`,
-`vultron/core/models/case_log_entry.py`, etc.), and wire-format type
+code, remaining specs/notes, file paths (`specs/case-ledger-processing.yaml`,
+`notes/case-ledger-authority.md`, `vultron/core/models/case_ledger.py`,
+`vultron/core/models/case_ledger_entry.py`, etc.), and wire-format type
 identifiers is tracked as a dedicated implementation issue under epic #788, scheduled to land before the bulk of CLP-07 enforcement work so
 that follow-on PRs are written in the new vocabulary from the start.
 
 ## More Information
 
-- ADR-0018 — Canonical Case History Convergence on `CaseLogEntry` —
+- ADR-0018 — Canonical Case History Convergence on `CaseLedgerEntry` —
   established the single-writer convergence; this ADR sharpens the
   *content* boundary of that single writer's log.
 - Concern #923 — Two-actor demo case ledger: hash-chain fork, oscillation
   loop, and 17 protocol correctness findings — the empirical evidence
   motivating this ADR.
 - Epic #788 — Converge CaseEvent flow onto canonical CaseLedgerEntry.
-- `notes/case-log-authority.md` — design rationale for the canonical
+- `notes/case-ledger-authority.md` — design rationale for the canonical
   entry model.
-- `notes/sync-log-replication.md` — replication invariants that depend on
+- `notes/sync-ledger-replication.md` — replication invariants that depend on
   canonical-log purity.
 - `specs/structured-logging.yaml` — process-log conventions and levels.
 
-Generated spec requirements: `case-log-processing.yaml` CLP-07-001
+Generated spec requirements: `case-ledger-processing.yaml` CLP-07-001
 through CLP-07-005.

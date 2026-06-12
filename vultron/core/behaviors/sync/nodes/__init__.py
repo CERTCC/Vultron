@@ -36,7 +36,7 @@ from vultron.core.behaviors.sync.nodes.chain import (
 from vultron.core.behaviors.sync.nodes.conditions import (
     CheckIsNotOwnCaseActorNode,
     CheckIsOwnCaseActorNode,
-    CheckLogEntryAlreadyStoredNode,
+    CheckLedgerEntryAlreadyStoredNode,
     IsNotRemoveEmbargoEventNode,
     VerifySenderIsOwnIdNode,
     _find_case_actor,  # noqa: F401
@@ -51,7 +51,7 @@ from vultron.core.behaviors.sync.nodes.receive import (
     SendRejectLogEntryNode,
 )
 from vultron.core.behaviors.sync.nodes.replay import (
-    CollectAndSortCaseLogEntriesNode,
+    CollectAndSortCaseLedgerEntriesNode,
     CollectLogEntryRecipientsNode,
     FanOutLogEntryNode,
     FindCaseActorNode,
@@ -66,7 +66,7 @@ __all__ = [
     "CheckIsOwnCaseActorNode",
     "CheckIsNotOwnCaseActorNode",
     "VerifySenderIsOwnIdNode",
-    "CheckLogEntryAlreadyStoredNode",
+    "CheckLedgerEntryAlreadyStoredNode",
     "IsNotRemoveEmbargoEventNode",
     # receive
     "LogDeliveryConfirmationNode",
@@ -81,7 +81,7 @@ __all__ = [
     "PersistLogEntryNode",
     # replay
     "FindCaseActorNode",
-    "CollectAndSortCaseLogEntriesNode",
+    "CollectAndSortCaseLedgerEntriesNode",
     "FindDivergenceIndexNode",
     "SendMissingEntriesNode",
     "ReplayMissingEntriesNode",

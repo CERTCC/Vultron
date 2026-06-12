@@ -32,7 +32,7 @@ Per specs/behavior-tree-integration.yaml:
 - BT-05-003: Populates blackboard with activity and actor state
 - BT-05-004: Executes tree and returns execution result
 
-Per specs/sync-log-replication.yaml:
+Per specs/sync-ledger-replication.yaml:
 - SYNC-09-003: Leadership role-check port; always True in single-node.
 """
 

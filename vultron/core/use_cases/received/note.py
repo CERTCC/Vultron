@@ -186,7 +186,7 @@ class AddNoteToCaseReceivedUseCase:
         case_id: str,
         note_id: str,
     ) -> None:
-        """Commit a CaseLogEntry and fan it out to all participants (PCR-08-003).
+        """Commit a CaseLedgerEntry and fan it out to all participants (PCR-08-003).
 
         Uses ``receiving_actor_id`` (the CaseActor's canonical ID) when
         available.  Falls back to a DataLayer lookup for the Service object

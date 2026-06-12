@@ -133,7 +133,7 @@ sequenceDiagram
     V->>F: replies to question
     note over F,V: ✅ M3 — Vendor holds authoritative final case state
 
-    V-->>F: case log entry replicated (SYNC-2)
+    V-->>F: case ledger entry replicated (SYNC-2)
     note over F,V: ✓ M2 — Finder replica synchronized (SYNC-2 verified)
 
     note over F,V: Phase 3 — Fix Lifecycle
@@ -177,7 +177,7 @@ reply back.
 **M3 verified when:** Vendor container holds the authoritative final case
 state after the notes exchange.
 
-Next, the demo runner triggers the Vendor to commit a `CaseLogEntry` and
+Next, the demo runner triggers the Vendor to commit a `CaseLedgerEntry` and
 deliver it to the Finder via the outbox (SYNC-2 replication verification).
 The Finder waits for the log entry to appear in its DataLayer.
 

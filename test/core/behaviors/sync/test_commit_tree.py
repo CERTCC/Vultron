@@ -13,7 +13,7 @@ from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
 from vultron.core.models.case import VultronCase
-from vultron.core.models.case_log import GENESIS_HASH, HashChainLogRecord
+from vultron.core.models.case_ledger import GENESIS_HASH, HashChainLedgerRecord
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.triggers.sync import _to_persistable_entry
 
@@ -55,7 +55,7 @@ def case_obj(datalayer):
 
 def _make_entry(log_index: int, prev_hash: str):
     return _to_persistable_entry(
-        HashChainLogRecord(
+        HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/log-{log_index}",
@@ -91,7 +91,7 @@ def test_commit_tree_persists_entry_and_fans_out(bridge, datalayer, case_obj):
     )
 
     assert result.status == Status.SUCCESS
-    entries = list(datalayer.list_objects("CaseLogEntry"))
+    entries = list(datalayer.list_objects("CaseLedgerEntry"))
     assert len(entries) == 1
     assert entries[0].log_index == 0
     assert entries[0].prev_log_hash == GENESIS_HASH
@@ -117,7 +117,7 @@ def test_commit_tree_uses_existing_tail_hash(bridge, datalayer, case_obj):
 
     assert result.status == Status.SUCCESS
     entries = sorted(
-        datalayer.list_objects("CaseLogEntry"),
+        datalayer.list_objects("CaseLedgerEntry"),
         key=lambda entry: entry.log_index,
     )
     assert len(entries) == 2

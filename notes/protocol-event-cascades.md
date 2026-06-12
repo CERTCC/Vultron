@@ -153,7 +153,7 @@ The CaseActor's `AcceptInviteToCaseReceived` handler processes Vendor B's
 `RmAcceptInviteToCaseActivity`. Its BT subtree:
 
 1. Creates or updates Vendor B's `CaseParticipant` record (rm_state = ACCEPTED)
-2. Appends a `CaseLogEntry` recording the acceptance
+2. Appends a `CaseLedgerEntry` recording the acceptance
 3. If `rm_state = ACCEPTED` AND embargo adherence is satisfied (or no active
    embargo), sends the full `VulnerabilityCase` details to Vendor B via
    `Announce(VulnerabilityCase)`

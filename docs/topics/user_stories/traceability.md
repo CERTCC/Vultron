@@ -552,11 +552,11 @@ Source specifications: `specs/*.yaml`
       unambiguous date and time — timeline anchor.
     - **SL-04-001** (`structured-logging.md`): Log entries MUST include
       structured state-transition format (`PROD_ONLY`) — event log for tracking.
-    - **SYNC-01-001** (`sync-log-replication.md`): The canonical recorded case
+    - **SYNC-01-001** (`sync-ledger-replication.md`): The canonical recorded case
       log MUST be append-only — event timeline integrity.
-    - **SYNC-01-002** (`sync-log-replication.md`): Each log entry MUST carry a
+    - **SYNC-01-002** (`sync-ledger-replication.md`): Each log entry MUST carry a
       monotonically increasing index scoped to its case — timeline ordering.
-    - **CLP-02-006** (`case-log-processing.md`): `CaseLogEntry` MUST include a
+    - **CLP-02-006** (`case-ledger-processing.md`): `CaseLedgerEntry` MUST include a
       `log_index` field corresponding to `SYNC-01-002` — canonical ordering for
       recorded events.
 
@@ -572,7 +572,7 @@ Source specifications: `specs/*.yaml`
       maintained independently per case — per-case state.
     - **CM-07-001** (`case-management.md`): The system SHOULD expose an
       endpoint returning valid next actions — state-aware API.
-    - **CLP-04-006** (`case-log-processing.md`): The canonical recorded log is
+    - **CLP-04-006** (`case-ledger-processing.md`): The canonical recorded log is
       the authoritative source of truth for case participant membership and
       case state — case-state knowledge derives from canonical history.
 

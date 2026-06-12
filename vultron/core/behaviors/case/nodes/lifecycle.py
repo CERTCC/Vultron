@@ -16,9 +16,9 @@
 """
 Case lifecycle action nodes for case behavior trees.
 
-Provides the CommitCaseLogEntryNode for hash-chained case log replication.
+Provides the CommitCaseLedgerEntryNode for hash-chained case ledger replication.
 
-Per specs/sync-log-replication.yaml SYNC-02-002, SYNC-02-003.
+Per specs/sync-ledger-replication.yaml SYNC-02-002, SYNC-02-003.
 """
 
 import logging
@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 def _extract_payload_snapshot(activity: Any) -> dict[str, Any]:
-    """Build a normalized payload snapshot for case-log commits."""
+    """Build a normalized payload snapshot for case-ledger commits."""
     event_activity = getattr(activity, "activity", None)
     if event_activity is not None and hasattr(event_activity, "model_dump"):
         return cast(
@@ -64,12 +64,12 @@ def _extract_payload_snapshot(activity: Any) -> dict[str, Any]:
     return {}
 
 
-class CommitCaseLogEntryNode(DataLayerAction):
+class CommitCaseLedgerEntryNode(DataLayerAction):
     """
-    Commit a hash-chained CaseLogEntry and fan it out to all case participants.
+    Commit a hash-chained CaseLedgerEntry and fan it out to all case participants.
 
-    Creates a :class:`~vultron.core.models.case_log_entry.VultronCaseLogEntry`,
-    persists it, and queues one ``Announce(CaseLogEntry)`` activity per
+    Creates a :class:`~vultron.core.models.case_ledger_entry.VultronCaseLedgerEntry`,
+    persists it, and queues one ``Announce(CaseLedgerEntry)`` activity per
     participant to the actor's outbox.  The :class:`OutboxMonitor` delivers
     queued activities reactively — this node only writes to the outbox.
 
@@ -86,7 +86,7 @@ class CommitCaseLogEntryNode(DataLayerAction):
     blackboard key (the inbound :class:`~vultron.core.models.events.base.VultronEvent`
     placed there by :class:`~vultron.core.behaviors.bridge.BTBridge`).
 
-    Per specs/sync-log-replication.yaml SYNC-02-002, SYNC-02-003.
+    Per specs/sync-ledger-replication.yaml SYNC-02-002, SYNC-02-003.
     """
 
     def __init__(

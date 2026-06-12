@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """
-Factory functions for outbound Vultron case-log synchronization activities.
+Factory functions for outbound Vultron case-ledger synchronization activities.
 
 These are the sole public construction API for SYNC-2/SYNC-3 log
 replication activities. Internal activity subclasses are imported here
@@ -37,22 +37,22 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Announce,
     as_Reject,
 )
-from vultron.wire.as2.vocab.objects.case_log_entry import CaseLogEntry
+from vultron.wire.as2.vocab.objects.case_ledger_entry import CaseLedgerEntry
 
 logger = logging.getLogger(__name__)
 
 
 def announce_log_entry_activity(
-    entry: CaseLogEntry,
+    entry: CaseLedgerEntry,
     **kwargs,
 ) -> as_Announce:
-    """Build an Announce(CaseLogEntry) — fan-out replication to participants.
+    """Build an Announce(CaseLedgerEntry) — fan-out replication to participants.
 
     Sent by the CaseActor to each participant actor after a new log
     entry has been committed to the case event log (SYNC-09-002).
 
     Args:
-        entry: The ``CaseLogEntry`` being replicated.
+        entry: The ``CaseLedgerEntry`` being replicated.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``).
 
@@ -74,18 +74,18 @@ def announce_log_entry_activity(
 
 
 def reject_log_entry_activity(
-    entry: CaseLogEntry,
+    entry: CaseLedgerEntry,
     context: str | None = None,
     **kwargs,
 ) -> as_Reject:
-    """Build a Reject(CaseLogEntry) — hash-chain mismatch report.
+    """Build a Reject(CaseLedgerEntry) — hash-chain mismatch report.
 
     Sent by a participant to the CaseActor when an incoming
-    ``Announce(CaseLogEntry)``'s ``prev_log_hash`` does not match the
+    ``Announce(CaseLedgerEntry)``'s ``prev_log_hash`` does not match the
     participant's local tail hash (SYNC-03-001).
 
     Args:
-        entry: The ``CaseLogEntry`` that was rejected.
+        entry: The ``CaseLedgerEntry`` that was rejected.
         context: The last accepted entry hash string, so the CaseActor
             can determine which entries need to be replayed.
         **kwargs: Optional AS2 fields forwarded to the constructor

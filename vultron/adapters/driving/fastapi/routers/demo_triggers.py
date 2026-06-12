@@ -57,10 +57,10 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     NotifyPublishedRequest,
     SyncLogEntryRequest,
 )
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.protocols import is_case_model
-from vultron.wire.as2.vocab.objects.case_log_entry import (
-    CaseLogEntry as WireCaseLogEntry,
+from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+    CaseLedgerEntry as WireCaseLedgerEntry,
 )
 from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.core.ports.trigger_service import TriggerServicePort
@@ -127,11 +127,11 @@ def demo_add_note_to_case(
 @router.post(
     "/{actor_id}/demo/sync-log-entry",
     status_code=status.HTTP_202_ACCEPTED,
-    summary="[Demo] Commit a case log entry and replicate to peers.",
+    summary="[Demo] Commit a case ledger entry and replicate to peers.",
     description=(
         "Demo-only scaffold. "
-        "Commits a new ``VultronCaseLogEntry`` to the local hash-chain and "
-        "fans it out to all case participants as ``Announce(CaseLogEntry)`` "
+        "Commits a new ``VultronCaseLedgerEntry`` to the local hash-chain and "
+        "fans it out to all case participants as ``Announce(CaseLedgerEntry)`` "
         "activities queued in the actor's outbox. "
         "In a production deployment, log entries are committed automatically "
         "as a cascade effect of every state-changing operation; this endpoint "
@@ -150,7 +150,7 @@ def demo_sync_log_entry(
     dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
-    """Commit a case log entry and fan it out to all case participants (demo).
+    """Commit a case ledger entry and fan it out to all case participants (demo).
 
     Implements:
         TRIG-09-001, TRIG-09-004, TRIG-10-004,
@@ -158,7 +158,7 @@ def demo_sync_log_entry(
         TB-06-001, TB-06-002, TB-07-001
 
     TEST SCAFFOLD ONLY — do not call from normal protocol flows.
-    In production, CaseLogEntry commits fire automatically as a cascade
+    In production, CaseLedgerEntry commits fire automatically as a cascade
     consequence of every accepted participant message (PCR-08-003, PCR-08-004).
     This endpoint exists only to let demo/test scripts inject log entries
     manually during verification.
@@ -335,10 +335,10 @@ def demo_close_case(
 @router.get(
     "/{actor_id}/demo/cases/{case_id}/log",
     status_code=status.HTTP_200_OK,
-    summary="[Demo] List all case log entries for a case, sorted by log_index.",
+    summary="[Demo] List all case ledger entries for a case, sorted by log_index.",
     description=(
         "Demo-only read endpoint. "
-        "Returns all ``VultronCaseLogEntry`` objects for the specified case, "
+        "Returns all ``VultronCaseLedgerEntry`` objects for the specified case, "
         "sorted ascending by ``log_index``. "
         "Default response is ``application/json``. "
         "Request ``Accept: application/x-ndjson`` or pass ``?format=ndjson`` "
@@ -350,9 +350,9 @@ def demo_close_case(
         "Only available in ``RunMode.PROTOTYPE``. "
         "Spec: TRIG-09-001, SYNC-01-002, SYNC-02-003."
     ),
-    operation_id="actors_demo_get_case_log",
+    operation_id="actors_demo_get_case_ledger",
 )
-def demo_get_case_log(
+def demo_get_case_ledger(
     actor_id: str,  # noqa: ARG001
     case_id: str,
     request: Request,
@@ -363,7 +363,7 @@ def demo_get_case_log(
     ),
     dl: DataLayer = Depends(get_trigger_dl),
 ) -> Response:
-    """Return ordered case log entries for a case (demo scaffold).
+    """Return ordered case ledger entries for a case (demo scaffold).
 
     Implements:
         TRIG-09-001, SYNC-01-002, SYNC-02-003.
@@ -373,8 +373,8 @@ def demo_get_case_log(
     canonical_case_id = _resolve_case_id(case_id, dl)
     raw_entries = [
         e
-        for e in dl.list_objects("CaseLogEntry")
-        if isinstance(e, (VultronCaseLogEntry, WireCaseLogEntry))
+        for e in dl.list_objects("CaseLedgerEntry")
+        if isinstance(e, (VultronCaseLedgerEntry, WireCaseLedgerEntry))
         and e.case_id == canonical_case_id
     ]
     raw_entries.sort(key=lambda e: e.log_index)
@@ -393,24 +393,24 @@ def demo_get_case_log(
 @router.get(
     "/{actor_id}/demo/cases/{case_id}/log/{index}",
     status_code=status.HTTP_200_OK,
-    summary="[Demo] Get a single case log entry by log_index.",
+    summary="[Demo] Get a single case ledger entry by log_index.",
     description=(
         "Demo-only read endpoint. "
-        "Returns the single ``VultronCaseLogEntry`` at the given ``log_index`` "
+        "Returns the single ``VultronCaseLedgerEntry`` at the given ``log_index`` "
         "for the specified case. "
         "Returns HTTP 404 if no entry exists at that index. "
         "Only available in ``RunMode.PROTOTYPE``. "
         "Spec: TRIG-09-001, SYNC-01-002, SYNC-02-003."
     ),
-    operation_id="actors_demo_get_case_log_entry",
+    operation_id="actors_demo_get_case_ledger_entry",
 )
-def demo_get_case_log_entry(
+def demo_get_case_ledger_entry(
     actor_id: str,  # noqa: ARG001
     case_id: str,
     index: int = Path(ge=0, description="Zero-based log entry index."),
     dl: DataLayer = Depends(get_trigger_dl),
 ) -> dict[str, Any]:
-    """Return the case log entry at the given index (demo scaffold).
+    """Return the case ledger entry at the given index (demo scaffold).
 
     Implements:
         TRIG-09-001, SYNC-01-002, SYNC-02-003.
@@ -420,7 +420,7 @@ def demo_get_case_log_entry(
     canonical_case_id = _resolve_case_id(case_id, dl)
     entry_id = f"{canonical_case_id}/log/{index}"
     obj = dl.read(entry_id)
-    if not isinstance(obj, (VultronCaseLogEntry, WireCaseLogEntry)):
+    if not isinstance(obj, (VultronCaseLedgerEntry, WireCaseLedgerEntry)):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={

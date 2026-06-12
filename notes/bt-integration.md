@@ -1001,7 +1001,7 @@ actor ID:
 
 **Why "Always SUCCESS" is intentional for the lenient variant**: When a
 peer receives a log entry for a participant it has not yet seen, succeeding
-allows the case log cascade to proceed. The state gap resolves when the
+allows the case ledger cascade to proceed. The state gap resolves when the
 participant is later introduced via the normal invite/accept flow.
 
 **Documentation rule**: The docstring for any lenient node MUST explicitly
