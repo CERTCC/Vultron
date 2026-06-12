@@ -171,6 +171,29 @@ def _auth_entries(replicas: dict[str, list[dict]]) -> list[dict]:
     return replicas.get("case-actor", next(iter(replicas.values()), []))
 
 
+def _contiguous_fragments(entries: list[dict]) -> list[list[dict]]:
+    """Split a logIndex-sorted entry list into maximal contiguous runs.
+
+    Entries are grouped by consecutive logIndex values.  A gap between
+    logIndex N and N+2 (i.e. N+1 is missing) starts a new fragment.
+
+    Example: entries with logIndices [2,3,5,6,7,9,10] → three fragments:
+        [[2,3], [5,6,7], [9,10]]
+    """
+    if not entries:
+        return []
+    fragments: list[list[dict]] = []
+    current: list[dict] = [entries[0]]
+    for entry in entries[1:]:
+        if _log_index(entry) == _log_index(current[-1]) + 1:
+            current.append(entry)
+        else:
+            fragments.append(current)
+            current = [entry]
+    fragments.append(current)
+    return fragments
+
+
 # ---------------------------------------------------------------------------
 # Invariant 1 — per-actor internal hash-chain consistency
 # ---------------------------------------------------------------------------
@@ -197,14 +220,18 @@ def test_invariant_1_local_hash_chain_consistent(
     actor_name: str,
     case_log_replicas: dict[str, list[dict]],
 ) -> None:
-    """Each actor's local hash chain is internally consistent (AC-4.1).
+    """Within each contiguous logIndex fragment, hashes chain correctly.
 
-    For entries sorted by ``log_index``:
+    Entries are first split into maximal contiguous runs by logIndex.
+    Within each run, consecutive entries must satisfy:
 
-    - If ``logIndex=0`` is present, its ``prevLogHash`` MUST equal
-      ``GENESIS_HASH``.
-    - Each subsequent entry's ``prevLogHash`` MUST equal its predecessor's
-      ``entryHash``.
+    - ``entry[N].prevLogHash == entry[N-1].entryHash``
+    - If the run starts at ``logIndex=0``, that entry's ``prevLogHash``
+      must equal ``GENESIS_HASH``.
+
+    Cross-fragment boundaries are **not** checked: if logIndex 4 is absent
+    the check does not assert that entry 5's prevLogHash equals entry 3's
+    entryHash (it doesn't — it references the hash of the missing entry 4).
 
     case-actor and vendor are expected to pass today.
     finder is xfail until #789 (CaseActor commit-path uniqueness) lands.
@@ -214,32 +241,34 @@ def test_invariant_1_local_hash_chain_consistent(
     if entries is None:
         pytest.skip(f"No log found for actor {actor_name!r} in devlogs/")
 
-    first = entries[0]
-    # Genesis check only applies when logIndex=0 is actually first.
-    if _log_index(first) == 0:
-        actual_prev = _prev_log_hash(first)
-        assert actual_prev == GENESIS_HASH, (
-            f"Actor {actor_name!r}: entry logIndex=0 "
-            f"prevLogHash={actual_prev!r} != GENESIS_HASH"
-        )
+    for fragment in _contiguous_fragments(entries):
+        first = fragment[0]
+        first_idx = _log_index(first)
 
-    for i, entry in enumerate(entries[1:], start=1):
-        expected = _entry_hash(entries[i - 1])
-        assert expected, (
-            f"Actor {actor_name!r}: entry[{i - 1}] "
-            f"(logIndex={_log_index(entries[i - 1])}) "
-            f"has no entryHash — cannot verify hash chain"
-        )
-        actual = _prev_log_hash(entry)
-        assert actual, (
-            f"Actor {actor_name!r}: entry[{i}] (logIndex={_log_index(entry)}) "
-            f"has no prevLogHash — cannot verify hash chain"
-        )
-        assert actual == expected, (
-            f"Actor {actor_name!r}: entry[{i}] (logIndex={_log_index(entry)}) "
-            f"prevLogHash={actual[:16]!r} != "
-            f"entry[{i - 1}] entryHash={expected[:16]!r}"
-        )
+        if first_idx == 0:
+            actual_prev = _prev_log_hash(first)
+            assert actual_prev == GENESIS_HASH, (
+                f"Actor {actor_name!r}: fragment starting at logIndex=0 "
+                f"prevLogHash={actual_prev!r} != GENESIS_HASH"
+            )
+
+        for i, entry in enumerate(fragment[1:], start=1):
+            prev = fragment[i - 1]
+            expected = _entry_hash(prev)
+            assert expected, (
+                f"Actor {actor_name!r}: logIndex={_log_index(prev)} "
+                f"has no entryHash — cannot verify hash chain"
+            )
+            actual = _prev_log_hash(entry)
+            assert actual, (
+                f"Actor {actor_name!r}: logIndex={_log_index(entry)} "
+                f"has no prevLogHash — cannot verify hash chain"
+            )
+            assert actual == expected, (
+                f"Actor {actor_name!r}: logIndex={_log_index(entry)} "
+                f"prevLogHash={actual[:16]!r} != "
+                f"logIndex={_log_index(prev)} entryHash={expected[:16]!r}"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -586,7 +615,24 @@ def test_invariant_11_payload_context_uses_case_uri(
 
 
 # ---------------------------------------------------------------------------
-# Invariants 12–14 — per-actor log completeness (xfail for late joiners)
+# Invariants 12–14 — per-actor case-log quality (two convergence groups)
+#
+# These tests are split into two groups that converge independently:
+#
+#   Group A — Fragment integrity (inv 1, inv 14):
+#     "For the entries you *do* have, are they self-consistent?"
+#     - Invariant 1  (hash chain): each consecutive pair must hash-chain.
+#     - Invariant 14 (contiguity): no gaps within the range you hold.
+#     The finder currently passes inv-14 (its fragment is contiguous) and
+#     is xfail on inv-1 (#789 hash-chain replication bug).
+#     Both converge once #789 is fixed — independently of backfill.
+#
+#   Group B — Log completeness (inv 12, inv 13):
+#     "Do you hold the full log from genesis?"
+#     - Invariant 12: logIndex=0 is present.
+#     - Invariant 13: the first sorted entry has logIndex=0.
+#     The finder is xfail on both until join-time backfill (#791) lands.
+#
 # ---------------------------------------------------------------------------
 
 #: The finder is a late joiner whose replica is incomplete until #791 lands.
@@ -598,9 +644,64 @@ _BACKFILL_XFAIL = pytest.mark.xfail(
     ),
 )
 
-#: Actor names expected to have complete logs from genesis.
-#: - case-actor and vendor own the case from the start → full log expected.
-#: - finder joins after report→case promotion → incomplete until #791.
+# ---------------------------------------------------------------------------
+# Group A — Fragment contiguity (inv 14)
+#
+# Checks that the entries an actor *does* hold are gapless within their
+# range.  Uses min_idx→max_idx, not 0→max, so a late joiner that holds
+# a contiguous run [2..N] passes.
+#
+# Finder passes today (no gaps within its fragment); no xfail needed.
+# ---------------------------------------------------------------------------
+
+_FRAGMENT_ACTORS = [
+    pytest.param("case-actor"),
+    pytest.param("vendor"),
+    pytest.param("finder"),  # passes: finder fragment is contiguous
+]
+
+
+@pytest.mark.case_log_invariants
+@pytest.mark.parametrize("actor_name", _FRAGMENT_ACTORS)
+def test_invariant_14_no_gaps_in_log_indices(
+    actor_name: str,
+    case_log_replicas: dict[str, list[dict]],
+) -> None:
+    """No gaps within the actor's present logIndex range (fragment contiguity).
+
+    Checks the range ``[min_idx, max_idx]`` — not necessarily starting from 0.
+    A late joiner that holds entries ``[2..N]`` passes; the completeness tests
+    (inv 12–13) separately assert that ``logIndex=0`` is also present.
+
+    This invariant is in **Group A** (fragment integrity) and converges
+    independently of the join-time backfill fix (#791).
+    Spec: CLP-07.
+    """
+    entries = case_log_replicas.get(actor_name)
+    if entries is None:
+        pytest.skip(f"No log found for actor {actor_name!r} in devlogs/")
+
+    indices = sorted(_log_index(e) for e in entries)
+    min_idx, max_idx = indices[0], indices[-1]
+    expected = list(range(min_idx, max_idx + 1))
+
+    gaps = sorted(set(expected) - set(indices))
+    assert not gaps, (
+        f"Actor {actor_name!r}: {len(gaps)} gap(s) in logIndex sequence "
+        f"[{min_idx}..{max_idx}]: missing {gaps[:10]}"
+        + (" (truncated)" if len(gaps) > 10 else "")
+    )
+
+
+# ---------------------------------------------------------------------------
+# Group B — Log completeness (inv 12–13)
+#
+# Checks that an actor holds the *full* log from genesis (logIndex=0).
+# The finder is a late joiner whose replica lacks early entries until the
+# join-time backfill fix (#791) lands.
+# ---------------------------------------------------------------------------
+
+#: Actor lists for completeness checks — finder xfail until #791.
 _COMPLETE_LOG_ACTORS = [
     pytest.param("case-actor"),
     pytest.param("vendor"),
@@ -614,14 +715,15 @@ def test_invariant_12_genesis_entry_present(
     actor_name: str,
     case_log_replicas: dict[str, list[dict]],
 ) -> None:
-    """logIndex=0 is present in the actor's log (AC-4, log completeness).
+    """logIndex=0 is present in the actor's log (log completeness).
 
     Every actor must eventually receive or own the genesis entry.  The finder
     is a late joiner and its replica will lack logIndex=0 until the join-time
     backfill fix (#791) lands.
 
-    When the xfail for ``finder`` is unexpectedly promoted to XPASS, remove
-    its ``xfail`` mark to make it a permanent regression guard.
+    This invariant is in **Group B** (log completeness).
+    When the xfail for ``finder`` is promoted to XPASS, remove its mark.
+    Spec: CLP-07.
     """
     entries = case_log_replicas.get(actor_name)
     if entries is None:
@@ -640,14 +742,14 @@ def test_invariant_13_log_starts_at_genesis(
     actor_name: str,
     case_log_replicas: dict[str, list[dict]],
 ) -> None:
-    """The first entry in the actor's sorted log has logIndex=0 (AC-4, ordering).
+    """The first entry in the actor's sorted log has logIndex=0 (log ordering).
 
-    The fixture sorts entries by logIndex ascending, so this invariant is
-    equivalent to checking that logIndex=0 is present (invariant 12) while
-    also asserting correct sort order is preserved in the JSONL source.
+    The fixture sorts entries by logIndex ascending, so this invariant checks
+    both that logIndex=0 exists (invariant 12) and that the log is ordered.
 
-    When the xfail for ``finder`` is unexpectedly promoted to XPASS, remove
-    its ``xfail`` mark to make it a permanent regression guard.
+    This invariant is in **Group B** (log completeness).
+    When the xfail for ``finder`` is promoted to XPASS, remove its mark.
+    Spec: CLP-07.
     """
     entries = case_log_replicas.get(actor_name)
     if entries is None:
@@ -657,35 +759,4 @@ def test_invariant_13_log_starts_at_genesis(
     assert first_index == 0, (
         f"Actor {actor_name!r}: first entry has logIndex={first_index}, "
         f"expected 0 (log is incomplete or not starting at genesis)"
-    )
-
-
-@pytest.mark.case_log_invariants
-@pytest.mark.parametrize("actor_name", _COMPLETE_LOG_ACTORS)
-def test_invariant_14_no_gaps_in_log_indices(
-    actor_name: str,
-    case_log_replicas: dict[str, list[dict]],
-) -> None:
-    """No gaps in logIndex sequence — all entries from 0 to max are present.
-
-    A gap indicates missing entries due to incomplete backfill or replication
-    failure.  The finder will have gaps until the join-time backfill fix
-    (#791) lands.
-
-    When the xfail for ``finder`` is unexpectedly promoted to XPASS, remove
-    its ``xfail`` mark to make it a permanent regression guard.
-    """
-    entries = case_log_replicas.get(actor_name)
-    if entries is None:
-        pytest.skip(f"No log found for actor {actor_name!r} in devlogs/")
-
-    indices = sorted(_log_index(e) for e in entries)
-    min_idx, max_idx = indices[0], indices[-1]
-    expected = list(range(min_idx, max_idx + 1))
-
-    gaps = sorted(set(expected) - set(indices))
-    assert not gaps, (
-        f"Actor {actor_name!r}: {len(gaps)} gap(s) in logIndex sequence "
-        f"[{min_idx}..{max_idx}]: missing {gaps[:10]}"
-        + (" (truncated)" if len(gaps) > 10 else "")
     )
