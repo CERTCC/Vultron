@@ -79,3 +79,14 @@ update **both** `pyproject.toml` markers AND any `.github/workflows/` YAML files
 reference the mark by name. A renamed mark in test files without a corresponding
 workflow update causes `pytest` to select 0 tests and exit with code 5 (no tests
 collected), failing CI even though the rename itself is correct.
+
+### 2026-06-12 USE-CASE-SPLIT-881 — flat-to-subpackage test migration pattern
+
+When migrating flat test files into per-submodule subdirectories, the existing
+test classes map cleanly onto the semantic clusters already established by the
+source split. Removing the old flat files and creating new per-submodule files
+(rather than leaving both) avoids duplicate test collection and keeps the
+layout strictly mirrored. The parent `conftest.py` fixtures are automatically
+inherited via pytest's upward conftest search, so only the vocabulary
+registration side-effect import needs copying into each new subdirectory
+conftest.

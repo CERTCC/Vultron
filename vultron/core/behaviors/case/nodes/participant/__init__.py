@@ -45,6 +45,7 @@ from vultron.core.behaviors.case.nodes.participant.participant_add import (
     CaseHasNoActiveEmbargoNode,
     CreateCaseParticipantNode,
     CreateParticipantNode,
+    EnsureReporterParticipantAtAcceptedNode,
     QueueAddParticipantNotificationNode,
     RecordParticipantAddedEventNode,
     ResolveParticipantAcceptedStatusNode,
@@ -82,4 +83,5 @@ __all__ = [
     "QueueAddParticipantNotificationNode",
     "CreateCaseParticipantNode",
     "CreateParticipantStatusNode",
+    "EnsureReporterParticipantAtAcceptedNode",
 ]
