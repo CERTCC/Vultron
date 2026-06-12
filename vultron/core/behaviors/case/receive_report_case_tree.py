@@ -75,11 +75,15 @@ from vultron.core.behaviors.case.participant_tree import (
     CreateCaseOwnerParticipant,
     CreateCaseParticipantNode,
 )
+from vultron.core.behaviors.case.communication_tree import (
+    SendOfferCaseManagerRoleNode,
+)
+from vultron.core.behaviors.case.embargo_tree import (
+    InitializeDefaultEmbargoNode,
+)
 from vultron.core.behaviors.case.nodes import (
     CheckCaseExistsForReport,
     CommitCaseLedgerEntryNode,
-    InitializeDefaultEmbargoNode,
-    SendOfferCaseManagerRoleNode,
     UpdateActorOutbox,
 )
 from vultron.core.behaviors.report.nodes import (

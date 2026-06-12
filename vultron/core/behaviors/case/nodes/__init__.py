@@ -37,6 +37,10 @@ They are re-exported here for backward compatibility via module
   → ``vultron.core.behaviors.case.case_setup_tree``
 - ``CreateCaseOwnerParticipant``, ``CreateCaseParticipantNode``
   → ``vultron.core.behaviors.case.participant_tree``
+- ``EmitCreateCaseActivity``, ``SendOfferCaseManagerRoleNode``
+  → ``vultron.core.behaviors.case.communication_tree``
+- ``InitializeDefaultEmbargoNode``
+  → ``vultron.core.behaviors.case.embargo_tree``
 """
 
 import importlib
@@ -52,16 +56,18 @@ from vultron.core.behaviors.case.nodes.communication import (
     CollectCaseAddresseesNode,
     CreateAndPersistCaseActivityNode,
     CreateOfferCaseManagerActivityNode,
-    EmitCreateCaseActivity,
     ResolveCaseManagerOfferContextNode,
-    SendOfferCaseManagerRoleNode,
 )
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckCaseAlreadyExists,
     CheckCaseExistsForReport,
 )
 from vultron.core.behaviors.case.nodes.embargo import (
-    InitializeDefaultEmbargoNode,
+    AdvanceEMStateToActiveNode,
+    AttachEmbargoToCaseNode,
+    CreateEmbargoEventNode,
+    ResolveEmbargoDurationNode,
+    SeedOwnerAsSignatoryNode,
 )
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
@@ -100,15 +106,22 @@ __all__ = [
     # participant_tree (composite subtrees — lazy via __getattr__)
     "CreateCaseOwnerParticipant",
     "CreateCaseParticipantNode",
-    # embargo
+    # embargo (leaf nodes)
+    "AdvanceEMStateToActiveNode",
+    "AttachEmbargoToCaseNode",
+    "CreateEmbargoEventNode",
+    "ResolveEmbargoDurationNode",
+    "SeedOwnerAsSignatoryNode",
+    # embargo_tree (composite subtree — lazy via __getattr__)
     "InitializeDefaultEmbargoNode",
-    # communication
-    "EmitCreateCaseActivity",
+    # communication (leaf nodes)
     "CollectCaseAddresseesNode",
     "CreateAndPersistCaseActivityNode",
-    "SendOfferCaseManagerRoleNode",
-    "ResolveCaseManagerOfferContextNode",
     "CreateOfferCaseManagerActivityNode",
+    "ResolveCaseManagerOfferContextNode",
+    # communication_tree (composite subtrees — lazy via __getattr__)
+    "EmitCreateCaseActivity",
+    "SendOfferCaseManagerRoleNode",
     # lifecycle
     "CommitCaseLedgerEntryNode",
     # update
@@ -127,6 +140,13 @@ if TYPE_CHECKING:
         CreateCaseActorNode,
         RecordCaseCreationEvents,
     )
+    from vultron.core.behaviors.case.communication_tree import (  # noqa: F401
+        EmitCreateCaseActivity,
+        SendOfferCaseManagerRoleNode,
+    )
+    from vultron.core.behaviors.case.embargo_tree import (  # noqa: F401
+        InitializeDefaultEmbargoNode,
+    )
     from vultron.core.behaviors.case.participant_tree import (  # noqa: F401
         CreateCaseOwnerParticipant,
         CreateCaseParticipantNode,
@@ -142,6 +162,9 @@ _COMPOSITE_COMPAT: dict[str, str] = {
     "RecordCaseCreationEvents": "vultron.core.behaviors.case.case_setup_tree",
     "CreateCaseOwnerParticipant": "vultron.core.behaviors.case.participant_tree",
     "CreateCaseParticipantNode": "vultron.core.behaviors.case.participant_tree",
+    "EmitCreateCaseActivity": "vultron.core.behaviors.case.communication_tree",
+    "SendOfferCaseManagerRoleNode": "vultron.core.behaviors.case.communication_tree",
+    "InitializeDefaultEmbargoNode": "vultron.core.behaviors.case.embargo_tree",
 }
 
 
