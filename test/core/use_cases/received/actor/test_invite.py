@@ -199,11 +199,12 @@ class TestInviteActorUseCases:
     def test_accept_invite_participant_can_reach_rm_accepted(
         self, make_payload
     ):
-        """Accepted invite advances the participant to RM.ACCEPTED inline.
+        """Accepted invite advances the participant to RM.ACCEPTED via BT.
 
         PCR-08-010: Accept(Invite) IS the engage decision.  The use case
-        records VALID→ACCEPTED directly on the participant without a separate
-        engage-case BT or emitting a proxy RmEngageCaseActivity.
+        delegates to AcceptInviteActorToCaseBT which records the participant
+        at RM.ACCEPTED — no separate engage-case BT or proxy RmEngageCaseActivity
+        is emitted.
         """
         from typing import Any, cast
 
@@ -238,7 +239,7 @@ class TestInviteActorUseCases:
         )
         event = make_payload(accept)
 
-        # No TriggerActivityAdapter needed: RM.ACCEPTED is set inline.
+        # No TriggerActivityAdapter needed: RM.ACCEPTED is reached via BT.
         AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
 
         updated_case = cast(Any, dl.read(case.id_))
@@ -250,9 +251,8 @@ class TestInviteActorUseCases:
     def test_accept_invite_no_identity_spoofing(self, make_payload):
         """PCR-07-008: AcceptInviteActorToCaseReceivedUseCase MUST NOT emit
         RmEngageCaseActivity (Join) with actor=invitee_id from the Case Actor
-        context.  The Accept(Invite) IS the engage decision; the participant
-        reaches RM.ACCEPTED via an inline state transition, not a spoofed BT
-        call.
+        context.  The Accept(Invite) IS the engage decision; the BT records
+        RM.ACCEPTED for the invitee without spoofing the invitee's identity.
         """
         from typing import Any, cast
 
@@ -305,8 +305,8 @@ class TestInviteActorUseCases:
         AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
 
         # PCR-07-008: no RmEngageCaseActivity (Join) with actor=invitee_id
-        # should be queued in the invitee's outbox — the RM.ACCEPTED state is
-        # set inline; no BT proxy emit is permitted.
+        # should be queued — the BT records RM.ACCEPTED for the invitee
+        # without spoofing the invitee's identity.
         outbox_items = dl.clone_for_actor(invitee_id).outbox_list()
         for item_id in outbox_items:
             candidate = cast(Any, dl.read(item_id))
@@ -316,7 +316,7 @@ class TestInviteActorUseCases:
                     f"actor={invitee_id!r} found in outbox — identity spoofing"
                 )
 
-        # The participant should already be at RM.ACCEPTED (inline transition).
+        # The participant should be at RM.ACCEPTED (via BT).
         updated_case = cast(Any, dl.read(case.id_))
         participant_id = updated_case.actor_participant_index.get(invitee_id)
         assert participant_id is not None
@@ -324,7 +324,7 @@ class TestInviteActorUseCases:
         assert participant_obj is not None
         latest_status = participant_obj.participant_statuses[-1]
         assert latest_status.rm_state == RM.ACCEPTED, (
-            f"Expected RM.ACCEPTED after inline transition, "
+            f"Expected RM.ACCEPTED after BT transition, "
             f"got {latest_status.rm_state}"
         )
 
