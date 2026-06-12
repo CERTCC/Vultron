@@ -29,8 +29,9 @@
 ones. A pattern placed after a more general match will never be reached.
 
 - `ActivityPattern` instances are defined in
-  `vultron/wire/as2/extractor.py` and imported into the domain
-  sub-modules under `vultron/semantic_registry/`
+  `vultron/wire/as2/extractor/_instances.py` and re-exported from
+  `vultron/wire/as2/extractor/` (the package `__init__.py`); they are
+  imported into the domain sub-modules under `vultron/semantic_registry/`
 - Always `rehydrate()` on incoming activities before pattern matching
 - Add new `ActivityPattern` objects named `<TypeName>Pattern`
 - Test every new pattern in `test/test_semantic_activity_patterns.py`
@@ -45,8 +46,9 @@ subclass, and a use-case class. `find_matching_semantics()` returns the
 **first** match.
 
 `ActivityPattern` objects — one per `MessageSemantics` value — are
-defined in `vultron/wire/as2/extractor.py` and imported into the
-`semantic_registry` package submodules.
+defined in `vultron/wire/as2/extractor/_instances.py` and re-exported
+from the `vultron/wire/as2/extractor/` package; they are imported into
+the `semantic_registry` package submodules.
 
 ### The Ordering Invariant
 
@@ -116,19 +118,25 @@ validator might miss. Both should remain.
 
 | File | Role |
 |---|---|
-| `vultron/wire/as2/extractor.py` | `ActivityPattern` class + all `*Pattern` instances |
+| `vultron/wire/as2/extractor/_pattern.py` | `ActivityPattern` class + `_match_activity_field` |
+| `vultron/wire/as2/extractor/_instances.py` | All `*Pattern` instances |
+| `vultron/wire/as2/extractor/_builders.py` | Field-extraction helpers + domain-object builders |
+| `vultron/wire/as2/extractor/_extract.py` | `extract_intent` function |
+| `vultron/wire/as2/extractor/__init__.py` | Public re-exports (backward-compat) |
 | `vultron/semantic_registry/` | `SEMANTIC_REGISTRY`, `find_matching_semantics()`, `_validate_registry_order()` |
 | `vultron/errors.py` | `RegistryOrderError(VultronError)` |
 | `test/test_semantic_activity_patterns.py` | Pattern ordering + dispatch tests |
 
 ### Common Pitfall: Adding a Pattern Without Running Tests
 
-When adding a new `ActivityPattern` to `extractor.py`:
+When adding a new `ActivityPattern` to `extractor/_instances.py`:
 
-1. Define the pattern object named `<TypeName>Pattern`.
-2. Add the corresponding `SemanticEntry` in the correct group position.
-3. Run `test/test_semantic_activity_patterns.py` immediately.
-4. If import raises `RegistryOrderError`, move the new entry earlier in the
+1. Define the pattern object named `<TypeName>Pattern` in `_instances.py`.
+2. Add the new name to the re-export lists in `extractor/__init__.py`
+   (both the `from ... import` block and `__all__`).
+3. Add the corresponding `SemanticEntry` in the correct group position.
+4. Run `test/test_semantic_activity_patterns.py` immediately.
+5. If import raises `RegistryOrderError`, move the new entry earlier in the
    registry before the more-general entry it conflicts with.
 
 The runtime guard catches the common failure mode, and the test file provides
@@ -150,8 +158,9 @@ enforced by `test/architecture/test_activity_factory_imports.py`.
 
 ## Key Files Map — wire layer
 
-- **Patterns**: `vultron/wire/as2/extractor.py` — `ActivityPattern`
-  class and `*Pattern` instance definitions
+- **Patterns**: `vultron/wire/as2/extractor/` — `ActivityPattern`
+  class (`_pattern.py`) and `*Pattern` instance definitions
+  (`_instances.py`); re-exported from the package `__init__.py`
 - **Semantic Registry**: `vultron/semantic_registry/` — domain-split
   package; `SEMANTIC_REGISTRY` (ordered list),
   `find_matching_semantics()`, `use_case_map()`
