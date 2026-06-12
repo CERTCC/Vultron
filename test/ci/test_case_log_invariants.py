@@ -483,7 +483,7 @@ def test_invariant_7_log_terminates_all_rm_closed(
     strict=False,
     reason=(
         "Late-joining participants require join-time history backfill; "
-        "will pass when #791 join-time backfill AC lands"
+        "will pass when #937 (wire replay into AcceptInvite) lands"
     ),
 )
 def test_invariant_8_late_joiner_has_full_history(
@@ -631,16 +631,16 @@ def test_invariant_11_payload_context_uses_case_uri(
 #     "Do you hold the full log from genesis?"
 #     - Invariant 12: logIndex=0 is present.
 #     - Invariant 13: the first sorted entry has logIndex=0.
-#     The finder is xfail on both until join-time backfill (#791) lands.
+#     The finder is xfail on both until join-time backfill (#937) lands.
 #
 # ---------------------------------------------------------------------------
 
-#: The finder is a late joiner whose replica is incomplete until #791 lands.
+#: The finder is a late joiner whose replica is incomplete until #937 lands.
 _BACKFILL_XFAIL = pytest.mark.xfail(
     strict=False,
     reason=(
         "Late-joining finder replica is incomplete until join-time history "
-        "backfill lands; will pass when #791 AC lands"
+        "backfill lands; will pass when #937 (wire replay into AcceptInvite) lands"
     ),
 )
 
@@ -674,7 +674,7 @@ def test_invariant_14_no_gaps_in_log_indices(
     (inv 12–13) separately assert that ``logIndex=0`` is also present.
 
     This invariant is in **Group A** (fragment integrity) and converges
-    independently of the join-time backfill fix (#791).
+    independently of the join-time backfill fix (#937).
     Spec: CLP-07.
     """
     entries = case_log_replicas.get(actor_name)
@@ -698,10 +698,10 @@ def test_invariant_14_no_gaps_in_log_indices(
 #
 # Checks that an actor holds the *full* log from genesis (logIndex=0).
 # The finder is a late joiner whose replica lacks early entries until the
-# join-time backfill fix (#791) lands.
+# join-time backfill fix (#937) lands.
 # ---------------------------------------------------------------------------
 
-#: Actor lists for completeness checks — finder xfail until #791.
+#: Actor lists for completeness checks — finder xfail until #937.
 _COMPLETE_LOG_ACTORS = [
     pytest.param("case-actor"),
     pytest.param("vendor"),
@@ -719,7 +719,7 @@ def test_invariant_12_genesis_entry_present(
 
     Every actor must eventually receive or own the genesis entry.  The finder
     is a late joiner and its replica will lack logIndex=0 until the join-time
-    backfill fix (#791) lands.
+    backfill fix (#937) lands.
 
     This invariant is in **Group B** (log completeness).
     When the xfail for ``finder`` is promoted to XPASS, remove its mark.
