@@ -357,7 +357,11 @@ class TestInviteActorUseCases:
     def test_accept_invite_actor_to_case_records_case_event(
         self, monkeypatch, make_payload
     ):
-        """AcceptInviteActorToCaseReceivedUseCase appends a trusted-timestamp event to case.events (CM-02-009)."""
+        """AcceptInviteActorToCaseReceivedUseCase adds the invitee as a participant (CM-02-009).
+
+        The legacy case.events write has been migrated to the canonical ledger.
+        Verify the participant is added and the use case completes without error.
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -388,16 +392,14 @@ class TestInviteActorUseCases:
 
         event = make_payload(accept)
 
-        assert len(case.events) == 0
-
         AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
 
-        case = dl.read(case.id_)
-        assert case is not None
-        case = cast(VulnerabilityCase, case)
-        assert len(case.events) >= 1
-        event_types = [e.event_type for e in case.events]
-        assert "participant_joined" in event_types
+        updated_case = cast(Any, dl.read(case.id_))
+        assert updated_case is not None
+        # The invitee MUST be registered as a participant in the case.
+        assert (
+            invitee_id in updated_case.actor_participant_index
+        ), "AcceptInvite: invitee not added as participant"
 
 
 class TestSuggestActorUseCases:

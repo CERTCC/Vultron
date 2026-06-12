@@ -92,16 +92,23 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
     def __init__(
         self,
         case_id: str | None = None,
+        event_type: str | None = None,
         name: str | None = None,
     ):
         """
         Args:
             case_id: ID of the ``VulnerabilityCase`` to log against.  When
                 ``None`` the node reads ``case_id`` from the blackboard.
+            event_type: Optional override for the ledger entry event_type.
+                When provided, overrides the value derived from
+                ``activity.semantic_type``.  Use this to emit a protocol-
+                canonical event label (e.g. ``"accept_report"``) that differs
+                from the wire-level semantic name.
             name: Optional display name for the node.
         """
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
+        self._event_type_override = event_type
         self._sync_port: Any = None
 
     def setup(self, **kwargs: Any) -> None:
@@ -147,15 +154,16 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
         if activity is not None:
             object_id: str = getattr(activity, "activity_id", case_id)
             semantic_type = getattr(activity, "semantic_type", None)
-            event_type: str = (
+            derived: str = (
                 semantic_type.value
                 if semantic_type is not None
                 else getattr(activity, "activity_type", "case_event")
                 or "case_event"
             )
+            event_type: str = self._event_type_override or derived
         else:
             object_id = case_id
-            event_type = "case_event"
+            event_type = self._event_type_override or "case_event"
         payload_snapshot = (
             _extract_payload_snapshot(activity) if activity is not None else {}
         )

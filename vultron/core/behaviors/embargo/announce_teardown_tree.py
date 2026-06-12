@@ -125,7 +125,7 @@ def add_embargo_to_case_tree(
             CommitLogCascadeNode(
                 case_id=case_id,
                 object_id=embargo_id,
-                event_type="add_embargo_event_to_case",
+                event_type="accept_embargo",
                 payload_snapshot=payload_snapshot,
             ),
         ],

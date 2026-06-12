@@ -69,7 +69,6 @@ class AddCaseParticipantToCaseReceivedUseCase:
             return
 
         case.add_participant(participant)
-        case.record_event(participant_id, "participant_added")
         self._dl.save(case)
         logger.info(
             "Added participant '%s' to case '%s'", participant_id, case_id

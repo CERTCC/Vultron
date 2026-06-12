@@ -39,6 +39,7 @@ from vultron.core.use_cases._helpers import (
     _find_case_actor_id,
     _idempotent_create,
 )
+from vultron.core.use_cases.triggers.sync import commit_log_entry_trigger
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -599,10 +600,32 @@ class AcceptInviteActorToCaseReceivedUseCase:
         self._dl.create(participant)
 
         case.add_participant(participant)
-        case.record_event(invitee_id, "participant_joined")
-        if active_embargo_id and em_state == EM.ACTIVE:
-            case.record_event(active_embargo_id, "embargo_accepted")
         self._dl.save(case)
+
+        # Commit canonical ledger entries via the CaseActor.
+        case_actor_id = _find_case_actor_id(self._dl, case_id)
+        if case_actor_id is not None:
+            commit_log_entry_trigger(
+                case_id=case_id,
+                object_id=invitee_id,
+                event_type="participant_joined",
+                actor_id=case_actor_id,
+                dl=self._dl,
+            )
+            if active_embargo_id and em_state == EM.ACTIVE:
+                commit_log_entry_trigger(
+                    case_id=case_id,
+                    object_id=active_embargo_id,
+                    event_type="embargo_accepted",
+                    actor_id=case_actor_id,
+                    dl=self._dl,
+                )
+        else:
+            logger.warning(
+                "AcceptInviteActorToCase: cannot resolve CaseActor for"
+                " case '%s' — skipping canonical ledger commits",
+                case_id,
+            )
 
         # MV-10-003/MV-10-005: emit full case details to the invitee now that
         # embargo consent has been resolved (auto-signed above when ACTIVE).

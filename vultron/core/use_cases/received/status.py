@@ -1,7 +1,7 @@
 """Use cases for case and participant status activities."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from py_trees.common import Status
 
@@ -15,6 +15,7 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
 )
+from vultron.core.states.cs import CS_vfd
 from vultron.core.use_cases._helpers import _idempotent_create
 
 if TYPE_CHECKING:
@@ -249,9 +250,84 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         commit_log_entry_trigger(
             case_id=case_id,
             object_id=request.status_id or request.activity_id,
-            event_type="add_participant_status",
+            event_type=self._status_event_type(),
             actor_id=actor_id,
             dl=self._dl,
             sync_port=self._sync_port,
-            payload_snapshot=extract_activity_snapshot(request),
+            payload_snapshot=self._build_status_payload(
+                extract_activity_snapshot(request)
+            ),
         )
+
+    def _status_event_type(self) -> str:
+        """Derive the canonical event_type for a participant status update.
+
+        Maps the ParticipantStatus vfd_state to a protocol milestone
+        event_type (AC-4.5):
+
+        - ``CS_vfd.VFd`` → ``"notify_fix_ready"``
+        - ``CS_vfd.VFD`` → ``"notify_fix_deployed"``
+        - pxa state with P (public) → ``"notify_published"``
+        - Anything else → ``"add_participant_status"``
+        """
+        status = self._request.status
+        if status is None:
+            return "add_participant_status"
+
+        vfd = getattr(status, "vfd_state", None)
+        if vfd == CS_vfd.VFd:
+            return "notify_fix_ready"
+        if vfd == CS_vfd.VFD:
+            return "notify_fix_deployed"
+
+        # Check for public-awareness milestone via case_status.pxa_state.
+        case_status = getattr(status, "case_status", None)
+        if case_status is not None:
+            pxa = getattr(case_status, "pxa_state", None)
+            if pxa is not None and getattr(pxa, "value", None) is not None:
+                # CS_pxa names beginning with uppercase P indicate public=True.
+                pxa_name = pxa.name if hasattr(pxa, "name") else str(pxa)
+                if pxa_name and pxa_name[0] == "P":
+                    return "notify_published"
+
+        return "add_participant_status"
+
+    def _build_status_payload(
+        self, base: "dict[str, Any]"
+    ) -> "dict[str, Any]":
+        """Enrich *base* AS2 snapshot with participant fields for AC-4.9.
+
+        Adds ``attributedTo``, ``emConsentState``, ``cvdRole``, and
+        ``rmState`` at the root of the payload dict so that CI invariants
+        6, 7, and 9 can read them without traversing nested objects.
+        """
+        participant_id = self._request.participant_id
+        if not participant_id:
+            return base
+
+        participant = self._dl.read(participant_id)
+        if participant is None:
+            return base
+
+        attributed_to = getattr(participant, "attributed_to", None)
+        if attributed_to:
+            base["attributedTo"] = str(attributed_to)
+
+        consent = getattr(participant, "embargo_consent_state", None)
+        if consent is not None:
+            base["emConsentState"] = str(consent)
+
+        roles = getattr(participant, "case_roles", [])
+        base["cvdRole"] = [
+            r.value if hasattr(r, "value") else str(r) for r in roles
+        ]
+
+        # Include the RM state from the inbound ParticipantStatus so that
+        # invariant 7 (log terminates with all participants RM=CLOSED) works.
+        status = self._request.status
+        if status is not None:
+            rm = getattr(status, "rm_state", None)
+            if rm is not None:
+                base["rmState"] = rm.name if hasattr(rm, "name") else str(rm)
+
+        return base

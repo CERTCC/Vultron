@@ -26,7 +26,6 @@ from vultron.core.behaviors.case.nodes.participant import (
     AttachOwnerParticipantToCaseNode,
     CreateOwnerParticipantNode,
     PersistOwnerCaseNode,
-    RecordOwnerJoinedEventNode,
     ResolveOwnerInitialStatusNode,
     ShouldAdvanceOwnerToAcceptedNode,
 )
@@ -155,16 +154,15 @@ class TestCreateCaseOwnerParticipant:
     def test_is_composed_subtree_of_named_leaf_nodes(self) -> None:
         node = CreateCaseOwnerParticipant()
         assert isinstance(node, py_trees.composites.Sequence)
-        assert [type(child) for child in node.children[:5]] == [
+        assert [type(child) for child in node.children[:4]] == [
             ResolveOwnerInitialStatusNode,
             CreateOwnerParticipantNode,
             AttachOwnerParticipantToCaseNode,
             PersistOwnerCaseNode,
-            RecordOwnerJoinedEventNode,
         ]
-        assert isinstance(node.children[5], py_trees.composites.Selector)
+        assert isinstance(node.children[4], py_trees.composites.Selector)
 
-        conditional_selector = node.children[5]
+        conditional_selector = node.children[4]
         assert isinstance(
             conditional_selector.children[0], py_trees.composites.Sequence
         )
@@ -185,17 +183,13 @@ class TestCreateCaseOwnerParticipant:
         case_obj: VultronCase,
         actor_id: str,
     ) -> None:
-        """CreateCaseOwnerParticipant records 'owner_joined' on the case."""
+        """CreateCaseOwnerParticipant succeeds (owner_joined no longer written to CaseEvent)."""
         result = bt_scenario.run(
             CreateCaseOwnerParticipant(),
             actor_id=actor_id,
             case_id=case_obj.id_,
         )
         bt_scenario.assert_success(result)
-
-        stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
-        event_types = [e.event_type for e in stored_case.events]
-        assert "owner_joined" in event_types
 
     def test_advances_owner_rm_to_accepted_when_configured(
         self,
