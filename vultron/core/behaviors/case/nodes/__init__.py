@@ -22,18 +22,29 @@ continue to work without modification.
 
 Submodules:
 - ``conditions``: Idempotency guard condition nodes
-- ``case_setup``: Case persistence and actor setup action nodes
-- ``participant``: Participant creation and attachment action nodes
+- ``case_setup``: Case persistence and actor setup leaf action nodes
+- ``participant``: Participant creation and attachment leaf action nodes
 - ``embargo``: Default embargo initialization action nodes
 - ``communication``: Outbound activity emission action nodes
 - ``lifecycle``: Case log entry commit action node
+
+Composite subtrees (``Sequence``/``Selector`` subclasses) are defined in
+sibling ``*_tree.py`` modules at the process-area root per BTND-07-003.
+They are re-exported here for backward compatibility via module
+``__getattr__`` (PEP 562) to avoid circular imports:
+
+- ``RecordCaseCreationEvents``, ``CreateCaseActorNode``
+  → ``vultron.core.behaviors.case.case_setup_tree``
+- ``CreateCaseOwnerParticipant``, ``CreateCaseParticipantNode``
+  → ``vultron.core.behaviors.case.participant_tree``
 """
 
+import importlib
+from typing import TYPE_CHECKING
+
 from vultron.core.behaviors.case.nodes.case_setup import (
-    CreateCaseActorNode,
     PersistCase,
     RecordCaseCreatedEventNode,
-    RecordCaseCreationEvents,
     RecordOfferReceivedEventNode,
     SetCaseAttributedTo,
 )
@@ -56,8 +67,6 @@ from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
 from vultron.core.behaviors.case.nodes.participant import (
-    CreateCaseOwnerParticipant,
-    CreateCaseParticipantNode,
     CreateParticipantStatusNode,
     RecordOwnerJoinedEventNode,
     _create_and_attach_participant,
@@ -75,20 +84,22 @@ __all__ = [
     # conditions
     "CheckCaseAlreadyExists",
     "CheckCaseExistsForReport",
-    # case_setup
+    # case_setup (leaf nodes)
     "PersistCase",
     "SetCaseAttributedTo",
-    "RecordCaseCreationEvents",
     "RecordOfferReceivedEventNode",
     "RecordCaseCreatedEventNode",
+    # case_setup_tree (composite subtrees — lazy via __getattr__)
+    "RecordCaseCreationEvents",
     "CreateCaseActorNode",
-    # participant
-    "CreateCaseOwnerParticipant",
-    "CreateCaseParticipantNode",
+    # participant (leaf nodes)
     "CreateParticipantStatusNode",
     "RecordOwnerJoinedEventNode",
     "_create_and_attach_participant",
     "resolve_participant_state_from_dl",
+    # participant_tree (composite subtrees — lazy via __getattr__)
+    "CreateCaseOwnerParticipant",
+    "CreateCaseParticipantNode",
     # embargo
     "InitializeDefaultEmbargoNode",
     # communication
@@ -108,3 +119,36 @@ __all__ = [
     # re-exported from helpers (backward compat)
     "UpdateActorOutbox",
 ]
+
+# TYPE_CHECKING stubs so mypy resolves composite names to their actual types.
+# At runtime these imports are skipped; the lazy __getattr__ below handles them.
+if TYPE_CHECKING:
+    from vultron.core.behaviors.case.case_setup_tree import (  # noqa: F401
+        CreateCaseActorNode,
+        RecordCaseCreationEvents,
+    )
+    from vultron.core.behaviors.case.participant_tree import (  # noqa: F401
+        CreateCaseOwnerParticipant,
+        CreateCaseParticipantNode,
+    )
+
+# Composite subtrees live in sibling *_tree.py modules (BTND-07-003).
+# They are re-exported lazily here to avoid circular imports: the tree
+# modules import leaf nodes from this package, so eager re-exports would
+# create a cycle.  PEP 562 module __getattr__ resolves the name only when
+# first accessed, after this __init__ is fully initialized.
+_COMPOSITE_COMPAT: dict[str, str] = {
+    "CreateCaseActorNode": "vultron.core.behaviors.case.case_setup_tree",
+    "RecordCaseCreationEvents": "vultron.core.behaviors.case.case_setup_tree",
+    "CreateCaseOwnerParticipant": "vultron.core.behaviors.case.participant_tree",
+    "CreateCaseParticipantNode": "vultron.core.behaviors.case.participant_tree",
+}
+
+
+def __getattr__(name: str) -> object:
+    if name in _COMPOSITE_COMPAT:
+        mod = importlib.import_module(_COMPOSITE_COMPAT[name])
+        obj = getattr(mod, name)
+        globals()[name] = obj  # cache to avoid repeated lookup
+        return obj
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -13,7 +13,14 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Non-owner participant creation/attachment nodes and subtree."""
+"""Non-owner participant creation/attachment leaf nodes.
+
+Provides leaf action nodes for the participant creation workflow.
+The composite subtrees that orchestrate these nodes
+(``SeedParticipantAsSignatoryIfEmbargoActiveNode`` and
+``CreateCaseParticipantNode``) live in ``participant_tree.py`` at the
+process-area root, per BTND-07-003.
+"""
 
 from typing import Any
 
@@ -336,31 +343,6 @@ class SeedParticipantAsSignatoryNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class SeedParticipantAsSignatoryIfEmbargoActiveNode(
-    py_trees.composites.Selector
-):
-    """Conditional subtree for CM-14-005 signatory seeding behavior."""
-
-    def __init__(self, participant_actor_id: str, name: str | None = None):
-        super().__init__(
-            name=name or self.__class__.__name__,
-            memory=False,
-            children=[
-                py_trees.composites.Sequence(
-                    name="SeedWhenActiveEmbargo",
-                    memory=False,
-                    children=[
-                        CaseHasActiveEmbargoNode(),
-                        SeedParticipantAsSignatoryNode(
-                            participant_actor_id=participant_actor_id
-                        ),
-                    ],
-                ),
-                CaseHasNoActiveEmbargoNode(),
-            ],
-        )
-
-
 class QueueAddParticipantNotificationNode(DataLayerAction):
     """Queue Add(CaseParticipant) outbox notification for the sender actor."""
 
@@ -406,42 +388,3 @@ class QueueAddParticipantNotificationNode(DataLayerAction):
         ):
             return Status.FAILURE
         return Status.SUCCESS
-
-
-class CreateCaseParticipantNode(py_trees.composites.Sequence):
-    """
-    Composed subtree that creates and attaches a CaseParticipant.
-
-    This decomposes participant creation into named leaf nodes so each step is
-    explicit and testable per BTND-07-001.
-    """
-
-    def __init__(
-        self,
-        actor_id: str,
-        roles: list[CVDRole],
-        report_id: str | None = None,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(
-            name=name or self.__class__.__name__,
-            memory=False,
-            children=[
-                ResolveParticipantAcceptedStatusNode(
-                    participant_actor_id=actor_id,
-                    report_id=report_id,
-                ),
-                CreateParticipantNode(
-                    participant_actor_id=actor_id,
-                    roles=roles,
-                ),
-                AttachParticipantToCaseNode(participant_actor_id=actor_id),
-                RecordParticipantAddedEventNode(),
-                SeedParticipantAsSignatoryIfEmbargoActiveNode(
-                    participant_actor_id=actor_id
-                ),
-                QueueAddParticipantNotificationNode(
-                    participant_actor_id=actor_id
-                ),
-            ],
-        )

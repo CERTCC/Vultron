@@ -16,9 +16,13 @@
 """
 Case setup action nodes for case management behavior trees.
 
-Provides action nodes that set up core case state: persisting the case record,
-assigning attribution, recording creation events, and creating the CaseActor
-service actor.
+Provides leaf action nodes that set up core case state: persisting the case
+record, assigning attribution, recording creation events, and creating the
+CaseActor service actor.
+
+Composite subtrees (``Sequence``/``Selector`` subclasses) that orchestrate
+these leaf nodes are defined in ``case_setup_tree.py`` at the process-area
+root, per BTND-07-003.
 
 Per specs/case-management.yaml CM-02 requirements.
 """
@@ -120,21 +124,6 @@ class SetCaseAttributedTo(DataLayerAction):
             f" on case {self.case_obj.id_}"
         )
         return Status.SUCCESS
-
-
-class RecordCaseCreationEvents(py_trees.composites.Sequence):
-    """Composed subtree that records offer_received (optional) and case_created."""
-
-    def __init__(self, case_obj: VultronCase, name: str | None = None):
-        self.case_obj = case_obj
-        super().__init__(
-            name=name or self.__class__.__name__,
-            memory=False,
-            children=[
-                RecordOfferReceivedEventNode(),
-                RecordCaseCreatedEventNode(),
-            ],
-        )
 
 
 class RecordOfferReceivedEventNode(DataLayerAction):
@@ -472,35 +461,3 @@ class RegisterCaseActorParticipantNode(DataLayerAction):
             case_id,
         )
         return Status.SUCCESS
-
-
-class CreateCaseActorNode(py_trees.composites.Sequence):
-    """
-    Composed subtree that creates and registers the CaseActor for a case.
-
-    Per specs/case-management.yaml CM-02-001 and BTND-07-001.
-    """
-
-    def __init__(self, case_id: str | None = None, name: str | None = None):
-        super().__init__(
-            name=name or self.__class__.__name__,
-            memory=False,
-            children=[
-                ResolveCaseActorUrlsNode(case_id=case_id),
-                py_trees.composites.Selector(
-                    name="EnsureCaseActorRegistered",
-                    memory=False,
-                    children=[
-                        ReuseExistingCaseActorParticipantNode(),
-                        py_trees.composites.Sequence(
-                            name="CreateAndRegisterCaseActor",
-                            memory=False,
-                            children=[
-                                CreateCaseActorServiceNode(),
-                                RegisterCaseActorParticipantNode(),
-                            ],
-                        ),
-                    ],
-                ),
-            ],
-        )

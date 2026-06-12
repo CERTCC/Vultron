@@ -68,12 +68,16 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.case_setup_tree import (
+    CreateCaseActorNode,
+)
+from vultron.core.behaviors.case.participant_tree import (
+    CreateCaseOwnerParticipant,
+    CreateCaseParticipantNode,
+)
 from vultron.core.behaviors.case.nodes import (
     CheckCaseExistsForReport,
     CommitCaseLedgerEntryNode,
-    CreateCaseActorNode,
-    CreateCaseOwnerParticipant,
-    CreateCaseParticipantNode,
     InitializeDefaultEmbargoNode,
     SendOfferCaseManagerRoleNode,
     UpdateActorOutbox,
