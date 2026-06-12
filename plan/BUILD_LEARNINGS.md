@@ -75,6 +75,7 @@ signal into a no-op module.
 ### 2026-06-12 RENAME-934 — pytest mark registration must mirror class/file renames
 
 When renaming a pytest mark (e.g., `case_log_invariants` → `case_ledger_invariants`),
-update the `markers = [...]` list in `pyproject.toml` in the same commit. A renamed
-mark in test files without a corresponding `pyproject.toml` update causes a
-`PytestUnknownMarkWarning` that blocks test collection under `filterwarnings = ["error"]`.
+update **both** `pyproject.toml` markers AND any `.github/workflows/` YAML files that
+reference the mark by name. A renamed mark in test files without a corresponding
+workflow update causes `pytest` to select 0 tests and exit with code 5 (no tests
+collected), failing CI even though the rename itself is correct.
