@@ -588,6 +588,19 @@ Short entries are reproduced here; longer ones are referenced below.
   `ACTIVE → REVISE` transition; a counter-revision must leave PEC states
   unchanged. Tests that only cover `ACTIVE → REVISE` do not verify this
   invariant.
+- **RM Terminal Guard Must Run Before Same-State Shortcut** —
+  `ValidateRMTransitionNode` (and equivalent validators) must evaluate
+  terminal `RM.CLOSED` rules before `current == new` no-op checks. Otherwise
+  repeated `CLOSED -> CLOSED` retries can flow into append/broadcast paths and
+  produce duplicate canonical ledger entries.
+- **Do Not Downgrade Existing Consent on Idempotent Retries** —
+  when reusing a report-phase `ParticipantStatus` during embargo
+  accept/reject retries, preserve any non-null existing consent value; never
+  overwrite it with default `NO_EMBARGO` during "upsert" paths.
+- **Case-Ledger Demo Endpoint Returns Combined View in Single-DL Tests** —
+  `demo_get_case_ledger` currently ignores `actor_id` in single-DataLayer
+  test setups and returns a combined case log. Use replica JSONL artifacts for
+  per-actor assertions and name helpers accordingly (`_fetch_case_log`).
 - **DataLayer Scope Tests: Use `call_args.args`, Not `call_args[0]`** —
   When asserting mock positional arguments in DataLayer scope tests (e.g.,
   for `get_canonical_actor_dl()`), use `mock.call_args.args` (Python 3.8+)

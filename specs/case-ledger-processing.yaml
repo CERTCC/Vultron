@@ -228,3 +228,13 @@ groups:
       `payloadSnapshot` context values MUST use the case URI once a case exists;
       report URIs MUST NOT appear as the context for ParticipantStatus or other
       case-scoped snapshots after the report→case promotion has occurred
+  - id: CLP-07-008
+    priority: MUST
+    statement: >-
+      If a canonicalization path resolves an ID-string nested reference for
+      `payloadSnapshot` inlining, it MUST verify that the resolved object's context
+      matches the parent snapshot context before replacement. On context mismatch, the
+      entry MUST be rejected rather than inlining cross-case data.
+    rationale: >-
+      Blind `dl.read(id)` replacement can leak unrelated local objects into canonical
+      snapshots when inbound activities carry attacker-controlled IDs.
