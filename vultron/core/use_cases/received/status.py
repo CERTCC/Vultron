@@ -221,10 +221,8 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             return False
         if receiving_actor_id != case_actor_id:
             logger.debug(
-                "add_participant_status: actor '%s' is not CaseActor '%s' for"
+                "add_participant_status: receiving actor is not the CaseActor for"
                 " case '%s' — skipping canonical commit",
-                receiving_actor_id,
-                case_actor_id,
                 case_id,
             )
             return False
