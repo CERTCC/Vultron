@@ -442,13 +442,6 @@ def test_invariant_6_no_rm_state_oscillation(
 
 
 @pytest.mark.case_ledger_invariants
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "Log must terminate with all participants in RM=CLOSED; "
-        "requires the RM terminal-state guard (see issue #789)"
-    ),
-)
 def test_invariant_7_log_terminates_all_rm_closed(
     case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
