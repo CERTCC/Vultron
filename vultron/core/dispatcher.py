@@ -126,21 +126,52 @@ class DispatcherBase:
         case_id = self._extract_case_id(event, dl)
         if not case_id:
             return
+        highest_contiguous_index, has_case_entries = (
+            self._highest_contiguous_case_log_index(case_id, dl)
+        )
+        if not has_case_entries:
+            return
         state_id = VultronReplicationState(
             case_id=case_id,
             peer_id=sender_id,
         ).id_
         state = dl.read(state_id)
         if not isinstance(state, VultronReplicationState):
-            return
-        if state.join_backfill_target_index == -1:
-            return
-        if state.join_backfill_complete:
-            return
-        raise VultronValidationError(
-            f"Actor '{sender_id}' is not caught up for case '{case_id}' "
-            "(join-time backfill incomplete)."
+            raise VultronValidationError(
+                f"Actor '{sender_id}' has no replication state for case "
+                f"'{case_id}' and cannot prove contiguous ledger coverage "
+                "from genesis."
+            )
+        if state.join_backfill_last_sent_index < 0:
+            raise VultronValidationError(
+                f"Actor '{sender_id}' has no contiguous canonical ledger "
+                f"prefix for case '{case_id}' (genesis backfill not started)."
+            )
+        if state.join_backfill_last_sent_index > highest_contiguous_index:
+            raise VultronValidationError(
+                f"Actor '{sender_id}' reported join backfill index "
+                f"{state.join_backfill_last_sent_index} for case '{case_id}', "
+                "but the canonical ledger prefix is not contiguous to that "
+                "index."
+            )
+
+    def _highest_contiguous_case_log_index(
+        self, case_id: str, dl: "DataLayer"
+    ) -> tuple[int, bool]:
+        case_indices = sorted(
+            int(getattr(obj, "log_index"))
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if getattr(obj, "case_id", None) == case_id
+            and isinstance(getattr(obj, "log_index", None), int)
         )
+        if not case_indices:
+            return -1, False
+        expected = 0
+        for index in case_indices:
+            if index != expected:
+                break
+            expected += 1
+        return expected - 1, True
 
     def _extract_case_id(
         self, event: "VultronEvent", dl: "DataLayer"
