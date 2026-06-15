@@ -53,6 +53,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 _BASE = "http://coordinator:7999/api/v2/actors"
 _UUID = "24d63c7d-6b1e-4f61-a5e1-180d27192d0b"
 _HTTP_ACTOR_ID = f"{_BASE}/{_UUID}"
+_CREATED_DLS: list[SqliteDataLayer] = []
 
 
 def _make_actor_dl(actor_name: str):
@@ -63,6 +64,7 @@ def _make_actor_dl(actor_name: str):
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
     dl.clear_all()
     dl.create(actor)
+    _CREATED_DLS.append(dl)
     return actor, dl
 
 
@@ -73,7 +75,16 @@ def _make_actor_dl_with_http_id(actor_name: str, actor_id: str):
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
     dl.clear_all()
     dl.create(actor)
+    _CREATED_DLS.append(dl)
     return actor, dl
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_created_dls():
+    """Close any helper-created DataLayers to avoid unraisable sqlite warnings."""
+    yield
+    while _CREATED_DLS:
+        _CREATED_DLS.pop().close()
 
 
 def _make_case_with_case_manager(

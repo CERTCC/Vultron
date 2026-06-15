@@ -217,8 +217,10 @@ class TestCaseTriggerToField:
     @pytest.fixture(autouse=True)
     def setup(self):
         self.vendor, self.dl = _make_actor_dl("Vendor Co")
-        self.finder, _ = _make_actor_dl("Finder Co")
-        self.case_actor, _ = _make_actor_dl("Case Actor")
+        self.finder = as_Service(name="Finder Co")
+        self.case_actor = as_Service(name="Case Actor")
+        self.dl.create(self.finder)
+        self.dl.create(self.case_actor)
         self.case = _make_case_with_case_manager(
             self.dl,
             self.vendor.id_,
@@ -227,9 +229,8 @@ class TestCaseTriggerToField:
         )
         yield
         self.dl.clear_all()
+        self.dl.close()
         reset_datalayer(self.vendor.id_)
-        reset_datalayer(self.finder.id_)
-        reset_datalayer(self.case_actor.id_)
 
     def test_engage_case_to_field_addresses_case_actor_only(self):
         """SvcEngageCaseUseCase queues activity addressed only to Case Actor
@@ -327,8 +328,10 @@ class TestEmbargoTriggerToField:
     @pytest.fixture(autouse=True)
     def setup(self):
         self.vendor, self.dl = _make_actor_dl("Vendor Co")
-        self.finder, _ = _make_actor_dl("Finder Co")
-        self.case_actor, _ = _make_actor_dl("Case Actor")
+        self.finder = as_Service(name="Finder Co")
+        self.case_actor = as_Service(name="Case Actor")
+        self.dl.create(self.finder)
+        self.dl.create(self.case_actor)
         self.case = _make_case_with_case_manager(
             self.dl,
             self.vendor.id_,
@@ -337,9 +340,8 @@ class TestEmbargoTriggerToField:
         )
         yield
         self.dl.clear_all()
+        self.dl.close()
         reset_datalayer(self.vendor.id_)
-        reset_datalayer(self.finder.id_)
-        reset_datalayer(self.case_actor.id_)
 
     def test_propose_embargo_to_field_addresses_case_actor_only(self):
         """SvcProposeEmbargoUseCase queues activity addressed only to Case Actor."""
@@ -495,8 +497,10 @@ class TestReportTriggerToField:
     @pytest.fixture(autouse=True)
     def setup(self):
         self.vendor, self.dl = _make_actor_dl("Vendor Co")
-        self.finder, _ = _make_actor_dl("Finder Co")
-        self.case_actor, _ = _make_actor_dl("Case Actor")
+        self.finder = as_Service(name="Finder Co")
+        self.case_actor = as_Service(name="Case Actor")
+        self.dl.create(self.finder)
+        self.dl.create(self.case_actor)
 
         self.report = VulnerabilityReport(
             name="CVE-TEST",
@@ -513,9 +517,8 @@ class TestReportTriggerToField:
         self.dl.create(self.offer)
         yield
         self.dl.clear_all()
+        self.dl.close()
         reset_datalayer(self.vendor.id_)
-        reset_datalayer(self.finder.id_)
-        reset_datalayer(self.case_actor.id_)
 
     def test_close_report_to_field_falls_back_to_offer_actor(self):
         """SvcCloseReportUseCase uses offer actor as to when no case exists."""
