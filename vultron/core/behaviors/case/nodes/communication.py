@@ -18,6 +18,12 @@ Communication action nodes for case behavior trees.
 
 Provides action nodes that emit outbound activities related to case creation
 and case-manager role offers.
+
+Composite subtrees assembling these leaf nodes are defined in the sibling
+``communication_tree.py`` module at the process-area root per BTND-07-003:
+
+- ``EmitCreateCaseActivity``
+- ``SendOfferCaseManagerRoleNode``
 """
 
 import logging
@@ -31,21 +37,6 @@ from vultron.core.models.protocols import is_case_model
 from vultron.core.models.vultron_types import VultronCreateCaseActivity
 
 logger = logging.getLogger(__name__)
-
-
-class EmitCreateCaseActivity(py_trees.composites.Sequence):
-    """Composed subtree that emits CreateCaseActivity in explicit steps."""
-
-    def __init__(self, name: str | None = None):
-        py_trees.composites.Sequence.__init__(
-            self,
-            name=name or self.__class__.__name__,
-            memory=False,
-            children=[
-                CollectCaseAddresseesNode(),
-                CreateAndPersistCaseActivityNode(),
-            ],
-        )
 
 
 class CollectCaseAddresseesNode(DataLayerAction):
@@ -191,31 +182,6 @@ class CreateAndPersistCaseActivityNode(DataLayerAction):
 
         self.blackboard.activity_id = activity.id_
         return Status.SUCCESS
-
-
-class SendOfferCaseManagerRoleNode(py_trees.composites.Sequence):
-    """Send an Offer(VulnerabilityCase, target=CaseParticipant) to the Case Actor.
-
-    Reads ``case_id`` and ``case_actor_id`` from the blackboard (written by
-    ``CreateCaseNode`` and ``CreateCaseActorNode`` respectively), builds the
-    deterministic participant ID, then calls
-    ``trigger_activity_factory.offer_case_manager_role`` to create and persist
-    the Offer activity.  Writes ``activity_id`` to the blackboard so that the
-    following ``UpdateActorOutbox`` node can flush it to the actor's outbox.
-
-    Per DEMOMA-08-002, DEMOMA-08-003; Issue #469.
-    """
-
-    def __init__(self, name: str | None = None):
-        py_trees.composites.Sequence.__init__(
-            self,
-            name=name or self.__class__.__name__,
-            memory=False,
-            children=[
-                ResolveCaseManagerOfferContextNode(),
-                CreateOfferCaseManagerActivityNode(),
-            ],
-        )
 
 
 class ResolveCaseManagerOfferContextNode(DataLayerAction):

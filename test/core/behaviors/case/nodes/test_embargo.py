@@ -25,11 +25,13 @@ from typing import Any, cast
 import pytest
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.embargo_tree import (
+    InitializeDefaultEmbargoNode,
+)
 from vultron.core.behaviors.case.nodes.embargo import (
     AdvanceEMStateToActiveNode,
     AttachEmbargoToCaseNode,
     CreateEmbargoEventNode,
-    InitializeDefaultEmbargoNode,
     ResolveEmbargoDurationNode,
     SeedOwnerAsSignatoryNode,
 )

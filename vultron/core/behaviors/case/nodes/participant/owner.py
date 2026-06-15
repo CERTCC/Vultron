@@ -13,7 +13,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Owner-participant creation nodes and subtree."""
+"""Owner-participant creation leaf nodes.
+
+Provides leaf action nodes for the case-owner participant creation workflow.
+The composite subtree that orchestrates these nodes
+(``CreateCaseOwnerParticipant``) lives in ``participant_tree.py`` at the
+process-area root, per BTND-07-003.
+"""
 
 from typing import Any
 
@@ -382,53 +388,3 @@ class RecordOwnerJoinedEventNode(DataLayerAction):
         stored_case.record_event(participant.id_, "owner_joined")
         self.datalayer.save(stored_case)
         return Status.SUCCESS
-
-
-class CreateCaseOwnerParticipant(py_trees.composites.Sequence):
-    """
-    Composed subtree that creates and attaches the case-owner participant.
-
-    Per specs/case-management.yaml CM-02-008, BTND-05-002, and BTND-07-001.
-    """
-
-    def __init__(
-        self,
-        actor_config: ActorConfig | None = None,
-        report_id: str | None = None,
-        case_obj: VultronCase | None = None,
-        advance_to_accepted: bool = False,
-        initial_rm_state: RM = RM.VALID,
-        name: str | None = None,
-    ):
-        super().__init__(
-            name=name or self.__class__.__name__,
-            memory=False,
-            children=[
-                ResolveOwnerInitialStatusNode(
-                    report_id=report_id,
-                    case_obj=case_obj,
-                    initial_rm_state=initial_rm_state,
-                ),
-                CreateOwnerParticipantNode(actor_config=actor_config),
-                AttachOwnerParticipantToCaseNode(),
-                PersistOwnerCaseNode(),
-                RecordOwnerJoinedEventNode(),
-                py_trees.composites.Selector(
-                    name="AdvanceOwnerRmIfConfigured",
-                    memory=False,
-                    children=[
-                        py_trees.composites.Sequence(
-                            name="AdvanceOwnerRmBranch",
-                            memory=False,
-                            children=[
-                                ShouldAdvanceOwnerToAcceptedNode(
-                                    advance_to_accepted=advance_to_accepted
-                                ),
-                                AdvanceOwnerRmToAcceptedNode(),
-                            ],
-                        ),
-                        py_trees.behaviours.Success(name="SkipAdvanceOwnerRm"),
-                    ],
-                ),
-            ],
-        )
