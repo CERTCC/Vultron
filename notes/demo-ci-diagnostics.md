@@ -146,6 +146,23 @@ identified which layer broke.
 
 ---
 
+## Single-DataLayer Case-Ledger Endpoint Caveat
+
+In the in-process test harness, `demo_get_case_ledger` currently ignores the
+`actor_id` path parameter and returns the case's combined ledger view from the
+shared DataLayer.
+
+Implications for diagnostics:
+
+- Treat this endpoint as a **combined case log** view, not a per-replica view.
+- Name test helpers accordingly (for example, `_fetch_case_log`, not
+  `_fetch_case_actor_log`).
+- When you need per-replica assertions, use replica JSONL artifacts under
+  `devlogs/two-actor/<actor>/<case>-case-ledger.jsonl` instead of the demo
+  endpoint.
+
+---
+
 ## Local Docker Run Workflow
 
 Use this to reproduce a CI failure locally before investigating logs.

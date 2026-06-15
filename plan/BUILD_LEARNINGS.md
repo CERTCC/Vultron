@@ -91,15 +91,6 @@ inherited via pytest's upward conftest search, so only the vocabulary
 registration side-effect import needs copying into each new subdirectory
 conftest.
 
-### 2026-06-15 RM-TERMINAL-GUARD-928 — treat CLOSED as terminal before same-state check
-
-`ValidateRMTransitionNode` must evaluate terminal-state rules before its
-`current == new` short-circuit. If equality is checked first, repeated
-`CLOSED -> CLOSED` updates are treated as successful no-ops at validation time
-but still flow through append/broadcast/log-cascade paths as new status IDs.
-Guarding terminal `RM.CLOSED` first prevents duplicate closure cascades and
-keeps `close_case` retries from creating new canonical ledger entries.
-
 ### 2026-06-15 LEDGER-LOGGING-949 — PersistLogEntryNode tests require log_entry in blackboard
 
 When testing `PersistLogEntryNode` logging via `bridge.execute_with_setup()`,
@@ -109,17 +100,6 @@ helper builds a ready-to-use entry from a `HashChainLedgerRecord`. Use
 `caplog.at_level(logging.INFO, logger="vultron.core.behaviors.sync.nodes.chain")`
 to scope capture to just the chain node logger; without scoping, other node
 loggers at DEBUG can fill caplog with unrelated records.
-
-### 2026-06-15 LEDGER-INVARIANTS-950 — demo_get_case_ledger ignores actor_id; in-process tests see unified log
-
-`demo_triggers.demo_get_case_ledger` ignores the `actor_id` path parameter
-(`# noqa: ARG001`) and returns all `CaseLedgerEntry` objects for the case from
-the shared DataLayer.  In the single-DataLayer test environment the "case-actor
-log" is therefore the union of all actors' entries.  Test helpers should be
-named `_fetch_case_log` (not `_fetch_case_actor_log`) and docstrings must say
-"combined case log" to avoid implying per-replica isolation.  The event types
-currently recorded in this unified log are `add_participant_status` and
-`submit_report` — not the full CI invariant 5 set (pending #789).
 
 ### 2026-06-15 DEMO-CI-DIAGNOSTICS-951 — inbox logger is uvicorn.error, not module path
 
@@ -132,14 +112,6 @@ uses a class-qualified logger name:
 `vultron.core.behaviors.sync.nodes.chain.PersistLogEntryNode` (not the
 bare module path). Always verify logger names from source before writing
 diagnostic docs or log-filter commands.
-
-### 2026-06-15 STATUS-SCHEMA-931 — preserve accepted-status consent on retries
-
-When reusing an existing report-phase `ParticipantStatus` at `RM.ACCEPTED`,
-do not overwrite a non-null `em_consent_state` with default `NO_EMBARGO`.
-Update `cvd_role` as needed, but only backfill consent when it is missing.
-This keeps retries/idempotent paths from silently downgrading consent
-snapshots.
 
 ### 2026-06-15 TRIGGER-927-CASEACTOR-ROUTING — report trigger fallback must fail fast on missing CaseActor
 
@@ -159,13 +131,3 @@ steps (`CreateNoteNode`, `AttachNoteFromResultNode`) have already succeeded
 and committed local state. The note IS attached to the case locally even
 though the overall tree returns FAILURE. Tests should assert on this partial-
 write behavior explicitly so readers do not assume FAILURE → no writes.
-
-### 2026-06-15 LEDGER-SNAPSHOT-933 — inline nested refs with case-context guard
-
-Inlining nested payloadSnapshot references by blindly resolving `dl.read(id)`
-is unsafe: it can leak unrelated local objects into canonical
-`CaseLedgerEntry` snapshots when inbound activities carry attacker-controlled
-IDs. The inlining path must enforce a case-context match (`resolved.context ==
-payloadSnapshot.context`) before replacing any bare ID with an inline object.
-This keeps CLP-07 self-contained snapshots while preventing cross-case data
-disclosure.
