@@ -266,3 +266,8 @@ full suite before committing:
 ```bash
 uv run pytest -m "" --tb=short 2>&1 | tail -5
 ```
+
+When a Demo Integration CI run fails, load
+[`notes/demo-ci-diagnostics.md`](../notes/demo-ci-diagnostics.md) for the
+3-layer diagnostic model, per-invariant diagnostic map, local Docker run
+workflow, and CI artifact interpretation guide.
