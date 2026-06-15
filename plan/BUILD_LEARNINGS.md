@@ -90,3 +90,12 @@ layout strictly mirrored. The parent `conftest.py` fixtures are automatically
 inherited via pytest's upward conftest search, so only the vocabulary
 registration side-effect import needs copying into each new subdirectory
 conftest.
+
+### 2026-06-15 RM-TERMINAL-GUARD-928 — treat CLOSED as terminal before same-state check
+
+`ValidateRMTransitionNode` must evaluate terminal-state rules before its
+`current == new` short-circuit. If equality is checked first, repeated
+`CLOSED -> CLOSED` updates are treated as successful no-ops at validation time
+but still flow through append/broadcast/log-cascade paths as new status IDs.
+Guarding terminal `RM.CLOSED` first prevents duplicate closure cascades and
+keeps `close_case` retries from creating new canonical ledger entries.
