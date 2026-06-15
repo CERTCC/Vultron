@@ -16,7 +16,9 @@
 
 from typing import Any, cast
 
-from vultron.core.use_cases.triggers.sync import extract_activity_snapshot
+from vultron.core.use_cases.triggers.sync import (
+    extract_activity_snapshot,
+)
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
@@ -99,3 +101,23 @@ def test_extract_activity_snapshot_does_not_inline_cross_context_refs(
     status_obj = snapshot["object"]
 
     assert status_obj["activeEmbargo"] == embargo.id_
+
+
+# ---------------------------------------------------------------------------
+# commit_log_entry_trigger — pending assertions (design note)
+# ---------------------------------------------------------------------------
+# commit_log_entry_trigger runs exclusively on the CaseActor side.
+# Per SYNC-11-004, the CaseActor MUST NOT use the pending-assertion store
+# for its own commits; DataLayer idempotency (_find_equivalent_recorded_entry)
+# already guards against duplicate CaseActor commits.
+#
+# Participant-side pending assertions are recorded in trigger use cases
+# (e.g., SvcAddNoteToCaseUseCase) after the activity is successfully
+# enqueued, and cleared in AnnounceLedgerEntryReceivedUseCase when the
+# matching Announce(CaseLedgerEntry) arrives — see SYNC-11-002/003 and
+# test/core/use_cases/triggers/test_note.py for the end-to-end test.
+
+CASE_ID = "https://example.org/cases/case-001"
+ACTOR_ID = "https://example.org/actors/case-actor"
+OBJECT_ID = "https://example.org/activities/act-001"
+EVENT_TYPE = "submit_report"

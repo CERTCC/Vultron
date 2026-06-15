@@ -22,7 +22,10 @@ Verifies that the add-note-to-case trigger:
 - queues Create(Note) and AddNoteToCase activities in the actor's outbox,
 - addresses the Add(Note) activity only to the Case Actor (PCR-08-001),
 - does NOT address any non-CaseActor participant directly,
-- handles the optional in_reply_to field correctly.
+- handles the optional in_reply_to field correctly,
+- records the Add(Note,Case) activity in the pending-assertion store
+  (SYNC-11-002) and that the store entry clears when the matching
+  Announce(CaseLedgerEntry) arrives (SYNC-11-003).
 """
 
 import pytest
@@ -30,6 +33,11 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
+)
+from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.pending_assertion import (
+    _reset_stores,
+    get_pending_assertion_store,
 )
 from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases.triggers.note import SvcAddNoteToCaseUseCase
@@ -177,6 +185,7 @@ class TestSvcAddNoteToCaseUseCase:
         reset_datalayer(self.vendor.id_)
         reset_datalayer(self.finder.id_)
         reset_datalayer(self.case_actor.id_)
+        _reset_stores()
 
     def _execute(self, actor_id=None, in_reply_to=None):
         """Build and execute the use case; return the result dict."""
@@ -380,3 +389,72 @@ class TestSvcAddNoteToCaseUseCase:
             == note_id
         )
         assert count_after == 1
+
+    # ------------------------------------------------------------------
+    # Pending assertions (SYNC-11-002, SYNC-11-003)
+    # ------------------------------------------------------------------
+
+    def test_execute_adds_to_pending_assertion_store(self):
+        """After execute(), the Add(Note,Case) activity is pending in the
+        actor's store, suppressing duplicate near-term re-emits (SYNC-11-002).
+        """
+        result = self._execute()
+        add_activity_id = result["activity"].get("id")
+        assert add_activity_id is not None
+
+        store = get_pending_assertion_store(self.vendor.id_)
+        assert store.is_suppressed(
+            self.case.id_,
+            MessageSemantics.ADD_NOTE_TO_CASE.value,
+            add_activity_id,
+        ), (
+            "Expected pending-assertion store to suppress the Add(Note,Case) "
+            "activity until the matching Announce(CaseLedgerEntry) arrives"
+        )
+
+    def test_pending_assertion_cleared_lifts_suppression(self):
+        """Clearing the pending entry (simulating Announce round-trip) removes
+        suppression so future re-emits are no longer blocked (SYNC-11-003)."""
+        result = self._execute()
+        add_activity_id = result["activity"].get("id")
+        assert add_activity_id is not None
+
+        store = get_pending_assertion_store(self.vendor.id_)
+        assert store.is_suppressed(
+            self.case.id_,
+            MessageSemantics.ADD_NOTE_TO_CASE.value,
+            add_activity_id,
+        )
+
+        # Simulate the Announce(CaseLedgerEntry) round-trip clearing the entry
+        store.clear(
+            self.case.id_,
+            MessageSemantics.ADD_NOTE_TO_CASE.value,
+            add_activity_id,
+        )
+        assert not store.is_suppressed(
+            self.case.id_,
+            MessageSemantics.ADD_NOTE_TO_CASE.value,
+            add_activity_id,
+        ), "After clear(), suppression must be lifted"
+
+    def test_zero_timeout_store_does_not_suppress(self):
+        """When the store has zero timeout, is_suppressed always returns False
+        even after execute() adds the entry (SYNC-11-001)."""
+        from vultron.core.models.pending_assertion import (
+            PendingAssertionStore,
+            _STORES,
+        )
+
+        zero_store = PendingAssertionStore(timeout_seconds=0)
+        _STORES[self.vendor.id_] = zero_store
+
+        result = self._execute()
+        add_activity_id = result["activity"].get("id")
+        assert add_activity_id is not None
+
+        assert not zero_store.is_suppressed(
+            self.case.id_,
+            MessageSemantics.ADD_NOTE_TO_CASE.value,
+            add_activity_id,
+        ), "Zero-timeout store must never suppress"

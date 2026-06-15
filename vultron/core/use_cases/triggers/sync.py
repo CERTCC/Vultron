@@ -193,9 +193,10 @@ def commit_log_entry_trigger(
         reason_code: Required when *disposition* is ``"rejected"``.
         reason_detail: Optional human-readable rejection detail.
         disposition: ``"recorded"`` (default) or ``"rejected"``.
+        sync_port: Optional port for fan-out via ``Announce(CaseLedgerEntry)``.
 
     Returns:
-        The newly created and persisted :class:`VultronCaseLedgerEntry`.
+        The newly created (or existing) :class:`VultronCaseLedgerEntry`.
 
     Spec: SYNC-02-002, SYNC-02-003, SYNC-03-001.
     """
@@ -254,6 +255,7 @@ def commit_log_entry_trigger(
     )
 
     _fan_out_log_entry(case_id, entry, actor_id, dl, sync_port=sync_port)
+
     return entry
 
 

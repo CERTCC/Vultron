@@ -61,7 +61,7 @@ _DISPATCHER: ActivityDispatcher | None = None
 
 
 def _sync_port_factory(dl: DataLayer) -> dict[str, Any]:
-    """Create a ``SyncActivityAdapter`` from the current DataLayer.
+    """Create a ``SyncActivityAdapter`` for the given DataLayer.
 
     ``dl`` at runtime is an ``ActorScopedDataLayer`` (satisfies
     ``CaseOutboxPersistence``) — the cast is safe (ARCH-13-002).

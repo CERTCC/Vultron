@@ -45,9 +45,13 @@ ACTIVITY_ID = "https://example.org/activities/act-001"
 
 @pytest.fixture(autouse=True)
 def clear_blackboard():
+    from vultron.core.models.pending_assertion import _reset_stores
+
     py_trees.blackboard.Blackboard.storage.clear()
+    _reset_stores()
     yield
     py_trees.blackboard.Blackboard.storage.clear()
+    _reset_stores()
 
 
 @pytest.fixture
@@ -317,3 +321,17 @@ def test_inner_commit_bt_failure_propagates(bridge):
         )
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
     assert result.status == Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# Pending assertions — design note
+# ---------------------------------------------------------------------------
+# CommitCaseLedgerEntryNode runs exclusively on the CaseActor side. Per
+# SYNC-11-004, the CaseActor MUST NOT use the pending-assertion store for
+# its own commits; DataLayer idempotency (_find_equivalent_recorded_entry)
+# already guards against duplicate CaseActor commits.
+#
+# Participant-side pending assertions are recorded in trigger use cases
+# (e.g., SvcAddNoteToCaseUseCase) after the activity is successfully
+# enqueued, and cleared in AnnounceLedgerEntryReceivedUseCase when the
+# matching Announce(CaseLedgerEntry) arrives — see SYNC-11-002/003.

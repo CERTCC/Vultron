@@ -28,6 +28,8 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.note.add_note_trigger_tree import (
     add_note_to_case_trigger_bt,
 )
+from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.pending_assertion import get_pending_assertion_store
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.errors import VultronValidationError
 from vultron.core.use_cases.triggers._helpers import (
@@ -53,6 +55,11 @@ class SvcAddNoteToCaseUseCase:
 
     Routing (CASE_MANAGER resolution), activity construction, and outbox
     queueing are delegated to :func:`sender_side_bt` per PCR-08-001.
+
+    After successful activity queueing, records the Add(Note,Case) activity
+    in the actor's pending-assertion store so that duplicate near-term
+    re-emits are suppressed until the matching Announce(CaseLedgerEntry)
+    arrives (SYNC-11-002).
     """
 
     def __init__(
@@ -100,6 +107,7 @@ class SvcAddNoteToCaseUseCase:
                 to=[case_manager_id],
             )
             result_out["activity"] = add_dict
+            result_out["add_activity_id"] = add_id
             return [create_id, add_id]
 
         bridge = BTBridge(datalayer=dl, trigger_activity=factory)
@@ -125,6 +133,18 @@ class SvcAddNoteToCaseUseCase:
             note_id,
             case_id,
         )
+
+        # Record the Add(Note,Case) activity in the pending-assertion store so
+        # that duplicate near-term re-emits are suppressed until the matching
+        # Announce(CaseLedgerEntry) confirms the round-trip (SYNC-11-002).
+        add_activity_id = result_out.get("add_activity_id", "")
+        if add_activity_id:
+            store = get_pending_assertion_store(actor_id)
+            store.add(
+                case_id,
+                MessageSemantics.ADD_NOTE_TO_CASE.value,
+                add_activity_id,
+            )
 
         return {
             "note": result_out.get("note_dict"),

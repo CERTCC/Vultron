@@ -56,6 +56,26 @@ def _extract_payload_snapshot(
     )
 
 
+def _resolve_activity_fields(
+    activity: Any, case_id: str, dl: CasePersistence
+) -> tuple[str, str, dict[str, Any]]:
+    """Derive (object_id, event_type, payload_snapshot) from *activity*.
+
+    Falls back to ``case_id``-based defaults when *activity* is ``None``.
+    """
+    if activity is None:
+        return case_id, "case_event", {}
+    object_id: str = getattr(activity, "activity_id", case_id)
+    semantic_type = getattr(activity, "semantic_type", None)
+    event_type: str = (
+        semantic_type.value
+        if semantic_type is not None
+        else getattr(activity, "activity_type", "case_event") or "case_event"
+    )
+    payload_snapshot = _extract_payload_snapshot(activity, dl=dl)
+    return object_id, event_type, payload_snapshot
+
+
 class CommitCaseLedgerEntryNode(DataLayerAction):
     """
     Commit a hash-chained CaseLedgerEntry and fan it out to all case participants.
@@ -136,22 +156,9 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
             activity = self.blackboard.get("activity")
         except KeyError:
             activity = None
-        if activity is not None:
-            object_id: str = getattr(activity, "activity_id", case_id)
-            semantic_type = getattr(activity, "semantic_type", None)
-            event_type: str = (
-                semantic_type.value
-                if semantic_type is not None
-                else getattr(activity, "activity_type", "case_event")
-                or "case_event"
-            )
-        else:
-            object_id = case_id
-            event_type = "case_event"
-        payload_snapshot = (
-            _extract_payload_snapshot(activity, dl=self.datalayer)
-            if activity is not None
-            else {}
+
+        object_id, event_type, payload_snapshot = _resolve_activity_fields(
+            activity, case_id, self.datalayer
         )
 
         tree = create_commit_log_entry_tree(
