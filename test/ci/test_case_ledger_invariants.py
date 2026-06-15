@@ -567,6 +567,10 @@ def test_invariant_9_participant_status_schema_completeness(
     incomplete = []
     for entry in status_entries:
         snap = _payload(entry)
+        if isinstance(snap.get("object"), dict):
+            snap = snap["object"]
+        elif isinstance(snap.get("object_"), dict):
+            snap = snap["object_"]
         missing_fields = []
         if "emConsentState" not in snap and "em_consent_state" not in snap:
             missing_fields.append("emConsentState")
