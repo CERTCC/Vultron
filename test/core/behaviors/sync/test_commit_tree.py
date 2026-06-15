@@ -22,6 +22,19 @@ PEER_ID = "https://example.org/actors/reporter"
 CASE_ID = "https://example.org/cases/case-sync"
 
 
+def _canonical_note_snapshot(actor_id: str, note_id: str) -> dict[str, object]:
+    return {
+        "type": "Add",
+        "actor": actor_id,
+        "object": {
+            "type": "Note",
+            "id": note_id,
+            "context": CASE_ID,
+        },
+        "context": CASE_ID,
+    }
+
+
 @pytest.fixture(autouse=True)
 def clear_blackboard():
     py_trees.blackboard.Blackboard.storage.clear()
@@ -82,6 +95,9 @@ def test_commit_tree_persists_entry_and_fans_out(bridge, datalayer, case_obj):
         case_id=CASE_ID,
         object_id="https://example.org/activities/act-1",
         event_type="case_created",
+        payload_snapshot=_canonical_note_snapshot(
+            PEER_ID, "https://example.org/notes/note-1"
+        ),
     )
 
     result = bridge.execute_with_setup(
@@ -110,6 +126,9 @@ def test_commit_tree_uses_existing_tail_hash(bridge, datalayer, case_obj):
             case_id=CASE_ID,
             object_id="https://example.org/activities/act-2",
             event_type="case_updated",
+            payload_snapshot=_canonical_note_snapshot(
+                PEER_ID, "https://example.org/notes/note-2"
+            ),
         ),
         actor_id=OWNER_ACTOR_ID,
         sync_port=sync_port,
@@ -131,7 +150,9 @@ def test_commit_tree_reuses_equivalent_entry(bridge, datalayer, case_obj):
         case_id=CASE_ID,
         object_id="https://example.org/activities/act-3",
         event_type="case_updated",
-        payload_snapshot={"k": "v"},
+        payload_snapshot=_canonical_note_snapshot(
+            PEER_ID, "https://example.org/notes/note-3"
+        ),
     )
 
     first = bridge.execute_with_setup(
@@ -144,7 +165,9 @@ def test_commit_tree_reuses_equivalent_entry(bridge, datalayer, case_obj):
             case_id=CASE_ID,
             object_id="https://example.org/activities/act-3",
             event_type="case_updated",
-            payload_snapshot={"k": "v"},
+            payload_snapshot=_canonical_note_snapshot(
+                PEER_ID, "https://example.org/notes/note-3"
+            ),
         ),
         actor_id=OWNER_ACTOR_ID,
         sync_port=sync_port,

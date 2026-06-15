@@ -166,6 +166,7 @@ class CreateAndPersistCaseActivityNode(DataLayerAction):
         activity = VultronCreateCaseActivity(
             actor=self.actor_id,
             object_=case_obj if case_obj is not None else case_id,
+            context=case_id,
             to=addressees if addressees else None,
         )
         try:
@@ -291,7 +292,7 @@ class CreateOfferCaseManagerActivityNode(DataLayerAction):
                 self.trigger_activity_factory.offer_case_manager_role(
                     case_id=case_id,
                     participant_id=participant_id,
-                    actor=self.actor_id,
+                    actor=case_actor_id,
                     to=recipients,
                 )
             )

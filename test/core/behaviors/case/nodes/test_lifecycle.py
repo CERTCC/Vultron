@@ -140,6 +140,9 @@ def test_no_case_id_returns_success_without_building_inner_tree(bridge):
 
 def test_constructor_case_id_builds_inner_commit_tree(bridge):
     """Node composes CommitLogEntryBT when case_id is given at build."""
+    activity = _FakeActivity(
+        activity_id=ACTIVITY_ID, semantic_type=MessageSemantics.CREATE_CASE
+    )
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
     with patch(_FACTORY_PATH) as mock_factory, patch(
         _INNER_BRIDGE_PATH
@@ -147,11 +150,13 @@ def test_constructor_case_id_builds_inner_commit_tree(bridge):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
-        bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID, activity=None)
+        bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=activity
+        )
     mock_factory.assert_called_once_with(
         case_id=CASE_ID,
-        object_id=CASE_ID,
-        event_type="case_event",
+        object_id=ACTIVITY_ID,
+        event_type=MessageSemantics.CREATE_CASE.value,
         payload_snapshot={},
     )
     execute_kwargs = (
@@ -163,6 +168,9 @@ def test_constructor_case_id_builds_inner_commit_tree(bridge):
 def test_blackboard_case_id_builds_inner_commit_tree(bridge, datalayer):
     """Node reads case_id from blackboard written by a prior node."""
     node = CommitCaseLedgerEntryNode()  # no constructor param
+    activity = _FakeActivity(
+        activity_id=ACTIVITY_ID, semantic_type=MessageSemantics.CREATE_CASE
+    )
 
     # Manually write case_id to the blackboard via a helper sequence node
     class _WriteCaseId(py_trees.behaviour.Behaviour):
@@ -191,12 +199,14 @@ def test_blackboard_case_id_builds_inner_commit_tree(bridge, datalayer):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
-        bridge.execute_with_setup(tree=seq, actor_id=ACTOR_ID, activity=None)
+        bridge.execute_with_setup(
+            tree=seq, actor_id=ACTOR_ID, activity=activity
+        )
 
     mock_factory.assert_called_once_with(
         case_id=CASE_ID,
-        object_id=CASE_ID,
-        event_type="case_event",
+        object_id=ACTIVITY_ID,
+        event_type=MessageSemantics.CREATE_CASE.value,
         payload_snapshot={},
     )
 
@@ -245,7 +255,11 @@ def test_activity_payload_is_forwarded_as_payload_snapshot(bridge):
         case_id=CASE_ID,
         object_id=ACTIVITY_ID,
         event_type=MessageSemantics.CREATE_CASE.value,
-        payload_snapshot={"id": ACTIVITY_ID, "type": "Create"},
+        payload_snapshot={
+            "id": ACTIVITY_ID,
+            "type": "Create",
+            "context": CASE_ID,
+        },
     )
 
 
@@ -290,8 +304,8 @@ def test_activity_payload_inlines_nested_reference_fields(bridge, datalayer):
     assert status_obj["proposedEmbargoes"][0]["id"] == embargo.id_
 
 
-def test_no_activity_falls_back_to_case_event(bridge):
-    """When no activity on blackboard, event_type defaults to 'case_event'."""
+def test_no_activity_returns_failure(bridge):
+    """When no activity on blackboard, node returns FAILURE with a warning log."""
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
     with patch(_FACTORY_PATH) as mock_factory, patch(
         _INNER_BRIDGE_PATH
@@ -299,13 +313,11 @@ def test_no_activity_falls_back_to_case_event(bridge):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
-        bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID, activity=None)
-    mock_factory.assert_called_once_with(
-        case_id=CASE_ID,
-        object_id=CASE_ID,
-        event_type="case_event",
-        payload_snapshot={},
-    )
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=None
+        )
+    assert result.status == Status.FAILURE
+    mock_factory.assert_not_called()
 
 
 def test_inner_commit_bt_failure_propagates(bridge):

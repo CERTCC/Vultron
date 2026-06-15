@@ -135,6 +135,37 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
         except (AttributeError, KeyError):
             self._sync_port = None
 
+    def _resolve_case_id(self) -> str | None:
+        try:
+            return self._case_id or self.blackboard.get("case_id")
+        except KeyError:
+            return self._case_id
+
+    def _resolve_activity(self) -> Any | None:
+        try:
+            return self.blackboard.get("activity")
+        except KeyError:
+            return None
+
+    def _activity_metadata(
+        self, activity: Any | None, case_id: str
+    ) -> tuple[str, str, dict[str, Any]]:
+        if activity is None:
+            return case_id, "case_event", {}
+
+        object_id = getattr(activity, "activity_id", case_id)
+        semantic_type = getattr(activity, "semantic_type", None)
+        event_type = (
+            semantic_type.value
+            if semantic_type is not None
+            else getattr(activity, "activity_type", "case_event")
+            or "case_event"
+        )
+        payload_snapshot = _extract_payload_snapshot(
+            activity, dl=self.datalayer
+        )
+        return object_id, event_type, payload_snapshot
+
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
             self.logger.error(
@@ -142,24 +173,32 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        try:
-            case_id = self._case_id or self.blackboard.get("case_id")
-        except KeyError:
-            case_id = self._case_id
+        case_id = self._resolve_case_id()
         if not case_id:
             self.logger.debug(
                 f"{self.name}: no case_id available — skipping log entry"
             )
             return Status.SUCCESS
 
-        try:
-            activity = self.blackboard.get("activity")
-        except KeyError:
-            activity = None
+        activity = self._resolve_activity()
+        if activity is None:
+            self.logger.warning(
+                "%s: no activity on blackboard for case '%s' — skipping"
+                " log entry",
+                self.name,
+                case_id,
+            )
+            return Status.FAILURE
 
-        object_id, event_type, payload_snapshot = _resolve_activity_fields(
-            activity, case_id, self.datalayer
+        object_id, event_type, payload_snapshot = self._activity_metadata(
+            activity, case_id
         )
+
+        # Normalize context to case_id for activities that predate the case
+        # (e.g., Offer(VulnerabilityReport) submitted before the case existed).
+        if payload_snapshot and payload_snapshot.get("context") != case_id:
+            payload_snapshot = dict(payload_snapshot)
+            payload_snapshot["context"] = case_id
 
         tree = create_commit_log_entry_tree(
             case_id=case_id,

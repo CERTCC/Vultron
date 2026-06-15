@@ -113,6 +113,11 @@ def _event_type(entry: dict) -> str:
     return str(entry.get("eventType", entry.get("event_type", "")))
 
 
+def _case_id(entry: dict) -> str:
+    """Return the ``case_id`` from an entry dict (handles camelCase JSONL)."""
+    return str(entry.get("case_id", entry.get("caseId", "")))
+
+
 def _payload(entry: dict) -> dict:
     """Return the ``payloadSnapshot`` from an entry dict."""
     snap = entry.get("payloadSnapshot", entry.get("payload_snapshot", {}))
@@ -641,7 +646,7 @@ def test_invariant_11_payload_context_uses_case_uri(
     for entry in auth:
         if entry.get("disposition", "recorded") != "recorded":
             continue
-        case_id = entry.get("case_id", "")
+        case_id = _case_id(entry)
         snap = _payload(entry)
         context = snap.get("context")
         if context is None:

@@ -50,6 +50,10 @@ class VultronValidationError(VultronError):
         super().__init__(message)
 
 
+class VultronCanonicalEntryError(VultronError):
+    """Raised when a case-ledger entry violates canonical entry criteria."""
+
+
 class VultronApiHandlerNotFoundError(VultronError, KeyError):
     """Raised when no handler is found for a given activity type."""
 

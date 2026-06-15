@@ -200,6 +200,7 @@ class CreateCaseActivity(DataLayerAction):
             create_case_activity = VultronCreateCaseActivity(
                 actor=self.actor_id,
                 object_=case_obj if case_obj is not None else case_id,
+                context=case_id,
                 to=addressees if addressees else None,
             )
 

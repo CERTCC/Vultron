@@ -152,6 +152,25 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
+    from vultron.core.models.activity import VultronActivity
+    from vultron.core.models.events import MessageSemantics
+    from vultron.core.models.events.report import SubmitReportReceivedEvent
+
+    # Build the inbound SubmitReport event that the bridge sets on the
+    # blackboard so CommitCaseLedgerEntryNode can log event_type="submit_report".
+    offer_activity_snapshot = VultronActivity(
+        id_=_offer_id,
+        type_="Offer",
+        actor=_reporter_actor_id,
+        object_=report,
+    )
+    submit_report_event = SubmitReportReceivedEvent(
+        semantic_type=MessageSemantics.SUBMIT_REPORT,
+        activity_id=_offer_id,
+        activity_type="Offer",
+        actor_id=_reporter_actor_id,
+        activity=offer_activity_snapshot,
+    )
 
     bridge = BTBridge(
         datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
@@ -161,7 +180,9 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
         offer_id=_offer_id,
         reporter_actor_id=_reporter_actor_id,
     )
-    result = bridge.execute_with_setup(tree=tree, actor_id=_actor_id)
+    result = bridge.execute_with_setup(
+        tree=tree, actor_id=_actor_id, activity=submit_report_event
+    )
 
     assert result.status == Status.SUCCESS, (
         f"BUG-26040902 regression: ReceiveReportCaseBT returned {result.status} "

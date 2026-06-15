@@ -29,9 +29,33 @@ from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.protocols import is_log_entry_model
 from vultron.core.sync_helpers import _find_equivalent_recorded_entry
 from vultron.core.sync_helpers import _reconstruct_tail_hash
+from vultron.errors import VultronCanonicalEntryError
 from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
+
+_CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
+    ("Create", "VulnerabilityCase"),
+    ("Offer", "VulnerabilityReport"),
+    ("Add", "Note"),
+    ("Add", "ParticipantStatus"),
+    ("Offer", "EmbargoEvent"),
+    ("Accept", "EmbargoEvent"),
+    ("Reject", "EmbargoEvent"),
+    ("Join", "VulnerabilityCase"),
+    ("Ignore", "VulnerabilityCase"),
+    ("Leave", "VulnerabilityCase"),
+    ("Invite", "VulnerabilityCase"),
+    ("Accept", "Invite"),
+    ("Reject", "Invite"),
+    ("Announce", "VulnerabilityCase"),
+)
+_CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
+    {("Announce", "VulnerabilityCase")}
+)
+_INLINE_OBJECT_KEYS: frozenset[str] = frozenset(
+    {"object", "object_", "target"}
+)
 
 
 def _require_log_entry(
@@ -78,6 +102,111 @@ def _to_persistable_entry(
         reason_code=chain_entry.reason_code,
         reason_detail=chain_entry.reason_detail,
     )
+
+
+def _snapshot_type(snapshot: dict[str, Any]) -> str | None:
+    activity_type = snapshot.get("type") or snapshot.get("type_")
+    return (
+        activity_type
+        if isinstance(activity_type, str) and activity_type
+        else None
+    )
+
+
+def _snapshot_object_type(snapshot: dict[str, Any]) -> str | None:
+    snapshot_object = snapshot.get("object")
+    if not isinstance(snapshot_object, dict):
+        snapshot_object = snapshot.get("object_")
+    if not isinstance(snapshot_object, dict):
+        return None
+    object_type = snapshot_object.get("type") or snapshot_object.get("type_")
+    return (
+        object_type if isinstance(object_type, str) and object_type else None
+    )
+
+
+def _bare_inline_object_path(
+    value: Any, path: str = "payloadSnapshot"
+) -> str | None:
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}"
+            if key in _INLINE_OBJECT_KEYS and isinstance(child, str):
+                return child_path
+            nested_path = _bare_inline_object_path(child, child_path)
+            if nested_path is not None:
+                return nested_path
+        return None
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            nested_path = _bare_inline_object_path(item, f"{path}[{index}]")
+            if nested_path is not None:
+                return nested_path
+    return None
+
+
+def _validate_canonical_entry(
+    *,
+    case_id: str,
+    actor_id: str | None,
+    case_actor_id: str | None = None,
+    disposition: str,
+    payload_snapshot: dict[str, Any],
+    event_type: str,
+) -> None:
+    # Validation runs before idempotency check so malformed entries are
+    # rejected outright and never reach the equivalence lookup (CLP-07).
+    if disposition != "recorded":
+        # Rejected entries carry the refused payload for audit purposes;
+        # structural validation is relaxed for non-recorded dispositions.
+        return
+    if not payload_snapshot:
+        raise VultronCanonicalEntryError(
+            f"{event_type}: recorded canonical entries require a non-empty "
+            "payloadSnapshot"
+        )
+
+    snapshot_actor = payload_snapshot.get("actor")
+    if not isinstance(snapshot_actor, str) or not snapshot_actor:
+        raise VultronCanonicalEntryError(
+            f"{event_type}: payloadSnapshot.actor must be a non-empty URI"
+        )
+
+    activity_type = _snapshot_type(payload_snapshot)
+    object_type = _snapshot_object_type(payload_snapshot)
+    signature = (activity_type or "", object_type or "")
+
+    bare_reference_path = _bare_inline_object_path(payload_snapshot)
+    if bare_reference_path is not None:
+        raise VultronCanonicalEntryError(
+            f"{event_type}: {bare_reference_path} must be an inline object, "
+            "not a bare ID string"
+        )
+
+    if signature not in _CANONICAL_PAYLOAD_SIGNATURES:
+        raise VultronCanonicalEntryError(
+            f"{event_type}: payloadSnapshot type/object pair {signature!r} "
+            "is not canonical"
+        )
+
+    # CLP-07-003: only CaseActor-authored activities may have the CaseActor as
+    # snapshot actor; all participant-originated activities must have a
+    # participant (non-CaseActor) actor.
+    if (
+        case_actor_id
+        and snapshot_actor == case_actor_id
+        and signature not in _CASE_AUTHORED_SIGNATURES
+    ):
+        raise VultronCanonicalEntryError(
+            f"{event_type}: payloadSnapshot.actor must not be the CaseActor"
+            f" for non-case-authored entries (signature={signature!r})"
+        )
+
+    context = payload_snapshot.get("context")
+    if context != case_id:
+        raise VultronCanonicalEntryError(
+            f"{event_type}: payloadSnapshot.context must equal the case URI"
+        )
 
 
 class ReconstructChainTailNode(DataLayerAction):
@@ -222,6 +351,18 @@ class CreateLogEntryNode(DataLayerAction):
         if self.datalayer is None:
             self.logger.error("%s: DataLayer not available", self.name)
             return Status.FAILURE
+
+        from vultron.core.use_cases._helpers import _find_case_actor_id
+
+        case_actor_id = _find_case_actor_id(self.datalayer, self.case_id)
+        _validate_canonical_entry(
+            case_id=self.case_id,
+            actor_id=self.actor_id,
+            case_actor_id=case_actor_id,
+            disposition=self.disposition,
+            payload_snapshot=self.payload_snapshot,
+            event_type=self.event_type,
+        )
 
         existing = _find_equivalent_recorded_entry(
             case_id=self.case_id,

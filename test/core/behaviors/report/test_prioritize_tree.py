@@ -25,6 +25,13 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.activity import VultronActivity
+from vultron.core.models.base import VultronObject
+from vultron.core.models.events import MessageSemantics
+from vultron.core.models.events.case import (
+    DeferCaseReceivedEvent,
+    EngageCaseReceivedEvent,
+)
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.vultron_types import (
     VultronCase,
@@ -68,6 +75,40 @@ def _make_participant_in_valid_state(
         ],
     )
     return participant
+
+
+def _make_engage_request(
+    case: VultronCase, actor_id: str
+) -> EngageCaseReceivedEvent:
+    return EngageCaseReceivedEvent(
+        activity_id=f"{case.id_}/activities/engage",
+        actor_id=actor_id,
+        object_=VultronObject(id_=case.id_),
+        semantic_type=MessageSemantics.ENGAGE_CASE,
+        activity=VultronActivity(
+            type_="Announce",
+            actor=f"{case.id_}/actor",
+            object_=VultronCase(id_=case.id_),
+            context=case.id_,
+        ),
+    )
+
+
+def _make_defer_request(
+    case: VultronCase, actor_id: str
+) -> DeferCaseReceivedEvent:
+    return DeferCaseReceivedEvent(
+        activity_id=f"{case.id_}/activities/defer",
+        actor_id=actor_id,
+        object_=VultronObject(id_=case.id_),
+        semantic_type=MessageSemantics.DEFER_CASE,
+        activity=VultronActivity(
+            type_="Announce",
+            actor=f"{case.id_}/actor",
+            object_=VultronCase(id_=case.id_),
+            context=case.id_,
+        ),
+    )
 
 
 @pytest.fixture
@@ -266,10 +307,13 @@ def test_engage_case_tree_success(
     bridge, datalayer, actor_id, case_with_participant
 ):
     """EngageCaseBT succeeds and sets participant RM to ACCEPTED."""
+    request = _make_engage_request(case_with_participant, actor_id)
     tree = create_engage_case_tree(
         case_id=case_with_participant.id_, actor_id=actor_id
     )
-    result = bridge.execute_with_setup(tree=tree, actor_id=actor_id)
+    result = bridge.execute_with_setup(
+        tree=tree, actor_id=actor_id, activity=request
+    )
 
     assert result.status == Status.SUCCESS
 
@@ -283,20 +327,32 @@ def test_engage_case_tree_fails_no_participant(
     bridge, datalayer, actor_id, case_without_participant
 ):
     """EngageCaseBT fails when actor has no CaseParticipant in the case."""
+    request = _make_engage_request(case_without_participant, actor_id)
     tree = create_engage_case_tree(
         case_id=case_without_participant.id_, actor_id=actor_id
     )
-    result = bridge.execute_with_setup(tree=tree, actor_id=actor_id)
+    result = bridge.execute_with_setup(
+        tree=tree, actor_id=actor_id, activity=request
+    )
 
     assert result.status == Status.FAILURE
 
 
 def test_engage_case_tree_fails_missing_case(bridge, datalayer, actor_id):
     """EngageCaseBT fails when the case does not exist in the datalayer."""
+    case = VultronCase(
+        id_="https://example.org/cases/nonexistent",
+        name="Missing Case",
+        vulnerability_reports=[],
+        case_participants=[],
+    )
+    request = _make_engage_request(case, actor_id)
     tree = create_engage_case_tree(
         case_id="https://example.org/cases/nonexistent", actor_id=actor_id
     )
-    result = bridge.execute_with_setup(tree=tree, actor_id=actor_id)
+    result = bridge.execute_with_setup(
+        tree=tree, actor_id=actor_id, activity=request
+    )
 
     assert result.status == Status.FAILURE
 
@@ -310,10 +366,13 @@ def test_defer_case_tree_success(
     bridge, datalayer, actor_id, case_with_participant
 ):
     """DeferCaseBT succeeds and sets participant RM to DEFERRED."""
+    request = _make_defer_request(case_with_participant, actor_id)
     tree = create_defer_case_tree(
         case_id=case_with_participant.id_, actor_id=actor_id
     )
-    result = bridge.execute_with_setup(tree=tree, actor_id=actor_id)
+    result = bridge.execute_with_setup(
+        tree=tree, actor_id=actor_id, activity=request
+    )
 
     assert result.status == Status.SUCCESS
 
@@ -327,20 +386,32 @@ def test_defer_case_tree_fails_no_participant(
     bridge, datalayer, actor_id, case_without_participant
 ):
     """DeferCaseBT fails when actor has no CaseParticipant in the case."""
+    request = _make_defer_request(case_without_participant, actor_id)
     tree = create_defer_case_tree(
         case_id=case_without_participant.id_, actor_id=actor_id
     )
-    result = bridge.execute_with_setup(tree=tree, actor_id=actor_id)
+    result = bridge.execute_with_setup(
+        tree=tree, actor_id=actor_id, activity=request
+    )
 
     assert result.status == Status.FAILURE
 
 
 def test_defer_case_tree_fails_missing_case(bridge, datalayer, actor_id):
     """DeferCaseBT fails when the case does not exist in the datalayer."""
+    case = VultronCase(
+        id_="https://example.org/cases/nonexistent",
+        name="Missing Case",
+        vulnerability_reports=[],
+        case_participants=[],
+    )
+    request = _make_defer_request(case, actor_id)
     tree = create_defer_case_tree(
         case_id="https://example.org/cases/nonexistent", actor_id=actor_id
     )
-    result = bridge.execute_with_setup(tree=tree, actor_id=actor_id)
+    result = bridge.execute_with_setup(
+        tree=tree, actor_id=actor_id, activity=request
+    )
 
     assert result.status == Status.FAILURE
 
@@ -375,8 +446,11 @@ def test_engage_only_affects_target_actor(bridge, datalayer, report):
     )
     datalayer.create(case)
 
+    request = _make_engage_request(case, actor_a)
     tree = create_engage_case_tree(case_id=case.id_, actor_id=actor_a)
-    result = bridge.execute_with_setup(tree=tree, actor_id=actor_a)
+    result = bridge.execute_with_setup(
+        tree=tree, actor_id=actor_a, activity=request
+    )
     assert result.status == Status.SUCCESS
 
     updated_a = datalayer.read(participant_a.id_)
@@ -395,16 +469,21 @@ def test_engage_case_tree_idempotent(
     bridge, datalayer, actor_id, case_with_participant
 ):
     """Executing EngageCaseBT twice leaves RM state ACCEPTED, no duplicate entries."""
+    request = _make_engage_request(case_with_participant, actor_id)
     tree1 = create_engage_case_tree(
         case_id=case_with_participant.id_, actor_id=actor_id
     )
-    result1 = bridge.execute_with_setup(tree=tree1, actor_id=actor_id)
+    result1 = bridge.execute_with_setup(
+        tree=tree1, actor_id=actor_id, activity=request
+    )
     assert result1.status == Status.SUCCESS
 
     tree2 = create_engage_case_tree(
         case_id=case_with_participant.id_, actor_id=actor_id
     )
-    result2 = bridge.execute_with_setup(tree=tree2, actor_id=actor_id)
+    result2 = bridge.execute_with_setup(
+        tree=tree2, actor_id=actor_id, activity=request
+    )
     assert result2.status == Status.SUCCESS
 
     updated_case = datalayer.read(case_with_participant.id_)
@@ -424,16 +503,21 @@ def test_defer_case_tree_idempotent(
     bridge, datalayer, actor_id, case_with_participant
 ):
     """Executing DeferCaseBT twice leaves RM state DEFERRED, no duplicate entries."""
+    request = _make_defer_request(case_with_participant, actor_id)
     tree1 = create_defer_case_tree(
         case_id=case_with_participant.id_, actor_id=actor_id
     )
-    result1 = bridge.execute_with_setup(tree=tree1, actor_id=actor_id)
+    result1 = bridge.execute_with_setup(
+        tree=tree1, actor_id=actor_id, activity=request
+    )
     assert result1.status == Status.SUCCESS
 
     tree2 = create_defer_case_tree(
         case_id=case_with_participant.id_, actor_id=actor_id
     )
-    result2 = bridge.execute_with_setup(tree=tree2, actor_id=actor_id)
+    result2 = bridge.execute_with_setup(
+        tree=tree2, actor_id=actor_id, activity=request
+    )
     assert result2.status == Status.SUCCESS
 
     updated_case = datalayer.read(case_with_participant.id_)
