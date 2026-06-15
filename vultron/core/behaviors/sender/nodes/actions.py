@@ -41,8 +41,8 @@ class ResolveCaseManagerNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
+        if self.datalayer is None or self.actor_id is None:
+            self.feedback_message = "DataLayer or actor_id not available"
             return Status.FAILURE
 
         case = self.datalayer.read(self.case_id)

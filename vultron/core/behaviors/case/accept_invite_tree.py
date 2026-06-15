@@ -40,9 +40,16 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.models.protocols import (
+    LogEntryModel,
+    is_log_entry_model,
+    is_participant_model,
+)
+from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.protocols import is_case_model
 from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     PEC,
@@ -76,6 +83,10 @@ class CheckInviteeNotAlreadyParticipantNode(DataLayerCondition):
             key="invitee_case",
             access=py_trees.common.Access.WRITE,
         )
+        self.blackboard.register_key(
+            key="invitee_already_participant",
+            access=py_trees.common.Access.WRITE,
+        )
 
     def update(self) -> Status:
         if self.datalayer is None:
@@ -92,22 +103,64 @@ class CheckInviteeNotAlreadyParticipantNode(DataLayerCondition):
             return Status.FAILURE
 
         existing_ids = [_as_id(p) for p in case.case_participants]
-        if (
+        already_participant = (
             self.invitee_id in case.actor_participant_index
             or self.invitee_id in existing_ids
-        ):
-            self.logger.info(
-                "%s: actor '%s' already participant in case '%s'"
-                " — skipping (idempotent)",
-                self.name,
-                self.invitee_id,
-                self.case_id,
-            )
-            return Status.FAILURE
+        )
+        if already_participant:
+            state = self._read_replication_state(case.id_)
+            if state is not None and (
+                state.join_backfill_complete
+                or state.join_backfill_target_index == -1
+            ):
+                self.logger.info(
+                    "%s: actor '%s' already participant in case '%s'"
+                    " — skipping (idempotent)",
+                    self.name,
+                    self.invitee_id,
+                    self.case_id,
+                )
+                self.blackboard.invitee_already_participant = True
+                return Status.FAILURE
+
+            if state is None:
+                self.logger.info(
+                    "%s: actor '%s' already participant in case '%s' with no "
+                    "replication marker; resuming join-time backfill",
+                    self.name,
+                    self.invitee_id,
+                    self.case_id,
+                )
+            else:
+                self.logger.info(
+                    "%s: actor '%s' already participant in case '%s' but"
+                    " backfill is incomplete; resuming join-time backfill",
+                    self.name,
+                    self.invitee_id,
+                    self.case_id,
+                )
+            self.blackboard.invitee_already_participant = True
+            self.blackboard.invitee_case = case
+            return Status.SUCCESS
 
         # Cache the case object for downstream nodes
+        self.blackboard.invitee_already_participant = False
         self.blackboard.invitee_case = case
         return Status.SUCCESS
+
+    def _read_replication_state(
+        self, case_id: str
+    ) -> VultronReplicationState | None:
+        if self.datalayer is None:
+            return None
+        state_id = VultronReplicationState(
+            case_id=case_id,
+            peer_id=self.invitee_id,
+        ).id_
+        state = self.datalayer.read(state_id)
+        if isinstance(state, VultronReplicationState):
+            return state
+        return None
 
 
 class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
@@ -131,6 +184,10 @@ class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
         self.blackboard.register_key(
+            key="invitee_already_participant",
+            access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
             key="invitee_case",
             access=py_trees.common.Access.READ,
         )
@@ -140,12 +197,44 @@ class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
         )
 
     def update(self) -> Status:
+        if self.datalayer is None:
+            self.logger.error("%s: DataLayer not available", self.name)
+            return Status.FAILURE
+
         case = self.blackboard.get("invitee_case")
         if not is_case_model(case):
             self.logger.error(
                 "%s: invitee_case not found in blackboard", self.name
             )
             return Status.FAILURE
+
+        if self.blackboard.get("invitee_already_participant"):
+            participant_id = case.actor_participant_index.get(self.invitee_id)
+            if participant_id is None:
+                self.logger.error(
+                    "%s: invitee marked as existing but no participant ID"
+                    " found for actor '%s'",
+                    self.name,
+                    self.invitee_id,
+                )
+                return Status.FAILURE
+            existing = self.datalayer.read(participant_id)
+            if not is_participant_model(existing):
+                self.logger.error(
+                    "%s: expected existing participant '%s'",
+                    self.name,
+                    participant_id,
+                )
+                return Status.FAILURE
+            self.blackboard.new_invite_participant = cast(
+                VultronParticipant, existing
+            )
+            self.logger.info(
+                "%s: reusing existing participant '%s' for backfill resume",
+                self.name,
+                participant_id,
+            )
+            return Status.SUCCESS
 
         participant = VultronParticipant(
             id_=f"{self.case_id}/participants/{self.invitee_id.split('/')[-1]}",
@@ -320,6 +409,10 @@ class PersistInviteeParticipantNode(DataLayerAction):
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
         self.blackboard.register_key(
+            key="invitee_already_participant",
+            access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
             key="new_invite_participant",
             access=py_trees.common.Access.READ,
         )
@@ -336,6 +429,9 @@ class PersistInviteeParticipantNode(DataLayerAction):
         if self.datalayer is None:
             self.logger.error("%s: DataLayer not available", self.name)
             return Status.FAILURE
+
+        if self.blackboard.get("invitee_already_participant"):
+            return Status.SUCCESS
 
         participant = self.blackboard.get("new_invite_participant")
         case = self.blackboard.get("invitee_case")
@@ -367,13 +463,139 @@ class PersistInviteeParticipantNode(DataLayerAction):
         return Status.SUCCESS
 
 
+class BackfillCanonicalLedgerToInviteeNode(DataLayerAction):
+    """Send canonical CaseLedgerEntry history to a joiner in strict order."""
+
+    def __init__(
+        self, case_id: str, invitee_id: str, name: str | None = None
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.invitee_id = invitee_id
+        self._sync_port: SyncActivityPort | None = None
+
+    def setup(self, **kwargs) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="sync_port", access=py_trees.common.Access.READ
+        )
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self._sync_port = cast(SyncActivityPort, self.blackboard.sync_port)
+        except (AttributeError, KeyError):
+            self._sync_port = None
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.logger.error("%s: DataLayer not available", self.name)
+            return Status.FAILURE
+        if self.actor_id is None:
+            self.logger.error("%s: actor_id not available", self.name)
+            return Status.FAILURE
+        if self._sync_port is None:
+            self.logger.error(
+                "%s: sync_port not injected; cannot perform join-time backfill",
+                self.name,
+            )
+            return Status.FAILURE
+
+        entries: list[LogEntryModel] = [
+            obj
+            for obj in self.datalayer.list_objects("CaseLedgerEntry")
+            if is_log_entry_model(obj) and obj.case_id == self.case_id
+        ]
+        entries.sort(key=lambda log_entry: log_entry.log_index)
+
+        target_index = entries[-1].log_index if entries else -1
+        state = self._load_or_create_state(target_index)
+
+        if state.join_backfill_complete:
+            self.logger.info(
+                "%s: join-time backfill already complete for '%s' in case '%s'"
+                " at log_index=%d",
+                self.name,
+                self.invitee_id,
+                self.case_id,
+                state.join_backfill_last_sent_index,
+            )
+            return Status.SUCCESS
+
+        if state.join_backfill_last_sent_index >= target_index:
+            state.join_backfill_complete = True
+            self.datalayer.save(state)
+            return Status.SUCCESS
+
+        for entry in entries:
+            if entry.log_index <= state.join_backfill_last_sent_index:
+                continue
+            self._sync_port.send_announce_log_entry(
+                entry=entry,
+                actor_id=self.actor_id,
+                to=[self.invitee_id],
+            )
+            state.join_backfill_last_sent_index = entry.log_index
+            self.datalayer.save(state)
+
+        state.join_backfill_complete = (
+            state.join_backfill_last_sent_index
+            >= state.join_backfill_target_index
+        )
+        self.datalayer.save(state)
+        self.logger.info(
+            "%s: join-time backfill complete for '%s' in case '%s'"
+            " (target_log_index=%d)",
+            self.name,
+            self.invitee_id,
+            self.case_id,
+            state.join_backfill_target_index,
+        )
+        return Status.SUCCESS
+
+    def _load_or_create_state(
+        self, target_index: int
+    ) -> VultronReplicationState:
+        if self.datalayer is None:
+            raise RuntimeError(
+                "_load_or_create_state requires an injected DataLayer"
+            )
+        dl = self.datalayer
+        state_id = VultronReplicationState(
+            case_id=self.case_id, peer_id=self.invitee_id
+        ).id_
+        existing = dl.read(state_id)
+        if isinstance(existing, VultronReplicationState):
+            existing.join_backfill_target_index = max(
+                existing.join_backfill_target_index,
+                target_index,
+            )
+            if (
+                existing.join_backfill_last_sent_index
+                < existing.join_backfill_target_index
+            ):
+                existing.join_backfill_complete = False
+            dl.save(existing)
+            return existing
+        state = VultronReplicationState(
+            case_id=self.case_id,
+            peer_id=self.invitee_id,
+            join_backfill_target_index=target_index,
+            join_backfill_last_sent_index=-1,
+            join_backfill_complete=(target_index == -1),
+        )
+        dl.save(state)
+        return state
+
+
 class EmitAnnounceCaseToInviteeNode(DataLayerAction):
     """Queue Announce(VulnerabilityCase) to the invitee from the CaseActor.
 
     Per MV-10-003/MV-10-005, the CaseActor sends the full case object after
     embargo consent has been resolved (auto-signed above when EM.ACTIVE).
-    FAILURE is returned if the trigger-activity factory is unavailable — the
-    caller should log a warning but is not required to abort.
+    Failures to enqueue Announce are logged but treated as non-fatal so the
+    join-time canonical ledger backfill can still run and establish catch-up
+    markers.
     """
 
     def __init__(
@@ -399,7 +621,7 @@ class EmitAnnounceCaseToInviteeNode(DataLayerAction):
                 self.name,
                 self.case_id,
             )
-            return Status.FAILURE
+            return Status.SUCCESS
 
         try:
             activity_id = factory.announce_vulnerability_case(
@@ -429,7 +651,7 @@ class EmitAnnounceCaseToInviteeNode(DataLayerAction):
                 self.invitee_id,
                 exc,
             )
-            return Status.FAILURE
+            return Status.SUCCESS
 
 
 def create_accept_invite_actor_to_case_tree(
@@ -477,6 +699,9 @@ def create_accept_invite_actor_to_case_tree(
             EmitAnnounceCaseToInviteeNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
+            BackfillCanonicalLedgerToInviteeNode(
+                case_id=case_id, invitee_id=invitee_id
+            ),
         ],
     )
 
@@ -487,5 +712,6 @@ __all__ = [
     "MaybeSignEmbargoConsentNode",
     "PersistInviteeParticipantNode",
     "EmitAnnounceCaseToInviteeNode",
+    "BackfillCanonicalLedgerToInviteeNode",
     "create_accept_invite_actor_to_case_tree",
 ]

@@ -117,7 +117,6 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
         MessageSemantics.ACCEPT_CASE_MANAGER_ROLE,
         MessageSemantics.OFFER_CASE_MANAGER_ROLE,
         MessageSemantics.SUGGEST_ACTOR_TO_CASE,
-        MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
         MessageSemantics.VALIDATE_REPORT,
     }
 )
@@ -131,6 +130,7 @@ _SYNC_AND_TRIGGER_PORT_SEMANTICS = frozenset(
     {
         MessageSemantics.ADD_NOTE_TO_CASE,
         MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
+        MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
         MessageSemantics.DEFER_CASE,
         MessageSemantics.ENGAGE_CASE,
         MessageSemantics.SUBMIT_REPORT,

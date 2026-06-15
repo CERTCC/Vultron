@@ -173,10 +173,23 @@ groups:
     priority: MUST
     statement: >-
       While catch-up freshness is not established, the actor MUST block or defer new
-      protocol-significant case actions and surface an explicit stale-or-catching-up condition
+      protocol-significant case actions and surface an explicit stale-or-catching-up
+      condition
   - id: SYNC-10-003
     priority: SHOULD
     statement: >-
       Catch-up freshness checks SHOULD use the actor's last acknowledged canonical hash and
       replay mechanisms so that action gating is based on canonical log position, not local
       wall-clock assumptions
+  - id: SYNC-10-004
+    priority: MUST
+    statement: >-
+      The catch-up gate MUST require a contiguous canonical log prefix from genesis through
+      the actor's currently acknowledged tip; any gap in that prefix MUST block
+      protocol-significant case actions
+  - id: SYNC-10-005
+    priority: MUST_NOT
+    statement: >-
+      The catch-up gate MUST NOT require the actor's acknowledged tip to equal the CaseActor's
+      current ledger tip; lagging behind the leader tip is allowed if the actor's own
+      acknowledged prefix is contiguous from genesis

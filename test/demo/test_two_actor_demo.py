@@ -975,6 +975,7 @@ class TestVerifyM1State:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.timeout(30)
 class TestRunTwoActorDemo:
     """Test the complete two-actor workflow via run_two_actor_demo."""
 
