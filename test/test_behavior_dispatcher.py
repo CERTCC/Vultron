@@ -144,6 +144,33 @@ def test_dispatcher_allows_gated_semantic_with_contiguous_prefix_but_tip_lag():
     use_case_instance.execute.assert_called_once()
 
 
+def test_dispatcher_allows_gated_semantic_without_replication_state():
+    mock_dl = MagicMock()
+    use_case_instance = MagicMock()
+    use_case_class = MagicMock(return_value=use_case_instance)
+    dispatcher = DirectActivityDispatcher(
+        use_case_map={MessageSemantics.ADD_NOTE_TO_CASE: use_case_class}
+    )
+
+    actor_id = "https://example.org/users/case-owner"
+    case = VulnerabilityCase(id_="https://example.org/cases/case-gate-owner")
+    event = AddNoteToCaseReceivedEvent(
+        activity_id="act-gate-owner",
+        actor_id=actor_id,
+        target=case,
+        activity=VultronActivity(type_="Add", actor=actor_id),
+    )
+    mock_dl.list_objects.return_value = [
+        _LedgerEntry(case_id=case.id_, log_index=0),
+        _LedgerEntry(case_id=case.id_, log_index=1),
+    ]
+    mock_dl.read.return_value = None
+
+    dispatcher.dispatch(event, mock_dl)
+    use_case_class.assert_called_once()
+    use_case_instance.execute.assert_called_once()
+
+
 def test_dispatcher_blocks_when_case_ledger_prefix_has_gaps():
     mock_dl = MagicMock()
     use_case_class = MagicMock()

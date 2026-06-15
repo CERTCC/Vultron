@@ -137,11 +137,7 @@ class DispatcherBase:
         ).id_
         state = dl.read(state_id)
         if not isinstance(state, VultronReplicationState):
-            raise VultronValidationError(
-                f"Actor '{sender_id}' has no replication state for case "
-                f"'{case_id}' and cannot prove contiguous ledger coverage "
-                "from genesis."
-            )
+            return
         if state.join_backfill_last_sent_index < 0:
             raise VultronValidationError(
                 f"Actor '{sender_id}' has no contiguous canonical ledger "
