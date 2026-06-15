@@ -24,7 +24,7 @@ This is **not** persisted and **not** a DataLayer entity.  The store is
 intentionally ephemeral: entries are lost on actor restart (the catch-up
 gate in #791 replays any unconfirmed log entries after restart).
 
-Spec: SYNC-07-001, SYNC-07-002, SYNC-07-003, SYNC-07-004, SYNC-07-005.
+Spec: SYNC-11-001 through SYNC-11-005.
 """
 
 from __future__ import annotations

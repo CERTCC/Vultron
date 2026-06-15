@@ -193,3 +193,39 @@ groups:
       The catch-up gate MUST NOT require the actor's acknowledged tip to equal the CaseActor's
       current ledger tip; lagging behind the leader tip is allowed if the actor's own
       acknowledged prefix is contiguous from genesis
+- id: SYNC-11
+  title: Participant-Local Pending Assertion Suppression
+  specs:
+  - id: SYNC-11-001
+    priority: SHOULD
+    statement: >-
+      A participant actor SHOULD maintain an actor-local, in-memory pending-assertion store
+      that records outbound assertion activities (e.g., Add(Note,Case)) emitted toward the
+      CaseActor but not yet confirmed by a canonical Announce(CaseLedgerEntry) round-trip;
+      the suppression window is configurable and zero disables suppression
+  - id: SYNC-11-002
+    priority: SHOULD
+    statement: >-
+      After a participant successfully enqueues an assertion activity toward the CaseActor,
+      the participant SHOULD record the (case_id, event_type, activity_id) triple in its
+      pending-assertion store so that duplicate near-term re-emits of the same assertion are
+      suppressed while the round-trip is pending
+  - id: SYNC-11-003
+    priority: SHOULD
+    statement: >-
+      When a participant receives a matching Announce(CaseLedgerEntry) whose log_object_id
+      equals a pending assertion's object_id, the participant's pending-assertion store
+      SHOULD clear the matching entry so that future re-emits of the same triple are no
+      longer suppressed
+  - id: SYNC-11-004
+    priority: MUST_NOT
+    statement: >-
+      The CaseActor MUST NOT use the pending-assertion store for its own ledger commits;
+      the CaseActor's DataLayer idempotency check already guards against duplicate commits
+      by the single authoritative writer
+  - id: SYNC-11-005
+    priority: SHOULD
+    statement: >-
+      A pending assertion that exceeds its configured timeout window SHOULD be marked
+      timed-out and SHOULD no longer suppress future re-emits, allowing operator retry or
+      the catch-up gate to resubmit the assertion

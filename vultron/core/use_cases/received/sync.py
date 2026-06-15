@@ -111,10 +111,10 @@ class AnnounceLedgerEntryReceivedUseCase:
 
     When *pending_assertions* is provided (or resolved from the per-actor
     registry), clears the matching pending assertion on receipt so that
-    future commits for the same ``(case_id, event_type, log_object_id)``
-    triple are no longer suppressed (SYNC-07-003).
+    future emits for the same ``(case_id, event_type, log_object_id)``
+    triple are no longer suppressed (SYNC-11-003).
 
-    Spec: SYNC-02-003, SYNC-03-001 through SYNC-03-003, SYNC-07-003.
+    Spec: SYNC-02-003, SYNC-03-001 through SYNC-03-003, SYNC-11-003.
     """
 
     def __init__(
@@ -162,7 +162,7 @@ class AnnounceLedgerEntryReceivedUseCase:
             )
 
         # Clear pending assertion for this entry regardless of BT outcome
-        # (SYNC-07-003): both "recorded" and "rejected" dispositions confirm
+        # (SYNC-11-003): both "recorded" and "rejected" dispositions confirm
         # the assertion has been processed by the log authority.
         receiving_actor_id = request.receiving_actor_id or ""
         store = self._pending_assertions
@@ -187,12 +187,7 @@ class RejectLedgerEntryReceivedUseCase:
     2. Replays all missing entries from after the last-accepted hash to the
        peer (SYNC-03-002).
 
-    When *pending_assertions* is provided (or resolved from the per-actor
-    registry), clears the matching pending assertion on receipt so that
-    future commits for the same ``(case_id, event_type, log_object_id)``
-    triple are no longer suppressed (SYNC-07-004).
-
-    Spec: SYNC-03-001, SYNC-03-002, SYNC-04-001, SYNC-04-002, SYNC-07-004.
+    Spec: SYNC-03-001, SYNC-03-002, SYNC-04-001, SYNC-04-002.
     """
 
     def __init__(
@@ -200,12 +195,10 @@ class RejectLedgerEntryReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: RejectLogEntryReceivedEvent,
         sync_port: SyncActivityPort | None = None,
-        pending_assertions: PendingAssertionStore | None = None,
     ) -> None:
         self._dl = dl
         self._request = request
         self._sync_port = sync_port
-        self._pending_assertions = pending_assertions
 
     def execute(self) -> None:
         request = self._request
@@ -236,18 +229,4 @@ class RejectLedgerEntryReceivedUseCase:
                 "sync: reject BT returned FAILURE for '%s': %s",
                 request.activity_id,
                 result.feedback_message,
-            )
-
-        # Clear pending assertion so the rejected entry no longer suppresses
-        # future commit attempts (SYNC-07-004 — no auto-retry, but operator
-        # or catch-up gate can retry after clearing).
-        receiving_actor_id = request.receiving_actor_id or ""
-        store = self._pending_assertions
-        if store is None and receiving_actor_id:
-            store = get_pending_assertion_store(receiving_actor_id)
-        if store is not None:
-            store.clear(
-                rejected_entry.case_id,
-                rejected_entry.event_type,
-                rejected_entry.log_object_id,
             )

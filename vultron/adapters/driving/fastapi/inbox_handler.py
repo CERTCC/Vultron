@@ -61,27 +61,16 @@ _DISPATCHER: ActivityDispatcher | None = None
 
 
 def _sync_port_factory(dl: DataLayer) -> dict[str, Any]:
-    """Create a ``SyncActivityAdapter`` and per-actor pending-assertion store.
+    """Create a ``SyncActivityAdapter`` for the given DataLayer.
 
     ``dl`` at runtime is an ``ActorScopedDataLayer`` (satisfies
-    ``CaseOutboxPersistence``) — the cast is safe (ARCH-13-002).  The actor
-    ID is read from ``dl._actor_id`` (SQLite implementation detail) to key
-    the per-actor :class:`~vultron.core.models.pending_assertion.PendingAssertionStore`.
+    ``CaseOutboxPersistence``) — the cast is safe (ARCH-13-002).
     """
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter,
     )
-    from vultron.core.models.pending_assertion import (
-        get_pending_assertion_store,
-    )
 
-    actor_id: str = getattr(dl, "_actor_id", None) or ""
-    result: dict[str, Any] = {
-        "sync_port": SyncActivityAdapter(cast(CaseOutboxPersistence, dl))
-    }
-    if actor_id:
-        result["pending_assertions"] = get_pending_assertion_store(actor_id)
-    return result
+    return {"sync_port": SyncActivityAdapter(cast(CaseOutboxPersistence, dl))}
 
 
 def _trigger_activity_port_factory(dl: DataLayer) -> dict[str, Any]:

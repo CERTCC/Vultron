@@ -38,11 +38,6 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.use_cases._helpers import build_activity_payload_snapshot
 
-from vultron.core.models.pending_assertion import (
-    PendingAssertionStore,
-    get_pending_assertion_store,
-)
-
 logger = logging.getLogger(__name__)
 
 
@@ -59,23 +54,6 @@ def _extract_payload_snapshot(
     return cast(
         dict[str, Any], build_activity_payload_snapshot(activity, dl=dl)
     )
-
-
-def _resolve_pending_assertion_store(
-    blackboard: Any, actor_id: str
-) -> "PendingAssertionStore | None":
-    """Return the pending-assertion store for *actor_id*.
-
-    Checks the blackboard first; falls back to the module-level per-actor
-    registry (SYNC-07-001).
-    """
-    try:
-        store: PendingAssertionStore | None = (
-            blackboard.pending_assertions  # type: ignore[attr-defined]
-        )
-        return store
-    except (AttributeError, KeyError):
-        return get_pending_assertion_store(actor_id)
 
 
 def _resolve_activity_fields(
@@ -149,9 +127,6 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
         self.blackboard.register_key(
             key="sync_port", access=py_trees.common.Access.READ
         )
-        self.blackboard.register_key(
-            key="pending_assertions", access=py_trees.common.Access.READ
-        )
 
     def initialise(self) -> None:
         super().initialise()
@@ -186,24 +161,6 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
             activity, case_id, self.datalayer
         )
 
-        # Resolve pending-assertions store: blackboard first, then module
-        # registry keyed by actor_id (SYNC-07-001).
-        store = _resolve_pending_assertion_store(
-            self.blackboard, self.actor_id
-        )
-
-        if store is not None and store.is_suppressed(
-            case_id, event_type, object_id
-        ):
-            self.logger.info(
-                "%s: suppressing duplicate near-term re-emit for case '%s' "
-                "event_type=%s (pending assertion unexpired)",
-                self.name,
-                case_id,
-                event_type,
-            )
-            return Status.SUCCESS
-
         tree = create_commit_log_entry_tree(
             case_id=case_id,
             object_id=object_id,
@@ -224,10 +181,6 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
                 event_type,
                 case_id,
             )
-            # Record in pending assertions AFTER successful commit
-            # (SYNC-07-002).
-            if store is not None:
-                store.add(case_id, event_type, object_id)
             return Status.SUCCESS
         self.logger.error(
             "%s: failed to commit log entry for case '%s': %s",
