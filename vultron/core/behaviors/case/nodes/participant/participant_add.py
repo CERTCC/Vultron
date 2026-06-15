@@ -391,45 +391,6 @@ class QueueAddParticipantNotificationNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class CreateCaseParticipantNode(py_trees.composites.Sequence):
-    """
-    Composed subtree that creates and attaches a CaseParticipant.
-
-    This decomposes participant creation into named leaf nodes so each step is
-    explicit and testable per BTND-07-001.
-    """
-
-    def __init__(
-        self,
-        actor_id: str,
-        roles: list[CVDRole],
-        report_id: str | None = None,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(
-            name=name or self.__class__.__name__,
-            memory=False,
-            children=[
-                ResolveParticipantAcceptedStatusNode(
-                    participant_actor_id=actor_id,
-                    report_id=report_id,
-                ),
-                CreateParticipantNode(
-                    participant_actor_id=actor_id,
-                    roles=roles,
-                ),
-                AttachParticipantToCaseNode(participant_actor_id=actor_id),
-                RecordParticipantAddedEventNode(),
-                SeedParticipantAsSignatoryIfEmbargoActiveNode(
-                    participant_actor_id=actor_id
-                ),
-                QueueAddParticipantNotificationNode(
-                    participant_actor_id=actor_id
-                ),
-            ],
-        )
-
-
 class EnsureReporterParticipantAtAcceptedNode(DataLayerAction):
     """BT leaf node that seeds or upgrades the reporter participant to RM.ACCEPTED.
 
