@@ -116,6 +116,29 @@ def _payload(entry: dict) -> dict:
     return snap if isinstance(snap, dict) else {}
 
 
+def _participant_status_identity_and_rm(
+    snapshot: dict,
+) -> tuple[str | None, str | None]:
+    """Extract participant id + RM state from a status payload snapshot.
+
+    Historical logs may encode ``ParticipantStatus`` directly in
+    ``payloadSnapshot`` or nest it under an ``Add`` activity's ``object``.
+    """
+    p_id = snapshot.get("attributedTo") or snapshot.get("attributed_to")
+    rm_state = snapshot.get("rmState") or snapshot.get("rm_state")
+    if p_id and rm_state:
+        return str(p_id), str(rm_state)
+
+    nested = snapshot.get("object")
+    if isinstance(nested, dict):
+        nested_id = nested.get("attributedTo") or nested.get("attributed_to")
+        nested_rm = nested.get("rmState") or nested.get("rm_state")
+        if nested_id and nested_rm:
+            return str(nested_id), str(nested_rm)
+
+    return None, None
+
+
 # ---------------------------------------------------------------------------
 # Fixture
 # ---------------------------------------------------------------------------
@@ -402,11 +425,9 @@ def test_invariant_7_log_terminates_all_rm_closed(
     for entry in auth:
         if _event_type(entry) != "add_participant_status":
             continue
-        snap = _payload(entry)
-        p_id = snap.get("attributedTo") or snap.get("attributed_to")
-        rm_state = snap.get("rmState") or snap.get("rm_state")
+        p_id, rm_state = _participant_status_identity_and_rm(_payload(entry))
         if p_id and rm_state:
-            latest_rm[str(p_id)] = str(rm_state)
+            latest_rm[p_id] = rm_state
 
     assert (
         latest_rm

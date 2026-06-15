@@ -20,6 +20,7 @@ from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.protocols import is_log_entry_model
 from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.status import (
     AddCaseStatusToCaseReceivedUseCase,
     AddParticipantStatusToParticipantReceivedUseCase,
@@ -395,3 +396,59 @@ class TestParticipantStatusLogEntryCascade:
 
         # But no outbox activities should be queued for fan-out.
         assert dl.outbox_list() == []
+
+    def test_terminal_closed_update_does_not_commit_log_entry(
+        self, make_payload
+    ) -> None:
+        """CLOSED->CLOSED rewrites are rejected before log cascade."""
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        actor_id = "https://example.org/users/vendor"
+        case_id = "https://example.org/cases/st_le3"
+        dl, case_actor_id, participant, _ = self._make_dl(case_id, actor_id)
+        case = cast(VulnerabilityCase, dl.read(case_id))
+        assert case is not None
+
+        closed_status = ParticipantStatus(
+            id_=f"{case_id}/participants/p1/statuses/closed-existing",
+            context=case_id,
+            rm_state=RM.CLOSED,
+        )
+        participant.participant_statuses.append(closed_status)
+        dl.save(participant)
+        dl.create(closed_status)
+
+        duplicate_closed_status = ParticipantStatus(
+            id_=f"{case_id}/participants/p1/statuses/closed-duplicate",
+            context=case_id,
+            rm_state=RM.CLOSED,
+        )
+        dl.create(duplicate_closed_status)
+
+        activity = add_status_to_participant_activity(
+            duplicate_closed_status,
+            target=participant,
+            actor=actor_id,
+            context=case,
+        )
+        event = make_payload(activity, receiving_actor_id=case_actor_id)
+        sync_port = SyncActivityAdapter(dl)
+
+        before_count = len(participant.participant_statuses)
+        AddParticipantStatusToParticipantReceivedUseCase(
+            dl, event, sync_port=sync_port
+        ).execute()
+
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if is_log_entry_model(obj)
+            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+        ]
+        assert entries == []
+
+        updated_participant = dl.read(participant.id_)
+        assert updated_participant is not None
+        assert len(updated_participant.participant_statuses) == before_count

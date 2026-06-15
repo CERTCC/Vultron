@@ -22,11 +22,17 @@ without modification.
 
 Submodules:
 - ``conditions``: Participant verification condition nodes
-- ``broadcast``: Peer fan-out nodes (FindCaseManager, FilterPeerRecipients,
-  CreateStatusBroadcastActivity, BroadcastQueueToOutbox,
-  BroadcastStatusToPeers)
-- ``participant_status``: Load, validate RM transition, append, public
-  disclosure, and auto-close action nodes
+- ``broadcast``: Peer fan-out helper and nodes (_find_case_manager_id,
+  FindCaseManagerNode, FilterPeerRecipientsNode,
+  CreateStatusBroadcastActivityNode, BroadcastQueueToOutboxNode,
+  BroadcastStatusToPeersNode)
+- ``append``: Load, validate RM transition, and append action nodes
+  (SkipIfIdempotentNode, LoadParticipantNode,
+  CheckStatusNotAlreadyAppendedNode, ResolveAndPersistStatusObjectNode,
+  ValidateRMTransitionNode, AppendStatusAndSaveParticipantNode)
+- ``lifecycle``: Public disclosure and auto-close lifecycle nodes
+  (_PublicDisclosureSkipConditionNode, PublicDisclosureBranchNode,
+  AutoCloseBranchNode)
 - ``case_status``: Idempotency guard, EM/PXA transition validation, and
   append nodes for the AddCaseStatusToCase workflow
 """

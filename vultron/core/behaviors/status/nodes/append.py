@@ -32,6 +32,7 @@ from vultron.core.models.protocols import (
     is_participant_model,
 )
 from vultron.core.states.rm import (
+    RM,
     is_monotonic_rm_forward,
     is_valid_rm_transition,
 )
@@ -312,6 +313,18 @@ class ValidateRMTransitionNode(DataLayerCondition):
             return Status.SUCCESS
 
         current_rm = current_status.rm_state
+        if current_rm == RM.CLOSED:
+            self.feedback_message = (
+                "Participant is already in terminal RM.CLOSED state"
+                f" (received {new_rm_state}) for participant"
+                f" '{self.participant_id}'"
+            )
+            self.logger.info(
+                "ValidateRMTransitionNode: %s — rejecting",
+                self.feedback_message,
+            )
+            return Status.FAILURE
+
         if current_rm == new_rm_state:
             self.logger.debug(
                 "ValidateRMTransitionNode: no RM state change (both %s)",
