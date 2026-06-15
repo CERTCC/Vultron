@@ -48,6 +48,7 @@ from py_trees.display import unicode_tree
 from vultron.core.ports.case_persistence import CasePersistence
 
 if TYPE_CHECKING:
+    from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
@@ -103,6 +104,7 @@ class BTBridge:
         datalayer: CasePersistence,
         is_leader: Callable[[], bool] = _default_is_leader,
         trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
     ):
         """
         Initialize BT bridge with DataLayer access and optional leadership guard.
@@ -117,10 +119,18 @@ class BTBridge:
                 placed on the py_trees blackboard under the key
                 ``trigger_activity_factory`` so that BT nodes can call it
                 without importing from the wire layer.
+            sync_port: Optional port for SYNC-2 replication fan-out
+                (SYNC-02-002).  When provided it is placed on the py_trees
+                blackboard under the key ``sync_port`` so that
+                ``CommitCaseLedgerEntryNode`` can fan out
+                ``Announce(CaseLedgerEntry)`` activities to participants.
+                Without this, ledger entries committed inside BTs are
+                persisted locally but not replicated.
         """
         self.datalayer = datalayer
         self.is_leader = is_leader
         self.trigger_activity = trigger_activity
+        self.sync_port = sync_port
         self.logger = logging.getLogger(
             f"{__name__}.{self.__class__.__name__}"
         )
@@ -171,6 +181,13 @@ class BTBridge:
                 access=py_trees.common.Access.WRITE,
             )
             blackboard.trigger_activity_factory = self.trigger_activity
+
+        if self.sync_port is not None:
+            blackboard.register_key(
+                key="sync_port",
+                access=py_trees.common.Access.WRITE,
+            )
+            blackboard.sync_port = self.sync_port
 
         if activity is not None:
             blackboard.register_key(

@@ -115,10 +115,7 @@ _SYNC_PORT_SEMANTICS = frozenset(
 _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
     {
         MessageSemantics.ACCEPT_CASE_MANAGER_ROLE,
-        MessageSemantics.DEFER_CASE,
-        MessageSemantics.ENGAGE_CASE,
         MessageSemantics.OFFER_CASE_MANAGER_ROLE,
-        MessageSemantics.SUBMIT_REPORT,
         MessageSemantics.SUGGEST_ACTOR_TO_CASE,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
         MessageSemantics.VALIDATE_REPORT,
@@ -126,10 +123,17 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
 )
 
 # Semantics that require both a sync port and a trigger-activity port.
+# SUBMIT_REPORT, ENGAGE_CASE, DEFER_CASE run BTs that contain
+# CommitCaseLedgerEntryNode, which fans out Announce(CaseLedgerEntry) via
+# sync_port (SYNC-02-002), AND also need trigger_activity for outbound
+# wire-activity construction (e.g. Announce(VulnerabilityCase) broadcast).
 _SYNC_AND_TRIGGER_PORT_SEMANTICS = frozenset(
     {
         MessageSemantics.ADD_NOTE_TO_CASE,
         MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
+        MessageSemantics.DEFER_CASE,
+        MessageSemantics.ENGAGE_CASE,
+        MessageSemantics.SUBMIT_REPORT,
     }
 )
 
