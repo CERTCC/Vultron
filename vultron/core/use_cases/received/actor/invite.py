@@ -18,6 +18,7 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
+from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import (
     _find_case_actor_id,
     _idempotent_create,
@@ -74,10 +75,12 @@ class AcceptInviteActorToCaseReceivedUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: AcceptInviteActorToCaseReceivedEvent,
+        sync_port: SyncActivityPort,
         trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: AcceptInviteActorToCaseReceivedEvent = request
+        self._sync_port = sync_port
         self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
@@ -115,6 +118,7 @@ class AcceptInviteActorToCaseReceivedUseCase:
             ),
             actor_id=actor_id,
             activity=request,
+            sync_port=self._sync_port,
         )
 
         if result.status == Status.FAILURE:

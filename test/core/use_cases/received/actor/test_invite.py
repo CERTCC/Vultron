@@ -134,7 +134,9 @@ class TestInviteActorUseCases:
 
         event = make_payload(accept)
 
-        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl, event, sync_port=MagicMock()
+        ).execute()
 
         case = dl.read(case.id_)
         assert case is not None
@@ -184,7 +186,9 @@ class TestInviteActorUseCases:
 
         event = make_payload(accept)
 
-        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl, event, sync_port=MagicMock()
+        ).execute()
 
         case = dl.read(case.id_)
         assert case is not None
@@ -240,7 +244,9 @@ class TestInviteActorUseCases:
         event = make_payload(accept)
 
         # No TriggerActivityAdapter needed: RM.ACCEPTED is reached via BT.
-        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl, event, sync_port=MagicMock()
+        ).execute()
 
         updated_case = cast(Any, dl.read(case.id_))
         participant_id = updated_case.actor_participant_index.get(invitee_id)
@@ -302,7 +308,9 @@ class TestInviteActorUseCases:
         )
         event = make_payload(accept)
 
-        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl, event, sync_port=MagicMock()
+        ).execute()
 
         # PCR-07-008: no RmEngageCaseActivity (Join) with actor=invitee_id
         # should be queued — the BT records RM.ACCEPTED for the invitee
@@ -364,7 +372,9 @@ class TestInviteActorUseCases:
 
         assert len(case.events) == 0
 
-        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl, event, sync_port=MagicMock()
+        ).execute()
 
         case = dl.read(case.id_)
         assert case is not None
@@ -372,3 +382,372 @@ class TestInviteActorUseCases:
         assert len(case.events) >= 1
         event_types = [e.event_type for e in case.events]
         assert "participant_joined" in event_types
+
+    def test_accept_invite_backfills_canonical_ledger_from_genesis(
+        self, make_payload
+    ):
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.use_cases.triggers.sync import (
+            commit_log_entry_trigger,
+        )
+        from vultron.core.models.replication_state import (
+            VultronReplicationState,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import (
+            as_Organization,
+            as_Service,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        invitee_id = "https://example.org/users/late-joiner"
+        case_actor_id = "https://example.org/actors/case-actor-lj1"
+        invitee = as_Organization(id_=invitee_id)
+        case_actor = as_Service(id_=case_actor_id, context="unused")
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/caseLJ1",
+            name="TEST-LATE-JOIN-BACKFILL",
+        )
+        case_actor.context = case.id_
+        invite = rm_invite_to_case_activity(
+            invitee,
+            target=VulnerabilityCaseStub(id_=case.id_),
+            actor=case_actor_id,
+            id_=f"{case.id_}/invitations/1",
+        )
+        dl.create(invitee)
+        dl.create(case_actor)
+        dl.create(case)
+        dl.create(invite)
+
+        first = commit_log_entry_trigger(
+            case_id=case.id_,
+            object_id=f"{case.id_}/events/0",
+            event_type="submit_report",
+            actor_id=case_actor_id,
+            dl=dl,
+            payload_snapshot={"index": 0},
+        )
+        second = commit_log_entry_trigger(
+            case_id=case.id_,
+            object_id=f"{case.id_}/events/1",
+            event_type="add_participant_status",
+            actor_id=case_actor_id,
+            dl=dl,
+            payload_snapshot={"index": 1},
+        )
+
+        trigger_activity = MagicMock()
+        trigger_activity.announce_vulnerability_case.return_value = (
+            f"{case.id_}/announce/1"
+        )
+        sync_port = MagicMock()
+
+        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        event = make_payload(accept)
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=sync_port,
+            trigger_activity=trigger_activity,
+        ).execute()
+
+        announced_entries = [
+            kwargs["entry"]
+            for _, kwargs in sync_port.send_announce_log_entry.call_args_list
+        ]
+        assert [entry.log_index for entry in announced_entries] == [0, 1]
+        assert announced_entries[0].entry_hash == first.entry_hash
+        assert announced_entries[1].entry_hash == second.entry_hash
+
+        state_id = VultronReplicationState(
+            case_id=case.id_, peer_id=invitee_id
+        ).id_
+        state = cast(Any, dl.read(state_id))
+        assert state is not None
+        assert state.join_backfill_target_index == 1
+        assert state.join_backfill_last_sent_index == 1
+        assert state.join_backfill_complete is True
+
+    def test_accept_invite_resumes_backfill_without_duplicate_entries(
+        self, make_payload
+    ):
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.replication_state import (
+            VultronReplicationState,
+        )
+        from vultron.core.use_cases.triggers.sync import (
+            commit_log_entry_trigger,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import (
+            as_Organization,
+            as_Service,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        invitee_id = "https://example.org/users/late-joiner-retry"
+        case_actor_id = "https://example.org/actors/case-actor-lj2"
+        invitee = as_Organization(id_=invitee_id)
+        case_actor = as_Service(id_=case_actor_id, context="unused")
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/caseLJ2",
+            name="TEST-LATE-JOIN-RESUME",
+        )
+        case_actor.context = case.id_
+        invite = rm_invite_to_case_activity(
+            invitee,
+            target=VulnerabilityCaseStub(id_=case.id_),
+            actor=case_actor_id,
+            id_=f"{case.id_}/invitations/1",
+        )
+        dl.create(invitee)
+        dl.create(case_actor)
+        dl.create(case)
+        dl.create(invite)
+
+        first = commit_log_entry_trigger(
+            case_id=case.id_,
+            object_id=f"{case.id_}/events/0",
+            event_type="submit_report",
+            actor_id=case_actor_id,
+            dl=dl,
+            payload_snapshot={"index": 0},
+        )
+        second = commit_log_entry_trigger(
+            case_id=case.id_,
+            object_id=f"{case.id_}/events/1",
+            event_type="add_participant_status",
+            actor_id=case_actor_id,
+            dl=dl,
+            payload_snapshot={"index": 1},
+        )
+
+        # Simulate interrupted run: participant already joined and first entry
+        # already replayed, but join-time backfill not complete.
+        state = VultronReplicationState(
+            case_id=case.id_,
+            peer_id=invitee_id,
+            join_backfill_target_index=1,
+            join_backfill_last_sent_index=0,
+            join_backfill_complete=False,
+        )
+        dl.save(state)
+
+        participant_case = cast(Any, dl.read(case.id_))
+        participant_case.actor_participant_index[invitee_id] = (
+            f"{case.id_}/participants/late-joiner-retry"
+        )
+        participant = cast(
+            Any,
+            dl.read(participant_case.actor_participant_index[invitee_id]),
+        )
+        if participant is None:
+            from vultron.core.models.vultron_types import VultronParticipant
+
+            participant = VultronParticipant(
+                id_=participant_case.actor_participant_index[invitee_id],
+                attributed_to=invitee_id,
+                context=case.id_,
+            )
+            dl.create(participant)
+        participant_case.case_participants.append(participant.id_)
+        dl.save(participant_case)
+
+        trigger_activity = MagicMock()
+        trigger_activity.announce_vulnerability_case.return_value = (
+            f"{case.id_}/announce/1"
+        )
+        sync_port = MagicMock()
+
+        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        event = make_payload(accept)
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=sync_port,
+            trigger_activity=trigger_activity,
+        ).execute()
+
+        announced_entries = [
+            kwargs["entry"]
+            for _, kwargs in sync_port.send_announce_log_entry.call_args_list
+        ]
+        assert [entry.log_index for entry in announced_entries] == [1]
+        assert announced_entries[0].entry_hash == second.entry_hash
+        assert all(
+            entry.entry_hash != first.entry_hash for entry in announced_entries
+        )
+
+        state_id = VultronReplicationState(
+            case_id=case.id_, peer_id=invitee_id
+        ).id_
+        updated_state = cast(Any, dl.read(state_id))
+        assert updated_state.join_backfill_last_sent_index == 1
+        assert updated_state.join_backfill_complete is True
+
+    def test_accept_invite_resumes_when_participant_exists_without_marker(
+        self, make_payload
+    ):
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.vultron_types import VultronParticipant
+        from vultron.core.use_cases.triggers.sync import (
+            commit_log_entry_trigger,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import (
+            as_Organization,
+            as_Service,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        invitee_id = "https://example.org/users/late-joiner-nomarker"
+        case_actor_id = "https://example.org/actors/case-actor-lj3"
+        invitee = as_Organization(id_=invitee_id)
+        case_actor = as_Service(id_=case_actor_id, context="unused")
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/caseLJ3",
+            name="TEST-LATE-JOIN-NO-MARKER",
+        )
+        case_actor.context = case.id_
+        participant = VultronParticipant(
+            id_=f"{case.id_}/participants/late-joiner-nomarker",
+            attributed_to=invitee_id,
+            context=case.id_,
+        )
+        case.case_participants = [participant.id_]
+        case.actor_participant_index = {invitee_id: participant.id_}
+        invite = rm_invite_to_case_activity(
+            invitee,
+            target=VulnerabilityCaseStub(id_=case.id_),
+            actor=case_actor_id,
+            id_=f"{case.id_}/invitations/1",
+        )
+        dl.create(invitee)
+        dl.create(case_actor)
+        dl.create(participant)
+        dl.create(case)
+        dl.create(invite)
+
+        commit_log_entry_trigger(
+            case_id=case.id_,
+            object_id=f"{case.id_}/events/0",
+            event_type="submit_report",
+            actor_id=case_actor_id,
+            dl=dl,
+            payload_snapshot={"index": 0},
+        )
+        commit_log_entry_trigger(
+            case_id=case.id_,
+            object_id=f"{case.id_}/events/1",
+            event_type="add_participant_status",
+            actor_id=case_actor_id,
+            dl=dl,
+            payload_snapshot={"index": 1},
+        )
+
+        trigger_activity = MagicMock()
+        trigger_activity.announce_vulnerability_case.return_value = (
+            f"{case.id_}/announce/1"
+        )
+        sync_port = MagicMock()
+
+        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        event = make_payload(accept)
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=sync_port,
+            trigger_activity=trigger_activity,
+        ).execute()
+
+        announced_entries = [
+            kwargs["entry"]
+            for _, kwargs in sync_port.send_announce_log_entry.call_args_list
+        ]
+        assert [entry.log_index for entry in announced_entries] == [0, 1]
+
+    def test_accept_invite_backfill_runs_when_announce_port_missing(
+        self, make_payload
+    ):
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.replication_state import (
+            VultronReplicationState,
+        )
+        from vultron.core.use_cases.triggers.sync import (
+            commit_log_entry_trigger,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import (
+            as_Organization,
+            as_Service,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        invitee_id = "https://example.org/users/late-joiner-noannounce"
+        case_actor_id = "https://example.org/actors/case-actor-lj4"
+        invitee = as_Organization(id_=invitee_id)
+        case_actor = as_Service(id_=case_actor_id, context="unused")
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/caseLJ4",
+            name="TEST-LATE-JOIN-NO-ANNOUNCE",
+        )
+        case_actor.context = case.id_
+        invite = rm_invite_to_case_activity(
+            invitee,
+            target=VulnerabilityCaseStub(id_=case.id_),
+            actor=case_actor_id,
+            id_=f"{case.id_}/invitations/1",
+        )
+        dl.create(invitee)
+        dl.create(case_actor)
+        dl.create(case)
+        dl.create(invite)
+
+        commit_log_entry_trigger(
+            case_id=case.id_,
+            object_id=f"{case.id_}/events/0",
+            event_type="submit_report",
+            actor_id=case_actor_id,
+            dl=dl,
+            payload_snapshot={"index": 0},
+        )
+        commit_log_entry_trigger(
+            case_id=case.id_,
+            object_id=f"{case.id_}/events/1",
+            event_type="add_participant_status",
+            actor_id=case_actor_id,
+            dl=dl,
+            payload_snapshot={"index": 1},
+        )
+
+        sync_port = MagicMock()
+        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        event = make_payload(accept)
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=sync_port,
+            trigger_activity=None,
+        ).execute()
+
+        announced_entries = [
+            kwargs["entry"]
+            for _, kwargs in sync_port.send_announce_log_entry.call_args_list
+        ]
+        assert [entry.log_index for entry in announced_entries] == [0, 1]
+
+        state_id = VultronReplicationState(
+            case_id=case.id_, peer_id=invitee_id
+        ).id_
+        state = cast(Any, dl.read(state_id))
+        assert state is not None
+        assert state.join_backfill_complete is True
