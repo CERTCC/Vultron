@@ -26,6 +26,7 @@ from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.vultron_types import VultronCaseActor
+from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 
 _FACTORY_PATH = (
     "vultron.core.behaviors.case.nodes.lifecycle.create_commit_log_entry_tree"
@@ -86,6 +87,16 @@ class _FakeWireActivity:
 
     def model_dump(self, **_: object) -> dict[str, str]:
         return {"id": ACTIVITY_ID, "type": "Create"}
+
+
+class _FakeWireActivityWithPayload:
+    """Minimal stand-in with configurable payload."""
+
+    def __init__(self, payload: dict[str, object]):
+        self._payload = payload
+
+    def model_dump(self, **_: object) -> dict[str, object]:
+        return dict(self._payload)
 
 
 # ---------------------------------------------------------------------------
@@ -232,6 +243,47 @@ def test_activity_payload_is_forwarded_as_payload_snapshot(bridge):
         event_type=MessageSemantics.CREATE_CASE.value,
         payload_snapshot={"id": ACTIVITY_ID, "type": "Create"},
     )
+
+
+def test_activity_payload_inlines_nested_reference_fields(bridge, datalayer):
+    embargo = EmbargoEvent(context=CASE_ID)
+    datalayer.save(embargo)
+    activity = _FakeActivity(
+        activity_id=ACTIVITY_ID,
+        semantic_type=MessageSemantics.CREATE_CASE,
+        activity=_FakeWireActivityWithPayload(
+            {
+                "id": ACTIVITY_ID,
+                "type": "Join",
+                "context": CASE_ID,
+                "object": {
+                    "id": "https://example.org/statuses/status-001",
+                    "type": "ParticipantStatus",
+                    "activeEmbargo": embargo.id_,
+                    "proposedEmbargoes": [embargo.id_],
+                },
+            }
+        ),
+    )
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+
+    with patch(_FACTORY_PATH) as mock_factory, patch(
+        _INNER_BRIDGE_PATH
+    ) as mock_bridge_cls:
+        mock_bridge_cls.return_value.execute_with_setup.return_value = (
+            BTExecutionResult(status=Status.SUCCESS)
+        )
+        bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=activity
+        )
+
+    payload_snapshot = mock_factory.call_args.kwargs["payload_snapshot"]
+    status_obj = payload_snapshot["object"]
+    assert payload_snapshot["context"] == CASE_ID
+    assert isinstance(status_obj["activeEmbargo"], dict)
+    assert status_obj["activeEmbargo"]["id"] == embargo.id_
+    assert isinstance(status_obj["proposedEmbargoes"][0], dict)
+    assert status_obj["proposedEmbargoes"][0]["id"] == embargo.id_
 
 
 def test_no_activity_falls_back_to_case_event(bridge):
