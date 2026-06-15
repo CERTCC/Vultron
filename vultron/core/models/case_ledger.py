@@ -53,12 +53,15 @@ CLP-02 through CLP-05, and ``notes/sync-ledger-replication.md``.
 
 import hashlib
 import json
+import logging
 from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
 from vultron.core.models._helpers import _now_utc
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -397,6 +400,18 @@ class CaseLedger:
             reason_detail=reason_detail,
         )
         self._entries.append(entry)
+        logger.info(
+            "Committed ledger entry: case_id=%s event_type=%s log_index=%d disposition=%s",
+            self._case_id,
+            event_type,
+            entry.log_index,
+            disposition,
+        )
+        logger.debug(
+            "Ledger entry detail: entry_hash=%.16s… payload_snapshot=%s",
+            entry.entry_hash,
+            payload_snapshot or {},
+        )
         return entry
 
     def verify_chain(self) -> bool:

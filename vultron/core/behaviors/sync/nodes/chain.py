@@ -248,9 +248,17 @@ class PersistLogEntryNode(DataLayerAction):
         entry = cast(VultronCaseLedgerEntry, self.blackboard.log_entry)
         self.datalayer.save(entry)
         self.logger.info(
-            "%s: committed log entry '%s' for case '%s'",
+            "%s: committed log entry case_id=%s event_type=%s log_index=%d actor_id=%s",
             self.name,
-            entry.id_,
             entry.case_id,
+            entry.event_type,
+            entry.log_index,
+            self.actor_id,
+        )
+        self.logger.debug(
+            "%s: entry_hash=%.16s… payload_snapshot=%s",
+            self.name,
+            entry.entry_hash,
+            entry.payload_snapshot,
         )
         return Status.SUCCESS

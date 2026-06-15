@@ -23,6 +23,8 @@ Covers:
   ``tail_hash``, ``recorded_entries`` projection, and ``verify_chain``
   (SYNC-01-001, SYNC-01-002, SYNC-01-003, SYNC-07-001,
   CLP-04-001, CLP-04-003).
+- ``CaseLedger.append()`` logging at INFO and DEBUG levels (SL-03-001,
+  SL-04-001).
 - ``VultronReplicationState`` construction and DataLayer serialisation
   (SYNC-04-001, SYNC-04-002).
 - ``BTBridge`` leadership guard port — default always-True behaviour and
@@ -31,6 +33,7 @@ Covers:
 
 import hashlib
 import json
+import logging
 from unittest.mock import MagicMock
 
 import py_trees
@@ -456,6 +459,107 @@ class TestCaseLedgerVerifyChain:
     def test_all_entry_hashes_unique(self, log_with_three_entries: CaseLedger):
         hashes = [e.entry_hash for e in log_with_three_entries.entries]
         assert len(set(hashes)) == len(hashes)
+
+
+# ---------------------------------------------------------------------------
+# CaseLedger — append logging (SL-03-001, SL-04-001)
+# ---------------------------------------------------------------------------
+
+
+class TestCaseLedgerAppendLogging:
+    """Verify INFO and DEBUG log emission from CaseLedger.append()."""
+
+    def test_info_log_emitted_on_recorded_append(
+        self, empty_log: CaseLedger, caplog: pytest.LogCaptureFixture
+    ):
+        with caplog.at_level(
+            logging.INFO, logger="vultron.core.models.case_ledger"
+        ):
+            empty_log.append(object_id=OBJECT_ID, event_type="report_received")
+        assert any(
+            r.levelno == logging.INFO and "report_received" in r.message
+            for r in caplog.records
+        )
+
+    def test_info_log_contains_event_type(
+        self, empty_log: CaseLedger, caplog: pytest.LogCaptureFixture
+    ):
+        with caplog.at_level(
+            logging.INFO, logger="vultron.core.models.case_ledger"
+        ):
+            empty_log.append(
+                object_id=OBJECT_ID, event_type="participant_added"
+            )
+        assert any("participant_added" in r.message for r in caplog.records)
+
+    def test_info_log_contains_log_index(
+        self, empty_log: CaseLedger, caplog: pytest.LogCaptureFixture
+    ):
+        with caplog.at_level(
+            logging.INFO, logger="vultron.core.models.case_ledger"
+        ):
+            empty_log.append(object_id=OBJECT_ID, event_type="test_event")
+        assert any("log_index=0" in r.message for r in caplog.records)
+
+    def test_info_log_contains_disposition(
+        self, empty_log: CaseLedger, caplog: pytest.LogCaptureFixture
+    ):
+        with caplog.at_level(
+            logging.INFO, logger="vultron.core.models.case_ledger"
+        ):
+            empty_log.append(
+                object_id=OBJECT_ID,
+                event_type="test_event",
+                disposition="recorded",
+            )
+        assert any("recorded" in r.message for r in caplog.records)
+
+    def test_info_log_rejected_disposition(
+        self, empty_log: CaseLedger, caplog: pytest.LogCaptureFixture
+    ):
+        with caplog.at_level(
+            logging.INFO, logger="vultron.core.models.case_ledger"
+        ):
+            empty_log.append(
+                object_id=OBJECT_ID,
+                event_type="test_event",
+                disposition="rejected",
+                reason_code="PRECONDITION_FAILED",
+            )
+        assert any("rejected" in r.message for r in caplog.records)
+
+    def test_debug_log_contains_entry_hash(
+        self, empty_log: CaseLedger, caplog: pytest.LogCaptureFixture
+    ):
+        with caplog.at_level(
+            logging.DEBUG, logger="vultron.core.models.case_ledger"
+        ):
+            entry = empty_log.append(
+                object_id=OBJECT_ID, event_type="test_event"
+            )
+        expected_prefix = entry.entry_hash[:16]
+        assert any(
+            expected_prefix in r.message
+            for r in caplog.records
+            if r.levelno == logging.DEBUG
+        )
+
+    def test_debug_log_emitted_with_payload(
+        self, empty_log: CaseLedger, caplog: pytest.LogCaptureFixture
+    ):
+        snap = {"id": OBJECT_ID, "type": "Create"}
+        with caplog.at_level(
+            logging.DEBUG, logger="vultron.core.models.case_ledger"
+        ):
+            empty_log.append(
+                object_id=OBJECT_ID,
+                event_type="test_event",
+                payload_snapshot=snap,
+            )
+        assert any(
+            r.levelno == logging.DEBUG and "Create" in r.message
+            for r in caplog.records
+        )
 
 
 # ---------------------------------------------------------------------------
