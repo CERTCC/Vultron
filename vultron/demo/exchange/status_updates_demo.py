@@ -299,7 +299,7 @@ def demo_status_workflow(
             vfd_state=CS_vfd.vfd,
             attributed_to=finder.id_,
             em_consent_state=PEC.NO_EMBARGO,
-            cvd_role=CVDRole.FINDER,
+            cvd_role=[CVDRole.FINDER],
             case_status=case_status,
         )
         create_pstatus_activity = create_status_for_participant_activity(

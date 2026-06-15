@@ -213,7 +213,7 @@ class TestCreateCaseParticipantNode:
             attributed_to=actor_id,
             rm_state=RM.ACCEPTED,
             em_consent_state=PEC.SIGNATORY,
-            cvd_role=CVDRole.FINDER,
+            cvd_role=[CVDRole.FINDER],
         )
         bt_scenario.dl.create(existing)
 

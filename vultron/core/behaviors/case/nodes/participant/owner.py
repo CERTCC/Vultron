@@ -72,7 +72,7 @@ def _build_owner_initial_status(
                 rm_state=initial_rm_state,
                 attributed_to=actor_id,
                 em_consent_state=PEC.NO_EMBARGO,
-                cvd_role=CVDRole.CASE_OWNER,
+                cvd_role=[CVDRole.CASE_OWNER],
             )
 
     return ParticipantStatus(
@@ -80,7 +80,7 @@ def _build_owner_initial_status(
         rm_state=initial_rm_state,
         attributed_to=actor_id,
         em_consent_state=PEC.NO_EMBARGO,
-        cvd_role=CVDRole.CASE_OWNER,
+        cvd_role=[CVDRole.CASE_OWNER],
     )
 
 

@@ -39,25 +39,29 @@ def coerce_em_consent_state(value: object) -> PEC | None:
     )
 
 
-def primary_cvd_role(roles: object) -> CVDRole:
-    role_priority = [
-        CVDRole.CASE_OWNER,
-        CVDRole.CASE_MANAGER,
-        CVDRole.REPORTER,
-        CVDRole.FINDER,
-        CVDRole.VENDOR,
-        CVDRole.DEPLOYER,
-        CVDRole.COORDINATOR,
-        CVDRole.OTHER,
-    ]
-    if isinstance(roles, list):
-        role_set = {role for role in roles if isinstance(role, CVDRole)}
-    else:
-        role_set = set()
-    for role in role_priority:
-        if role in role_set:
-            return role
-    return CVDRole.OTHER
+def coerce_cvd_roles(value: object) -> list[CVDRole]:
+    if value is None:
+        return [CVDRole.OTHER]
+    if isinstance(value, CVDRole):
+        return [value]
+    if isinstance(value, str):
+        return [CVDRole(value.lower())]
+    if isinstance(value, list):
+        if not value:
+            return [CVDRole.OTHER]
+        roles: list[CVDRole] = []
+        for item in value:
+            if isinstance(item, CVDRole):
+                roles.append(item)
+                continue
+            if isinstance(item, str):
+                roles.append(CVDRole(item.lower()))
+                continue
+            raise TypeError(
+                f"Unsupported cvd_role item type: {type(item).__name__}"
+            )
+        return roles
+    raise TypeError(f"Unsupported cvd_role type: {type(value).__name__}")
 
 
 class ParticipantStatus(CoreObject):
@@ -89,8 +93,8 @@ class ParticipantStatus(CoreObject):
         validation_alias="emConsentState",
         serialization_alias="emConsentState",
     )
-    cvd_role: CVDRole = Field(
-        default=CVDRole.OTHER,
+    cvd_role: list[CVDRole] = Field(
+        default_factory=lambda: [CVDRole.OTHER],
         validation_alias="cvdRole",
         serialization_alias="cvdRole",
     )
@@ -104,6 +108,10 @@ class ParticipantStatus(CoreObject):
     @field_serializer("vfd_state")
     def _serialize_vfd_state(self, v: CS_vfd) -> str:
         return v.name
+
+    @field_serializer("cvd_role")
+    def _serialize_cvd_role(self, roles: list[CVDRole]) -> list[str]:
+        return [role.name for role in roles]
 
     @field_validator("rm_state", mode="before")
     @classmethod
@@ -126,7 +134,5 @@ class ParticipantStatus(CoreObject):
 
     @field_validator("cvd_role", mode="before")
     @classmethod
-    def _validate_cvd_role(cls, v: object) -> CVDRole:
-        if isinstance(v, str):
-            return CVDRole(v.lower())
-        return v  # type: ignore[return-value]
+    def _validate_cvd_role(cls, v: object) -> list[CVDRole]:
+        return coerce_cvd_roles(v)

@@ -41,8 +41,8 @@ from pydantic import Field, field_serializer, field_validator, model_validator
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.participant_status import (
     ParticipantStatus,
+    coerce_cvd_roles,
     coerce_em_consent_state,
-    primary_cvd_role,
 )
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM, is_valid_rm_transition
@@ -109,7 +109,7 @@ class CaseParticipant(CoreObject):
                 em_consent_state=coerce_em_consent_state(
                     self.embargo_consent_state
                 ),
-                cvd_role=primary_cvd_role(self.case_roles),
+                cvd_role=coerce_cvd_roles(self.case_roles),
             ),
         ]
         return self
@@ -118,7 +118,7 @@ class CaseParticipant(CoreObject):
         if not self.participant_statuses:
             return
         latest = self.participant_statuses[-1]
-        latest.cvd_role = primary_cvd_role(self.case_roles)
+        latest.cvd_role = coerce_cvd_roles(self.case_roles)
         latest.em_consent_state = coerce_em_consent_state(
             self.embargo_consent_state
         )
@@ -169,7 +169,7 @@ class CaseParticipant(CoreObject):
                 em_consent_state=coerce_em_consent_state(
                     self.embargo_consent_state
                 ),
-                cvd_role=primary_cvd_role(self.case_roles),
+                cvd_role=coerce_cvd_roles(self.case_roles),
             )
         )
         return True
@@ -288,7 +288,7 @@ class ReporterParticipant(CaseParticipant):
                 em_consent_state=coerce_em_consent_state(
                     self.embargo_consent_state
                 ),
-                cvd_role=primary_cvd_role(self.case_roles),
+                cvd_role=coerce_cvd_roles(self.case_roles),
             )
         ]
         return self
@@ -317,7 +317,7 @@ class FinderReporterParticipant(CaseParticipant):
                 em_consent_state=coerce_em_consent_state(
                     self.embargo_consent_state
                 ),
-                cvd_role=primary_cvd_role(self.case_roles),
+                cvd_role=coerce_cvd_roles(self.case_roles),
             )
         ]
         return self

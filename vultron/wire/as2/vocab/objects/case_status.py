@@ -25,6 +25,7 @@ from pydantic import Field, field_serializer, field_validator, model_validator
 from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
 from vultron.core.models.participant_status import (
     ParticipantStatus as CoreParticipantStatus,
+    coerce_cvd_roles,
 )
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -129,8 +130,8 @@ class ParticipantStatus(VultronAS2Object):
         validation_alias="emConsentState",
         serialization_alias="emConsentState",
     )
-    cvd_role: CVDRole = Field(
-        default=CVDRole.OTHER,
+    cvd_role: list[CVDRole] = Field(
+        default_factory=lambda: [CVDRole.OTHER],
         validation_alias="cvdRole",
         serialization_alias="cvdRole",
     )
@@ -167,9 +168,11 @@ class ParticipantStatus(VultronAS2Object):
 
     @field_validator("cvd_role", mode="before")
     def validate_cvd_role(cls, v):
-        if isinstance(v, str):
-            return CVDRole(v.lower())
-        return v
+        return coerce_cvd_roles(v)
+
+    @field_serializer("cvd_role")
+    def serialize_cvd_role(self, cvd_role: list[CVDRole]) -> list[str]:
+        return [role.name for role in cvd_role]
 
     @model_validator(mode="after")
     def set_name(self):

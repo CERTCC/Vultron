@@ -97,7 +97,7 @@ def _get_or_create_accepted_status(
     report_id: str | None,
     node_name: str,
     node_logger: logging.Logger,
-    cvd_role: CVDRole,
+    cvd_role: list[CVDRole],
     em_consent_state: PEC | None,
 ) -> ParticipantStatus | None:
     if report_id is None:

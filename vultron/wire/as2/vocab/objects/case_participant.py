@@ -36,8 +36,8 @@ from vultron.core.models.case_participant import (
     VultronParticipant,
 )
 from vultron.core.models.participant_status import (
+    coerce_cvd_roles,
     coerce_em_consent_state,
-    primary_cvd_role,
 )
 from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.core.states.roles import CVDRole, serialize_roles, validate_roles
@@ -160,7 +160,7 @@ class CaseParticipant(VultronAS2Object):
                 em_consent_state=coerce_em_consent_state(
                     self.embargo_consent_state
                 ),
-                cvd_role=primary_cvd_role(self.case_roles),
+                cvd_role=coerce_cvd_roles(self.case_roles),
             ),
         ]
         return self
@@ -169,7 +169,7 @@ class CaseParticipant(VultronAS2Object):
         if not self.participant_statuses:
             return
         latest = self.participant_statuses[-1]
-        latest.cvd_role = primary_cvd_role(self.case_roles)
+        latest.cvd_role = coerce_cvd_roles(self.case_roles)
         latest.em_consent_state = coerce_em_consent_state(
             self.embargo_consent_state
         )
@@ -224,7 +224,7 @@ class CaseParticipant(VultronAS2Object):
                 em_consent_state=coerce_em_consent_state(
                     self.embargo_consent_state
                 ),
-                cvd_role=primary_cvd_role(self.case_roles),
+                cvd_role=coerce_cvd_roles(self.case_roles),
             )
         )
         return True

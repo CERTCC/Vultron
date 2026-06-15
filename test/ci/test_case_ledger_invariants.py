@@ -555,7 +555,7 @@ def test_invariant_8_late_joiner_has_full_history(
 def test_invariant_9_participant_status_schema_completeness(
     case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
-    """Every ParticipantStatus snapshot includes emConsentState and cvdRole (AC-4.9)."""
+    """Every ParticipantStatus snapshot includes emConsentState and cvdRole list (AC-4.9)."""
     auth = _auth_entries(case_ledger_replicas)
     status_entries = [
         e for e in auth if _event_type(e) == "add_participant_status"
@@ -584,7 +584,9 @@ def test_invariant_9_participant_status_schema_completeness(
             *(role.name for role in CVDRole),
             *(role.value for role in CVDRole),
         }
-        if cvd_role not in valid_roles:
+        if not isinstance(cvd_role, list) or not cvd_role:
+            missing_fields.append("non-empty cvdRole list")
+        elif any(role not in valid_roles for role in cvd_role):
             missing_fields.append("valid cvdRole value")
         if missing_fields:
             incomplete.append(

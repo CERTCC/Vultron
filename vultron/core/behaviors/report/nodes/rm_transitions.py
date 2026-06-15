@@ -145,7 +145,7 @@ class TransitionRMtoValid(DataLayerAction):
                 attributed_to=self.actor_id,
                 rm_state=RM.VALID,
                 em_consent_state=PEC.NO_EMBARGO,
-                cvd_role=CVDRole.REPORTER,
+                cvd_role=[CVDRole.REPORTER],
             )
             _idempotent_create(
                 self.datalayer,
@@ -221,7 +221,7 @@ class TransitionRMtoInvalid(DataLayerAction):
                 attributed_to=self.actor_id,
                 rm_state=RM.INVALID,
                 em_consent_state=PEC.NO_EMBARGO,
-                cvd_role=CVDRole.REPORTER,
+                cvd_role=[CVDRole.REPORTER],
             )
             _idempotent_create(
                 self.datalayer,
@@ -291,7 +291,7 @@ class TransitionRMtoClosed(DataLayerAction):
                 attributed_to=self.actor_id,
                 rm_state=RM.CLOSED,
                 em_consent_state=PEC.NO_EMBARGO,
-                cvd_role=CVDRole.REPORTER,
+                cvd_role=[CVDRole.REPORTER],
             )
             _idempotent_create(
                 self.datalayer,

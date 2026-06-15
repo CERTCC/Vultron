@@ -35,7 +35,7 @@ from vultron.core.behaviors.case.nodes.participant.common import (
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.participant_status import (
     ParticipantStatus,
-    primary_cvd_role,
+    coerce_cvd_roles,
 )
 from vultron.core.models.protocols import CaseModel, is_case_model
 from vultron.core.models.report_case_link import VultronReportCaseLink
@@ -79,7 +79,7 @@ class ResolveParticipantAcceptedStatusNode(DataLayerAction):
                 self.report_id,
                 self.name,
                 self.logger,
-                cvd_role=primary_cvd_role(self.roles),
+                cvd_role=coerce_cvd_roles(self.roles),
                 em_consent_state=PEC.NO_EMBARGO,
             )
         )

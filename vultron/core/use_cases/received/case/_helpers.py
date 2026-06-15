@@ -9,8 +9,8 @@ from vultron.core.behaviors.case.update_support import (
 from vultron.core.models.participant import VultronParticipant
 from vultron.core.models.participant_status import (
     ParticipantStatus,
+    coerce_cvd_roles,
     coerce_em_consent_state,
-    primary_cvd_role,
 )
 from vultron.core.models.protocols import CaseModel
 from vultron.core.models.report_case_link import VultronReportCaseLink
@@ -217,7 +217,7 @@ def _ensure_reporter_participant(
         context=case_id,
         attributed_to=reporter_actor_id,
         em_consent_state=PEC.NO_EMBARGO,
-        cvd_role=CVDRole.REPORTER,
+        cvd_role=[CVDRole.REPORTER],
     )
     participant = VultronParticipant(
         id_=participant_id,
@@ -263,7 +263,7 @@ def _upgrade_participant_to_accepted(
         em_consent_state=coerce_em_consent_state(
             getattr(existing, "embargo_consent_state", None)
         ),
-        cvd_role=primary_cvd_role(getattr(existing, "case_roles", [])),
+        cvd_role=coerce_cvd_roles(getattr(existing, "case_roles", [])),
     )
     try:
         dl.create(upgrade_status)
