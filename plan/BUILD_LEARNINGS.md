@@ -150,3 +150,13 @@ CaseActor-only, emit nodes must fail fast before queueing when no routable
 CaseActor recipient exists; otherwise outbox enforcement raises
 `VultronOutboxToFieldMissingError` later and masks the true sender-side
 routing defect.
+
+### 2026-06-15 LEDGER-SNAPSHOT-933 — inline nested refs with case-context guard
+
+Inlining nested payloadSnapshot references by blindly resolving `dl.read(id)`
+is unsafe: it can leak unrelated local objects into canonical
+`CaseLedgerEntry` snapshots when inbound activities carry attacker-controlled
+IDs. The inlining path must enforce a case-context match (`resolved.context ==
+payloadSnapshot.context`) before replacing any bare ID with an inline object.
+This keeps CLP-07 self-contained snapshots while preventing cross-case data
+disclosure.
