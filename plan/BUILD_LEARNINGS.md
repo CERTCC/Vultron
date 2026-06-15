@@ -99,3 +99,14 @@ conftest.
 but still flow through append/broadcast/log-cascade paths as new status IDs.
 Guarding terminal `RM.CLOSED` first prevents duplicate closure cascades and
 keeps `close_case` retries from creating new canonical ledger entries.
+
+### 2026-06-15 LEDGER-INVARIANTS-950 — demo_get_case_ledger ignores actor_id; in-process tests see unified log
+
+`demo_triggers.demo_get_case_ledger` ignores the `actor_id` path parameter
+(`# noqa: ARG001`) and returns all `CaseLedgerEntry` objects for the case from
+the shared DataLayer.  In the single-DataLayer test environment the "case-actor
+log" is therefore the union of all actors' entries.  Test helpers should be
+named `_fetch_case_log` (not `_fetch_case_actor_log`) and docstrings must say
+"combined case log" to avoid implying per-replica isolation.  The event types
+currently recorded in this unified log are `add_participant_status` and
+`submit_report` — not the full CI invariant 5 set (pending #789).
