@@ -155,6 +155,6 @@ dev = [
     "pyright>=1.1.410",
     "pytest>=9.0.3",
     "pytest-timeout>=0.5",
-    "types-networkx>=3.6.1.20260518",
+    "types-networkx>=3.6.1.20260612",
     "types-pyyaml>=6.0.12.20260518",
 ]
