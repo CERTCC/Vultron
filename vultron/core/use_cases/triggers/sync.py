@@ -37,9 +37,12 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.sync_helpers import (
+    _find_equivalent_recorded_entry,
+    _reconstruct_tail_hash,
+)
 from vultron.core.use_cases._helpers import case_addressees
 from vultron.core.use_cases._helpers import build_activity_payload_snapshot
-from vultron.core.use_cases.received.sync import _reconstruct_tail_hash
 from vultron.errors import VultronError
 
 if TYPE_CHECKING:
@@ -94,6 +97,12 @@ def _to_persistable_entry(
         reason_code=chain_entry.reason_code,
         reason_detail=chain_entry.reason_detail,
     )
+
+
+def _as_persistable_log_entry(entry: LogEntryModel) -> VultronCaseLedgerEntry:
+    if isinstance(entry, VultronCaseLedgerEntry):
+        return entry
+    return VultronCaseLedgerEntry.model_validate(entry.model_dump(mode="json"))
 
 
 def _fan_out_log_entry(
@@ -190,6 +199,29 @@ def commit_log_entry_trigger(
 
     Spec: SYNC-02-002, SYNC-02-003, SYNC-03-001.
     """
+    normalized_snapshot = payload_snapshot or {}
+    existing = _find_equivalent_recorded_entry(
+        case_id=case_id,
+        object_id=object_id,
+        event_type=event_type,
+        payload_snapshot=normalized_snapshot,
+        dl=dl,
+    )
+    if existing is not None:
+        existing_entry = _as_persistable_log_entry(existing)
+        logger.info(
+            "sync: idempotent commit hit for case '%s' event_type=%s "
+            "object_id='%s' (reusing log_index=%d)",
+            case_id,
+            event_type,
+            object_id,
+            existing_entry.log_index,
+        )
+        _fan_out_log_entry(
+            case_id, existing_entry, actor_id, dl, sync_port=sync_port
+        )
+        return existing_entry
+
     tail_hash, tail_index = _reconstruct_tail_hash(case_id, dl)
 
     # Create the new entry directly using HashChainLedgerRecord so the entry_hash is
@@ -202,7 +234,7 @@ def commit_log_entry_trigger(
         object_id=object_id,
         event_type=event_type,
         disposition=disposition,  # type: ignore[arg-type]
-        payload_snapshot=payload_snapshot or {},
+        payload_snapshot=normalized_snapshot,
         prev_log_hash=tail_hash,
         term=term,
         reason_code=reason_code,

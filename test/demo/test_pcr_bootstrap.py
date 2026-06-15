@@ -348,11 +348,14 @@ class TestBootstrapSequence:
             f"{_PARTICIPANT_BASE}/api/v2/actors/participant-pcr-006-ac1"
         )
         actor_dl = participant_iso.dl.clone_for_actor(participant_actor_id)
-        assert actor_dl.inbox_list() == [], (
-            "Participant actor's inbox queue was not drained after "
-            "processing Announce(VulnerabilityCase).  The inbox handler "
-            "may not have run (PCR-07-006 AC-1)."
-        )
+        try:
+            assert actor_dl.inbox_list() == [], (
+                "Participant actor's inbox queue was not drained after "
+                "processing Announce(VulnerabilityCase).  The inbox handler "
+                "may not have run (PCR-07-006 AC-1)."
+            )
+        finally:
+            actor_dl.close()
 
         replica = participant_iso.dl.read(case_id)
         assert replica is not None, (
@@ -483,8 +486,11 @@ class TestBootstrapSequence:
         # Assert 3: The actor's inbox queue must be drained, confirming
         # inbox_handler ran and dispatched the Add(Note) activity.
         actor_dl = participant_iso.dl.clone_for_actor(actor_id)
-        assert actor_dl.inbox_list() == [], (
-            f"Actor '{actor_id}' inbox queue was not drained after "
-            f"Add(Note) was processed. The inbox handler may not have "
-            f"run or may have re-queued the activity (PCR-07-006 AC-2)."
-        )
+        try:
+            assert actor_dl.inbox_list() == [], (
+                f"Actor '{actor_id}' inbox queue was not drained after "
+                f"Add(Note) was processed. The inbox handler may not have "
+                f"run or may have re-queued the activity (PCR-07-006 AC-2)."
+            )
+        finally:
+            actor_dl.close()

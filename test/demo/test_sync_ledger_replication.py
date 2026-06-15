@@ -241,55 +241,61 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
     )
     peer_actor_dl = peer_iso.dl.clone_for_actor(peer_actor_id)
     case_actor_dl = case_actor_iso.dl.clone_for_actor(case_actor_id)
-    handle_inbox_item(
-        actor_id=peer_actor_id,
-        obj=out_of_chain_announce,
-        dl=peer_iso.dl,
-        dispatcher=peer_iso.app.state.dispatcher,
-    )
-    peer_reject_events = [
-        cast(RejectLogEntryReceivedEvent, extract_event(activity))
-        for activity in peer_iso.dl.list_objects("Reject")
-    ]
-    assert peer_reject_events, "Expected peer to emit Reject(CaseLedgerEntry)."
-    emitted_reject_event = peer_reject_events[-1]
-    assert emitted_reject_event.actor_id == peer_actor_id
-    assert emitted_reject_event.last_accepted_hash == entry0.entry_hash
-    assert peer_iso.dl.read(entry2.id_) is None
+    try:
+        handle_inbox_item(
+            actor_id=peer_actor_id,
+            obj=out_of_chain_announce,
+            dl=peer_iso.dl,
+            dispatcher=peer_iso.app.state.dispatcher,
+        )
+        peer_reject_events = [
+            cast(RejectLogEntryReceivedEvent, extract_event(activity))
+            for activity in peer_iso.dl.list_objects("Reject")
+        ]
+        assert (
+            peer_reject_events
+        ), "Expected peer to emit Reject(CaseLedgerEntry)."
+        emitted_reject_event = peer_reject_events[-1]
+        assert emitted_reject_event.actor_id == peer_actor_id
+        assert emitted_reject_event.last_accepted_hash == entry0.entry_hash
+        assert peer_iso.dl.read(entry2.id_) is None
 
-    reject_for_case_actor = cast(
-        RejectLogEntryReceivedEvent,
-        extract_event(
-            reject_log_entry_activity(
-                entry=wire_entry2,
-                context=entry0.entry_hash,
-                actor=peer_actor_id,
-                to=[case_actor_id],
-            )
-        ),
-    )
+        reject_for_case_actor = cast(
+            RejectLogEntryReceivedEvent,
+            extract_event(
+                reject_log_entry_activity(
+                    entry=wire_entry2,
+                    context=entry0.entry_hash,
+                    actor=peer_actor_id,
+                    to=[case_actor_id],
+                )
+            ),
+        )
 
-    RejectLedgerEntryReceivedUseCase(
-        case_actor_iso.dl,
-        reject_for_case_actor,
-        sync_port=SyncActivityAdapter(case_actor_iso.dl),
-    ).execute()
+        RejectLedgerEntryReceivedUseCase(
+            case_actor_iso.dl,
+            reject_for_case_actor,
+            sync_port=SyncActivityAdapter(case_actor_iso.dl),
+        ).execute()
 
-    anyio.run(
-        outbox_handler,
-        case_actor_id,
-        case_actor_dl,
-        case_actor_iso.dl,
-        case_actor_iso.app.state.emitter,
-    )
-    anyio.run(
-        inbox_handler,
-        peer_actor_id,
-        peer_iso.dl,
-        peer_actor_dl,
-        peer_iso.app.state.emitter,
-        peer_iso.app.state.dispatcher,
-    )
+        anyio.run(
+            outbox_handler,
+            case_actor_id,
+            case_actor_dl,
+            case_actor_iso.dl,
+            case_actor_iso.app.state.emitter,
+        )
+        anyio.run(
+            inbox_handler,
+            peer_actor_id,
+            peer_iso.dl,
+            peer_actor_dl,
+            peer_iso.app.state.emitter,
+            peer_iso.app.state.dispatcher,
+        )
+    finally:
+        case_actor_dl.close()
+        peer_actor_dl.close()
 
     state_id = VultronReplicationState(
         case_id=case.id_, peer_id=peer_actor_id

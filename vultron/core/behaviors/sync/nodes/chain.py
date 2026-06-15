@@ -27,6 +27,7 @@ from vultron.core.models._helpers import _now_utc
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.protocols import is_log_entry_model
+from vultron.core.sync_helpers import _find_equivalent_recorded_entry
 from vultron.core.sync_helpers import _reconstruct_tail_hash
 from vultron.errors import VultronError
 
@@ -213,8 +214,41 @@ class CreateLogEntryNode(DataLayerAction):
         self.blackboard.register_key(
             key="log_entry", access=py_trees.common.Access.WRITE
         )
+        self.blackboard.register_key(
+            key="log_entry_preexisting", access=py_trees.common.Access.WRITE
+        )
 
     def update(self) -> Status:
+        if self.datalayer is None:
+            self.logger.error("%s: DataLayer not available", self.name)
+            return Status.FAILURE
+
+        existing = _find_equivalent_recorded_entry(
+            case_id=self.case_id,
+            object_id=self.object_id,
+            event_type=self.event_type,
+            payload_snapshot=self.payload_snapshot,
+            dl=self.datalayer,
+        )
+        if existing is not None:
+            if isinstance(existing, VultronCaseLedgerEntry):
+                entry = existing
+            else:
+                entry = VultronCaseLedgerEntry.model_validate(
+                    existing.model_dump(mode="json")
+                )
+            self.blackboard.log_entry = entry
+            self.blackboard.log_entry_preexisting = True
+            self.logger.info(
+                "%s: reusing existing log entry case_id=%s event_type=%s "
+                "log_index=%d",
+                self.name,
+                entry.case_id,
+                entry.event_type,
+                entry.log_index,
+            )
+            return Status.SUCCESS
+
         tail_hash = self.blackboard.tail_hash
         tail_index = self.blackboard.tail_index
         chain_entry = HashChainLedgerRecord(
@@ -230,6 +264,7 @@ class CreateLogEntryNode(DataLayerAction):
             reason_detail=self.reason_detail,
         )
         self.blackboard.log_entry = _to_persistable_entry(chain_entry)
+        self.blackboard.log_entry_preexisting = False
         return Status.SUCCESS
 
 
@@ -239,6 +274,9 @@ class PersistLogEntryNode(DataLayerAction):
         self.blackboard.register_key(
             key="log_entry", access=py_trees.common.Access.READ
         )
+        self.blackboard.register_key(
+            key="log_entry_preexisting", access=py_trees.common.Access.READ
+        )
 
     def update(self) -> Status:
         if self.datalayer is None:
@@ -246,6 +284,22 @@ class PersistLogEntryNode(DataLayerAction):
             return Status.FAILURE
 
         entry = cast(VultronCaseLedgerEntry, self.blackboard.log_entry)
+        try:
+            preexisting = bool(self.blackboard.log_entry_preexisting)
+        except KeyError:
+            preexisting = False
+        if preexisting:
+            self.logger.info(
+                "%s: log entry already exists for case_id=%s event_type=%s "
+                "log_index=%d actor_id=%s",
+                self.name,
+                entry.case_id,
+                entry.event_type,
+                entry.log_index,
+                self.actor_id,
+            )
+            return Status.SUCCESS
+
         self.datalayer.save(entry)
         self.logger.info(
             "%s: committed log entry case_id=%s event_type=%s log_index=%d actor_id=%s",

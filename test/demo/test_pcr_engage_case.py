@@ -172,7 +172,10 @@ def _drain_case_actor_outbox(owner_iso, case_actor_id: str) -> None:
         case_actor_id: Full ID of the CaseActor.
     """
     case_actor_dl = owner_iso.dl.clone_for_actor(case_actor_id)
-    asyncio.run(outbox_handler(case_actor_id, case_actor_dl, owner_iso.dl))
+    try:
+        asyncio.run(outbox_handler(case_actor_id, case_actor_dl, owner_iso.dl))
+    finally:
+        case_actor_dl.close()
 
 
 def _find_case_actor_id(dl, case_id: str) -> str | None:
@@ -381,7 +384,10 @@ class TestEngageCaseParticipantExpansion:
         reporter_actor_id = str(reporter_actors[0].id_)
         reporter_actor_dl = reporter_iso.dl.clone_for_actor(reporter_actor_id)
 
-        pending = reporter_actor_dl.inbox_list()
+        try:
+            pending = reporter_actor_dl.inbox_list()
+        finally:
+            reporter_actor_dl.close()
         assert pending == [], (
             f"Reporter actor inbox queue is not empty after "
             f"Join(VulnerabilityCase) processing.  "
