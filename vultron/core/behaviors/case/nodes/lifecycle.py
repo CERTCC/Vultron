@@ -32,36 +32,28 @@ from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import (
+    CaseOutboxPersistence,
+    CasePersistence,
+)
+from vultron.core.use_cases._helpers import build_activity_payload_snapshot
 
 logger = logging.getLogger(__name__)
 
 
-def _extract_payload_snapshot(activity: Any) -> dict[str, Any]:
+def _extract_payload_snapshot(
+    activity: Any, dl: CasePersistence | None = None
+) -> dict[str, Any]:
     """Build a normalized payload snapshot for case-ledger commits."""
     event_activity = getattr(activity, "activity", None)
-    if event_activity is not None and hasattr(event_activity, "model_dump"):
+    if event_activity is not None:
         return cast(
             dict[str, Any],
-            event_activity.model_dump(
-                mode="json",
-                by_alias=True,
-                serialize_as_any=True,
-                exclude_none=True,
-            ),
+            build_activity_payload_snapshot(event_activity, dl=dl),
         )
-
-    if hasattr(activity, "model_dump"):
-        return cast(
-            dict[str, Any],
-            activity.model_dump(
-                mode="json",
-                by_alias=True,
-                serialize_as_any=True,
-                exclude_none=True,
-            ),
-        )
-    return {}
+    return cast(
+        dict[str, Any], build_activity_payload_snapshot(activity, dl=dl)
+    )
 
 
 class CommitCaseLedgerEntryNode(DataLayerAction):
@@ -157,7 +149,9 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
             object_id = case_id
             event_type = "case_event"
         payload_snapshot = (
-            _extract_payload_snapshot(activity) if activity is not None else {}
+            _extract_payload_snapshot(activity, dl=self.datalayer)
+            if activity is not None
+            else {}
         )
 
         tree = create_commit_log_entry_tree(

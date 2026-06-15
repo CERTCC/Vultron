@@ -52,7 +52,7 @@ def _commit_embargo_log_cascade(
 
     Args:
         payload_snapshot: Optional normalised AS2 activity snapshot.  Pass
-            the result of ``extract_activity_snapshot(request)`` to ensure
+            the result of ``extract_activity_snapshot(request, dl=dl)`` to ensure
             each log entry carries the full inbound AS2 activity payload.
     """
     from vultron.core.use_cases.received.actor import _find_case_actor_id
@@ -181,7 +181,7 @@ class AddEmbargoEventToCaseReceivedUseCase:
         tree = add_embargo_to_case_tree(
             case_id=case_id,
             embargo_id=embargo_id,
-            payload_snapshot=extract_activity_snapshot(request),
+            payload_snapshot=extract_activity_snapshot(request, dl=self._dl),
         )
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
@@ -258,7 +258,7 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
             dl=self._dl,
             receiving_actor_id=request.receiving_actor_id,
             sync_port=self._sync_port,
-            payload_snapshot=extract_activity_snapshot(request),
+            payload_snapshot=extract_activity_snapshot(request, dl=self._dl),
         )
 
 
@@ -311,7 +311,7 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             case_id=case_id,
             invitee_id=invitee_id,
             invite_id=invite_id,
-            payload_snapshot=extract_activity_snapshot(request),
+            payload_snapshot=extract_activity_snapshot(request, dl=self._dl),
         )
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
@@ -370,7 +370,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             embargo_id=embargo_id,
             accepting_actor_id=accepting_actor_id,
             invite_id=invite_id,
-            payload_snapshot=extract_activity_snapshot(request),
+            payload_snapshot=extract_activity_snapshot(request, dl=self._dl),
         )
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
@@ -438,7 +438,7 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             rejecting_actor_id=rejecting_actor_id,
             invite_id=invite_id or "",
             embargo_id=embargo_id,
-            payload_snapshot=extract_activity_snapshot(request),
+            payload_snapshot=extract_activity_snapshot(request, dl=self._dl),
         )
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(

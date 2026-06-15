@@ -253,5 +253,5 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             actor_id=actor_id,
             dl=self._dl,
             sync_port=self._sync_port,
-            payload_snapshot=extract_activity_snapshot(request),
+            payload_snapshot=extract_activity_snapshot(request, dl=self._dl),
         )
