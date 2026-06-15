@@ -120,3 +120,15 @@ named `_fetch_case_log` (not `_fetch_case_actor_log`) and docstrings must say
 "combined case log" to avoid implying per-replica isolation.  The event types
 currently recorded in this unified log are `add_participant_status` and
 `submit_report` — not the full CI invariant 5 set (pending #789).
+
+### 2026-06-15 DEMO-CI-DIAGNOSTICS-951 — inbox logger is uvicorn.error, not module path
+
+When documenting or grepping container logs for the inbox receipt layer
+(Layer 2 of the 3-layer model), the logger is `uvicorn.error` — not the
+Python module path `vultron.adapters.driving.fastapi.routers.actors`.
+The actors router explicitly overrides the module-default logger with
+`logging.getLogger("uvicorn.error")`. Similarly, `PersistLogEntryNode`
+uses a class-qualified logger name:
+`vultron.core.behaviors.sync.nodes.chain.PersistLogEntryNode` (not the
+bare module path). Always verify logger names from source before writing
+diagnostic docs or log-filter commands.
