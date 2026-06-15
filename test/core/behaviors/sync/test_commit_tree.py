@@ -123,3 +123,38 @@ def test_commit_tree_uses_existing_tail_hash(bridge, datalayer, case_obj):
     assert len(entries) == 2
     assert entries[1].log_index == 1
     assert entries[1].prev_log_hash == first_entry.entry_hash
+
+
+def test_commit_tree_reuses_equivalent_entry(bridge, datalayer, case_obj):
+    sync_port = MagicMock(spec=SyncActivityPort)
+    tree = create_commit_log_entry_tree(
+        case_id=CASE_ID,
+        object_id="https://example.org/activities/act-3",
+        event_type="case_updated",
+        payload_snapshot={"k": "v"},
+    )
+
+    first = bridge.execute_with_setup(
+        tree=tree,
+        actor_id=OWNER_ACTOR_ID,
+        sync_port=sync_port,
+    )
+    second = bridge.execute_with_setup(
+        tree=create_commit_log_entry_tree(
+            case_id=CASE_ID,
+            object_id="https://example.org/activities/act-3",
+            event_type="case_updated",
+            payload_snapshot={"k": "v"},
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        sync_port=sync_port,
+    )
+
+    assert first.status == Status.SUCCESS
+    assert second.status == Status.SUCCESS
+    entries = [
+        entry
+        for entry in datalayer.list_objects("CaseLedgerEntry")
+        if entry.case_id == CASE_ID
+    ]
+    assert len(entries) == 1
