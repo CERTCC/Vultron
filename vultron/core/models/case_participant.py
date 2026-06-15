@@ -39,7 +39,11 @@ from typing import Literal
 from pydantic import Field, field_serializer, field_validator, model_validator
 
 from vultron.core.models.base import CoreObject, NonEmptyString
-from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.participant_status import (
+    ParticipantStatus,
+    coerce_em_consent_state,
+    primary_cvd_role,
+)
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.core.states.roles import CVDRole, serialize_roles, validate_roles
@@ -102,9 +106,22 @@ class CaseParticipant(CoreObject):
             ParticipantStatus(
                 context=self.context or self.id_,
                 attributed_to=self.attributed_to,
+                em_consent_state=coerce_em_consent_state(
+                    self.embargo_consent_state
+                ),
+                cvd_role=primary_cvd_role(self.case_roles),
             ),
         ]
         return self
+
+    def _sync_latest_status_metadata(self) -> None:
+        if not self.participant_statuses:
+            return
+        latest = self.participant_statuses[-1]
+        latest.cvd_role = primary_cvd_role(self.case_roles)
+        latest.em_consent_state = coerce_em_consent_state(
+            self.embargo_consent_state
+        )
 
     @property
     def participant_status(self) -> ParticipantStatus | None:
@@ -149,6 +166,10 @@ class CaseParticipant(CoreObject):
                 rm_state=rm_state,
                 context=context,
                 attributed_to=actor,
+                em_consent_state=coerce_em_consent_state(
+                    self.embargo_consent_state
+                ),
+                cvd_role=primary_cvd_role(self.case_roles),
             )
         )
         return True
@@ -184,6 +205,7 @@ class CaseParticipant(CoreObject):
                     f"Role {role} was already present in participant.case_roles"
                 )
         self.case_roles = list(roles)
+        self._sync_latest_status_metadata()
 
     def remove_role(
         self, role: CVDRole, raise_when_missing: bool = False
@@ -216,6 +238,7 @@ class CaseParticipant(CoreObject):
                     f"Role {role} was not present to delete from participant.case_roles"
                 )
         self.case_roles = list(roles)
+        self._sync_latest_status_metadata()
 
     def has_role(self, role: CVDRole) -> bool:
         """Return ``True`` when the participant holds the given role."""
@@ -262,6 +285,10 @@ class ReporterParticipant(CaseParticipant):
                 context=self.context or self.id_,
                 attributed_to=self.attributed_to,
                 rm_state=RM.ACCEPTED,
+                em_consent_state=coerce_em_consent_state(
+                    self.embargo_consent_state
+                ),
+                cvd_role=primary_cvd_role(self.case_roles),
             )
         ]
         return self
@@ -287,6 +314,10 @@ class FinderReporterParticipant(CaseParticipant):
                 context=self.context or self.id_,
                 attributed_to=self.attributed_to,
                 rm_state=RM.ACCEPTED,
+                em_consent_state=coerce_em_consent_state(
+                    self.embargo_consent_state
+                ),
+                cvd_role=primary_cvd_role(self.case_roles),
             )
         ]
         return self

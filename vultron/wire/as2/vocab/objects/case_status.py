@@ -29,6 +29,8 @@ from vultron.core.models.participant_status import (
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.roles import CVDRole
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef, as_Link
@@ -122,6 +124,16 @@ class ParticipantStatus(VultronAS2Object):
     vfd_state: CS_vfd = CS_vfd.vfd
     case_engagement: bool = True
     embargo_adherence: bool = True
+    em_consent_state: PEC | None = Field(
+        default=None,
+        validation_alias="emConsentState",
+        serialization_alias="emConsentState",
+    )
+    cvd_role: CVDRole = Field(
+        default=CVDRole.OTHER,
+        validation_alias="cvdRole",
+        serialization_alias="cvdRole",
+    )
     tracking_id: NonEmptyString | None = None
     case_status: CaseStatus | None = None
 
@@ -143,6 +155,20 @@ class ParticipantStatus(VultronAS2Object):
     def validate_vfd_state(cls, v):
         if isinstance(v, str):
             return CS_vfd[v]
+        return v
+
+    @field_validator("em_consent_state", mode="before")
+    def validate_em_consent_state(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            return PEC[v]
+        return v
+
+    @field_validator("cvd_role", mode="before")
+    def validate_cvd_role(cls, v):
+        if isinstance(v, str):
+            return CVDRole(v.lower())
         return v
 
     @model_validator(mode="after")

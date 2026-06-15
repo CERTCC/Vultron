@@ -51,6 +51,7 @@ from vultron.wire.as2.vocab.objects.case_participant import (
     CaseParticipant,
 )
 from vultron.core.states.roles import CVDRole
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.wire.as2.vocab.objects.case_status import (
     CaseStatus,
     ParticipantStatus,
@@ -297,6 +298,8 @@ def demo_status_workflow(
             rm_state=RM.RECEIVED,
             vfd_state=CS_vfd.vfd,
             attributed_to=finder.id_,
+            em_consent_state=PEC.NO_EMBARGO,
+            cvd_role=CVDRole.FINDER,
             case_status=case_status,
         )
         create_pstatus_activity = create_status_for_participant_activity(

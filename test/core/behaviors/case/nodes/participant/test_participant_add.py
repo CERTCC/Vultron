@@ -36,11 +36,14 @@ from vultron.core.behaviors.case.nodes.participant import (
     SeedParticipantAsSignatoryNode,
 )
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.vultron_types import VultronCase, VultronCaseActor
 from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.rm import RM
 from vultron.core.states.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.core.use_cases._helpers import _report_phase_status_id
 from test.core.behaviors.bt_harness import BTTestScenario
 
 
@@ -194,3 +197,36 @@ class TestCreateCaseParticipantNode:
         stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
         event_types = [e.event_type for e in stored_case.events]
         assert "participant_added" not in event_types
+
+    def test_preserves_existing_accepted_status_consent_state(
+        self,
+        bt_scenario: BTTestScenario,
+    ) -> None:
+        actor_id = "https://example.org/actors/finder"
+        report_id = "urn:uuid:report-1"
+        status_id = _report_phase_status_id(
+            actor_id, report_id, RM.ACCEPTED.value
+        )
+        existing = ParticipantStatus(
+            id_=status_id,
+            context=report_id,
+            attributed_to=actor_id,
+            rm_state=RM.ACCEPTED,
+            em_consent_state=PEC.SIGNATORY,
+            cvd_role=CVDRole.FINDER,
+        )
+        bt_scenario.dl.create(existing)
+
+        result = bt_scenario.run(
+            ResolveParticipantAcceptedStatusNode(
+                participant_actor_id=actor_id,
+                roles=[CVDRole.FINDER],
+                report_id=report_id,
+            ),
+            actor_id=actor_id,
+        )
+        bt_scenario.assert_success(result)
+
+        refreshed = cast(Any, bt_scenario.dl.read(status_id))
+        assert refreshed is not None
+        assert refreshed.em_consent_state == PEC.SIGNATORY

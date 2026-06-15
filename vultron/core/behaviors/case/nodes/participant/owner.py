@@ -35,6 +35,7 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import is_case_model
 from vultron.core.models.vultron_types import VultronCase, VultronParticipant
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases._helpers import (
@@ -70,12 +71,16 @@ def _build_owner_initial_status(
                 context=case_id,
                 rm_state=initial_rm_state,
                 attributed_to=actor_id,
+                em_consent_state=PEC.NO_EMBARGO,
+                cvd_role=CVDRole.CASE_OWNER,
             )
 
     return ParticipantStatus(
         context=case_id,
         rm_state=initial_rm_state,
         attributed_to=actor_id,
+        em_consent_state=PEC.NO_EMBARGO,
+        cvd_role=CVDRole.CASE_OWNER,
     )
 
 

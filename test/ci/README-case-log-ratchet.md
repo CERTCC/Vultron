@@ -54,7 +54,7 @@ Per-actor parametrized tests (12–14) show status per actor role.
 | 6 | No RM-state oscillation after `CLOSED` | ✅ | ✅ | ✅ | — |
 | 7 | Log terminates with all participants `RM=CLOSED` | ⏳ | ⏳ | ⏳ | #789 |
 | 8 | Late-joining participants have full pre-join history | ⏳ | ⏳ | ⏳ | #791 |
-| 9 | Every `ParticipantStatus` has `emConsentState`+`cvdRole` | ⏳ | ⏳ | ⏳ | #789 |
+| 9 | Every `ParticipantStatus` has `emConsentState`+`cvdRole` | ✅ | ✅ | ✅ | — |
 | 10 | Nested objects inlined (not bare ID strings) | ✅ | ✅ | ✅ | — |
 | 11 | `payloadSnapshot.context` uses case URI | ✅ | ✅ | ✅ | — |
 | 12 | `logIndex=0` entry is present in actor's log | ✅ | ✅ | ⏳ | #791 |

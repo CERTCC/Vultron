@@ -161,6 +161,7 @@ class CreateCaseParticipantNode(py_trees.composites.Sequence):
             children=[
                 ResolveParticipantAcceptedStatusNode(
                     participant_actor_id=actor_id,
+                    roles=roles,
                     report_id=report_id,
                 ),
                 CreateParticipantNode(

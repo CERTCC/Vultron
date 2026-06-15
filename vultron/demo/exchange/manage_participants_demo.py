@@ -49,6 +49,7 @@ from vultron.wire.as2.vocab.objects.case_participant import (
     CaseParticipant,
 )
 from vultron.core.states.roles import CVDRole
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -251,6 +252,8 @@ def demo_manage_participants_accept(
             rm_state=RM.ACCEPTED,
             vfd_state=CS_vfd.vfd,
             attributed_to=coordinator.id_,
+            em_consent_state=PEC.NO_EMBARGO,
+            cvd_role=CVDRole.COORDINATOR,
         )
         create_status = create_status_for_participant_activity(
             participant_status,

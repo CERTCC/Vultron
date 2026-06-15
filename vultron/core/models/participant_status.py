@@ -21,8 +21,43 @@ from pydantic import Field, field_serializer, field_validator
 
 from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_vfd
+from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.roles import CVDRole
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.case_status import CaseStatus
+
+
+def coerce_em_consent_state(value: object) -> PEC | None:
+    if value is None:
+        return None
+    if isinstance(value, PEC):
+        return value
+    if isinstance(value, str):
+        return PEC[value]
+    raise TypeError(
+        f"Unsupported em_consent_state type: {type(value).__name__}"
+    )
+
+
+def primary_cvd_role(roles: object) -> CVDRole:
+    role_priority = [
+        CVDRole.CASE_OWNER,
+        CVDRole.CASE_MANAGER,
+        CVDRole.REPORTER,
+        CVDRole.FINDER,
+        CVDRole.VENDOR,
+        CVDRole.DEPLOYER,
+        CVDRole.COORDINATOR,
+        CVDRole.OTHER,
+    ]
+    if isinstance(roles, list):
+        role_set = {role for role in roles if isinstance(role, CVDRole)}
+    else:
+        role_set = set()
+    for role in role_priority:
+        if role in role_set:
+            return role
+    return CVDRole.OTHER
 
 
 class ParticipantStatus(CoreObject):
@@ -49,6 +84,16 @@ class ParticipantStatus(CoreObject):
     vfd_state: CS_vfd = CS_vfd.vfd
     case_engagement: bool = True
     embargo_adherence: bool = True
+    em_consent_state: PEC | None = Field(
+        default=None,
+        validation_alias="emConsentState",
+        serialization_alias="emConsentState",
+    )
+    cvd_role: CVDRole = Field(
+        default=CVDRole.OTHER,
+        validation_alias="cvdRole",
+        serialization_alias="cvdRole",
+    )
     tracking_id: NonEmptyString | None = None
     case_status: CaseStatus | None = None
 
@@ -72,4 +117,16 @@ class ParticipantStatus(CoreObject):
     def _validate_vfd_state(cls, v: object) -> CS_vfd:
         if isinstance(v, str):
             return CS_vfd[v]
+        return v  # type: ignore[return-value]
+
+    @field_validator("em_consent_state", mode="before")
+    @classmethod
+    def _validate_em_consent_state(cls, v: object) -> PEC | None:
+        return coerce_em_consent_state(v)
+
+    @field_validator("cvd_role", mode="before")
+    @classmethod
+    def _validate_cvd_role(cls, v: object) -> CVDRole:
+        if isinstance(v, str):
+            return CVDRole(v.lower())
         return v  # type: ignore[return-value]

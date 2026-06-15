@@ -46,6 +46,9 @@ from pathlib import Path
 
 import pytest
 
+from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.roles import CVDRole
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -549,21 +552,10 @@ def test_invariant_8_late_joiner_has_full_history(
 
 
 @pytest.mark.case_ledger_invariants
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "ParticipantStatus entries must include emConsentState and cvdRole; "
-        "requires the ParticipantStatus schema completeness fix (see issue #789)"
-    ),
-)
 def test_invariant_9_participant_status_schema_completeness(
     case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
-    """Every ParticipantStatus snapshot includes emConsentState and cvdRole (AC-4.9).
-
-    When this xfail is unexpectedly promoted to XPASS, remove the
-    ``xfail`` decorator to make it a permanent regression guard.
-    """
+    """Every ParticipantStatus snapshot includes emConsentState and cvdRole (AC-4.9)."""
     auth = _auth_entries(case_ledger_replicas)
     status_entries = [
         e for e in auth if _event_type(e) == "add_participant_status"
@@ -580,6 +572,20 @@ def test_invariant_9_participant_status_schema_completeness(
             missing_fields.append("emConsentState")
         if "cvdRole" not in snap and "cvd_role" not in snap:
             missing_fields.append("cvdRole")
+        em_consent = snap.get("emConsentState", snap.get("em_consent_state"))
+        valid_em_states = {
+            *(state.name for state in PEC),
+            *(state.value for state in PEC),
+        }
+        if em_consent not in valid_em_states:
+            missing_fields.append("valid emConsentState value")
+        cvd_role = snap.get("cvdRole", snap.get("cvd_role"))
+        valid_roles = {
+            *(role.name for role in CVDRole),
+            *(role.value for role in CVDRole),
+        }
+        if cvd_role not in valid_roles:
+            missing_fields.append("valid cvdRole value")
         if missing_fields:
             incomplete.append(
                 f"logIndex={_log_index(entry)}: missing {missing_fields}"

@@ -22,7 +22,11 @@ from vultron.core.behaviors.case.nodes.participant.common import (
 )
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.participant_status import (
+    ParticipantStatus,
+    coerce_em_consent_state,
+    primary_cvd_role,
+)
 from vultron.core.models.protocols import is_case_model
 from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.em import EM
@@ -96,6 +100,19 @@ class CreateParticipantStatusNode(DataLayerAction):
         current_rm, current_vfd = resolve_participant_state_from_dl(
             dl, participant_id
         )
+        participant_obj = dl.read(participant_id)
+        participant_roles = (
+            getattr(participant_obj, "case_roles", [])
+            if participant_obj is not None
+            else []
+        )
+        status_role = primary_cvd_role(participant_roles)
+        raw_consent = (
+            getattr(participant_obj, "embargo_consent_state", None)
+            if participant_obj is not None
+            else None
+        )
+        em_consent_state = coerce_em_consent_state(raw_consent)
 
         status = ParticipantStatus(
             context=self._case_id,
@@ -106,6 +123,8 @@ class CreateParticipantStatusNode(DataLayerAction):
             vfd_state=(
                 self._vfd_state if self._vfd_state is not None else current_vfd
             ),
+            em_consent_state=em_consent_state,
+            cvd_role=status_role,
             case_status=case_status,
         )
         try:

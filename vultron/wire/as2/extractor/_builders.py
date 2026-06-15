@@ -14,6 +14,8 @@ from vultron.core.models._helpers import _now_utc as _core_now_utc
 from vultron.core.models.base import VultronObject
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.enums import VultronObjectType as VOtype
+from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.roles import CVDRole
 from vultron.core.models.vultron_types import (
     CaseStatus,
     EmbargoEvent,
@@ -371,6 +373,16 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
                 or ParticipantStatus.model_fields["rm_state"].default,
                 vfd_state=getattr(obj, "vfd_state", None)
                 or ParticipantStatus.model_fields["vfd_state"].default,
+                em_consent_state=(
+                    PEC[getattr(obj, "em_consent_state")]
+                    if isinstance(getattr(obj, "em_consent_state", None), str)
+                    else getattr(obj, "em_consent_state", None)
+                ),
+                cvd_role=(
+                    CVDRole(getattr(obj, "cvd_role").lower())
+                    if isinstance(getattr(obj, "cvd_role", None), str)
+                    else getattr(obj, "cvd_role", CVDRole.OTHER)
+                ),
                 case_status=core_case_status,
             )
         }
