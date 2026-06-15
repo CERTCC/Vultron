@@ -140,3 +140,13 @@ do not overwrite a non-null `em_consent_state` with default `NO_EMBARGO`.
 Update `cvd_role` as needed, but only backfill consent when it is missing.
 This keeps retries/idempotent paths from silently downgrading consent
 snapshots.
+
+### 2026-06-15 TRIGGER-927-CASEACTOR-ROUTING — report trigger fallback must fail fast on missing CaseActor
+
+Switching sender-side case-scoped report trigger routing from
+`case_addressees()` to CaseActor-only routing exposed hidden fixtures and
+legacy trigger paths that emitted `to=None`. Once case-scoped routing is
+CaseActor-only, emit nodes must fail fast before queueing when no routable
+CaseActor recipient exists; otherwise outbox enforcement raises
+`VultronOutboxToFieldMissingError` later and masks the true sender-side
+routing defect.

@@ -20,7 +20,6 @@ from typing import Any, cast
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.services.embargo_lifecycle import (
@@ -46,26 +45,6 @@ from vultron.errors import (
     VultronValidationError,
 )
 from transitions import MachineError
-
-
-class PersistEmbargoEventNode(DataLayerAction):
-    """Persist the trigger-created embargo event before outbound fan-out."""
-
-    def __init__(self, embargo: EmbargoEvent, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._embargo = embargo
-
-    def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
-        try:
-            self.datalayer.create(self._embargo)
-        except ValueError:
-            self.logger.warning(
-                "EmbargoEvent '%s' already exists", self._embargo.id_
-            )
-        return Status.SUCCESS
 
 
 class ValidateEmbargoRevisionStateNode(DataLayerAction):
@@ -361,95 +340,6 @@ class TerminateEmbargoNode(DataLayerAction):
                 self.case_id,
                 exc,
             )
-
-
-class CommitLogCascadeNode(DataLayerAction):
-    """Commit a CaseLedgerEntry and cascade to all participants.
-
-    Resolves the CaseActor ID from case_id and triggers the
-    ``commit_log_entry_trigger`` to create a log entry and fan it out
-    to all participants.
-
-    Returns SUCCESS when cascade succeeds. Returns FAILURE if cascade
-    dispatch fails (per BT-14-001: peer broadcast nodes must not mask
-    delivery failure with SUCCESS).
-
-    This node is protocol-visible (fan-out to all participants). Per the
-    spec requirement, it MUST propagate FAILURE to the BT when any step
-    of the cascade (activity construction or outbox enqueue) fails.
-    Masking failures with SUCCESS would cause silent state divergence.
-
-    Idempotent: silently succeeds if case_id or object_id is None.
-    """
-
-    def __init__(
-        self,
-        case_id: str,
-        object_id: str,
-        event_type: str,
-        name: str | None = None,
-        payload_snapshot: dict[str, Any] | None = None,
-    ):
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.object_id = object_id
-        self.event_type = event_type
-        self.payload_snapshot = payload_snapshot
-
-    def update(self) -> Status:
-        from vultron.core.use_cases.received.actor import (
-            _find_case_actor_id,
-        )
-        from vultron.core.use_cases.triggers.sync import (
-            commit_log_entry_trigger,
-        )
-
-        if self.datalayer is None:
-            return Status.SUCCESS
-
-        if not self.case_id or not self.object_id:
-            self.logger.warning(
-                "%s: missing case_id or object_id — cascade skipped",
-                self.name,
-            )
-            return Status.SUCCESS
-
-        actor_id = _find_case_actor_id(self.datalayer, self.case_id)
-        if actor_id is None:
-            self.logger.warning(
-                "%s: cannot resolve CaseActor for case '%s'"
-                " — cascade skipped",
-                self.name,
-                self.case_id,
-            )
-            return Status.SUCCESS
-
-        try:
-            commit_log_entry_trigger(
-                case_id=self.case_id,
-                object_id=self.object_id,
-                event_type=self.event_type,
-                actor_id=actor_id,
-                dl=cast(CaseOutboxPersistence, self.datalayer),
-                sync_port=None,
-                payload_snapshot=self.payload_snapshot,
-            )
-        except Exception as exc:
-            self.feedback_message = (
-                f"Cascade failed for case '{self.case_id}': {exc}"
-            )
-            self.logger.error(
-                "%s: %s (BT-14-001: returning FAILURE)",
-                self.name,
-                self.feedback_message,
-            )
-            return Status.FAILURE
-
-        self.feedback_message = (
-            f"Committed log entry '{self.event_type}' for case"
-            f" '{self.case_id}'"
-        )
-        return Status.SUCCESS
 
 
 class SetEmbargoActiveNode(DataLayerAction):

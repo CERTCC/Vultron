@@ -315,17 +315,16 @@ def find_case_by_report_id(
             if is_case_model(linked_case):
                 return linked_case
 
-    for row in (
-        Session(dl._engine)
-        .exec(
+    with Session(dl._engine) as session:
+        rows = session.exec(
             dl._scoped(
                 select(VultronObjectRecord).where(
                     VultronObjectRecord.type_.in_(list(_CASE_TYPES))  # type: ignore[attr-defined]
                 )
             )
-        )
-        .all()
-    ):
+        ).all()
+
+    for row in rows:
         reports = row.data.get("vulnerability_reports", [])
         for entry in reports:
             if entry == report_id:

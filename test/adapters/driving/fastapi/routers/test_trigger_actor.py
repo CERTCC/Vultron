@@ -32,12 +32,14 @@ from vultron.adapters.driving.fastapi.deps import (
     get_trigger_dl,
     get_trigger_service,
 )
+from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.wire.as2.factories import rm_invite_to_case_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCase,
     VulnerabilityCaseStub,
@@ -109,9 +111,27 @@ def other_actor(dl):
 
 @pytest.fixture
 def case_obj(dl, actor):
-    """Create and persist a VulnerabilityCase for tests."""
+    """Create and persist a VulnerabilityCase with a CASE_MANAGER participant."""
+    case_actor = as_Service(name="Case Actor")
+    dl.create(case_actor)
     case = VulnerabilityCase(name="TEST-CASE-001")
+    owner_participant = CaseParticipant(
+        attributed_to=actor.id_,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    case_manager_participant = CaseParticipant(
+        attributed_to=case_actor.id_,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    case.actor_participant_index[actor.id_] = owner_participant.id_
+    case.actor_participant_index[case_actor.id_] = case_manager_participant.id_
+    case.case_participants.append(owner_participant.id_)
+    case.case_participants.append(case_manager_participant.id_)
     dl.create(case)
+    dl.create(owner_participant)
+    dl.create(case_manager_participant)
     return case
 
 
