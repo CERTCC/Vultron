@@ -348,7 +348,7 @@ class BTBridge:
                 feedback_message=msg,
             )
         with _BT_GLOBAL_LOCK:
-            managed_keys = ["datalayer"]
+            managed_keys = ["datalayer", "trigger_activity_factory"]
             storage = py_trees.blackboard.Blackboard.storage
             key_aliases: set[str] = set()
             for key in managed_keys:
@@ -361,21 +361,26 @@ class BTBridge:
             try:
                 return self.execute_tree(bt, max_iterations)
             finally:
-                # Release DataLayer references from the global py_trees
-                # blackboard. setup_tree() writes this key to
-                # Blackboard.storage, which is process-global; without explicit
-                # cleanup the entries persist after execution, keeping
-                # SqliteDataLayer objects (and their underlying sqlite3
-                # connections) alive until the next BT execution overwrites
-                # them. That delayed release causes ResourceWarning: unclosed
-                # database when GC runs at an unpredictable moment — typically
-                # during the next test's SQL activity, which pytest promotes to
-                # a test failure via PytestUnraisableExceptionWarning.
+                # Restore managed blackboard keys to their pre-execution state.
+                # setup_tree() writes these keys to Blackboard.storage, which
+                # is process-global; without explicit cleanup the entries
+                # persist after execution, keeping SqliteDataLayer objects and
+                # TriggerActivityAdapter objects (both hold sqlite3 connections)
+                # alive until the next BT execution overwrites them.  That
+                # delayed release causes ResourceWarning: unclosed database
+                # when GC runs at an unpredictable moment — typically during
+                # the next test's SQL activity, which pytest promotes to a test
+                # failure via PytestUnraisableExceptionWarning (pytest 9.1.0+).
                 #
-                # Only ``datalayer`` is cleaned here. Other keys (for example
-                # ``trigger_activity_factory``) are intentionally left
-                # untouched because existing trees may rely on cross-tree
-                # availability.
+                # ``trigger_activity_factory`` is included here even though
+                # each setup_tree() call re-writes it: restoring the previous
+                # value (or removing it when it was absent) ensures that the
+                # previous TriggerActivityAdapter reference is released
+                # promptly rather than being held until the next execution.
+                # Nested execute_with_setup calls are safe because the RLock
+                # is reentrant and previous_values captures the outer call's
+                # state, so the inner call restores exactly what the outer
+                # call wrote.
                 for _key, (_had_value, _value) in previous_values.items():
                     if _had_value:
                         storage[_key] = _value
