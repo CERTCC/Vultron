@@ -51,6 +51,7 @@ from vultron.core.behaviors.case.nodes.participant.participant_add import (
     CaseHasActiveEmbargoNode,
     CaseHasNoActiveEmbargoNode,
     CreateParticipantNode,
+    EnsureReporterParticipantAtAcceptedNode,
     QueueAddParticipantNotificationNode,
     RecordParticipantAddedEventNode,
     ResolveParticipantAcceptedStatusNode,
@@ -90,6 +91,7 @@ __all__ = [
     # composite subtrees — lazy via __getattr__
     "CreateCaseParticipantNode",
     "CreateParticipantStatusNode",
+    "EnsureReporterParticipantAtAcceptedNode",
 ]
 
 # TYPE_CHECKING stubs so mypy resolves composite names to their actual types.

@@ -34,7 +34,8 @@ from vultron.core.behaviors.case.nodes.participant.common import (
 )
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.protocols import CaseModel, is_case_model
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.roles import CVDRole
@@ -387,4 +388,50 @@ class QueueAddParticipantNotificationNode(DataLayerAction):
             trigger_activity=self.trigger_activity_factory,
         ):
             return Status.FAILURE
+        return Status.SUCCESS
+
+
+class EnsureReporterParticipantAtAcceptedNode(DataLayerAction):
+    """BT leaf node that seeds or upgrades the reporter participant to RM.ACCEPTED.
+
+    Called from ``CreateCaseReceivedUseCase._handle_bootstrap`` via BTBridge
+    after a ``Create(VulnerabilityCase)`` bootstrap.  When participants arrive
+    as bare string IDs, ``_store_embedded_participants`` cannot create records
+    for them.  This node ensures the reporter's participant record exists at
+    ``RM.ACCEPTED`` — inferred from the fact that they submitted a report (#589,
+    #624).
+
+    Args:
+        link: The ``VultronReportCaseLink`` associating the report to the case.
+        case_obj: The bootstrapped ``VulnerabilityCase`` domain object.
+        case_id: ID of the case (for log context).
+    """
+
+    def __init__(
+        self,
+        link: VultronReportCaseLink,
+        case_obj: CaseModel,
+        case_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.link = link
+        self.case_obj = case_obj
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.logger.error("%s: DataLayer not available", self.name)
+            return Status.FAILURE
+
+        from vultron.core.use_cases.received.case._helpers import (
+            _ensure_reporter_participant,
+        )
+
+        _ensure_reporter_participant(
+            self.datalayer,
+            self.link,
+            self.case_obj,
+            self.case_id,
+        )
         return Status.SUCCESS
