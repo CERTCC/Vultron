@@ -132,3 +132,13 @@ uses a class-qualified logger name:
 `vultron.core.behaviors.sync.nodes.chain.PersistLogEntryNode` (not the
 bare module path). Always verify logger names from source before writing
 diagnostic docs or log-filter commands.
+
+### 2026-06-15 TRIGGER-927-CASEACTOR-ROUTING — report trigger fallback must fail fast on missing CaseActor
+
+Switching sender-side case-scoped report trigger routing from
+`case_addressees()` to CaseActor-only routing exposed hidden fixtures and
+legacy trigger paths that emitted `to=None`. Once case-scoped routing is
+CaseActor-only, emit nodes must fail fast before queueing when no routable
+CaseActor recipient exists; otherwise outbox enforcement raises
+`VultronOutboxToFieldMissingError` later and masks the true sender-side
+routing defect.

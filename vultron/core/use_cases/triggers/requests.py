@@ -175,8 +175,8 @@ class AddReportToCaseTriggerRequest(CaseTriggerRequest):
 class SuggestActorToCaseTriggerRequest(CaseTriggerRequest):
     """Trigger request for an actor to recommend another actor to a case.
 
-    Emits a RecommendActorActivity addressed to the case owner (typically
-    the CaseActor), which then autonomously invites the suggested actor.
+    Emits a RecommendActorActivity addressed to the Case Actor, which then
+    autonomously invites the suggested actor.
     """
 
     suggested_actor_id: NonEmptyString
@@ -186,7 +186,7 @@ class AcceptCaseInviteTriggerRequest(TriggerRequest):
     """Trigger request for an invitee to accept a case invitation.
 
     Emits an RmAcceptInviteToCaseActivity queued in the actor's outbox for
-    delivery to the case owner.
+    delivery to the Case Actor that issued the invitation.
     """
 
     invite_id: NonEmptyString

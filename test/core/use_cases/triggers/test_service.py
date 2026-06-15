@@ -111,6 +111,13 @@ def actor(dl):
 
 
 @pytest.fixture
+def reporter(dl):
+    reporter_obj = as_Service(name="Finder Co")
+    dl.create(reporter_obj)
+    return reporter_obj
+
+
+@pytest.fixture
 def report(dl):
     report_obj = VulnerabilityReport(
         name="Test Vulnerability",
@@ -121,9 +128,9 @@ def report(dl):
 
 
 @pytest.fixture
-def offer(dl, report, actor):
+def offer(dl, report, actor, reporter):
     offer_obj = as_Offer(
-        actor=actor.id_,
+        actor=reporter.id_,
         object_=report.id_,
         target=actor.id_,
     )
@@ -132,7 +139,7 @@ def offer(dl, report, actor):
 
 
 @pytest.fixture
-def received_report(dl, actor, report, offer):
+def received_report(dl, actor, reporter, report, offer):
     """Pre-create a VulnerabilityCase for the report at RM.RECEIVED.
 
     Per ADR-0015, the case is created at report receipt.  The validate_report
@@ -147,9 +154,12 @@ def received_report(dl, actor, report, offer):
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        reporter_actor_id=actor.id_,
+        reporter_actor_id=reporter.id_,
     )
     bridge.execute_with_setup(tree, actor_id=actor.id_)
+    case_obj = dl.find_case_by_report_id(report.id_)
+    assert case_obj is not None
+    _add_case_manager(case_obj, dl)
     return report
 
 

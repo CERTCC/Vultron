@@ -15,6 +15,8 @@
 from typing import cast
 from unittest.mock import MagicMock
 
+import pytest
+
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -52,6 +54,22 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
 from vultron.core.models.participant import VultronParticipant
+
+
+@pytest.fixture(autouse=True)
+def _close_sqlite_datalayers(monkeypatch):
+    """Close all SqliteDataLayer instances created during each test."""
+    created: list[SqliteDataLayer] = []
+    original_init = SqliteDataLayer.__init__
+
+    def _tracking_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        created.append(self)
+
+    monkeypatch.setattr(SqliteDataLayer, "__init__", _tracking_init)
+    yield
+    while created:
+        created.pop().close()
 
 
 class TestUseCaseExecution:
