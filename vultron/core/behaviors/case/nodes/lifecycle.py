@@ -122,6 +122,12 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
             key="case_id", access=py_trees.common.Access.READ
         )
         self.blackboard.register_key(
+            key="activity_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="commit_activity_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
             key="activity", access=py_trees.common.Access.READ
         )
         self.blackboard.register_key(
@@ -135,6 +141,51 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
         except (AttributeError, KeyError):
             self._sync_port = None
 
+    def _resolve_case_id(self) -> str | None:
+        try:
+            return self._case_id or self.blackboard.get("case_id")
+        except KeyError:
+            return self._case_id
+
+    def _resolve_activity(self) -> Any | None:
+        if self.datalayer is None:
+            return None
+        try:
+            activity = self.blackboard.get("activity")
+        except KeyError:
+            activity = None
+        try:
+            activity_id = self.blackboard.get("commit_activity_id")
+        except KeyError:
+            try:
+                activity_id = self.blackboard.get("activity_id")
+            except KeyError:
+                activity_id = None
+        if isinstance(activity_id, str):
+            stored_activity = self.datalayer.read(activity_id)
+            if stored_activity is not None:
+                return stored_activity
+        return activity
+
+    def _activity_metadata(
+        self, activity: Any | None, case_id: str
+    ) -> tuple[str, str, dict[str, Any]]:
+        if activity is None:
+            return case_id, "case_event", {}
+
+        object_id = getattr(activity, "activity_id", case_id)
+        semantic_type = getattr(activity, "semantic_type", None)
+        event_type = (
+            semantic_type.value
+            if semantic_type is not None
+            else getattr(activity, "activity_type", "case_event")
+            or "case_event"
+        )
+        payload_snapshot = _extract_payload_snapshot(
+            activity, dl=self.datalayer
+        )
+        return object_id, event_type, payload_snapshot
+
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
             self.logger.error(
@@ -142,23 +193,16 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        try:
-            case_id = self._case_id or self.blackboard.get("case_id")
-        except KeyError:
-            case_id = self._case_id
+        case_id = self._resolve_case_id()
         if not case_id:
             self.logger.debug(
                 f"{self.name}: no case_id available — skipping log entry"
             )
             return Status.SUCCESS
 
-        try:
-            activity = self.blackboard.get("activity")
-        except KeyError:
-            activity = None
-
-        object_id, event_type, payload_snapshot = _resolve_activity_fields(
-            activity, case_id, self.datalayer
+        activity = self._resolve_activity()
+        object_id, event_type, payload_snapshot = self._activity_metadata(
+            activity, case_id
         )
 
         tree = create_commit_log_entry_tree(

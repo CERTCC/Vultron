@@ -56,6 +56,12 @@ class CollectCaseAddresseesNode(DataLayerAction):
         self.blackboard.register_key(
             key="create_case_addressees", access=py_trees.common.Access.WRITE
         )
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.WRITE
+        )
+        self.blackboard.register_key(
+            key="commit_activity_id", access=py_trees.common.Access.WRITE
+        )
 
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
@@ -115,6 +121,12 @@ class CreateAndPersistCaseActivityNode(DataLayerAction):
         self.blackboard.register_key(
             key="activity_id", access=py_trees.common.Access.WRITE
         )
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.WRITE
+        )
+        self.blackboard.register_key(
+            key="commit_activity_id", access=py_trees.common.Access.WRITE
+        )
 
     def _read_case_id(self) -> str | None:
         try:
@@ -166,6 +178,7 @@ class CreateAndPersistCaseActivityNode(DataLayerAction):
         activity = VultronCreateCaseActivity(
             actor=self.actor_id,
             object_=case_obj if case_obj is not None else case_id,
+            context=case_id,
             to=addressees if addressees else None,
         )
         try:
@@ -180,6 +193,9 @@ class CreateAndPersistCaseActivityNode(DataLayerAction):
                 f" already exists: {e}"
             )
 
+        self.blackboard.activity = activity
+        self.blackboard.commit_activity_id = activity.id_
+        self.blackboard.commit_activity_id = activity.id_
         self.blackboard.activity_id = activity.id_
         return Status.SUCCESS
 
@@ -255,6 +271,9 @@ class CreateOfferCaseManagerActivityNode(DataLayerAction):
         self.blackboard.register_key(
             key="activity_id", access=py_trees.common.Access.WRITE
         )
+        self.blackboard.register_key(
+            key="commit_activity_id", access=py_trees.common.Access.WRITE
+        )
 
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
@@ -291,11 +310,13 @@ class CreateOfferCaseManagerActivityNode(DataLayerAction):
                 self.trigger_activity_factory.offer_case_manager_role(
                     case_id=case_id,
                     participant_id=participant_id,
-                    actor=self.actor_id,
+                    actor=case_actor_id,
                     to=recipients,
                 )
             )
             self.blackboard.activity_id = activity_id
+            if not self.blackboard.exists("commit_activity_id"):
+                self.blackboard.commit_activity_id = activity_id
             self.logger.info(
                 "%s: Queued Offer(CaseManagerRole) '%s' to Case Actor '%s'"
                 " for case '%s'",

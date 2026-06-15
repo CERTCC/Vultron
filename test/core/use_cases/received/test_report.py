@@ -206,7 +206,9 @@ class TestDuplicateReportHandling:
         )
         return (report, event)
 
-    def test_submit_report_no_warning_on_duplicate_report(self, caplog):
+    def test_submit_report_no_warning_on_duplicate_report(
+        self, caplog, monkeypatch
+    ):
         """SubmitReportReceivedUseCase emits no WARNING when report already stored.
 
         The inbox endpoint pre-stores the nested VulnerabilityReport before
@@ -216,6 +218,13 @@ class TestDuplicateReportHandling:
         import logging
 
         from vultron.core.models.case_actor import VultronCaseActor
+        from vultron.core.use_cases.received import report as report_use_cases
+
+        monkeypatch.setattr(
+            report_use_cases,
+            "_run_submit_report_case_creation",
+            lambda *args, **kwargs: None,
+        )
 
         report, event = self._make_submit_event(
             "https://example.org/reports/r-dup-1",

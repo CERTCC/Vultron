@@ -27,6 +27,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.vultron_types import (
     VultronCase,
     VultronCaseActor,
@@ -74,6 +75,16 @@ def case_obj(report):
 
 
 @pytest.fixture
+def create_case_activity(case_obj, actor_id):
+    return VultronActivity(
+        type_="Announce",
+        actor=actor_id,
+        object_=case_obj,
+        context=case_obj.id_,
+    )
+
+
+@pytest.fixture
 def bridge(datalayer):
     return BTBridge(datalayer=datalayer)
 
@@ -110,27 +121,35 @@ def test_create_case_tree_second_child_is_sequence(case_obj, actor_id):
 # ============================================================================
 
 
-def test_create_case_tree_succeeds(datalayer, actor, case_obj, bridge):
+def test_create_case_tree_succeeds(
+    datalayer, actor, case_obj, create_case_activity, bridge
+):
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     result = bridge.execute_with_setup(
-        tree=tree, actor_id=actor.id_, activity=None
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
     )
     assert result.status == Status.SUCCESS
 
 
-def test_create_case_tree_persists_case(datalayer, actor, case_obj, bridge):
+def test_create_case_tree_persists_case(
+    datalayer, actor, case_obj, create_case_activity, bridge
+):
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
     stored = datalayer.read(case_obj.id_)
     assert stored is not None
     assert stored.id_ == case_obj.id_
 
 
 def test_create_case_tree_creates_case_actor(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, case_obj, create_case_activity, bridge
 ):
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
     # Verify at least one actor-context record was created for this case.
     from sqlmodel import Session, select
 
@@ -148,10 +167,12 @@ def test_create_case_tree_creates_case_actor(
 
 
 def test_create_case_tree_emits_activity_to_outbox(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, case_obj, create_case_activity, bridge
 ):
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
     outbox_items = datalayer.clone_for_actor(actor.id_).outbox_list()
     assert len(outbox_items) > 0
 
@@ -161,17 +182,19 @@ def test_create_case_tree_emits_activity_to_outbox(
 # ============================================================================
 
 
-def test_create_case_tree_idempotent(datalayer, actor, case_obj, bridge):
+def test_create_case_tree_idempotent(
+    datalayer, actor, case_obj, create_case_activity, bridge
+):
     """Running the tree twice succeeds and does not duplicate the case."""
     tree1 = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     result1 = bridge.execute_with_setup(
-        tree=tree1, actor_id=actor.id_, activity=None
+        tree=tree1, actor_id=actor.id_, activity=create_case_activity
     )
     assert result1.status == Status.SUCCESS
 
     tree2 = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     result2 = bridge.execute_with_setup(
-        tree=tree2, actor_id=actor.id_, activity=None
+        tree=tree2, actor_id=actor.id_, activity=create_case_activity
     )
     assert result2.status == Status.SUCCESS
 
@@ -186,11 +209,13 @@ def test_create_case_tree_idempotent(datalayer, actor, case_obj, bridge):
 
 
 def test_create_case_tree_sets_attributed_to(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, case_obj, create_case_activity, bridge
 ):
     """VulnerabilityCase.attributed_to MUST be set to the actor_id (CM-02-008)."""
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
     stored = datalayer.read(case_obj.id_)
     assert stored is not None
     attributed = (
@@ -202,13 +227,15 @@ def test_create_case_tree_sets_attributed_to(
 
 
 def test_create_case_tree_creates_case_owner_participant(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, case_obj, create_case_activity, bridge
 ):
     """A case-owner participant SHOULD be created and added to case_participants (CM-02-008)."""
     from vultron.core.states.roles import CVDRole
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
 
     stored_case = datalayer.read(case_obj.id_)
     assert stored_case is not None
@@ -237,7 +264,7 @@ def test_create_case_tree_creates_case_owner_participant(
 
 
 def test_create_case_tree_case_owner_participant_includes_config_roles(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, case_obj, create_case_activity, bridge
 ):
     """CreateCaseOwnerParticipant includes config roles + CASE_OWNER (CFG-07-004)."""
     from vultron.core.models.actor_config import ActorConfig
@@ -247,7 +274,9 @@ def test_create_case_tree_case_owner_participant_includes_config_roles(
     tree = create_create_case_tree(
         case_obj=case_obj, actor_id=actor.id_, actor_config=config
     )
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
 
     from sqlmodel import Session, select
 
@@ -268,13 +297,15 @@ def test_create_case_tree_case_owner_participant_includes_config_roles(
 
 
 def test_create_case_tree_vendor_participant_seeded_with_rm_valid(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, case_obj, create_case_activity, bridge
 ):
     """VendorParticipant MUST be seeded with rm_state=RM.VALID at case creation (ADR-0013)."""
     from vultron.core.states.rm import RM
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
 
     stored_case = datalayer.read(case_obj.id_)
     assert stored_case is not None
@@ -306,11 +337,13 @@ def test_create_case_tree_vendor_participant_seeded_with_rm_valid(
 
 
 def test_create_case_tree_records_case_created_event(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, case_obj, create_case_activity, bridge
 ):
     """A case_created event MUST be recorded in the case event log (CM-02-009)."""
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
 
     stored = datalayer.read(case_obj.id_)
     assert stored is not None
@@ -319,11 +352,13 @@ def test_create_case_tree_records_case_created_event(
 
 
 def test_create_case_tree_case_created_event_uses_case_id(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, case_obj, create_case_activity, bridge
 ):
     """The case_created event MUST reference the case ID as object_id (CM-02-009)."""
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
 
     stored = datalayer.read(case_obj.id_)
     assert stored is not None
@@ -363,11 +398,13 @@ def test_create_case_tree_records_offer_received_event_when_present(
 
 
 def test_create_case_tree_no_offer_received_event_without_in_reply_to(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, case_obj, create_case_activity, bridge
 ):
     """If the triggering activity has no in_reply_to, no offer_received event is recorded."""
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
 
     stored = datalayer.read(case_obj.id_)
     assert stored is not None
@@ -400,13 +437,15 @@ def test_create_case_tree_offer_received_before_case_created(
 
 
 def test_create_case_tree_events_have_trusted_timestamps(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, case_obj, create_case_activity, bridge
 ):
     """Case event timestamps MUST be server-generated (CM-02-009)."""
     from datetime import timezone
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
 
     stored = datalayer.read(case_obj.id_)
     assert stored is not None
@@ -423,20 +462,24 @@ def test_create_case_tree_events_have_trusted_timestamps(
 
 
 def test_create_case_tree_logs_create_case_activity_type(
-    datalayer, actor, case_obj, bridge, caplog
+    datalayer, actor, case_obj, create_case_activity, bridge, caplog
 ):
     """UpdateActorOutbox MUST log 'Create' activity type (D5-6-LOGCTX)."""
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     with caplog.at_level("INFO"):
-        bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+        bridge.execute_with_setup(
+            tree=tree, actor_id=actor.id_, activity=create_case_activity
+        )
     assert "Create" in caplog.text
 
 
 def test_create_case_tree_logs_case_id_in_outbox_message(
-    datalayer, actor, case_obj, bridge, caplog
+    datalayer, actor, case_obj, create_case_activity, bridge, caplog
 ):
     """UpdateActorOutbox MUST log the case ID in the outbox message (D5-6-LOGCTX)."""
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     with caplog.at_level("INFO"):
-        bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+        bridge.execute_with_setup(
+            tree=tree, actor_id=actor.id_, activity=create_case_activity
+        )
     assert case_obj.id_ in caplog.text
