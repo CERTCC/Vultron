@@ -100,6 +100,16 @@ but still flow through append/broadcast/log-cascade paths as new status IDs.
 Guarding terminal `RM.CLOSED` first prevents duplicate closure cascades and
 keeps `close_case` retries from creating new canonical ledger entries.
 
+### 2026-06-15 LEDGER-LOGGING-949 — PersistLogEntryNode tests require log_entry in blackboard
+
+When testing `PersistLogEntryNode` logging via `bridge.execute_with_setup()`,
+pass the `VultronCaseLedgerEntry` as `log_entry=entry` in kwargs — the bridge
+writes it to the blackboard before executing the node. The conftest `_make_entry()`
+helper builds a ready-to-use entry from a `HashChainLedgerRecord`. Use
+`caplog.at_level(logging.INFO, logger="vultron.core.behaviors.sync.nodes.chain")`
+to scope capture to just the chain node logger; without scoping, other node
+loggers at DEBUG can fill caplog with unrelated records.
+
 ### 2026-06-15 LEDGER-INVARIANTS-950 — demo_get_case_ledger ignores actor_id; in-process tests see unified log
 
 `demo_triggers.demo_get_case_ledger` ignores the `actor_id` path parameter
