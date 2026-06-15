@@ -72,6 +72,30 @@ with a spec-linked `NotImplementedError`. A dedicated adapter-level unit test
 prevents future placeholder edits from silently downgrading the fail-fast
 signal into a no-op module.
 
+### 2026-06-15 SYNC-789 — BTBridge must carry sync_port when BTs commit ledger entries
+
+When a use-case's BT contains \`CommitCaseLedgerEntryNode\`, the \`BTBridge\`
+that runs that BT **must** be constructed with \`sync_port=\` set.
+\`CommitCaseLedgerEntryNode\` reads \`sync_port\` from the py_trees blackboard
+and silently skips the \`Announce(CaseLedgerEntry)\` fan-out (SYNC-2) with
+\`Status.SUCCESS\` when the key is absent — no error, no warning loud enough to
+catch in unit tests.
+
+**Pattern to follow**: Any semantic whose use case runs a BT containing
+\`CommitCaseLedgerEntryNode\` must be placed in
+\`_SYNC_AND_TRIGGER_PORT_SEMANTICS\` (if it also needs \`trigger_activity\`) or
+\`_SYNC_PORT_SEMANTICS\` (if it only needs sync). The use-case \`**init**\`
+must also accept \`sync_port\` and pass it to \`BTBridge(sync_port=sync_port)\`.
+
+**How to diagnose**: Look for
+\`"sync_port not injected; skipping fan-out for '...'"`(DEBUG level) in
+container logs, or for replicas with zero \`CaseLedgerEntry\` records when
+the authority has committed entries. This is never a timeout/race — the
+fan-out simply does not run.
+
+**Affected semantics fixed**: \`SUBMIT_REPORT\`, \`ENGAGE_CASE\`, \`DEFER_CASE\`
+(all moved to \`_SYNC_AND_TRIGGER_PORT_SEMANTICS\` in PR #944).
+
 ### 2026-06-12 RENAME-934 — pytest mark registration must mirror class/file renames
 
 When renaming a pytest mark (e.g., `case_log_invariants` → `case_ledger_invariants`),
