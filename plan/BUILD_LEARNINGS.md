@@ -133,6 +133,14 @@ uses a class-qualified logger name:
 bare module path). Always verify logger names from source before writing
 diagnostic docs or log-filter commands.
 
+### 2026-06-15 STATUS-SCHEMA-931 — preserve accepted-status consent on retries
+
+When reusing an existing report-phase `ParticipantStatus` at `RM.ACCEPTED`,
+do not overwrite a non-null `em_consent_state` with default `NO_EMBARGO`.
+Update `cvd_role` as needed, but only backfill consent when it is missing.
+This keeps retries/idempotent paths from silently downgrading consent
+snapshots.
+
 ### 2026-06-15 TRIGGER-927-CASEACTOR-ROUTING — report trigger fallback must fail fast on missing CaseActor
 
 Switching sender-side case-scoped report trigger routing from

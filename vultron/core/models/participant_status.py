@@ -21,8 +21,47 @@ from pydantic import Field, field_serializer, field_validator
 
 from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_vfd
+from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.roles import CVDRole
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.case_status import CaseStatus
+
+
+def coerce_em_consent_state(value: object) -> PEC | None:
+    if value is None:
+        return None
+    if isinstance(value, PEC):
+        return value
+    if isinstance(value, str):
+        return PEC[value]
+    raise TypeError(
+        f"Unsupported em_consent_state type: {type(value).__name__}"
+    )
+
+
+def coerce_cvd_roles(value: object) -> list[CVDRole]:
+    if value is None:
+        return [CVDRole.OTHER]
+    if isinstance(value, CVDRole):
+        return [value]
+    if isinstance(value, str):
+        return [CVDRole(value.lower())]
+    if isinstance(value, list):
+        if not value:
+            return [CVDRole.OTHER]
+        roles: list[CVDRole] = []
+        for item in value:
+            if isinstance(item, CVDRole):
+                roles.append(item)
+                continue
+            if isinstance(item, str):
+                roles.append(CVDRole(item.lower()))
+                continue
+            raise TypeError(
+                f"Unsupported cvd_role item type: {type(item).__name__}"
+            )
+        return roles
+    raise TypeError(f"Unsupported cvd_role type: {type(value).__name__}")
 
 
 class ParticipantStatus(CoreObject):
@@ -49,6 +88,16 @@ class ParticipantStatus(CoreObject):
     vfd_state: CS_vfd = CS_vfd.vfd
     case_engagement: bool = True
     embargo_adherence: bool = True
+    em_consent_state: PEC | None = Field(
+        default=None,
+        validation_alias="emConsentState",
+        serialization_alias="emConsentState",
+    )
+    cvd_role: list[CVDRole] = Field(
+        default_factory=lambda: [CVDRole.OTHER],
+        validation_alias="cvdRole",
+        serialization_alias="cvdRole",
+    )
     tracking_id: NonEmptyString | None = None
     case_status: CaseStatus | None = None
 
@@ -59,6 +108,10 @@ class ParticipantStatus(CoreObject):
     @field_serializer("vfd_state")
     def _serialize_vfd_state(self, v: CS_vfd) -> str:
         return v.name
+
+    @field_serializer("cvd_role")
+    def _serialize_cvd_role(self, roles: list[CVDRole]) -> list[str]:
+        return [role.name for role in roles]
 
     @field_validator("rm_state", mode="before")
     @classmethod
@@ -73,3 +126,13 @@ class ParticipantStatus(CoreObject):
         if isinstance(v, str):
             return CS_vfd[v]
         return v  # type: ignore[return-value]
+
+    @field_validator("em_consent_state", mode="before")
+    @classmethod
+    def _validate_em_consent_state(cls, v: object) -> PEC | None:
+        return coerce_em_consent_state(v)
+
+    @field_validator("cvd_role", mode="before")
+    @classmethod
+    def _validate_cvd_role(cls, v: object) -> list[CVDRole]:
+        return coerce_cvd_roles(v)

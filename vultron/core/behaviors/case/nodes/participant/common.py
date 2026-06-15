@@ -26,8 +26,10 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.cs import CS_vfd
 from vultron.core.states.rm import RM
+from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases._helpers import _report_phase_status_id
 
 if TYPE_CHECKING:
@@ -95,6 +97,8 @@ def _get_or_create_accepted_status(
     report_id: str | None,
     node_name: str,
     node_logger: logging.Logger,
+    cvd_role: list[CVDRole],
+    em_consent_state: PEC | None,
 ) -> ParticipantStatus | None:
     if report_id is None:
         return None
@@ -106,6 +110,15 @@ def _get_or_create_accepted_status(
     )
     existing = dl.read(accepted_status_id)
     if isinstance(existing, ParticipantStatus):
+        should_update_role = existing.cvd_role != cvd_role
+        should_backfill_consent = (
+            existing.em_consent_state is None and em_consent_state is not None
+        )
+        if should_update_role or should_backfill_consent:
+            existing.cvd_role = cvd_role
+            if should_backfill_consent:
+                existing.em_consent_state = em_consent_state
+            dl.save(existing)
         return existing
 
     node_logger.info(
@@ -119,6 +132,8 @@ def _get_or_create_accepted_status(
         context=report_id,
         rm_state=RM.ACCEPTED,
         attributed_to=actor_id,
+        cvd_role=cvd_role,
+        em_consent_state=em_consent_state,
     )
     try:
         dl.create(accepted_status)

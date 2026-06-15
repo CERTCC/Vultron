@@ -33,7 +33,10 @@ from vultron.core.behaviors.case.nodes.participant.common import (
     _queue_participant_add_notification,
 )
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.participant_status import (
+    ParticipantStatus,
+    coerce_cvd_roles,
+)
 from vultron.core.models.protocols import CaseModel, is_case_model
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.vultron_types import VultronParticipant
@@ -48,11 +51,13 @@ class ResolveParticipantAcceptedStatusNode(DataLayerAction):
     def __init__(
         self,
         participant_actor_id: str,
+        roles: list[CVDRole],
         report_id: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.participant_actor_id = participant_actor_id
+        self.roles = roles
         self.report_id = report_id
 
     def setup(self, **kwargs: Any) -> None:
@@ -74,6 +79,8 @@ class ResolveParticipantAcceptedStatusNode(DataLayerAction):
                 self.report_id,
                 self.name,
                 self.logger,
+                cvd_role=coerce_cvd_roles(self.roles),
+                em_consent_state=PEC.NO_EMBARGO,
             )
         )
         return Status.SUCCESS

@@ -20,7 +20,9 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import is_case_model
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
+from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
     _report_phase_status_id,
@@ -142,6 +144,8 @@ class TransitionRMtoValid(DataLayerAction):
                 context=self.report_id,
                 attributed_to=self.actor_id,
                 rm_state=RM.VALID,
+                em_consent_state=PEC.NO_EMBARGO,
+                cvd_role=[CVDRole.REPORTER],
             )
             _idempotent_create(
                 self.datalayer,
@@ -216,6 +220,8 @@ class TransitionRMtoInvalid(DataLayerAction):
                 context=self.report_id,
                 attributed_to=self.actor_id,
                 rm_state=RM.INVALID,
+                em_consent_state=PEC.NO_EMBARGO,
+                cvd_role=[CVDRole.REPORTER],
             )
             _idempotent_create(
                 self.datalayer,
@@ -284,6 +290,8 @@ class TransitionRMtoClosed(DataLayerAction):
                 context=self.report_id,
                 attributed_to=self.actor_id,
                 rm_state=RM.CLOSED,
+                em_consent_state=PEC.NO_EMBARGO,
+                cvd_role=[CVDRole.REPORTER],
             )
             _idempotent_create(
                 self.datalayer,
