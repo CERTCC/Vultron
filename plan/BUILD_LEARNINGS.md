@@ -150,3 +150,12 @@ CaseActor-only, emit nodes must fail fast before queueing when no routable
 CaseActor recipient exists; otherwise outbox enforcement raises
 `VultronOutboxToFieldMissingError` later and masks the true sender-side
 routing defect.
+
+### 2026-06-15 BTND07-913-PARTIAL-WRITE — note trigger tree partial-write on send failure
+
+`add_note_to_case_trigger_bt` uses a `memory=False` Sequence. When
+`SenderSideBT` (third child) fails (e.g., no CASE_MANAGER), the first two
+steps (`CreateNoteNode`, `AttachNoteFromResultNode`) have already succeeded
+and committed local state. The note IS attached to the case locally even
+though the overall tree returns FAILURE. Tests should assert on this partial-
+write behavior explicitly so readers do not assume FAILURE → no writes.
