@@ -1496,6 +1496,82 @@ def _fetch_case_log(
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(scope="class")
+def completed_workflow(
+    client: TestClient, base: str
+) -> tuple[demo.DataLayerClient, demo.VulnerabilityCase]:
+    """Run the full two-actor workflow and return (vendor_client, case).
+
+    Uses deterministic actor IDs (``finder-ledger-inv`` /
+    ``vendor-ledger-inv``) to avoid collisions with other test classes
+    sharing the same module-scoped DataLayer.
+    """
+    import vultron.wire.as2.vocab.objects.vulnerability_case as vc_module
+
+    finder_client = _make_client(base)
+    vendor_client = _make_client(base)
+
+    finder_id = f"{base}/actors/finder-ledger-inv"
+    vendor_id = f"{base}/actors/vendor-ledger-inv"
+
+    finder, vendor = demo.seed_containers(
+        finder_client=finder_client,
+        vendor_client=vendor_client,
+        reporter_actor_id=finder_id,
+        vendor_actor_id=vendor_id,
+    )
+    vendor_in_vendor = demo.get_actor_by_id(vendor_client, vendor.id_)
+
+    _, offer = demo.finder_submits_report(
+        vendor_client=vendor_client,
+        finder=finder,
+        vendor=vendor_in_vendor,
+    )
+    demo.vendor_validates_report(
+        vendor_client=vendor_client,
+        vendor=vendor_in_vendor,
+        offer_id=offer.id_,
+    )
+
+    case = demo.find_case_for_offer(vendor_client, offer.id_)
+    assert case is not None, "Expected VulnerabilityCase after validation"
+
+    demo.wait_for_case_participants(
+        vendor_client=vendor_client,
+        case_id=case.id_,
+        expected_count=3,
+    )
+    # Refresh case to get actor_participant_index populated.
+    case_data = vendor_client.get(f"/datalayer/{case.id_}")
+    case = vc_module.VulnerabilityCase(**case_data)
+
+    # Fix lifecycle.
+    demo.actor_notifies_fix_ready(
+        client=vendor_client, actor=vendor_in_vendor, case_id=case.id_
+    )
+    demo.actor_notifies_fix_deployed(
+        client=vendor_client, actor=vendor_in_vendor, case_id=case.id_
+    )
+    demo.actor_notifies_published(
+        client=vendor_client, actor=vendor_in_vendor, case_id=case.id_
+    )
+
+    # Case closure — both actors must close so RM=CLOSED for all.
+    finder_in_finder = demo.get_actor_by_id(finder_client, finder.id_)
+    demo.actor_closes_case(
+        client=vendor_client, actor=vendor_in_vendor, case_id=case.id_
+    )
+    demo.actor_closes_case(
+        client=finder_client, actor=finder_in_finder, case_id=case.id_
+    )
+
+    # Final refresh to pick up any post-closure case-actor state.
+    case_data = vendor_client.get(f"/datalayer/{case.id_}")
+    case = vc_module.VulnerabilityCase(**case_data)
+
+    return vendor_client, case
+
+
 class TestCaseLedgerInvariants:
     """In-process case-ledger invariant checks for the two-actor scenario.
 
@@ -1521,81 +1597,6 @@ class TestCaseLedgerInvariants:
             "submit_report",  # report intake
         }
     )
-
-    @pytest.fixture(scope="class")
-    def completed_workflow(
-        self, client: TestClient, base: str
-    ) -> tuple[demo.DataLayerClient, demo.VulnerabilityCase]:
-        """Run the full two-actor workflow and return (vendor_client, case).
-
-        Uses deterministic actor IDs (``finder-ledger-inv`` /
-        ``vendor-ledger-inv``) to avoid collisions with other test classes
-        sharing the same module-scoped DataLayer.
-        """
-        import vultron.wire.as2.vocab.objects.vulnerability_case as vc_module
-
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
-
-        finder_id = f"{base}/actors/finder-ledger-inv"
-        vendor_id = f"{base}/actors/vendor-ledger-inv"
-
-        finder, vendor = demo.seed_containers(
-            finder_client=finder_client,
-            vendor_client=vendor_client,
-            reporter_actor_id=finder_id,
-            vendor_actor_id=vendor_id,
-        )
-        vendor_in_vendor = demo.get_actor_by_id(vendor_client, vendor.id_)
-
-        _, offer = demo.finder_submits_report(
-            vendor_client=vendor_client,
-            finder=finder,
-            vendor=vendor_in_vendor,
-        )
-        demo.vendor_validates_report(
-            vendor_client=vendor_client,
-            vendor=vendor_in_vendor,
-            offer_id=offer.id_,
-        )
-
-        case = demo.find_case_for_offer(vendor_client, offer.id_)
-        assert case is not None, "Expected VulnerabilityCase after validation"
-
-        demo.wait_for_case_participants(
-            vendor_client=vendor_client,
-            case_id=case.id_,
-            expected_count=3,
-        )
-        # Refresh case to get actor_participant_index populated.
-        case_data = vendor_client.get(f"/datalayer/{case.id_}")
-        case = vc_module.VulnerabilityCase(**case_data)
-
-        # Fix lifecycle.
-        demo.actor_notifies_fix_ready(
-            client=vendor_client, actor=vendor_in_vendor, case_id=case.id_
-        )
-        demo.actor_notifies_fix_deployed(
-            client=vendor_client, actor=vendor_in_vendor, case_id=case.id_
-        )
-        demo.actor_notifies_published(
-            client=vendor_client, actor=vendor_in_vendor, case_id=case.id_
-        )
-
-        # Case closure — both actors must close so RM=CLOSED for all.
-        finder_in_finder = demo.get_actor_by_id(finder_client, finder.id_)
-        demo.actor_closes_case(
-            client=vendor_client, actor=vendor_in_vendor, case_id=case.id_
-        )
-        demo.actor_closes_case(
-            client=finder_client, actor=finder_in_finder, case_id=case.id_
-        )
-
-        # Final refresh to pick up any post-closure case-actor state.
-        case_data = vendor_client.get(f"/datalayer/{case.id_}")
-        case = vc_module.VulnerabilityCase(**case_data)
-
-        return vendor_client, case
 
     def test_add_participant_status_entries_present(
         self,
