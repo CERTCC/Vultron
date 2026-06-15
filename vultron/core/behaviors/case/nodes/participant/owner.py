@@ -386,4 +386,3 @@ class RecordOwnerJoinedEventNode(DataLayerAction):
             return Status.FAILURE
 
         return Status.SUCCESS
-
