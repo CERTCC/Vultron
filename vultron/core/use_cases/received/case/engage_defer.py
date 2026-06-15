@@ -15,6 +15,7 @@ from vultron.core.ports.case_persistence import CasePersistence
 from ._helpers import _store_embedded_participants
 
 if TYPE_CHECKING:
+    from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
@@ -26,10 +27,12 @@ class EngageCaseReceivedUseCase:
         dl: CasePersistence,
         request: EngageCaseReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: EngageCaseReceivedEvent = request
         self._trigger_activity = trigger_activity
+        self._sync_port = sync_port
 
     def execute(self) -> None:
         request = self._request
@@ -59,7 +62,9 @@ class EngageCaseReceivedUseCase:
         )
 
         bridge = BTBridge(
-            datalayer=self._dl, trigger_activity=self._trigger_activity
+            datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
         )
         tree = create_engage_case_tree(case_id=case_id, actor_id=actor_id)
         result = bridge.execute_with_setup(
@@ -81,10 +86,12 @@ class DeferCaseReceivedUseCase:
         dl: CasePersistence,
         request: DeferCaseReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: DeferCaseReceivedEvent = request
         self._trigger_activity = trigger_activity
+        self._sync_port = sync_port
 
     def execute(self) -> None:
         request = self._request
@@ -106,7 +113,9 @@ class DeferCaseReceivedUseCase:
         )
 
         bridge = BTBridge(
-            datalayer=self._dl, trigger_activity=self._trigger_activity
+            datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
         )
         tree = create_defer_case_tree(case_id=case_id, actor_id=actor_id)
         result = bridge.execute_with_setup(
