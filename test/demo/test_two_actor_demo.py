@@ -32,6 +32,7 @@ from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.two_actor_demo as demo
 from test.demo._helpers import make_testclient_call
+from vultron.adapters.utils import strip_id_prefix
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -1415,4 +1416,277 @@ class TestDeliveryIsolation:
             f" but Finder's DataLayer has no record of it.  This indicates"
             f" the delivery path is broken or the DataLayers are incorrectly"
             f" shared (#530)."
+        )
+
+
+# ---------------------------------------------------------------------------
+# In-process case-ledger invariant helpers (#950)
+# ---------------------------------------------------------------------------
+
+
+def _log_event_type(entry: dict) -> str:
+    """Return eventType from a log entry dict (accepts camelCase alias)."""
+    return str(entry.get("eventType", entry.get("event_type", "")))
+
+
+def _log_payload(entry: dict) -> dict:
+    """Return payloadSnapshot from a log entry dict."""
+    snap = entry.get("payloadSnapshot", entry.get("payload_snapshot", {}))
+    return snap if isinstance(snap, dict) else {}
+
+
+def _participant_id_and_rm(
+    snapshot: dict,
+) -> tuple[str | None, str | None]:
+    """Extract participant id and RM state from a participant-status snapshot.
+
+    Historical logs may encode ``ParticipantStatus`` directly in the
+    snapshot or nest it under an ``Add`` activity's ``object``.
+    Accepts both camelCase (wire) and snake_case field names.
+    """
+    p_id = snapshot.get("attributedTo") or snapshot.get("attributed_to")
+    rm_state = snapshot.get("rmState") or snapshot.get("rm_state")
+    if p_id and rm_state:
+        return str(p_id), str(rm_state)
+
+    nested = snapshot.get("object")
+    if isinstance(nested, dict):
+        nested_id = nested.get("attributedTo") or nested.get("attributed_to")
+        nested_rm = nested.get("rmState") or nested.get("rm_state")
+        if nested_id and nested_rm:
+            return str(nested_id), str(nested_rm)
+
+    return None, None
+
+
+def _fetch_case_log(
+    client: demo.DataLayerClient,
+    case: demo.VulnerabilityCase,
+) -> list[dict]:
+    """Return case ledger entries from the demo DataLayer API endpoint.
+
+    Calls ``GET /actors/{route_key}/demo/cases/{case_key}/log``.  In the
+    single-DataLayer test environment the endpoint returns all
+    ``CaseLedgerEntry`` objects for *case* regardless of which actor route key
+    is supplied (``actor_id`` is ignored server-side; see
+    ``demo_triggers.demo_get_case_ledger``).  The case-actor route key is
+    preferred when available so that the path is realistic, but the returned
+    entries represent the *combined* case log, not a per-actor replica.
+
+    Returns an empty list when no case-actor participant can be located.
+    """
+    case_key = strip_id_prefix(case.id_ or "")
+    case_actor_route_key = next(
+        (
+            strip_id_prefix(actor_id)
+            for actor_id in (case.actor_participant_index or {})
+            if strip_id_prefix(actor_id).startswith("case-actor")
+        ),
+        None,
+    )
+    if case_actor_route_key is None:
+        return []
+    log_path = f"/actors/{case_actor_route_key}/demo/cases/{case_key}/log"
+    return client.get_list(log_path)
+
+
+# ---------------------------------------------------------------------------
+# In-process case-ledger invariant tests (#950)
+# ---------------------------------------------------------------------------
+
+
+class TestCaseLedgerInvariants:
+    """In-process case-ledger invariant checks for the two-actor scenario.
+
+    Adapts invariants 5 and 7 from ``test/ci/test_case_ledger_invariants.py``
+    to run against the live in-process DataLayer state rather than parsed JSONL
+    files.  Tests run in sub-second time without any Docker requirement.
+
+    Each assertion carries a comment pointing to the corresponding CI
+    invariant number (AC: issue #950 acceptance criteria item 4).
+
+    Auto-marked ``integration`` by the demo conftest hook.
+    Spec: CLP-07.
+    """
+
+    #: Baseline event types that must appear in the combined case log after a
+    #: complete two-actor CVD run.  These are the types observed in the
+    #: single-DataLayer in-process test environment and do not correspond
+    #: directly to CI invariant 5 (whose full set requires CaseActor
+    #: commit-path completeness — see issue #789).
+    _REQUIRED_EVENT_TYPES: frozenset[str] = frozenset(
+        {
+            "add_participant_status",  # participant tracking — CI invariant 7
+            "submit_report",  # report intake
+        }
+    )
+
+    @pytest.fixture(scope="class")
+    def completed_workflow(
+        self, client: TestClient, base: str
+    ) -> tuple[demo.DataLayerClient, demo.VulnerabilityCase]:
+        """Run the full two-actor workflow and return (vendor_client, case).
+
+        Uses deterministic actor IDs (``finder-ledger-inv`` /
+        ``vendor-ledger-inv``) to avoid collisions with other test classes
+        sharing the same module-scoped DataLayer.
+        """
+        import vultron.wire.as2.vocab.objects.vulnerability_case as vc_module
+
+        finder_client = _make_client(base)
+        vendor_client = _make_client(base)
+
+        finder_id = f"{base}/actors/finder-ledger-inv"
+        vendor_id = f"{base}/actors/vendor-ledger-inv"
+
+        finder, vendor = demo.seed_containers(
+            finder_client=finder_client,
+            vendor_client=vendor_client,
+            reporter_actor_id=finder_id,
+            vendor_actor_id=vendor_id,
+        )
+        vendor_in_vendor = demo.get_actor_by_id(vendor_client, vendor.id_)
+
+        _, offer = demo.finder_submits_report(
+            vendor_client=vendor_client,
+            finder=finder,
+            vendor=vendor_in_vendor,
+        )
+        demo.vendor_validates_report(
+            vendor_client=vendor_client,
+            vendor=vendor_in_vendor,
+            offer_id=offer.id_,
+        )
+
+        case = demo.find_case_for_offer(vendor_client, offer.id_)
+        assert case is not None, "Expected VulnerabilityCase after validation"
+
+        demo.wait_for_case_participants(
+            vendor_client=vendor_client,
+            case_id=case.id_,
+            expected_count=3,
+        )
+        # Refresh case to get actor_participant_index populated.
+        case_data = vendor_client.get(f"/datalayer/{case.id_}")
+        case = vc_module.VulnerabilityCase(**case_data)
+
+        # Fix lifecycle.
+        demo.actor_notifies_fix_ready(
+            client=vendor_client, actor=vendor_in_vendor, case_id=case.id_
+        )
+        demo.actor_notifies_fix_deployed(
+            client=vendor_client, actor=vendor_in_vendor, case_id=case.id_
+        )
+        demo.actor_notifies_published(
+            client=vendor_client, actor=vendor_in_vendor, case_id=case.id_
+        )
+
+        # Case closure — both actors must close so RM=CLOSED for all.
+        finder_in_finder = demo.get_actor_by_id(finder_client, finder.id_)
+        demo.actor_closes_case(
+            client=vendor_client, actor=vendor_in_vendor, case_id=case.id_
+        )
+        demo.actor_closes_case(
+            client=finder_client, actor=finder_in_finder, case_id=case.id_
+        )
+
+        # Final refresh to pick up any post-closure case-actor state.
+        case_data = vendor_client.get(f"/datalayer/{case.id_}")
+        case = vc_module.VulnerabilityCase(**case_data)
+
+        return vendor_client, case
+
+    def test_add_participant_status_entries_present(
+        self,
+        completed_workflow: tuple[
+            demo.DataLayerClient, demo.VulnerabilityCase
+        ],
+    ) -> None:
+        """Combined case log contains at least one add_participant_status entry.
+
+        Checks the combined case log (all actors share one DataLayer in this
+        test environment).  Corresponds to the presence pre-condition of CI
+        invariant 7 from test/ci/test_case_ledger_invariants.py.
+        Spec: CLP-07.
+        """
+        vendor_client, case = completed_workflow
+        entries = _fetch_case_log(vendor_client, case)
+
+        # CI invariant 7 — presence of add_participant_status entries.
+        status_entries = [
+            e
+            for e in entries
+            if _log_event_type(e) == "add_participant_status"
+        ]
+        assert status_entries, (
+            "Expected at least one add_participant_status entry in the "
+            "combined case log, but none were found. "
+            f"(total entries: {len(entries)}, "
+            f"event types: {sorted({_log_event_type(e) for e in entries})})"
+        )
+
+    def test_all_participants_rm_closed_at_scenario_end(
+        self,
+        completed_workflow: tuple[
+            demo.DataLayerClient, demo.VulnerabilityCase
+        ],
+    ) -> None:
+        """All tracked participants end in RM=CLOSED at scenario completion.
+
+        Scans add_participant_status entries in the combined case log and
+        checks the final RM state recorded for each participant.
+        Corresponds to CI invariant 7 (terminal RM state check) from
+        test/ci/test_case_ledger_invariants.py.
+        Spec: CLP-07.
+        """
+        vendor_client, case = completed_workflow
+        entries = _fetch_case_log(vendor_client, case)
+
+        # CI invariant 7 — last RM state per participant must be CLOSED.
+        latest_rm: dict[str, str] = {}
+        for entry in entries:
+            if _log_event_type(entry) != "add_participant_status":
+                continue
+            p_id, rm_state = _participant_id_and_rm(_log_payload(entry))
+            if p_id and rm_state:
+                latest_rm[p_id] = rm_state
+
+        assert latest_rm, (
+            "No add_participant_status entries found in combined case log; "
+            "cannot verify terminal RM states."
+        )
+
+        not_closed = {
+            p: s
+            for p, s in latest_rm.items()
+            if s.upper() not in ("CLOSED", "RM.CLOSED")
+        }
+        assert (
+            not not_closed
+        ), f"Participants not in RM=CLOSED at scenario end: {not_closed}"
+
+    def test_required_event_types_present_in_case_actor_log(
+        self,
+        completed_workflow: tuple[
+            demo.DataLayerClient, demo.VulnerabilityCase
+        ],
+    ) -> None:
+        """Combined case log contains the required baseline event types.
+
+        Verifies a baseline set of event types observed in the single-DataLayer
+        in-process test environment.  This does not directly correspond to CI
+        invariant 5 (whose full EXPECTED_EVENT_TYPES set requires CaseActor
+        commit-path completeness per issue #789); it confirms that the
+        participant-tracking and report-intake paths produce log entries.
+        Spec: CLP-07.
+        """
+        vendor_client, case = completed_workflow
+        entries = _fetch_case_log(vendor_client, case)
+
+        # Baseline event-type presence check (participant tracking + report intake).
+        found = {_log_event_type(e) for e in entries}
+        missing = self._REQUIRED_EVENT_TYPES - found
+        assert not missing, (
+            f"Required eventTypes missing from combined case log: {sorted(missing)}\n"
+            f"Found: {sorted(found)}"
         )
