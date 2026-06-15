@@ -159,3 +159,13 @@ steps (`CreateNoteNode`, `AttachNoteFromResultNode`) have already succeeded
 and committed local state. The note IS attached to the case locally even
 though the overall tree returns FAILURE. Tests should assert on this partial-
 write behavior explicitly so readers do not assume FAILURE → no writes.
+
+### 2026-06-15 LEDGER-SNAPSHOT-933 — inline nested refs with case-context guard
+
+Inlining nested payloadSnapshot references by blindly resolving `dl.read(id)`
+is unsafe: it can leak unrelated local objects into canonical
+`CaseLedgerEntry` snapshots when inbound activities carry attacker-controlled
+IDs. The inlining path must enforce a case-context match (`resolved.context ==
+payloadSnapshot.context`) before replacing any bare ID with an inline object.
+This keeps CLP-07 self-contained snapshots while preventing cross-case data
+disclosure.

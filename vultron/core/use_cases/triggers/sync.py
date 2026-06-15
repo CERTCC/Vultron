@@ -38,6 +38,7 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import case_addressees
+from vultron.core.use_cases._helpers import build_activity_payload_snapshot
 from vultron.core.use_cases.received.sync import _reconstruct_tail_hash
 from vultron.errors import VultronError
 
@@ -47,7 +48,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def extract_activity_snapshot(request: "VultronEvent") -> dict[str, Any]:
+def extract_activity_snapshot(
+    request: "VultronEvent", dl: CaseOutboxPersistence | None = None
+) -> dict[str, Any]:
     """Return a normalised AS2 payload snapshot from a ``VultronEvent``.
 
     When ``request.activity`` is populated (``include_activity=True`` in
@@ -57,23 +60,17 @@ def extract_activity_snapshot(request: "VultronEvent") -> dict[str, Any]:
 
     Args:
         request: The inbound domain event produced by ``extract_intent()``.
+        dl: Optional DataLayer used to inline known nested object-reference
+            fields from storage.
 
     Returns:
         A JSON-serialisable dict suitable for ``payload_snapshot``.
 
     Spec: SYNC-02-002, SYNC-02-003.
     """
-    activity = request.activity
-    if activity is None or not hasattr(activity, "model_dump"):
-        return {}
     return cast(
         dict[str, Any],
-        activity.model_dump(
-            mode="json",
-            by_alias=True,
-            serialize_as_any=True,
-            exclude_none=True,
-        ),
+        build_activity_payload_snapshot(request.activity, dl=dl),
     )
 
 
