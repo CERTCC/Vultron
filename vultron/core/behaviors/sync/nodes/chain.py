@@ -149,11 +149,16 @@ def _validate_canonical_entry(
     *,
     case_id: str,
     actor_id: str | None,
+    case_actor_id: str | None = None,
     disposition: str,
     payload_snapshot: dict[str, Any],
     event_type: str,
 ) -> None:
+    # Validation runs before idempotency check so malformed entries are
+    # rejected outright and never reach the equivalence lookup (CLP-07).
     if disposition != "recorded":
+        # Rejected entries carry the refused payload for audit purposes;
+        # structural validation is relaxed for non-recorded dispositions.
         return
     if not payload_snapshot:
         raise VultronCanonicalEntryError(
@@ -182,6 +187,19 @@ def _validate_canonical_entry(
         raise VultronCanonicalEntryError(
             f"{event_type}: payloadSnapshot type/object pair {signature!r} "
             "is not canonical"
+        )
+
+    # CLP-07-003: only CaseActor-authored activities may have the CaseActor as
+    # snapshot actor; all participant-originated activities must have a
+    # participant (non-CaseActor) actor.
+    if (
+        case_actor_id
+        and snapshot_actor == case_actor_id
+        and signature not in _CASE_AUTHORED_SIGNATURES
+    ):
+        raise VultronCanonicalEntryError(
+            f"{event_type}: payloadSnapshot.actor must not be the CaseActor"
+            f" for non-case-authored entries (signature={signature!r})"
         )
 
     context = payload_snapshot.get("context")
@@ -334,9 +352,13 @@ class CreateLogEntryNode(DataLayerAction):
             self.logger.error("%s: DataLayer not available", self.name)
             return Status.FAILURE
 
+        from vultron.core.use_cases._helpers import _find_case_actor_id
+
+        case_actor_id = _find_case_actor_id(self.datalayer, self.case_id)
         _validate_canonical_entry(
             case_id=self.case_id,
             actor_id=self.actor_id,
+            case_actor_id=case_actor_id,
             disposition=self.disposition,
             payload_snapshot=self.payload_snapshot,
             event_type=self.event_type,

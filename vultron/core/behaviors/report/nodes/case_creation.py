@@ -164,12 +164,6 @@ class CreateCaseActivity(DataLayerAction):
         self.blackboard.register_key(
             key="case_id", access=py_trees.common.Access.READ
         )
-        self.blackboard.register_key(
-            key="commit_activity_id", access=py_trees.common.Access.WRITE
-        )
-        self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.WRITE
-        )
 
     def update(self) -> Status:
         """
@@ -223,8 +217,6 @@ class CreateCaseActivity(DataLayerAction):
             self.blackboard.register_key(
                 key="activity_id", access=py_trees.common.Access.WRITE
             )
-            self.blackboard.commit_activity_id = create_case_activity.id_
-            self.blackboard.activity = create_case_activity
             self.blackboard.activity_id = create_case_activity.id_
             return Status.SUCCESS
 

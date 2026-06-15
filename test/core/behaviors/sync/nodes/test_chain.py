@@ -175,8 +175,84 @@ def test_create_log_entry_node_allows_case_authored_announce(bridge):
 
 
 # ---------------------------------------------------------------------------
-# PersistLogEntryNode — logging (SL-03-001, SL-04-001)
+# Actor provenance checks (CLP-07-003)
 # ---------------------------------------------------------------------------
+
+CASE_ACTOR_ID = "https://example.org/actors/case-actor"
+
+
+def _note_snapshot_with_actor(actor_id: str) -> dict[str, object]:
+    return {
+        "type": "Add",
+        "actor": actor_id,
+        "object": {
+            "type": "Note",
+            "id": "https://example.org/notes/note-prov",
+            "context": CASE_ID,
+        },
+        "context": CASE_ID,
+    }
+
+
+def test_validate_canonical_entry_rejects_case_actor_as_snapshot_actor_for_non_case_authored():
+    """CLP-07-003: non-CaseActor-authored signatures must not have case_actor as actor."""
+    with pytest.raises(
+        VultronCanonicalEntryError, match="must not be the CaseActor"
+    ):
+        _validate_canonical_entry(
+            case_id=CASE_ID,
+            actor_id=CASE_ACTOR_ID,
+            case_actor_id=CASE_ACTOR_ID,
+            disposition="recorded",
+            payload_snapshot=_note_snapshot_with_actor(CASE_ACTOR_ID),
+            event_type="note_added",
+        )
+
+
+def test_validate_canonical_entry_allows_participant_actor_for_non_case_authored():
+    """CLP-07-003: participant actor is valid for non-CaseActor-authored signatures."""
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        actor_id=OWNER_ACTOR_ID,
+        case_actor_id=CASE_ACTOR_ID,
+        disposition="recorded",
+        payload_snapshot=_note_snapshot_with_actor(PARTICIPANT_ACTOR_ID),
+        event_type="note_added",
+    )
+
+
+def test_validate_canonical_entry_allows_case_actor_for_case_authored_signature():
+    """CLP-07-003: CaseActor is the expected actor for Announce(VulnerabilityCase)."""
+    snapshot = {
+        "type": "Announce",
+        "actor": CASE_ACTOR_ID,
+        "object": {
+            "type": "VulnerabilityCase",
+            "id": CASE_ID,
+            "context": CASE_ID,
+        },
+        "context": CASE_ID,
+    }
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        actor_id=CASE_ACTOR_ID,
+        case_actor_id=CASE_ACTOR_ID,
+        disposition="recorded",
+        payload_snapshot=snapshot,
+        event_type="case_announced",
+    )
+
+
+def test_validate_canonical_entry_provenance_skipped_when_no_case_actor_id():
+    """Provenance check is skipped when case_actor_id is not provided."""
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        actor_id=OWNER_ACTOR_ID,
+        case_actor_id=None,
+        disposition="recorded",
+        payload_snapshot=_note_snapshot_with_actor(OWNER_ACTOR_ID),
+        event_type="note_added",
+    )
 
 
 class TestPersistLogEntryNodeLogging:

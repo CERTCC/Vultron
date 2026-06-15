@@ -122,12 +122,6 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
             key="case_id", access=py_trees.common.Access.READ
         )
         self.blackboard.register_key(
-            key="activity_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="commit_activity_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
             key="activity", access=py_trees.common.Access.READ
         )
         self.blackboard.register_key(
@@ -148,24 +142,10 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
             return self._case_id
 
     def _resolve_activity(self) -> Any | None:
-        if self.datalayer is None:
+        try:
+            return self.blackboard.get("activity")
+        except KeyError:
             return None
-        try:
-            activity = self.blackboard.get("activity")
-        except KeyError:
-            activity = None
-        try:
-            activity_id = self.blackboard.get("commit_activity_id")
-        except KeyError:
-            try:
-                activity_id = self.blackboard.get("activity_id")
-            except KeyError:
-                activity_id = None
-        if isinstance(activity_id, str):
-            stored_activity = self.datalayer.read(activity_id)
-            if stored_activity is not None:
-                return stored_activity
-        return activity
 
     def _activity_metadata(
         self, activity: Any | None, case_id: str
@@ -201,9 +181,24 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
             return Status.SUCCESS
 
         activity = self._resolve_activity()
+        if activity is None:
+            self.logger.warning(
+                "%s: no activity on blackboard for case '%s' — skipping"
+                " log entry",
+                self.name,
+                case_id,
+            )
+            return Status.FAILURE
+
         object_id, event_type, payload_snapshot = self._activity_metadata(
             activity, case_id
         )
+
+        # Normalize context to case_id for activities that predate the case
+        # (e.g., Offer(VulnerabilityReport) submitted before the case existed).
+        if payload_snapshot and payload_snapshot.get("context") != case_id:
+            payload_snapshot = dict(payload_snapshot)
+            payload_snapshot["context"] = case_id
 
         tree = create_commit_log_entry_tree(
             case_id=case_id,
