@@ -26,6 +26,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptCaseInviteUseCase,
     SvcInviteActorToCaseUseCase,
@@ -36,10 +37,11 @@ from vultron.core.use_cases.triggers.requests import (
     InviteActorToCaseTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
-from vultron.errors import VultronNotFoundError
+from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.factories import rm_invite_to_case_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCase,
     VulnerabilityCaseStub,
@@ -72,6 +74,32 @@ def _make_actor_dl_with_http_id(actor_name: str, actor_id: str):
     dl.clear_all()
     dl.create(actor)
     return actor, dl
+
+
+def _make_case_with_case_manager(
+    dl: SqliteDataLayer, owner_actor_id: str, case_actor_id: str
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
+        attributed_to=owner_actor_id, name="Test Case", content="Content"
+    )
+    owner_participant = CaseParticipant(
+        attributed_to=owner_actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    case_manager_participant = CaseParticipant(
+        attributed_to=case_actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    case.actor_participant_index[owner_actor_id] = owner_participant.id_
+    case.actor_participant_index[case_actor_id] = case_manager_participant.id_
+    case.case_participants.append(owner_participant.id_)
+    case.case_participants.append(case_manager_participant.id_)
+    dl.create(case)
+    dl.create(owner_participant)
+    dl.create(case_manager_participant)
+    return case
 
 
 class TestSvcInviteActorToCaseUseCase:
@@ -235,12 +263,11 @@ class TestSvcSuggestActorToCaseUseCase:
 
     def test_suggest_creates_activity(self):
         actor, dl = _make_actor_dl("Coordinator")
+        case_actor, _ = _make_actor_dl("Case Actor")
         suggested, _ = _make_actor_dl("Vendor")
+        dl.create(case_actor)
         dl.create(suggested)
-        case = VulnerabilityCase(
-            attributed_to=actor.id_, name="Test Case", content="Content"
-        )
-        dl.create(case)
+        case = _make_case_with_case_manager(dl, actor.id_, case_actor.id_)
 
         request = SuggestActorToCaseTriggerRequest(
             actor_id=actor.id_,
@@ -253,13 +280,13 @@ class TestSvcSuggestActorToCaseUseCase:
 
         assert "activity" in result
         assert result["activity"]["actor"] == actor.id_
+        assert result["activity"].get("to") == [case_actor.id_]
 
     def test_suggest_raises_when_suggested_actor_missing(self):
         actor, dl = _make_actor_dl("Coordinator")
-        case = VulnerabilityCase(
-            attributed_to=actor.id_, name="Test Case", content="Content"
-        )
-        dl.create(case)
+        case_actor, _ = _make_actor_dl("Case Actor")
+        dl.create(case_actor)
+        case = _make_case_with_case_manager(dl, actor.id_, case_actor.id_)
 
         request = SuggestActorToCaseTriggerRequest(
             actor_id=actor.id_,
@@ -274,12 +301,13 @@ class TestSvcSuggestActorToCaseUseCase:
     def test_suggest_normalises_short_uuid_actor_id(self):
         """DR-09: short UUID in actor_id is resolved to full URI."""
         actor, dl = _make_actor_dl_with_http_id("Coordinator", _HTTP_ACTOR_ID)
+        case_actor, _ = _make_actor_dl("Case Actor")
         suggested, _ = _make_actor_dl("Vendor")
+        dl.create(case_actor)
         dl.create(suggested)
-        case = VulnerabilityCase(
-            attributed_to=_HTTP_ACTOR_ID, name="Test Case", content="Content"
+        case = _make_case_with_case_manager(
+            dl, owner_actor_id=_HTTP_ACTOR_ID, case_actor_id=case_actor.id_
         )
-        dl.create(case)
 
         request = SuggestActorToCaseTriggerRequest(
             actor_id=_UUID,
@@ -291,6 +319,25 @@ class TestSvcSuggestActorToCaseUseCase:
         ).execute()
 
         assert result["activity"]["actor"] == _HTTP_ACTOR_ID
+        assert result["activity"].get("to") == [case_actor.id_]
+
+    def test_suggest_raises_when_no_case_manager(self):
+        actor, dl = _make_actor_dl("Coordinator")
+        suggested, _ = _make_actor_dl("Vendor")
+        dl.create(suggested)
+        case = VulnerabilityCase(
+            attributed_to=actor.id_, name="Test Case", content="Content"
+        )
+        dl.create(case)
+        request = SuggestActorToCaseTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            suggested_actor_id=suggested.id_,
+        )
+        with pytest.raises(VultronValidationError):
+            SvcSuggestActorToCaseUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
 
 
 class TestSvcAcceptCaseInviteUseCase:
@@ -328,6 +375,7 @@ class TestSvcAcceptCaseInviteUseCase:
         assert "activity" in result
         assert result["activity"]["actor"] == invitee.id_
         assert result["activity"]["inReplyTo"] == invite.id_
+        assert result["activity"].get("to") == [inviter.id_]
 
     def test_accept_raises_when_invite_missing(self):
         _, dl = _make_actor_dl("Finder")

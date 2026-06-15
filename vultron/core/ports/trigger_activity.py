@@ -226,6 +226,7 @@ class TriggerActivityPort(Protocol):
         recommended_id: str,
         case_id: str,
         actor: str,
+        to: list[str] | None = None,
         id_: str | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist a ``Offer(Actor, Case)`` recommendation activity.

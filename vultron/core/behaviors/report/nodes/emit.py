@@ -22,7 +22,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import case_addressees
+from vultron.core.use_cases._helpers import _resolve_case_manager_id
 
 
 def _compute_report_addressees(
@@ -33,8 +33,8 @@ def _compute_report_addressees(
 ) -> list[str] | None:
     """Compute outbound recipient list for a report-phase trigger activity.
 
-    Tries case participants first; falls back to the offer submitter when no
-    case is found.
+    For case-scoped report activities, route only to the Case Actor. Falls back
+    to the offer submitter when no case is found (no case-scoped routing).
 
     Args:
         report_id: VulnerabilityReport ID used to locate the linked case.
@@ -47,9 +47,10 @@ def _compute_report_addressees(
     """
     case = dl.find_case_by_report_id(report_id)
     if is_case_model(case):
-        recipients = case_addressees(case, actor_id)
-        if recipients:
-            return recipients
+        case_manager_id = _resolve_case_manager_id(case, dl)
+        if case_manager_id and case_manager_id != actor_id:
+            return [case_manager_id]
+        return None
 
     offer_actor = getattr(offer, "actor", None)
     if offer_actor is None:
@@ -115,6 +116,16 @@ class EmitInvalidateReportActivity(DataLayerAction):
                 offer,
                 cast(CaseOutboxPersistence, self.datalayer),
             )
+            if not addressees:
+                self.logger.error(
+                    "%s: no routable recipients for report activity"
+                    " (offer_id=%s, report_id=%s, actor_id=%s)",
+                    self.name,
+                    self.offer_id,
+                    self.report_id,
+                    self.actor_id,
+                )
+                return Status.FAILURE
 
             activity_id, _ = self.trigger_activity_factory.invalidate_report(
                 offer_id=self.offer_id,
@@ -194,6 +205,16 @@ class EmitCloseReportActivity(DataLayerAction):
                 offer,
                 cast(CaseOutboxPersistence, self.datalayer),
             )
+            if not addressees:
+                self.logger.error(
+                    "%s: no routable recipients for report activity"
+                    " (offer_id=%s, report_id=%s, actor_id=%s)",
+                    self.name,
+                    self.offer_id,
+                    self.report_id,
+                    self.actor_id,
+                )
+                return Status.FAILURE
 
             activity_id, _ = self.trigger_activity_factory.close_report(
                 offer_id=self.offer_id,

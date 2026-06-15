@@ -23,7 +23,10 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import _find_case_actor_id
+from vultron.core.use_cases._helpers import (
+    _find_case_actor_id,
+    _resolve_case_manager_id,
+)
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,
     resolve_actor,
@@ -45,8 +48,8 @@ logger = logging.getLogger(__name__)
 class SvcSuggestActorToCaseUseCase:
     """Recommend another actor for participation in an existing case.
 
-    Emits a RecommendActorActivity addressed to the case owner (typically
-    the CaseActor), which then autonomously invites the suggested actor.
+    Emits a RecommendActorActivity addressed only to the CaseActor, which then
+    autonomously invites the suggested actor.
     The originating actor is the ``actor`` field; ``object_`` is the actor
     being suggested; ``target`` is the case.
     """
@@ -78,11 +81,19 @@ class SvcSuggestActorToCaseUseCase:
                 "SvcSuggestActorToCaseUseCase requires a TriggerActivityPort"
             )
 
+        case_manager_id = _resolve_case_manager_id(case, self._dl)
+        if not case_manager_id:
+            raise VultronValidationError(
+                "SvcSuggestActorToCaseUseCase requires a CASE_MANAGER"
+                " participant with a routable actor ID."
+            )
+
         activity_id, activity_dict = (
             self._trigger_activity.suggest_actor_to_case(
                 recommended_id=self._request.suggested_actor_id,
                 case_id=case.id_,
                 actor=actor_id,
+                to=[case_manager_id],
             )
         )
 
