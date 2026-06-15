@@ -92,6 +92,7 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.triggers.sync import commit_log_entry_trigger
+from vultron.core.models.pending_assertion import PendingAssertionStore
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -119,10 +120,12 @@ class TriggerService:
         dl: CaseOutboxPersistence,
         sync_port: SyncActivityPort | None = None,
         trigger_activity: "TriggerActivityPort | None" = None,
+        pending_assertions: PendingAssertionStore | None = None,
     ) -> None:
         self._dl = dl
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
+        self._pending_assertions = pending_assertions
 
     # -----------------------------------------------------------------------
     # Report triggers
@@ -480,4 +483,5 @@ class TriggerService:
             reason_detail=reason_detail,
             disposition=disposition,
             sync_port=self._sync_port,
+            pending_assertions=self._pending_assertions,
         )

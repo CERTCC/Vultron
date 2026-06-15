@@ -45,9 +45,13 @@ ACTIVITY_ID = "https://example.org/activities/act-001"
 
 @pytest.fixture(autouse=True)
 def clear_blackboard():
+    from vultron.core.models.pending_assertion import _reset_stores
+
     py_trees.blackboard.Blackboard.storage.clear()
+    _reset_stores()
     yield
     py_trees.blackboard.Blackboard.storage.clear()
+    _reset_stores()
 
 
 @pytest.fixture
@@ -317,3 +321,92 @@ def test_inner_commit_bt_failure_propagates(bridge):
         )
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
     assert result.status == Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# Suppression via pending_assertions (SYNC-07-001, SYNC-07-002)
+# ---------------------------------------------------------------------------
+
+
+def test_suppressed_node_returns_success_without_inner_bt(bridge):
+    """When pending_assertions suppresses, CommitCaseLedgerEntryNode short-
+    circuits before building the inner commit BT and returns SUCCESS."""
+    from vultron.core.models.pending_assertion import PendingAssertionStore
+
+    store = PendingAssertionStore(timeout_seconds=180)
+    store.add(
+        CASE_ID,
+        MessageSemantics.CREATE_CASE.value,
+        ACTIVITY_ID,
+    )
+    activity = _FakeActivity(
+        activity_id=ACTIVITY_ID,
+        semantic_type=MessageSemantics.CREATE_CASE,
+    )
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    with patch(_FACTORY_PATH) as mock_factory, patch(
+        _INNER_BRIDGE_PATH
+    ) as mock_bridge_cls:
+        result = bridge.execute_with_setup(
+            tree=node,
+            actor_id=ACTOR_ID,
+            activity=activity,
+            pending_assertions=store,
+        )
+    assert result.status == Status.SUCCESS
+    mock_factory.assert_not_called()
+    mock_bridge_cls.assert_not_called()
+
+
+def test_successful_commit_adds_to_pending_store(bridge):
+    """After a successful inner BT, the node adds the entry to the store."""
+    from vultron.core.models.pending_assertion import PendingAssertionStore
+
+    store = PendingAssertionStore(timeout_seconds=180)
+    activity = _FakeActivity(
+        activity_id=ACTIVITY_ID,
+        semantic_type=MessageSemantics.CREATE_CASE,
+    )
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    with patch(_FACTORY_PATH), patch(_INNER_BRIDGE_PATH) as mock_bridge_cls:
+        mock_bridge_cls.return_value.execute_with_setup.return_value = (
+            BTExecutionResult(status=Status.SUCCESS)
+        )
+        bridge.execute_with_setup(
+            tree=node,
+            actor_id=ACTOR_ID,
+            activity=activity,
+            pending_assertions=store,
+        )
+    assert store.is_suppressed(
+        CASE_ID,
+        MessageSemantics.CREATE_CASE.value,
+        ACTIVITY_ID,
+    )
+
+
+def test_failed_commit_does_not_add_to_pending_store(bridge):
+    """When the inner BT fails, the node must not add to the store."""
+    from vultron.core.models.pending_assertion import PendingAssertionStore
+
+    store = PendingAssertionStore(timeout_seconds=180)
+    activity = _FakeActivity(
+        activity_id=ACTIVITY_ID,
+        semantic_type=MessageSemantics.CREATE_CASE,
+    )
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    with patch(_FACTORY_PATH), patch(_INNER_BRIDGE_PATH) as mock_bridge_cls:
+        mock_bridge_cls.return_value.execute_with_setup.return_value = (
+            BTExecutionResult(status=Status.FAILURE, feedback_message="boom")
+        )
+        bridge.execute_with_setup(
+            tree=node,
+            actor_id=ACTOR_ID,
+            activity=activity,
+            pending_assertions=store,
+        )
+    assert not store.is_suppressed(
+        CASE_ID,
+        MessageSemantics.CREATE_CASE.value,
+        ACTIVITY_ID,
+    )

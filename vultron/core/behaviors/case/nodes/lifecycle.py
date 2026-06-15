@@ -38,6 +38,11 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.use_cases._helpers import build_activity_payload_snapshot
 
+from vultron.core.models.pending_assertion import (
+    PendingAssertionStore,
+    get_pending_assertion_store,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -54,6 +59,43 @@ def _extract_payload_snapshot(
     return cast(
         dict[str, Any], build_activity_payload_snapshot(activity, dl=dl)
     )
+
+
+def _resolve_pending_assertion_store(
+    blackboard: Any, actor_id: str
+) -> "PendingAssertionStore | None":
+    """Return the pending-assertion store for *actor_id*.
+
+    Checks the blackboard first; falls back to the module-level per-actor
+    registry (SYNC-07-001).
+    """
+    try:
+        store: PendingAssertionStore | None = (
+            blackboard.pending_assertions  # type: ignore[attr-defined]
+        )
+        return store
+    except (AttributeError, KeyError):
+        return get_pending_assertion_store(actor_id)
+
+
+def _resolve_activity_fields(
+    activity: Any, case_id: str, dl: CasePersistence
+) -> tuple[str, str, dict[str, Any]]:
+    """Derive (object_id, event_type, payload_snapshot) from *activity*.
+
+    Falls back to ``case_id``-based defaults when *activity* is ``None``.
+    """
+    if activity is None:
+        return case_id, "case_event", {}
+    object_id: str = getattr(activity, "activity_id", case_id)
+    semantic_type = getattr(activity, "semantic_type", None)
+    event_type: str = (
+        semantic_type.value
+        if semantic_type is not None
+        else getattr(activity, "activity_type", "case_event") or "case_event"
+    )
+    payload_snapshot = _extract_payload_snapshot(activity, dl=dl)
+    return object_id, event_type, payload_snapshot
 
 
 class CommitCaseLedgerEntryNode(DataLayerAction):
@@ -107,6 +149,9 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
         self.blackboard.register_key(
             key="sync_port", access=py_trees.common.Access.READ
         )
+        self.blackboard.register_key(
+            key="pending_assertions", access=py_trees.common.Access.READ
+        )
 
     def initialise(self) -> None:
         super().initialise()
@@ -136,23 +181,28 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
             activity = self.blackboard.get("activity")
         except KeyError:
             activity = None
-        if activity is not None:
-            object_id: str = getattr(activity, "activity_id", case_id)
-            semantic_type = getattr(activity, "semantic_type", None)
-            event_type: str = (
-                semantic_type.value
-                if semantic_type is not None
-                else getattr(activity, "activity_type", "case_event")
-                or "case_event"
-            )
-        else:
-            object_id = case_id
-            event_type = "case_event"
-        payload_snapshot = (
-            _extract_payload_snapshot(activity, dl=self.datalayer)
-            if activity is not None
-            else {}
+
+        object_id, event_type, payload_snapshot = _resolve_activity_fields(
+            activity, case_id, self.datalayer
         )
+
+        # Resolve pending-assertions store: blackboard first, then module
+        # registry keyed by actor_id (SYNC-07-001).
+        store = _resolve_pending_assertion_store(
+            self.blackboard, self.actor_id
+        )
+
+        if store is not None and store.is_suppressed(
+            case_id, event_type, object_id
+        ):
+            self.logger.info(
+                "%s: suppressing duplicate near-term re-emit for case '%s' "
+                "event_type=%s (pending assertion unexpired)",
+                self.name,
+                case_id,
+                event_type,
+            )
+            return Status.SUCCESS
 
         tree = create_commit_log_entry_tree(
             case_id=case_id,
@@ -174,6 +224,10 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
                 event_type,
                 case_id,
             )
+            # Record in pending assertions AFTER successful commit
+            # (SYNC-07-002).
+            if store is not None:
+                store.add(case_id, event_type, object_id)
             return Status.SUCCESS
         self.logger.error(
             "%s: failed to commit log entry for case '%s': %s",

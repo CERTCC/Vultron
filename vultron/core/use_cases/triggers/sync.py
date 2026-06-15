@@ -28,6 +28,10 @@ from typing import TYPE_CHECKING, Any, cast
 
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.pending_assertion import (
+    PendingAssertionStore,
+    get_pending_assertion_store,
+)
 from vultron.core.models.protocols import (
     LogEntryModel,
     is_case_model,
@@ -173,6 +177,7 @@ def commit_log_entry_trigger(
     reason_detail: str | None = None,
     disposition: str = "recorded",
     sync_port: SyncActivityPort | None = None,
+    pending_assertions: PendingAssertionStore | None = None,
 ) -> VultronCaseLedgerEntry:
     """Commit a new log entry to the local chain and fan it out to peers.
 
@@ -181,6 +186,14 @@ def commit_log_entry_trigger(
     to a :class:`~vultron.core.models.case_ledger_entry.VultronCaseLedgerEntry`,
     persists it, and fans it out to all case participants via
     ``Announce(CaseLedgerEntry)`` activities.
+
+    When *pending_assertions* is provided (or auto-resolved from the
+    module-level per-actor registry), a duplicate commit for the same
+    ``(case_id, event_type, object_id)`` triple is suppressed while a
+    matching entry is *pending* and within the timeout window.  On
+    suppression, the existing committed entry is returned without a
+    re-fan-out.  A new commit is added to the store after a successful
+    ``dl.save()`` + fan-out.
 
     Args:
         case_id: URI of the parent :class:`VulnerabilityCase`.
@@ -193,12 +206,50 @@ def commit_log_entry_trigger(
         reason_code: Required when *disposition* is ``"rejected"``.
         reason_detail: Optional human-readable rejection detail.
         disposition: ``"recorded"`` (default) or ``"rejected"``.
+        sync_port: Optional port for fan-out via ``Announce(CaseLedgerEntry)``.
+        pending_assertions: Optional actor-local store.  When ``None`` the
+            per-actor store from the module-level registry is used (keyed by
+            *actor_id*).
 
     Returns:
-        The newly created and persisted :class:`VultronCaseLedgerEntry`.
+        The newly created (or existing) :class:`VultronCaseLedgerEntry`.
 
-    Spec: SYNC-02-002, SYNC-02-003, SYNC-03-001.
+    Spec: SYNC-02-002, SYNC-02-003, SYNC-03-001, SYNC-07-001 through
+    SYNC-07-005.
     """
+    store: PendingAssertionStore = (
+        pending_assertions
+        if pending_assertions is not None
+        else get_pending_assertion_store(actor_id)
+    )
+
+    # Suppression gate: skip re-emit while a matching pending assertion is
+    # unexpired (SYNC-07-001).
+    if store.is_suppressed(case_id, event_type, object_id):
+        logger.info(
+            "sync: suppressing duplicate near-term re-emit for case '%s' "
+            "event_type=%s object_id='%s' (pending assertion unexpired)",
+            case_id,
+            event_type,
+            object_id,
+        )
+        existing = _find_equivalent_recorded_entry(
+            case_id=case_id,
+            object_id=object_id,
+            event_type=event_type,
+            payload_snapshot=payload_snapshot or {},
+            dl=dl,
+        )
+        if existing is not None:
+            return _as_persistable_log_entry(existing)
+        # Entry not yet in DataLayer (edge case); fall through to commit.
+        logger.warning(
+            "sync: pending assertion set but entry not found in DataLayer "
+            "for case '%s' event_type=%s — committing",
+            case_id,
+            event_type,
+        )
+
     normalized_snapshot = payload_snapshot or {}
     existing = _find_equivalent_recorded_entry(
         case_id=case_id,
@@ -254,6 +305,11 @@ def commit_log_entry_trigger(
     )
 
     _fan_out_log_entry(case_id, entry, actor_id, dl, sync_port=sync_port)
+
+    # Record in pending assertions AFTER successful commit + fan-out
+    # (SYNC-07-002).
+    store.add(case_id, event_type, object_id)
+
     return entry
 
 

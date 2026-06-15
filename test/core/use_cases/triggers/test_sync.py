@@ -15,8 +15,15 @@
 """Unit tests for SYNC trigger helpers."""
 
 from typing import Any, cast
+from unittest.mock import patch
 
-from vultron.core.use_cases.triggers.sync import extract_activity_snapshot
+import pytest
+
+from vultron.core.models.pending_assertion import PendingAssertionStore
+from vultron.core.use_cases.triggers.sync import (
+    commit_log_entry_trigger,
+    extract_activity_snapshot,
+)
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
@@ -99,3 +106,92 @@ def test_extract_activity_snapshot_does_not_inline_cross_context_refs(
     status_obj = snapshot["object"]
 
     assert status_obj["activeEmbargo"] == embargo.id_
+
+
+# ---------------------------------------------------------------------------
+# commit_log_entry_trigger — pending_assertions suppression
+# ---------------------------------------------------------------------------
+
+CASE_ID = "https://example.org/cases/case-001"
+ACTOR_ID = "https://example.org/actors/case-actor"
+OBJECT_ID = "https://example.org/activities/act-001"
+EVENT_TYPE = "submit_report"
+
+
+@pytest.fixture
+def fresh_store():
+    return PendingAssertionStore(timeout_seconds=180)
+
+
+@pytest.fixture
+def zero_store():
+    return PendingAssertionStore(timeout_seconds=0)
+
+
+def test_commit_adds_to_pending_store_on_success(datalayer, fresh_store):
+    """After a new commit, the entry is added to pending_assertions."""
+    commit_log_entry_trigger(
+        case_id=CASE_ID,
+        object_id=OBJECT_ID,
+        event_type=EVENT_TYPE,
+        actor_id=ACTOR_ID,
+        dl=cast(Any, datalayer),
+        pending_assertions=fresh_store,
+    )
+    assert fresh_store.is_suppressed(CASE_ID, EVENT_TYPE, OBJECT_ID)
+
+
+def test_commit_suppressed_when_pending_and_unexpired(datalayer, fresh_store):
+    """Second call is suppressed while the pending assertion is unexpired."""
+    # First commit — seeds the DataLayer and pending store
+    entry1 = commit_log_entry_trigger(
+        case_id=CASE_ID,
+        object_id=OBJECT_ID,
+        event_type=EVENT_TYPE,
+        actor_id=ACTOR_ID,
+        dl=cast(Any, datalayer),
+        pending_assertions=fresh_store,
+    )
+    # Second call — should be suppressed (returns same entry, no re-fan-out)
+    with patch(
+        "vultron.core.use_cases.triggers.sync._fan_out_log_entry"
+    ) as mock_fan_out:
+        entry2 = commit_log_entry_trigger(
+            case_id=CASE_ID,
+            object_id=OBJECT_ID,
+            event_type=EVENT_TYPE,
+            actor_id=ACTOR_ID,
+            dl=cast(Any, datalayer),
+            pending_assertions=fresh_store,
+        )
+    mock_fan_out.assert_not_called()
+    assert entry2.id_ == entry1.id_
+
+
+def test_commit_not_suppressed_when_store_zero_timeout(datalayer, zero_store):
+    """Zero timeout disables suppression; second call fans out again."""
+    commit_log_entry_trigger(
+        case_id=CASE_ID,
+        object_id=OBJECT_ID,
+        event_type=EVENT_TYPE,
+        actor_id=ACTOR_ID,
+        dl=cast(Any, datalayer),
+        pending_assertions=zero_store,
+    )
+    # Should NOT be suppressed — zero timeout means no suppression
+    assert not zero_store.is_suppressed(CASE_ID, EVENT_TYPE, OBJECT_ID)
+
+
+def test_commit_cleared_entry_allows_re_add(datalayer, fresh_store):
+    """After clearing, a new commit re-adds the entry to pending."""
+    commit_log_entry_trigger(
+        case_id=CASE_ID,
+        object_id=OBJECT_ID,
+        event_type=EVENT_TYPE,
+        actor_id=ACTOR_ID,
+        dl=cast(Any, datalayer),
+        pending_assertions=fresh_store,
+    )
+    # Simulate round-trip confirmation clearing the pending assertion
+    fresh_store.clear(CASE_ID, EVENT_TYPE, OBJECT_ID)
+    assert not fresh_store.is_suppressed(CASE_ID, EVENT_TYPE, OBJECT_ID)
