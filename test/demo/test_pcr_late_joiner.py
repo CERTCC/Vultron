@@ -328,7 +328,10 @@ def _drain_case_actor_outbox(owner_iso, case_actor_id: str) -> None:
         case_actor_id: Full ID of the CaseActor.
     """
     case_actor_dl = owner_iso.dl.clone_for_actor(case_actor_id)
-    asyncio.run(outbox_handler(case_actor_id, case_actor_dl, owner_iso.dl))
+    try:
+        asyncio.run(outbox_handler(case_actor_id, case_actor_dl, owner_iso.dl))
+    finally:
+        case_actor_dl.close()
 
 
 def _run_late_joiner_sequence(
@@ -499,11 +502,14 @@ class TestLateJoinerSequence:
         # The late-joiner actor's inbox queue must be empty: the inbox handler
         # ran and processed the Announce (dispatch chain completed).
         lj_actor_dl = late_joiner_iso.dl.clone_for_actor(lj_actor_id)
-        assert lj_actor_dl.inbox_list() == [], (
-            "Late-joiner actor's inbox queue was not drained after "
-            "processing Announce(VulnerabilityCase).  The inbox handler "
-            "may not have run (PCR-07-007 AC-1)."
-        )
+        try:
+            assert lj_actor_dl.inbox_list() == [], (
+                "Late-joiner actor's inbox queue was not drained after "
+                "processing Announce(VulnerabilityCase).  The inbox handler "
+                "may not have run (PCR-07-007 AC-1)."
+            )
+        finally:
+            lj_actor_dl.close()
 
         replica = late_joiner_iso.dl.read(case_id)
         assert replica is not None, (
