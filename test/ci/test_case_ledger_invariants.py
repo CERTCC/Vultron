@@ -63,15 +63,15 @@ _DEVLOGS_DIR: Path = _REPO_ROOT / "devlogs"
 #: case-actor log for a complete two-actor CVD run (AC-4.5).
 EXPECTED_EVENT_TYPES: frozenset[str] = frozenset(
     {
+        "submit_report",
         "validate_report",
-        "accept_report",
-        "propose_embargo",
-        "accept_embargo",
-        "notify_fix_ready",
-        "notify_fix_deployed",
-        "notify_published",
+        "engage_case",
+        "invite_to_embargo_on_case",
+        "accept_invite_to_embargo_on_case",
+        "add_note_to_case",
+        "add_participant_status",
+        "remove_embargo_event_from_case",
         "close_case",
-        "add_note",
         "announce_case_ledger_entry",
     }
 )
@@ -365,15 +365,6 @@ def test_invariant_4_non_empty_payload_snapshot(
     )
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "EXPECTED_EVENT_TYPES uses legacy names that predate MessageSemantics "
-        "(e.g. 'accept_report', 'propose_embargo', 'add_note') and several "
-        "trees still lack canonical ledger writes for the missing event types. "
-        "Will pass once names are corrected and coverage is complete (#998)."
-    ),
-)
 @pytest.mark.case_ledger_invariants
 def test_invariant_5_expected_event_types_present(
     case_ledger_replicas: dict[str, list[dict]],

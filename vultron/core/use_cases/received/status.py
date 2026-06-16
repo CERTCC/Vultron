@@ -268,3 +268,93 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             activity=request,
             sync_port=self._sync_port,
         )
+
+        self._commit_close_case_if_all_closed(
+            case_id=case_id, case_actor_id=case_actor_id
+        )
+
+    def _participant_rm_state(self, participant_id: str) -> object | None:
+        """Return the latest RM state for a participant, or None if unavailable."""
+        from vultron.core.use_cases._helpers import _as_id
+
+        dl = self._dl
+        participant = dl.read(participant_id)
+        if participant is None:
+            return None
+        statuses = getattr(participant, "participant_statuses", [])
+        if not statuses:
+            return None
+        latest_ref = statuses[-1]
+        if isinstance(latest_ref, str):
+            ref_id = _as_id(latest_ref)
+            if ref_id is None:
+                return None
+            latest = dl.read(ref_id)
+        else:
+            latest = latest_ref
+        if latest is None:
+            return None
+        return getattr(latest, "rm_state", None)
+
+    def _all_participants_closed(self, case_id: str) -> bool:
+        """Return True iff every CVD participant has RM.CLOSED.
+
+        The CASE_MANAGER role is excluded (coordinator role, not a CVD
+        participant).  Returns False when any participant is missing, has
+        no recorded status, or has not yet reached RM.CLOSED.
+        """
+        from vultron.core.states.roles import CVDRole
+        from vultron.core.states.rm import RM
+
+        case = self._dl.read(case_id)
+        if case is None:
+            return False
+
+        participant_index = getattr(case, "actor_participant_index", {})
+        if not participant_index:
+            return False
+
+        for p_id in participant_index.values():
+            participant = self._dl.read(p_id)
+            if participant is None:
+                return False
+            roles = getattr(participant, "case_roles", [])
+            if CVDRole.CASE_MANAGER in roles:
+                continue
+            rm_state = self._participant_rm_state(p_id)
+            if rm_state is None or rm_state != RM.CLOSED:
+                return False
+        return True
+
+    def _commit_close_case_if_all_closed(
+        self, *, case_id: str, case_actor_id: str
+    ) -> None:
+        """Commit a ``close_case`` ledger entry when all participants are closed.
+
+        Called after a successful ``add_participant_status`` commit to check
+        whether the new status tips every CVD participant into RM.CLOSED.
+        When it does, a canonical ``close_case`` ledger entry is appended so
+        the case-actor log reflects the protocol-level auto-close event.
+
+        Per DEMOMA-07-003 step 5.
+        """
+        from vultron.core.use_cases.triggers.sync import (
+            commit_log_entry_trigger,
+        )
+
+        if not self._all_participants_closed(case_id):
+            return
+
+        logger.info(
+            "close_case: all participants CLOSED for case '%s'"
+            " — committing close_case ledger entry (DEMOMA-07-003 step 5)",
+            case_id,
+        )
+        commit_log_entry_trigger(
+            case_id=case_id,
+            object_id=case_id,
+            event_type="close_case",
+            actor_id=case_actor_id,
+            dl=self._dl,
+            sync_port=self._sync_port,
+        )
