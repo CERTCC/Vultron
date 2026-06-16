@@ -18,6 +18,10 @@ Public entry points:
 - :func:`commit_log_entry_trigger`
 - :func:`replay_missing_entries_trigger`
 
+Note: This module contains standalone trigger functions, not class-based use
+cases.  There are no classes to migrate to SvcBTTriggerBase, and neither
+function uses BTBridge.
+
 Spec: SYNC-02-002, SYNC-02-003, SYNC-03-001, SYNC-03-002.
 """
 

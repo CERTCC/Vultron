@@ -867,7 +867,7 @@ class TestTriggerReportOutboxScheduling:
         )
 
     def test_validate_report_schedules_outbox_handler(
-        self, client_triggers, dl, actor, offer
+        self, client_triggers, dl, actor, offer, received_report
     ):
         """validate-report schedules outbox delivery after execution."""
         with self._make_patches() as mock_outbox:
