@@ -243,10 +243,8 @@ class AddNoteToCaseReceivedUseCase:
             and receiving_actor_id != case_actor_id
         ):
             logger.debug(
-                "add_note_to_case: receiver '%s' is not the CaseActor '%s'"
-                " for case '%s' — skipping ledger commit (CLP-07)",
-                receiving_actor_id,
-                case_actor_id,
+                "add_note_to_case: receiver is not the CaseActor for case '%s'"
+                " — skipping ledger commit (CLP-07)",
                 case_id,
             )
             return
