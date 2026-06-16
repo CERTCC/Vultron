@@ -139,6 +139,17 @@ def test_reparse_as_specific_type_returns_base_when_type_is_none():
     assert result is nested  # type: ignore[comparison-overlap]
 
 
+def test_reparse_as_specific_type_returns_same_object_when_already_specific_class():
+    """Guard branch: nested is already the specific class → return unchanged."""
+    case = VulnerabilityCase(
+        id_="urn:uuid:test-case-already-specific",
+        name="Already Specific",
+    )
+    raw_obj = case.model_dump(mode="json", by_alias=True, exclude_none=True)
+    result = _reparse_as_specific_type(case, raw_obj)
+    assert result is case
+
+
 # ---------------------------------------------------------------------------
 # _store_inbox_activity
 # ---------------------------------------------------------------------------
