@@ -610,6 +610,16 @@ Short entries are reproduced here; longer ones are referenced below.
   `get_canonical_actor_dl()` directly with explicit keyword args
   (`actor_id=...`, `dl=...`) rather than through FastAPI DI — it is a plain
   Python function and does not require the full app stack.
+- **Inbox Policy Logic Must Live in the Core BT Module, Not the FastAPI
+  Router** — When adding or modifying inbox processing behavior (parse,
+  rehydrate, defer-check, dispatch), the change belongs in
+  `vultron/core/behaviors/inbox/` — not in the FastAPI router, not in a new
+  adapter-layer pipeline helper. `process_payload` is the sole caller-facing
+  entry point; all policy is internal to the BT. Creating a new
+  adapter-layer helper or adding logic to the router repeats the V-08
+  violation (ADR-0009) and makes the pipeline untestable from non-HTTP entry
+  points. See `specs/inbox-orchestration.yaml` IO-02-003 and IO-03-003, and
+  `notes/inbox-orchestration.md`.
 
 ## Skill Interaction Rules
 
