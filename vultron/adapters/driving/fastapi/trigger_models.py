@@ -373,3 +373,20 @@ class CloseCaseRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     case_id: UriString
+
+
+class SyncLogEntryRequest(BaseModel):
+    """Request body for the demo sync-log-entry trigger.
+
+    Commits a canonical case ledger entry and fans it out to all participants
+    via Announce(CaseLedgerEntry). Uses Announce(VulnerabilityCase) as the
+    canonical payload type (case-actor-authored).
+
+    TB-03-002: Unknown fields are silently ignored.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString
+    object_id: UriString
+    event_type: NonEmptyString

@@ -55,6 +55,7 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     NotifyFixDeployedRequest,
     NotifyFixReadyRequest,
     NotifyPublishedRequest,
+    SyncLogEntryRequest,
 )
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.protocols import is_case_model
@@ -270,6 +271,114 @@ def demo_close_case(
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
+
+
+@router.post(
+    "/{actor_id}/demo/sync-log-entry",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="[Demo] Commit a case ledger entry and fan it out to participants.",
+    description=(
+        "Demo-only trigger. Commits a ``VultronCaseLedgerEntry`` for the "
+        "given case via the canonical BT commit path and queues an "
+        "``Announce(CaseLedgerEntry)`` per participant for fan-out delivery. "
+        "Uses ``Announce(VulnerabilityCase)`` as the canonical payload type. "
+        "Only available in ``RunMode.PROTOTYPE``. "
+        "Spec: TRIG-09-001, SYNC-02-002, SYNC-02-003."
+    ),
+    operation_id="actors_demo_sync_log_entry",
+)
+def demo_sync_log_entry(
+    actor_id: str,
+    body: SyncLogEntryRequest,
+    background_tasks: BackgroundTasks,
+    dl: DataLayer = Depends(get_trigger_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+) -> JSONResponse:
+    """Commit a case ledger entry and fan it out (demo scaffold, BT-06-006 compliant).
+
+    Uses BTBridge + create_commit_log_entry_tree via a canonical
+    Announce(VulnerabilityCase) payload so the entry passes canonical
+    validation (CLP-07).  The caller-supplied event_type is stored verbatim.
+
+    Spec: TRIG-09-001, SYNC-02-002, SYNC-02-003.
+    """
+    from vultron.core.behaviors.bridge import BTBridge
+    from vultron.core.behaviors.sync.commit_tree import (
+        create_commit_log_entry_tree,
+    )
+    from vultron.core.sync_helpers import _find_equivalent_recorded_entry
+    from vultron.core.use_cases._helpers import _find_case_actor_id
+
+    case_id = body.case_id
+    object_id = body.object_id
+    event_type = body.event_type
+
+    # Resolve canonical actor URI (slug from path param → full ID).
+    _actor = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
+    canonical_actor_id = (
+        _actor.id_ if _actor and hasattr(_actor, "id_") else actor_id
+    )
+    case_actor_id = _find_case_actor_id(dl, case_id) or canonical_actor_id
+    payload_snapshot = {
+        "type": "Announce",
+        "object": {"type": "VulnerabilityCase", "id": case_id},
+        "actor": case_actor_id,
+        "context": case_id,
+    }
+
+    with domain_error_translation():
+        from typing import cast as _cast
+
+        from vultron.adapters.driven.sync_activity_adapter import (
+            SyncActivityAdapter,
+        )
+        from vultron.core.ports.case_persistence import CaseOutboxPersistence
+
+        cop = _cast(CaseOutboxPersistence, dl)
+        sync_port = SyncActivityAdapter(cop)
+        bridge = BTBridge(datalayer=dl)
+        bridge.execute_with_setup(
+            tree=create_commit_log_entry_tree(
+                case_id=case_id,
+                object_id=object_id,
+                event_type=event_type,
+                payload_snapshot=payload_snapshot,
+            ),
+            actor_id=case_actor_id,
+            sync_port=sync_port,
+        )
+
+    entry = _find_equivalent_recorded_entry(
+        case_id=case_id,
+        object_id=object_id,
+        event_type=event_type,
+        payload_snapshot=payload_snapshot,
+        dl=dl,
+    )
+
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+
+    if entry is None:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": "Log entry commit did not persist."},
+        )
+
+    from vultron.core.models.case_ledger_entry import (
+        VultronCaseLedgerEntry as DomainEntry,
+    )
+
+    if not isinstance(entry, DomainEntry):
+        entry = DomainEntry.model_validate(entry.model_dump(mode="json"))
+
+    return JSONResponse(
+        status_code=status.HTTP_202_ACCEPTED,
+        content={
+            "log_entry_id": entry.id_,
+            "entry_hash": entry.entry_hash,
+            "log_index": entry.log_index,
+        },
+    )
 
 
 @router.get(

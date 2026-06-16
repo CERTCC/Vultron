@@ -54,7 +54,12 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Announce", "VulnerabilityCase"),
 )
 _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
-    {("Announce", "VulnerabilityCase")}
+    {
+        ("Announce", "VulnerabilityCase"),
+        ("Add", "EmbargoEvent"),
+        ("Remove", "EmbargoEvent"),
+        ("Invite", "EmbargoEvent"),
+    }
 )
 _INLINE_OBJECT_KEYS: frozenset[str] = frozenset(
     {"object", "object_", "target"}

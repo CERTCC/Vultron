@@ -1593,7 +1593,7 @@ class TestCaseLedgerInvariants:
     #: commit-path completeness — see issue #789).
     _REQUIRED_EVENT_TYPES: frozenset[str] = frozenset(
         {
-            "add_participant_status",  # participant tracking — CI invariant 7
+            "add_participant_status_to_participant",  # participant tracking — CI invariant 7
             "submit_report",  # report intake
         }
     )
@@ -1618,11 +1618,11 @@ class TestCaseLedgerInvariants:
         status_entries = [
             e
             for e in entries
-            if _log_event_type(e) == "add_participant_status"
+            if _log_event_type(e) == "add_participant_status_to_participant"
         ]
         assert status_entries, (
-            "Expected at least one add_participant_status entry in the "
-            "combined case log, but none were found. "
+            "Expected at least one add_participant_status_to_participant entry"
+            " in the combined case log, but none were found. "
             f"(total entries: {len(entries)}, "
             f"event types: {sorted({_log_event_type(e) for e in entries})})"
         )
@@ -1647,15 +1647,18 @@ class TestCaseLedgerInvariants:
         # CI invariant 7 — last RM state per participant must be CLOSED.
         latest_rm: dict[str, str] = {}
         for entry in entries:
-            if _log_event_type(entry) != "add_participant_status":
+            if (
+                _log_event_type(entry)
+                != "add_participant_status_to_participant"
+            ):
                 continue
             p_id, rm_state = _participant_id_and_rm(_log_payload(entry))
             if p_id and rm_state:
                 latest_rm[p_id] = rm_state
 
         assert latest_rm, (
-            "No add_participant_status entries found in combined case log; "
-            "cannot verify terminal RM states."
+            "No add_participant_status_to_participant entries found in"
+            " combined case log; cannot verify terminal RM states."
         )
 
         not_closed = {
