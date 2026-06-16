@@ -113,6 +113,11 @@ class SvcValidateReportUseCase(SvcBTTriggerBase):
         self._payload_snapshot = build_activity_payload_snapshot(
             self._offer, dl=self._dl
         )
+        # Canonical ledger entries require payloadSnapshot.context == case_id
+        # (CLP-07-002).  The Offer was constructed before the case existed on
+        # the vendor side, so its serialized context may be unset or stale.
+        if self._case_id is not None:
+            self._payload_snapshot["context"] = self._case_id
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return create_validate_report_tree(

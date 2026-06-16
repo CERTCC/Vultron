@@ -229,38 +229,49 @@ class AutoCloseBranchNode(DataLayerAction):
             self.case_id,
         )
 
-        self._commit_close_case_ledger_entry(case_manager_id)
+        self._commit_close_case_ledger_entry(
+            case_id=self.case_id,
+            case_actor_id=case_manager_id,
+        )
         return Status.SUCCESS
 
-    def _commit_close_case_ledger_entry(self, case_actor_id: str) -> None:
+    def _commit_close_case_ledger_entry(
+        self, *, case_id: str, case_actor_id: str
+    ) -> None:
         """Commit a canonical ``close_case`` ledger entry (BT-15-001).
 
         Uses ``commit_log_entry_trigger`` directly since the fan-out
         happens within the same BTBridge execution context.
         """
+        from typing import cast
+
+        from vultron.core.ports.case_persistence import CaseOutboxPersistence
         from vultron.core.use_cases.triggers.sync import (
             commit_log_entry_trigger,
         )
 
+        if self.datalayer is None:
+            return
+
         payload_snapshot = {
             "type": "Announce",
             "actor": case_actor_id,
-            "context": self.case_id,
-            "object": {"type": "VulnerabilityCase", "id": self.case_id},
+            "context": case_id,
+            "object": {"type": "VulnerabilityCase", "id": case_id},
         }
         try:
             commit_log_entry_trigger(
-                case_id=self.case_id,
-                object_id=self.case_id,
+                case_id=case_id,
+                object_id=case_id,
                 event_type="close_case",
                 actor_id=case_actor_id,
-                dl=self.datalayer,
+                dl=cast(CaseOutboxPersistence, self.datalayer),
                 payload_snapshot=payload_snapshot,
             )
         except Exception:
             self.logger.warning(
                 "AutoCloseBranch: failed to commit close_case ledger entry"
                 " for case '%s'",
-                self.case_id,
+                case_id,
                 exc_info=True,
             )
