@@ -37,6 +37,7 @@ from vultron.core.behaviors.sync.nodes.conditions import (
     CheckIsNotOwnCaseActorNode,
     CheckIsOwnCaseActorNode,
     CheckLedgerEntryAlreadyStoredNode,
+    CheckLedgerFreshnessNode,
     IsNotRemoveEmbargoEventNode,
     VerifySenderIsOwnIdNode,
     _find_case_actor,  # noqa: F401
@@ -67,6 +68,7 @@ __all__ = [
     "CheckIsNotOwnCaseActorNode",
     "VerifySenderIsOwnIdNode",
     "CheckLedgerEntryAlreadyStoredNode",
+    "CheckLedgerFreshnessNode",
     "IsNotRemoveEmbargoEventNode",
     # receive
     "LogDeliveryConfirmationNode",
