@@ -137,11 +137,15 @@ class TransitionRMtoValid(DataLayerAction):
             return Status.FAILURE
 
         try:
+            # CLP-07-007: context must use the case URI once a case exists.
+            case = self.datalayer.find_case_by_report_id(self.report_id)
+            context = case.id_ if is_case_model(case) else self.report_id
+
             status = ParticipantStatus(
                 id_=_report_phase_status_id(
                     self.actor_id, self.report_id, RM.VALID.value
                 ),
-                context=self.report_id,
+                context=context,
                 attributed_to=self.actor_id,
                 rm_state=RM.VALID,
                 em_consent_state=PEC.NO_EMBARGO,
@@ -160,7 +164,6 @@ class TransitionRMtoValid(DataLayerAction):
                 self.actor_id,
             )
 
-            case = self.datalayer.find_case_by_report_id(self.report_id)
             if is_case_model(case):
                 update_participant_rm_state(
                     case.id_, self.actor_id, RM.VALID, self.datalayer
@@ -213,11 +216,15 @@ class TransitionRMtoInvalid(DataLayerAction):
             return Status.FAILURE
 
         try:
+            # CLP-07-007: context must use the case URI once a case exists.
+            case = self.datalayer.find_case_by_report_id(self.report_id)
+            context = case.id_ if is_case_model(case) else self.report_id
+
             status = ParticipantStatus(
                 id_=_report_phase_status_id(
                     self.actor_id, self.report_id, RM.INVALID.value
                 ),
-                context=self.report_id,
+                context=context,
                 attributed_to=self.actor_id,
                 rm_state=RM.INVALID,
                 em_consent_state=PEC.NO_EMBARGO,
@@ -283,11 +290,15 @@ class TransitionRMtoClosed(DataLayerAction):
             return Status.FAILURE
 
         try:
+            # CLP-07-007: context must use the case URI once a case exists.
+            case = self.datalayer.find_case_by_report_id(self.report_id)
+            context = case.id_ if is_case_model(case) else self.report_id
+
             status = ParticipantStatus(
                 id_=_report_phase_status_id(
                     self.actor_id, self.report_id, RM.CLOSED.value
                 ),
-                context=self.report_id,
+                context=context,
                 attributed_to=self.actor_id,
                 rm_state=RM.CLOSED,
                 em_consent_state=PEC.NO_EMBARGO,

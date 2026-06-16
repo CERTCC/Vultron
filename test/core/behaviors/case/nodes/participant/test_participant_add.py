@@ -37,7 +37,11 @@ from vultron.core.behaviors.case.nodes.participant import (
 )
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.vultron_types import VultronCase, VultronCaseActor
+from vultron.core.models.vultron_types import (
+    VultronCase,
+    VultronCaseActor,
+    VultronReport,
+)
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.core.states.roles import CVDRole
@@ -234,3 +238,50 @@ class TestCreateCaseParticipantNode:
         refreshed = cast(Any, bt_scenario.dl.read(status_id))
         assert refreshed is not None
         assert refreshed.em_consent_state == PEC.SIGNATORY
+
+    def test_backfills_context_to_case_uri_for_existing_status(
+        self,
+        bt_scenario: BTTestScenario,
+        report: VultronReport,
+        case_obj: VultronCase,
+    ) -> None:
+        """AC-3: existing ParticipantStatus with report-URI context is migrated.
+
+        When a pre-fix status was created with context=report_id, a subsequent
+        call to _get_or_create_accepted_status (via ResolveParticipantAcceptedStatusNode)
+        must backfill the context to the case URI (CLP-07-007).
+        """
+        actor_id = "https://example.org/actors/finder"
+        status_id = _report_phase_status_id(
+            actor_id, report.id_, RM.ACCEPTED.value
+        )
+        # Seed a stale status with report-URI context (pre-fix state).
+        stale = ParticipantStatus(
+            id_=status_id,
+            context=report.id_,
+            attributed_to=actor_id,
+            rm_state=RM.ACCEPTED,
+            em_consent_state=PEC.NO_EMBARGO,
+            cvd_role=[CVDRole.FINDER],
+        )
+        bt_scenario.dl.create(stale)
+
+        result = bt_scenario.run(
+            ResolveParticipantAcceptedStatusNode(
+                participant_actor_id=actor_id,
+                roles=[CVDRole.FINDER],
+                report_id=report.id_,
+            ),
+            actor_id=actor_id,
+        )
+        bt_scenario.assert_success(result)
+
+        backfilled = cast(Any, bt_scenario.dl.read(status_id))
+        assert backfilled is not None
+        assert backfilled.context == case_obj.id_, (
+            f"Expected context backfilled to {case_obj.id_!r}, "
+            f"got {backfilled.context!r} (CLP-07-007)"
+        )
+        assert (
+            backfilled.context != report.id_
+        ), "ParticipantStatus.context must not remain the report URI after backfill"

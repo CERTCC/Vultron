@@ -24,13 +24,14 @@ package runs.
 import pytest
 
 from vultron.core.models.activity import VultronOffer
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.report import VultronReport
 from test.core.behaviors.bt_harness import BTTestScenario
 
 # noqa: F401 — imported for vocabulary registration side-effect
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
-    VulnerabilityCase,
+    VulnerabilityCase as _WireVulnerabilityCase,
 )
 
 
@@ -64,5 +65,21 @@ def offer(
 ) -> VultronOffer:
     """Create a test offer and persist it in the scenario DataLayer."""
     obj = VultronOffer(actor=actor.id_, object_=report.id_)
+    bt_scenario.dl.create(obj)
+    return obj
+
+
+@pytest.fixture
+def case(
+    bt_scenario: BTTestScenario,
+    report: VultronReport,
+    actor: VultronCaseActor,
+) -> VulnerabilityCase:
+    """Create a VulnerabilityCase linked to the test report."""
+    obj = VulnerabilityCase(
+        name="Test Case for TEST-001",
+        vulnerability_reports=[report.id_],
+        attributed_to=actor.id_,
+    )
     bt_scenario.dl.create(obj)
     return obj
