@@ -458,13 +458,6 @@ def test_invariant_7_log_terminates_all_rm_closed(
 
 
 @pytest.mark.case_ledger_invariants
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "Late-joining participants require join-time history backfill; "
-        "will pass when #937 (wire replay into AcceptInvite) lands"
-    ),
-)
 def test_invariant_8_late_joiner_has_full_history(
     case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
@@ -473,8 +466,7 @@ def test_invariant_8_late_joiner_has_full_history(
     Checks that the ``finder`` replica contains all logIndex values
     present in the ``vendor`` replica.  The finder joins after
     report-to-case promotion, so pre-join entries must be backfilled.
-    When this xfail is unexpectedly promoted to XPASS, remove the
-    ``xfail`` decorator to make it a permanent regression guard.
+    Promoted from xfail: confirmed passing once #937 (join-time backfill) landed.
     """
     vendor_entries = case_ledger_replicas.get("vendor", [])
     finder_entries = case_ledger_replicas.get("finder", [])
@@ -622,15 +614,6 @@ def test_invariant_11_payload_context_uses_case_uri(
 #
 # ---------------------------------------------------------------------------
 
-#: The finder is a late joiner whose replica is incomplete until #937 lands.
-_BACKFILL_XFAIL = pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "Late-joining finder replica is incomplete until join-time history "
-        "backfill lands; will pass when #937 (wire replay into AcceptInvite) lands"
-    ),
-)
-
 # ---------------------------------------------------------------------------
 # Group A — Fragment contiguity (inv 14)
 #
@@ -638,7 +621,7 @@ _BACKFILL_XFAIL = pytest.mark.xfail(
 # range.  Uses min_idx→max_idx, not 0→max, so a late joiner that holds
 # a contiguous run [2..N] passes.
 #
-# Finder passes today (no gaps within its fragment); no xfail needed.
+# Finder passes (fragment is contiguous).
 # ---------------------------------------------------------------------------
 
 _FRAGMENT_ACTORS = [
@@ -684,15 +667,14 @@ def test_invariant_14_no_gaps_in_log_indices(
 # Group B — Log completeness (inv 12–13)
 #
 # Checks that an actor holds the *full* log from genesis (logIndex=0).
-# The finder is a late joiner whose replica lacks early entries until the
-# join-time backfill fix (#937) lands.
+# Promoted from xfail: confirmed passing once #937 (join-time backfill) landed.
 # ---------------------------------------------------------------------------
 
-#: Actor lists for completeness checks — finder xfail until #937.
+#: Actor lists for completeness checks.
 _COMPLETE_LOG_ACTORS = [
     pytest.param("case-actor"),
     pytest.param("vendor"),
-    pytest.param("finder", marks=_BACKFILL_XFAIL),
+    pytest.param("finder"),
 ]
 
 
@@ -704,12 +686,10 @@ def test_invariant_12_genesis_entry_present(
 ) -> None:
     """logIndex=0 is present in the actor's log (log completeness).
 
-    Every actor must eventually receive or own the genesis entry.  The finder
-    is a late joiner and its replica will lack logIndex=0 until the join-time
-    backfill fix (#937) lands.
+    Every actor must receive or own the genesis entry.  The finder is a
+    late joiner; its replica is backfilled at join-time via #937.
 
     This invariant is in **Group B** (log completeness).
-    When the xfail for ``finder`` is promoted to XPASS, remove its mark.
     Spec: CLP-07.
     """
     entries = case_ledger_replicas.get(actor_name)
@@ -735,7 +715,6 @@ def test_invariant_13_log_starts_at_genesis(
     both that logIndex=0 exists (invariant 12) and that the log is ordered.
 
     This invariant is in **Group B** (log completeness).
-    When the xfail for ``finder`` is promoted to XPASS, remove its mark.
     Spec: CLP-07.
     """
     entries = case_ledger_replicas.get(actor_name)

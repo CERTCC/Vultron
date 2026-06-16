@@ -195,6 +195,7 @@ class AddNoteToCaseReceivedUseCase:
         from vultron.core.use_cases.received.actor import _find_case_actor_id
         from vultron.core.use_cases.triggers.sync import (
             commit_log_entry_trigger,
+            extract_activity_snapshot,
         )
 
         actor_id = self._request.receiving_actor_id
@@ -215,6 +216,9 @@ class AddNoteToCaseReceivedUseCase:
             actor_id=actor_id,
             dl=self._dl,
             sync_port=self._sync_port,
+            payload_snapshot=extract_activity_snapshot(
+                self._request, dl=self._dl
+            ),
         )
 
 

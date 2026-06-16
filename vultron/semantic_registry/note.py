@@ -47,6 +47,7 @@ ENTRIES: list[SemanticEntry] = [
         event_class=AddNoteToCaseReceivedEvent,
         use_case_class=AddNoteToCaseReceivedUseCase,
         wire_activity_class=_AddNoteToCaseActivity,
+        include_activity=True,
     ),
     SemanticEntry(
         semantics=MessageSemantics.REMOVE_NOTE_FROM_CASE,
