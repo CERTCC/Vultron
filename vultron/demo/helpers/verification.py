@@ -365,13 +365,6 @@ def verify_coordinator_case_state(
         coordinator_client, coordinator_participant_id
     )
 
-    event_types = [event.event_type for event in final_case.events]
-    if "participant_added" not in event_types:
-        raise AssertionError(
-            "Expected participant_added event after reporter was added to the"
-            " case"
-        )
-
     _assert_vendor_case_status(final_case)
     _assert_case_notes(final_case, question_note_id, reply_note_id)
     return final_case

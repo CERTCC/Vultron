@@ -236,7 +236,6 @@ class RecordParticipantAddedEventNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        stored_case.record_event(participant_id, "participant_added")
         self.datalayer.save(stored_case)
         return Status.SUCCESS
 

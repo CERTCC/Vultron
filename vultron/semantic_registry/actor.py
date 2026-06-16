@@ -165,6 +165,7 @@ ENTRIES: list[SemanticEntry] = [
         event_class=AcceptInviteActorToCaseReceivedEvent,
         use_case_class=AcceptInviteActorToCaseReceivedUseCase,
         wire_activity_class=_RmAcceptInviteToCaseActivity,
+        include_activity=True,
     ),
     SemanticEntry(
         semantics=MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE,

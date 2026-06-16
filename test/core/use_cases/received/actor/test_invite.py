@@ -339,9 +339,19 @@ class TestInviteActorUseCases:
     def test_accept_invite_actor_to_case_records_case_event(
         self, monkeypatch, make_payload
     ):
-        """AcceptInviteActorToCaseReceivedUseCase appends a trusted-timestamp event to case.events (CM-02-009)."""
+        """AcceptInviteActorToCaseReceivedUseCase commits a canonical
+        CaseLedgerEntry with event_type 'accept_invite_actor_to_case'
+        (CM-02-009).
+
+        record_event('participant_joined') was removed in #789; the trust
+        guarantee now lives in CaseLedgerEntry.received_at written by
+        CommitCaseLedgerEntryNode.
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+        from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+            CaseLedgerEntry as WireCaseLedgerEntry,
+        )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
@@ -370,18 +380,19 @@ class TestInviteActorUseCases:
 
         event = make_payload(accept)
 
-        assert len(case.events) == 0
-
         AcceptInviteActorToCaseReceivedUseCase(
             dl, event, sync_port=MagicMock()
         ).execute()
 
-        case = dl.read(case.id_)
-        assert case is not None
-        case = cast(VulnerabilityCase, case)
-        assert len(case.events) >= 1
-        event_types = [e.event_type for e in case.events]
-        assert "participant_joined" in event_types
+        entries = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, WireCaseLedgerEntry) and e.case_id == case.id_
+        ]
+        assert len(entries) >= 1
+        assert any(
+            e.event_type == "accept_invite_actor_to_case" for e in entries
+        )
 
     def test_accept_invite_backfills_canonical_ledger_from_genesis(
         self, make_payload
@@ -458,7 +469,9 @@ class TestInviteActorUseCases:
             kwargs["entry"]
             for _, kwargs in sync_port.send_announce_log_entry.call_args_list
         ]
-        assert [entry.log_index for entry in announced_entries] == [0, 1]
+        # Backfill sends entries 0 and 1; CommitCaseLedgerEntryNode fans out
+        # the new accept_invite entry (2) to all participants via sync_port.
+        assert [entry.log_index for entry in announced_entries] == [0, 1, 2]
         assert announced_entries[0].entry_hash == first.entry_hash
         assert announced_entries[1].entry_hash == second.entry_hash
 
@@ -577,7 +590,9 @@ class TestInviteActorUseCases:
             kwargs["entry"]
             for _, kwargs in sync_port.send_announce_log_entry.call_args_list
         ]
-        assert [entry.log_index for entry in announced_entries] == [1]
+        # Backfill resumes from entry 1; CommitCaseLedgerEntryNode fans out
+        # the new accept_invite entry (2) to all participants via sync_port.
+        assert [entry.log_index for entry in announced_entries] == [1, 2]
         assert announced_entries[0].entry_hash == second.entry_hash
         assert all(
             entry.entry_hash != first.entry_hash for entry in announced_entries
@@ -671,7 +686,9 @@ class TestInviteActorUseCases:
             kwargs["entry"]
             for _, kwargs in sync_port.send_announce_log_entry.call_args_list
         ]
-        assert [entry.log_index for entry in announced_entries] == [0, 1]
+        # Backfill sends entries 0 and 1; CommitCaseLedgerEntryNode fans out
+        # the new accept_invite entry (2) to all participants via sync_port.
+        assert [entry.log_index for entry in announced_entries] == [0, 1, 2]
 
     def test_accept_invite_backfill_runs_when_announce_port_missing(
         self, make_payload
@@ -743,7 +760,10 @@ class TestInviteActorUseCases:
             kwargs["entry"]
             for _, kwargs in sync_port.send_announce_log_entry.call_args_list
         ]
-        assert [entry.log_index for entry in announced_entries] == [0, 1]
+        # Backfill sends entries 0 and 1; CommitCaseLedgerEntryNode fans out
+        # the new accept_invite entry (2) to all participants via sync_port.
+        # This holds even when trigger_activity (announce port) is missing.
+        assert [entry.log_index for entry in announced_entries] == [0, 1, 2]
 
         state_id = VultronReplicationState(
             case_id=case.id_, peer_id=invitee_id

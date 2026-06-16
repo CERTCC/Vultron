@@ -389,7 +389,13 @@ class TestEmbargoUseCases:
     def test_accept_invite_to_embargo_records_case_event(
         self, monkeypatch, make_payload
     ):
-        """accept_invite_to_embargo_on_case appends a trusted-timestamp event to case.events (CM-02-009)."""
+        """accept_invite_to_embargo_on_case transitions EM state to ACTIVE
+        and persists the case (CM-02-009).
+
+        record_event('embargo_accepted') was removed in #789; the behavioral
+        invariant is verified by checking case.active_embargo is not None
+        after acceptance.
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -424,16 +430,14 @@ class TestEmbargoUseCases:
         )
         event = make_payload(accept)
 
-        assert len(case.events) == 0
-
         AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.id_)
         assert case is not None
         case = cast(VulnerabilityCase, case)
-        assert len(case.events) >= 1
-        event_types = [e.event_type for e in case.events]
-        assert "embargo_accepted" in event_types
+        assert (
+            case.active_embargo is not None
+        ), "Expected active_embargo to be set after embargo acceptance"
 
     def test_reject_invite_to_embargo_on_case_ledgers_rejection(
         self, make_payload

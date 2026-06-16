@@ -390,6 +390,4 @@ class RecordOwnerJoinedEventNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        stored_case.record_event(participant.id_, "owner_joined")
-        self.datalayer.save(stored_case)
         return Status.SUCCESS

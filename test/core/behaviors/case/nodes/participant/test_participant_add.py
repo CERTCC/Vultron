@@ -82,7 +82,12 @@ class TestCreateCaseParticipantNode:
         actor_id: str,
         finder_actor_id: str,
     ) -> None:
-        """CreateCaseParticipantNode records 'participant_added' on the case."""
+        """CreateCaseParticipantNode registers the new participant in the case.
+
+        record_event('participant_added') was removed in #789; the behavioral
+        outcome — finder registered in actor_participant_index — is the
+        authoritative check now.
+        """
         bt_scenario.run(
             CreateCaseParticipantNode(
                 actor_id=finder_actor_id, roles=[CVDRole.FINDER]
@@ -92,8 +97,7 @@ class TestCreateCaseParticipantNode:
         )
 
         stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
-        event_types = [e.event_type for e in stored_case.events]
-        assert "participant_added" in event_types
+        assert finder_actor_id in stored_case.actor_participant_index
 
     def test_is_composed_subtree_of_named_leaf_nodes(self) -> None:
         node = CreateCaseParticipantNode(

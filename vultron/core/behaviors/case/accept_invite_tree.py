@@ -25,7 +25,8 @@ Tree structure::
     ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
     ├── CreateInviteeParticipantAtAcceptedNode — build participant at RM.ACCEPTED
     ├── MaybeSignEmbargoConsentNode            — sign when embargo is EM.ACTIVE
-    ├── PersistInviteeParticipantNode          — dl.create, attach, record events
+    ├── PersistInviteeParticipantNode          — dl.create, attach, save case
+    ├── CommitCaseLedgerEntryNode              — canonical log entry + SYNC-02-002 fan-out
     └── EmitAnnounceCaseToInviteeNode          — queue Announce(VulnerabilityCase)
 
 Specs: PCR-08-010 (identity constraint), CM-10-001/CM-10-003 (embargo
@@ -39,6 +40,7 @@ from typing import cast
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
 from vultron.core.models.protocols import (
     LogEntryModel,
@@ -420,10 +422,6 @@ class PersistInviteeParticipantNode(DataLayerAction):
             key="invitee_case",
             access=py_trees.common.Access.READ,
         )
-        self.blackboard.register_key(
-            key="active_embargo_id",
-            access=py_trees.common.Access.READ,
-        )
 
     def update(self) -> Status:
         if self.datalayer is None:
@@ -446,12 +444,6 @@ class PersistInviteeParticipantNode(DataLayerAction):
 
         self.datalayer.create(participant)
         case.add_participant(participant)
-        case.record_event(self.invitee_id, "participant_joined")
-
-        active_embargo_id = self.blackboard.get("active_embargo_id")
-        if isinstance(active_embargo_id, str):
-            case.record_event(active_embargo_id, "embargo_accepted")
-
         self.datalayer.save(case)
         self.logger.info(
             "%s: participant '%s' persisted and attached to case '%s'"
@@ -669,8 +661,10 @@ def create_accept_invite_actor_to_case_tree(
         ├── CheckInviteeNotAlreadyParticipantNode — idempotency guard
         ├── CreateInviteeParticipantAtAcceptedNode — build participant at ACCEPTED
         ├── MaybeSignEmbargoConsentNode            — sign when EM.ACTIVE
-        ├── PersistInviteeParticipantNode          — persist, attach, record events
-        └── EmitAnnounceCaseToInviteeNode          — queue Announce to invitee
+        ├── PersistInviteeParticipantNode          — persist, attach, save case
+        ├── EmitAnnounceCaseToInviteeNode          — queue Announce to invitee
+        ├── BackfillCanonicalLedgerToInviteeNode   — send prior ledger to invitee
+        └── CommitCaseLedgerEntryNode              — canonical log entry + fan-out
 
     Args:
         case_id: ID of the VulnerabilityCase the invitee accepted.
@@ -702,6 +696,7 @@ def create_accept_invite_actor_to_case_tree(
             BackfillCanonicalLedgerToInviteeNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
+            CommitCaseLedgerEntryNode(case_id=case_id),
         ],
     )
 
