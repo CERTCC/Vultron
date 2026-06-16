@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 """
-Vultron API Routers
+Route handlers for the Vultron FastAPI actors router.
+
+Defines the ``/actors`` APIRouter and all its endpoints.  Route-level
+dependencies and business logic delegated to ``_lookup`` and ``_inbox``
+helpers; no direct DataLayer manipulation here beyond what FastAPI
+dependencies provide.
 """
 
 #  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
@@ -12,11 +17,10 @@ Vultron API Routers
 #  Created, in part, with funding and support from the United States Government
 #  (see Acknowledgments file). This program may include and/or can make use of
 #  certain third party source code, object code, documentation and other files
-#  (“Third Party Software”). See LICENSE.md for more details.
+#  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import json
 import logging
 from typing import Any, Literal, cast
 
@@ -29,42 +33,45 @@ from fastapi import (
     Response,
     status,
 )
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
-from vultron.adapters.utils import make_id, strip_id_prefix
-from vultron.adapters.driving.fastapi.inbox_handler import (
-    inbox_handler,
-)
+from vultron.adapters.driven.db_record import object_to_record
+from vultron.adapters.driven.datalayer import get_shared_dl
+from vultron.adapters.driving.fastapi.inbox_handler import inbox_handler
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
-from vultron.core.models.protocols import is_case_model
-from vultron.core.models.protocols import PersistableModel
-from vultron.core.ports.datalayer import DataLayer, StorableRecord
+from vultron.adapters.utils import make_id, strip_id_prefix
+from vultron.core.models.actor import (
+    CoreActor,
+    VultronOrganization,
+)
+from vultron.core.models.protocols import PersistableModel, is_case_model
+from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases.query.action_rules import (
     ActionRulesRequest,
     GetActionRulesUseCase,
 )
-from vultron.adapters.driven.db_record import object_to_record
-from vultron.adapters.driven.datalayer import get_shared_dl
 from vultron.errors import VultronNotFoundError, VultronValidationError
-from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.links import as_Link
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.collections import (
     as_OrderedCollection,
 )
-from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
-from vultron.wire.as2.errors import (
-    VultronParseError,
-    VultronParseMissingTypeError,
+
+from vultron.adapters.driving.fastapi.routers.actors._inbox import (
+    _activity_already_received,
+    _get_body,
+    _record_inbox_receipt,
+    _store_inbox_activity,
+    _store_nested_inbox_object,
+    parse_activity,
 )
-from vultron.wire.as2.parser import parse_activity as _parse_activity
-from vultron.core.models.actor import (
-    CoreActor,
-    VultronApplication,
-    VultronGroup,
-    VultronOrganization,
-    VultronPerson,
-    VultronService,
+from vultron.adapters.driving.fastapi.routers.actors._lookup import (
+    _ACTOR_RECORD_TYPES,
+    _ACTOR_TYPE_MAP,
+    _actor_class_for_record,
+    _find_actor_record,
+    _resolve_actor_or_404,
 )
 
 AnyActor = CoreActor
@@ -100,85 +107,6 @@ def get_actors(
         o.model_dump(mode="json", by_alias=True, exclude_none=True)
         for o in objects
     ]
-
-
-_ACTOR_RECORD_TYPES = [
-    "Actor",
-    "CoreActor",
-    "Application",
-    "Group",
-    "Organization",
-    "Person",
-    "Service",
-]
-
-
-def _find_actor_record_by_id(
-    datalayer: DataLayer, actor_id: str
-) -> dict[str, object] | None:
-    for actor_type in _ACTOR_RECORD_TYPES:
-        rec = datalayer.get(actor_type, actor_id)
-        if isinstance(rec, dict):
-            return rec
-    return None
-
-
-def _actor_class_for_record(
-    rec: dict[str, Any],
-) -> type[CoreActor]:
-    data = rec.get("data_", {})
-    payload_type = None
-    if isinstance(data, dict):
-        payload_type = data.get("type_") or data.get("type")
-
-    if isinstance(payload_type, str) and payload_type in _ACTOR_TYPE_MAP:
-        return _ACTOR_TYPE_MAP[payload_type]
-
-    record_type = rec.get("type_")
-    if isinstance(record_type, str) and record_type in _ACTOR_TYPE_MAP:
-        return _ACTOR_TYPE_MAP[record_type]
-
-    return CoreActor
-
-
-def _find_actor_record(
-    datalayer: DataLayer, actor_id: str
-) -> dict[str, object] | None:
-    """Return raw actor record for full-ID or short-ID lookup."""
-    rec = _find_actor_record_by_id(datalayer, actor_id)
-    if rec is not None:
-        return rec
-
-    # Preserve DataLayer.read() fallback behavior (e.g., bare UUID -> urn:uuid:).
-    resolved = datalayer.read(actor_id)
-    if resolved is not None:
-        resolved_id = getattr(resolved, "id_", None)
-        if isinstance(resolved_id, str):
-            rec = _find_actor_record_by_id(datalayer, resolved_id)
-            if rec is not None:
-                return rec
-
-    for actor_type in _ACTOR_RECORD_TYPES:
-        for candidate in datalayer.get_all(actor_type):
-            rec_id = candidate.get("id_")
-            if isinstance(rec_id, str) and (
-                rec_id == actor_id or rec_id.endswith(f"/{actor_id}")
-            ):
-                return candidate
-    return None
-
-
-# ---------------------------------------------------------------------------
-# Actor type map — used by create_actor
-# ---------------------------------------------------------------------------
-
-_ACTOR_TYPE_MAP: dict[str, type[CoreActor]] = {
-    "Person": VultronPerson,
-    "Organization": VultronOrganization,
-    "Service": VultronService,
-    "Application": VultronApplication,
-    "Group": VultronGroup,
-}
 
 
 class ActorCreateRequest(BaseModel):
@@ -386,189 +314,6 @@ def get_actor_inbox(
         list(actor_dl.inbox_list()),
     )
     return as_OrderedCollection(items=items)
-
-
-def parse_activity(body: dict[str, Any]) -> as_Activity:
-    """HTTP adapter: parse request body and map wire errors to HTTP responses.
-
-    Delegates AS2 parsing to the wire layer and converts domain parse errors
-    into appropriate HTTP status codes for FastAPI.
-
-    Args:
-        body: The request body as a dictionary.
-
-    Returns:
-        A typed as_Activity subclass instance.
-
-    Raises:
-        HTTPException: 400 if the `type` field is missing; 422 for all other
-            parse failures (unknown type, validation error).
-    """
-    logger.info(
-        "Parsing activity from request body (type=%r):\n%s",
-        body.get("type"),
-        json.dumps(body, indent=2, default=str),
-    )
-    try:
-        return _parse_activity(body)
-    except VultronParseMissingTypeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        )
-    except VultronParseError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=str(exc),
-        )
-
-
-def _resolve_actor_or_404(actor_id: str, dl: DataLayer) -> CoreActor:
-    actor_record = dl.read(actor_id)
-    if actor_record is None:
-        actor_record = dl.find_actor_by_short_id(actor_id)
-    if actor_record is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
-        )
-    return cast(CoreActor, actor_record)
-
-
-def _activity_already_received(actor: CoreActor, activity_id: str) -> bool:
-    return bool(
-        getattr(actor, "inbox", None)
-        and hasattr(getattr(actor, "inbox", None), "items")
-        and activity_id in getattr(actor, "inbox").items
-    )
-
-
-def _get_body(body: dict[str, Any]) -> dict[str, Any]:
-    """FastAPI dependency: return the raw JSON request body dict."""
-    return body
-
-
-def _reparse_as_specific_type(
-    nested: as_Object,
-    raw_obj: dict[str, Any],
-) -> PersistableModel:
-    """Re-parse *raw_obj* with the correct specific vocabulary class.
-
-    When the wire parser validates an inline object as the base ``as_Object``
-    type, domain-specific fields are silently dropped.  This helper looks up
-    the specific vocabulary class for ``nested.type_`` and re-parses
-    *raw_obj* (the raw dict from the wire body) with it so all fields are
-    preserved.
-
-    Returns the re-parsed specific instance, or the original *nested* cast
-    to ``PersistableModel`` when re-parsing fails or is unnecessary.
-    """
-    base: PersistableModel = cast(PersistableModel, nested)
-    obj_type: str | None = nested.type_
-    if obj_type is None:
-        return base
-    try:
-        specific_cls = find_in_vocabulary(obj_type)
-    except KeyError:
-        return base
-    if isinstance(nested, specific_cls):
-        return base
-    try:
-        result = cast(PersistableModel, specific_cls.model_validate(raw_obj))
-        logger.debug(
-            "Re-parsed inline '%s' as specific class %s.",
-            obj_type,
-            specific_cls.__name__,
-        )
-        return result
-    except ValidationError:
-        logger.debug(
-            "Could not re-parse inline '%s' as %s; using base as_Object.",
-            obj_type,
-            specific_cls.__name__,
-        )
-        return base
-
-
-def _store_nested_inbox_object(
-    dl: DataLayer,
-    activity: as_Activity,
-    body: dict[str, Any] | None = None,
-) -> None:
-    """Store the inline nested ``object_`` of an inbox activity.
-
-    When the wire parser parses an Announce or other transitive activity, the
-    inline ``object_`` is validated as the base ``as_Object`` type, which
-    silently drops domain-specific fields (``case_id``, ``event_type``, etc.).
-    This function uses the raw request body to re-parse the nested object with
-    the correct specific vocabulary class so that all fields are preserved.
-    Without this, a subsequent DataLayer round-trip would fail Pydantic
-    validation on the specific class (missing required fields), causing
-    rehydration to return ``None`` and pattern matching to fall back to a
-    less specific pattern (e.g. ``announce_vulnerability_case`` instead of
-    ``announce_case_ledger_entry``).
-
-    Args:
-        dl: The shared DataLayer for storing the nested object.
-        activity: The parsed AS2 activity whose ``object_`` to store.
-        body: Optional raw JSON request body dict.  When present, used to
-            re-parse the nested object with the correct specific class.
-    """
-    nested = getattr(activity, "object_", None)
-    if nested is None or isinstance(nested, str):
-        return
-    if not (
-        hasattr(nested, "id_")
-        and hasattr(nested, "type_")
-        and nested.type_ is not None
-        and not nested.type_.startswith("as_")
-    ):
-        return
-
-    raw_obj = body.get("object") if body is not None else None
-    typed_nested: PersistableModel = (
-        _reparse_as_specific_type(nested, raw_obj)
-        if isinstance(raw_obj, dict)
-        else cast(PersistableModel, nested)
-    )
-
-    try:
-        dl.create(object_to_record(typed_nested))
-    except ValueError:
-        pass
-
-
-def _store_inbox_activity(dl: DataLayer, activity: as_Activity) -> None:
-    try:
-        dl.create(object_to_record(activity))
-    except ValueError:
-        logger.debug(
-            "Activity %s already exists in shared DL; skipping re-store.",
-            activity.id_,
-        )
-
-
-def _record_inbox_receipt(
-    dl: DataLayer,
-    actor: CoreActor,
-    activity_id: str,
-    canonical_actor_id: str,
-) -> None:
-    inbox = getattr(actor, "inbox", None)
-    if not inbox or not hasattr(inbox, "items"):
-        return
-
-    inbox.items.append(activity_id)
-    dl.update(
-        actor.id_,
-        StorableRecord(
-            id_=actor.id_,
-            type_=getattr(actor, "type_", None) or "Actor",
-            data_=actor.model_dump(mode="json"),
-        ),
-    )
-    logger.debug(
-        f"Added activity {activity_id} to actor {canonical_actor_id} inbox record"
-    )
 
 
 @router.post(
