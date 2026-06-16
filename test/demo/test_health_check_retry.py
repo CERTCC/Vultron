@@ -13,7 +13,7 @@ to be ready before proceeding.
 import logging
 from unittest.mock import Mock, patch
 
-import httpx
+import httpx2 as httpx
 
 from vultron.demo.exchange.receive_report_demo import (
     DataLayerClient,
@@ -29,7 +29,7 @@ def test_check_server_availability_succeeds_immediately():
     mock_response.status_code = 200
     mock_response.is_success = True
 
-    with patch("httpx.get", return_value=mock_response):
+    with patch("httpx2.get", return_value=mock_response):
         result = check_server_availability(
             client, max_retries=1, retry_delay=0.1
         )
@@ -42,7 +42,7 @@ def test_check_server_availability_fails_permanently():
     client = DataLayerClient(base_url="http://test:7999/api/v2")
 
     with patch(
-        "httpx.get",
+        "httpx2.get",
         side_effect=httpx.ConnectError("Connection refused"),
     ):
         result = check_server_availability(
@@ -67,7 +67,7 @@ def test_check_server_availability_succeeds_after_retry():
         mock_response,
     ]
 
-    with patch("httpx.get", side_effect=side_effects):
+    with patch("httpx2.get", side_effect=side_effects):
         result = check_server_availability(
             client, max_retries=3, retry_delay=0.1
         )
@@ -89,7 +89,7 @@ def test_check_server_availability_logs_retry_attempts(caplog):
     ]
 
     with caplog.at_level(logging.DEBUG):
-        with patch("httpx.get", side_effect=side_effects):
+        with patch("httpx2.get", side_effect=side_effects):
             result = check_server_availability(
                 client, max_retries=3, retry_delay=0.1
             )
@@ -114,7 +114,7 @@ def test_check_server_availability_respects_max_retries():
         call_count += 1
         raise httpx.ConnectError("Connection refused")
 
-    with patch("httpx.get", side_effect=side_effect):
+    with patch("httpx2.get", side_effect=side_effect):
         result = check_server_availability(
             client, max_retries=3, retry_delay=0.1
         )

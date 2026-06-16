@@ -400,7 +400,7 @@ def main(
 
 def _setup_logging():
     """Configure console logging for standalone script execution."""
-    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpx2").setLevel(logging.WARNING)
     logger_ = logging.getLogger()
     hdlr = logging.StreamHandler(sys.stdout)
     import logging as _logging

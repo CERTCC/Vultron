@@ -27,7 +27,7 @@ import asyncio
 import json
 import logging
 
-import httpx
+import httpx2 as httpx
 
 from vultron.core.models.activity import VultronActivity
 from vultron.core.ports.emitter import (  # noqa: F401 — port reference

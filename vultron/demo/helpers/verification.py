@@ -21,7 +21,7 @@ avoids duplication when future multi-actor scenarios need the same checks.
 import logging
 from typing import Optional
 
-import httpx
+import httpx2 as httpx
 
 from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.em import EM

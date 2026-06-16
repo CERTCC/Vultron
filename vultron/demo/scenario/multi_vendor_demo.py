@@ -774,7 +774,7 @@ def main(
 
 def _setup_logging() -> None:
     """Configure console logging for standalone execution."""
-    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpx2").setLevel(logging.WARNING)
     root = logging.getLogger()
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(

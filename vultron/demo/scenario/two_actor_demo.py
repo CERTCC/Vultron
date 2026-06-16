@@ -28,7 +28,7 @@ import pathlib
 import sys
 from typing import Optional, Tuple
 
-import httpx
+import httpx2 as httpx
 
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vfd
@@ -984,7 +984,7 @@ def main(
 
 def _setup_logging() -> None:
     """Configure console logging for standalone script execution."""
-    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpx2").setLevel(logging.WARNING)
     _logger = logging.getLogger()
     hdlr = logging.StreamHandler(sys.stdout)
     hdlr.setFormatter(
