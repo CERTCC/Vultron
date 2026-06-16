@@ -132,6 +132,17 @@ re-import makes the name patchable via `m.*` and ensures internal call sites
 in the original module resolve the patched value from their own module globals.
 Use `# noqa: F401` on re-export lines to suppress unused-import lint warnings.
 
+### 2026-06-16 ACTORS-ROUTER-SPLIT-970 — re-export get_shared_dl when converting a router module to a subpackage
+
+When a test file does `app.dependency_overrides[actors_router.get_shared_dl]`,
+it accesses `get_shared_dl` as an attribute of the module. Converting
+`actors.py` to an `actors/` package breaks this unless `get_shared_dl` is
+explicitly re-exported in `actors/__init__.py`. Always scan for
+`module.dependency_object` patterns in tests before finalizing subpackage
+`__init__.py` exports.
+
+### 2026-06-15 BTND07-913-PARTIAL-WRITE — note trigger tree partial-write on send failure
+
 `add_note_to_case_trigger_bt` uses a `memory=False` Sequence. When
 `SenderSideBT` (third child) fails (e.g., no CASE_MANAGER), the first two
 steps (`CreateNoteNode`, `AttachNoteFromResultNode`) have already succeeded
