@@ -71,6 +71,7 @@ Load additional files only when the task touches the relevant area. See the
 | DataLayer adapter | `datalayer.md` |
 | Handler pipeline | `inbox-endpoint.yaml`, `message-validation.yaml`, `semantic-extraction.yaml`, `dispatch-routing.yaml` |
 | Inbox pipeline testability | `inbox-pipeline.yaml` |
+| Inbox orchestration (core BT module + InboxOutcome seam) | `inbox-orchestration.yaml` |
 | Behavior Trees | `behavior-tree-integration.yaml`, `behavior-tree-node-design.yaml`, `bt-composability.yaml`, `triggerable-behaviors.yaml`, `vultron/core/use_cases/triggers/AGENTS.md` |
 | Case / state management | `case-management.yaml`, `state-machine.yaml`, `case-ledger-processing.yaml` |
 | Protocol conformance | `vultron-protocol-spec.yaml`, `vultron-as2-mapping.yaml` |
@@ -144,6 +145,11 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 - **`inbox-pipeline.yaml`** - `InboxPipeline` class contract and `build_test_pipeline()`
   factory that surface the `inbox_handler → dispatcher` seam as a testable unit;
   routing-safety-net test coverage requirements (IBP-01 through IBP-04)
+
+- **`inbox-orchestration.yaml`** - Core BT-backed inbox orchestration module:
+  `InboxOutcome` model requirements, BT sequence ordering invariants, adapter
+  injection rules, caller interface constraints, and typed error/outcome
+  behavior (IO-01 through IO-04). Derived from GitHub issue #977 and ADR-0020.
 
 **DataLayer Port**:
 
@@ -440,6 +446,7 @@ is reserved for `testability.yaml`).
 | `HP` | `handler-protocol.yaml` |
 | `HTTP` | `http-protocol.yaml` |
 | `IBP` | `inbox-pipeline.yaml` |
+| `IO` | `inbox-orchestration.yaml` |
 | `IE` | `inbox-endpoint.yaml` |
 | `IMPLTS` | `tech-stack.yaml` |
 | `MV` | `message-validation.yaml` |

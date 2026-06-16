@@ -113,6 +113,16 @@ standardized `UseCase` protocol, and `SEMANTICS_HANDLERS` migration to core.
 **Load when**: adding a new message type end-to-end, restructuring the
 dispatcher or use-case layer, or deciding whether a use case needs a BT.
 
+**`inbox-orchestration.md`**
+Design decisions for the core BT-backed inbox orchestration module: why
+orchestration belongs in `core/`, two-adapter seam design
+(`IngressPayloadAdapter` + `DispatchAdapter`), BT node ordering invariant,
+`InboxOutcome` contract, pending-queue port injection, and migration path
+from the existing `InboxPipeline`/`inbox_handler`.
+**Load when**: implementing or modifying the inbox pipeline, adding a new
+entry point (CLI, MCP) that processes inbound activities, or debugging
+`process_payload` behavior.
+
 **`vultron/wire/as2/vocab/AGENTS.md`**
 Vocabulary registry design rules: `__init_subclass__` auto-registration,
 flat dict structure, `VocabNamespace` metadata, `Literal type_`
