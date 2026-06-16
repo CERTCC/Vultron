@@ -229,6 +229,16 @@ class AutoCloseBranchNode(DataLayerAction):
             self.case_id,
         )
 
+        # Canonical ledger is owned exclusively by the Case Actor (ADR-0019,
+        # CLP-07).  Only commit when this BT execution is running on the Case
+        # Actor's DataLayer; participant replicas receive the entry via
+        # Announce(CaseLedgerEntry).  Without this guard, every participant
+        # (finder, vendor, case-actor) would commit its own local close_case
+        # entry at its own logIndex, producing cross-actor hash divergence
+        # (invariants 2/3) and replication gaps (invariants 8/14).
+        if self.actor_id != case_manager_id:
+            return Status.SUCCESS
+
         self._commit_close_case_ledger_entry(
             case_id=self.case_id,
             case_actor_id=case_manager_id,
