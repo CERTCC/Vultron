@@ -2,6 +2,7 @@
 
 import pytest
 
+from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -19,6 +20,9 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
     CaseParticipant,
     FinderParticipant,
+)
+from vultron.wire.as2.vocab.objects.case_status import (
+    ParticipantStatus as WireParticipantStatus,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
@@ -48,10 +52,6 @@ def _make_case_with_case_manager(
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
     )
-    from vultron.wire.as2.vocab.objects.case_status import (
-        ParticipantStatus as WireParticipantStatus,
-    )
-
     actor_participant.participant_statuses.append(
         WireParticipantStatus(context=case.id_, rm_state=RM.RECEIVED)
     )
@@ -116,3 +116,60 @@ class TestDeferCaseRMTransitionViaBT:
         assert isinstance(updated, CaseParticipant)
         assert updated.participant_statuses
         assert updated.participant_statuses[-1].rm_state == RM.DEFERRED
+
+    def test_defer_case_actor_not_found_raises_error(self):
+        request = DeferCaseTriggerRequest(
+            actor_id="urn:uuid:no-such-actor",
+            case_id=self.case.id_,
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcDeferCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+    def test_defer_case_not_found_raises_error(self):
+        request = DeferCaseTriggerRequest(
+            actor_id=self.vendor.id_,
+            case_id="urn:uuid:no-such-case",
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcDeferCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+    def test_defer_case_rm_not_updated_when_no_participant(self):
+        # Build a case with a valid vendor participant (so RM transition
+        # succeeds) but no CASE_MANAGER, so ResolveCaseManagerNode fails.
+        case_solo = VulnerabilityCase(name="Solo Case")
+        vendor_participant = CaseParticipant(
+            attributed_to=self.vendor.id_,
+            context=case_solo.id_,
+            case_roles=[CVDRole.VENDOR],
+        )
+        vendor_participant.participant_statuses.append(
+            WireParticipantStatus(context=case_solo.id_, rm_state=RM.RECEIVED)
+        )
+        vendor_participant.participant_statuses.append(
+            WireParticipantStatus(context=case_solo.id_, rm_state=RM.VALID)
+        )
+        case_solo.actor_participant_index[self.vendor.id_] = (
+            vendor_participant.id_
+        )
+        case_solo.case_participants.append(vendor_participant.id_)
+        self.dl.create(case_solo)
+        self.dl.create(vendor_participant)
+
+        request = DeferCaseTriggerRequest(
+            actor_id=self.vendor.id_,
+            case_id=case_solo.id_,
+        )
+        with pytest.raises(VultronValidationError):
+            SvcDeferCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
