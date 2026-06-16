@@ -285,7 +285,15 @@ groups:
   - id: CLP-08-006
     priority: MUST
     statement: >-
-      The non-spoofability guarantee of the per-case genesis hash depends on `case_id`
-      being generated from a cryptographically random source (UUIDv4 or equivalent);
-      implementations MUST NOT use sequentially predictable or human-chosen case IDs
-      when origin-binding integrity is required
+      The non-spoofability guarantee of the per-case genesis hash depends on the
+      `case_id` containing a cryptographically random component of at least 64 bits
+      (e.g., UUIDv4 with 122 random bits, or UUIDv7 with 74 random bits); domain-bound
+      URI forms (e.g., `https://example.org/cases/<uuid>`) are acceptable provided the
+      UUID path segment satisfies this requirement; implementations MUST NOT use
+      sequentially predictable or human-chosen case IDs when origin-binding integrity is
+      required
+    rationale: >-
+      The domain prefix of a URI is predictable but irrelevant — the attacker must still
+      brute-force the UUID component to forge a genesis hash. UUIDv7 (time-ordered, 74
+      random bits) is explicitly in scope; pure sequential or human-chosen path segments
+      are not.
