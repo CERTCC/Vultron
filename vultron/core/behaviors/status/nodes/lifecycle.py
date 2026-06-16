@@ -172,6 +172,30 @@ class AutoCloseBranchNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        try:
+            self.blackboard.register_key(
+                key="activity", access=py_trees.common.Access.READ
+            )
+        except Exception:
+            pass
+
+    def _receiving_actor_id(self) -> str | None:
+        """Read ``activity.receiving_actor_id`` from the blackboard, if any.
+
+        On received-side BT executions, ``self.actor_id`` is the AS2
+        **sender's** id (from ``activity.actor``), not the DataLayer-owning
+        actor.  ``activity.receiving_actor_id`` carries the canonical id of
+        the actor whose DataLayer is being mutated and is set by the inbox
+        router (CLP-07).
+        """
+        try:
+            activity = self.blackboard.activity
+        except (KeyError, AttributeError):
+            return None
+        return getattr(activity, "receiving_actor_id", None)
+
     def _all_participants_closed(self, case: Any) -> bool:
         """Return True iff every CVD participant has RM.CLOSED."""
         if self.datalayer is None:
@@ -231,12 +255,22 @@ class AutoCloseBranchNode(DataLayerAction):
 
         # Canonical ledger is owned exclusively by the Case Actor (ADR-0019,
         # CLP-07).  Only commit when this BT execution is running on the Case
-        # Actor's DataLayer; participant replicas receive the entry via
+        # Actor's own DataLayer; participant replicas receive the entry via
         # Announce(CaseLedgerEntry).  Without this guard, every participant
         # (finder, vendor, case-actor) would commit its own local close_case
         # entry at its own logIndex, producing cross-actor hash divergence
         # (invariants 2/3) and replication gaps (invariants 8/14).
-        if self.actor_id != case_manager_id:
+        #
+        # ``self.actor_id`` is the AS2 sender's id (the Case Actor for
+        # received broadcasts), so it cannot distinguish "running on the
+        # Case Actor's DataLayer" from "running on a participant's DataLayer
+        # that just received the Case Actor's broadcast".  Use the receiving
+        # actor id (the DataLayer-owning actor) instead.
+        receiving_actor_id = self._receiving_actor_id()
+        if (
+            receiving_actor_id is not None
+            and receiving_actor_id != case_manager_id
+        ):
             return Status.SUCCESS
 
         self._commit_close_case_ledger_entry(
