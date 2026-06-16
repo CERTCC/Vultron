@@ -21,6 +21,7 @@ existing import paths (``from vultron.core.behaviors.case.nodes import ...``)
 continue to work without modification.
 
 Submodules:
+- ``actor``: Actor-participation invite/accept emit nodes
 - ``conditions``: Idempotency guard condition nodes
 - ``case_setup``: Case persistence and actor setup leaf action nodes
 - ``participant``: Participant creation and attachment leaf action nodes
@@ -46,6 +47,10 @@ They are re-exported here for backward compatibility via module
 import importlib
 from typing import TYPE_CHECKING
 
+from vultron.core.behaviors.case.nodes.actor import (
+    EmitAcceptCaseInviteNode,
+    EmitInviteActorToCaseNode,
+)
 from vultron.core.behaviors.case.nodes.case_setup import (
     PersistCase,
     RecordCaseCreatedEventNode,
@@ -87,6 +92,9 @@ from vultron.core.behaviors.case.nodes.update import (
 from vultron.core.behaviors.helpers import UpdateActorOutbox  # noqa: F401
 
 __all__ = [
+    # actor (leaf nodes)
+    "EmitInviteActorToCaseNode",
+    "EmitAcceptCaseInviteNode",
     # conditions
     "CheckCaseAlreadyExists",
     "CheckCaseExistsForReport",

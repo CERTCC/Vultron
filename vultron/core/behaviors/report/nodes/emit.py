@@ -238,3 +238,67 @@ class EmitCloseReportActivity(DataLayerAction):
                 "%s: Error emitting close-report activity: %s", self.name, e
             )
             return Status.FAILURE
+
+
+class EmitSubmitReportActivity(DataLayerAction):
+    """Create Offer(VulnerabilityReport) and queue in actor outbox.
+
+    Calls ``trigger_activity_factory.submit_report()`` and queues the
+    offer ID via ``record_outbox_item``.  Stores the offer dict in
+    ``captured["offer"]`` if *captured* is provided.
+
+    Per BT-15-001: outbound activity construction and queueing must be
+    BT leaf nodes.
+    """
+
+    def __init__(
+        self,
+        report_id: str,
+        recipient_id: str,
+        captured: dict | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+        self.recipient_id = recipient_id
+        self._captured = captured
+
+    def update(self) -> Status:
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                "%s: DataLayer or actor_id not available", self.name
+            )
+            return Status.FAILURE
+
+        if self.trigger_activity_factory is None:
+            self.logger.warning(
+                "%s: no TriggerActivityPort — cannot emit SubmitReport offer",
+                self.name,
+            )
+            return Status.FAILURE
+
+        try:
+            offer_id, offer_dict = self.trigger_activity_factory.submit_report(
+                report_id=self.report_id,
+                actor=self.actor_id,
+                to=self.recipient_id,
+                target=self.recipient_id,
+            )
+            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+                self.actor_id, offer_id
+            )
+            if self._captured is not None:
+                self._captured["offer"] = offer_dict
+            self.logger.info(
+                "Actor '%s' emitted Offer(VulnerabilityReport) '%s' to '%s'",
+                self.actor_id,
+                offer_id,
+                self.recipient_id,
+            )
+            return Status.SUCCESS
+
+        except Exception as e:
+            self.logger.error(
+                "%s: Error emitting submit-report offer: %s", self.name, e
+            )
+            return Status.FAILURE

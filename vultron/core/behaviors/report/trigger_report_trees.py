@@ -13,11 +13,10 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""
-Behavior tree factories for report-lifecycle trigger use cases.
+"""Behavior tree factories for report-lifecycle trigger use cases.
 
 Each factory produces a ``py_trees.composites.Sequence`` that implements the
-outbound protocol handling for one of the three report-lifecycle trigger
+outbound protocol handling for one of the report-lifecycle trigger
 operations:
 
 - ``InvalidateReport`` — emit TentativeReject activity + transition RM → INVALID
@@ -39,6 +38,7 @@ from vultron.core.behaviors.report.nodes.conditions import CheckReportNotClosed
 from vultron.core.behaviors.report.nodes.emit import (
     EmitCloseReportActivity,
     EmitInvalidateReportActivity,
+    EmitSubmitReportActivity,
 )
 from vultron.core.behaviors.report.nodes.rm_transitions import (
     TransitionRMtoClosed,
@@ -195,5 +195,48 @@ def create_close_report_trigger_tree(
         "Created CloseReportTriggerBT for offer=%s report=%s",
         offer_id,
         report_id,
+    )
+    return root
+
+
+def submit_report_trigger_bt(
+    report_id: str,
+    recipient_id: str,
+    captured: dict | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """Create the BT for the submit-report trigger workflow.
+
+    Emits ``Offer(VulnerabilityReport)`` addressed to *recipient_id* and
+    queues the offer ID in the actor's outbox.
+
+    Structure::
+
+        SubmitReportTriggerBT (Sequence)
+        └─ EmitSubmitReportActivity  # emit offer + queue in outbox
+
+    Args:
+        report_id: ID of the already-persisted VulnerabilityReport.
+        recipient_id: Actor URI to send the offer to.
+        captured: Optional dict; ``captured["offer"]`` is set to the
+            serialised offer dict on success.
+
+    Returns:
+        Root node of the ``SubmitReportTriggerBT`` Sequence.
+    """
+    root = py_trees.composites.Sequence(
+        name="SubmitReportTriggerBT",
+        memory=False,
+        children=[
+            EmitSubmitReportActivity(
+                report_id=report_id,
+                recipient_id=recipient_id,
+                captured=captured,
+            ),
+        ],
+    )
+    logger.debug(
+        "Created SubmitReportTriggerBT for report=%s recipient=%s",
+        report_id,
+        recipient_id,
     )
     return root

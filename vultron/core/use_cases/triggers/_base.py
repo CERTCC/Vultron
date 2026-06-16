@@ -63,6 +63,8 @@ class SvcBTTriggerBase(ABC):
     9. Return ``{"activity": self._captured.get("activity")}``.
     """
 
+    _requires_trigger_activity: bool = True
+
     def __init__(
         self,
         dl: CaseOutboxPersistence,
@@ -81,15 +83,16 @@ class SvcBTTriggerBase(ABC):
 
         self._prepare()
 
-        if self._trigger_activity is None:
+        if self._requires_trigger_activity and self._trigger_activity is None:
             raise RuntimeError(
                 f"{type(self).__name__} requires a TriggerActivityPort"
             )
-        self._factory: TriggerActivityPort = self._trigger_activity
+        if self._trigger_activity is not None:
+            self._factory: TriggerActivityPort = self._trigger_activity
 
         bridge = BTBridge(
             datalayer=self._dl,
-            trigger_activity=self._factory,
+            trigger_activity=self._trigger_activity,
         )
         tree = self._build_tree()
         result = bridge.execute_with_setup(
