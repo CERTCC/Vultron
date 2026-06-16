@@ -512,6 +512,19 @@ Short entries are reproduced here; longer ones are referenced below.
   [notes/bt-integration.md](notes/bt-integration.md)
   § "Trigger/Received Parity" and `specs/behavior-tree-integration.yaml`
   BT-15-001, BT-15-002.
+- **Received-Side execute() Must Not Call commit_log_entry_trigger() Directly** —
+  A received-side `execute()` method that calls `commit_log_entry_trigger()`
+  (or any wrapper around it) directly is a BT-06-006 violation.
+  `Announce(CaseLedgerEntry)` fan-out is protocol-visible (SYNC-02-002) and
+  MUST be delegated to `CommitCaseLedgerEntryNode` inside a BT tree executed
+  via `BTBridge.execute_with_setup()`. The three historical violators were
+  `received/embargo.py`, `received/note.py`, and `received/status.py`. Do
+  **not** introduce a parallel BT node (e.g., a node that calls
+  `commit_log_entry_trigger()` directly in `update()`) as a workaround — all
+  hash-chained ledger commits MUST flow through `CommitCaseLedgerEntryNode`,
+  which itself composes `create_commit_log_entry_tree()` via
+  `BTBridge.execute_with_setup()`. See `specs/behavior-tree-integration.yaml`
+  BT-06-006, BT-15-001, and `specs/sync-ledger-replication.yaml` SYNC-02-002.
 - **BTBridge Global Blackboard Is Not Thread-Safe Under FastAPI
   BackgroundTasks** — FastAPI runs synchronous `BackgroundTask` callables
   via `anyio.to_thread.run_sync`, placing them on a thread pool. Two BT
