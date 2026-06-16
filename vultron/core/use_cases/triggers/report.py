@@ -160,6 +160,9 @@ class SvcValidateReportUseCase:
         Finds the case associated with the report and the CaseActor, then
         commits a ``validate_report`` ledger entry on behalf of the CaseActor.
         """
+        from vultron.core.use_cases._helpers import (
+            build_activity_payload_snapshot,
+        )
         from vultron.core.use_cases.received.actor import _find_case_actor_id
         from vultron.core.use_cases.triggers.sync import (
             commit_log_entry_trigger,
@@ -193,6 +196,9 @@ class SvcValidateReportUseCase:
             )
             return
 
+        offer = dl.read(offer_id)
+        payload_snapshot = build_activity_payload_snapshot(offer, dl=dl)
+
         commit_log_entry_trigger(
             case_id=case_id,
             object_id=offer_id,
@@ -200,6 +206,7 @@ class SvcValidateReportUseCase:
             actor_id=case_actor_id,
             dl=dl,
             sync_port=self._sync_port,
+            payload_snapshot=payload_snapshot,
         )
 
 

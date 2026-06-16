@@ -16,6 +16,7 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.models.protocols import is_case_model
 from vultron.core.use_cases._helpers import _as_id
+from vultron.errors import VultronActivityConstructionError
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -103,6 +104,14 @@ class AddNoteToCaseReceivedUseCase:
         self._dl.save(case)
         logger.info("Added note '%s' to case '%s'", note_id, case_id)
 
+        # Commit the ledger entry BEFORE broadcast so it is recorded even when
+        # broadcast fails (e.g. VultronActivityConstructionError due to a
+        # type mismatch on the stored Note object).
+        self._commit_log_cascade(
+            case_id=case_id,
+            note_id=note_id,
+        )
+
         self._broadcast_note_to_participants(
             note_id=note_id,
             case_id=case_id,
@@ -180,12 +189,21 @@ class AddNoteToCaseReceivedUseCase:
             )
             return
 
-        activity_id, _ = self._trigger_activity.add_note_to_case(
-            note_id=note_id,
-            case_id=case_id,
-            actor=case_actor_id,
-            to=recipient_ids,
-        )
+        try:
+            activity_id, _ = self._trigger_activity.add_note_to_case(
+                note_id=note_id,
+                case_id=case_id,
+                actor=case_actor_id,
+                to=recipient_ids,
+            )
+        except VultronActivityConstructionError:
+            logger.warning(
+                "add_note_to_case: failed to construct broadcast activity for"
+                " note '%s' in case '%s' — skipping broadcast (CM-06-005)",
+                note_id,
+                case_id,
+            )
+            return
 
         self._dl.record_outbox_item(case_actor_id, activity_id)
 

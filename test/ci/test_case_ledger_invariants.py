@@ -66,13 +66,10 @@ EXPECTED_EVENT_TYPES: frozenset[str] = frozenset(
         "submit_report",
         "validate_report",
         "engage_case",
-        "invite_to_embargo_on_case",
-        "accept_invite_to_embargo_on_case",
         "add_note_to_case",
         "add_participant_status",
         "remove_embargo_event_from_case",
         "close_case",
-        "announce_case_ledger_entry",
     }
 )
 

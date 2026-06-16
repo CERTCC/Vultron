@@ -350,6 +350,12 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             " — committing close_case ledger entry (DEMOMA-07-003 step 5)",
             case_id,
         )
+        payload_snapshot = {
+            "type": "Announce",
+            "actor": case_actor_id,
+            "context": case_id,
+            "object": {"type": "VulnerabilityCase", "id": case_id},
+        }
         commit_log_entry_trigger(
             case_id=case_id,
             object_id=case_id,
@@ -357,4 +363,5 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             actor_id=case_actor_id,
             dl=self._dl,
             sync_port=self._sync_port,
+            payload_snapshot=payload_snapshot,
         )
