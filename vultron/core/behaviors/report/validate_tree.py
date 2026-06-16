@@ -57,6 +57,7 @@ Future enhancements (Phase 2+):
 """
 
 import logging
+from typing import Any
 
 import py_trees
 
@@ -68,6 +69,9 @@ from vultron.core.behaviors.report.nodes import (
     EvaluateReportValidity,
     TransitionRMtoValid,
 )
+from vultron.core.behaviors.sync.commit_tree import (
+    create_commit_log_entry_tree,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +79,8 @@ logger = logging.getLogger(__name__)
 def create_validate_report_tree(
     report_id: str,
     offer_id: str,
+    case_id: str | None = None,
+    payload_snapshot: dict[str, Any] | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """
     Create behavior tree for report validation workflow.
@@ -87,9 +93,17 @@ def create_validate_report_tree(
     (RM → ACCEPTED or RM → DEFERRED) is a separate, explicit protocol step
     that the operator must trigger via ``engage-case`` or ``defer-case``.
 
+    When *case_id* and *payload_snapshot* are supplied, a
+    ``CommitValidateReportLedger`` subtree is appended to ``ValidationActions``
+    so that a canonical ``validate_report`` ledger entry is written atomically
+    with the RM state transition (BT-15-001).
+
     Args:
         report_id: ID of VulnerabilityReport to validate
         offer_id: ID of Offer activity containing the report
+        case_id: URI of the associated VulnerabilityCase (required for ledger
+            commit; if None the ledger subtree is omitted)
+        payload_snapshot: Pre-built AS2 payload snapshot for the ledger entry
 
     Returns:
         Root node of the validation behavior tree (Selector)
@@ -112,14 +126,26 @@ def create_validate_report_tree(
     # Phase 1: Match procedural handler logic
     # Future: Add InvalidateReport fallback per simulation BT
 
-    # Child sequence: All validation actions (status update + embargo check)
+    validation_action_children = [
+        TransitionRMtoValid(report_id=report_id, offer_id=offer_id),
+        EnsureEmbargoExists(report_id=report_id),
+    ]
+    if case_id is not None:
+        validation_action_children.append(
+            create_commit_log_entry_tree(
+                case_id=case_id,
+                object_id=offer_id,
+                event_type="validate_report",
+                payload_snapshot=payload_snapshot,
+            )
+        )
+
+    # Child sequence: All validation actions (status update + embargo check +
+    # optional ledger commit)
     validation_actions = py_trees.composites.Sequence(
         name="ValidationActions",
         memory=False,
-        children=[
-            TransitionRMtoValid(report_id=report_id, offer_id=offer_id),
-            EnsureEmbargoExists(report_id=report_id),
-        ],
+        children=validation_action_children,
     )
 
     # Child sequence: Precondition checks + policy evaluation + actions

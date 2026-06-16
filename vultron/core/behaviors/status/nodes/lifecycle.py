@@ -228,4 +228,39 @@ class AutoCloseBranchNode(DataLayerAction):
             case_manager_id,
             self.case_id,
         )
+
+        self._commit_close_case_ledger_entry(case_manager_id)
         return Status.SUCCESS
+
+    def _commit_close_case_ledger_entry(self, case_actor_id: str) -> None:
+        """Commit a canonical ``close_case`` ledger entry (BT-15-001).
+
+        Uses ``commit_log_entry_trigger`` directly since the fan-out
+        happens within the same BTBridge execution context.
+        """
+        from vultron.core.use_cases.triggers.sync import (
+            commit_log_entry_trigger,
+        )
+
+        payload_snapshot = {
+            "type": "Announce",
+            "actor": case_actor_id,
+            "context": self.case_id,
+            "object": {"type": "VulnerabilityCase", "id": self.case_id},
+        }
+        try:
+            commit_log_entry_trigger(
+                case_id=self.case_id,
+                object_id=self.case_id,
+                event_type="close_case",
+                actor_id=case_actor_id,
+                dl=self.datalayer,
+                payload_snapshot=payload_snapshot,
+            )
+        except Exception:
+            self.logger.warning(
+                "AutoCloseBranch: failed to commit close_case ledger entry"
+                " for case '%s'",
+                self.case_id,
+                exc_info=True,
+            )
