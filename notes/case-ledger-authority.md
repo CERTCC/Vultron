@@ -331,3 +331,78 @@ that rejects entries violating CLP-07-001 through CLP-07-004 *before*
 they enter the hash chain. Failing fast at commit time keeps the
 canonical chain clean and surfaces bugs immediately, rather than allowing
 silent pollution that's discovered only when replicas diverge.
+
+---
+
+## Per-Case Genesis Hash — Origin Binding and Future Improvements
+
+*Spec: `specs/case-ledger-processing.yaml` CLP-08-001 through CLP-08-006.*
+
+The per-case genesis hash is derived as
+`SHA-256(case_id + "|" + created_at.isoformat() + "|" + case_actor_id)`.
+This anchors each case ledger to its origin identity and timestamp,
+replacing the former global `GENESIS_HASH = "0" * 64` constant.
+
+### Current Threat Model
+
+Domain-bound case URIs (e.g., `https://example.org/cases/<uuid>`) with a
+cryptographically random UUID path segment satisfy CLP-08-006. The domain
+prefix is public but irrelevant — an attacker must still brute-force the
+UUID component to predict the genesis hash.
+
+If case metadata (`case_id`, `created_at`, `case_actor_id`) is observable
+by an attacker — which is possible in a federated protocol — the genesis
+hash becomes computable by anyone with that knowledge. This means:
+
+- **Hash-chain integrity** is preserved: the attacker cannot forge or silently
+  drop entries from a chain whose genesis hash a receiver has independently
+  stored.
+- **DoS amplification** is reduced from universal (any attacker, any case) to
+  targeted (attacker must know this specific case's metadata), but is not
+  fully eliminated.
+
+### Future Improvement: Secret Nonce
+
+Adding a secret nonce to the genesis hash input — a random value generated
+by the CaseActor at case creation and never transmitted on the wire — would
+close the targeted DoS vector even when case metadata leaks:
+
+```python
+genesis_hash = sha256(
+    case_id + "|" + created_at.isoformat() + "|" + case_actor_id
+    + "|" + secret_nonce
+)
+```
+
+The nonce would need to be stored securely in the CaseActor's DataLayer and
+shared only with legitimate participants through an authenticated channel.
+This adds key-management complexity that is out of scope for the prototype
+tier but is the natural next step for production deployments.
+
+### Future Improvement: CaseActor Keypairs
+
+The more durable long-term solution is **cryptographic identity for
+CaseActors**. When CaseActors generate a new keypair at actor creation time
+(planned), the genesis hash can incorporate the CaseActor's public key or a
+key-signed commitment over case creation data:
+
+```python
+genesis_hash = sha256(
+    case_id + "|" + created_at.isoformat() + "|" + case_actor_public_key
+)
+# or: genesis_hash = sha256(case_actor.sign(case_id + created_at))
+```
+
+This would:
+
+- **Eliminate DataLayer trust for genesis authenticity**: any party with the
+  CaseActor's public key can independently verify the ledger's origin without
+  trusting the DataLayer's `case_id` field.
+- **Close the targeted DoS vector**: the nonce is effectively the private key,
+  which is never observable on the wire.
+- **Enable third-party auditing**: auditors can verify ledger provenance from
+  the public key alone, without needing out-of-band case metadata.
+
+The keypair-per-CaseActor design is tracked as a planned capability. Until
+it lands, the domain-bound UUID genesis hash defined in CLP-08-002 is the
+correct implementation.

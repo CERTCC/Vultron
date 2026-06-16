@@ -238,3 +238,56 @@ groups:
     rationale: >-
       Blind `dl.read(id)` replacement can leak unrelated local objects into canonical
       snapshots when inbound activities carry attacker-controlled IDs.
+- id: CLP-08
+  title: Per-Case Genesis Hash Derivation and Origin Binding
+  specs:
+  - id: CLP-08-001
+    priority: MUST
+    statement: >-
+      Each case ledger MUST use a per-case genesis hash as the predecessor hash for its
+      first entry; a globally-shared constant MUST NOT be used as the genesis predecessor
+      hash across all cases
+    rationale: >-
+      A shared global constant provides no cryptographic origin-binding: a ledger with all
+      entries stripped is indistinguishable from a legitimately new empty ledger, and the
+      well-known constant enables sync DoS amplification by allowing full-replay requests
+      without any case-specific knowledge
+  - id: CLP-08-002
+    priority: MUST
+    statement: >-
+      The per-case genesis hash MUST be derived as
+      `SHA-256(case_id + "|" + created_at.isoformat() + "|" + case_actor_id)`, where
+      `case_id` is the canonical case URI, `created_at` is the case creation UTC
+      timestamp in ISO 8601 format, and `case_actor_id` is the URI of the CaseActor
+      created for this case
+    rationale: >-
+      Including all three values cryptographically anchors the chain's starting point to
+      the specific case's origin identity and timestamp, allowing any party who knows the
+      case metadata to independently verify the ledger's genesis
+  - id: CLP-08-003
+    priority: MUST
+    statement: >-
+      The case-specific genesis hash MUST be stored on `VulnerabilityCase` as a required
+      field computed at case creation time, so that receivers can verify that a ledger
+      starts correctly for this case
+  - id: CLP-08-004
+    priority: MUST
+    statement: >-
+      `CaseLedger.tail_hash` MUST return the case-specific genesis hash when no recorded
+      entries exist; it MUST NOT return a globally-shared constant sentinel
+  - id: CLP-08-005
+    priority: MUST
+    statement: >-
+      Sync replay and backfill requests that supply a `from_hash` value MUST use the
+      case-specific genesis hash (or the hash of a known recorded entry) as the starting
+      point; implementations MUST treat any unrecognized `from_hash` value as a request
+      to replay from the beginning of the recorded projection
+  - id: CLP-08-006
+    priority: MUST
+    statement: >-
+      The non-spoofability guarantee of the per-case genesis hash is satisfied by a
+      domain-bound case URI (e.g., `https://example.org/cases/<uuid>`) whose path
+      segment contains a cryptographically random UUID component; implementations MUST
+      NOT use sequentially predictable or human-chosen path segments when origin-binding
+      integrity is required; see `notes/case-ledger-authority.md` for future
+      improvement paths (secret nonce, CaseActor keypairs)
