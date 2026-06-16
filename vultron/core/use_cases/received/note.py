@@ -92,43 +92,56 @@ class AddNoteToCaseReceivedUseCase:
             return
 
         existing_ids = [_as_id(n) for n in case.notes]
-        already_attached = note_id in existing_ids
-        if already_attached:
+        if note_id in existing_ids:
             logger.info(
-                "Note '%s' already in case '%s' — skipping attach (idempotent)",
+                "Note '%s' already in case '%s' — skipping (idempotent)",
                 note_id,
                 case_id,
             )
-        else:
-            case.notes.append(note_id)
-            self._dl.save(case)
-            logger.info("Added note '%s' to case '%s'", note_id, case_id)
-
-        # Commit the canonical ledger entry on every AddNoteToCase receipt
-        # (the AS2 activity is the protocol event being recorded, independent
-        # of whether the note was already attached locally — Create(Note) may
-        # have auto-attached it via AttachNoteFromResultNode).  Commit BEFORE
-        # broadcast so the entry is recorded even when broadcast fails
-        # (e.g. VultronActivityConstructionError due to a type mismatch on
-        # the stored Note object).
-        authorized_commit, committed_new_entry = self._commit_log_cascade(
-            case_id=case_id,
-            note_id=note_id,
-        )
-
-        if not authorized_commit:
             return
 
-        if already_attached and not committed_new_entry:
-            # Skip broadcast on idempotent re-receipt; peers will see the
-            # canonical Announce(CaseLedgerEntry) from the Case Actor.
-            return
+        case.notes.append(note_id)
+        self._dl.save(case)
+        logger.info("Added note '%s' to case '%s'", note_id, case_id)
 
         self._broadcast_note_to_participants(
             note_id=note_id,
             case_id=case_id,
             author_id=request.actor_id,
             case=case,
+        )
+
+        # Only commit canonical ledger entry if we have received-actor proof
+        # (i.e., receiving_actor_id is set on the event).
+        if request.receiving_actor_id is None:
+            logger.debug(
+                "add_note_to_case: no receiving_actor_id for case '%s'"
+                " — skipping ledger commit (CLP-07)",
+                case_id,
+            )
+            return
+
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
+        from vultron.core.use_cases.received.actor import _find_case_actor_id
+
+        case_actor_id = _find_case_actor_id(self._dl, case_id)
+        if (
+            case_actor_id is None
+            or request.receiving_actor_id != case_actor_id
+        ):
+            logger.debug(
+                "add_note_to_case: receiver is not the CaseActor for case '%s'"
+                " — skipping ledger commit (CLP-07)",
+                case_id,
+            )
+            return
+
+        BTBridge(datalayer=self._dl).execute_with_setup(
+            tree=CommitCaseLedgerEntryNode(case_id=case_id),
+            actor_id=case_actor_id,
+            activity=request,
+            sync_port=self._sync_port,
         )
 
     def _broadcast_note_to_participants(
@@ -206,77 +219,6 @@ class AddNoteToCaseReceivedUseCase:
             case_id,
             len(recipient_ids),
         )
-
-    def _commit_log_cascade(
-        self,
-        case_id: str,
-        note_id: str,
-    ) -> tuple[bool, bool]:
-        """Commit a CaseLedgerEntry and fan it out to all participants (PCR-08-003).
-
-        Canonical ledger is owned exclusively by the Case Actor (ADR-0019,
-        CLP-07).  This use case runs on **every** actor that receives an
-        ``Add(Note, Case)`` activity (the case-actor on initial receipt, plus
-        each participant when the case-actor broadcasts).  Only the case-actor
-        may commit the canonical entry; participants receive it via
-        ``Announce(CaseLedgerEntry)``.
-
-        Uses ``receiving_actor_id`` (the receiver's canonical ID) to compare
-        against the resolved Case Actor ID; falls back to a DataLayer lookup
-        for the Service object whose ``context`` matches *case_id*.
-        """
-        from vultron.core.use_cases.received.actor import _find_case_actor_id
-        from vultron.core.sync_helpers import _find_equivalent_recorded_entry
-        from vultron.core.use_cases.triggers.sync import (
-            commit_log_entry_trigger,
-            extract_activity_snapshot,
-        )
-
-        case_actor_id = _find_case_actor_id(self._dl, case_id)
-        if case_actor_id is None:
-            logger.warning(
-                "add_note_to_case: cannot resolve CaseActor for case '%s'"
-                " — skipping log entry cascade (PCR-08-003)",
-                case_id,
-            )
-            return (False, False)
-
-        receiving_actor_id = self._request.receiving_actor_id
-        if receiving_actor_id != case_actor_id:
-            if receiving_actor_id is None:
-                logger.warning(
-                    "add_note_to_case: missing receiving_actor_id for case '%s'"
-                    " — skipping canonical commit to avoid non-CaseActor append",
-                    case_id,
-                )
-                return (False, False)
-            logger.debug(
-                "add_note_to_case: receiver is not the CaseActor for case '%s'"
-                " — skipping ledger commit (CLP-07)",
-                case_id,
-            )
-            return (False, False)
-
-        payload_snapshot = extract_activity_snapshot(
-            self._request, dl=self._dl
-        )
-        existing = _find_equivalent_recorded_entry(
-            case_id=case_id,
-            object_id=note_id,
-            event_type="add_note_to_case",
-            payload_snapshot=payload_snapshot,
-            dl=self._dl,
-        )
-        commit_log_entry_trigger(
-            case_id=case_id,
-            object_id=note_id,
-            event_type="add_note_to_case",
-            actor_id=case_actor_id,
-            dl=self._dl,
-            sync_port=self._sync_port,
-            payload_snapshot=payload_snapshot,
-        )
-        return (True, existing is None)
 
 
 class RemoveNoteFromCaseReceivedUseCase:
