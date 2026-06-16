@@ -55,6 +55,7 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     reset_demo_failures,
     seed_actor,
     verify_object_stored,
+    setup_demo_logging,
 )
 
 # Re-export shared helpers so that existing imports via this module continue to
@@ -982,18 +983,6 @@ def main(
         assert_demo_success()
 
 
-def _setup_logging() -> None:
-    """Configure console logging for standalone script execution."""
-    logging.getLogger("httpx2").setLevel(logging.WARNING)
-    _logger = logging.getLogger()
-    hdlr = logging.StreamHandler(sys.stdout)
-    hdlr.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)s %(message)s")
-    )
-    _logger.addHandler(hdlr)
-    _logger.setLevel(logging.DEBUG)
-
-
 if __name__ == "__main__":
-    _setup_logging()
+    setup_demo_logging()
     main()

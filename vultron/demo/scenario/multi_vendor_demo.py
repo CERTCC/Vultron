@@ -84,6 +84,7 @@ from vultron.demo.utils import (
     reset_datalayer,
     seed_actor,
     verify_object_stored,
+    setup_demo_logging,
 )
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
@@ -772,18 +773,6 @@ def main(
         sys.exit(1)
 
 
-def _setup_logging() -> None:
-    """Configure console logging for standalone execution."""
-    logging.getLogger("httpx2").setLevel(logging.WARNING)
-    root = logging.getLogger()
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)s %(message)s")
-    )
-    root.addHandler(handler)
-    root.setLevel(logging.DEBUG)
-
-
 if __name__ == "__main__":
-    _setup_logging()
+    setup_demo_logging()
     main()

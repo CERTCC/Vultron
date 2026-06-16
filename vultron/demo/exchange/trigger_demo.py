@@ -58,6 +58,7 @@ from vultron.demo.utils import (
     post_to_inbox_and_wait,
     post_to_trigger,
     verify_object_stored,
+    setup_demo_logging,
 )
 from vultron.wire.as2.factories import (
     rm_submit_report_activity,
@@ -360,18 +361,6 @@ def main(
         logger.info("")
 
 
-def _setup_logging() -> None:
-    """Configure console logging for standalone script execution."""
-    logging.getLogger("httpx2").setLevel(logging.WARNING)
-    _logger = logging.getLogger()
-    hdlr = logging.StreamHandler(sys.stdout)
-    hdlr.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)s %(message)s")
-    )
-    _logger.addHandler(hdlr)
-    _logger.setLevel(logging.DEBUG)
-
-
 if __name__ == "__main__":
-    _setup_logging()
+    setup_demo_logging()
     main()
