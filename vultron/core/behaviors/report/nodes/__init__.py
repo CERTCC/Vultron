@@ -47,6 +47,7 @@ from vultron.core.behaviors.report.nodes.conditions import (
 from vultron.core.behaviors.report.nodes.emit import (
     EmitCloseReportActivity,
     EmitInvalidateReportActivity,
+    EmitValidateReportActivity,
 )
 from vultron.core.behaviors.report.nodes.participant import (
     TransitionParticipantRMtoAccepted,
@@ -88,6 +89,7 @@ __all__ = [
     "TransitionParticipantRMtoDeferred",
     # emit
     "EmitInvalidateReportActivity",
+    "EmitValidateReportActivity",
     "EmitCloseReportActivity",
     # storage
     "StoreReportNode",

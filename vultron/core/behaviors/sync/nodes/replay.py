@@ -377,7 +377,11 @@ class SendLogEntryToEachNode(DataLayerAction):
 
 
 class FanOutLogEntryNode(py_trees.composites.Sequence):
-    def __init__(self, case_id: str, name: str | None = None) -> None:
+    def __init__(
+        self,
+        case_id: str,
+        name: str | None = None,
+    ) -> None:
         super().__init__(
             name=name or self.__class__.__name__,
             memory=False,

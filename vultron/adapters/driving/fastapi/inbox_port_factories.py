@@ -83,6 +83,7 @@ _SYNC_PORT_SEMANTICS = frozenset(
         MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
         MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
+        MessageSemantics.VALIDATE_REPORT,
     }
 )
 
@@ -91,7 +92,6 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
         MessageSemantics.ACCEPT_CASE_MANAGER_ROLE,
         MessageSemantics.OFFER_CASE_MANAGER_ROLE,
         MessageSemantics.SUGGEST_ACTOR_TO_CASE,
-        MessageSemantics.VALIDATE_REPORT,
     }
 )
 

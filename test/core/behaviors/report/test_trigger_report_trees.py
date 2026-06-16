@@ -29,6 +29,7 @@ from vultron.core.behaviors.report.trigger_report_trees import (
     create_close_report_trigger_tree,
     create_invalidate_report_trigger_tree,
     create_reject_report_trigger_tree,
+    create_validate_report_trigger_tree,
 )
 from vultron.core.models.activity import VultronOffer
 from vultron.core.models.case_actor import VultronCaseActor
@@ -97,6 +98,103 @@ def closed_status(
     )
     scenario.dl.create(status)
     return status
+
+
+@pytest.fixture
+def received_status(
+    scenario: BTTestScenario, report: VultronReport
+) -> ParticipantStatus:
+    """Pre-seed RM.RECEIVED so validate-report preconditions pass."""
+    status = ParticipantStatus(
+        id_=_report_phase_status_id(ACTOR_ID, report.id_, RM.RECEIVED.value),
+        context=report.id_,
+        attributed_to=ACTOR_ID,
+        rm_state=RM.RECEIVED,
+    )
+    scenario.dl.create(status)
+    return status
+
+
+@pytest.fixture
+def valid_status(
+    scenario: BTTestScenario, report: VultronReport
+) -> ParticipantStatus:
+    """Pre-seed RM.VALID so validate-report preconditions fail."""
+    status = ParticipantStatus(
+        id_=_report_phase_status_id(ACTOR_ID, report.id_, RM.VALID.value),
+        context=report.id_,
+        attributed_to=ACTOR_ID,
+        rm_state=RM.VALID,
+    )
+    scenario.dl.create(status)
+    return status
+
+
+# ---------------------------------------------------------------------------
+# ValidateReportTriggerBT tests
+# ---------------------------------------------------------------------------
+
+
+class TestValidateReportTriggerTree:
+    def test_success_emits_activity_and_sets_rm_valid(
+        self,
+        scenario: BTTestScenario,
+        actor,
+        report,
+        offer,
+        received_status: ParticipantStatus,
+    ):
+        """SUCCESS: validation preconditions pass before emitting activity."""
+        tree = create_validate_report_trigger_tree(
+            offer_id=offer.id_, report_id=report.id_
+        )
+        result = scenario.run(tree)
+        scenario.assert_success(result)
+        scenario.assert_rm_state(report.id_, RM.VALID)
+
+    def test_failure_already_valid_does_not_emit(
+        self,
+        scenario: BTTestScenario,
+        actor,
+        report,
+        offer,
+        valid_status: ParticipantStatus,
+    ):
+        """FAILURE: already-valid report must not emit a validation assertion."""
+        before = set(scenario.dl.outbox_list_for_actor(ACTOR_ID))
+        tree = create_validate_report_trigger_tree(
+            offer_id=offer.id_, report_id=report.id_
+        )
+        result = scenario.run(tree)
+        after = set(scenario.dl.outbox_list_for_actor(ACTOR_ID))
+
+        scenario.assert_failure(result)
+        assert after == before
+
+    def test_failure_already_closed_does_not_emit(
+        self,
+        scenario: BTTestScenario,
+        actor,
+        report,
+        offer,
+        closed_status: ParticipantStatus,
+    ):
+        """FAILURE: closed report must not emit a validation assertion."""
+        before = set(scenario.dl.outbox_list_for_actor(ACTOR_ID))
+        result_out: dict = {}
+        tree = create_validate_report_trigger_tree(
+            offer_id=offer.id_,
+            report_id=report.id_,
+            result_out=result_out,
+        )
+        result = scenario.run(tree)
+        after = set(scenario.dl.outbox_list_for_actor(ACTOR_ID))
+
+        scenario.assert_failure(result)
+        assert isinstance(
+            result_out.get("error"), VultronInvalidStateTransitionError
+        )
+        assert after == before
 
 
 # ---------------------------------------------------------------------------

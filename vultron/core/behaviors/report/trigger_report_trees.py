@@ -34,18 +34,66 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.report.nodes.conditions import CheckReportNotClosed
+from vultron.core.behaviors.report.nodes.conditions import (
+    CheckReportNotClosed,
+    CheckRMStateReceivedOrInvalid,
+    EvaluateReportCredibility,
+    EvaluateReportValidity,
+)
 from vultron.core.behaviors.report.nodes.emit import (
     EmitCloseReportActivity,
     EmitInvalidateReportActivity,
     EmitSubmitReportActivity,
+    EmitValidateReportActivity,
 )
 from vultron.core.behaviors.report.nodes.rm_transitions import (
     TransitionRMtoClosed,
     TransitionRMtoInvalid,
+    TransitionRMtoValid,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def create_validate_report_trigger_tree(
+    offer_id: str,
+    report_id: str,
+    result_out: dict | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """Create the BT for the validate-report trigger workflow.
+
+    Checks the local validation preconditions, records the actor's local RM
+    state as VALID, then emits ``RmValidateReportActivity`` (Accept(Offer)) to
+    the CaseActor.  Canonical ledger recording happens only when the CaseActor
+    receives the emitted assertion.
+    """
+    root = py_trees.composites.Sequence(
+        name="ValidateReportTriggerBT",
+        memory=False,
+        children=[
+            CheckReportNotClosed(
+                report_id=report_id,
+                result_out=result_out if result_out is not None else {},
+            ),
+            CheckRMStateReceivedOrInvalid(report_id=report_id),
+            EvaluateReportCredibility(report_id=report_id),
+            EvaluateReportValidity(report_id=report_id),
+            TransitionRMtoValid(
+                report_id=report_id,
+                offer_id=offer_id,
+            ),
+            EmitValidateReportActivity(
+                offer_id=offer_id,
+                report_id=report_id,
+            ),
+        ],
+    )
+    logger.debug(
+        "Created ValidateReportTriggerBT for offer=%s report=%s",
+        offer_id,
+        report_id,
+    )
+    return root
 
 
 def create_invalidate_report_trigger_tree(

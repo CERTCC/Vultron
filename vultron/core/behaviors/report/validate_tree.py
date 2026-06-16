@@ -57,10 +57,12 @@ Future enhancements (Phase 2+):
 """
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import py_trees
+from py_trees.common import Status
 
+from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.behaviors.report.nodes import (
     CheckRMStateReceivedOrInvalid,
     CheckRMStateValid,
@@ -69,11 +71,88 @@ from vultron.core.behaviors.report.nodes import (
     EvaluateReportValidity,
     TransitionRMtoValid,
 )
-from vultron.core.behaviors.sync.commit_tree import (
-    create_commit_log_entry_tree,
-)
 
 logger = logging.getLogger(__name__)
+
+
+class CommitValidateReportLedgerEntryNode(DataLayerAction):
+    """Commit ``validate_report`` only in the CaseActor receiver context."""
+
+    def __init__(
+        self,
+        case_id: str,
+        offer_id: str,
+        payload_snapshot: dict[str, Any] | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.offer_id = offer_id
+        self.payload_snapshot = payload_snapshot or {}
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="sync_port", access=py_trees.common.Access.READ
+        )
+
+    def _receiving_actor_id(self) -> str | None:
+        try:
+            activity = self.blackboard.activity
+        except (AttributeError, KeyError):
+            return None
+        return getattr(activity, "receiving_actor_id", None)
+
+    def _sync_port(self) -> Any:
+        try:
+            return self.blackboard.sync_port
+        except (AttributeError, KeyError):
+            return None
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.logger.error("%s: DataLayer not available", self.name)
+            return Status.FAILURE
+
+        from vultron.core.ports.case_persistence import CaseOutboxPersistence
+        from vultron.core.use_cases._helpers import _find_case_actor_id
+        from vultron.core.use_cases.triggers.sync import (
+            commit_log_entry_trigger,
+        )
+
+        case_actor_id = _find_case_actor_id(self.datalayer, self.case_id)
+        if case_actor_id is None:
+            self.logger.warning(
+                "%s: cannot resolve CaseActor for case '%s'",
+                self.name,
+                self.case_id,
+            )
+            return Status.SUCCESS
+
+        receiving_actor_id = self._receiving_actor_id()
+        if receiving_actor_id != case_actor_id:
+            if receiving_actor_id is None:
+                self.logger.warning(
+                    "%s: missing receiving_actor_id for case '%s' — skipping"
+                    " canonical validate_report commit",
+                    self.name,
+                    self.case_id,
+                )
+            return Status.SUCCESS
+
+        commit_log_entry_trigger(
+            case_id=self.case_id,
+            object_id=self.offer_id,
+            event_type="validate_report",
+            actor_id=case_actor_id,
+            dl=cast(CaseOutboxPersistence, self.datalayer),
+            payload_snapshot=self.payload_snapshot,
+            sync_port=self._sync_port(),
+        )
+        return Status.SUCCESS
 
 
 def create_validate_report_tree(
@@ -132,10 +211,9 @@ def create_validate_report_tree(
     ]
     if case_id is not None:
         validation_action_children.append(
-            create_commit_log_entry_tree(
+            CommitValidateReportLedgerEntryNode(
                 case_id=case_id,
-                object_id=offer_id,
-                event_type="validate_report",
+                offer_id=offer_id,
                 payload_snapshot=payload_snapshot,
             )
         )

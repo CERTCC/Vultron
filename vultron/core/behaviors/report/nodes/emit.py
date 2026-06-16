@@ -65,36 +65,25 @@ def _compute_report_addressees(
     return None
 
 
-class EmitInvalidateReportActivity(DataLayerAction):
-    """Emit RmInvalidateReportActivity (TentativeReject) to the actor outbox.
+class _EmitReportResponseActivity(DataLayerAction):
+    """Base node for report response activity emission."""
 
-    Calls ``trigger_activity_factory.invalidate_report()`` and queues the
-    resulting activity ID via ``record_outbox_item``.
-
-    Per issue #849 AC-1, AC-2: emit nodes must be BT leaf nodes, not inline
-    procedural calls in ``execute()``.
-    """
+    activity_label = "report-response"
 
     def __init__(
         self, offer_id: str, report_id: str, name: str | None = None
     ) -> None:
-        """Initialize EmitInvalidateReportActivity.
-
-        Args:
-            offer_id: ID of the Offer activity being invalidated.
-            report_id: ID of the VulnerabilityReport (for address resolution).
-            name: Optional custom node name.
-        """
         super().__init__(name=name or self.__class__.__name__)
         self.offer_id = offer_id
         self.report_id = report_id
 
-    def update(self) -> Status:
-        """Create and queue RmInvalidateReportActivity.
+    def _create_activity(
+        self, offer_id: str, actor_id: str, to: list[str]
+    ) -> tuple[str, dict[str, object]]:
+        raise NotImplementedError
 
-        Returns:
-            SUCCESS if activity created and outbox updated, FAILURE on error.
-        """
+    def update(self) -> Status:
+        """Create and queue the report response activity."""
         if self.datalayer is None or self.actor_id is None:
             self.logger.error(
                 "%s: DataLayer or actor_id not available", self.name
@@ -103,8 +92,9 @@ class EmitInvalidateReportActivity(DataLayerAction):
 
         if self.trigger_activity_factory is None:
             self.logger.warning(
-                "%s: no TriggerActivityPort — cannot emit InvalidateReport activity",
+                "%s: no TriggerActivityPort — cannot emit %s activity",
                 self.name,
+                self.activity_label,
             )
             return Status.FAILURE
 
@@ -127,29 +117,72 @@ class EmitInvalidateReportActivity(DataLayerAction):
                 )
                 return Status.FAILURE
 
-            activity_id, _ = self.trigger_activity_factory.invalidate_report(
-                offer_id=self.offer_id,
-                actor=self.actor_id,
-                to=addressees,
+            activity_id, _ = self._create_activity(
+                self.offer_id,
+                self.actor_id,
+                addressees,
             )
 
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
                 self.actor_id, activity_id
             )
             self.logger.info(
-                "Actor '%s' emitted RmInvalidateReportActivity for offer '%s'",
+                "Actor '%s' emitted %s for offer '%s'",
                 self.actor_id,
+                self.activity_label,
                 self.offer_id,
             )
             return Status.SUCCESS
 
         except Exception as e:
             self.logger.error(
-                "%s: Error emitting invalidate-report activity: %s",
+                "%s: Error emitting %s activity: %s",
                 self.name,
+                self.activity_label,
                 e,
             )
             return Status.FAILURE
+
+
+class EmitValidateReportActivity(_EmitReportResponseActivity):
+    """Emit RmValidateReportActivity (Accept) to the actor outbox."""
+
+    activity_label = "RmValidateReportActivity"
+
+    def _create_activity(
+        self, offer_id: str, actor_id: str, to: list[str]
+    ) -> tuple[str, dict[str, object]]:
+        if self.trigger_activity_factory is None:
+            raise RuntimeError("TriggerActivityPort not available")
+        return self.trigger_activity_factory.validate_report(
+            offer_id=offer_id,
+            actor=actor_id,
+            to=to,
+        )
+
+
+class EmitInvalidateReportActivity(_EmitReportResponseActivity):
+    """Emit RmInvalidateReportActivity (TentativeReject) to the actor outbox.
+
+    Calls ``trigger_activity_factory.invalidate_report()`` and queues the
+    resulting activity ID via ``record_outbox_item``.
+
+    Per issue #849 AC-1, AC-2: emit nodes must be BT leaf nodes, not inline
+    procedural calls in ``execute()``.
+    """
+
+    activity_label = "RmInvalidateReportActivity"
+
+    def _create_activity(
+        self, offer_id: str, actor_id: str, to: list[str]
+    ) -> tuple[str, dict[str, object]]:
+        if self.trigger_activity_factory is None:
+            raise RuntimeError("TriggerActivityPort not available")
+        return self.trigger_activity_factory.invalidate_report(
+            offer_id=offer_id,
+            actor=actor_id,
+            to=to,
+        )
 
 
 class EmitCloseReportActivity(DataLayerAction):

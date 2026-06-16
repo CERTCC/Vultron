@@ -290,10 +290,13 @@ class AutoCloseBranchNode(DataLayerAction):
         # that just received the Case Actor's broadcast".  Use the receiving
         # actor id (the DataLayer-owning actor) instead.
         receiving_actor_id = self._receiving_actor_id()
-        if (
-            receiving_actor_id is not None
-            and receiving_actor_id != case_manager_id
-        ):
+        if receiving_actor_id != case_manager_id:
+            if receiving_actor_id is None:
+                self.logger.warning(
+                    "AutoCloseBranch: missing receiving_actor_id for case '%s'"
+                    " — skipping canonical close_case commit",
+                    self.case_id,
+                )
             return Status.SUCCESS
 
         self._commit_close_case_ledger_entry(

@@ -292,7 +292,7 @@ class TestNoteUseCases:
         activity = add_note_to_case_activity(
             note, target=case, actor=author_id
         )
-        event = make_payload(activity)
+        event = make_payload(activity, receiving_actor_id=case_actor.id_)
 
         AddNoteToCaseReceivedUseCase(
             dl,
@@ -362,7 +362,7 @@ class TestNoteUseCases:
         activity = add_note_to_case_activity(
             note, target=case, actor=author_id
         )
-        event = make_payload(activity)
+        event = make_payload(activity, receiving_actor_id=case_actor.id_)
 
         AddNoteToCaseReceivedUseCase(
             dl,
@@ -416,6 +416,60 @@ class TestNoteUseCases:
         assert refreshed is not None
         refreshed = cast(VulnerabilityCase, refreshed)
         assert note.id_ in refreshed.notes
+
+    def test_add_note_no_broadcast_without_receiver_proof(self, make_payload):
+        """Missing receiving_actor_id skips CaseActor-only broadcast."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        author_id = "https://example.org/users/vendor"
+        participant_id = "https://example.org/users/finder"
+        case_id = "https://example.org/cases/case_nb4"
+
+        case_actor = VultronCaseActor(
+            id_=f"{case_id}/actor",
+            name=f"CaseActor for {case_id}",
+            attributed_to=author_id,
+            context=case_id,
+        )
+        dl.create(case_actor)
+
+        case = VulnerabilityCase(
+            id_=case_id,
+            name="No Receiver Proof Case",
+            attributed_to=author_id,
+        )
+        case.actor_participant_index[author_id] = (
+            "https://example.org/participants/p-nb4-vendor"
+        )
+        case.actor_participant_index[participant_id] = (
+            "https://example.org/participants/p-nb4-finder"
+        )
+        dl.create(case)
+
+        note = as_Note(
+            id_="https://example.org/notes/note_bc4",
+            content="Unauthorized broadcast note",
+            context=case_id,
+        )
+        dl.create(note)
+
+        activity = add_note_to_case_activity(
+            note, target=case, actor=author_id
+        )
+        event = make_payload(activity)
+
+        AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(
+                cast(CaseOutboxPersistence, dl)
+            ),
+        ).execute()
+
+        refreshed = dl.read(case_id)
+        assert refreshed is not None
+        refreshed = cast(VulnerabilityCase, refreshed)
+        assert note.id_ in refreshed.notes
+        assert dl.clone_for_actor(case_actor.id_).outbox_list() == []
 
     # ------------------------------------------------------------------
     # CaseLedgerEntry cascade tests (PCR-08-003, PCR-08-004) — AC-1

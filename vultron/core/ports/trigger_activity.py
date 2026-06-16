@@ -136,6 +136,18 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def validate_report(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist an ``Accept(Offer)`` validate-report activity.
+
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
     # -----------------------------------------------------------------------
     # Cases
     # -----------------------------------------------------------------------

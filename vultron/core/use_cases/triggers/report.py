@@ -30,13 +30,11 @@ from typing import Any, cast
 import py_trees.behaviour
 
 from vultron.core.behaviors.report.trigger_report_trees import (
+    create_validate_report_trigger_tree,
     create_close_report_trigger_tree,
     create_invalidate_report_trigger_tree,
     create_reject_report_trigger_tree,
     submit_report_trigger_bt,
-)
-from vultron.core.behaviors.report.validate_tree import (
-    create_validate_report_tree,
 )
 from vultron.core.models.report import VultronReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
@@ -88,19 +86,13 @@ def _resolve_offer_and_report(
 class SvcValidateReportUseCase(SvcBTTriggerBase):
     """Validate a report offer using the ValidateReportBT behavior tree.
 
-    Does not require a TriggerActivityPort — the validate BT performs only
-    state transitions without constructing outbound activities.
-    The BT also commits a ``validate_report`` canonical ledger entry via
-    ``create_commit_log_entry_tree`` (BT-15-001).
+    Emits the vendor's ``Accept(Offer)`` validation assertion to the
+    CaseActor, then records the vendor-local RM.VALID transition.  The
+    CaseActor records the canonical ``validate_report`` ledger entry when it
+    receives that assertion; the trigger path must not write as the CaseActor.
     """
 
-    _requires_trigger_activity = False
-
     def _prepare(self) -> None:
-        from vultron.core.use_cases._helpers import (
-            build_activity_payload_snapshot,
-        )
-
         request = cast(ValidateReportTriggerRequest, self._request)
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
@@ -108,23 +100,12 @@ class SvcValidateReportUseCase(SvcBTTriggerBase):
             request.offer_id, self._dl
         )
         self._before = outbox_ids(self._actor_id, self._dl)
-        case = self._dl.find_case_by_report_id(self._report.id_)
-        self._case_id: str | None = getattr(case, "id_", None)
-        self._payload_snapshot = build_activity_payload_snapshot(
-            self._offer, dl=self._dl
-        )
-        # Canonical ledger entries require payloadSnapshot.context == case_id
-        # (CLP-07-002).  The Offer was constructed before the case existed on
-        # the vendor side, so its serialized context may be unset or stale.
-        if self._case_id is not None:
-            self._payload_snapshot["context"] = self._case_id
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
-        return create_validate_report_tree(
+        return create_validate_report_trigger_tree(
             report_id=self._report.id_,
             offer_id=self._offer.id_,
-            case_id=self._case_id,
-            payload_snapshot=self._payload_snapshot,
+            result_out=self._result_out,
         )
 
     def _handle_result(self) -> None:

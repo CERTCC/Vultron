@@ -310,6 +310,20 @@ def test_validate_report_trigger_transitions_rm_to_valid(
     ), "Expected a RM.VALID ParticipantStatus after validate_report_trigger"
 
 
+def test_validate_report_trigger_closed_report_does_not_emit(
+    dl, actor, offer, closed_report
+):
+    """validate_report_trigger rejects CLOSED reports before outbox emission."""
+    before = set(dl.outbox_list_for_actor(actor.id_))
+
+    with pytest.raises(VultronInvalidStateTransitionError):
+        TriggerService(
+            dl, trigger_activity=TriggerActivityAdapter(dl)
+        ).validate_report(actor.id_, offer.id_, None)
+
+    assert set(dl.outbox_list_for_actor(actor.id_)) == before
+
+
 def test_validate_report_trigger_non_report_offer_raises_422(
     dl, actor, non_report_object
 ):

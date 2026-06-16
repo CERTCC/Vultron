@@ -11,9 +11,9 @@ from vultron.core.models.events.report import (
     SubmitReportReceivedEvent,
     ValidateReportReceivedEvent,
 )
-from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases.received.case import (
-    ValidateCaseUseCase,
+from vultron.core.ports.case_persistence import (
+    CaseOutboxPersistence,
+    CasePersistence,
 )
 from vultron.errors import VultronValidationError
 
@@ -90,7 +90,7 @@ def _is_primary_submit_report_recipient(
 
 
 def _run_submit_report_case_creation(
-    dl: CasePersistence,
+    dl: CaseOutboxPersistence,
     request: SubmitReportReceivedEvent,
     receiving_actor_id: str,
     report_id: str,
@@ -185,7 +185,7 @@ class CreateReportReceivedUseCase:
 class SubmitReportReceivedUseCase:
     def __init__(
         self,
-        dl: CasePersistence,
+        dl: CaseOutboxPersistence,
         request: SubmitReportReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
@@ -228,13 +228,15 @@ class SubmitReportReceivedUseCase:
 class ValidateReportReceivedUseCase:
     def __init__(
         self,
-        dl: CasePersistence,
+        dl: CaseOutboxPersistence,
         request: ValidateReportReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: ValidateReportReceivedEvent = request
         self._trigger_activity = trigger_activity
+        self._sync_port = sync_port
 
     def execute(self) -> None:
         request = self._request
@@ -252,12 +254,49 @@ class ValidateReportReceivedUseCase:
             report_id,
         )
 
-        ValidateCaseUseCase(
-            dl=self._dl,
-            actor_id=actor_id,
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.report.validate_tree import (
+            create_validate_report_tree,
+        )
+        from vultron.core.use_cases.triggers.sync import (
+            extract_activity_snapshot,
+        )
+
+        case = self._dl.find_case_by_report_id(report_id)
+        case_id: str | None = getattr(case, "id_", None)
+        payload_snapshot = extract_activity_snapshot(request, dl=self._dl)
+        if case_id is not None:
+            payload_snapshot["context"] = case_id
+
+        tree = create_validate_report_tree(
             report_id=report_id,
             offer_id=offer_id,
-        ).execute()
+            case_id=case_id,
+            payload_snapshot=payload_snapshot,
+        )
+        bridge = BTBridge(datalayer=self._dl, sync_port=self._sync_port)
+        result = bridge.execute_with_setup(
+            tree,
+            actor_id=actor_id,
+            activity=request,
+        )
+        if result.status == Status.SUCCESS:
+            logger.info("✓ BT validation succeeded for report: %s", report_id)
+        elif result.status == Status.FAILURE:
+            reason = BTBridge.get_failure_reason(tree)
+            logger.error(
+                "✗ BT validation failed for report: %s — %s",
+                report_id,
+                reason or result.feedback_message,
+            )
+        else:
+            logger.warning(
+                "⚠ BT validation incomplete for report: %s (status=%s)",
+                report_id,
+                result.status,
+            )
 
 
 class InvalidateReportReceivedUseCase:
