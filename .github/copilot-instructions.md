@@ -10,23 +10,32 @@ Core domain concepts: **CVD** (single-party), **MPCVD** (multi-party), three
 interacting state machines — Report Management (RM), Embargo Management (EM),
 Case State (CS) — modeled as Behavior Trees.
 
+## Authoritative Reference
+
+**`AGENTS.md`** is the authoritative guide for all Vultron coding agents.
+It covers: naming conventions, validation rules, architecture, key files map,
+common pitfalls reference index, GitHub label conventions, commit workflow,
+skill interaction rules, and the full technology stack. **Read it first.**
+
+This file provides a quick-start orientation and a few pitfalls that benefit
+from early visibility in the context window.
+
 ## Commands
 
 ```bash
 # Setup
 uv sync --dev
 
-# Format (run before every commit)
-# Format and lint Python sources before committing
+# Format Python sources (run before every commit)
 uv run black vultron/ test/ && uv run flake8 vultron/ test/
 
 # Full test suite — run exactly once, read the last 5 lines
 uv run pytest --tb=short 2>&1 | tail -5
 
-# Single test file
+# Single test file (faster feedback)
 uv run pytest test/test_semantic_activity_patterns.py -v
 
-# Lint
+# All linters
 uv run flake8 vultron/ test/
 uv run mypy
 ./mdlint.sh                     # markdown only
@@ -35,16 +44,7 @@ uv run mypy
 uv run mkdocs serve
 ```
 
-Always format Python sources with Black and run `flake8` before staging
-changes for commit. Do not run Black on markdown files — use
-`markdownlint-cli2` for those.
-
-## Deep Reference
-
-For Vultron-specific architectural rules, naming conventions, validation patterns,
-GitHub label naming, and the complete reference index, see **`AGENTS.md`** — the
-authoritative guide for Vultron coding agents. This file focuses on platform-agnostic
-setup and quick tactical guidance.
+Do not run Black on markdown files — use `markdownlint-cli2` for those.
 
 ---
 
@@ -70,6 +70,7 @@ truth.
 
 `plan/history/` files are normally immutable (enforced by pre-commit), but you
 **SHOULD override immutability in two cases**:
+
 1. **Corrupt or impossible dates** — fix entries with future dates or other data
    errors using git blame to determine correct timestamps
 2. **Explicit user override** — when the user explicitly asks you to override
@@ -106,144 +107,10 @@ Skipping this is how PRs end up blocked by 17-minute CI runs.
 
 ---
 
-## Architecture
-
-### Hexagonal (Ports and Adapters)
-
-The core domain (`vultron/core/`) has **no imports** from FastAPI, AS2/wire,
-or adapter layers. External protocols are translated by adapters.
-
-```
-HTTP POST /inbox
-  → vultron/adapters/driving/fastapi/routers/actors.py   (202 immediately)
-  → BackgroundTasks
-  → vultron/wire/as2/parser.py        (structural parse)
-  → vultron/wire/as2/extractor.py     (AS2 → MessageSemantics)
-  → vultron/core/dispatcher.py        (route to use case)
-  → vultron/core/use_cases/<name>.py  (business logic + DataLayer)
-```
-
-Key constraint: `extractor.py` is the **sole** AS2→domain mapping point.
-Handlers never inspect AS2 types directly.
-
-### Layer Rules
-
-| Layer | Module path | Allowed imports |
-|---|---|---|
-| Core | `vultron/core/` | Core only + shared neutral modules |
-| Wire | `vultron/wire/` | Core + wire internals |
-| Adapters | `vultron/adapters/` | All layers |
-| API router | `vultron/adapters/driving/fastapi/routers/` | FastAPI + adapter helpers only |
-
-### Key Files
-
-| File | Role |
-|---|---|
-| `vultron/core/models/events.py` | `MessageSemantics` enum (authoritative) |
-| `vultron/enums.py` | Re-exports `MessageSemantics` + other enums |
-| `vultron/wire/as2/extractor.py` | `ActivityPattern` defs + `SEMANTICS_ACTIVITY_PATTERNS` |
-| `vultron/core/use_cases/use_case_map.py` | `USE_CASE_MAP`: `MessageSemantics` → use-case class |
-| `vultron/core/dispatcher.py` | `DirectActivityDispatcher` + `get_dispatcher()` |
-| `vultron/core/ports/datalayer.py` | `DataLayer` Protocol (port) |
-| `vultron/adapters/driven/datalayer_sqlite.py` | SQLite/SQLModel implementation |
-| `vultron/adapters/driving/fastapi/routers/actors.py` | Inbox endpoint |
-| `vultron/errors.py` | `VultronError` base + all custom exceptions |
-
-## Key Conventions
-
-### Naming
-
-See **`AGENTS.md`** § Naming Conventions for the complete set of Vultron naming
-rules (22 detailed conventions): `as_` prefix usage, field naming with
-reserved-word conflicts, handler vs. trigger case naming, pattern object
-naming, and more. All conventions are binding and enforced by tests.
-
-### Use-Case Protocol
-
-All use-case classes must follow this structure:
-
-```python
-class CreateReportReceivedUseCase:
-    def __init__(self, dl: DataLayer, request: CreateReportReceivedEvent) -> None:
-        self._dl = dl
-        self._request = request
-
-    def execute(self) -> None:
-        ...
-```
-
-### Adding a New Message Type (checklist)
-
-1. Add `MessageSemantics` enum value in `vultron/core/models/events.py`
-2. Define `ActivityPattern` named `<Type>Pattern` in `vultron/wire/as2/extractor.py`
-3. Add to `SEMANTICS_ACTIVITY_PATTERNS` — **order matters, specific before general**
-4. Implement use-case class in `vultron/core/use_cases/`
-5. Register in `USE_CASE_MAP` in `vultron/core/use_cases/use_case_map.py`
-6. Add tests: pattern matching, routing, use-case logic
-
-### ActivityStreams Semantics
-
-- Activities are **state-change notifications**, not commands
-- Inbound: update local state to reflect sender's assertion; do not execute on their behalf
-- Outbound: work causes the activity; the activity does not cause the work
-- `Accept`/`Reject` in reply to `Offer`/`Invite`: set `object` to an **inline typed activity object** (not an ID string); `Accept.object_` must be the Invite activity itself, not the Case object
-- Call `rehydrate()` on incoming activities before pattern matching
-
-### Data Layer
-
-- Use `dl.save(obj)` to persist Pydantic models (`object_to_record()` + `dl.update()` has been removed)
-- `VulnerabilityCase.case_status` is a **list** (`list[CaseStatusRef]`); use `case.current_status` for the active one
-- Do not write typed activities to `case_activity` (enum coverage issue); store the ID string instead
-- Case events: always use `case.record_event(object_id, event_type)` — never copy activity timestamps
-
-### Behavior Trees
-
-- Use factory methods (not direct subclassing) for BT nodes
-- BT blackboard keys use `{noun}_{last_url_segment}` (no slashes in keys)
-- Clear `py_trees.blackboard.Blackboard.storage` in test fixtures to prevent state leakage
-- All trigger and received use cases MUST delegate protocol-significant behavior
-  to a BT via `BTBridge`. Procedural code in `execute()` is limited to
-  infrastructure glue (instantiate BT, set up blackboard, call bridge, check
-  status, extract output).
-
-### Error Handling
-
-- All custom exceptions inherit from `VultronError` (`vultron/errors.py`)
-- Dispatcher errors: `vultron/dispatcher_errors.py` (avoids circular imports)
-- FastAPI inbox: return 202 within ~100ms; schedule actual work with `BackgroundTasks`
-
-### Testing
-
-- Test structure mirrors source: `test/core/use_cases/` mirrors `vultron/core/use_cases/`
-- Use full Pydantic objects in test data (not string primitives)
-- Use full URIs: `actor="https://example.org/alice"` not `actor="alice"`
-- Match `MessageSemantics` to actual activity structure in test events
-- **DataLayer isolation:** each actor in tests must use a **distinct** `DataLayer`
-  instance — sharing one across actors is a bug. `create_app()` must NOT mutate
-  global singletons (`_default_emitter`, etc.); store per-app state on `app.state`.
-
-### Task Branching
-
-- Default base branch is always **`main`**. Do **not** infer the base from
-  `PRIORITIES.md`, issue descriptions, or any other source — if the base branch
-  is anything other than `main`, the user must explicitly state it.
-
-## Architecture Decision Records
-
-ADRs live in `docs/adr/`. Consult them before making architectural changes.
-Use `docs/adr/_adr-template.md` for new ADRs. Non-trivial architectural
-changes (new persistence paradigm, message format, component boundaries)
-require an ADR before merging.
-
 ## Further Reference
 
-**Primary reference for Vultron agents:**
-- **`AGENTS.md`** — Comprehensive guide with: naming conventions, validation rules,
-  architecture deep-dive, key files map, common pitfalls reference index, complete
-  GitHub label naming rules, change protocol, and skill interaction rules. This is
-  the authoritative source for Vultron-specific guidance.
-
-**Supplementary:**
+- **`AGENTS.md`** — Authoritative agent guide (naming, architecture, pitfalls,
+  commit workflow, skill interaction rules)
 - `specs/` — Formal requirements with unique IDs (e.g., `HP-01-001`)
 - `notes/` — Durable design insights (architecture, BT integration, AS2 semantics)
 - `docs/adr/` — Architecture decision records
