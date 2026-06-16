@@ -157,3 +157,14 @@ entries for a case is treated as trivially fresh (acknowledged prefix is the
 empty prefix, which is contiguous). This aligns with SYNC-10-005: the gate
 MUST NOT require the actor's tip to equal the CaseActor's tip. Test fixtures
 for the gate can safely start with a clean DataLayer and expect SUCCESS.
+
+### 2026-06-16 ABC-HIERARCHY-TEMPLATE — transient instance attributes require care in abstract template methods
+
+When a template method sets transient per-call attributes (e.g.,
+`self._captured`, `self._actor_id`, `self._factory`) in `execute()` before
+calling abstract hooks, pyright does not always infer they are set at the
+call sites inside the abstract methods. Initialising them at the top of
+`execute()` (rather than in `__init__`) keeps them visible to pyright and
+avoids "possibly unbound" errors without introducing unnecessary sentinel
+values into `__init__`. Use `cast()` in `_prepare()` to restore specific
+request type narrowing lost by widening to `object` in the base `__init__`.
