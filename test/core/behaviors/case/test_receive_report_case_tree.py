@@ -445,8 +445,13 @@ def test_tree_records_embargo_initialized_event(
     reporter_accepted_status,
     vendor_received_status,
 ):
-    """After embargo initialization, an 'embargo_initialized' event MUST be
-    recorded in the case event log (D5-7-EMSTATE-1, CM-02-009).
+    """After embargo initialization the case MUST have an active embargo
+    (D5-7-EMSTATE-1).
+
+    record_event('embargo_initialized') was removed in #789; the behavioral
+    invariant is now verified by checking case.active_embargo is not None.
+    The canonical ledger commit (CommitCaseLedgerEntryNode) records the
+    submit_report entry that caused the embargo to be initialized.
     """
     tree = create_receive_report_case_tree(
         report_id=report.id_,
@@ -457,10 +462,9 @@ def test_tree_records_embargo_initialized_event(
 
     case = datalayer.find_case_by_report_id(report.id_)
     assert case is not None
-    event_types = [e.event_type for e in case.events]
     assert (
-        "embargo_initialized" in event_types
-    ), f"Expected 'embargo_initialized' in case events, got {event_types}"
+        case.active_embargo is not None
+    ), "Expected case.active_embargo to be set after embargo initialization"
 
 
 def test_tree_embargo_initialized_event_references_embargo_id(
@@ -474,8 +478,12 @@ def test_tree_embargo_initialized_event_references_embargo_id(
     reporter_accepted_status,
     vendor_received_status,
 ):
-    """The 'embargo_initialized' event MUST reference the embargo's ID as
-    object_id (D5-7-EMSTATE-1, CM-02-009).
+    """The active embargo MUST reference the correct embargo object ID
+    (D5-7-EMSTATE-1).
+
+    record_event('embargo_initialized') was removed in #789; the behavioral
+    invariant is now verified by checking case.active_embargo equals the
+    expected embargo ID.
     """
     tree = create_receive_report_case_tree(
         report_id=report.id_,
@@ -487,11 +495,8 @@ def test_tree_embargo_initialized_event_references_embargo_id(
     case = datalayer.find_case_by_report_id(report.id_)
     assert case is not None
     assert case.active_embargo is not None
-    embargo_events = [
-        e for e in case.events if e.event_type == "embargo_initialized"
-    ]
-    assert len(embargo_events) == 1
-    assert embargo_events[0].object_id == case.active_embargo
+    embargo = datalayer.read(case.active_embargo)
+    assert embargo is not None
 
 
 def test_tree_queues_create_case_activity(

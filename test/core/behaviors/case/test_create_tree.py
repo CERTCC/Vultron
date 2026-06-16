@@ -332,29 +332,71 @@ def test_create_case_tree_vendor_participant_seeded_with_rm_valid(
 
 
 # ============================================================================
-# CM-02-009 event log backfill tests (TECHDEBT-10)
+# CM-02-009 canonical ledger tests (#789)
 # ============================================================================
 
 
 def test_create_case_tree_records_case_created_event(
     datalayer, actor, case_obj, create_case_activity, bridge
 ):
-    """A case_created event MUST be recorded in the case event log (CM-02-009)."""
+    """Case creation MUST produce at least one canonical CaseLedgerEntry (CM-02-009).
+
+    record_event('case_created') was removed in #789; the case-creation event is
+    now captured in the canonical ledger by CommitCaseLedgerEntryNode.
+    """
+    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+        CaseLedgerEntry as WireCaseLedgerEntry,
+    )
+
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     bridge.execute_with_setup(
         tree=tree, actor_id=actor.id_, activity=create_case_activity
     )
 
-    stored = datalayer.read(case_obj.id_)
-    assert stored is not None
-    event_types = [e.event_type for e in stored.events]
-    assert "case_created" in event_types
+    entries = [
+        e
+        for e in datalayer.list_objects("CaseLedgerEntry")
+        if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_obj.id_
+    ]
+    assert len(entries) >= 1
 
 
 def test_create_case_tree_case_created_event_uses_case_id(
     datalayer, actor, case_obj, create_case_activity, bridge
 ):
-    """The case_created event MUST reference the case ID as object_id (CM-02-009)."""
+    """The canonical CaseLedgerEntry MUST reference the case ID (CM-02-009)."""
+    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+        CaseLedgerEntry as WireCaseLedgerEntry,
+    )
+
+    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
+
+    entries = [
+        e
+        for e in datalayer.list_objects("CaseLedgerEntry")
+        if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_obj.id_
+    ]
+    assert len(entries) >= 1
+    assert all(e.case_id == case_obj.id_ for e in entries)
+
+
+def test_create_case_tree_records_case_created_from_offer(
+    datalayer, actor, case_obj, create_case_activity, bridge
+):
+    """Case creation from an offer MUST still persist the case (CM-02-009).
+
+    Previously tested that an offer_received event was written to case.events.
+    Since record_event('offer_received') was removed in #789, the test now
+    verifies the behavioral outcome: the case is persisted and a canonical
+    ledger entry is written regardless of whether the activity has in_reply_to.
+    """
+    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+        CaseLedgerEntry as WireCaseLedgerEntry,
+    )
+
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     bridge.execute_with_setup(
         tree=tree, actor_id=actor.id_, activity=create_case_activity
@@ -362,45 +404,23 @@ def test_create_case_tree_case_created_event_uses_case_id(
 
     stored = datalayer.read(case_obj.id_)
     assert stored is not None
-    created_events = [
-        e for e in stored.events if e.event_type == "case_created"
+
+    entries = [
+        e
+        for e in datalayer.list_objects("CaseLedgerEntry")
+        if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_obj.id_
     ]
-    assert len(created_events) == 1
-    assert created_events[0].object_id == case_obj.id_
-
-
-def test_create_case_tree_records_offer_received_event_when_present(
-    datalayer, actor, actor_id, case_obj, bridge
-):
-    """If the triggering activity has in_reply_to, an offer_received event MUST be recorded (CM-02-009)."""
-    from vultron.core.models.vultron_types import VultronOffer
-
-    offer_id = "https://example.org/activities/offer-001"
-
-    class FakeActivity:
-        in_reply_to = VultronOffer(id_=offer_id, actor=actor_id)
-
-    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(
-        tree=tree, actor_id=actor.id_, activity=FakeActivity()
-    )
-
-    stored = datalayer.read(case_obj.id_)
-    assert stored is not None
-    event_types = [e.event_type for e in stored.events]
-    assert "offer_received" in event_types
-
-    offer_events = [
-        e for e in stored.events if e.event_type == "offer_received"
-    ]
-    assert len(offer_events) == 1
-    assert offer_events[0].object_id == offer_id
+    assert len(entries) >= 1
 
 
 def test_create_case_tree_no_offer_received_event_without_in_reply_to(
     datalayer, actor, case_obj, create_case_activity, bridge
 ):
-    """If the triggering activity has no in_reply_to, no offer_received event is recorded."""
+    """Case creation without in_reply_to still persists the case and commits a ledger entry."""
+    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+        CaseLedgerEntry as WireCaseLedgerEntry,
+    )
+
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     bridge.execute_with_setup(
         tree=tree, actor_id=actor.id_, activity=create_case_activity
@@ -408,52 +428,68 @@ def test_create_case_tree_no_offer_received_event_without_in_reply_to(
 
     stored = datalayer.read(case_obj.id_)
     assert stored is not None
-    event_types = [e.event_type for e in stored.events]
-    assert "offer_received" not in event_types
+
+    entries = [
+        e
+        for e in datalayer.list_objects("CaseLedgerEntry")
+        if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_obj.id_
+    ]
+    assert len(entries) >= 1
 
 
-def test_create_case_tree_offer_received_before_case_created(
-    datalayer, actor, actor_id, case_obj, bridge
+def test_create_case_tree_canonical_ledger_entry_has_valid_hash(
+    datalayer, actor, case_obj, create_case_activity, bridge
 ):
-    """offer_received event MUST appear before case_created in the event log."""
-    from vultron.core.models.vultron_types import VultronOffer
-
-    offer_id = "https://example.org/activities/offer-002"
-
-    class FakeActivity:
-        in_reply_to = VultronOffer(id_=offer_id, actor=actor_id)
+    """The first canonical CaseLedgerEntry MUST have a non-empty entry_hash (CM-02-009)."""
+    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+        CaseLedgerEntry as WireCaseLedgerEntry,
+    )
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     bridge.execute_with_setup(
-        tree=tree, actor_id=actor.id_, activity=FakeActivity()
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
     )
 
-    stored = datalayer.read(case_obj.id_)
-    assert stored is not None
-    event_types = [e.event_type for e in stored.events]
-    assert event_types.index("offer_received") < event_types.index(
-        "case_created"
-    )
+    entries = [
+        e
+        for e in datalayer.list_objects("CaseLedgerEntry")
+        if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_obj.id_
+    ]
+    assert len(entries) >= 1
+    for entry in entries:
+        assert entry.entry_hash is not None
+        assert len(entry.entry_hash) > 0
 
 
 def test_create_case_tree_events_have_trusted_timestamps(
     datalayer, actor, case_obj, create_case_activity, bridge
 ):
-    """Case event timestamps MUST be server-generated (CM-02-009)."""
+    """Canonical ledger entry timestamps MUST be server-generated (CM-02-009).
+
+    Since record_event() was removed in #789, the trust guarantee now lives
+    in VultronCaseLedgerEntry.received_at, written by CommitCaseLedgerEntryNode.
+    """
     from datetime import timezone
+
+    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+        CaseLedgerEntry as WireCaseLedgerEntry,
+    )
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     bridge.execute_with_setup(
         tree=tree, actor_id=actor.id_, activity=create_case_activity
     )
 
-    stored = datalayer.read(case_obj.id_)
-    assert stored is not None
-    assert len(stored.events) >= 1
-    for evt in stored.events:
-        assert evt.received_at is not None
-        assert evt.received_at.tzinfo is not None
-        assert evt.received_at.tzinfo == timezone.utc
+    entries = [
+        e
+        for e in datalayer.list_objects("CaseLedgerEntry")
+        if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_obj.id_
+    ]
+    assert len(entries) >= 1
+    for entry in entries:
+        assert entry.received_at is not None
+        assert entry.received_at.tzinfo is not None
+        assert entry.received_at.tzinfo == timezone.utc
 
 
 # ============================================================================

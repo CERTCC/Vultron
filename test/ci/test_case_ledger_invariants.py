@@ -229,22 +229,10 @@ def _contiguous_fragments(entries: list[dict]) -> list[list[dict]]:
 # Invariant 1 — per-actor internal hash-chain consistency
 # ---------------------------------------------------------------------------
 
-#: Hash-chain breaks intermittently until #789 (CaseActor commit-path
-#: uniqueness) is fixed.  The break position varies across runs, confirming
-#: the root cause is non-deterministic commit ordering rather than a
-#: reproducible logic error introduced by any single PR.
-_CHAIN_XFAIL_789 = pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "Hash-chain inconsistencies due to CaseActor commit-path uniqueness "
-        "issues (intermittent); will pass when #789 lands"
-    ),
-)
-
 _CHAIN_ACTORS = [
-    pytest.param("case-actor", marks=_CHAIN_XFAIL_789),
-    pytest.param("vendor", marks=_CHAIN_XFAIL_789),
-    pytest.param("finder", marks=_CHAIN_XFAIL_789),
+    pytest.param("case-actor"),
+    pytest.param("vendor"),
+    pytest.param("finder"),
 ]
 
 
@@ -267,10 +255,7 @@ def test_invariant_1_local_hash_chain_consistent(
     the check does not assert that entry 5's prevLogHash equals entry 3's
     entryHash (it doesn't — it references the hash of the missing entry 4).
 
-    All three actors are xfail until #789 (CaseActor commit-path uniqueness)
-    lands.  The break position varies across runs (non-deterministic), which
-    confirms the root cause is commit-ordering rather than a reproducible
-    logic error.
+    Promoted from xfail: confirmed passing once #789 prerequisites landed.
     Spec: CLP-07.
     """
     entries = case_ledger_replicas.get(actor_name)
@@ -313,21 +298,10 @@ def test_invariant_1_local_hash_chain_consistent(
 
 
 @pytest.mark.case_ledger_invariants
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "Cross-actor hash agreement requires CaseActor commit-path uniqueness; "
-        "will pass when #789 lands"
-    ),
-)
 def test_invariant_2_cross_actor_hash_agreement(
     case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
-    """All actors agree on the entryHash for every shared logIndex (AC-4.2).
-
-    When this xfail is unexpectedly promoted to XPASS, remove the
-    ``xfail`` decorator to make it a permanent regression guard.
-    """
+    """All actors agree on the entryHash for every shared logIndex (AC-4.2)."""
     by_index: dict[int, dict[str, str]] = {}
     for actor, entries in case_ledger_replicas.items():
         for entry in entries:
@@ -346,21 +320,10 @@ def test_invariant_2_cross_actor_hash_agreement(
 
 
 @pytest.mark.case_ledger_invariants
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "Cross-actor payloadSnapshot.actor agreement requires CaseActor "
-        "commit-path uniqueness; will pass when #789 lands"
-    ),
-)
 def test_invariant_3_cross_actor_payload_actor_agreement(
     case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
-    """All actors agree on payloadSnapshot.actor for every shared logIndex (AC-4.3).
-
-    When this xfail is unexpectedly promoted to XPASS, remove the
-    ``xfail`` decorator to make it a permanent regression guard.
-    """
+    """All actors agree on payloadSnapshot.actor for every shared logIndex (AC-4.3)."""
     by_index: dict[int, dict[str, str | None]] = {}
     for actor, entries in case_ledger_replicas.items():
         for entry in entries:
@@ -383,21 +346,12 @@ def test_invariant_3_cross_actor_payload_actor_agreement(
 
 
 @pytest.mark.case_ledger_invariants
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "Non-empty payloadSnapshot requires the commit-boundary guard and "
-        "removal of synthetic checkpoint events (see issue #789)"
-    ),
-)
 def test_invariant_4_non_empty_payload_snapshot(
     case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
     """Every recorded canonical entry has a non-empty payloadSnapshot (AC-4.4).
 
     Rejection entries (``disposition != "recorded"``) are excluded.
-    When this xfail is unexpectedly promoted to XPASS, remove the
-    ``xfail`` decorator to make it a permanent regression guard.
     """
     empty = [
         f"Actor {actor!r} logIndex={_log_index(e)} eventType={_event_type(e)!r}"
@@ -412,13 +366,6 @@ def test_invariant_4_non_empty_payload_snapshot(
 
 
 @pytest.mark.case_ledger_invariants
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "All expected protocol eventTypes require the CaseActor commit-path "
-        "implementation; will pass when #789 ACs are satisfied"
-    ),
-)
 def test_invariant_5_expected_event_types_present(
     case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
@@ -426,8 +373,6 @@ def test_invariant_5_expected_event_types_present(
 
     Checked against the ``case-actor`` replica (authoritative log).
     Falls back to any available replica when no ``case-actor`` key exists.
-    When this xfail is unexpectedly promoted to XPASS, remove the
-    ``xfail`` decorator to make it a permanent regression guard.
     """
     auth = _auth_entries(case_ledger_replicas)
     found = {_event_type(e) for e in auth}
@@ -473,27 +418,12 @@ def test_invariant_6_no_rm_state_oscillation(
 
 
 @pytest.mark.case_ledger_invariants
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "Surfaced by SYNC-2 sync_port fix (#954): with replication now"
-        " actually firing for SUBMIT_REPORT/ENGAGE_CASE/DEFER_CASE BTs,"
-        " add_participant_status entries reach the case-actor log and"
-        " show the finder stuck in RM=ACCEPTED. The missing transition"
-        " to RM=CLOSED requires the CaseActor-routing prerequisite"
-        " cluster (#927) and the broader case-history migration"
-        " cleanup (#789). Re-promote to a regression guard once those"
-        " land and the finder consistently terminates at RM=CLOSED."
-    ),
-)
 def test_invariant_7_log_terminates_all_rm_closed(
     case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
     """The log terminates with every participant in RM=CLOSED (AC-4.7).
 
     Checks the final ``add_participant_status`` entry per participant.
-    When this xfail is unexpectedly promoted to XPASS, remove the
-    ``xfail`` decorator to make it a permanent regression guard.
     """
     auth = _auth_entries(case_ledger_replicas)
     latest_rm: dict[str, str] = {}
@@ -672,9 +602,8 @@ def test_invariant_11_payload_context_uses_case_uri(
 #     "For the entries you *do* have, are they self-consistent?"
 #     - Invariant 1  (hash chain): each consecutive pair must hash-chain.
 #     - Invariant 14 (contiguity): no gaps within the range you hold.
-#     The finder currently passes inv-14 (its fragment is contiguous) and
-#     is xfail on inv-1 (#789 hash-chain replication bug).
-#     Both converge once #789 is fixed — independently of backfill.
+#     The finder passes both inv-1 and inv-14 now that #789 prerequisites
+#     are in place.  Both converge independently of backfill.
 #
 #   Group B — Log completeness (inv 12, inv 13):
 #     "Do you hold the full log from genesis?"
