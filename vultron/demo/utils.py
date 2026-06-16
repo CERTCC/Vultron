@@ -30,7 +30,7 @@ from http import HTTPMethod
 from typing import Any, Generator, Optional, Sequence, Tuple, cast
 
 # Third-party imports
-import httpx
+import httpx2 as httpx
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 

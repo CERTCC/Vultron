@@ -146,7 +146,7 @@ class ASGIEmitter:
             )
             return False
 
-        import httpx
+        import httpx2 as httpx
 
         parsed = urlparse(recipient_id.rstrip("/") + "/inbox/")
         inbox_path = parsed.path

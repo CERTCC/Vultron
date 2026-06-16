@@ -19,7 +19,7 @@ Spec: SYNC-05-001, SYNC-05-002.
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import httpx
+import httpx2 as httpx
 
 from vultron.adapters.driven.demo_http_delivery import (
     DEFAULT_BACKOFF_MULTIPLIER,
@@ -97,7 +97,7 @@ class TestDeliverySuccess:
         mock_response.raise_for_status = MagicMock()
 
         with patch(
-            "httpx.AsyncClient.post", new_callable=AsyncMock
+            "httpx2.AsyncClient.post", new_callable=AsyncMock
         ) as mock_post:
             mock_post.return_value = mock_response
             asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
@@ -117,7 +117,7 @@ class TestDeliverySuccess:
         mock_response.raise_for_status = MagicMock()
 
         with patch(
-            "httpx.AsyncClient.post", new_callable=AsyncMock
+            "httpx2.AsyncClient.post", new_callable=AsyncMock
         ) as mock_post:
             mock_post.return_value = mock_response
             asyncio.run(adapter.emit(activity, recipients))
@@ -147,7 +147,7 @@ class TestDeliveryRetry:
                 raise httpx.ConnectError("connection refused")
             return success_response
 
-        with patch("httpx.AsyncClient.post", side_effect=side_effect):
+        with patch("httpx2.AsyncClient.post", side_effect=side_effect):
             with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
                 asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
 
@@ -170,7 +170,7 @@ class TestDeliveryRetry:
         async def fake_sleep(delay: float) -> None:
             sleep_calls.append(delay)
 
-        with patch("httpx.AsyncClient.post", side_effect=fail):
+        with patch("httpx2.AsyncClient.post", side_effect=fail):
             with patch("asyncio.sleep", side_effect=fake_sleep):
                 asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
 
@@ -193,7 +193,7 @@ class TestDeliveryRetry:
         async def fake_sleep(delay: float) -> None:
             sleep_calls.append(delay)
 
-        with patch("httpx.AsyncClient.post", side_effect=fail):
+        with patch("httpx2.AsyncClient.post", side_effect=fail):
             with patch("asyncio.sleep", side_effect=fake_sleep):
                 asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
 
@@ -210,7 +210,7 @@ class TestDeliveryRetry:
         async def fail(*args, **kwargs):
             raise httpx.ConnectError("always fails")
 
-        with patch("httpx.AsyncClient.post", side_effect=fail):
+        with patch("httpx2.AsyncClient.post", side_effect=fail):
             with patch("asyncio.sleep", new_callable=AsyncMock):
                 with caplog.at_level("ERROR"):
                     asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
@@ -238,7 +238,7 @@ class TestDeliveryRetry:
             "https://example.org/actors/bob",
         ]
 
-        with patch("httpx.AsyncClient.post", side_effect=side_effect):
+        with patch("httpx2.AsyncClient.post", side_effect=side_effect):
             asyncio.run(adapter.emit(activity, recipients))
 
         assert len(delivered) == 1
@@ -255,7 +255,7 @@ class TestDeliveryRetry:
             call_count += 1
             raise httpx.ConnectError("always fails")
 
-        with patch("httpx.AsyncClient.post", side_effect=fail):
+        with patch("httpx2.AsyncClient.post", side_effect=fail):
             with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
                 asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
 
