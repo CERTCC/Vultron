@@ -168,3 +168,15 @@ call sites inside the abstract methods. Initialising them at the top of
 avoids "possibly unbound" errors without introducing unnecessary sentinel
 values into `__init__`. Use `cast()` in `_prepare()` to restore specific
 request type narrowing lost by widening to `object` in the base `__init__`.
+
+### 2026-06-16 BASE-HOOK-1005 — SvcBTTriggerBase needs _extra_execute_kwargs() for trees that read case_id from blackboard
+
+`UpdateActorOutbox` reads `case_id` from the blackboard (registered via
+`execute_with_setup` kwargs). The original `_execute_add_object_trigger_bt`
+standalone function passed `case_id=case_id` explicitly. When converting to
+`SvcBTTriggerBase`, the base `execute()` only passes `actor_id` to
+`execute_with_setup`. Fix: add a `_extra_execute_kwargs() -> dict[str, Any]`
+hook (default `{}`) to `SvcBTTriggerBase`; classes whose BTs need extra
+blackboard keys override it. The return type must be `dict[str, Any]` (not
+`dict[str, object]`) to satisfy mypy when the dict is spread into
+`execute_with_setup`'s `**context_data: Any` parameter.
