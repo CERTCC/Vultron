@@ -149,3 +149,11 @@ steps (`CreateNoteNode`, `AttachNoteFromResultNode`) have already succeeded
 and committed local state. The note IS attached to the case locally even
 though the overall tree returns FAILURE. Tests should assert on this partial-
 write behavior explicitly so readers do not assume FAILURE → no writes.
+
+### 2026-06-16 CATCHUP-791 — empty ledger is trivially fresh for catch-up gate
+
+When implementing the SYNC-10 catch-up gate, an actor with no local ledger
+entries for a case is treated as trivially fresh (acknowledged prefix is the
+empty prefix, which is contiguous). This aligns with SYNC-10-005: the gate
+MUST NOT require the actor's tip to equal the CaseActor's tip. Test fixtures
+for the gate can safely start with a clean DataLayer and expect SUCCESS.
