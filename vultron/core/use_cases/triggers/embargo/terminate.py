@@ -16,16 +16,14 @@
 """Embargo termination trigger use case."""
 
 import logging
+from typing import cast
 
-from py_trees.common import Status
+import py_trees.behaviour
 
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.trigger_tree import (
     terminate_embargo_trigger_bt,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.ports.trigger_activity import TriggerActivityPort
-from vultron.core.services.embargo_lifecycle import EmbargoLifecycleResult
+from vultron.core.use_cases.triggers._base import SvcEmbargoTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     _coerce_embargo_event,
     resolve_actor,
@@ -42,97 +40,63 @@ from vultron.errors import (
 logger = logging.getLogger(__name__)
 
 
-class SvcTerminateEmbargoUseCase:
-    def __init__(
-        self,
-        dl: CaseOutboxPersistence,
-        request: TerminateEmbargoTriggerRequest,
-        trigger_activity: TriggerActivityPort | None = None,
-    ) -> None:
-        self._dl = dl
-        self._request: TerminateEmbargoTriggerRequest = request
-        self._trigger_activity = trigger_activity
-
-    def execute(self) -> dict:
-        request = self._request
-        actor_id = request.actor_id
-        case_id = request.case_id
+class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
+    def _prepare(self) -> None:
+        request = cast(TerminateEmbargoTriggerRequest, self._request)
         dl = self._dl
 
-        actor = resolve_actor(actor_id, dl)
-        actor_id = actor.id_
+        actor = resolve_actor(request.actor_id, dl)
+        self._actor_id = actor.id_
+        self._case = resolve_case(request.case_id, dl)
 
-        case = resolve_case(case_id, dl)
-
-        if case.active_embargo is None:
+        if self._case.active_embargo is None:
             logger.warning(
                 "Invalid EM state transition: actor '%s' cannot TERMINATE:"
                 " case '%s' has no active embargo.",
-                actor_id,
-                case.id_,
+                self._actor_id,
+                self._case.id_,
             )
             raise VultronInvalidStateTransitionError(
-                f"Case '{case.id_}' has no active embargo to terminate."
+                f"Case '{self._case.id_}' has no active embargo to terminate."
             )
 
         embargo_id = (
-            case.active_embargo
-            if isinstance(case.active_embargo, str)
-            else getattr(case.active_embargo, "id_", None)
+            self._case.active_embargo
+            if isinstance(self._case.active_embargo, str)
+            else getattr(self._case.active_embargo, "id_", None)
         )
         if embargo_id is None:
             raise VultronValidationError(
-                f"Active embargo on case '{case.id_}' is missing an ID."
+                f"Active embargo on case '{self._case.id_}' is missing an ID."
             )
 
         _coerce_embargo_event(dl.read(embargo_id), embargo_id)
+        self._embargo_id = embargo_id
 
-        if self._trigger_activity is None:
-            raise RuntimeError(
-                "SvcTerminateEmbargoUseCase requires a TriggerActivityPort"
-            )
-
-        factory = self._trigger_activity
-        captured: dict = {}
-        result_out: dict[str, object] = {}
-
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
         def _build_activities(case_manager_id: str) -> list[str]:
-            announce_id, announce_dict = factory.terminate_embargo(
-                embargo_id=embargo_id,
-                case_id=case.id_,
-                actor=actor_id,
+            announce_id, announce_dict = self._factory.terminate_embargo(
+                embargo_id=self._embargo_id,
+                case_id=self._case.id_,
+                actor=self._actor_id,
                 to=[case_manager_id],
             )
-            captured["activity"] = announce_dict
+            self._captured["activity"] = announce_dict
             return [announce_id]
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
-        tree = terminate_embargo_trigger_bt(
-            case_id=case.id_,
-            result_out=result_out,
+        return terminate_embargo_trigger_bt(
+            case_id=self._case.id_,
+            result_out=self._result_out,
             activity_builder=_build_activities,
         )
-        result = bridge.execute_with_setup(tree, actor_id=actor_id)
-        if result.status != Status.SUCCESS:
-            error = result_out.get("error")
-            if isinstance(error, Exception):
-                raise error
-            raise VultronValidationError(
-                f"TerminateEmbargo failed: {BTBridge.get_failure_reason(tree)}"
-            )
-        lifecycle_result = result_out.get("lifecycle_result")
-        if not isinstance(lifecycle_result, EmbargoLifecycleResult):
-            raise RuntimeError(
-                "TerminateEmbargo did not capture lifecycle result in BT output"
-            )
 
+    def _log_lifecycle_result(self) -> None:
+        lr = self._lifecycle_result
         logger.info(
             "Actor '%s' terminated embargo '%s' on case '%s' (EM %s → %s)",
-            actor_id,
-            embargo_id,
-            case.id_,
-            lifecycle_result.em_before,
-            lifecycle_result.em_after,
+            self._actor_id,
+            self._embargo_id,
+            self._case.id_,
+            lr.em_before,
+            lr.em_after,
         )
-
-        return {"activity": captured.get("activity")}

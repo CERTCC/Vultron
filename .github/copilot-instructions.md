@@ -201,7 +201,10 @@ class CreateReportReceivedUseCase:
 - Use factory methods (not direct subclassing) for BT nodes
 - BT blackboard keys use `{noun}_{last_url_segment}` (no slashes in keys)
 - Clear `py_trees.blackboard.Blackboard.storage` in test fixtures to prevent state leakage
-- Not every handler needs a BT: use BTs for complex branching/state transitions; use procedural code for simple CRUD
+- All trigger and received use cases MUST delegate protocol-significant behavior
+  to a BT via `BTBridge`. Procedural code in `execute()` is limited to
+  infrastructure glue (instantiate BT, set up blackboard, call bridge, check
+  status, extract output).
 
 ### Error Handling
 
