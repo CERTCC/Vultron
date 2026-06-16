@@ -165,6 +165,7 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         bridge = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
         )
         result = bridge.execute_with_setup(
             tree=tree,

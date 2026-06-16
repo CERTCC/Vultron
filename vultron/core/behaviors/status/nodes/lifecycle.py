@@ -20,7 +20,7 @@ all-participants-closed auto-close branch (step 5).
 """
 
 import logging
-from typing import Any
+from typing import Any, TYPE_CHECKING, cast
 
 import py_trees
 from py_trees.common import Status
@@ -32,6 +32,9 @@ from vultron.core.models.protocols import PersistableModel, is_case_model
 from vultron.core.states.rm import RM
 from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases._helpers import _as_id
+
+if TYPE_CHECKING:
+    from vultron.core.ports.sync_activity import SyncActivityPort
 
 logger = logging.getLogger(__name__)
 
@@ -180,6 +183,12 @@ class AutoCloseBranchNode(DataLayerAction):
             )
         except Exception:
             pass
+        try:
+            self.blackboard.register_key(
+                key="sync_port", access=py_trees.common.Access.READ
+            )
+        except Exception:
+            pass
 
     def _receiving_actor_id(self) -> str | None:
         """Read ``activity.receiving_actor_id`` from the blackboard, if any.
@@ -195,6 +204,20 @@ class AutoCloseBranchNode(DataLayerAction):
         except (KeyError, AttributeError):
             return None
         return getattr(activity, "receiving_actor_id", None)
+
+    def _sync_port(self) -> "SyncActivityPort | None":
+        """Read ``sync_port`` from the blackboard, if any.
+
+        Needed so the canonical close_case ledger entry fans out to every
+        case participant via ``Announce(CaseLedgerEntry)`` (SYNC-2).  Without
+        the port, the fan-out is silently skipped and replicas miss the
+        entry — causing invariants 8/14 (late-joiner backfill / no gaps).
+        """
+        try:
+            sp = self.blackboard.sync_port
+        except (KeyError, AttributeError):
+            return None
+        return cast("SyncActivityPort | None", sp)
 
     def _all_participants_closed(self, case: Any) -> bool:
         """Return True iff every CVD participant has RM.CLOSED."""
@@ -311,6 +334,7 @@ class AutoCloseBranchNode(DataLayerAction):
                 actor_id=case_actor_id,
                 dl=cast(CaseOutboxPersistence, self.datalayer),
                 payload_snapshot=payload_snapshot,
+                sync_port=self._sync_port(),
             )
         except Exception:
             self.logger.warning(
