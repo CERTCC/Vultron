@@ -63,6 +63,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     logfmt,
     post_to_inbox_and_wait,
     verify_object_stored,
+    setup_demo_logging,
 )
 from vultron.wire.as2.factories import (
     rm_invalidate_report_activity,
@@ -420,17 +421,6 @@ def main(
         logger.info("")
 
 
-def _setup_logging():
-    """Configure console logging for standalone script execution."""
-    logging.getLogger("httpx2").setLevel(logging.WARNING)
-    _logger = logging.getLogger()
-    hdlr = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
-    hdlr.setFormatter(formatter)
-    _logger.addHandler(hdlr)
-    _logger.setLevel(logging.DEBUG)
-
-
 if __name__ == "__main__":
-    _setup_logging()
+    setup_demo_logging()
     main()

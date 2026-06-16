@@ -24,6 +24,7 @@ functions used across all demo scripts (DC-02-001).
 import json
 import logging
 import os
+import sys
 import time
 from contextlib import contextmanager
 from http import HTTPMethod
@@ -529,3 +530,15 @@ def check_server_availability(
         if attempt < max_retries - 1:
             time.sleep(retry_delay)
     return False
+
+
+def setup_demo_logging() -> None:
+    """Configure console logging for standalone demo script execution."""
+    logging.getLogger("httpx2").setLevel(logging.WARNING)
+    _logger = logging.getLogger()
+    hdlr = logging.StreamHandler(sys.stdout)
+    hdlr.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    )
+    _logger.addHandler(hdlr)
+    _logger.setLevel(logging.DEBUG)
