@@ -31,6 +31,50 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 
+def _seed_ledger_entry(
+    dl,
+    case_id: str,
+    object_id: str,
+    event_type: str,
+    actor_id: str,
+    payload_snapshot: dict | None = None,
+):
+    """Test-only helper: commit a ledger entry directly, bypassing BT validation.
+
+    Replicates the chain-building logic from the now-deleted
+    ``commit_log_entry_trigger`` for use in test setup fixtures.
+    """
+    from vultron.core.models.case_ledger import HashChainLedgerRecord
+    from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+    from vultron.core.sync_helpers import _reconstruct_tail_hash
+
+    tail_hash, tail_index = _reconstruct_tail_hash(case_id, dl)
+    chain_entry = HashChainLedgerRecord(
+        case_id=case_id,
+        log_index=tail_index + 1,
+        object_id=object_id,
+        event_type=event_type,
+        disposition="recorded",
+        payload_snapshot=payload_snapshot or {},
+        prev_log_hash=tail_hash,
+    )
+    entry = VultronCaseLedgerEntry(
+        case_id=chain_entry.case_id,
+        log_index=chain_entry.log_index,
+        disposition=chain_entry.disposition,
+        term=chain_entry.term,
+        log_object_id=chain_entry.object_id,
+        event_type=chain_entry.event_type,
+        payload_snapshot=dict(chain_entry.payload_snapshot),
+        prev_log_hash=chain_entry.prev_log_hash,
+        entry_hash=chain_entry.entry_hash,
+        reason_code=chain_entry.reason_code,
+        reason_detail=chain_entry.reason_detail,
+    )
+    dl.save(entry)
+    return entry
+
+
 class TestInviteActorUseCases:
     """Tests for invite_actor_to_case, accept_invite_actor_to_case,
     and reject_invite_actor_to_case."""
@@ -398,9 +442,6 @@ class TestInviteActorUseCases:
         self, make_payload
     ):
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.core.use_cases.triggers.sync import (
-            commit_log_entry_trigger,
-        )
         from vultron.core.models.replication_state import (
             VultronReplicationState,
         )
@@ -433,20 +474,20 @@ class TestInviteActorUseCases:
         dl.create(case)
         dl.create(invite)
 
-        first = commit_log_entry_trigger(
+        first = _seed_ledger_entry(
+            dl,
             case_id=case.id_,
             object_id=f"{case.id_}/events/0",
             event_type="submit_report",
             actor_id=case_actor_id,
-            dl=dl,
             payload_snapshot={"index": 0},
         )
-        second = commit_log_entry_trigger(
+        second = _seed_ledger_entry(
+            dl,
             case_id=case.id_,
             object_id=f"{case.id_}/events/1",
             event_type="add_participant_status",
             actor_id=case_actor_id,
-            dl=dl,
             payload_snapshot={"index": 1},
         )
 
@@ -491,9 +532,6 @@ class TestInviteActorUseCases:
         from vultron.core.models.replication_state import (
             VultronReplicationState,
         )
-        from vultron.core.use_cases.triggers.sync import (
-            commit_log_entry_trigger,
-        )
         from vultron.wire.as2.vocab.base.objects.actors import (
             as_Organization,
             as_Service,
@@ -523,20 +561,20 @@ class TestInviteActorUseCases:
         dl.create(case)
         dl.create(invite)
 
-        first = commit_log_entry_trigger(
+        first = _seed_ledger_entry(
+            dl,
             case_id=case.id_,
             object_id=f"{case.id_}/events/0",
             event_type="submit_report",
             actor_id=case_actor_id,
-            dl=dl,
             payload_snapshot={"index": 0},
         )
-        second = commit_log_entry_trigger(
+        second = _seed_ledger_entry(
+            dl,
             case_id=case.id_,
             object_id=f"{case.id_}/events/1",
             event_type="add_participant_status",
             actor_id=case_actor_id,
-            dl=dl,
             payload_snapshot={"index": 1},
         )
 
@@ -610,9 +648,6 @@ class TestInviteActorUseCases:
     ):
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.vultron_types import VultronParticipant
-        from vultron.core.use_cases.triggers.sync import (
-            commit_log_entry_trigger,
-        )
         from vultron.wire.as2.vocab.base.objects.actors import (
             as_Organization,
             as_Service,
@@ -650,20 +685,20 @@ class TestInviteActorUseCases:
         dl.create(case)
         dl.create(invite)
 
-        commit_log_entry_trigger(
+        _seed_ledger_entry(
+            dl,
             case_id=case.id_,
             object_id=f"{case.id_}/events/0",
             event_type="submit_report",
             actor_id=case_actor_id,
-            dl=dl,
             payload_snapshot={"index": 0},
         )
-        commit_log_entry_trigger(
+        _seed_ledger_entry(
+            dl,
             case_id=case.id_,
             object_id=f"{case.id_}/events/1",
             event_type="add_participant_status",
             actor_id=case_actor_id,
-            dl=dl,
             payload_snapshot={"index": 1},
         )
 
@@ -697,9 +732,6 @@ class TestInviteActorUseCases:
         from vultron.core.models.replication_state import (
             VultronReplicationState,
         )
-        from vultron.core.use_cases.triggers.sync import (
-            commit_log_entry_trigger,
-        )
         from vultron.wire.as2.vocab.base.objects.actors import (
             as_Organization,
             as_Service,
@@ -729,20 +761,20 @@ class TestInviteActorUseCases:
         dl.create(case)
         dl.create(invite)
 
-        commit_log_entry_trigger(
+        _seed_ledger_entry(
+            dl,
             case_id=case.id_,
             object_id=f"{case.id_}/events/0",
             event_type="submit_report",
             actor_id=case_actor_id,
-            dl=dl,
             payload_snapshot={"index": 0},
         )
-        commit_log_entry_trigger(
+        _seed_ledger_entry(
+            dl,
             case_id=case.id_,
             object_id=f"{case.id_}/events/1",
             event_type="add_participant_status",
             actor_id=case_actor_id,
-            dl=dl,
             payload_snapshot={"index": 1},
         )
 

@@ -109,9 +109,26 @@ class AddNoteToCaseReceivedUseCase:
             author_id=request.actor_id,
             case=case,
         )
-        self._commit_log_cascade(
-            case_id=case_id,
-            note_id=note_id,
+
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
+        from vultron.core.use_cases.received.actor import _find_case_actor_id
+
+        actor_id = request.receiving_actor_id
+        if actor_id is None:
+            actor_id = _find_case_actor_id(self._dl, case_id)
+        if actor_id is None:
+            logger.warning(
+                "add_note_to_case: cannot resolve CaseActor for case '%s'"
+                " — skipping log entry (PCR-08-003)",
+                case_id,
+            )
+            return
+        BTBridge(datalayer=self._dl).execute_with_setup(
+            tree=CommitCaseLedgerEntryNode(case_id=case_id),
+            actor_id=actor_id,
+            activity=request,
+            sync_port=self._sync_port,
         )
 
     def _broadcast_note_to_participants(
@@ -179,46 +196,6 @@ class AddNoteToCaseReceivedUseCase:
             note_id,
             case_id,
             len(recipient_ids),
-        )
-
-    def _commit_log_cascade(
-        self,
-        case_id: str,
-        note_id: str,
-    ) -> None:
-        """Commit a CaseLedgerEntry and fan it out to all participants (PCR-08-003).
-
-        Uses ``receiving_actor_id`` (the CaseActor's canonical ID) when
-        available.  Falls back to a DataLayer lookup for the Service object
-        whose ``context`` matches *case_id*.
-        """
-        from vultron.core.use_cases.received.actor import _find_case_actor_id
-        from vultron.core.use_cases.triggers.sync import (
-            commit_log_entry_trigger,
-            extract_activity_snapshot,
-        )
-
-        actor_id = self._request.receiving_actor_id
-        if actor_id is None:
-            actor_id = _find_case_actor_id(self._dl, case_id)
-        if actor_id is None:
-            logger.warning(
-                "add_note_to_case: cannot resolve CaseActor for case '%s'"
-                " — skipping log entry cascade (PCR-08-003)",
-                case_id,
-            )
-            return
-
-        commit_log_entry_trigger(
-            case_id=case_id,
-            object_id=note_id,
-            event_type="add_note_to_case",
-            actor_id=actor_id,
-            dl=self._dl,
-            sync_port=self._sync_port,
-            payload_snapshot=extract_activity_snapshot(
-                self._request, dl=self._dl
-            ),
         )
 
 

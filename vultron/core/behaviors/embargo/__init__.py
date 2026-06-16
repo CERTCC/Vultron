@@ -7,7 +7,6 @@ backward compatibility with existing imports.
 from vultron.core.behaviors.embargo.nodes import (
     AcceptEmbargoLifecycleNode,
     ApplyEmbargoTeardownNode,
-    CommitLogCascadeNode,
     CreateAndStoreInviteNode,
     IsActiveEmbargoNode,
     LookupParticipantNode,
@@ -29,7 +28,6 @@ from vultron.core.behaviors.embargo.nodes import (
 __all__ = [
     "AcceptEmbargoLifecycleNode",
     "ApplyEmbargoTeardownNode",
-    "CommitLogCascadeNode",
     "CreateAndStoreInviteNode",
     "IsActiveEmbargoNode",
     "LookupParticipantNode",

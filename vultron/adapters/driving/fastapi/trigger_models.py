@@ -327,22 +327,6 @@ class InviteActorToCaseRequest(BaseModel):
     invitee_id: UriString
 
 
-class SyncLogEntryRequest(BaseModel):
-    """Request body for the sync-log-entry trigger endpoint.
-
-    Commits a new log entry to the local CaseLedger chain and fans it out
-    to all case participants via ``Announce(CaseLedgerEntry)`` activities.
-
-    TB-03-002: Unknown fields are silently ignored (extra="ignore").
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    case_id: UriString
-    object_id: UriString
-    event_type: NonEmptyString
-
-
 class NotifyFixReadyRequest(BaseModel):
     """Request body for the notify-fix-ready demo trigger.
 

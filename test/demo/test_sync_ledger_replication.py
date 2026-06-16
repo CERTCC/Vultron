@@ -27,7 +27,7 @@ from vultron.core.models.case_ledger import GENESIS_HASH, HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.models.replication_state import VultronReplicationState
-from vultron.core.use_cases.triggers.sync import _to_persistable_entry
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.use_cases.received.sync import (
     RejectLedgerEntryReceivedUseCase,
 )

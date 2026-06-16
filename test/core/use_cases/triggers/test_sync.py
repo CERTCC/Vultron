@@ -14,11 +14,9 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Unit tests for SYNC trigger helpers."""
 
-from typing import Any, cast
+from typing import Any
 
-from vultron.core.use_cases.triggers.sync import (
-    extract_activity_snapshot,
-)
+from vultron.core.use_cases._helpers import build_activity_payload_snapshot
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
@@ -33,14 +31,8 @@ class _FakeWireActivity:
         return dict(self._payload)
 
 
-class _FakeEvent:
-    def __init__(self, activity: object | None) -> None:
-        self.activity = activity
-
-
 def test_extract_activity_snapshot_returns_empty_without_activity() -> None:
-    event = _FakeEvent(activity=None)
-    assert extract_activity_snapshot(cast(Any, event)) == {}
+    assert build_activity_payload_snapshot(None) == {}
 
 
 def test_extract_activity_snapshot_inlines_nested_reference_fields(datalayer):
@@ -65,9 +57,10 @@ def test_extract_activity_snapshot_inlines_nested_reference_fields(datalayer):
             "vulnerabilityReports": [report.id_],
         },
     }
-    event = _FakeEvent(activity=_FakeWireActivity(payload))
 
-    snapshot = extract_activity_snapshot(cast(Any, event), dl=datalayer)
+    snapshot = build_activity_payload_snapshot(
+        _FakeWireActivity(payload), dl=datalayer
+    )
     status_obj = snapshot["object"]
 
     assert snapshot["context"] == "https://example.org/cases/case-001"
@@ -95,18 +88,20 @@ def test_extract_activity_snapshot_does_not_inline_cross_context_refs(
             "activeEmbargo": embargo.id_,
         },
     }
-    event = _FakeEvent(activity=_FakeWireActivity(payload))
 
-    snapshot = extract_activity_snapshot(cast(Any, event), dl=datalayer)
+    snapshot = build_activity_payload_snapshot(
+        _FakeWireActivity(payload), dl=datalayer
+    )
     status_obj = snapshot["object"]
 
     assert status_obj["activeEmbargo"] == embargo.id_
 
 
 # ---------------------------------------------------------------------------
-# commit_log_entry_trigger — pending assertions (design note)
+# commit_log_entry_trigger — removed (BT-06-006)
 # ---------------------------------------------------------------------------
-# commit_log_entry_trigger runs exclusively on the CaseActor side.
+# commit_log_entry_trigger was removed: all ledger commits now go through
+# CommitCaseLedgerEntryNode via BTBridge.execute_with_setup().
 # Per SYNC-11-004, the CaseActor MUST NOT use the pending-assertion store
 # for its own commits; DataLayer idempotency (_find_equivalent_recorded_entry)
 # already guards against duplicate CaseActor commits.

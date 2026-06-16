@@ -16,20 +16,16 @@
 """Unit tests for embargo cascade/persistence nodes (cascade.py)."""
 
 import logging
-from unittest.mock import patch
 
 import py_trees
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.cascade import (
-    CommitLogCascadeNode,
     PersistEmbargoEventNode,
 )
 from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
-from vultron.core.states.em import EM
 
 from test.core.behaviors.embargo.nodes.conftest import (
-    make_case_and_embargo,
     setup_blackboard,
 )
 
@@ -104,111 +100,3 @@ class TestPersistEmbargoEventNode:
         bt.tick()
 
         assert node.status == py_trees.common.Status.FAILURE
-
-
-class TestCommitLogCascadeNode:
-    """Tests for CommitLogCascadeNode."""
-
-    def test_returns_success_and_skips_when_case_id_empty(self, caplog):
-        """Node returns SUCCESS with a warning when case_id is empty."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
-        setup_blackboard(dl)
-
-        node = CommitLogCascadeNode(
-            case_id="",
-            object_id="https://example.org/obj/1",
-            event_type="test_event",
-        )
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-
-        with caplog.at_level(logging.WARNING):
-            bt.tick()
-
-        assert node.status == py_trees.common.Status.SUCCESS
-        assert any("cascade skipped" in r.message for r in caplog.records)
-
-    def test_returns_success_and_skips_when_object_id_empty(self, caplog):
-        """Node returns SUCCESS with a warning when object_id is empty."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
-        setup_blackboard(dl)
-
-        node = CommitLogCascadeNode(
-            case_id="https://example.org/cases/c1",
-            object_id="",
-            event_type="test_event",
-        )
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-
-        with caplog.at_level(logging.WARNING):
-            bt.tick()
-
-        assert node.status == py_trees.common.Status.SUCCESS
-        assert any("cascade skipped" in r.message for r in caplog.records)
-
-    def test_returns_success_when_datalayer_unavailable(self):
-        """Node returns SUCCESS (idempotent) when DataLayer is None."""
-        _setup_blackboard_null_dl()
-
-        node = CommitLogCascadeNode(
-            case_id="https://example.org/cases/c1",
-            object_id="https://example.org/obj/1",
-            event_type="test_event",
-        )
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-        bt.tick()
-
-        assert node.status == py_trees.common.Status.SUCCESS
-
-    def test_returns_success_and_skips_when_no_case_actor(self, caplog):
-        """Node returns SUCCESS with warning when CaseActor cannot be resolved."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
-        case, _ = make_case_and_embargo("clcn1", em_state=EM.ACTIVE)
-        dl.create(case)
-
-        setup_blackboard(dl)
-        node = CommitLogCascadeNode(
-            case_id=case.id_,
-            object_id="https://example.org/obj/1",
-            event_type="test_event",
-        )
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-
-        with caplog.at_level(logging.WARNING):
-            bt.tick()
-
-        assert node.status == py_trees.common.Status.SUCCESS
-        assert any("cascade skipped" in r.message for r in caplog.records)
-
-    def test_returns_failure_when_cascade_raises(self, caplog):
-        """Node returns FAILURE (BT-14-001) when commit_log_entry_trigger raises."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
-        case, _ = make_case_and_embargo("clcn2", em_state=EM.ACTIVE)
-        dl.create(case)
-        setup_blackboard(dl)
-
-        node = CommitLogCascadeNode(
-            case_id=case.id_,
-            object_id="https://example.org/obj/1",
-            event_type="test_event",
-        )
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-
-        target = "vultron.core.use_cases.received.actor" "._find_case_actor_id"
-        with (
-            patch(target, return_value="https://example.org/actors/ca"),
-            patch(
-                "vultron.core.use_cases.triggers.sync"
-                ".commit_log_entry_trigger",
-                side_effect=RuntimeError("boom"),
-            ),
-            caplog.at_level(logging.ERROR),
-        ):
-            bt.tick()
-
-        assert node.status == py_trees.common.Status.FAILURE
-        assert any("BT-14-001" in r.message for r in caplog.records)

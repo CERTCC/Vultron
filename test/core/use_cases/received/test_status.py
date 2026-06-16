@@ -354,7 +354,7 @@ class TestParticipantStatusLogEntryCascade:
         ]
         assert len(entries) == 1
         assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
-            "add_participant_status"
+            "add_participant_status_to_participant"
         )
 
     def test_no_fanout_without_sync_port(self, make_payload):

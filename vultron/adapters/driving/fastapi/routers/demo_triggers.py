@@ -55,7 +55,6 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     NotifyFixDeployedRequest,
     NotifyFixReadyRequest,
     NotifyPublishedRequest,
-    SyncLogEntryRequest,
 )
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.protocols import is_case_model
@@ -122,65 +121,6 @@ def demo_add_note_to_case(
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
-
-
-@router.post(
-    "/{actor_id}/demo/sync-log-entry",
-    status_code=status.HTTP_202_ACCEPTED,
-    summary="[Demo] Commit a case ledger entry and replicate to peers.",
-    description=(
-        "Demo-only scaffold. "
-        "Commits a new ``VultronCaseLedgerEntry`` to the local hash-chain and "
-        "fans it out to all case participants as ``Announce(CaseLedgerEntry)`` "
-        "activities queued in the actor's outbox. "
-        "In a production deployment, log entries are committed automatically "
-        "as a cascade effect of every state-changing operation; this endpoint "
-        "exists only to let demo scripts inject entries manually. "
-        "Returns the committed entry's ID, hash, and log index. "
-        "Only available in ``RunMode.PROTOTYPE``. "
-        "Spec: TRIG-09-001, TRIG-10-004, SYNC-02-002, SYNC-02-003."
-    ),
-    operation_id="actors_demo_sync_log_entry",
-)
-def demo_sync_log_entry(
-    actor_id: str,
-    body: SyncLogEntryRequest,
-    background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
-    """Commit a case ledger entry and fan it out to all case participants (demo).
-
-    Implements:
-        TRIG-09-001, TRIG-09-004, TRIG-10-004,
-        SYNC-02-002, SYNC-02-003, TB-01-001, TB-01-002, TB-04-001,
-        TB-06-001, TB-06-002, TB-07-001
-
-    TEST SCAFFOLD ONLY — do not call from normal protocol flows.
-    In production, CaseLedgerEntry commits fire automatically as a cascade
-    consequence of every accepted participant message (PCR-08-003, PCR-08-004).
-    This endpoint exists only to let demo/test scripts inject log entries
-    manually during verification.
-    """
-    actor = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
-    canonical_actor_id = (
-        actor.id_ if actor and hasattr(actor, "id_") else actor_id
-    )
-
-    with domain_error_translation():
-        entry = svc.commit_log_entry(
-            case_id=body.case_id,
-            object_id=body.object_id,
-            event_type=body.event_type,
-            actor_id=canonical_actor_id,
-        )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
-    return {
-        "log_entry_id": entry.id_,
-        "entry_hash": entry.entry_hash,
-        "log_index": entry.log_index,
-    }
 
 
 @router.post(
