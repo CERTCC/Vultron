@@ -37,7 +37,9 @@ from pydantic import BaseModel, Field
 
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driven.datalayer import get_shared_dl
-from vultron.adapters.driving.fastapi.inbox_handler import inbox_handler
+from vultron.adapters.driving.fastapi.inbox_orchestration import (
+    run_inbox_pipeline,
+)
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.utils import make_id, strip_id_prefix
 from vultron.core.models.actor import (
@@ -62,8 +64,6 @@ from vultron.adapters.driving.fastapi.routers.actors._inbox import (
     _activity_already_received,
     _get_body,
     _record_inbox_receipt,
-    _store_inbox_activity,
-    _store_nested_inbox_object,
     parse_activity,
 )
 from vultron.adapters.driving.fastapi.routers.actors._lookup import (
@@ -330,20 +330,24 @@ def post_actor_inbox(
     request: Request,
     background_tasks: BackgroundTasks,
     activity: as_Activity = Depends(parse_activity),
-    dl: DataLayer = Depends(get_shared_dl),
     body: dict[str, Any] = Depends(_get_body),
+    dl: DataLayer = Depends(get_shared_dl),
 ) -> None:
     """Adds an item to the Actor's Inbox.
     The 202 Accepted status code indicates that the request has been accepted for
     processing, but the processing has not been completed. This is appropriate here
     because the inbox processing is handled asynchronously in the background.
+
+    Policy logic lives in ``process_payload`` (core BT module); this
+    endpoint is thin glue that supplies adapter implementations and
+    schedules the background task (IO-03-003).
+
     Args:
         actor_id: The ID of the Actor whose Inbox to add the item to.
-        request: The FastAPI Request (used to resolve the per-app emitter).
-        activity: The Activity item to add to the Inbox.
+        request: The FastAPI Request (used to resolve the per-app emitter/dispatcher).
+        activity: The Activity item (parsed by the ``parse_activity`` dependency).
+        body: Raw JSON request body dict (needed for nested object re-parsing).
         background_tasks: FastAPI BackgroundTasks instance to schedule background tasks.
-        body: Raw JSON request body dict, used to re-parse inline nested
-            objects with their specific vocabulary classes.
     Returns:
         None
     Raises:
@@ -360,20 +364,23 @@ def post_actor_inbox(
         )
         return None
 
-    _store_nested_inbox_object(dl, activity, body)
-    _store_inbox_activity(dl, activity)
-
-    logger.debug(
-        f"Posting activity to actor {canonical_actor_id} inbox: {activity}"
-    )
+    # Record receipt synchronously so the dedup guard on the next delivery
+    # of the same activity_id sees the updated actor inbox record.
     _record_inbox_receipt(dl, actor, activity.id_, canonical_actor_id)
 
-    actor_dl = dl.clone_for_actor(canonical_actor_id)
-    actor_dl.inbox_append(activity.id_)
     emitter = getattr(request.app.state, "emitter", None)
     dispatcher = getattr(request.app.state, "dispatcher", None)
+
+    actor_dl = dl.clone_for_actor(canonical_actor_id)
     background_tasks.add_task(
-        inbox_handler, canonical_actor_id, dl, actor_dl, emitter, dispatcher
+        run_inbox_pipeline,
+        activity,
+        body,
+        dl,
+        actor_dl,
+        canonical_actor_id,
+        dispatcher,
+        emitter,
     )
     return None
 
