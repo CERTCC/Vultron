@@ -195,19 +195,54 @@ def verify_replica_state(
         logger.info("✓ Replica active_embargo matches: %s", auth_embargo_id)
 
     # 4. Log-state hash consistency
+    #
+    # Replica fan-out via Announce(CaseLedgerEntry) is asynchronous, so
+    # poll until the replica's tail hash catches up to the authoritative
+    # tail.  Without polling the check races with the most recently fanned-
+    # out entry and produces flaky failures.
+    from vultron.demo.helpers.polling import _poll_until
+
     auth_entries = _get_log_entries_for_case(auth_client, case_id)
-    replica_entries = _get_log_entries_for_case(replica_client, case_id)
-    assert len(replica_entries) > 0, (
-        "Replica has no CaseLedgerEntry records for the case — "
-        "SYNC-2 replication did not complete"
-    )
     auth_tail = max(auth_entries, key=lambda e: e["log_index"])
-    replica_tail = max(replica_entries, key=lambda e: e["log_index"])
-    assert auth_tail["entry_hash"] == replica_tail["entry_hash"], (
-        f"Replica log tail hash {replica_tail['entry_hash']!r} != "
-        f"authoritative log tail hash {auth_tail['entry_hash']!r} — "
-        "hash-chain replication integrity failure"
-    )
+    expected_tail_hash = auth_tail["entry_hash"]
+    expected_tail_index = auth_tail["log_index"]
+
+    replica_entries: list[dict] = []
+    replica_tail: dict | None = None
+
+    def _replica_tail_matches() -> bool:
+        nonlocal replica_entries, replica_tail
+        replica_entries = _get_log_entries_for_case(replica_client, case_id)
+        if not replica_entries:
+            replica_tail = None
+            return False
+        replica_tail = max(replica_entries, key=lambda e: e["log_index"])
+        return bool(replica_tail["entry_hash"] == expected_tail_hash)
+
+    try:
+        _poll_until(
+            _replica_tail_matches,
+            timeout_seconds=10.0,
+            poll_interval=0.25,
+            error_msg=(
+                "Replica log tail did not converge on authoritative tail "
+                f"{expected_tail_hash!r} (index={expected_tail_index}) "
+                "within 10s"
+            ),
+        )
+    except AssertionError:
+        assert replica_entries, (
+            "Replica has no CaseLedgerEntry records for the case — "
+            "SYNC-2 replication did not complete"
+        )
+        assert replica_tail is not None
+        raise AssertionError(
+            f"Replica log tail hash {replica_tail['entry_hash']!r} != "
+            f"authoritative log tail hash {expected_tail_hash!r} — "
+            "hash-chain replication integrity failure"
+        )
+
+    assert replica_tail is not None
     logger.info(
         "✓ Replica log tail hash matches auth: %s… (index=%d)",
         replica_tail["entry_hash"][:16],
