@@ -123,7 +123,14 @@ CaseActor recipient exists; otherwise outbox enforcement raises
 `VultronOutboxToFieldMissingError` later and masks the true sender-side
 routing defect.
 
-### 2026-06-15 BTND07-913-PARTIAL-WRITE — note trigger tree partial-write on send failure
+### 2026-06-16 INBOX-972-SPLIT — monkeypatch compatibility requires re-exporting moved names
+
+When splitting a module that is used as `import module as m` in tests with
+`monkeypatch.setattr(m, "name", ...)`, moved names must be re-imported into
+the original module's namespace (not just defined in the new submodule). The
+re-import makes the name patchable via `m.*` and ensures internal call sites
+in the original module resolve the patched value from their own module globals.
+Use `# noqa: F401` on re-export lines to suppress unused-import lint warnings.
 
 `add_note_to_case_trigger_bt` uses a `memory=False` Sequence. When
 `SenderSideBT` (third child) fails (e.g., no CASE_MANAGER), the first two

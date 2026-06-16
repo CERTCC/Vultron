@@ -18,14 +18,17 @@ import logging
 from typing import cast
 
 from vultron.adapters.driving.fastapi.inbox_handler import (
-    _expire_pending_case_activities,
-    _replay_pending_case_activities,
     dispatch,
     make_dispatcher,
     prepare_for_dispatch,
 )
+from vultron.adapters.driving.fastapi.inbox_pending_queue import (
+    _activity_context_id,
+    _expire_pending_case_activities,
+    _queue_pending_case_activity,
+    _replay_pending_case_activities,
+)
 from vultron.core.models.events import MessageSemantics, VultronEvent
-from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
@@ -55,42 +58,6 @@ def _receiving_actor_id(activity: as_Activity) -> str | None:
                 return actor_id
         return None
     return _scalar_actor_ref(to_value)
-
-
-def _activity_context_id(
-    activity: as_Activity, event: VultronEvent
-) -> str | None:
-    """Return the case context ID carried by an activity, if any."""
-    if event.context_id is not None:
-        return event.context_id
-    context = getattr(activity, "context", None)
-    if isinstance(context, str) and context:
-        return context
-    return getattr(context, "id_", None)
-
-
-def _queue_pending_case_activity(
-    queue_dl: ActorScopedDataLayer,
-    case_id: str,
-    activity_id: str,
-    case_actor_id: str | None = None,
-) -> None:
-    """Append an activity ID to the per-case deferred queue."""
-    pending_id = VultronPendingCaseInbox.build_id(case_id)
-    pending = queue_dl.read(pending_id)
-    if isinstance(pending, VultronPendingCaseInbox):
-        if activity_id not in pending.activity_ids:
-            pending.activity_ids.append(activity_id)
-            queue_dl.save(pending)
-        return
-
-    queue_dl.save(
-        VultronPendingCaseInbox(
-            case_id=case_id,
-            activity_ids=[activity_id],
-            case_actor_id=case_actor_id,
-        )
-    )
 
 
 class InboxPipeline:
