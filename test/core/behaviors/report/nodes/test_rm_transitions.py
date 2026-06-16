@@ -15,6 +15,7 @@
 
 """Unit tests for report RM transition nodes."""
 
+from typing import Any
 from py_trees.composites import Sequence
 
 from vultron.core.behaviors.helpers import UpdateActorOutbox
@@ -29,13 +30,16 @@ from vultron.core.behaviors.report.nodes.conditions import (
     EvaluateReportValidity,
 )
 from vultron.core.behaviors.report.nodes.rm_transitions import (
+    TransitionRMtoClosed,
     TransitionRMtoInvalid,
     TransitionRMtoValid,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.report import VultronReport
 from vultron.core.models.activity import VultronOffer
 from vultron.core.states.rm import RM
+from vultron.core.use_cases._helpers import _report_phase_status_id
 from test.core.behaviors.bt_harness import BTTestScenario
 
 
@@ -123,3 +127,116 @@ def test_full_validation_workflow(
     bt_scenario.assert_success(bt_scenario.run(actions, actor_id=actor.id_))
 
     bt_scenario.assert_rm_state(report.id_, RM.VALID, actor_id=actor.id_)
+
+
+# ---------------------------------------------------------------------------
+# AC-2: ParticipantStatus.context uses case URI when case exists (CLP-07-007)
+# ---------------------------------------------------------------------------
+
+
+def _read_status(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    rm_state: RM,
+) -> Any:
+    """Read a report-phase ParticipantStatus and assert it exists."""
+    status_id = _report_phase_status_id(actor.id_, report.id_, rm_state.value)
+    obj = bt_scenario.dl.read(status_id)
+    assert (
+        obj is not None
+    ), f"No ParticipantStatus found at {status_id!r} in DataLayer"
+    # Two ParticipantStatus classes exist (core + wire). Check by type_ string.
+    assert (
+        getattr(obj, "type_", None) == "ParticipantStatus"
+    ), f"Expected ParticipantStatus at {status_id!r}, got {type(obj).__name__}"
+    return obj
+
+
+def test_transition_rm_to_valid_context_is_case_uri(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+    case: VulnerabilityCase,
+) -> None:
+    """TransitionRMtoValid sets ParticipantStatus.context to the case URI."""
+    result = bt_scenario.run(
+        TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_success(result)
+
+    status = _read_status(bt_scenario, actor, report, RM.VALID)
+    ctx = getattr(status, "context", None)
+    assert ctx == case.id_, (
+        f"Expected context={case.id_!r}, got {ctx!r} "
+        "(report URI must not appear in ParticipantStatus.context, CLP-07-007)"
+    )
+    assert (
+        ctx != report.id_
+    ), "ParticipantStatus.context must not be the report URI (CLP-07-007)"
+
+
+def test_transition_rm_to_invalid_context_is_case_uri(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+    case: VulnerabilityCase,
+) -> None:
+    """TransitionRMtoInvalid sets ParticipantStatus.context to the case URI."""
+    result = bt_scenario.run(
+        TransitionRMtoInvalid(report_id=report.id_, offer_id=offer.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_success(result)
+
+    status = _read_status(bt_scenario, actor, report, RM.INVALID)
+    ctx = getattr(status, "context", None)
+    assert ctx == case.id_, (
+        f"Expected context={case.id_!r}, got {ctx!r} "
+        "(report URI must not appear in ParticipantStatus.context, CLP-07-007)"
+    )
+
+
+def test_transition_rm_to_closed_context_is_case_uri(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+    case: VulnerabilityCase,
+) -> None:
+    """TransitionRMtoClosed sets ParticipantStatus.context to the case URI."""
+    result = bt_scenario.run(
+        TransitionRMtoClosed(report_id=report.id_, offer_id=offer.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_success(result)
+
+    status = _read_status(bt_scenario, actor, report, RM.CLOSED)
+    ctx = getattr(status, "context", None)
+    assert ctx == case.id_, (
+        f"Expected context={case.id_!r}, got {ctx!r} "
+        "(report URI must not appear in ParticipantStatus.context, CLP-07-007)"
+    )
+
+
+def test_transition_rm_to_valid_fallback_uses_report_id_when_no_case(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+) -> None:
+    """TransitionRMtoValid falls back to report_id context when no case exists."""
+    result = bt_scenario.run(
+        TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_success(result)
+
+    status = _read_status(bt_scenario, actor, report, RM.VALID)
+    ctx = getattr(status, "context", None)
+    assert (
+        ctx == report.id_
+    ), f"Expected fallback context={report.id_!r}, got {ctx!r}"

@@ -22,7 +22,7 @@ The composite subtrees that orchestrate these nodes
 process-area root, per BTND-07-003.
 """
 
-from typing import Any
+from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
@@ -37,7 +37,11 @@ from vultron.core.models.participant_status import (
     ParticipantStatus,
     coerce_cvd_roles,
 )
-from vultron.core.models.protocols import CaseModel, is_case_model
+from vultron.core.models.protocols import (
+    CaseModel,
+    is_case_model,
+    is_participant_status_model,
+)
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.states.participant_embargo_consent import PEC
@@ -124,8 +128,8 @@ class CreateParticipantNode(DataLayerAction):
             return Status.FAILURE
 
         accepted_status = self.blackboard.get("participant_accepted_status")
-        if accepted_status is not None and not isinstance(
-            accepted_status, ParticipantStatus
+        if accepted_status is not None and not is_participant_status_model(
+            accepted_status
         ):
             self.logger.error(
                 "%s: participant_accepted_status has invalid type",
@@ -138,7 +142,9 @@ class CreateParticipantNode(DataLayerAction):
             context=case_id,
             case_roles=self.roles,
             participant_statuses=(
-                [accepted_status] if accepted_status is not None else []
+                [cast(ParticipantStatus, accepted_status)]
+                if accepted_status is not None
+                else []
             ),
         )
         self.blackboard.new_case_participant = participant

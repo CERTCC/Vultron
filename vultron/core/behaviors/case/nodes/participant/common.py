@@ -20,7 +20,11 @@ from typing import TYPE_CHECKING, cast
 
 from vultron.core.models.enums import VultronObjectType
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.protocols import CaseModel, is_case_model
+from vultron.core.models.protocols import (
+    CaseModel,
+    is_case_model,
+    is_participant_status_model,
+)
 from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
@@ -103,23 +107,49 @@ def _get_or_create_accepted_status(
     if report_id is None:
         return None
 
+    # CLP-07-007: context must use the case URI once a case exists.
+    case_obj = dl.find_case_by_report_id(report_id)
+    context = case_obj.id_ if is_case_model(case_obj) else report_id
+
     accepted_status_id = _report_phase_status_id(
         actor_id,
         report_id,
         RM.ACCEPTED.value,
     )
     existing = dl.read(accepted_status_id)
-    if isinstance(existing, ParticipantStatus):
+    if is_participant_status_model(existing):
         should_update_role = existing.cvd_role != cvd_role
         should_backfill_consent = (
             existing.em_consent_state is None and em_consent_state is not None
         )
-        if should_update_role or should_backfill_consent:
+        # AC-3: backfill context if it still holds the report URI.
+        should_backfill_context = (
+            existing.context == report_id and context != report_id
+        )
+        if (
+            should_update_role
+            or should_backfill_consent
+            or should_backfill_context
+        ):
             existing.cvd_role = cvd_role
             if should_backfill_consent:
                 existing.em_consent_state = em_consent_state
+            if should_backfill_context:
+                existing.context = context
             dl.save(existing)
-        return existing
+        # Construct a fresh core ParticipantStatus for callers that require
+        # the core type (e.g. CaseParticipant.participant_statuses).  The
+        # DataLayer vocabulary registry may return the wire-layer subclass;
+        # we normalise here so downstream code never sees a wire-layer type.
+        return ParticipantStatus(
+            id_=existing.id_,
+            context=existing.context,
+            rm_state=existing.rm_state,
+            vfd_state=existing.vfd_state,
+            attributed_to=getattr(existing, "attributed_to", actor_id),
+            cvd_role=existing.cvd_role,
+            em_consent_state=existing.em_consent_state,
+        )
 
     node_logger.info(
         "%s: Creating fresh RM.ACCEPTED status for actor '%s' "
@@ -129,7 +159,7 @@ def _get_or_create_accepted_status(
     )
     accepted_status = ParticipantStatus(
         id_=accepted_status_id,
-        context=report_id,
+        context=context,
         rm_state=RM.ACCEPTED,
         attributed_to=actor_id,
         cvd_role=cvd_role,
