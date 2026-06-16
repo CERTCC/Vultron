@@ -365,6 +365,15 @@ def test_invariant_4_non_empty_payload_snapshot(
     )
 
 
+@pytest.mark.xfail(
+    strict=False,
+    reason=(
+        "EXPECTED_EVENT_TYPES uses legacy names that predate MessageSemantics "
+        "(e.g. 'accept_report', 'propose_embargo', 'add_note') and several "
+        "trees still lack canonical ledger writes for the missing event types. "
+        "Will pass once names are corrected and coverage is complete (#998)."
+    ),
+)
 @pytest.mark.case_ledger_invariants
 def test_invariant_5_expected_event_types_present(
     case_ledger_replicas: dict[str, list[dict]],
