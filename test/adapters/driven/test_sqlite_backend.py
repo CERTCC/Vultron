@@ -885,7 +885,9 @@ class TestCoerceToSemanticClass:
             GENESIS_HASH,
             HashChainLedgerRecord,
         )
-        from vultron.core.use_cases.triggers.sync import _to_persistable_entry
+        from vultron.core.behaviors.sync.nodes.chain import (
+            _to_persistable_entry,
+        )
         from vultron.wire.as2.vocab.objects.case_ledger_entry import (
             CaseLedgerEntry as WireCaseLedgerEntry,
         )

@@ -20,7 +20,6 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_ledger import GENESIS_HASH, HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
-from vultron.core.use_cases.triggers.sync import _to_persistable_entry
 from vultron.core.models.events import MessageSemantics
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.sync import (
@@ -39,6 +38,25 @@ from vultron.wire.as2.vocab.objects.case_ledger_entry import (
 
 ACTOR_URI = "https://example.org/actors/case-actor"
 CASE_URI = "https://example.org/cases/case1"
+
+
+def _to_persistable_entry(
+    chain_entry: HashChainLedgerRecord,
+) -> VultronCaseLedgerEntry:
+    """Test helper: convert a HashChainLedgerRecord to a VultronCaseLedgerEntry."""
+    return VultronCaseLedgerEntry(
+        case_id=chain_entry.case_id,
+        log_index=chain_entry.log_index,
+        disposition=chain_entry.disposition,
+        term=chain_entry.term,
+        log_object_id=chain_entry.object_id,
+        event_type=chain_entry.event_type,
+        payload_snapshot=dict(chain_entry.payload_snapshot),
+        prev_log_hash=chain_entry.prev_log_hash,
+        entry_hash=chain_entry.entry_hash,
+        reason_code=chain_entry.reason_code,
+        reason_detail=chain_entry.reason_detail,
+    )
 
 
 def _make_entry(

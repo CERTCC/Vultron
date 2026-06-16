@@ -271,67 +271,6 @@ class TestDemoAddNoteToCaseNotAtTriggerPrefix:
 # ---------------------------------------------------------------------------
 
 
-class TestDemoSyncLogEntry:
-    """Tests for the demo sync-log-entry endpoint."""
-
-    def test_returns_202_on_success(
-        self, client_demo: TestClient, actor, case_with_actor
-    ):
-        """Returns HTTP 202 Accepted on valid request (TRIG-09-001)."""
-        response = client_demo.post(
-            f"/actors/{actor.id_}/demo/sync-log-entry",
-            json={
-                "case_id": case_with_actor.id_,
-                "object_id": case_with_actor.id_,
-                "event_type": "test_event",
-            },
-        )
-        assert response.status_code == status.HTTP_202_ACCEPTED
-
-    def test_response_contains_log_fields(
-        self, client_demo: TestClient, actor, case_with_actor
-    ):
-        """Response body contains log_entry_id, entry_hash, log_index."""
-        response = client_demo.post(
-            f"/actors/{actor.id_}/demo/sync-log-entry",
-            json={
-                "case_id": case_with_actor.id_,
-                "object_id": case_with_actor.id_,
-                "event_type": "test_event",
-            },
-        )
-        body = response.json()
-        assert "log_entry_id" in body
-        assert "entry_hash" in body
-        assert "log_index" in body
-
-    def test_missing_case_id_returns_422(self, client_demo: TestClient, actor):
-        """Missing case_id returns HTTP 422."""
-        response = client_demo.post(
-            f"/actors/{actor.id_}/demo/sync-log-entry",
-            json={
-                "object_id": "https://example.org/obj",
-                "event_type": "x",
-            },
-        )
-        assert response.status_code == 422
-
-    def test_extra_fields_ignored(
-        self, client_demo: TestClient, actor, case_with_actor
-    ):
-        """Extra fields are silently ignored (TB-03-002)."""
-        response = client_demo.post(
-            f"/actors/{actor.id_}/demo/sync-log-entry",
-            json={
-                "case_id": case_with_actor.id_,
-                "object_id": case_with_actor.id_,
-                "event_type": "test_event",
-                "unexpected": "ignored",
-            },
-        )
-        assert response.status_code == status.HTTP_202_ACCEPTED
-
-
 # ---------------------------------------------------------------------------
 # Fixtures and helpers for case ledger endpoint tests
 # ---------------------------------------------------------------------------

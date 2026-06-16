@@ -856,7 +856,7 @@ def test_handle_outbox_item_preserves_inline_case_ledger_entry_fields():
         GENESIS_HASH,
         HashChainLedgerRecord,
     )
-    from vultron.core.use_cases.triggers.sync import _to_persistable_entry
+    from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
     from vultron.wire.as2.factories import announce_log_entry_activity
     from vultron.wire.as2.vocab.objects.case_ledger_entry import (
         CaseLedgerEntry as WireCaseLedgerEntry,

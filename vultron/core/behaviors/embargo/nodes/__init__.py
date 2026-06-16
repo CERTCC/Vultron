@@ -19,7 +19,6 @@ Re-exports all public node classes from submodules for backward compatibility.
 """
 
 from vultron.core.behaviors.embargo.nodes.cascade import (
-    CommitLogCascadeNode,
     PersistEmbargoEventNode,
 )
 from vultron.core.behaviors.embargo.nodes.conditions import (
@@ -70,6 +69,5 @@ __all__ = [
     "RejectEmbargoLifecycleNode",
     "TerminateEmbargoLifecycleNode",
     "TerminateEmbargoNode",
-    "CommitLogCascadeNode",
     "SetEmbargoActiveNode",
 ]

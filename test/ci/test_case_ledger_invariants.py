@@ -404,7 +404,9 @@ def test_invariant_6_no_rm_state_oscillation(
     """
     auth = _auth_entries(case_ledger_replicas)
     status_entries = [
-        e for e in auth if _event_type(e) == "add_participant_status"
+        e
+        for e in auth
+        if _event_type(e) == "add_participant_status_to_participant"
     ]
 
     rm_history: dict[str, list[str]] = {}
@@ -437,7 +439,7 @@ def test_invariant_7_log_terminates_all_rm_closed(
     auth = _auth_entries(case_ledger_replicas)
     latest_rm: dict[str, str] = {}
     for entry in auth:
-        if _event_type(entry) != "add_participant_status":
+        if _event_type(entry) != "add_participant_status_to_participant":
             continue
         p_id, rm_state = _participant_status_identity_and_rm(_payload(entry))
         if p_id and rm_state:
@@ -445,7 +447,7 @@ def test_invariant_7_log_terminates_all_rm_closed(
 
     assert (
         latest_rm
-    ), "No add_participant_status entries found in case-actor log"
+    ), "No add_participant_status_to_participant entries found in case-actor log"
 
     not_closed = {
         p: s
@@ -494,11 +496,13 @@ def test_invariant_9_participant_status_schema_completeness(
     """Every ParticipantStatus snapshot includes emConsentState and cvdRole list (AC-4.9)."""
     auth = _auth_entries(case_ledger_replicas)
     status_entries = [
-        e for e in auth if _event_type(e) == "add_participant_status"
+        e
+        for e in auth
+        if _event_type(e) == "add_participant_status_to_participant"
     ]
     assert (
         status_entries
-    ), "No add_participant_status entries found; cannot check schema completeness"
+    ), "No add_participant_status_to_participant entries found; cannot check schema completeness"
 
     incomplete = []
     for entry in status_entries:

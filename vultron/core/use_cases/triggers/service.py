@@ -18,8 +18,8 @@
 :class:`TriggerService` is the concrete implementation of
 :class:`~vultron.core.ports.trigger_service.TriggerServicePort`.  It accepts
 a :class:`~vultron.core.ports.case_persistence.CaseOutboxPersistence` at
-construction and exposes all 18 trigger operations plus ``commit_log_entry``
-as named methods.  ``SqliteDataLayer`` satisfies this protocol structurally.
+construction and exposes all 18 trigger operations as named methods.  ``SqliteDataLayer``
+satisfies this protocol structurally.
 
 Callers (FastAPI routers, CLI adapters, domain tests) construct a
 ``TriggerService`` directly::
@@ -36,9 +36,8 @@ No HTTP framework imports permitted in this module.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptCaseInviteUseCase,
@@ -91,7 +90,6 @@ from vultron.core.use_cases.triggers.requests import (
     ValidateReportTriggerRequest,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.use_cases.triggers.sync import commit_log_entry_trigger
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -450,34 +448,3 @@ class TriggerService:
         return SvcInviteActorToCaseUseCase(
             self._dl, req, trigger_activity=self._trigger_activity
         ).execute()
-
-    # -----------------------------------------------------------------------
-    # Sync / log-replication triggers
-    # -----------------------------------------------------------------------
-
-    def commit_log_entry(
-        self,
-        case_id: str,
-        object_id: str,
-        event_type: str,
-        actor_id: str,
-        payload_snapshot: dict[str, Any] | None = None,
-        term: int | None = None,
-        reason_code: str | None = None,
-        reason_detail: str | None = None,
-        disposition: str = "recorded",
-    ) -> VultronCaseLedgerEntry:
-        """Commit a new log entry and fan it out to all case participants."""
-        return commit_log_entry_trigger(
-            case_id=case_id,
-            object_id=object_id,
-            event_type=event_type,
-            actor_id=actor_id,
-            dl=cast(CaseOutboxPersistence, self._dl),
-            payload_snapshot=payload_snapshot,
-            term=term,
-            reason_code=reason_code,
-            reason_detail=reason_detail,
-            disposition=disposition,
-            sync_port=self._sync_port,
-        )

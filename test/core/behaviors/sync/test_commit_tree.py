@@ -15,7 +15,7 @@ from vultron.core.behaviors.sync.commit_tree import (
 from vultron.core.models.case import VultronCase
 from vultron.core.models.case_ledger import GENESIS_HASH, HashChainLedgerRecord
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.use_cases.triggers.sync import _to_persistable_entry
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 
 OWNER_ACTOR_ID = "https://example.org/actors/vendor"
 PEER_ID = "https://example.org/actors/reporter"

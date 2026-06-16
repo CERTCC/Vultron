@@ -31,13 +31,12 @@ Per specs/behavior-tree-integration.yaml BT-06-001.
 """
 
 import logging
-from typing import Any
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
 from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoTeardownNode,
-    CommitLogCascadeNode,
     CreateAndStoreInviteNode,
     IsActiveEmbargoNode,
     OptionalLookupParticipantNode,
@@ -98,16 +97,15 @@ def remove_embargo_from_case_tree(
 def add_embargo_to_case_tree(
     case_id: str,
     embargo_id: str,
-    payload_snapshot: dict[str, Any] | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for receiver-side embargo activation (protocol EA).
 
     Handles receipt of an ``Add(EmbargoEvent)`` activity.  Sets the embargo
-    as active on the case, transitions EM → ACTIVE, and commits a cascade
-    log entry.
+    as active on the case, transitions EM → ACTIVE, and commits a canonical
+    ledger entry.
 
     BT returns SUCCESS when the embargo is activated.
-    Always cascades the log entry regardless of BT result.
+    Always commits the ledger entry regardless of BT result.
 
     Args:
         case_id: ID of the VulnerabilityCase to update.
@@ -122,12 +120,7 @@ def add_embargo_to_case_tree(
         children=[
             ValidateCaseExistsNode(case_id=case_id),
             SetEmbargoActiveNode(case_id=case_id, embargo_id=embargo_id),
-            CommitLogCascadeNode(
-                case_id=case_id,
-                object_id=embargo_id,
-                event_type="add_embargo_event_to_case",
-                payload_snapshot=payload_snapshot,
-            ),
+            CommitCaseLedgerEntryNode(case_id=case_id),
         ],
     )
     logger.info(
@@ -142,7 +135,6 @@ def invite_to_embargo_on_case_tree(
     case_id: str,
     invitee_id: str,
     invite_id: str,
-    payload_snapshot: dict[str, Any] | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for receiving embargo invitation (protocol EI).
 
@@ -150,10 +142,10 @@ def invite_to_embargo_on_case_tree(
     Stores the invite activity idempotently (always succeeds), then optionally
     looks up the invitee's participant record and advances their PEC state to
     INVITED (skips silently if case/participant not found). Finally, commits
-    a cascade log entry.
+    a canonical ledger entry.
 
     BT always returns SUCCESS (invite storage is idempotent).
-    Always cascades the log entry regardless of BT result.
+    Always commits the ledger entry regardless of BT result.
 
     Args:
         case_id: ID of the VulnerabilityCase.
@@ -170,12 +162,7 @@ def invite_to_embargo_on_case_tree(
             CreateAndStoreInviteNode(),
             OptionalLookupParticipantNode(case_id=case_id),
             UpdateParticipantEmbargoPecNode(pec_trigger=PEC_Trigger.INVITE),
-            CommitLogCascadeNode(
-                case_id=case_id,
-                object_id=invite_id,
-                event_type="invite_to_embargo_on_case",
-                payload_snapshot=payload_snapshot,
-            ),
+            CommitCaseLedgerEntryNode(case_id=case_id),
         ],
     )
     logger.info(
@@ -192,16 +179,15 @@ def accept_invite_to_embargo_tree(
     embargo_id: str,
     accepting_actor_id: str,
     invite_id: str,
-    payload_snapshot: dict[str, Any] | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for accepting embargo invitation (protocol EA).
 
     Handles receipt of an ``Accept(InviteToEmbargoOnCase)`` activity.
-    Records the acceptance via EmbargoLifecycle and commits a cascade
-    log entry.
+    Records the acceptance via EmbargoLifecycle and commits a canonical
+    ledger entry.
 
     BT returns SUCCESS when acceptance is recorded.
-    Always cascades the log entry regardless of BT result.
+    Always commits the ledger entry regardless of BT result.
 
     Args:
         case_id: ID of the VulnerabilityCase.
@@ -220,12 +206,7 @@ def accept_invite_to_embargo_tree(
             RecordParticipantAcceptanceNode(
                 case_id=case_id, embargo_id=embargo_id
             ),
-            CommitLogCascadeNode(
-                case_id=case_id,
-                object_id=embargo_id,
-                event_type="accept_invite_to_embargo_on_case",
-                payload_snapshot=payload_snapshot,
-            ),
+            CommitCaseLedgerEntryNode(case_id=case_id),
         ],
     )
     logger.info(
@@ -243,7 +224,6 @@ def reject_invite_to_embargo_tree(
     rejecting_actor_id: str,
     invite_id: str,
     embargo_id: str | None = None,
-    payload_snapshot: dict[str, Any] | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for rejecting embargo invitation (protocol EA).
 
@@ -251,10 +231,10 @@ def reject_invite_to_embargo_tree(
     Optionally looks up the rejecting participant (skips silently if
     case/participant not found), removes any stale embargo acceptance
     (pocket-veto), advances their PEC state to DECLINED, and commits
-    a cascade log entry.
+    a canonical ledger entry.
 
     BT always returns SUCCESS (best-effort operations).
-    Always cascades the log entry regardless of BT result.
+    Always commits the ledger entry regardless of BT result.
 
     Args:
         case_id: ID of the VulnerabilityCase.
@@ -272,12 +252,7 @@ def reject_invite_to_embargo_tree(
             OptionalLookupParticipantNode(case_id=case_id),
             RemoveStaleAcceptanceNode(embargo_id=embargo_id or ""),
             UpdateParticipantEmbargoPecNode(pec_trigger=PEC_Trigger.DECLINE),
-            CommitLogCascadeNode(
-                case_id=case_id,
-                object_id=invite_id,
-                event_type="reject_invite_to_embargo_on_case",
-                payload_snapshot=payload_snapshot,
-            ),
+            CommitCaseLedgerEntryNode(case_id=case_id),
         ],
     )
     logger.info(

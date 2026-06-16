@@ -22,7 +22,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_ledger import GENESIS_HASH, HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.sync_helpers import is_ledger_fresh_for_case
-from vultron.core.use_cases.triggers.sync import _to_persistable_entry
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 
 CASE_ID = "https://example.org/cases/catchup-test"
 OTHER_CASE_ID = "https://example.org/cases/other"

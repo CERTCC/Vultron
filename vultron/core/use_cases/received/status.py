@@ -187,7 +187,7 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             # peers into believing the status was accepted.
             return
 
-        self._commit_log_cascade()
+        self._commit_log_cascade_bt()
 
     def _resolve_case_id_for_log_cascade(self) -> str | None:
         request = self._request
@@ -228,19 +228,17 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             return False
         return True
 
-    def _commit_log_cascade(self) -> None:
-        """Commit a CaseLedgerEntry and fan it out to all participants (PCR-08-003).
+    def _commit_log_cascade_bt(self) -> None:
+        """Commit a CaseLedgerEntry via CommitCaseLedgerEntryNode (PCR-08-003).
 
         Derives case_id from the inline status object's ``context`` field.
         Uses ``receiving_actor_id`` (the CaseActor's canonical ID) when
         available, falling back to a DataLayer lookup for the Service object
         whose ``context`` matches *case_id*.
         """
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
         from vultron.core.use_cases.received.actor import _find_case_actor_id
-        from vultron.core.use_cases.triggers.sync import (
-            commit_log_entry_trigger,
-            extract_activity_snapshot,
-        )
 
         request = self._request
         case_id = self._resolve_case_id_for_log_cascade()
@@ -264,12 +262,9 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         ):
             return
 
-        commit_log_entry_trigger(
-            case_id=case_id,
-            object_id=request.status_id or request.activity_id,
-            event_type="add_participant_status",
+        BTBridge(datalayer=self._dl).execute_with_setup(
+            tree=CommitCaseLedgerEntryNode(case_id=case_id),
             actor_id=case_actor_id,
-            dl=self._dl,
+            activity=request,
             sync_port=self._sync_port,
-            payload_snapshot=extract_activity_snapshot(request, dl=self._dl),
         )
