@@ -14,92 +14,55 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from typing import TYPE_CHECKING
+from typing import cast
 
-from py_trees.common import Status
+import py_trees.behaviour
 
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.engage_defer_trigger_tree import (
     defer_case_trigger_bt,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
     resolve_case,
 )
-from vultron.core.use_cases.triggers.requests import (
-    DeferCaseTriggerRequest,
-)
-from vultron.errors import VultronValidationError
-
-if TYPE_CHECKING:
-    from vultron.core.ports.trigger_activity import TriggerActivityPort
+from vultron.core.use_cases.triggers.requests import DeferCaseTriggerRequest
 
 logger = logging.getLogger(__name__)
 
 
-class SvcDeferCaseUseCase:
+class SvcDeferCaseUseCase(SvcBTTriggerBase):
     """Defer a case (RM → DEFERRED).
 
     Updates the actor's RM state to DEFERRED and sends a Defer(Case)
     activity to the Case Actor via SenderSideBT (PCR-08-001).
     """
 
-    def __init__(
-        self,
-        dl: CaseOutboxPersistence,
-        request: DeferCaseTriggerRequest,
-        trigger_activity: "TriggerActivityPort | None" = None,
-    ) -> None:
-        self._dl = dl
-        self._request: DeferCaseTriggerRequest = request
-        self._trigger_activity = trigger_activity
+    def _prepare(self) -> None:
+        request = cast(DeferCaseTriggerRequest, self._request)
+        actor = resolve_actor(request.actor_id, self._dl)
+        self._actor_id = actor.id_
+        self._case_id = resolve_case(request.case_id, self._dl).id_
 
-    def execute(self) -> dict:
-        request = self._request
-        actor_id = request.actor_id
-        case_id = request.case_id
-        dl = self._dl
-
-        actor = resolve_actor(actor_id, dl)
-        actor_id = actor.id_
-
-        resolve_case(case_id, dl)
-
-        if self._trigger_activity is None:
-            raise RuntimeError(
-                "SvcDeferCaseUseCase requires a TriggerActivityPort"
-            )
-
-        factory = self._trigger_activity
-        captured: dict = {}
-
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
         def _build_activities(case_manager_id: str) -> list[str]:
-            activity_id, activity_dict = factory.defer_case(
-                case_id=case_id,
-                actor=actor_id,
+            activity_id, activity_dict = self._factory.defer_case(
+                case_id=self._case_id,
+                actor=self._actor_id,
                 to=[case_manager_id],
             )
-            captured["activity"] = activity_dict
+            self._captured["activity"] = activity_dict
             return [activity_id]
 
-        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
-        tree = defer_case_trigger_bt(
-            case_id=case_id,
-            actor_id=actor_id,
+        return defer_case_trigger_bt(
+            case_id=self._case_id,
+            actor_id=self._actor_id,
             activity_builder=_build_activities,
         )
-        result = bridge.execute_with_setup(tree, actor_id=actor_id)
 
-        if result.status != Status.SUCCESS:
-            raise VultronValidationError(
-                f"DeferCase failed: {BTBridge.get_failure_reason(tree)}"
-            )
-
+    def _handle_result(self) -> None:
         logger.info(
             "Actor '%s' deferred case '%s' (RM → DEFERRED)",
-            actor_id,
-            case_id,
+            self._actor_id,
+            self._case_id,
         )
-
-        return {"activity": captured.get("activity")}

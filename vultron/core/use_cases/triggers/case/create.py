@@ -14,30 +14,22 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any, cast
 
-from py_trees.common import Status
+import py_trees.behaviour
 
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.create_case_trigger_tree import (
     create_case_trigger_bt,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.use_cases.triggers._helpers import (
-    resolve_actor,
-)
-from vultron.core.use_cases.triggers.requests import (
-    CreateCaseTriggerRequest,
-)
+from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
+from vultron.core.use_cases.triggers._helpers import resolve_actor
+from vultron.core.use_cases.triggers.requests import CreateCaseTriggerRequest
 from vultron.errors import VultronNotFoundError, VultronValidationError
-
-if TYPE_CHECKING:
-    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
 
-class SvcCreateCaseUseCase:
+class SvcCreateCaseUseCase(SvcBTTriggerBase):
     """Create a new VulnerabilityCase and emit a CreateCaseActivity.
 
     The actor creates a local case and queues the activity for delivery to
@@ -48,22 +40,14 @@ class SvcCreateCaseUseCase:
     emission are delegated to a trigger-side BT.
     """
 
-    def __init__(
-        self,
-        dl: CaseOutboxPersistence,
-        request: CreateCaseTriggerRequest,
-        trigger_activity: "TriggerActivityPort | None" = None,
-    ) -> None:
-        self._dl = dl
-        self._request = request
-        self._trigger_activity = trigger_activity
+    def _prepare(self) -> None:
+        request = cast(CreateCaseTriggerRequest, self._request)
+        actor = resolve_actor(request.actor_id, self._dl)
+        self._actor_id = actor.id_
+        self._case_name: str = request.name
+        self._case_content: str = request.content
 
-    def execute(self) -> dict[str, Any]:
-        actor_id = self._request.actor_id
-        actor = resolve_actor(actor_id, self._dl)
-        actor_id = actor.id_
-        report_id = self._request.report_id
-
+        report_id = request.report_id
         if report_id is not None:
             raw = self._dl.read(report_id)
             if raw is None:
@@ -73,40 +57,28 @@ class SvcCreateCaseUseCase:
                     f"'{report_id}' is not a VulnerabilityReport"
                 )
             report_id = getattr(raw, "id_", None) or report_id
+        self._report_id: str | None = report_id
 
-        if self._trigger_activity is None:
-            raise RuntimeError(
-                "SvcCreateCaseUseCase requires a TriggerActivityPort"
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        def _build_activity(case_id: str) -> tuple[str, dict[str, Any]]:
+            return self._factory.create_case(
+                case_id=case_id, actor=self._actor_id
             )
 
-        factory = self._trigger_activity
-        result_data: dict[str, Any] = {}
-
-        def _build_activity(case_id: str) -> tuple[str, dict[str, Any]]:
-            return factory.create_case(case_id=case_id, actor=actor_id)
-
-        bridge = BTBridge(datalayer=self._dl, trigger_activity=factory)
-        tree = create_case_trigger_bt(
-            case_name=self._request.name,
-            case_content=self._request.content,
-            report_id=report_id,
-            result_out=result_data,
+        return create_case_trigger_bt(
+            case_name=self._case_name,
+            case_content=self._case_content,
+            report_id=self._report_id,
+            result_out=self._result_out,
             activity_builder=_build_activity,
         )
-        result = bridge.execute_with_setup(tree, actor_id=actor_id)
-        if result.status != Status.SUCCESS:
-            raise VultronValidationError(
-                f"CreateCase failed: {BTBridge.get_failure_reason(tree)}"
-            )
 
-        case_id = result_data.get("case_id")
-        activity = result_data.get("activity")
-
+    def _handle_result(self) -> None:
+        self._captured["activity"] = self._result_out.get("activity")
+        activity = self._captured.get("activity")
         logger.info(
             "Actor '%s' created case '%s' (CreateCaseActivity '%s')",
-            actor_id,
-            case_id,
+            self._actor_id,
+            self._result_out.get("case_id"),
             activity.get("id") if isinstance(activity, dict) else None,
         )
-
-        return {"activity": activity}

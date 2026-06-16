@@ -30,6 +30,7 @@ Two-level hierarchy:
 
 import logging
 from abc import ABC, abstractmethod
+from typing import Any
 
 import py_trees.behaviour
 from py_trees.common import Status
@@ -91,7 +92,11 @@ class SvcBTTriggerBase(ABC):
             trigger_activity=self._factory,
         )
         tree = self._build_tree()
-        result = bridge.execute_with_setup(tree, actor_id=self._actor_id)
+        result = bridge.execute_with_setup(
+            tree,
+            actor_id=self._actor_id,
+            **self._extra_execute_kwargs(),
+        )
 
         if result.status != Status.SUCCESS:
             error = self._result_out.get("error")
@@ -131,6 +136,15 @@ class SvcBTTriggerBase(ABC):
 
         Called only when the BT succeeded.
         """
+
+    def _extra_execute_kwargs(self) -> dict[str, Any]:
+        """Additional kwargs passed to ``bridge.execute_with_setup``.
+
+        Override to inject extra blackboard context required by specific BT
+        trees (e.g. ``{"case_id": self._case_id}`` for trees whose nodes
+        read ``case_id`` from the blackboard).
+        """
+        return {}
 
 
 class SvcEmbargoTriggerBase(SvcBTTriggerBase):

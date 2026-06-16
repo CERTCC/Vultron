@@ -14,15 +14,14 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any, cast
 
-from py_trees.common import Status
+import py_trees.behaviour
 
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.add_object_trigger_tree import (
     add_object_trigger_bt,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
     resolve_case,
@@ -30,15 +29,12 @@ from vultron.core.use_cases.triggers._helpers import (
 from vultron.core.use_cases.triggers.requests import (
     AddObjectToCaseTriggerRequest,
 )
-from vultron.errors import VultronNotFoundError, VultronValidationError
-
-if TYPE_CHECKING:
-    from vultron.core.ports.trigger_activity import TriggerActivityPort
+from vultron.errors import VultronNotFoundError
 
 logger = logging.getLogger(__name__)
 
 
-class SvcAddObjectToCaseUseCase:
+class SvcAddObjectToCaseUseCase(SvcBTTriggerBase):
     """Add any existing AS2 object to a case (general-purpose).
 
     Reads the object by ``object_id`` from the datalayer, creates a generic
@@ -54,80 +50,36 @@ class SvcAddObjectToCaseUseCase:
     queueing are delegated to a trigger-side BT.
     """
 
-    def __init__(
-        self,
-        dl: CaseOutboxPersistence,
-        request: AddObjectToCaseTriggerRequest,
-        trigger_activity: "TriggerActivityPort | None" = None,
-    ) -> None:
-        self._dl = dl
-        self._request = request
-        self._trigger_activity = trigger_activity
+    def _prepare(self) -> None:
+        request = cast(AddObjectToCaseTriggerRequest, self._request)
+        actor = resolve_actor(request.actor_id, self._dl)
+        self._actor_id = actor.id_
+        self._case_id = resolve_case(request.case_id, self._dl).id_
+        self._object_id: str = request.object_id
+        if self._dl.read(self._object_id) is None:
+            raise VultronNotFoundError("AS2Object", self._object_id)
 
-    def execute(self) -> dict[str, Any]:
-        actor_id = self._request.actor_id
-        case_id = self._request.case_id
-        object_id = self._request.object_id
-        dl = self._dl
-
-        actor = resolve_actor(actor_id, dl)
-        actor_id = actor.id_
-
-        resolve_case(case_id, dl)
-
-        raw = dl.read(object_id)
-        if raw is None:
-            raise VultronNotFoundError("AS2Object", object_id)
-
-        if self._trigger_activity is None:
-            raise RuntimeError(
-                "SvcAddObjectToCaseUseCase requires a TriggerActivityPort"
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        def _build_activity() -> tuple[str, dict[str, Any]]:
+            return self._factory.add_object_to_case(
+                actor=self._actor_id,
+                object_id=self._object_id,
+                case_id=self._case_id,
             )
 
-        return _execute_add_object_trigger_bt(
-            dl=dl,
-            actor_id=actor_id,
-            case_id=case_id,
-            object_id=object_id,
-            trigger_activity=self._trigger_activity,
+        return add_object_trigger_bt(
+            result_out=self._result_out,
+            activity_builder=_build_activity,
         )
 
+    def _extra_execute_kwargs(self) -> dict[str, Any]:
+        return {"case_id": self._case_id}
 
-def _execute_add_object_trigger_bt(
-    *,
-    dl: CaseOutboxPersistence,
-    actor_id: str,
-    case_id: str,
-    object_id: str,
-    trigger_activity: "TriggerActivityPort",
-) -> dict[str, Any]:
-    """Emit Add(object,target=case) and queue it via BTBridge."""
-    result_data: dict[str, Any] = {}
-
-    def _build_activity() -> tuple[str, dict[str, Any]]:
-        return trigger_activity.add_object_to_case(
-            actor=actor_id,
-            object_id=object_id,
-            case_id=case_id,
+    def _handle_result(self) -> None:
+        self._captured["activity"] = self._result_out.get("activity")
+        logger.info(
+            "Actor '%s' added object '%s' to case '%s'",
+            self._actor_id,
+            self._object_id,
+            self._case_id,
         )
-
-    bridge = BTBridge(datalayer=dl, trigger_activity=trigger_activity)
-    tree = add_object_trigger_bt(
-        result_out=result_data,
-        activity_builder=_build_activity,
-    )
-    result = bridge.execute_with_setup(
-        tree, actor_id=actor_id, case_id=case_id
-    )
-    if result.status != Status.SUCCESS:
-        raise VultronValidationError(
-            f"AddObjectToCase failed: {BTBridge.get_failure_reason(tree)}"
-        )
-
-    logger.info(
-        "Actor '%s' added object '%s' to case '%s'",
-        actor_id,
-        object_id,
-        case_id,
-    )
-    return {"activity": result_data.get("activity")}
