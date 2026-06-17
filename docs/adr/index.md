@@ -74,6 +74,8 @@ General information about architectural decision records is available at <https:
   `CaseLogEntry`](0018-canonical-case-history-convergence.md)
 - [ADR-0019 Separate the Case Ledger from the Per-Actor Process
   Log](0019-separate-case-ledger-from-process-log.md)
+- [ADR-0021 CaseActor Inbox Routing as the Sole Path to Canonical Ledger
+  Entries](0021-caseactor-inbox-routing-canonical-ledger.md)
 
 ## Proposed ADRs
 

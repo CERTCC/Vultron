@@ -425,6 +425,17 @@ Short entries are reproduced here; longer ones are referenced below.
   `Accept(Invite)` message IS the invitee's engage decision (PCR-08-009, PCR-08-010).
   See [notes/case-communication-model.md](notes/case-communication-model.md)
   § "Antipattern: Identity Spoofing in Received-Side Use Cases".
+- **Received-Side Guarded Commit MUST NOT Resolve a Foreign CaseActor ID** — Resolving
+  `case_actor_id` from the DataLayer and passing it as `actor_id` to
+  `BTBridge.execute_with_setup` from a non-CaseActor inbox context is an identity-spoofing
+  violation (CLP-10-003). The canonical pattern (see `status.py::_commit_log_cascade_bt`)
+  requires a strict pre-flight guard: `if receiving_actor_id != case_actor_id: return`.
+  The guarded commit BT must only run when the receiving actor IS the CaseActor — at which
+  point `actor_id=receiving_actor_id` is correct and no identity spoofing occurs. For the
+  CaseActor to receive the activity in the first place, the trigger tree MUST emit an
+  outbound activity addressed to `case_manager_id` (CLP-10-001). See ADR-0021 and
+  [notes/case-communication-model.md](notes/case-communication-model.md)
+  § "Antipattern: Received-Side Guarded Commit with Foreign CaseActor ID".
 - **Invite/Accept Handshake Must Route Through the Case Actor** — `RmInviteToCaseActivity`
   MUST be sent with `actor=case_actor_id` (not the case owner) from the Case Actor's
   outbox. The invitee's `Accept` MUST be addressed to the Case Actor, not the case owner.
