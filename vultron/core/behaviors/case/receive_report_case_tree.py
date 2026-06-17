@@ -42,8 +42,12 @@ Structure (CM-14 canonical order):
        ├─ CreateCaseParticipantNode      # Reporter participant (RM.ACCEPTED); seed SIGNATORY
        ├─ CreateCaseActorNode            # Spawn Case Actor; write case_actor_id
        ├─ SendOfferCaseManagerRoleNode   # Offer CASE_MANAGER role to Case Actor
-       ├─ UpdateActorOutbox (Offer)      # Flush Offer to outbox
-       └─ GuardedCommitCaseLedgerEntryBT    # CaseManager-only canonical log fan-out
+       └─ UpdateActorOutbox (Offer)      # Flush Offer to outbox
+
+Note: No canonical ledger commit happens here.  The vendor actor is not the
+CaseActor and MUST NOT commit canonical case-ledger entries.  The CaseActor
+commits its initialization entry when it receives and accepts the
+``Offer(CaseManagerRole)`` — see ``OfferCaseManagerRoleReceivedUseCase``.
 
 Note: ``CreateCaseActivity`` and ``UpdateActorOutbox`` are intentionally placed
 *before* ``CreateCaseParticipantNode``.  This ensures that the reporter
@@ -84,7 +88,6 @@ from vultron.core.behaviors.case.embargo_tree import (
 from vultron.core.behaviors.case.nodes import (
     CheckCaseExistsForReport,
     UpdateActorOutbox,
-    create_guarded_commit_case_ledger_entry_tree,
 )
 from vultron.core.behaviors.report.nodes import (
     CreateCaseActivity,
@@ -184,9 +187,6 @@ def create_receive_report_case_tree(
             CreateCaseActorNode(),
             SendOfferCaseManagerRoleNode(),
             UpdateActorOutbox(name="UpdateActorOutboxOffer"),
-            # case_id is not known at build time; CreateCaseNode writes it to
-            # the blackboard so the guarded commit subtree can read it here.
-            create_guarded_commit_case_ledger_entry_tree(),
         ],
     )
 

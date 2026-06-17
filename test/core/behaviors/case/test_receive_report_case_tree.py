@@ -208,7 +208,7 @@ def test_tree_flow_has_ten_children(report, offer, reporter_actor_id):
         reporter_actor_id=reporter_actor_id,
     )
     flow = tree.children[1]
-    assert len(flow.children) == 10
+    assert len(flow.children) == 9
 
 
 # ============================================================================

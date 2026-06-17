@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Create", "VulnerabilityCase"),
     ("Offer", "VulnerabilityReport"),
+    ("Offer", "VulnerabilityCase"),
     ("Add", "Note"),
     ("Add", "ParticipantStatus"),
     ("Add", "EmbargoEvent"),
@@ -59,6 +60,7 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Add", "EmbargoEvent"),
         ("Remove", "EmbargoEvent"),
         ("Invite", "EmbargoEvent"),
+        ("Offer", "VulnerabilityCase"),
     }
 )
 _INLINE_OBJECT_KEYS: frozenset[str] = frozenset(
