@@ -270,15 +270,85 @@ records that decision as a direct RM state update, without emitting a proxy
 
 ---
 
-## Known Implementation Gaps (as of 2026-06-10)
+## Antipattern: Received-Side Guarded Commit with Foreign CaseActor ID
+
+A subtler form of identity spoofing appears when a received-side use case
+resolves the CaseActor's ID from the DataLayer and then executes the
+guarded-commit BT under that foreign ID — even though the active DataLayer
+belongs to a different actor (e.g., the vendor actor). This was the pattern
+in `note.py` and `embargo.py` before ADR-0021 was established.
+
+```python
+# ❌ WRONG — resolves a foreign actor ID and runs BT under that identity
+case_actor_id = _find_case_actor_id(self._dl, case_id)   # foreign ID
+BTBridge(datalayer=self._dl).execute_with_setup(         # vendor's DL
+    tree=create_guarded_commit_case_ledger_entry_tree(case_id),
+    actor_id=case_actor_id,   # ← spoofed: vendor's DL, CaseActor's identity
+    ...
+)
+```
+
+The problem: `self._dl` is the **vendor actor's** DataLayer (since the use case
+is running in the vendor's inbox), but `actor_id=case_actor_id` causes the BT
+to emit `Announce(CaseLedgerEntry)` as if authored by the CaseActor. The
+outbox entry is queued under the wrong actor, and the CaseActor's canonical
+ledger never receives it.
+
+The correct pattern (from `status.py`'s `_commit_log_cascade_bt`) is a strict
+pre-flight guard that only proceeds when the receiving actor IS the CaseActor:
+
+```python
+# ✅ CORRECT — pre-flight guard; only commits when receiving actor IS CaseActor
+receiving_actor_id = request.receiving_actor_id
+case_actor_id = _find_case_actor_id(self._dl, case_id)
+
+if receiving_actor_id != case_actor_id:
+    return   # not the CaseActor — skip commit entirely
+
+# Now safe: receiving_actor_id == case_actor_id, so DL matches identity
+BTBridge(datalayer=self._dl).execute_with_setup(
+    tree=create_guarded_commit_case_ledger_entry_tree(case_id),
+    actor_id=receiving_actor_id,   # ← correct: same as active DL
+    ...
+)
+```
+
+The pre-flight guard is what makes the identity correct. When a non-CaseActor
+receives the same activity (relay copy to finder, vendor's own inbox), the
+guard fires and the commit is skipped. The CaseActor's own inbox delivery —
+which arrives because the trigger tree emitted to `case_manager_id`
+(CLP-10-001) — is the only path to a canonical write.
+
+### Why the `Announce(CaseLedgerEntry)` envelope is not a payload
+
+`Announce(CaseLedgerEntry)` is the replication wire envelope the CaseActor
+uses to broadcast canonical entries to participants (SYNC-02-002). It cannot
+appear as the `payloadSnapshot` of a canonical entry because the snapshot
+captures the protocol activity that *triggered* the entry, not the transport
+mechanism that *delivered* it. Think of it as a postcard (the protocol
+activity) placed inside a binder envelope (the `CaseLedgerEntry`) that is
+then mailed to all recipients (the `Announce` broadcast). The envelope is
+never its own contents.
+
+This is why `announce_case_ledger_entry` MUST NOT appear in
+`EXPECTED_EVENT_TYPES` for the canonical case-actor log (CLP-10-004).
+
+See ADR-0021 for the full decision record.
+
+---
+
+## Known Implementation Gaps (as of 2026-06-17)
 
 | Gap | Location | Status |
 |---|---|---|
-| Notes trigger sends to all participants | `triggers/note.py:102` | Open — tracked in impl issues |
-| Embargo triggers send to all participants | `triggers/embargo.py:399,472,589,657,773` | Open |
+| `validate_report` trigger tree: no emit to CaseActor | `behaviors/report/validate_tree.py` | Open — tracked in #1026 impl issues |
+| `ack_report` received UC: no guarded commit | `received/report.py` | Open — tracked in #1026 impl issues |
+| `close_case` received UC: no guarded commit | `received/case/lifecycle.py` | Open — tracked in #1026 impl issues |
+| `note.py` guarded commit: uses foreign actor ID | `received/note.py` | Open — tracked in #1026 impl issues |
+| `embargo.py` guarded commit: uses foreign actor ID | `received/embargo.py` | Open — tracked in #1026 impl issues |
+| Notes trigger sends to all participants | `triggers/note.py:102` | Open |
+| Embargo triggers send to all participants | `triggers/embargo.py` | Open |
 | Engage/defer-case triggers send to all participants | `triggers/case.py:84,132` | Open |
-| No sender-side BTs | All of the above | Open — BT refactor issue |
-| Auto CaseLedgerEntry cascade not wired to all received handlers | Multiple | Open |
 | Invite sent from case owner (not Case Actor); Accept routed to owner | `triggers/actor.py`, `received/actor.py` | Open — tracked in #893/#894 |
 
-See GitHub issues under parent concern #593.
+See GitHub issues under parent concern #593 and epic #788.

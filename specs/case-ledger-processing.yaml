@@ -349,3 +349,87 @@ groups:
       of bug that produced the original hash-chain fork in issue #923, and it
       recurs at every new dual-invocation call site unless authorization is
       re-evaluated per invocation rather than per use-case class.
+- id: CLP-10
+  title: CaseActor Inbox Routing for Canonical Ledger Entry Authorship
+  description: >-
+    Requirements for the end-to-end routing path that delivers protocol-significant
+    activities to the CaseActor's inbox so the CaseActor can author canonical ledger
+    entries. Normative requirements generated from ADR-0021.
+  specs:
+  - id: CLP-10-001
+    priority: MUST
+    statement: >-
+      Every protocol-significant trigger tree MUST emit at least one outbound
+      activity addressed to `case_manager_id` (the CaseActor's actor ID) so that
+      the CaseActor's inbox receives the activity and can author a canonical
+      ledger entry
+    rationale: >-
+      Before ADR-0021, several trigger trees (e.g., `validate_report`,
+      `ack_report`, `close_case`) emitted no activity addressed to the CaseActor.
+      The CaseActor therefore had no protocol event to commit, and the canonical
+      ledger was missing those event types entirely. The ASGI self-delivery
+      mechanism already handles routing when the target actor ID is the
+      CaseActor sub-actor for the same container; the missing piece was the
+      emit node itself.
+    verification: >-
+      For each entry in `EXPECTED_EVENT_TYPES`, a test verifies that the
+      CaseActor's canonical ledger contains at least one entry with that
+      `eventType` after a full two-actor demo run.
+  - id: CLP-10-002
+    priority: MUST
+    statement: >-
+      A received-side use case MUST include a pre-flight guard that compares
+      `receiving_actor_id` to `case_actor_id` before executing any canonical
+      ledger commit operation; if `receiving_actor_id != case_actor_id`, the
+      commit step MUST be skipped entirely
+    rationale: >-
+      The correct pattern (established in `status.py`'s `_commit_log_cascade_bt`)
+      is to commit only when the actor running the use case IS the CaseActor.
+      When a non-CaseActor inbox receives the same activity (e.g., a relay copy
+      to a finder), the use case runs but skips the commit. The CaseActor's own
+      inbox delivery (via CLP-10-001) is responsible for the canonical write.
+    verification: >-
+      Unit tests for each received-side use case that participates in ledger
+      authorship assert that `create_guarded_commit_case_ledger_entry_tree` (or
+      the BT bridge) is NOT called when `receiving_actor_id` differs from the
+      resolved `case_actor_id`.
+  - id: CLP-10-003
+    priority: MUST_NOT
+    statement: >-
+      A received-side use case MUST NOT execute a BT or call the canonical commit
+      operation with `actor_id` set to any actor other than `receiving_actor_id`;
+      resolving a foreign `case_actor_id` and passing it to
+      `BTBridge.execute_with_setup` from the wrong DataLayer context is an
+      identity-spoofing violation and MUST NOT occur
+    rationale: >-
+      `note.py` and `embargo.py` contained this exact violation before ADR-0021:
+      they resolved the CaseActor ID from the DataLayer and ran the guarded-commit
+      BT with `actor_id=case_actor_id` even when the active DataLayer belonged to
+      the vendor actor. This produced outbox entries attributed to the wrong actor
+      and caused hash-chain divergence. See AGENTS.md § "Received-Side Use Cases
+      MUST NOT Spoof Another Actor's Identity" for the general rule; CLP-10-003
+      is the specific application to the canonical ledger commit path.
+    verification: >-
+      A static grep check (or dedicated test) asserts that no received-side use
+      case module passes a separately resolved actor ID to
+      `BTBridge.execute_with_setup` — only `receiving_actor_id` (or a name
+      that is provably equal to it) may appear as the `actor_id` argument.
+  - id: CLP-10-004
+    priority: MUST_NOT
+    statement: >-
+      The `announce_case_ledger_entry` event type MUST NOT appear in
+      `EXPECTED_EVENT_TYPES` for the case-actor canonical log; `Announce(CaseLedgerEntry)`
+      is the replication envelope that carries canonical entries to participants
+      and cannot itself be a `payloadSnapshot` inside a canonical entry
+    rationale: >-
+      Including `announce_case_ledger_entry` in `EXPECTED_EVENT_TYPES` creates a
+      circular requirement: the CaseActor would need to commit a ledger entry
+      whose payload is the `Announce` activity used to broadcast ledger entries,
+      which is self-referential and unachievable without corrupting the hash chain.
+      The `Announce(CaseLedgerEntry)` wire envelope is a transport artifact, not a
+      protocol-significant domain event; it belongs to the SYNC replication layer
+      (SYNC-02-002), not the canonical ledger content layer.
+    verification: >-
+      `test_invariant_5_expected_event_types_present` (after parameterization)
+      does not include `announce_case_ledger_entry` as a required event type for
+      the case-actor replica.
