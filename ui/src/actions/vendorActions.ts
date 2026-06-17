@@ -1004,8 +1004,10 @@ export function handleVendorReplyNote(state: DemoState, vendorId: string): DemoS
   // Per Vultron protocol: each vendor can independently reply to notes
   newState = updateParticipant(newState, vendorId, { hasRepliedToCurrentNote: true })
 
-  // Don't change phase - keep it as 'finder-asked' so other vendors can still reply
-  // Phase will change when Finder asks another question or case progresses for other reasons
+  // Only this vendor is marked as having replied; the case-level
+  // hasPendingFinderNote flag stays true so the other participants keep their
+  // reply option until they each reply (or the Finder asks a new question).
+  // Phase is intentionally left unchanged.
 
   const events = []
   let timestampOffset = 0

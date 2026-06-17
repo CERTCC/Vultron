@@ -42,6 +42,7 @@ export interface DemoState {
   nextXPosition: number
   invitedVendors: Set<string>  // Track all invited vendors (e.g., 'vendor-2', 'vendor-3')
   embargoProposerId?: string  // Track who proposed current embargo/revision (e.g., 'finder', 'vendor-1', 'caseactor')
+  hasPendingFinderNote?: boolean  // Case-level: an unanswered Finder question exists. Independent of `phase` so RM transitions (e.g. defer) don't hide the reply option (see actionFilters reply gating)
 }
 
 export interface Action {

@@ -325,6 +325,13 @@ export function handleFinderAddNote(state: DemoState): DemoState {
 
   newState = setPhase(newState, 'finder-asked')
 
+  // Mark that an unanswered Finder question now exists. This is tracked at the
+  // case level (independent of `phase`) so that a later RM transition by any one
+  // vendor (e.g. deferring their report, which overwrites `phase`) does not hide
+  // the reply option from the other participants. Per Vultron protocol the Q&A
+  // dimension is case-wide and independent of any single participant's RM state.
+  newState = { ...newState, hasPendingFinderNote: true }
+
   // Reset hasRepliedToCurrentNote for all vendors when a new question is asked
   // Per Vultron protocol: each vendor can independently reply to notes
   const updatedParticipants = new Map(newState.participants)

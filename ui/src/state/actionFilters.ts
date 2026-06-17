@@ -297,7 +297,7 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
     }]
 
     // Allow replying to questions even while report is invalid
-    if (state.phase === 'finder-asked' && !vendor.hasRepliedToCurrentNote) {
+    if (state.hasPendingFinderNote && !vendor.hasRepliedToCurrentNote) {
       actions.push({
         id: 'vendor-reply-note',
         label: 'Reply to Question',
@@ -408,8 +408,10 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
     }
 
     // Reply to questions - each vendor can reply independently
-    // Per Vultron protocol: notes are case-wide with inReplyTo relationships
-    if (state.phase === 'finder-asked' && !vendor.hasRepliedToCurrentNote) {
+    // Per Vultron protocol: notes are case-wide with inReplyTo relationships.
+    // Gated on the case-level pending-note flag (not `phase`) so that an RM
+    // transition by this or another vendor (e.g. defer) doesn't remove the option.
+    if (state.hasPendingFinderNote && !vendor.hasRepliedToCurrentNote) {
       actions.push({
         id: 'vendor-reply-note',
         label: 'Reply to Question',
@@ -485,8 +487,9 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   if (['vendor-published', 'finder-published', 'finder-closed', 'vendor-closed'].includes(state.phase) && !vendor.hasClosed) {
     const actions: Action[] = []
 
-    // Reply to questions
-    if (state.phase === 'finder-asked') {
+    // Reply to questions (gated on the case-level pending-note flag, not `phase`,
+    // which here is always a post-publication value)
+    if (state.hasPendingFinderNote && !vendor.hasRepliedToCurrentNote) {
       actions.push({
         id: 'vendor-reply-note',
         label: 'Reply to Question',
