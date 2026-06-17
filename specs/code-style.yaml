@@ -315,3 +315,27 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BTND-07-002
+- id: CS-19
+  title: Test Fixtures Mirroring Production Enums
+  kind: general
+  specs:
+  - id: CS-19-001
+    priority: MUST
+    statement: >-
+      A test fixture or constant that enumerates the same value set as a production
+      enum (e.g., a list of expected event-type strings mirroring `MessageSemantics`)
+      MUST derive its values from the enum at import/collection time rather than
+      duplicating them as separately-maintained literals.
+    rationale: >-
+      `EXPECTED_EVENT_TYPES` in `test/ci/test_case_ledger_invariants.py` hardcoded
+      values that silently diverged from `MessageSemantics` (issue #998/#1020):
+      five of ten values used legacy names that no longer matched the enum. The
+      mismatch produced no failure on its own — it only surfaced when the invariant
+      using it was audited by hand. Deriving the fixture from the enum makes the
+      two sets impossible to drift apart; a rename in the enum either propagates
+      automatically or fails loudly at collection time.
+    verification: >-
+      Grep test fixtures for literal string lists that parallel a production enum's
+      member names; replace with `[e.value for e in EnumName]` or equivalent,
+      narrowed with an explicit exclusion list where the fixture intentionally
+      covers a subset.

@@ -444,6 +444,17 @@ Short entries are reproduced here; longer ones are referenced below.
 - **Use `isinstance` for Pyright Attribute Narrowing, Not `# type: ignore`** — see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
 - **Untyped Closures Are Invisible to mypy — Extract to Named Functions** — see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
 - **CI Runs All Tests; Default Local Run Omits Integration** — see `test/AGENTS.md` § Integration Tests
+- **Canonical Ledger Commits Must Be Role-Gated and Coverage-Checked, Not
+  Conventionally Trusted** — A canonical-write node
+  (`CommitCaseLedgerEntryNode`) reachable from more than one call site or
+  more than one actor context MUST be wrapped in a role-gated
+  Selector/Sequence/Success composite (see
+  `notes/bt-integration.md` § "Guarded Commit: Role-Gated Canonical
+  Writes"), and every protocol-significant use case MUST be covered by a
+  test asserting it reaches a commit — do not rely on manual audit to find
+  missing or unguarded commits after the fact. See
+  `specs/case-ledger-processing.yaml` CLP-09 and
+  `notes/case-ledger-authority.md` § "Commit Authorization and Coverage".
 - **Superseded `notes/*.md` Files Must Move to `archived_notes/`, Not Stay in `notes/`** — A file
   with `status: superseded` in its frontmatter MUST be moved to `archived_notes/` using `git mv`.
   Leaving it in `notes/` causes agents to load outdated guidance as active context and pollutes

@@ -194,6 +194,13 @@ groups:
     statement: CaseActor MUST enforce case-level authorization
     scope:
     - production
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-09-001
+    - rel_type: refines
+      spec_id: CLP-09-003
+    - rel_type: refines
+      spec_id: CLP-09-004
   - id: BT-10-005
     priority: SHOULD
     statement: >-
