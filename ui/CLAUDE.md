@@ -213,3 +213,72 @@ not `actor`.
   bug (§5) or a missing-field-in-logs problem (§6) before changing code.
 - The root `AGENTS.md` Python rules (uv, pytest, BTs, AS2 factories) do **not**
   apply here. This is a standalone Vite app.
+
+---
+
+## 9. Deferring to the protocol's source of truth (in progress)
+
+**Goal:** stop hardcoding the protocol's states/transitions in the demo. The
+authoritative definitions live in Python at
+[`vultron/core/states/`](../vultron/core/states/) — `rm.py` (RM), `em.py` (EM),
+`cs.py` (`CS_vfd` = the `vfd→Vfd→VFd→VFD` ladder, and `CS_pxa`). Each has a
+clean `create_*_machine()` factory exposing states + transitions uniformly.
+
+**Approach chosen (committed-JSON + CI drift check):** a Python exporter dumps
+those four machines to a committed JSON artifact; the demo imports it. The JSON
+is generated *occasionally* (only when the protocol changes), committed to git,
+and the demo imports it like any source file — so `npm run dev` never needs
+Python. A pytest drift detector fails CI if the committed JSON goes stale.
+
+**Artifact location:** `data/json/protocol_states.json` at the **repo root**
+(NOT under `ui/`), following the SSVC `data/json/` precedent (per the protocol
+maintainer). Living outside `ui/` matters because `ui/` does not exist on
+`main` — keeping the artifact + test in `vultron/`/`test/`/`data/` lets the
+drift test run on `main` independently of the demo.
+
+**Files already created (this session):**
+- [`vultron/scripts/export_states.py`](../vultron/scripts/export_states.py) —
+  the exporter (`build_payload()` is importable; `main()` writes the file).
+- [`test/test_demo_states_export.py`](../test/test_demo_states_export.py) —
+  drift detector + payload-shape guard.
+- [`pyproject.toml`](../pyproject.toml) — registers `export-demo-states`
+  entry point.
+- `data/json/protocol_states.json` — **NOT yet generated** (needs `uv`, absent
+  in-container). Generate with `uv run export-demo-states` outside the
+  container, then commit.
+
+**JSON shape:** `{ _README, rm, em, vfd, pxa }`, each machine =
+`{ initial, states[], transitions[{trigger,source,dest}] }`. The exporter is
+deterministic (no timestamps, fixed machine order) so the drift test can do a
+byte-exact compare.
+
+**Still TODO (the `ui/`-side refactor — not yet started):** replace the
+hardcoded RM/EM/VFD/PXA state lists and transition logic (in
+[`constants.ts`](src/constants.ts), [`types.ts`](src/types.ts),
+[`state/actionFilters.ts`](src/state/actionFilters.ts)) with reads from the
+imported JSON. Vite needs config to import from outside `ui/` — see Tooling
+note below.
+
+**Optional, deferred:** add `data/json/**` to the `paths:` triggers in
+`.github/workflows/python-app.yml` to also catch hand-edits of the artifact.
+
+### Branch / sync context
+- Work lives on **`feature/demo-ui`**. As of this session it was synced with
+  `main` (was 302 behind / 10 ahead → now level + ahead). `ui/` merged with
+  **zero** conflicts; the only merge conflict was a gitignored generated scan
+  file, resolved by keeping it deleted.
+- A **local** git identity is set for this repo: `Greg Strom
+  <gstrom@sei.cmu.edu>` (matches existing commit authorship).
+
+### Tooling constraint update (IMPORTANT)
+This container has **no `node`, `npm`, `python`, `python3`, `uv`, or `pip`** on
+PATH — only `jq` and `node_modules/.bin/*` shims (which still need a node
+runtime). Consequence: **the agent cannot run the exporter, pytest, or the Vite
+build/dev server in-container.** Those commands must be run by the user in their
+real environment. When something needs running, hand the user the exact
+commands rather than attempting them here.
+
+> Vite filesystem note: importing `data/json/protocol_states.json` (above the
+> `ui/` root) will require either `server.fs.allow` config in
+> [`vite.config.ts`](vite.config.ts) (currently bare/default) or copying the
+> JSON into `ui/` at build time. Decide this during the `ui/`-side refactor.
