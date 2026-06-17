@@ -61,17 +61,19 @@ _DEVLOGS_DIR: Path = _REPO_ROOT / "devlogs"
 
 #: Expected protocol eventTypes that must appear at least once in the
 #: case-actor log for a complete two-actor CVD run (AC-4.5).
+#: Values are ``MessageSemantics`` string values (StrEnum auto() → lowercase).
+#: - fix_ready/fix_deployed/published transitions are recorded as
+#:   ``add_participant_status_to_participant`` entries; invariant 15 checks
+#:   the actual CS state values within those snapshots.
 EXPECTED_EVENT_TYPES: frozenset[str] = frozenset(
     {
         "validate_report",
-        "accept_report",
-        "propose_embargo",
-        "accept_embargo",
-        "notify_fix_ready",
-        "notify_fix_deployed",
-        "notify_published",
+        "ack_report",
+        "invite_to_embargo_on_case",
+        "accept_invite_to_embargo_on_case",
+        "add_participant_status_to_participant",
         "close_case",
-        "add_note",
+        "add_note_to_case",
         "announce_case_ledger_entry",
     }
 )
@@ -365,15 +367,6 @@ def test_invariant_4_non_empty_payload_snapshot(
     )
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "EXPECTED_EVENT_TYPES uses legacy names that predate MessageSemantics "
-        "(e.g. 'accept_report', 'propose_embargo', 'add_note') and several "
-        "trees still lack canonical ledger writes for the missing event types. "
-        "Will pass once names are corrected and coverage is complete (#998)."
-    ),
-)
 @pytest.mark.case_ledger_invariants
 def test_invariant_5_expected_event_types_present(
     case_ledger_replicas: dict[str, list[dict]],
@@ -382,6 +375,8 @@ def test_invariant_5_expected_event_types_present(
 
     Checked against the ``case-actor`` replica (authoritative log).
     Falls back to any available replica when no ``case-actor`` key exists.
+    Promoted from xfail: EXPECTED_EVENT_TYPES corrected to use current
+    ``MessageSemantics`` values (#1020).
     """
     auth = _auth_entries(case_ledger_replicas)
     found = {_event_type(e) for e in auth}
@@ -729,4 +724,101 @@ def test_invariant_13_log_starts_at_genesis(
     assert first_index == 0, (
         f"Actor {actor_name!r}: first entry has logIndex={first_index}, "
         f"expected 0 (log is incomplete or not starting at genesis)"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Invariant 15 — CS-transition coverage
+# ---------------------------------------------------------------------------
+
+
+def _cs_observations_from_snap(snap: dict) -> tuple[bool, bool, bool]:
+    """Extract CS-transition observations from a ParticipantStatus payload.
+
+    Drills into the nested ``object`` / ``object_`` if the snapshot wraps a
+    ``ParticipantStatus`` inside an ``Add`` activity, then checks:
+
+    - ``vfd_state == "VFd"`` (fix_ready)
+    - ``vfd_state == "VFD"`` (fix_deployed)
+    - ``pxa_state`` first char ``"P"`` (published / public-aware)
+
+    Handles both camelCase and snake_case key variants.
+
+    Returns:
+        ``(fix_ready_seen, fix_deployed_seen, published_seen)``
+    """
+    if isinstance(snap.get("object"), dict):
+        snap = snap["object"]
+    elif isinstance(snap.get("object_"), dict):
+        snap = snap["object_"]
+
+    vfd_state = snap.get("vfdState") or snap.get("vfd_state")
+
+    case_status = snap.get("caseStatus") or snap.get("case_status")
+    pxa_state: str | None = None
+    if isinstance(case_status, dict):
+        pxa_state = case_status.get("pxaState") or case_status.get("pxa_state")
+
+    return (
+        vfd_state == "VFd",
+        vfd_state == "VFD",
+        isinstance(pxa_state, str) and pxa_state[:1] == "P",
+    )
+
+
+@pytest.mark.case_ledger_invariants
+def test_invariant_15_cs_state_transitions_observed(
+    case_ledger_replicas: dict[str, list[dict]],
+) -> None:
+    """All three key CS transitions are recorded in the authoritative log.
+
+    Inspects the ``payloadSnapshot`` of every
+    ``add_participant_status_to_participant`` entry in the case-actor log and
+    asserts that each of the following was observed at least once:
+
+    - ``vfd_state == "VFd"`` — fix_ready transition occurred.
+    - ``vfd_state == "VFD"`` — fix_deployed transition occurred.
+    - ``pxa_state`` whose first character is uppercase ``"P"`` —
+      published / public-aware transition reached.  Field presence alone is
+      insufficient; ``case_status`` may exist at baseline with a lowercase
+      ``pxa`` value.
+
+    Handles both ``snake_case`` and ``camelCase`` key variants defensively,
+    mirroring the approach used in invariants 9–11.
+
+    Spec: CLP-07.
+    """
+    auth = _auth_entries(case_ledger_replicas)
+    status_entries = [
+        e
+        for e in auth
+        if _event_type(e) == "add_participant_status_to_participant"
+    ]
+    assert status_entries, (
+        "No add_participant_status_to_participant entries found; "
+        "cannot check CS-transition invariant"
+    )
+
+    saw_fix_ready = saw_fix_deployed = saw_published = False
+    for entry in status_entries:
+        fix_ready, fix_deployed, published = _cs_observations_from_snap(
+            _payload(entry)
+        )
+        saw_fix_ready |= fix_ready
+        saw_fix_deployed |= fix_deployed
+        saw_published |= published
+
+    missing = []
+    if not saw_fix_ready:
+        missing.append("vfd_state == 'VFd' (fix_ready) never observed")
+    if not saw_fix_deployed:
+        missing.append("vfd_state == 'VFD' (fix_deployed) never observed")
+    if not saw_published:
+        missing.append(
+            "pxa_state starting with 'P' (published/public-aware) never observed"
+        )
+
+    assert not missing, (
+        "Missing CS-transition observations in "
+        "add_participant_status_to_participant entries:\n" + "\n".join(missing)
     )
