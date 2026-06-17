@@ -291,3 +291,61 @@ groups:
       NOT use sequentially predictable or human-chosen path segments when origin-binding
       integrity is required; see `notes/case-ledger-authority.md` for future
       improvement paths (secret nonce, CaseActor keypairs)
+- id: CLP-09
+  title: Commit Authorization and Coverage
+  specs:
+  - id: CLP-09-001
+    priority: MUST
+    statement: >-
+      Every call site that invokes the canonical commit operation MUST reach it only
+      through a role-gated composition that verifies, at the time of invocation, that
+      the active actor holds `CVDRole.CASE_MANAGER` for the case; this MUST be a
+      role-based check, not an identity comparison, even where the CaseActor and the
+      role holder happen to coincide today
+    rationale: >-
+      An audit of `CommitCaseLedgerEntryNode` call sites (Epic #788, issue #1021)
+      found that only one of roughly ten call sites guarded the commit, and it did
+      so with an ad hoc Python-level identity check outside the BT rather than a
+      role check inside it. The other call sites committed unconditionally. Stating
+      this as one vague authorization line (see BT-10-004) was not specific enough
+      to prevent the gap from accumulating call site by call site.
+  - id: CLP-09-002
+    priority: MUST_NOT
+    statement: >-
+      The canonical commit operation MUST NOT be invoked directly (bare, unguarded)
+      from any production call site outside the guarded-commit composition itself;
+      a registry- or grep-based test MUST assert that no such bare usage exists
+    verification: >-
+      A dedicated test enumerates known commit call sites (or greps for the
+      unguarded commit node's class name) and fails if any usage outside the
+      guarded-commit factory's own implementation is found.
+  - id: CLP-09-003
+    priority: MUST
+    statement: >-
+      Every protocol-significant use case or BT subtree (per BT-06-001) MUST
+      produce exactly one canonical commit; a coverage test MUST enumerate
+      protocol-significant entries (e.g., everything reachable from
+      `USE_CASE_MAP`) and assert each one reaches a commit, rather than relying
+      on manual audit to discover missing commits
+    rationale: >-
+      `validate_report`, `ack_report`, and `close_case` produced no canonical
+      ledger entry at all on `main` for an unknown span of time (issue #998/#1022).
+      Dispatch completeness is already enforced structurally for `USE_CASE_MAP`
+      (DR-02-002, UCORG-02-002); commit completeness had no equivalent structural
+      check and was found only by a manual re-audit.
+  - id: CLP-09-004
+    priority: MUST
+    statement: >-
+      When the same use-case class may be invoked with more than one receiving-actor
+      identity for a single logical activity (e.g., a relayed copy delivered to a
+      second participant), authorization for the commit MUST be evaluated per
+      invocation against the active actor's role, and MUST NOT be assumed from the
+      use-case class's identity or from the fact that earlier invocations were
+      authorized
+    rationale: >-
+      The `ack_report` flow in the two/three-actor demo invokes the same use case
+      once with the case actor as receiver and once with the finder as a relay
+      target; only the case-actor invocation may commit. This is the same shape
+      of bug that produced the original hash-chain fork in issue #923, and it
+      recurs at every new dual-invocation call site unless authorization is
+      re-evaluated per invocation rather than per use-case class.

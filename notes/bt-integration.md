@@ -1096,6 +1096,57 @@ overall flow readable from the tree structure alone.
 
 ---
 
+### Guarded Commit: Role-Gated Canonical Writes
+
+(ISSUE-1021, 2026-06-17; see `specs/case-ledger-processing.yaml` CLP-09 and
+`notes/case-ledger-authority.md` § "Commit Authorization and Coverage")
+
+Any canonical-write node (e.g., `CommitCaseLedgerEntryNode`) that may be
+reached from more than one actor context MUST be wrapped in a role-gated
+`Selector`, never invoked bare:
+
+```python
+Selector(
+    name="GuardedCommitCaseLedgerEntry",
+    memory=False,
+    children=[
+        Sequence(
+            children=[
+                CheckIsCaseManagerNode(case_id=case_id),
+                CommitCaseLedgerEntryNode(case_id=case_id),
+            ]
+        ),
+        py_trees.behaviours.Success(
+            name="CommitCaseLedgerEntrySkippedNotCaseManager"
+        ),
+    ],
+)
+```
+
+This is the same Selector/Sequence/Success idiom as the section above; the
+difference is what the condition checks. `CheckIsCaseManagerNode` resolves
+the case's `CVDRole.CASE_MANAGER` participant and compares it against the
+*actor active for this invocation* — never against the use-case class's
+identity, and never assumed from a previous invocation having passed.
+
+This matters specifically for use cases that can be invoked more than once
+for the same logical activity with different receiving actors (e.g.,
+`ack_report`'s case-actor invocation vs. its finder-relay invocation in the
+demo). Gating per invocation, inside the tree, is what makes it safe to wire
+the same shared subtree into both the trigger-side and received-side paths
+of such a use case — see CLP-09-004. Do not introduce `py_trees.decorators`
+for this; this codebase uses the Selector/Sequence/Success composite idiom
+exclusively (see also "Conditional BT Branches as Selector Composites"
+above).
+
+Wrap the pattern once as a reusable factory (e.g.
+`create_guarded_commit_case_ledger_entry_tree(case_id=None)`) rather than
+re-inlining the Selector at each call site, and migrate all existing bare
+`CommitCaseLedgerEntryNode` call sites to the factory — CLP-09-002 requires
+a test asserting no bare usage remains outside it.
+
+---
+
 ### Fan-out / SYNC Decomposition: Context Handoff Pattern
 
 (ISSUE-755, 2026-06-10)
