@@ -111,7 +111,9 @@ class AddNoteToCaseReceivedUseCase:
         )
 
         from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
+        from vultron.core.behaviors.case.nodes import (
+            create_guarded_commit_case_ledger_entry_tree,
+        )
         from vultron.core.use_cases.received.actor import _find_case_actor_id
 
         actor_id = request.receiving_actor_id
@@ -125,7 +127,7 @@ class AddNoteToCaseReceivedUseCase:
             )
             return
         BTBridge(datalayer=self._dl).execute_with_setup(
-            tree=CommitCaseLedgerEntryNode(case_id=case_id),
+            tree=create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
             actor_id=actor_id,
             activity=request,
             sync_port=self._sync_port,

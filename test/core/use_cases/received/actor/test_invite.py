@@ -415,6 +415,26 @@ class TestInviteActorUseCases:
         )
         dl.create(invitee)
         dl.create(case)
+        from vultron.core.states.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
+
+        case_actor_id = f"{case.id_}/actor"
+        dl.create(as_Service(id_=case_actor_id, context=case.id_))
+        case_manager_participant = CaseParticipant(
+            id_=f"{case.id_}/participants/case-actor-p",
+            attributed_to=case_actor_id,
+            context=case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(case_manager_participant)
+        case.case_participants.append(case_manager_participant.id_)
+        case.actor_participant_index[case_actor_id] = (
+            case_manager_participant.id_
+        )
+        dl.save(case)
         dl.create(invite)
 
         accept = rm_accept_invite_to_case_activity(
@@ -472,6 +492,23 @@ class TestInviteActorUseCases:
         dl.create(invitee)
         dl.create(case_actor)
         dl.create(case)
+        from vultron.core.states.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+
+        case_manager_participant = CaseParticipant(
+            id_=f"{case.id_}/participants/case-actor-p",
+            attributed_to=case_actor_id,
+            context=case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(case_manager_participant)
+        case.case_participants.append(case_manager_participant.id_)
+        case.actor_participant_index[case_actor_id] = (
+            case_manager_participant.id_
+        )
+        dl.save(case)
         dl.create(invite)
 
         first = _seed_ledger_entry(
@@ -559,6 +596,23 @@ class TestInviteActorUseCases:
         dl.create(invitee)
         dl.create(case_actor)
         dl.create(case)
+        from vultron.core.states.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+
+        case_manager_participant = CaseParticipant(
+            id_=f"{case.id_}/participants/case-actor-p",
+            attributed_to=case_actor_id,
+            context=case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(case_manager_participant)
+        case.case_participants.append(case_manager_participant.id_)
+        case.actor_participant_index[case_actor_id] = (
+            case_manager_participant.id_
+        )
+        dl.save(case)
         dl.create(invite)
 
         first = _seed_ledger_entry(
@@ -671,8 +725,25 @@ class TestInviteActorUseCases:
             attributed_to=invitee_id,
             context=case.id_,
         )
-        case.case_participants = [participant.id_]
-        case.actor_participant_index = {invitee_id: participant.id_}
+        from vultron.core.states.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+
+        case_manager_participant = CaseParticipant(
+            id_=f"{case.id_}/participants/case-actor-p",
+            attributed_to=case_actor_id,
+            context=case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        case.case_participants = [
+            participant.id_,
+            case_manager_participant.id_,
+        ]
+        case.actor_participant_index = {
+            invitee_id: participant.id_,
+            case_actor_id: case_manager_participant.id_,
+        }
         invite = rm_invite_to_case_activity(
             invitee,
             target=VulnerabilityCaseStub(id_=case.id_),
@@ -682,6 +753,7 @@ class TestInviteActorUseCases:
         dl.create(invitee)
         dl.create(case_actor)
         dl.create(participant)
+        dl.create(case_manager_participant)
         dl.create(case)
         dl.create(invite)
 
@@ -759,6 +831,23 @@ class TestInviteActorUseCases:
         dl.create(invitee)
         dl.create(case_actor)
         dl.create(case)
+        from vultron.core.states.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+
+        case_manager_participant = CaseParticipant(
+            id_=f"{case.id_}/participants/case-actor-p",
+            attributed_to=case_actor_id,
+            context=case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(case_manager_participant)
+        case.case_participants.append(case_manager_participant.id_)
+        case.actor_participant_index[case_actor_id] = (
+            case_manager_participant.id_
+        )
+        dl.save(case)
         dl.create(invite)
 
         _seed_ledger_entry(

@@ -32,14 +32,14 @@ Structure:
     EngageCaseBT (Sequence)
     ├─ CheckParticipantExists                        # Precondition: actor has a participant record
     ├─ TransitionParticipantRMtoAccepted             # Update RM state to ACCEPTED
-    ├─ CommitCaseLedgerEntryNode                        # Log entry → Announce fan-out (SYNC-02-002)
+    ├─ GuardedCommitCaseLedgerEntryBT                  # CaseManager-only canonical log fan-out
     ├─ CaptureCaseUpdateBroadcastExclusionsNode      # Resolve embargo-based exclusions
     └─ BroadcastCaseUpdateNode                       # Announce(VulnerabilityCase) → all participants
 
     DeferCaseBT (Sequence)
     ├─ CheckParticipantExists              # Precondition: actor has a participant record
     ├─ TransitionParticipantRMtoDeferred   # Update RM state to DEFERRED
-    └─ CommitCaseLedgerEntryNode              # Log entry → Announce fan-out (SYNC-02-002)
+    └─ GuardedCommitCaseLedgerEntryBT         # CaseManager-only canonical log fan-out
 
 Note: EvaluateCasePriority (in nodes.py) is the stub node for the outgoing
 direction — when the local actor decides whether to engage or defer. It is
@@ -55,7 +55,9 @@ from vultron.core.behaviors.case.engage_defer_trigger_tree import (
     defer_case_trigger_bt,
     engage_case_trigger_bt,
 )
-from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
+from vultron.core.behaviors.case.nodes import (
+    create_guarded_commit_case_ledger_entry_tree,
+)
 from vultron.core.behaviors.case.nodes.update import (
     BroadcastCaseUpdateNode,
     CaptureCaseUpdateBroadcastExclusionsNode,
@@ -102,7 +104,7 @@ def create_engage_case_tree(
             TransitionParticipantRMtoAccepted(
                 case_id=case_id, actor_id=actor_id
             ),
-            CommitCaseLedgerEntryNode(case_id=case_id),
+            create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
             CaptureCaseUpdateBroadcastExclusionsNode(case_id=case_id),
             BroadcastCaseUpdateNode(case_id=case_id),
         ],
@@ -138,7 +140,7 @@ def create_defer_case_tree(
             TransitionParticipantRMtoDeferred(
                 case_id=case_id, actor_id=actor_id
             ),
-            CommitCaseLedgerEntryNode(case_id=case_id),
+            create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
         ],
     )
 

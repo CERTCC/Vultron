@@ -733,12 +733,14 @@ def _make_embargo_case_with_actor(
     case_id: str,
     author_id: str,
     extra_participants: list[str] | None = None,
+    case_manager_actor_id: str | None = None,
 ) -> tuple[SqliteDataLayer, VultronCaseActor, VulnerabilityCase, EmbargoEvent]:
     """Return (dl, case_actor, case, embargo) ready for cascade tests.
 
     Also creates ``CaseParticipant`` objects so actor → participant lookups
     in the embargo handlers succeed.
     """
+    from vultron.core.states.roles import CVDRole
     from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 
     dl = SqliteDataLayer("sqlite:///:memory:")
@@ -770,6 +772,18 @@ def _make_embargo_case_with_actor(
         dl.create(pn)
 
     dl.create(case)
+    case_manager_participant = CaseParticipant(
+        id_=f"{case_id}/participants/case-actor-p",
+        attributed_to=case_manager_actor_id or case_actor_id,
+        context=case_id,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(case_manager_participant)
+    case.case_participants.append(case_manager_participant.id_)
+    case.actor_participant_index[case_manager_actor_id or case_actor_id] = (
+        case_manager_participant.id_
+    )
+    dl.save(case)
 
     embargo = EmbargoEvent(
         id_=f"{case_id}/embargo_events/e1",
@@ -789,7 +803,7 @@ class TestEmbargoLogEntryCascade:
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_add"
         dl, case_actor, case, embargo = _make_embargo_case_with_actor(
-            case_id, author_id
+            case_id, author_id, case_manager_actor_id=author_id
         )
         case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
@@ -898,13 +912,26 @@ class TestEmbargoLogEntryCascade:
         # Cascade must fire even on BT FAILURE.
         assert len(entries) == 1
 
-    def test_invite_to_embargo_commits_log_entry(self, make_payload):
-        """InviteToEmbargoOnCaseReceivedUseCase commits a CaseLedgerEntry."""
+    def test_invite_to_embargo_skips_commit_for_invitee_receiver(
+        self, make_payload
+    ):
+        """InviteToEmbargoOnCaseReceivedUseCase does NOT commit a ledger entry.
+
+        When the invitee receives the invite, the CASE_MANAGER gate inside the
+        guarded-commit subtree of invite_to_embargo_on_case_tree correctly
+        blocks the commit: the invitee is not the Case Manager.  The canonical
+        ledger entry for the invite-sent event is committed by the CaseActor on
+        the trigger side (when the invite is sent), not on the invitee's receive
+        side.
+        """
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_invite"
         invitee_id = "https://example.org/users/vendor"
         dl, case_actor, case, embargo = _make_embargo_case_with_actor(
-            case_id, author_id, extra_participants=[invitee_id]
+            case_id,
+            author_id,
+            extra_participants=[invitee_id],
+            case_manager_actor_id=author_id,
         )
 
         proposal = em_propose_embargo_activity(
@@ -915,23 +942,23 @@ class TestEmbargoLogEntryCascade:
         )
         dl.create(proposal)
 
-        # receiving_actor_id must be a participant actor so the handler can
-        # look up the participant's consent state.
+        # receiving_actor_id is the invitee — not the CaseActor/Case Manager.
         event = make_payload(proposal, receiving_actor_id=invitee_id)
         sync_port = SyncActivityAdapter(dl)
         InviteToEmbargoOnCaseReceivedUseCase(
             dl, event, sync_port=sync_port
         ).execute()
 
+        # No canonical ledger entry should be committed on the invitee side.
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
             if is_log_entry_model(obj)
             and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
-        assert len(entries) == 1
-        assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
-            "invite_to_embargo_on_case"
+        assert len(entries) == 0, (
+            "Invitee-side receipt must not commit a canonical ledger entry; "
+            "only the CaseActor commits (on the trigger/send side)."
         )
 
     def test_accept_invite_to_embargo_commits_log_entry(self, make_payload):
@@ -939,7 +966,7 @@ class TestEmbargoLogEntryCascade:
         coordinator_id = "https://example.org/users/coordinator"
         case_id = "https://example.org/cases/em_cas_accept"
         dl, case_actor, case, embargo = _make_embargo_case_with_actor(
-            case_id, coordinator_id
+            case_id, coordinator_id, case_manager_actor_id=coordinator_id
         )
         case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
@@ -981,7 +1008,7 @@ class TestEmbargoLogEntryCascade:
         coordinator_id = "https://example.org/users/coordinator"
         case_id = "https://example.org/cases/em_cas_reject"
         dl, case_actor, case, embargo = _make_embargo_case_with_actor(
-            case_id, coordinator_id
+            case_id, coordinator_id, case_manager_actor_id=coordinator_id
         )
 
         proposal = em_propose_embargo_activity(

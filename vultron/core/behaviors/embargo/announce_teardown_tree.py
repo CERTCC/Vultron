@@ -34,7 +34,9 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
+from vultron.core.behaviors.case.nodes import (
+    create_guarded_commit_case_ledger_entry_tree,
+)
 from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoTeardownNode,
     CreateAndStoreInviteNode,
@@ -120,7 +122,7 @@ def add_embargo_to_case_tree(
         children=[
             ValidateCaseExistsNode(case_id=case_id),
             SetEmbargoActiveNode(case_id=case_id, embargo_id=embargo_id),
-            CommitCaseLedgerEntryNode(case_id=case_id),
+            create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
         ],
     )
     logger.info(
@@ -162,7 +164,7 @@ def invite_to_embargo_on_case_tree(
             CreateAndStoreInviteNode(),
             OptionalLookupParticipantNode(case_id=case_id),
             UpdateParticipantEmbargoPecNode(pec_trigger=PEC_Trigger.INVITE),
-            CommitCaseLedgerEntryNode(case_id=case_id),
+            create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
         ],
     )
     logger.info(
@@ -206,7 +208,7 @@ def accept_invite_to_embargo_tree(
             RecordParticipantAcceptanceNode(
                 case_id=case_id, embargo_id=embargo_id
             ),
-            CommitCaseLedgerEntryNode(case_id=case_id),
+            create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
         ],
     )
     logger.info(
@@ -252,7 +254,7 @@ def reject_invite_to_embargo_tree(
             OptionalLookupParticipantNode(case_id=case_id),
             RemoveStaleAcceptanceNode(embargo_id=embargo_id or ""),
             UpdateParticipantEmbargoPecNode(pec_trigger=PEC_Trigger.DECLINE),
-            CommitCaseLedgerEntryNode(case_id=case_id),
+            create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
         ],
     )
     logger.info(

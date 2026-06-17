@@ -228,3 +228,35 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
             result.feedback_message,
         )
         return Status.FAILURE
+
+
+def create_guarded_commit_case_ledger_entry_tree(
+    case_id: str | None = None,
+) -> py_trees.composites.Selector:
+    """Create a guarded commit subtree for canonical case-ledger entries.
+
+    The commit runs only when the executing actor holds ``CVDRole.CASE_MANAGER``
+    for the case. Non-manager actors take the success fallback and skip the
+    canonical commit silently.
+    """
+    from vultron.core.behaviors.case.nodes.conditions import (
+        CheckIsCaseManagerNode,
+    )
+
+    return py_trees.composites.Selector(
+        name="GuardedCommitCaseLedgerEntryBT",
+        memory=False,
+        children=[
+            py_trees.composites.Sequence(
+                name="CommitIfCaseManager",
+                memory=False,
+                children=[
+                    CheckIsCaseManagerNode(case_id=case_id),
+                    CommitCaseLedgerEntryNode(case_id=case_id),
+                ],
+            ),
+            py_trees.behaviours.Success(
+                name="CommitCaseLedgerEntrySkippedNotCaseManager"
+            ),
+        ],
+    )

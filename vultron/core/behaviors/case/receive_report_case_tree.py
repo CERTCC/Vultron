@@ -43,7 +43,7 @@ Structure (CM-14 canonical order):
        ├─ CreateCaseActorNode            # Spawn Case Actor; write case_actor_id
        ├─ SendOfferCaseManagerRoleNode   # Offer CASE_MANAGER role to Case Actor
        ├─ UpdateActorOutbox (Offer)      # Flush Offer to outbox
-       └─ CommitCaseLedgerEntryNode         # Log entry → Announce fan-out (SYNC-02-002)
+       └─ GuardedCommitCaseLedgerEntryBT    # CaseManager-only canonical log fan-out
 
 Note: ``CreateCaseActivity`` and ``UpdateActorOutbox`` are intentionally placed
 *before* ``CreateCaseParticipantNode``.  This ensures that the reporter
@@ -83,8 +83,8 @@ from vultron.core.behaviors.case.embargo_tree import (
 )
 from vultron.core.behaviors.case.nodes import (
     CheckCaseExistsForReport,
-    CommitCaseLedgerEntryNode,
     UpdateActorOutbox,
+    create_guarded_commit_case_ledger_entry_tree,
 )
 from vultron.core.behaviors.report.nodes import (
     CreateCaseActivity,
@@ -185,8 +185,8 @@ def create_receive_report_case_tree(
             SendOfferCaseManagerRoleNode(),
             UpdateActorOutbox(name="UpdateActorOutboxOffer"),
             # case_id is not known at build time; CreateCaseNode writes it to
-            # the blackboard so CommitCaseLedgerEntryNode can read it here.
-            CommitCaseLedgerEntryNode(),
+            # the blackboard so the guarded commit subtree can read it here.
+            create_guarded_commit_case_ledger_entry_tree(),
         ],
     )
 

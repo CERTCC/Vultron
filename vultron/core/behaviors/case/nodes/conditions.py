@@ -27,9 +27,14 @@ constructing the tree would raise ``AttributeError`` before any BT node runs,
 making a runtime validation node unreachable and redundant.
 """
 
+from typing import Any
+
+import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerCondition
+from vultron.core.models.protocols import is_case_model
+from vultron.core.use_cases._helpers import _resolve_case_manager_id
 
 
 class CheckCaseAlreadyExists(DataLayerCondition):
@@ -138,3 +143,79 @@ class CheckCaseExistsForReport(DataLayerCondition):
                 f"{self.name}: Error checking case existence: {e}"
             )
             return Status.FAILURE
+
+
+class CheckIsCaseManagerNode(DataLayerCondition):
+    """Check whether the executing actor is the case's CASE_MANAGER.
+
+    Reads ``case_id`` and ``actor_id`` from the blackboard, resolves the
+    case's CASE_MANAGER participant via ``_resolve_case_manager_id``, and
+    returns ``SUCCESS`` only when ``actor_id`` matches that participant's
+    ``attributed_to`` actor ID.
+    """
+
+    def __init__(
+        self, case_id: str | None = None, name: str | None = None
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                f"{self.name}: DataLayer or actor_id not available"
+            )
+            return Status.FAILURE
+
+        try:
+            case_id = self._case_id or self.blackboard.get("case_id")
+        except KeyError:
+            case_id = self._case_id
+
+        if not case_id:
+            self.logger.debug(
+                f"{self.name}: no case_id available — cannot check"
+                " CASE_MANAGER role"
+            )
+            return Status.FAILURE
+
+        case = self.datalayer.read(case_id)
+        if case is None:
+            self.logger.warning(
+                f"{self.name}: case '{case_id}' not found in DataLayer"
+            )
+            return Status.FAILURE
+        if not is_case_model(case):
+            self.logger.warning(
+                f"{self.name}: object '{case_id}' is not a VulnerabilityCase"
+            )
+            return Status.FAILURE
+
+        manager_id = _resolve_case_manager_id(case, self.datalayer)
+        if manager_id is None:
+            self.logger.debug(
+                f"{self.name}: no CASE_MANAGER found for case '{case_id}'"
+            )
+            return Status.FAILURE
+
+        if manager_id == self.actor_id:
+            self.logger.debug(
+                f"{self.name}: actor '{self.actor_id}' is CASE_MANAGER for"
+                f" case '{case_id}'"
+            )
+            return Status.SUCCESS
+
+        self.logger.debug(
+            "%s: actor '%s' is not CASE_MANAGER for case '%s' (manager=%s)",
+            self.name,
+            self.actor_id,
+            case_id,
+            manager_id,
+        )
+        return Status.FAILURE

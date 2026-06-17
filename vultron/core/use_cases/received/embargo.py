@@ -180,7 +180,9 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
         # Always commit a log entry regardless of BT result.  FAILURE means
         # the embargo was already cleared or only in proposed_embargoes —
         # both are non-error outcomes that still require fan-out (PCR-08-003).
-        from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
+        from vultron.core.behaviors.case.nodes import (
+            create_guarded_commit_case_ledger_entry_tree,
+        )
         from vultron.core.use_cases.received.actor import _find_case_actor_id
 
         commit_actor_id = _find_case_actor_id(self._dl, case_id)
@@ -188,7 +190,9 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
             commit_actor_id = request.receiving_actor_id
         if commit_actor_id is not None:
             BTBridge(datalayer=self._dl).execute_with_setup(
-                tree=CommitCaseLedgerEntryNode(case_id=case_id),
+                tree=create_guarded_commit_case_ledger_entry_tree(
+                    case_id=case_id
+                ),
                 actor_id=commit_actor_id,
                 activity=request,
                 sync_port=self._sync_port,

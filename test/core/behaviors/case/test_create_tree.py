@@ -37,6 +37,22 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.create_tree import create_create_case_tree
 
 
+def _commit_as_case_actor(datalayer, case_id, create_case_activity):
+    """Run the guarded commit BT as the CaseActor created by the vendor tree."""
+    from vultron.core.behaviors.case.nodes.lifecycle import (
+        create_guarded_commit_case_ledger_entry_tree,
+    )
+    from vultron.core.use_cases._helpers import _find_case_actor_id
+
+    case_actor_id = _find_case_actor_id(datalayer, case_id)
+    assert case_actor_id is not None, "CaseActor not found after vendor tree"
+    BTBridge(datalayer=datalayer).execute_with_setup(
+        tree=create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
+        actor_id=case_actor_id,
+        activity=create_case_activity,
+    )
+
+
 @pytest.fixture
 def datalayer():
     return SqliteDataLayer("sqlite:///:memory:")
@@ -352,6 +368,7 @@ def test_create_case_tree_records_case_created_event(
     bridge.execute_with_setup(
         tree=tree, actor_id=actor.id_, activity=create_case_activity
     )
+    _commit_as_case_actor(datalayer, case_obj.id_, create_case_activity)
 
     entries = [
         e
@@ -373,6 +390,7 @@ def test_create_case_tree_case_created_event_uses_case_id(
     bridge.execute_with_setup(
         tree=tree, actor_id=actor.id_, activity=create_case_activity
     )
+    _commit_as_case_actor(datalayer, case_obj.id_, create_case_activity)
 
     entries = [
         e
@@ -401,6 +419,7 @@ def test_create_case_tree_records_case_created_from_offer(
     bridge.execute_with_setup(
         tree=tree, actor_id=actor.id_, activity=create_case_activity
     )
+    _commit_as_case_actor(datalayer, case_obj.id_, create_case_activity)
 
     stored = datalayer.read(case_obj.id_)
     assert stored is not None
@@ -425,6 +444,7 @@ def test_create_case_tree_no_offer_received_event_without_in_reply_to(
     bridge.execute_with_setup(
         tree=tree, actor_id=actor.id_, activity=create_case_activity
     )
+    _commit_as_case_actor(datalayer, case_obj.id_, create_case_activity)
 
     stored = datalayer.read(case_obj.id_)
     assert stored is not None
@@ -449,6 +469,7 @@ def test_create_case_tree_canonical_ledger_entry_has_valid_hash(
     bridge.execute_with_setup(
         tree=tree, actor_id=actor.id_, activity=create_case_activity
     )
+    _commit_as_case_actor(datalayer, case_obj.id_, create_case_activity)
 
     entries = [
         e
@@ -479,6 +500,7 @@ def test_create_case_tree_events_have_trusted_timestamps(
     bridge.execute_with_setup(
         tree=tree, actor_id=actor.id_, activity=create_case_activity
     )
+    _commit_as_case_actor(datalayer, case_obj.id_, create_case_activity)
 
     entries = [
         e

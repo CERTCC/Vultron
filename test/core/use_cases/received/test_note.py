@@ -456,6 +456,23 @@ class TestNoteUseCases:
             "https://example.org/participants/p-le1-finder"
         )
         dl.create(case)
+        from vultron.core.states.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+
+        case_manager_participant = CaseParticipant(
+            id_=f"{case_id}/participants/case-actor-p",
+            attributed_to=case_actor_id,
+            context=case_id,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(case_manager_participant)
+        case.case_participants.append(case_manager_participant.id_)
+        case.actor_participant_index[case_actor_id] = (
+            case_manager_participant.id_
+        )
+        dl.save(case)
 
         note = as_Note(
             id_="https://example.org/notes/note_le1",
@@ -516,6 +533,23 @@ class TestNoteUseCases:
             "https://example.org/participants/p-le2-finder"
         )
         dl.create(case)
+        from vultron.core.states.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+
+        case_manager_participant = CaseParticipant(
+            id_=f"{case_id}/participants/case-actor-p",
+            attributed_to=case_actor_id,
+            context=case_id,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(case_manager_participant)
+        case.case_participants.append(case_manager_participant.id_)
+        case.actor_participant_index[case_actor_id] = (
+            case_manager_participant.id_
+        )
+        dl.save(case)
 
         note = as_Note(
             id_="https://example.org/notes/note_le2",

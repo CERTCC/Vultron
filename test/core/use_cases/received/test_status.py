@@ -282,6 +282,8 @@ class TestParticipantStatusLogEntryCascade:
     """CaseLedgerEntry cascade for AddParticipantStatusToParticipantReceivedUseCase."""
 
     def _make_dl(self, case_id: str, actor_id: str) -> tuple:
+        from vultron.core.states.roles import CVDRole
+
         dl = SqliteDataLayer("sqlite:///:memory:")
         case_actor_id = f"{case_id}/actor"
         case_actor = VultronCaseActor(
@@ -301,9 +303,22 @@ class TestParticipantStatusLogEntryCascade:
             name="Status Cascade Case",
             attributed_to=actor_id,
         )
+        case_manager_participant_id = f"{case_id}/participants/case-actor-p"
+        case.case_participants.append(case_manager_participant_id)
+        case.actor_participant_index[case_actor_id] = (
+            case_manager_participant_id
+        )
         case.case_participants.append(f"{case_id}/participants/p1")
         case.actor_participant_index[actor_id] = f"{case_id}/participants/p1"
         dl.create(case)
+
+        case_manager_participant = CaseParticipant(
+            id_=case_manager_participant_id,
+            context=case_id,
+            attributed_to=case_actor_id,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(case_manager_participant)
 
         participant = CaseParticipant(
             id_=f"{case_id}/participants/p1",
