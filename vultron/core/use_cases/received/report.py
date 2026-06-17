@@ -3,6 +3,12 @@
 import logging
 from typing import TYPE_CHECKING
 
+from py_trees.common import Status
+
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes import (
+    create_guarded_commit_case_ledger_entry_tree,
+)
 from vultron.core.models.events.report import (
     AckReportReceivedEvent,
     CloseReportReceivedEvent,
@@ -12,6 +18,7 @@ from vultron.core.models.events.report import (
     ValidateReportReceivedEvent,
 )
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.use_cases.received.actor import _find_case_actor_id
 from vultron.core.use_cases.received.case import (
     ValidateCaseUseCase,
 )
@@ -239,14 +246,6 @@ class ValidateReportReceivedUseCase:
         self._sync_port = sync_port
 
     def execute(self) -> None:
-        from py_trees.common import Status
-
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.case.nodes import (
-            create_guarded_commit_case_ledger_entry_tree,
-        )
-        from vultron.core.use_cases.received.actor import _find_case_actor_id
-
         request = self._request
         actor_id = request.actor_id
         report_id = request.report_id
