@@ -117,3 +117,25 @@ class _ReportsMixin:
                 activity.id_,
             )
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
+    def ack_report(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a ``Read(Offer(Report))`` ack-report activity."""
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Read,
+        )
+
+        offer = cast(Any, self._dl.read(offer_id))
+        activity = as_Read(object_=offer, actor=actor, to=to)
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "ack_report: activity '%s' already exists — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)

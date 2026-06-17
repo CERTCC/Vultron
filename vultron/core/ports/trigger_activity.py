@@ -150,6 +150,20 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def ack_report(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a ``Read(Offer(Report))`` ack-report activity.
+
+        Per ADR-0021 CLP-10-001: routes the activity to the Case Actor so the
+        CaseActor can commit a canonical ledger entry for this event.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
     # -----------------------------------------------------------------------
     # Cases
     # -----------------------------------------------------------------------
@@ -162,6 +176,20 @@ class TriggerActivityPort(Protocol):
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist a ``Create(VulnerabilityCase)`` activity.
 
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def close_case(
+        self,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a ``Leave(VulnerabilityCase)`` close-case activity.
+
+        Per ADR-0021 CLP-10-001: routes the activity to the Case Actor so the
+        CaseActor can commit a canonical ledger entry.
         Returns ``(activity_id, activity_dict)``.
         """
         ...

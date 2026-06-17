@@ -377,26 +377,17 @@ _EVENT_TYPE_PARAMS = [
     ),
     pytest.param(
         "ack_report",
-        marks=pytest.mark.xfail(
-            strict=False,
-            reason="Open: #1026 follow-on. Trigger tree lacks emit node and received UC lacks guarded commit.",
-        ),
+        marks=[],
         id="ack_report",
     ),
     pytest.param(
         "invite_to_embargo_on_case",
-        marks=pytest.mark.xfail(
-            strict=False,
-            reason="Open: #1026 follow-on. Trigger tree lacks emit node and received UC lacks guarded commit.",
-        ),
+        marks=[],
         id="invite_to_embargo_on_case",
     ),
     pytest.param(
         "accept_invite_to_embargo_on_case",
-        marks=pytest.mark.xfail(
-            strict=False,
-            reason="Open: #1026 follow-on. Trigger tree lacks emit node and received UC lacks guarded commit.",
-        ),
+        marks=[],
         id="accept_invite_to_embargo_on_case",
     ),
     pytest.param(
@@ -406,18 +397,12 @@ _EVENT_TYPE_PARAMS = [
     ),
     pytest.param(
         "close_case",
-        marks=pytest.mark.xfail(
-            strict=False,
-            reason="Open: #1026 follow-on. Trigger tree lacks emit node and received UC lacks guarded commit.",
-        ),
+        marks=[],
         id="close_case",
     ),
     pytest.param(
         "add_note_to_case",
-        marks=pytest.mark.xfail(
-            strict=False,
-            reason="Open: #1026 follow-on. Trigger tree lacks emit node and received UC lacks guarded commit.",
-        ),
+        marks=[],
         id="add_note_to_case",
     ),
 ]

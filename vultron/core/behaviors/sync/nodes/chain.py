@@ -45,6 +45,8 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("TentativeReject", "Offer"),
     # Reject(Offer(VulnerabilityReport)) — close_report (RC).
     ("Reject", "Offer"),
+    # Read(Offer(VulnerabilityReport)) — ack_report (RK message, ADR-0021).
+    ("Read", "Offer"),
     ("Add", "Note"),
     ("Add", "ParticipantStatus"),
     ("Add", "EmbargoEvent"),

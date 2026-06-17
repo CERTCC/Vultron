@@ -114,21 +114,37 @@ class AddNoteToCaseReceivedUseCase:
         from vultron.core.behaviors.case.nodes import (
             create_guarded_commit_case_ledger_entry_tree,
         )
-        from vultron.core.use_cases.received.actor import _find_case_actor_id
+        from vultron.core.use_cases._helpers import _find_case_actor_id
 
-        actor_id = request.receiving_actor_id
-        if actor_id is None:
-            actor_id = _find_case_actor_id(self._dl, case_id)
-        if actor_id is None:
+        case_actor_id = _find_case_actor_id(self._dl, case_id)
+        if case_actor_id is None:
             logger.warning(
                 "add_note_to_case: cannot resolve CaseActor for case '%s'"
                 " — skipping log entry (PCR-08-003)",
                 case_id,
             )
             return
+
+        receiving_actor_id = request.receiving_actor_id
+        if receiving_actor_id is None:
+            logger.debug(
+                "add_note_to_case: missing receiving_actor_id"
+                " — skipping commit"
+            )
+            return
+
+        if receiving_actor_id != case_actor_id:
+            logger.debug(
+                "add_note_to_case: receiving actor '%s' is not the CaseActor"
+                " for case '%s' — skipping commit (CLP-10-003)",
+                receiving_actor_id,
+                case_id,
+            )
+            return
+
         BTBridge(datalayer=self._dl).execute_with_setup(
             tree=create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
-            actor_id=actor_id,
+            actor_id=receiving_actor_id,
             activity=request,
             sync_port=self._sync_port,
         )

@@ -40,6 +40,7 @@ from vultron.core.models.events.report import (
     CreateReportReceivedEvent,
     InvalidateReportReceivedEvent,
 )
+from vultron.core.behaviors.report.nodes.emit import EmitAckReportActivity
 from vultron.core.behaviors.report.nodes.rm_transitions import (
     TransitionCaseParticipantRMtoClosed,
     TransitionCaseParticipantRMtoInvalid,
@@ -100,10 +101,11 @@ def create_ack_report_received_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the AckReportReceived workflow.
 
-    Handles receipt of a ``Read(VulnerabilityReport)`` (AckReport) activity.
+    Handles receipt of a ``Read(Offer(Report))`` (AckReport) activity.
 
     Steps (Sequence):
     1. Store AckReport activity idempotently.
+    2. Emit AckReport to CaseActor (Selector — graceful no-op if no CaseActor).
 
     Args:
         request: The parsed inbound domain event.
@@ -112,6 +114,8 @@ def create_ack_report_received_tree(
         Root node of the ``AckReportReceivedBT`` Sequence.
     """
     activity_id = request.activity_id or ""
+    offer_id = request.offer_id or activity_id
+    report_id = request.report_id or ""
 
     root = py_trees.composites.Sequence(
         name="AckReportReceivedBT",
@@ -121,6 +125,17 @@ def create_ack_report_received_tree(
                 activity_id=activity_id,
                 activity_obj=request.activity,
                 label="AckReport",
+            ),
+            py_trees.composites.Selector(
+                name="MaybeEmitAckToCaseActor",
+                memory=False,
+                children=[
+                    EmitAckReportActivity(
+                        offer_id=offer_id,
+                        report_id=report_id,
+                    ),
+                    py_trees.behaviours.Success(name="NoEmitFallback"),
+                ],
             ),
         ],
     )

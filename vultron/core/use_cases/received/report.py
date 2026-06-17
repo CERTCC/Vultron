@@ -371,22 +371,34 @@ class InvalidateReportReceivedUseCase:
 
 class AckReportReceivedUseCase:
     def __init__(
-        self, dl: CasePersistence, request: AckReportReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: AckReportReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: AckReportReceivedEvent = request
+        self._sync_port = sync_port
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         from py_trees.common import Status
 
         from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.case.nodes import (
+            create_guarded_commit_case_ledger_entry_tree,
+        )
         from vultron.core.behaviors.report.received_report_trees import (
             create_ack_report_received_tree,
         )
 
         request = self._request
         tree = create_ack_report_received_tree(request)
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
+        )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=request.actor_id,
@@ -399,6 +411,60 @@ class AckReportReceivedUseCase:
                 request.activity_id,
                 reason or result.feedback_message or "",
             )
+
+        # Pre-flight guard + guarded commit (ADR-0021, CLP-10-002, CLP-10-003)
+        report_id = request.report_id
+        if report_id is None:
+            logger.debug(
+                "AckReportReceivedUseCase: missing report_id — skipping commit"
+            )
+            return
+
+        case = self._dl.find_case_by_report_id(report_id)
+        if case is None:
+            logger.debug(
+                "AckReportReceivedUseCase: no case found for report '%s'"
+                " — skipping commit",
+                report_id,
+            )
+            return
+
+        case_id = getattr(case, "id_", None)
+        if case_id is None:
+            return
+
+        case_actor_id = _find_case_actor_id(self._dl, case_id)
+        if case_actor_id is None:
+            logger.warning(
+                "AckReportReceivedUseCase: cannot resolve CaseActor for case"
+                " '%s' — skipping commit",
+                case_id,
+            )
+            return
+
+        receiving_actor_id = request.receiving_actor_id
+        if receiving_actor_id is None:
+            logger.debug(
+                "AckReportReceivedUseCase: missing receiving_actor_id"
+                " — skipping commit"
+            )
+            return
+
+        if receiving_actor_id != case_actor_id:
+            logger.debug(
+                "AckReportReceivedUseCase: receiving actor '%s' is not the"
+                " CaseActor for case '%s' — skipping commit (CLP-10-003)",
+                receiving_actor_id,
+                case_id,
+            )
+            return
+
+        BTBridge(datalayer=self._dl).execute_with_setup(
+            tree=create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
+            actor_id=receiving_actor_id,
+            activity=request,
+            sync_port=self._sync_port,
+        )
 
 
 class CloseReportReceivedUseCase:
